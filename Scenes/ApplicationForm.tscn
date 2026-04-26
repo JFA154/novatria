@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://v2hjtwy4t4dy"]
+
+[ext_resource type="Script" uid="uid://u7tj2bb07fbh" path="res://Scripts/application_form.gd" id="1_sov1t"]
+
+[sub_resource type="CanvasTexture" id="CanvasTexture_sov1t"]
+specular_color = Color(0.77029896, 0.33899873, 0.5766154, 1)
+
+[node name="ApplicationForm" type="Control" unique_id=552608699]
+layout_mode = 3
+anchor_right = 0.24400002
+anchor_bottom = 0.49600002
+offset_right = 0.055992126
+offset_bottom = -0.040008545
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_sov1t")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=636051907]
+modulate = Color(1, 0.5372549, 1, 1)
+position = Vector2(51.75, 59.25)
+scale = Vector2(104.5, 119.5)
+texture = SubResource("CanvasTexture_sov1t")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=154609067]
+layout_mode = 0
+offset_right = 103.0
+offset_bottom = 116.0
+alignment = 2
+
+[node name="Name" type="Label" parent="VBoxContainer" unique_id=1913133456]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+
+[node name="Country" type="Label" parent="VBoxContainer" unique_id=299733503]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+
+[node name="Ideology" type="Label" parent="VBoxContainer" unique_id=1050258512]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+
+[node name="Skills" type="Label" parent="VBoxContainer" unique_id=2018014253]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+
+[node name="WageDemand" type="Label" parent="VBoxContainer" unique_id=735394042]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=1040381362]
+layout_mode = 2
+alignment = 1
+
+[node name="AcceptBtn" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=540483951]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Accept"
+
+[node name="RejectBtn" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1973688767]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Reject"
+
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/AcceptBtn" to="." method="_on_accept_btn_pressed"]
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/RejectBtn" to="." method="_on_reject_btn_pressed"]

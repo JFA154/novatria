@@ -1,0 +1,20 @@
+[
+	
+{ 
+	"name": "Maria Santos", 
+	"country": "Brazil", 
+	"ideology": "collectivist", 
+	"skills": ["farming", "construction"], 
+	"wage_demand" : 1000
+},
+	
+{ "name": "Erik Lindqvist", "country": "Sweden", "ideology": "libertarian", "skills": ["engineering", "logistics"], "wage_demand" : 1000},
+{ "name": "Amara Diallo", "country": "Senegal", "ideology": "collectivist", "skills": ["medicine", "teaching"], "wage_demand" : 1000},
+{ "name": "Tomasz Wicniewski", "country": "Poland", "ideology": "libertarian", "skills": ["carpentry", "mechanics"], "wage_demand" : 1000},
+{ "name": "Priya Nair", "country": "India", "ideology": "collectivist", "skills": ["farming", "medicine"], "wage_demand" : 1000},
+{ "name": "James Okafor", "country": "Nigeria", "ideology": "libertarian", "skills": ["trading", "logistics"], "wage_demand" : 1000},
+{ "name": "Lena Bauer", "country": "Germany", "ideology": "libertarian", "skills": ["engineering", "finance"], "wage_demand" : 1000},
+{ "name": "Yuki Tanaka", "country": "Japan", "ideology": "collectivist", "skills": ["construction", "teaching"], "wage_demand" : 1000},
+{ "name": "Carlos Mendez", "country": "Mexico", "ideology": "collectivist", "skills": ["farming", "carpentry"], "wage_demand" : 1000},
+{ "name": "Fatima Al-Rashid", "country": "Jordan", "ideology": "libertarian", "skills": ["medicine", "trading"], "wage_demand" : 1000}
+]
