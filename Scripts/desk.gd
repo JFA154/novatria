@@ -9,6 +9,7 @@ var application_form = preload("res://Scenes/ApplicationForm.tscn")
 var active_documents : Array = []
 
 @export var max_app_per_day : int = 2
+@export var freq_of_pay : int = 3
 
 func _ready():
 	GameState.GeneratePioneerApplication()
@@ -34,8 +35,10 @@ func NullifyCD(instance):
 		$NextDayBtn.disabled = false
 
 
-func _on_NextDayBtn_pressed() -> void:
-	GameState.money -= 10
+func _on_NextDayBtn_pressed():
+	if GameState.days % freq_of_pay == 0:
+		GameState.money -= CalculateTotalWages()
+	
 	GameState.days += 1
 	
 	var number_of_app : int = randi() % (max_app_per_day + 1)
@@ -57,3 +60,11 @@ func _on_NextDayBtn_pressed() -> void:
 func _on_pioneers_disp_btn_pressed():
 	PioneerList.refresh()
 	PioneerList.visible = true
+	
+func CalculateTotalWages():
+	var total_wages : int = 0
+	
+	for pioneer in GameState.pioneers:
+		total_wages += pioneer["wage_demand"]
+		
+	return total_wages

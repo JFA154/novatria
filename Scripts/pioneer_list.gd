@@ -28,18 +28,6 @@ func _on_pioneer_pressed(pioneer):
 	for key in pioneer:
 		var label = Label.new()
 		
-		#if pioneer[key] is Array:
-			#pioneer[key] = ", ".join(pioneer[key])
-		#
-		#if key == "name":
-			#label.text = pioneer[key]
-		#elif key == "wage_demand":
-			#label.text = "£" + str(int(pioneer[key]))
-		#elif pioneer[key] is float and pioneer[key] == int(pioneer[key]):
-			#label.text = key + ": " + str(int(pioneer[key]))
-		#else:
-			#label.text = key + ": " + str(pioneer[key])
-		
 		label.text = PioneerInfo(key, pioneer)
 		info_container.add_child(label)
 		
