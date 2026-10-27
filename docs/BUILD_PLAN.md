@@ -218,3 +218,32 @@ milestone so every milestone is a checkout-able state.
 - All milestones are built in one session with a commit per milestone,
   instead of pausing for manual testing between them, because the session
   runs unattended. Each milestone is verified by Playwright tests instead.
+
+## Content notes the engine must honour (from the content author)
+
+The real town is Ommelveer (`content/town-data.js`, validated by
+`content/validate.cjs`). Decisions taken there that bind later milestones:
+
+1. Seeds planted by clock effects use `npc` or `location` triggers, never a
+   fixed day, because the day a clock completes is unknown.
+2. Every clock completion adds its own rumour through `addRumour`. The world
+   tick must not add a second one for the same completion.
+3. No clock resolves a thread (that would hand out story points for things
+   the world did). One clock sets `thr_bridge_charter` to `failed`.
+4. Loose-end seeds use `trigger: "day"`; `dayOffset` counts from day 1 of
+   the game. The `enemy` loose end has `link: null` and always creates a new
+   NPC. `newNpc` fields contain no placeholders.
+5. Location types are open-ended (the Old Piers are `"riverbank"`). The
+   plausibility check must accept unknown types and fall back to a generic
+   judgement.
+6. Clocks from different factions can contradict (arrest an NPC another
+   clock already sent away). `npcStatus` must be a no-op for NPCs whose
+   status is already `gone` or `dead`.
+7. Flags used by content: `bridgeCharterSigned`, `riverUnwatched`.
+   `setFlag` may never overwrite `priceMultiplier` or `weather`.
+8. The style-guide example turns in SPEC.md section 9 mention Mara and the
+   Crooked Lantern, which do not exist in Ommelveer. Keep the examples word
+   for word but introduce them in the system prompt with: "EXAMPLES (from a
+   different town; none of these people or places exist in this game):".
+9. The dead tally clerk Jouke Feikema is referenced in text only and is not
+   an NPC record.
