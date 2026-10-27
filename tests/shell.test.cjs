@@ -355,8 +355,9 @@ s.test('/sheet /people /journal /places /debug switch the panel', async h => {
   assert.match(dbg, /Faction clocks/);
   await sendText(page, '/debug');
   assert.equal(await page.locator('#tab-debug').count(), 0);
+  const narrBefore = await page.locator('#feed .f-narr').count();
   await sendText(page, '/look');
-  assert.match(await page.textContent('#feed .f-notice:last-child'), /later build/);
+  assert.equal(await page.locator('#feed .f-narr').count(), narrBefore + 1, '/look narrates the scene');
 });
 
 s.test('/undo restores the exact previous state', async h => {

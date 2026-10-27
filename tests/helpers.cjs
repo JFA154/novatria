@@ -5,27 +5,9 @@
 const path = require('path');
 const { chromium } = require('playwright');
 
-const fs = require('fs');
-
 const ROOT = path.resolve(__dirname, '..');
 const GAME_PATH = path.resolve(ROOT, 'index.html');
 const GAME_URL = 'file://' + GAME_PATH;
-const CONTENT_PATH = path.resolve(ROOT, 'content', 'town-data.js');
-const CONTENT_URL = 'http://novatria.test/index.html';
-const BEGIN = '// ===== BEGIN CONTENT =====';
-const END = '// ===== END CONTENT =====';
-/* With NOVATRIA_CONTENT=1 every page is index.html with content/town-data.js
-   pasted between the BEGIN/END CONTENT markers (the milestone 3 paste), served
-   from a fake http origin by Playwright routing. Nothing is written to disk. */
-const WITH_CONTENT = process.env.NOVATRIA_CONTENT === '1';
-function contentHtml() {
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
-  const content = fs.readFileSync(CONTENT_PATH, 'utf8');
-  const a = html.indexOf(BEGIN);
-  const b = html.indexOf(END);
-  if (a < 0 || b < a) throw new Error('content markers not found in index.html');
-  return html.slice(0, a + BEGIN.length) + '\n' + content + '\n' + html.slice(b);
-}
 const LAPTOP = { width: 1280, height: 800 };
 const PHONE = { width: 375, height: 740 };
 
@@ -38,7 +20,7 @@ function suite(name) {
       const browser = await chromium.launch();
       let passed = 0;
       let failed = 0;
-      console.log(name + (WITH_CONTENT ? ' (with content/town-data.js pasted in)' : ''));
+      console.log(name);
       for (const t of tests) {
         if (only && !only.test(t.title)) continue;
         const contexts = [];
@@ -48,15 +30,13 @@ function suite(name) {
           async open(opts = {}) {
             const context = await browser.newContext(Object.assign({ viewport: opts.viewport || LAPTOP, colorScheme: opts.colorScheme || 'dark' }, opts.contextOptions || {}));
             contexts.push(context);
-            const html = WITH_CONTENT && !opts.url ? contentHtml() : null;
             await context.route('**/*', opts.route || (route => {
               const u = route.request().url();
-              if (html && u.split('?')[0] === CONTENT_URL) return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
               return /^(file|blob|data):/.test(u) ? route.continue() : route.abort();
             }));
             const page = await context.newPage();
             page.on('pageerror', e => errors.push(e));
-            await page.goto(opts.url || (html ? CONTENT_URL : GAME_URL));
+            await page.goto(opts.url || GAME_URL);
             await page.waitForFunction(() => window.Game && window.Game.App);
             return page;
           }
@@ -82,8 +62,7 @@ function suite(name) {
   };
 }
 
-/* Start a game without the form, using whatever data is inlined (placeholder
-   or real content), so these helpers survive the milestone 3 content paste. */
+/* Start a game without the form, using the inlined content data. */
 async function quickStart(page, opts = {}) {
   await page.evaluate(({ seed, kinds, bgIndex, name }) => {
     const D = Game.data;
@@ -99,6 +78,60 @@ async function quickStart(page, opts = {}) {
 }
 
 const stateJson = page => page.evaluate(() => JSON.stringify(Game.state));
+
+/* Data-driven fixtures: every id and name a test needs comes from Game.data
+   or Game.state, never from one particular town, so the suites keep working
+   when the town is swapped (docs/BUILD_PLAN.md, setting change). */
+function fixtures(page) {
+  return page.evaluate(() => {
+    const D = Game.data;
+    const T = D.TOWN_DATA;
+    const ofType = types => { for (const t of types) { const l = T.locations.find(x => x.type === t); if (l) return { id: l.id, name: l.name, type: l.type }; } return null; };
+    return {
+      town: T.name,
+      currency: T.currency || null,
+      gateBg: D.BACKGROUNDS.findIndex(b => b.arrival === 'gate'),
+      docksBg: D.BACKGROUNDS.findIndex(b => b.arrival === 'docks'),
+      start: T.startLocationIds,
+      tavern: ofType(['tavern', 'bar']),
+      watch: ofType(['police', 'watch']),
+      slum: ofType(['slum', 'trailerpark'])
+    };
+  });
+}
+/* A place and phase (in the running game) where enough NPCs are present who
+   match the filter, with names the mock parser can tell apart. opts: { min,
+   watchy (true/false), minAtt (exclusive), maxAtt, rumour (has an unheard
+   rumour), notTypes }. Resolves to { loc, phase, npcs } or null. */
+function findScene(page, opts) {
+  return page.evaluate(o => {
+    const G = Game;
+    const st = G.state;
+    const watchy = n => (n.tags || []).some(t => t === 'watch' || t === 'police') || /\b(watch|police|deputy|sheriff|officer|constable|trooper|cop)/i.test(n.role);
+    const risky = /\b(look|examine|rest|sleep|wait|go|walk|head|run|enter|attack|hit|fight|insult|mock|buy|try|my)\b/i;
+    for (const l of st.locations) {
+      if (l.closed || (o.notTypes || []).includes(l.type)) continue;
+      for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+        const here = G.State.npcsAt(l.id, ph);
+        const npcs = here.filter(n => (o.watchy === undefined || watchy(n) === o.watchy)
+          && (o.minAtt === undefined || n.attitude > o.minAtt) && (o.maxAtt === undefined || n.attitude <= o.maxAtt)
+          && (!o.rumour || st.rumours.some(r => !r.heard && r.sourceNpcId === n.id))
+          && !risky.test(n.name)
+          && here.every(m => m === n || !G.Town.mentions(n.name.toLowerCase(), m)));
+        if (npcs.length >= (o.min || 1)) return { loc: { id: l.id, name: l.name, type: l.type, description: l.description }, phase: ph, npcs: npcs.map(n => ({ id: n.id, name: n.name, role: n.role, attitude: n.attitude })), presentIds: here.map(n => n.id) };
+      }
+    }
+    return null;
+  }, opts || {});
+}
+/* Put the player somewhere at a given phase without a turn (engine writes). */
+function place(page, locId, phase) {
+  return page.evaluate(([locId, phase]) => {
+    const G = Game;
+    if (phase) while (G.state.time.phase !== phase) G.State.apply({ advanceTime: 'long' });
+    if (locId) G.State.apply({ playerLocationId: locId });
+  }, [locId, phase]);
+}
 
 /* Type into the composer and send with Enter; wait until the turn is over. */
 async function sendText(page, text) {
@@ -128,4 +161,4 @@ function overflowReport(page, width) {
   }, width);
 }
 
-module.exports = { suite, quickStart, stateJson, sendText, overflowReport, contentHtml, ROOT, GAME_PATH, GAME_URL, CONTENT_PATH, WITH_CONTENT, LAPTOP, PHONE };
+module.exports = { suite, quickStart, stateJson, sendText, overflowReport, fixtures, findScene, place, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };

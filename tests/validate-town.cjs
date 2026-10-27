@@ -1,16 +1,25 @@
 #!/usr/bin/env node
-// Validates content/town-data.js against the shared data contract in
-// docs/BUILD_PLAN.md and the content brief in SPEC.md sections 4, 5, 8, 9.
-// Usage: node content/validate.cjs   (exits 1 and lists every problem found)
+// Validates the town content inlined in index.html (the text between the
+// "BEGIN CONTENT" and "END CONTENT" markers) against the shared data contract
+// in docs/BUILD_PLAN.md and the content brief in SPEC.md sections 4, 5, 8, 9.
+// The block is evaluated in a Node vm sandbox (like a browser <script> with no
+// module system), so TOWN_DATA can be hand-edited in index.html and checked.
+// Usage: node tests/validate-town.cjs   (exits 1 and lists every problem found)
+//        VALIDATE_FILE=other.html node tests/validate-town.cjs
+// tests/run.cjs runs it before the Playwright suites.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { execFileSync } = require('child_process');
 
-const FILE = path.join(__dirname, 'town-data.js');
+// VALIDATE_FILE points the check at another copy of the page (used by tests).
+const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(__dirname, '..', 'index.html');
+const BEGIN = '// ===== BEGIN CONTENT =====';
+const END = '// ===== END CONTENT =====';
 const EXPORT_NAMES = ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES'];
+// Optional: the guard the block carried as a stand-alone file. Harmless in the
+// browser; if present it must be the last line and is ignored by the checks.
 const END_BLOCK = "if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES }; }";
 
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
@@ -42,7 +51,7 @@ const BANNED_PHRASES = [
 const problems = [];
 function err(where, msg) { problems.push(where + ': ' + msg); }
 function report() {
-  console.error('town-data.js: ' + problems.length + ' problem(s)');
+  console.error('index.html content: ' + problems.length + ' problem(s)');
   problems.forEach((p) => console.error('  - ' + p));
   process.exit(1);
 }
@@ -91,23 +100,25 @@ function checkStrList(list, where, count, opts) {
   });
 }
 
+
 // ---------------------------------------------------------------------------
 // 1. Source-level checks: plain script, no module syntax, ES5-style literals.
 // ---------------------------------------------------------------------------
 let src;
 try {
-  src = fs.readFileSync(FILE, 'utf8');
+  const html = fs.readFileSync(FILE, 'utf8');
+  const a = html.indexOf(BEGIN);
+  const b = html.indexOf(END);
+  if (a < 0 || b < 0 || b < a) fatal('file', 'index.html has no "' + BEGIN + '" ... "' + END + '" block');
+  if (html.indexOf(BEGIN, a + 1) >= 0 || html.indexOf(END, b + 1) >= 0) fatal('file', 'the content markers must appear exactly once');
+  src = html.slice(a + BEGIN.length, b).replace(/^\r?\n/, '');
 } catch (e) {
   fatal('file', 'cannot read ' + FILE + ': ' + e.message);
 }
 
 const trimmed = src.replace(/\s+$/, '');
 let body = trimmed;
-if (!trimmed.endsWith(END_BLOCK)) {
-  err('file', 'must end with the exact module.exports guard block');
-} else {
-  body = trimmed.slice(0, -END_BLOCK.length);
-}
+if (trimmed.endsWith(END_BLOCK)) body = trimmed.slice(0, -END_BLOCK.length);
 
 // eslint-style strip of comments and double-quoted strings, leaving code only.
 function stripCode(text) {
@@ -162,46 +173,31 @@ if (declared.join(',') !== EXPORT_NAMES.join(',')) {
   err('file', 'const declarations must be exactly, in order: ' + EXPORT_NAMES.join(', ') + ' (found: ' + declared.join(', ') + ')');
 }
 
+
 // ---------------------------------------------------------------------------
-// 2. Load checks: browser-like script context, node -e, and require().
+// 2. Load check: evaluate the block in a fresh vm context, like a browser
+//    <script> (no module, no require), and collect the seven constants.
 // ---------------------------------------------------------------------------
 try {
-  new vm.Script(src, { filename: 'town-data.js' });
+  new vm.Script(src, { filename: 'index.html#content' });
 } catch (e) {
   fatal('load', 'does not parse as a plain script: ' + e.message);
 }
 
-try {
-  // No `module` in this context, like a browser <script>.
-  const probe = '\n;({' + EXPORT_NAMES.map((n) => n + ': typeof ' + n).join(', ') + ', moduleSeen: typeof module })';
-  const types = vm.runInNewContext(src + probe, {}, { filename: 'town-data.js' });
-  for (const n of EXPORT_NAMES) {
-    if (types[n] !== 'object') err('load(browser)', n + ' is ' + types[n] + ', expected object');
-  }
-} catch (e) {
-  err('load(browser)', 'throws in a browser-like script context: ' + e.message);
-}
-
-try {
-  const check = '\n;if (' + EXPORT_NAMES.map((n) => 'typeof ' + n + " !== 'object'").join(' || ') + ') { process.exit(3); }';
-  if (Buffer.byteLength(src + check) < 120000) {
-    execFileSync(process.execPath, ['-e', src + check], { stdio: ['ignore', 'ignore', 'pipe'] });
-  } else {
-    execFileSync(process.execPath, ['-'], { input: src + check, stdio: ['pipe', 'ignore', 'pipe'] });
-  }
-} catch (e) {
-  err('load(node -e)', 'node -e failed: ' + String((e.stderr && e.stderr.toString()) || e.message).split('\n').slice(0, 3).join(' '));
-}
-
 let data;
 try {
-  data = require(FILE);
+  const probe = '\n;({' + EXPORT_NAMES.map((n) => n + ': typeof ' + n + " === 'undefined' ? undefined : " + n).join(', ') + '})';
+  // Objects come from the sandbox realm; the checks below only use typeof,
+  // Array.isArray and Object.keys, which work across realms.
+  data = vm.runInNewContext(src + probe, {}, { filename: 'index.html#content', timeout: 5000 });
 } catch (e) {
-  fatal('load(require)', 'require(town-data.js) failed: ' + e.message);
+  fatal('load', 'throws in a browser-like script context: ' + e.message);
 }
 for (const n of EXPORT_NAMES) {
-  if (!(n in data)) err('exports', 'module.exports is missing ' + n);
+  if (!data || typeof data[n] !== 'object' || data[n] === null) err('load', n + ' is not defined as an object');
 }
+if (problems.length) report();
+
 const { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES } = data;
 if (!isObj(TOWN_DATA)) fatal('TOWN_DATA', 'is not an object');
 
