@@ -247,3 +247,45 @@ The real town is Ommelveer (`content/town-data.js`, validated by
    different town; none of these people or places exist in this game):".
 9. The dead tally clerk Jouke Feikema is referenced in text only and is not
    an NPC record.
+
+## Setting change: modern day (owner direction, 27 Oct)
+
+The owner wants the game set in the present day, not a fantasy era: modern
+but not futuristic. This supersedes the "grounded low fantasy" line in
+SPEC.md section 4. Everything else in the spec stands. Ommelveer is being
+replaced by a modern town written to the same data contract.
+
+What "modern" means here:
+
+- A real-feeling small town of roughly 800 people today: phones, pickup
+  trucks, a gas station, a bar, a motel, a church, a police station, a
+  trailer park, a marina or boat ramp, a highway out. The river crossing
+  stays as the town's reason to exist (an ageing bridge, a ferry, a boat
+  ramp, whatever the author chooses).
+- No supernatural. People tell stories about the river; nobody credible
+  has seen anything. That replaces "magic is rare and rumoured".
+- Cell signal is patchy in the valley, so business is done face to face.
+  That keeps the game's present-NPC model honest without hand-waving.
+- Money is cash in dollars. The state field stays `player.gold` and the
+  bookkeeper field stays `goldDelta` (no engine churn), but every label the
+  player or the model sees says cash / dollars. `TOWN_DATA.currency =
+  { symbol: "$", name: "dollars" }` drives the UI label.
+- Mature themes, violence and crime are fine (SPEC rule 7). Smuggling,
+  debts, affairs, small-town corruption are the stuff of it. Nothing
+  glamorising; keep it grounded and consequence-driven.
+
+Engine adjustments to make when the modern town is swapped in:
+
+1. Location types are modern (`bar`, `diner`, `gas`, `motel`, `church`,
+   `bighouse`, `garage`, `police`, `trailerpark`, `highway`, `marina`,
+   `pawn`, `hall`, ...). The `arrested` status moves NPCs to the location
+   of type `police` (accept `watch` as an alias). `Town.plausible` needs
+   modern vocabulary (bartender, mechanic, deputy, clerk, trucker ...).
+2. The mock parser's keyword rules use modern nouns too (`bartender`,
+   `waitress`, `clerk`); "dragon" stays as the implausible test case.
+3. The three example turns in the narrator prompt are rewritten as modern
+   scenes with the same shape and length (a creditor in a bar; a failed
+   lock pick on an office door seen by a kid; a mechanic who won't talk).
+   The style guide itself stays word for word.
+4. UI: top bar and Character tab show cash with the currency symbol.
+5. Tests read ids and names from `Game.data`, never hardcoded town names.
