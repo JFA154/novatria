@@ -1,0 +1,3919 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-size="M">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="dark light">
+<title>Novatria</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&amp;display=swap">
+<script>
+/* Pick theme and text size before first paint: the saved setting, else the OS
+   colour-scheme preference. Creates no globals. */
+(function () {
+  'use strict';
+  var theme = null, size = null;
+  try {
+    var saved = JSON.parse(window.localStorage.getItem('novatria.settings') || 'null');
+    if (saved) { theme = saved.theme; size = saved.textSize; }
+  } catch (e) { /* storage blocked: use defaults */ }
+  if (theme !== 'dark' && theme !== 'parchment') {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'parchment' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  if (size === 'S' || size === 'M' || size === 'L') document.documentElement.setAttribute('data-size', size);
+})();
+</script>
+<style>
+/* ===== Tokens ===== */
+:root {
+  --read-font: "Literata", Georgia, "Times New Roman", serif;
+  --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono-font: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --read-size: 18px;
+  --feed-w: 680px;
+  --panel-w: 320px;
+  --tap: 44px;
+  --radius: 8px;
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+:root, :root[data-theme="dark"] {
+  --bg: #17130f;
+  --surface: #1f1a15;
+  --surface-2: #2a241d;
+  --text: #ece4d5;
+  --muted: #a99e8b;
+  --faint: #7a705f;
+  --border: #3a3229;
+  --accent: #d2aa69;
+  --accent-ink: #1b150e;
+  --danger: #e2917a;
+  --focus: #e9c27f;
+  --shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+:root[data-theme="parchment"] {
+  --bg: #f4ecda;
+  --surface: #ede3cc;
+  --surface-2: #e4d7bb;
+  --text: #2a2217;
+  --muted: #66583f;
+  --faint: #8f8068;
+  --border: #cdbd9b;
+  --accent: #87561a;
+  --accent-ink: #fbf6ea;
+  --danger: #a3402a;
+  --focus: #87561a;
+  --shadow: 0 12px 32px rgba(70, 45, 10, .18);
+  --scrim: rgba(60, 40, 10, .25);
+  color-scheme: light;
+}
+:root[data-size="S"] { --read-size: 16px; }
+:root[data-size="M"] { --read-size: 18px; }
+:root[data-size="L"] { --read-size: 20px; }
+
+/* ===== Base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { line-height: 1.2; }
+p { margin: 0 0 .8em; }
+.muted { color: var(--muted); }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+#app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: var(--app-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Buttons and fields ===== */
+.btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface); border-color: var(--border); }
+.btn.small { min-height: var(--tap); padding: 0 12px; font-size: 14px; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 16px;
+}
+select.input { padding-right: 32px; }
+.input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.err { font-size: 14px; color: var(--danger); margin: 8px 0 0; min-height: 0; }
+.err:empty { display: none; }
+.check { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
+.field { margin: 0 0 20px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.group { border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 4px; margin: 0 0 20px; min-width: 0; }
+.group legend, .group-title { font-family: var(--read-font); font-size: 18px; padding: 0 6px; margin: 0 0 8px; font-weight: 600; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg label {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: var(--tap); padding: 0 14px;
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer; background: var(--surface);
+}
+.seg input { accent-color: var(--accent); margin: 0; }
+.effort-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.effort-grid label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ===== Screens ===== */
+.screen { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+.screen.active { display: flex; animation: fade-in .22s ease-out; }
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(24px + var(--sat)) calc(16px + var(--sar)) calc(32px + var(--sab)) calc(16px + var(--sal));
+}
+.page-inner { max-width: 680px; margin: 0 auto; }
+.page-head { margin-bottom: 20px; }
+.page-title { font-family: var(--read-font); font-size: 30px; font-weight: 600; margin: 0 0 6px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.screen-actions {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.screen-actions .spacer { flex: 1; }
+
+/* Title */
+.title-wrap { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
+.title-name { font-family: var(--read-font); font-size: clamp(38px, 10vw, 60px); font-weight: 600; margin: 0 0 14px; letter-spacing: .01em; overflow-wrap: anywhere; }
+.title-setting { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.6; color: var(--muted); max-width: 34em; }
+.menu-list { display: grid; gap: 10px; max-width: 320px; margin-top: 24px; }
+.menu-list .btn { justify-content: flex-start; }
+.title-foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+
+/* Character creation */
+.step { border-top: 1px solid var(--border); padding: 24px 0; }
+.step:first-child { border-top: 0; padding-top: 4px; }
+.step-title { font-family: var(--read-font); font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.step-sub { color: var(--muted); margin: 0 0 14px; }
+.step-count { color: var(--muted); font-size: 13px; margin: 0; }
+.choice-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.choice {
+  display: block; width: 100%; text-align: left;
+  padding: 12px 14px; min-height: var(--tap);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-family: var(--ui-font); font-size: 15px;
+}
+.choice:hover { border-color: var(--muted); }
+.choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
+.choice-title { display: block; font-weight: 600; margin-bottom: 4px; }
+.choice-sub { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.choice-meta { display: block; color: var(--faint); font-size: 12px; margin-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  min-height: var(--tap); padding: 8px 14px; border-radius: 22px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  cursor: pointer; text-align: left; font-size: 15px; max-width: 100%;
+}
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+.chip:disabled { opacity: .45; cursor: not-allowed; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
+.stat { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 2px; text-align: center; background: var(--surface); min-width: 0; }
+.stat-name { display: block; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); overflow-wrap: normal; white-space: nowrap; }
+.stat-val { display: block; font-family: var(--read-font); font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat.changed { border-color: var(--accent); }
+.move-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.le-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 0 0 10px; background: var(--surface); }
+.le-item.on { border-color: var(--accent); }
+.le-body { margin-top: 10px; display: grid; gap: 8px; }
+.summary h2 { font-family: var(--read-font); font-size: 26px; margin: 0 0 2px; }
+.summary h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.summary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 14px 0 0; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; overflow-wrap: anywhere; }
+.summary ul { margin: 0; padding-left: 18px; }
+.summary li { margin: 0 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+
+/* ===== Game screen ===== */
+#screen-game { position: relative; }
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: calc(4px + var(--sat)) calc(8px + var(--sar)) 4px calc(16px + var(--sal));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 14px;
+}
+.tb-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 18px; }
+.tb-time { color: var(--muted); white-space: nowrap; }
+.tb-loc { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-stat { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-stat b { color: var(--text); font-weight: 600; }
+.tb-actions { display: flex; gap: 2px; flex: none; }
+.tb-actions .btn { padding: 0 12px; font-size: 14px; }
+.btn[aria-pressed="true"] { background: var(--surface); border-color: var(--border); }
+
+.game-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.story { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.feed-area { flex: 1 1 auto; min-height: 0; position: relative; display: flex; }
+.feed-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.feed {
+  max-width: var(--feed-w);
+  margin: 0 auto;
+  padding: 24px calc(16px + var(--sar)) 24px calc(16px + var(--sal));
+  font-family: var(--read-font);
+  font-size: var(--read-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.f-item { animation: fade-in .35s ease-out; }
+.f-narr p { margin: 0 0 1em; }
+.f-narr.pending { min-height: 1.6em; }
+.f-narr.pending:empty::before { content: "\2026"; color: var(--faint); }
+.f-input {
+  position: relative;
+  margin: 1.5em 0 .6em;
+  padding-left: 1.1em;
+  font-style: italic;
+  font-size: .9em;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.f-input::before { content: "\203A"; position: absolute; left: 0; top: 0; font-style: normal; color: var(--faint); }
+.f-roll {
+  margin: 0 0 .75em;
+  font-family: var(--ui-font);
+  font-size: 13px;
+  letter-spacing: .02em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.f-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 2em 0 1.4em;
+  font-family: var(--ui-font); font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.f-divider::before, .f-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.f-notice {
+  margin: .5em 0 1em;
+  padding: 6px 12px;
+  border-left: 2px solid var(--border);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  color: var(--muted);
+}
+.f-notice.error { border-left-color: var(--danger); color: var(--text); }
+.f-chronicle { color: var(--muted); font-size: .92em; border-left: 2px solid var(--border); padding-left: 12px; margin-bottom: 1.2em; }
+.f-chronicle p { margin: 0 0 .5em; }
+.new-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  animation: fade-in .2s ease-out;
+}
+.new-btn::after { content: ""; position: absolute; inset: -4px; } /* 44px hit area */
+
+.composer {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: 8px calc(12px + var(--sar)) calc(8px + var(--sab)) calc(12px + var(--sal));
+}
+.composer-inner { max-width: var(--feed-w); margin: 0 auto; }
+.tabbar { display: none; gap: 2px; margin: 0 0 6px; }
+.tabbar button {
+  flex: 1 1 0; min-width: 0; min-height: var(--tap);
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted);
+  font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+}
+.tabbar button:hover { background: var(--surface); color: var(--text); }
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.cmd-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  resize: none;
+  min-height: var(--tap);
+  max-height: calc(4 * 1.45 * 17px + 22px);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--read-font);
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-y: hidden;
+}
+.cmd-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.send-btn { flex: none; }
+.ac {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
+  z-index: 30;
+  margin: 0; padding: 4px; list-style: none;
+  max-height: min(320px, 50vh); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-family: var(--ui-font);
+  animation: fade-in .12s ease-out;
+}
+.ac li { display: flex; align-items: baseline; gap: 10px; min-height: var(--tap); padding: 11px 10px; border-radius: 6px; cursor: pointer; }
+.ac li[aria-selected="true"], .ac li:hover { background: var(--surface-2); }
+.ac-name { font-family: var(--mono-font); font-size: 14px; white-space: nowrap; }
+.ac-args { color: var(--faint); font-family: var(--mono-font); font-size: 13px; white-space: nowrap; }
+.ac-desc { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+
+/* Side panel / mobile sheet */
+.panel {
+  flex: none;
+  width: var(--panel-w);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+.game-body.panel-collapsed .panel { display: none; }
+.panel-grip { display: none; }
+.panel-head { flex: none; display: flex; align-items: stretch; border-bottom: 1px solid var(--border); padding: 0 4px; }
+.panel-tabs { display: flex; flex: 1 1 auto; min-width: 0; }
+.panel-tabs button {
+  flex: 1 1 0; min-width: 0; min-height: var(--tap);
+  padding: 0 4px; border: 0; border-bottom: 2px solid transparent; background: none;
+  color: var(--muted); font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.panel-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.panel-close { display: none; font-size: 22px; line-height: 1; }
+.panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; font-size: 14px; overflow-wrap: anywhere; }
+.panel-body h2 { font-family: var(--read-font); font-size: 22px; margin: 0 0 2px; }
+.panel-body h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.panel-body ul { list-style: none; margin: 0; padding: 0; }
+.panel-body li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.panel-body li:last-child { border-bottom: 0; }
+.panel-body .stat-grid { margin-top: 14px; }
+.panel-body .empty { color: var(--muted); font-style: italic; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.person { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.person:first-child { padding-top: 0; }
+.person-head { display: flex; align-items: baseline; gap: 8px; }
+.person-name { font-weight: 600; font-size: 15px; }
+.pill { margin-left: auto; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.pill.warm, .pill.friendly, .pill.loyal { color: var(--accent); border-color: var(--accent); }
+.pill.cold, .pill.hostile { color: var(--danger); border-color: var(--danger); }
+.person p { margin: 4px 0 0; }
+.thread-status { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.dbg pre {
+  font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 0;
+  max-height: 260px; overflow: auto;
+}
+.scrim { display: none; }
+
+/* Menu popover (mobile top bar) */
+.popover {
+  position: absolute;
+  z-index: 45;
+  top: calc(52px + var(--sat));
+  right: calc(8px + var(--sar));
+  min-width: 200px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: fade-in .15s ease-out;
+}
+.popover .btn { justify-content: flex-start; }
+
+/* Warnings and toasts */
+.banner {
+  flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(8px + var(--sat)) calc(12px + var(--sar)) 8px calc(16px + var(--sal));
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 14px;
+  z-index: 60;
+}
+.banner span { flex: 1; min-width: 0; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + var(--sab));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.toast.show { opacity: 1; }
+
+/* Save slots */
+.slot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.slot:first-child { border-top: 1px solid var(--border); }
+.slot-info { flex: 1 1 220px; min-width: 0; }
+.slot-name { font-weight: 600; display: block; overflow-wrap: anywhere; }
+.slot-meta { color: var(--muted); font-size: 13px; display: block; overflow-wrap: anywhere; }
+.slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#slot-list { margin-bottom: 24px; }
+
+/* ===== Layout switches ===== */
+@media (min-width: 900px) {
+  .mobile-only { display: none !important; }
+}
+@media (max-width: 899px) {
+  .desktop-only { display: none !important; }
+  .two, .move-row { grid-template-columns: 1fr; }
+  .topbar { padding-left: calc(16px + var(--sal)); gap: 8px; }
+  .tb-main {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "loc loc loc" "time hp gold";
+    gap: 0 12px;
+    align-items: baseline;
+  }
+  .tb-loc { grid-area: loc; font-size: 15px; }
+  .tb-time { grid-area: time; font-size: 13px; }
+  .tb-hp { grid-area: hp; font-size: 13px; }
+  .tb-gold { grid-area: gold; font-size: 13px; }
+  .tabbar { display: flex; }
+  .game-body.panel-collapsed .panel { display: flex; }
+  .panel {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    width: auto;
+    border-left: 0;
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    background: var(--surface);
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform .26s ease, opacity .26s ease, visibility 0s linear .26s;
+  }
+  .game-body.sheet-open .panel {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    transition: transform .26s ease, opacity .26s ease;
+  }
+  .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 2px; }
+  .panel-close { display: inline-flex; }
+  .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: 15px; }
+  .create .step { display: none; border-top: 0; padding-top: 4px; }
+  .create .step.current { display: block; animation: fade-in .2s ease-out; }
+  .ac-desc { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="banner" class="banner" role="alert" hidden>
+    <span id="banner-text"></span>
+    <button type="button" class="btn ghost small" id="banner-close">Dismiss</button>
+  </div>
+
+  <!-- ===== Title ===== -->
+  <section id="screen-title" class="screen active" aria-labelledby="title-name">
+    <div class="page">
+      <div class="page-inner title-wrap">
+        <p class="eyebrow">A one-town text RPG</p>
+        <h1 id="title-name" class="title-name">Novatria</h1>
+        <p id="title-setting" class="title-setting"></p>
+        <div class="menu-list">
+          <button type="button" class="btn primary" id="btn-new">New game</button>
+          <button type="button" class="btn" id="btn-continue">Continue</button>
+          <button type="button" class="btn" id="btn-load">Load</button>
+          <button type="button" class="btn" id="btn-settings">Settings</button>
+        </div>
+        <div class="title-foot">
+          <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
+          <span id="title-mode"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Character creation ===== -->
+  <section id="screen-create" class="screen create" aria-labelledby="create-title">
+    <div class="page" id="create-scroll">
+      <div class="page-inner">
+        <div id="create-form-view">
+          <header class="page-head">
+            <h1 class="page-title" id="create-title">Who are you?</h1>
+            <p class="step-count mobile-only" id="cr-count"></p>
+          </header>
+          <div id="create-steps"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn desktop-only" id="cr-cancel">Back to title</button>
+            <button type="button" class="btn mobile-only" id="cr-back">Back</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary mobile-only" id="cr-next">Next</button>
+            <button type="button" class="btn primary desktop-only" id="cr-review">Review character</button>
+          </div>
+        </div>
+        <div id="create-summary-view" hidden>
+          <header class="page-head">
+            <h1 class="page-title">Ready to begin</h1>
+            <p class="muted">This is who walks into town. Your loose ends are now people in it.</p>
+          </header>
+          <div id="summary-card" class="card summary"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn" id="cr-edit">Back to edit</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary" id="cr-begin">Begin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Game ===== -->
+  <section id="screen-game" class="screen" aria-label="Game">
+    <header class="topbar">
+      <div class="tb-main">
+        <span class="tb-time" id="tb-time"></span>
+        <span class="tb-loc" id="tb-loc"></span>
+        <span class="tb-stat tb-hp">HP <b id="tb-hp"></b></span>
+        <span class="tb-stat tb-gold"><b id="tb-gold"></b> gold</span>
+      </div>
+      <div class="tb-actions">
+        <button type="button" class="btn ghost desktop-only" id="tb-save">Save</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-settings">Settings</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-panel" aria-pressed="true" aria-controls="panel">Panel</button>
+        <button type="button" class="btn ghost mobile-only" id="tb-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menu-pop">Menu</button>
+      </div>
+    </header>
+    <div class="popover" id="menu-pop" role="menu" hidden>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="saves">Save / Load</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="settings">Settings</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="title">Title screen</button>
+    </div>
+    <div class="game-body" id="game-body">
+      <div class="story">
+        <div class="feed-area">
+          <div class="feed-scroll" id="feed-scroll">
+            <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+          </div>
+          <button type="button" class="new-btn" id="new-btn" hidden>&#8595; New</button>
+        </div>
+        <div class="composer">
+          <div class="composer-inner">
+            <nav class="tabbar" aria-label="Open a panel">
+              <button type="button" data-open-tab="character">Character</button>
+              <button type="button" data-open-tab="people">People</button>
+              <button type="button" data-open-tab="journal">Journal</button>
+              <button type="button" data-open-tab="places">Places</button>
+            </nav>
+            <div class="input-row">
+              <div class="input-wrap">
+                <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
+                <textarea id="cmd" class="cmd-input" rows="1" enterkeyhint="send" autocomplete="off" spellcheck="true"
+                  aria-label="Your action" aria-autocomplete="list" aria-controls="ac" aria-expanded="false"
+                  placeholder="Type an action, or / for commands"></textarea>
+              </div>
+              <button type="button" class="btn primary send-btn" id="send">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="panel" id="panel" aria-label="Side panel">
+        <div class="panel-grip" aria-hidden="true"></div>
+        <div class="panel-head">
+          <div class="panel-tabs" id="panel-tabs" role="tablist"></div>
+          <button type="button" class="btn ghost panel-close" id="panel-close" aria-label="Close panel">&#215;</button>
+        </div>
+        <div class="panel-body" id="panel-body" role="tabpanel"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== Settings ===== -->
+  <section id="screen-settings" class="screen" aria-labelledby="settings-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head"><h1 class="page-title" id="settings-title">Settings</h1></header>
+        <form id="settings-form" autocomplete="off" novalidate>
+          <fieldset class="group">
+            <legend>Claude API</legend>
+            <div class="field">
+              <label class="label" for="set-key">API key</label>
+              <input class="input" id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+              <label class="check"><input type="checkbox" id="set-remember"> Remember on this device</label>
+              <p class="hint">Unticked, the key is forgotten when this tab closes. It is never written into exported saves.</p>
+            </div>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="set-mock"> Mock mode: use the built-in dummy narrator, no API calls</label>
+            </div>
+            <div class="field two">
+              <div>
+                <label class="label" for="set-narrator-model">Narrator model</label>
+                <input class="input" id="set-narrator-model" spellcheck="false">
+              </div>
+              <div>
+                <label class="label" for="set-parser-model">Parser model</label>
+                <input class="input" id="set-parser-model" spellcheck="false">
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Effort</span>
+              <div class="effort-grid">
+                <div><label for="set-effort-narrator">Narrator</label><select class="input" id="set-effort-narrator" data-effort="narrator"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-parser">Parser</label><select class="input" id="set-effort-parser" data-effort="parser"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-bookkeeper">Bookkeeper</label><select class="input" id="set-effort-bookkeeper" data-effort="bookkeeper"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-chronicle">Chronicle</label><select class="input" id="set-effort-chronicle" data-effort="chronicle"><option>low</option><option>medium</option><option>high</option></select></div>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Play</legend>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="set-rolls"> Show dice rolls in the story</label>
+              <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath</label>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Display</legend>
+            <div class="field">
+              <span class="label">Theme</span>
+              <div class="seg">
+                <label><input type="radio" name="set-theme" value="dark"> Dark</label>
+                <label><input type="radio" name="set-theme" value="parchment"> Parchment</label>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Text size</span>
+              <div class="seg">
+                <label><input type="radio" name="set-size" value="S"> Small</label>
+                <label><input type="radio" name="set-size" value="M"> Medium</label>
+                <label><input type="radio" name="set-size" value="L"> Large</label>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+        <div class="screen-actions">
+          <button type="button" class="btn" id="settings-quit" hidden>Quit to title</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="settings-done">Done</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Saves ===== -->
+  <section id="screen-saves" class="screen" aria-labelledby="saves-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head">
+          <h1 class="page-title" id="saves-title">Saved games</h1>
+          <p class="muted">One autosave after every change, plus three named slots in this browser.</p>
+        </header>
+        <div class="field" id="save-name-field">
+          <label class="label" for="save-name">Name for a new save</label>
+          <input class="input" id="save-name" maxlength="40">
+        </div>
+        <div id="slot-list"></div>
+        <div class="group">
+          <h2 class="group-title">Move a game between devices</h2>
+          <p class="muted">Export writes a .json file with the game and its town. Your API key is never included.</p>
+          <div class="row-btns" style="margin-bottom:12px">
+            <button type="button" class="btn" id="btn-export">Export current game</button>
+            <button type="button" class="btn" id="btn-import">Import from file</button>
+            <input type="file" id="import-file" accept=".json,application/json" hidden>
+          </div>
+          <p class="err" id="saves-error" role="alert"></p>
+        </div>
+        <div class="screen-actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="saves-done">Back</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+<script>
+(function () {
+'use strict';
+
+/* ==========================================================================
+   CONTENT
+   Everything between "BEGIN CONTENT" and "END CONTENT" is placeholder data
+   that follows docs/BUILD_PLAN.md "Shared data contract" exactly. Milestone 3
+   replaces this whole block with the constants from content/town-data.js
+   (same names, same order). Nothing else in the file needs to change.
+   ========================================================================== */
+// ===== BEGIN CONTENT =====
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const TOWN_DATA = {
+  name: 'Tallow Ford',
+  setting: 'Placeholder town for the shell build: a small trade town of about eight hundred people where the east road meets a rope ferry. There is a market, a gate and a set of tarred docks, and money moves through all three. The real town arrives with the content pass.',
+  startLocationIds: { gate: 'loc_east_gate', docks: 'loc_ferry_docks' },
+  locations: [
+    {
+      id: 'loc_east_gate', name: 'East Gate', type: 'road',
+      description: 'A timber gate stands open where the east road meets the first houses. A tollbooth leans against it, empty more often than not.',
+      exits: ['loc_market_square'],
+      npcIdsBySchedule: { morning: ['npc_hobb_tanner'], afternoon: ['npc_hobb_tanner'], evening: [], night: [] },
+      discovered: true, closed: false
+    },
+    {
+      id: 'loc_market_square', name: 'Market Square', type: 'market',
+      description: 'Stalls crowd a square of worn cobbles around a dry fountain. Everything here is for sale, and most of it is overpriced.',
+      exits: ['loc_east_gate', 'loc_ferry_docks'],
+      npcIdsBySchedule: { morning: ['npc_mara_vell'], afternoon: ['npc_mara_vell', 'npc_jory_pike'], evening: ['npc_hobb_tanner'], night: [] },
+      discovered: true, closed: false
+    },
+    {
+      id: 'loc_ferry_docks', name: 'Ferry Docks', type: 'docks',
+      description: 'Tarred pilings and a rope ferry mark the one place the river is narrow enough to cross. Crates wait in stacks for boats that run late.',
+      exits: ['loc_market_square'],
+      npcIdsBySchedule: { morning: ['npc_jory_pike'], afternoon: [], evening: ['npc_mara_vell', 'npc_jory_pike'], night: ['npc_jory_pike'] },
+      discovered: true, closed: false
+    }
+  ],
+  npcs: [
+    {
+      id: 'npc_mara_vell', name: 'Mara Vell', role: 'moneylender', factionId: 'fac_ferry_guild',
+      tags: ['lender', 'merchant'],
+      look: 'A narrow woman in a good grey coat, a ledger under one arm.',
+      voice: 'Dry and patient; never raises her voice.',
+      personality: ['patient', 'unforgiving'],
+      goal: 'Buy out the ferry rights before the season turns.',
+      secret: 'She pays Jory Pike to run the ferry late so the rights fall in price.',
+      attitude: 0, memories: [], alive: true, knownToPlayer: false, status: 'free'
+    },
+    {
+      id: 'npc_jory_pike', name: 'Jory Pike', role: 'ferryman', factionId: 'fac_ferry_guild',
+      tags: ['boatman', 'ferryman'],
+      look: 'Big hands, river-brown skin and a rope burn across one palm.',
+      voice: 'Loud and cheerful; answers questions with questions.',
+      personality: ['cheerful', 'greedy'],
+      goal: 'Pay off his boat and stop taking Mara Vell\'s money.',
+      secret: 'He takes coin from Mara Vell to run the ferry late.',
+      attitude: 0, memories: [], alive: true, knownToPlayer: false, status: 'free'
+    },
+    {
+      id: 'npc_hobb_tanner', name: 'Hobb Tanner', role: 'gate warden', factionId: null,
+      tags: ['watch', 'informant'],
+      look: 'Grey stubble, a leather cap and a cudgel he leans on like a cane.',
+      voice: 'Slow, short sentences; calls everyone "friend".',
+      personality: ['tired', 'observant'],
+      goal: 'Keep the gate quiet until he can retire.',
+      secret: 'He waves a few carts through without the toll for a cut of their cargo.',
+      attitude: 0, memories: [], alive: true, knownToPlayer: false, status: 'free'
+    }
+  ],
+  factions: [
+    {
+      id: 'fac_ferry_guild', name: 'Ferry Guild',
+      goal: 'Control every crossing on this stretch of the river.',
+      methods: 'Loans, bribes and a ferry that runs late on purpose.',
+      clocks: [
+        {
+          label: 'Squeeze the ferry', segments: 6, filled: 0,
+          onComplete: {
+            text: 'The ferry fare goes up by a quarter and the docks go quiet.',
+            effects: [
+              { op: 'priceMultiplier', factor: 1.25 },
+              { op: 'setFlag', key: 'ferryFareRaised', value: true },
+              { op: 'addRumour', rumour: { id: 'rum_ferry_fare', text: 'The guild has put the ferry fare up again.', true: true, sourceNpcId: 'npc_jory_pike', heard: false } }
+            ]
+          }
+        },
+        {
+          label: 'Buy the crossing', segments: 6, filled: 0,
+          onComplete: {
+            text: 'Mara Vell owns the ferry outright, Jory Pike leaves town and the docks shut for a refit.',
+            effects: [
+              { op: 'npcStatus', npcId: 'npc_jory_pike', status: 'gone' },
+              { op: 'closeLocation', locationId: 'loc_ferry_docks' },
+              { op: 'openThread', thread: { id: 'thr_ferry_sold', title: 'The ferry is sold', summary: 'Mara Vell bought the ferry rights and shut the crossing while she refits it.', status: 'open', knownToPlayer: true, linkedIds: ['npc_mara_vell', 'loc_ferry_docks'] } },
+              { op: 'reputationDelta', key: 'fac_ferry_guild', delta: -5 }
+            ]
+          }
+        }
+      ],
+      activeClock: 0,
+      relations: {}
+    }
+  ],
+  threads: [
+    { id: 'thr_slow_ferry', title: 'The slow ferry', summary: 'The ferry has run late for weeks and the fare keeps creeping up.', status: 'open', knownToPlayer: false, linkedIds: ['npc_jory_pike', 'fac_ferry_guild'] }
+  ],
+  seeds: [
+    { id: 'seed_toll_audit', cause: 'The gate toll has been coming up short.', effect: 'A guild clerk arrives to count the toll box and asks Hobb Tanner hard questions.', trigger: { type: 'day', value: 4 }, fired: false, hidden: true },
+    { id: 'seed_ferry_rope', cause: 'Jory Pike has been letting the ferry rope fray on purpose.', effect: 'The ferry rope parts mid-river and a crate goes into the water.', trigger: { type: 'clock', value: 'fac_ferry_guild:3' }, fired: false, hidden: true }
+  ],
+  rumours: [
+    { id: 'rum_ferry_paid', text: 'Somebody is paying the ferryman to run late.', true: true, sourceNpcId: 'npc_hobb_tanner', heard: false },
+    { id: 'rum_mara_broke', text: 'Mara Vell lost everything on a grain barge last spring.', true: false, sourceNpcId: 'npc_jory_pike', heard: false }
+  ]
+};
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const TABLES = {
+  npc: {
+    firstNames: ['Ada', 'Bren', 'Cass', 'Dov', 'Edda'],
+    familyNames: ['Marsh', 'Cole', 'Fenwick', 'Hale', 'Rook'],
+    occupations: ['barmaid', 'carter', 'net mender', 'washerwoman', 'clerk'],
+    traits: ['suspicious', 'friendly', 'nervous', 'proud', 'lazy'],
+    wants: ['to be paid on time', 'a quiet life', 'news from upriver', 'a better job', 'to leave town'],
+    speechQuirks: ['Ends sentences with "mind you".', 'Talks fast and drops words.', 'Never uses anyone\'s name.', 'Hums between sentences.', 'Shrugs before every answer.']
+  },
+  location: {
+    types: ['chandlery', 'bathhouse', 'rope walk', 'pawn shop', 'shrine'],
+    details: ['a smell of hot tar', 'a cat asleep on a sack of meal', 'a cracked bell over the door', 'a floor gritty with river sand', 'a shelf of dusty jars'],
+    problems: ['the owner is behind on rent', 'something has gone missing from the back room', 'the roof leaks onto the stock', 'a customer refuses to pay', 'rats have got into the stores']
+  },
+  items: {
+    goods: [
+      { name: 'Rope (30 ft)', price: 2 },
+      { name: 'Lantern', price: 6 },
+      { name: 'Loaf of bread', price: 1 },
+      { name: 'Wineskin', price: 3 },
+      { name: 'Knife', price: 4 }
+    ],
+    trinkets: ['a bone die', 'a bent copper ring', 'a pressed flower in wax paper', 'a wooden saint the size of a thumb']
+  },
+  complications: ['someone saw you', 'it breaks', 'it costs more than you thought', 'it makes a noise', 'it takes longer than it should'],
+  weather: {
+    spring: ['thin rain', 'a cold bright morning', 'river mist'],
+    summer: ['heavy heat', 'a dry wind', 'thunder upriver'],
+    autumn: ['low fog on the water', 'wet leaves in the gutters', 'a sharp wind off the river'],
+    winter: ['sleet', 'hard frost', 'grey, still cold']
+  }
+};
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const BACKGROUNDS = [
+  {
+    id: 'bg_ex_soldier', name: 'Ex-soldier',
+    blurb: 'You served six years in a border company and walked away with a stiff knee and no pension.',
+    stats: { might: 2, wits: 0, charm: 0, stealth: 1 },
+    gold: 15,
+    items: [
+      { id: 'item_old_sword', name: 'Old sword', qty: 1, notes: 'Notched but well kept' },
+      { id: 'item_bedroll', name: 'Bedroll', qty: 1, notes: '' }
+    ],
+    arrival: 'gate'
+  },
+  {
+    id: 'bg_river_trader', name: 'River trader',
+    blurb: 'You have bought and sold along the river since you were twelve, and you know what everything should cost.',
+    stats: { might: 0, wits: 1, charm: 2, stealth: 0 },
+    gold: 30,
+    items: [
+      { id: 'item_brass_scales', name: 'Brass scales', qty: 1, notes: '' },
+      { id: 'item_bolt_of_cloth', name: 'Bolt of cloth', qty: 1, notes: 'Dyed blue, worth a little' }
+    ],
+    arrival: 'docks'
+  }
+];
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const FLAWS = [
+  'You gamble, and you chase your losses.',
+  'You can\'t back down from a challenge.',
+  'You lie easily, even when the truth would do.'
+];
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const LOOSE_ENDS = {
+  debt: {
+    label: 'A debt',
+    options: ['I owe a moneylender here more than I can pay.', 'I borrowed against my name and the note was sold to someone here.', 'I skipped out on a gambling debt I swore I would cover.'],
+    link: { tag: 'lender' },
+    newNpc: {
+      role: 'moneylender',
+      look: 'A thin man in a good coat with a pocketbook tied shut with string.',
+      voice: 'Polite and slow; mentions the interest in every other sentence.',
+      personality: ['patient', 'merciless'],
+      goal: 'Collect what the newcomer owes, with interest.',
+      secret: 'He bought the debt cheap and would settle for half if pressed.'
+    },
+    seed: { dayOffset: [3, 5], effect: '{npc} comes to collect what {player} owes.', trigger: 'day' }
+  },
+  enemy: {
+    label: 'An enemy',
+    options: ['Someone I wronged has followed me here.', 'A man I informed on wants me found.', 'I shamed someone in public and they swore I would pay for it.'],
+    link: null,
+    newNpc: {
+      role: 'old enemy',
+      look: 'A big, quiet man with a scar through one eyebrow.',
+      voice: 'Says very little, all of it polite, and always uses your full name.',
+      personality: ['patient', 'vindictive'],
+      goal: 'Settle an old score with the newcomer.',
+      secret: 'He has spent the money he was paid to do it.'
+    },
+    seed: { dayOffset: [4, 7], effect: '{npc} arrives in town asking for {player} by name.', trigger: 'day' }
+  },
+  secret: {
+    label: 'A secret',
+    options: ['Someone here knows what I did before I came.', 'I am travelling under a name that is not mine.', 'I carry a letter I was told never to open.'],
+    link: { tag: 'informant' },
+    newNpc: {
+      role: 'dock gossip',
+      look: 'A wiry woman with a clay pipe and a basket of eels on her hip.',
+      voice: 'Talks out of the corner of her mouth and never looks at you.',
+      personality: ['nosy', 'greedy'],
+      goal: 'Turn what she knows into coin.',
+      secret: 'She has already sold the same secret to someone else.'
+    },
+    seed: { dayOffset: [3, 6], effect: '{npc} lets {player} know the secret has a price.', trigger: 'day' }
+  },
+  lost: {
+    label: 'Someone lost',
+    options: ['My sister came here last year and stopped writing.', 'I want to know who left me at a temple door.', 'My friend took a barge downriver and never came home.'],
+    link: null,
+    newNpc: {
+      role: 'register keeper',
+      look: 'A short-sighted woman in a grey apron with a ring of keys.',
+      voice: 'Fussy and precise; reads everything aloud twice.',
+      personality: ['fussy', 'kind'],
+      goal: 'Match every lost name in her register to a living one.',
+      secret: 'She lets people pay to have entries changed.'
+    },
+    seed: { dayOffset: [4, 8], effect: '{npc} sends word that the register holds a name {player} will want to see.', trigger: 'day' }
+  },
+  promise: {
+    label: 'A promise',
+    options: ['I promised a dying man I would deliver his letter here.', 'I swore to repay the family who hid me.', 'I promised to bring someone home from this town.'],
+    link: { tag: 'boatman' },
+    newNpc: {
+      role: 'lodging-house keeper',
+      look: 'A grey-haired man with one arm and a stained waistcoat.',
+      voice: 'Gloomy and dry; expects the worst and says so politely.',
+      personality: ['gloomy', 'honest'],
+      goal: 'Keep his rooms full and his guests out of trouble.',
+      secret: 'He reads every letter left in his care.'
+    },
+    seed: { dayOffset: [2, 4], effect: '{npc} reminds {player} that a promise is still waiting to be kept.', trigger: 'day' }
+  }
+};
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const GRUDGE_TEMPLATES = [
+  { effect: '{npc} reports {player} to the watch for something they half saw.', dayOffset: [2, 4] },
+  { effect: '{npc} raises prices on {player} and tells friends to do the same.', dayOffset: [2, 5] }
+];
+
+// PLACEHOLDER: replaced by content/town-data.js in milestone 3
+const FAVOUR_TEMPLATES = [
+  { effect: '{npc} tips off {player} about trouble coming their way.', dayOffset: [2, 4] },
+  { effect: '{npc} offers {player} a discount and a quiet warning.', dayOffset: [2, 5] }
+];
+
+// ===== END CONTENT =====
+
+/* STYLE_GUIDE and EXAMPLE_TURNS are not placeholders: SPEC.md section 9,
+   word for word. The narrator's cached system prompt is built from them by
+   Style.systemPrompt(). */
+const STYLE_GUIDE = `You narrate a text RPG. Write like a sharp, economical novelist, not like an AI.
+
+LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first moment the player must respond.
+
+VOICE: Second person, present tense. Plain words. Concrete detail: what is seen, heard, done. Never tell the player how to feel.
+
+DIALOGUE: NPCs speak in their listed voice. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+
+NEVER:
+- Act, speak, think or feel for the player character beyond what they typed.
+- Mention anything not in the packet. If it isn't listed, it isn't there.
+- Change the roll outcome. Failure is failure.
+- Offer options or ask "What do you do?"
+- Recap what the player just did.
+- End with a summary of the mood.
+
+BANNED PHRASES: "the air is thick with", "a testament to", "little did you know", "somewhere in the distance", "you can't help but", "a sense of", "palpable", "tapestry", "whispers of", "the weight of", "sends shivers", "unbeknownst", "in the grand scheme", "it's worth noting", "echoes through", "hangs in the air", "a mix of", "as if on cue", "time seems to slow", "eyes glinting with".
+Also avoid: lists of three adjectives, rhetorical questions, and starting with "As you".`;
+
+const EXAMPLE_TURNS = [
+  {
+    input: 'I walk into the tavern.',
+    context: 'Seed due: Mara wants her 40 silver.',
+    narration: 'The Lantern is half empty this early. Mara is at the end of the bar with a cup she isn\'t drinking. She doesn\'t turn around. "Sit," she says. "You owe me forty."'
+  },
+  {
+    input: 'I try to pick the lock on the counting-house door.',
+    context: 'Stealth 9 vs 15 · Failure · Complication: someone saw you.',
+    narration: 'The pick slips and the tumbler snaps back with a click that\'s louder than it should be. Across the lane, a shutter opens a hand\'s width. A boy is watching you.'
+  },
+  {
+    input: 'I ask the smith if he\'s heard anything about the smugglers.',
+    context: 'Smith: gruff, short sentences, attitude −10.',
+    narration: 'He keeps hammering. "Heard plenty. Doesn\'t mean I talk about it." He sets the tongs down and looks at your empty hands. "You buying something?"'
+  }
+];
+
+// ===== Helpers =====
+const PHASES = ['morning', 'afternoon', 'evening', 'night'];
+const STATS = ['might', 'wits', 'charm', 'stealth'];
+const TIME_COSTS = ['instant', 'short', 'long', 'rest'];
+const THREAD_STATUSES = ['open', 'resolved', 'failed'];
+const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
+const LOOSE_END_KINDS = ['debt', 'enemy', 'secret', 'lost', 'promise'];
+const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+const ID_RE = {
+  loc: /^loc_[a-z0-9_]+$/, npc: /^npc_[a-z0-9_]+$/, fac: /^fac_[a-z0-9_]+$/, thr: /^thr_[a-z0-9_]+$/,
+  seed: /^seed_[a-z0-9_]+$/, rum: /^rum_[a-z0-9_]+$/, item: /^item_[a-z0-9_]+$/, cond: /^cond_[a-z0-9_]+$/, bg: /^bg_[a-z0-9_]+$/
+};
+
+function deepCopy(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function toInt(v) {
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === 'string' && /^\s*-?\d+\s*$/.test(v)) return parseInt(v, 10);
+  return null;
+}
+function capFirst(s) { s = String(s == null ? '' : s); return s.charAt(0).toUpperCase() + s.slice(1); }
+function lowerFirst(s) { s = String(s == null ? '' : s); return s.charAt(0).toLowerCase() + s.slice(1); }
+function sentence(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  s = capFirst(s);
+  return /[.!?"'”)]$/.test(s) ? s : s + '.';
+}
+function article(word) { return /^[aeiou]/i.test(String(word)) ? 'an' : 'a'; }
+function slugify(s) {
+  const out = String(s == null ? '' : s).toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/_+$/, '');
+  return out || 'x';
+}
+function fillTemplate(tpl, vars) {
+  return String(tpl == null ? '' : tpl).replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
+}
+function cleanText(v, max) { return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max || 500) : ''; }
+function strArr(v, max) { return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).map(x => cleanText(x, max || 60)) : []; }
+function fmtMod(n) { n = n | 0; return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
+function plusMinus(n) { return n > 0 ? '+' + n : String(n); }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function wordCount(s) { return (String(s || '').trim().match(/\S+/g) || []).length; }
+function uniqueId(base, exists) {
+  if (!exists(base)) return base;
+  for (let i = 2; ; i++) { const c = base + '_' + i; if (!exists(c)) return c; }
+}
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
+/* Build DOM nodes. Strings become text nodes, never markup, so model output and
+   player input can be passed straight in. */
+function el(tag, attrs) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const k of Object.keys(attrs)) {
+      const v = attrs[k];
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'dataset') Object.assign(node.dataset, v);
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+      else if (k === 'value' || k === 'checked' || k === 'disabled' || k === 'hidden' || k === 'selected') node[k] = v;
+      else node.setAttribute(k, v === true ? '' : String(v));
+    }
+  }
+  for (let i = 2; i < arguments.length; i++) appendKids(node, arguments[i]);
+  return node;
+}
+function appendKids(node, kid) {
+  if (kid === null || kid === undefined || kid === false) return;
+  if (Array.isArray(kid)) { kid.forEach(k => appendKids(node, k)); return; }
+  node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+}
+
+// ===== Module: Rng =====
+/* mulberry32. Its state after n calls is seed + n * 0x6D2B79F5, so the stream
+   is fully described by (meta.seed, meta.rngCalls): a loaded save continues
+   exactly where it left off. The bound functions (Rng.int etc.) read and
+   advance the live state's counter; Rng.create(seed) makes a free-standing
+   generator for tests and previews. */
+const Rng = (() => {
+  const STEP = 0x6D2B79F5;
+  function valueAt(seed, n) {
+    const a = (seed + Math.imul(n + 1, STEP)) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function wrap(nextFn) {
+    const g = {
+      next: nextFn,
+      int(a, b) {
+        a = Math.ceil(a); b = Math.floor(b);
+        if (b < a) { const t = a; a = b; b = t; }
+        return a + Math.floor(nextFn() * (b - a + 1));
+      },
+      pick(arr) { return arr && arr.length ? arr[g.int(0, arr.length - 1)] : undefined; },
+      d(sides) { return g.int(1, sides); }
+    };
+    return g;
+  }
+  let looseCalls = 0;
+  const looseSeed = ((Date.now() >>> 0) ^ 0x9e3779b9) >>> 0;
+  function nextBound() {
+    const s = State.current;
+    if (s && s.meta) {
+      const m = s.meta;
+      if (!Number.isInteger(m.rngCalls) || m.rngCalls < 0) m.rngCalls = 0;
+      const v = valueAt(m.seed >>> 0, m.rngCalls);
+      m.rngCalls += 1;
+      return v;
+    }
+    return valueAt(looseSeed, looseCalls++);
+  }
+  const bound = wrap(nextBound);
+  function create(seed, calls) {
+    let n = Number.isInteger(calls) && calls > 0 ? calls : 0;
+    const sd = seed >>> 0;
+    const g = wrap(() => valueAt(sd, n++));
+    Object.defineProperty(g, 'calls', { get: () => n });
+    return g;
+  }
+  function newSeed() {
+    try { const a = new Uint32Array(1); window.crypto.getRandomValues(a); return a[0] || 1; }
+    catch (e) { return (Date.now() >>> 0) || 1; }
+  }
+  return { next: bound.next, int: bound.int, pick: bound.pick, d: bound.d, create, newSeed, valueAt };
+})();
+
+// ===== Module: Dice =====
+/* d20 + stat + modifiers (capped at +/-4) against a difficulty target.
+   Tiers per SPEC.md section 7. The retry lock: after a failure the action's
+   key is stored in meta.lastRollKey (through State.apply); the identical roll
+   is refused until something in the key changes (place, phase, day, target,
+   item, stat or action type). */
+const Dice = (() => {
+  const TARGETS = { easy: 8, normal: 12, hard: 15, very_hard: 18 };
+  const MOD_CAP = 4;
+  const TIER_LABELS = { critical: 'Critical', success: 'Success', partial: 'Partial', failure: 'Failure', critical_failure: 'Critical failure' };
+  const SOCIAL_ACTIONS = ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give'];
+
+  function target(difficulty) { return TARGETS[difficulty] || TARGETS.normal; }
+  function capModifier(total) { return clamp(Math.round(Number(total) || 0), -MOD_CAP, MOD_CAP); }
+  function sumModifiers(mods) {
+    return capModifier((mods || []).reduce((sum, m) => sum + (typeof m === 'number' ? m : (Number(m && m.value) || 0)), 0));
+  }
+  function tier(d20, total, tgt) {
+    if (d20 === 20) return 'critical';
+    if (d20 === 1) return 'critical_failure';
+    if (total >= tgt) return 'success';
+    if (total >= tgt - 3) return 'partial';
+    return 'failure';
+  }
+  function isSuccess(t) { return t === 'critical' || t === 'success' || t === 'partial'; }
+  function needsComplication(t) { return t === 'partial' || t === 'failure' || t === 'critical_failure'; }
+  function conditionAffects(c, stat, day) {
+    if (!c) return false;
+    if (Number.isInteger(c.untilDay) && c.untilDay < day) return false;
+    const e = String(c.effect || '').toLowerCase();
+    return e.includes(stat) || /\ball\b/.test(e);
+  }
+  /* Modifiers code applies: +2 fitting item held, +/-2 NPC attitude beyond
+     +/-50 on social rolls, -1 per relevant condition. */
+  function modifiersFor(state, opts) {
+    const mods = [];
+    if (!state) return mods;
+    const p = state.player;
+    const stat = opts.stat;
+    if (opts.usesItemId && p.inventory.some(i => i.id === opts.usesItemId && i.qty > 0)) mods.push({ label: 'item', value: 2 });
+    const social = opts.social === true || (opts.social !== false && (stat === 'charm' || SOCIAL_ACTIONS.includes(opts.actionType)));
+    if (social && opts.npcId) {
+      const n = state.npcs.find(x => x.id === opts.npcId);
+      if (n && n.attitude > 50) mods.push({ label: 'attitude', value: 2 });
+      else if (n && n.attitude < -50) mods.push({ label: 'attitude', value: -2 });
+    }
+    for (const c of p.conditions || []) if (conditionAffects(c, stat, state.time.day)) mods.push({ label: c.name, value: -1 });
+    return mods;
+  }
+  function formatLine(r, withComplication) {
+    const bonus = r.statValue + r.modifier;
+    const name = capFirst(r.stat);
+    const lhs = bonus === 0 ? `${name} ${r.d20}` : `${name} ${r.d20} ${bonus > 0 ? '+' : '−'} ${Math.abs(bonus)} = ${r.total}`;
+    let line = `${lhs} vs ${r.target} · ${TIER_LABELS[r.tier]}`;
+    if (withComplication && r.complication) line += ` · Complication: ${r.complication}`;
+    return line;
+  }
+  /* opts: { stat, difficulty, usesItemId?, npcId?, actionType?, social?,
+     modifiers? (override), statValue? (override), d20? (forced, for tests),
+     complication? (forced) }. rng defaults to the state-bound Rng. */
+  function resolve(opts, rng) {
+    opts = opts || {};
+    const r = rng || Rng;
+    const state = opts.state === undefined ? State.current : opts.state;
+    const stat = STATS.includes(opts.stat) ? opts.stat : 'wits';
+    const difficulty = Object.prototype.hasOwnProperty.call(TARGETS, opts.difficulty) ? opts.difficulty : 'normal';
+    const statValue = Number.isInteger(opts.statValue) ? opts.statValue : (state ? clamp(state.player.stats[stat] | 0, -1, 3) : 0);
+    const modifiers = Array.isArray(opts.modifiers) ? opts.modifiers : modifiersFor(state, Object.assign({}, opts, { stat }));
+    const modifier = sumModifiers(modifiers);
+    const d20 = Number.isInteger(opts.d20) ? clamp(opts.d20, 1, 20) : r.d(20);
+    const tgt = target(difficulty);
+    const total = d20 + statValue + modifier;
+    const t = tier(d20, total, tgt);
+    const complication = needsComplication(t) ? (opts.complication || Tables.complication(r)) : null;
+    const res = { stat, statValue, modifiers, modifier, d20, total, target: tgt, difficulty, tier: t, label: TIER_LABELS[t], success: isSuccess(t), complication };
+    res.line = formatLine(res, false);
+    res.packetLine = formatLine(res, true);
+    return res;
+  }
+  function lockKey(action, state) {
+    state = state || State.current;
+    const targets = (Array.isArray(action.targets) ? action.targets : []).map(String).sort().join(',');
+    const where = state ? [state.player.locationId, state.time.day, state.time.phase] : [];
+    return [action.actionType || 'other', action.stat || '', targets, action.usesItemId || ''].concat(where).join('|');
+  }
+  function isLocked(key, state) { state = state || State.current; return !!(state && key && state.meta.lastRollKey === key); }
+  function lockFor(result, key) { return result && (result.tier === 'failure' || result.tier === 'critical_failure') ? key : null; }
+  return { TARGETS, MOD_CAP, TIER_LABELS, target, capModifier, sumModifiers, tier, isSuccess, needsComplication, modifiersFor, resolve, formatLine, lockKey, isLocked, lockFor };
+})();
+
+// ===== Module: Tables =====
+/* Builds entities from TABLES with the seeded Rng. Nothing here writes state:
+   callers pass the result to State.apply (addNpcs, addLocations, itemsGained). */
+const Tables = (() => {
+  function taken(id) { return !!(State.current && State.entityById(id)); }
+  function npc(opts, rng) {
+    opts = opts || {};
+    const r = rng || Rng;
+    const T = TABLES.npc;
+    const name = cleanText(opts.name, 60) || `${r.pick(T.firstNames)} ${r.pick(T.familyNames)}`;
+    const role = cleanText(opts.role, 60) || r.pick(T.occupations);
+    const t1 = r.pick(T.traits);
+    let t2 = r.pick(T.traits);
+    for (let i = 0; i < 6 && t2 === t1 && T.traits.length > 1; i++) t2 = r.pick(T.traits);
+    const voice = cleanText(opts.voice, 200) || r.pick(T.speechQuirks);
+    const goal = cleanText(opts.goal, 200) || r.pick(T.wants);
+    const isTaken = opts.taken || taken;
+    return {
+      id: uniqueId('npc_' + slugify(name), isTaken),
+      name,
+      role,
+      factionId: opts.factionId || null,
+      tags: strArr(opts.tags),
+      look: cleanText(opts.look, 200) || `${capFirst(article(role))} ${role} with ${article(t1)} ${t1} look about them.`,
+      voice,
+      personality: Array.isArray(opts.personality) && opts.personality.length ? strArr(opts.personality).slice(0, 3) : [t1, t2],
+      goal,
+      secret: cleanText(opts.secret, 300),
+      attitude: clamp(toInt(opts.attitude) || 0, -100, 100),
+      memories: [],
+      alive: true,
+      knownToPlayer: opts.knownToPlayer === true,
+      status: 'free'
+    };
+  }
+  function location(opts, rng) {
+    opts = opts || {};
+    const r = rng || Rng;
+    const T = TABLES.location;
+    const type = cleanText(opts.type, 40) || r.pick(T.types);
+    const detail = r.pick(T.details);
+    const problem = r.pick(T.problems);
+    const name = cleanText(opts.name, 60) || capFirst(type);
+    const isTaken = opts.taken || taken;
+    return {
+      id: uniqueId('loc_' + slugify(name), isTaken),
+      name,
+      type: type.toLowerCase(),
+      description: `${sentence(`${capFirst(article(type))} ${type} with ${detail}`)} ${sentence(`Lately ${problem}`)}`,
+      exits: opts.fromId ? [opts.fromId] : [],
+      npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
+      discovered: true,
+      closed: false
+    };
+  }
+  function item(kind, rng) {
+    const r = rng || Rng;
+    if (kind === 'trinket') {
+      const name = capFirst(r.pick(TABLES.items.trinkets));
+      return { id: 'item_' + slugify(name), name, qty: 1, notes: 'trinket', price: 0 };
+    }
+    const g = r.pick(TABLES.items.goods);
+    return { id: 'item_' + slugify(g.name), name: g.name, qty: 1, notes: '', price: price(g.name) };
+  }
+  function price(name) {
+    const g = TABLES.items.goods.find(x => x.name.toLowerCase() === String(name).toLowerCase());
+    if (!g) return null;
+    const m = (State.current && State.current.flags.priceMultiplier) || 1;
+    return Math.max(1, Math.round(g.price * m));
+  }
+  function complication(rng) { return (rng || Rng).pick(TABLES.complications); }
+  function weather(season, rng) {
+    const list = TABLES.weather[season] || TABLES.weather.spring || [];
+    return (rng || Rng).pick(list) || '';
+  }
+  return { npc, location, item, price, complication, weather };
+})();
+
+// ===== Module: State =====
+/* The game state is one JSON object (SPEC.md section 3 plus the additions in
+   BUILD_PLAN.md). State.apply(diff) is the only writer once a game exists.
+
+   apply(diff, { source }) accepts:
+   - the bookkeeper's record_changes shape (SPEC.md section 10),
+   - effects: [{ op, ... }] using the effect-op table in BUILD_PLAN.md,
+   - engine-only fields (source 'engine', the default): addNpcs, addLocations,
+     conditionsRemoved, storyPointsDelta, lastRollKey, beginTurn, advanceTime,
+     logEntry, seedsFired, chronicleEntry, weather, addLooseEnd.
+   With { source: 'model' } only the record_changes fields are accepted, so a
+   bookkeeper reply can never plant effects or touch time.
+   Returns { applied: [string], rejected: [{ path, reason }], time? }. */
+const State = (() => {
+  let current = null;
+  let town = null;
+  let muted = false;
+  const undo = [];
+  const UNDO_MAX = 20;
+  const LOG_MAX = 30;
+  const MEMORY_MAX = 50;
+  const DEBUG_MAX = 200;
+  const listeners = [];
+  const debugLog = [];
+  let ledger = freshLedger(-1);
+
+  const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
+    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'journalEntry'];
+  const ENGINE_KEYS = ['addLocations', 'addNpcs', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
+    'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd'];
+  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3 };
+  // Content note 7: setFlag may never overwrite these (they have their own writers).
+  const RESERVED_FLAGS = ['priceMultiplier', 'weather', 'season'];
+
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0 }; }
+  function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
+
+  class Reject extends Error {}
+  function bad(reason) { throw new Reject(reason); }
+
+  // ----- lookups -----
+  function find(list, id) { return typeof id === 'string' && Array.isArray(list) ? (list.find(x => x.id === id) || null) : null; }
+  function npc(id) { return current ? find(current.npcs, id) : null; }
+  function loc(id) { return current ? find(current.locations, id) : null; }
+  function faction(id) { return current ? find(current.factions, id) : null; }
+  function thread(id) { return current ? find(current.threads, id) : null; }
+  function seed(id) { return current ? find(current.seeds, id) : null; }
+  function rumour(id) { return current ? find(current.rumours, id) : null; }
+  function entityById(id) {
+    if (!current || typeof id !== 'string') return null;
+    switch (id.split('_')[0]) {
+      case 'npc': return npc(id);
+      case 'loc': return loc(id);
+      case 'fac': return faction(id);
+      case 'thr': return thread(id);
+      case 'seed': return seed(id);
+      case 'rum': return rumour(id);
+      case 'item': return find(current.player.inventory, id);
+      case 'cond': return find(current.player.conditions, id);
+      default: return null;
+    }
+  }
+  const needNpc = id => npc(id) || bad(`unknown npc id "${id}"`);
+  const needLoc = id => loc(id) || bad(`unknown location id "${id}"`);
+  const needFaction = id => faction(id) || bad(`unknown faction id "${id}"`);
+  const needThread = id => thread(id) || bad(`unknown thread id "${id}"`);
+
+  // ----- schedules -----
+  function phasesOf(v) {
+    if (v === 'all' || v === undefined || v === null) return PHASES.slice();
+    if (Array.isArray(v) && v.length && v.every(p => PHASES.includes(p))) return Array.from(new Set(v));
+    return null;
+  }
+  function removeFromSchedules(npcId, phases) {
+    for (const l of current.locations) {
+      const sch = l.npcIdsBySchedule || (l.npcIdsBySchedule = {});
+      for (const p of phases || PHASES) if (Array.isArray(sch[p])) sch[p] = sch[p].filter(x => x !== npcId);
+    }
+  }
+  function addToSchedule(l, phase, npcId) {
+    const sch = l.npcIdsBySchedule || (l.npcIdsBySchedule = {});
+    if (!Array.isArray(sch[phase])) sch[phase] = [];
+    if (!sch[phase].includes(npcId)) sch[phase].push(npcId);
+  }
+  function restoreSchedule(n) {
+    removeFromSchedules(n.id);
+    let placed = false;
+    if (town && Array.isArray(town.locations)) {
+      for (const tl of town.locations) {
+        for (const p of PHASES) {
+          const ids = (tl.npcIdsBySchedule && tl.npcIdsBySchedule[p]) || [];
+          const l = loc(tl.id);
+          if (ids.includes(n.id) && l) { addToSchedule(l, p, n.id); placed = true; }
+        }
+      }
+    }
+    if (!placed && n.home && loc(n.home.locationId)) n.home.phases.forEach(p => addToSchedule(loc(n.home.locationId), p, n.id));
+  }
+
+  // ----- normalisers (validate fully, then return a clean object) -----
+  function normaliseThread(t) {
+    if (!isObj(t)) bad('thread must be an object');
+    if (typeof t.id !== 'string' || !ID_RE.thr.test(t.id)) bad('thread id must look like thr_name');
+    if (thread(t.id)) bad(`thread id "${t.id}" already exists`);
+    const title = cleanText(t.title, 120);
+    if (!title) bad('thread needs a title');
+    const status = t.status === undefined || t.status === null ? 'open' : t.status;
+    if (!THREAD_STATUSES.includes(status)) bad('thread status must be open, resolved or failed');
+    const linked = Array.isArray(t.linkedIds) ? t.linkedIds : [];
+    for (const id of linked) if (!entityById(id)) bad(`unknown linked id "${id}"`);
+    return { id: t.id, title, summary: cleanText(t.summary, 400), status, knownToPlayer: t.knownToPlayer === true, linkedIds: linked.slice() };
+  }
+  function normaliseRumour(r) {
+    if (!isObj(r)) bad('rumour must be an object');
+    if (typeof r.id !== 'string' || !ID_RE.rum.test(r.id)) bad('rumour id must look like rum_name');
+    if (rumour(r.id)) bad(`rumour id "${r.id}" already exists`);
+    const text = cleanText(r.text, 300);
+    if (!text) bad('rumour needs text');
+    if (r.sourceNpcId !== null && r.sourceNpcId !== undefined) needNpc(r.sourceNpcId);
+    return { id: r.id, text, true: r.true !== false, sourceNpcId: r.sourceNpcId || null, heard: r.heard === true };
+  }
+  function normaliseSeed(raw, requireAhead) {
+    if (!isObj(raw)) bad('seed must be an object');
+    const effect = cleanText(raw.effect, 400);
+    if (!effect) bad('seed needs an effect');
+    const tr = isObj(raw.trigger) ? raw.trigger : { type: raw.triggerType, value: raw.triggerValue };
+    const day = current.time.day;
+    let value = tr.value;
+    switch (tr.type) {
+      case 'day':
+        value = toInt(value);
+        if (value === null) bad('a day trigger needs a day number');
+        if (requireAhead && value < day + 1) bad(`trigger must be at least 1 day ahead (today is day ${day}, trigger is day ${value})`);
+        break;
+      case 'location': needLoc(value); break;
+      case 'npc': needNpc(value); break;
+      case 'clock': {
+        const m = /^(fac_[a-z0-9_]+):(\d+)$/.exec(String(value));
+        if (!m) bad('a clock trigger value must look like fac_name:3');
+        needFaction(m[1]);
+        const n = parseInt(m[2], 10);
+        if (n < 1 || n > 12) bad('clock trigger segment out of range');
+        value = `${m[1]}:${n}`;
+        break;
+      }
+      default: bad('trigger type must be day, location, npc or clock');
+    }
+    let id = typeof raw.id === 'string' && ID_RE.seed.test(raw.id) ? raw.id : `seed_t${current.meta.turn}`;
+    id = uniqueId(id, x => !!seed(x));
+    const out = { id, cause: cleanText(raw.cause, 300) || 'unrecorded', effect, trigger: { type: tr.type, value }, fired: false, hidden: raw.hidden !== false };
+    let notBefore = toInt(raw.notBeforeDay);
+    if (requireAhead && tr.type !== 'day') notBefore = Math.max(notBefore || 0, day + 1);
+    if (notBefore) out.notBeforeDay = notBefore;
+    return out;
+  }
+  function addNpc(raw) {
+    if (!isObj(raw)) bad('npc must be an object');
+    if (typeof raw.id !== 'string' || !ID_RE.npc.test(raw.id)) bad('npc id must look like npc_name');
+    if (npc(raw.id)) bad(`npc id "${raw.id}" already exists`);
+    const name = cleanText(raw.name, 60);
+    if (!name) bad('npc needs a name');
+    if (raw.factionId !== null && raw.factionId !== undefined) needFaction(raw.factionId);
+    let home = null;
+    if (raw.home) {
+      const l = needLoc(raw.home.locationId);
+      const ph = phasesOf(raw.home.phases) || bad('home phases must be "all" or a list of phases');
+      home = { locationId: l.id, phases: ph };
+    }
+    const n = {
+      id: raw.id, name, role: cleanText(raw.role, 60) || 'townsfolk', factionId: raw.factionId || null,
+      tags: strArr(raw.tags), look: cleanText(raw.look, 200), voice: cleanText(raw.voice, 200),
+      personality: strArr(raw.personality).slice(0, 3), goal: cleanText(raw.goal, 200), secret: cleanText(raw.secret, 300),
+      attitude: clamp(toInt(raw.attitude) || 0, -100, 100), memories: [], alive: true,
+      knownToPlayer: raw.knownToPlayer === true, status: 'free'
+    };
+    if (home) n.home = home;
+    current.npcs.push(n);
+    if (home) home.phases.forEach(p => addToSchedule(loc(home.locationId), p, n.id));
+    return `added ${n.id} (${n.name})`;
+  }
+  function addLocation(raw) {
+    if (!isObj(raw)) bad('location must be an object');
+    if (typeof raw.id !== 'string' || !ID_RE.loc.test(raw.id)) bad('location id must look like loc_name');
+    if (loc(raw.id)) bad(`location id "${raw.id}" already exists`);
+    const name = cleanText(raw.name, 60);
+    if (!name) bad('location needs a name');
+    const exits = Array.isArray(raw.exits) ? raw.exits : [];
+    exits.forEach(needLoc);
+    const l = {
+      id: raw.id, name, type: cleanText(raw.type, 40).toLowerCase() || 'place', description: cleanText(raw.description, 400),
+      exits: Array.from(new Set(exits)), npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
+      discovered: raw.discovered !== false, closed: raw.closed === true
+    };
+    current.locations.push(l);
+    for (const x of l.exits) { const o = loc(x); if (!o.exits.includes(l.id)) o.exits.push(l.id); }
+    return `added ${l.id} (${l.name})`;
+  }
+  function setThreadStatus(t, status) {
+    if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
+    if (t.status === status) return `${t.id} already ${status}`;
+    const was = t.status;
+    t.status = status;
+    let extra = '';
+    if (status === 'resolved' && was !== 'resolved') {
+      const p = current.player;
+      if (p.storyPoints < LIMITS.storyPoints) { p.storyPoints += 1; extra = ' (+1 story point)'; }
+    }
+    return `${t.id} ${was} -> ${status}${extra}`;
+  }
+  function findHeld(ref) {
+    const inv = current.player.inventory;
+    if (typeof ref !== 'string' || !ref.trim()) return null;
+    const r = ref.trim();
+    return inv.find(i => i.id === r) || inv.find(i => i.name.toLowerCase() === r.toLowerCase()) || inv.find(i => i.id === 'item_' + slugify(r)) || null;
+  }
+  function knownItemName(id) {
+    const all = [].concat(current.player.inventory, ...BACKGROUNDS.map(b => b.items || []));
+    const hit = all.find(i => i && i.id === id);
+    if (hit) return hit.name;
+    const g = TABLES.items.goods.find(x => 'item_' + slugify(x.name) === id);
+    if (g) return g.name;
+    const t = TABLES.items.trinkets.find(x => 'item_' + slugify(x) === id);
+    return t ? capFirst(t) : capFirst(id.slice(5).replace(/_/g, ' '));
+  }
+
+  // ----- effect ops (BUILD_PLAN.md table) -----
+  const EFFECTS = {
+    closeLocation(e) { const l = needLoc(e.locationId); l.closed = true; return `${l.id} closed`; },
+    openLocation(e) { const l = needLoc(e.locationId); l.closed = false; return `${l.id} open`; },
+    npcStatus(e) {
+      const n = needNpc(e.npcId);
+      if (!NPC_STATUSES.includes(e.status)) bad('status must be free, arrested, gone or dead');
+      // Content note 6: clocks may contradict each other, so an NPC who is
+      // already gone or dead stays that way (a no-op, not a rejection).
+      if (n.status === 'gone' || n.status === 'dead' || n.alive === false) return `no-op: ${n.id} is already ${n.alive === false ? 'dead' : n.status}`;
+      n.status = e.status;
+      if (e.status === 'dead') n.alive = false;
+      else if (e.status === 'arrested') {
+        removeFromSchedules(n.id);
+        const watch = current.locations.find(l => l.type === 'watch');
+        if (watch) PHASES.forEach(p => addToSchedule(watch, p, n.id));
+      } else if (e.status === 'gone') removeFromSchedules(n.id);
+      else restoreSchedule(n);
+      return `${n.id} is ${e.status}`;
+    },
+    npcMove(e) {
+      const n = needNpc(e.npcId);
+      const l = needLoc(e.locationId);
+      const ph = phasesOf(e.phases) || bad('phases must be "all" or a list of phases');
+      removeFromSchedules(n.id, ph);
+      ph.forEach(p => addToSchedule(l, p, n.id));
+      return `${n.id} at ${l.id} (${ph.join(', ')})`;
+    },
+    attitudeDelta(e) {
+      const n = needNpc(e.npcId);
+      const d = toInt(e.delta);
+      if (d === null) bad('delta must be an integer');
+      const before = n.attitude;
+      n.attitude = clamp(before + d, -100, 100);
+      return `${n.id} attitude ${before} -> ${n.attitude}`;
+    },
+    priceMultiplier(e) {
+      const f = Number(e.factor);
+      if (!Number.isFinite(f) || f <= 0) bad('factor must be a positive number');
+      const before = current.flags.priceMultiplier || 1;
+      current.flags.priceMultiplier = Math.round(clamp(before * clamp(f, 0.25, 4), 0.25, 4) * 100) / 100;
+      return `price multiplier ${before} -> ${current.flags.priceMultiplier}`;
+    },
+    openThread(e) { const t = normaliseThread(e.thread); current.threads.push(t); return `thread ${t.id} opened`; },
+    threadStatus(e) { return setThreadStatus(needThread(e.threadId), e.status); },
+    addRumour(e) { const r = normaliseRumour(e.rumour); current.rumours.push(r); return `rumour ${r.id} added`; },
+    plantSeed(e) { const s = normaliseSeed(e.seed, false); current.seeds.push(s); return `seed ${s.id} planted (${s.trigger.type} ${s.trigger.value})`; },
+    factionRelation(e) {
+      const a = needFaction(e.a);
+      const b = needFaction(e.b);
+      if (a === b) bad('a and b must be different factions');
+      const d = toInt(e.delta);
+      if (d === null) bad('delta must be an integer');
+      a.relations = a.relations || {};
+      b.relations = b.relations || {};
+      const v = clamp((a.relations[b.id] || 0) + d, -100, 100);
+      a.relations[b.id] = v;
+      b.relations[a.id] = v;
+      return `${a.id} <-> ${b.id} ${v}`;
+    },
+    setFlag(e) {
+      if (typeof e.key !== 'string' || !/^[A-Za-z][\w.-]{0,40}$/.test(e.key)) bad('key must be a short name');
+      if (RESERVED_FLAGS.includes(e.key)) bad(`flag "${e.key}" is reserved`);
+      const v = e.value;
+      if (!(v === null || ['string', 'number', 'boolean'].includes(typeof v))) bad('value must be a string, number, boolean or null');
+      if (typeof v === 'number' && !Number.isFinite(v)) bad('value must be finite');
+      current.flags[e.key] = typeof v === 'string' ? v.slice(0, 200) : v;
+      return `flag ${e.key} = ${JSON.stringify(current.flags[e.key])}`;
+    },
+    reputationDelta(e) {
+      if (e.key !== 'town' && !faction(e.key)) bad(`unknown reputation key "${e.key}"`);
+      const d = toInt(e.delta);
+      if (d === null) bad('delta must be an integer');
+      const rep = current.player.reputation;
+      const before = rep[e.key] || 0;
+      rep[e.key] = clamp(before + d, -100, 100);
+      return `reputation ${e.key} ${before} -> ${rep[e.key]}`;
+    }
+  };
+
+  // ----- time -----
+  function advanceTime(cost) {
+    if (!TIME_COSTS.includes(cost)) bad('time cost must be instant, short, long or rest');
+    const t = current.time;
+    if (!PHASES.includes(t.phase)) t.phase = 'morning';
+    const from = { day: t.day, phase: t.phase };
+    let steps = 0;
+    let healed = 0;
+    if (cost === 'short') {
+      t.shorts = (t.shorts | 0) + 1;
+      if (t.shorts >= 3) { t.shorts = 0; steps = 1; }
+    } else if (cost === 'long') {
+      steps = 1;
+    } else if (cost === 'rest') {
+      steps = PHASES.length - PHASES.indexOf(t.phase);
+      t.shorts = 0;
+      const p = current.player;
+      const before = p.hp;
+      p.hp = clamp(p.hp + 3, 0, p.maxHp);
+      healed = p.hp - before;
+    }
+    for (let i = 0; i < steps; i++) {
+      const idx = PHASES.indexOf(t.phase);
+      if (idx === PHASES.length - 1) { t.phase = PHASES[0]; t.day += 1; } else t.phase = PHASES[idx + 1];
+    }
+    return { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed };
+  }
+
+  // ----- apply -----
+  function apply(diff, opts) {
+    const source = (opts && opts.source) || 'engine';
+    const result = { applied: [], rejected: [] };
+    const ok = (path, what) => result.applied.push(`${path}: ${what}`);
+    const no = (path, reason) => result.rejected.push({ path, reason });
+    const run = (path, fn) => {
+      try {
+        const r = fn();
+        if (r !== undefined && r !== null && r !== '') ok(path, r);
+      } catch (err) {
+        if (err instanceof Reject) no(path, err.message);
+        else { no(path, 'internal error: ' + err.message); console.error(err); }
+      }
+    };
+    if (!current) { no('', 'no game in progress'); return finish(result, source); }
+    if (!isObj(diff)) { no('', 'diff must be an object'); return finish(result, source); }
+    syncLedger();
+    const s = current;
+    const p = s.player;
+    const allowed = source === 'model' ? RECORD_KEYS : RECORD_KEYS.concat(ENGINE_KEYS);
+    for (const k of Object.keys(diff)) {
+      if (!allowed.includes(k)) no(k, ENGINE_KEYS.includes(k) ? 'not allowed from the model' : 'unknown field');
+    }
+    const val = k => (allowed.includes(k) && diff[k] !== undefined && diff[k] !== null ? diff[k] : undefined);
+    const each = (k, fn) => {
+      const list = val(k);
+      if (list === undefined) return;
+      if (!Array.isArray(list)) { no(k, 'must be an array'); return; }
+      list.forEach((item, i) => run(`${k}[${i}]`, () => fn(item)));
+    };
+    const one = (k, fn) => { const v = val(k); if (v !== undefined) run(k, () => fn(v)); };
+
+    // 1. Creation (engine): new entities first so later fields can refer to them.
+    each('addLocations', addLocation);
+    each('addNpcs', addNpc);
+
+    // 2. record_changes
+    each('attitudeChanges', c => {
+      if (!isObj(c)) bad('must be an object');
+      const n = needNpc(c.npcId);
+      const d = toInt(c.delta);
+      if (d === null) bad('delta must be an integer');
+      if (d === 0) return null;
+      const used = ledger.attitude[n.id] || 0;
+      const allowedDelta = clamp(used + d, -LIMITS.attitudePerTurn, LIMITS.attitudePerTurn) - used;
+      if (allowedDelta === 0) bad(`${n.id} attitude already moved ${LIMITS.attitudePerTurn} this turn`);
+      const before = n.attitude;
+      n.attitude = clamp(before + allowedDelta, -100, 100);
+      ledger.attitude[n.id] = used + allowedDelta;
+      return `${n.id} ${before} -> ${n.attitude}` + (allowedDelta !== d ? ` (delta ${plusMinus(d)} clamped to ${plusMinus(allowedDelta)})` : '');
+    });
+    each('newMemories', m => {
+      if (!isObj(m)) bad('must be an object');
+      const n = needNpc(m.npcId);
+      const text = cleanText(m.text, 240);
+      if (!text) bad('memory needs text');
+      const w = clamp(toInt(m.weight) || 1, 1, 3);
+      n.memories.push({ turn: s.meta.turn, text, weight: w });
+      while (n.memories.length > MEMORY_MAX) {
+        const minW = Math.min(...n.memories.map(x => x.weight));
+        n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
+      }
+      return `${n.id} remembers "${text}" (weight ${w})`;
+    });
+    one('goldDelta', v => {
+      const d = toInt(v);
+      if (d === null) bad('must be an integer');
+      if (d === 0) return null;
+      if (p.gold + d < 0) bad(`cannot afford ${-d} gold (have ${p.gold})`);
+      const before = p.gold;
+      p.gold = Math.min(p.gold + d, 1000000);
+      return `gold ${before} -> ${p.gold}`;
+    });
+    one('hpDelta', v => {
+      const d = toInt(v);
+      if (d === null) bad('must be an integer');
+      if (d === 0) return null;
+      const before = p.hp;
+      p.hp = clamp(p.hp + d, 0, p.maxHp);
+      return `hp ${before} -> ${p.hp}` + (p.hp !== before + d ? ' (clamped)' : '');
+    });
+    each('itemsGained', it => {
+      let id = null;
+      let name = '';
+      let qty = 1;
+      let notes = '';
+      if (typeof it === 'string') {
+        const t = it.trim();
+        if (!t) bad('empty item');
+        if (ID_RE.item.test(t)) { id = t; name = knownItemName(t); } else { name = cleanText(t, 60); id = 'item_' + slugify(name); }
+      } else if (isObj(it)) {
+        name = cleanText(it.name, 60);
+        id = typeof it.id === 'string' && ID_RE.item.test(it.id) ? it.id : (name ? 'item_' + slugify(name) : null);
+        if (id && !name) name = knownItemName(id);
+        qty = clamp(toInt(it.qty) || 1, 1, 99);
+        notes = cleanText(it.notes, 120);
+      } else bad('item must be a name, an item id or an object');
+      if (!id || !name) bad('item needs a name');
+      const held = p.inventory.find(i => i.id === id);
+      if (held) held.qty = Math.min(99, held.qty + qty);
+      else p.inventory.push({ id, name, qty, notes });
+      return `gained ${name} x${qty}`;
+    });
+    each('itemsLost', it => {
+      const ref = isObj(it) ? (it.id || it.name) : it;
+      const qty = isObj(it) ? clamp(toInt(it.qty) || 1, 1, 99) : 1;
+      const held = findHeld(ref);
+      if (!held) bad(`not in inventory: "${ref}"`);
+      if (qty > held.qty) bad(`only holding ${held.qty} of ${held.name}`);
+      held.qty -= qty;
+      if (held.qty <= 0) p.inventory.splice(p.inventory.indexOf(held), 1);
+      return `lost ${held.name} x${qty}`;
+    });
+    each('conditionsAdded', c => {
+      if (!isObj(c)) bad('must be an object');
+      const name = cleanText(c.name, 60);
+      if (!name) bad('condition needs a name');
+      const id = typeof c.id === 'string' && ID_RE.cond.test(c.id) ? c.id : 'cond_' + slugify(name);
+      const day = s.time.day;
+      const until = clamp(toInt(c.untilDay) === null ? day + 1 : toInt(c.untilDay), day, day + 30);
+      const cond = { id, name, effect: cleanText(c.effect, 80), untilDay: until };
+      const i = p.conditions.findIndex(x => x.id === id);
+      if (i >= 0) p.conditions[i] = cond; else p.conditions.push(cond);
+      return `condition ${id} until day ${until}`;
+    });
+    one('playerLocationId', v => {
+      const l = needLoc(v);
+      if (l.id === p.locationId) return null;
+      if (l.closed) bad(`${l.id} is closed`);
+      const from = p.locationId;
+      p.locationId = l.id;
+      l.discovered = true;
+      return `${from} -> ${l.id}`;
+    });
+    each('npcKnownToPlayer', id => { const n = needNpc(id); if (n.knownToPlayer) return null; n.knownToPlayer = true; return `${n.id} known`; });
+    each('threadUpdates', u => {
+      if (!isObj(u)) bad('must be an object');
+      const t = needThread(u.threadId || u.id);
+      if (u.status !== undefined && u.status !== null && !THREAD_STATUSES.includes(u.status)) bad('status must be open, resolved or failed');
+      const parts = [];
+      if (u.status) parts.push(setThreadStatus(t, u.status));
+      if (typeof u.knownToPlayer === 'boolean' && u.knownToPlayer !== t.knownToPlayer) { t.knownToPlayer = u.knownToPlayer; parts.push(`${t.id} known ${u.knownToPlayer}`); }
+      const summary = cleanText(u.summary, 400);
+      if (summary) { t.summary = summary; parts.push(`${t.id} summary updated`); }
+      return parts.join('; ') || null;
+    });
+    each('clockNudges', c => {
+      if (!isObj(c)) bad('must be an object');
+      const f = needFaction(c.factionId);
+      const d = toInt(c.delta);
+      if (d !== 1 && d !== -1) bad('delta must be 1 or -1');
+      const clock = f.activeClock >= 0 && Array.isArray(f.clocks) ? f.clocks[f.activeClock] : null;
+      if (!clock) bad(`${f.id} has no running clock`);
+      const used = ledger.clocks[f.id] || 0;
+      const allowedDelta = clamp(used + d, -LIMITS.clockPerTurn, LIMITS.clockPerTurn) - used;
+      if (allowedDelta === 0) bad(`${f.id} clock already moved this turn`);
+      const before = clock.filled;
+      clock.filled = clamp(before + allowedDelta, 0, clock.segments);
+      ledger.clocks[f.id] = used + allowedDelta;
+      return `${f.id} "${clock.label}" ${before} -> ${clock.filled}/${clock.segments}`;
+    });
+    each('newSeeds', raw => {
+      if (ledger.seeds >= LIMITS.seedsPerTurn) bad(`seed limit reached (${LIMITS.seedsPerTurn} per turn)`);
+      const sd = normaliseSeed(raw, true);
+      s.seeds.push(sd);
+      ledger.seeds += 1;
+      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})`;
+    });
+    each('rumoursHeard', id => {
+      const r = rumour(id) || bad(`unknown rumour id "${id}"`);
+      if (r.heard) return null;
+      r.heard = true;
+      return `${r.id} heard`;
+    });
+    one('journalEntry', v => {
+      if (typeof v !== 'string') bad('must be a string');
+      const text = cleanText(v, 300);
+      if (!text) return null;
+      s.journal.push({ turn: s.meta.turn, text });
+      return `journal "${text}"`;
+    });
+
+    // 3. Effect ops
+    each('effects', e => {
+      if (!isObj(e) || typeof e.op !== 'string') bad('effect needs an op');
+      const h = Object.prototype.hasOwnProperty.call(EFFECTS, e.op) ? EFFECTS[e.op] : null;
+      if (!h) bad(`unknown op "${e.op}"`);
+      return `${e.op}: ${h(e)}`;
+    });
+
+    // 4. Engine bookkeeping
+    each('conditionsRemoved', id => {
+      const i = p.conditions.findIndex(c => c.id === id);
+      if (i < 0) bad(`no condition "${id}"`);
+      p.conditions.splice(i, 1);
+      return `removed ${id}`;
+    });
+    one('storyPointsDelta', v => {
+      const d = toInt(v);
+      if (d === null) bad('must be an integer');
+      if (p.storyPoints + d < 0) bad(`not enough story points (have ${p.storyPoints})`);
+      const before = p.storyPoints;
+      p.storyPoints = clamp(p.storyPoints + d, 0, LIMITS.storyPoints);
+      return `story points ${before} -> ${p.storyPoints}`;
+    });
+    if (Object.prototype.hasOwnProperty.call(diff, 'lastRollKey') && allowed.includes('lastRollKey')) {
+      run('lastRollKey', () => {
+        const v = diff.lastRollKey;
+        if (v !== null && typeof v !== 'string') bad('must be a string or null');
+        if (s.meta.lastRollKey === v) return null;
+        s.meta.lastRollKey = v;
+        return v ? 'retry lock set' : 'retry lock cleared';
+      });
+    }
+    one('beginTurn', v => {
+      if (v !== true) return null;
+      s.meta.turn += 1;
+      syncLedger();
+      return `turn ${s.meta.turn}`;
+    });
+    one('advanceTime', v => {
+      const info = advanceTime(v);
+      result.time = info;
+      return `${v}: day ${info.to.day} ${info.to.phase}` + (info.healed ? ` (+${info.healed} hp)` : '');
+    });
+    one('weather', v => {
+      if (typeof v !== 'string') bad('must be a string');
+      s.flags.weather = cleanText(v, 120);
+      return `weather "${s.flags.weather}"`;
+    });
+    each('seedsFired', id => {
+      const sd = seed(id) || bad(`unknown seed id "${id}"`);
+      if (sd.fired) bad(`${id} already fired`);
+      sd.fired = true;
+      return `${id} fired`;
+    });
+    one('chronicleEntry', c => {
+      if (!isObj(c)) bad('must be an object');
+      const from = toInt(c.fromTurn);
+      const to = toInt(c.toTurn);
+      const summary = typeof c.summary === 'string' ? c.summary.trim().slice(0, 1200) : '';
+      if (from === null || to === null || to < from) bad('needs fromTurn <= toTurn');
+      if (!summary) bad('needs a summary');
+      s.chronicle.push({ fromTurn: from, toTurn: to, summary });
+      const before = s.log.length;
+      s.log = s.log.filter(e => e.turn < from || e.turn > to);
+      return `chronicle ${from}-${to} (${before - s.log.length} log entries dropped)`;
+    });
+    one('logEntry', e => {
+      if (!isObj(e)) bad('must be an object');
+      const entry = {
+        turn: s.meta.turn,
+        day: toInt(e.day) || s.time.day,
+        phase: PHASES.includes(e.phase) ? e.phase : s.time.phase,
+        input: typeof e.input === 'string' ? e.input.trim().slice(0, 2000) : '',
+        roll: isObj(e.roll) ? deepCopy(e.roll) : null,
+        narration: typeof e.narration === 'string' ? e.narration.trim().slice(0, 6000) : ''
+      };
+      s.log.push(entry);
+      if (s.log.length > LOG_MAX) s.log.splice(0, s.log.length - LOG_MAX);
+      return `log turn ${entry.turn}`;
+    });
+    one('addLooseEnd', le => {
+      if (!isObj(le) || !LOOSE_END_KINDS.includes(le.kind)) bad('needs a loose-end kind');
+      needNpc(le.npcId);
+      p.looseEnds = p.looseEnds || [];
+      p.looseEnds.push({
+        kind: le.kind, label: cleanText(le.label, 60), text: cleanText(le.text, 200), npcId: le.npcId,
+        seedId: le.seedId || null, threadId: le.threadId || null, created: le.created === true
+      });
+      return `loose end ${le.kind} -> ${le.npcId}`;
+    });
+
+    return finish(result, source);
+  }
+
+  function finish(result, source) {
+    const turn = current ? current.meta.turn : 0;
+    for (const r of result.rejected) {
+      pushDebug({ turn, kind: 'rejected', source, path: r.path, reason: r.reason });
+      console.debug('[State.apply] rejected', r.path, '-', r.reason);
+    }
+    for (const a of result.applied) pushDebug({ turn, kind: 'applied', source, text: a });
+    if (result.applied.length) notify();
+    return result;
+  }
+  function pushDebug(entry) {
+    debugLog.push(entry);
+    if (debugLog.length > DEBUG_MAX) debugLog.splice(0, debugLog.length - DEBUG_MAX);
+  }
+  function notify() {
+    if (muted || !current) return;
+    for (const fn of listeners) { try { fn(current); } catch (e) { console.error(e); } }
+  }
+
+  // ----- lifecycle -----
+  function checkStats(stats, base) {
+    if (!isObj(stats)) throw new Error('stats missing');
+    let up = 0;
+    let down = 0;
+    for (const k of STATS) {
+      const v = stats[k];
+      if (!Number.isInteger(v) || v < -1 || v > 3) throw new Error(`${k} must be between -1 and 3`);
+      const d = v - (base[k] | 0);
+      if (d > 0) up += d; else down -= d;
+    }
+    if (up !== down || up > 1) throw new Error('you may move one point from one stat to another');
+    return STATS.reduce((o, k) => { o[k] = stats[k]; return o; }, {});
+  }
+  /* character: { name, backgroundId, stats, goal, flaw, looseEnds: [{ kind, text }] }
+     opts: { seed, pending } — pending keeps the new game silent (no autosave,
+     no render) until commit(), so an abandoned creation never overwrites the
+     autosave. */
+  function newGame(townData, character, opts) {
+    opts = opts || {};
+    const bg = BACKGROUNDS.find(b => b.id === character.backgroundId);
+    if (!bg) throw new Error('unknown background');
+    const name = cleanText(character.name, 40);
+    if (!name) throw new Error('name required');
+    const stats = checkStats(character.stats || bg.stats, bg.stats);
+    const t = Town.instantiate(townData);
+    const startId = (t.startLocationIds && t.startLocationIds[bg.arrival]) || t.locations[0].id;
+    const seedValue = Number.isInteger(opts.seed) ? (opts.seed >>> 0) : Rng.newSeed();
+    const reputation = { town: 0 };
+    t.factions.forEach(f => { reputation[f.id] = 0; });
+    const st = {
+      version: 1,
+      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0 },
+      time: { day: 1, phase: 'morning', shorts: 0 },
+      flags: { priceMultiplier: 1, weather: '', season: 'spring' },
+      player: {
+        name, background: bg.name, backgroundId: bg.id,
+        goal: cleanText(character.goal, 160), flaw: cleanText(character.flaw, 160),
+        stats, hp: 10, maxHp: 10, gold: bg.gold | 0,
+        inventory: (bg.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty || 1, notes: i.notes || '' })),
+        conditions: [], reputation, storyPoints: 2, locationId: startId, looseEnds: []
+      },
+      locations: t.locations,
+      npcs: t.npcs,
+      factions: t.factions,
+      threads: t.threads,
+      seeds: t.seeds,
+      rumours: t.rumours,
+      log: [],
+      chronicle: [],
+      journal: []
+    };
+    current = st;
+    town = deepCopy(townData);
+    muted = opts.pending === true;
+    undo.length = 0;
+    ledger = freshLedger(-1);
+    // Season and weather come from the seeded stream, so a seed reproduces a game.
+    st.flags.season = Rng.pick(SEASONS);
+    st.flags.weather = Tables.weather(st.flags.season);
+    for (const le of character.looseEnds || []) Town.resolveLooseEnd(le);
+    notify();
+    return st;
+  }
+  function commit() { muted = false; notify(); }
+  function clear() { current = null; town = null; muted = false; undo.length = 0; }
+  function validateShape(st) {
+    const errs = [];
+    if (!isObj(st)) return ['state is not an object'];
+    if (st.version !== 1) errs.push('unsupported state version');
+    if (!isObj(st.meta) || !Number.isFinite(st.meta.seed)) errs.push('meta.seed missing');
+    if (!isObj(st.time) || !PHASES.includes(st.time.phase) || !Number.isInteger(st.time.day)) errs.push('time missing');
+    if (!isObj(st.player) || !isObj(st.player.stats)) errs.push('player missing');
+    for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours', 'log', 'chronicle', 'journal']) {
+      if (!Array.isArray(st[k])) errs.push(`${k} missing`);
+    }
+    if (!errs.length && !st.locations.some(l => l.id === st.player.locationId)) errs.push('player location unknown');
+    return errs;
+  }
+  function load(st, townData) {
+    const errs = validateShape(st);
+    if (errs.length) throw new Error(errs.join('; '));
+    const s = deepCopy(st);
+    // Fill fields older saves may lack (no-ops for current saves).
+    s.flags = Object.assign({ priceMultiplier: 1, weather: '', season: 'spring' }, s.flags);
+    s.time.shorts = s.time.shorts | 0;
+    if (!Number.isInteger(s.meta.rngCalls)) s.meta.rngCalls = 0;
+    if (s.meta.lastRollKey === undefined) s.meta.lastRollKey = null;
+    if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
+    current = s;
+    town = deepCopy(townData || TOWN_DATA);
+    muted = false;
+    undo.length = 0;
+    ledger = freshLedger(-1);
+    notify();
+    return current;
+  }
+  function snapshot() {
+    if (!current) return null;
+    const snap = JSON.stringify(current);
+    undo.push(snap);
+    if (undo.length > UNDO_MAX) undo.splice(0, undo.length - UNDO_MAX);
+    return snap;
+  }
+  /* restore() pops the newest snapshot; restore(snap) restores a given one
+     (and drops it from the stack if it is the newest). */
+  function restore(snap) {
+    let json = snap;
+    if (json === undefined) json = undo.pop();
+    else if (undo[undo.length - 1] === json) undo.pop();
+    if (!json) return false;
+    current = JSON.parse(json);
+    ledger = freshLedger(-1);
+    notify();
+    return true;
+  }
+
+  // ----- read helpers -----
+  function npcsAt(locId, phase) {
+    if (!current) return [];
+    const l = loc(locId);
+    if (!l) return [];
+    const ids = (l.npcIdsBySchedule && l.npcIdsBySchedule[phase || current.time.phase]) || [];
+    return ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead');
+  }
+  function reputationTier(key) {
+    if (!current) return 'unknown';
+    const v = current.player.reputation[key || 'town'] || 0;
+    if (v >= 50) return 'respected';
+    if (v >= 20) return 'known';
+    if (v <= -50) return 'despised';
+    if (v <= -20) return 'feared';
+    if (Math.abs(v) >= 5) return 'noticed';
+    return 'unknown';
+  }
+  function attitudeWord(a) {
+    if (a <= -60) return 'hostile';
+    if (a <= -25) return 'cold';
+    if (a < -5) return 'wary';
+    if (a <= 5) return 'neutral';
+    if (a < 25) return 'friendly';
+    if (a < 60) return 'warm';
+    return 'loyal';
+  }
+
+  return {
+    get current() { return current; },
+    get town() { return town; },
+    get muted() { return muted; },
+    RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX,
+    apply, newGame, commit, clear, load, validateShape, snapshot, restore,
+    canUndo: () => undo.length > 0,
+    undoDepth: () => undo.length,
+    onChange(fn) { listeners.push(fn); },
+    debugLog,
+    npc, loc, faction, thread, seed, rumour, entityById, npcsAt, reputationTier, attitudeWord
+  };
+})();
+
+// ===== Module: Town =====
+/* Town data at new game (copied into state by State.newGame), validation of a
+   TOWN_DATA object, plausibility of `new:` targets, loose ends at character
+   creation, and the local opening scene. */
+const Town = (() => {
+  function data() { return State.town || TOWN_DATA; }
+  /* A deep copy of a TOWN_DATA object with every runtime default filled in,
+     ready to become the world part of a new game's state. */
+  function instantiate(townData) {
+    const t = deepCopy(townData);
+    t.locations = t.locations.map(l => Object.assign({ discovered: true, closed: false }, l));
+    t.npcs = t.npcs.map(n => Object.assign({ tags: [], memories: [], alive: true, knownToPlayer: false, status: 'free', attitude: 0 }, n));
+    t.factions = t.factions.map(f => Object.assign({ relations: {} }, f, { activeClock: Number.isInteger(f.activeClock) ? f.activeClock : 0 }));
+    t.threads = t.threads || [];
+    t.seeds = t.seeds || [];
+    t.rumours = t.rumours || [];
+    return t;
+  }
+
+  // ----- plausibility of `new:` targets (SPEC.md section 6 step 4) -----
+  const IMPLAUSIBLE = ['dragon', 'dragons', 'demon', 'demons', 'devil', 'unicorn', 'griffin', 'gryphon', 'wyvern', 'basilisk', 'phoenix',
+    'wizard', 'wizards', 'sorcerer', 'sorceress', 'warlock', 'necromancer', 'lich', 'vampire', 'werewolf', 'zombie', 'ghost', 'ghosts',
+    'spectre', 'wraith', 'troll', 'ogre', 'elf', 'elves', 'dwarf', 'dwarves', 'goblin', 'orc', 'orcs', 'fairy', 'faerie', 'pixie', 'angel',
+    'god', 'goddess', 'spellbook', 'magic sword', 'magic ring', 'magic wand', 'wand', 'potion', 'potions', 'portal', 'teleporter',
+    'gun', 'pistol', 'rifle', 'musket', 'cannon', 'robot', 'computer', 'phone', 'car', 'airship', 'spaceship',
+    'king', 'queen', 'emperor', 'empress', 'prince', 'princess', 'chosen one', 'prophecy', 'dark lord', 'army', 'treasure hoard'];
+  const PERSON_WORDS = ['man', 'woman', 'men', 'women', 'boy', 'girl', 'child', 'kid', 'person', 'someone', 'somebody', 'stranger',
+    'guard', 'watchman', 'soldier', 'barmaid', 'barman', 'barkeep', 'bartender', 'innkeeper', 'cook', 'servant', 'maid', 'sailor',
+    'bargeman', 'bargehand', 'boatman', 'ferryman', 'fisherman', 'fishwife', 'merchant', 'trader', 'pedlar', 'peddler', 'beggar',
+    'thief', 'pickpocket', 'drunk', 'patron', 'customer', 'priest', 'monk', 'nun', 'clerk', 'scribe', 'smith', 'farmer', 'carter',
+    'porter', 'labourer', 'worker', 'widow', 'minstrel', 'musician', 'healer', 'gambler', 'player',
+    'wizard', 'sorcerer', 'sorceress', 'witch', 'king', 'queen', 'prince', 'princess', 'emperor', 'empress', 'knight', 'lord', 'lady'];
+  const PLACE_WORDS = ['alley', 'lane', 'street', 'yard', 'courtyard', 'shop', 'stall', 'house', 'cottage', 'room', 'cellar', 'attic',
+    'loft', 'back room', 'stable', 'shed', 'warehouse', 'storehouse', 'well', 'garden', 'orchard', 'field', 'barn', 'mill', 'chapel',
+    'shrine', 'bathhouse', 'den', 'workshop', 'office', 'kitchen', 'privy'];
+  function wordsRe(list) {
+    const esc = list.filter(Boolean).map(w => String(w).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length);
+    return new RegExp('\\b(' + esc.join('|') + ')\\b', 'i');
+  }
+  const IMPLAUSIBLE_RE = wordsRe(IMPLAUSIBLE);
+  let personRe = null;
+  let placeRe = null;
+  function guessKind(desc) {
+    if (!personRe) personRe = wordsRe(PERSON_WORDS.concat(TABLES.npc.occupations || []));
+    if (!placeRe) placeRe = wordsRe(PLACE_WORDS.concat(TABLES.location.types || []));
+    if (personRe.test(desc)) return 'npc';
+    if (placeRe.test(desc)) return 'location';
+    return 'item';
+  }
+  /* description: the text after `new:`. locationType may be any string;
+     unknown types get the generic judgement (content note 5). */
+  function plausible(description, locationType) {
+    const d = cleanText(String(description || '').replace(/^new:/i, ''), 200);
+    if (!d) return { plausible: false, kind: 'other', reason: 'nothing was described' };
+    const kind = guessKind(d);
+    const hit = IMPLAUSIBLE_RE.exec(d);
+    if (hit) return { plausible: false, kind, reason: `"${hit[1]}" does not exist in this town` };
+    return { plausible: true, kind, reason: locationType ? `ordinary enough for a ${locationType}` : 'ordinary enough' };
+  }
+
+  // ----- TOWN_DATA validation (in-browser twin of content/validate.cjs, lighter) -----
+  const EFFECT_OPS = ['closeLocation', 'openLocation', 'npcStatus', 'npcMove', 'attitudeDelta', 'priceMultiplier', 'openThread',
+    'threadStatus', 'addRumour', 'plantSeed', 'factionRelation', 'setFlag', 'reputationDelta'];
+  function validate(t) {
+    const errs = [];
+    const e = msg => errs.push(msg);
+    if (!isObj(t)) return ['TOWN_DATA is not an object'];
+    const arr = v => (Array.isArray(v) ? v : []);
+    if (!cleanText(t.name)) e('name missing');
+    for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours']) if (!Array.isArray(t[k])) e(`${k} must be an array`);
+    const ids = new Set();
+    const reg = (id, kind) => {
+      if (typeof id !== 'string' || !ID_RE[kind].test(id)) e(`bad ${kind} id: ${id}`);
+      else if (ids.has(id)) e(`duplicate id: ${id}`);
+      else ids.add(id);
+    };
+    arr(t.locations).forEach(l => reg(l.id, 'loc'));
+    arr(t.npcs).forEach(n => reg(n.id, 'npc'));
+    arr(t.factions).forEach(f => reg(f.id, 'fac'));
+    arr(t.threads).forEach(x => reg(x.id, 'thr'));
+    arr(t.seeds).forEach(x => reg(x.id, 'seed'));
+    arr(t.rumours).forEach(x => reg(x.id, 'rum'));
+    // ids that clock effects create later also count as known
+    const effectsOf = f => arr(f.clocks).flatMap(c => (isObj(c.onComplete) ? arr(c.onComplete.effects) : []));
+    arr(t.factions).forEach(f => effectsOf(f).forEach(ef => {
+      if (ef && ef.op === 'openThread' && ef.thread) ids.add(ef.thread.id);
+      if (ef && ef.op === 'addRumour' && ef.rumour) ids.add(ef.rumour.id);
+      if (ef && ef.op === 'plantSeed' && ef.seed) ids.add(ef.seed.id);
+    }));
+    const locById = new Map(arr(t.locations).map(l => [l.id, l]));
+    const npcIds = new Set(arr(t.npcs).map(n => n.id));
+    const facIds = new Set(arr(t.factions).map(f => f.id));
+    for (const k of ['gate', 'docks']) if (!t.startLocationIds || !locById.has(t.startLocationIds[k])) e(`startLocationIds.${k} must be a location id`);
+    for (const l of arr(t.locations)) {
+      for (const x of arr(l.exits)) {
+        if (!locById.has(x)) e(`${l.id}: exit to unknown ${x}`);
+        else if (!arr(locById.get(x).exits).includes(l.id)) e(`${l.id}: exit to ${x} is not symmetric`);
+      }
+      if (!isObj(l.npcIdsBySchedule)) { e(`${l.id}: npcIdsBySchedule missing`); continue; }
+      for (const p of PHASES) {
+        if (!Array.isArray(l.npcIdsBySchedule[p])) e(`${l.id}: schedule has no ${p}`);
+        else for (const n of l.npcIdsBySchedule[p]) if (!npcIds.has(n)) e(`${l.id}: ${p} lists unknown ${n}`);
+      }
+    }
+    for (const n of arr(t.npcs)) {
+      if (n.factionId !== null && n.factionId !== undefined && !facIds.has(n.factionId)) e(`${n.id}: unknown faction ${n.factionId}`);
+      if (!Array.isArray(n.tags)) e(`${n.id}: tags must be an array`);
+      if (!NPC_STATUSES.includes(n.status)) e(`${n.id}: bad status ${n.status}`);
+    }
+    const checkRef = (where, kind, id) => { const ok = kind === 'loc' ? locById.has(id) : kind === 'npc' ? npcIds.has(id) : kind === 'fac' ? facIds.has(id) : ids.has(id); if (!ok) e(`${where}: unknown ${kind} ${id}`); };
+    const checkTrigger = (where, tr) => {
+      if (!isObj(tr)) { e(`${where}: trigger missing`); return; }
+      if (tr.type === 'day') { if (!Number.isInteger(tr.value)) e(`${where}: day trigger needs an integer`); }
+      else if (tr.type === 'location') checkRef(where, 'loc', tr.value);
+      else if (tr.type === 'npc') checkRef(where, 'npc', tr.value);
+      else if (tr.type === 'clock') { const m = /^(fac_[a-z0-9_]+):(\d+)$/.exec(String(tr.value)); if (!m) e(`${where}: bad clock trigger ${tr.value}`); else checkRef(where, 'fac', m[1]); }
+      else e(`${where}: bad trigger type ${tr.type}`);
+    };
+    for (const f of arr(t.factions)) {
+      if (!arr(f.clocks).length) e(`${f.id}: needs clocks`);
+      arr(f.clocks).forEach((c, i) => {
+        const where = `${f.id}.clocks[${i}]`;
+        if (!Number.isInteger(c.segments) || c.segments < 1) e(`${where}: segments must be a positive integer`);
+        if (!isObj(c.onComplete) || typeof c.onComplete.text !== 'string' || !Array.isArray(c.onComplete.effects)) { e(`${where}: onComplete needs text and effects`); return; }
+        c.onComplete.effects.forEach((ef, j) => {
+          const w = `${where}.effects[${j}]`;
+          if (!isObj(ef) || !EFFECT_OPS.includes(ef.op)) { e(`${w}: unknown op ${ef && ef.op}`); return; }
+          if (ef.locationId !== undefined) checkRef(w, 'loc', ef.locationId);
+          if (ef.npcId !== undefined) checkRef(w, 'npc', ef.npcId);
+          if (ef.threadId !== undefined) checkRef(w, 'thr', ef.threadId);
+          if (ef.op === 'factionRelation') { checkRef(w, 'fac', ef.a); checkRef(w, 'fac', ef.b); }
+          if (ef.op === 'reputationDelta' && ef.key !== 'town') checkRef(w, 'fac', ef.key);
+          if (ef.op === 'plantSeed' && ef.seed) checkTrigger(w, ef.seed.trigger);
+          if (ef.op === 'setFlag' && ['priceMultiplier', 'weather', 'season'].includes(ef.key)) e(`${w}: flag ${ef.key} is reserved`);
+        });
+      });
+      for (const r of Object.keys(f.relations || {})) if (!facIds.has(r)) e(`${f.id}: relation to unknown ${r}`);
+    }
+    for (const th of arr(t.threads)) for (const id of arr(th.linkedIds)) if (!ids.has(id)) e(`${th.id}: linked unknown ${id}`);
+    for (const sd of arr(t.seeds)) checkTrigger(sd.id, sd.trigger);
+    for (const r of arr(t.rumours)) if (r.sourceNpcId !== null && r.sourceNpcId !== undefined && !npcIds.has(r.sourceNpcId)) e(`${r.id}: unknown source ${r.sourceNpcId}`);
+    return errs;
+  }
+
+  // ----- loose ends (SPEC.md section 5 step 6) -----
+  /* Each loose end becomes a real entity: the first free NPC carrying
+     LOOSE_ENDS[kind].link.tag (link may be null), otherwise a new NPC built
+     from newNpc plus Tables. The NPC becomes known to the player, gets a
+     memory and a small attitude shift, a known thread records the loose end,
+     and a hidden seed is planted. Created NPCs are not put on any schedule:
+     they stay off-screen until their seed brings them in (milestone 5).
+     dayOffset [a, b] is read as day numbers counted from day 1, so [3, 5]
+     fires on day 3, 4 or 5 (never earlier than tomorrow). */
+  const LOOSE_END_ATTITUDE = { debt: -10, enemy: -40, secret: -5, lost: 10, promise: 5 };
+  function firstScheduledLocation(npcId) {
+    const s = State.current;
+    for (const p of PHASES) for (const l of s.locations) if (((l.npcIdsBySchedule || {})[p] || []).includes(npcId)) return l.id;
+    return null;
+  }
+  function resolveLooseEnd(le) {
+    const s = State.current;
+    const def = le && LOOSE_ENDS[le.kind];
+    if (!def) throw new Error('unknown loose end: ' + (le && le.kind));
+    const text = cleanText(le.text, 200) || def.options[0];
+    const used = new Set((s.player.looseEnds || []).map(x => x.npcId));
+    const tag = def.link && def.link.tag;
+    let target = null;
+    let created = false;
+    if (tag) {
+      const cands = s.npcs.filter(n => n.alive !== false && n.status === 'free' && Array.isArray(n.tags) && n.tags.includes(tag) && !used.has(n.id));
+      if (cands.length) target = Rng.pick(cands);
+    }
+    if (!target) {
+      const spec = def.newNpc || {};
+      const made = Tables.npc({
+        role: spec.role, look: spec.look, voice: spec.voice, personality: spec.personality,
+        goal: spec.goal, secret: spec.secret, tags: tag ? [tag] : []
+      });
+      const r = State.apply({ addNpcs: [made] });
+      if (r.rejected.length) throw new Error('could not create the loose-end NPC: ' + r.rejected[0].reason);
+      target = State.npc(made.id);
+      created = true;
+    }
+    const sd = def.seed || {};
+    const off = Array.isArray(sd.dayOffset) && sd.dayOffset.length ? sd.dayOffset : [3, 5];
+    const lo = toInt(off[0]) || 3;
+    const hi = toInt(off.length > 1 ? off[1] : off[0]) || lo;
+    const day = Math.max(s.time.day + 1, Rng.int(lo, hi));
+    let trigger = { type: 'day', value: day };
+    if (sd.trigger === 'npc') trigger = { type: 'npc', value: target.id };
+    else if (sd.trigger === 'location') trigger = { type: 'location', value: firstScheduledLocation(target.id) || s.player.locationId };
+    const vars = { npc: target.name, player: s.player.name, text };
+    const seedId = uniqueId('seed_le_' + le.kind, id => !!State.seed(id));
+    const threadId = uniqueId('thr_le_' + le.kind, id => !!State.thread(id));
+    const seedObj = { id: seedId, cause: `Loose end (${def.label}): ${text}`, effect: fillTemplate(sd.effect || '{npc} turns up.', vars), trigger, fired: false, hidden: true };
+    if (trigger.type !== 'day') seedObj.notBeforeDay = day;
+    const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
+    const r = State.apply({
+      effects: [
+        attitude ? { op: 'attitudeDelta', npcId: target.id, delta: attitude } : null,
+        { op: 'plantSeed', seed: seedObj },
+        { op: 'openThread', thread: { id: threadId, title: def.label, summary: `${text} (${target.name}, ${target.role})`, status: 'open', knownToPlayer: true, linkedIds: [target.id] } }
+      ].filter(Boolean),
+      newMemories: [{ npcId: target.id, text: `Loose end with ${s.player.name} (${lowerFirst(def.label)}): ${text}`, weight: 2 }],
+      npcKnownToPlayer: [target.id],
+      addLooseEnd: { kind: le.kind, label: def.label, text, npcId: target.id, seedId, threadId, created }
+    });
+    if (r.rejected.length) console.warn('[Town] loose end partly rejected', r.rejected);
+    return { npcId: target.id, seedId, threadId, created };
+  }
+
+  // ----- opening scene (local text; no API in milestone 1) -----
+  function openingScene(s) {
+    s = s || State.current;
+    const p = s.player;
+    const l = State.loc(p.locationId);
+    const bg = BACKGROUNDS.find(b => b.id === p.backgroundId);
+    const place = l.name.replace(/^The /, 'the ');
+    const first = bg && bg.arrival === 'docks'
+      ? `You step off a river boat onto ${place} in ${s.meta.townName}, your pack on your shoulder.`
+      : `You come in on foot by the road and stop at ${place}, on the edge of ${s.meta.townName}.`;
+    const weather = s.flags.weather ? sentence(s.flags.weather) + ' ' : '';
+    const here = State.npcsAt(l.id, s.time.phase).slice(0, 2);
+    const second = here.length ? here.map(n => sentence(n.look)).join(' ') : 'Nobody here pays you any attention yet.';
+    return `${weather}${first} ${l.description}\n\n${second}`;
+  }
+
+  return { data, instantiate, plausible, guessKind, validate, resolveLooseEnd, openingScene, EFFECT_OPS };
+})();
+
+// ===== Module: World =====
+/* TODO(milestone 5): STUB. The world tick (faction clocks on d6 5-6, clock
+   completion through onComplete.effects and activeClock, schedules,
+   grudges and favours from GRUDGE_TEMPLATES / FAVOUR_TEMPLATES, news into
+   rumours), seed firing into due events, and condition expiry belong here.
+   Pipeline already calls tick() after every phase change and dueSeeds()
+   every turn. Content notes in BUILD_PLAN.md (each completion adds its own
+   rumour; npcStatus is a no-op for gone/dead NPCs) apply.
+   applyEffects() is real: it is how clock outcomes reach State.apply. */
+const World = {
+  STUB: true,
+  tick(timeInfo) { return { phasesPassed: (timeInfo && timeInfo.phasesPassed) || 0, events: [] }; },
+  dueSeeds() { return []; },
+  applyEffects(effects) { return State.apply({ effects: Array.isArray(effects) ? effects : [] }, { source: 'world' }); }
+};
+
+// ===== Module: Style =====
+/* Banned-phrase and length checks (SPEC.md section 9) and the narrator's
+   cached system prompt. TODO(milestone 3): Pipeline step 7 regenerates once
+   with regenerationNote() when check() fails; today it only logs. */
+const Style = (() => {
+  const EXAMPLES_INTRO = 'EXAMPLES (from a different town; none of these people or places exist in this game):';
+  const BANNED = (() => {
+    const line = STYLE_GUIDE.split('\n').find(l => l.startsWith('BANNED PHRASES:')) || '';
+    return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
+  })();
+  const WORD_LIMITS = { normal: 90, zoom: 150 };
+  let prompt = null;
+  /* Byte-identical every call so it caches (docs/API_NOTES.md). */
+  function systemPrompt() {
+    if (prompt === null) {
+      const ex = EXAMPLE_TURNS.map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
+      prompt = `${STYLE_GUIDE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
+    }
+    return prompt;
+  }
+  function check(text, opts) {
+    const zoom = !!(opts && opts.zoom);
+    const t = String(text || '').replace(/[‘’]/g, "'");
+    const lower = t.toLowerCase();
+    const problems = [];
+    for (const b of BANNED) if (lower.includes(b)) problems.push({ type: 'banned', detail: b });
+    const words = wordCount(t);
+    const limit = zoom ? WORD_LIMITS.zoom : WORD_LIMITS.normal;
+    if (words > limit) problems.push({ type: 'length', detail: `${words} words, limit ${limit}` });
+    if (/what do you do/i.test(t)) problems.push({ type: 'question', detail: 'contains "What do you do"' });
+    if (/^\s*["“]?as you\b/i.test(t)) problems.push({ type: 'opening', detail: 'starts with "As you"' });
+    return { ok: problems.length === 0, problems, words };
+  }
+  function regenerationNote(problems) {
+    return 'STYLE CHECK FAILED on your last attempt: ' + problems.map(p => p.type === 'banned' ? `banned phrase "${p.detail}"` : p.detail).join('; ') + '. Write it again without that.';
+  }
+  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, systemPrompt, check, regenerationNote };
+})();
+
+// ===== Module: Api =====
+/* One interface over two providers:
+     parse(packet)            -> parse_action object (SPEC.md section 10)
+     narrate(packet, onDelta) -> { text, stopReason }; onDelta(chunk, textSoFar) while streaming
+     bookkeep(packet)         -> record_changes object (fed to State.apply with source 'model')
+     chronicle(entries)       -> summary string
+   Settings.mockMode picks the provider. The mock returns fixed dummy results
+   so the whole loop runs offline. TODO(milestone 3): the real provider
+   (fetch to ENDPOINT with headers(), requestBody(), SSE streaming, retry once
+   on network/429/500/529 after 1.5 s, refusal and error mapping, schemas
+   spelled out with additionalProperties:false) per docs/API_NOTES.md. */
+const Api = (() => {
+  const ENDPOINT = 'https://api.anthropic.com/v1/messages';
+  const API_VERSION = '2026-10-21';
+  const MAX_TOKENS = { narrator: 1500, parser: 1500, bookkeeper: 2500, chronicle: 1000 };
+  const EFFORTS = ['low', 'medium', 'high'];
+  const PRICES = { // USD per million tokens
+    'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
+    'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01 },
+    'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 }
+  };
+  class ApiError extends Error {
+    constructor(type, message, extra) { super(message); this.name = 'ApiError'; this.type = type; Object.assign(this, extra || {}); }
+  }
+  function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0, priced: true, calls: 0 }; }
+  const usage = { turn: blankUsage(), session: blankUsage() };
+  const responses = [];
+
+  function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
+  function roleEffort(role) { const e = Storage.settings().effort || {}; return EFFORTS.includes(e[role]) ? e[role] : 'low'; }
+  function headers(apiKey) {
+    return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
+  }
+  /* No temperature/top_p/top_k, no thinking, no tools or tool_choice, never a
+     trailing assistant message. JSON comes from output_config.format. */
+  function requestBody(role, opts) {
+    opts = opts || {};
+    const body = { model: roleModel(role), max_tokens: MAX_TOKENS[role] || 1500, messages: [{ role: 'user', content: String(opts.user || '') }] };
+    if (opts.system) body.system = opts.cache ? [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }] : opts.system;
+    body.output_config = { effort: roleEffort(role) };
+    if (opts.schema) body.output_config.format = { type: 'json_schema', schema: opts.schema };
+    if (opts.stream) body.stream = true;
+    return body;
+  }
+  function costOf(model, u) {
+    const p = PRICES[model];
+    if (!p) return null;
+    return (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheCreation * p.input * 1.25) / 1e6;
+  }
+  function record(model, raw) {
+    const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: raw.cache_creation_input_tokens | 0 };
+    const c = costOf(model, u);
+    for (const b of [usage.turn, usage.session]) {
+      b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.calls += 1;
+      if (c === null) b.priced = false; else b.cost += c;
+    }
+  }
+  function remember(role, providerName, data) {
+    responses.push({ at: new Date().toISOString(), role, provider: providerName, data: deepCopy(data) });
+    if (responses.length > 12) responses.shift();
+  }
+
+  // ----- mock provider -----
+  const MOCK_TIER = {
+    critical: () => 'It goes better than it had any right to.',
+    success: () => 'It works.',
+    partial: c => `It works, but not cleanly: ${c}.`,
+    failure: c => `It does not work, and ${c}.`,
+    critical_failure: c => `It goes badly wrong, and ${c}.`
+  };
+  const ROLL_HINTS = [
+    [/\b(pick|sneak|hide|steal|pickpocket|creep|slip)\b/, 'stealth', 'sneak'],
+    [/\b(climb|force|lift|break|fight|attack|punch|shove|swim)\b/, 'might', 'attack'],
+    [/\b(persuade|convince|charm|haggle|lie|bluff|flatter|talk .* into)\b/, 'charm', 'persuade'],
+    [/\b(search|study|decipher|spot|notice|track|read)\b/, 'wits', 'search']
+  ];
+  const Mock = {
+    name: 'mock',
+    delay: 12,
+    async parse(packet) {
+      const input = String(packet.input || '');
+      const lower = input.toLowerCase();
+      const out = { actionType: 'other', summary: cleanText(input, 160), targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, timeCost: 'short', declaresWorldFact: false };
+      if (/^(i )?(look|examine|glance|listen)\b/.test(lower)) { out.actionType = 'look'; out.timeCost = 'instant'; }
+      else if (/\b(say|ask|tell|talk|greet|chat)\b/.test(lower)) { out.actionType = 'talk'; out.timeCost = 'instant'; }
+      else if (/\b(rest|sleep)\b/.test(lower)) { out.actionType = 'rest'; out.timeCost = 'rest'; }
+      else if (/\bwait\b/.test(lower)) { out.actionType = 'wait'; out.timeCost = 'long'; }
+      for (const ex of packet.exits || []) {
+        const name = ex.name.toLowerCase().replace(/^the /, '');
+        if (lower.includes(name) && /\b(go|walk|head|run|return|cross|enter)\b/.test(lower)) { out.actionType = 'move'; out.destinationId = ex.id; out.timeCost = 'short'; }
+      }
+      if (/\b(try|tries|attempt)\b/.test(lower)) {
+        out.needsRoll = true;
+        out.stat = 'wits';
+        out.difficulty = 'normal';
+        for (const [re, stat, type] of ROLL_HINTS) if (re.test(lower)) { out.stat = stat; if (out.actionType === 'other') out.actionType = type; break; }
+      }
+      return { result: out, usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' };
+    },
+    async narrate(packet, onDelta) {
+      const c = packet.context || {};
+      let middle = 'Nothing pushes back yet.';
+      if (c.roll) middle = MOCK_TIER[c.roll.tier](c.roll.complication);
+      else if (c.destination) middle = `You make your way to ${c.destination.name.replace(/^The /, 'the ')}.`;
+      const text = `Mock narration at ${(c.locationName || 'this place').replace(/^The /, 'the ')}. ${middle} The real narrator arrives in a later build.`;
+      const parts = text.match(/\S+\s*/g) || [text];
+      let soFar = '';
+      for (let i = 0; i < parts.length; i += 3) {
+        const chunk = parts.slice(i, i + 3).join('');
+        soFar += chunk;
+        if (onDelta) onDelta(chunk, soFar);
+        await sleep(Mock.delay);
+      }
+      return { result: { text: soFar.trim(), stopReason: 'end_turn' }, usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' };
+    },
+    async bookkeep(packet) {
+      const a = packet.action || {};
+      const out = {
+        attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [],
+        playerLocationId: a.actionType === 'move' && a.destinationId ? a.destinationId : null,
+        npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null
+      };
+      return { result: out, usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' };
+    },
+    async chronicle(entries) {
+      const list = Array.isArray(entries) ? entries : [];
+      const from = list.length ? list[0].turn : 0;
+      const to = list.length ? list[list.length - 1].turn : 0;
+      return { result: `Turns ${from} to ${to} passed (mock chronicle).`, usage: { input_tokens: 0, output_tokens: 0 }, model: 'mock' };
+    }
+  };
+
+  // ----- real provider (TODO milestone 3) -----
+  function notReady() {
+    return new ApiError('not_implemented', 'The Claude API is not wired up in this build yet. Turn on mock mode in Settings to keep playing.', { retryable: false });
+  }
+  const Real = {
+    name: 'claude',
+    async parse() { throw notReady(); },
+    async narrate() { throw notReady(); },
+    async bookkeep() { throw notReady(); },
+    async chronicle() { throw notReady(); }
+  };
+
+  function provider() { return Storage.settings().mockMode ? Mock : Real; }
+  async function call(role, method, args) {
+    const p = provider();
+    const out = await p[method].apply(p, args);
+    if (out && out.usage) record(out.model || roleModel(role), out.usage);
+    remember(role, p.name, out && out.result);
+    return out.result;
+  }
+  return {
+    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, ApiError, Mock, Real, usage, responses,
+    headers, requestBody, costOf, roleModel, roleEffort,
+    providerName: () => provider().name,
+    beginTurn() { usage.turn = blankUsage(); },
+    parse: packet => call('parser', 'parse', [packet]),
+    narrate: (packet, onDelta) => call('narrator', 'narrate', [packet, onDelta]),
+    bookkeep: packet => call('bookkeeper', 'bookkeep', [packet]),
+    chronicle: entries => call('chronicle', 'chronicle', [entries])
+  };
+})();
+
+// ===== Module: Pipeline =====
+/* The turn loop of SPEC.md section 6. TODO(milestone 3): step 4 (create or
+   refuse `new:` targets via Town.plausible and Tables), step 7 regeneration,
+   story points on natural 20, defeat at 0 HP. TODO(milestone 5): steps 10-12
+   (World.tick, seed firing into due events, chronicle compression every 10
+   turns). Everything else runs today against the mock provider. */
+const Pipeline = (() => {
+  const ACTION_TYPES = ['move', 'talk', 'look', 'search', 'take', 'use', 'give', 'buy', 'sell', 'persuade', 'deceive', 'intimidate', 'sneak', 'steal', 'attack', 'rest', 'wait', 'other'];
+  let busy = false;
+  let lastTurn = null;
+
+  function normaliseParse(raw) {
+    const r = isObj(raw) ? raw : {};
+    return {
+      actionType: ACTION_TYPES.includes(r.actionType) ? r.actionType : 'other',
+      summary: cleanText(r.summary, 200),
+      targets: strArr(r.targets, 120),
+      destinationId: typeof r.destinationId === 'string' && r.destinationId ? r.destinationId : null,
+      needsRoll: r.needsRoll === true,
+      stat: STATS.includes(r.stat) ? r.stat : null,
+      difficulty: Object.prototype.hasOwnProperty.call(Dice.TARGETS, r.difficulty) ? r.difficulty : null,
+      usesItemId: typeof r.usesItemId === 'string' && r.usesItemId ? r.usesItemId : null,
+      timeCost: TIME_COSTS.includes(r.timeCost) ? r.timeCost : 'instant',
+      declaresWorldFact: r.declaresWorldFact === true
+    };
+  }
+  function parsePacket(input) {
+    const s = State.current;
+    const l = State.loc(s.player.locationId);
+    return {
+      input,
+      playerName: s.player.name,
+      location: { id: l.id, name: l.name, type: l.type },
+      exits: l.exits.map(id => State.loc(id)).filter(Boolean).map(x => ({ id: x.id, name: x.name, closed: !!x.closed })),
+      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, role: n.role })),
+      inventory: s.player.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
+      knownNpcs: s.npcs.filter(n => n.knownToPlayer).map(n => ({ id: n.id, name: n.name, role: n.role })),
+      knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name }))
+    };
+  }
+  /* Labelled plain text per SPEC.md section 10; hidden secrets and seeds are
+     never included. */
+  function narratorPacket(ctx) {
+    const s = State.current;
+    const p = s.player;
+    const l = State.loc(p.locationId);
+    const turn = s.meta.turn;
+    const conds = p.conditions.map(c => c.name.toLowerCase()).join(', ') || 'none';
+    const present = State.npcsAt(l.id).map(n => {
+      const mems = n.memories.filter(m => m.weight >= 2 || turn - m.turn <= 20).slice(-3).map(m => m.text);
+      return `${n.name} (${n.role}; voice: ${lowerFirst(n.voice).replace(/\.$/, '')}; attitude ${n.attitude}${mems.length ? '; remembers: ' + mems.join(' / ') : ''})`;
+    });
+    const story = s.chronicle.map(c => c.summary).join(' ').split(/\s+/).slice(-150).join(' ');
+    const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + e.input + ' ' : ''}${e.narration}`).join(' | ');
+    return [
+      `DAY ${s.time.day}, ${s.time.phase.toUpperCase()} · Location: ${l.name} — ${l.description}${l.closed ? ' (closed)' : ''}`,
+      `PLAYER: ${p.name} (${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.`,
+      `PRESENT: ${present.join('; ') || 'nobody'}.`,
+      `ACTION: ${ctx.action.summary || ctx.input}`,
+      `ROLL: ${ctx.roll ? ctx.roll.packetLine : 'none'}`,
+      `DUE EVENT: ${ctx.due || 'none'}`,
+      `STORY SO FAR: ${story || 'nothing yet'}`,
+      `LAST 3 TURNS: ${last3 || 'none'}`,
+      `MODE: ${ctx.zoom ? 'ZOOM' : 'normal'}`
+    ].join('\n');
+  }
+  function rollForLog(r) {
+    return r ? { stat: r.stat, d20: r.d20, statValue: r.statValue, modifier: r.modifier, total: r.total, target: r.target, tier: r.tier, complication: r.complication, line: r.line } : null;
+  }
+
+  /* Returns { ok, restoreInput?, reason? }. restoreInput tells the UI to put
+     the player's text back in the box (SPEC.md section 2, errors). */
+  async function submit(rawText) {
+    const text = String(rawText || '').trim();
+    if (!text) return { ok: false, reason: 'empty' };
+    if (busy) return { ok: false, reason: 'busy', restoreInput: true };
+    if (!State.current) return { ok: false, reason: 'no game' };
+    // Step 2. Commands are handled in code. Only commands that change state take a snapshot.
+    if (text.startsWith('/')) return Commands.run(text);
+
+    busy = true;
+    UI.setBusy(true);
+    Api.beginTurn();
+    // Step 1. Snapshot for /undo.
+    State.snapshot();
+    const s = State.current;
+    const startTime = { day: s.time.day, phase: s.time.phase };
+    let narrNode = null;
+    try {
+      State.apply({ beginTurn: true });
+      UI.feed.input(text);
+      // Step 3. Parse.
+      const action = normaliseParse(await Api.parse(parsePacket(text)));
+      if (!action.summary) action.summary = cleanText(text, 160);
+      // Step 4. TODO(milestone 3): resolve `new:` targets (create, refuse, or /fact).
+      // Step 5. Resolve.
+      let roll = null;
+      if (action.needsRoll) {
+        const key = Dice.lockKey(action);
+        if (Dice.isLocked(key)) {
+          State.restore();
+          UI.feed.notice('You just tried that and it failed. Something has to change before you try it again.');
+          return { ok: false, reason: 'retry-locked' };
+        }
+        const npcTarget = action.targets.find(t => State.npc(t));
+        roll = Dice.resolve({ stat: action.stat || 'wits', difficulty: action.difficulty || 'normal', usesItemId: action.usesItemId, npcId: npcTarget, actionType: action.actionType });
+        State.apply({ lastRollKey: Dice.lockFor(roll, key) });
+        UI.feed.roll(roll);
+      } else if (s.meta.lastRollKey) {
+        State.apply({ lastRollKey: null });
+      }
+      // Step 6. Narrate (streamed).
+      const due = World.dueSeeds();
+      const destination = action.destinationId ? State.loc(action.destinationId) : null;
+      const here = State.loc(s.player.locationId);
+      const packet = {
+        text: narratorPacket({ action, roll, input: text, due: due.map(d => d.effect).join(' / ') }),
+        system: Style.systemPrompt(),
+        context: { action, roll, locationName: here.name, destination: destination ? { id: destination.id, name: destination.name } : null }
+      };
+      narrNode = UI.feed.beginNarration();
+      const nar = await Api.narrate(packet, (chunk, soFar) => UI.feed.stream(narrNode, soFar));
+      const narration = String((nar && nar.text) || '').trim();
+      UI.feed.endNarration(narrNode, narration);
+      // Step 7. Style check. TODO(milestone 3): regenerate once on a hit.
+      const style = Style.check(narration);
+      if (!style.ok) State.debugLog.push({ turn: s.meta.turn, kind: 'style', problems: style.problems });
+      // Step 8-9. Bookkeep, then apply the diff as model output.
+      const diff = await Api.bookkeep({ input: text, action, roll, narration, packet: packet.text });
+      State.apply(isObj(diff) ? diff : {}, { source: 'model' });
+      // Step 10. Time, then the world tick on a phase change (stub).
+      const t = State.apply({ advanceTime: action.timeCost });
+      if (t.time && t.time.phasesPassed > 0) {
+        World.tick(t.time);
+        UI.feed.divider(t.time.to.day, t.time.to.phase);
+      }
+      // Steps 11-12. TODO(milestone 5): fire seeds into due events; compress every 10 turns.
+      // Step 13. Log (autosave and render follow from State's change listener).
+      State.apply({ logEntry: { input: text, roll: rollForLog(roll), narration, day: startTime.day, phase: startTime.phase } });
+      lastTurn = { action, roll, narration, style };
+      return { ok: true };
+    } catch (err) {
+      console.error(err);
+      State.restore();
+      if (narrNode) narrNode.remove();
+      UI.feed.notice(err && err.type === 'not_implemented' ? err.message : `Something went wrong: ${(err && err.message) || err}. Your action was kept in the box.`, 'error');
+      return { ok: false, reason: 'error', restoreInput: true, error: err };
+    } finally {
+      busy = false;
+      UI.setBusy(false);
+    }
+  }
+  return {
+    submit, normaliseParse, parsePacket, narratorPacket, ACTION_TYPES,
+    get busy() { return busy; },
+    get lastTurn() { return lastTurn; }
+  };
+})();
+
+// ===== Module: Storage =====
+/* localStorage: settings, one autosave (after every state change) and three
+   named slots. The API key lives in localStorage only when "Remember on this
+   device" is ticked, otherwise in sessionStorage; it is never part of a save
+   or an export. Every access is wrapped; a failure shows a visible warning. */
+const Storage = (() => {
+  const PREFIX = 'novatria.';
+  const KEYS = { settings: PREFIX + 'settings', apiKey: PREFIX + 'apiKey', autosave: PREFIX + 'autosave', slot: n => PREFIX + 'slot.' + n };
+  const SLOTS = 3;
+  const SAVE_KIND = 'novatria-save';
+  const DEFAULTS = {
+    narratorModel: 'claude-sonnet-5-5',
+    parserModel: 'claude-haiku-5-5',
+    effort: { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' },
+    showRolls: true,
+    permadeath: false,
+    theme: null, // null: follow prefers-color-scheme
+    textSize: 'M',
+    mockMode: true,
+    rememberKey: false,
+    panelCollapsed: false
+  };
+  let settings = deepCopy(DEFAULTS);
+  let apiKey = '';
+  let failed = false;
+
+  function area(which) { return which === 'session' ? window.sessionStorage : window.localStorage; }
+  function fail(msg) { failed = true; UI.warn(msg); }
+  function read(key, which) {
+    try { return area(which).getItem(key); }
+    catch (e) { console.warn('[Storage] read failed', key, e); fail('This browser blocked access to its storage, so saves and settings may not load. You can still export your game from the Saves screen.'); return null; }
+  }
+  function write(key, value, which) {
+    try { area(which).setItem(key, value); return true; }
+    catch (e) { console.warn('[Storage] write failed', key, e); fail('Saving failed: this browser\'s storage is full or blocked. Export your game from the Saves screen so nothing is lost.'); return false; }
+  }
+  function remove(key, which) {
+    try { area(which).removeItem(key); return true; }
+    catch (e) { console.warn('[Storage] remove failed', key, e); return false; }
+  }
+
+  // ----- settings -----
+  function cleanSettings(raw) {
+    const s = deepCopy(DEFAULTS);
+    if (!isObj(raw)) return s;
+    if (typeof raw.narratorModel === 'string' && raw.narratorModel.trim()) s.narratorModel = raw.narratorModel.trim();
+    if (typeof raw.parserModel === 'string' && raw.parserModel.trim()) s.parserModel = raw.parserModel.trim();
+    if (isObj(raw.effort)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
+    for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    if (raw.theme === 'dark' || raw.theme === 'parchment') s.theme = raw.theme;
+    if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;
+    return s;
+  }
+  function init() {
+    const raw = read(KEYS.settings);
+    let parsed = null;
+    try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
+    settings = cleanSettings(parsed);
+    apiKey = (settings.rememberKey ? read(KEYS.apiKey, 'local') : read(KEYS.apiKey, 'session')) || '';
+  }
+  function saveSettings(patch) {
+    const next = Object.assign({}, settings, patch || {});
+    if (patch && patch.effort) next.effort = Object.assign({}, settings.effort, patch.effort);
+    settings = cleanSettings(next);
+    write(KEYS.settings, JSON.stringify(settings));
+    return settings;
+  }
+  function effectiveTheme() {
+    if (settings.theme) return settings.theme;
+    try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'parchment' : 'dark'; } catch (e) { return 'dark'; }
+  }
+  function setApiKey(key, remember) {
+    apiKey = typeof key === 'string' ? key.trim() : '';
+    const keep = remember === true;
+    if (keep) { if (apiKey) write(KEYS.apiKey, apiKey, 'local'); else remove(KEYS.apiKey, 'local'); remove(KEYS.apiKey, 'session'); }
+    else { if (apiKey) write(KEYS.apiKey, apiKey, 'session'); else remove(KEYS.apiKey, 'session'); remove(KEYS.apiKey, 'local'); }
+    if (settings.rememberKey !== keep) saveSettings({ rememberKey: keep });
+  }
+
+  // ----- saves -----
+  function summaryOf(st) {
+    const l = st.locations.find(x => x.id === st.player.locationId);
+    return { player: st.player.name, background: st.player.background, day: st.time.day, phase: st.time.phase, location: l ? l.name : '', turn: st.meta.turn, town: st.meta.townName };
+  }
+  function envelope(name) {
+    const st = State.current;
+    if (!st) throw new Error('no game in progress');
+    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+  }
+  function serialise(env) {
+    let json = JSON.stringify(env);
+    // Belt and braces: the key is never in state, but never let it leave either.
+    if (apiKey && apiKey.length >= 8 && json.includes(apiKey)) json = json.split(apiKey).join('[redacted]');
+    return json;
+  }
+  function parseEnvelope(text) {
+    let env;
+    try { env = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { throw new Error('That file is not valid JSON.'); }
+    if (!isObj(env)) throw new Error('That file is not a saved game.');
+    if (env.kind !== SAVE_KIND && isObj(env.meta) && isObj(env.player)) env = { kind: SAVE_KIND, saveVersion: 1, name: 'Imported', state: env, town: null };
+    if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error('That file is not a saved game.');
+    const errs = State.validateShape(env.state);
+    if (errs.length) throw new Error('That save is damaged: ' + errs.join('; '));
+    delete env.apiKey;
+    delete env.settings;
+    if (!isObj(env.town)) env.town = deepCopy(TOWN_DATA);
+    return env;
+  }
+  function autosave() {
+    if (!State.current || State.muted) return false;
+    return write(KEYS.autosave, serialise(envelope('Autosave')));
+  }
+  function peek(key) {
+    const raw = read(key);
+    if (!raw) return null;
+    try { return parseEnvelope(raw); } catch (e) { return { broken: true, error: e.message }; }
+  }
+  function hasAutosave() { const e = peek(KEYS.autosave); return !!(e && !e.broken); }
+  function loadAutosave() { const e = peek(KEYS.autosave); return e && !e.broken ? e : null; }
+  function saveSlot(n, name) {
+    if (!(n >= 1 && n <= SLOTS)) throw new Error('slot must be 1 to ' + SLOTS);
+    const env = envelope(name);
+    return write(KEYS.slot(n), serialise(env)) ? env : null;
+  }
+  function loadSlot(n) { const e = peek(KEYS.slot(n)); return e && !e.broken ? e : null; }
+  function deleteSlot(n) { return remove(KEYS.slot(n)); }
+  function listSlots() {
+    const out = [];
+    for (let n = 1; n <= SLOTS; n++) out.push(peek(KEYS.slot(n)));
+    return out;
+  }
+  /* /save <name>: same name overwrites, else the first empty slot. */
+  function saveNamed(name) {
+    const slots = listSlots();
+    const want = cleanText(name, 40).toLowerCase();
+    let n = slots.findIndex(e => e && !e.broken && e.name.toLowerCase() === want) + 1;
+    if (!n) n = slots.findIndex(e => !e || e.broken) + 1;
+    if (!n) return { ok: false, full: true };
+    const env = saveSlot(n, name);
+    return env ? { ok: true, slot: n, name: env.name } : { ok: false };
+  }
+  function findSlot(ref) {
+    const r = String(ref || '').trim().toLowerCase();
+    const num = toInt(r);
+    if (num >= 1 && num <= SLOTS) return num;
+    const i = listSlots().findIndex(e => e && !e.broken && e.name.toLowerCase() === r);
+    return i >= 0 ? i + 1 : 0;
+  }
+  function exportJson() { return serialise(envelope('Export')); }
+  function exportFileName() {
+    const st = State.current;
+    return `${slugify(st.meta.townName)}-${slugify(st.player.name)}-day${st.time.day}.json`.replace(/_/g, '-');
+  }
+  function exportSave() {
+    const json = JSON.stringify(JSON.parse(exportJson()), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: exportFileName() });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return a.download;
+  }
+  async function importFile(file) {
+    if (!file) throw new Error('No file chosen.');
+    const text = await file.text();
+    return parseEnvelope(text);
+  }
+  return {
+    KEYS, SLOTS, SAVE_KIND, DEFAULTS, init,
+    settings: () => settings, saveSettings, effectiveTheme,
+    getApiKey: () => apiKey, setApiKey,
+    envelope, parseEnvelope, autosave, hasAutosave, loadAutosave, peek,
+    saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
+    exportJson, exportSave, exportFileName, importFile,
+    get failed() { return failed; }
+  };
+})();
+
+// ===== Module: UI =====
+/* All rendering. Every dynamic string goes in through el()/textContent. */
+const UI = (() => {
+  const d = {};
+  const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['places', 'Places']];
+  const mq = window.matchMedia('(max-width: 899px)');
+  const isMobile = () => mq.matches;
+  let screen = 'title';
+  let returnTo = 'title';
+  let tab = 'character';
+  let debugOn = false;
+  let stick = true;
+  let busy = false;
+  let toastTimer = null;
+  const ac = { items: [], index: -1 };
+  const pendingWarnings = [];
+
+  function camel(id) { return id.replace(/-([a-z])/g, (m, c) => c.toUpperCase()); }
+  const IDS = ['app', 'banner', 'banner-text', 'banner-close', 'title-name', 'title-setting', 'btn-new', 'btn-continue', 'btn-load',
+    'btn-settings', 'btn-theme', 'title-mode', 'create-scroll', 'create-form-view', 'create-summary-view', 'create-steps', 'cr-count',
+    'cr-cancel', 'cr-back', 'cr-next', 'cr-review', 'cr-edit', 'cr-begin', 'summary-card', 'tb-time', 'tb-loc', 'tb-hp', 'tb-gold',
+    'tb-save', 'tb-settings', 'tb-panel', 'tb-menu', 'menu-pop', 'game-body', 'feed-scroll', 'feed', 'new-btn', 'ac', 'cmd', 'send',
+    'panel', 'panel-tabs', 'panel-close', 'panel-body', 'settings-form', 'set-key', 'set-remember', 'set-mock', 'set-narrator-model',
+    'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
+    'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast'];
+
+  function init() {
+    for (const id of IDS) d[camel(id)] = document.getElementById(id);
+    // Title
+    d.btnNew.addEventListener('click', () => App.newGame());
+    d.btnContinue.addEventListener('click', () => App.continueGame());
+    d.btnLoad.addEventListener('click', () => showScreen('saves'));
+    d.btnSettings.addEventListener('click', () => showScreen('settings'));
+    d.btnTheme.addEventListener('click', toggleTheme);
+    d.bannerClose.addEventListener('click', () => { d.banner.hidden = true; });
+    // Creation
+    Create.wire();
+    // Game top bar and menu
+    d.tbSave.addEventListener('click', () => showScreen('saves'));
+    d.tbSettings.addEventListener('click', () => showScreen('settings'));
+    d.tbPanel.addEventListener('click', () => setCollapsed(!d.gameBody.classList.contains('panel-collapsed')));
+    d.tbMenu.addEventListener('click', e => { e.stopPropagation(); toggleMenu(); });
+    $$('[data-menu]', d.menuPop).forEach(b => b.addEventListener('click', () => {
+      closeMenu();
+      const m = b.dataset.menu;
+      if (m === 'title') App.quitToTitle(); else showScreen(m);
+    }));
+    document.addEventListener('click', e => { if (!d.menuPop.hidden && !d.menuPop.contains(e.target)) closeMenu(); });
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (!d.menuPop.hidden) closeMenu();
+      else if (d.gameBody.classList.contains('sheet-open')) closeSheet();
+    });
+    // Feed
+    d.feedScroll.addEventListener('scroll', () => { stick = nearBottom(); if (stick) d.newBtn.hidden = true; }, { passive: true });
+    d.newBtn.addEventListener('click', scrollToBottom);
+    // Composer
+    d.cmd.addEventListener('input', () => { autosize(); updateAc(); });
+    d.cmd.addEventListener('keydown', onKey);
+    d.cmd.addEventListener('blur', () => setTimeout(hideAc, 150));
+    d.send.addEventListener('click', () => send());
+    $$('[data-open-tab]').forEach(b => b.addEventListener('click', () => openPanel(b.dataset.openTab)));
+    // Panel / sheet
+    d.panelClose.addEventListener('click', closeSheet);
+    wireSwipe();
+    mq.addEventListener('change', () => { if (!isMobile()) closeSheet(); Create.layoutChanged(); });
+    // Settings and saves
+    d.settingsForm.addEventListener('change', onSettingsChange);
+    d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
+    d.settingsForm.addEventListener('submit', e => e.preventDefault());
+    d.settingsDone.addEventListener('click', back);
+    d.settingsQuit.addEventListener('click', () => App.quitToTitle());
+    d.savesDone.addEventListener('click', back);
+    d.btnExport.addEventListener('click', () => { try { Storage.exportSave(); toast('Exported.'); } catch (e) { d.savesError.textContent = e.message; } });
+    d.btnImport.addEventListener('click', () => d.importFile.click());
+    d.importFile.addEventListener('change', onImport);
+    try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyDisplay); } catch (e) { /* old browsers */ }
+    initViewport();
+    applyDisplay();
+    setCollapsed(Storage.settings().panelCollapsed, true);
+    while (pendingWarnings.length) warn(pendingWarnings.shift());
+  }
+
+  // ----- viewport (mobile keyboard) -----
+  function initViewport() {
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    const update = () => {
+      if (!vv) return;
+      root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+      d.app.style.transform = vv.offsetTop > 0 ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
+      if (stick && screen === 'game') scrollToBottom();
+    };
+    if (vv) { vv.addEventListener('resize', update); vv.addEventListener('scroll', update); }
+    update();
+  }
+
+  // ----- display settings -----
+  function applyDisplay() {
+    const s = Storage.settings();
+    const theme = Storage.effectiveTheme();
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-size', s.textSize);
+    d.btnTheme.textContent = theme === 'dark' ? 'Parchment theme' : 'Dark theme';
+  }
+  function toggleTheme() {
+    Storage.saveSettings({ theme: Storage.effectiveTheme() === 'dark' ? 'parchment' : 'dark' });
+    applyDisplay();
+  }
+
+  // ----- warnings and toasts -----
+  function warn(msg) {
+    if (!d.banner) { pendingWarnings.push(msg); return; }
+    d.bannerText.textContent = msg;
+    d.banner.hidden = false;
+  }
+  function toast(msg) {
+    d.toast.textContent = msg;
+    d.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => d.toast.classList.remove('show'), 2600);
+  }
+
+  // ----- screens -----
+  function showScreen(name) {
+    if ((name === 'settings' || name === 'saves') && screen !== 'settings' && screen !== 'saves') returnTo = screen;
+    for (const sc of $$('.screen')) sc.classList.toggle('active', sc.id === 'screen-' + name);
+    screen = name;
+    closeMenu();
+    closeSheet();
+    if (name === 'title') renderTitle();
+    else if (name === 'settings') fillSettings();
+    else if (name === 'saves') renderSaves();
+    else if (name === 'game') { renderGame(); scrollToBottom(); if (!isMobile()) d.cmd.focus({ preventScroll: true }); }
+  }
+  function back() {
+    if (returnTo === 'game' && !App.inGame()) returnTo = 'title';
+    showScreen(returnTo || 'title');
+  }
+  function renderTitle() {
+    const t = TOWN_DATA;
+    d.titleName.textContent = t.name;
+    d.titleSetting.textContent = t.setting;
+    document.title = t.name;
+    d.btnContinue.disabled = !Storage.hasAutosave();
+    d.titleMode.textContent = Storage.settings().mockMode ? 'Mock mode is on: no API calls.' : '';
+  }
+
+  // ----- top bar, menu, panel -----
+  function renderGame() {
+    const s = State.current;
+    if (!s) return;
+    const l = State.loc(s.player.locationId);
+    d.tbTime.textContent = `Day ${s.time.day} · ${capFirst(s.time.phase)}`;
+    d.tbLoc.textContent = l ? l.name : '';
+    d.tbHp.textContent = `${s.player.hp}/${s.player.maxHp}`;
+    d.tbGold.textContent = String(s.player.gold);
+    renderPanel();
+  }
+  function toggleMenu() { if (d.menuPop.hidden) { d.menuPop.hidden = false; d.tbMenu.setAttribute('aria-expanded', 'true'); } else closeMenu(); }
+  function closeMenu() { if (d.menuPop) { d.menuPop.hidden = true; d.tbMenu.setAttribute('aria-expanded', 'false'); } }
+  function setCollapsed(c, silent) {
+    d.gameBody.classList.toggle('panel-collapsed', !!c);
+    d.tbPanel.setAttribute('aria-pressed', String(!c));
+    if (!silent) Storage.saveSettings({ panelCollapsed: !!c });
+  }
+  function openSheet() { d.gameBody.classList.add('sheet-open'); d.panelClose.focus({ preventScroll: true }); }
+  function closeSheet() {
+    if (!d.gameBody) return;
+    d.gameBody.classList.remove('sheet-open');
+    d.panel.style.transform = '';
+    d.panel.style.transition = '';
+  }
+  function openPanel(id) {
+    if (id === 'debug' && !debugOn) return;
+    tab = id;
+    renderPanel();
+    if (isMobile()) openSheet(); else setCollapsed(false);
+  }
+  function wireSwipe() {
+    let drag = null;
+    d.panel.addEventListener('touchstart', e => {
+      if (!isMobile() || !d.gameBody.classList.contains('sheet-open') || e.touches.length !== 1) return;
+      if (d.panelBody.contains(e.target) && d.panelBody.scrollTop > 0) return;
+      drag = { y: e.touches[0].clientY, dy: 0 };
+    }, { passive: true });
+    d.panel.addEventListener('touchmove', e => {
+      if (!drag) return;
+      drag.dy = Math.max(0, e.touches[0].clientY - drag.y);
+      d.panel.style.transition = 'none';
+      d.panel.style.transform = `translateY(${drag.dy}px)`;
+    }, { passive: true });
+    const end = () => {
+      if (!drag) return;
+      const dy = drag.dy;
+      drag = null;
+      d.panel.style.transition = '';
+      d.panel.style.transform = '';
+      if (dy > 90) closeSheet();
+    };
+    d.panel.addEventListener('touchend', end);
+    d.panel.addEventListener('touchcancel', end);
+  }
+  function toggleDebug(force) {
+    debugOn = typeof force === 'boolean' ? force : !debugOn;
+    if (debugOn) tab = 'debug';
+    else if (tab === 'debug') tab = 'character';
+    renderPanel();
+    return debugOn;
+  }
+  function renderTabs() {
+    const tabs = TABS.concat(debugOn ? [['debug', 'Debug']] : []);
+    if (!tabs.some(t => t[0] === tab)) tab = 'character';
+    d.panelTabs.replaceChildren(...tabs.map(([id, label]) => el('button', {
+      type: 'button', role: 'tab', id: 'tab-' + id, 'aria-selected': String(id === tab), 'aria-controls': 'panel-body',
+      dataset: { tab: id }, onclick: () => { tab = id; renderPanel(); }
+    }, label)));
+  }
+  function renderPanel() {
+    renderTabs();
+    const s = State.current;
+    d.panelBody.replaceChildren();
+    d.panelBody.dataset.tab = tab;
+    d.panelBody.setAttribute('aria-labelledby', 'tab-' + tab);
+    if (!s || State.muted) return;
+    appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
+  }
+  function list(items, fmt, empty) { return items.length ? el('ul', null, items.map(x => el('li', null, fmt(x)))) : el('p', { class: 'empty' }, empty); }
+  function kv(rows) { return el('dl', { class: 'kv' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', null, v)])); }
+  const PANELS = {
+    character(s) {
+      const p = s.player;
+      return [
+        el('h2', null, p.name),
+        el('p', { class: 'muted' }, p.background),
+        el('div', { class: 'stat-grid' }, STATS.map(k => el('div', { class: 'stat' }, el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(p.stats[k]))))),
+        kv([['HP', `${p.hp} / ${p.maxHp}`], ['Gold', String(p.gold)], ['Story points', `${p.storyPoints} / ${State.LIMITS.storyPoints}`], ['Reputation', capFirst(State.reputationTier())]]),
+        el('h3', null, 'Goal'), el('p', null, p.goal || '—'),
+        el('h3', null, 'Flaw'), el('p', null, p.flaw || '—'),
+        el('h3', null, 'Conditions'),
+        list(p.conditions, c => `${c.name}${c.effect ? ' (' + c.effect + ')' : ''}${c.untilDay ? ', until day ' + c.untilDay : ''}`, 'None.'),
+        el('h3', null, 'Inventory'),
+        list(p.inventory, i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}${i.notes ? ' — ' + i.notes : ''}`, 'Nothing.')
+      ];
+    },
+    people(s) {
+      const known = s.npcs.filter(n => n.knownToPlayer);
+      if (!known.length) return el('p', { class: 'empty' }, 'You do not know anyone here yet.');
+      return known.map(n => {
+        const word = State.attitudeWord(n.attitude);
+        const learned = [].concat(
+          s.threads.filter(t => t.knownToPlayer && t.linkedIds.includes(n.id)).map(t => `${t.title}: ${t.summary}`),
+          s.rumours.filter(r => r.heard && r.sourceNpcId === n.id).map(r => `Told you: ${r.text}`)
+        );
+        const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
+        return el('article', { class: 'person', dataset: { npc: n.id } },
+          el('div', { class: 'person-head' }, el('span', { class: 'person-name' }, n.name), el('span', { class: 'pill ' + word }, word)),
+          el('p', { class: 'muted' }, capFirst(n.role) + (status ? ' · ' + status : '')),
+          n.look ? el('p', null, n.look) : null,
+          learned.length ? el('ul', null, learned.map(t => el('li', null, t))) : null);
+      });
+    },
+    journal(s) {
+      const threads = s.threads.filter(t => t.knownToPlayer);
+      return [
+        el('h3', null, 'Threads'),
+        threads.length
+          ? el('ul', null, threads.map(t => el('li', { dataset: { thread: t.id } }, el('strong', null, t.title),
+            t.status !== 'open' ? el('span', { class: 'thread-status' }, t.status) : null,
+            t.summary ? el('div', { class: 'muted' }, t.summary) : null)))
+          : el('p', { class: 'empty' }, 'Nothing yet.'),
+        el('h3', null, 'Journal'),
+        list(s.journal.slice().reverse(), j => `Turn ${j.turn}: ${j.text}`, 'No entries yet.')
+      ];
+    },
+    places(s) {
+      const here = State.loc(s.player.locationId);
+      const exits = here.exits.map(id => State.loc(id)).filter(Boolean);
+      return [
+        el('h2', null, here.name),
+        el('p', { class: 'muted' }, capFirst(here.type) + (here.closed ? ' · closed' : '')),
+        el('p', null, here.description),
+        el('h3', null, 'Exits from here'),
+        list(exits, l => `${l.name}${l.closed ? ' (closed)' : ''}`, 'None.'),
+        el('h3', null, 'Places you know'),
+        list(s.locations.filter(l => l.discovered), l => `${l.name}${l.id === here.id ? ' (here)' : ''}${l.closed ? ' (closed)' : ''}`, 'None.')
+      ];
+    },
+    debug(s) {
+      const pre = v => el('pre', null, typeof v === 'string' ? v : JSON.stringify(v, null, 1));
+      const clocks = s.factions.map(f => {
+        const c = f.activeClock >= 0 ? f.clocks[f.activeClock] : null;
+        return `${f.name} (${f.id}): ${c ? `"${c.label}" ${c.filled}/${c.segments}, clock ${f.activeClock + 1} of ${f.clocks.length}` : 'all clocks done'}`;
+      }).join('\n');
+      const seeds = s.seeds.map(sd => `${sd.fired ? '[fired] ' : ''}${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}: ${sd.effect}`).join('\n');
+      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.status} att ${n.attitude}${n.knownToPlayer ? ' known' : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}) ${m.text}`).join(' | ') || '-'}`).join('\n');
+      const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : ''}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}: ${r.text}`).join('\n');
+      const rejects = State.debugLog.filter(x => x.kind === 'rejected' || x.kind === 'style').slice(-15).map(x => x.kind === 'style' ? `turn ${x.turn} style: ${x.problems.map(p => p.detail).join('; ')}` : `turn ${x.turn} ${x.source} ${x.path}: ${x.reason}`).join('\n');
+      const u = Api.usage;
+      const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
+      return el('div', { class: 'dbg' },
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}\nflags ${JSON.stringify(s.flags)}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        el('h3', null, 'Faction clocks'), pre(clocks || '-'),
+        el('h3', null, 'Seeds'), pre(seeds || '-'),
+        el('h3', null, 'NPCs (hidden)'), pre(npcs || '-'),
+        el('h3', null, 'Rumours'), pre(rumours || '-'),
+        el('h3', null, 'Rejected changes'), pre(rejects || 'none'),
+        el('h3', null, `API (${Api.providerName()})`), pre(`turn: ${fmtU(u.turn)}\nsession: ${fmtU(u.session)}`),
+        el('h3', null, 'Last raw responses'), pre(Api.responses.slice(-4).map(r => `${r.at} ${r.role} via ${r.provider}\n${JSON.stringify(r.data)}`).join('\n\n') || '-'));
+    }
+  };
+
+  // ----- feed -----
+  function nearBottom() { const f = d.feedScroll; return f.scrollHeight - f.scrollTop - f.clientHeight < 48; }
+  function scrollToBottom() { d.feedScroll.scrollTop = d.feedScroll.scrollHeight; stick = true; d.newBtn.hidden = true; }
+  function afterAppend() { if (stick) scrollToBottom(); else d.newBtn.hidden = false; }
+  function fillParas(node, text) {
+    const paras = String(text || '').split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
+    node.replaceChildren(...paras.map(t => el('p', null, t)));
+  }
+  function narrationNode(text) { const n = el('div', { class: 'f-item f-narr' }); fillParas(n, text); return n; }
+  function dividerNode(day, phase) { return el('div', { class: 'f-item f-divider', role: 'separator' }, `Day ${day} · ${capFirst(phase)}`); }
+  function rollNode(r) { return el('p', { class: 'f-item f-roll' }, r.line); }
+  const feed = {
+    add(node) { d.feed.append(node); afterAppend(); return node; },
+    input(text) { return feed.add(el('p', { class: 'f-item f-input' }, text)); },
+    roll(r) { return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
+    narration(text) { return feed.add(narrationNode(text)); },
+    beginNarration() { return feed.add(el('div', { class: 'f-item f-narr pending', 'aria-busy': 'true' })); },
+    stream(node, soFar) { fillParas(node, soFar); afterAppend(); },
+    endNarration(node, text) { fillParas(node, text); node.classList.remove('pending'); node.removeAttribute('aria-busy'); afterAppend(); },
+    notice(text, kind) { return feed.add(el('p', { class: 'f-item f-notice' + (kind ? ' ' + kind : '') }, text)); },
+    divider(day, phase) { return feed.add(dividerNode(day, phase)); },
+    clear() { d.feed.replaceChildren(); }
+  };
+  function rebuildFeed() {
+    const s = State.current;
+    feed.clear();
+    if (!s) return;
+    const showRolls = Storage.settings().showRolls;
+    for (const c of s.chronicle) d.feed.append(el('div', { class: 'f-chronicle' }, el('p', null, c.summary)));
+    let prev = null;
+    for (const e of s.log) {
+      const key = `${e.day}|${e.phase}`;
+      if (key !== prev) d.feed.append(dividerNode(e.day, e.phase));
+      prev = key;
+      if (e.input) d.feed.append(el('p', { class: 'f-item f-input' }, e.input));
+      if (e.roll && e.roll.line && showRolls) d.feed.append(rollNode(e.roll));
+      if (e.narration) d.feed.append(narrationNode(e.narration));
+    }
+    if (prev !== `${s.time.day}|${s.time.phase}`) d.feed.append(dividerNode(s.time.day, s.time.phase));
+    scrollToBottom();
+  }
+
+  // ----- composer and autocomplete -----
+  function autosize() {
+    const ta = d.cmd;
+    ta.style.height = 'auto';
+    const cs = getComputedStyle(ta);
+    const lh = parseFloat(cs.lineHeight) || 24;
+    const borders = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const max = lh * 4 + pad + borders;
+    const want = ta.scrollHeight + borders;
+    ta.style.height = Math.min(want, max) + 'px';
+    ta.style.overflowY = want > max + 1 ? 'auto' : 'hidden';
+  }
+  function setBusy(b) {
+    busy = !!b;
+    d.send.disabled = busy;
+    d.feed.setAttribute('aria-busy', String(busy));
+  }
+  async function send() {
+    const text = d.cmd.value;
+    if (!text.trim() || busy) return;
+    hideAc();
+    d.cmd.value = '';
+    autosize();
+    let res = null;
+    try { res = await Pipeline.submit(text); } catch (e) { console.error(e); res = { restoreInput: true }; }
+    if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = text; autosize(); }
+    if (!isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true });
+  }
+  function onKey(e) {
+    if (!d.ac.hidden && ac.items.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveAc(1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); moveAc(-1); return; }
+      if (e.key === 'Tab') { e.preventDefault(); completeAc(ac.index >= 0 ? ac.index : 0); return; }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hideAc(); return; }
+      if (e.key === 'Enter' && !e.shiftKey && ac.index >= 0) { e.preventDefault(); completeAc(ac.index); return; }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+  }
+  function updateAc() {
+    const v = d.cmd.value;
+    if (!/^\/\S*$/.test(v)) { hideAc(); return; }
+    const items = Commands.match(v);
+    if (!items.length) { hideAc(); return; }
+    ac.items = items;
+    ac.index = -1;
+    renderAc();
+  }
+  function renderAc() {
+    d.ac.replaceChildren(...ac.items.map((c, i) => el('li', {
+      role: 'option', id: 'ac-' + i, 'aria-selected': String(i === ac.index), dataset: { cmd: c.name },
+      onmousedown: e => { e.preventDefault(); completeAc(i); }
+    }, el('span', { class: 'ac-name' }, c.name), c.args ? el('span', { class: 'ac-args' }, c.args) : null, el('span', { class: 'ac-desc' }, c.desc))));
+    d.ac.hidden = false;
+    d.cmd.setAttribute('aria-expanded', 'true');
+    if (ac.index >= 0) d.cmd.setAttribute('aria-activedescendant', 'ac-' + ac.index); else d.cmd.removeAttribute('aria-activedescendant');
+  }
+  function moveAc(step) {
+    const n = ac.items.length;
+    ac.index = ac.index < 0 ? (step > 0 ? 0 : n - 1) : (ac.index + step + n) % n;
+    renderAc();
+    const li = d.ac.children[ac.index];
+    if (li) li.scrollIntoView({ block: 'nearest' });
+  }
+  function completeAc(i) {
+    const c = ac.items[i];
+    if (!c) return;
+    d.cmd.value = c.name + (c.args ? ' ' : '');
+    hideAc();
+    autosize();
+    d.cmd.focus();
+  }
+  function hideAc() {
+    ac.items = [];
+    ac.index = -1;
+    if (d.ac) { d.ac.hidden = true; d.ac.replaceChildren(); }
+    if (d.cmd) { d.cmd.setAttribute('aria-expanded', 'false'); d.cmd.removeAttribute('aria-activedescendant'); }
+  }
+
+  // ----- settings screen -----
+  function fillSettings() {
+    const s = Storage.settings();
+    d.setKey.value = Storage.getApiKey();
+    d.setRemember.checked = s.rememberKey;
+    d.setMock.checked = s.mockMode;
+    d.setNarratorModel.value = s.narratorModel;
+    d.setParserModel.value = s.parserModel;
+    $$('[data-effort]').forEach(sel => { sel.value = s.effort[sel.dataset.effort]; });
+    d.setRolls.checked = s.showRolls;
+    d.setPermadeath.checked = s.permadeath;
+    const theme = Storage.effectiveTheme();
+    $$('input[name="set-theme"]').forEach(r => { r.checked = r.value === theme; });
+    $$('input[name="set-size"]').forEach(r => { r.checked = r.value === s.textSize; });
+    d.settingsQuit.hidden = !App.inGame();
+  }
+  function onSettingsChange(e) {
+    const t = e.target;
+    if (t === d.setKey || t === d.setRemember) { Storage.setApiKey(d.setKey.value, d.setRemember.checked); return; }
+    if (t.name === 'set-theme') { Storage.saveSettings({ theme: t.value }); applyDisplay(); return; }
+    if (t.name === 'set-size') { Storage.saveSettings({ textSize: t.value }); applyDisplay(); return; }
+    const before = Storage.settings();
+    const effort = {};
+    $$('[data-effort]').forEach(sel => { effort[sel.dataset.effort] = sel.value; });
+    const after = Storage.saveSettings({
+      mockMode: d.setMock.checked,
+      narratorModel: d.setNarratorModel.value.trim() || Storage.DEFAULTS.narratorModel,
+      parserModel: d.setParserModel.value.trim() || Storage.DEFAULTS.parserModel,
+      effort,
+      showRolls: d.setRolls.checked,
+      permadeath: d.setPermadeath.checked
+    });
+    if (before.showRolls !== after.showRolls && State.current && !State.muted) rebuildFeed();
+  }
+
+  // ----- saves screen -----
+  function slotMeta(env) {
+    const s = env.summary || {};
+    const when = env.savedAt ? new Date(env.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return `${s.player || '?'} · Day ${s.day} ${capFirst(s.phase || '')} · ${s.location || ''}${when ? ' · ' + when : ''}`;
+  }
+  function slotRow(label, env, actions, id) {
+    return el('div', { class: 'slot', id },
+      el('div', { class: 'slot-info' },
+        el('span', { class: 'slot-name' }, label),
+        el('span', { class: 'slot-meta' }, env && !env.broken ? slotMeta(env) : env && env.broken ? 'Damaged save' : 'Empty')),
+      el('div', { class: 'slot-actions' }, actions));
+  }
+  function renderSaves() {
+    const inGame = App.inGame() && State.current && !State.muted;
+    d.savesError.textContent = '';
+    d.saveNameField.hidden = !inGame;
+    if (inGame && !d.saveName.value) d.saveName.value = `${State.current.player.name}, day ${State.current.time.day}`;
+    d.btnExport.disabled = !inGame;
+    const rows = [];
+    const auto = Storage.peek(Storage.KEYS.autosave);
+    rows.push(slotRow('Autosave', auto, [
+      el('button', { type: 'button', class: 'btn small', 'data-action': 'load', disabled: !auto || auto.broken, onclick: () => App.continueGame() }, 'Load')
+    ], 'slot-auto'));
+    Storage.listSlots().forEach((env, i) => {
+      const n = i + 1;
+      const filled = env && !env.broken;
+      const del = el('button', { type: 'button', class: 'btn small danger', 'data-action': 'delete', hidden: !env }, 'Delete');
+      del.addEventListener('click', () => {
+        if (del.dataset.armed) { Storage.deleteSlot(n); renderSaves(); toast(`Slot ${n} cleared.`); return; }
+        del.dataset.armed = '1';
+        del.textContent = 'Confirm delete';
+        setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'Delete'; } }, 3000);
+      });
+      rows.push(slotRow(filled ? env.name : `Slot ${n}`, env, [
+        inGame ? el('button', { type: 'button', class: 'btn small', 'data-action': 'save', onclick: () => {
+          const env2 = Storage.saveSlot(n, d.saveName.value);
+          if (env2) { toast(`Saved to slot ${n}.`); d.saveName.value = ''; renderSaves(); }
+        } }, filled ? 'Overwrite' : 'Save here') : null,
+        el('button', { type: 'button', class: 'btn small', 'data-action': 'load', disabled: !filled, onclick: () => App.loadSlot(n) }, 'Load'),
+        del
+      ], 'slot-' + n));
+    });
+    d.slotList.replaceChildren(...rows);
+  }
+  async function onImport() {
+    const file = d.importFile.files && d.importFile.files[0];
+    d.importFile.value = '';
+    if (!file) return;
+    try {
+      const env = await Storage.importFile(file);
+      App.enter(env);
+      toast('Imported.');
+    } catch (e) {
+      d.savesError.textContent = e.message;
+    }
+  }
+
+  // ----- character creation -----
+  /* One page on laptop, one step per screen on mobile (CSS shows only
+     .step.current below 900px; the Next/Back buttons drive it). */
+  const Create = (() => {
+    const STEPS = [
+      { id: 'name', title: 'Name', sub: 'What people in town will call you.' },
+      { id: 'background', title: 'Background', sub: 'Sets your starting stats, gold, two items, and whether you arrive by road or river.' },
+      { id: 'stats', title: 'Stats', sub: 'You may move one point from one stat to another.' },
+      { id: 'goal', title: 'Goal', sub: 'One line: why you came to this town.' },
+      { id: 'flaw', title: 'Flaw', sub: 'Pick one, or write your own.' },
+      { id: 'loose', title: 'Three loose ends', sub: 'Pick three. Each becomes a real person in town, with consequences.' }
+    ];
+    let draft = null;
+    let step = 0;
+    const sections = {};
+
+    function blank() {
+      const loose = {};
+      for (const k of LOOSE_END_KINDS) if (LOOSE_ENDS[k]) loose[k] = { on: false, option: 0, text: LOOSE_ENDS[k].options[0] || '' };
+      return { name: '', backgroundId: null, moveFrom: '', moveTo: '', goal: '', flawIndex: -1, flawCustom: '', loose };
+    }
+    function bg() { return BACKGROUNDS.find(b => b.id === draft.backgroundId) || null; }
+    function finalStats() {
+      const b = bg();
+      if (!b) return null;
+      const s = Object.assign({}, b.stats);
+      if (draft.moveFrom && draft.moveTo && draft.moveFrom !== draft.moveTo && s[draft.moveFrom] > -1 && s[draft.moveTo] < 3) { s[draft.moveFrom] -= 1; s[draft.moveTo] += 1; }
+      return s;
+    }
+    function flawText() { return cleanText(draft.flawCustom, 120) || (draft.flawIndex >= 0 ? FLAWS[draft.flawIndex] : ''); }
+    function chosenLoose() {
+      return LOOSE_END_KINDS.filter(k => draft.loose[k] && draft.loose[k].on).map(k => ({ kind: k, text: cleanText(draft.loose[k].text, 200) }));
+    }
+    function character() {
+      return { name: cleanText(draft.name, 40), backgroundId: draft.backgroundId, stats: finalStats(), goal: cleanText(draft.goal, 140), flaw: flawText(), looseEnds: chosenLoose() };
+    }
+    function statLine(st) { return STATS.map(k => `${capFirst(k)} ${fmtMod(st[k])}`).join(', '); }
+    function focusSel(sel) { const n = $(sel, d.createSteps); if (n) n.focus({ preventScroll: true }); }
+
+    function wire() {
+      d.crCancel.addEventListener('click', quit);
+      d.crBack.addEventListener('click', backStep);
+      d.crNext.addEventListener('click', nextStep);
+      d.crReview.addEventListener('click', review);
+      d.crEdit.addEventListener('click', () => { App.cancelPrepare(); showForm(); });
+      d.crBegin.addEventListener('click', () => App.begin());
+    }
+    function start() {
+      draft = blank();
+      step = 0;
+      d.createSteps.replaceChildren();
+      STEPS.forEach((st, i) => {
+        const sec = el('section', { class: 'step', id: 'cr-step-' + st.id, 'aria-labelledby': 'cr-h-' + st.id, dataset: { step: String(i) } });
+        sections[st.id] = sec;
+        d.createSteps.append(sec);
+        renderStep(st.id);
+      });
+      showForm();
+    }
+    function quit() { App.cancelPrepare(); showScreen('title'); }
+    function showForm() {
+      d.createSummaryView.hidden = true;
+      d.createFormView.hidden = false;
+      updateSteps();
+      d.createScroll.scrollTop = 0;
+    }
+    function layoutChanged() { if (draft) updateSteps(); }
+    function updateSteps() {
+      STEPS.forEach((st, i) => sections[st.id] && sections[st.id].classList.toggle('current', i === step));
+      d.crCount.textContent = `Step ${step + 1} of ${STEPS.length}`;
+      d.crNext.textContent = step === STEPS.length - 1 ? 'Review' : 'Next';
+      d.crBack.textContent = step === 0 ? 'Title' : 'Back';
+    }
+    function nextStep() {
+      const id = STEPS[step].id;
+      const err = stepError(id);
+      showErr(id, err);
+      if (err) return;
+      if (step < STEPS.length - 1) {
+        step += 1;
+        updateSteps();
+        d.createScroll.scrollTop = 0;
+        const first = $('input, button.choice, button.chip, select', sections[STEPS[step].id]);
+        if (first) first.focus({ preventScroll: true });
+      } else review();
+    }
+    function backStep() {
+      if (step > 0) { step -= 1; updateSteps(); d.createScroll.scrollTop = 0; } else quit();
+    }
+    function stepError(id) {
+      switch (id) {
+        case 'name': return cleanText(draft.name, 40) ? '' : 'Give your character a name.';
+        case 'background': return bg() ? '' : 'Pick a background.';
+        case 'goal': return cleanText(draft.goal, 140) ? '' : 'Write one line about why you came here.';
+        case 'flaw': return flawText() ? '' : 'Pick a flaw or write your own.';
+        case 'loose': {
+          const ch = chosenLoose();
+          if (ch.length !== 3) return `Choose exactly three loose ends (${ch.length} chosen).`;
+          if (ch.some(x => !x.text)) return 'Each loose end needs a line of text.';
+          return '';
+        }
+        default: return '';
+      }
+    }
+    function showErr(id, msg) { const e = $('.err', sections[id]); if (e) e.textContent = msg || ''; }
+    function review() {
+      let firstBad = -1;
+      STEPS.forEach((st, i) => { const err = stepError(st.id); showErr(st.id, err); if (err && firstBad < 0) firstBad = i; });
+      if (firstBad >= 0) {
+        step = firstBad;
+        updateSteps();
+        sections[STEPS[firstBad].id].scrollIntoView({ block: 'start' });
+        return false;
+      }
+      try {
+        App.prepare(character());
+      } catch (e) {
+        showErr('loose', 'Could not create the character: ' + e.message);
+        return false;
+      }
+      renderSummary();
+      d.createFormView.hidden = true;
+      d.createSummaryView.hidden = false;
+      d.createScroll.scrollTop = 0;
+      d.crBegin.focus({ preventScroll: true });
+      return true;
+    }
+    function renderSummary() {
+      const s = State.current;
+      const p = s.player;
+      const l = State.loc(p.locationId);
+      const b = BACKGROUNDS.find(x => x.id === p.backgroundId);
+      const row = (k, v) => [el('dt', null, k), el('dd', null, v)];
+      d.summaryCard.replaceChildren(
+        el('h2', null, p.name),
+        el('p', { class: 'muted' }, `${p.background} · ${b ? b.blurb : ''}`),
+        el('dl', null,
+          row('Stats', statLine(p.stats)),
+          row('HP', `${p.hp} / ${p.maxHp}`),
+          row('Gold', String(p.gold)),
+          row('Carrying', p.inventory.map(i => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name)).join(', ')),
+          row('Goal', p.goal),
+          row('Flaw', p.flaw),
+          row('Arrives', `${b && b.arrival === 'docks' ? 'By river' : 'By road'}, at ${l.name}`),
+          row('Story points', String(p.storyPoints))),
+        el('h3', null, 'Loose ends'),
+        el('ul', { id: 'summary-loose' }, p.looseEnds.map(le => {
+          const n = State.npc(le.npcId);
+          return el('li', { dataset: { kind: le.kind, npc: le.npcId } },
+            el('strong', null, `${le.label}: `), `${le.text} `,
+            el('span', { class: 'muted' }, `${le.created ? 'New in town' : 'Linked to'}: ${n.name}, ${n.role}.`));
+        })));
+    }
+    function stepHead(st) {
+      return [el('h2', { class: 'step-title', id: 'cr-h-' + st.id }, st.title), el('p', { class: 'step-sub' }, st.sub)];
+    }
+    function renderStep(id) {
+      const st = STEPS.find(x => x.id === id);
+      const sec = sections[id];
+      const body = BODIES[id]();
+      sec.replaceChildren(...stepHead(st), ...[].concat(body), el('p', { class: 'err', role: 'alert' }));
+    }
+    const BODIES = {
+      name() {
+        return [
+          el('label', { class: 'visually-hidden', for: 'cr-name' }, 'Name'),
+          el('input', { class: 'input', id: 'cr-name', type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Your name', value: draft.name,
+            oninput: e => { draft.name = e.target.value; showErr('name', ''); },
+            onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); if (isMobile()) nextStep(); } } })
+        ];
+      },
+      background() {
+        return el('div', { class: 'choice-grid', role: 'group', 'aria-label': 'Backgrounds' }, BACKGROUNDS.map(b => el('button', {
+          type: 'button', class: 'choice bg-choice', 'aria-pressed': String(draft.backgroundId === b.id), dataset: { id: b.id },
+          onclick: () => {
+            draft.backgroundId = b.id;
+            draft.moveFrom = '';
+            draft.moveTo = '';
+            renderStep('background');
+            renderStep('stats');
+            focusSel(`.bg-choice[data-id="${b.id}"]`);
+          }
+        },
+        el('span', { class: 'choice-title' }, b.name),
+        el('span', { class: 'choice-sub' }, b.blurb),
+        el('span', { class: 'choice-meta' }, `${statLine(b.stats)} · ${b.gold} gold · ${b.items.map(i => i.name).join(', ')} · arrives by ${b.arrival === 'docks' ? 'river' : 'road'}`))));
+      },
+      stats() {
+        const b = bg();
+        if (!b) return el('p', { class: 'muted' }, 'Pick a background first. It sets your starting stats.');
+        const fin = finalStats();
+        const grid = el('div', { class: 'stat-grid', id: 'cr-stat-grid' }, STATS.map(k => el('div', { class: 'stat' + (fin[k] !== b.stats[k] ? ' changed' : '') },
+          el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(fin[k])))));
+        const from = el('select', { class: 'input', id: 'cr-move-from', onchange: e => {
+          draft.moveFrom = e.target.value;
+          if (draft.moveFrom && draft.moveFrom === draft.moveTo) draft.moveTo = '';
+          renderStep('stats');
+          focusSel('#cr-move-from');
+        } }, el('option', { value: '' }, 'No change'), STATS.map(k => el('option', { value: k, disabled: b.stats[k] <= -1 }, `${capFirst(k)} (${fmtMod(b.stats[k])})`)));
+        from.value = draft.moveFrom;
+        const to = el('select', { class: 'input', id: 'cr-move-to', onchange: e => { draft.moveTo = e.target.value; renderStep('stats'); focusSel('#cr-move-to'); } },
+          el('option', { value: '' }, 'No change'), STATS.map(k => el('option', { value: k, disabled: b.stats[k] >= 3 || k === draft.moveFrom }, `${capFirst(k)} (${fmtMod(b.stats[k])})`)));
+        to.value = draft.moveTo;
+        return [grid,
+          el('div', { class: 'move-row' },
+            el('div', null, el('label', { class: 'label', for: 'cr-move-from' }, 'Take one point from'), from),
+            el('div', null, el('label', { class: 'label', for: 'cr-move-to' }, 'Give it to'), to)),
+          el('p', { class: 'hint' }, 'Optional. Pick both to move a point. Stats run from −1 to +3.')];
+      },
+      goal() {
+        return [
+          el('label', { class: 'visually-hidden', for: 'cr-goal' }, 'Goal'),
+          el('input', { class: 'input', id: 'cr-goal', type: 'text', maxlength: '140', autocomplete: 'off', placeholder: 'Find out what happened to my brother', value: draft.goal,
+            oninput: e => { draft.goal = e.target.value; showErr('goal', ''); },
+            onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); if (isMobile()) nextStep(); } } })
+        ];
+      },
+      flaw() {
+        const chips = el('div', { class: 'chips', role: 'group', 'aria-label': 'Flaws' }, FLAWS.map((f, i) => el('button', {
+          type: 'button', class: 'chip flaw-choice', 'aria-pressed': String(draft.flawIndex === i && !cleanText(draft.flawCustom)), dataset: { index: String(i) },
+          onclick: () => { draft.flawIndex = i; draft.flawCustom = ''; renderStep('flaw'); focusSel(`.flaw-choice[data-index="${i}"]`); }
+        }, f)));
+        const custom = el('input', { class: 'input', id: 'cr-flaw-custom', type: 'text', maxlength: '120', autocomplete: 'off', placeholder: 'Or write your own', value: draft.flawCustom,
+          'aria-label': 'Your own flaw',
+          oninput: e => {
+            draft.flawCustom = e.target.value;
+            if (cleanText(draft.flawCustom)) draft.flawIndex = -1;
+            $$('.flaw-choice', sections.flaw).forEach(c => c.setAttribute('aria-pressed', String(+c.dataset.index === draft.flawIndex && !cleanText(draft.flawCustom))));
+            showErr('flaw', '');
+          } });
+        return [chips, el('div', { style: 'margin-top:12px' }, custom)];
+      },
+      loose() {
+        const chosen = chosenLoose();
+        const items = LOOSE_END_KINDS.filter(k => LOOSE_ENDS[k]).map(k => {
+          const def = LOOSE_ENDS[k];
+          const st = draft.loose[k];
+          const toggle = el('button', {
+            type: 'button', class: 'chip le-toggle', 'aria-pressed': String(st.on), disabled: !st.on && chosen.length >= 3, dataset: { kind: k },
+            onclick: () => { st.on = !st.on; renderStep('loose'); focusSel(`.le-toggle[data-kind="${k}"]`); }
+          }, def.label);
+          let inner = null;
+          if (st.on) {
+            const txt = el('input', { class: 'input le-text', type: 'text', maxlength: '200', autocomplete: 'off', value: st.text, dataset: { kind: k },
+              'aria-label': `${def.label}, in your words`, oninput: e => { st.text = e.target.value; } });
+            const sel = el('select', { class: 'input le-option', dataset: { kind: k }, 'aria-label': `${def.label}: pick one`,
+              onchange: e => { st.option = +e.target.value; st.text = def.options[st.option]; txt.value = st.text; } },
+            def.options.map((o, i) => el('option', { value: String(i) }, o)));
+            sel.value = String(st.option);
+            inner = el('div', { class: 'le-body' }, sel, txt, el('p', { class: 'hint' }, 'Edit the line if you like.'));
+          }
+          return el('div', { class: 'le-item' + (st.on ? ' on' : ''), dataset: { kind: k } }, toggle, inner);
+        });
+        return [el('p', { class: 'step-count', id: 'cr-le-count' }, `${chosen.length} of 3 chosen.`), el('div', { style: 'margin-top:10px' }, items)];
+      }
+    };
+    return { wire, start, review, layoutChanged, get draft() { return draft; }, STEPS };
+  })();
+
+  return {
+    init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
+    toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
+    get screen() { return screen; },
+    get tab() { return tab; },
+    get debug() { return debugOn; },
+    get stuckToBottom() { return stick; }
+  };
+})();
+
+// ===== Module: Commands =====
+/* SPEC.md section 12. /sheet /people /journal /places /undo /save /load
+   /debug work now; the rest need the pipeline (milestone 3 and 5). */
+const Commands = (() => {
+  const LIST = [
+    { name: '/look', args: '', desc: 'Describe the whole scene', ready: false },
+    { name: '/zoom', args: '<action>', desc: 'A big moment, with more room', ready: false },
+    { name: '/skip', args: '<goal>', desc: 'Jump ahead to a goal', ready: false },
+    { name: '/rest', args: '', desc: 'Sleep until morning and heal', ready: false },
+    { name: '/wait', args: '<phase>', desc: 'Wait here until a phase', ready: false },
+    { name: '/fact', args: '<statement>', desc: 'Spend a story point on a fact', ready: false },
+    { name: '/sheet', args: '', desc: 'Open the Character panel', ready: true },
+    { name: '/people', args: '', desc: 'Open the People panel', ready: true },
+    { name: '/journal', args: '', desc: 'Open the Journal panel', ready: true },
+    { name: '/places', args: '', desc: 'Open the Places panel', ready: true },
+    { name: '/undo', args: '', desc: 'Take back the last turn', ready: true },
+    { name: '/save', args: '<name>', desc: 'Save to a named slot', ready: true },
+    { name: '/load', args: '', desc: 'Open saved games', ready: true },
+    { name: '/debug', args: '', desc: 'Toggle the debug view', ready: true }
+  ];
+  const PANEL_FOR = { '/sheet': 'character', '/people': 'people', '/journal': 'journal', '/places': 'places' };
+  function match(input) {
+    const head = String(input || '').trim().split(/\s+/)[0].toLowerCase();
+    return head.startsWith('/') ? LIST.filter(c => c.name.startsWith(head)) : [];
+  }
+  function run(text) {
+    const trimmed = String(text || '').trim();
+    const head = trimmed.split(/\s+/)[0].toLowerCase();
+    const arg = trimmed.slice(head.length).trim();
+    const cmd = LIST.find(c => c.name === head);
+    if (!cmd) { UI.feed.notice(`There is no ${head} command. Type / to see the list.`); return { ok: false, reason: 'unknown', restoreInput: true }; }
+    if (PANEL_FOR[cmd.name]) { UI.openPanel(PANEL_FOR[cmd.name]); return { ok: true }; }
+    switch (cmd.name) {
+      case '/undo': {
+        if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
+        UI.rebuildFeed();
+        UI.feed.notice('You took back the last turn.');
+        return { ok: true };
+      }
+      case '/save': {
+        if (!arg) { UI.showScreen('saves'); return { ok: true }; }
+        const r = Storage.saveNamed(arg);
+        if (r.ok) UI.feed.notice(`Saved to slot ${r.slot} as "${r.name}".`);
+        else if (r.full) { UI.feed.notice('All three slots are taken. Pick one to overwrite.'); UI.showScreen('saves'); }
+        else UI.feed.notice('Saving failed.', 'error');
+        return { ok: !!r.ok };
+      }
+      case '/load': {
+        if (!arg) { UI.showScreen('saves'); return { ok: true }; }
+        const n = Storage.findSlot(arg);
+        if (!n || !App.loadSlot(n)) { UI.feed.notice(`There is no save called "${arg}".`); return { ok: false, reason: 'missing' }; }
+        return { ok: true };
+      }
+      case '/debug': {
+        const on = UI.toggleDebug();
+        if (on) UI.openPanel('debug');
+        UI.feed.notice(on ? 'Debug view on. Hidden state is in the Debug tab.' : 'Debug view off.');
+        return { ok: true };
+      }
+      default:
+        // TODO(milestone 3/5): /look /zoom /skip /rest /wait /fact
+        UI.feed.notice(`${cmd.name} arrives with the turn pipeline in a later build.`);
+        return { ok: false, reason: 'not-ready' };
+    }
+  }
+  return { LIST, match, run };
+})();
+
+// ===== Module: App =====
+/* Boot and screen routing. A new game is prepared silently at "Review"
+   (so the summary card can name the loose-end NPCs) and committed on Begin. */
+const App = (() => {
+  let inGame = false;
+  function urlSeed() {
+    try { return toInt(new URLSearchParams(window.location.search).get('seed')); } catch (e) { return null; }
+  }
+  function boot() {
+    Storage.init();
+    UI.init();
+    State.onChange(() => { Storage.autosave(); UI.renderGame(); });
+    UI.showScreen('title');
+  }
+  function newGame() { UI.Create.start(); UI.showScreen('create'); }
+  function prepare(character, opts) {
+    inGame = false;
+    const s = opts && Number.isInteger(opts.seed) ? opts.seed : urlSeed();
+    return State.newGame(TOWN_DATA, character, { seed: Number.isInteger(s) ? s : undefined, pending: true });
+  }
+  function cancelPrepare() { if (State.muted) State.clear(); }
+  function begin() {
+    const s = State.current;
+    if (!s || !State.muted) throw new Error('no character prepared');
+    State.commit();
+    State.apply({
+      logEntry: { input: '', roll: null, narration: Town.openingScene(s), day: s.time.day, phase: s.time.phase },
+      journalEntry: `Arrived in ${s.meta.townName}.`
+    });
+    inGame = true;
+    UI.rebuildFeed();
+    UI.showScreen('game');
+    return State.current;
+  }
+  function enter(env) {
+    State.load(env.state, env.town);
+    inGame = true;
+    UI.rebuildFeed();
+    UI.showScreen('game');
+  }
+  function continueGame() {
+    const env = Storage.loadAutosave();
+    if (!env) { UI.toast('There is no autosave yet.'); return false; }
+    try { enter(env); return true; } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
+  }
+  function loadSlot(n) {
+    const env = Storage.loadSlot(n);
+    if (!env) return false;
+    try { enter(env); } catch (e) { UI.warn('That save could not be loaded: ' + e.message); return false; }
+    UI.toast(`Loaded "${env.name}".`);
+    return true;
+  }
+  function quitToTitle() { inGame = false; UI.showScreen('title'); }
+  /* Test and console shortcut: create and begin without the form. */
+  function quickStart(character, opts) { prepare(character, opts); return begin(); }
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, quitToTitle, quickStart, inGame: () => inGame };
+})();
+
+// ===== Game: the one global (tests drive the engine through it) =====
+window.Game = Object.freeze({
+  Rng, Dice, Tables, State, Town, World, Style, Api, Pipeline, Storage, UI, Commands, App,
+  get state() { return State.current; },
+  get town() { return State.town || TOWN_DATA; },
+  data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, STYLE_GUIDE, EXAMPLE_TURNS })
+});
+
+try {
+  App.boot();
+} catch (err) {
+  console.error(err);
+  const banner = document.getElementById('banner');
+  const text = document.getElementById('banner-text');
+  if (banner && text) { text.textContent = 'The game failed to start: ' + err.message; banner.hidden = false; }
+}
+})();
+</script>
+</body>
+</html>
