@@ -5126,7 +5126,10 @@ const Api = (() => {
     if (c.defeated) out.push('You go down hard.');
     if (c.consequence) out.push(sentence(c.consequence.replace(/\s*\([^)]*\)$/, '')));
     const target = s && (a.targets || []).map(id => State.npc(id)).find(n => n && (c.presentIds || []).includes(n.id));
-    if (mode === 'arrival' || a.actionType === 'look') {
+    if (c.beat) {
+      const names = (c.present || []).map(n => n.name);
+      out.push(names.length ? `You wait. ${joinAnd(names)} ${names.length > 1 ? 'carry' : 'carries'} on, and ${names[0]} speaks first: "Well?"` : 'You wait. Nothing happens for a while.');
+    } else if (mode === 'arrival' || a.actionType === 'look') {
       const l = s && c.location ? State.loc(c.location.id) : null;
       out.push(mode === 'arrival' ? `You arrive at ${loc}.` : `You take in ${loc}.`);
       if (l && l.description) out.push(l.description);
@@ -6185,7 +6188,8 @@ const Pipeline = (() => {
       lines.push(`These are the player's exact words, already spoken; do not repeat them in full. ${answer}`);
     } else {
       lines.push(`ACTION: ${a.summary || ctx.input || 'none'}`);
-      if (ctx.speech && ctx.speech.mode === 'do') lines.push('The player did not say anything beyond what the ACTION line states.');
+      if (ctx.beat) lines.push('BEAT: the player says and does nothing this turn and waits. The people here carry on: let them act, speak, press, or react to the silence, and move the scene forward a step. The player does not act or speak.');
+      else if (ctx.speech && ctx.speech.mode === 'do') lines.push('The player did not say anything beyond what the ACTION line states.');
     }
     lines.push(`ROLL: ${roll ? roll.line : 'none'}`);
     if (ctx.pressed) lines.push(`SAME ASK AGAIN: the player already tried this and it failed${ctx.pressed.line ? ` (${ctx.pressed.line})` : ''}; there is no new roll and the answer does not change. Show them holding their position and reacting to being pushed (shorter, cooler or amused). Nothing new is granted.`);
@@ -6275,6 +6279,7 @@ const Pipeline = (() => {
       `ALREADY APPLIED BY THE ENGINE (do not record again): ${engine.join('; ')}`
     ];
     if (ctx.pressed) lines.push('SAME ASK AGAIN: this repeats an ask that already failed; grant nothing new; a small attitude drop (-5 to -10) for the person pushed is reasonable; no move.');
+    if (ctx.beat) lines.push('BEAT: the player did and said nothing; record only what the others did.');
     const missing = (ctx.notPresent || []).filter(x => x.reason === 'does_not_exist' || x.reason === 'unproven').map(x => x.label);
     if (missing.length) lines.push(`DOES NOT EXIST (record nothing about it): ${missing.join(', ')}`);
     if (ctx.rumour) lines.push(`RUMOUR OFFERED: ${ctx.rumour.id} by ${ctx.rumour.npcId}: "${ctx.rumour.text}" (list it in rumoursHeard only if the narration shows it being told)`);
@@ -6383,7 +6388,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat };
     // Step 13: the autosave and the render run once, when this batch closes
     // (finally below), after the whole turn or its rollback.
     State.beginBatch();
@@ -6612,6 +6617,18 @@ const Pipeline = (() => {
     if (isSay(speech)) return runTurn({ input: speech.words, mode: 'normal', speech: { mode: 'say', to: speech.to, toName: speech.toName, toLabel: speech.toLabel || null } });
     return runTurn({ input: text, mode: 'normal', speech: { mode: 'do' } });
   }
+  /* A beat: the player says and does nothing and lets the scene come to them.
+     Costs a short (a few minutes); the people here act, speak or react. */
+  function pass() {
+    return runTurn({
+      input: 'You wait and see.', mode: 'normal', beat: true, speech: { mode: 'do' },
+      action: () => {
+        const st = State.current;
+        const ids = State.npcsAt(st.player.locationId).map(n => n.id);
+        return { actionType: 'wait', summary: `${st.player.name} says nothing and waits to see what ${ids.length ? 'the people here do' : 'happens'}`, targets: ids, needsRoll: false, timeCost: 'short', declaresWorldFact: false };
+      }
+    });
+  }
   function look() {
     return runTurn({ input: '/look', mode: 'zoom', bookkeep: false, action: () => ({ actionType: 'look', summary: `${State.current.player.name} takes in the whole scene`, targets: [], needsRoll: false, timeCost: 'instant' }) });
   }
@@ -6796,7 +6813,7 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return { noteIntroductions, reroll, pickMemories, updateGame,
+  return { noteIntroductions, reroll, pickMemories, pass, updateGame,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
@@ -7075,7 +7092,8 @@ const UI = (() => {
     d.feedScroll.addEventListener('scroll', () => { stick = nearBottom(); if (stick) d.newBtn.hidden = true; }, { passive: true });
     d.newBtn.addEventListener('click', scrollToBottom);
     // Composer
-    d.cmd.addEventListener('input', () => { autosize(); updateAc(); });
+    d.cmd.addEventListener('input', () => { autosize(); updateAc(); syncSendLabel(); });
+    syncSendLabel();
     d.cmd.addEventListener('keydown', onKey);
     d.cmd.addEventListener('blur', () => setTimeout(hideAc, 150));
     d.send.addEventListener('click', () => send());
@@ -7966,9 +7984,23 @@ const UI = (() => {
     // A turn has started: a "Go to" chip on the map goes away.
     if (busy && mapPick) setPick(null);
   }
+  /* With nothing typed, Send reads Wait and runs a beat (Pipeline.pass). */
+  function syncSendLabel() {
+    const empty = !d.cmd.value.trim();
+    d.send.textContent = empty ? 'Wait' : 'Send';
+    d.send.title = empty ? 'Say nothing and see what they do' : 'Send';
+  }
   async function send() {
     const text = d.cmd.value;
-    if (!text.trim() || busy) return;
+    if (busy) return;
+    if (!text.trim()) {
+      if (screen !== 'game' || !State.current) return;
+      hideAc();
+      try { await Pipeline.pass(); } catch (e) { console.error(e); }
+      syncSendLabel();
+      if (!isMobile()) d.cmd.focus({ preventScroll: true });
+      return;
+    }
     hideAc();
     d.cmd.value = '';
     autosize();
@@ -7976,6 +8008,7 @@ const UI = (() => {
     let res = null;
     try { res = await Pipeline.submit(text, { mode: composer.mode, to: composer.to }); } catch (e) { console.error(e); res = { restoreInput: true }; }
     if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = text; autosize(); }
+    syncSendLabel();
     if (!isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true });
   }
   function onKey(e) {
@@ -8472,6 +8505,7 @@ const Commands = (() => {
     { name: '/look', args: '', desc: 'Describe the whole scene', turn: true },
     { name: '/zoom', args: '<action>', desc: 'A big moment, with more room', turn: true },
     { name: '/skip', args: '<goal>', desc: 'Jump ahead to a place or time', turn: true },
+    { name: '/pass', args: '', desc: 'Say nothing and see what they do', turn: true },
     { name: '/rest', args: '', desc: 'Sleep until morning and heal', turn: true },
     { name: '/wait', args: '<phase>', desc: 'Wait here until a phase', turn: true },
     { name: '/fact', args: '<statement>', desc: 'Spend a story point on a fact', turn: true },
@@ -8510,6 +8544,7 @@ const Commands = (() => {
       case '/rest': return Pipeline.rest();
       case '/wait': return Pipeline.wait(arg);
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
+      case '/pass': return Pipeline.pass();
       case '/reroll': return Pipeline.reroll(arg);
       case '/cheat': {
         if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random.'); return { ok: true }; }

@@ -1448,4 +1448,35 @@ s.test('/cheat success|partial|fail|crit|fumble|<n> redoes the last roll with th
   assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.input === 'I try to pick the lock on the back door').length), 1, 'still one turn in the log');
 });
 
+s.test('a beat: Send with nothing typed (or /pass) lets the scene come to the player: no roll, a short, the people here act, the player says nothing', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  assert.equal(await page.textContent('#send'), 'Wait', 'empty box: the button reads Wait');
+  await page.fill('#cmd', 'hello');
+  assert.equal(await page.textContent('#send'), 'Send');
+  await page.fill('#cmd', '');
+  const before = await page.evaluate(() => ({ turn: Game.state.meta.turn, shorts: Game.state.time.shorts, phase: Game.state.time.phase, log: Game.state.log.length }));
+  await page.click('#send');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  const t = await turnInfo(page);
+  assert.equal(t.last.input, 'You wait and see.');
+  assert.equal(t.act.actionType, 'wait');
+  assert.equal(t.act.timeCost, 'short');
+  assert.equal(t.last.roll, null);
+  assert.ok(t.last.narration.startsWith('You wait.'), t.last.narration);
+  const packet = await lastPacket(page);
+  assert.match(packet, /\nBEAT: the player says and does nothing this turn and waits\./);
+  assert.ok(!/The player did not say anything beyond/.test(packet));
+  assert.ok((await lastPacket(page, 'bookkeep')).includes('BEAT: the player did and said nothing'));
+  const after = await page.evaluate(() => ({ turn: Game.state.meta.turn, shorts: Game.state.time.shorts, phase: Game.state.time.phase, log: Game.state.log.length }));
+  assert.equal(after.log, before.log + 1);
+  assert.ok(after.turn === before.turn + 1 && (after.shorts !== before.shorts || after.phase !== before.phase), 'a short passed');
+  await sendText(page, '/pass');
+  assert.equal((await turnInfo(page)).last.input, 'You wait and see.');
+  assert.equal(await page.textContent('#send'), 'Wait');
+});
+
 s.run();

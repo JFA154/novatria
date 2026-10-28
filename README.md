@@ -90,6 +90,7 @@ remembered in this browser; who you were talking to is not.
 | `/look` | Describe the whole scene, with the longer zoom length | Narrator |
 | `/zoom <action>` | Play the action as a normal turn with the longer limit, for big moments | Parser, narrator, bookkeeper |
 | `/skip <goal>` | Jump ahead to a place and/or time ("/skip to the bar at night"). The world ticks once for each phase skipped | Narrator |
+| `/pass` (or press **Wait**: the Send button with nothing typed) | Say and do nothing for a few minutes and let the people here act, speak or react to your silence | Narrator, bookkeeper |
 | `/rest` | Sleep until morning, heal 3 HP. The world ticks through the night | Narrator |
 | `/wait <phase>` | Wait where you are until morning, afternoon, evening or night | Narrator |
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
