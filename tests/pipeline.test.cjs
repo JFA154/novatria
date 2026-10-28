@@ -1479,4 +1479,101 @@ s.test('a beat: Send with nothing typed (or /pass) lets the scene come to the pl
   assert.equal(await page.textContent('#send'), 'Wait');
 });
 
+/* A place someone names (the owner's scene: Royce on where Dewayne lives),
+   with this town's people: a speaker present here, and an owner elsewhere
+   with a phase no schedule holds them in. */
+const homeScene = page => page.evaluate(() => {
+  const st = Game.state;
+  const phases = ['morning', 'afternoon', 'evening', 'night'];
+  const nowhere = id => phases.filter(p => !st.locations.some(l => ((l.npcIdsBySchedule || {})[p] || []).includes(id)));
+  const first = n => n.name.split(' ')[0];
+  const here = Game.State.npcsAt(st.player.locationId);
+  const speaker = here[0];
+  const owner = st.npcs.find(n => n.id !== speaker.id && !here.includes(n) && n.status === 'free' && nowhere(n.id).length > 0 && nowhere(n.id).length < 4 && st.npcs.filter(m => first(m) === first(n)).length === 1);
+  return { loc: st.player.locationId, speaker: { id: speaker.id, name: speaker.name }, owner: { id: owner.id, first: first(owner), nowhere: nowhere(owner.id) }, place: `${first(owner)}'s house` };
+});
+
+s.test('a person names a place that is not on the map: the bookkeeper adds it, the feed says so, the map and Places show it dashed; "I head to X\'s house" walks there and the dash goes; /undo takes it all back', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const x = await homeScene(page);
+  await page.click('#tab-places');
+  await page.click('#mode-say');
+  await page.click(`#say-to [data-to="${x.speaker.id}"]`);
+  await page.evaluate(x => {
+    Game.Api.Mock.queue('narrate', `${x.speaker.name} jerks a thumb up the road. "${x.owner.first}'s is the white house about a mile up the river road, on the left."`);
+    Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: x.place, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: x.loc, ownerNpcId: x.owner.id, kind: 'home' }] });
+  }, x);
+  await sendText(page, `Where does ${x.owner.first} live? He said I could stay over.`);
+  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
+  const made = await page.evaluate(name => JSON.parse(JSON.stringify(Game.state.locations.find(l => l.name === name) || null)), x.place);
+  assert.ok(made, 'the place exists');
+  assert.deepEqual(made.exits, [x.loc]);
+  assert.equal(made.revealed.byNpcId, x.speaker.id, 'credited to the person the player asked');
+  assert.equal(made.revealed.ownerNpcId, x.owner.id);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), x.loc, 'asking moves nobody');
+  const book = await lastPacket(page, 'bookkeep');
+  assert.ok(book.includes('\nLOCATIONS (the places list): '), 'the bookkeeper sees the places list');
+  assert.ok(book.includes(`\nNAMED IN THE NARRATION (not here): ${x.owner.id} — `), 'and the owner, named but not here, so it can say whose home it is');
+  // The panel re-rendered with the turn: the map marker is dashed, the legend explains it, the Places list has it.
+  const panel = () => page.evaluate(id => ({
+    heard: (document.querySelector(`.map-place[data-loc="${id}"]`) || { dataset: {} }).dataset.heard || null,
+    here: (document.querySelector(`.map-place[data-loc="${id}"]`) || { dataset: {} }).dataset.here || null,
+    road: !!document.querySelector(`.map-road[data-road*="${id}"]`),
+    legend: document.querySelector('.map-legend').textContent, text: document.getElementById('panel-body').innerText,
+    dash: (() => { const m = document.querySelector(`.map-place[data-loc="${id}"] .map-mark`); return m ? getComputedStyle(m).strokeDasharray : null; })()
+  }), made.id);
+  let p = await panel();
+  assert.equal(p.heard, '1');
+  assert.ok(p.dash && p.dash !== 'none', 'a dashed outline: ' + p.dash);
+  assert.ok(p.road, 'with its road');
+  assert.match(p.legend, /Heard of/);
+  assert.ok(p.text.includes(`${x.place} (heard of)`), 'in Places you know and Exits from here');
+  // Walking there: the mock parser finds it by name.
+  await page.click('#mode-do');
+  await sendText(page, `I head to ${x.place}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), made.id, 'the player is there');
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.destinationId), made.id);
+  assert.ok((await lastPacket(page)).includes(`DESTINATION: ${x.place} — The white house about a mile up the river road, on the left.`));
+  assert.equal(await page.evaluate(id => Game.State.loc(id).revealed.visited, made.id), true);
+  p = await panel();
+  assert.deepEqual([p.heard, p.here], ['0', '1'], 'the first visit takes the dash away');
+  assert.equal(p.dash, 'none');
+  assert.ok(!/Heard of/.test(p.legend));
+  assert.equal(await page.textContent('#panel-body h2'), x.place);
+  // /undo: the walk, then the place itself.
+  await sendText(page, '/undo');
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), x.loc);
+  assert.equal((await panel()).heard, '1', 'heard of again');
+  await sendText(page, '/undo');
+  const gone = await page.evaluate(([name, id, near, owner]) => ({
+    loc: Game.state.locations.some(l => l.name === name), exit: Game.State.loc(near).exits.includes(id), home: Game.State.npc(owner).home || null,
+    marker: !!document.querySelector(`.map-place[data-loc="${id}"]`), list: document.getElementById('panel-body').innerText.includes(name),
+    feed: [...document.querySelectorAll('#feed .f-quiet')].some(n => n.textContent.includes('Added to the map'))
+  }), [x.place, made.id, x.loc, x.owner.id]);
+  assert.deepEqual(gone, { loc: false, exit: false, home: null, marker: false, list: false, feed: false });
+});
+
+s.test('the mock bookkeeper hears a home named in a quoted line; one already on the map, or a line naming a town place, adds nothing', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const x = await homeScene(page);
+  const town = await page.evaluate(() => Game.data.TOWN_DATA.locations[0].name);
+  const say = async line => { await page.evaluate(([x, line]) => Game.Api.Mock.queue('narrate', `${x.speaker.name} shrugs. "${line}"`), [x, line]); await sendText(page, 'Where does he live?'); };
+  await say(`${x.owner.first}'s place is the white house up past ${town}.`);
+  assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 0, 'a line that names a town place adds nothing');
+  await say(`${x.owner.first}'s is the white house about a mile up the river road, on the left.`);
+  const made = await page.evaluate(() => Game.state.locations.filter(l => l.revealed).map(l => ({ name: l.name, owner: l.revealed.ownerNpcId, desc: l.description })));
+  assert.deepEqual(made, [{ name: x.place, owner: x.owner.id, desc: `${x.owner.first}'s is the white house about a mile up the river road, on the left.` }]);
+  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
+  await say(`Told you, ${x.owner.first}'s is the white house up the road.`);
+  assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 1, 'once on the map, not again');
+});
+
 s.run();

@@ -67,6 +67,17 @@ stays where it was.
 Commands (`/look`, `/undo` and the rest) work in either mode. The switch is
 remembered in this browser; who you were talking to is not.
 
+## Places and the map
+
+People can tell you about places that are not on the map yet. When someone
+names a specific place you could walk to ("Dewayne's is the white house about
+a mile up the river road"), it is added to the map, the Places list and the
+roads, with a quiet "Added to the map: Dewayne's house." in the story. It
+shows with a dashed marker, marked "heard of", until you visit. If it is
+someone's home, they are there at the times they are nowhere else, usually at
+night. Walk there like anywhere else ("I head to Dewayne's house", or tap it
+on the map). The game adds at most one such place a turn and twelve a game.
+
 ## Settings
 
 | Field | What it does |
@@ -148,8 +159,15 @@ the old kind: long play-by-play accounts of whole scenes.
 - **If it fails** (no key, a network error, a refusal), nothing changes and
   the feed says why. The details are in the Debug tab. An update counts as one
   step for `/undo`, so `/undo` straight after it brings the old memories back.
+- **Places people told you about** (added 28 Oct 2026, rules version 3). The
+  same update also reads the game's story so far for places people named
+  that are not on the map yet, and adds them as "heard of" places (see Places
+  and the map). The feed says, for example, "Added 1 place people told you
+  about: Dewayne's house." or "No new places to add." This is one more call
+  to the parser model; mock mode finds a quoted line like "Dewayne's is the
+  white house" by a fixed rule instead.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (2 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (3 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 

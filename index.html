@@ -617,6 +617,10 @@ select.input { padding-right: 32px; }
 .map-place:focus-visible .map-hit { stroke: var(--focus); stroke-width: 1.5; }
 @media (hover: hover) { .map-place:not([data-here="1"]):hover .map-mark { fill: var(--accent); } }
 .map-place[data-closed="1"] .map-mark, .map-place[data-closed="1"] .map-label { opacity: .5; }
+/* Heard of (someone told the player about it; not visited yet): a dashed outline. */
+.map-place[data-heard="1"] .map-mark { fill: var(--map-land); stroke: var(--map-ink); stroke-width: 1.4; stroke-dasharray: 2.6 1.8; }
+.map-place[data-heard="1"][data-picked="1"] .map-mark { stroke: var(--accent); }
+@media (hover: hover) { .map-place[data-heard="1"]:hover .map-mark { fill: var(--map-land); stroke: var(--accent); } }
 .map-label.struck { text-decoration: line-through; }
 .map-strike { stroke: var(--map-ink); stroke-width: 1.4; stroke-linecap: round; }
 .map-mono circle { fill: var(--person-1); stroke: var(--map-land); stroke-width: 1.2; }
@@ -646,6 +650,7 @@ select.input { padding-right: 32px; }
 .lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
 .lg-closed { width: 10px; height: 10px; border-radius: 1px; opacity: .55; background: linear-gradient(to top right, var(--map-ink) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-ink) calc(50% + 1.2px)); }
 .lg-person { width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); }
+.lg-heard { box-sizing: border-box; width: 10px; height: 10px; border-radius: 1px; border: 1.5px dashed var(--map-ink); }
 .dbg pre {
   font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
   white-space: pre-wrap; overflow-wrap: anywhere;
@@ -977,7 +982,7 @@ select.input { padding-right: 32px; }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form. About one API call (none in mock mode).</p>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, and adds places people told you about to the map. About two API calls (none in mock mode).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -2384,6 +2389,11 @@ const THREAD_STATUSES = ['open', 'resolved', 'failed'];
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
 const LOOSE_END_KINDS = ['debt', 'enemy', 'secret', 'lost', 'promise'];
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+/* Places people tell the player about (State.apply placesRevealed, proposed
+   by the bookkeeper's record_changes and by Upgrade version 3): what kind of
+   place it is, and whose. */
+const REVEALED_TYPES = ['house', 'shop', 'bar', 'spot', 'church', 'farm', 'dock', 'road', 'other'];
+const REVEALED_KINDS = ['home', 'business', 'spot', 'other'];
 const ID_RE = {
   loc: /^loc_[a-z0-9_]+$/, npc: /^npc_[a-z0-9_]+$/, fac: /^fac_[a-z0-9_]+$/, thr: /^thr_[a-z0-9_]+$/,
   seed: /^seed_[a-z0-9_]+$/, rum: /^rum_[a-z0-9_]+$/, item: /^item_[a-z0-9_]+$/, cond: /^cond_[a-z0-9_]+$/, bg: /^bg_[a-z0-9_]+$/
@@ -2783,7 +2793,18 @@ const Tables = (() => {
    (People: "Last seen"). Display only; no model ever reads it.
    With { source: 'model' } only the record_changes fields are accepted, so a
    bookkeeper reply can never plant effects or touch time.
-   Returns { applied: [string], rejected: [{ path, reason }], time? }. */
+   placesRevealed ([{ name, type, description, nearId, ownerNpcId, kind,
+   byNpcId?, turn?, day? }]: a place someone in the narration named that is
+   not in the town yet) is the one record_changes field that creates an
+   entity: validated, refused when it duplicates a place by name, at most
+   LIMITS.placesPerTurn from the model in a turn (the engine, Upgrade's
+   re-read, is not held to that) and LIMITS.revealedPlaces in a game. It
+   becomes a discovered location with an exit to and from nearId, map
+   coordinates chosen now beside nearId (revealSpot), and `revealed`
+   ({ turn, day, byNpcId, ownerNpcId, kind, visited }); someone's home also
+   holds its owner in every phase they are scheduled nowhere. turn and day
+   are taken only from the engine. result.revealed lists the new ids.
+   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed? }. */
 const State = (() => {
   let current = null;
   let town = null;
@@ -2799,8 +2820,9 @@ const State = (() => {
      RULES_VERSION. When the rules change in a way an older game should catch
      up with, bump it and add the step to Upgrade.MIGRATIONS. 2: "Memories
      that matter" (short memories, only what a person would hold against the
-     player or thank them for). */
-  const RULES_VERSION = 2;
+     player or thank them for). 3: "Places people told you about" (a place
+     someone named becomes a place on the map, placesRevealed). */
+  const RULES_VERSION = 3;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -2809,18 +2831,18 @@ const State = (() => {
   let dirty = false;
 
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
-    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'journalEntry'];
+    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
-  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3 };
+  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12 };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
   const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season']);
 
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0 }; }
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0 }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -2883,6 +2905,9 @@ const State = (() => {
       }
     }
     if (!placed && n.home && loc(n.home.locationId)) n.home.phases.forEach(p => addToSchedule(loc(n.home.locationId), p, n.id));
+    // A home someone told the player about (placesRevealed) holds them again in the phases it filled, where nothing else does.
+    const told = placed && n.home && n.home.revealed ? loc(n.home.locationId) : null;
+    if (told) for (const p of n.home.phases) if (!current.locations.some(x => ((x.npcIdsBySchedule || {})[p] || []).includes(n.id))) addToSchedule(told, p, n.id);
   }
 
   // ----- normalisers (validate fully, then return a clean object) -----
@@ -3025,6 +3050,188 @@ const State = (() => {
     if (!it) return;
     it.qty -= qty;
     if (it.qty <= 0) l.items.splice(l.items.indexOf(it), 1);
+  }
+  // ----- places people tell the player about (placesRevealed) -----
+  /* The forms a place's name goes by, for the duplicate check: lower case,
+     no leading "the", with and without a trailing house / home / place, and
+     each with and without a possessive, so "Dewayne's", "Dewaynes house" and
+     "Dewayne's house" all meet at "dewayne". */
+  function placeNames(name) {
+    const base = String(name || '').toLowerCase().replace(/[’‘`]/g, "'").replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/^the /, '');
+    const out = new Set();
+    for (const f of [base, base.replace(/ (house|home|place)$/, '')]) {
+      const bare = f.replace(/('s|s'|')$/, '');
+      for (const x of [f, bare, bare.length > 3 ? bare.replace(/s$/, '') : bare]) if (x.trim()) out.add(x.trim());
+    }
+    return out;
+  }
+  /* The map a game is drawn on, and a place's point on it: the same sources
+     as UI.renderMap (this game's town, else the built-in town's map for a
+     save of the same town), so a stored point matches what is drawn. */
+  function mapFrame() {
+    if (town && isObj(town.map)) return town.map;
+    return current && current.meta.townName === TOWN_DATA.name && isObj(TOWN_DATA.map) ? TOWN_DATA.map : null;
+  }
+  function mapPointOf(l) {
+    if (!l) return null;
+    let c = isObj(l.map) ? l.map : null;
+    if (!c) {
+      const src = (town && Array.isArray(town.locations) ? town.locations.find(x => x.id === l.id) : null)
+        || (current && current.meta.townName === TOWN_DATA.name ? TOWN_DATA.locations.find(x => x.id === l.id) : null);
+      c = src && isObj(src.map) ? src.map : null;
+    }
+    return c && Number.isFinite(c.x) && Number.isFinite(c.y) ? c : null;
+  }
+  /* Points along an SVG path (absolute M, L, C and Q, the commands the
+     town's river uses); anything else gives no points, and so no river to
+     keep away from. */
+  function pathPoints(d) {
+    const toks = typeof d === 'string' ? (d.match(/[A-Za-z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || []) : [];
+    const pts = [];
+    let i = 0;
+    let cmd = null;
+    let x = 0;
+    let y = 0;
+    const num = () => parseFloat(toks[i++]);
+    while (i < toks.length) {
+      if (/^[A-Za-z]$/.test(toks[i])) cmd = toks[i++];
+      const at = i;
+      if (cmd === 'M' || cmd === 'L') { x = num(); y = num(); pts.push({ x, y }); if (cmd === 'M') cmd = 'L'; }
+      else if (cmd === 'C' || cmd === 'Q') {
+        const c = cmd === 'C' ? [num(), num(), num(), num(), num(), num()] : [num(), num(), num(), num()];
+        const ex = c[c.length - 2];
+        const ey = c[c.length - 1];
+        for (let k = 1; k <= 16; k++) {
+          const t = k / 16;
+          const u = 1 - t;
+          pts.push(cmd === 'C'
+            ? { x: u * u * u * x + 3 * u * u * t * c[0] + 3 * u * t * t * c[2] + t * t * t * ex, y: u * u * u * y + 3 * u * u * t * c[1] + 3 * u * t * t * c[3] + t * t * t * ey }
+            : { x: u * u * x + 2 * u * t * c[0] + t * t * ex, y: u * u * y + 2 * u * t * c[1] + t * t * ey });
+        }
+        x = ex;
+        y = ey;
+      } else return [];
+      if (i === at) return [];
+    }
+    return pts.every(q => Number.isFinite(q.x) && Number.isFinite(q.y)) ? pts : [];
+  }
+  /* A map label of at most three words: the name without "The", cut before
+     a word that starts describing the way there ("white house up the river
+     road" -> "white house"). */
+  const LABEL_BREAKS = new Set(['up', 'down', 'on', 'by', 'at', 'near', 'past', 'off', 'behind', 'across', 'along', 'over', 'in', 'from', 'beyond', 'under', 'outside', 'out']);
+  function revealLabel(name) {
+    const words = String(name || '').replace(/^the\s+/i, '').split(/\s+/).filter(Boolean);
+    const out = [];
+    for (const w of words) { if (out.length && LABEL_BREAKS.has(w.toLowerCase())) break; out.push(w); if (out.length >= 3) break; }
+    return out.join(' ') || String(name || '').slice(0, 20);
+  }
+  /* Where a revealed place goes on the map: around the place it is reached
+     from (or that place's first mapped exit), in eight directions at a
+     radius of 34 (then 46, 58, 70 if nothing fits), inside the map with the
+     same margins as UI.mapLayout, at least 28 from every marker; of those,
+     the spot farthest from every other marker, with a heavy penalty near the
+     river's banks and a light one a little further out. The label goes on
+     the side away from the near place when it fits there without covering a
+     marker, else the first side that does. Null when nothing is mapped. */
+  const REVEAL_RADII = [34, 46, 58, 70];
+  function revealSpot(near, label) {
+    const frame = mapFrame() || {};
+    const W = Number.isFinite(frame.width) && frame.width >= 120 ? frame.width : 360;
+    const H = Number.isFinite(frame.height) && frame.height >= 100 ? frame.height : 300;
+    const from = mapPointOf(near) || near.exits.map(id => mapPointOf(loc(id))).find(Boolean);
+    if (!from) return null;
+    const marks = current.locations.map(mapPointOf).filter(Boolean);
+    const others = marks.filter(c => c.x !== from.x || c.y !== from.y);
+    const river = pathPoints(frame.river);
+    const rw = Number.isFinite(frame.riverWidth) && frame.riverWidth > 0 ? frame.riverWidth : 34;
+    const dist = (a, x, y) => Math.hypot(a.x - x, a.y - y);
+    let best = null;
+    for (const r of REVEAL_RADII) {
+      for (let i = 0; i < 8; i++) {
+        const a = Math.PI / 2 - i * Math.PI / 4; // north first, then clockwise
+        const x = Math.round(from.x + Math.cos(a) * r);
+        const y = Math.round(from.y - Math.sin(a) * r);
+        if (x < 24 || x > W - 24 || y < 20 || y > H - 20) continue;
+        if (marks.some(c => dist(c, x, y) < 28)) continue;
+        const clear = others.length ? Math.min(...others.map(c => dist(c, x, y))) : 999;
+        const bank = river.length ? Math.min(...river.map(w => dist(w, x, y))) - rw / 2 : Infinity;
+        const score = clear - (bank < 12 ? 1000 : bank < 26 ? 40 : 0);
+        if (!best || score > best.score) best = { x, y, score };
+      }
+      if (best && best.score > 0) break;
+    }
+    if (!best) return null;
+    // The label block, estimated as UI.mapPlace sizes it (11px type on a 316px map, two lines past 13 letters).
+    const k = W / 316;
+    const chars = label.length <= 13 || !label.includes(' ') ? label.length : Math.ceil(label.length / 2) + 2;
+    const w = chars * 11 * k * 0.58;
+    const h = (label.length <= 13 || !label.includes(' ') ? 1 : 2) * 13.2 * k;
+    const dx = best.x - from.x;
+    const dy = best.y - from.y;
+    const away = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'e' : 'w') : (dy < 0 ? 'n' : 's');
+    const box = side => side === 'e' ? [best.x + 11, best.y - h / 2, best.x + 11 + w, best.y + h / 2]
+      : side === 'w' ? [best.x - 11 - w, best.y - h / 2, best.x - 11, best.y + h / 2]
+        : side === 'n' ? [best.x - w / 2, best.y - 11 - h, best.x + w / 2, best.y - 11]
+          : [best.x - w / 2, best.y + 11, best.x + w / 2, best.y + 11 + h];
+    const fits = b => b[0] >= 3 && b[2] <= W - 3 && b[1] >= 2 && b[3] <= H - 2;
+    const covers = b => others.some(c => c.x > b[0] - 7 && c.x < b[2] + 7 && c.y > b[1] - 7 && c.y < b[3] + 7);
+    const sides = [away].concat(['e', 'w', 'n', 's'].filter(x => x !== away));
+    const anchor = sides.find(x => fits(box(x)) && !covers(box(x))) || sides.find(x => fits(box(x))) || away;
+    return { x: best.x, y: best.y, label, anchor };
+  }
+  /* One placesRevealed entry (see the apply() header). Returns { id, line }. */
+  function revealPlace(raw, source) {
+    if (!isObj(raw)) bad('must be an object');
+    const s = current;
+    if (source === 'model' && ledger.places >= LIMITS.placesPerTurn) bad(`at most ${LIMITS.placesPerTurn} new place a turn`);
+    if (s.locations.filter(l => isObj(l.revealed)).length >= LIMITS.revealedPlaces) bad(`at most ${LIMITS.revealedPlaces} places people told you about in one game`);
+    const name = capFirst(cleanText(String(typeof raw.name === 'string' ? raw.name : '').replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
+    if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
+    const type = typeof raw.type === 'string' && REVEALED_TYPES.includes(raw.type.trim().toLowerCase()) ? raw.type.trim().toLowerCase() : 'other';
+    const description = cleanText(raw.description, 240);
+    if (!description) bad('needs a description');
+    const near = needLoc(raw.nearId);
+    if (!near.discovered) bad(`${near.id} is not a place the player knows`);
+    const owner = raw.ownerNpcId === null || raw.ownerNpcId === undefined || raw.ownerNpcId === '' ? null : needNpc(raw.ownerNpcId);
+    const kind = REVEALED_KINDS.includes(raw.kind) ? raw.kind : 'other';
+    const want = placeNames(name);
+    for (const l of s.locations) {
+      const c = mapPointOf(l);
+      for (const known of [l.name, c && c.label]) {
+        if (known && [...placeNames(known)].some(x => want.has(x))) bad(`already a place: ${l.id} (${l.name})`);
+      }
+    }
+    if (kind === 'home' && owner && owner.home && isObj((loc(owner.home.locationId) || {}).revealed)) bad(`${owner.id} already has a home on the map (${owner.home.locationId})`);
+    let turn = s.meta.turn;
+    let day = s.time.day;
+    if (source !== 'model') {
+      if (Number.isInteger(raw.turn) && raw.turn >= 0 && raw.turn <= s.meta.turn) turn = raw.turn;
+      if (Number.isInteger(raw.day) && raw.day >= 1 && raw.day <= s.time.day) day = raw.day;
+    }
+    const id = uniqueId('loc_' + slugify(name.replace(/'/g, '')), x => !!loc(x));
+    const l = {
+      id, name, type, description, exits: [near.id],
+      npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
+      discovered: true, closed: false, items: [],
+      revealed: { turn, day, byNpcId: typeof raw.byNpcId === 'string' && npc(raw.byNpcId) ? raw.byNpcId : null, ownerNpcId: owner ? owner.id : null, kind, visited: false }
+    };
+    const spot = revealSpot(near, revealLabel(name));
+    if (spot) l.map = spot;
+    s.locations.push(l);
+    if (!near.exits.includes(l.id)) near.exits.push(l.id);
+    if (source === 'model') ledger.places += 1;
+    // Someone's home: they are there in every phase their schedule puts them nowhere (usually the night); nothing is taken away.
+    let home = '';
+    if (kind === 'home' && owner) {
+      const nowhere = PHASES.filter(p => !s.locations.some(x => ((x.npcIdsBySchedule || {})[p] || []).includes(owner.id)));
+      // A loose-end person kept off-screen until their seed fires settles here then (World.settleHomes), not now.
+      const waiting = nowhere.length === PHASES.length && (s.player.looseEnds || []).some(le => le.npcId === owner.id && seed(le.seedId) && !seed(le.seedId).fired);
+      const phases = owner.alive !== false && owner.status === 'free' && !waiting ? nowhere : [];
+      phases.forEach(p => addToSchedule(l, p, owner.id));
+      if (!owner.home) owner.home = { locationId: l.id, phases: waiting ? PHASES.slice() : phases, revealed: true };
+      home = `; home of ${owner.id}` + (phases.length ? ` (there ${phases.join(', ')})` : waiting ? ' (once their loose end comes due)' : '');
+    } else if (owner) home = `; ${kind === 'business' ? 'business' : 'place'} of ${owner.id}`;
+    return { id, line: `${id} (${name}) reached from ${near.id}${home}${spot ? `; on the map at ${spot.x},${spot.y}` : ''}` };
   }
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
@@ -3204,6 +3411,12 @@ const State = (() => {
     each('addLocations', addLocation);
     each('addNpcs', addNpc);
     each('addItems', addSceneItem);
+    // A place someone named (record_changes, or Upgrade's re-read as the engine).
+    each('placesRevealed', raw => {
+      const r = revealPlace(raw, source);
+      (result.revealed = result.revealed || []).push(r.id);
+      return r.line;
+    });
 
     // 2. record_changes
     each('attitudeChanges', c => {
@@ -3313,6 +3526,8 @@ const State = (() => {
       const from = p.locationId;
       p.locationId = l.id;
       l.discovered = true;
+      // A place the player had only heard of: the first visit makes it an ordinary place on the map.
+      if (isObj(l.revealed) && !l.revealed.visited) l.revealed.visited = true;
       return `${from} -> ${l.id}`;
     });
     each('npcKnownToPlayer', id => { const n = needNpc(id); if (n.knownToPlayer) return null; n.knownToPlayer = true; return `${n.id} known`; });
@@ -3793,6 +4008,7 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
+    placeNames, mapPointOf, pathPoints, revealLabel,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
@@ -3957,13 +4173,14 @@ const Town = (() => {
     const head = headPhrase(desc, 'npc');
     if (!head) return null;
     const here = (ctx && ctx.locationId) || s.player.locationId;
+    // A place's exact name first: "Dewayne's house" is the house, not Dewayne.
+    const want = plainName(head);
+    const l = s.locations.find(x => plainName(x.name) === want);
+    if (l) return { kind: 'location', id: l.id };
     const presentIds = State.npcsAt(here).map(n => n.id);
     const live = s.npcs.filter(n => n.alive !== false && n.status !== 'dead' && n.status !== 'gone');
     const npcs = live.filter(n => mentions(' ' + head + ' ', n)).sort((a, b) => presentIds.includes(b.id) - presentIds.includes(a.id));
     if (npcs.length) return { kind: 'npc', id: npcs[0].id };
-    const want = plainName(head);
-    const l = s.locations.find(x => plainName(x.name) === want);
-    if (l) return { kind: 'location', id: l.id };
     const itemWant = plainName(headPhrase(desc, 'item'));
     const here2 = State.loc(here);
     const items = s.player.inventory.concat((here2 && here2.items) || []);
@@ -4389,8 +4606,10 @@ const World = (() => {
     for (const le of st().player.looseEnds || []) {
       const sd = State.seed(le.seedId);
       const n = State.npc(le.npcId);
-      if (!sd || !sd.fired || !isFree(n) || n.home || scheduled(n.id)) continue;
-      const home = homeFor(n);
+      if (!sd || !sd.fired || !isFree(n) || scheduled(n.id)) continue;
+      // A home someone told the player about (State placesRevealed) wins over one picked by role.
+      const told = n.home && n.home.revealed ? State.loc(n.home.locationId) : null;
+      const home = told && !told.closed ? told : n.home ? null : homeFor(n);
       if (!home) continue;
       State.apply({ npcHome: [{ npcId: n.id, locationId: home.id, phases: 'all' }] }, W);
       note(`${n.id} settles in at ${home.id}`, { kind: 'home', npcId: n.id });
@@ -4724,6 +4943,10 @@ const Style = (() => {
      rewriteMemories(packet)  -> { people: [{ npcId, memories: [{ from, text, weight }] }] };
                                  packet from Upgrade.memoryPacket() (an older game's
                                  memories brought up to the current rules; parser model)
+     revealPlaces(packet)     -> { placesRevealed: [{ name, type, description, nearId,
+                                 ownerNpcId, kind, turn }] }; packet from
+                                 Upgrade.placesPacket() (places people named in an older
+                                 game's story; parser model)
    Any of them may instead resolve to a refusal { refused: true, role,
    category, explanation }, which the Pipeline turns into an in-feed notice.
    Failures throw ApiError with a player-facing message (err.detail holds the
@@ -4737,7 +4960,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -4757,11 +4980,17 @@ const Api = (() => {
      everything volatile goes in the user message as a labelled packet.
      MEMORY_RULES is the bookkeeper's memory rule; the memory rewrite
      (Upgrade) states it word for word, so an updated game holds the same
-     kind of memory a new one records. */
+     kind of memory a new one records. PLACE_RULE is the bookkeeper's rule
+     for placesRevealed (a place someone names that is not in the town
+     yet), shared word for word with Upgrade's re-read of a saved game's
+     story (SYSTEM.places); it sits before MEMORY_RULES so the bookkeeper's
+     prompt still ends with the memory rules. */
+  const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
   const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
-    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + MEMORY_RULES,
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
+    places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these 10 turns in under 80 words: what the player did, who they met, what changed, what's unresolved. Past tense, plain facts."
   };
@@ -4776,6 +5005,16 @@ const Api = (() => {
   const nullable = (t, description) => Object.assign(description ? { description } : {}, { anyOf: [t, { type: 'null' }] });
   const list = (items, description) => Object.assign({ type: 'array', items }, description ? { description } : {});
   const obj = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+  /* One place someone named (record_changes.placesRevealed, and Upgrade's
+     reveal_places with a turn added). */
+  const placeItem = extra => obj(Object.assign({
+    name: { type: 'string', description: "The short name a local would call it: \"Dewayne's house\" for where Dewayne lives, \"the bait shop\". Never the directions to it (\"past the bridge\", \"up the river road\"): those belong in description" },
+    type: { type: 'string', enum: REVEALED_TYPES, description: 'What kind of place it is' },
+    description: { type: 'string', description: 'One sentence built only from what was said about it' },
+    nearId: { type: 'string', description: 'The id of the listed place it is reached from: usually where the player is, or the listed place it was described relative to' },
+    ownerNpcId: nullable(STR, "A listed person's id when it is their home or business, else null"),
+    kind: { type: 'string', enum: REVEALED_KINDS }
+  }, extra || {}));
   const SCHEMAS = {
     parse_action: obj({
       actionType: { type: 'string', enum: ACTION_TYPES },
@@ -4815,7 +5054,11 @@ const Api = (() => {
         })
       })),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
+      placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
+    }),
+    reveal_places: obj({
+      placesRevealed: list(placeItem({ turn: nullable(INT, 'The TURN the mention comes from, or null when it comes from a summary') }), 'Every place to add, each once; empty when there is nothing to add')
     }),
     rewrite_memories: obj({
       people: list(obj({
@@ -4865,8 +5108,8 @@ const Api = (() => {
     return total;
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
-  /* The memory rewrite (Upgrade) is the bookkeeper's judgement applied to old memories, so it thinks at the bookkeeper's effort. */
-  const EFFORT_OF = { memories: 'bookkeeper' };
+  /* The memory rewrite and the places re-read (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
+  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
@@ -4929,6 +5172,7 @@ const Api = (() => {
        Mock.queue('bookkeep', { goldDelta: 5 })                  merged over the default diff
        Mock.queue('chronicle', 'Summary.')
        Mock.queue('rewriteMemories', { people: [...] })         instead of the rule-based rewrite
+       Mock.queue('revealPlaces', { placesRevealed: [...] })     instead of the rule-based re-read
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -4950,8 +5194,13 @@ const Api = (() => {
   function mockDestination(lower, packet) {
     const cands = [].concat(packet.exits || [], packet.knownLocations || []);
     for (const l of cands) {
-      const nm = String(l.name || '').toLowerCase().replace(/^the /, '');
+      const nm = String(l.name || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, '');
       if (nm && lower.includes(nm)) return l.id;
+    }
+    // "I go to Dewayne's" for Dewayne's house: the possessive alone, at the end of a phrase.
+    for (const l of cands) {
+      const m = /^(.+'s) (house|home|place)$/.exec(String(l.name || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, ''));
+      if (m && new RegExp(`(^|[^a-z])${m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s*([.,!?]|$))`).test(lower.trim())) return l.id;
     }
     const hit = placeByPhrase(lower, cands);
     return hit ? hit.id : null;
@@ -5200,6 +5449,44 @@ const Api = (() => {
       })
     };
   }
+  /* The mock's ear for a home someone names: a quoted line with a listed
+     person's possessive name followed by "house" or "place" ("Dewayne's is
+     the white house about a mile up the river road"), or with opts.lives
+     their name and "lives", that names no place already in town. Resolves
+     to that person's house as a placesRevealed entry, or null. */
+  function mockHomeFrom(text, opts) {
+    const s = State.current;
+    if (!s) return null;
+    const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const quotes = String(text || '').replace(/[’‘]/g, "'").match(/“[^”]+”|"[^"]+"/g) || [];
+    for (const raw of quotes) {
+      const q = raw.slice(1, -1).trim();
+      const lower = q.toLowerCase();
+      const known = s.locations.some(l => { const c = State.mapPointOf(l); return [l.name, c && c.label].some(k => k && lower.includes(k.toLowerCase().replace(/^the /, ''))); });
+      if (!q || known) continue;
+      for (const n of s.npcs) {
+        if (n.alive === false || (n.home && isObj((State.loc(n.home.locationId) || {}).revealed))) continue;
+        const toks = Array.from(new Set([n.name].concat(String(n.name || '').split(/\s+/)).map(t => t.toLowerCase()).filter(t => t.length >= 3)));
+        const hit = toks.some(t => new RegExp(`(^|[^a-z])${esc(t)}'s\\b.*\\b(house|place)\\b`).test(lower)
+          || (opts && opts.lives && new RegExp(`(^|[^a-z])${esc(t)}\\b`).test(lower) && /\blives\b/.test(lower)));
+        if (!hit) continue;
+        return { name: `${String(n.name).split(/\s+/)[0]}'s house`, type: 'house', description: sentence(cleanText(q, 240)), nearId: (opts && opts.nearId) || s.player.locationId, ownerNpcId: n.id, kind: 'home' };
+      }
+    }
+    return null;
+  }
+  /* Upgrade's re-read of a saved game's story, by rule: every home the
+     mock's ear (mockHomeFrom) hears in a log narration, once per person,
+     reached from where the player is now, dated to that turn. */
+  function mockRevealPlaces(packet) {
+    const out = [];
+    for (const e of packet.entries || []) {
+      if (e.kind !== 'turn') continue;
+      const p = mockHomeFrom(e.narration, { nearId: packet.locationId });
+      if (p && !out.some(x => x.ownerNpcId === p.ownerNpcId)) out.push(Object.assign(p, { turn: e.turn }));
+    }
+    return { placesRevealed: out };
+  }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
@@ -5208,9 +5495,12 @@ const Api = (() => {
     const out = {
       attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [],
       playerLocationId: a.actionType === 'move' && a.destinationId ? a.destinationId : null,
-      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null
+      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], journalEntry: null
     };
     if (!s) return out;
+    // A home someone names in a quoted line becomes a place (State.apply checks it like any other).
+    const told = mockHomeFrom(c.narration, { lives: true, nearId: s.player.locationId });
+    if (told) out.placesRevealed = [told];
     const presentIds = c.presentIds || State.npcsAt(s.player.locationId).map(n => n.id);
     const npcs = (a.targets || []).map(id => State.npc(id)).filter(n => n && presentIds.includes(n.id));
     const first = npcs[0];
@@ -5249,7 +5539,7 @@ const Api = (() => {
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -5316,6 +5606,12 @@ const Api = (() => {
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
       await sleep(Mock.delay);
       return { result: isObj(canned) && Array.isArray(canned.people) ? canned : mockRewrite(packet || {}), usage: MOCK_ZERO, model: 'mock' };
+    },
+    async revealPlaces(packet) {
+      const canned = Mock.take('revealPlaces', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      await sleep(Mock.delay);
+      return { result: isObj(canned) && Array.isArray(canned.placesRevealed) ? canned : mockRevealPlaces(packet || {}), usage: MOCK_ZERO, model: 'mock' };
     }
   };
 
@@ -5450,6 +5746,7 @@ const Api = (() => {
     bookkeep(packet) { return messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.record_changes }); },
     chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
+    revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
     async narrate(packet, onDelta) {
       const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
       const { res, requestId } = await post('narrator', body);
@@ -5489,7 +5786,7 @@ const Api = (() => {
     return out.result;
   }
   return {
-    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES,
+    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, roleModel, roleEffort, isRefusal, readStream, chronicleText,
     providerName: () => provider().name,
@@ -5498,7 +5795,8 @@ const Api = (() => {
     narrate: (packet, onDelta) => call('narrator', 'narrate', [packet, onDelta]),
     bookkeep: packet => call('bookkeeper', 'bookkeep', [packet]),
     chronicle: entries => call('chronicle', 'chronicle', [entries]),
-    rewriteMemories: packet => call('memories', 'rewriteMemories', [packet])
+    rewriteMemories: packet => call('memories', 'rewriteMemories', [packet]),
+    revealPlaces: packet => call('places', 'revealPlaces', [packet])
   };
 })();
 
@@ -5524,7 +5822,23 @@ const Api = (() => {
    kept lines as { from: [numbers], text, weight }. A line keeps the earliest
    turn of the memories it came from, is cut like a bookkeeper memory
    (State.shortMemory) and a person keeps at most PER_PERSON; the result
-   replaces their memories through State.apply({ setMemories }). */
+   replaces their memories through State.apply({ setMemories }).
+
+   Version 3, "Places people told you about": the bookkeeper now turns a
+   specific place someone names into a real place (placesRevealed). An older
+   game's story may already hold such a line. The whole log (each turn's
+   input and narration) and the chronicle summaries, labelled as summaries,
+   go to the parser model in one structured-output call (Api.revealPlaces,
+   SYSTEM.places, which states the bookkeeper's PLACE_RULE word for word)
+   with every place (id, name, type) and person (id, name); it returns
+   placesRevealed entries in the bookkeeper's shape plus the turn the
+   mention came from. A nearId that is not a known place becomes the
+   player's current place; a turn that is not in the log becomes the current
+   turn. They go through State.apply as the engine: the duplicate check, the
+   validation and the per-game cap hold, the one-a-turn limit does not, and
+   each gets the same map spot, "heard of" marker, home schedule and
+   revealed record as one the bookkeeper adds. Nothing to read (an empty
+   log) costs no call. */
 const Upgrade = (() => {
   const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
   const PER_PERSON = 6;
@@ -5640,10 +5954,58 @@ const Upgrade = (() => {
     return res;
   }
 
+  // ----- version 3: places people told you about -----
+  /* The packet for Api.revealPlaces: structured (the mock reads entries)
+     and as labelled text (the model reads text). */
+  function placesPacket(st) {
+    const here = st.locations.find(l => l.id === st.player.locationId) || { id: st.player.locationId, name: '?' };
+    const entries = st.chronicle.map(c => ({ kind: 'summary', fromTurn: c.fromTurn, toTurn: c.toTurn, text: c.summary }))
+      .concat(st.log.filter(e => e.narration).map(e => Object.assign({ kind: 'turn' }, e)));
+    const text = [
+      `PLAYER: ${st.player.name}; now at ${here.id} (${here.name})`,
+      `TURN NOW: ${st.meta.turn}`,
+      `PLACES (the places list): ${st.locations.map(l => `${l.id} — ${l.name} (${l.type})`).join('; ')}`,
+      `PEOPLE: ${st.npcs.map(n => `${n.id} — ${n.name}`).join('; ') || 'none'}`,
+      '',
+      'STORY (a SUMMARY covers earlier turns; each TURN is what the player did and the narration they read):',
+      entries.map(e => (e.kind === 'summary' ? `SUMMARY of turns ${e.fromTurn} to ${e.toTurn}: ${e.text}` : Api.chronicleText([e]))).join('\n\n')
+    ].join('\n');
+    return { locationId: here.id, turn: st.meta.turn, entries, text };
+  }
+  function joinNames(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
+  async function revealPlaces(st, api) {
+    const res = { added: [], calls: 0 };
+    const none = 'No new places to add.';
+    const packet = placesPacket(st);
+    if (!packet.entries.length) return Object.assign(res, { text: none });
+    const reply = await api.revealPlaces(packet);
+    res.calls = 1;
+    if (Api.isRefusal(reply)) throw Object.assign(new Error('refused'), { refused: true, refusal: reply });
+    if (State.current !== st) throw Object.assign(new Error('another game was loaded'), { replaced: true });
+    const here = st.player.locationId;
+    const list = (isObj(reply) && Array.isArray(reply.placesRevealed) ? reply.placesRevealed : []).filter(isObj).map(p => {
+      const out = Object.assign({}, p);
+      const near = State.loc(p.nearId);
+      if (!near || !near.discovered) { note(st, `${cleanText(String(p.name || ''), 40)}: nearId ${p.nearId} is not a known place; reached from ${here} instead`); out.nearId = here; }
+      const t = toInt(p.turn);
+      const entry = t === null ? null : st.log.find(e => e.turn === t);
+      delete out.turn;
+      if (entry) { out.turn = t; out.day = entry.day; }
+      return out;
+    });
+    if (!list.length) return Object.assign(res, { text: none });
+    const r = State.apply({ placesRevealed: list });
+    for (const x of r.rejected) note(st, `place not added (${x.path}): ${x.reason}`);
+    res.added = (r.revealed || []).map(id => State.loc(id).name);
+    res.text = res.added.length ? `Added ${res.added.length} ${res.added.length === 1 ? 'place' : 'places'} people told you about: ${joinNames(res.added)}.` : none;
+    return res;
+  }
+
   const MIGRATIONS = Object.freeze([
-    Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories })
+    Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
+    Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket };
 })();
 
 // ===== Module: Pipeline =====
@@ -5654,6 +6016,8 @@ const Upgrade = (() => {
      action there moves the player before anything else)  4 check and create  5 resolve
      6 narrate (streamed)  7 style check, one regenerate  8 bookkeep
      9 apply (source 'model'), then reputation drift (World.driftReputation);
+     a place someone named (placesRevealed) is credited to whoever the player
+     was talking to and gets a quiet "Added to the map" line;
      arriveIfLeftBehind completes a plain move the bookkeeper left out
      10 advance time, World.tick per phase  11 World.fireSeeds (due events
      for the next narration)  12 compressIfDue (chronicle every 10 turns)
@@ -6287,11 +6651,24 @@ const Pipeline = (() => {
     lines.push('IDS YOU MAY USE:');
     lines.push(`NPCS PRESENT: ${State.npcsAt(l.id).map(npcRow).join('; ') || 'none'}`);
     lines.push(`OTHER KNOWN NPCS: ${s.npcs.filter(n => n.knownToPlayer && !presentIds.includes(n.id)).map(npcRow).join('; ') || 'none'}`);
-    lines.push(`LOCATIONS: ${s.locations.map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
+    // Someone the narration names who is neither here nor known yet (whose home was just described, say), so placesRevealed can name the owner.
+    const named = s.npcs.filter(n => !n.knownToPlayer && !presentIds.includes(n.id) && n.alive !== false && Town.nameMentions(ctx.narration || '', n));
+    if (named.length) lines.push(`NAMED IN THE NARRATION (not here): ${named.map(npcRow).join('; ')}`);
+    lines.push(`LOCATIONS (the places list): ${s.locations.map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
     lines.push(`ITEMS HERE: ${(l.items || []).map(i => `${i.id} (${i.name})`).join(', ') || 'none'}`);
     lines.push(`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ')}`);
     lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'})`).join('; ') || 'none'}`);
     return lines.join('\n');
+  }
+
+  /* Who the player was talking to this turn, for a place they named: the
+     one person addressed in Say mode, else the first person present the
+     action was aimed at, else the only person present; or null. */
+  function speakerOf(ctx) {
+    const present = ctx.presentIds || [];
+    if (isSay(ctx.speech) && ctx.speech.to !== 'everyone' && present.includes(ctx.speech.to)) return ctx.speech.to;
+    const aimed = ((ctx.action && ctx.action.targets) || []).find(id => present.includes(id));
+    return aimed || (present.length === 1 ? present[0] : null);
   }
 
   // ----- defeat at 0 HP -----
@@ -6458,10 +6835,18 @@ const Pipeline = (() => {
           State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn` });
           delete clean.playerLocationId;
         }
+        // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
+        if (Array.isArray(clean.placesRevealed)) {
+          const by = speakerOf(ctx);
+          clean.placesRevealed = clean.placesRevealed.map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
+        }
         const before = World.attitudes();
         const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
         const wasHeard = !!(offered && offered.heard);
         ctx.applied = State.apply(clean, { source: 'model' });
+        // Step 13 renders the map and the Places list from state; the feed says what was added.
+        ctx.revealed = (ctx.applied.revealed || []).slice();
+        for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
         ctx.reputation = World.driftReputation(before);
         // Someone other than its source told it: People lists it under the teller.
         if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
@@ -7421,13 +7806,16 @@ const UI = (() => {
      are here now: three at most, then "+N". Tapping another place shows a
      "Go to ...?" chip beside it; the chip sends the Do turn "I head to
      <place>." through Pipeline.submit, so a stray tap never spends a turn.
-     The current place, or any tap while a turn runs, does nothing. */
+     The current place, or any tap while a turn runs, does nothing. A place
+     someone told the player about (State placesRevealed) uses the point
+     stored with it and has a dashed outline marker ("Heard of" in the
+     legend) until the player has been there. */
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const MAP_SIZE = { width: 360, height: 300 };
   const MAP_ANCHORS = ['n', 's', 'e', 'w'];
   // Marker glyphs by place type: a boat-ramp wedge, a small square (a stop
   // by the road), else a house-ish pentagon.
-  const MAP_WEDGE = ['marina', 'docks', 'landing', 'ramp', 'riverbank', 'wharf', 'pier'];
+  const MAP_WEDGE = ['marina', 'docks', 'dock', 'landing', 'ramp', 'riverbank', 'wharf', 'pier'];
   const MAP_SQUARE = ['gas', 'pawn', 'garage', 'market', 'shop', 'store', 'bridge', 'road', 'highway'];
   /* The id of the place whose "Go to" chip is showing (memory only). */
   let mapPick = null;
@@ -7603,9 +7991,12 @@ const UI = (() => {
   /* One place: the hit area (44px or more on screen), the ring if the player
      is here, the marker, a strike if closed, then the label block: the label,
      "You are here", and the people seen there. */
+  /* A place the player has only heard of: told about, never visited. */
+  function heardOf(l) { return !!l && isObj(l.revealed) && !l.revealed.visited; }
   function mapPlace(s, L, p, people, u) {
     const here = p.id === s.player.locationId;
     const closed = !!p.loc.closed;
+    const heard = heardOf(p.loc) && !here;
     const shown = people.slice(0, 3);
     const extra = people.length - shown.length;
     const kids = [sv('rect', { class: 'map-hit', x: r1(p.x - u.hit / 2), y: r1(p.y - u.hit / 2), width: u.hit, height: u.hit, rx: 8 })];
@@ -7642,11 +8033,11 @@ const UI = (() => {
       if (more) kids.push(sv('text', { class: 'map-more', x: r1(cx - u.mono / 2 + 1), y: r1(cy + u.fs * 0.34) }, more));
     }
     const who = people.map(npcLabel);
-    const aria = [p.loc.name, here ? 'you are here' : null, closed ? 'closed' : null, who.length ? 'with ' + who.join(', ') : null].filter(Boolean).join(', ');
+    const aria = [p.loc.name, here ? 'you are here' : null, heard ? 'heard of, not visited yet' : null, closed ? 'closed' : null, who.length ? 'with ' + who.join(', ') : null].filter(Boolean).join(', ');
     const tap = e => { if (e) e.stopPropagation(); mapTap(p.id, false); };
     return sv('g', {
       class: 'map-place', role: 'button', tabindex: '0', 'aria-label': aria, 'aria-current': here ? 'location' : null, 'aria-disabled': here ? 'true' : null,
-      dataset: { loc: p.id, here: here ? '1' : '0', closed: closed ? '1' : '0', picked: mapPick === p.id ? '1' : '0', glyph: kids[here ? 2 : 1].getAttribute('data-glyph') },
+      dataset: { loc: p.id, here: here ? '1' : '0', closed: closed ? '1' : '0', heard: heard ? '1' : '0', picked: mapPick === p.id ? '1' : '0', glyph: kids[here ? 2 : 1].getAttribute('data-glyph') },
       onclick: tap,
       onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); mapTap(p.id, true); } }
     }, kids);
@@ -7693,10 +8084,13 @@ const UI = (() => {
     }, `Go to ${placePhrase(pick.loc.name)}${pick.loc.closed ? ' (closed)' : ''}?`) : null;
     return el('div', { class: 'map', dataset: { pick: mapPick || '' } }, svg, chip);
   }
-  function mapLegend() {
+  /* "Heard of" is listed only while a dashed marker is on the map. */
+  function mapLegend(s) {
+    const heard = !!s && s.locations.some(l => l.discovered && heardOf(l) && l.id !== s.player.locationId);
     return el('p', { class: 'map-legend', 'aria-hidden': 'true' },
       el('span', null, el('i', { class: 'lg lg-you' }), 'You'),
       el('span', null, el('i', { class: 'lg lg-closed' }), 'Closed'),
+      heard ? el('span', null, el('i', { class: 'lg lg-heard' }), 'Heard of') : null,
       el('span', null, el('i', { class: 'lg lg-person' }), 'Someone you know'));
   }
   /* Put the chip under or over its marker, whichever hides fewer marks,
@@ -7818,14 +8212,14 @@ const UI = (() => {
       const exits = here.exits.map(id => State.loc(id)).filter(Boolean);
       return [
         renderMap(s),
-        mapLegend(),
+        mapLegend(s),
         el('h2', null, here.name),
         el('p', { class: 'muted' }, capFirst(here.type) + (here.closed ? ' · closed' : '')),
         el('p', null, here.description),
         el('h3', null, 'Exits from here'),
-        list(exits, l => `${l.name}${l.closed ? ' (closed)' : ''}`, 'None.'),
+        list(exits, l => `${l.name}${heardOf(l) ? ' (heard of)' : ''}${l.closed ? ' (closed)' : ''}`, 'None.'),
         el('h3', null, 'Places you know'),
-        list(s.locations.filter(l => l.discovered), l => `${l.name}${l.id === here.id ? ' (here)' : ''}${l.closed ? ' (closed)' : ''}`, 'None.')
+        list(s.locations.filter(l => l.discovered), l => `${l.name}${l.id === here.id ? ' (here)' : ''}${heardOf(l) && l.id !== here.id ? ' (heard of)' : ''}${l.closed ? ' (closed)' : ''}`, 'None.')
       ];
     },
     /* Debug view (/debug): everything hidden from the player, and only

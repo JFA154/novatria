@@ -446,4 +446,44 @@ s.test('validate-town.cjs checks the map data: every place mapped, inside the bo
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+s.test('a place someone told you about is drawn at its stored point with a dashed marker and "Heard of" in the legend; 375 wide nothing overflows and it taps like any place', async h => {
+  const page = await h.open({ viewport: PHONE });
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const id = await page.evaluate(() => {
+    const st = Game.state;
+    const owner = st.npcs.find(n => !st.locations.some(l => (l.npcIdsBySchedule.night || []).includes(n.id)));
+    Game.State.apply({ beginTurn: true });
+    const r = Game.State.apply({ placesRevealed: [{ name: owner.name.split(' ')[0] + "'s house", type: 'house', description: 'A white house up the river road.', nearId: st.player.locationId, ownerNpcId: owner.id, kind: 'home' }] }, { source: 'model' });
+    return r.revealed[0];
+  });
+  await openPlaces(page);
+  const r = await page.evaluate(id => {
+    const L = Game.UI.mapLayout(Game.state);
+    const p = L.pts.find(q => q.id === id);
+    const g = document.querySelector(`.map-place[data-loc="${id}"]`);
+    const mark = g.querySelector('.map-mark');
+    const svg = document.querySelector('.map-svg');
+    const scale = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+    return {
+      at: [p.x, p.y], stored: Game.State.loc(id).map, heard: g.dataset.heard, dash: getComputedStyle(mark).strokeDasharray,
+      label: [...g.querySelectorAll('.map-label')].map(t => t.textContent).join(' '), aria: g.getAttribute('aria-label'),
+      font: parseFloat(getComputedStyle(g.querySelector('.map-label')).fontSize) * scale, hit: Math.min(g.querySelector('.map-hit').getBoundingClientRect().width, g.querySelector('.map-hit').getBoundingClientRect().height),
+      legend: [...document.querySelector('.map-legend').children].map(x => x.textContent), legendRows: new Set([...document.querySelector('.map-legend').children].map(x => Math.round(x.getBoundingClientRect().top))).size
+    };
+  }, id);
+  assert.deepEqual(r.at, [r.stored.x, r.stored.y], 'drawn at the point stored with it');
+  assert.equal(r.heard, '1');
+  assert.ok(r.dash && r.dash !== 'none', 'dashed: ' + r.dash);
+  assert.equal(r.label, r.stored.label);
+  assert.match(r.aria, /heard of, not visited yet/);
+  assert.ok(r.font >= 11 && r.hit >= 44, JSON.stringify(r));
+  assert.deepEqual(r.legend, ['You', 'Closed', 'Heard of', 'Someone you know']);
+  assert.equal(r.legendRows, 1, 'the legend still fits one line at 375');
+  assert.deepEqual(await overflowReport(page, 375), [], 'nothing overflows at 375');
+  // It taps like any place: the chip offers the walk.
+  await tapPlace(page, id);
+  assert.match(await page.textContent('.map-go'), /^Go to .+'s house\?$/);
+});
+
 s.run();

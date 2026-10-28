@@ -134,8 +134,8 @@ s.test('requests carry the four headers and a body the current API accepts, with
     const out = { objects: [], bad: [] };
     walkSchema(r.body.output_config.format.schema, r.role, out);
     assert.deepEqual(out.bad, [], r.role);
-    // bookkeeper: the root, the six array item objects and newSeeds[].trigger.
-    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 8 : 1, `${r.role}: nested objects spelled out`);
+    // bookkeeper: the root, the seven array item objects (placesRevealed too) and newSeeds[].trigger.
+    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 9 : 1, `${r.role}: nested objects spelled out`);
   }
   assert.ok(!('format' in narrator.body.output_config));
   assert.equal(narrator.body.stream, true);

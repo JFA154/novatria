@@ -352,3 +352,12 @@ talking, I can direct it to one person or all."
    not say anything beyond what the ACTION line states." Log entries keep
    `mode`, `to` and `toName` (through /undo, saves and the chronicle; entries
    without them read as Do), and the feed shows `“words” — to Name`.
+3. **Places people tell you about become real places** (owner: "After he says
+   that, white house (or Dewayne) should unlock on the map"). The bookkeeper's
+   `record_changes` gains `placesRevealed` ({ name, type, description, nearId,
+   ownerNpcId, kind }); `State.apply` validates it (no duplicate by name, a
+   known `nearId`, one a turn from the model, 12 a game) and makes a
+   discovered location with exits both ways, `map` coordinates chosen once
+   beside `nearId`, and a `revealed` record; a home holds its owner in the
+   phases no schedule does. The map draws it dashed ("Heard of") until the
+   first visit. Rules version 3 adds the same to older saves from their log.

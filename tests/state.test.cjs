@@ -897,4 +897,147 @@ s.test('memories: the model gets one per person per turn (heavier replaces light
   assert.ok(r.picked.includes('told me to fuck off') && r.picked.length <= 5, 'the narrator sees the serious one however old: ' + r.picked.join(' / '));
 });
 
+/* placesRevealed: a place someone named becomes a real place. The owner is a
+   person with at least one phase in which no schedule holds them; the place
+   is reached from where the player stands. */
+const revealSetup = page => page.evaluate(() => {
+  const st = Game.state;
+  const phases = ['morning', 'afternoon', 'evening', 'night'];
+  const nowhere = id => phases.filter(p => !st.locations.some(l => ((l.npcIdsBySchedule || {})[p] || []).includes(id)));
+  const first = n => n.name.split(' ')[0];
+  const owner = st.npcs.find(n => n.status === 'free' && nowhere(n.id).length > 0 && nowhere(n.id).length < 4 && st.npcs.filter(m => first(m) === first(n)).length === 1);
+  const speaker = st.npcs.find(n => n.id !== owner.id);
+  return { here: st.player.locationId, owner: { id: owner.id, name: owner.name, first: first(owner), nowhere: nowhere(owner.id) }, speaker: speaker.id, locs: st.locations.length };
+});
+const revealEntry = (x, over) => Object.assign({ name: `${x.owner.first}'s house`, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: x.here, ownerNpcId: x.owner.id, kind: 'home' }, over || {});
+
+s.test('placesRevealed: the place is created with a road both ways, a spot on the map clear of every marker, its owner home in their free phases, and the revealed record', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, entry]) => {
+    const S = Game.State;
+    S.apply({ beginTurn: true });
+    const res = S.apply({ placesRevealed: [Object.assign({ byNpcId: x.speaker }, entry)] }, { source: 'model' });
+    const id = (res.revealed || [])[0];
+    const l = id ? S.loc(id) : null;
+    const map = Game.data.TOWN_DATA.map;
+    const pts = Game.state.locations.filter(o => o.id !== id).map(o => S.mapPointOf(o)).filter(Boolean);
+    return {
+      res, l: l && JSON.parse(JSON.stringify(l)), nearExits: S.loc(x.here).exits, W: map.width, H: map.height,
+      minDist: l && l.map ? Math.min(...pts.map(p => Math.hypot(p.x - l.map.x, p.y - l.map.y))) : null,
+      home: S.npc(x.owner.id).home, atHome: ['morning', 'afternoon', 'evening', 'night'].filter(p => S.npcsAt(id, p).some(n => n.id === x.owner.id)),
+      day: Game.state.time.day, turn: Game.state.meta.turn, discovered: Game.Pipeline.parsePacket('I look around').knownLocations.some(k => k.id === id)
+    };
+  }, [x, revealEntry(x)]);
+  assert.deepEqual(r.res.rejected, []);
+  assert.equal(r.res.applied.length, 1);
+  assert.match(r.res.applied[0], new RegExp(`^placesRevealed\\[0\\]: loc_${x.owner.first.toLowerCase()}s_house \\(${x.owner.first}'s house\\) reached from ${x.here}; home of ${x.owner.id} \\(there ${x.owner.nowhere.join(', ')}\\); on the map at \\d+,\\d+$`), 'a readable line: ' + r.res.applied[0]);
+  const l = r.l;
+  assert.equal(l.id, `loc_${x.owner.first.toLowerCase()}s_house`);
+  assert.equal(l.name, `${x.owner.first}'s house`);
+  assert.equal(l.type, 'house');
+  assert.deepEqual(l.exits, [x.here]);
+  assert.ok(r.nearExits.includes(l.id), 'the exit is symmetric');
+  assert.equal(l.discovered, true);
+  assert.equal(l.closed, false);
+  assert.deepEqual(l.items, []);
+  assert.ok(r.discovered, 'the parser hears of it with the other places');
+  // Map: inside the bounds (with the map's margins), at least 28 from every other marker, a 1-3 word label and a side.
+  assert.ok(l.map.x >= 24 && l.map.x <= r.W - 24 && l.map.y >= 20 && l.map.y <= r.H - 20, 'inside the map: ' + JSON.stringify(l.map));
+  assert.ok(r.minDist >= 28, 'clear of every marker: ' + r.minDist);
+  assert.ok(l.map.label.split(' ').length <= 3 && ['n', 's', 'e', 'w'].includes(l.map.anchor), JSON.stringify(l.map));
+  // The owner: home set, and there in every phase no schedule held them, and nowhere else changed.
+  assert.deepEqual(r.atHome, x.owner.nowhere);
+  assert.deepEqual(r.home, { locationId: l.id, phases: x.owner.nowhere, revealed: true });
+  assert.deepEqual(l.revealed, { turn: r.turn, day: r.day, byNpcId: x.speaker, ownerNpcId: x.owner.id, kind: 'home', visited: false });
+  // The first visit makes it an ordinary place.
+  await page.evaluate(id => Game.State.apply({ playerLocationId: id }), l.id);
+  assert.equal(await page.evaluate(id => Game.State.loc(id).revealed.visited, l.id), true);
+  // A revealed home survives an arrest and release: they are home again in its phases.
+  const back = await page.evaluate(([id, owner]) => {
+    Game.State.apply({ effects: [{ op: 'npcStatus', npcId: owner, status: 'arrested' }, { op: 'npcStatus', npcId: owner, status: 'free' }] });
+    return ['morning', 'afternoon', 'evening', 'night'].filter(p => Game.State.npcsAt(id, p).some(n => n.id === owner));
+  }, [l.id, x.owner.id]);
+  assert.deepEqual(back, x.owner.nowhere);
+});
+
+s.test('placesRevealed refuses a place already in town under any form of its name, an unknown or undiscovered nearId, an unknown owner and a bad name; one a turn from the model, twelve a game', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, entry]) => {
+    const S = Game.State;
+    const T = Game.data.TOWN_DATA;
+    const try1 = (over, source) => { const res = S.apply({ placesRevealed: [Object.assign({}, entry, over)] }, { source: source || 'engine' }); return res.rejected.length ? res.rejected[0].reason : 'ok'; };
+    S.apply({ beginTurn: true });
+    const out = { first: try1({}) };
+    const f = x.owner.first;
+    out.dupes = [`${f}'s`, `the ${f}'s house`, `${f}s house`, `${f.toUpperCase()}'S PLACE`, `${f}s`].map(name => [name, try1({ name, ownerNpcId: null, kind: 'spot' })]);
+    // A town place by its name with "the", in another case, and by its map label.
+    const t0 = T.locations[0];
+    out.town = [`the ${t0.name.toLowerCase()}`, t0.name.toUpperCase().replace(/^THE /, '')].concat(t0.map && t0.map.label ? [t0.map.label] : []).map(name => [name, try1({ name, ownerNpcId: null, kind: 'spot' })]);
+    const house = T.locations.find(l => / House$/.test(l.name));
+    out.house = house ? [house.name, try1({ name: house.name.replace(/ House$/, "'s"), ownerNpcId: null, kind: 'spot' })] : null;
+    out.near = try1({ name: 'The Feed Store', nearId: 'loc_nowhere', ownerNpcId: null, kind: 'business' });
+    S.apply({ addLocations: [{ id: 'loc_hidden_yard', name: 'Hidden Yard', type: 'yard', description: 'x', exits: [x.here], discovered: false }] });
+    out.undiscovered = try1({ name: 'The Feed Store', nearId: 'loc_hidden_yard', ownerNpcId: null, kind: 'business' });
+    out.owner = try1({ name: 'The Feed Store', ownerNpcId: 'npc_nobody', kind: 'business' });
+    out.short = try1({ name: 'x', ownerNpcId: null });
+    out.long = try1({ name: 'The very long name of a place that goes on and on', ownerNpcId: null });
+    out.noDesc = try1({ name: 'The Feed Store', description: '  ', ownerNpcId: null });
+    // The model: one a turn; the next turn another.
+    S.apply({ beginTurn: true });
+    out.m1 = try1({ name: 'The Feed Store', ownerNpcId: null, kind: 'business', type: 'shop' }, 'model');
+    out.m2 = try1({ name: 'The Bait Shack', ownerNpcId: null, kind: 'business', type: 'shop' }, 'model');
+    S.apply({ beginTurn: true });
+    out.m3 = try1({ name: 'The Bait Shack', ownerNpcId: null, kind: 'business', type: 'shop' }, 'model');
+    // The engine is not held to one a turn, but nobody gets past twelve in a game.
+    const near = Game.state.locations.filter(l => l.discovered && !l.revealed).map(l => l.id);
+    const more = [];
+    for (let i = 0; i < 12; i++) more.push(try1({ name: `Spot number ${i + 1}`, type: 'spot', nearId: near[i % near.length], ownerNpcId: null, kind: 'spot' }));
+    out.more = more;
+    out.count = Game.state.locations.filter(l => l.revealed).length;
+    return out;
+  }, [x, revealEntry(x)]);
+  assert.equal(r.first, 'ok');
+  for (const [name, why] of r.dupes) assert.match(why, /^already a place: loc_/, `"${name}" is the same place: ${why}`);
+  for (const [name, why] of r.town) assert.match(why, /^already a place: loc_/, `"${name}" is a town place: ${why}`);
+  if (r.house) assert.match(r.house[1], /^already a place/, `${r.house[0]} by its owner's name`);
+  assert.match(r.near, /unknown location id "loc_nowhere"/);
+  assert.match(r.undiscovered, /loc_hidden_yard is not a place the player knows/);
+  assert.match(r.owner, /unknown npc id "npc_nobody"/);
+  assert.match(r.short, /name must be 2 to 40 characters/);
+  assert.match(r.long, /name must be 2 to 40 characters/);
+  assert.match(r.noDesc, /needs a description/);
+  assert.equal(r.m1, 'ok');
+  assert.match(r.m2, /at most 1 new place a turn/);
+  assert.equal(r.m3, 'ok', 'a new turn, a new place');
+  // Three made so far (the house, the feed store, the bait shack): nine more fit under twelve, then no more.
+  assert.deepEqual(r.more.slice(0, 9), Array(9).fill('ok'));
+  assert.ok(r.more.slice(9).every(w => /at most 12 places people told you about in one game/.test(w)), r.more.slice(9).join(' | '));
+  assert.equal(r.count, 12);
+});
+
+s.test('a model diff may carry placesRevealed (validated like the rest); an unknown key still cannot; turn and day come only from the engine', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, entry]) => {
+    const S = Game.State;
+    S.apply({ beginTurn: true });
+    S.apply({ beginTurn: true });
+    const res = S.apply({ placesRevealed: [Object.assign({}, entry, { turn: 0, day: 1, type: 'MANSION' })], madeUpPlaces: [] }, { source: 'model' });
+    const l = res.revealed ? S.loc(res.revealed[0]) : null;
+    return { keys: S.RECORD_KEYS.includes('placesRevealed') && !S.ENGINE_KEYS.includes('placesRevealed'), res, revealed: l && l.revealed, type: l && l.type, turn: Game.state.meta.turn,
+      schema: Game.Api.SCHEMAS.record_changes.required.includes('placesRevealed') };
+  }, [x, revealEntry(x)]);
+  assert.ok(r.keys, 'a record_changes field');
+  assert.ok(r.schema, 'in the bookkeeper schema');
+  assert.equal(r.res.applied.length, 1);
+  assert.deepEqual(r.res.rejected, [{ path: 'madeUpPlaces', reason: 'unknown field' }]);
+  assert.equal(r.revealed.turn, r.turn, 'the model cannot backdate it');
+  assert.equal(r.type, 'other', 'a type outside the list becomes other');
+});
+
 s.run();
