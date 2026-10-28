@@ -665,4 +665,169 @@ s.test('modern vocabulary: plausibility and the mock parser know bartenders and 
   assert.ok(arrested, 'arrested NPCs go to the police station');
 });
 
+s.test('a thing noticed one turn is in the scene the next: "look for some rope" leaves it here, "pick up the rope" targets it by id and takes it', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const locId = await page.evaluate(() => Game.state.player.locationId);
+  const itemsAt = () => page.evaluate(id => (Game.State.loc(id).items || []).map(i => i.id), locId);
+  const carried = () => page.evaluate(() => Game.state.player.inventory.some(i => i.id === 'item_rope'));
+  const before = await itemsAt();
+  assert.ok(!before.includes('item_rope') && !(await carried()), 'no rope here or carried yet');
+  await page.evaluate(() => Game.Api.Mock.clear());
+  await sendText(page, 'I look for some rope');
+  const t1 = await page.evaluate(() => Game.Pipeline.lastTurn);
+  assert.deepEqual(t1.action.targets, ['item_rope'], 'new:rope became a real item');
+  assert.deepEqual(await itemsAt(), before.concat('item_rope'), 'lying here, not carried');
+  assert.equal(await carried(), false);
+  assert.match(await lastPacket(page), /\nITEMS HERE: (.+, )?Rope[,.]/);
+  assert.equal((await page.evaluate(() => Game.State.entityById('item_rope'))).name, 'Rope', 'entityById finds a thing lying where the player is');
+  await sendText(page, 'I pick up the rope');
+  const t2 = await page.evaluate(() => Game.Pipeline.lastTurn);
+  assert.equal(t2.action.actionType, 'take');
+  assert.deepEqual(t2.action.targets, ['item_rope'], 'targeted by its id');
+  assert.deepEqual(t2.ctx.notPresent, [], 'and treated as present');
+  const packet = await lastPacket(page);
+  assert.match(packet, /\nITEMS HERE: (.+, )?Rope[,.]/);
+  assert.doesNotMatch(packet, /NOT PRESENT/);
+  assert.doesNotMatch(await lastPacket(page, 'bookkeep'), /DOES NOT EXIST/);
+  assert.doesNotMatch(t2.narration, /There is no/);
+  assert.match(t2.narration, /You pick up the rope\./);
+  assert.equal(await carried(), true, 'the bookkeeper picked it up');
+  assert.deepEqual(await itemsAt(), before, 'and it left the scene');
+});
+
+s.test('the retry lock holds across /look and an instant chat in the same place, and lifts once the player moves', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r0 = await route(page);
+  const pick = 'I try to pick the lock on the back door';
+  const lockKey = () => page.evaluate(() => Game.state.meta.lastRollKey);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(3));
+  await sendText(page, pick);
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.roll.tier), 'failure');
+  const lock = await lockKey();
+  assert.ok(lock);
+  for (const t of ['/look', 'I look around', 'I say hello']) {
+    await sendText(page, t);
+    assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.timeCost), 'instant', t);
+    assert.equal(await lockKey(), lock, `${t} changes nothing, so the lock stays`);
+  }
+  const before = await stateJson(page);
+  await sendText(page, pick);
+  assert.equal(await lastNotice(page), 'You just tried that and it failed. Something has to change before you try it again.');
+  assert.equal(await stateJson(page), before, 'still refused');
+  // Moving away lifts it; back at the door the same attempt rolls again.
+  await sendText(page, `I walk to ${r0.a.name}`);
+  assert.equal(await lockKey(), null, 'moving away lifts the lock');
+  await sendText(page, `I walk to ${r0.here.name}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), r0.here.id);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(18));
+  await sendText(page, pick);
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.roll.d20), 18, 'allowed again');
+});
+
+s.test('one autosave and one panel render per turn: mid-turn the autosave still holds the state from before the turn, and a reload brings that back', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const saved = () => page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('novatria.autosave')).state));
+  const slowTurn = text => page.evaluate(t => {
+    Game.Api.Mock.clear();
+    Game.Api.Mock.delay = 120; // slow streaming, after a short hold
+    Game.Api.Mock.queue('narrate', { delay: 300 });
+    window.__turn = Game.Pipeline.submit(t);
+  }, text);
+  const pre = await stateJson(page);
+  assert.equal(await saved(), pre);
+  await page.evaluate(() => {
+    window.__writes = 0;
+    window.__renders = 0;
+    const set = window.Storage.prototype.setItem;
+    window.Storage.prototype.setItem = function (k, v) { if (k === 'novatria.autosave') window.__writes += 1; return set.call(this, k, v); };
+    const body = document.getElementById('panel-body');
+    const rc = body.replaceChildren;
+    body.replaceChildren = function () { window.__renders += 1; return rc.apply(this, arguments); };
+    Game.Pipeline.forceNextRoll(3);
+  });
+  await slowTurn('I try to pick the lock on the back door');
+  // The narration is streaming into the feed, so the turn is half applied by now.
+  await page.waitForFunction(() => { const n = document.querySelector('#feed .f-narr.pending'); return !!n && [...n.querySelectorAll('p:not(.f-tag)')].some(p => p.textContent.trim()); });
+  const mid = await page.evaluate(() => ({ busy: Game.Pipeline.busy, turn: Game.state.meta.turn, lock: Game.state.meta.lastRollKey, writes: window.__writes, renders: window.__renders }));
+  assert.ok(mid.busy, 'still mid-turn');
+  assert.equal(mid.turn, JSON.parse(pre).meta.turn + 1, 'the live state has begun the turn');
+  assert.ok(mid.lock, 'and set the retry lock');
+  assert.equal(await saved(), pre, 'but the autosave still holds the state from before the turn');
+  assert.deepEqual([mid.writes, mid.renders], [0, 0], 'no autosave and no panel render mid-turn');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  const post = await stateJson(page);
+  assert.notEqual(post, pre);
+  assert.equal(await saved(), post, 'after the turn the autosave holds the finished turn');
+  assert.deepEqual(await page.evaluate(() => [window.__writes, window.__renders]), [1, 1], 'exactly one autosave write and one panel render');
+  // A reload in the middle of the next turn comes back to the end of this one.
+  await slowTurn('I walk around the room');
+  await page.waitForFunction(() => Game.Api.Mock.calls.some(c => c.method === 'narrate'));
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  assert.equal(await stateJson(page), post);
+});
+
+s.test('while a turn is running, loading a save or starting a game is refused and those controls are off; the turn finishes on its own game', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await sendText(page, '/save Before');
+  const t0 = await page.evaluate(() => Game.state.meta.turn);
+  const slowTurn = ms => page.evaluate(d => {
+    window.__game = Game.state;
+    Game.Api.Mock.clear();
+    Game.Api.Mock.queue('narrate', { delay: d });
+    window.__turn = Game.Pipeline.submit('I walk around the room');
+  }, ms);
+  await slowTurn(1500);
+  await page.waitForFunction(() => Game.Api.Mock.calls.some(c => c.method === 'narrate'));
+  const mid = await page.evaluate(async () => {
+    const G = Game;
+    const out = {
+      tries: [G.App.loadSlot(1), G.App.continueGame(), G.App.enter(G.Storage.loadSlot(1)), G.App.newGame(), G.App.prepare({})],
+      command: await G.Pipeline.submit('/load Before'),
+      toast: document.getElementById('toast').textContent,
+      screen: G.UI.screen,
+      same: G.state === window.__game
+    };
+    G.UI.showScreen('saves');
+    out.savesOff = ['#slot-auto [data-action="load"]', '#slot-1 [data-action="load"]', '#btn-import'].map(s => document.querySelector(s).disabled);
+    G.UI.showScreen('title');
+    out.titleOff = ['#btn-new', '#btn-continue', '#btn-load'].map(s => document.querySelector(s).disabled);
+    return out;
+  });
+  assert.deepEqual(mid.tries, [false, false, false, false, null], 'loadSlot, continueGame, enter, newGame and prepare all refuse');
+  assert.equal(mid.command.reason, 'busy', '/load waits too');
+  assert.equal(mid.toast, 'Wait for the current turn to finish.');
+  assert.equal(mid.screen, 'game');
+  assert.ok(mid.same, 'the game in play is untouched');
+  assert.deepEqual(mid.savesOff, [true, true, true], 'Load and Import are off');
+  assert.deepEqual(mid.titleOff, [true, true, true], 'New game, Continue and Load are off');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  const end = await page.evaluate(async () => ({
+    res: await window.__turn, same: Game.state === window.__game, turn: Game.state.meta.turn,
+    last: Game.state.log[Game.state.log.length - 1].input, saved: Game.Storage.loadAutosave().state.meta.turn,
+    titleOn: ['#btn-new', '#btn-continue', '#btn-load'].map(s => !document.querySelector(s).disabled)
+  }));
+  assert.equal(end.res.ok, true);
+  assert.ok(end.same, 'the turn finished on the game it started on');
+  assert.equal(end.turn, t0 + 1);
+  assert.equal(end.last, 'I walk around the room');
+  assert.equal(end.saved, t0 + 1, 'and the autosave is that game');
+  assert.deepEqual(end.titleOn, [true, true, true], 'the controls come back once the turn is over');
+  assert.ok(await page.evaluate(() => Game.App.loadSlot(1)), 'loading works again');
+  assert.equal(await page.evaluate(() => Game.state.meta.turn), t0);
+  // Defensive: a game swapped in behind App's back mid-turn is left alone by the turn (no restore over it).
+  await slowTurn(800);
+  await page.waitForFunction(() => Game.Api.Mock.calls.some(c => c.method === 'narrate'));
+  const swapped = await page.evaluate(() => { const env = Game.Storage.loadSlot(1); Game.State.load(env.state, env.town); return JSON.stringify(Game.state); });
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  assert.equal((await page.evaluate(() => window.__turn)).reason, 'replaced');
+  assert.equal(await stateJson(page), swapped, 'neither restored over nor written to');
+});
+
 s.run();

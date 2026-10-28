@@ -341,6 +341,31 @@ s.test('with a key and mock mode off, Begin narrates the arrival through the nar
   assert.match(await p2.page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /API key was not accepted.*game's own text/);
 });
 
+s.test('an arrival that cannot reach the API (network error) leaves no pending placeholder: the notice and the local opening text stand in', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  let hits = 0;
+  await page.route(API, route => { hits += 1; return route.abort('internetdisconnected'); });
+  await page.evaluate(k => { Game.Storage.saveSettings({ mockMode: false }); Game.Storage.setApiKey(k, false); }, KEY);
+  await quickStart(page); // Begin: the arrival goes to the narrator
+  await page.waitForFunction(() => !Game.Pipeline.busy && Game.state.log.length === 1, null, { timeout: 10000 });
+  const r = await page.evaluate(() => ({
+    pending: document.querySelectorAll('#feed .f-narr.pending').length,
+    busy: [...document.querySelectorAll('[aria-busy="true"]')].map(n => n.id || n.className),
+    kinds: [...document.querySelectorAll('#feed > *')].map(n => n.classList.contains('f-notice') ? 'notice' : n.classList.contains('f-narr') ? 'narration' : n.classList.contains('f-divider') ? 'divider' : n.className),
+    narration: [...document.querySelectorAll('#feed .f-narr')].map(n => [...n.querySelectorAll('p:not(.f-tag)')].map(x => x.textContent).join('\n\n')),
+    notice: document.querySelector('#feed .f-notice.error').textContent,
+    log: Game.state.log[0].narration,
+    opening: Game.Town.openingScene(Game.state)
+  }));
+  assert.equal(hits, 2, 'one retry, then the fallback');
+  assert.equal(r.pending, 0, 'no pending narration node');
+  assert.deepEqual(r.busy, [], 'nothing left aria-busy');
+  assert.deepEqual(r.kinds, ['divider', 'notice', 'narration'], 'only the notice and the opening text were added');
+  assert.match(r.notice, /Could not reach the API.*The arrival below is the game's own text\./);
+  assert.equal(r.log, r.opening, 'the opening text is the local one');
+  assert.deepEqual(r.narration, [r.log]);
+});
+
 s.test('Api.chronicle summarises log entries with the parser model in plain text', async h => {
   const { page, reqs } = await openReal(h);
   await sendText(page, 'I ask the ferryman about the tide');

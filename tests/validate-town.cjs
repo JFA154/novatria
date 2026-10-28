@@ -38,7 +38,6 @@ const REQUIRED_LOCATION_TYPES = ['bar', 'gas', 'motel', 'church', 'police', 'tra
 const FANTASY_LOCATION_TYPES = ['tavern', 'temple', 'manor', 'smithy', 'watch', 'slum', 'riverbank'];
 const REQUIRED_BACKGROUNDS = ['veteran', 'dropout', 'fired bookkeeper', 'river deckhand', 'group home kid', 'poker hustler'];
 const LOOSE_END_KEYS = ['debt', 'enemy', 'secret', 'lost', 'promise'];
-const RESERVED_FLAGS = ['priceMultiplier', 'weather', 'season'];
 const CURRENCY = { symbol: '$', name: 'dollars' };
 const PRICE_MIN = 2;
 const PRICE_MAX = 400;
@@ -135,6 +134,16 @@ try {
 } catch (e) {
   fatal('file', 'cannot read ' + FILE + ': ' + e.message);
 }
+
+// Content note 7: flags setFlag may never write. Read from the State module in
+// the same file, so this check and State.apply cannot drift apart. (The effect
+// ops are code there, not a list; tests/state.test.cjs checks that OPS below
+// names exactly State.EFFECT_OPS.)
+const RESERVED_FLAGS = (() => {
+  const m = /const RESERVED_FLAGS = (?:Object\.freeze\()?(\[[^\]]*\])/.exec(html);
+  if (!m) fatal('file', 'index.html has no RESERVED_FLAGS list in its State module');
+  return vm.runInNewContext(m[1], {}, { filename: 'index.html#RESERVED_FLAGS', timeout: 1000 });
+})();
 
 const trimmed = src.replace(/\s+$/, '');
 let body = trimmed;

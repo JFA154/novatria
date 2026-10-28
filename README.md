@@ -70,7 +70,7 @@ natural 20, up to 3.
 
 ## Saves, export and import
 
-- **Autosave** after every change, in this browser's `localStorage`. **Continue**
+- **Autosave** after every turn, in this browser's `localStorage`. **Continue**
   on the title screen picks it up.
 - **Three named slots** on the Saves screen (laptop: Save in the top bar; phone:
   Menu → Save / Load), or with `/save <name>`.

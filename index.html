@@ -774,7 +774,7 @@ select.input { padding-right: 32px; }
       <div class="page-inner">
         <header class="page-head">
           <h1 class="page-title" id="saves-title">Saved games</h1>
-          <p class="muted">One autosave after every change, plus three named slots in this browser.</p>
+          <p class="muted">One autosave after every turn, plus three named slots in this browser.</p>
         </header>
         <div class="field" id="save-name-field">
           <label class="label" for="save-name">Name for a new save</label>
@@ -2281,7 +2281,7 @@ const Dice = (() => {
   const TARGETS = { easy: 8, normal: 12, hard: 15, very_hard: 18 };
   const MOD_CAP = 4;
   const TIER_LABELS = { critical: 'Critical', success: 'Success', partial: 'Partial', failure: 'Failure', critical_failure: 'Critical failure' };
-  const SOCIAL_ACTIONS = ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give'];
+  const SOCIAL_ACTIONS = Object.freeze(['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give']);
 
   function target(difficulty) { return TARGETS[difficulty] || TARGETS.normal; }
   function capModifier(total) { return clamp(Math.round(Number(total) || 0), -MOD_CAP, MOD_CAP); }
@@ -2358,7 +2358,7 @@ const Dice = (() => {
   }
   function isLocked(key, state) { state = state || State.current; return !!(state && key && state.meta.lastRollKey === key); }
   function lockFor(result, key) { return result && (result.tier === 'failure' || result.tier === 'critical_failure') ? key : null; }
-  return { TARGETS, MOD_CAP, TIER_LABELS, target, capModifier, sumModifiers, tier, isSuccess, needsComplication, modifiersFor, resolve, formatLine, lockKey, isLocked, lockFor };
+  return { TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, target, capModifier, sumModifiers, tier, isSuccess, needsComplication, modifiersFor, resolve, formatLine, lockKey, isLocked, lockFor };
 })();
 
 // ===== Module: Tables =====
@@ -2475,6 +2475,8 @@ const State = (() => {
   const listeners = [];
   const debugLog = [];
   let ledger = freshLedger(-1);
+  let batchDepth = 0;
+  let dirty = false;
 
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'journalEntry'];
@@ -2486,7 +2488,7 @@ const State = (() => {
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
   const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3 };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
-  const RESERVED_FLAGS = ['priceMultiplier', 'weather', 'season'];
+  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season']);
 
   function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0 }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
@@ -2511,7 +2513,7 @@ const State = (() => {
       case 'thr': return thread(id);
       case 'seed': return seed(id);
       case 'rum': return rumour(id);
-      case 'item': return find(current.player.inventory, id);
+      case 'item': return find(current.player.inventory, id) || sceneItem(id); // carried, or lying where the player is
       case 'cond': return find(current.player.conditions, id);
       default: return null;
     }
@@ -2803,6 +2805,7 @@ const State = (() => {
       return `reputation ${e.key} ${before} -> ${rep[e.key]}`;
     }
   };
+  const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
 
   // ----- time -----
   function advanceTime(cost) {
@@ -3204,7 +3207,18 @@ const State = (() => {
   }
   function notify() {
     if (muted || !current) return;
+    if (batchDepth > 0) { dirty = true; return; }
     for (const fn of listeners) { try { fn(current); } catch (e) { console.error(e); } }
+  }
+  /* Batching: the Pipeline wraps each turn in beginBatch()/endBatch() so the
+     listeners (autosave, render) hear about it once, when the outermost batch
+     closes, and never see a half-applied turn (SPEC.md section 13: one
+     autosave after every turn). Depth-counted, so batches nest. A change
+     outside any batch (character creation, a load, /undo) notifies at once. */
+  function beginBatch() { batchDepth += 1; }
+  function endBatch() {
+    if (batchDepth > 0) batchDepth -= 1;
+    if (batchDepth === 0 && dirty) { dirty = false; notify(); }
   }
 
   // ----- lifecycle -----
@@ -3369,8 +3383,8 @@ const State = (() => {
     get current() { return current; },
     get town() { return town; },
     get muted() { return muted; },
-    RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES,
-    apply, newGame, commit, clear, load, validateShape, snapshot, restore,
+    RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
+    apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
     onChange(fn) { listeners.push(fn); },
@@ -3568,8 +3582,8 @@ const Town = (() => {
   }
 
   // ----- TOWN_DATA validation (in-browser twin of tests/validate-town.cjs, lighter) -----
-  const EFFECT_OPS = ['closeLocation', 'openLocation', 'npcStatus', 'npcMove', 'attitudeDelta', 'priceMultiplier', 'openThread',
-    'threadStatus', 'addRumour', 'plantSeed', 'factionRelation', 'setFlag', 'reputationDelta'];
+  // The ops and reserved flags are State's own, so the two can never disagree.
+  const EFFECT_OPS = State.EFFECT_OPS;
   function validate(t) {
     const errs = [];
     const e = msg => errs.push(msg);
@@ -3640,7 +3654,7 @@ const Town = (() => {
           if (ef.op === 'factionRelation') { checkRef(w, 'fac', ef.a); checkRef(w, 'fac', ef.b); }
           if (ef.op === 'reputationDelta' && ef.key !== 'town') checkRef(w, 'fac', ef.key);
           if (ef.op === 'plantSeed' && ef.seed) checkTrigger(w, ef.seed.trigger);
-          if (ef.op === 'setFlag' && ['priceMultiplier', 'weather', 'season'].includes(ef.key)) e(`${w}: flag ${ef.key} is reserved`);
+          if (ef.op === 'setFlag' && State.RESERVED_FLAGS.includes(ef.key)) e(`${w}: flag ${ef.key} is reserved`);
         });
       });
       for (const r of Object.keys(f.relations || {})) if (!facIds.has(r)) e(`${f.id}: relation to unknown ${r}`);
@@ -4408,7 +4422,9 @@ const Api = (() => {
      small, rule-based bookkeeping. Every mock narration is tagged in the
      feed. Tests can queue canned replies per method (first in, first out):
        Mock.queue('parse', { needsRoll: true, stat: 'wits' })   merged over the keyword result
-       Mock.queue('narrate', 'Exact text.')  or { text, stopReason }
+       Mock.queue('narrate', 'Exact text.')  or { text, stopReason, delay }
+                                       (delay: hold the reply that many ms before it streams;
+                                        without text, the usual mock narration)
        Mock.queue('bookkeep', { goldDelta: 5 })                  merged over the default diff
        Mock.queue('chronicle', 'Summary.')
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
@@ -4480,7 +4496,17 @@ const Api = (() => {
     // named who is not here, or someone new, is the target instead.
     const target = () => (present.length ? [present[0].id] : (fresh.length || away.length) ? [] : (presentList[0] ? [presentList[0].id] : []));
     const dest = has(/\b(go|goes|walk|walks|head|heads|run|return|cross|enter|drive|drives|ride|make my way)\b/) ? mockDestination(lower, packet) : null;
-    if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
+    /* A thing, not a person: looking for one ("I look for some rope") may turn
+       it up here (new:), and picking one up ("I pick up the rope") takes the
+       item lying here by its id. */
+    const seek = /\b(?:look|looks|search|searches|hunt|hunts|rummage|rummages)\s+(?:around\s+)?for\s+(.+?)[\s.!?]*$/.exec(lower);
+    const grab = /\b(?:pick|picks)\s+up\s+(.+?)[\s.!?]*$/.exec(lower);
+    const thing = (seek || grab) && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
+    const escRe = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const lying = thing ? (packet.itemsHere || []).find(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : null;
+    if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; }
+    else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
+    else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
     else if (has(/\b(rest|sleep|nap)\b/)) { out.actionType = 'rest'; out.timeCost = 'rest'; }
     else if (has(/\bwait\b/)) { out.actionType = 'wait'; out.timeCost = 'long'; }
     else if (dest) { out.actionType = 'move'; out.destinationId = dest; out.timeCost = 'short'; }
@@ -4498,6 +4524,7 @@ const Api = (() => {
     // A move names someone who is not here only by their name.
     for (const n of named) if (!out.targets.includes(n.id) && (out.actionType !== 'move' || isHere(n) || byName(n))) out.targets.push(n.id);
     for (const f of fresh) if (!out.targets.includes(f)) out.targets.push(f);
+    if (thing) out.targets.push(lying ? lying.id : 'new:' + thing);
     return out;
   }
   function mockGreeting(n) {
@@ -4544,8 +4571,12 @@ const Api = (() => {
       if (c.rumour && c.rumour.npcId === target.id) out.push(`${target.name} mentions something: "${c.rumour.text}"`);
     } else if (a.actionType === 'buy') {
       out.push('The deal is done quickly.');
+    } else if (a.actionType === 'take') {
+      const it = s && (a.targets || []).filter(id => /^item_/.test(id)).map(id => State.entityById(id)).find(Boolean);
+      if (it) out.push(`You pick up the ${lowerFirst(it.name)}.`);
     }
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
+    for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
     // Due events (at most two) are always worked in, at the end.
     let due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
     if (!out.length && !due.length) out.push(`At ${loc}, nothing pushes back yet.`);
@@ -4600,6 +4631,10 @@ const Api = (() => {
       out.attitudeChanges.push({ npcId: first.id, delta: -20, reason: 'attacked' });
       out.newMemories.push({ npcId: first.id, text: again ? `${s.player.name} attacked them again` : `${s.player.name} attacked them`, weight: 3 });
     }
+    if (a.actionType === 'take') {
+      const l = State.loc(s.player.locationId);
+      out.itemsGained = (a.targets || []).filter(id => /^item_/.test(id) && ((l && l.items) || []).some(i => i.id === id));
+    }
     if (a.actionType === 'buy') {
       const g = Town.goodsFor(input);
       const price = g ? Tables.price(g.name) : null;
@@ -4647,6 +4682,7 @@ const Api = (() => {
       packet = packet || {};
       const canned = Mock.take('narrate', packet);
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      if (isObj(canned) && Number.isFinite(canned.delay) && canned.delay > 0) await sleep(canned.delay);
       const text = typeof canned === 'string' ? canned : isObj(canned) && typeof canned.text === 'string' ? canned.text : mockNarration(packet.context || {});
       const parts = text.match(/\S+\s*/g) || [text];
       let soFar = '';
@@ -4872,7 +4908,6 @@ const Api = (() => {
    Any error or refusal restores the snapshot, takes the turn's lines back
    out of the feed and puts the player's text back in the box. */
 const Pipeline = (() => {
-  const SOCIAL = ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give'];
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
     locked: 'You just tried that and it failed. Something has to change before you try it again.',
@@ -4886,6 +4921,7 @@ const Pipeline = (() => {
   };
   let busy = false;
   let lastTurn = null;
+  let turnState = null; // the State.current a running turn or arrival started on
   /* Test and debug hook: force the next d20 (e.g. 20 for a critical). */
   const hooks = { nextD20: null };
 
@@ -5083,7 +5119,7 @@ const Pipeline = (() => {
     const p = s.player;
     const a = ctx.action;
     const witness = a.targets.map(id => State.npc(id)).find(n => n && ctx.presentIds.includes(n.id));
-    if (witness && SOCIAL.includes(a.actionType)) {
+    if (witness && Dice.SOCIAL_ACTIONS.includes(a.actionType)) {
       State.apply({ newMemories: [{ npcId: witness.id, text: `Watched ${p.name} fail badly: ${lowerFirst(a.summary)}`, weight: 2 }] });
       return `${witness.name} will remember this`;
     }
@@ -5091,14 +5127,13 @@ const Pipeline = (() => {
     State.apply({ conditionsAdded: [{ name: c.name, effect: c.effect, untilDay: s.time.day + 2 }] });
     return `lasting consequence: ${lowerFirst(c.name)} (${c.effect} until day ${s.time.day + 2})`;
   }
-  /* Returns { locked: true } when the identical failed roll is retried. */
+  /* Returns { locked: true } when the identical failed roll is retried. An
+     action without a roll leaves the lock alone here: runTurn lifts it once
+     the situation has changed (SPEC section 7). */
   function resolve(ctx) {
     const s = State.current;
     const a = ctx.action;
-    if (!a.needsRoll) {
-      if (s.meta.lastRollKey) State.apply({ lastRollKey: null });
-      return {};
-    }
+    if (!a.needsRoll) return {};
     const key = Dice.lockKey(a);
     if (Dice.isLocked(key)) return { locked: true };
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
@@ -5163,7 +5198,7 @@ const Pipeline = (() => {
   function pickRumour(ctx) {
     const s = State.current;
     const a = ctx.action;
-    if (!a || !SOCIAL.includes(a.actionType)) return null;
+    if (!a || !Dice.SOCIAL_ACTIONS.includes(a.actionType)) return null;
     const present = State.npcsAt(s.player.locationId);
     const aimed = present.filter(n => a.targets.includes(n.id));
     const pool = (aimed.length ? aimed : (a.actionType === 'talk' ? present : [])).filter(n => n.attitude > -25);
@@ -5258,26 +5293,31 @@ const Pipeline = (() => {
       const res = await Api.narrate({ text: extra ? `${text}\n${extra}` : text, system: Style.systemPrompt(), context: ctx }, (chunk, soFar) => UI.feed.stream(node, soFar));
       return res;
     };
-    let res = await once(null);
-    if (isRefusal(res)) { node.remove(); return { refusal: res }; }
-    let narration = String((res && res.text) || '').trim();
-    let check = Style.check(narration, { zoom });
-    ctx.style = [check];
-    if (!check.ok) {
-      State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
-      const note = Style.regenerationNote(check.problems);
-      ctx.regenerated = note;
-      res = await once(note);
+    try {
+      let res = await once(null);
       if (isRefusal(res)) { node.remove(); return { refusal: res }; }
-      const second = String((res && res.text) || '').trim();
-      if (second) narration = second;
-      check = Style.check(narration, { zoom });
-      ctx.style.push(check);
-      if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
+      let narration = String((res && res.text) || '').trim();
+      let check = Style.check(narration, { zoom });
+      ctx.style = [check];
+      if (!check.ok) {
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
+        const note = Style.regenerationNote(check.problems);
+        ctx.regenerated = note;
+        res = await once(note);
+        if (isRefusal(res)) { node.remove(); return { refusal: res }; }
+        const second = String((res && res.text) || '').trim();
+        if (second) narration = second;
+        check = Style.check(narration, { zoom });
+        ctx.style.push(check);
+        if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
+      }
+      if (!narration) throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.');
+      UI.feed.endNarration(node, narration);
+      return { narration, node, mock };
+    } catch (err) {
+      node.remove(); // never leave an empty "pending" placeholder behind
+      throw err;
     }
-    if (!narration) { node.remove(); throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.'); }
-    UI.feed.endNarration(node, narration);
-    return { narration, node, mock };
   }
 
   // ----- step 8: the bookkeeper's packet -----
@@ -5390,6 +5430,8 @@ const Pipeline = (() => {
 
   // ----- the turn -----
   function fail(snap, mark, notice, extra) {
+    // Defensive: if another game was loaded mid-turn, do not restore over it or touch its feed.
+    if (turnState && State.current !== turnState) return Object.assign({ ok: false }, extra, { reason: 'replaced' });
     State.restore(snap);
     World.forget(State.current.meta.turn);
     UI.feed.rollback(mark);
@@ -5409,10 +5451,16 @@ const Pipeline = (() => {
     const snap = State.snapshot();
     const mark = UI.feed.mark();
     const ctx = { input: opts.input, mode: opts.mode || 'normal', action: null, roll: null, created: [], notPresent: [], links: [], due: [] };
+    // Step 13: the autosave and the render run once, when this batch closes
+    // (finally below), after the whole turn or its rollback.
+    State.beginBatch();
+    turnState = s;
+    const replaced = () => State.current !== s;
     try {
       State.apply({ beginTurn: true });
       UI.feed.input(opts.input);
       const startTime = nowTime();
+      const startLoc = s.player.locationId;
       if (opts.prepare) opts.prepare(ctx);
       if (!sameTime(startTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
       // Step 3. Parse.
@@ -5420,6 +5468,7 @@ const Pipeline = (() => {
       if (opts.action) action = normaliseParse(typeof opts.action === 'function' ? opts.action(ctx) : opts.action);
       else {
         const parsed = await Api.parse(parsePacket(opts.parse || opts.input, { mode: opts.fact ? 'fact' : 'action' }));
+        if (replaced()) return fail(snap, mark, null, {});
         if (isRefusal(parsed)) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
         action = normaliseParse(parsed);
       }
@@ -5443,12 +5492,14 @@ const Pipeline = (() => {
       if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
       ctx.rumour = pickRumour(ctx);
       const told = await narrate(ctx);
+      if (replaced()) return fail(snap, mark, null, {});
       if (told.refusal) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
       // Steps 8-9. Bookkeep, then apply the diff as model output.
       if (opts.bookkeep !== false) {
         const diff = await Api.bookkeep({ text: bookkeeperPacket(ctx), context: ctx });
+        if (replaced()) return fail(snap, mark, null, {});
         if (isRefusal(diff)) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
         const clean = isObj(diff) ? Object.assign({}, diff) : {};
         if (ctx.damage && toInt(clean.hpDelta) < 0) {
@@ -5475,10 +5526,16 @@ const Pipeline = (() => {
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
       if (ctx.due.length) World.dueNarrated(ctx.due);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
+      // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
+      // action without a roll lifts it only once the situation has changed:
+      // the action took time, time passed or the player moved. An instant
+      // look or chat in the same place leaves it on.
+      if (!ctx.roll && s.meta.lastRollKey && (action.timeCost !== 'instant' || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
       if (!sameTime(narrTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
       // Step 12. Chronicle compression every 10 turns (never fails the turn).
       try { await compressIfDue(); } catch (e) { console.warn('[Pipeline] compression failed', e); }
-      // Step 13. Log; autosave and render follow from State's change listener.
+      if (replaced()) return fail(snap, mark, null, {});
+      // Step 13. Log; the autosave and render follow when the batch closes.
       State.apply({ logEntry: { input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock } });
       lastTurn = { action, roll: ctx.roll, narration, style: ctx.style, ctx: deepCopy(Object.assign({}, ctx, { packet: undefined })), packet: ctx.packet };
       return { ok: true, defeat: ctx.defeat ? ctx.defeat.outcome : undefined };
@@ -5486,6 +5543,8 @@ const Pipeline = (() => {
       console.error(err);
       return fail(snap, mark, { text: errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
     } finally {
+      turnState = null;
+      State.endBatch(); // listeners see the finished turn, or the restored state after a failure
       busy = false;
       UI.setBusy(false);
     }
@@ -5608,39 +5667,57 @@ const Pipeline = (() => {
     });
   }
   /* The first narration of a game (MODE arrival), used when mock mode is off
-     and a key is set. Any failure falls back to the local opening text. */
+     and a key is set. Same discipline as runTurn: one batch (one autosave),
+     and a refusal or failure takes the arrival's changes and feed lines back
+     out before the notice and the local opening text. The snapshot is a
+     private copy, not an /undo step. */
   async function arrival() {
     const s = State.current;
     if (!s || busy) return { ok: false };
     busy = true;
     UI.setBusy(true);
     Api.beginTurn();
-    const bg = BACKGROUNDS.find(b => b.id === s.player.backgroundId);
-    const ctx = { input: '', mode: 'arrival', roll: null, created: [], notPresent: [], links: [], due: [] };
-    ctx.action = normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${bg && bg.arrival === 'docks' ? 'arriving by the river' : 'arriving by the road'}, at ${here().name}`, targets: [], timeCost: 'instant' });
-    scene(ctx);
-    let narration = null;
-    let mock = false;
+    const snap = JSON.stringify(s);
+    const mark = UI.feed.mark();
+    State.beginBatch();
+    turnState = s;
     try {
-      ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
-      if (ctx.due.length) scene(ctx);
-      const told = await narrate(ctx);
-      if (told.refusal) UI.feed.notice(NOTICES.refused);
-      else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); }
-    } catch (err) {
-      console.error(err);
-      UI.feed.notice(`${err instanceof Api.ApiError ? err.message : 'The narrator could not be reached.'} The arrival below is the game's own text.`, 'error');
+      let narration = null;
+      let mock = false;
+      let notice = null;
+      try {
+        const bg = BACKGROUNDS.find(b => b.id === s.player.backgroundId);
+        const ctx = { input: '', mode: 'arrival', roll: null, created: [], notPresent: [], links: [], due: [] };
+        ctx.action = normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${bg && bg.arrival === 'docks' ? 'arriving by the river' : 'arriving by the road'}, at ${here().name}`, targets: [], timeCost: 'instant' });
+        scene(ctx);
+        ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
+        if (ctx.due.length) scene(ctx);
+        const told = await narrate(ctx);
+        if (State.current !== s) return { ok: false, reason: 'replaced' };
+        if (told.refusal) notice = { text: NOTICES.refused };
+        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); }
+      } catch (err) {
+        console.error(err);
+        if (State.current !== s) return { ok: false, reason: 'replaced' };
+        notice = { text: `${err instanceof Api.ApiError ? err.message : 'The narrator could not be reached.'} The arrival below is the game's own text.`, kind: 'error' };
+      }
+      const local = narration === null;
+      if (local) {
+        State.restore(snap);
+        UI.feed.rollback(mark);
+        if (notice) UI.feed.notice(notice.text, notice.kind);
+        narration = Town.openingScene(State.current);
+        UI.feed.narration(narration);
+      }
+      const t = State.current.time;
+      State.apply({ logEntry: { input: '', roll: null, narration, day: t.day, phase: t.phase, mock } });
+      return { ok: !local, local };
     } finally {
+      turnState = null;
+      State.endBatch();
       busy = false;
       UI.setBusy(false);
     }
-    const local = narration === null;
-    if (local) {
-      narration = Town.openingScene(s);
-      UI.feed.narration(narration);
-    }
-    State.apply({ logEntry: { input: '', roll: null, narration, day: s.time.day, phase: s.time.phase, mock } });
-    return { ok: !local, local };
   }
   return {
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
@@ -5653,7 +5730,8 @@ const Pipeline = (() => {
 })();
 
 // ===== Module: Storage =====
-/* localStorage: settings, one autosave (after every state change) and three
+/* localStorage: settings, one autosave (after every turn: State batches a
+   turn's changes; changes outside a turn save at once) and three
    named slots. The API key lives in localStorage only when "Remember on this
    device" is ticked, otherwise in sessionStorage; it is never part of a save
    or an export. Every access is wrapped; a failure shows a visible warning. */
@@ -5977,7 +6055,9 @@ const UI = (() => {
     d.titleName.textContent = t.name;
     d.titleSetting.textContent = t.setting;
     document.title = t.name;
-    d.btnContinue.disabled = !Storage.hasAutosave();
+    d.btnNew.disabled = busy;
+    d.btnLoad.disabled = busy;
+    d.btnContinue.disabled = busy || !Storage.hasAutosave();
     d.titleMode.textContent = Storage.settings().mockMode ? 'Mock mode is on: no API calls.' : '';
   }
 
@@ -6250,10 +6330,17 @@ const UI = (() => {
     ta.style.height = Math.min(want, max) + 'px';
     ta.style.overflowY = want > max + 1 ? 'auto' : 'hidden';
   }
+  /* While a turn or arrival is running, nothing may load or start a game
+     (App refuses those too): New game, Continue, Load and Import are off. */
   function setBusy(b) {
     busy = !!b;
     d.send.disabled = busy;
     d.feed.setAttribute('aria-busy', String(busy));
+    d.btnNew.disabled = busy;
+    d.btnLoad.disabled = busy;
+    d.btnImport.disabled = busy;
+    if (screen === 'title') d.btnContinue.disabled = busy || !Storage.hasAutosave();
+    $$('[data-action="load"]', d.slotList).forEach(btn => { btn.disabled = busy || btn.dataset.filled !== '1'; });
   }
   async function send() {
     const text = d.cmd.value;
@@ -6370,11 +6457,11 @@ const UI = (() => {
     d.saveNameField.hidden = !inGame;
     if (inGame && !d.saveName.value) d.saveName.value = `${State.current.player.name}, day ${State.current.time.day}`;
     d.btnExport.disabled = !inGame;
+    d.btnImport.disabled = busy;
+    const loadBtn = (filled, onclick) => el('button', { type: 'button', class: 'btn small', 'data-action': 'load', dataset: { filled: filled ? '1' : '' }, disabled: busy || !filled, onclick }, 'Load');
     const rows = [];
     const auto = Storage.peek(Storage.KEYS.autosave);
-    rows.push(slotRow('Autosave', auto, [
-      el('button', { type: 'button', class: 'btn small', 'data-action': 'load', disabled: !auto || auto.broken, onclick: () => App.continueGame() }, 'Load')
-    ], 'slot-auto'));
+    rows.push(slotRow('Autosave', auto, [loadBtn(!!auto && !auto.broken, () => App.continueGame())], 'slot-auto'));
     Storage.listSlots().forEach((env, i) => {
       const n = i + 1;
       const filled = env && !env.broken;
@@ -6390,7 +6477,7 @@ const UI = (() => {
           const env2 = Storage.saveSlot(n, d.saveName.value);
           if (env2) { toast(`Saved to slot ${n}.`); d.saveName.value = ''; renderSaves(); }
         } }, filled ? 'Overwrite' : 'Save here') : null,
-        el('button', { type: 'button', class: 'btn small', 'data-action': 'load', disabled: !filled, onclick: () => App.loadSlot(n) }, 'Load'),
+        loadBtn(filled, () => App.loadSlot(n)),
         del
       ], 'slot-' + n));
     });
@@ -6402,8 +6489,7 @@ const UI = (() => {
     if (!file) return;
     try {
       const env = await Storage.importFile(file);
-      App.enter(env);
-      toast('Imported.');
+      if (App.enter(env)) toast('Imported.');
     } catch (e) {
       d.savesError.textContent = e.message;
     }
@@ -6524,7 +6610,7 @@ const UI = (() => {
         return false;
       }
       try {
-        App.prepare(character());
+        if (!App.prepare(character())) return false; // a turn is still running
       } catch (e) {
         showErr('loose', 'Could not create the character: ' + e.message);
         return false;
@@ -6760,6 +6846,16 @@ const Commands = (() => {
    (so the summary card can name the loose-end NPCs) and committed on Begin. */
 const App = (() => {
   let inGame = false;
+  /* Loading or starting a game while a turn waits on the API would let that
+     turn finish (or roll back) on the wrong game and its autosave overwrite
+     the one just loaded, so these entry points refuse until it is over (the
+     UI disables their controls meanwhile). */
+  const BUSY_NOTICE = 'Wait for the current turn to finish.';
+  function turnRunning() {
+    if (!Pipeline.busy) return false;
+    UI.toast(BUSY_NOTICE);
+    return true;
+  }
   function urlSeed() {
     try { return toInt(new URLSearchParams(window.location.search).get('seed')); } catch (e) { return null; }
   }
@@ -6769,8 +6865,14 @@ const App = (() => {
     State.onChange(() => { Storage.autosave(); UI.renderGame(); });
     UI.showScreen('title');
   }
-  function newGame() { UI.Create.start(); UI.showScreen('create'); }
+  function newGame() {
+    if (turnRunning()) return false;
+    UI.Create.start();
+    UI.showScreen('create');
+    return true;
+  }
   function prepare(character, opts) {
+    if (turnRunning()) return null;
     inGame = false;
     const s = opts && Number.isInteger(opts.seed) ? opts.seed : urlSeed();
     return State.newGame(TOWN_DATA, character, { seed: Number.isInteger(s) ? s : undefined, pending: true });
@@ -6801,17 +6903,21 @@ const App = (() => {
     return State.current;
   }
   function enter(env) {
+    if (turnRunning()) return false;
     State.load(env.state, env.town);
     inGame = true;
     UI.rebuildFeed();
     UI.showScreen('game');
+    return true;
   }
   function continueGame() {
+    if (turnRunning()) return false;
     const env = Storage.loadAutosave();
     if (!env) { UI.toast('There is no autosave yet.'); return false; }
     try { enter(env); return true; } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
   }
   function loadSlot(n) {
+    if (turnRunning()) return false;
     const env = Storage.loadSlot(n);
     if (!env) return false;
     try { enter(env); } catch (e) { UI.warn('That save could not be loaded: ' + e.message); return false; }
@@ -6820,8 +6926,8 @@ const App = (() => {
   }
   function quitToTitle() { inGame = false; UI.showScreen('title'); }
   /* Test and console shortcut: create and begin without the form. */
-  function quickStart(character, opts) { prepare(character, opts); return begin(); }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, quitToTitle, quickStart, inGame: () => inGame };
+  function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====

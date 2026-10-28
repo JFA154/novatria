@@ -4,6 +4,7 @@
    Game.state) so it keeps passing once real content replaces the placeholders. */
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const assert = require('assert/strict');
 const { suite, quickStart, stateJson, ROOT } = require('./helpers.cjs');
 
@@ -698,6 +699,57 @@ s.test('Api exposes the provider interface and builds requests per API_NOTES', a
   assert.equal(typeof r.c, 'string');
   assert.equal(r.cost, 12.2);
   assert.equal(r.unknownCost, null);
+});
+
+s.test('a State batch tells the listeners once, when the outermost batch closes; a change outside a batch tells them at once', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const seen = await page.evaluate(() => {
+    const S = Game.State;
+    let n = 0;
+    S.onChange(() => { n += 1; });
+    const out = [];
+    S.apply({ goldDelta: 1 }); out.push(n);
+    S.beginBatch();
+    S.apply({ goldDelta: 1 });
+    S.beginBatch();
+    S.apply({ hpDelta: -1 });
+    S.endBatch(); out.push(n); // nested: still open
+    S.apply({ goldDelta: 1 }); out.push(n);
+    S.endBatch(); out.push(n); // closed: one notification for all three
+    S.beginBatch(); S.endBatch(); out.push(n); // nothing changed: none
+    return out;
+  });
+  assert.deepEqual(seen, [1, 1, 1, 2, 2]);
+});
+
+s.test('effect ops, reserved flags and social actions each live in one list: Town.validate and tests/validate-town.cjs follow State and Dice', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const T = JSON.parse(JSON.stringify(G.data.TOWN_DATA));
+    const base = G.Town.validate(T);
+    const effs = T.factions[0].clocks[0].onComplete.effects;
+    effs.push({ op: 'frobnicate' });
+    G.State.RESERVED_FLAGS.forEach(k => effs.push({ op: 'setFlag', key: k, value: 1 }));
+    return { ops: G.State.EFFECT_OPS.slice(), townOps: G.Town.EFFECT_OPS.slice(), flags: G.State.RESERVED_FLAGS.slice(), social: G.Dice.SOCIAL_ACTIONS.slice(), base, errs: G.Town.validate(T) };
+  });
+  assert.deepEqual(r.base, []);
+  assert.deepEqual(r.townOps, r.ops, 'Town uses State.EFFECT_OPS');
+  assert.ok(r.ops.length >= 13 && r.ops.includes('setFlag') && r.ops.includes('reputationDelta'));
+  assert.ok(r.errs.some(e => /unknown op frobnicate/.test(e)));
+  for (const k of r.flags) assert.ok(r.errs.some(e => e.includes(`flag ${k} is reserved`)), 'reserved: ' + k);
+  // tests/validate-town.cjs: its op table names exactly State's ops, and it reads the reserved flags from index.html.
+  const src = fs.readFileSync(path.join(ROOT, 'tests', 'validate-town.cjs'), 'utf8');
+  const m = /\nconst OPS = (\{[\s\S]*?\n\});/.exec(src);
+  assert.ok(m, 'validate-town.cjs has an OPS table');
+  assert.deepEqual(Object.keys(vm.runInNewContext('(' + m[1] + ')')).sort(), r.ops.slice().sort());
+  assert.doesNotMatch(src, /const RESERVED_FLAGS = \[/, 'no list of its own');
+  // The page source lists the social actions once (Dice), and the flags once (State).
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const count = needle => html.split(needle).length - 1;
+  assert.equal(count(`['${r.social.join("', '")}']`), 1, 'social actions');
+  assert.equal(count(`['${r.flags.join("', '")}']`), 1, 'reserved flags');
 });
 
 s.run();
