@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Validates the town content inlined in index.html (the text between the
 // "BEGIN CONTENT" and "END CONTENT" markers) against the shared data contract
-// in docs/BUILD_PLAN.md and the content brief in SPEC.md sections 4, 5, 8, 9.
+// in docs/BUILD_PLAN.md, including its "Content notes" and "Setting change:
+// modern day" sections, and the content brief in SPEC.md sections 4, 5, 8, 9.
 // The block is evaluated in a Node vm sandbox (like a browser <script> with no
 // module system), so TOWN_DATA can be hand-edited in index.html and checked.
+// It also checks the narrator's EXAMPLE_TURNS in index.html against the shape
+// of the SPEC.md section 9 examples. Rules marked "Modern:" are the
+// present-day additions to the original content checks.
 // Usage: node tests/validate-town.cjs   (exits 1 and lists every problem found)
 //        VALIDATE_FILE=other.html node tests/validate-town.cjs
 // tests/run.cjs runs it before the Playwright suites.
@@ -26,11 +30,20 @@ const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
 const THREAD_STATUSES = ['open', 'resolved', 'failed'];
 const TRIGGER_TYPES = ['day', 'location', 'npc', 'clock'];
-const REQUIRED_TAGS = ['lender', 'fence', 'watch', 'priest', 'noble', 'smith', 'innkeeper', 'ferryman', 'healer', 'informant'];
-const REQUIRED_LOCATION_TYPES = ['tavern', 'market', 'docks', 'temple', 'manor', 'smithy', 'watch', 'slum', 'road'];
-const REQUIRED_BACKGROUNDS = ['ex-soldier', 'runaway apprentice', 'disgraced clerk', 'river trader', 'temple foundling', 'card sharp'];
+// Modern: the cast tags the engine links by. "watch" stays as an alias on police NPCs.
+const REQUIRED_TAGS = ['lender', 'fence', 'police', 'watch', 'priest', 'owner', 'mechanic', 'bartender', 'boatman', 'healer', 'informant'];
+// Modern: the places the brief requires (gas station, bar, motel, church, police
+// station, trailer park, marina or boat ramp, big house on the hill).
+const REQUIRED_LOCATION_TYPES = ['bar', 'gas', 'motel', 'church', 'police', 'trailerpark', 'marina', 'bighouse'];
+const FANTASY_LOCATION_TYPES = ['tavern', 'temple', 'manor', 'smithy', 'watch', 'slum', 'riverbank'];
+const REQUIRED_BACKGROUNDS = ['veteran', 'dropout', 'fired bookkeeper', 'river deckhand', 'group home kid', 'poker hustler'];
 const LOOSE_END_KEYS = ['debt', 'enemy', 'secret', 'lost', 'promise'];
-const RESERVED_FLAGS = ['priceMultiplier', 'weather'];
+const RESERVED_FLAGS = ['priceMultiplier', 'weather', 'season'];
+const CURRENCY = { symbol: '$', name: 'dollars' };
+const PRICE_MIN = 2;
+const PRICE_MAX = 400;
+const CASH_MIN = 20;
+const CASH_MAX = 400;
 const PREFIX = {
   location: 'loc_', npc: 'npc_', faction: 'fac_', thread: 'thr_', seed: 'seed_',
   rumour: 'rum_', item: 'item_', background: 'bg_'
@@ -47,6 +60,13 @@ const BANNED_PHRASES = [
   'prophec', 'prophes', 'chosen one', 'dark lord', 'hooded stranger', 'hooded figure',
   'mysterious stranger', 'ancient evil', 'destiny', 'destined'
 ];
+// Modern: no fantasy-era vocabulary and nothing supernatural, anywhere in the
+// file (strings and comments). "gold" survives only as the BACKGROUNDS field
+// name; "ferryman" is allowed.
+const FANTASY_RE = /\b(swords?|daggers?|taverns?|guilds?|jonkers?|lords?|serfs?|wizards?|spells?|spellbooks?|magic|magical|potions?|coppers?|gold|knights?|castles?|sorcer\w*|enchant\w*)\b|\bsilver pieces?\b/i;
+const SUPERNATURAL_RE = /\b(ghosts?|haunt\w*|witch\w*|curse[sd]?|demons?|spectres?|specters?|phantoms?|psychics?|supernatural)\b/i;
+// Modern: starting items are things you carry, never a vehicle.
+const VEHICLE_RE = /\b(truck|trucks|pickup|car|cars|van|boat|johnboat|motorcycle|motorbike|bike|scooter|atv|trailer|camper)\b/i;
 
 const problems = [];
 function err(where, msg) { problems.push(where + ': ' + msg); }
@@ -100,13 +120,13 @@ function checkStrList(list, where, count, opts) {
   });
 }
 
-
 // ---------------------------------------------------------------------------
 // 1. Source-level checks: plain script, no module syntax, ES5-style literals.
 // ---------------------------------------------------------------------------
 let src;
+let html;
 try {
-  const html = fs.readFileSync(FILE, 'utf8');
+  html = fs.readFileSync(FILE, 'utf8');
   const a = html.indexOf(BEGIN);
   const b = html.indexOf(END);
   if (a < 0 || b < 0 || b < a) fatal('file', 'index.html has no "' + BEGIN + '" ... "' + END + '" block');
@@ -121,6 +141,8 @@ let body = trimmed;
 if (trimmed.endsWith(END_BLOCK)) body = trimmed.slice(0, -END_BLOCK.length);
 
 // eslint-style strip of comments and double-quoted strings, leaving code only.
+// Comments are collected for the vocabulary scan.
+const comments = [];
 function stripCode(text) {
   let out = '';
   let i = 0;
@@ -128,10 +150,11 @@ function stripCode(text) {
   while (i < n) {
     const c = text[i];
     const d = text[i + 1];
-    if (c === '/' && d === '/') { while (i < n && text[i] !== '\n') i++; continue; }
+    if (c === '/' && d === '/') { const s = i; while (i < n && text[i] !== '\n') i++; comments.push(text.slice(s, i)); continue; }
     if (c === '/' && d === '*') {
       const j = text.indexOf('*/', i + 2);
       if (j < 0) { err('syntax', 'unterminated block comment'); return out; }
+      comments.push(text.slice(i, j + 2));
       i = j + 2; out += ' '; continue;
     }
     if (c === '"') {
@@ -172,7 +195,10 @@ while ((dm = declRe.exec(code)) !== null) declared.push(dm[1]);
 if (declared.join(',') !== EXPORT_NAMES.join(',')) {
   err('file', 'const declarations must be exactly, in order: ' + EXPORT_NAMES.join(', ') + ' (found: ' + declared.join(', ') + ')');
 }
-
+// Modern: "gold" may appear only as the BACKGROUNDS field name.
+const goldKeys = (code.match(/\bgold\b/g) || []).length;
+const goldKeyUses = (code.match(/\bgold\s*:/g) || []).length;
+if (goldKeys !== goldKeyUses) err('syntax', '"gold" used in code other than as the BACKGROUNDS field name');
 
 // ---------------------------------------------------------------------------
 // 2. Load check: evaluate the block in a fresh vm context, like a browser
@@ -227,6 +253,22 @@ for (const [where, s] of allStrings) {
     }
   }
 }
+// Modern: fantasy vocabulary and the supernatural, in strings and comments.
+function vocabProblem(s) {
+  const f = FANTASY_RE.exec(s);
+  if (f) return 'fantasy-era word "' + f[0] + '"';
+  const m = SUPERNATURAL_RE.exec(s);
+  if (m) return 'supernatural word "' + m[0] + '"';
+  return null;
+}
+for (const [where, s] of allStrings) {
+  const p = vocabProblem(s);
+  if (p) err(where, p + ' in "' + s.slice(0, 60) + '"');
+}
+comments.forEach((c, i) => {
+  const p = vocabProblem(c);
+  if (p) err('file(comment ' + (i + 1) + ')', p + ' in "' + c.slice(0, 60) + '"');
+});
 
 // ---------------------------------------------------------------------------
 // 3. Id registry (pass 1): every id, including ones created by effects.
@@ -311,6 +353,13 @@ function mentionsCast(text, exceptNpcId) {
   }
   return false;
 }
+// A faction alias that is also the town's name would make every mention of
+// the town count as "tied to a faction", so it is not allowed.
+for (const f of factions) {
+  if (f && typeof T.name === 'string' && factionAliases(f).some((a) => mentions(T.name, a, true) || mentions(a, T.name, true))) {
+    err('factions(' + f.id + ')', 'name "' + f.name + '" overlaps the town name; the linked-secret check would be meaningless');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 4. Shared validators for threads, rumours, seeds, triggers, effects.
@@ -340,8 +389,11 @@ function checkRumour(r, where) {
 function checkTrigger(t, where, allowDay) {
   if (!checkKeys(t, ['type', 'value'], where)) return;
   if (TRIGGER_TYPES.indexOf(t.type) === -1) { err(where, 'trigger type "' + t.type + '" not one of ' + TRIGGER_TYPES.join('/')); return; }
+  // Content note 1 (modern brief): seeds planted by clocks use npc or location triggers.
+  if (!allowDay && t.type !== 'npc' && t.type !== 'location') {
+    err(where, 'a seed planted by a clock must use an npc or location trigger (the day a clock finishes is unknown), found "' + t.type + '"');
+  }
   if (t.type === 'day') {
-    if (!allowDay) err(where, 'a seed planted by a clock cannot use a fixed day (the clock may finish after that day); use location, npc or clock');
     if (!isInt(t.value) || t.value < 3 || t.value > 15) err(where, 'day trigger value must be an integer 3..15, found ' + JSON.stringify(t.value));
   } else if (t.type === 'location') {
     if (!isLoc(t.value)) err(where, 'location trigger "' + t.value + '" is not a location');
@@ -429,6 +481,8 @@ function checkEffect(e, where) {
     case 'threadStatus':
       if (!isThread(e.threadId)) err(where, 'threadId "' + e.threadId + '" is not a thread');
       if (THREAD_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + THREAD_STATUSES.join('/'));
+      // Content note 3: the world never resolves a thread (that would hand out story points).
+      if (e.status === 'resolved') err(where, 'a clock may not resolve a thread (only the player earns a resolution)');
       break;
     case 'addRumour':
       checkRumour(e.rumour, where + '.rumour');
@@ -457,13 +511,24 @@ function checkEffect(e, where) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA');
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA');
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
-else checkStr(T.setting, 'TOWN_DATA.setting', { noPlaceholders: true });
+else {
+  checkStr(T.setting, 'TOWN_DATA.setting', { noPlaceholders: true });
+  // Modern: the setting must say why business is done in person.
+  if (!/\bsignal\b/i.test(T.setting)) err('TOWN_DATA.setting', 'must say that cell signal is patchy');
+  if (!/\bface to face\b/i.test(T.setting)) err('TOWN_DATA.setting', 'must say that business is done face to face');
+}
+// Modern: the currency label the UI shows next to player.gold.
+if (checkKeys(T.currency, ['symbol', 'name'], 'TOWN_DATA.currency')) {
+  if (T.currency.symbol !== CURRENCY.symbol) err('TOWN_DATA.currency.symbol', 'must be "' + CURRENCY.symbol + '", found ' + JSON.stringify(T.currency.symbol));
+  if (T.currency.name !== CURRENCY.name) err('TOWN_DATA.currency.name', 'must be "' + CURRENCY.name + '", found ' + JSON.stringify(T.currency.name));
+}
 if (checkKeys(T.startLocationIds, ['gate', 'docks'], 'TOWN_DATA.startLocationIds')) {
   if (!isLoc(T.startLocationIds.gate)) err('TOWN_DATA.startLocationIds.gate', '"' + T.startLocationIds.gate + '" is not a location');
   if (!isLoc(T.startLocationIds.docks)) err('TOWN_DATA.startLocationIds.docks', '"' + T.startLocationIds.docks + '" is not a location');
+  if (T.startLocationIds.gate === T.startLocationIds.docks) err('TOWN_DATA.startLocationIds', 'gate and docks must be different places');
 }
 
 // Locations
@@ -476,6 +541,7 @@ locations.forEach((l, i) => {
   if (!checkKeys(l, ['id', 'name', 'type', 'description', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where)) return;
   checkStr(l.name, where + '.name', { noPlaceholders: true });
   if (typeof l.type !== 'string' || !/^[a-z]+$/.test(l.type)) err(where, 'type must be a lowercase word');
+  else if (FANTASY_LOCATION_TYPES.indexOf(l.type) !== -1) err(where, 'type "' + l.type + '" is from the fantasy town; use a modern type');
   typesSeen[l.type] = (typesSeen[l.type] || 0) + 1;
   checkStr(l.description, where + '.description', { sentences: 2, noPlaceholders: true });
   if (l.discovered !== true) err(where, 'discovered must be true for starter locations');
@@ -509,7 +575,8 @@ locations.forEach((l, i) => {
   }
 });
 for (const t of REQUIRED_LOCATION_TYPES) if (!typesSeen[t]) err('TOWN_DATA.locations', 'no location of type "' + t + '"');
-if (typesSeen.watch !== 1) err('TOWN_DATA.locations', 'need exactly one "watch" location (arrested NPCs are moved there), found ' + (typesSeen.watch || 0));
+// Modern: arrested NPCs are moved to the one location of type "police".
+if (typesSeen.police !== 1) err('TOWN_DATA.locations', 'need exactly one "police" location (arrested NPCs are moved there), found ' + (typesSeen.police || 0));
 // Connectivity from the gate.
 if (isLoc(T.startLocationIds && T.startLocationIds.gate)) {
   const seen = new Set([T.startLocationIds.gate]);
@@ -540,10 +607,15 @@ npcs.forEach((n, i) => {
   checkStr(n.role, where + '.role', { noPlaceholders: true });
   if (n.factionId !== null && !isFac(n.factionId)) err(where, 'factionId "' + n.factionId + '" is not a faction (or null)');
   if (!Array.isArray(n.tags) || n.tags.length === 0) err(where, 'tags must be a non-empty array');
-  else n.tags.forEach((t) => {
-    if (typeof t !== 'string' || !/^[a-z]+$/.test(t)) err(where, 'tag "' + t + '" must be a lowercase word');
-    tagSet.add(t);
-  });
+  else {
+    n.tags.forEach((t) => {
+      if (typeof t !== 'string' || !/^[a-z]+$/.test(t)) err(where, 'tag "' + t + '" must be a lowercase word');
+      tagSet.add(t);
+    });
+    // Modern: "watch" is kept as an alias of "police" for the engine.
+    if (n.tags.indexOf('police') !== -1 && n.tags.indexOf('watch') === -1) err(where, 'police NPCs must also carry the alias tag "watch"');
+    if (n.tags.indexOf('watch') !== -1 && n.tags.indexOf('police') === -1) err(where, 'the "watch" tag is only an alias; add "police"');
+  }
   for (const f of ['look', 'voice', 'goal', 'secret']) checkStr(n[f], where + '.' + f, { noPlaceholders: true, maxSentences: f === 'voice' ? 4 : 2 });
   if (typeof n.voice === 'string') { if (seenVoices.has(n.voice)) err(where, 'voice duplicates another NPC'); seenVoices.add(n.voice); }
   if (typeof n.look === 'string') { if (seenLooks.has(n.look)) err(where, 'look duplicates another NPC'); seenLooks.add(n.look); }
@@ -561,9 +633,10 @@ npcs.forEach((n, i) => {
 });
 const firstNames = npcs.filter((n) => n && typeof n.name === 'string').map((n) => {
   const parts = n.name.split(/\s+/);
-  return parts.length > 2 ? parts[1] : parts[0]; // skip a title such as "Father" or "Jonker"
+  return parts.length > 2 ? parts[1] : parts[0]; // skip a title such as "Pastor" or "Miss"
 });
 firstNames.forEach((f) => { if (seenFirst.has(f)) err('TOWN_DATA.npcs', 'two NPCs share the first name "' + f + '"'); seenFirst.add(f); });
+const castFamilyNames = new Set(npcs.filter((n) => n && typeof n.name === 'string').map((n) => n.name.split(/\s+/).slice(-1)[0]));
 for (const t of REQUIRED_TAGS) if (!tagSet.has(t)) err('TOWN_DATA.npcs', 'no NPC has the required tag "' + t + '"');
 if (connectedSecrets < Math.ceil(npcs.length / 2)) err('TOWN_DATA.npcs', 'only ' + connectedSecrets + ' secrets mention another NPC or a faction; need at least half');
 
@@ -571,6 +644,7 @@ if (connectedSecrets < Math.ceil(npcs.length / 2)) err('TOWN_DATA.npcs', 'only '
 if (factions.length !== 3) err('TOWN_DATA.factions', 'expected exactly 3 factions, found ' + factions.length);
 let clockTotal = 0;
 let negativePairs = 0;
+let failedThreads = 0;
 factions.forEach((f, i) => {
   const where = 'factions[' + i + '](' + (f && f.id) + ')';
   if (!checkKeys(f, ['id', 'name', 'goal', 'methods', 'clocks', 'activeClock', 'relations'], where)) return;
@@ -593,6 +667,10 @@ factions.forEach((f, i) => {
     else {
       effs.forEach((e, ei) => checkEffect(e, cw + '.onComplete.effects[' + ei + ']'));
       if (new Set(effs.map((e) => e && e.op)).size < 2) err(cw + '.onComplete.effects', 'use at least 2 different ops so the town visibly changes');
+      // Content note 2: every clock completion adds its own rumour, exactly one.
+      const rumourOps = effs.filter((e) => e && e.op === 'addRumour').length;
+      if (rumourOps !== 1) err(cw + '.onComplete.effects', 'needs exactly one addRumour describing the completion, found ' + rumourOps);
+      failedThreads += effs.filter((e) => e && e.op === 'threadStatus' && e.status === 'failed').length;
     }
   });
   if (!isObj(f.relations)) err(where, 'relations must be an object');
@@ -610,6 +688,8 @@ factions.forEach((f, i) => {
   }
 });
 if (factions.length === 3 && negativePairs < 2) err('TOWN_DATA.factions', 'relations should be mostly negative (at least 2 of 3 pairs)');
+// Content note 3: at most one clock sets a thread to failed.
+if (failedThreads > 1) err('TOWN_DATA.factions', 'at most one clock may set a thread to failed, found ' + failedThreads);
 
 // Threads
 if (threads.length < 2 || threads.length > 3) err('TOWN_DATA.threads', 'expected 2 or 3 threads, found ' + threads.length);
@@ -620,6 +700,13 @@ if (seeds.length < 5 || seeds.length > 8) err('TOWN_DATA.seeds', 'expected 5 to 
 seeds.forEach((s, i) => checkSeed(s, 'seeds[' + i + '](' + (s && s.id) + ')', true));
 const nonDaySeeds = seeds.filter((s) => s && s.trigger && s.trigger.type !== 'day').length;
 if (nonDaySeeds > 1) err('TOWN_DATA.seeds', 'at most one starting seed may use a non-day trigger, found ' + nonDaySeeds);
+seeds.forEach((s, i) => {
+  if (s && s.trigger && s.trigger.type === 'clock') err('seeds[' + i + '](' + s.id + ')', 'starting seeds use a day trigger, or one location/npc trigger');
+  // A location seed on a start location would fire on arrival, before the player has done anything.
+  if (s && s.trigger && s.trigger.type === 'location' && T.startLocationIds && (s.trigger.value === T.startLocationIds.gate || s.trigger.value === T.startLocationIds.docks)) {
+    err('seeds[' + i + '](' + s.id + ')', 'location trigger on a start location would fire on arrival');
+  }
+});
 
 // Rumours
 if (rumours.length !== 10) err('TOWN_DATA.rumours', 'expected exactly 10 rumours, found ' + rumours.length);
@@ -667,7 +754,8 @@ if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
           const gw = where + '[' + gi + ']';
           if (!checkKeys(g, ['name', 'price'], gw)) return;
           checkStr(g.name, gw + '.name', { noPlaceholders: true });
-          if (typeof g.price !== 'number' || !isInt(g.price) || g.price < 1 || g.price > 60) err(gw, 'price must be an integer number of silver, 1..60');
+          // Modern: whole dollars, small-town prices.
+          if (typeof g.price !== 'number' || !isInt(g.price) || g.price < PRICE_MIN || g.price > PRICE_MAX) err(gw, 'price must be an integer number of dollars, ' + PRICE_MIN + '..' + PRICE_MAX + ', found ' + JSON.stringify(g.price));
           if (typeof g.name === 'string') { if (seen.has(g.name.toLowerCase())) err(gw, 'duplicate good "' + g.name + '"'); seen.add(g.name.toLowerCase()); }
         });
       } else {
@@ -676,6 +764,9 @@ if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
     }
     if (group === 'npc' && Array.isArray(TABLES.npc.firstNames)) {
       TABLES.npc.firstNames.forEach((f) => { if (seenFirst.has(f)) err('TABLES.npc.firstNames', '"' + f + '" is already a cast first name'); });
+    }
+    if (group === 'npc' && Array.isArray(TABLES.npc.familyNames)) {
+      TABLES.npc.familyNames.forEach((f) => { if (castFamilyNames.has(f)) err('TABLES.npc.familyNames', '"' + f + '" is already a cast family name'); });
     }
   }
 }
@@ -699,12 +790,14 @@ const arrivals = new Set();
     }
     if (sum !== 3) err(where + '.stats', 'must total 3, found ' + sum);
   }
-  if (!isInt(b.gold) || b.gold < 5 || b.gold > 40) err(where + '.gold', 'must be an integer 5..40');
+  // Modern: starting cash in dollars (the field keeps the name "gold").
+  if (!isInt(b.gold) || b.gold < CASH_MIN || b.gold > CASH_MAX) err(where + '.gold', 'starting cash must be an integer ' + CASH_MIN + '..' + CASH_MAX + ' dollars');
   if (!Array.isArray(b.items) || b.items.length !== 2) err(where + '.items', 'needs exactly 2 items');
   else b.items.forEach((it, ii) => {
     const iw = where + '.items[' + ii + ']';
     if (!checkKeys(it, ['id', 'name', 'qty', 'notes'], iw)) return;
     checkStr(it.name, iw + '.name', { noPlaceholders: true });
+    if (typeof it.name === 'string' && VEHICLE_RE.test(it.name)) err(iw + '.name', 'starting items cannot be vehicles ("' + it.name + '")');
     if (!isInt(it.qty) || it.qty < 1) err(iw + '.qty', 'must be a positive integer');
     if (typeof it.notes !== 'string') err(iw + '.notes', 'must be a string');
     else if (it.notes) checkStr(it.notes, iw + '.notes', { noPlaceholders: true });
@@ -743,6 +836,9 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
     (Array.isArray(le.options) ? le.options : []).forEach((o, oi) => {
       if (typeof o === 'string' && !/\b(I|I'm|I've|I'd|my|me|mine)\b/i.test(o)) err(where + '.options[' + oi + ']', 'should be written in the first person');
     });
+    // Content note 4: the enemy always creates a new NPC; the debt links to a lender.
+    if (key === 'enemy' && le.link !== null) err(where + '.link', 'must be null (the enemy is always a new NPC)');
+    if (key === 'debt' && !(isObj(le.link) && le.link.tag === 'lender')) err(where + '.link', 'must be { tag: "lender" }');
     if (le.link !== null) {
       if (checkKeys(le.link, ['tag'], where + '.link')) {
         if (!tagSet.has(le.link.tag)) err(where + '.link.tag', 'no NPC carries the tag "' + le.link.tag + '"');
@@ -755,8 +851,10 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
     if (checkKeys(le.seed, ['dayOffset', 'effect', 'trigger'], where + '.seed')) {
       checkDayOffset(le.seed.dayOffset, where + '.seed.dayOffset', 2, 15);
       checkStr(le.seed.effect, where + '.seed.effect', { maxSentences: 1 });
-      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}']);
+      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}', '{player}']);
       if (['day', 'location', 'npc'].indexOf(le.seed.trigger) === -1) err(where + '.seed.trigger', 'must be "day", "location" or "npc"');
+      // Content note 4: loose-end seeds use day triggers counted from day 1.
+      else if (le.seed.trigger !== 'day') err(where + '.seed.trigger', 'loose-end seeds use "day"');
     }
   }
 }
@@ -777,7 +875,104 @@ checkTemplates(GRUDGE_TEMPLATES, 'GRUDGE_TEMPLATES');
 checkTemplates(FAVOUR_TEMPLATES, 'FAVOUR_TEMPLATES');
 
 // ---------------------------------------------------------------------------
-// 8. Report
+// 8. Modern: EXAMPLE_TURNS in index.html, the narrator prompt's three example turns.
+//    Same shape and length as SPEC.md section 9, and no person or place that
+//    exists in this town (they are introduced as being from a different town).
+// ---------------------------------------------------------------------------
+const SPEC_EXAMPLE_WORDS = [32, 31, 25]; // narration word counts of the SPEC.md section 9 examples
+const EXAMPLE_SCENES = [
+  { what: 'a creditor waiting in a bar who says what is owed', input: /\bbar\b/i, context: /^Seed due: /, narration: /\bowe\b/i },
+  { what: 'a failed lock pick on an office door, watched by a kid', input: /\block\b.*\boffice\b/i, context: /^Stealth \d+ vs \d+ · Failure · Complication: .+\.$/, narration: /\bkid\b/i },
+  { what: 'a mechanic who keeps working and asks if you are buying', input: /\bmechanic\b/i, context: /^Mechanic: .*attitude [−-]?\d+\.$/, narration: /buying something\?/i }
+];
+
+function properNouns(text) {
+  // Capitalised words that do not start a sentence: names and places.
+  const out = new Set();
+  const re = /[A-Za-z][A-Za-z'-]*/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const w = m[0];
+    if (!/^[A-Z][a-z]/.test(w)) continue;
+    const prev = text.slice(0, m.index).replace(/["'(\s]+$/, '');
+    if (prev === '' || /[.!?:;]$/.test(prev)) continue;
+    out.add(w.replace(/'s$/, '').replace(/'$/, ''));
+  }
+  return out;
+}
+
+function checkExamples() {
+  // The constant sits after the content block, in the page script.
+  const W = 'EXAMPLE_TURNS';
+  const at = html.indexOf('const EXAMPLE_TURNS = [');
+  if (at < 0) { err(W, 'index.html has no "const EXAMPLE_TURNS = [" constant'); return 0; }
+  const close = html.indexOf('\n];', at);
+  if (close < 0) { err(W, 'cannot find the end of EXAMPLE_TURNS'); return 0; }
+  let turns;
+  try {
+    turns = vm.runInNewContext(html.slice(at, close + 3) + '\n;EXAMPLE_TURNS', {}, { filename: 'index.html#EXAMPLE_TURNS', timeout: 5000 });
+  } catch (e) {
+    err(W, 'does not evaluate: ' + e.message);
+    return 0;
+  }
+  if (!Array.isArray(turns)) { err(W, 'must be an array'); return 0; }
+  // Every proper noun in the town: cast, places, factions, the town, tables.
+  const forbidden = new Set();
+  const addName = (s) => { if (typeof s === 'string') s.split(/\s+/).forEach((w) => { const t = w.replace(/^the$/i, '').replace(/'s$/, '').replace(/[^A-Za-z'-]/g, ''); if (/^[A-Z][a-z]/.test(t)) forbidden.add(t); }); };
+  addName(T.name);
+  npcs.forEach((n) => n && addName(n.name));
+  locations.forEach((l) => l && addName(l.name));
+  factions.forEach((f) => f && addName(f.name));
+  if (isObj(TABLES) && isObj(TABLES.npc)) {
+    (TABLES.npc.firstNames || []).forEach(addName);
+    (TABLES.npc.familyNames || []).forEach(addName);
+  }
+  const townText = [];
+  (function walk(v) {
+    if (typeof v === 'string') townText.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (isObj(v)) Object.keys(v).forEach((k) => walk(v[k]));
+  })([T, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES]);
+  townText.forEach((s) => properNouns(s).forEach((w) => forbidden.add(w)));
+  forbidden.delete('The');
+
+  if (turns.length !== 3) err(W, 'expected exactly 3 example turns, found ' + turns.length);
+  turns.forEach((turn, i) => {
+    const where = W + '[' + i + ']';
+    if (!checkKeys(turn, ['input', 'context', 'narration'], where)) return;
+    if (!['input', 'context', 'narration'].every((k) => isStr(turn[k]))) { err(where, 'input, context and narration must be non-empty strings'); return; }
+    if (/\(|\)/.test(turn.context.charAt(0) + turn.context.slice(-1))) err(where, 'context is written without the parentheses (the prompt adds them)');
+    const words = turn.narration.split(/\s+/).filter(Boolean).length;
+    const target = SPEC_EXAMPLE_WORDS[i];
+    if (target !== undefined && Math.abs(words - target) > 10) err(where, 'narration is ' + words + ' words; the SPEC.md example it replaces is ' + target);
+    if (words > 90) err(where, 'narration over the 90-word limit');
+    const sc = sentenceCount(turn.narration);
+    if (sc < 2 || sc > 6) err(where, 'narration should be 2 to 4 sentences plus dialogue, found ' + sc);
+    if (!/^I\b/.test(turn.input)) err(where, 'input should be a first-person action');
+    if (!/[.!?]$/.test(turn.context)) err(where, 'context should end with a full stop, as in SPEC.md');
+    const scene = EXAMPLE_SCENES[i];
+    if (scene) {
+      if (!scene.input.test(turn.input) || !scene.context.test(turn.context) || !scene.narration.test(turn.narration)) {
+        err(where, 'should be ' + scene.what + ' (input, context or narration does not match)');
+      }
+    }
+    for (const part of ['input', 'context', 'narration']) {
+      const s = turn[part];
+      const low = s.toLowerCase();
+      for (const p of BANNED_PHRASES) if (low.indexOf(p) !== -1) err(where + '.' + part, 'banned phrase "' + p + '"');
+      const v = vocabProblem(s);
+      if (v) err(where + '.' + part, v);
+      const hits = Array.from(forbidden).filter((w) => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(s));
+      if (hits.length) err(where + '.' + part, 'uses a name or place from this town: ' + hits.join(', '));
+    }
+    if (/^as you\b/i.test(turn.narration)) err(where, 'narration starts with "As you"');
+  });
+  return turns.length;
+}
+checkExamples();
+
+// ---------------------------------------------------------------------------
+// 9. Report
 // ---------------------------------------------------------------------------
 if (problems.length) report();
 

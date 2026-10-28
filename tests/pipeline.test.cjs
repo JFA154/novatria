@@ -655,9 +655,12 @@ s.test('modern vocabulary: plausibility and the mock parser know bartenders and 
   const arrested = await page.evaluate(() => {
     const G = Game;
     const n = G.state.npcs.find(x => x.status === 'free' && x.alive !== false && G.state.locations.some(l => Object.values(l.npcIdsBySchedule).some(a => a.includes(x.id))));
-    G.State.apply({ addLocations: [{ id: 'loc_test_police', name: 'Police Station', type: 'police', description: 'A test station.', exits: [G.state.player.locationId] }] });
+    // The town's own police station if it has one, otherwise a test one.
+    const own = G.state.locations.find(l => l.type === 'police');
+    if (!own) G.State.apply({ addLocations: [{ id: 'loc_test_police', name: 'Police Station', type: 'police', description: 'A test station.', exits: [G.state.player.locationId] }] });
+    const stationId = own ? own.id : 'loc_test_police';
     G.State.apply({ effects: [{ op: 'npcStatus', npcId: n.id, status: 'arrested' }] });
-    return Object.values(G.State.loc('loc_test_police').npcIdsBySchedule).every(a => a.includes(n.id));
+    return Object.values(G.State.loc(stationId).npcIdsBySchedule).every(a => a.includes(n.id));
   });
   assert.ok(arrested, 'arrested NPCs go to the police station');
 });

@@ -336,7 +336,7 @@ s.test('effect ops from the build plan all work through State.apply', async h =>
     out.moved = ['morning', 'afternoon', 'evening', 'night'].every(p => G.State.loc(loc.id).npcIdsBySchedule[p].includes(npc.id))
       && st().locations.filter(l => l.id !== loc.id).every(l => Object.values(l.npcIdsBySchedule).every(a => !a.includes(npc.id)));
     ok({ effects: [{ op: 'npcStatus', npcId: npc.id, status: 'arrested' }] });
-    const watch = st().locations.find(l => l.type === 'watch');
+    const watch = st().locations.find(l => l.type === 'police') || st().locations.find(l => l.type === 'watch');
     out.arrested = watch ? Object.values(watch.npcIdsBySchedule).every(a => a.includes(npc.id)) : st().locations.every(l => Object.values(l.npcIdsBySchedule).every(a => !a.includes(npc.id)));
     ok({ effects: [{ op: 'npcStatus', npcId: npc.id, status: 'free' }] });
     out.freed = G.State.npc(npc.id).status === 'free';
@@ -481,7 +481,7 @@ s.test('town data passes validation and every content constant has the contract 
   });
   assert.deepEqual(r.errors, []);
   assert.ok(r.asym, 'validation catches an asymmetric exit');
-  assert.deepEqual(r.townKeys, ['factions', 'locations', 'name', 'npcs', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads']);
+  assert.deepEqual(r.townKeys, ['currency', 'factions', 'locations', 'name', 'npcs', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads']);
   for (const k of r.locKeys) assert.deepEqual(k, ['closed', 'description', 'discovered', 'exits', 'id', 'name', 'npcIdsBySchedule', 'type']);
   for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
@@ -596,7 +596,28 @@ s.test('Town.plausible refuses the dragon and accepts the barmaid, for any locat
   assert.deepEqual(r.map(x => x.kind), ['item', 'npc', 'item', 'npc', 'location', 'npc']);
 });
 
-s.test('style guide and example turns are SPEC section 9 word for word; Style.check catches problems', async h => {
+/* The narrator's three example turns: SPEC.md section 9's examples rewritten
+   for the present day (docs/BUILD_PLAN.md, setting change), same shape and
+   length. Their people and places are from a different town. */
+const MODERN_EXAMPLES = [
+  {
+    input: 'I walk into the bar.',
+    context: 'Seed due: Charlene wants her $400.',
+    narration: 'The Tip Top is half empty this early. Charlene sits at the end of the bar with a beer going flat. She doesn\'t look up from her phone. "Sit," she says. "You owe me four hundred."'
+  },
+  {
+    input: 'I try to pick the lock on the insurance office door.',
+    context: 'Stealth 9 vs 15 · Failure · Complication: someone filmed it on their phone.',
+    narration: 'The pick slips and the pins drop back with a click that\'s louder than it should be. Across the street, a kid on a bike puts one foot down. He has his phone up.'
+  },
+  {
+    input: 'I ask the mechanic if he\'s heard anything about the bootleggers.',
+    context: 'Mechanic: gruff, short sentences, attitude −10.',
+    narration: 'He doesn\'t come out from under the hood. "Heard plenty. Doesn\'t mean I repeat it." He wipes his hands on a rag and looks past you at the empty lot. "You buying something?"'
+  }
+];
+
+s.test('style guide is SPEC section 9 word for word, the example turns are the modern three; Style.check catches problems', async h => {
   const spec = fs.readFileSync(path.join(ROOT, 'SPEC.md'), 'utf8');
   const sec = spec.split('## 9. Writing style guide')[1].split('## 10.')[0];
   const block = sec.split('```')[1].replace(/^\n/, '').replace(/\n$/, '');
@@ -615,10 +636,14 @@ s.test('style guide and example turns are SPEC section 9 word for word; Style.ch
     }
   }));
   assert.equal(r.guide, block);
-  assert.equal(r.ex.length, 3);
+  assert.deepEqual(r.ex, MODERN_EXAMPLES);
   for (const t of r.ex) {
-    assert.ok(sec.includes(`*Input:* ${t.input} *(${t.context})* ${t.narration}`), 'example verbatim: ' + t.input);
+    assert.ok(r.prompt.includes(`Input: ${t.input}\n(${t.context})\n${t.narration}`), 'example in the prompt: ' + t.input);
+    // None of the examples' people or places is in the game (they are introduced as another town's).
+    assert.ok(!sec.includes(t.narration), 'not the SPEC original: ' + t.input);
   }
+  const town = await page.evaluate(() => [Game.data.TOWN_DATA.name].concat(Game.data.TOWN_DATA.npcs.flatMap(n => n.name.split(' ')), Game.data.TOWN_DATA.locations.map(l => l.name.replace(/^The /, ''))));
+  for (const t of r.ex) for (const w of town) assert.ok(!(t.input + t.context + t.narration).includes(w), 'example names a person or place in this town: ' + w);
   assert.ok(r.prompt.startsWith(block));
   assert.ok(r.prompt.includes('EXAMPLES (from a different town; none of these people or places exist in this game):'));
   assert.equal(r.prompt, r.prompt2, 'byte-identical for caching');

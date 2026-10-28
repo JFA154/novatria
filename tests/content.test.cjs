@@ -15,14 +15,14 @@ const s = suite('content');
 const BEGIN = '// ===== BEGIN CONTENT =====';
 const END = '// ===== END CONTENT =====';
 
-s.test('the inlined town is the only town, with no placeholder data and no content/ staging folder', async h => {
+s.test('the inlined town is the only town, with no placeholder data and no content/ or content-modern/ staging folder', async h => {
   const html = fs.readFileSync(GAME_PATH, 'utf8');
   assert.equal(html.split(BEGIN).length, 2, 'BEGIN marker once');
   assert.equal(html.split(END).length, 2, 'END marker once');
   const block = html.slice(html.indexOf(BEGIN), html.indexOf(END));
   for (const name of ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES']) assert.match(block, new RegExp(`\\nconst ${name} = `), name);
   for (const gone of ['Tallow Ford', 'Hobb Tanner', 'Jory Pike', 'PLACEHOLDER', 'placeholder data']) assert.ok(!html.includes(gone), 'leftover: ' + gone);
-  assert.ok(!fs.existsSync(path.join(ROOT, 'content')), 'content/ was removed after inlining');
+  for (const dir of ['content', 'content-modern']) assert.ok(!fs.existsSync(path.join(ROOT, dir)), dir + '/ was removed after inlining');
   const page = await h.open();
   const info = await page.evaluate(() => ({ name: Game.data.TOWN_DATA.name, errors: Game.Town.validate(Game.data.TOWN_DATA), title: document.getElementById('title-name').textContent, doc: document.title, npcs: Game.data.TOWN_DATA.npcs.length, locs: Game.data.TOWN_DATA.locations.length }));
   assert.ok(info.name && block.includes(`name: "${info.name}",`), 'the town in the block is the town in the page');
