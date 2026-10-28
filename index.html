@@ -175,6 +175,8 @@ p { margin: 0 0 .8em; }
 .btn.small { min-height: var(--tap); padding: 0 12px; font-size: 14px; }
 .btn.danger { color: var(--danger); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.wrap { max-width: 100%; padding: 10px 16px; line-height: 1.3; }
+.hint.note { color: var(--text); }
 .label {
   display: block;
   font-size: 12px;
@@ -242,6 +244,10 @@ select.input { padding-right: 32px; }
 .title-setting { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.6; color: var(--muted); max-width: 34em; }
 .menu-list { display: grid; gap: 10px; max-width: 320px; margin-top: 24px; }
 .menu-list .btn { justify-content: flex-start; }
+.menu-row { display: flex; gap: 10px; min-width: 0; }
+.menu-row #btn-continue { flex: 1 1 auto; min-width: 0; }
+.menu-row #btn-update { flex: 0 1 auto; }
+.title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .title-foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
 
 /* Character creation */
@@ -703,6 +709,7 @@ select.input { padding-right: 32px; }
 .slot-name { font-weight: 600; display: block; overflow-wrap: anywhere; }
 .slot-meta { color: var(--muted); font-size: 13px; display: block; overflow-wrap: anywhere; }
 .slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot-note { color: var(--accent); font-size: 13px; display: block; }
 #slot-list { margin-bottom: 24px; }
 
 /* ===== Layout switches ===== */
@@ -781,7 +788,11 @@ select.input { padding-right: 32px; }
         <p id="title-setting" class="title-setting"></p>
         <div class="menu-list">
           <button type="button" class="btn primary" id="btn-new">New game</button>
-          <button type="button" class="btn" id="btn-continue">Continue</button>
+          <div class="menu-row">
+            <button type="button" class="btn" id="btn-continue">Continue</button>
+            <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
+          </div>
+          <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
           <button type="button" class="btn" id="btn-load">Load</button>
           <button type="button" class="btn" id="btn-settings">Settings</button>
         </div>
@@ -960,6 +971,15 @@ select.input { padding-right: 32px; }
                 <label><input type="radio" name="set-size" value="M"> Medium</label>
                 <label><input type="radio" name="set-size" value="L"> Large</label>
               </div>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Game</legend>
+            <div class="field">
+              <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form. About one API call (none in mock mode).</p>
+              <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
+              <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
           </fieldset>
         </form>
@@ -2754,7 +2774,10 @@ const Tables = (() => {
      is there for the current day and phase only, whatever their schedule
      says), npcHome ([{ npcId, locationId, phases }]: a schedule for an NPC
      who had none) and rumourToldBy ([{ rumourId, npcId }]: who told the
-     player a heard rumour, when it was not its source).
+     player a heard rumour, when it was not its source); and Upgrade's own:
+     setMemories ([{ npcId, memories: [{ turn, text, weight }] }]: a person's
+     memories replaced outright, in the order given, at most MEMORY_MAX) and
+     rulesVersion (the rules the game has been brought up to).
    A logEntry also notes who the player saw: state.seen[npcId] = { locationId,
    day, phase, turn } for everyone present with them in the narrated scene
    (People: "Last seen"). Display only; no model ever reads it.
@@ -2771,6 +2794,13 @@ const State = (() => {
   const MEMORY_MAX = 12; // per person; the oldest, lightest go first (State.apply newMemories)
   const MEMORY_TEXT_MAX = 120;
   const MEMORY_STALE_TURNS = 30; // weight-1 memories older than this are forgotten when a new one arrives
+  /* The rules a game has been brought up to: meta.rulesVersion (a save
+     without it reads as 1, see rulesVersion()). A new game starts at
+     RULES_VERSION. When the rules change in a way an older game should catch
+     up with, bump it and add the step to Upgrade.MIGRATIONS. 2: "Memories
+     that matter" (short memories, only what a person would hold against the
+     player or thank them for). */
+  const RULES_VERSION = 2;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -2782,7 +2812,7 @@ const State = (() => {
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy'];
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -3193,9 +3223,7 @@ const State = (() => {
     each('newMemories', m => {
       if (!isObj(m)) bad('must be an object');
       const n = needNpc(m.npcId);
-      let text = cleanText(m.text, 400);
-      if (source === 'model') text = text.replace(/^(remembers|memory)\s*[:-]\s*/i, '').replace(/\.$/, '');
-      if (source === 'model' && text.length > MEMORY_TEXT_MAX) { text = text.slice(0, MEMORY_TEXT_MAX); const sp = text.lastIndexOf(' '); if (sp > 60) text = text.slice(0, sp); }
+      const text = source === 'model' ? shortMemory(m.text) : cleanText(m.text, 400);
       if (!text) bad('memory needs text');
       const w = clamp(toInt(m.weight) || 1, 1, 3);
       // The model gets one memory per person per turn: a heavier one replaces a lighter one from the same turn, a lighter one is dropped.
@@ -3513,8 +3541,48 @@ const State = (() => {
       });
       return `loose end ${le.kind} -> ${le.npcId}`;
     });
+    // ----- bringing an older game up to date (Upgrade) -----
+    each('setMemories', e => {
+      if (!isObj(e)) bad('must be an object');
+      const n = needNpc(e.npcId);
+      if (!Array.isArray(e.memories)) bad('memories must be an array');
+      if (e.memories.length > MEMORY_MAX) bad(`at most ${MEMORY_MAX} memories per person (got ${e.memories.length})`);
+      const list = e.memories.map((m, i) => {
+        if (!isObj(m)) bad(`memories[${i}] must be an object`);
+        const text = cleanText(m.text, 400);
+        if (!text) bad(`memories[${i}] needs text`);
+        if (!Number.isInteger(m.turn) || m.turn < 0 || m.turn > s.meta.turn) bad(`memories[${i}]: turn must be 0 to ${s.meta.turn}`);
+        if (!Number.isInteger(m.weight) || m.weight < 1 || m.weight > 3) bad(`memories[${i}]: weight must be 1, 2 or 3`);
+        return Object.assign({ turn: m.turn, text, weight: m.weight }, m.model === true ? { model: true } : {});
+      });
+      const before = (n.memories || []).length;
+      n.memories = list;
+      return `${n.id} memories rewritten (${before} -> ${list.length})`;
+    });
+    one('rulesVersion', v => {
+      if (!Number.isInteger(v) || v < 1 || v > RULES_VERSION) bad(`must be a whole number from 1 to ${RULES_VERSION}`);
+      if (s.meta.rulesVersion === v) return null;
+      const before = rulesVersion(s);
+      s.meta.rulesVersion = v;
+      return `rules version ${before} -> ${v}`;
+    });
 
     return finish(result, source);
+  }
+  /* A model's memory line, made short: no "Remembers:" label or full stop,
+     at most MEMORY_TEXT_MAX characters, cut at a word (the bookkeeper's
+     newMemories and Upgrade's rewrite). */
+  function shortMemory(v) {
+    let text = cleanText(v, 400).replace(/^(remembers|memory)\s*[:-]\s*/i, '').replace(/\.$/, '');
+    if (text.length > MEMORY_TEXT_MAX) { text = text.slice(0, MEMORY_TEXT_MAX); const sp = text.lastIndexOf(' '); if (sp > 60) text = text.slice(0, sp); }
+    return text;
+  }
+  /* The rules a game is up to: meta.rulesVersion, or 1 for a save from
+     before the field existed. Loading never adds it, so an older save stays
+     exactly as it was until it is updated. */
+  function rulesVersion(st) {
+    const v = st && isObj(st.meta) ? st.meta.rulesVersion : undefined;
+    return Number.isInteger(v) && v >= 1 ? v : 1;
   }
 
   function finish(result, source) {
@@ -3579,7 +3647,7 @@ const State = (() => {
     t.factions.forEach(f => { reputation[f.id] = 0; });
     const st = {
       version: 1,
-      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0 },
+      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION },
       time: { day: 1, phase: 'morning', shorts: 0 },
       flags: { priceMultiplier: 1, weather: '', season: 'spring' },
       player: {
@@ -3725,6 +3793,7 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
+    RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
@@ -4652,6 +4721,9 @@ const Style = (() => {
      bookkeep(packet)         -> record_changes object (applied with source 'model');
                                  packet = { text, context }
      chronicle(entries)       -> summary string (entries are log entries)
+     rewriteMemories(packet)  -> { people: [{ npcId, memories: [{ from, text, weight }] }] };
+                                 packet from Upgrade.memoryPacket() (an older game's
+                                 memories brought up to the current rules; parser model)
    Any of them may instead resolve to a refusal { refused: true, role,
    category, explanation }, which the Pipeline turns into an in-feed notice.
    Failures throw ApiError with a player-facing message (err.detail holds the
@@ -4665,7 +4737,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -4682,10 +4754,15 @@ const Api = (() => {
      line says whether the input is something done (do) or the player's
      exact words (say; the composer's Do / Say toggle), with one more for
      running off in do mode. Short and static:
-     everything volatile goes in the user message as a labelled packet. */
+     everything volatile goes in the user message as a labelled packet.
+     MEMORY_RULES is the bookkeeper's memory rule; the memory rewrite
+     (Upgrade) states it word for word, so an updated game holds the same
+     kind of memory a new one records. */
+  const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
-    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).",
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + MEMORY_RULES,
+    memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these 10 turns in under 80 words: what the player did, who they met, what changed, what's unresolved. Past tense, plain facts."
   };
 
@@ -4739,6 +4816,16 @@ const Api = (() => {
       })),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
+    }),
+    rewrite_memories: obj({
+      people: list(obj({
+        npcId: STR,
+        memories: list(obj({
+          from: list(INT, 'The numbers of the listed memories this line comes from: one, or several when it merges them'),
+          text: { type: 'string', description: "Under twelve words, from this person's point of view, only for something they would hold against the player or thank them for; no scene detail." },
+          weight: { type: 'integer', enum: [1, 2, 3], description: '1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help)' }
+        }), 'At most 6, oldest first; empty when nothing is worth keeping')
+      }), 'Every person listed, in the order given')
     })
   };
 
@@ -4778,7 +4865,9 @@ const Api = (() => {
     return total;
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
-  function roleEffort(role) { const e = Storage.settings().effort || {}; return EFFORTS.includes(e[role]) ? e[role] : 'low'; }
+  /* The memory rewrite (Upgrade) is the bookkeeper's judgement applied to old memories, so it thinks at the bookkeeper's effort. */
+  const EFFORT_OF = { memories: 'bookkeeper' };
+  function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
   }
@@ -4839,6 +4928,7 @@ const Api = (() => {
                                         without text, the usual mock narration)
        Mock.queue('bookkeep', { goldDelta: 5 })                  merged over the default diff
        Mock.queue('chronicle', 'Summary.')
+       Mock.queue('rewriteMemories', { people: [...] })         instead of the rule-based rewrite
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -5088,6 +5178,25 @@ const Api = (() => {
     return body.concat(due).join(' ');
   }
   function joinAnd(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
+  /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
+     line to its first twelve words, merge lines that come out the same (from
+     lists them all), and keep at most six per person (the heaviest, then the
+     newest), in their original order. */
+  function mockRewrite(packet) {
+    return {
+      people: (packet.people || []).map(p => {
+        const lines = [];
+        for (const m of p.memories || []) {
+          if (!(m.weight >= 2)) continue;
+          const text = String(m.text || '').split(/\s+/).filter(Boolean).slice(0, 12).join(' ').replace(/[,;:.]+$/, '');
+          const same = lines.find(x => x.text.toLowerCase() === text.toLowerCase());
+          if (same) { same.from.push(m.n); same.weight = Math.max(same.weight, m.weight); } else lines.push({ from: [m.n], text, weight: m.weight, at: lines.length });
+        }
+        const keep = lines.slice().sort((a, b) => b.weight - a.weight || b.at - a.at).slice(0, 6);
+        return { npcId: p.npcId, memories: lines.filter(x => keep.includes(x)).map(x => ({ from: x.from, text: x.text, weight: x.weight })) };
+      })
+    };
+  }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
@@ -5137,7 +5246,7 @@ const Api = (() => {
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -5198,6 +5307,12 @@ const Api = (() => {
       const auto = `Turns ${from} to ${to}${days.length ? `, day ${days[0]} to day ${days[days.length - 1]}` : ''} (mock chronicle): ${did.length ? did.join('; ') : 'nothing of note'}.`;
       const summary = auto.split(/\s+/).slice(0, 79).join(' ');
       return { result: typeof canned === 'string' ? canned : summary, usage: MOCK_ZERO, model: 'mock' };
+    },
+    async rewriteMemories(packet) {
+      const canned = Mock.take('rewriteMemories', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      await sleep(Mock.delay);
+      return { result: isObj(canned) && Array.isArray(canned.people) ? canned : mockRewrite(packet || {}), usage: MOCK_ZERO, model: 'mock' };
     }
   };
 
@@ -5331,6 +5446,7 @@ const Api = (() => {
     parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
     bookkeep(packet) { return messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.record_changes }); },
     chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
+    rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     async narrate(packet, onDelta) {
       const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
       const { res, requestId } = await post('narrator', body);
@@ -5370,7 +5486,7 @@ const Api = (() => {
     return out.result;
   }
   return {
-    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY,
+    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, roleModel, roleEffort, isRefusal, readStream, chronicleText,
     providerName: () => provider().name,
@@ -5378,8 +5494,153 @@ const Api = (() => {
     parse: packet => call('parser', 'parse', [packet]),
     narrate: (packet, onDelta) => call('narrator', 'narrate', [packet, onDelta]),
     bookkeep: packet => call('bookkeeper', 'bookkeep', [packet]),
-    chronicle: entries => call('chronicle', 'chronicle', [entries])
+    chronicle: entries => call('chronicle', 'chronicle', [entries]),
+    rewriteMemories: packet => call('memories', 'rewriteMemories', [packet])
   };
+})();
+
+// ===== Module: Upgrade =====
+/* Bringing a game saved under older rules up to date. state.meta.rulesVersion
+   says which rules a game has been brought up to (State.RULES_VERSION for a
+   new game; a save without it reads as 1). MIGRATIONS is the ordered list of
+   steps, { version, title, rerun, run(state, api) -> summary }; run makes its
+   changes through State.apply and resolves to { text, ... } for the feed, or
+   throws (a refusal throws { refused: true }). Pipeline.updateGame runs the
+   steps newer than the game, or at the current version the ones marked
+   rerun ("Re-read this game with the latest rules"), as one State batch and
+   one /undo step, then stamps the version. A game that is not updated plays
+   on exactly as it is.
+
+   Version 2, "Memories that matter": the bookkeeper now records only what a
+   person would hold against the player or thank them for, one short line
+   from their point of view (Api.MEMORY_RULES). Older games hold long
+   play-by-play memories. Everyone with a memory the engine did not write
+   itself (PROTECTED: the loose-end lines and story-point facts, which stay
+   exactly as they are) goes to the parser model in one structured-output
+   call (split by person past CHUNK memories), which returns each person's
+   kept lines as { from: [numbers], text, weight }. A line keeps the earliest
+   turn of the memories it came from, is cut like a bookkeeper memory
+   (State.shortMemory) and a person keeps at most PER_PERSON; the result
+   replaces their memories through State.apply({ setMemories }). */
+const Upgrade = (() => {
+  const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
+  const PER_PERSON = 6;
+  const CHUNK = 40;
+  const NOTICES = {
+    start: 'Updating this game to the latest rules...',
+    refused: 'The model declined to re-read this game, so nothing was changed. You can keep playing it as it is.',
+    failed: 'Nothing was changed; the game is as it was.'
+  };
+  function isProtected(m) { return !!m && PROTECTED.some(re => re.test(String(m.text || ''))); }
+  function behind(st) { return !!st && State.rulesVersion(st) < State.RULES_VERSION; }
+  function pending(st) {
+    const v = State.rulesVersion(st);
+    const due = MIGRATIONS.filter(m => m.version > v);
+    return due.length ? due : MIGRATIONS.filter(m => m.rerun);
+  }
+  function note(st, reason) { State.debugLog.push({ turn: st ? st.meta.turn : 0, kind: 'upgrade', reason }); }
+  const open = n => (n.memories || []).filter(m => !isProtected(m));
+
+  // ----- version 2: memories that matter -----
+  /* Everyone with at least one memory the rewrite may touch, in groups of
+     about CHUNK memories (a person is never split). */
+  function candidates(st) { return st.npcs.filter(n => open(n).length > 0); }
+  function chunks(npcs) {
+    const out = [];
+    let cur = [];
+    let size = 0;
+    for (const n of npcs) {
+      const k = open(n).length;
+      if (cur.length && size + k > CHUNK) { out.push(cur); cur = []; size = 0; }
+      cur.push(n);
+      size += k;
+    }
+    if (cur.length) out.push(cur);
+    return out;
+  }
+  /* The packet for Api.rewriteMemories: structured (the mock reads people)
+     and as labelled text (the model reads text). Memories are numbered from 1
+     per person; the protected ones are not sent. */
+  function memoryPacket(st, npcs) {
+    const people = npcs.map(n => ({
+      npcId: n.id, name: n.name, role: n.role || '',
+      memories: open(n).map((m, i) => ({ n: i + 1, turn: m.turn, weight: m.weight, text: m.text }))
+    }));
+    const head = `PLAYER: ${st.player.name}\nTURN NOW: ${st.meta.turn}`;
+    const blocks = people.map(p => [`PERSON ${p.npcId} — ${p.name}${p.role ? ` (${p.role})` : ''}`]
+      .concat(p.memories.map(m => `${m.n}. [turn ${m.turn}, weight ${m.weight}] ${m.text}`)).join('\n'));
+    return { playerName: st.player.name, turn: st.meta.turn, people, text: [head].concat(blocks).join('\n\n') };
+  }
+  /* The heaviest, then the newest, kept in their order. */
+  function capLines(lines, max) {
+    if (lines.length <= max) return lines;
+    const keep = lines.map((l, i) => ({ l, i })).sort((a, b) => b.l.weight - a.l.weight || b.l.turn - a.l.turn || b.i - a.i).slice(0, max).map(x => x.l);
+    return lines.filter(l => keep.includes(l));
+  }
+  /* One person's reply, made safe: only numbers that were sent, the earliest
+     turn of the memories a line came from, the text cut like a bookkeeper
+     memory, at most PER_PERSON lines and room left under State.MEMORY_MAX. */
+  function cleanReply(st, n, reply) {
+    const sent = open(n);
+    const lines = [];
+    for (const raw of Array.isArray(reply.memories) ? reply.memories : []) {
+      if (!isObj(raw)) continue;
+      const text = State.shortMemory(raw.text);
+      const from = Array.from(new Set((Array.isArray(raw.from) ? raw.from : []).map(toInt))).filter(k => k !== null && k >= 1 && k <= sent.length);
+      if (!text) continue;
+      if (!from.length) { note(st, `${n.id}: dropped "${text}" (it names no memory it came from)`); continue; }
+      const src = from.map(k => sent[k - 1]);
+      const line = { turn: Math.min(...src.map(m => (Number.isInteger(m.turn) ? m.turn : 0))), text, weight: clamp(toInt(raw.weight) || 1, 1, 3) };
+      if (src.some(m => m.model === true)) line.model = true;
+      lines.push(line);
+    }
+    const room = Math.max(0, State.MEMORY_MAX - (n.memories.length - sent.length));
+    const kept = capLines(lines, Math.min(PER_PERSON, room));
+    if (kept.length < lines.length) note(st, `${n.id}: kept ${kept.length} of ${lines.length} rewritten lines (at most ${Math.min(PER_PERSON, room)})`);
+    return kept;
+  }
+  async function rewriteMemories(st, api) {
+    const npcs = candidates(st);
+    const res = { people: 0, before: 0, after: 0, calls: 0 };
+    if (!npcs.length) return Object.assign(res, { text: 'Nobody had any memories to rewrite.' });
+    const replies = new Map();
+    for (const group of chunks(npcs)) {
+      const reply = await api.rewriteMemories(memoryPacket(st, group));
+      res.calls += 1;
+      if (Api.isRefusal(reply)) throw Object.assign(new Error('refused'), { refused: true, refusal: reply });
+      if (State.current !== st) throw Object.assign(new Error('another game was loaded'), { replaced: true });
+      for (const p of isObj(reply) && Array.isArray(reply.people) ? reply.people : []) {
+        if (!isObj(p) || typeof p.npcId !== 'string' || replies.has(p.npcId)) continue;
+        if (!group.some(n => n.id === p.npcId)) { note(st, `the reply named ${p.npcId}, who was not asked about; ignored`); continue; }
+        replies.set(p.npcId, p);
+      }
+    }
+    const setMemories = [];
+    for (const n of npcs) {
+      const r = replies.get(n.id);
+      if (!r) { note(st, `${n.id} was missing from the reply; their memories are as they were`); continue; }
+      const sent = open(n);
+      const lines = cleanReply(st, n, r);
+      // The protected lines exactly as they were, then the rewritten ones, in turn order.
+      const all = n.memories.filter(isProtected).map((m, i) => ({ m, k: 0, i })).concat(lines.map((m, i) => ({ m, k: 1, i })));
+      all.sort((a, b) => ((a.m.turn | 0) - (b.m.turn | 0)) || (a.k - b.k) || (a.i - b.i));
+      setMemories.push({ npcId: n.id, memories: all.map(x => x.m) });
+      res.people += 1;
+      res.before += sent.length;
+      res.after += lines.length;
+    }
+    if (!res.people) throw new Error('the reply did not cover anyone it was asked about');
+    const applied = State.apply({ setMemories });
+    if (applied.rejected.length) throw new Error('the engine refused the rewrite: ' + applied.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+    const count = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    res.text = `Rewrote memories for ${count(res.people, 'person', 'people')}: ${count(res.before, 'memory', 'memories')} became ${res.after}.`;
+    return res;
+  }
+
+  const MIGRATIONS = Object.freeze([
+    Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories })
+  ]);
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply };
 })();
 
 // ===== Module: Pipeline =====
@@ -6477,7 +6738,65 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return { noteIntroductions, reroll, pickMemories,
+  /* Bring the loaded game up to the current rules (Upgrade.pending: the
+     steps newer than the game, or at the current version the ones that
+     re-read it). Like a turn: the composer is busy, the feed says what is
+     happening, and it is all one State batch (one autosave, one render)
+     after one snapshot, which stays as an /undo step when something changed.
+     A refusal or an error restores the state exactly and the feed says why;
+     the API's own words are in the debug view. Resolves to { ok, summaries,
+     from, to, changed } or { ok: false, reason }. */
+  async function updateGame() {
+    const s = State.current;
+    if (!s || State.muted) return { ok: false, reason: 'no game' };
+    if (busy) return { ok: false, reason: 'busy' };
+    busy = true;
+    UI.setBusy(true);
+    Api.beginTurn();
+    const from = State.rulesVersion(s);
+    const steps = Upgrade.pending(s);
+    UI.feed.notice(Upgrade.NOTICES.start);
+    const snap = State.snapshot();
+    State.beginBatch();
+    turnState = s;
+    try {
+      const summaries = [];
+      for (const m of steps) {
+        const sum = await m.run(s, Api);
+        if (State.current !== s) return { ok: false, reason: 'replaced' };
+        const r = State.apply({ rulesVersion: Math.max(m.version, State.rulesVersion(s)) });
+        if (r.rejected.length) throw new Error(r.rejected[0].reason);
+        summaries.push(Object.assign({ version: m.version, title: m.title }, sum));
+      }
+      const to = State.rulesVersion(State.current);
+      const text = summaries.map(x => x.text).join(' ');
+      // Nothing changed (a re-read that kept every line): not worth an /undo step.
+      const changed = JSON.stringify(State.current) !== snap;
+      if (!changed) State.restore(snap);
+      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${to}: ${text}` });
+      UI.feed.notice(text);
+      return { ok: true, summaries, from, to, changed };
+    } catch (err) {
+      if (State.current !== s) return { ok: false, reason: 'replaced' };
+      State.restore(snap);
+      if (err && err.refused) {
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `refused${err.refusal && err.refusal.category ? ` (${err.refusal.category})` : ''}` });
+        UI.feed.notice(Upgrade.NOTICES.refused);
+        return { ok: false, reason: 'refused' };
+      }
+      console.error(err);
+      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `failed: ${(err && (err.type ? `${err.type}: ` : '') + (err.detail || err.message)) || err}` });
+      const msg = err instanceof Api.ApiError ? err.message : `Something went wrong: ${(err && err.message) || err}.`;
+      UI.feed.notice(`${msg} ${Upgrade.NOTICES.failed}`, 'error');
+      return { ok: false, reason: 'error', error: err && err.type };
+    } finally {
+      turnState = null;
+      State.endBatch();
+      busy = false;
+      UI.setBusy(false);
+    }
+  }
+  return { noteIntroductions, reroll, pickMemories, updateGame,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
@@ -6720,13 +7039,15 @@ const UI = (() => {
     'tb-save', 'tb-settings', 'tb-panel', 'tb-menu', 'menu-pop', 'game-body', 'feed-scroll', 'feed', 'new-btn', 'ac', 'cmd', 'send',
     'panel', 'panel-tabs', 'panel-close', 'panel-body', 'settings-form', 'set-key', 'set-remember', 'set-mock', 'set-narrator-model',
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
-    'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say'];
+    'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
     // Title
     d.btnNew.addEventListener('click', () => App.newGame());
     d.btnContinue.addEventListener('click', () => App.continueGame());
+    d.btnUpdate.addEventListener('click', () => App.updateSave('autosave'));
     d.btnLoad.addEventListener('click', () => showScreen('saves'));
     d.btnSettings.addEventListener('click', () => showScreen('settings'));
     d.btnTheme.addEventListener('click', toggleTheme);
@@ -6775,6 +7096,7 @@ const UI = (() => {
     d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
     d.settingsForm.addEventListener('submit', e => e.preventDefault());
     d.settingsDone.addEventListener('click', back);
+    d.setReread.addEventListener('click', () => App.updateGame());
     d.settingsQuit.addEventListener('click', () => App.quitToTitle());
     d.savesDone.addEventListener('click', back);
     d.btnExport.addEventListener('click', () => { try { Storage.exportSave(); toast('Exported.'); } catch (e) { d.savesError.textContent = e.message; } });
@@ -6852,7 +7174,13 @@ const UI = (() => {
     document.title = t.name;
     d.btnNew.disabled = busy;
     d.btnLoad.disabled = busy;
-    d.btnContinue.disabled = busy || !Storage.hasAutosave();
+    // An autosave under older rules: Continue plays it as it is; Update brings it up to date first.
+    const auto = Storage.loadAutosave();
+    const behind = !!auto && Upgrade.behind(auto.state);
+    d.btnContinue.disabled = busy || !auto;
+    d.btnUpdate.hidden = !behind;
+    d.btnUpdate.disabled = busy;
+    d.titleUpdateNote.hidden = !behind;
     d.titleMode.textContent = Storage.settings().mockMode ? 'Mock mode is on: no API calls.' : '';
   }
 
@@ -7517,11 +7845,11 @@ const UI = (() => {
       const events = World.recent.slice(-20).map(e => `turn ${e.turn} day ${e.day} ${e.phase}: ${e.text}`).join('\n');
       const rep = Object.keys(s.player.reputation).map(k => `${k} ${s.player.reputation[k]} (${State.reputationTier(k)})`).join(', ');
       const rejects = State.debugLog.filter(x => x.kind === 'rejected' || x.kind === 'style').slice(-15).map(x => x.kind === 'style' ? `turn ${x.turn} style (try ${x.attempt || 1}${x.kept ? ', kept' : ''}): ${x.problems.map(p => p.detail).join('; ')}` : `turn ${x.turn} ${x.source} ${x.path}: ${x.reason}`).join('\n');
-      const apiErrors = State.debugLog.filter(x => x.kind === 'api' || x.kind === 'chronicle').slice(-8).map(x => x.kind === 'chronicle' ? `turn ${x.turn} chronicle: ${x.reason}` : `turn ${x.turn} ${x.role}${x.status ? ' HTTP ' + x.status : ''}${x.requestId ? ' ' + x.requestId : ''}: ${x.reason}`).join('\n');
+      const apiErrors = State.debugLog.filter(x => x.kind === 'api' || x.kind === 'chronicle' || x.kind === 'upgrade').slice(-8).map(x => x.kind === 'chronicle' || x.kind === 'upgrade' ? `turn ${x.turn} ${x.kind === 'upgrade' ? 'update' : 'chronicle'}: ${x.reason}` : `turn ${x.turn} ${x.role}${x.status ? ' HTTP ' + x.status : ''}${x.requestId ? ' ' + x.requestId : ''}: ${x.reason}`).join('\n');
       const u = Api.usage;
       const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
       return el('div', { class: 'dbg' },
-        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
         el('h3', null, 'Faction clocks'), pre((clocks || '-') + forced),
         el('h3', null, 'Due events'), pre([due, visits].filter(Boolean).join('\n') || 'none'),
         el('h3', null, 'Seeds'), pre(seeds || '-'),
@@ -7631,7 +7959,10 @@ const UI = (() => {
     d.btnLoad.disabled = busy;
     d.btnImport.disabled = busy;
     if (screen === 'title') d.btnContinue.disabled = busy || !Storage.hasAutosave();
+    d.btnUpdate.disabled = busy;
+    d.setReread.disabled = busy || !gameLoaded();
     $$('[data-action="load"]', d.slotList).forEach(btn => { btn.disabled = busy || btn.dataset.filled !== '1'; });
+    $$('[data-action="update"]', d.slotList).forEach(btn => { btn.disabled = busy; });
     // A turn has started: a "Go to" chip on the map goes away.
     if (busy && mapPick) setPick(null);
   }
@@ -7770,7 +8101,12 @@ const UI = (() => {
     $$('input[name="set-size"]').forEach(r => { r.checked = r.value === s.textSize; });
     $$('input[name="set-style"]').forEach(r => { r.checked = r.value === s.narrationStyle; });
     d.settingsQuit.hidden = !App.inGame();
+    const loaded = gameLoaded();
+    d.setReread.disabled = busy || !loaded;
+    d.setRereadNone.hidden = loaded;
+    d.setRereadBehind.hidden = !(loaded && Upgrade.behind(State.current));
   }
+  function gameLoaded() { return App.inGame() && !!State.current && !State.muted; }
   function onSettingsChange(e) {
     const t = e.target;
     if (t === d.setKey || t === d.setRemember) { Storage.setApiKey(d.setKey.value, d.setRemember.checked); return; }
@@ -7797,11 +8133,14 @@ const UI = (() => {
     const when = env.savedAt ? new Date(env.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
     return `${s.player || '?'} · Day ${s.day} ${capFirst(s.phase || '')} · ${s.location || ''}${when ? ' · ' + when : ''}`;
   }
+  /* A save made under older rules (Upgrade): it loads and plays as it is; Update brings it up to date. */
+  const saveBehind = env => !!env && !env.broken && Upgrade.behind(env.state);
   function slotRow(label, env, actions, id) {
     return el('div', { class: 'slot', id },
       el('div', { class: 'slot-info' },
         el('span', { class: 'slot-name' }, label),
-        el('span', { class: 'slot-meta' }, env && !env.broken ? slotMeta(env) : env && env.broken ? 'Damaged save' : 'Empty')),
+        el('span', { class: 'slot-meta' }, env && !env.broken ? slotMeta(env) : env && env.broken ? 'Damaged save' : 'Empty'),
+        saveBehind(env) ? el('span', { class: 'slot-note' }, 'Saved under older rules') : null),
       el('div', { class: 'slot-actions' }, actions));
   }
   function renderSaves() {
@@ -7812,9 +8151,10 @@ const UI = (() => {
     d.btnExport.disabled = !inGame;
     d.btnImport.disabled = busy;
     const loadBtn = (filled, onclick) => el('button', { type: 'button', class: 'btn small', 'data-action': 'load', dataset: { filled: filled ? '1' : '' }, disabled: busy || !filled, onclick }, 'Load');
+    const updateBtn = (env, onclick) => (saveBehind(env) ? el('button', { type: 'button', class: 'btn small', 'data-action': 'update', disabled: busy, onclick, title: 'Load this game and update it to the latest rules' }, 'Update') : null);
     const rows = [];
     const auto = Storage.peek(Storage.KEYS.autosave);
-    rows.push(slotRow('Autosave', auto, [loadBtn(!!auto && !auto.broken, () => App.continueGame())], 'slot-auto'));
+    rows.push(slotRow('Autosave', auto, [loadBtn(!!auto && !auto.broken, () => App.continueGame()), updateBtn(auto, () => App.updateSave('autosave'))], 'slot-auto'));
     Storage.listSlots().forEach((env, i) => {
       const n = i + 1;
       const filled = env && !env.broken;
@@ -7831,6 +8171,7 @@ const UI = (() => {
           if (env2) { toast(`Saved to slot ${n}.`); d.saveName.value = ''; renderSaves(); }
         } }, filled ? 'Overwrite' : 'Save here') : null,
         loadBtn(filled, () => App.loadSlot(n)),
+        updateBtn(env, () => App.updateSave(n)),
         del
       ], 'slot-' + n));
     });
@@ -8293,15 +8634,38 @@ const App = (() => {
     UI.toast(`Loaded "${env.name}".`);
     return true;
   }
+  /* Settings, "Re-read this game with the latest rules": the loaded game is
+     brought up to date (or re-read at the current version) on the game
+     screen, where the feed shows how it went. */
+  function updateGame() {
+    if (turnRunning()) return Promise.resolve({ ok: false, reason: 'busy' });
+    if (!inGame || !State.current || State.muted) return Promise.resolve({ ok: false, reason: 'no game' });
+    UI.showScreen('game');
+    return Pipeline.updateGame();
+  }
+  /* The title screen's "Update this game" and the Saves screen's Update:
+     load that save ('autosave' or a slot number) and update it. The game
+     stays loaded and is autosaved; a slot is also written back under its
+     name, so it no longer shows as older. */
+  async function updateSave(which) {
+    if (turnRunning()) return { ok: false, reason: 'busy' };
+    const slot = which === 'autosave' ? 0 : toInt(which);
+    const env = slot ? Storage.loadSlot(slot) : Storage.loadAutosave();
+    if (!env) { UI.toast('There is no such save.'); return { ok: false, reason: 'missing' }; }
+    if (!(slot ? loadSlot(slot) : continueGame())) return { ok: false, reason: 'load' };
+    const r = await Pipeline.updateGame();
+    if (r.ok && slot && State.current) { if (Storage.saveSlot(slot, env.name)) UI.toast(`Updated "${env.name}".`); }
+    return r;
+  }
   function quitToTitle() { inGame = false; UI.showScreen('title'); }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, updateGame, updateSave, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Tables, State, Town, World, Style, Api, Pipeline, Storage, UI, Commands, App, npcLabel,
+  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })

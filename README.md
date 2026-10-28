@@ -81,6 +81,7 @@ remembered in this browser; who you were talking to is not.
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
+| Game: Re-read this game with the latest rules | Rewrites what people remember in the game you have open, in the current short form (see Updating an older game). About one API call. |
 
 ## Commands
 
@@ -115,6 +116,41 @@ natural 20, up to 3.
   copy of the town, so editing the town later does not break old saves.
 - If the browser refuses storage (private mode, full disk), a warning banner
   appears. Export to keep your game.
+
+## Updating an older game
+
+The rules for what people remember changed on 28 Oct 2026. People now
+remember only what they would hold against you or thank you for later, as a
+short line in their own words ("flirted with me", "told me to fuck off",
+"lied about car trouble to get Dewayne outside"). Games saved before then hold
+the old kind: long play-by-play accounts of whole scenes.
+
+- **You don't have to do anything.** An older save loads and plays exactly as
+  it is. Only new memories follow the new rules.
+- **Update this game.** When the autosave is older, the title screen says
+  "This game was saved under older rules" and shows **Update this game** next
+  to **Continue**. The Saves screen marks each older slot "Saved under older
+  rules" and gives it an **Update** button. Either one loads the game and
+  re-reads everyone's memories. Each person keeps at most six short lines,
+  only the ones that matter to them. Repeats are merged, and each line keeps
+  the turn of the earliest memory it came from. Loose ends and `/fact` lines
+  stay exactly as they were. The feed then says what happened, for example
+  "Rewrote memories for 5 people: 23 memories became 9." The game stays loaded
+  and is autosaved, and an updated slot is saved back under its own name.
+- **Settings → Game → Re-read this game with the latest rules** does the same
+  for the game you have open, and you can run it again at any time.
+- **Cost:** about one call to the parser model (Sonnet 5.5 by default, at the
+  bookkeeper's effort). Measured live on 28 Oct 2026: two people with eight
+  memories cost $0.005 (1,682 tokens in, 183 out). A game with more than
+  about 40 memories is sent in a few calls. Mock mode rewrites by a fixed rule
+  instead and makes no calls.
+- **If it fails** (no key, a network error, a refusal), nothing changes and
+  the feed says why. The details are in the Debug tab. An update counts as one
+  step for `/undo`, so `/undo` straight after it brings the old memories back.
+
+Behind the scenes a save carries `state.meta.rulesVersion` (2 now; a save
+without it reads as 1). The steps that bring a game up to date are listed in
+`Upgrade.MIGRATIONS` in `index.html`.
 
 ## What a turn costs
 
@@ -187,6 +223,9 @@ build environment. Elsewhere, run `npm i playwright` and
 - `tests/mobile.test.cjs`: 375x740 and 390x844 checks for tap targets, input
   size, overflow and safe areas.
 - `tests/constraints.test.cjs`: the single-file rules.
+- `tests/upgrade.test.cjs`: updating an older game (rules version, the
+  Update buttons, the memory rewrite in mock mode and against canned API
+  replies, failure, refusal and `/undo`).
 - `shell`, `state`, `pipeline`, `api`, `world` and `content`: the milestone suites.
 
 ## Deliberate deviations from SPEC.md
