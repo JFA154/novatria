@@ -118,15 +118,15 @@ s.test('requests carry the four headers and a body the current API accepts, with
     assert.ok(!JSON.stringify(r.body).includes('"tool_choice"') && !JSON.stringify(r.body).includes('"budget_tokens"'));
     assert.equal(r.body.messages.length, 1);
     assert.equal(r.body.messages[0].role, 'user');
-    assert.equal(r.body.output_config.effort, 'low');
+    assert.equal(r.body.output_config.effort, { parser: 'low', narrator: 'medium', bookkeeper: 'medium', chronicle: 'medium' }[r.role], r.role + ' effort');
   }
   const [parser, narrator, book] = reqs;
-  assert.equal(parser.body.model, 'claude-haiku-5-5');
-  assert.equal(parser.body.max_tokens, 1500);
-  assert.equal(narrator.body.model, 'claude-sonnet-5-5');
-  assert.equal(narrator.body.max_tokens, 1500);
-  assert.equal(book.body.model, 'claude-haiku-5-5');
-  assert.equal(book.body.max_tokens, 2500);
+  assert.equal(parser.body.model, 'claude-sonnet-5-5');
+  assert.equal(parser.body.max_tokens, 2000);
+  assert.equal(narrator.body.model, 'claude-opus-5-5');
+  assert.equal(narrator.body.max_tokens, 3000);
+  assert.equal(book.body.model, 'claude-sonnet-5-5');
+  assert.equal(book.body.max_tokens, 4000);
   // Structured outputs for the parser and bookkeeper; none for the narrator.
   for (const r of [parser, book]) {
     assert.equal(r.body.output_config.format.type, 'json_schema');
@@ -273,13 +273,13 @@ s.test('a JSON reply cut off by max_tokens is retried once with double max_token
   queue('bookkeeper', () => message('{"attitudeChanges": [{"npcId": "npc_ok', { stop: 'max_tokens' }), bookReply({ journalEntry: 'Asked about the tide.' }));
   await sendText(page, 'I ask the ferryman about the tide');
   const books = reqs.filter(r => r.role === 'bookkeeper');
-  assert.deepEqual(books.map(r => r.body.max_tokens), [2500, 5000]);
+  assert.deepEqual(books.map(r => r.body.max_tokens), [4000, 8000]);
   assert.equal(await page.evaluate(() => Game.state.journal.slice(-1)[0].text), 'Asked about the tide.');
   // Twice in a row: a clear message, the input kept, no third try.
   const n = reqs.length;
   queue('parser', () => message('{"actionType": "ta', { stop: 'max_tokens' }), () => message('{"actionType": "talk", "summ', { stop: 'max_tokens' }));
   await sendText(page, 'I ask the ferryman about the fare');
-  assert.deepEqual(reqs.slice(n).map(r => [r.role, r.body.max_tokens]), [['parser', 1500], ['parser', 3000]]);
+  assert.deepEqual(reqs.slice(n).map(r => [r.role, r.body.max_tokens]), [['parser', 2000], ['parser', 4000]]);
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /cut off/);
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the fare');
 });
@@ -291,10 +291,10 @@ s.test('usage totals and cost per model appear in the debug tab; the second narr
   await sendText(page, 'I ask the ferryman about the tide');
   await sendText(page, 'I ask the ferryman about the fare');
   const u = await page.evaluate(() => JSON.parse(JSON.stringify(Game.Api.usage)));
-  // Per turn: parser + bookkeeper (haiku, 300 in / 80 out each) + narrator (sonnet).
-  const haiku = 2 * (300 * 0.1 + 80 * 0.5) / 1e6;
-  const turn1 = haiku + (1000 * 2 + 50 * 10 + 700 * 2 * 1.25) / 1e6;
-  const turn2 = haiku + (1000 * 2 + 50 * 10 + 700 * 0.2) / 1e6;
+  // Per turn: parser + bookkeeper (Sonnet 5.5, 300 in / 80 out each) + narrator (Opus 5.5).
+  const sonnet = 2 * (300 * 2 + 80 * 10) / 1e6;
+  const turn1 = sonnet + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
+  const turn2 = sonnet + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
   assert.equal(u.turn.calls, 3);
   assert.equal(u.turn.input, 1600);
   assert.equal(u.turn.output, 210);
@@ -372,8 +372,8 @@ s.test('Api.chronicle summarises log entries with the parser model in plain text
   const summary = await page.evaluate(() => Game.Api.chronicle(Game.state.log.slice()));
   assert.equal(summary, 'They arrived and asked about the tide.');
   const c = reqs.find(r => r.role === 'chronicle');
-  assert.equal(c.body.model, 'claude-haiku-5-5');
-  assert.equal(c.body.max_tokens, 1000);
+  assert.equal(c.body.model, 'claude-sonnet-5-5');
+  assert.equal(c.body.max_tokens, 2000);
   assert.ok(!c.body.stream && !c.body.output_config.format);
   assert.equal(c.body.system, await page.evaluate(() => Game.Api.SYSTEM.chronicle));
   assert.match(c.body.system, /^Summarise these 10 turns in under 80 words/);

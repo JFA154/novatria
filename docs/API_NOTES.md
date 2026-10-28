@@ -34,9 +34,9 @@ Minimal body:
 
 | Role | Default | Notes |
 |---|---|---|
-| Narrator | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20 |
-| Parser, bookkeeper, chronicle | `claude-haiku-5-5` | $0.10 / $0.50 per MTok (prompts under 100K), cache read 0.1x |
-| Also valid | `claude-opus-5-5` | $4 / $20 per MTok, cache read $0.20 |
+| Narrator | `claude-opus-5-5` | $4 / $20 per MTok in/out, cache read $0.20 |
+| Parser, bookkeeper, chronicle | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20 |
+| Also valid | `claude-haiku-5-5` | $0.10 / $0.50 per MTok (prompts under 100K), cache read 0.1x; the original cheap default |
 
 Use these exact strings. Never append a date suffix. Both are editable in
 Settings, so the request body must not contain anything model-specific.
@@ -93,10 +93,10 @@ spec's limits (300 / 400 / 600 / 200) are too small for that. Use:
 
 | Call | effort | max_tokens |
 |---|---|---|
-| Narrator | `low` | 1500 |
-| Parser | `low` | 1500 |
-| Bookkeeper | `low` | 2500 |
-| Chronicle | `low` | 1000 |
+| Narrator | `medium` | 3000 |
+| Parser | `low` | 2000 |
+| Bookkeeper | `medium` | 4000 |
+| Chronicle | `medium` | 2000 |
 
 Keep narration short through the prompt and the style check, not through
 `max_tokens`. Expose effort per role in Settings (`low`, `medium`, `high`).

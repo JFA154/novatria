@@ -682,13 +682,13 @@ s.test('Api exposes the provider interface and builds requests per API_NOTES', a
     for (const banned of ['temperature', 'top_p', 'top_k', 'thinking', 'tools', 'tool_choice']) assert.ok(!(banned in body), banned);
     assert.equal(body.messages[body.messages.length - 1].role, 'user');
   }
-  assert.equal(r.narr.model, 'claude-sonnet-5-5');
-  assert.equal(r.narr.max_tokens, 1500);
+  assert.equal(r.narr.model, 'claude-opus-5-5');
+  assert.equal(r.narr.max_tokens, 3000);
   assert.equal(r.narr.stream, true);
   assert.deepEqual(r.narr.system, [{ type: 'text', text: 'S', cache_control: { type: 'ephemeral' } }]);
-  assert.deepEqual(r.narr.output_config, { effort: 'low' });
-  assert.equal(r.book.model, 'claude-haiku-5-5');
-  assert.equal(r.book.max_tokens, 2500);
+  assert.deepEqual(r.narr.output_config, { effort: 'medium' });
+  assert.equal(r.book.model, 'claude-sonnet-5-5');
+  assert.equal(r.book.max_tokens, 4000);
   assert.equal(r.book.output_config.format.type, 'json_schema');
   assert.equal(r.parse.model, 'claude-opus-5-5');
   assert.equal(r.parse.output_config.effort, 'medium');

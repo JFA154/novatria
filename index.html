@@ -4277,7 +4277,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 1500, parser: 1500, bookkeeper: 2500, chronicle: 1000 };
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -5054,7 +5054,7 @@ const Pipeline = (() => {
       playerName: p.name,
       location: { id: l.id, name: l.name, type: l.type },
       exits: l.exits.map(id => State.loc(id)).filter(Boolean).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
-      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, role: n.role })),
+      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, role: n.role, look: n.look })),
       itemsHere: (l.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       inventory: p.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       knownNpcs: s.npcs.filter(n => n.knownToPlayer && n.alive !== false).map(n => ({ id: n.id, name: n.name, role: n.role })),
@@ -5070,7 +5070,8 @@ const Pipeline = (() => {
       `TIME: day ${s.time.day}, ${s.time.phase}`,
       `PLAYER: ${p.name} (${p.background}); ${STATS.map(k => `${k} ${fmtMod(p.stats[k])}`).join(', ')}; ${moneyLine(p.gold)}; hp ${p.hp}/${p.maxHp}`,
       `LOCATION: ${l.id} — ${l.name} (${l.type})`,
-      `NPCS PRESENT: ${ids(packet.present)}`,
+      // Looks let "the big man with the pens" resolve to the person who matches, not to new:<description>.
+      `NPCS PRESENT: ${packet.present.map(n => `${n.id} — ${n.name} (${n.role})${n.look ? `: ${n.look}` : ""}`).join("; ") || "none"}`,
       `ITEMS HERE: ${ids(packet.itemsHere)}`,
       `INVENTORY: ${ids(packet.inventory)}`,
       `OTHER KNOWN NPCS (not here): ${ids(packet.knownNpcs.filter(n => !presentIds.includes(n.id)))}`,
@@ -5847,10 +5848,19 @@ const Storage = (() => {
   const KEYS = { settings: PREFIX + 'settings', apiKey: PREFIX + 'apiKey', autosave: PREFIX + 'autosave', slot: n => PREFIX + 'slot.' + n };
   const SLOTS = 3;
   const SAVE_KIND = 'novatria-save';
+  /* Defaults chosen for the best play-through rather than the cheapest: the
+     current Opus writes the story, the current Sonnet does the parsing,
+     bookkeeping and chronicle, and the roles that need judgement think a
+     little harder. settingsVersion lets init() upgrade settings saved under
+     the previous defaults (v1: Sonnet narrator, Haiku parser, all effort low)
+     while keeping anything the player typed in themselves. */
+  const SETTINGS_VERSION = 2;
+  const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
   const DEFAULTS = {
-    narratorModel: 'claude-sonnet-5-5',
-    parserModel: 'claude-haiku-5-5',
-    effort: { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' },
+    settingsVersion: SETTINGS_VERSION,
+    narratorModel: 'claude-opus-5-5',
+    parserModel: 'claude-sonnet-5-5',
+    effort: { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' },
     showRolls: true,
     permadeath: false,
     theme: null, // null: follow prefers-color-scheme
@@ -5882,9 +5892,13 @@ const Storage = (() => {
   function cleanSettings(raw) {
     const s = deepCopy(DEFAULTS);
     if (!isObj(raw)) return s;
-    if (typeof raw.narratorModel === 'string' && raw.narratorModel.trim()) s.narratorModel = raw.narratorModel.trim();
-    if (typeof raw.parserModel === 'string' && raw.parserModel.trim()) s.parserModel = raw.parserModel.trim();
-    if (isObj(raw.effort)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
+    const legacy = !(typeof raw.settingsVersion === 'number' && raw.settingsVersion >= SETTINGS_VERSION);
+    const narr = typeof raw.narratorModel === 'string' ? raw.narratorModel.trim() : '';
+    const pars = typeof raw.parserModel === 'string' ? raw.parserModel.trim() : '';
+    if (narr && !(legacy && narr === V1_DEFAULTS.narratorModel)) s.narratorModel = narr;
+    if (pars && !(legacy && pars === V1_DEFAULTS.parserModel)) s.parserModel = pars;
+    const allLow = isObj(raw.effort) && Object.keys(s.effort).every(k => raw.effort[k] === 'low' || raw.effort[k] === undefined);
+    if (isObj(raw.effort) && !(legacy && allLow)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
     for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
     if (raw.theme === 'dark' || raw.theme === 'parchment') s.theme = raw.theme;
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;

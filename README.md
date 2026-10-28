@@ -41,9 +41,9 @@ news spreads.
 |---|---|
 | API key, Remember on this device | Your Anthropic key; where it is kept (see above). |
 | Mock mode | Built-in dummy provider, no API calls. On by default. |
-| Narrator model | Writes the story (streamed). Default `claude-sonnet-5-5`. |
-| Parser model | Turns your text into an action, records what changed after each turn (the bookkeeper), and writes the chronicle every 10 turns. Default `claude-haiku-5-5`. |
-| Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Default `low` for all. Higher effort means more thinking tokens: slower and dearer. |
+| Narrator model | Writes the story (streamed). Default `claude-opus-5-5`, the current Opus. |
+| Parser model | Turns your text into an action, records what changed after each turn (the bookkeeper), and writes the chronicle every 10 turns. Default `claude-sonnet-5-5`. `claude-haiku-5-5` is the cheap option and works. |
+| Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Defaults: narrator, bookkeeper and chronicle `medium`, parser `low`. Higher effort means more thinking tokens: slower and dearer. |
 | Show dice rolls | Shows the quiet roll line, e.g. `Wits 14 + 2 = 16 vs 15 · Success`. |
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
@@ -82,6 +82,8 @@ natural 20, up to 3.
   appears. Export to keep your game.
 
 ## What a turn costs
+
+The defaults are set for the best play-through, not the cheapest: Opus 5.5 narrates, Sonnet 5.5 parses and bookkeeps, with medium effort where judgement matters. At those settings a turn is roughly 3 cents, so about $3 per 100 turns. The measured figures below were taken with the original cheap defaults (Sonnet 5.5 narrator, Haiku 5.5 parser, all effort low), which you can set in Settings if you want them back.
 
 Measured against the live API on 28 Oct 2026, in a 4-turn run (the arrival
 plus three turns) at the default models and effort `low` for every role. The

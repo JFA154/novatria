@@ -492,10 +492,10 @@ s.test('API key is kept in sessionStorage unless "Remember" is ticked', async h 
 s.test('settings screen has every field with the documented defaults', async h => {
   const page = await h.open();
   await page.click('#btn-settings');
-  assert.equal(await page.inputValue('#set-narrator-model'), 'claude-sonnet-5-5');
-  assert.equal(await page.inputValue('#set-parser-model'), 'claude-haiku-5-5');
+  assert.equal(await page.inputValue('#set-narrator-model'), 'claude-opus-5-5');
+  assert.equal(await page.inputValue('#set-parser-model'), 'claude-sonnet-5-5');
   for (const role of ['narrator', 'parser', 'bookkeeper', 'chronicle']) {
-    assert.equal(await page.inputValue(`#set-effort-${role}`), 'low');
+    assert.equal(await page.inputValue(`#set-effort-${role}`), { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' }[role], role + ' effort');
     assert.deepEqual(await page.$$eval(`#set-effort-${role} option`, o => o.map(x => x.value)), ['low', 'medium', 'high']);
   }
   assert.ok(await page.isChecked('#set-rolls'));
