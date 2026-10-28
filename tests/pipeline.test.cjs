@@ -65,7 +65,7 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   const lines = packet.split('\n').map(l => l.split(':')[0]);
   for (const label of ['DAY 1, MORNING · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
   assert.ok(packet.includes(`PLAYER: Tester (${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
-  assert.match(packet, /\nMODE: normal$/);
+  assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.$/, 'MODE, then the LENGTH line last');
   const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
   for (const x of hidden) assert.ok(!packet.includes(x), 'hidden field in packet: ' + x.slice(0, 40));
   // The tag survives a rebuild of the feed (reload).
@@ -313,7 +313,7 @@ s.test('/look describes the whole scene in zoom mode with no roll, no parse, no 
   assert.deepEqual(await calls(page), ['narrate']);
   assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), t0);
   const packet = await lastPacket(page);
-  assert.match(packet, /\nMODE: ZOOM$/);
+  assert.match(packet, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
   assert.match(packet, /\nROLL: none\n/);
   const last = await lastLog(page);
   assert.equal(last.input, '/look');
@@ -330,13 +330,13 @@ s.test('/zoom runs a normal turn with the 150-word limit; normal turns regenerat
   assert.deepEqual(await calls(page), ['parse', 'narrate', 'bookkeep'], 'one narration, no regeneration');
   const z = await page.evaluate(() => ({ c: Game.Api.Mock.calls, last: Game.state.log[Game.state.log.length - 1] }));
   assert.equal(z.c[0].input, 'I kick the door off its last hinge', 'the parser sees the action without the command');
-  assert.match(z.c[1].text, /\nMODE: ZOOM$/);
+  assert.match(z.c[1].text, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
   assert.equal(z.last.input, '/zoom I kick the door off its last hinge');
   assert.equal(z.last.narration, long);
   await page.evaluate(t => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', t); }, long);
   await sendText(page, 'I kick the door again');
   assert.deepEqual(await calls(page), ['parse', 'narrate', 'narrate', 'bookkeep'], 'over 90 words regenerates once');
-  assert.match(await lastPacket(page), /STYLE CHECK FAILED on your last attempt: 120 words, limit 90/);
+  assert.match(await lastPacket(page), /\nSTYLE CHECK FAILED on your last attempt: 120 words, limit 90\. Write it again in 2 to 4 sentences, under 90 words: keep the action and its outcome, and cut scenery and bystanders first\.$/);
   await sendText(page, '/zoom');
   assert.match(await lastNotice(page), /Zoom in on what\?/);
   assert.equal(await page.inputValue('#cmd'), '/zoom');
@@ -362,7 +362,7 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   assert.equal(r.loc, t1.id);
   assert.deepEqual(await calls(page), ['narrate'], 'narrator only');
   const packet = await lastPacket(page);
-  assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)$/);
+  assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
   assert.ok(packet.includes(`\nTIME PASSED: the player skipped ahead to ${t1.name}, night of day 1`));
   assert.ok(packet.startsWith(`DAY 1, NIGHT · Location: ${t1.name}`));
   assert.equal(r.last.phase, 'night');
@@ -694,6 +694,152 @@ s.test('a thing noticed one turn is in the scene the next: "look for some rope" 
   assert.match(t2.narration, /You pick up the rope\./);
   assert.equal(await carried(), true, 'the bookkeeper picked it up');
   assert.deepEqual(await itemsAt(), before, 'and it left the scene');
+});
+
+/* A walk and then an action there ("I head to the bar and ask the
+   bartender..."): the engine moves the player first, so the rest of the turn
+   happens at the destination. */
+const elsewhere = (page, notId) => page.evaluate(id => {
+  const st = Game.state;
+  const l = st.locations.find(x => x.id !== id && x.id !== st.player.locationId && !x.closed) || st.locations.find(x => x.id !== id && !x.closed);
+  return { id: l.id, name: l.name, type: l.type };
+}, notId);
+const line = (packet, label) => (String(packet || '').split('\n').find(l => l.startsWith(label + ':')) || '');
+
+s.test('a walk then a talk ("I walk to X and talk to Y") moves the player first: MOVED line, the people there, and the bookkeeper does not move them back', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  // The mock parser's compound rule, on synthetic places and people.
+  const m = await page.evaluate(async () => {
+    const P = (input, present, known, places) => Game.Api.Mock.parse({ input, present: present || [], knownNpcs: known || [], exits: [], knownLocations: places || [] }).then(x => x.result);
+    const bar = { id: 'loc_the_rail', name: 'The Rail', type: 'bar' };
+    const gas = { id: 'loc_gas_and_go', name: 'Gas and Go', type: 'gas' };
+    const owner = { id: 'npc_bo_wick', name: 'Bo Wick', role: 'owner of the feed store' };
+    return {
+      bartender: await P('I head to the bar and ask the bartender what people are saying about the vote.', [owner], [], [bar]),
+      named: await P('I walk over to the Rail and then talk to Bo Wick', [owner], [], [bar]),
+      andInName: await P('I walk to Gas and Go and look for some rope', [], [], [gas, bar]),
+      plain: await P('I head to the Rail to find Bo', [], [owner], [bar])
+    };
+  });
+  assert.deepEqual([m.bartender.actionType, m.bartender.destinationId, m.bartender.targets, m.bartender.timeCost], ['talk', 'loc_the_rail', ['new:bartender'], 'short'], 'talk at the bar, the bartender is new, nobody here stands in');
+  assert.deepEqual([m.named.actionType, m.named.destinationId, m.named.targets], ['talk', 'loc_the_rail', ['npc_bo_wick']], 'someone here who walks along is named by name');
+  assert.deepEqual([m.andInName.actionType, m.andInName.destinationId, m.andInName.targets], ['search', 'loc_gas_and_go', ['new:some rope']], 'a place with "and" in its name');
+  assert.deepEqual([m.plain.actionType, m.plain.destinationId], ['move', 'loc_the_rail'], 'a plain move stays a move');
+
+  // In play: someone at a place, at a phase; the player starts somewhere else.
+  const sc = await findScene(page, { min: 1, minAtt: -25 });
+  assert.ok(sc, 'a scene with someone in it');
+  const origin = await elsewhere(page, sc.loc.id);
+  await place(page, origin.id, sc.phase);
+  const npc = sc.npcs[0];
+  await page.evaluate(id => { Game.State.apply({ npcKnownToPlayer: [id] }); Game.Api.Mock.clear(); }, npc.id);
+  // A bookkeeper that tries to put the player back where they started is overruled.
+  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { playerLocationId: id }), origin.id);
+  const shorts = await page.evaluate(() => Game.state.time.shorts);
+  await sendText(page, `I walk to ${sc.loc.name} and talk to ${npc.name}`);
+  const t = await page.evaluate(() => ({ loc: Game.state.player.locationId, turn: Game.Pipeline.lastTurn, shorts: Game.state.time.shorts, phase: Game.state.time.phase, rejected: Game.State.debugLog.filter(x => x.kind === 'rejected' && x.path === 'playerLocationId').map(x => x.reason) }));
+  assert.equal(t.loc, sc.loc.id, 'the player is at the destination');
+  assert.equal(t.turn.action.actionType, 'talk');
+  assert.ok(t.turn.action.targets.includes(npc.id), 'talking to them');
+  assert.deepEqual(t.turn.ctx.notPresent, [], 'and they are present');
+  assert.deepEqual(t.turn.ctx.moved, { fromId: origin.id, fromName: origin.name, toId: sc.loc.id, toName: sc.loc.name });
+  assert.equal(t.turn.action.timeCost, 'short', 'the walk costs at least a short');
+  assert.ok(t.shorts === shorts + 1 || t.phase !== sc.phase, 'a short passed');
+  assert.ok(t.rejected.some(r => /ignored: the engine walked the player/.test(r)), 'the move back was ignored: ' + t.rejected.join(' | '));
+  const parse = await lastPacket(page, 'parse');
+  assert.ok(line(parse, 'OTHER PLACES IN TOWN (one move reaches any)').includes(`${sc.loc.id} — ${sc.loc.name} (${sc.loc.type})`), 'the parser sees places with their type');
+  const packet = await lastPacket(page);
+  assert.ok(packet.split('\n')[0].includes(` · Location: ${sc.loc.name} — `), 'the scene is the destination');
+  assert.equal(line(packet, 'MOVED'), `MOVED: from ${origin.name} to ${sc.loc.name}, just now. The action happens here; give the walk one clause at most.`);
+  const present = line(packet, 'PRESENT');
+  for (const id of sc.presentIds) {
+    const name = await page.evaluate(i => Game.State.npc(i).name, id);
+    assert.ok(present.includes(name + ' ('), 'present at the destination: ' + name);
+  }
+  assert.equal(line(packet, 'DESTINATION'), '', 'no DESTINATION line: the player is already there');
+  assert.doesNotMatch(packet, /NOT PRESENT/);
+  assert.match(t.turn.narration, new RegExp(`^You walk over to ${esc(the(sc.loc.name))}\\.`));
+  assert.ok(t.turn.narration.includes(npc.name), t.turn.narration);
+  const book = await lastPacket(page, 'bookkeep');
+  assert.ok(line(book, 'PLAYER').includes(`at ${sc.loc.id} (${sc.loc.name})`), 'the bookkeeper sees the new location');
+  assert.ok(line(book, 'ALREADY APPLIED BY THE ENGINE (do not record again)').includes(`the walk from ${origin.id} to ${sc.loc.id}`));
+  assert.equal(await page.textContent('#tb-loc'), sc.loc.name, 'the top bar follows');
+  // A plain move still goes the old way: narrated as the walk, with DESTINATION.
+  await sendText(page, `I walk to ${origin.name}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), origin.id);
+  assert.ok(line(await lastPacket(page), 'DESTINATION').startsWith(`DESTINATION: ${origin.name} — `));
+  assert.equal(line(await lastPacket(page), 'MOVED'), '');
+});
+
+s.test('a walk then a search creates the thing at the destination, not where the player started; /undo puts the player back; a closed destination is a walk to a shut door', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const origin = await page.evaluate(() => { const l = Game.State.loc(Game.state.player.locationId); return { id: l.id, name: l.name }; });
+  const dest = await elsewhere(page, origin.id);
+  const itemsAt = id => page.evaluate(i => (Game.State.loc(i).items || []).map(x => x.id), id);
+  const before = { origin: await itemsAt(origin.id), dest: await itemsAt(dest.id) };
+  assert.ok(!before.origin.includes('item_rope') && !before.dest.includes('item_rope'), 'no rope anywhere yet');
+  const pre = await stateJson(page);
+  await page.evaluate(() => Game.Api.Mock.clear());
+  await sendText(page, `I walk to ${dest.name} and look for some rope`);
+  const t = await page.evaluate(() => ({ loc: Game.state.player.locationId, turn: Game.Pipeline.lastTurn }));
+  assert.equal(t.loc, dest.id);
+  assert.equal(t.turn.action.actionType, 'search');
+  assert.deepEqual(t.turn.action.targets, ['item_rope'], 'new:some rope became a real item');
+  assert.deepEqual(await itemsAt(dest.id), before.dest.concat('item_rope'), 'lying at the destination');
+  assert.deepEqual(await itemsAt(origin.id), before.origin, 'not where the player started');
+  assert.match(line(await lastPacket(page), 'ITEMS HERE'), /\bRope\b/);
+  assert.match(t.turn.narration, /You find a rope here\./);
+  // /undo takes the whole turn back, the walk included.
+  await sendText(page, '/undo');
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), origin.id, 'back where they started');
+  assert.equal(await stateJson(page), pre, 'exactly the state before the turn');
+  assert.equal(await page.textContent('#tb-loc'), origin.name);
+  // A closed destination: no walk in, no roll; the turn is the walk to the shut door.
+  await page.evaluate(id => Game.State.apply({ effects: [{ op: 'closeLocation', locationId: id }] }), dest.id);
+  await page.evaluate(() => Game.Api.Mock.queue('parse', { needsRoll: true, stat: 'wits', difficulty: 'normal' }));
+  await sendText(page, `I walk to ${dest.name} and look for some rope`);
+  const c = await page.evaluate(() => ({ loc: Game.state.player.locationId, turn: Game.Pipeline.lastTurn }));
+  assert.equal(c.loc, origin.id, 'still outside');
+  assert.equal(c.turn.action.actionType, 'move');
+  assert.equal(c.turn.roll, null, 'no roll');
+  assert.ok(!c.turn.ctx.moved);
+  assert.deepEqual(c.turn.ctx.created, [], 'nothing made at the door');
+  assert.deepEqual(await itemsAt(origin.id), before.origin, 'nor where the player stands');
+  assert.ok(line(await lastPacket(page), 'DESTINATION').includes('(closed: the player cannot go in)'));
+});
+
+s.test('a plain move arrives even when the bookkeeper leaves playerLocationId out or sets it back; a bookkeeper move on a non-move turn is respected', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await route(page);
+  const where = () => page.evaluate(() => Game.state.player.locationId);
+  const engineMoves = () => page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'rejected' && x.source === 'engine' && x.path === 'playerLocationId').map(x => x.reason));
+  // The bookkeeper leaves it out: the engine moves the player, and says so in the debug log.
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('bookkeep', { playerLocationId: null }); });
+  await sendText(page, `I walk to ${r.a.name}`);
+  assert.equal(await where(), r.a.id, 'arrived without the bookkeeper');
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.actionType), 'move');
+  assert.ok(line(await lastPacket(page), 'DESTINATION').startsWith(`DESTINATION: ${r.a.name} — `), 'still narrated as the walk, from the origin');
+  assert.ok((await lastPacket(page)).split('\n')[0].includes(` · Location: ${r.here.name} — `));
+  assert.deepEqual(await engineMoves(), [`the bookkeeper left the player at ${r.here.id} after a move; the engine moved them to ${r.a.id}`]);
+  // The bookkeeper sets it back to where the move started: the same.
+  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { playerLocationId: id }), r.a.id);
+  await sendText(page, `I walk to ${r.b.name}`);
+  assert.equal(await where(), r.b.id, 'arrived although the bookkeeper set it back');
+  assert.equal((await engineMoves()).length, 2);
+  // A bookkeeper that does its job needs no help.
+  await sendText(page, `I walk to ${r.a.name}`);
+  assert.equal(await where(), r.a.id);
+  assert.equal((await engineMoves()).length, 2, 'no engine move when the bookkeeper moved the player');
+  // On a turn that is not a move, the bookkeeper may move the player (thrown out, carried off): respected.
+  const out = await elsewhere(page, r.a.id);
+  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { playerLocationId: id }), out.id);
+  await sendText(page, 'I say hello');
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.actionType), 'talk');
+  assert.equal(await where(), out.id, 'the bookkeeper moved the player and that stands');
+  assert.equal((await engineMoves()).length, 2, 'and the engine did not undo it');
 });
 
 s.test('the retry lock holds across /look and an instant chat in the same place, and lifts once the player moves', async h => {

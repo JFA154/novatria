@@ -83,31 +83,33 @@ natural 20, up to 3.
 
 ## What a turn costs
 
-These are estimates at the default models, with the prices in
-`docs/API_NOTES.md`: Sonnet 5.5 at $2 / $10 per million input / output tokens
-($0.20 cache read), Haiku 5.5 at $0.10 / $0.50. The packet sizes were measured from the
-mock calls over a mixed session (`node tests/run.cjs playtest` prints them).
+Measured against the live API on 28 Oct 2026, in a 4-turn run (the arrival
+plus three turns) at the default models and effort `low` for every role. The
+prices are those in `docs/API_NOTES.md`: Sonnet 5.5 at $2 / $10 per million
+input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
 
-| Call | Input (measured) | Output (assumed) |
+| Call | Input (measured) | Output (measured) |
 |---|---|---|
-| Parser | ~950 tokens (packet ~1,300 chars + system + schema) | ~90 |
-| Narrator | ~720 tokens of packet (avg ~2,500 chars, max ~3,600) + ~630 cached system tokens | ~120 |
-| Bookkeeper | ~1,600 tokens (packet ~2,150 chars + system + schema) | ~180 |
-| Chronicle, every 10 turns | ~1,000 tokens | ~110 |
+| Parser | ~1,800 tokens | ~125 |
+| Narrator | ~900 to 1,200 tokens of packet + ~830 cached system tokens | 160 to 510 |
+| Bookkeeper | ~3,300 tokens | 180 to 340 |
 
-- An ordinary turn costs about **$0.003** without thinking tokens, or about
-  **$0.005** with ~150 thinking tokens per call. Most of that is the narrator.
-  **100 turns is roughly $0.30 to $0.50.**
-- `/look`, `/rest`, `/wait` and `/skip` call only the narrator: about
-  $0.003 to $0.004 each. A narration that fails the style check is written a
-  second time, which adds one narrator call.
-- The first narration of a session pays about $0.0014 extra to write the
-  prompt cache. The cache lasts about five minutes between turns.
-- Assumptions: 3.5 characters per token; the structured-output schema counted
-  as input; the output sizes above; thinking at effort `low` is adaptive and
-  may be smaller or larger than 150 tokens. Higher effort or the Opus model
-  costs more. The Debug tab shows the real token counts and cost for the turn
-  and the session.
+- The whole run (arrival plus three turns) cost **$0.0297**: about
+  **$0.0075 per turn**, so **100 turns is roughly $0.75**. Most of that is
+  the narrator.
+- The prompt cache was read on every narration after the first. The first
+  narration of a session pays a little extra to write it, and the cache lasts
+  about five minutes between turns.
+- `/look`, `/rest`, `/wait` and `/skip` call only the narrator. A narration
+  that fails the style check is written a second time, which adds one
+  narrator call. Since the narrator packet ends with an explicit LENGTH
+  line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
+  roll and a plain move) gave first drafts of 70 to 89 words, all within the
+  90-word limit, so none was rewritten ($0.0301 for the six turns).
+- The chronicle (parser model, every 10 turns) was not part of the run; it
+  is estimated at about 1,000 input and 110 output tokens. Higher effort or
+  the Opus model costs more. The Debug tab shows the real token counts and
+  cost for the turn and the session.
 
 ## Editing the town
 
@@ -169,11 +171,14 @@ present-day, not low fantasy. The narrator's three example turns are
 rewritten as modern scenes, and money is shown as dollars (the state field is
 still `player.gold`).
 
-## Not yet exercised against the live API
+## Verified against the live API on 28 Oct 2026
 
-Every test runs in mock mode, or against canned API responses served
-inside the browser (`tests/api.test.cjs`). No request has been sent to the
-real Claude API from this build. **Your first real turn is the live test.**
+The live path was checked on 28 Oct 2026 with the default models at effort
+`low`: an arrival plus several turns, including a walk and an action in one
+line ("I head to the bar and ask the bartender..."). Every call returned 200,
+and the narrator's prompt cache was read on every narration after the first.
+The automated tests still run in mock mode, or against canned API responses
+served inside the browser (`tests/api.test.cjs`).
 
 If a request fails, the feed shows a short message and your typed action stays
 in the box. Type `/debug` and look in the Debug tab:
