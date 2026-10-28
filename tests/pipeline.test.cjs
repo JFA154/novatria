@@ -1274,4 +1274,28 @@ s.test('casual style: a simile outside dialogue counts toward the one regenerati
   assert.equal((await lastLog(page)).narration, 'The clerk grins like a man who just won the lottery.');
 });
 
+s.test('a present person becomes known when the narration gives their name, not when a place shares their surname', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const loc = Game.state.player.locationId;
+    const who = Game.State.npcsAt(loc);
+    const one = who[0];
+    const place = Game.State.loc(loc).name;
+    const before = who.map(n => n.knownToPlayer);
+    // Only the place name, which may contain a surname: proves nothing.
+    const a = Game.Pipeline.noteIntroductions('You stop at ' + place + '. Someone nods at you.', loc);
+    const mid = Game.State.npcsAt(loc).map(n => n.knownToPlayer);
+    // The full name spoken aloud: now the player knows it.
+    const b = Game.Pipeline.noteIntroductions('"' + one.name + '," the man says. "That is my name."', loc);
+    const after = Game.State.npcsAt(loc).map(n => n.knownToPlayer);
+    return { before, a, mid, b, after, id: one.id, label: Game.npcLabel(Game.state.npcs.find(n => n.id === one.id)), name: one.name };
+  });
+  assert.deepEqual(r.a, [], 'a place name alone introduces nobody');
+  assert.deepEqual(r.mid, r.before);
+  assert.deepEqual(r.b, [r.id], 'the spoken full name introduces exactly that person');
+  assert.equal(r.after[0], true);
+  assert.equal(r.label, r.name, 'the chips and cards now use the name');
+});
+
 s.run();

@@ -5702,6 +5702,27 @@ const Pipeline = (() => {
     return {};
   }
 
+  // ----- introductions -----
+  /* The arrival has no bookkeeper, and on normal turns the bookkeeper can miss
+     an introduction. If the narration uses a present person's name in the
+     player's hearing, the player knows it now: the packet tells the narrator
+     who is still a stranger, so a name in the text means it was given. */
+  function noteIntroductions(narration, locationId) {
+    const s = State.current;
+    if (!s || typeof narration !== 'string' || !narration) return [];
+    const ids = [];
+    for (const n of State.npcsAt(locationId || s.player.locationId)) {
+      if (n.knownToPlayer || n.alive === false) continue;
+      // A surname that is also part of a place name ('Pittman's Gas and Service') proves nothing on its own.
+      const placeNames = s.locations.map(x => String(x.name || '').toLowerCase());
+      const names = String(n.name || '').trim().split(/\s+/).filter((w, i) => w.length >= 3 && (i === 0 || !placeNames.some(pn => pn.includes(w.toLowerCase())))).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      if (!names.length) continue;
+      if (new RegExp('(^|[^A-Za-z])(?:' + names.join('|') + ')(?![A-Za-z])').test(narration)) ids.push(n.id);
+    }
+    if (ids.length) State.apply({ npcKnownToPlayer: ids });
+    return ids;
+  }
+
   // ----- step 6: the narrator's packet -----
   /* SPEC section 13: only memories of weight 2 or more or from the last 20
      turns (the newest three of those). brief (people at a destination, not
@@ -5710,6 +5731,7 @@ const Pipeline = (() => {
     const mems = brief ? [] : (n.memories || []).filter(m => m.weight >= 2 || turn - m.turn <= 20).slice(-3).map(m => m.text);
     const parts = [n.role];
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
+    if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
     if (n.voice) parts.push('voice: ' + lowerFirst(n.voice).replace(/\.$/, ''));
     parts.push('attitude ' + n.attitude);
     if (mems.length) parts.push('remembers: ' + mems.join(' / '));
@@ -6063,6 +6085,7 @@ const Pipeline = (() => {
       if (told.refusal) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
+      noteIntroductions(narration, ctx.location && ctx.location.id);
       // Steps 8-9. Bookkeep, then apply the diff as model output.
       if (opts.bookkeep !== false) {
         const diff = await Api.bookkeep({ text: bookkeeperPacket(ctx), context: ctx });
@@ -6320,6 +6343,7 @@ const Pipeline = (() => {
         UI.feed.narration(narration);
       }
       const t = State.current.time;
+      noteIntroductions(narration, State.current.player.locationId);
       State.apply({ logEntry: { input: '', roll: null, narration, day: t.day, phase: t.phase, mock } });
       return { ok: !local, local };
     } finally {
@@ -6329,7 +6353,7 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return {
+  return { noteIntroductions,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
