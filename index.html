@@ -350,9 +350,10 @@ select.input { padding-right: 32px; }
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
-  min-height: 36px;
-  padding: 0 16px;
-  border-radius: 18px;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 18px;
+  border-radius: 22px;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
@@ -362,7 +363,6 @@ select.input { padding-right: 32px; }
   cursor: pointer;
   animation: fade-in .2s ease-out;
 }
-.new-btn::after { content: ""; position: absolute; inset: -4px; } /* 44px hit area */
 
 .composer {
   flex: none;
@@ -402,7 +402,7 @@ select.input { padding-right: 32px; }
   position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
   z-index: 30;
   margin: 0; padding: 4px; list-style: none;
-  max-height: min(320px, 50vh); overflow-y: auto;
+  max-height: min(320px, calc(var(--app-h, 100dvh) * .5)); overflow-y: auto; /* stays on screen when the keyboard shrinks the app */
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow);
   font-family: var(--ui-font);
@@ -3485,18 +3485,44 @@ const Town = (() => {
     return !!phrase && new RegExp('(^|[^a-z])' + escRe(phrase) + "('s)?([^a-z]|$)").test(text);
   }
   function nameTokens(n) { return String(n.name || '').toLowerCase().split(/\s+/).filter(t => t.length >= 3 && !TITLES.has(t)); }
+  /* The nouns a role answers to: "owner and bartender of the Low Water" ->
+     "owner", "bartender"; "mayor and town clerk" -> "mayor", "town clerk";
+     "head of Sturdivant Land and Timber" -> "head". */
   function rolePhrases(n) {
-    const out = headPhrase(n.role || '', 'npc').split(/\s+and\s+/).map(x => x.trim());
+    const words = cleanText(String(n.role || ''), 200).toLowerCase().replace(/[^a-z0-9'\- ]+/g, ' ').split(/\s+/).filter(Boolean);
+    while (words.length && LEAD_WORDS.has(words[0])) words.shift();
+    const group = [];
+    for (const w of words) {
+      if (group.length && w !== 'and' && (BREAK_WORDS.has(w) || /ing$/.test(w))) break;
+      group.push(w);
+      if (group.length >= 7) break;
+    }
+    const out = group.join(' ').split(/\s+and\s+/).map(x => headPhrase(x, 'npc'));
     // "Tester's cousin" also answers to "cousin" ("my cousin").
     const own = /^[^']+'s\s+(.+)$/.exec(String(n.role || '').toLowerCase());
     if (own) out.push(headPhrase(own[1], 'npc'));
     return out.filter(x => x.length >= 3);
   }
-  /* Does free text refer to this NPC: full name, a given or family name, or
-     the head of their role ("the smith", "the innkeeper")? */
-  function mentions(text, n) {
+  /* A role word right after a subject ("I head to the bar", "we cook") is a
+     verb, not a reference to whoever holds that role. */
+  const VERB_LEAD = /(^|[^a-z'])(i|we|you|they|he|she|then|to|and|or|i'll|we'll|let's|lets)\s+$/;
+  function hasRolePhrase(t, phrase) {
+    const re = new RegExp('(^|[^a-z])' + escRe(phrase) + "('s)?(?=[^a-z]|$)", 'g');
+    for (let m = re.exec(t); m; m = re.exec(t)) {
+      if (!VERB_LEAD.test(t.slice(0, m.index + m[1].length))) return true;
+      re.lastIndex = m.index + 1;
+    }
+    return false;
+  }
+  /* Does free text name this NPC: their full name, or a given or family name? */
+  function nameMentions(text, n) {
     const t = String(text || '').toLowerCase();
-    return hasPhrase(t, String(n.name || '').toLowerCase()) || nameTokens(n).some(x => hasPhrase(t, x)) || rolePhrases(n).some(x => hasPhrase(t, x));
+    return hasPhrase(t, String(n.name || '').toLowerCase()) || nameTokens(n).some(x => hasPhrase(t, x));
+  }
+  /* Does free text refer to this NPC: by name, or by the head of their role
+     ("the smith", "the bartender")? */
+  function mentions(text, n) {
+    return nameMentions(text, n) || rolePhrases(n).some(x => hasRolePhrase(String(text || '').toLowerCase(), x));
   }
   function plainName(x) { return String(x || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
   /* An existing entity a `new:` description already names, or null. NPCs who
@@ -3719,7 +3745,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, mentions, matchExisting, placeType, goodsFor };
+  return { data, instantiate, plausible, guessKind, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
 })();
 
 // ===== Module: World =====
@@ -3771,7 +3797,11 @@ const Town = (() => {
      seed fires comes to the player: a visit to where the player is.
      dueSeeds(ctx), step 6, hands at most MAX_DUE (2) due events to the
      narration, oldest first, and keeps a loose-end NPC's visit wherever the
-     player is now; the rest wait. dueNarrated(events) consumes them.
+     player is now; the rest wait. An event from a location trigger is only
+     told in that location, and not in a turn that walks out of it
+     (ctx.leaving): the seed fires after the narration that brought the
+     player there, so if they walk on at once it waits for their return.
+     dueNarrated(events) consumes them.
 
    Reputation. driftReputation(before) runs after the bookkeeper's diff: the
    attitude changes of every NPC the player knows are summed, divided by 5,
@@ -3784,7 +3814,8 @@ const Town = (() => {
    all-factions value); forceClockRoll(null) clears them all and
    forceClockRoll(null, factionId) just that one. forceAttitude(npcId,
    value) sets an attitude through State.apply; recent lists the latest
-   world events for the debug view (memory only, not saved). */
+   world events for the debug view (memory only, not saved), and
+   forget(turn) drops those of turns taken back by /undo or a failed turn. */
 const World = (() => {
   const MAX_DUE = 2;
   const GRUDGE_AT = -60;
@@ -4079,6 +4110,9 @@ const World = (() => {
     for (const ev of s.dueEvents.slice()) {
       const n = ev.npcId ? State.npc(ev.npcId) : null;
       if (ev.npcId && !isFree(n)) { drop.push(ev.seedId); continue; } // they can no longer act on it
+      // A place's event is told in that place: if the player has moved on, it waits for them to come back.
+      const sd = State.seed(ev.seedId);
+      if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (sd.trigger.value !== here || (ctx && ctx.leaving))) continue;
       if (out.length >= MAX_DUE) continue;
       if (ev.bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
       out.push({ seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null });
@@ -4131,6 +4165,9 @@ const World = (() => {
     else hooks.clockRolls = { '*': v };
     return Object.assign({}, hooks.clockRolls);
   }
+  /* A turn taken back (/undo, or a turn that failed) takes its world events
+     out of the debug list too, so the list never shows what did not happen. */
+  function forget(turn) { for (let i = recent.length - 1; i >= 0; i--) if (recent[i].turn > turn) recent.splice(i, 1); }
   function forceAttitude(npcId, value) {
     const n = State.npc(npcId);
     if (!n) return null;
@@ -4142,7 +4179,7 @@ const World = (() => {
   return {
     MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, hooks, recent,
     tick, fireSeeds, dueSeeds, dueNarrated, applyEffects,
-    attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs,
+    attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
     forceClockRoll, forceAttitude
   };
 })();
@@ -4386,7 +4423,7 @@ const Api = (() => {
     [/\bmechanics?\b/, 'mechanic'], [/\bdeput(y|ies)\b/, 'deputy'], [/\bmy cousin\b/, 'my cousin']
   ];
   const MOCK_TIER = {
-    critical: r => `${capFirst(r.stat)} roll, critical success: it goes better than you could have hoped.`,
+    critical: r => `${capFirst(r.stat)} roll, critical success: it works, and better than planned.`,
     success: r => `${capFirst(r.stat)} roll, success: it works.`,
     partial: r => `${capFirst(r.stat)} roll, partial success: it works, but ${r.complication}.`,
     failure: r => `${capFirst(r.stat)} roll, failure: it does not work, and ${r.complication}.`,
@@ -4407,8 +4444,18 @@ const Api = (() => {
     const has = re => re.test(lower);
     const out = { actionType: 'other', summary: cleanText(input, 160), targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, timeCost: 'short', declaresWorldFact: false };
     const roll = (stat, difficulty) => { out.needsRoll = true; out.stat = stat; out.difficulty = difficulty; };
-    const people = [].concat(packet.present || [], (packet.knownNpcs || []).filter(k => !(packet.present || []).some(p => p.id === k.id)));
-    const named = people.filter(n => Town.mentions(lower, n));
+    const presentList = packet.present || [];
+    const isHere = n => presentList.some(p => p.id === n.id);
+    const people = [].concat(presentList, (packet.knownNpcs || []).filter(k => !isHere(k)));
+    const all = people.filter(n => Town.mentions(lower, n));
+    /* Who the text names. Anyone here answers to their name or role; someone
+       who is not here only to their name, or to a role nobody else in the
+       lists answers to ("the cook"), so a shared word ("the owner") picks
+       the person in front of the player. /fact links whatever it names. */
+    const byName = n => Town.nameMentions(lower, n);
+    const roleOnly = all.filter(n => !byName(n));
+    const named = packet.mode === 'fact' ? all
+      : all.filter(n => byName(n) || isHere(n) || (!roleOnly.some(isHere) && roleOnly.length === 1));
     const fresh = [];
     for (const [re, desc] of MOCK_NEW) {
       if (!re.test(lower)) continue;
@@ -4427,8 +4474,11 @@ const Api = (() => {
       return out;
     }
     if (has(/\bmy cousin\b/)) out.declaresWorldFact = true;
-    const present = (packet.present || []).filter(n => named.includes(n));
-    const target = () => (present.length ? [present[0].id] : (fresh.length ? [] : ((packet.present || [])[0] ? [packet.present[0].id] : [])));
+    const present = presentList.filter(n => named.some(m => m.id === n.id));
+    const away = named.filter(n => !isHere(n));
+    // Talking with nobody named: whoever is in front of the player. Someone
+    // named who is not here, or someone new, is the target instead.
+    const target = () => (present.length ? [present[0].id] : (fresh.length || away.length) ? [] : (presentList[0] ? [presentList[0].id] : []));
     const dest = has(/\b(go|goes|walk|walks|head|heads|run|return|cross|enter|drive|drives|ride|make my way)\b/) ? mockDestination(lower, packet) : null;
     if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
     else if (has(/\b(rest|sleep|nap)\b/)) { out.actionType = 'rest'; out.timeCost = 'rest'; }
@@ -4445,7 +4495,8 @@ const Api = (() => {
       else if (has(/\b(charm|haggle|lie|bluff|flatter)\b/)) { roll('charm', 'normal'); out.actionType = 'deceive'; }
       else { roll('wits', 'normal'); out.actionType = 'search'; }
     }
-    for (const id of named.map(n => n.id)) if (!out.targets.includes(id)) out.targets.push(id);
+    // A move names someone who is not here only by their name.
+    for (const n of named) if (!out.targets.includes(n.id) && (out.actionType !== 'move' || isHere(n) || byName(n))) out.targets.push(n.id);
     for (const f of fresh) if (!out.targets.includes(f)) out.targets.push(f);
     return out;
   }
@@ -4479,13 +4530,15 @@ const Api = (() => {
       out.push(mode === 'arrival' ? `You arrive at ${loc}.` : `You take in ${loc}.`);
       if (l && l.description) out.push(l.description);
       const names = (c.present || []).map(n => n.name);
-      out.push(names.length ? `Here: ${names.join(', ')}.` : 'Nobody here pays you any attention.');
+      out.push(names.length ? `${joinAnd(names)} ${names.length > 1 ? 'are' : 'is'} here.` : 'Nobody here pays you any attention.');
     } else if (a.actionType === 'move') {
       const d = c.destination;
       out.push(d ? `You make your way to ${d.name.replace(/^The /, 'the ')}${d.closed ? ', but it is shut' : ''}.` : 'You look for the way there and do not find it.');
-      if (d && !d.closed) out.push(d.present && d.present.length ? `${d.present.join(' and ')} ${d.present.length > 1 ? 'are' : 'is'} there.` : 'Nobody there pays you any attention.');
+      if (d && !d.closed) out.push(d.present && d.present.length ? `${joinAnd(d.present)} ${d.present.length > 1 ? 'are' : 'is'} there.` : 'Nobody there pays you any attention.');
     } else if (target && a.actionType === 'attack') {
       out.push(`${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
+    } else if (target && a.actionType === 'intimidate') {
+      out.push((target.attitude | 0) <= -25 ? `${target.name} has heard enough. "Get out of my sight."` : `${target.name} goes still. "Say that again."`);
     } else if (target) {
       out.push(mockGreeting(target));
       if (c.rumour && c.rumour.npcId === target.id) out.push(`${target.name} mentions something: "${c.rumour.text}"`);
@@ -4494,11 +4547,30 @@ const Api = (() => {
     }
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
     // Due events (at most two) are always worked in, at the end.
-    const due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
+    let due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
     if (!out.length && !due.length) out.push(`At ${loc}, nothing pushes back yet.`);
     if (out.length + due.length < 2) out.push(`Around you, ${loc} goes on with its ${(s && s.time.phase) || 'day'}.`);
-    return out.slice(0, Math.max(1, (mode === 'normal' ? 3 : 6) - due.length)).concat(due).join(' ');
+    let body = out.slice(0, Math.max(1, (mode === 'normal' ? 3 : 6) - due.length));
+    /* Keep to the style check's limit (Style.WORD_LIMITS) like a real
+       narrator would: a place's description shrinks to its first sentence
+       and then goes, other scenery goes from the end, and only then are the
+       due events cut to their first clause. The roll stays. */
+    const limit = (mode === 'normal' ? Style.WORD_LIMITS.normal : Style.WORD_LIMITS.zoom) - 5;
+    const words = () => wordCount(body.concat(due).join(' '));
+    const desc = s && c.location ? (State.loc(c.location.id) || {}).description : null;
+    const keep = new Set(body.filter(x => /\broll[,:]/.test(x) || x === 'You go down hard.' || x.includes(' mentions something: ')));
+    const at = desc ? body.indexOf(desc) : -1;
+    if (words() > limit && at >= 0) body[at] = (/^.*?[.!?](\s|$)/.exec(desc) || [desc])[0].trim();
+    if (words() > limit && at >= 0) body.splice(at, 1);
+    for (let i = body.length - 1; i > 0 && words() > limit; i--) if (!keep.has(body[i])) body.splice(i, 1);
+    if (words() > limit) due = due.map(t => sentence(t.split(/,\s+/)[0]));
+    if (words() > limit) {
+      const room = Math.max(4, Math.floor((limit - wordCount(body.join(' '))) / Math.max(1, due.length)));
+      due = due.map(t => (wordCount(t) > room ? t.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]$/, '') + '.' : t));
+    }
+    return body.concat(due).join(' ');
   }
+  function joinAnd(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
@@ -4522,6 +4594,12 @@ const Api = (() => {
       out.newMemories.push({ npcId: first.id, text: again ? `${s.player.name} insulted them again` : `${s.player.name} insulted them`, weight: again ? 3 : 2 });
     }
     if (first && a.actionType === 'persuade' && c.roll && c.roll.success) out.attitudeChanges.push({ npcId: first.id, delta: 8, reason: 'persuaded' });
+    // Being attacked is "something major" (the bookkeeper's prompt): more than an insult, inside the ±25 clamp.
+    if (first && a.actionType === 'attack') {
+      const again = first.memories.some(m => /attacked/i.test(m.text));
+      out.attitudeChanges.push({ npcId: first.id, delta: -20, reason: 'attacked' });
+      out.newMemories.push({ npcId: first.id, text: again ? `${s.player.name} attacked them again` : `${s.player.name} attacked them`, weight: 3 });
+    }
     if (a.actionType === 'buy') {
       const g = Town.goodsFor(input);
       const price = g ? Tables.price(g.name) : null;
@@ -4531,7 +4609,8 @@ const Api = (() => {
         out.journalEntry = `Bought ${lowerFirst(g.name)} for ${money(price)}.`;
       }
     }
-    if (c.rumour && first && c.rumour.npcId === first.id && a.actionType === 'talk') out.rumoursHeard = [c.rumour.id];
+    // "Only record changes the narration actually shows": the rumour is heard when the narration tells it.
+    if (c.rumour && first && c.rumour.npcId === first.id && String(c.narration || '').includes(c.rumour.text)) out.rumoursHeard = [c.rumour.id];
     return out;
   }
   const Mock = {
@@ -5312,6 +5391,7 @@ const Pipeline = (() => {
   // ----- the turn -----
   function fail(snap, mark, notice, extra) {
     State.restore(snap);
+    World.forget(State.current.meta.turn);
     UI.feed.rollback(mark);
     if (notice) UI.feed.notice(notice.text, notice.kind);
     return Object.assign({ ok: false }, extra);
@@ -5358,7 +5438,8 @@ const Pipeline = (() => {
       }
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
-      ctx.due = World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode }) || [];
+      const leaving = action.actionType === 'move' && !!action.destinationId && action.destinationId !== ctx.location.id;
+      ctx.due = World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving }) || [];
       if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
       ctx.rumour = pickRumour(ctx);
       const told = await narrate(ctx);
@@ -5845,6 +5926,7 @@ const UI = (() => {
       if (stick && screen === 'game') scrollToBottom();
     };
     if (vv) { vv.addEventListener('resize', update); vv.addEventListener('scroll', update); }
+    window.addEventListener('resize', update); // also on window resize, for a browser that skips the visualViewport event
     update();
   }
 
@@ -6641,6 +6723,7 @@ const Commands = (() => {
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
       case '/undo': {
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
+        World.forget(State.current.meta.turn);
         UI.rebuildFeed();
         UI.feed.notice('You took back the last turn.');
         return { ok: true };
