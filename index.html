@@ -5018,6 +5018,7 @@ const Api = (() => {
     const away = np.filter(x => x.reason === 'not_here' || x.reason === 'gone');
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
+    if (c.pressed) out.push('The answer does not change.');
     if (c.defeated) out.push('You go down hard.');
     if (c.consequence) out.push(sentence(c.consequence.replace(/\s*\([^)]*\)$/, '')));
     const target = s && (a.targets || []).map(id => State.npc(id)).find(n => n && (c.presentIds || []).includes(n.id));
@@ -5390,7 +5391,7 @@ const Api = (() => {
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
-    locked: 'You just tried that and it failed. Something has to change before you try it again.',
+    locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.'
   };
   const CONSEQUENCES = {
@@ -5701,7 +5702,17 @@ const Pipeline = (() => {
     const a = ctx.action;
     if (!a.needsRoll) return {};
     const key = Dice.lockKey(a);
-    if (Dice.isLocked(key)) return { locked: true };
+    if (Dice.isLocked(key)) {
+      // Pushing the same point in conversation again: no new roll (the dice
+      // are not re-rolled), but the scene still answers, so the player sees
+      // the person hold their ground instead of a system notice.
+      if (isSay(ctx.speech) || Dice.SOCIAL_ACTIONS.includes(a.actionType)) {
+        const last = s.log.slice().reverse().find(e => e.roll && /fail/i.test(String(e.roll.tier || e.roll.line || '')));
+        ctx.pressed = { key, line: last && last.roll && last.roll.line ? last.roll.line : null };
+        return {};
+      }
+      return { locked: true };
+    }
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
     const forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : undefined;
     hooks.nextD20 = null;
@@ -5868,7 +5879,9 @@ const Pipeline = (() => {
       if (ctx.speech && ctx.speech.mode === 'do') lines.push('The player did not say anything beyond what the ACTION line states.');
     }
     lines.push(`ROLL: ${roll ? roll.line : 'none'}`);
+    if (ctx.pressed) lines.push(`SAME ASK AGAIN: the player already tried this and it failed${ctx.pressed.line ? ` (${ctx.pressed.line})` : ''}; there is no new roll and the answer does not change. Show them holding their position and reacting to being pushed (shorter, cooler or amused). Nothing new is granted.`);
     lines.push(`COMPLICATION: ${[roll && roll.complication, ctx.consequence].filter(Boolean).join('; ') || 'none'}`);
+    if (roll && !roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push('OUTCOME: the ask failed. The person does not give the player what they asked for, in any form; the complication is on top of the refusal, not instead of it.');
     if (ctx.damage) lines.push(`DAMAGE: the player takes ${ctx.damage} damage.`);
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
     // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
@@ -5951,6 +5964,7 @@ const Pipeline = (() => {
       `ROLL: ${ctx.roll ? `${ctx.roll.line}${ctx.roll.complication ? ' · Complication: ' + ctx.roll.complication : ''}` : 'none'}`,
       `ALREADY APPLIED BY THE ENGINE (do not record again): ${engine.join('; ')}`
     ];
+    if (ctx.pressed) lines.push('SAME ASK AGAIN: this repeats an ask that already failed; grant nothing new; a small attitude drop (-5 to -10) for the person pushed is reasonable; no move.');
     const missing = (ctx.notPresent || []).filter(x => x.reason === 'does_not_exist' || x.reason === 'unproven').map(x => x.label);
     if (missing.length) lines.push(`DOES NOT EXIST (record nothing about it): ${missing.join(', ')}`);
     if (ctx.rumour) lines.push(`RUMOUR OFFERED: ${ctx.rumour.id} by ${ctx.rumour.npcId}: "${ctx.rumour.text}" (list it in rumoursHeard only if the narration shows it being told)`);

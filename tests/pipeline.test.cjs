@@ -180,7 +180,7 @@ s.test('a failed lockpick is narrated as a failure, changes something, and the i
   assert.ok(r.lock);
   const before = await stateJson(page);
   await sendText(page, 'I try to pick the lock on the back door');
-  assert.equal(await lastNotice(page), 'You just tried that and it failed. Something has to change before you try it again.');
+  assert.equal(await lastNotice(page), 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).');
   assert.equal(await stateJson(page), before, 'the refused retry changed nothing');
   assert.equal(await page.inputValue('#cmd'), '');
   // Once the situation changes (another place), the same attempt rolls again.
@@ -860,7 +860,7 @@ s.test('the retry lock holds across /look and an instant chat in the same place,
   }
   const before = await stateJson(page);
   await sendText(page, pick);
-  assert.equal(await lastNotice(page), 'You just tried that and it failed. Something has to change before you try it again.');
+  assert.equal(await lastNotice(page), 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).');
   assert.equal(await stateJson(page), before, 'still refused');
   // Moving away lifts it; back at the door the same attempt rolls again.
   await sendText(page, `I walk to ${r0.a.name}`);
@@ -1296,6 +1296,32 @@ s.test('a present person becomes known when the narration gives their name, not 
   assert.deepEqual(r.b, [r.id], 'the spoken full name introduces exactly that person');
   assert.equal(r.after[0], true);
   assert.equal(r.label, r.name, 'the chips and cards now use the name');
+});
+
+s.test('pushing a failed ask again in conversation gets an answer, not a notice: no new roll, the person holds their ground, the lock stays', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const a = sc.npcs[0];
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); Game.Pipeline.forceNextRoll(1); }, a.id);
+  await sendText(page, 'Please, give me a chance and hire me.');
+  const first = await turnInfo(page);
+  assert.ok(first.act.needsRoll && first.last.roll, 'the first ask rolled');
+  const lock = await page.evaluate(() => Game.state.meta.lastRollKey);
+  assert.ok(lock, 'the failed ask set the lock');
+  const notices = await page.evaluate(() => document.querySelectorAll('#feed .f-notice').length);
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); }, a.id);
+  await sendText(page, 'Come on, please, change your mind.');
+  const second = await turnInfo(page);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-notice').length), notices, 'no system notice');
+  assert.equal(second.last.roll, null, 'no new roll');
+  assert.ok(second.last.narration.includes('The answer does not change.'), second.last.narration);
+  const packet = await lastPacket(page);
+  assert.match(packet, /\nROLL: none\nSAME ASK AGAIN: the player already tried this and it failed/);
+  assert.ok((await lastPacket(page, 'bookkeep')).includes('SAME ASK AGAIN: this repeats an ask that already failed'));
+  assert.equal(await page.evaluate(() => Game.state.meta.lastRollKey), lock, 'the lock still holds, so the dice are not re-rolled');
 });
 
 s.run();

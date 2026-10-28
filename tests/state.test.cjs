@@ -143,7 +143,7 @@ s.test('the retry lock refuses the identical failed roll until the situation cha
   const res = await page.evaluate(t => Game.Pipeline.submit(t), text);
   assert.equal(res.reason, 'retry-locked');
   assert.equal(await stateJson(page), before, 'a refused retry changes nothing');
-  assert.match(await page.textContent('#feed .f-notice:last-child'), /Something has to change/);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), /Change something first/);
   await page.evaluate(() => Game.State.apply({ advanceTime: 'long' }));
   const res2 = await page.evaluate(t => Game.Pipeline.submit(t), text);
   assert.equal(res2.ok, true, 'allowed once time has passed');

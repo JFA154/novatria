@@ -208,7 +208,7 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   const lockedState = await stateJson(page);
   await sendText(page, 'I try to pick the lock on the back office door');
   assert.equal(await stateJson(page), lockedState, 'the identical retry changes nothing');
-  assert.match(await page.textContent('#feed .f-notice:last-child'), /Something has to change/);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), /Change something first/);
 
   // Turn 10 or so: the first chronicle entry.
   while ((await time()).turn < 10) await turn('I look around', 'look-action');

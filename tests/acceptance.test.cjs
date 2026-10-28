@@ -170,7 +170,7 @@ s.test('[3] A failed lockpick → the failure is narrated, something changes, an
   assert.equal(r.st.log.length, before.log.length + 1);
   const locked = await stateJson(page);
   await sendText(page, 'I try to pick the lock on the back door');
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'You just tried that and it failed. Something has to change before you try it again.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).');
   assert.equal(await stateJson(page), locked, 'the identical retry is refused and changes nothing');
 });
 
