@@ -321,7 +321,7 @@ s.test('with a key and mock mode off, Begin narrates the arrival through the nar
   const { page, reqs, fx } = await openReal(h, { live: true });
   assert.deepEqual(reqs.map(r => r.role), ['narrator']);
   const user = reqs[0].body.messages[0].content;
-  assert.match(user, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
+  assert.match(user, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.ok(user.includes(`\nACTION: Tester arrives in ${fx.town} for the first time, arriving by the river, at ${fx.startName}\n`), user);
   const st = await page.evaluate(() => ({ log: Game.state.log, journal: Game.state.journal.map(j => j.text), turn: Game.state.meta.turn }));
   assert.equal(st.log.length, 1);

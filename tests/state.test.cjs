@@ -667,7 +667,9 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
   assert.equal(lineOf(r.cas, 'BANNED PHRASES:'), lineOf(r.lit, 'BANNED PHRASES:'), 'the full banned list');
   for (const b of r.banned) assert.ok(r.cas.includes(`"${b}"`), 'casual bans ' + b);
   assert.equal(lineOf(r.cas, 'LENGTH:'), lineOf(r.lit, 'LENGTH:'));
-  assert.equal(lineOf(r.cas, 'DIALOGUE:'), lineOf(r.lit, 'DIALOGUE:'));
+  // The casual DIALOGUE line keeps the spec's sentences and adds that a listed habit is occasional, not a script.
+  for (const part of ['NPCs speak in their listed voice', 'People interrupt, dodge questions, lie, change the subject.', 'Prefer a line of dialogue over a line of description.']) assert.ok(lineOf(r.cas, 'DIALOGUE:').includes(part), 'casual dialogue keeps: ' + part);
+  assert.ok(/habit is a flavour, not a script/.test(lineOf(r.cas, 'DIALOGUE:')), 'casual dialogue says habits are occasional');
   assert.equal(lineOf(r.cas, 'VOICE:'), CASUAL_VOICE);
   const avoid = lineOf(r.cas, 'Also avoid:');
   for (const x of ['"like a ..."', '"as if ..."', 'stacked adjectives', 'poetic fragments', 'lists of three adjectives', 'rhetorical questions', 'starting with "As you"']) assert.ok(avoid.includes(x), 'casual also avoids ' + x);
@@ -843,6 +845,26 @@ s.test('effect ops, reserved flags and social actions each live in one list: Tow
   const count = needle => html.split(needle).length - 1;
   assert.equal(count(`['${r.social.join("', '")}']`), 1, 'social actions');
   assert.equal(count(`['${r.flags.join("', '")}']`), 1, 'reserved flags');
+});
+
+s.test('Style.check flags a spoken phrase repeated from a recent turn and the rewrite note asks for plain words', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const S = Game.Style;
+    const prev = ['Royce laughs. "My daddy used to say a man who asks is a man who pays." He wipes the counter.'];
+    const again = S.check('He shrugs. "Well, my daddy used to say the same thing."', { previous: prev });
+    const fresh = S.check('He shrugs. "Forty-five dollars gets you a cot at the motor court."', { previous: prev });
+    const filler = S.check('"I do not know what you want."', { previous: ['"I do not know what to tell you."'] });
+    const narrationOnly = S.check('He says my daddy used to say that, and laughs.', { previous: prev });
+    return { again: again.problems.map(p => p.type), phrase: again.problems[0] && again.problems[0].phrase, fresh: fresh.ok, filler: filler.ok, narrationOnly: narrationOnly.ok, note: S.regenerationNote(again.problems) };
+  });
+  assert.deepEqual(r.again, ['repeat']);
+  assert.equal(r.phrase, 'my daddy used to');
+  assert.equal(r.fresh, true, 'new words pass');
+  assert.equal(r.filler, true, 'a phrase of filler words does not count');
+  assert.equal(r.narrationOnly, true, 'only spoken lines count');
+  assert.match(r.note, /repeats the spoken phrase "my daddy used to"/);
+  assert.match(r.note, /different words this time/);
 });
 
 s.run();

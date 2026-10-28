@@ -65,7 +65,7 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   const lines = packet.split('\n').map(l => l.split(':')[0]);
   for (const label of ['DAY 1, MORNING · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
   assert.ok(packet.includes(`PLAYER: Tester (${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
-  assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.$/, 'MODE, then the LENGTH line last');
+  assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.\nVARIETY: [^\n]+$/, 'MODE, then the LENGTH line last');
   const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
   for (const x of hidden) assert.ok(!packet.includes(x), 'hidden field in packet: ' + x.slice(0, 40));
   // The tag survives a rebuild of the feed (reload).
@@ -313,7 +313,7 @@ s.test('/look describes the whole scene in zoom mode with no roll, no parse, no 
   assert.deepEqual(await calls(page), ['narrate']);
   assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), t0);
   const packet = await lastPacket(page);
-  assert.match(packet, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
+  assert.match(packet, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.match(packet, /\nROLL: none\n/);
   const last = await lastLog(page);
   assert.equal(last.input, '/look');
@@ -330,7 +330,7 @@ s.test('/zoom runs a normal turn with the 150-word limit; normal turns regenerat
   assert.deepEqual(await calls(page), ['parse', 'narrate', 'bookkeep'], 'one narration, no regeneration');
   const z = await page.evaluate(() => ({ c: Game.Api.Mock.calls, last: Game.state.log[Game.state.log.length - 1] }));
   assert.equal(z.c[0].input, 'I kick the door off its last hinge', 'the parser sees the action without the command');
-  assert.match(z.c[1].text, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
+  assert.match(z.c[1].text, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.equal(z.last.input, '/zoom I kick the door off its last hinge');
   assert.equal(z.last.narration, long);
   await page.evaluate(t => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', t); }, long);
@@ -362,7 +362,7 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   assert.equal(r.loc, t1.id);
   assert.deepEqual(await calls(page), ['narrate'], 'narrator only');
   const packet = await lastPacket(page);
-  assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
+  assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.ok(packet.includes(`\nTIME PASSED: the player skipped ahead to ${t1.name}, night of day 1`));
   assert.ok(packet.startsWith(`DAY 1, NIGHT · Location: ${t1.name}`));
   assert.equal(r.last.phase, 'night');

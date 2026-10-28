@@ -1237,7 +1237,7 @@ const TOWN_DATA = {
       factionId: null,
       tags: ["council", "merchant"],
       look: "Big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear.",
-      voice: "Folksy and slippery; tells a story about his daddy instead of answering, says 'now, I'm not saying' right before he says it, and laughs to fill any silence.",
+      voice: "Folksy and slippery; dodges a straight answer, now and then with a story about his daddy; once in a while hedges with 'now, I'm not saying'; laughs to fill a silence.",
       personality: ["genial", "cowardly"],
       goal: "Get out from under the note on his station without having to pick a side where anybody can see him do it.",
       secret: "Carter Sturdivant holds the note on the station and has offered to tear it up and give him the truck stop lease at the new interchange in return for a yes vote.",
@@ -1271,7 +1271,7 @@ const TOWN_DATA = {
       factionId: "fac_sturdivant",
       tags: ["lender", "landowner"],
       look: "Trim, tanned man of forty-five in a quarter-zip pullover and pressed khakis, turning a truck key fob over and over in his fingers.",
-      voice: "Fast and friendly, like a salesman closing; uses your first name in every sentence, talks about 'the future of this town', and states every sum to the dollar.",
+      voice: "Fast and friendly, like a salesman closing; uses your first name too soon and too often, talks about 'the future of this town', and states every sum to the dollar.",
       personality: ["ambitious", "smooth"],
       goal: "Get the new bridge built downstream on Sturdivant bottomland, sell the state the right-of-way and own the truck stop at the new interchange.",
       secret: "He is two years behind on the family's timber loans, and he has asked a doctor in the city to find his mother Vada unfit so he can sign the bottomland over himself.",
@@ -1390,7 +1390,7 @@ const TOWN_DATA = {
       factionId: null,
       tags: ["priest", "pastor"],
       look: "Round-faced man of sixty-five in a short-sleeved white shirt and clip-on tie, with a hearing aid and a pocket full of peppermints.",
-      voice: "Slow and warm, with a preacher's rhythm even at the gas pump; answers a hard question with a Bible story and somehow gets the answer out of you instead.",
+      voice: "Slow and warm, with a preacher's rhythm even at the gas pump; sometimes answers a hard question with a Bible story, and somehow gets the answer out of you instead.",
       personality: ["kind", "nosy"],
       goal: "Keep the Riverbend families housed and fed through the winter, and bury no more young people this year.",
       secret: "The church's new roof was paid for by an anonymous cash gift that he knows came from Wade Purvis, and he has preached against the Night Run every Sunday since without giving a dollar of it back.",
@@ -1407,7 +1407,7 @@ const TOWN_DATA = {
       factionId: null,
       tags: ["healer", "nurse"],
       look: "Stout woman of sixty in scrub pants and a sweatshirt from a hospital that closed, with her gray hair in a clip and a canvas bag that rattles.",
-      voice: "Blunt and clinical; asks what you took and how much before she asks your name, swears mildly and constantly, and never tells anyone not to worry.",
+      voice: "Blunt and clinical; asks what you took and how much before she asks your name, swears mildly, and never tells anyone not to worry.",
       personality: ["unshockable", "tired"],
       goal: "Keep Riverbend's people out of an emergency room forty miles away, and get the pills off the lot without anyone she knows going to prison.",
       secret: "She has reversed four overdoses at Riverbend this fall without reporting one, and three of the four told her they bought from Colt Purvis.",
@@ -2305,7 +2305,7 @@ LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first
 
 VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.
 
-DIALOGUE: NPCs speak in their listed voice. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. Do not reuse a phrase, opener or joke from LAST 3 TURNS. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
 
 NEVER:
 - Act, speak, think or feel for the player character beyond what they typed.
@@ -4568,7 +4568,29 @@ const Style = (() => {
     return prompts[k];
   }
   function unquoted(t) { return t.replace(/"[^"]*"|“[^”]*”?/g, ' '); }
-  /* opts: { zoom, style } (style defaults to the current setting). */
+  /* Spoken lines only, as 4-word phrases; a phrase of nothing but filler words
+     does not count. Used to catch a person's verbal habit turning up again. */
+  const FILLER = new Set(("i you he she it we they the a an to of in on and but or not is was are am do don't didn't what that this my your his her me him them up out for with at be have has had so if as no yes now then there here just like know say said says one all can can't get got go going come see well right ok okay oh hey man son sir ma'am hon you're i'm it's that's there's he's she's we're they're").split(' '));
+  function spokenPhrases(t) {
+    const out = new Set();
+    const quotes = String(t || '').replace(/[‘’]/g, "'").match(/"[^"]*"|“[^”]*”/g) || [];
+    for (const q of quotes) {
+      const words = q.toLowerCase().replace(/[^a-z' ]+/g, ' ').split(/\s+/).filter(Boolean);
+      for (let i = 0; i + 4 <= words.length; i++) {
+        const gram = words.slice(i, i + 4);
+        if (gram.some(w => !FILLER.has(w))) out.add(gram.join(' '));
+      }
+    }
+    return out;
+  }
+  function repeatedPhrase(text, previous) {
+    const seen = new Set();
+    for (const p of previous || []) for (const g of spokenPhrases(p)) seen.add(g);
+    for (const g of spokenPhrases(text)) if (seen.has(g)) return g;
+    return null;
+  }
+  /* opts: { zoom, style, previous } (style defaults to the current setting;
+     previous: recent narrations, for the repeated-phrase check). */
   function check(text, opts) {
     const zoom = !!(opts && opts.zoom);
     const style = pick(opts && opts.style !== undefined ? opts.style : current());
@@ -4585,6 +4607,8 @@ const Style = (() => {
       const m = SIMILE.exec(unquoted(t));
       if (m) problems.push({ type: 'simile', detail: `a simile ("${m[1].toLowerCase()}")` });
     }
+    const again = opts && Array.isArray(opts.previous) && opts.previous.length ? repeatedPhrase(t, opts.previous) : null;
+    if (again) problems.push({ type: 'repeat', detail: `repeats the spoken phrase "${again}" from an earlier turn`, phrase: again });
     return { ok: problems.length === 0, problems, words, style };
   }
   /* Names each problem; a length problem names the word count and the limit
@@ -4593,7 +4617,7 @@ const Style = (() => {
     const what = problems.map(p => p.type === 'banned' ? `banned phrase "${p.detail}"` : p.detail).join('; ');
     const long = problems.find(p => p.type === 'length');
     const others = problems.some(p => p.type !== 'length');
-    const plain = problems.some(p => p.type === 'simile') ? ' Say it plainly, with no comparisons.' : '';
+    const plain = (problems.some(p => p.type === 'simile') ? ' Say it plainly, with no comparisons.' : '') + (problems.some(p => p.type === 'repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '');
     const fix = long
       ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
       : `Write it again without that.${plain}`;
@@ -4602,8 +4626,8 @@ const Style = (() => {
   /* The narrator packet's last line (Pipeline.narratorPacket) and the
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
-  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}`; }
-  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine };
+  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
+  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase };
 })();
 
 // ===== Module: Api =====
@@ -5732,7 +5756,7 @@ const Pipeline = (() => {
     const parts = [n.role];
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
-    if (n.voice) parts.push('voice: ' + lowerFirst(n.voice).replace(/\.$/, ''));
+    if (n.voice) parts.push('voice (a habit, not every line): ' + lowerFirst(n.voice).replace(/\.$/, ''));
     parts.push('attitude ' + n.attitude);
     if (mems.length) parts.push('remembers: ' + mems.join(' / '));
     return `${n.name} (${parts.join('; ')})`;
@@ -5877,7 +5901,8 @@ const Pipeline = (() => {
       let res = await once(null);
       if (isRefusal(res)) { node.remove(); return { refusal: res }; }
       let narration = String((res && res.text) || '').trim();
-      let check = Style.check(narration, { zoom, style });
+      const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
+      let check = Style.check(narration, { zoom, style, previous });
       ctx.style = [check];
       if (!check.ok) {
         State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
@@ -5887,7 +5912,7 @@ const Pipeline = (() => {
         if (isRefusal(res)) { node.remove(); return { refusal: res }; }
         const second = String((res && res.text) || '').trim();
         if (second) narration = second;
-        check = Style.check(narration, { zoom, style });
+        check = Style.check(narration, { zoom, style, previous });
         ctx.style.push(check);
         if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
       }

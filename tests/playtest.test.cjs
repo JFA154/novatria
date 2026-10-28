@@ -266,7 +266,7 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
 
   // ----- 7. /zoom, /look, and a turn taken back with /undo -----
   await turn('/zoom I climb onto the rail and look down at the water for a long time', 'zoom');
-  assert.match(await page.evaluate(() => Game.Pipeline.lastTurn.packet), /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.$/);
+  assert.match(await page.evaluate(() => Game.Pipeline.lastTurn.packet), /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   await turn('/look', 'look');
   const beforeUndo = await stateJson(page);
   await turn('I wait a while by the door', 'wait-action');
