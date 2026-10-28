@@ -59,6 +59,18 @@
   --focus: #e9c27f;
   --shadow: 0 12px 32px rgba(0, 0, 0, .5);
   --scrim: rgba(0, 0, 0, .45);
+  /* People: monogram fills (picked by NPC id) and the attitude scale, cold to warm. */
+  --person-1: #74493a;
+  --person-2: #57613d;
+  --person-3: #3e5969;
+  --person-4: #7a5f2d;
+  --person-5: #604459;
+  --person-6: #3d6057;
+  --person-ink: #f3eadb;
+  --att-cold: #8eaac0;
+  --att-cool: #9aa6ac;
+  --att-mild: #c99c76;
+  --att-warm: #e09a68;
   color-scheme: dark;
 }
 :root[data-theme="parchment"] {
@@ -75,6 +87,17 @@
   --focus: #87561a;
   --shadow: 0 12px 32px rgba(70, 45, 10, .18);
   --scrim: rgba(60, 40, 10, .25);
+  --person-1: #dbb4a0;
+  --person-2: #c6c89e;
+  --person-3: #b3c5cd;
+  --person-4: #dfc48b;
+  --person-5: #d3b7c4;
+  --person-6: #aecabd;
+  --person-ink: #2e2519;
+  --att-cold: #46677f;
+  --att-cool: #556267;
+  --att-mild: #8b562c;
+  --att-warm: #a4531d;
   color-scheme: light;
 }
 :root[data-size="S"] { --read-size: 16px; }
@@ -477,15 +500,78 @@ select.input { padding-right: 32px; }
 .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; }
-.person { padding: 12px 0; border-bottom: 1px solid var(--border); }
-.person:first-child { padding-top: 0; }
-.person-head { display: flex; align-items: baseline; gap: 8px; }
-.person-name { font-weight: 600; font-size: 15px; }
-.pill { margin-left: auto; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
-.pill.warm, .pill.friendly, .pill.loyal { color: var(--accent); border-color: var(--accent); }
-.pill.cold, .pill.hostile { color: var(--danger); border-color: var(--danger); }
-.person p { margin: 4px 0 0; }
 .thread-status { font-size: 12px; color: var(--muted); margin-left: 6px; }
+/* People: person cards. A card is a header button (monogram, name, role,
+   attitude meter, where last seen) and a panel it opens (look and notes). */
+.people-group + .people-group { margin-top: 24px; }
+.panel-body .people-group h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; }
+.people-count { color: var(--faint); font-weight: 400; letter-spacing: 0; }
+.people-list { margin: 0 -8px; }
+.pcard { position: relative; border-radius: 10px; }
+.pcard + .pcard::before {
+  content: ""; position: absolute; top: 0; left: 56px; right: 8px;
+  height: 1px; background: var(--border);
+}
+.pcard.open { background: var(--surface-2); }
+.pcard.open::before, .pcard.open + .pcard::before { opacity: 0; }
+@media (hover: hover) {
+  .pcard:not(.open):hover { background: var(--surface-2); }
+  .pcard:hover::before, .pcard:hover + .pcard::before { opacity: 0; }
+  .pcard-head:hover .pcard-chev { border-color: var(--muted); }
+}
+.pcard-head {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%; min-height: var(--tap); padding: 12px 8px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  font-family: var(--ui-font); font-size: 14px; text-align: left; cursor: pointer;
+}
+.pcard-head:focus-visible { outline-offset: -2px; }
+.mono {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--person-1); color: var(--person-ink);
+  font-size: 13px; font-weight: 600; letter-spacing: .04em; line-height: 1;
+  user-select: none;
+}
+.mono[data-hue="2"] { background: var(--person-2); }
+.mono[data-hue="3"] { background: var(--person-3); }
+.mono[data-hue="4"] { background: var(--person-4); }
+.mono[data-hue="5"] { background: var(--person-5); }
+.mono[data-hue="6"] { background: var(--person-6); }
+.pcard[data-status="dead"] .mono, .pcard[data-status="gone"] .mono { filter: grayscale(1); opacity: .55; }
+.pcard-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pcard-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.pcard.stranger .pcard-name { color: var(--muted); font-weight: 500; }
+.pcard-role { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.pcard:not(.open) .pcard-role { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.pcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 12px; line-height: 1.4; }
+.att { --tone: var(--muted); display: inline-flex; align-items: center; gap: 8px; color: var(--tone); white-space: nowrap; }
+.att[data-level="1"] { --tone: var(--att-cold); }
+.att[data-level="2"] { --tone: var(--att-cool); }
+.att[data-level="4"] { --tone: var(--att-mild); }
+.att[data-level="5"] { --tone: var(--att-warm); }
+.att[data-att="hostile"] .att-word, .att[data-att="loyal"] .att-word { font-weight: 600; }
+.att-meter { display: inline-flex; gap: 3px; }
+.att-meter i { width: 10px; height: 4px; border-radius: 2px; background: var(--border); }
+.att-meter i.on { background: var(--tone); }
+.pcard-where { color: var(--faint); min-width: 0; }
+.pcard-where .nowrap { white-space: nowrap; }
+.pcard-where.here { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.pcard-where.here::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.pcard-chev {
+  flex: none; width: 8px; height: 8px; margin: 8px 4px 0 0;
+  border: solid var(--faint); border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.pcard.open .pcard-chev { margin-top: 12px; transform: rotate(-135deg); }
+.pcard-more { padding: 0 16px 16px 56px; }
+.pcard-more.fade { animation: fade-in .22s ease-out; }
+.pcard-look { margin: 0; font-family: var(--read-font); font-style: italic; font-size: 15px; line-height: 1.55; color: var(--muted); }
+.pcard-notes-h { margin: 16px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-more > .pcard-notes-h:first-child { margin-top: 0; }
+.panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: 13px; line-height: 1.45; }
+.note-k { color: var(--muted); }
+.pcard-none { margin: 0; font-size: 13px; color: var(--faint); }
 .dbg pre {
   font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
   white-space: pre-wrap; overflow-wrap: anywhere;
@@ -595,6 +681,9 @@ select.input { padding-right: 32px; }
   .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 2px; }
   .panel-close { display: inline-flex; }
   .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: 15px; }
+  .mono { width: 40px; height: 40px; font-size: 14px; }
+  .pcard + .pcard::before { left: 60px; }
+  .pcard-more { padding-left: 60px; }
   .create .step { display: none; border-top: 0; padding-top: 4px; }
   .create .step.current { display: block; animation: fade-in .2s ease-out; }
   .ac-desc { display: none; }
@@ -2569,6 +2658,9 @@ const Tables = (() => {
      says), npcHome ([{ npcId, locationId, phases }]: a schedule for an NPC
      who had none) and rumourToldBy ([{ rumourId, npcId }]: who told the
      player a heard rumour, when it was not its source).
+   A logEntry also notes who the player saw: state.seen[npcId] = { locationId,
+   day, phase, turn } for everyone present with them in the narrated scene
+   (People: "Last seen"). Display only; no model ever reads it.
    With { source: 'model' } only the record_changes fields are accepted, so a
    bookkeeper reply can never plant effects or touch time.
    Returns { applied: [string], rejected: [{ path, reason }], time? }. */
@@ -3290,6 +3382,7 @@ const State = (() => {
       }
       s.log.push(entry);
       if (s.log.length > LOG_MAX) s.log.splice(0, s.log.length - LOG_MAX);
+      noteSeen(s, entry);
       return `log turn ${entry.turn}`;
     });
     one('defeat', d => {
@@ -3395,7 +3488,8 @@ const State = (() => {
       chronicle: [],
       journal: [],
       dueEvents: [],
-      visits: []
+      visits: [],
+      seen: {}
     };
     current = st;
     town = deepCopy(townData);
@@ -3436,6 +3530,7 @@ const State = (() => {
     if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
     if (!Array.isArray(s.dueEvents)) s.dueEvents = [];
     if (!Array.isArray(s.visits)) s.visits = [];
+    if (!isObj(s.seen)) s.seen = {};
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
@@ -3462,6 +3557,19 @@ const State = (() => {
     ledger = freshLedger(-1);
     notify();
     return true;
+  }
+
+  /* Called by the logEntry writer: everyone present with the player in the
+     narrated scene (its day and phase), then everyone present now if time
+     has moved on since, is seen at the player's location. */
+  function noteSeen(s, entry) {
+    if (!isObj(s.seen)) s.seen = {};
+    const here = s.player.locationId;
+    const mark = (day, phase) => {
+      for (const n of npcsAt(here, phase)) s.seen[n.id] = { locationId: here, day, phase, turn: s.meta.turn };
+    };
+    if (entry.day !== s.time.day || entry.phase !== s.time.phase) mark(entry.day, entry.phase);
+    mark(s.time.day, s.time.phase);
   }
 
   // ----- read helpers -----
@@ -6357,6 +6465,8 @@ const UI = (() => {
      and lasts only while the player stays in the same place (sceneLoc) and
      that person is still here. chosen: the player picked it on a chip. */
   const composer = { mode: 'do', to: 'everyone', chosen: false, sceneLoc: null, rendered: '' };
+  /* People tab: the id of the one open person card (memory only). */
+  let openPerson = null;
 
   function camel(id) { return id.replace(/-([a-z])/g, (m, c) => c.toUpperCase()); }
   const IDS = ['app', 'banner', 'banner-text', 'banner-close', 'title-name', 'title-setting', 'btn-new', 'btn-continue', 'btn-load',
@@ -6583,6 +6693,127 @@ const UI = (() => {
     appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
   }
   function list(items, fmt, empty) { return items.length ? el('ul', null, items.map(x => el('li', null, fmt(x)))) : el('p', { class: 'empty' }, empty); }
+
+  // ----- People: person cards -----
+  /* Someone the player has met: introduced (knownToPlayer), or dealt with
+     without learning their name (they remember the player, told them a
+     rumour, or were spoken to in Say mode). Strangers show as npcLabel. */
+  function hasMet(s, n) {
+    if (n.knownToPlayer) return true;
+    return n.memories.length > 0
+      || s.rumours.some(r => r.heard && r.heardFrom === n.id)
+      || s.log.some(e => e.to === n.id);
+  }
+  const PERSON_HUES = 6;
+  /* A colour from the id (a string hash), so a person keeps theirs all game. */
+  function personHue(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0;
+    return (h % PERSON_HUES) + 1;
+  }
+  const NOT_INITIALS = /^(the|a|an|and|of|at|in|on|for|from|with|to|jr|sr|ii|iii|iv)$/i;
+  function initials(text) {
+    const words = String(text || '').split(/\s+/).map(w => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(w => w && !NOT_INITIALS.test(w));
+    if (!words.length) return '?';
+    const pick = words.length > 1 ? [words[0], words[words.length - 1]] : [words[0]];
+    return pick.map(w => w.charAt(0).toUpperCase()).join('');
+  }
+  /* Five-segment attitude meter: segments filled per State.attitudeWord, and
+     the tone (cold to warm) the meter and the word are drawn in. */
+  const ATTITUDE_LEVEL = { hostile: 1, cold: 1, wary: 2, neutral: 3, friendly: 4, warm: 5, loyal: 5 };
+  function attitudeMeter(word) {
+    const level = ATTITUDE_LEVEL[word] || 3;
+    const segs = [];
+    for (let i = 1; i <= 5; i++) segs.push(el('i', { class: i <= level ? 'on' : null }));
+    return el('span', { class: 'att', dataset: { att: word, level: String(level) } },
+      el('span', { class: 'att-meter', 'aria-hidden': 'true' }, segs), el('span', { class: 'att-word' }, word));
+  }
+  function whereLine(s, n, isHere) {
+    if (isHere) return el('span', { class: 'pcard-where here' }, 'Here now');
+    const v = (s.seen || {})[n.id];
+    const l = v && State.loc(v.locationId);
+    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${l.name}, `, el('span', { class: 'nowrap' }, `day ${v.day} ${v.phase}`)) : null;
+  }
+  function reEsc(x) { return String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  /* A memory in the player's words: "Tester insulted them" -> "you insulted
+     them". A story-point fact keeps its own label. */
+  function plainMemory(s, text) {
+    let t = String(text || '').trim().replace(/\.$/, '');
+    let key = 'Remembers';
+    const fact = /^Fact \(a story point\):\s*/i.exec(t);
+    if (fact) { key = 'Fact'; t = t.slice(fact[0].length); }
+    const verb = { is: 'are', was: 'were', has: 'have' };
+    // The player's name as written (case-sensitive, so "Will" leaves "will" alone), or "the player".
+    const toYou = (who, flags) => {
+      const re = x => new RegExp(`(?<![\\p{L}\\p{N}])${who}${x}(?![\\p{L}\\p{N}])`, flags);
+      t = t.replace(re("['\u2019]s"), 'your').replace(re(' (is|was|has)'), (m, v) => 'you ' + verb[v.toLowerCase()]).replace(re(''), 'you');
+    };
+    if (s.player.name) toYou(reEsc(s.player.name), 'gu');
+    toYou('(?:the player|^player)', 'giu');
+    // Lower-case the first word unless it is a name the town uses.
+    const first = (/^[\p{L}']+/u.exec(t) || [''])[0];
+    const proper = s.npcs.some(n => n.name.split(/\s+/).includes(first)) || s.locations.some(l => l.name.split(/\s+/).includes(first));
+    return [key, proper ? t : lowerFirst(t)];
+  }
+  /* Notes for an open card, newest first within each kind: what they told
+     the player, what they remember (weight 2+ or the last 20 turns), known
+     threads they are part of, and the loose end that ties them to the player. */
+  function personNotes(s, n) {
+    const notes = [];
+    for (const r of s.rumours) if (r.heard && (r.heardFrom || r.sourceNpcId) === n.id) notes.push(['Told you', r.text]);
+    const dayOf = turn => { for (let i = s.log.length - 1; i >= 0; i--) if (s.log[i].turn === turn) return s.log[i].day; return turn === 0 ? 1 : null; };
+    const mems = n.memories.filter(m => (m.weight >= 2 || s.meta.turn - m.turn < 20) && !/^Loose end with /i.test(m.text)).slice(-6).reverse();
+    for (const m of mems) {
+      const [k, t] = plainMemory(s, m.text);
+      const day = dayOf(m.turn);
+      notes.push([k, day ? `${t}, day ${day}` : t]);
+    }
+    const loose = (s.player.looseEnds || []).filter(x => x.npcId === n.id);
+    const looseThreads = loose.map(x => x.threadId);
+    for (const t of s.threads) {
+      if (!t.knownToPlayer || !t.linkedIds.includes(n.id) || looseThreads.includes(t.id)) continue;
+      notes.push([t.title + (t.status !== 'open' ? ` (${t.status})` : ''), t.summary]);
+    }
+    for (const x of loose) notes.push([x.label, x.text]);
+    return notes;
+  }
+  function personCard(s, n, isHere) {
+    const known = !!n.knownToPlayer;
+    const name = npcLabel(n);
+    const open = openPerson === n.id;
+    const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
+    const moreId = 'pmore-' + n.id;
+    const notes = personNotes(s, n);
+    return el('article', { class: 'pcard' + (known ? '' : ' stranger') + (open ? ' open' : ''), dataset: { npc: n.id, status: status || 'free' } },
+      el('button', { type: 'button', class: 'pcard-head', id: 'phead-' + n.id, 'aria-expanded': String(open), 'aria-controls': moreId, onclick: () => togglePerson(n.id) },
+        el('span', { class: 'mono', dataset: { hue: String(personHue(n.id)) }, 'aria-hidden': 'true' }, initials(name)),
+        el('span', { class: 'pcard-main' },
+          el('span', { class: 'pcard-name' }, name),
+          n.role || status ? el('span', { class: 'pcard-role' }, capFirst(n.role || '') + (status ? (n.role ? ' · ' : '') + status : '')) : null,
+          el('span', { class: 'pcard-meta' }, attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere))),
+        el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
+      el('div', { class: 'pcard-more', id: moreId, hidden: !open },
+        n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
+        notes.length ? [el('h4', { class: 'pcard-notes-h' }, 'Notes'),
+          el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
+        !n.look && !notes.length ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null));
+  }
+  /* Open one card (or close it). In memory only, never saved; a re-render
+     keeps the open card open. Game.UI.togglePerson(id, open?). */
+  function togglePerson(id, want) {
+    const on = typeof want === 'boolean' ? want : openPerson !== id;
+    if (on) openPerson = id;
+    else if (openPerson === id) openPerson = null;
+    for (const card of $$('.pcard', d.panelBody)) {
+      const isOpen = card.dataset.npc === openPerson;
+      const more = $('.pcard-more', card);
+      card.classList.toggle('open', isOpen);
+      $('.pcard-head', card).setAttribute('aria-expanded', String(isOpen));
+      more.classList.toggle('fade', isOpen && card.dataset.npc === id);
+      more.hidden = !isOpen;
+    }
+    return openPerson;
+  }
   function kv(rows) { return el('dl', { class: 'kv' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', null, v)])); }
   const PANELS = {
     character(s) {
@@ -6600,22 +6831,25 @@ const UI = (() => {
         list(p.inventory, i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}${i.notes ? ' — ' + i.notes : ''}`, 'Nothing.')
       ];
     },
+    /* Person cards: who is here now, then everyone else the player has met,
+       most recently seen first. Only what the player could know: name (or
+       how they would describe a stranger), role, attitude, where they were
+       last seen, their look, and notes (what they said, what they remember,
+       loose ends, known threads). Never secrets, goals, factions or seeds. */
     people(s) {
-      const known = s.npcs.filter(n => n.knownToPlayer);
-      if (!known.length) return el('p', { class: 'empty' }, 'You do not know anyone here yet.');
-      return known.map(n => {
-        const word = State.attitudeWord(n.attitude);
-        const learned = [].concat(
-          s.threads.filter(t => t.knownToPlayer && t.linkedIds.includes(n.id)).map(t => `${t.title}: ${t.summary}`),
-          s.rumours.filter(r => r.heard && (r.heardFrom || r.sourceNpcId) === n.id).map(r => `Told you: ${r.text}`)
-        );
-        const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
-        return el('article', { class: 'person', dataset: { npc: n.id } },
-          el('div', { class: 'person-head' }, el('span', { class: 'person-name' }, n.name), el('span', { class: 'pill ' + word }, word)),
-          el('p', { class: 'muted' }, capFirst(n.role) + (status ? ' · ' + status : '')),
-          n.look ? el('p', null, n.look) : null,
-          learned.length ? el('ul', null, learned.map(t => el('li', null, t))) : null);
-      });
+      const here = State.npcsAt(s.player.locationId);
+      const people = s.npcs.filter(n => hasMet(s, n));
+      if (!people.length) return el('p', { class: 'empty' }, "You haven't met anyone yet.");
+      const hereIds = here.map(n => n.id);
+      const now = here.filter(n => people.includes(n));
+      const seen = s.seen || {};
+      const rest = people.filter(n => !hereIds.includes(n.id))
+        .map((n, i) => ({ n, i, t: seen[n.id] ? seen[n.id].turn : -1 }))
+        .sort((a, b) => (b.t - a.t) || (a.i - b.i)).map(x => x.n);
+      const group = (key, title, list) => (list.length ? el('section', { class: 'people-group', dataset: { group: key }, 'aria-label': title },
+        el('h3', null, title, el('span', { class: 'people-count' }, String(list.length))),
+        el('div', { class: 'people-list' }, list.map(n => personCard(s, n, hereIds.includes(n.id))))) : null);
+      return [group('here', 'Here now', now), group('known', 'Known', rest)];
     },
     journal(s) {
       const threads = s.threads.filter(t => t.knownToPlayer);
@@ -7269,7 +7503,8 @@ const UI = (() => {
   return {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
-    setMode, setAddressee, renderComposer,
+    setMode, setAddressee, renderComposer, togglePerson,
+    get openPerson() { return openPerson; },
     get mode() { return composer.mode; },
     get addressee() { syncAddressee(); return composer.to; },
     get screen() { return screen; },

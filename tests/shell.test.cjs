@@ -618,4 +618,217 @@ s.test('player text is rendered as text, never as markup', async h => {
   assert.ok(/'use strict'/.test(src));
 });
 
+/* ----- People tab: person cards ----- */
+const ATT_LEVEL = { hostile: 1, cold: 1, wary: 2, neutral: 3, friendly: 4, warm: 5, loyal: 5 };
+const initialsOf = text => {
+  const w = String(text).split(/\s+/).map(x => x.replace(/[^\p{L}\p{N}]/gu, '')).filter(x => x && !/^(the|a|an|and|of|at|in|on|for|from|with|to|jr|sr|ii|iii|iv)$/i.test(x));
+  return (w.length > 1 ? [w[0], w[w.length - 1]] : w).map(x => x.charAt(0).toUpperCase()).join('');
+};
+/* A scene with three people present the player has never dealt with: a (to be
+   introduced), b (left a stranger) and c (a stranger who remembers the
+   player). Puts the player there and returns the ids. */
+async function peopleScene(page) {
+  const sc = await page.evaluate(() => {
+    const G = Game;
+    const st = G.state;
+    const fresh = n => !n.knownToPlayer && !n.memories.length && n.status === 'free';
+    for (const l of st.locations) for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      if (l.closed) continue;
+      const here = G.State.npcsAt(l.id, ph).filter(fresh);
+      if (here.length >= 3) return { loc: l.id, phase: ph, a: here[0].id, b: here[1].id, c: here[2].id };
+    }
+    return null;
+  });
+  assert.ok(sc, 'a scene with three people the player has not met');
+  await page.evaluate(x => {
+    const G = Game;
+    G.Api.Mock.delay = 0;
+    while (G.state.time.phase !== x.phase) G.State.apply({ advanceTime: 'long' });
+    G.State.apply({ playerLocationId: x.loc, npcKnownToPlayer: [x.a], newMemories: [{ npcId: x.c, text: `${G.state.player.name} asked them for directions`, weight: 1 }] });
+  }, sc);
+  return sc;
+}
+const cardInfo = (page, id) => page.evaluate(id => {
+  const c = document.querySelector(`#panel-body .pcard[data-npc="${id}"]`);
+  if (!c) return null;
+  const head = c.querySelector('.pcard-head');
+  const more = c.querySelector('.pcard-more');
+  return {
+    group: c.closest('.people-group').dataset.group,
+    stranger: c.classList.contains('stranger'),
+    mono: c.querySelector('.mono').textContent,
+    monoBg: getComputedStyle(c.querySelector('.mono')).backgroundColor,
+    name: c.querySelector('.pcard-name').textContent,
+    role: (c.querySelector('.pcard-role') || {}).textContent || '',
+    word: c.querySelector('.att-word').textContent,
+    att: c.querySelector('.att').dataset.att,
+    on: c.querySelectorAll('.att-meter i.on').length,
+    segs: c.querySelectorAll('.att-meter i').length,
+    where: (c.querySelector('.pcard-where') || {}).textContent || null,
+    expanded: head.getAttribute('aria-expanded'),
+    controls: head.getAttribute('aria-controls') === more.id,
+    moreVisible: !more.hidden && more.getBoundingClientRect().height > 0,
+    look: (c.querySelector('.pcard-look') || {}).textContent || null,
+    notes: [...c.querySelectorAll('.pcard-notes li')].map(li => li.textContent),
+    text: c.innerText,
+    all: c.textContent
+  };
+}, id);
+
+s.test('People: cards for the people met, with monogram, name, role and attitude; strangers by their label; Here now is exactly who is here; no hidden fields', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['debt', 'enemy', 'promise'] });
+  const sc = await peopleScene(page);
+  await page.click('#tab-people');
+  const st = await page.evaluate(() => Game.state);
+  const npc = id => st.npcs.find(n => n.id === id);
+  const present = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId).map(n => n.id));
+  const met = n => n.knownToPlayer || n.memories.length > 0;
+  // Groups: Here now is the people present whom the player has met, in scene order; Known is everyone else met.
+  const groups = await page.evaluate(() => [...document.querySelectorAll('#panel-body .people-group')].map(g => ({ key: g.dataset.group, title: g.querySelector('h3').firstChild.textContent, ids: [...g.querySelectorAll('.pcard')].map(c => c.dataset.npc) })));
+  assert.deepEqual(groups.map(g => g.key), ['here', 'known']);
+  assert.deepEqual(groups.map(g => g.title), ['Here now', 'Known']);
+  assert.deepEqual(groups[0].ids, present.filter(id => met(npc(id))), 'Here now: exactly the people here the player has met');
+  assert.ok(groups[0].ids.includes(sc.a) && groups[0].ids.includes(sc.c) && !groups[0].ids.includes(sc.b));
+  assert.deepEqual(groups[1].ids.slice().sort(), st.npcs.filter(n => met(n) && !present.includes(n.id)).map(n => n.id).sort(), 'Known: everyone else met');
+  assert.equal(await cardInfo(page, sc.b), null, 'a stranger the player never dealt with is not listed');
+  // A known person: monogram, name, role, attitude word and a meter that matches it.
+  const a = await cardInfo(page, sc.a);
+  const na = npc(sc.a);
+  assert.equal(a.name, na.name);
+  assert.equal(a.mono, initialsOf(na.name));
+  assert.equal(a.role, na.role.charAt(0).toUpperCase() + na.role.slice(1));
+  assert.equal(a.word, await page.evaluate(v => Game.State.attitudeWord(v), na.attitude));
+  assert.deepEqual([a.on, a.segs], [ATT_LEVEL[a.word], 5]);
+  assert.equal(a.where, 'Here now');
+  assert.equal(a.expanded, 'false');
+  assert.ok(a.controls && !a.moreVisible, 'collapsed by default');
+  assert.ok(!a.stranger);
+  assert.notEqual(a.monoBg, 'rgba(0, 0, 0, 0)', 'the monogram has a colour');
+  // A stranger who remembers the player: their label, never their name.
+  const c = await cardInfo(page, sc.c);
+  const label = await page.evaluate(id => Game.npcLabel(Game.State.npc(id)), sc.c);
+  assert.ok(c.stranger);
+  assert.equal(c.name, label);
+  assert.notEqual(label, npc(sc.c).name);
+  assert.ok(!c.all.includes(npc(sc.c).name), 'the stranger\'s name is not shown');
+  assert.equal(c.mono, initialsOf(label));
+  assert.ok(c.notes.includes('Remembers: you asked them for directions, day 1'), c.notes.join(' | '));
+  // The monogram colour comes from the id: the same person gets the same colour after a reload.
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  await page.click('#tab-people');
+  assert.equal((await cardInfo(page, sc.a)).monoBg, a.monoBg, 'same colour after a reload');
+  // Every attitude word fills its share of the five segments.
+  for (const v of [-80, -40, -10, 0, 10, 40, 80]) {
+    await page.evaluate(([id, v]) => Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: id, delta: v - Game.State.npc(id).attitude }] }), [sc.a, v]);
+    const x = await cardInfo(page, sc.a);
+    const word = await page.evaluate(v => Game.State.attitudeWord(v), v);
+    assert.deepEqual([x.word, x.att, x.on, x.segs], [word, word, ATT_LEVEL[word], 5], 'attitude ' + v);
+  }
+  // Nothing hidden, in the visible text or in the closed cards.
+  const all = await page.evaluate(() => { Game.UI.renderPanel(); return document.getElementById('panel-body').textContent; });
+  const now = await page.evaluate(() => Game.state);
+  for (const n of now.npcs) {
+    if (n.secret) assert.ok(!all.includes(n.secret), 'secret leaked: ' + n.id);
+    if (n.goal) assert.ok(!all.includes(n.goal), 'goal leaked: ' + n.id);
+  }
+  for (const r of now.rumours.filter(x => !x.heard)) assert.ok(!all.includes(r.text), 'unheard rumour leaked: ' + r.id);
+  for (const sd of now.seeds) assert.ok(!all.includes(sd.effect) && !all.includes(sd.cause), 'seed leaked: ' + sd.id);
+  for (const f of now.factions) assert.ok(!all.includes(f.id) && !all.includes(f.goal), 'faction leaked: ' + f.id);
+  // The loose end shows on its person's card.
+  const le = now.player.looseEnds.find(x => x.kind === 'debt');
+  const leCard = await cardInfo(page, le.npcId);
+  assert.ok(leCard.notes.includes(`${le.label}: ${le.text}`), leCard.notes.join(' | '));
+});
+
+s.test('People: a card opens on tap with its look and notes, stays open across a turn, and shows where someone was last seen', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['debt', 'enemy', 'promise'] });
+  const sc = await peopleScene(page);
+  await page.click('#tab-people');
+  const na = await page.evaluate(id => Game.State.npc(id), sc.a);
+  const head = id => `#panel-body .pcard[data-npc="${id}"] .pcard-head`;
+  await page.click(head(sc.a));
+  let a = await cardInfo(page, sc.a);
+  assert.equal(a.expanded, 'true');
+  assert.ok(a.moreVisible && a.look === na.look && a.text.includes(na.look), 'the look shows when open');
+  assert.equal(await page.evaluate(() => Game.UI.openPerson), sc.a);
+  await page.click(head(sc.a));
+  a = await cardInfo(page, sc.a);
+  assert.equal(a.expanded, 'false');
+  assert.ok(!a.moreVisible && !a.text.includes(na.look), 'closed again');
+  // One card open at a time.
+  await page.click(head(sc.a));
+  await page.click(head(sc.c));
+  assert.deepEqual([(await cardInfo(page, sc.a)).expanded, (await cardInfo(page, sc.c)).expanded], ['false', 'true']);
+  await page.click(head(sc.a));
+  // A turn re-renders the panel; the open card stays open.
+  await page.evaluate(() => { for (const c of document.querySelectorAll('#panel-body .pcard')) c.__old = true; });
+  await sendText(page, `I insult ${na.name}.`);
+  assert.equal(await page.evaluate(id => !!document.querySelector(`#panel-body .pcard[data-npc="${id}"]`).__old, sc.a), false, 'the panel was rendered again');
+  a = await cardInfo(page, sc.a);
+  assert.equal(a.expanded, 'true', 'still open after the turn');
+  assert.ok(a.moreVisible && a.look === na.look);
+  assert.ok(a.notes.some(t => /^Remembers: you insulted them, day \d+$/.test(t)), a.notes.join(' | '));
+  assert.ok(!a.notes.some(t => /Loose end with/.test(t)));
+  // Leave: a is now Known, last seen here; most recently seen first; someone never seen has no location line.
+  const scene = await page.evaluate(a => { const l = Game.State.loc(Game.state.player.locationId); return { id: l.id, name: l.name, exit: l.exits.map(id => Game.State.loc(id)).find(x => !x.closed && !Game.State.npcsAt(x.id).some(n => n.id === a)) }; }, sc.a);
+  assert.ok(scene.exit, 'an open place next door without them');
+  await page.evaluate(id => Game.State.apply({ playerLocationId: id, logEntry: { input: '', roll: null, narration: 'You step next door.' } }), scene.exit.id);
+  const seen = await page.evaluate(id => Game.state.seen[id], sc.a);
+  assert.equal(seen.locationId, scene.id);
+  a = await cardInfo(page, sc.a);
+  assert.equal(a.group, 'known');
+  assert.equal(a.where, `Last seen: ${scene.name}, day ${seen.day} ${seen.phase}`);
+  assert.equal(a.expanded, 'true', 'still open after moving groups');
+  const known = await page.evaluate(() => [...document.querySelectorAll('#panel-body [data-group="known"] .pcard')].map(c => ({ id: c.dataset.npc, turn: (Game.state.seen[c.dataset.npc] || { turn: -1 }).turn, where: !!c.querySelector('.pcard-where') })));
+  for (let i = 1; i < known.length; i++) assert.ok(known[i - 1].turn >= known[i].turn, 'Known is ordered by the most recent sighting');
+  for (const k of known) assert.equal(k.where, k.turn >= 0, 'a location line only for someone seen: ' + k.id);
+  const enemy = await page.evaluate(() => Game.state.player.looseEnds.find(x => x.kind === 'enemy').npcId);
+  assert.equal((await cardInfo(page, enemy)).where, null, 'the enemy has not been seen yet');
+  // The keyboard works too: Enter on a focused header toggles it.
+  await page.focus(head(sc.c));
+  await page.keyboard.press('Enter');
+  assert.equal((await cardInfo(page, sc.c)).expanded, 'true');
+  assert.equal((await cardInfo(page, sc.a)).expanded, 'false');
+  // Open cards live in memory only: after a reload every card starts closed.
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  await page.click('#tab-people');
+  assert.equal(await page.evaluate(() => Game.UI.openPerson), null);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#panel-body .pcard-head')].filter(b => b.getAttribute('aria-expanded') !== 'false').length), 0);
+});
+
+s.test('People at 375: the sheet\'s cards have 40px monograms and 44px headers, open in place, and nothing scrolls sideways', async h => {
+  const page = await h.open({ viewport: PHONE });
+  await quickStart(page, { kinds: ['debt', 'enemy', 'promise'] });
+  const sc = await peopleScene(page);
+  await sendText(page, 'I ask everyone here what the trouble with the bridge is, and whether anybody is hiring this week.');
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(320);
+  const measure = () => page.evaluate(() => [...document.querySelectorAll('#panel-body .pcard')].map(c => {
+    const h = c.querySelector('.pcard-head').getBoundingClientRect();
+    const m = c.querySelector('.mono').getBoundingClientRect();
+    return { id: c.dataset.npc, h: h.height, w: h.width, left: h.left, right: h.right, mono: [m.width, m.height] };
+  }));
+  const cards = await measure();
+  assert.ok(cards.length >= 2, 'cards in the sheet');
+  for (const c of cards) {
+    assert.ok(c.h >= 44, 'header at least 44px tall: ' + c.h);
+    assert.deepEqual(c.mono, [40, 40], 'monogram 40px');
+    assert.ok(c.left >= 0 && c.right <= 375, 'inside the screen');
+  }
+  assert.deepEqual(await overflowReport(page, 375), [], 'sheet: people');
+  await page.click(`#panel-body .pcard[data-npc="${sc.a}"] .pcard-head`);
+  assert.equal((await cardInfo(page, sc.a)).expanded, 'true');
+  assert.ok((await cardInfo(page, sc.a)).moreVisible);
+  assert.deepEqual(await overflowReport(page, 375), [], 'sheet: people, a card open');
+  assert.equal(await page.evaluate(() => document.getElementById('panel-body').scrollWidth <= document.getElementById('panel-body').clientWidth), true);
+});
+
 s.run();

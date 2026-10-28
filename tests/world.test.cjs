@@ -546,7 +546,8 @@ s.test('news spreads: an off-screen completion becomes a rumour that its source,
   assert.ok(rumour.includes(news.text), 'the news is offered: ' + rumour);
   assert.equal(await page.evaluate(id => Game.State.rumour(id).heard, news.id), true, 'heard once told');
   if (teller.id !== news.source) assert.equal(await page.evaluate(id => Game.State.rumour(id).heardFrom, news.id), teller.id, 'the teller is recorded');
-  await page.evaluate(() => Game.UI.openPanel('people'));
+  // People cards open on tap; the notes are inside.
+  await page.evaluate(id => { Game.UI.openPanel('people'); Game.UI.togglePerson(id, true); }, teller.id);
   const card = await page.innerText(`#panel-body [data-npc="${teller.id}"]`);
   assert.ok(card.includes(`Told you: ${news.text}`), 'People lists it under whoever told it');
   await sendText(page, `I talk to ${teller.name}`);
