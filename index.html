@@ -2434,7 +2434,16 @@ const Tables = (() => {
      addItems ([{ locationId, item }]: things noticed in a place, which
      itemsGained can then pick up), conditionsRemoved, storyPointsDelta,
      lastRollKey, beginTurn, advanceTime, logEntry, seedsFired,
-     chronicleEntry, weather, addLooseEnd, defeat ({ outcome }).
+     chronicleEntry, weather, addLooseEnd, defeat ({ outcome }), and the
+     living world's own (milestone 4, written by World): clockFill
+     ([{ factionId, delta }]: a faction's roll, no per-turn limit), clockNext
+     ([factionId]: start the next clock in sequence), dueAdd ([{ seedId, text,
+     npcId?, bring? }]: a fired seed waiting for narration), dueDone
+     ([seedId]: narrated or dropped), visits ([{ npcId, locationId }]: the NPC
+     is there for the current day and phase only, whatever their schedule
+     says), npcHome ([{ npcId, locationId, phases }]: a schedule for an NPC
+     who had none) and rumourToldBy ([{ rumourId, npcId }]: who told the
+     player a heard rumour, when it was not its source).
    With { source: 'model' } only the record_changes fields are accepted, so a
    bookkeeper reply can never plant effects or touch time.
    Returns { applied: [string], rejected: [{ path, reason }], time? }. */
@@ -2454,7 +2463,10 @@ const State = (() => {
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
-    'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat'];
+    'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy'];
+  // Where an engine-planted seed came from (World reads it for grudges and favours).
+  const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
   const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3 };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
@@ -2545,7 +2557,11 @@ const State = (() => {
     const text = cleanText(r.text, 300);
     if (!text) bad('rumour needs text');
     if (r.sourceNpcId !== null && r.sourceNpcId !== undefined) needNpc(r.sourceNpcId);
-    return { id: r.id, text, true: r.true !== false, sourceNpcId: r.sourceNpcId || null, heard: r.heard === true };
+    // Rumours added during play are news (Pipeline.pickRumour spreads them first);
+    // one a faction's clock added also carries that faction (its members know it).
+    const out = { id: r.id, text, true: r.true !== false, sourceNpcId: r.sourceNpcId || null, heard: r.heard === true, addedTurn: current.meta.turn, addedDay: current.time.day };
+    if (typeof r.factionId === 'string' && faction(r.factionId)) out.factionId = r.factionId;
+    return out;
   }
   function normaliseSeed(raw, requireAhead) {
     if (!isObj(raw)) bad('seed must be an object');
@@ -2579,6 +2595,12 @@ const State = (() => {
     let notBefore = toInt(raw.notBeforeDay);
     if (requireAhead && tr.type !== 'day') notBefore = Math.max(notBefore || 0, day + 1);
     if (notBefore) out.notBeforeDay = notBefore;
+    // Engine seeds only (never the bookkeeper's): who and what planted it.
+    if (!requireAhead && isObj(raw.origin) && SEED_ORIGINS.includes(raw.origin.kind)) {
+      out.origin = { kind: raw.origin.kind };
+      if (typeof raw.origin.npcId === 'string' && npc(raw.origin.npcId)) out.origin.npcId = raw.origin.npcId;
+      if (Number.isInteger(raw.origin.template)) out.origin.template = raw.origin.template;
+    }
     return out;
   }
   function addNpc(raw) {
@@ -2708,6 +2730,8 @@ const State = (() => {
       const n = needNpc(e.npcId);
       const l = needLoc(e.locationId);
       const ph = phasesOf(e.phases) || bad('phases must be "all" or a list of phases');
+      // Like npcStatus: someone in the cells, gone or dead stays where they are.
+      if (n.alive === false || n.status === 'gone' || n.status === 'dead' || n.status === 'arrested') return `no-op: ${n.id} is ${n.alive === false ? 'dead' : n.status}`;
       removeFromSchedules(n.id, ph);
       ph.forEach(p => addToSchedule(l, p, n.id));
       return `${n.id} at ${l.id} (${ph.join(', ')})`;
@@ -2789,6 +2813,8 @@ const State = (() => {
       const idx = PHASES.indexOf(t.phase);
       if (idx === PHASES.length - 1) { t.phase = PHASES[0]; t.day += 1; } else t.phase = PHASES[idx + 1];
     }
+    // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene).
+    if (steps && Array.isArray(current.visits)) current.visits = current.visits.filter(v => v.day === t.day && v.phase === t.phase);
     return { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed };
   }
 
@@ -3032,6 +3058,72 @@ const State = (() => {
       sd.fired = true;
       return `${id} fired`;
     });
+    // ----- the living world (milestone 4) -----
+    each('clockFill', c => {
+      if (!isObj(c)) bad('must be an object');
+      const f = needFaction(c.factionId);
+      const clock = f.activeClock >= 0 && Array.isArray(f.clocks) ? f.clocks[f.activeClock] : null;
+      if (!clock) bad(`${f.id} has no running clock`);
+      const d = toInt(c.delta);
+      if (d === null || d === 0) bad('delta must be a non-zero integer');
+      const before = clock.filled;
+      clock.filled = clamp(before + d, 0, clock.segments);
+      return `${f.id} "${clock.label}" ${before} -> ${clock.filled}/${clock.segments}`;
+    });
+    each('clockNext', id => {
+      const f = needFaction(id);
+      if (!(f.activeClock >= 0)) bad(`${f.id} has no running clock`);
+      const was = f.activeClock;
+      f.activeClock = was + 1 < (f.clocks || []).length ? was + 1 : -1;
+      return f.activeClock >= 0 ? `${f.id} clock ${was + 1} done, clock ${f.activeClock + 1} starts` : `${f.id} clock ${was + 1} done, no clocks left`;
+    });
+    each('dueAdd', e => {
+      if (!isObj(e)) bad('must be an object');
+      const sd = seed(e.seedId) || bad(`unknown seed id "${e.seedId}"`);
+      if (!Array.isArray(s.dueEvents)) s.dueEvents = [];
+      if (s.dueEvents.some(x => x.seedId === sd.id)) bad(`${sd.id} is already due`);
+      const ev = { seedId: sd.id, text: cleanText(e.text, 400) || sd.effect, firedTurn: s.meta.turn, firedDay: s.time.day };
+      if (e.npcId !== undefined && e.npcId !== null) ev.npcId = needNpc(e.npcId).id;
+      if (e.bring === true && ev.npcId) ev.bring = true;
+      s.dueEvents.push(ev);
+      return `${sd.id} due`;
+    });
+    each('dueDone', id => {
+      const list = Array.isArray(s.dueEvents) ? s.dueEvents : [];
+      const i = list.findIndex(x => x.seedId === id);
+      if (i < 0) bad(`"${id}" is not due`);
+      list.splice(i, 1);
+      return `${id} done`;
+    });
+    each('npcHome', hm => {
+      if (!isObj(hm)) bad('must be an object');
+      const n = needNpc(hm.npcId);
+      const l = needLoc(hm.locationId);
+      const ph = phasesOf(hm.phases) || bad('phases must be "all" or a list of phases');
+      n.home = { locationId: l.id, phases: ph };
+      if (n.alive !== false && n.status === 'free') { removeFromSchedules(n.id, ph); ph.forEach(x => addToSchedule(l, x, n.id)); }
+      return `${n.id} lives at ${l.id} (${ph.join(', ')})`;
+    });
+    each('rumourToldBy', t => {
+      if (!isObj(t)) bad('must be an object');
+      const r = rumour(t.rumourId) || bad(`unknown rumour id "${t.rumourId}"`);
+      const n = needNpc(t.npcId);
+      if (!r.heard) bad(`${r.id} has not been heard`);
+      if (r.heardFrom === n.id) return null;
+      r.heardFrom = n.id;
+      return `${r.id} heard from ${n.id}`;
+    });
+    each('visits', v => {
+      if (!isObj(v)) bad('must be an object');
+      const n = needNpc(v.npcId);
+      const l = needLoc(v.locationId);
+      if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status}`);
+      if (l.closed) bad(`${l.id} is closed`);
+      if (!Array.isArray(s.visits)) s.visits = [];
+      s.visits = s.visits.filter(x => x.npcId !== n.id);
+      s.visits.push({ npcId: n.id, locationId: l.id, day: s.time.day, phase: s.time.phase });
+      return `${n.id} at ${l.id} for day ${s.time.day} ${s.time.phase}`;
+    });
     one('chronicleEntry', c => {
       if (!isObj(c)) bad('must be an object');
       const from = toInt(c.fromTurn);
@@ -3149,7 +3241,9 @@ const State = (() => {
       rumours: t.rumours,
       log: [],
       chronicle: [],
-      journal: []
+      journal: [],
+      dueEvents: [],
+      visits: []
     };
     current = st;
     town = deepCopy(townData);
@@ -3188,6 +3282,8 @@ const State = (() => {
     if (!Number.isInteger(s.meta.rngCalls)) s.meta.rngCalls = 0;
     if (s.meta.lastRollKey === undefined) s.meta.lastRollKey = null;
     if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
+    if (!Array.isArray(s.dueEvents)) s.dueEvents = [];
+    if (!Array.isArray(s.visits)) s.visits = [];
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
@@ -3217,11 +3313,20 @@ const State = (() => {
   }
 
   // ----- read helpers -----
+  /* Who is at a place in a phase: the schedule, except that a visit (an NPC
+     who came to the player, World.dueSeeds) puts someone in one place for the
+     current day and phase only, and takes them out of their scheduled one. */
   function npcsAt(locId, phase) {
     if (!current) return [];
     const l = loc(locId);
     if (!l) return [];
-    const ids = (l.npcIdsBySchedule && l.npcIdsBySchedule[phase || current.time.phase]) || [];
+    const ph = phase || current.time.phase;
+    const ids = ((l.npcIdsBySchedule && l.npcIdsBySchedule[ph]) || []).slice();
+    const visits = (current.visits || []).filter(v => v.day === current.time.day && v.phase === ph);
+    for (const v of visits) {
+      const i = ids.indexOf(v.npcId);
+      if (v.locationId === l.id) { if (i < 0) ids.push(v.npcId); } else if (i >= 0) ids.splice(i, 1);
+    }
     return ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead');
   }
   function reputationTier(key) {
@@ -3510,7 +3615,8 @@ const Town = (() => {
      from newNpc plus Tables. The NPC becomes known to the player, gets a
      memory and a small attitude shift, a known thread records the loose end,
      and a hidden seed is planted. Created NPCs are not put on any schedule:
-     they stay off-screen until their seed brings them in (milestone 4, World.fireSeeds).
+     they stay off-screen until their seed fires; then they come to the
+     player for that scene and get a home (World.fireSeeds, World.tick).
      dayOffset [a, b] is read as day numbers counted from day 1, so [3, 5]
      fires on day 3, 4 or 5 (never earlier than tomorrow). */
   const LOOSE_END_ATTITUDE = { debt: -10, enemy: -40, secret: -5, lost: 10, promise: 5 };
@@ -3554,7 +3660,7 @@ const Town = (() => {
     const vars = { npc: target.name, player: s.player.name, text };
     const seedId = uniqueId('seed_le_' + le.kind, id => !!State.seed(id));
     const threadId = uniqueId('thr_le_' + le.kind, id => !!State.thread(id));
-    const seedObj = { id: seedId, cause: `Loose end (${def.label}): ${text}`, effect: fillTemplate(sd.effect || '{npc} turns up.', vars), trigger, fired: false, hidden: true };
+    const seedObj = { id: seedId, cause: `Loose end (${def.label}): ${text}`, effect: fillTemplate(sd.effect || '{npc} turns up.', vars), trigger, fired: false, hidden: true, origin: { kind: 'loose_end', npcId: target.id } };
     if (trigger.type !== 'day') seedObj.notBeforeDay = day;
     const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
     const r = State.apply({
@@ -3601,37 +3707,429 @@ const Town = (() => {
 })();
 
 // ===== Module: World =====
-/* TODO(milestone 4): STUB. The living world belongs here: the world tick
-   (faction clocks on d6 5-6, clock completion through onComplete.effects and
-   activeClock, schedules, grudges and favours from GRUDGE_TEMPLATES /
-   FAVOUR_TEMPLATES, news into rumours), seed firing into due events, and
-   condition expiry. Content notes in BUILD_PLAN.md apply (each completion
-   adds its own rumour; npcStatus is a no-op for gone/dead NPCs).
+/* The living world (SPEC.md section 8). It all runs in code, with no API
+   call, and every write goes through State.apply (source 'world').
 
-   The Pipeline already calls these hooks; keep their signatures:
-   - tick(info): once per phase that passes, in order, from every place time
-     moves (normal turns, /skip, /rest, /wait, defeat). info = { from: {day,
-     phase}, to: {day, phase}, phasesPassed: 1, step, of, cause } where cause
-     is 'turn' | 'skip' | 'rest' | 'wait' | 'defeat'. Return { events }; an
-     event with a `notice` string is shown in the feed as a quiet line.
-   - dueSeeds(ctx): SPEC step 6, just before narration. ctx = { turn, time,
-     locationId, presentNpcIds, targetIds, mode }. Return [{ seedId, text }]:
-     due events the narration must work in (the packet's DUE EVENT line).
-   - dueNarrated(events): after a turn that carried those due events ended
-     well. Not called on errors or refusals (the snapshot is restored).
-   - fireSeeds(ctx): SPEC step 11, after time has advanced. ctx = { turn,
-     time, locationId, movedFrom, presentNpcIds, targetIds }. Fire seeds
-     whose trigger is met (State.apply({ seedsFired })) and keep them as due
-     events for the next narration. Return the fired seeds.
-   - applyEffects(effects): real; how clock outcomes reach State.apply. */
-const World = {
-  STUB: true,
-  tick(info) { return { phasesPassed: (info && info.phasesPassed) || 0, events: [] }; },
-  dueSeeds(ctx) { return []; },
-  dueNarrated(events) { return undefined; },
-  fireSeeds(ctx) { return []; },
-  applyEffects(effects) { return State.apply({ effects: Array.isArray(effects) ? effects : [] }, { source: 'world' }); }
-};
+   tick(info) runs once for every phase that passes (Pipeline.passTime calls
+   it from normal turns, /skip, /rest, /wait and defeat), in this order:
+     a. Faction clocks. Every faction with a running clock rolls a d6 through
+        Rng; 5 or 6 fills one segment. Seeds with a clock trigger are checked
+        right after the rolls, before a full clock hands over to the next.
+     b. Clock complete. Its onComplete.effects run through applyEffects, the
+        next clock in sequence starts (activeClock + 1, or -1 when none are
+        left), and a quiet feed notice is posted only if the player could
+        plausibly see it: an effect that changes a place or a person names
+        the place they stand in or someone standing there with them.
+        Otherwise it happens off-screen. The content's own addRumour carries
+        the news (content note 2); only a completion without one gets a
+        rumour made from its text, so there is never a second one.
+     c. Schedules. Who is where is npcIdsBySchedule for the new phase
+        (State.npcsAt). Arrested NPCs sit in the police station in every
+        phase and gone or dead ones are nowhere (State's npcStatus and npcMove
+        keep that true). A visit (someone who came to the player) lasts for
+        its phase only. A loose-end NPC with no schedule stays off-screen
+        until their seed fires; at the next tick they get a home picked by
+        role and tags (homeFor).
+     d. Grudges and favours. A free NPC at attitude <= -60 with a memory of
+        weight 3 plants one grudge seed from GRUDGE_TEMPLATES; one at >= 60
+        with a memory of weight 2 or more (so a favour is earned by something
+        the player did, never inherited from the town data) plants a favour
+        seed from FAVOUR_TEMPLATES. Day trigger: today plus the template's
+        dayOffset (2 to 5 days), with {npc} and {player} filled in. At most
+        one unfired grudge or favour seed per NPC: nothing is planted for an
+        NPC while one is waiting.
+     e. News spreads. Nothing to do at tick time: completions added their
+        rumours (b), and Pipeline.pickRumour offers one fresh unheard rumour
+        to the next NPC the player talks to who would know it.
+     f. A new morning. Weather is rolled from TABLES.weather for the season
+        (never the same as yesterday) into flags.weather, and conditions that
+        ran out (untilDay before today) are removed with a quiet line.
+
+   Seeds and due events (state.dueEvents):
+     fireSeeds(ctx), Pipeline step 11, fires every unfired seed whose trigger
+     is met: day (today >= value), location (the player is there), npc (that
+     NPC is with the player), clock ("fac_x:N": the running clock has N
+     filled); never before notBeforeDay. A fired seed is marked fired and
+     becomes a due event. A seed tied to an NPC (loose end, grudge, favour)
+     whose NPC is no longer free fires as a no-op. A loose-end NPC whose
+     seed fires comes to the player: a visit to where the player is.
+     dueSeeds(ctx), step 6, hands at most MAX_DUE (2) due events to the
+     narration, oldest first, and keeps a loose-end NPC's visit wherever the
+     player is now; the rest wait. dueNarrated(events) consumes them.
+
+   Reputation. driftReputation(before) runs after the bookkeeper's diff: the
+   attitude changes of every NPC the player knows are summed, divided by 5,
+   rounded and clamped to +/-5 a turn, and move reputation.town; the same sum
+   per faction moves that faction's entry. Clock effects move it with the
+   reputationDelta op. State.reputationTier() gives the narrator one word.
+
+   Test and debug hooks: forceClockRoll(value) forces the d6 of every
+   faction and forceClockRoll(value, factionId) of one (that wins over the
+   all-factions value); forceClockRoll(null) clears them all and
+   forceClockRoll(null, factionId) just that one. forceAttitude(npcId,
+   value) sets an attitude through State.apply; recent lists the latest
+   world events for the debug view (memory only, not saved). */
+const World = (() => {
+  const MAX_DUE = 2;
+  const GRUDGE_AT = -60;
+  const FAVOUR_AT = 60;
+  const REP_DIVISOR = 5;
+  const REP_CAP = 5;
+  const RECENT_MAX = 60;
+  const W = { source: 'world' };
+  const hooks = { clockRolls: {} }; // forced d6 per faction id, '*' for every faction
+  const recent = [];
+  let tickAt = null; // the phase a tick is for (State's clock has already moved on to the end of the turn's time)
+  /* Effects that change a place or a person, the ones a bystander sees. */
+  const SEEN_OPS = ['closeLocation', 'openLocation', 'npcStatus', 'npcMove', 'openThread', 'threadStatus'];
+  /* Where a loose-end NPC with no schedule lives once their seed has fired:
+     the first rule whose words match their tags and role names the location
+     types to try, in either setting. */
+  const HOME_RULES = [
+    [/\b(lender|moneylender|loan|loans|creditor|banker|bookie|pawn\w*)\b/, ['pawn', 'bank', 'market', 'hall', 'bar', 'tavern', 'diner']],
+    [/\b(priest|temple|church|pastor|preacher|reverend|register|chaplain|nun|monk|deacon)\b/, ['temple', 'church']],
+    [/\b(innkeeper|inn|lodging|motel|landlord|landlady|bartender|barkeep|barman|publican|hotel)\b/, ['motel', 'tavern', 'bar']],
+    [/\b(gossip|informant|dock|docks|boat\w*|ferry\w*|fisher\w*|marina|river|barge\w*)\b/, ['docks', 'marina', 'riverbank', 'market', 'bar', 'tavern']],
+    [/\b(mechanic|garage|driver|trucker)\b/, ['garage', 'gas', 'highway', 'road']],
+    [/\b(smith|blacksmith|forge)\b/, ['smithy', 'garage']],
+    [/\b(cook|waitress|waiter|diner|baker)\b/, ['diner', 'tavern', 'bar', 'market']],
+    [/\b(police|deputy|sheriff|watch|watchman|officer|constable)\b/, ['police', 'watch']],
+    [/\b(enemy|thug|bruiser|drifter|stranger|muscle)\b/, ['motel', 'tavern', 'bar', 'slum', 'trailerpark']]
+  ];
+  const HOME_FALLBACK = ['tavern', 'bar', 'motel', 'market', 'diner'];
+
+  // ----- helpers -----
+  function st() { return State.current; }
+  function note(text, extra) {
+    const s = st();
+    const at = tickAt || (s ? s.time : { day: 0, phase: '' });
+    recent.push(Object.assign({ turn: s ? s.meta.turn : 0, day: at.day, phase: at.phase, text }, extra || {}));
+    if (recent.length > RECENT_MAX) recent.splice(0, recent.length - RECENT_MAX);
+  }
+  function activeClock(f) {
+    return f && Array.isArray(f.clocks) && Number.isInteger(f.activeClock) && f.activeClock >= 0 ? (f.clocks[f.activeClock] || null) : null;
+  }
+  function applyEffects(effects) { return State.apply({ effects: Array.isArray(effects) ? effects : [] }, W); }
+  function isFree(n) { return !!n && n.alive !== false && n.status === 'free'; }
+  function scheduled(npcId) {
+    return st().locations.some(l => PHASES.some(p => ((l.npcIdsBySchedule || {})[p] || []).includes(npcId)));
+  }
+  function looseEndOf(seedId) { return (st().player.looseEnds || []).find(le => le.seedId === seedId) || null; }
+  /* The NPC a seed is about: its origin, else the loose end that planted it. */
+  function seedNpcId(sd) {
+    if (sd.origin && sd.origin.npcId) return sd.origin.npcId;
+    const le = looseEndOf(sd.id);
+    return le ? le.npcId : null;
+  }
+  function seedStatus(sd) {
+    if ((st().dueEvents || []).some(e => e.seedId === sd.id)) return 'due';
+    return sd.fired ? 'fired' : 'waiting';
+  }
+  /* Where an NPC is right now (schedule or visit), or null when off-screen. */
+  function whereIs(npcId) {
+    const s = st();
+    if (!s) return null;
+    const l = s.locations.find(x => State.npcsAt(x.id).some(n => n.id === npcId));
+    return l ? l.id : null;
+  }
+
+  // ----- a. faction clocks -----
+  function rollD6(f) {
+    const forced = Object.prototype.hasOwnProperty.call(hooks.clockRolls, f.id) ? hooks.clockRolls[f.id] : hooks.clockRolls['*'];
+    return Number.isInteger(forced) ? forced : Rng.d(6);
+  }
+  function rollClocks() {
+    const fills = [];
+    for (const f of st().factions) {
+      const c = activeClock(f);
+      if (!c || c.filled >= c.segments) continue;
+      const roll = rollD6(f);
+      if (roll < 5) continue;
+      fills.push({ factionId: f.id, delta: 1 });
+      note(`${f.id} rolls ${roll}: "${c.label}" ${c.filled + 1}/${c.segments}`, { kind: 'clock', factionId: f.id });
+    }
+    if (fills.length) State.apply({ clockFill: fills }, W);
+    return fills;
+  }
+
+  // ----- b. clock complete -----
+  /* Could the player see it happen? Only effects that change a place or a
+     person count, and only if they name the place the player stands in or
+     someone standing there with them (presence taken before the effects). */
+  function noticeable(effects, where) {
+    const ids = new Set();
+    for (const e of effects) {
+      if (!isObj(e) || !SEEN_OPS.includes(e.op)) continue;
+      if (e.locationId) ids.add(e.locationId);
+      if (e.npcId) ids.add(e.npcId);
+      const t = e.op === 'openThread' ? e.thread : e.op === 'threadStatus' ? State.thread(e.threadId) : null;
+      if (isObj(t) && Array.isArray(t.linkedIds)) t.linkedIds.forEach(x => ids.add(x));
+    }
+    return ids.has(where.locationId) || where.presentIds.some(id => ids.has(id));
+  }
+  function fallbackRumour(f, idx, text) {
+    const src = st().npcs.find(n => n.factionId === f.id && isFree(n)) || null;
+    return { id: uniqueId(`rum_${f.id.slice(4)}_clock_${idx + 1}`, id => !!State.rumour(id)), text, true: true, sourceNpcId: src ? src.id : null, heard: false };
+  }
+  function completeClock(f, c, phase, events) {
+    const s = st();
+    const idx = f.activeClock;
+    const oc = isObj(c.onComplete) ? c.onComplete : {};
+    const text = cleanText(oc.text, 400);
+    const effects = Array.isArray(oc.effects) ? oc.effects.slice() : [];
+    if (text && !effects.some(e => isObj(e) && e.op === 'addRumour')) effects.push({ op: 'addRumour', rumour: fallbackRumour(f, idx, text) });
+    // The faction's own people know the news of what it did.
+    for (let i = 0; i < effects.length; i++) {
+      const e = effects[i];
+      if (isObj(e) && e.op === 'addRumour' && isObj(e.rumour) && !e.rumour.factionId) effects[i] = Object.assign({}, e, { rumour: Object.assign({}, e.rumour, { factionId: f.id }) });
+    }
+    const where = { locationId: s.player.locationId, presentIds: State.npcsAt(s.player.locationId, phase).map(n => n.id) };
+    const res = applyEffects(effects);
+    State.apply({ clockNext: [f.id] }, W);
+    const seen = noticeable(effects, where);
+    const next = activeClock(f);
+    note(`${f.id} completes "${c.label}" ${seen ? 'where the player can see it' : 'off-screen'}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}; ${next ? `next clock "${next.label}"` : 'no clocks left'}`, { kind: 'complete', factionId: f.id, clock: idx });
+    const ev = { kind: 'clock', factionId: f.id, clock: idx, seen, rejected: res.rejected.length };
+    if (seen && text) ev.notice = text;
+    events.push(ev);
+  }
+  function completeClocks(phase, events) {
+    for (const f of st().factions) {
+      for (let guard = 0; guard < 8; guard++) {
+        const c = activeClock(f);
+        if (!c || c.filled < c.segments) break;
+        completeClock(f, c, phase, events);
+      }
+    }
+  }
+
+  // ----- c. schedules -----
+  function homeFor(n) {
+    const open = st().locations.filter(l => !l.closed);
+    const text = `${(n.tags || []).join(' ')} ${n.role || ''}`.toLowerCase();
+    const ofType = types => { for (const t of types) { const l = open.find(x => x.type === t); if (l) return l; } return null; };
+    for (const [re, types] of HOME_RULES) if (re.test(text)) { const l = ofType(types); if (l) return l; }
+    const l = ofType(HOME_FALLBACK);
+    if (l) return l;
+    const busy = x => PHASES.reduce((k, p) => k + (((x.npcIdsBySchedule || {})[p] || []).length), 0);
+    return open.slice().sort((a, b) => busy(b) - busy(a))[0] || null;
+  }
+  function settleHomes() {
+    for (const le of st().player.looseEnds || []) {
+      const sd = State.seed(le.seedId);
+      const n = State.npc(le.npcId);
+      if (!sd || !sd.fired || !isFree(n) || n.home || scheduled(n.id)) continue;
+      const home = homeFor(n);
+      if (!home) continue;
+      State.apply({ npcHome: [{ npcId: n.id, locationId: home.id, phases: 'all' }] }, W);
+      note(`${n.id} settles in at ${home.id}`, { kind: 'home', npcId: n.id });
+    }
+  }
+
+  // ----- d. grudges and favours -----
+  function hasOpenFeeling(npcId) {
+    return st().seeds.some(sd => !sd.fired && sd.origin && (sd.origin.kind === 'grudge' || sd.origin.kind === 'favour') && sd.origin.npcId === npcId);
+  }
+  function lastMemory(n, minWeight) {
+    const ms = (n.memories || []).filter(m => m.weight >= minWeight);
+    return ms.length ? ms[ms.length - 1] : null;
+  }
+  function plantFeeling(n, kind, memory, day) {
+    const s = st();
+    const list = kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES;
+    if (!Array.isArray(list) || !list.length) return null;
+    // A template this NPC has not used yet, if there is one.
+    const used = s.seeds.filter(sd => sd.origin && sd.origin.kind === kind && sd.origin.npcId === n.id).map(sd => sd.origin.template);
+    let idxs = list.map((_, i) => i).filter(i => !used.includes(i));
+    if (!idxs.length) idxs = list.map((_, i) => i);
+    const i = Rng.pick(idxs);
+    const t = list[i];
+    const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : [2, 5];
+    const lo = clamp(toInt(off[0]) || 2, 1, 30);
+    const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 30);
+    const seed = {
+      id: uniqueId(`seed_${kind}_${n.id.slice(4)}`, id => !!State.seed(id)),
+      cause: `${kind === 'grudge' ? 'Grudge' : 'Favour'}: ${n.name} (attitude ${n.attitude}) remembers "${memory.text}"`,
+      effect: fillTemplate(t.effect, { npc: n.name, player: s.player.name }),
+      trigger: { type: 'day', value: day + Rng.int(lo, hi) },
+      fired: false,
+      hidden: true,
+      origin: { kind, npcId: n.id, template: i }
+    };
+    const r = applyEffects([{ op: 'plantSeed', seed }]);
+    if (r.rejected.length) return null;
+    note(`${n.id} plants a ${kind} seed (${seed.id}, day ${seed.trigger.value})`, { kind, npcId: n.id, seedId: seed.id });
+    return seed;
+  }
+  function plantFeelings(day) {
+    const planted = [];
+    for (const n of st().npcs.slice()) {
+      if (!isFree(n) || hasOpenFeeling(n.id)) continue;
+      let kind = null;
+      let memory = null;
+      if (n.attitude <= GRUDGE_AT) { memory = lastMemory(n, 3); kind = memory ? 'grudge' : null; }
+      else if (n.attitude >= FAVOUR_AT) { memory = lastMemory(n, 2); kind = memory ? 'favour' : null; }
+      if (!kind) continue;
+      const sd = plantFeeling(n, kind, memory, day);
+      if (sd) planted.push(sd);
+    }
+    return planted;
+  }
+
+  // ----- f. a new morning -----
+  function newMorning(day, events) {
+    const s = st();
+    const season = SEASONS.includes(s.flags.season) ? s.flags.season : 'spring';
+    const list = ((TABLES.weather && TABLES.weather[season]) || []).filter(w => w !== s.flags.weather);
+    const w = Rng.pick(list);
+    if (w) State.apply({ weather: w }, W);
+    const ended = s.player.conditions.filter(c => Number.isInteger(c.untilDay) && c.untilDay < day);
+    if (ended.length) {
+      State.apply({ conditionsRemoved: ended.map(c => c.id) }, W);
+      for (const c of ended) events.push({ kind: 'condition', notice: `Condition over: ${c.name}${c.effect ? ` (${c.effect})` : ''}.` });
+    }
+  }
+
+  function tick(info) {
+    const s = st();
+    const events = [];
+    if (!s) return { phasesPassed: 0, events };
+    const to = (info && info.to) || { day: s.time.day, phase: s.time.phase };
+    tickAt = to;
+    try {
+      rollClocks();                                                     // a
+      fireWhere(sd => isObj(sd.trigger) && sd.trigger.type === 'clock');  // a: clock seeds, before a full clock hands over
+      completeClocks(to.phase, events);                                 // b
+      settleHomes();                                                    // c
+      plantFeelings(to.day);                                            // d
+      if (to.phase === PHASES[0]) newMorning(to.day, events);           // f
+    } finally { tickAt = null; }
+    return { phasesPassed: (info && info.phasesPassed) || 1, events };
+  }
+
+  // ----- seeds and due events -----
+  function triggerMet(sd, here, presentIds) {
+    const tr = isObj(sd.trigger) ? sd.trigger : {};
+    switch (tr.type) {
+      case 'day': { const d = toInt(tr.value); return d !== null && st().time.day >= d; }
+      case 'location': return here === tr.value;
+      case 'npc': return presentIds.includes(tr.value);
+      case 'clock': {
+        const m = /^(fac_[a-z0-9_]+):(\d+)$/.exec(String(tr.value));
+        const c = m ? activeClock(State.faction(m[1])) : null;
+        return !!c && c.filled >= parseInt(m[2], 10);
+      }
+      default: return false;
+    }
+  }
+  function ready(sd) { return !sd.fired && !(Number.isInteger(sd.notBeforeDay) && st().time.day < sd.notBeforeDay); }
+  function fire(sd) {
+    const s = st();
+    const npcId = seedNpcId(sd);
+    const n = npcId ? State.npc(npcId) : null;
+    const live = !npcId || isFree(n);
+    const diff = { seedsFired: [sd.id] };
+    if (live) {
+      const ev = { seedId: sd.id, text: sd.effect };
+      if (n) ev.npcId = n.id;
+      // A loose end's NPC comes to the player, for that scene.
+      if (n && looseEndOf(sd.id)) { ev.bring = true; diff.visits = [{ npcId: n.id, locationId: s.player.locationId }]; }
+      diff.dueAdd = [ev];
+    }
+    const r = State.apply(diff, W);
+    if (r.rejected.some(x => x.path.startsWith('seedsFired'))) return false;
+    note(`${sd.id} fires (${sd.trigger.type} ${sd.trigger.value})${live ? '' : `, a no-op: ${n ? `${n.id} is ${n.alive === false ? 'dead' : n.status}` : 'its NPC is missing'}`}`, { kind: 'seed', seedId: sd.id });
+    return true;
+  }
+  function fireWhere(pred, ctx) {
+    const s = st();
+    if (!s) return [];
+    const here = (ctx && ctx.locationId) || s.player.locationId;
+    const presentIds = ctx && Array.isArray(ctx.presentNpcIds) ? ctx.presentNpcIds : State.npcsAt(here).map(n => n.id);
+    const fired = [];
+    for (const sd of s.seeds.slice()) {
+      if (!pred(sd) || !ready(sd) || !triggerMet(sd, here, presentIds)) continue;
+      if (fire(sd)) fired.push(sd);
+    }
+    return fired;
+  }
+  function fireSeeds(ctx) { return fireWhere(() => true, ctx); }
+  function dueSeeds(ctx) {
+    const s = st();
+    if (!s || !Array.isArray(s.dueEvents) || !s.dueEvents.length) return [];
+    const here = (ctx && ctx.locationId) || s.player.locationId;
+    const out = [];
+    const drop = [];
+    for (const ev of s.dueEvents.slice()) {
+      const n = ev.npcId ? State.npc(ev.npcId) : null;
+      if (ev.npcId && !isFree(n)) { drop.push(ev.seedId); continue; } // they can no longer act on it
+      if (out.length >= MAX_DUE) continue;
+      if (ev.bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
+      out.push({ seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null });
+    }
+    if (drop.length) {
+      State.apply({ dueDone: drop }, W);
+      drop.forEach(id => note(`${id} dropped: its NPC can no longer act on it`, { kind: 'seed', seedId: id }));
+    }
+    return out;
+  }
+  function dueNarrated(events) {
+    const s = st();
+    if (!s || !Array.isArray(events) || !events.length) return;
+    const ids = events.map(e => e && e.seedId).filter(id => (s.dueEvents || []).some(x => x.seedId === id));
+    if (ids.length) State.apply({ dueDone: ids }, W);
+  }
+
+  // ----- reputation -----
+  function attitudes() {
+    const o = {};
+    if (st()) for (const n of st().npcs) o[n.id] = n.attitude;
+    return o;
+  }
+  function driftReputation(before) {
+    const s = st();
+    if (!s || !isObj(before)) return {};
+    const sums = {};
+    for (const n of s.npcs) {
+      if (!n.knownToPlayer || !Object.prototype.hasOwnProperty.call(before, n.id)) continue;
+      const d = n.attitude - before[n.id];
+      if (!d) continue;
+      sums.town = (sums.town || 0) + d;
+      if (n.factionId && State.faction(n.factionId)) sums[n.factionId] = (sums[n.factionId] || 0) + d;
+    }
+    const out = {};
+    const effects = [];
+    for (const k of Object.keys(sums)) {
+      const d = clamp(Math.round(sums[k] / REP_DIVISOR), -REP_CAP, REP_CAP);
+      if (d) { out[k] = d; effects.push({ op: 'reputationDelta', key: k, delta: d }); }
+    }
+    if (effects.length) applyEffects(effects);
+    return out;
+  }
+
+  // ----- test and debug hooks -----
+  function forceClockRoll(value, factionId) {
+    const v = Number.isInteger(value) ? clamp(value, 1, 6) : null;
+    if (typeof factionId === 'string') { if (v === null) delete hooks.clockRolls[factionId]; else hooks.clockRolls[factionId] = v; }
+    else if (v === null) hooks.clockRolls = {};
+    else hooks.clockRolls = { '*': v };
+    return Object.assign({}, hooks.clockRolls);
+  }
+  function forceAttitude(npcId, value) {
+    const n = State.npc(npcId);
+    if (!n) return null;
+    const v = clamp(toInt(value) || 0, -100, 100);
+    if (v !== n.attitude) applyEffects([{ op: 'attitudeDelta', npcId: n.id, delta: v - n.attitude }]);
+    return State.npc(npcId).attitude;
+  }
+
+  return {
+    MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, hooks, recent,
+    tick, fireSeeds, dueSeeds, dueNarrated, applyEffects,
+    attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs,
+    forceClockRoll, forceAttitude
+  };
+})();
 
 // ===== Module: Style =====
 /* Banned-phrase and length checks (SPEC.md section 9) and the narrator's
@@ -3979,10 +4477,11 @@ const Api = (() => {
       out.push('The deal is done quickly.');
     }
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
-    if (c.due && c.due.length) out.push(sentence(c.due[0].text));
-    if (!out.length) out.push(`At ${loc}, nothing pushes back yet.`);
-    if (out.length < 2) out.push(`Around you, ${loc} goes on with its ${(s && s.time.phase) || 'day'}.`);
-    return out.slice(0, mode === 'normal' ? 3 : 6).join(' ');
+    // Due events (at most two) are always worked in, at the end.
+    const due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
+    if (!out.length && !due.length) out.push(`At ${loc}, nothing pushes back yet.`);
+    if (out.length + due.length < 2) out.push(`Around you, ${loc} goes on with its ${(s && s.time.phase) || 'day'}.`);
+    return out.slice(0, Math.max(1, (mode === 'normal' ? 3 : 6) - due.length)).concat(due).join(' ');
   }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
@@ -4076,7 +4575,12 @@ const Api = (() => {
       const listed = Array.isArray(entries) ? entries : [];
       const from = listed.length ? listed[0].turn : 0;
       const to = listed.length ? listed[listed.length - 1].turn : 0;
-      return { result: typeof canned === 'string' ? canned : `Turns ${from} to ${to} passed (mock chronicle).`, usage: MOCK_ZERO, model: 'mock' };
+      // Deterministic: the turns, the days and what the player typed, under 80 words.
+      const days = listed.map(e => e && e.day).filter(Number.isInteger);
+      const did = listed.map(e => cleanText(e && e.input, 60)).filter(Boolean);
+      const auto = `Turns ${from} to ${to}${days.length ? `, day ${days[0]} to day ${days[days.length - 1]}` : ''} (mock chronicle): ${did.length ? did.join('; ') : 'nothing of note'}.`;
+      const summary = auto.split(/\s+/).slice(0, 79).join(' ');
+      return { result: typeof canned === 'string' ? canned : summary, usage: MOCK_ZERO, model: 'mock' };
     }
   };
 
@@ -4266,8 +4770,10 @@ const Api = (() => {
    or parse (/fact):
      1 snapshot  2 commands (submit)  3 parse  4 check and create  5 resolve
      6 narrate (streamed)  7 style check, one regenerate  8 bookkeep
-     9 apply (source 'model')  10 advance time, World.tick per phase
-     11 HOOK World.fireSeeds  12 HOOK compressIfDue  13 log, autosave, render
+     9 apply (source 'model'), then reputation drift (World.driftReputation)
+     10 advance time, World.tick per phase  11 World.fireSeeds (due events
+     for the next narration)  12 compressIfDue (chronicle every 10 turns)
+     13 log, autosave, render
    Any error or refusal restores the snapshot, takes the turn's lines back
    out of the feed and puts the player's text back in the box. */
 const Pipeline = (() => {
@@ -4525,8 +5031,11 @@ const Pipeline = (() => {
   }
 
   // ----- step 6: the narrator's packet -----
-  function npcLine(n, turn) {
-    const mems = (n.memories || []).filter(m => m.weight >= 2 || turn - m.turn <= 20).slice(-3).map(m => m.text);
+  /* SPEC section 13: only memories of weight 2 or more or from the last 20
+     turns (the newest three of those). brief (people at a destination, not
+     yet in the scene) leaves memories out altogether. */
+  function npcLine(n, turn, brief) {
+    const mems = brief ? [] : (n.memories || []).filter(m => m.weight >= 2 || turn - m.turn <= 20).slice(-3).map(m => m.text);
     const parts = [n.role];
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (n.voice) parts.push('voice: ' + lowerFirst(n.voice).replace(/\.$/, ''));
@@ -4535,20 +5044,44 @@ const Pipeline = (() => {
     return `${n.name} (${parts.join('; ')})`;
   }
   /* One fresh rumour a present NPC might share when the player talks to them
-     (SPEC section 8, news spreads). Hostile NPCs share nothing. */
+     (SPEC section 8, news spreads). How well an NPC would know a rumour:
+       5  news (a rumour the world added during play, such as a clock that
+          completed off-screen) that they are the source of
+       4  news from someone in their faction or about their faction's doings
+          (a clock's rumour carries its factionId), or any news if they are
+          an informant, bartender or innkeeper (by tag or role)
+       3  an older rumour of their own (sourceNpcId)
+       1  an older rumour from someone in their faction
+     The best pair wins; ties go to the NPC the player is talking to first,
+     then to the newest news, then to the town's own order. Hostile NPCs
+     (attitude -25 or below) share nothing. */
+  const GOSSIP_TAGS = ['informant', 'bartender', 'innkeeper'];
+  const GOSSIP_ROLE = /\b(informant|bartender|barkeep|barman|barmaid|innkeeper|publican)\b/i;
+  function gossip(n) { return (n.tags || []).some(t => GOSSIP_TAGS.includes(t)) || GOSSIP_ROLE.test(n.role || ''); }
+  function wouldKnow(n, r) {
+    const src = r.sourceNpcId ? State.npc(r.sourceNpcId) : null;
+    const own = r.sourceNpcId === n.id;
+    const mate = !own && !!n.factionId && ((src && src.factionId === n.factionId) || r.factionId === n.factionId);
+    if (Number.isInteger(r.addedTurn)) return own ? 5 : (mate || gossip(n)) ? 4 : 0;
+    return own ? 3 : mate ? 1 : 0;
+  }
   function pickRumour(ctx) {
     const s = State.current;
     const a = ctx.action;
     if (!a || !SOCIAL.includes(a.actionType)) return null;
     const present = State.npcsAt(s.player.locationId);
     const aimed = present.filter(n => a.targets.includes(n.id));
-    const pool = aimed.length ? aimed : (a.actionType === 'talk' ? present : []);
+    const pool = (aimed.length ? aimed : (a.actionType === 'talk' ? present : [])).filter(n => n.attitude > -25);
+    const age = r => (Number.isInteger(r.addedTurn) ? r.addedTurn : -1);
+    const fresh = s.rumours.filter(r => !r.heard).sort((x, y) => age(y) - age(x));
+    let best = null;
     for (const n of pool) {
-      if (n.attitude <= -25) continue;
-      const r = s.rumours.find(x => !x.heard && x.sourceNpcId === n.id);
-      if (r) return { id: r.id, npcId: n.id, npcName: n.name, text: r.text };
+      for (const r of fresh) {
+        const k = wouldKnow(n, r);
+        if (k && (!best || k > best.k)) best = { k, n, r };
+      }
     }
-    return null;
+    return best ? { id: best.r.id, npcId: best.n.id, npcName: best.n.name, text: best.r.text } : null;
   }
   /* Fills the scene part of the turn context (shared by the narrator packet,
      the bookkeeper packet and the mock provider). */
@@ -4599,7 +5132,7 @@ const Pipeline = (() => {
     if (made.length) lines.push(`NEW IN THE SCENE: ${made.join('; ')}.`);
     if (ctx.destination) {
       const d = State.loc(ctx.destination.id);
-      const there = State.npcsAt(d.id).map(n => npcLine(n, turn));
+      const there = State.npcsAt(d.id).map(n => npcLine(n, turn, true));
       lines.push(`DESTINATION: ${d.name} — ${d.description}${d.closed ? ' (closed: the player cannot go in)' : ''} Present there: ${there.join('; ') || 'nobody'}.`);
     }
     lines.push(`ACTION: ${a.summary || ctx.input || 'none'}`);
@@ -4607,7 +5140,9 @@ const Pipeline = (() => {
     lines.push(`COMPLICATION: ${[roll && roll.complication, ctx.consequence].filter(Boolean).join('; ') || 'none'}`);
     if (ctx.damage) lines.push(`DAMAGE: the player takes ${ctx.damage} damage.`);
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
-    lines.push(`DUE EVENT: ${(ctx.due || []).map(d => d.text).join(' / ') || 'none'}`);
+    // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
+    const due = (ctx.due || []).map(d => d.text).join(' / ');
+    lines.push(`DUE EVENT: ${due ? `${due} (already true; work it into the scene naturally, not as an announcement)` : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}`);
     lines.push(`STORY SO FAR: ${story || 'nothing yet'}`);
@@ -4730,13 +5265,33 @@ const Pipeline = (() => {
     return { outcome, npcId: npc ? npc.id : null, text };
   }
 
-  // ----- step 12 hook -----
-  /* TODO(milestone 4): every 10 turns, summarise the oldest 10 log entries
-     with Api.chronicle(entries) (already works for both providers) and save
-     the result with State.apply({ chronicleEntry: { fromTurn, toTurn,
-     summary } }), which also drops those entries from the log. Return the
-     entry, or null. A refusal or error here must not fail the turn. */
-  async function compressIfDue() { return null; }
+  // ----- step 12: chronicle compression -----
+  /* Every 10 turns the oldest 10 log entries become one chronicle entry
+     (Api.chronicle: the parser model in plain text, or the mock's
+     deterministic summary) through State.apply({ chronicleEntry }), which
+     drops them from the log; the log keeps the rest. Due when the log holds
+     10 entries and 10 turns have passed since the last entry's toTurn, so a
+     turn that skips this step (/fact) or a failed call only puts it off to
+     the next turn. A refusal, an error or an empty reply never fails the
+     turn. The narrator's STORY SO FAR is the summaries joined, trimmed to
+     the last 150 words (narratorPacket). Returns the entry, or null. */
+  const CHRONICLE_EVERY = 10;
+  async function compressIfDue() {
+    const s = State.current;
+    if (!s) return null;
+    const last = s.chronicle[s.chronicle.length - 1];
+    if (s.log.length < CHRONICLE_EVERY || s.meta.turn - (last ? last.toTurn : 0) < CHRONICLE_EVERY) return null;
+    const entries = deepCopy(s.log.slice(0, CHRONICLE_EVERY));
+    const skip = reason => { State.debugLog.push({ turn: s.meta.turn, kind: 'chronicle', reason }); return null; };
+    let summary;
+    try { summary = await Api.chronicle(entries); } catch (err) { return skip(`chronicle failed: ${(err && (err.detail || err.message)) || err}`); }
+    if (isRefusal(summary)) return skip('chronicle refused');
+    if (typeof summary !== 'string' || !summary.trim()) return skip('chronicle came back empty');
+    if (State.current !== s) return null;
+    const entry = { fromTurn: entries[0].turn, toTurn: entries[entries.length - 1].turn, summary: summary.trim() };
+    const r = State.apply({ chronicleEntry: entry });
+    return r.rejected.length ? null : entry;
+  }
 
   // ----- the turn -----
   function fail(snap, mark, notice, extra) {
@@ -4788,6 +5343,7 @@ const Pipeline = (() => {
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
       ctx.due = World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode }) || [];
+      if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
       ctx.rumour = pickRumour(ctx);
       const told = await narrate(ctx);
       if (told.refusal) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
@@ -4802,7 +5358,13 @@ const Pipeline = (() => {
           State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'hpDelta', reason: 'ignored: the engine already applied fight damage' });
           delete clean.hpDelta;
         }
+        const before = World.attitudes();
+        const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
+        const wasHeard = !!(offered && offered.heard);
         ctx.applied = State.apply(clean, { source: 'model' });
+        ctx.reputation = World.driftReputation(before);
+        // Someone other than its source told it: People lists it under the teller.
+        if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
       }
       // Defeat at 0 HP, from the fight or from the bookkeeper's hpDelta.
       if (s.player.hp <= 0 && !s.player.dead) {
@@ -4813,11 +5375,11 @@ const Pipeline = (() => {
       }
       // Step 10. Advance time; World.tick runs for every phase that passes.
       if (!s.player.dead) passTime(action.timeCost, opts.cause || 'turn');
-      // Step 11. HOOK (milestone 4): fire seeds whose trigger is now met; they become due events for the next narration.
+      // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
       if (ctx.due.length) World.dueNarrated(ctx.due);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       if (!sameTime(narrTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
-      // Step 12. HOOK (milestone 4): chronicle compression every 10 turns.
+      // Step 12. Chronicle compression every 10 turns (never fails the turn).
       try { await compressIfDue(); } catch (e) { console.warn('[Pipeline] compression failed', e); }
       // Step 13. Log; autosave and render follow from State's change listener.
       State.apply({ logEntry: { input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock } });
@@ -4964,9 +5526,10 @@ const Pipeline = (() => {
     let mock = false;
     try {
       ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
+      if (ctx.due.length) scene(ctx);
       const told = await narrate(ctx);
       if (told.refusal) UI.feed.notice(NOTICES.refused);
-      else { narration = told.narration; mock = told.mock; }
+      else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); }
     } catch (err) {
       console.error(err);
       UI.feed.notice(`${err instanceof Api.ApiError ? err.message : 'The narrator could not be reached.'} The arrival below is the game's own text.`, 'error');
@@ -5426,7 +5989,7 @@ const UI = (() => {
         const word = State.attitudeWord(n.attitude);
         const learned = [].concat(
           s.threads.filter(t => t.knownToPlayer && t.linkedIds.includes(n.id)).map(t => `${t.title}: ${t.summary}`),
-          s.rumours.filter(r => r.heard && r.sourceNpcId === n.id).map(r => `Told you: ${r.text}`)
+          s.rumours.filter(r => r.heard && (r.heardFrom || r.sourceNpcId) === n.id).map(r => `Told you: ${r.text}`)
         );
         const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
         return el('article', { class: 'person', dataset: { npc: n.id } },
@@ -5462,25 +6025,54 @@ const UI = (() => {
         list(s.locations.filter(l => l.discovered), l => `${l.name}${l.id === here.id ? ' (here)' : ''}${l.closed ? ' (closed)' : ''}`, 'None.')
       ];
     },
+    /* Debug view (/debug): everything hidden from the player, and only
+       here. Plain-text blocks that wrap, so it reads on a phone too. */
     debug(s) {
       const pre = v => el('pre', null, typeof v === 'string' ? v : JSON.stringify(v, null, 1));
-      const clocks = s.factions.map(f => {
-        const c = f.activeClock >= 0 ? f.clocks[f.activeClock] : null;
-        return `${f.name} (${f.id}): ${c ? `"${c.label}" ${c.filled}/${c.segments}, clock ${f.activeClock + 1} of ${f.clocks.length}` : 'all clocks done'}`;
+      const bar = c => '\u25A0'.repeat(clamp(c.filled | 0, 0, c.segments)) + '\u25A1'.repeat(Math.max(0, c.segments - (c.filled | 0)));
+      // One line per faction to read at a glance, then the details.
+      const glance = s.factions.map(f => {
+        const c = World.activeClock(f);
+        return c ? `${f.id} ${bar(c)} ${c.filled}/${c.segments} (${f.activeClock + 1} of ${f.clocks.length})` : `${f.id} done`;
       }).join('\n');
-      const seeds = s.seeds.map(sd => `${sd.fired ? '[fired] ' : ''}${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}: ${sd.effect}`).join('\n');
-      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.status} att ${n.attitude}${n.knownToPlayer ? ' known' : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}) ${m.text}`).join(' | ') || '-'}`).join('\n');
-      const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : ''}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}: ${r.text}`).join('\n');
+      const clocks = glance + '\n\n' + s.factions.map(f => {
+        const c = World.activeClock(f);
+        const next = c ? f.clocks[f.activeClock + 1] : null;
+        const rel = Object.keys(f.relations || {}).map(k => `${k} ${f.relations[k]}`).join(', ');
+        const lines = [`${f.name} (${f.id})`];
+        lines.push(c ? `  ${bar(c)} ${c.filled}/${c.segments} "${c.label}" (clock ${f.activeClock + 1} of ${f.clocks.length})` : `  all ${f.clocks.length} clocks done`);
+        if (c) lines.push(`  on complete: ${(c.onComplete && c.onComplete.text) || '-'}`);
+        lines.push(`  next clock: ${next ? `"${next.label}"` : 'none'}`);
+        lines.push(`  goal: ${f.goal || '-'}`);
+        if (rel) lines.push(`  relations: ${rel}`);
+        return lines.join('\n');
+      }).join('\n');
+      const forcedRolls = Object.keys(World.hooks.clockRolls).map(k => `${k === '*' ? 'every faction' : k} ${World.hooks.clockRolls[k]}`).join(', ');
+      const forced = forcedRolls ? `\nforced clock rolls: ${forcedRolls}` : '';
+      const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
+      const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
+      const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
+      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
+      const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
+      const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');
+      const chron = s.chronicle.map(c => `turns ${c.fromTurn}-${c.toTurn}: ${c.summary}`).join('\n');
+      const logSpan = s.log.length ? `log: ${s.log.length} entries, turns ${s.log[0].turn}-${s.log[s.log.length - 1].turn}` : 'log: empty';
+      const events = World.recent.slice(-20).map(e => `turn ${e.turn} day ${e.day} ${e.phase}: ${e.text}`).join('\n');
+      const rep = Object.keys(s.player.reputation).map(k => `${k} ${s.player.reputation[k]} (${State.reputationTier(k)})`).join(', ');
       const rejects = State.debugLog.filter(x => x.kind === 'rejected' || x.kind === 'style').slice(-15).map(x => x.kind === 'style' ? `turn ${x.turn} style (try ${x.attempt || 1}${x.kept ? ', kept' : ''}): ${x.problems.map(p => p.detail).join('; ')}` : `turn ${x.turn} ${x.source} ${x.path}: ${x.reason}`).join('\n');
-      const apiErrors = State.debugLog.filter(x => x.kind === 'api').slice(-8).map(x => `turn ${x.turn} ${x.role}${x.status ? ' HTTP ' + x.status : ''}${x.requestId ? ' ' + x.requestId : ''}: ${x.reason}`).join('\n');
+      const apiErrors = State.debugLog.filter(x => x.kind === 'api' || x.kind === 'chronicle').slice(-8).map(x => x.kind === 'chronicle' ? `turn ${x.turn} chronicle: ${x.reason}` : `turn ${x.turn} ${x.role}${x.status ? ' HTTP ' + x.status : ''}${x.requestId ? ' ' + x.requestId : ''}: ${x.reason}`).join('\n');
       const u = Api.usage;
       const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
       return el('div', { class: 'dbg' },
-        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}\nflags ${JSON.stringify(s.flags)}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
-        el('h3', null, 'Faction clocks'), pre(clocks || '-'),
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        el('h3', null, 'Faction clocks'), pre((clocks || '-') + forced),
+        el('h3', null, 'Due events'), pre([due, visits].filter(Boolean).join('\n') || 'none'),
         el('h3', null, 'Seeds'), pre(seeds || '-'),
+        el('h3', null, 'World events'), pre(events || 'none yet'),
         el('h3', null, 'NPCs (hidden)'), pre(npcs || '-'),
         el('h3', null, 'Rumours'), pre(rumours || '-'),
+        el('h3', null, 'Threads'), pre(threads || '-'),
+        el('h3', null, 'Chronicle'), pre(`${chron || 'none yet'}\n${logSpan}`),
         el('h3', null, 'Rejected changes'), pre(rejects || 'none'),
         el('h3', null, `API (${Api.providerName()})`), pre(`turn: ${fmtU(u.turn)}\nsession: ${fmtU(u.session)}`),
         el('h3', null, 'API errors'), pre(apiErrors || 'none'),
