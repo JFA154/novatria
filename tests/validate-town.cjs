@@ -521,7 +521,7 @@ function checkEffect(e, where) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA');
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map']);
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
 else {
@@ -548,7 +548,7 @@ const typesSeen = {};
 const npcPhaseSlots = new Map(); // npcId -> { phase: [locIds] }
 locations.forEach((l, i) => {
   const where = 'locations[' + i + '](' + (l && l.id) + ')';
-  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where)) return;
+  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where, ['map'])) return;
   checkStr(l.name, where + '.name', { noPlaceholders: true });
   if (typeof l.type !== 'string' || !/^[a-z]+$/.test(l.type)) err(where, 'type must be a lowercase word');
   else if (FANTASY_LOCATION_TYPES.indexOf(l.type) !== -1) err(where, 'type "' + l.type + '" is from the fantasy town; use a modern type');
@@ -596,6 +596,74 @@ if (isLoc(T.startLocationIds && T.startLocationIds.gate)) {
     (l && Array.isArray(l.exits) ? l.exits : []).forEach((x) => { if (isLoc(x) && !seen.has(x)) { seen.add(x); queue.push(x); } });
   }
   locations.forEach((l) => { if (l && !seen.has(l.id)) err('locations(' + l.id + ')', 'not reachable from the gate'); });
+}
+
+// The town map (docs/BUILD_PLAN.md, "Map"). Optional; once TOWN_DATA.map is
+// there, every location needs map: { x, y, label, anchor } inside its bounds,
+// a label of one to three words, and no two places closer than MAP_MIN_GAP.
+const MAP_ANCHORS = ['n', 's', 'e', 'w'];
+const MAP_MIN_GAP = 28;
+const SVG_PATH = /^\s*[Mm][\s\d.,eE+-]*(?:[MmLlHhVvCcSsQqTtAaZz][\s\d.,eE+-]*)*$/;
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const mapSize = { width: 360, height: 300 };
+function checkMapPoint(o, where, extra) {
+  if (!checkKeys(o, ['text', 'x', 'y'], where, extra)) return;
+  checkStr(o.text, where + '.text', { noPlaceholders: true });
+  if (isStr(o.text) && o.text.trim().split(/\s+/).length > 4) err(where + '.text', 'keep a map label to four words or fewer');
+  if (!isNum(o.x) || o.x < 0 || o.x > mapSize.width) err(where + '.x', 'must be a number from 0 to ' + mapSize.width);
+  if (!isNum(o.y) || o.y < 0 || o.y > mapSize.height) err(where + '.y', 'must be a number from 0 to ' + mapSize.height);
+}
+function checkPath(d, where) {
+  if (typeof d !== 'string' || !SVG_PATH.test(d)) err(where, 'must be an SVG path ("M x,y ..." with numbers and path commands only)');
+}
+if (T.map !== undefined) {
+  const M = T.map;
+  if (checkKeys(M, ['width', 'height', 'roads', 'labels'], 'TOWN_DATA.map', ['river', 'riverWidth', 'riverLabel', 'bridges'])) {
+    if (!isInt(M.width) || M.width < 120 || M.width > 2000) err('TOWN_DATA.map.width', 'must be a whole number from 120 to 2000');
+    else mapSize.width = M.width;
+    if (!isInt(M.height) || M.height < 100 || M.height > 2000) err('TOWN_DATA.map.height', 'must be a whole number from 100 to 2000');
+    else mapSize.height = M.height;
+    if (M.river !== undefined) checkPath(M.river, 'TOWN_DATA.map.river');
+    if (M.riverWidth !== undefined && (!isNum(M.riverWidth) || M.riverWidth < 4 || M.riverWidth > 120)) err('TOWN_DATA.map.riverWidth', 'must be a number from 4 to 120');
+    if (M.riverLabel !== undefined) {
+      checkMapPoint(M.riverLabel, 'TOWN_DATA.map.riverLabel', ['rotate']);
+      if (isObj(M.riverLabel) && M.riverLabel.rotate !== undefined && (!isNum(M.riverLabel.rotate) || Math.abs(M.riverLabel.rotate) > 90)) err('TOWN_DATA.map.riverLabel.rotate', 'must be a number of degrees from -90 to 90');
+    }
+    for (const k of ['roads', 'bridges']) {
+      if (M[k] === undefined && k === 'bridges') continue;
+      if (!Array.isArray(M[k])) { err('TOWN_DATA.map.' + k, 'must be an array of SVG paths'); continue; }
+      M[k].forEach((d, i) => checkPath(d, 'TOWN_DATA.map.' + k + '[' + i + ']'));
+    }
+    if (!Array.isArray(M.labels)) err('TOWN_DATA.map.labels', 'must be an array of { text, x, y }');
+    else M.labels.forEach((o, i) => {
+      checkMapPoint(o, 'TOWN_DATA.map.labels[' + i + ']', ['anchor']);
+      if (isObj(o) && o.anchor !== undefined && ['start', 'middle', 'end'].indexOf(o.anchor) === -1) err('TOWN_DATA.map.labels[' + i + '].anchor', 'must be start, middle or end');
+    });
+  }
+}
+const mapped = [];
+locations.forEach((l, i) => {
+  if (!isObj(l)) return;
+  const where = 'locations[' + i + '](' + l.id + ').map';
+  if (l.map === undefined) { if (T.map !== undefined) err(where, 'missing: with TOWN_DATA.map every location needs map { x, y, label, anchor }'); return; }
+  if (!checkKeys(l.map, ['x', 'y', 'label', 'anchor'], where)) return;
+  const c = l.map;
+  const inX = isNum(c.x) && c.x >= 0 && c.x <= mapSize.width;
+  const inY = isNum(c.y) && c.y >= 0 && c.y <= mapSize.height;
+  if (!inX) err(where + '.x', 'must be a number from 0 to ' + mapSize.width + ' (the map width)');
+  if (!inY) err(where + '.y', 'must be a number from 0 to ' + mapSize.height + ' (the map height)');
+  if (checkStr(c.label, where + '.label', { noPlaceholders: true })) {
+    const words = c.label.trim().split(/\s+/).length;
+    if (words > 3) err(where + '.label', 'a short name for the map: one to three words, found ' + words);
+  }
+  if (MAP_ANCHORS.indexOf(c.anchor) === -1) err(where + '.anchor', 'must be "n", "s", "e" or "w" (the side the label goes on)');
+  if (inX && inY) mapped.push({ id: l.id, x: c.x, y: c.y });
+});
+for (let i = 0; i < mapped.length; i++) {
+  for (let j = i + 1; j < mapped.length; j++) {
+    const dist = Math.hypot(mapped[i].x - mapped[j].x, mapped[i].y - mapped[j].y);
+    if (dist < MAP_MIN_GAP) err('TOWN_DATA.locations(' + mapped[i].id + ', ' + mapped[j].id + ').map', 'places are ' + dist.toFixed(1) + ' apart on the map; keep them at least ' + MAP_MIN_GAP + ' apart');
+  }
 }
 
 // NPCs

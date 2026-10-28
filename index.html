@@ -71,6 +71,12 @@
   --att-cool: #9aa6ac;
   --att-mild: #c99c76;
   --att-warm: #e09a68;
+  /* Places: the town map (land, river, its banks, roads, and the ink for marks and labels). */
+  --map-land: #241e18;
+  --map-water: #2c3b3f;
+  --map-bank: #3d4c4b;
+  --map-road: #5e5243;
+  --map-ink: #ddd3c1;
   color-scheme: dark;
 }
 :root[data-theme="parchment"] {
@@ -98,6 +104,11 @@
   --att-cool: #556267;
   --att-mild: #8b562c;
   --att-warm: #a4531d;
+  --map-land: #e8dcc0;
+  --map-water: #b3c5c2;
+  --map-bank: #93aaa5;
+  --map-road: #c4a87c;
+  --map-ink: #3a2f21;
   color-scheme: light;
 }
 :root[data-size="S"] { --read-size: 16px; }
@@ -572,6 +583,63 @@ select.input { padding-right: 32px; }
 .panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: 13px; line-height: 1.45; }
 .note-k { color: var(--muted); }
 .pcard-none { margin: 0; font-size: 13px; color: var(--faint); }
+/* Places: the town map, edge to edge at the top of the tab. Sizes inside the
+   SVG are viewBox units (UI.renderMap works out the label size). */
+.map { position: relative; margin: -16px -16px 0; background: var(--map-land); border-bottom: 1px solid var(--border); }
+.map-svg { display: block; width: 100%; height: auto; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.map-svg text { font-family: var(--ui-font); }
+.map-land { fill: var(--map-land); }
+.map-bank, .map-water, .map-road, .map-bridge-rail, .map-bridge-deck { fill: none; }
+.map-bank { stroke: var(--map-bank); }
+.map-water { stroke: var(--map-water); }
+.map-road { stroke: var(--map-road); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.map-bridge-rail { stroke: var(--map-ink); stroke-opacity: .5; stroke-width: 7; stroke-linecap: butt; }
+.map-bridge-deck { stroke: var(--map-road); stroke-width: 4; stroke-linecap: butt; }
+.map-label, .map-caption, .map-area, .map-more { paint-order: stroke; stroke: var(--map-land); stroke-width: 3.5px; stroke-linejoin: round; }
+.map-label { fill: var(--map-ink); }
+.map-caption { fill: var(--accent); font-weight: 600; }
+.map-area { fill: var(--muted); font-style: italic; }
+.map-river-label { fill: var(--muted); font-style: italic; letter-spacing: .14em; }
+.map-more { fill: var(--muted); }
+.map-mark { fill: var(--map-ink); }
+.map-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.map-hit { fill: transparent; }
+.map-place { cursor: pointer; outline: none; }
+.map-place[data-here="1"] { cursor: default; }
+.map-place[data-here="1"] .map-label { font-weight: 600; }
+.map-place[data-picked="1"] .map-mark { fill: var(--accent); }
+.map-place:focus-visible .map-hit { stroke: var(--focus); stroke-width: 1.5; }
+@media (hover: hover) { .map-place:not([data-here="1"]):hover .map-mark { fill: var(--accent); } }
+.map-place[data-closed="1"] .map-mark, .map-place[data-closed="1"] .map-label { opacity: .5; }
+.map-label.struck { text-decoration: line-through; }
+.map-strike { stroke: var(--map-ink); stroke-width: 1.4; stroke-linecap: round; }
+.map-mono circle { fill: var(--person-1); stroke: var(--map-land); stroke-width: 1.2; }
+.map-mono[data-hue="2"] circle { fill: var(--person-2); }
+.map-mono[data-hue="3"] circle { fill: var(--person-3); }
+.map-mono[data-hue="4"] circle { fill: var(--person-4); }
+.map-mono[data-hue="5"] circle { fill: var(--person-5); }
+.map-mono[data-hue="6"] circle { fill: var(--person-6); }
+.map-mono text { fill: var(--person-ink); font-weight: 600; letter-spacing: .02em; }
+/* The "Go to ...?" chip: placed under (or over) the tapped marker, then
+   kept inside the map by UI.placeChip. */
+.map-go {
+  position: absolute; z-index: 2;
+  transform: translate(var(--tx, -50%), var(--ty, 16px));
+  min-height: var(--tap); max-width: calc(100% - 16px); padding: 0 16px;
+  border: 1px solid var(--accent); border-radius: 22px;
+  background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
+  font-family: var(--ui-font); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer; animation: fade-in .15s ease-out;
+}
+.map-go[data-side="above"] { --ty: calc(-100% - 16px); }
+.map-go.placed { --tx: 0px; --ty: 0px; }
+.map-go:disabled { opacity: .45; cursor: not-allowed; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 18px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.map-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg { flex: none; display: inline-block; }
+.lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
+.lg-closed { width: 10px; height: 10px; border-radius: 1px; opacity: .55; background: linear-gradient(to top right, var(--map-ink) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-ink) calc(50% + 1.2px)); }
+.lg-person { width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); }
 .dbg pre {
   font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
   white-space: pre-wrap; overflow-wrap: anywhere;
@@ -684,6 +752,7 @@ select.input { padding-right: 32px; }
   .mono { width: 40px; height: 40px; font-size: 14px; }
   .pcard + .pcard::before { left: 60px; }
   .pcard-more { padding-left: 60px; }
+  .map { margin: -16px calc(-16px - var(--sar)) 0 calc(-16px - var(--sal)); }
   .create .step { display: none; border-top: 0; padding-top: 4px; }
   .create .step.current { display: block; animation: fade-in .2s ease-out; }
   .ac-desc { display: none; }
@@ -961,12 +1030,31 @@ const TOWN_DATA = {
   setting: "Lockett's Ferry is a river town of about eight hundred people where the state highway drops off the bluff and crosses the Lusk River on a narrow green steel bridge built in 1938. The state line runs down the middle of the river, the county on the far side is dry and taxes cigarettes hard, and for as long as anyone can remember, cartons and cases have gone across at night, by johnboat from Purvis Landing or in pickups light enough for the bridge's five-ton limit. Now the state has rated the bridge critical and will pay for one new crossing, either here or five miles downstream on Sturdivant land, and the town council votes on the site this month. Carter Sturdivant wants it downstream, the Night Run wants the old bridge open and the river dark, and the three-officer police department needs an arrest big enough to stop the mayor disbanding it. Cell signal is patchy in the valley, one bar if you stand by the water tower on the hill, so business here is done face to face: at the bar, at the pumps, at the ramp. People tell stories about what the river takes, but nobody you would believe has ever seen anything in it but mud and catfish.",
   currency: { symbol: "$", name: "dollars" },
   startLocationIds: { gate: "loc_pittmans", docks: "loc_purvis_landing" },
+  // The town map in the Places tab (an SVG in viewBox units; see docs/BUILD_PLAN.md, "Map").
+  // Each location below has map: { x, y, label, anchor }; roads between places are drawn from exits.
+  map: {
+    width: 360,
+    height: 300,
+    riverWidth: 34,
+    river: "M0,226 C60,222 96,252 160,252 C224,252 280,232 360,244",
+    riverLabel: { text: "Lusk River", x: 186, y: 255, rotate: -3 },
+    bridges: ["M266,216 L270,266"],
+    roads: [
+      "M264,0 C262,22 254,38 250,56",
+      "M270,266 C271,280 272,290 273,300"
+    ],
+    labels: [
+      { text: "to the state highway", x: 256, y: 17, anchor: "end" },
+      { text: "dry county", x: 120, y: 288 }
+    ]
+  },
 
   locations: [
     {
       id: "loc_pittmans",
       name: "Pittman's Gas and Service",
       type: "gas",
+      map: { x: 250, y: 56, label: "Pittman's", anchor: "e" },
       description: "Four pumps under a buzzing canopy where the state highway meets the river road, with a bus-stop sign bolted to the ice machine and a hand-lettered board out front that reads CRICKETS, NIGHT CRAWLERS, CARTONS. Out back, two open service bays smell of hot oil and tire rubber, and a radio plays gospel to whatever truck is up on the lift.",
       exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_sturdivant_house"],
       npcIdsBySchedule: {
@@ -982,6 +1070,7 @@ const TOWN_DATA = {
       id: "loc_low_water",
       name: "The Low Water",
       type: "bar",
+      map: { x: 184, y: 170, label: "Low Water", anchor: "s" },
       description: "A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door. On weekends the gravel lot fills with car tags from the dry county, and the kitchen hatch at the back sends out catfish baskets and the smell of old fryer grease.",
       exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_riverside_church", "loc_old_bridge", "loc_purvis_landing"],
       npcIdsBySchedule: {
@@ -997,6 +1086,7 @@ const TOWN_DATA = {
       id: "loc_motor_court",
       name: "The Riverview Motor Court",
       type: "motel",
+      map: { x: 118, y: 94, label: "Motor Court", anchor: "n" },
       description: "Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster. The office smells of burnt coffee and air freshener, and a monitor on the counter shows the lot in four gray squares.",
       exits: ["loc_pittmans", "loc_low_water"],
       npcIdsBySchedule: {
@@ -1012,6 +1102,7 @@ const TOWN_DATA = {
       id: "loc_riverside_church",
       name: "Riverside Baptist Church",
       type: "church",
+      map: { x: 84, y: 142, label: "Church", anchor: "w" },
       description: "A white clapboard church on the slope above Front Street, with a steeple that leans a little toward the river and a marquee sign out front that reads PRAY FOR OUR BRIDGE. Inside, the pews smell of lemon polish and old hymnals, and the fellowship hall out back keeps a coffee urn and a box of donated coats going all week.",
       exits: ["loc_low_water", "loc_riverbend", "loc_sturdivant_house"],
       npcIdsBySchedule: {
@@ -1027,6 +1118,7 @@ const TOWN_DATA = {
       id: "loc_town_hall",
       name: "Town Hall",
       type: "police",
+      map: { x: 262, y: 146, label: "Town Hall", anchor: "e" },
       description: "A two-story brick building with the mayor's office upstairs and the police department downstairs, one patrol car out front and a second up on blocks behind it. The station is a front counter, three desks and a single holding cell, and the window unit drips onto a box of unpaid parking tickets.",
       exits: ["loc_pittmans", "loc_byrds_pawn", "loc_low_water", "loc_old_bridge"],
       npcIdsBySchedule: {
@@ -1042,6 +1134,7 @@ const TOWN_DATA = {
       id: "loc_byrds_pawn",
       name: "Byrd's Pawn",
       type: "pawn",
+      map: { x: 222, y: 104, label: "Byrd's Pawn", anchor: "w" },
       description: "A narrow storefront between two empty ones, its window crowded with chainsaws, guitars and fishing reels behind a security grille that never goes all the way up. Inside it smells of gun oil and stale smoke, and a glass counter of rings and phones sits under a hand-lettered sign that says NO REFUNDS NO STORIES.",
       exits: ["loc_pittmans", "loc_town_hall", "loc_low_water"],
       npcIdsBySchedule: {
@@ -1057,6 +1150,7 @@ const TOWN_DATA = {
       id: "loc_riverbend",
       name: "Riverbend Trailer Park",
       type: "trailerpark",
+      map: { x: 40, y: 190, label: "Riverbend", anchor: "n" },
       description: "Thirty-odd trailers on the low ground downstream of the landing, some with flower boxes and some with blue tarps on the roofs, strung along a gravel loop that floods to the axles every spring. Dogs bark on chains, a trampoline rusts in the middle of the loop, and a cross of plastic flowers is wired to the fence by the mailboxes.",
       exits: ["loc_purvis_landing", "loc_riverside_church"],
       npcIdsBySchedule: {
@@ -1072,6 +1166,7 @@ const TOWN_DATA = {
       id: "loc_purvis_landing",
       name: "Purvis Landing",
       type: "marina",
+      map: { x: 102, y: 212, label: "Purvis Landing", anchor: "n" },
       description: "A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and bass boats, beside the concrete public ramp where the river road runs straight down into the water. At night the dock lights stay off, and every morning the mud at the foot of the ramp is cut with fresh trailer tracks.",
       exits: ["loc_low_water", "loc_old_bridge", "loc_riverbend"],
       npcIdsBySchedule: {
@@ -1087,6 +1182,7 @@ const TOWN_DATA = {
       id: "loc_sturdivant_house",
       name: "Sturdivant House",
       type: "bighouse",
+      map: { x: 60, y: 66, label: "Sturdivant House", anchor: "n" },
       description: "A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road. At the end of the drive by the water tower you can get the town's one bar of cell signal, and there is usually a truck parked there with someone holding a phone up to the sky.",
       exits: ["loc_pittmans", "loc_riverside_church"],
       npcIdsBySchedule: {
@@ -1102,6 +1198,7 @@ const TOWN_DATA = {
       id: "loc_old_bridge",
       name: "The Old Bridge",
       type: "bridge",
+      map: { x: 266, y: 212, label: "Old Bridge", anchor: "e" },
       description: "A narrow green steel truss from 1938, two lanes and no shoulder, posted at five tons and rattling under every pickup that crosses toward the dry county. Halfway over, a sign on the rail marks the state line, and fishermen leave cut bait and beer cans on the concrete pier below the first span.",
       exits: ["loc_town_hall", "loc_low_water", "loc_purvis_landing"],
       npcIdsBySchedule: {
@@ -6502,6 +6599,7 @@ const UI = (() => {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (!d.menuPop.hidden) closeMenu();
+      else if (mapPick) setPick(null);
       else if (d.gameBody.classList.contains('sheet-open')) closeSheet();
     });
     // Feed
@@ -6689,8 +6787,10 @@ const UI = (() => {
     d.panelBody.replaceChildren();
     d.panelBody.dataset.tab = tab;
     d.panelBody.setAttribute('aria-labelledby', 'tab-' + tab);
+    if (tab !== 'places') mapPick = null;
     if (!s || State.muted) return;
     appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
+    if (tab === 'places') placeChip($('.map', d.panelBody));
   }
   function list(items, fmt, empty) { return items.length ? el('ul', null, items.map(x => el('li', null, fmt(x)))) : el('p', { class: 'empty' }, empty); }
 
@@ -6814,6 +6914,361 @@ const UI = (() => {
     }
     return openPerson;
   }
+  // ----- Places: the town map -----
+  /* An inline SVG at the top of the Places tab, drawn from state on every
+     panel render. The town's map (TOWN_DATA.map: width, height, river and
+     riverWidth, riverLabel, bridges, decorative roads, labels) is the frame;
+     each discovered place is a marker at its map { x, y } with its short
+     label on the anchor side (n, s, e, w). A place without coordinates goes
+     beside its first mapped exit, else on a grid. Roads come from exits:
+     each connected pair once, a gentle curve toward open space and never
+     into the river. People the player has met sit under the label
+     of the place they were last seen (state.seen), or of this place if they
+     are here now: three at most, then "+N". Tapping another place shows a
+     "Go to ...?" chip beside it; the chip sends the Do turn "I head to
+     <place>." through Pipeline.submit, so a stray tap never spends a turn.
+     The current place, or any tap while a turn runs, does nothing. */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const MAP_SIZE = { width: 360, height: 300 };
+  const MAP_ANCHORS = ['n', 's', 'e', 'w'];
+  // Marker glyphs by place type: a boat-ramp wedge, a small square (a stop
+  // by the road), else a house-ish pentagon.
+  const MAP_WEDGE = ['marina', 'docks', 'landing', 'ramp', 'riverbank', 'wharf', 'pier'];
+  const MAP_SQUARE = ['gas', 'pawn', 'garage', 'market', 'shop', 'store', 'bridge', 'road', 'highway'];
+  /* The id of the place whose "Go to" chip is showing (memory only). */
+  let mapPick = null;
+  function sv(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (const k of Object.keys(attrs)) {
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'dataset') Object.assign(node.dataset, v);
+        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, v === true ? '' : String(v));
+      }
+    }
+    for (let i = 2; i < arguments.length; i++) appendKids(node, arguments[i]);
+    return node;
+  }
+  const r1 = n => Math.round(n * 10) / 10;
+  /* "The Low Water" -> "the Low Water", for "Go to ..." and "I head to ...". */
+  function placePhrase(name) { return String(name || '').replace(/^The /, 'the '); }
+  /* The map data: this game's town (a save carries its own), or the built-in
+     town's for a save of the same town made before it had a map. */
+  function mapSource(s) {
+    const t = State.town;
+    const same = s.meta.townName === TOWN_DATA.name;
+    const map = t && isObj(t.map) ? t.map : same && isObj(TOWN_DATA.map) ? TOWN_DATA.map : null;
+    const coords = id => {
+      const from = (t && Array.isArray(t.locations) ? t.locations.find(l => l.id === id) : null) || (same ? TOWN_DATA.locations.find(l => l.id === id) : null);
+      return from && isObj(from.map) ? from.map : null;
+    };
+    return { map, coords };
+  }
+  /* A label of one to three words: the given one, else the name without
+     "The". Longer than 13 letters with two or more words: two lines. */
+  function mapLabelLines(label, name) {
+    const words = cleanText(label || String(name || '').replace(/^The /, ''), 40).split(' ').filter(Boolean).slice(0, 3);
+    const text = words.join(' ') || '?';
+    if (text.length <= 13 || words.length < 2) return [text];
+    let best = null;
+    for (let i = 1; i < words.length; i++) {
+      const a = words.slice(0, i).join(' ');
+      const b = words.slice(i).join(' ');
+      if (!best || Math.max(a.length, b.length) < Math.max(best[0].length, best[1].length)) best = [a, b];
+    }
+    return best;
+  }
+  /* Where everything goes, in viewBox units. */
+  function mapLayout(s) {
+    const src = mapSource(s);
+    const m = src.map || {};
+    const W = Number.isFinite(m.width) && m.width >= 120 ? m.width : MAP_SIZE.width;
+    const H = Number.isFinite(m.height) && m.height >= 100 ? m.height : MAP_SIZE.height;
+    const pts = [];
+    const byId = {};
+    const unplaced = [];
+    for (const l of s.locations) {
+      if (!l.discovered) continue;
+      const c = isObj(l.map) ? l.map : src.coords(l.id);
+      const p = { id: l.id, loc: l, lines: mapLabelLines(c && c.label, l.name), anchor: c && MAP_ANCHORS.includes(c.anchor) ? c.anchor : null };
+      if (c && Number.isFinite(c.x) && Number.isFinite(c.y)) { p.x = clamp(c.x, 0, W); p.y = clamp(c.y, 0, H); byId[l.id] = p; } else unplaced.push(p);
+      pts.push(p);
+    }
+    // Fallback: beside the first exit that has a place on the map, else the first free cell of a grid.
+    const free = (x, y) => x >= 24 && x <= W - 24 && y >= 20 && y <= H - 20 && pts.every(q => q.x === undefined || Math.hypot(q.x - x, q.y - y) >= 46);
+    for (const p of unplaced) {
+      let spot = null;
+      const near = p.loc.exits.map(id => byId[id]).find(Boolean);
+      for (let i = 0; near && !spot && i < 8; i++) {
+        const a = Math.PI / 2 + i * Math.PI / 4;
+        const x = near.x + Math.cos(a) * 54;
+        const y = near.y - Math.sin(a) * 54;
+        if (free(x, y)) spot = { x, y };
+      }
+      const cols = Math.max(1, Math.floor((W - 48) / 64) + 1);
+      const step = (W - 48) / Math.max(1, cols - 1);
+      for (let r = 0; !spot && 40 + r * 56 <= H - 20; r++) {
+        for (let c = 0; !spot && c < cols; c++) if (free(24 + c * step, 40 + r * 56)) spot = { x: 24 + c * step, y: 40 + r * 56 };
+      }
+      p.x = spot ? r1(spot.x) : W / 2;
+      p.y = spot ? r1(spot.y) : H / 2;
+      byId[p.id] = p;
+    }
+    for (const p of pts) if (!p.anchor) p.anchor = p.x > W * 0.66 ? 'w' : 'e';
+    const river = typeof m.river === 'string' && m.river ? m.river : null;
+    const rw = Number.isFinite(m.riverWidth) && m.riverWidth > 0 ? m.riverWidth : 34;
+    // Roads: each pair of connected places once.
+    const roads = [];
+    const pairs = new Set();
+    for (const p of pts) {
+      for (const id of p.loc.exits) {
+        const q = byId[id];
+        const key = [p.id, id].sort().join('|');
+        if (!q || q === p || pairs.has(key)) continue;
+        pairs.add(key);
+        roads.push({ a: p, b: q, key });
+      }
+    }
+    const L = { W, H, m, pts, byId, roads, river, rw, riverPts: river ? riverPoints(river) : [] };
+    for (const r of roads) r.d = roadPath(r.a, r.b, L);
+    return L;
+  }
+  /* Points along the river's centre line, to keep roads out of the water. */
+  let riverCache = { d: null, pts: [] };
+  function riverPoints(dPath) {
+    if (riverCache.d === dPath) return riverCache.pts;
+    let pts = [];
+    try {
+      const p = sv('path', { d: dPath });
+      const len = p.getTotalLength();
+      for (let i = 0; i <= 90; i++) { const q = p.getPointAtLength(len * i / 90); pts.push({ x: q.x, y: q.y }); }
+    } catch (e) { pts = []; }
+    riverCache = { d: dPath, pts };
+    return pts;
+  }
+  /* A road between two places: a quadratic curve that bows up to 10 units
+     off the straight line, to the side with more room from other places
+     (north when it makes no difference), never into the river (straight if
+     both sides would touch it). */
+  function roadPath(a, b, L) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const dev = Math.min(10, len * 0.08);
+    const at = (sgn, t) => {
+      const cx = (a.x + b.x) / 2 + nx * dev * 2 * sgn;
+      const cy = (a.y + b.y) / 2 + ny * dev * 2 * sgn;
+      const u = 1 - t;
+      return { x: u * u * a.x + 2 * u * t * cx + t * t * b.x, y: u * u * a.y + 2 * u * t * cy + t * t * b.y, cx, cy };
+    };
+    const ts = [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9];
+    const room = sgn => {
+      let c = Infinity;
+      for (const t of ts) {
+        const q = at(sgn, t);
+        for (const p of L.pts) if (p !== a && p !== b) c = Math.min(c, Math.hypot(p.x - q.x, p.y - q.y));
+      }
+      return c;
+    };
+    const wet = sgn => ts.some(t => { const q = at(sgn, t); return L.riverPts.some(w => Math.hypot(w.x - q.x, w.y - q.y) < L.rw / 2 + 4); });
+    let sgn = ny > 0 ? -1 : 1;
+    if (room(-sgn) > room(sgn) + 4) sgn = -sgn;
+    if (wet(sgn)) sgn = wet(-sgn) ? 0 : -sgn;
+    const c = at(sgn, 0.5);
+    return `M${r1(a.x)},${r1(a.y)} Q${r1(c.cx)},${r1(c.cy)} ${r1(b.x)},${r1(b.y)}`;
+  }
+  /* Who the player has met (the People tab's list), by the place they are
+     shown at: here if they are here now, else where they were last seen.
+     Most recently seen first. Not the dead or the gone. */
+  function mapPeople(s) {
+    const hereIds = State.npcsAt(s.player.locationId).map(n => n.id);
+    const seen = s.seen || {};
+    const at = {};
+    for (const n of s.npcs) {
+      if (n.alive === false || n.status === 'gone' || n.status === 'dead' || !hasMet(s, n)) continue;
+      const isHere = hereIds.includes(n.id);
+      const locId = isHere ? s.player.locationId : seen[n.id] && seen[n.id].locationId;
+      if (!locId) continue;
+      (at[locId] = at[locId] || []).push({ n, t: isHere ? Infinity : seen[n.id].turn | 0 });
+    }
+    for (const k of Object.keys(at)) at[k] = at[k].sort((a, b) => b.t - a.t).map(x => x.n);
+    return at;
+  }
+  function mapGlyph(p) {
+    const x = p.x;
+    const y = p.y;
+    const t = p.loc.type;
+    if (MAP_WEDGE.includes(t)) return sv('path', { class: 'map-mark', 'data-glyph': 'wedge', d: `M${r1(x - 7)},${r1(y + 5)} L${r1(x + 7)},${r1(y + 5)} L${r1(x + 7)},${r1(y - 5)} Z` });
+    if (MAP_SQUARE.includes(t)) return sv('rect', { class: 'map-mark', 'data-glyph': 'square', x: r1(x - 5), y: r1(y - 5), width: 10, height: 10, rx: 1 });
+    return sv('path', { class: 'map-mark', 'data-glyph': 'house', d: `M${r1(x)},${r1(y - 7)} L${r1(x + 6.5)},${r1(y - 1.5)} L${r1(x + 6.5)},${r1(y + 6)} L${r1(x - 6.5)},${r1(y + 6)} L${r1(x - 6.5)},${r1(y - 1.5)} Z` });
+  }
+  /* One place: the hit area (44px or more on screen), the ring if the player
+     is here, the marker, a strike if closed, then the label block: the label,
+     "You are here", and the people seen there. */
+  function mapPlace(s, L, p, people, u) {
+    const here = p.id === s.player.locationId;
+    const closed = !!p.loc.closed;
+    const shown = people.slice(0, 3);
+    const extra = people.length - shown.length;
+    const kids = [sv('rect', { class: 'map-hit', x: r1(p.x - u.hit / 2), y: r1(p.y - u.hit / 2), width: u.hit, height: u.hit, rx: 8 })];
+    if (here) kids.push(sv('circle', { class: 'map-ring', cx: r1(p.x), cy: r1(p.y), r: 11.5 }));
+    kids.push(mapGlyph(p));
+    if (closed) kids.push(sv('line', { class: 'map-strike', x1: r1(p.x - 9), y1: r1(p.y + 8), x2: r1(p.x + 9), y2: r1(p.y - 8) }));
+    // The label block, sized by estimate (0.58em a letter) and kept inside the map.
+    const rows = p.lines.map(t => ({ t, cls: 'map-label' + (closed ? ' struck' : '') }));
+    if (here) rows.push({ t: 'You are here', cls: 'map-caption' });
+    const textW = Math.max(...rows.map(r => r.t.length * u.fs * 0.58));
+    const more = extra > 0 ? `+${extra}` : '';
+    const rowW = shown.length ? shown.length * u.mono + (shown.length - 1) * 2 + (more ? 3 + more.length * u.fs * 0.6 : 0) : 0;
+    const blockW = Math.max(textW, rowW);
+    const blockH = rows.length * u.lh + (shown.length ? u.mono + 3 : 0);
+    const gap = 11;
+    const align = p.anchor === 'e' ? 'start' : p.anchor === 'w' ? 'end' : 'middle';
+    let x0 = p.anchor === 'e' ? p.x + gap : p.anchor === 'w' ? p.x - gap : p.x;
+    let top = p.anchor === 'n' ? p.y - gap - blockH : p.anchor === 's' ? p.y + gap : p.y - (p.lines.length * u.lh) / 2;
+    const left = align === 'start' ? x0 : align === 'end' ? x0 - blockW : x0 - blockW / 2;
+    x0 += clamp(left, 3, L.W - 3 - blockW) - left;
+    top = clamp(top, 2, L.H - 2 - blockH);
+    rows.forEach((r, i) => kids.push(sv('text', { class: r.cls, x: r1(x0), y: r1(top + i * u.lh + u.fs * 0.84), 'text-anchor': align }, r.t)));
+    if (shown.length) {
+      const cy = top + rows.length * u.lh + 1.5 + u.mono / 2;
+      let cx = align === 'start' ? x0 + u.mono / 2 : align === 'end' ? x0 - rowW + u.mono / 2 : x0 - rowW / 2 + u.mono / 2;
+      for (const n of shown) {
+        const label = npcLabel(n);
+        kids.push(sv('g', { class: 'map-mono', dataset: { npc: n.id, hue: String(personHue(n.id)) } },
+          sv('title', null, label),
+          sv('circle', { cx: r1(cx), cy: r1(cy), r: r1(u.mono / 2) }),
+          sv('text', { x: r1(cx), y: r1(cy + u.mono * 0.19), 'text-anchor': 'middle', 'font-size': r1(u.mono * 0.52) }, initials(label))));
+        cx += u.mono + 2;
+      }
+      if (more) kids.push(sv('text', { class: 'map-more', x: r1(cx - u.mono / 2 + 1), y: r1(cy + u.fs * 0.34) }, more));
+    }
+    const who = people.map(npcLabel);
+    const aria = [p.loc.name, here ? 'you are here' : null, closed ? 'closed' : null, who.length ? 'with ' + who.join(', ') : null].filter(Boolean).join(', ');
+    const tap = e => { if (e) e.stopPropagation(); mapTap(p.id, false); };
+    return sv('g', {
+      class: 'map-place', role: 'button', tabindex: '0', 'aria-label': aria, 'aria-current': here ? 'location' : null, 'aria-disabled': here ? 'true' : null,
+      dataset: { loc: p.id, here: here ? '1' : '0', closed: closed ? '1' : '0', picked: mapPick === p.id ? '1' : '0', glyph: kids[here ? 2 : 1].getAttribute('data-glyph') },
+      onclick: tap,
+      onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); mapTap(p.id, true); } }
+    }, kids);
+  }
+  /* Game.UI.renderMap(): the map node (a div holding the SVG and, when a
+     place is picked, its chip). */
+  function renderMap(s) {
+    s = s || State.current;
+    if (!s) return null;
+    const L = mapLayout(s);
+    const m = L.m;
+    if (mapPick && (mapPick === s.player.locationId || !L.byId[mapPick])) mapPick = null;
+    // Sizes in viewBox units, so labels are 11px or more on a map 316px wide
+    // (the laptop panel is 319, a 375px phone's sheet 375) and taps hit 44px.
+    const k = L.W / 316;
+    const u = { fs: r1(11 * k), lh: r1(13.2 * k), hit: Math.ceil(44 * k), mono: r1(14 * k) };
+    const people = mapPeople(s);
+    const rw = L.rw;
+    const text = (cls, o) => (isObj(o) && typeof o.text === 'string' && Number.isFinite(o.x) && Number.isFinite(o.y)
+      ? sv('text', { class: cls, x: o.x, y: o.y, 'text-anchor': ['start', 'middle', 'end'].includes(o.anchor) ? o.anchor : 'middle', transform: Number.isFinite(o.rotate) ? `rotate(${o.rotate} ${o.x} ${o.y})` : null }, cleanText(o.text, 40))
+      : null);
+    const paths = v => (Array.isArray(v) ? v : []).filter(d => typeof d === 'string' && d.trim());
+    const svg = sv('svg', {
+      class: 'map-svg', viewBox: `0 0 ${L.W} ${L.H}`, role: 'group', 'aria-label': `Map of ${s.meta.townName}`, 'font-size': u.fs,
+      onclick: () => { if (mapPick) setPick(null); }
+    },
+    sv('rect', { class: 'map-land', x: 0, y: 0, width: L.W, height: L.H }),
+    L.river ? [
+      sv('path', { class: 'map-bank', d: L.river, 'stroke-width': rw + 5, 'aria-hidden': 'true' }),
+      sv('path', { class: 'map-water', d: L.river, 'stroke-width': rw, 'aria-hidden': 'true' })] : null,
+    sv('g', { class: 'map-roads', 'aria-hidden': 'true' },
+      paths(m.roads).map(d => sv('path', { class: 'map-road deco', d })),
+      L.roads.map(r => sv('path', { class: 'map-road', d: r.d, dataset: { road: r.key } }))),
+    paths(m.bridges).map(d => sv('g', { class: 'map-bridge', 'aria-hidden': 'true' }, sv('path', { class: 'map-bridge-rail', d }), sv('path', { class: 'map-bridge-deck', d }))),
+    sv('g', { 'aria-hidden': 'true' }, text('map-river-label', m.riverLabel), (Array.isArray(m.labels) ? m.labels : []).map(o => text('map-area', o))),
+    L.pts.map(p => mapPlace(s, L, p, people[p.id] || [], u)));
+    const pick = mapPick ? L.byId[mapPick] : null;
+    const chip = pick ? el('button', {
+      type: 'button', class: 'map-go', disabled: busy || Pipeline.busy,
+      dataset: { loc: pick.id, side: pick.y < L.H * 0.55 ? 'below' : 'above', fx: String(pick.x / L.W) },
+      style: `left:${r1(pick.x / L.W * 100)}%;top:${r1(pick.y / L.H * 100)}%`,
+      onclick: e => { e.stopPropagation(); confirmTravel(); },
+      onkeydown: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPick(null, pick.id); } }
+    }, `Go to ${placePhrase(pick.loc.name)}${pick.loc.closed ? ' (closed)' : ''}?`) : null;
+    return el('div', { class: 'map', dataset: { pick: mapPick || '' } }, svg, chip);
+  }
+  function mapLegend() {
+    return el('p', { class: 'map-legend', 'aria-hidden': 'true' },
+      el('span', null, el('i', { class: 'lg lg-you' }), 'You'),
+      el('span', null, el('i', { class: 'lg lg-closed' }), 'Closed'),
+      el('span', null, el('i', { class: 'lg lg-person' }), 'Someone you know'));
+  }
+  /* Put the chip under or over its marker, whichever hides fewer marks,
+     labels and people, centred where it fits and kept inside the map. */
+  function placeChip(node) {
+    const chip = node && $('.map-go', node);
+    const w = node ? node.clientWidth : 0;
+    const h = node ? node.clientHeight : 0;
+    if (!chip || !w || !h) return;
+    const cw = chip.offsetWidth;
+    const ch = chip.offsetHeight;
+    const box = node.getBoundingClientRect();
+    const mine = $(`.map-place[data-loc="${chip.dataset.loc}"]`, node);
+    const mark = mine ? $('.map-mark', mine).getBoundingClientRect() : null;
+    const mx = mark ? mark.left + mark.width / 2 - box.left : parseFloat(chip.dataset.fx) * w;
+    const my = mark ? mark.top + mark.height / 2 - box.top : h / 2;
+    const left = clamp(mx - cw / 2, 8, Math.max(8, w - cw - 8));
+    const others = $$('.map-mark, .map-label, .map-caption, .map-mono', node).filter(x => !mine || !mine.contains(x)).map(x => x.getBoundingClientRect());
+    const hides = top => others.filter(r => r.right - box.left > left && r.left - box.left < left + cw && r.bottom - box.top > top && r.top - box.top < top + ch).length;
+    const below = clamp(my + 16, 4, Math.max(4, h - ch - 4));
+    const above = clamp(my - 16 - ch, 4, Math.max(4, h - ch - 4));
+    const first = chip.dataset.side === 'above' ? [above, below] : [below, above];
+    const top = hides(first[1]) < hides(first[0]) ? first[1] : first[0];
+    chip.style.left = r1(left) + 'px';
+    chip.style.top = r1(top) + 'px';
+    chip.dataset.side = top === below ? 'below' : 'above';
+    chip.classList.add('placed');
+  }
+  /* Redraw only the map (a pick or its end), then focus the chip or a place
+     (keyboard use). */
+  function refreshMap(focus) {
+    const old = d.panelBody ? $('.map', d.panelBody) : null;
+    if (!old || !State.current) return;
+    const fresh = renderMap(State.current);
+    old.replaceWith(fresh);
+    placeChip(fresh);
+    const f = focus === 'chip' ? $('.map-go', fresh) : focus ? $(`.map-place[data-loc="${focus}"]`, fresh) : null;
+    if (f) f.focus({ preventScroll: true });
+  }
+  function setPick(id, focus) { mapPick = id; refreshMap(focus); }
+  /* A tap (or Enter / Space) on a place: another place shows its chip (a
+     second tap takes it away again); the current place, or any tap while a
+     turn runs, does nothing. Returns whether a chip is showing. */
+  function mapTap(id, viaKey) {
+    const s = State.current;
+    if (!s || State.muted || busy || Pipeline.busy) return false;
+    if (id === s.player.locationId) { if (mapPick) setPick(null, viaKey ? id : null); return false; }
+    const next = mapPick === id ? null : id;
+    setPick(next, viaKey ? (next ? 'chip' : id) : null);
+    return !!next;
+  }
+  /* The chip: the Do turn "I head to <place>." On a phone the sheet closes so
+     the walk can be read. A failed turn leaves the line in the box, like a
+     typed one. */
+  async function confirmTravel() {
+    const s = State.current;
+    const l = mapPick && State.loc(mapPick);
+    if (!s || !l || busy || Pipeline.busy || l.id === s.player.locationId) return null;
+    const line = `I head to ${placePhrase(l.name)}.`;
+    setPick(null);
+    if (isMobile()) closeSheet();
+    let res = null;
+    try { res = await Pipeline.submit(line, { mode: 'do', to: 'everyone' }); } catch (e) { console.error(e); res = { restoreInput: true }; }
+    if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = line; autosize(); }
+    return res;
+  }
   function kv(rows) { return el('dl', { class: 'kv' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', null, v)])); }
   const PANELS = {
     character(s) {
@@ -6868,6 +7323,8 @@ const UI = (() => {
       const here = State.loc(s.player.locationId);
       const exits = here.exits.map(id => State.loc(id)).filter(Boolean);
       return [
+        renderMap(s),
+        mapLegend(),
         el('h2', null, here.name),
         el('p', { class: 'muted' }, capFirst(here.type) + (here.closed ? ' · closed' : '')),
         el('p', null, here.description),
@@ -7027,6 +7484,8 @@ const UI = (() => {
     d.btnImport.disabled = busy;
     if (screen === 'title') d.btnContinue.disabled = busy || !Storage.hasAutosave();
     $$('[data-action="load"]', d.slotList).forEach(btn => { btn.disabled = busy || btn.dataset.filled !== '1'; });
+    // A turn has started: a "Go to" chip on the map goes away.
+    if (busy && mapPick) setPick(null);
   }
   async function send() {
     const text = d.cmd.value;
@@ -7503,8 +7962,9 @@ const UI = (() => {
   return {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
-    setMode, setAddressee, renderComposer, togglePerson,
+    setMode, setAddressee, renderComposer, togglePerson, renderMap, mapLayout,
     get openPerson() { return openPerson; },
+    get mapPick() { return mapPick; },
     get mode() { return composer.mode; },
     get addressee() { syncAddressee(); return composer.to; },
     get screen() { return screen; },

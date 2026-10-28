@@ -160,6 +160,34 @@ state.meta = { seed, turn, createdAt, townName, townVersion: 1, lastRollKey: nul
 state.player.storyPoints // 0..3
 ```
 
+### Map
+
+Optional. `TOWN_DATA.map` and each location's `map` draw the town map at the
+top of the Places tab (`UI.renderMap`, an inline SVG; numbers are viewBox
+units):
+
+```js
+TOWN_DATA.map = {
+  width: 360, height: 300,             // the viewBox
+  river: "M0,226 C...",                // optional: SVG path of the river's centre line
+  riverWidth: 34,                      // optional (default 34)
+  riverLabel: { text, x, y, rotate },  // optional; rotate in degrees
+  bridges: ["M266,216 L270,266"],      // optional: crossings drawn over the river
+  roads: ["M264,0 C..."],              // decorative only (the highway in and out)
+  labels: [{ text, x, y, anchor }]     // area labels; anchor start | middle | end
+};
+location.map = { x, y, label, anchor }; // label 1-3 words; anchor n | s | e | w: the label's side
+```
+
+Roads between places come from `exits` (one per connected pair, a gentle
+curve toward open space, never into the river). Once `TOWN_DATA.map` exists,
+`tests/validate-town.cjs` wants `map` on every location, inside the bounds,
+places at least 28 apart. A place without `map` (made in play, or a town
+without map data) goes beside its first mapped exit, else on a grid. People
+the player has met show by where they were last seen (`state.seen`). A tap on
+another place asks "Go to ...?"; only that chip sends the Do turn "I head to
+<place>." through `Pipeline.submit`.
+
 `State.apply(diff)` is the only writer. It accepts the bookkeeper's
 `record_changes` shape (SPEC.md section 10) plus an `effects` array of the
 ops above. It returns `{ applied: [...], rejected: [{ path, reason }] }` and
