@@ -1398,4 +1398,24 @@ s.test('/cheat lists the cheats; /Cheat: reroll and /cheat reroll run a reroll',
   assert.equal((await turnInfo(page)).last.roll.tier, 'success');
 });
 
+s.test('a successful social roll tells the narrator it works; a failed one that it does not; the parser sees attitudes', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const a = sc.npcs[0];
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); Game.Pipeline.forceNextRoll(20); }, a.id);
+  await sendText(page, 'Please, give me a chance and hire me.');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'critical');
+  assert.match(await lastPacket(page), /\nOUTCOME: the ask succeeded\. It works, and then some\. The person goes along with what the player asked, at least in part, whatever they said before/);
+  assert.match(await lastPacket(page, 'parse'), /attitude to the player -?\d+ on -100\.\.100/);
+  await sendText(page, '/undo');
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); Game.Pipeline.forceNextRoll(1); }, a.id);
+  await sendText(page, 'Please, give me a chance and hire me.');
+  const packet = await lastPacket(page);
+  assert.match(packet, /\nOUTCOME: the ask failed\. The person does not give the player what they asked for/);
+  assert.doesNotMatch(packet, /the ask succeeded/);
+});
+
 s.run();
