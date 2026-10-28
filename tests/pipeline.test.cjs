@@ -1381,4 +1381,21 @@ s.test('/undo then the same roll again draws a different die (the seeded stream 
   assert.ok(new Set(dice).size >= 3, 'six tries after /undo should not keep rolling the same number: ' + dice.join(','));
 });
 
+s.test('/cheat lists the cheats; /Cheat: reroll and /cheat reroll run a reroll', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await sendText(page, '/cheat');
+  assert.match(await lastNotice(page), /^Cheats: \/reroll rolls the last turn/);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
+  await sendText(page, 'I try to pick the lock on the back door');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'critical_failure');
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(20));
+  await sendText(page, '/Cheat: reroll');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'critical', 'a sloppy spelling still rerolls');
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(12));
+  await sendText(page, '/cheat reroll');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'success');
+});
+
 s.run();
