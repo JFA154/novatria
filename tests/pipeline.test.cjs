@@ -1324,4 +1324,61 @@ s.test('pushing a failed ask again in conversation gets an answer, not a notice:
   assert.equal(await page.evaluate(() => Game.state.meta.lastRollKey), lock, 'the lock still holds, so the dice are not re-rolled');
 });
 
+s.test('/reroll (cheat) takes the last turn back and plays it again with a fresh die, ignoring the retry lock; nothing to reroll without a roll', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  // No roll yet: nothing to reroll.
+  await sendText(page, 'I look around');
+  await sendText(page, '/reroll');
+  assert.equal(await lastNotice(page), 'Nothing to reroll: the last turn had no dice roll.');
+  // A failed lockpick, then rerolls.
+  const pick = 'I try to pick the lock on the back door';
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
+  await sendText(page, pick);
+  const failed = await turnInfo(page);
+  assert.equal(failed.last.roll.tier, 'critical_failure');
+  assert.ok(await page.evaluate(() => Game.state.meta.lastRollKey), 'the lock is set');
+  const logLen = await page.evaluate(() => Game.state.log.length);
+  const inputs = () => page.evaluate(t => [...document.querySelectorAll('#feed .f-input')].filter(n => n.textContent === t).length, pick);
+  assert.equal(await inputs(), 1);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(20));
+  await sendText(page, '/reroll');
+  const again = await turnInfo(page);
+  assert.equal(again.last.input, pick, 'the same turn was played again');
+  assert.equal(again.last.roll.tier, 'critical', 'with the new die');
+  assert.equal(await page.evaluate(() => Game.state.log.length), logLen, 'the old turn is gone, the new one is in its place');
+  assert.equal(await inputs(), 1, 'one input line in the feed, not two');
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet, #feed .f-roll')].some(n => /Rerolled\./.test(n.textContent))), 'the feed says it was rerolled');
+  assert.equal(await page.evaluate(() => Game.state.meta.lastRollKey), null, 'a success clears the lock');
+  // Reroll again straight away: allowed without limit, even after a fresh failure.
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
+  await sendText(page, '/reroll');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'critical_failure');
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(15));
+  await sendText(page, '/reroll');
+  assert.equal((await turnInfo(page)).last.roll.tier, 'success', 'rerolled past the lock');
+  assert.equal(await page.evaluate(() => Game.state.log.length), logLen);
+  // /undo still works afterwards.
+  await sendText(page, '/undo');
+  assert.equal(await page.evaluate(() => Game.state.log.length), logLen - 1);
+});
+
+s.test('/undo then the same roll again draws a different die (the seeded stream is shifted, the saved state is untouched)', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const pick = 'I try to pick the lock on the back door';
+  const dice = [];
+  for (let i = 0; i < 6; i++) {
+    await sendText(page, pick);
+    const info = await turnInfo(page);
+    dice.push(info.last.roll.d20);
+    const snapshot = await stateJson(page);
+    await sendText(page, '/undo');
+    if (i === 0) assert.notEqual(await stateJson(page), snapshot, 'undo changed the state back');
+  }
+  assert.ok(new Set(dice).size >= 3, 'six tries after /undo should not keep rolling the same number: ' + dice.join(','));
+});
+
 s.run();

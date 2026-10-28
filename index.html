@@ -5391,6 +5391,7 @@ const Api = (() => {
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
+    noReroll: 'Nothing to reroll: the last turn had no dice roll.',
     locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.'
   };
@@ -5702,7 +5703,7 @@ const Pipeline = (() => {
     const a = ctx.action;
     if (!a.needsRoll) return {};
     const key = Dice.lockKey(a);
-    if (Dice.isLocked(key)) {
+    if (Dice.isLocked(key) && !ctx.reroll) {
       // Pushing the same point in conversation again: no new roll (the dice
       // are not re-rolled), but the scene still answers, so the player sees
       // the person hold their ground instead of a system notice.
@@ -5714,7 +5715,9 @@ const Pipeline = (() => {
       return { locked: true };
     }
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
-    const forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : undefined;
+    // After /undo or /reroll the restored state would hand back the very
+    // same die; a salt kept outside the save shifts the draw instead.
+    const forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
     hooks.nextD20 = null;
     const roll = Dice.resolve({ stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, d20: forced });
     ctx.roll = roll;
@@ -6073,7 +6076,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [] };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll };
     // Step 13: the autosave and the render run once, when this batch closes
     // (finally below), after the whole turn or its rollback.
     State.beginBatch();
@@ -6254,6 +6257,28 @@ const Pipeline = (() => {
   /* Returns { ok, restoreInput?, reason? }. restoreInput tells the UI to put
      the player's text back in the box (SPEC.md section 2, errors). opts:
      the composer's { mode, to } (speechFor); commands ignore it. */
+  /* Cheat: take back the last turn and play it again with a fresh die,
+     ignoring the retry lock. The parsed action is reused (no parser call);
+     the narrator and bookkeeper run again on the new result, so it costs a
+     narrator and a bookkeeper call. Repeatable without limit. */
+  async function reroll() {
+    const s = State.current;
+    const entry = s && s.log.length ? s.log[s.log.length - 1] : null;
+    const last = lastTurn;
+    if (!entry || !entry.roll || !last || !last.action || !last.action.needsRoll || (last.ctx && last.ctx.mode === 'arrival')) {
+      UI.feed.notice(NOTICES.noReroll);
+      return { ok: false, reason: 'no-roll' };
+    }
+    const input = entry.input;
+    const speech = entry.mode === 'say' ? { mode: 'say', to: entry.to, toName: entry.toName, toLabel: entry.toLabel || null } : (entry.mode === 'do' ? { mode: 'do' } : null);
+    const mode = last.ctx && last.ctx.mode === 'zoom' ? 'zoom' : 'normal';
+    if (!State.restore()) { UI.feed.notice('There is nothing to take back, so nothing to reroll.'); return { ok: false, reason: 'nothing' }; }
+    World.forget(State.current.meta.turn);
+    hooks.diceSalt = (hooks.diceSalt || 0) + 1;
+    UI.rebuildFeed();
+    return runTurn({ input, mode, speech, action: last.action, reroll: true, prepare: () => UI.feed.quiet('Rerolled.') });
+  }
+
   async function submit(rawText, opts) {
     const text = String(rawText || '').trim();
     if (!text) return { ok: false, reason: 'empty' };
@@ -6392,7 +6417,7 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return { noteIntroductions,
+  return { noteIntroductions, reroll,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
@@ -8054,6 +8079,7 @@ const Commands = (() => {
     { name: '/journal', args: '', desc: 'Open the Journal panel' },
     { name: '/places', args: '', desc: 'Open the Places panel' },
     { name: '/undo', args: '', desc: 'Take back the last turn' },
+    { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     { name: '/save', args: '<name>', desc: 'Save to a named slot' },
     { name: '/load', args: '', desc: 'Open saved games' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
@@ -8080,9 +8106,11 @@ const Commands = (() => {
       case '/rest': return Pipeline.rest();
       case '/wait': return Pipeline.wait(arg);
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
+      case '/reroll': return Pipeline.reroll();
       case '/undo': {
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
         World.forget(State.current.meta.turn);
+        Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
         UI.rebuildFeed();
         UI.feed.notice('You took back the last turn.');
         return { ok: true };

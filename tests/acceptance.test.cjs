@@ -478,14 +478,17 @@ s.test('[11] `/undo` restores the previous turn exactly.', async h => {
     const feedBefore = await page.evaluate(() => document.querySelectorAll('#feed .f-input').length);
     await sendText(page, text);
     const after = await stateJson(page);
+    const firstDie = await page.evaluate(() => { const e = Game.state.log[Game.state.log.length - 1]; return e && e.roll ? e.roll.d20 : null; });
     assert.notEqual(after, before, text + ' changed the state');
     await sendText(page, '/undo');
     assert.equal(await stateJson(page), before, `/undo after "${text}" restores the exact state`);
     assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-input').length), feedBefore, 'the feed is rebuilt without it');
     assert.match(await page.textContent('#feed .f-notice:last-child'), /took back the last turn/);
-    // Dice and world included: playing it again gives the same result.
+    // Playing it again: the world replays the same, but a die rolled after /undo is never
+    // the same number (the seeded stream is shifted so a retry is a real retry).
     await sendText(page, text);
-    assert.equal(await stateJson(page), after, `"${text}" replays identically after /undo`);
+    if (firstDie === null) assert.equal(await stateJson(page), after, `"${text}" replays identically after /undo`);
+    else assert.notEqual(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].roll.d20), firstDie, `"${text}" gets a different die after /undo`);
   }
   // Undo walks back one turn at a time, then says there is nothing left.
   const depth = await page.evaluate(() => Game.State.undoDepth());
