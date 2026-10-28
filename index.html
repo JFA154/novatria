@@ -8140,7 +8140,7 @@ const Commands = (() => {
     { name: '/places', args: '', desc: 'Open the Places panel' },
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
-    { name: '/cheat', args: '[success|partial|fail|crit|fumble|1-20]', desc: 'Cheat: redo the last roll with that outcome, or arm the next one', turn: true },
+    { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
     { name: '/save', args: '<name>', desc: 'Save to a named slot' },
     { name: '/load', args: '', desc: 'Open saved games' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
