@@ -1386,7 +1386,7 @@ s.test('/cheat lists the cheats; /Cheat: reroll and /cheat reroll run a reroll',
   await quickStart(page);
   await page.evaluate(() => { Game.Api.Mock.delay = 0; });
   await sendText(page, '/cheat');
-  assert.match(await lastNotice(page), /^Cheats: \/reroll rolls the last turn/);
+  assert.match(await lastNotice(page), /^Cheats: \/cheat success, \/cheat partial/);
   await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
   await sendText(page, 'I try to pick the lock on the back door');
   assert.equal((await turnInfo(page)).last.roll.tier, 'critical_failure');
@@ -1416,6 +1416,36 @@ s.test('a successful social roll tells the narrator it works; a failed one that 
   const packet = await lastPacket(page);
   assert.match(packet, /\nOUTCOME: the ask failed\. The person does not give the player what they asked for/);
   assert.doesNotMatch(packet, /the ask succeeded/);
+});
+
+s.test('/cheat success|partial|fail|crit|fumble|<n> redoes the last roll with that outcome, or arms the next roll when there is nothing to redo', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const tierNow = () => page.evaluate(() => Game.state.log[Game.state.log.length - 1].roll.tier);
+  const d20Now = () => page.evaluate(() => Game.state.log[Game.state.log.length - 1].roll.d20);
+  // Nothing rolled yet: arm the next roll.
+  await sendText(page, '/cheat success');
+  assert.match(await lastNotice(page), /^Cheat armed: your next roll will be a success\./);
+  const pick = 'I try to pick the lock on the back door';
+  await sendText(page, pick);
+  assert.ok(['success', 'critical'].includes(await tierNow()), 'the armed success came out');
+  // Redo the last roll with each outcome.
+  await sendText(page, '/cheat fail');
+  assert.equal(await tierNow(), 'failure');
+  await sendText(page, '/cheat partial');
+  assert.equal(await tierNow(), 'partial');
+  await sendText(page, '/cheat crit');
+  assert.equal(await tierNow(), 'critical');
+  await sendText(page, '/cheat fumble');
+  assert.equal(await tierNow(), 'critical_failure');
+  await sendText(page, '/cheat 7');
+  assert.equal(await d20Now(), 7);
+  await sendText(page, '/reroll success');
+  assert.ok(['success', 'critical'].includes(await tierNow()));
+  await sendText(page, '/cheat sideways');
+  assert.match(await lastNotice(page), /Say which outcome/);
+  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.input === 'I try to pick the lock on the back door').length), 1, 'still one turn in the log');
 });
 
 s.run();

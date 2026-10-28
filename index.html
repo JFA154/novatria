@@ -2768,7 +2768,9 @@ const State = (() => {
   const undo = [];
   const UNDO_MAX = 20;
   const LOG_MAX = 30;
-  const MEMORY_MAX = 50;
+  const MEMORY_MAX = 12; // per person; the oldest, lightest go first (State.apply newMemories)
+  const MEMORY_TEXT_MAX = 120;
+  const MEMORY_STALE_TURNS = 30; // weight-1 memories older than this are forgotten when a new one arrives
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -3191,10 +3193,22 @@ const State = (() => {
     each('newMemories', m => {
       if (!isObj(m)) bad('must be an object');
       const n = needNpc(m.npcId);
-      const text = cleanText(m.text, 240);
+      let text = cleanText(m.text, 400);
+      if (source === 'model') text = text.replace(/^(remembers|memory)\s*[:-]\s*/i, '').replace(/\.$/, '');
+      if (source === 'model' && text.length > MEMORY_TEXT_MAX) { text = text.slice(0, MEMORY_TEXT_MAX); const sp = text.lastIndexOf(' '); if (sp > 60) text = text.slice(0, sp); }
       if (!text) bad('memory needs text');
       const w = clamp(toInt(m.weight) || 1, 1, 3);
-      n.memories.push({ turn: s.meta.turn, text, weight: w });
+      // The model gets one memory per person per turn: a heavier one replaces a lighter one from the same turn, a lighter one is dropped.
+      if (source === 'model') {
+        const sameTurn = n.memories.findIndex(x => x.turn === s.meta.turn && x.model);
+        if (sameTurn >= 0) {
+          if (n.memories[sameTurn].weight >= w) bad(`${n.id} already has a memory this turn (one per person per turn)`);
+          n.memories.splice(sameTurn, 1);
+        }
+      }
+      // Small things fade: weight-1 memories older than MEMORY_STALE_TURNS go when something new arrives.
+      n.memories = n.memories.filter(x => x.weight > 1 || s.meta.turn - x.turn <= MEMORY_STALE_TURNS);
+      n.memories.push(Object.assign({ turn: s.meta.turn, text, weight: w }, source === 'model' ? { model: true } : {}));
       while (n.memories.length > MEMORY_MAX) {
         const minW = Math.min(...n.memories.map(x => x.weight));
         n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
@@ -4671,7 +4685,7 @@ const Api = (() => {
      everything volatile goes in the user message as a labelled packet. */
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
-    bookkeeper: 'You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened.',
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).",
     chronicle: "Summarise these 10 turns in under 80 words: what the player did, who they met, what changed, what's unresolved. Past tense, plain facts."
   };
 
@@ -4700,7 +4714,7 @@ const Api = (() => {
     }),
     record_changes: obj({
       attitudeChanges: list(obj({ npcId: STR, delta: INT, reason: STR })),
-      newMemories: list(obj({ npcId: STR, text: STR, weight: { type: 'integer', enum: [1, 2, 3] } })),
+      newMemories: list(obj({ npcId: STR, text: { type: 'string', description: "Under twelve words, from this person's point of view, only for something they would hold against the player or thank them for later; no scene detail." }, weight: { type: 'integer', enum: [1, 2, 3], description: '1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help)' } })),
       goldDelta: nullable(INT, "Change in the player's money, in whole units of the town's currency (negative when spending), or null"),
       hpDelta: nullable(INT, "Change in the player's HP, or null"),
       itemsGained: list(STR, 'Item names or ids the player now carries'),
@@ -5695,6 +5709,24 @@ const Pipeline = (() => {
     State.apply({ conditionsAdded: [{ name: c.name, effect: c.effect, untilDay: s.time.day + 2 }] });
     return `lasting consequence: ${lowerFirst(c.name)} (${c.effect} until day ${s.time.day + 2})`;
   }
+  /* Cheat support: the die that gives a wanted outcome for this roll, found
+     by probing the roll's numbers (no dice are drawn by the probe). */
+  const TIER_ALIASES = { success: 'success', succeed: 'success', win: 'success', pass: 'success', partial: 'partial', fail: 'failure', failure: 'failure', lose: 'failure', crit: 'critical', critical: 'critical', nat20: 'critical', fumble: 'critical_failure', botch: 'critical_failure', nat1: 'critical_failure' };
+  function dieFor(want, rollOpts) {
+    if (Number.isInteger(want)) return clamp(want, 1, 20);
+    const tier = TIER_ALIASES[String(want).toLowerCase()] || 'success';
+    if (tier === 'critical') return 20;
+    if (tier === 'critical_failure') return 1;
+    const probe = Dice.resolve(Object.assign({}, rollOpts, { d20: 10, complication: 'none' }));
+    const base = probe.target - probe.statValue - probe.modifier; // the die that exactly meets the target
+    const pick = d => clamp(d, 2, 19);
+    let d = tier === 'success' ? pick(base) : tier === 'partial' ? pick(base - 2) : pick(base - 5);
+    const tierOf = x => Dice.tier(x, x + probe.statValue + probe.modifier, probe.target);
+    if (tier === 'success' && !Dice.isSuccess(tierOf(d))) d = 20;
+    if (tier === 'failure' && tierOf(d) !== 'failure') d = tierOf(2) === 'failure' ? 2 : 1;
+    if (tier === 'partial' && tierOf(d) !== 'partial') { for (let x = 19; x >= 2; x--) if (tierOf(x) === 'partial') { d = x; break; } }
+    return d;
+  }
   /* Returns { locked: true } when the identical failed roll is retried. An
      action without a roll leaves the lock alone here: runTurn lifts it once
      the situation has changed (SPEC section 7). */
@@ -5717,8 +5749,9 @@ const Pipeline = (() => {
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
     // After /undo or /reroll the restored state would hand back the very
     // same die; a salt kept outside the save shifts the draw instead.
-    const forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
+    let forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
     hooks.nextD20 = null;
+    if (hooks.nextTier) { forced = dieFor(hooks.nextTier, { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType }); hooks.nextTier = null; }
     const roll = Dice.resolve({ stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, d20: forced });
     ctx.roll = roll;
     State.apply({ lastRollKey: Dice.lockFor(roll, key) });
@@ -5738,6 +5771,18 @@ const Pipeline = (() => {
     }
     if (roll.tier === 'critical_failure') ctx.consequence = lastingConsequence(ctx);
     return {};
+  }
+
+  /* The memories that matter: every serious one (newest w3), the newest notable
+     ones (w2), and a small one only if recent; oldest first, capped. Shared by
+     the narrator packet and the People cards. */
+  function pickMemories(list, turn, o) {
+    const ms = (list || []).filter(m => !/^Loose end with /i.test(m.text));
+    const keep = new Set([].concat(
+      ms.filter(m => m.weight >= 3).slice(-o.w3),
+      ms.filter(m => m.weight === 2).slice(-o.w2),
+      ms.filter(m => m.weight <= 1 && turn - m.turn <= o.recent).slice(-o.w1)));
+    return ms.filter(m => keep.has(m)).slice(-o.cap);
   }
 
   // ----- introductions -----
@@ -5766,7 +5811,7 @@ const Pipeline = (() => {
      turns (the newest three of those). brief (people at a destination, not
      yet in the scene) leaves memories out altogether. */
   function npcLine(n, turn, brief) {
-    const mems = brief ? [] : (n.memories || []).filter(m => m.weight >= 2 || turn - m.turn <= 20).slice(-3).map(m => m.text);
+    const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
     const parts = [n.role];
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
@@ -6262,14 +6307,28 @@ const Pipeline = (() => {
      ignoring the retry lock. The parsed action is reused (no parser call);
      the narrator and bookkeeper run again on the new result, so it costs a
      narrator and a bookkeeper call. Repeatable without limit. */
-  async function reroll() {
+  function wantedOutcome(arg) {
+    const w = String(arg || '').trim().toLowerCase();
+    if (!w) return null;
+    if (/^\d+$/.test(w)) return clamp(parseInt(w, 10), 1, 20);
+    return TIER_ALIASES[w] ? w : null;
+  }
+  async function reroll(arg) {
+    const want = wantedOutcome(arg);
+    if (String(arg || '').trim() && want === null) { UI.feed.notice('Say which outcome: success, partial, fail, crit, fumble, or a number from 1 to 20.'); return { ok: false, reason: 'usage', restoreInput: true }; }
     const s = State.current;
     const entry = s && s.log.length ? s.log[s.log.length - 1] : null;
     const last = lastTurn;
     if (!entry || !entry.roll || !last || !last.action || !last.action.needsRoll || (last.ctx && last.ctx.mode === 'arrival')) {
+      if (want !== null) {
+        hooks.nextTier = want;
+        UI.feed.notice(`Cheat armed: your next roll will be ${Number.isInteger(want) ? 'a ' + want : /^(fail|failure|lose)$/.test(want) ? 'a failure' : /^(crit|critical|nat20)$/.test(want) ? 'a natural 20' : /^(fumble|botch|nat1)$/.test(want) ? 'a natural 1' : /^partial$/.test(want) ? 'a partial success' : 'a success'}.`);
+        return { ok: true };
+      }
       UI.feed.notice(NOTICES.noReroll);
       return { ok: false, reason: 'no-roll' };
     }
+    if (want !== null) hooks.nextTier = want;
     const input = entry.input;
     const speech = entry.mode === 'say' ? { mode: 'say', to: entry.to, toName: entry.toName, toLabel: entry.toLabel || null } : (entry.mode === 'do' ? { mode: 'do' } : null);
     const mode = last.ctx && last.ctx.mode === 'zoom' ? 'zoom' : 'normal';
@@ -6418,7 +6477,7 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return { noteIntroductions, reroll,
+  return { noteIntroductions, reroll, pickMemories,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
@@ -6951,7 +7010,7 @@ const UI = (() => {
     const notes = [];
     for (const r of s.rumours) if (r.heard && (r.heardFrom || r.sourceNpcId) === n.id) notes.push(['Told you', r.text]);
     const dayOf = turn => { for (let i = s.log.length - 1; i >= 0; i--) if (s.log[i].turn === turn) return s.log[i].day; return turn === 0 ? 1 : null; };
-    const mems = n.memories.filter(m => (m.weight >= 2 || s.meta.turn - m.turn < 20) && !/^Loose end with /i.test(m.text)).slice(-6).reverse();
+    const mems = Pipeline.pickMemories(n.memories, s.meta.turn, { w3: 4, w2: 3, w1: 1, recent: 10, cap: 8 }).reverse();
     for (const m of mems) {
       const [k, t] = plainMemory(s, m.text);
       const day = dayOf(m.turn);
@@ -8081,7 +8140,7 @@ const Commands = (() => {
     { name: '/places', args: '', desc: 'Open the Places panel' },
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
-    { name: '/cheat', args: '[reroll]', desc: 'List the cheats, or run one', turn: true },
+    { name: '/cheat', args: '[success|partial|fail|crit|fumble|1-20]', desc: 'Cheat: redo the last roll with that outcome, or arm the next one', turn: true },
     { name: '/save', args: '<name>', desc: 'Save to a named slot' },
     { name: '/load', args: '', desc: 'Open saved games' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
@@ -8110,11 +8169,11 @@ const Commands = (() => {
       case '/rest': return Pipeline.rest();
       case '/wait': return Pipeline.wait(arg);
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
-      case '/reroll': return Pipeline.reroll();
+      case '/reroll': return Pipeline.reroll(arg);
       case '/cheat': {
-        if (/^reroll\b/i.test(arg)) return Pipeline.reroll();
-        UI.feed.notice('Cheats: /reroll rolls the last turn\'s dice again, as often as you like. /undo then trying again also gives a new die.');
-        return { ok: true };
+        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random.'); return { ok: true }; }
+        if (/^reroll\b/i.test(arg)) return Pipeline.reroll(arg.replace(/^reroll\s*/i, ''));
+        return Pipeline.reroll(arg);
       }
       case '/undo': {
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }

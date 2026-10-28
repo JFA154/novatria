@@ -867,4 +867,34 @@ s.test('Style.check flags a spoken phrase repeated from a recent turn and the re
   assert.match(r.note, /different words this time/);
 });
 
+s.test('memories: the model gets one per person per turn (heavier replaces lighter), text is short, trivial ones fade and serious ones survive the cap', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const S = Game.State; const G = Game.data; const bg = G.BACKGROUNDS[0];
+    Game.App.quickStart({ name: 'Tester', backgroundId: bg.id, stats: Object.assign({}, bg.stats), goal: 'x', flaw: G.FLAWS[0], looseEnds: [] }, { seed: 7 });
+    const n = Game.state.npcs[0];
+    S.apply({ beginTurn: true });
+    const a = S.apply({ newMemories: [{ npcId: n.id, text: 'flirted with me', weight: 1 }] }, { source: 'model' });
+    const b = S.apply({ newMemories: [{ npcId: n.id, text: 'asked about the weather and then the bridge and the vote and the keys', weight: 1 }] }, { source: 'model' });
+    const c = S.apply({ newMemories: [{ npcId: n.id, text: 'told me to fuck off', weight: 3 }] }, { source: 'model' });
+    const afterTurn = n.memories.map(m => m.text + '|' + m.weight);
+    const long = 'Remembers: ' + 'said he needed help with his car and asked me to come look and I walked out to the lot with him and stood there '.repeat(2);
+    S.apply({ beginTurn: true });
+    S.apply({ newMemories: [{ npcId: n.id, text: long, weight: 2 }] }, { source: 'model' });
+    const trimmed = n.memories[n.memories.length - 1].text;
+    // Fill past the cap with small engine memories over many turns; the serious one must survive, the oldest small ones go.
+    for (let i = 0; i < 20; i++) { S.apply({ beginTurn: true }); S.apply({ newMemories: [{ npcId: n.id, text: 'small thing ' + i, weight: 1 }] }); }
+    const picked = Game.Pipeline.pickMemories(n.memories, Game.state.meta.turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
+    return { a: a.rejected.length, b: b.rejected.map(x => x.reason), c: c.rejected.length, afterTurn, trimmed, count: n.memories.length, hasSerious: n.memories.some(m => m.text === 'told me to fuck off'), picked };
+  });
+  assert.equal(r.a, 0);
+  assert.match(r.b[0] || '', /one per person per turn/, 'a second light memory in the same turn is dropped');
+  assert.equal(r.c, 0, 'a heavier one replaces the light one');
+  assert.deepEqual(r.afterTurn, ['told me to fuck off|3']);
+  assert.ok(r.trimmed.length <= 120 && !/^Remembers:/i.test(r.trimmed), 'trimmed to a short line: ' + r.trimmed);
+  assert.ok(r.count <= 12, 'capped at 12: ' + r.count);
+  assert.equal(r.hasSerious, true, 'the serious memory survives the cap');
+  assert.ok(r.picked.includes('told me to fuck off') && r.picked.length <= 5, 'the narrator sees the serious one however old: ' + r.picked.join(' / '));
+});
+
 s.run();
