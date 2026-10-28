@@ -4,7 +4,8 @@
    autocomplete list, the menu, each sheet tab, the debug tab, settings, saves,
    a warning banner, the "New" button) every button, tab, select, text field
    and tappable label is at least 44px each way, text fields use 16px or more
-   (so iOS does not zoom), and nothing is wider than the screen. The CSS uses
+   (so iOS does not zoom), and nothing is wider than the screen (the Do / Say
+   toggle and the Say chips included). The CSS uses
    the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
@@ -72,6 +73,11 @@ for (const size of SIZES) {
     await page.evaluate(() => { Game.Api.Mock.delay = 0; });
     await sendText(page, 'I look around at the pumps, the board out front and the road out of town');
     await check('game');
+    await page.click('#mode-say');
+    await check('game: Say mode and its chips');
+    await sendText(page, 'Anybody around here hiring?');
+    await check('game: a Say line in the feed');
+    await page.click('#mode-do');
     await page.focus('#cmd');
     await page.keyboard.type('/');
     await page.waitForSelector('#ac:not([hidden])');

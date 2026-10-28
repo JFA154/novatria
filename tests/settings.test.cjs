@@ -55,4 +55,25 @@ s.test('the cheap models chosen on purpose after the upgrade are kept', async h 
   assert.deepEqual(st.effort, { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' });
 });
 
+s.test('Narration style and the Do / Say mode: casual and Do by default, kept when saved, and the v1 upgrade still works with them', async h => {
+  const page = await h.open();
+  let st = await reloadWith(page, null);
+  assert.equal(st.narrationStyle, 'casual');
+  assert.equal(st.inputMode, 'do');
+  st = await reloadWith(page, { settingsVersion: 2, narratorModel: 'claude-opus-5-5', parserModel: 'claude-sonnet-5-5', narrationStyle: 'literary', inputMode: 'say' });
+  assert.equal(st.narrationStyle, 'literary');
+  assert.equal(st.inputMode, 'say');
+  st = await reloadWith(page, { settingsVersion: 2, narrationStyle: 'flowery', inputMode: 'shout' });
+  assert.equal(st.narrationStyle, 'casual', 'an unknown style reads as casual');
+  assert.equal(st.inputMode, 'do', 'an unknown mode reads as Do');
+  // Settings from before the two fields existed (v1 defaults): upgraded as before, with the new defaults.
+  st = await reloadWith(page, { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5', effort: { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' }, textSize: 'L' });
+  assert.equal(st.narratorModel, NEW.narratorModel);
+  assert.equal(st.parserModel, NEW.parserModel);
+  assert.deepEqual(st.effort, NEW.effort);
+  assert.equal(st.textSize, 'L');
+  assert.equal(st.narrationStyle, 'casual');
+  assert.equal(st.inputMode, 'do');
+});
+
 s.run();

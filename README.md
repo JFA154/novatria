@@ -31,9 +31,41 @@ news spreads.
 4. **New game** walks you through character creation: name, background, one
    stat point to move, a goal, a flaw and three loose ends. Each loose end
    becomes a real person in town. Then press **Begin**.
-5. Type what you do and press Enter (Shift+Enter for a new line). Type `/` to
-   list the commands. The side panel (on a phone, the tab bar above the input)
-   has Character, People, Journal and Places.
+5. Type what you do and press Enter (Shift+Enter for a new line). The
+   **Do / Say** switch at the left of the input says whether you are doing
+   something or saying something (see below). Type `/` to list the commands.
+   The side panel (on a phone, the tab bar above the input) has Character,
+   People, Journal and Places.
+
+## Do and Say
+
+The switch at the left of the input box has two buttons.
+
+- **Do** (the default): you type what you do. "I run away" means you run
+  away. Anything in quotes inside the line is part of what you do.
+- **Say**: you type only your words, exactly as you say them. "Run away" means
+  you tell someone to run away. You stay where you are, and the person you
+  speak to answers first. Talking, persuading, lying and threatening are all
+  Say; the game decides from your words whether a roll is needed.
+
+In Say mode a row of buttons appears above the input: **Everyone**, plus one
+button for each person here, by name. One is always picked: the only person
+here if there is just one, otherwise Everyone. Tap another to talk to them.
+The row changes with the scene (after each turn, when you move, when you load
+a game), and your pick is forgotten when you go somewhere else.
+
+In the story, a Say line shows your words in quotes and who you said them to:
+`“Run.” — to Royce Pittman` or `“Anybody here hiring?” — to everyone`.
+
+**Quote shortcut.** In Do mode, a line that is only a quote is said, not done:
+`"Run."`, `say "Run."` or `I say "Run."` all go out as Say, to whoever is
+picked in the Say row (by default the only person here, or everyone). The
+quotes are dropped. A quote anywhere else in the line, as in
+`I shove past him and yell "Run!"`, keeps it a Do line. The switch itself
+stays where it was.
+
+Commands (`/look`, `/undo` and the rest) work in either mode. The switch is
+remembered in this browser; who you were talking to is not.
 
 ## Settings
 
@@ -45,6 +77,7 @@ news spreads.
 | Parser model | Turns your text into an action, records what changed after each turn (the bookkeeper), and writes the chronicle every 10 turns. Default `claude-sonnet-5-5`. `claude-haiku-5-5` is the cheap option and works. |
 | Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Defaults: narrator, bookkeeper and chronicle `medium`, parser `low`. Higher effort means more thinking tokens: slower and dearer. |
 | Show dice rolls | Shows the quiet roll line, e.g. `Wits 14 + 2 = 16 vs 15 · Success`. |
+| Narration style | **Casual** (the default): plain and direct, like someone running the game at the table, with short sentences, no similes and little scenery. **Literary**: the original style guide, tighter and more like a novel. Takes effect from the next narration. |
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
@@ -173,6 +206,10 @@ present-day, not low fantasy. The narrator's three example turns are
 rewritten as modern scenes, and money is shown as dollars (the state field is
 still `player.gold`).
 
+And from `docs/BUILD_PLAN.md` ("Direction changes"): narration is casual by
+default, with the SPEC.md style guide kept as the Literary option, and the
+input has the Do / Say switch described above.
+
 ## Verified against the live API on 28 Oct 2026
 
 The live path was checked on 28 Oct 2026 with the default models at effort
@@ -181,6 +218,13 @@ line ("I head to the bar and ask the bartender..."). Every call returned 200,
 and the narrator's prompt cache was read on every narration after the first.
 The automated tests still run in mock mode, or against canned API responses
 served inside the browser (`tests/api.test.cjs`).
+
+The casual style and the Do / Say switch were checked live the same day at
+the current defaults (Opus 5.5 narrator at medium effort, Sonnet 5.5 parser):
+an arrival and three Do turns in the casual style (no similes, no rewrites),
+Say "Run." to one person (the player stayed, he answered), Say "Anybody here
+hiring?" to everyone (both people answered) and Do "I run away from Royce."
+(the player ran off to another place).
 
 If a request fails, the feed shows a short message and your typed action stays
 in the box. Type `/debug` and look in the Debug tab:

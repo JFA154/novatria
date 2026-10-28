@@ -289,3 +289,38 @@ Engine adjustments to make when the modern town is swapped in:
    The style guide itself stays word for word.
 4. UI: top bar and Character tab show cash with the currency symbol.
 5. Tests read ids and names from `Game.data`, never hardcoded town names.
+
+## Direction changes (owner, 28 Oct)
+
+The owner: "I want it more casual, like the writing is too 'novely' for me in
+a bad way. Also, it would be good to have a separate action or talking thing.
+Because if I type 'run away' I can mean I run away or I tell them to? And when
+talking, I can direct it to one person or all."
+
+1. **Casual narration by default; literary kept as an option.** Settings
+   gains Narration style (`settings.narrationStyle`: `casual` default, or
+   `literary`; no settings version bump). `STYLE_GUIDE` becomes
+   `STYLE_GUIDE_LITERARY` (SPEC.md section 9, word for word) and
+   `STYLE_GUIDE_CASUAL` (same sections, NEVER rules and banned list; a plain
+   table-talk VOICE; similes, stacked adjectives and poetic fragments added to
+   "Also avoid"). `EXAMPLE_TURNS` becomes `EXAMPLE_TURNS_LITERARY` and
+   `EXAMPLE_TURNS_CASUAL` (same three scenes, plain register; both checked by
+   `tests/validate-town.cjs`). `Style.systemPrompt()` picks by the setting
+   and is byte-identical per style. `Style.check` adds a casual-only check for
+   "like a" / "as if" outside dialogue, under the same regenerate-once rule.
+2. **Do / Say input modes with an addressee.** A Do | Say toggle sits left of
+   the input (remembered per browser as `settings.inputMode`). Say mode shows
+   chips above the input: Everyone plus each NPC present, one pressed (the
+   only person present, else Everyone; a pick lasts only while the player
+   stays put and is never saved). A Do line that is only a quote is sent as
+   Say (`Pipeline.spokenWords`). The parse and bookkeeper packets carry
+   `MODE: do` or `MODE: say, to npc_x (Name)` / `to everyone present`; the
+   parser's system prompt gains two sentences (MODE, and running off with no
+   place named is a move). The engine keeps Say social, aimed at the
+   addressee and in place (`Pipeline.sayAction`; a bookkeeper move is
+   ignored); a Do move that says running with no place goes out the first
+   open exit. The narrator gets `PLAYER SAYS (to Name): "words"` and a rule
+   line instead of ACTION; in Do mode ACTION is followed by "The player did
+   not say anything beyond what the ACTION line states." Log entries keep
+   `mode`, `to` and `toName` (through /undo, saves and the chronicle; entries
+   without them read as Do), and the feed shows `“words” — to Name`.

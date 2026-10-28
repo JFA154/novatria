@@ -5,7 +5,8 @@
 // modern day" sections, and the content brief in SPEC.md sections 4, 5, 8, 9.
 // The block is evaluated in a Node vm sandbox (like a browser <script> with no
 // module system), so TOWN_DATA can be hand-edited in index.html and checked.
-// It also checks the narrator's EXAMPLE_TURNS in index.html against the shape
+// It also checks the narrator's example turns in index.html (EXAMPLE_TURNS_LITERARY
+// and EXAMPLE_TURNS_CASUAL, one set per narration style) against the shape
 // of the SPEC.md section 9 examples. Rules marked "Modern:" are the
 // present-day additions to the original content checks.
 // Usage: node tests/validate-town.cjs   (exits 1 and lists every problem found)
@@ -884,8 +885,9 @@ checkTemplates(GRUDGE_TEMPLATES, 'GRUDGE_TEMPLATES');
 checkTemplates(FAVOUR_TEMPLATES, 'FAVOUR_TEMPLATES');
 
 // ---------------------------------------------------------------------------
-// 8. Modern: EXAMPLE_TURNS in index.html, the narrator prompt's three example turns.
-//    Same shape and length as SPEC.md section 9, and no person or place that
+// 8. Modern: EXAMPLE_TURNS_LITERARY and EXAMPLE_TURNS_CASUAL in index.html, the
+//    narrator prompt's three example turns for each narration style. Same
+//    shape and length as SPEC.md section 9, and no person or place that
 //    exists in this town (they are introduced as being from a different town).
 // ---------------------------------------------------------------------------
 const SPEC_EXAMPLE_WORDS = [32, 31, 25]; // narration word counts of the SPEC.md section 9 examples
@@ -910,16 +912,15 @@ function properNouns(text) {
   return out;
 }
 
-function checkExamples() {
+function checkExamples(W) {
   // The constant sits after the content block, in the page script.
-  const W = 'EXAMPLE_TURNS';
-  const at = html.indexOf('const EXAMPLE_TURNS = [');
-  if (at < 0) { err(W, 'index.html has no "const EXAMPLE_TURNS = [" constant'); return 0; }
+  const at = html.indexOf('const ' + W + ' = [');
+  if (at < 0) { err(W, 'index.html has no "const ' + W + ' = [" constant'); return 0; }
   const close = html.indexOf('\n];', at);
-  if (close < 0) { err(W, 'cannot find the end of EXAMPLE_TURNS'); return 0; }
+  if (close < 0) { err(W, 'cannot find the end of ' + W); return 0; }
   let turns;
   try {
-    turns = vm.runInNewContext(html.slice(at, close + 3) + '\n;EXAMPLE_TURNS', {}, { filename: 'index.html#EXAMPLE_TURNS', timeout: 5000 });
+    turns = vm.runInNewContext(html.slice(at, close + 3) + '\n;' + W, {}, { filename: 'index.html#' + W, timeout: 5000 });
   } catch (e) {
     err(W, 'does not evaluate: ' + e.message);
     return 0;
@@ -975,10 +976,13 @@ function checkExamples() {
       if (hits.length) err(where + '.' + part, 'uses a name or place from this town: ' + hits.join(', '));
     }
     if (/^as you\b/i.test(turn.narration)) err(where, 'narration starts with "As you"');
+    // The casual style bans similes; its examples must not use one.
+    if (W === 'EXAMPLE_TURNS_CASUAL' && /\b(like an?|as if)\b/i.test(turn.narration.replace(/"[^"]*"/g, ' '))) err(where, 'a simile in a casual example');
   });
   return turns.length;
 }
-checkExamples();
+checkExamples('EXAMPLE_TURNS_LITERARY');
+checkExamples('EXAMPLE_TURNS_CASUAL');
 
 // ---------------------------------------------------------------------------
 // 9. Report

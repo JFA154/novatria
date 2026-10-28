@@ -976,4 +976,302 @@ s.test('while a turn is running, loading a save or starting a game is refused an
   assert.equal(await stateJson(page), swapped, 'neither restored over nor written to');
 });
 
+/* ----- Do / Say (docs/BUILD_PLAN.md, direction changes) ----- */
+const chips = page => page.evaluate(() => [...document.querySelectorAll('#say-to .say-chip')].map(b => ({ to: b.dataset.to, label: b.textContent, on: b.getAttribute('aria-pressed') === 'true' })));
+const presentHere = page => page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId).map(n => ({ id: n.id, name: n.name, label: Game.npcLabel(n) })));
+/* What the player sees someone called right now: their name once introduced, else 'the mechanic'. */
+const labelOf = (page, id) => page.evaluate(id => Game.npcLabel(Game.state.npcs.find(n => n.id === id)), id);
+const lastInputLine = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-input')].pop(); return n ? { text: n.textContent, say: n.classList.contains('f-say'), to: n.dataset.to || null } : null; });
+const turnInfo = page => page.evaluate(() => ({ loc: Game.state.player.locationId, act: Game.Pipeline.lastTurn.action, last: Game.state.log[Game.state.log.length - 1] }));
+/* A place and phase where exactly `n` people are present (any names). */
+const sceneOf = (page, n) => page.evaluate(n => {
+  for (const l of Game.state.locations) {
+    if (l.closed) continue;
+    for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      const here = Game.State.npcsAt(l.id, ph);
+      if (here.length === n) return { loc: l.id, phase: ph, ids: here.map(x => x.id) };
+    }
+  }
+  return null;
+}, n);
+const SOCIAL = ['talk', 'persuade', 'deceive', 'intimidate'];
+
+s.test('Say "run away" to one person: the player stays, the action is talk aimed at them; the parser, narrator and bookkeeper all hear MODE say', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 2 });
+  assert.ok(sc, 'a scene with two people');
+  await place(page, sc.loc.id, sc.phase);
+  const a = sc.npcs[0];
+  const aLabel = await labelOf(page, a.id);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  await page.click('#mode-say');
+  await page.click(`#say-to [data-to="${a.id}"]`);
+  await sendText(page, 'run away');
+  const r = await turnInfo(page);
+  assert.equal(r.loc, sc.loc.id, 'the player stays where they are');
+  assert.equal(r.act.actionType, 'talk');
+  assert.equal(r.act.targets[0], a.id, 'aimed at the addressee');
+  assert.equal(r.act.destinationId, null);
+  assert.deepEqual({ input: r.last.input, mode: r.last.mode, to: r.last.to, toName: r.last.toName }, { input: 'run away', mode: 'say', to: a.id, toName: a.name }, 'the log keeps the mode and the addressee');
+  // The parser hears the exact words and MODE say.
+  const parse = await lastPacket(page, 'parse');
+  assert.ok(parse.startsWith(`PLAYER INPUT: "run away"\nMODE: say, to ${a.id} (${a.name}). The input is the player's exact spoken words, said aloud to ${a.name}; nothing else was done. actionType must be talk, persuade, deceive or intimidate`), parse.split('\n').slice(0, 2).join('\n'));
+  assert.match(parse, new RegExp(`targets must include ${a.id}\\. destinationId must be null\\. A new:<description> target is allowed only for a person mentioned in the words who is not in the lists\\.`));
+  // The narrator gets PLAYER SAYS with the exact words and who answers first, instead of ACTION.
+  const narr = await lastPacket(page);
+  assert.ok(narr.includes(`\nPLAYER SAYS (to ${a.name}): "run away"\nThese are the player's exact words, already spoken; do not repeat them in full. Show how ${a.name} answers first; others present may react.\nROLL: none\n`), narr);
+  assert.ok(!/\nACTION: /.test(narr), 'no ACTION line in Say mode');
+  assert.ok(r.last.narration.startsWith(`${a.name} answers you first.`), 'the mock shows the addressee answering first: ' + r.last.narration);
+  // The bookkeeper gets the same MODE.
+  const book = await lastPacket(page, 'bookkeep');
+  assert.ok(book.includes(`\nINPUT: "run away"\nMODE: say, to ${a.id} (${a.name}). INPUT is the player's exact spoken words; they did nothing else and stayed where they are (playerLocationId null).\n`), book);
+  // The feed shows the words in quotes and the addressee.
+  assert.deepEqual(await lastInputLine(page), { text: `“run away” — to ${aLabel}`, say: true, to: a.id });
+  // A parser that makes it a move and a bookkeeper that moves the player change nothing: Say only speaks.
+  const exit = await page.evaluate(() => Game.State.loc(Game.state.player.locationId).exits.find(id => !Game.State.loc(id).closed));
+  await page.evaluate(x => { Game.Api.Mock.queue('parse', { actionType: 'move', destinationId: x, targets: [], timeCost: 'long' }); Game.Api.Mock.queue('bookkeep', { playerLocationId: x }); }, exit);
+  await sendText(page, 'Run!');
+  const r2 = await turnInfo(page);
+  assert.equal(r2.loc, sc.loc.id, 'still here');
+  assert.equal(r2.act.actionType, 'talk', 'forced social');
+  assert.equal(r2.act.destinationId, null);
+  assert.equal(r2.act.timeCost, 'short', 'saying something never takes a phase');
+  assert.ok(r2.act.targets.includes(a.id), 'the addressee is added back');
+  const dbg = await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'rejected').map(x => x.path + ': ' + x.reason));
+  assert.ok(dbg.some(x => /^parse: say mode: actionType move became talk; destinationId \S+ dropped; timeCost long became short; added the addressee/.test(x)), dbg.join('\n'));
+  assert.ok(dbg.some(x => /^playerLocationId: ignored: in Say mode/.test(x)));
+  // A failed turn puts the words back and keeps the pick; /undo starts again from the default, and the chips show it.
+  await page.evaluate(() => Game.Api.Mock.queue('parse', { error: { type: 'overloaded_error' } }));
+  await sendText(page, 'Hold on.');
+  assert.equal(await page.inputValue('#cmd'), 'Hold on.');
+  assert.equal(await page.evaluate(() => Game.UI.addressee), a.id);
+  assert.deepEqual((await chips(page)).filter(c => c.on).map(c => c.to), [a.id]);
+  await page.fill('#cmd', '');
+  await sendText(page, '/undo');
+  assert.equal(await page.evaluate(() => Game.UI.addressee), 'everyone');
+  assert.deepEqual((await chips(page)).filter(c => c.on).map(c => c.to), ['everyone']);
+});
+
+s.test('Do "I run away" is a move out of here, never talk; a Do line with a quote inside stays Do; a line that is only a quote is said', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 2 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  assert.equal(await page.evaluate(() => Game.UI.mode), 'do', 'Do is the default');
+  assert.equal(await page.getAttribute('#mode-do', 'aria-pressed'), 'true');
+  assert.ok(await page.isHidden('#say-to'), 'no chips in Do mode');
+  // A quote inside a Do line: still Do, as typed.
+  await sendText(page, 'I shove past the counter and yell "Run!"');
+  let r = await turnInfo(page);
+  assert.equal(r.last.mode, 'do');
+  assert.equal(r.last.input, 'I shove past the counter and yell "Run!"');
+  assert.match(await lastPacket(page, 'parse'), /^PLAYER INPUT: I shove past the counter and yell "Run!"\nMODE: do\. The input is what the player does; any speech inside it is incidental to the action\.\n/);
+  assert.deepEqual(await lastInputLine(page), { text: 'I shove past the counter and yell "Run!"', say: false, to: null });
+  // A line that is only a quote (or say / I say before one) is said, to the default addressee; the toggle stays on Do.
+  for (const [typed, words] of [['"Run."', 'Run.'], ['“Hold on”!', 'Hold on!'], ['I say "Wait for me."', 'Wait for me.'], ['say: "Easy now"', 'Easy now']]) {
+    await sendText(page, typed);
+    r = await turnInfo(page);
+    assert.deepEqual({ mode: r.last.mode, input: r.last.input, to: r.last.to }, { mode: 'say', input: words, to: 'everyone' }, typed);
+    assert.ok(SOCIAL.includes(r.act.actionType), typed);
+    assert.equal(r.loc, sc.loc.id);
+    assert.ok((await lastPacket(page)).includes(`\nPLAYER SAYS (to everyone present): "${words}"\n`), typed);
+  }
+  assert.equal(await page.evaluate(() => Game.UI.mode), 'do', 'the shortcut is for that line only');
+  // The rule itself.
+  const rule = await page.evaluate(() => ['"Run."', '"Run," I tell him.', 'I yell "Run!"', 'run away', 'say run', '""', '"Run'].map(t => Game.Pipeline.spokenWords(t)));
+  assert.deepEqual(rule, ['Run.', null, null, null, null, null, 'Run']);
+  // "I run away": a move through an exit, with the Do line in the narrator packet.
+  await sendText(page, 'I run away');
+  r = await turnInfo(page);
+  assert.equal(r.act.actionType, 'move');
+  assert.notEqual(r.loc, sc.loc.id, 'the player ran off somewhere');
+  assert.equal(r.loc, r.act.destinationId);
+  assert.equal(r.last.mode, 'do');
+  const narr = await lastPacket(page);
+  assert.match(narr, /\nACTION: I run away\nThe player did not say anything beyond what the ACTION line states\.\nROLL: /);
+  assert.ok(!narr.includes('PLAYER SAYS'));
+  assert.match(await lastPacket(page, 'bookkeep'), /\nINPUT: I run away\nMODE: do\nACTION: /);
+  // A parser that calls it a move but names no place: the engine sends the player out through the first open exit.
+  const from = await page.evaluate(() => Game.state.player.locationId);
+  const firstExit = await page.evaluate(() => Game.State.loc(Game.state.player.locationId).exits.find(id => !Game.State.loc(id).closed));
+  await page.evaluate(() => Game.Api.Mock.queue('parse', { actionType: 'move', destinationId: null, targets: [] }));
+  await sendText(page, 'I turn and run');
+  r = await turnInfo(page);
+  assert.equal(r.act.destinationId, firstExit);
+  assert.equal(r.loc, firstExit, 'out through the first open exit, from ' + from);
+  assert.ok((await lastPacket(page)).includes('\nDESTINATION: '), 'the narrator is told where');
+});
+
+s.test('Say to everyone targets every person here; with nobody here it is said to the empty room', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 2 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; Game.UI.setMode('say'); });
+  const here = await presentHere(page);
+  assert.ok(here.length >= 2);
+  assert.equal(await page.evaluate(() => Game.UI.addressee), 'everyone', 'with two or more here the default is Everyone');
+  await sendText(page, 'Anybody here hiring?');
+  const r = await turnInfo(page);
+  assert.equal(r.act.actionType, 'talk');
+  assert.deepEqual(r.act.targets.slice().sort(), here.map(n => n.id).sort(), 'every person present');
+  assert.equal(r.loc, sc.loc.id);
+  assert.deepEqual({ mode: r.last.mode, to: r.last.to, toName: r.last.toName }, { mode: 'say', to: 'everyone', toName: null });
+  assert.match(await lastPacket(page, 'parse'), new RegExp(`\\nMODE: say, to everyone present\\. .* targets must include every NPC present \\(${here.map(n => n.id).join(', ')}\\)\\.`));
+  const narr = await lastPacket(page);
+  assert.ok(narr.includes('\nPLAYER SAYS (to everyone present): "Anybody here hiring?"\nThese are the player\'s exact words, already spoken; do not repeat them in full. Show how the people here answer; each may react in their own way.\n'), narr);
+  assert.match(r.last.narration, new RegExp(`hear you, and ${esc(here[0].name)} answers first\\.`));
+  assert.match(await lastPacket(page, 'bookkeep'), /\nMODE: say, to everyone present\. INPUT is the player's exact spoken words/);
+  assert.deepEqual(await lastInputLine(page), { text: '“Anybody here hiring?” — to everyone', say: true, to: 'everyone' });
+  // Nobody here: only the Everyone chip, and the narrator is told nobody hears it.
+  const empty = await sceneOf(page, 0);
+  await place(page, empty.loc, empty.phase);
+  assert.deepEqual(await chips(page), [{ to: 'everyone', label: 'Everyone', on: true }]);
+  await sendText(page, 'Hello?');
+  const r2 = await turnInfo(page);
+  assert.deepEqual(r2.act.targets, []);
+  assert.ok((await lastPacket(page)).includes('\nPLAYER SAYS (to everyone present): "Hello?"\nThese are the player\'s exact words, already spoken; do not repeat them in full. Nobody is here to hear it.\n'));
+  assert.equal(r2.last.narration.split('. ')[0], 'Nobody is here to hear it');
+});
+
+s.test('the Say chips list exactly the people present, one pressed (the only person, else Everyone), and follow the scene after a move', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const many = await findScene(page, { min: 2 });
+  await place(page, many.loc.id, many.phase);
+  await page.click('#mode-say');
+  assert.ok(await page.isVisible('#say-to'));
+  assert.equal(await page.getAttribute('#mode-say', 'aria-pressed'), 'true');
+  assert.equal(await page.getAttribute('#mode-do', 'aria-pressed'), 'false');
+  let here = await presentHere(page);
+  assert.deepEqual(await chips(page), [{ to: 'everyone', label: 'Everyone', on: true }].concat(here.map(n => ({ to: n.id, label: n.label, on: false }))), 'Everyone plus each person here, as the player knows them');
+  assert.match(await page.getAttribute('#cmd', 'placeholder'), /^What do you say to everyone\?$/);
+  // Picking one presses only that one; the placeholder names them.
+  await page.click(`#say-to [data-to="${here[1].id}"]`);
+  assert.deepEqual((await chips(page)).filter(c => c.on).map(c => c.to), [here[1].id]);
+  assert.equal(await page.getAttribute('#cmd', 'placeholder'), `What do you say to ${here[1].label}?`);
+  assert.equal(await page.evaluate(id => Game.UI.setAddressee(id), 'npc_nobody_at_all'), false, 'someone not here cannot be picked');
+  // A place with exactly one person: that person is the default. Getting there is a turn (Do mode, a walk).
+  const one = await sceneOf(page, 1);
+  assert.ok(one, 'a scene with exactly one person');
+  await page.evaluate(([loc, phase]) => { while (Game.state.time.phase !== phase) Game.State.apply({ advanceTime: 'long' }); }, [one.loc, one.phase]);
+  const oneName = await page.evaluate(id => Game.State.loc(id).name, one.loc);
+  await page.evaluate(() => Game.UI.setMode('do'));
+  // Start from an empty place, so the walk is what brings the one person into the scene.
+  await page.evaluate(to => Game.State.apply({ playerLocationId: Game.state.locations.find(l => !l.closed && Game.State.npcsAt(l.id).length === 0 && l.id !== to).id }), one.loc);
+  await sendText(page, `I walk to ${oneName}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), one.loc, 'moved by a turn');
+  await page.evaluate(() => Game.UI.setMode('say'));
+  here = await presentHere(page);
+  assert.deepEqual(here.map(n => n.id), one.ids);
+  assert.deepEqual(await chips(page), [{ to: 'everyone', label: 'Everyone', on: false }, { to: one.ids[0], label: here[0].label, on: true }], 'the only person here is pressed');
+  // Back at the busy place: the earlier pick is not carried over; the default (Everyone) is pressed again.
+  await page.evaluate(([loc, phase]) => { while (Game.state.time.phase !== phase) Game.State.apply({ advanceTime: 'long' }); Game.State.apply({ playerLocationId: loc }); }, [many.loc.id, many.phase]);
+  here = await presentHere(page);
+  assert.deepEqual((await chips(page)).map(c => c.to), ['everyone'].concat(here.map(n => n.id)), 'chips refreshed after the move');
+  assert.deepEqual((await chips(page)).filter(c => c.on).map(c => c.to), ['everyone'], 'no stale addressee across scenes');
+});
+
+s.test('the Do / Say mode persists across a reload; the addressee does not; commands work in Say mode', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 2 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await page.click('#mode-say');
+  await page.click(`#say-to [data-to="${sc.npcs[0].id}"]`);
+  const firstLabel = await labelOf(page, sc.npcs[0].id);
+  await sendText(page, 'Morning.');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.settings')).inputMode), 'say');
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  assert.equal(await page.evaluate(() => Game.UI.mode), 'say', 'still Say after a reload');
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  assert.equal(await page.getAttribute('#mode-say', 'aria-pressed'), 'true');
+  assert.ok(await page.isVisible('#say-to'));
+  const here = await presentHere(page);
+  assert.deepEqual((await chips(page)).map(c => c.to), ['everyone'].concat(here.map(n => n.id)), 'chips for the loaded scene');
+  assert.deepEqual((await chips(page)).filter(c => c.on).map(c => c.to), ['everyone'], 'the picked person was not saved');
+  // The Say line from before the reload is rebuilt as a Say line.
+  assert.deepEqual(await lastInputLine(page), { text: `“Morning.” — to ${firstLabel}`, say: true, to: sc.npcs[0].id });
+  // Commands still run in Say mode.
+  await sendText(page, '/people');
+  assert.equal(await page.evaluate(() => Game.UI.tab), 'people');
+  const turns = await page.evaluate(() => Game.state.meta.turn);
+  await sendText(page, '/look');
+  assert.equal(await page.evaluate(() => Game.state.meta.turn), turns + 1);
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].mode), undefined, 'a command is not a Say line');
+  await page.click('#mode-do');
+  assert.equal(await page.evaluate(() => Game.Storage.settings().inputMode), 'do');
+});
+
+s.test('Say lines keep their mode and addressee through /undo, a save slot and the chronicle; old saves without the field still load', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 2 });
+  await place(page, sc.loc.id, sc.phase);
+  const a = sc.npcs[0];
+  const aLabel = await labelOf(page, a.id);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); }, a.id);
+  await sendText(page, 'You still fix trucks?');
+  await page.evaluate(() => Game.UI.setMode('do'));
+  await sendText(page, 'I look around');
+  const want = { text: `“You still fix trucks?” — to ${aLabel}`, say: true, to: a.id };
+  const sayLines = () => page.evaluate(() => [...document.querySelectorAll('#feed .f-input.f-say')].map(n => ({ text: n.textContent, say: true, to: n.dataset.to })));
+  await sendText(page, '/undo');
+  assert.deepEqual(await sayLines(page), [want], 'the rebuilt feed after /undo');
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].mode), 'say');
+  // A save slot, a reload and a load.
+  await page.evaluate(() => Game.Storage.saveSlot(1, 'say test'));
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  assert.ok(await page.evaluate(() => Game.App.loadSlot(1)));
+  assert.deepEqual(await sayLines(page), [want], 'after loading the slot');
+  const e = await page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
+  assert.deepEqual({ mode: e.mode, to: e.to, toName: e.toName, input: e.input }, { mode: 'say', to: a.id, toName: a.name, input: 'You still fix trucks?' });
+  // The chronicle's input names it as speech (the real provider's text, and the mock's summary).
+  const chron = await page.evaluate(async () => ({ text: Game.Api.chronicleText(Game.state.log), mock: await Game.Api.chronicle(Game.state.log) }));
+  assert.ok(chron.text.includes(`\nPLAYER SAID (to ${a.name}): "You still fix trucks?"\n`), chron.text);
+  assert.ok(chron.mock.includes(`said "You still fix trucks?" to ${a.name}`), chron.mock);
+  // The narrator's LAST 3 TURNS marks it as speech too.
+  assert.ok((await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).includes(`> (says to ${a.name}) "You still fix trucks?" `));
+  // An old save: no mode fields anywhere in the log. It loads and the lines read as Do.
+  const old = await page.evaluate(() => {
+    const env = Game.Storage.envelope('old');
+    for (const x of env.state.log) { delete x.mode; delete x.to; delete x.toName; }
+    return Game.App.enter(Game.Storage.parseEnvelope(JSON.stringify(env))) && [...document.querySelectorAll('#feed .f-input')].map(n => ({ text: n.textContent, say: n.classList.contains('f-say') }));
+  });
+  assert.ok(old.length >= 1);
+  assert.ok(old.every(x => !x.say), 'old entries render as Do lines');
+  assert.ok(old.some(x => x.text === 'You still fix trucks?'));
+});
+
+s.test('casual style: a simile outside dialogue counts toward the one regeneration; literary keeps it', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; Game.Api.Mock.queue('narrate', 'The clerk grins like a man who just won the lottery.', 'The clerk grins.'); });
+  await sendText(page, 'I look down the road');
+  let c = await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate'));
+  assert.equal(c.length, 2, 'regenerated once');
+  assert.match(c[1].text, /\nSTYLE CHECK FAILED on your last attempt: a simile \("like a"\)\. Write it again without that\. Say it plainly, with no comparisons\.$/);
+  assert.equal((await lastLog(page)).narration, 'The clerk grins.');
+  // A simile on the second try is kept (regenerate once, never fail the turn).
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'He looks at you as if you owe him.', 'He looks at you like a hawk.'); });
+  await sendText(page, 'I wait a moment by the door');
+  assert.equal((await lastLog(page)).narration, 'He looks at you like a hawk.');
+  // Dialogue is not checked; literary style does not check similes at all.
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', '"I\'d like a coffee," the clerk says.'); });
+  await sendText(page, 'I look at the clerk');
+  assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate').length), 1);
+  await page.evaluate(() => { Game.Storage.saveSettings({ narrationStyle: 'literary' }); Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'The clerk grins like a man who just won the lottery.'); });
+  await sendText(page, 'I look down the road again');
+  assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate').length), 1, 'literary: no regeneration');
+  assert.equal((await lastLog(page)).narration, 'The clerk grins like a man who just won the lottery.');
+});
+
 s.run();

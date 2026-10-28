@@ -93,6 +93,53 @@ s.test('loads at 375x740 with no horizontal overflow on any screen; 44px tap tar
   assert.ok(input >= 16, 'input font size ' + input);
 });
 
+s.test('375 wide, the busiest scene: the Do / Say toggle and every chip are 44px targets, nothing overflows, and a Say line shows the quote and the addressee', async h => {
+  const page = await h.open({ viewport: PHONE });
+  await quickStart(page);
+  const busy = await page.evaluate(() => {
+    let best = null;
+    for (const l of Game.state.locations) for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      const n = Game.State.npcsAt(l.id, ph).length;
+      if (!l.closed && (!best || n > best.n)) best = { loc: l.id, phase: ph, n };
+    }
+    return best;
+  });
+  assert.ok(busy.n >= 3, 'a scene with three or more people');
+  await page.evaluate(([loc, phase]) => { Game.Api.Mock.delay = 0; while (Game.state.time.phase !== phase) Game.State.apply({ advanceTime: 'long' }); Game.State.apply({ playerLocationId: loc }); }, [busy.loc, busy.phase]);
+  const measure = () => page.evaluate(() => {
+    const box = el => { const r = el.getBoundingClientRect(); return { id: el.id || el.dataset.to, w: r.width, h: r.height, left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+    const vis = el => !el.closest('[hidden]') && el.getBoundingClientRect().width > 0;
+    return {
+      targets: [...document.querySelectorAll('#mode-do, #mode-say, #say-to .say-chip, #send, #cmd')].filter(vis).map(box),
+      toggle: box(document.querySelector('.mode-toggle')), cmd: box(document.getElementById('cmd')), chips: box(document.getElementById('say-to')),
+      font: parseFloat(getComputedStyle(document.getElementById('cmd')).fontSize)
+    };
+  });
+  let m = await measure();
+  assert.deepEqual(m.targets.filter(x => x.w < 44 || x.h < 44), [], 'Do mode: tap targets under 44px');
+  assert.ok(m.toggle.right <= m.cmd.left, 'the toggle sits left of the input');
+  assert.deepEqual(await overflowReport(page, 375), [], 'Do mode');
+  await page.click('#mode-say');
+  m = await measure();
+  assert.equal(m.targets.filter(x => x.id && !['mode-do', 'mode-say', 'send', 'cmd'].includes(x.id)).length, busy.n + 1, 'Everyone plus one chip per person');
+  assert.deepEqual(m.targets.filter(x => x.w < 44 || x.h < 44), [], 'Say mode: tap targets under 44px');
+  assert.ok(m.chips.bottom <= m.cmd.top, 'the chips sit above the input');
+  assert.ok(m.cmd.w >= 140, 'the input keeps a usable width: ' + m.cmd.w);
+  assert.ok(m.font >= 16, 'input font ' + m.font);
+  assert.deepEqual(await overflowReport(page, 375), [], 'Say mode with the chips');
+  const who = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[0]);
+  await page.click(`#say-to [data-to="${who.id}"]`);
+  const whoLabel = await page.evaluate(id => Game.npcLabel(Game.state.npcs.find(n => n.id === id)), who.id);
+  await sendText(page, 'Run.');
+  const line = await page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-input')].pop(); return { text: n.textContent, words: n.querySelector('.f-words').textContent, to: n.querySelector('.f-to').textContent, say: n.classList.contains('f-say') }; });
+  assert.deepEqual(line, { text: `“Run.” — to ${whoLabel}`, words: '“Run.”', to: ` — to ${whoLabel}`, say: true });
+  assert.deepEqual(await overflowReport(page, 375), [], 'after a Say turn');
+  // A Do line is still the text as typed.
+  await page.click('#mode-do');
+  await sendText(page, 'I nod and step back');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-input')].pop().textContent), 'I nod and step back');
+});
+
 s.test('theme follows prefers-color-scheme on first load; toggle switches and persists', async h => {
   const light = await h.open({ colorScheme: 'light' });
   assert.equal(await light.getAttribute('html', 'data-theme'), 'parchment');
@@ -503,6 +550,8 @@ s.test('settings screen has every field with the documented defaults', async h =
   assert.ok(await page.isChecked('#set-mock'));
   assert.ok(!(await page.isChecked('#set-remember')));
   assert.ok(await page.isChecked('input[name="set-size"][value="M"]'));
+  assert.ok(await page.isChecked('input[name="set-style"][value="casual"]'), 'Narration style: casual by default');
+  assert.ok(!(await page.isChecked('input[name="set-style"][value="literary"]')));
   await page.selectOption('#set-effort-narrator', 'high');
   await page.fill('#set-parser-model', 'claude-opus-5-5');
   await page.press('#set-parser-model', 'Tab');

@@ -597,9 +597,11 @@ s.test('Town.plausible refuses the dragon and accepts the barmaid, for any locat
   assert.deepEqual(r.map(x => x.kind), ['item', 'npc', 'item', 'npc', 'location', 'npc']);
 });
 
-/* The narrator's three example turns: SPEC.md section 9's examples rewritten
-   for the present day (docs/BUILD_PLAN.md, setting change), same shape and
-   length. Their people and places are from a different town. */
+/* The narrator's example turns. Literary: SPEC.md section 9's examples
+   rewritten for the present day (docs/BUILD_PLAN.md, setting change), same
+   shape and length. Casual: the same three scenes in the plain register
+   (docs/BUILD_PLAN.md, direction changes). Their people and places are from a
+   different town. */
 const MODERN_EXAMPLES = [
   {
     input: 'I walk into the bar.',
@@ -617,14 +619,20 @@ const MODERN_EXAMPLES = [
     narration: 'He doesn\'t come out from under the hood. "Heard plenty. Doesn\'t mean I repeat it." He wipes his hands on a rag and looks past you at the empty lot. "You buying something?"'
   }
 ];
+const CASUAL_VOICE = 'VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.';
+const promptHas = (prompt, t) => prompt.includes(`Input: ${t.input}\n(${t.context})\n${t.narration}`);
 
-s.test('style guide is SPEC section 9 word for word, the example turns are the modern three; Style.check catches problems', async h => {
+s.test('style guides: literary is SPEC section 9 word for word; casual keeps its sections, NEVER lines and banned list; both example sets; Style.check catches problems', async h => {
   const spec = fs.readFileSync(path.join(ROOT, 'SPEC.md'), 'utf8');
   const sec = spec.split('## 9. Writing style guide')[1].split('## 10.')[0];
   const block = sec.split('```')[1].replace(/^\n/, '').replace(/\n$/, '');
   const page = await h.open();
   const r = await page.evaluate(() => ({
-    guide: Game.data.STYLE_GUIDE, ex: Game.data.EXAMPLE_TURNS, prompt: Game.Style.systemPrompt(), prompt2: Game.Style.systemPrompt(),
+    lit: Game.data.STYLE_GUIDE_LITERARY, cas: Game.data.STYLE_GUIDE_CASUAL,
+    exLit: Game.data.EXAMPLE_TURNS_LITERARY, exCas: Game.data.EXAMPLE_TURNS_CASUAL,
+    styles: Game.Style.STYLES, current: Game.Style.current(), setting: Game.Storage.settings().narrationStyle,
+    pLit: Game.Style.systemPrompt('literary'), pLit2: Game.Style.systemPrompt('literary'),
+    pCas: Game.Style.systemPrompt('casual'), pCas2: Game.Style.systemPrompt('casual'), pDefault: Game.Style.systemPrompt(),
     banned: Game.Style.BANNED,
     checks: {
       clean: Game.Style.check('The ferryman spits. "Two coppers," he says.'),
@@ -633,25 +641,108 @@ s.test('style guide is SPEC section 9 word for word, the example turns are the m
       long: Game.Style.check(Array(91).fill('word').join(' ')),
       zoom: Game.Style.check(Array(140).fill('word').join(' '), { zoom: true }),
       menu: Game.Style.check('He waits. What do you do?'),
-      asYou: Game.Style.check('As you enter, the room goes quiet.')
+      asYou: Game.Style.check('As you enter, the room goes quiet.'),
+      simileCasual: Game.Style.check('He grins like a man who just won.', { style: 'casual' }),
+      asIfCasual: Game.Style.check('She looks at you as if you owe her.', { style: 'casual' }),
+      simileLiterary: Game.Style.check('He grins like a man who just won.', { style: 'literary' }),
+      simileDefault: Game.Style.check('He grins like an old dog.'),
+      dialogue: Game.Style.check('"I\'d like a beer," she says. He nods.', { style: 'casual' }),
+      curlyDialogue: Game.Style.check('“Act as if you live here,” she says.', { style: 'casual' })
     }
   }));
-  assert.equal(r.guide, block);
-  assert.deepEqual(r.ex, MODERN_EXAMPLES);
-  for (const t of r.ex) {
-    assert.ok(r.prompt.includes(`Input: ${t.input}\n(${t.context})\n${t.narration}`), 'example in the prompt: ' + t.input);
-    // None of the examples' people or places is in the game (they are introduced as another town's).
-    assert.ok(!sec.includes(t.narration), 'not the SPEC original: ' + t.input);
-  }
+  // Literary: SPEC section 9, word for word, and the modern three examples.
+  assert.equal(r.lit, block);
+  assert.deepEqual(r.exLit, MODERN_EXAMPLES);
+  // Casual: the same sections, the same NEVER rules and banned list, a plain voice and more to avoid.
+  const SECTION = /^(LENGTH|VOICE|DIALOGUE|NEVER|BANNED PHRASES|Also avoid):/;
+  const sections = g => g.split('\n').filter(l => SECTION.test(l)).map(l => l.split(':')[0]);
+  assert.deepEqual(sections(r.cas), ['LENGTH', 'VOICE', 'DIALOGUE', 'NEVER', 'BANNED PHRASES', 'Also avoid']);
+  assert.deepEqual(sections(r.cas), sections(r.lit));
+  const never = g => g.split('\n').filter(l => l.startsWith('- '));
+  assert.equal(never(r.lit).length, 6);
+  assert.deepEqual(never(r.cas), never(r.lit), 'the same NEVER lines');
+  const lineOf = (g, head) => g.split('\n').find(l => l.startsWith(head));
+  assert.equal(lineOf(r.cas, 'BANNED PHRASES:'), lineOf(r.lit, 'BANNED PHRASES:'), 'the full banned list');
+  for (const b of r.banned) assert.ok(r.cas.includes(`"${b}"`), 'casual bans ' + b);
+  assert.equal(lineOf(r.cas, 'LENGTH:'), lineOf(r.lit, 'LENGTH:'));
+  assert.equal(lineOf(r.cas, 'DIALOGUE:'), lineOf(r.lit, 'DIALOGUE:'));
+  assert.equal(lineOf(r.cas, 'VOICE:'), CASUAL_VOICE);
+  const avoid = lineOf(r.cas, 'Also avoid:');
+  for (const x of ['"like a ..."', '"as if ..."', 'stacked adjectives', 'poetic fragments', 'lists of three adjectives', 'rhetorical questions', 'starting with "As you"']) assert.ok(avoid.includes(x), 'casual also avoids ' + x);
+  assert.notEqual(r.cas, r.lit);
+  // Casual examples: the same three scenes, plain, no simile, not the literary text.
+  assert.equal(r.exCas.length, 3);
+  r.exCas.forEach((t, i) => {
+    assert.equal(t.input, r.exLit[i].input);
+    assert.equal(t.context, r.exLit[i].context);
+    assert.notEqual(t.narration, r.exLit[i].narration);
+    assert.doesNotMatch(t.narration.replace(/"[^"]*"/g, ' '), /\b(like an?|as if)\b/i, 'no simile: ' + t.input);
+    const words = t.narration.split(/\s+/).length;
+    const want = r.exLit[i].narration.split(/\s+/).length;
+    assert.ok(Math.abs(words - want) <= 10, `about as long as the literary example (${words} vs ${want})`);
+  });
+  for (const t of r.exLit.concat(r.exCas)) assert.ok(!sec.includes(t.narration), 'not the SPEC original: ' + t.input);
   const town = await page.evaluate(() => [Game.data.TOWN_DATA.name].concat(Game.data.TOWN_DATA.npcs.flatMap(n => n.name.split(' ')), Game.data.TOWN_DATA.locations.map(l => l.name.replace(/^The /, ''))));
-  for (const t of r.ex) for (const w of town) assert.ok(!(t.input + t.context + t.narration).includes(w), 'example names a person or place in this town: ' + w);
-  assert.ok(r.prompt.startsWith(block));
-  assert.ok(r.prompt.includes('EXAMPLES (from a different town; none of these people or places exist in this game):'));
-  assert.equal(r.prompt, r.prompt2, 'byte-identical for caching');
+  for (const t of r.exLit.concat(r.exCas)) for (const w of town) assert.ok(!(t.input + t.context + t.narration).includes(w), 'example names a person or place in this town: ' + w);
+  // System prompts: one per style, each its guide then that style's examples only; casual by default.
+  assert.deepEqual(r.styles, ['casual', 'literary']);
+  assert.equal(r.setting, 'casual');
+  assert.equal(r.current, 'casual');
+  assert.ok(r.pLit.startsWith(block));
+  assert.ok(r.pCas.startsWith(r.cas + '\n\n'));
+  for (const t of r.exLit) { assert.ok(promptHas(r.pLit, t), 'literary example in the literary prompt'); assert.ok(!promptHas(r.pCas, t), 'no literary example in the casual prompt'); }
+  for (const t of r.exCas) { assert.ok(promptHas(r.pCas, t), 'casual example in the casual prompt'); assert.ok(!promptHas(r.pLit, t), 'no casual example in the literary prompt'); }
+  for (const p of [r.pLit, r.pCas]) assert.ok(p.includes('EXAMPLES (from a different town; none of these people or places exist in this game):'));
+  assert.equal(r.pLit, r.pLit2, 'byte-identical for caching');
+  assert.equal(r.pCas, r.pCas2, 'byte-identical for caching');
+  assert.equal(r.pDefault, r.pCas, 'the default is casual');
   assert.equal(r.banned.length, 20);
-  assert.ok(r.checks.clean.ok);
-  assert.ok(!r.checks.banned.ok && !r.checks.curly.ok && !r.checks.long.ok && !r.checks.menu.ok && !r.checks.asYou.ok);
-  assert.ok(r.checks.zoom.ok, 'zoom allows up to 150 words');
+  // The code-side checks; the simile check is casual only and skips dialogue.
+  const c = r.checks;
+  assert.ok(c.clean.ok);
+  assert.ok(!c.banned.ok && !c.curly.ok && !c.long.ok && !c.menu.ok && !c.asYou.ok);
+  assert.ok(c.zoom.ok, 'zoom allows up to 150 words');
+  assert.deepEqual(c.simileCasual.problems.map(p => p.type), ['simile']);
+  assert.match(c.simileCasual.problems[0].detail, /like a/);
+  assert.deepEqual(c.asIfCasual.problems.map(p => p.type), ['simile']);
+  assert.ok(c.simileLiterary.ok, 'literary allows a simile');
+  assert.ok(!c.simileDefault.ok, 'the default style (casual) checks for similes');
+  assert.ok(c.dialogue.ok, 'a "like a" inside dialogue is not a simile');
+  assert.ok(c.curlyDialogue.ok, 'nor inside curly quotes');
+});
+
+s.test('the narrator system prompt follows the Narration style setting and is byte-identical across turns for each style', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  await page.evaluate(() => {
+    Game.Api.Mock.delay = 0;
+    window.__sys = [];
+    const narrate = Game.Api.Mock.narrate;
+    Game.Api.Mock.narrate = function (packet) { window.__sys.push(packet.system); return narrate.apply(this, arguments); };
+  });
+  const turn = async t => { await page.fill('#cmd', t); await page.press('#cmd', 'Enter'); await page.waitForFunction(() => !Game.Pipeline.busy); };
+  await turn('I look around');
+  await turn('I ask about work');
+  // Switch in the Settings screen, as a player would.
+  await page.evaluate(() => Game.UI.showScreen('settings'));
+  assert.ok(await page.isChecked('input[name="set-style"][value="casual"]'), 'casual is ticked by default');
+  await page.check('input[name="set-style"][value="literary"]');
+  await page.click('#settings-done');
+  await page.waitForSelector('#screen-game.active');
+  await turn('I look around again');
+  await turn('I ask about the bridge');
+  const r = await page.evaluate(() => ({ sys: window.__sys, cas: Game.Style.systemPrompt('casual'), lit: Game.Style.systemPrompt('literary'), setting: Game.Storage.settings().narrationStyle, saved: JSON.parse(localStorage.getItem('novatria.settings')).narrationStyle }));
+  assert.equal(r.setting, 'literary');
+  assert.equal(r.saved, 'literary', 'the style is saved with the settings');
+  assert.equal(r.sys.length, 4);
+  assert.equal(r.sys[0], r.cas);
+  assert.equal(r.sys[1], r.sys[0], 'casual: byte-identical across two turns');
+  assert.equal(r.sys[2], r.lit);
+  assert.equal(r.sys[3], r.sys[2], 'literary: byte-identical across two turns');
+  assert.notEqual(r.sys[0], r.sys[2], 'the prompt switched with the setting');
+  // A bad value reads as the default, casual; the settings version is untouched.
+  const st = await page.evaluate(() => [Game.Storage.saveSettings({ narrationStyle: 'purple' }).narrationStyle, Game.Storage.settings().settingsVersion, Game.Style.current()]);
+  assert.deepEqual(st, ['casual', 2, 'casual']);
 });
 
 s.test('Api exposes the provider interface and builds requests per API_NOTES', async h => {
