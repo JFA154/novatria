@@ -346,7 +346,7 @@ s.test('more than about 40 memories go out in several calls, split by person; a 
   assert.equal(r.res.summaries[0].text, 'Rewrote memories for 5 people: 40 memories became 10.');
 });
 
-s.test('the real provider: one structured-output call on the parser model at the bookkeeper\'s effort, schema per API_NOTES, the memory rules word for word, and the reply applied', async h => {
+s.test('the real provider: one structured-output call on the bookkeeper model at the bookkeeper\'s effort, schema per API_NOTES, the memory rules word for word, and the reply applied', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const reqs = [];
   let reply = null;
@@ -376,7 +376,7 @@ s.test('the real provider: one structured-output call on the parser model at the
   const { body, headers } = reqs[0];
   assert.equal(headers['anthropic-version'], '2026-10-21');
   assert.equal(headers['x-api-key'], 'sk-ant-test-0123456789');
-  assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(body.model, 'claude-sonnet-5-5', 'the bookkeeper model');
   assert.equal(body.max_tokens, 8000);
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
   assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
@@ -556,7 +556,7 @@ s.test('a save at version 1 runs version 2, 3, 4, 5, 6 then 7; with nothing in t
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method).filter(x => x === 'revealPlaces')), ['revealPlaces']);
 });
 
-s.test('version 3 against the real provider: one structured-output call on the parser model with the story, the places and the people; the bookkeeper\'s place rule word for word; duplicates are refused, an unknown nearId falls back to here', async h => {
+s.test('version 3 against the real provider: one structured-output call on the bookkeeper model with the story, the places and the people; the bookkeeper\'s place rule word for word; duplicates are refused, an unknown nearId falls back to here', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const reqs = [];
   let reply = null;
@@ -583,7 +583,7 @@ s.test('version 3 against the real provider: one structured-output call on the p
   assert.equal(res.ok, true, JSON.stringify(res));
   assert.equal(reqs.length, 1, 'one call (a save at 2 runs versions 3 to 6; the first morning needs no clock check, nobody the game made up is in the story, and the cast needs no call)');
   const body = reqs[0];
-  assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(body.model, 'claude-sonnet-5-5', 'the bookkeeper model');
   assert.equal(body.max_tokens, 6000);
   assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
@@ -736,7 +736,7 @@ s.test('version 4: a save whose story matches its clock is left as it is and sta
   assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth);
 });
 
-s.test('version 4 against the real provider: one structured-output call on the parser model with the clock and the last six turns; the reply applied; a refusal changes nothing', async h => {
+s.test('version 4 against the real provider: one structured-output call on the bookkeeper model with the clock and the last six turns; the reply applied; a refusal changes nothing', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const reqs = [];
   let reply = { behind: true, phase: 'night', dayOffset: -1, reason: 'He is taking his boots off for bed; nobody has slept yet.' };
@@ -774,7 +774,7 @@ s.test('version 4 against the real provider: one structured-output call on the p
   assert.equal(res.ok, true, JSON.stringify(res));
   assert.equal(reqs.length, 2, 'one call each time');
   const body = reqs[1];
-  assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(body.model, 'claude-sonnet-5-5', 'the bookkeeper model');
   assert.equal(body.max_tokens, 3000);
   assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
@@ -1090,7 +1090,7 @@ s.test('version 6 keeps someone the game made up whom nobody in the cast matches
   assert.equal(await stateJson(page), same, 'nothing changes');
 });
 
-s.test('version 5 against the real provider: one structured-output call on the parser model with the person, what the story says about them, the places and the people; the reply applied through the engine, then version 6 folds her into the cast; a bad home or relation is ignored', async h => {
+s.test('version 5 against the real provider: one structured-output call on the bookkeeper model with the person, what the story says about them, the places and the people; the reply applied through the engine, then version 6 folds her into the cast; a bad home or relation is ignored', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const reqs = [];
   let reply = null;
@@ -1113,7 +1113,7 @@ s.test('version 5 against the real provider: one structured-output call on the p
   assert.equal(res.ok, true, JSON.stringify(res));
   assert.equal(reqs.length, 1, 'one call (a save at 4 runs versions 5 and 6; version 6 makes none)');
   const body = reqs[0];
-  assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(body.model, 'claude-sonnet-5-5', 'the bookkeeper model');
   assert.equal(body.max_tokens, 6000);
   assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);

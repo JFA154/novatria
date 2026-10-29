@@ -104,7 +104,7 @@ function walkSchema(node, where, out) {
   for (const k of Object.keys(node)) walkSchema(node[k], `${where}.${k}`, out);
 }
 
-s.test('requests carry the four headers and a body the current API accepts, with model and max_tokens per role', async h => {
+s.test('requests carry the four headers and a body the current API accepts, with model and max_tokens per role; the parser and the bookkeeper send their cast lists as a cached system block', async h => {
   const { page, reqs, fx } = await openReal(h);
   await sendText(page, 'I ask the ferryman about the tide');
   assert.deepEqual(reqs.map(r => r.role), ['parser', 'narrator', 'bookkeeper']);
@@ -121,7 +121,8 @@ s.test('requests carry the four headers and a body the current API accepts, with
     assert.equal(r.body.output_config.effort, { parser: 'low', narrator: 'medium', bookkeeper: 'medium', chronicle: 'medium' }[r.role], r.role + ' effort');
   }
   const [parser, narrator, book] = reqs;
-  assert.equal(parser.body.model, 'claude-sonnet-5-5');
+  // A model per role (direction change 15): Haiku parses, Opus narrates, Sonnet bookkeeps.
+  assert.equal(parser.body.model, 'claude-haiku-5-5');
   assert.equal(parser.body.max_tokens, 2000);
   assert.equal(narrator.body.model, 'claude-opus-5-5');
   assert.equal(narrator.body.max_tokens, 3000);
@@ -157,7 +158,7 @@ s.test('requests carry the four headers and a body the current API accepts, with
   }
   assert.ok(!('format' in narrator.body.output_config));
   assert.equal(narrator.body.stream, true);
-  const sys = await page.evaluate(() => ({ narrator: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock(), parser: Game.Api.SYSTEM.parser, book: Game.Api.SYSTEM.bookkeeper }));
+  const sys = await page.evaluate(() => ({ narrator: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock(), parser: Game.Api.SYSTEM.parser, book: Game.Api.SYSTEM.bookkeeper, parserBlock: Game.Pipeline.parserBlock(), bookBlock: Game.Pipeline.bookkeeperBlock() }));
   // Three cached blocks: the style guide with its examples, the town (its history, recent events and places), then the town's cast.
   assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
@@ -165,29 +166,52 @@ s.test('requests carry the four headers and a body the current API accepts, with
   // Cached text stays small: about 1.4 tokens a word, under 12,000 for the three blocks (README, "Costs").
   const words = t => t.split(/\s+/).filter(Boolean).length;
   assert.ok((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4 < 12000, 'cached blocks: ' + Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4) + ' tokens');
-  assert.equal(parser.body.system, sys.parser);
-  assert.equal(book.body.system, sys.book);
-  assert.match(parser.body.system, /^You convert a player's free-text action into structured data for a game engine\./);
-  assert.match(parser.body.system, /The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else \(a knife to stab with, a gun, a car, a key, a tool\), name it in missingItem/);
+  // The parser and the bookkeeper: their prompt, then their cast lists with the one cache breakpoint, so the two are cached as one prefix.
+  assert.deepEqual(parser.body.system, [{ type: 'text', text: sys.parser }, { type: 'text', text: sys.parserBlock, cache_control: { type: 'ephemeral' } }]);
+  assert.deepEqual(book.body.system, [{ type: 'text', text: sys.book }, { type: 'text', text: sys.bookBlock, cache_control: { type: 'ephemeral' } }]);
+  assert.match(sys.parserBlock, /^EVERYONE IN TOWN \(the whole cast, one a line; nobody else exists\. [^\n]+\nnpc_/);
+  assert.match(sys.parserBlock, /\nNOT IN TOWN \(dead, or living elsewhere; talked about, never met\): [^\n]+\nOUT OF TOWN \(never a destination; the story stays here\): [^\n]+$/);
+  assert.match(sys.bookBlock, /^EVERYONE IN TOWN \(the whole cast, one a line: ids you may use; nobody else exists\. [^\n]+\nnpc_/);
+  assert.match(sys.bookBlock, /\nFACTIONS: fac_[^\n]+$/);
+  const npcCount = await page.evaluate(() => Game.state.npcs.filter(n => Game.presenceOf(n) === 'here').length);
+  assert.equal(sys.parserBlock.split('\n').filter(l => /^npc_/.test(l)).length, npcCount, 'the parser block lists everyone in town');
+  assert.equal(sys.bookBlock.split('\n').filter(l => /^npc_/.test(l)).length, npcCount, 'the bookkeeper block lists everyone in town');
+  // Over the 512-token minimum (docs/API_NOTES.md), counted low at 4 characters a token: prompt and block cache as one prefix.
+  assert.ok((sys.parser.length + sys.parserBlock.length) / 4 > 512, 'parser prefix ' + Math.round((sys.parser.length + sys.parserBlock.length) / 4));
+  assert.ok((sys.book.length + sys.bookBlock.length) / 4 > 512, 'bookkeeper prefix ' + Math.round((sys.book.length + sys.bookBlock.length) / 4));
+  // What the blocks hold is not repeated in the message.
+  for (const label of ['EVERYONE ELSE IN TOWN', 'NOT IN TOWN', 'OUT OF TOWN']) assert.ok(!parser.body.messages[0].content.includes(`\n${label}`), 'parser message: ' + label);
+  assert.ok(!book.body.messages[0].content.includes('\nFACTIONS: ') && !book.body.messages[0].content.includes('\nEVERYONE ELSE IN TOWN'), 'bookkeeper message');
+  assert.ok(book.body.messages[0].content.includes('\nEVERYONE ELSE AND THE FACTIONS: in the system prompt (EVERYONE IN TOWN, FACTIONS).\n'));
+  assert.match(parser.body.system[0].text, /^You convert a player's free-text action into structured data for a game engine\./);
+  assert.match(parser.body.system[0].text, /The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else \(a knife to stab with, a gun, a car, a key, a tool\), name it in missingItem/);
   assert.match(narrator.body.messages[0].content, /\nPLAYER: [^\n]+\nCARRYING: [^\n]+ \(nothing else: no weapon, tool, phone, keys, car or money beyond this\)\.\n/);
-  assert.match(book.body.system, /^You record what changed in the game world after this turn\./);
+  assert.match(book.body.system[0].text, /^You record what changed in the game world after this turn\./);
   // Nothing volatile in the cached system prompt.
   const volatile = await page.evaluate(() => [Game.state.player.name, Game.state.meta.townName, 'DAY 1', Game.State.loc(Game.state.player.locationId).name].concat(Game.State.npcsAt(Game.state.player.locationId).map(n => n.name)));
   for (const v of volatile) assert.ok(!sys.narrator.includes(v), 'system prompt contains ' + v);
   assert.ok(narrator.body.messages[0].content.startsWith(`DAY 1, MORNING (early) · Location: ${fx.startName}`));
   assert.match(parser.body.messages[0].content, /^PLAYER INPUT: I ask the ferryman about the tide\n/);
   assert.match(book.body.messages[0].content, /\nNARRATION: Rain needles the water\./);
-  // A second turn: the narrator system block is byte-identical.
+  // A second turn: the narrator system block is byte-identical, and so are the parser's and the bookkeeper's, even after the player has met someone.
+  await page.evaluate(() => { const n = Game.State.npcsAt(Game.state.player.locationId)[0] || Game.state.npcs.find(x => Game.presenceOf(x) === 'here'); Game.State.apply({ npcKnownToPlayer: [n.id] }); });
   await sendText(page, 'I ask the ferryman about the fare');
   const narrs = reqs.filter(r => r.role === 'narrator');
   assert.equal(narrs.length, 2);
   assert.equal(JSON.stringify(narrs[1].body.system), JSON.stringify(narrs[0].body.system));
   assert.notEqual(narrs[1].body.messages[0].content, narrs[0].body.messages[0].content);
-  // Settings drive model and effort, per role.
-  await page.evaluate(() => Game.Storage.saveSettings({ narratorModel: 'claude-opus-5-5', parserModel: 'claude-sonnet-5-5', effort: { narrator: 'high', bookkeeper: 'medium' } }));
+  for (const role of ['parser', 'bookkeeper']) {
+    const two = reqs.filter(r => r.role === role);
+    assert.equal(two.length, 2);
+    assert.equal(JSON.stringify(two[1].body.system), JSON.stringify(two[0].body.system), role + ' system blocks are byte-identical');
+  }
+  // Settings drive model and effort, per role: the parser model is the parser's alone; the bookkeeper model also writes the chronicle.
+  await page.evaluate(() => Game.Storage.saveSettings({ narratorModel: 'claude-opus-5-5', parserModel: 'claude-sonnet-5-5', bookkeeperModel: 'claude-opus-5-5', effort: { narrator: 'high', bookkeeper: 'medium' } }));
   await sendText(page, 'I nod to the ferryman');
   const last = reqs.slice(-3);
-  assert.deepEqual(last.map(r => [r.role, r.body.model, r.body.output_config.effort]), [['parser', 'claude-sonnet-5-5', 'low'], ['narrator', 'claude-opus-5-5', 'high'], ['bookkeeper', 'claude-sonnet-5-5', 'medium']]);
+  assert.deepEqual(last.map(r => [r.role, r.body.model, r.body.output_config.effort]), [['parser', 'claude-sonnet-5-5', 'low'], ['narrator', 'claude-opus-5-5', 'high'], ['bookkeeper', 'claude-opus-5-5', 'medium']]);
+  await page.evaluate(() => Game.Api.chronicle(Game.state.log.slice()));
+  assert.equal(reqs.filter(r => r.role === 'chronicle').pop().body.model, 'claude-opus-5-5', 'the chronicle follows the bookkeeper model');
 });
 
 s.test('the narrator stream (thinking block, ping, text deltas, message_delta) streams into the feed', async h => {
@@ -310,34 +334,43 @@ s.test('a JSON reply cut off by max_tokens is retried once with double max_token
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the fare');
 });
 
-s.test('usage totals and cost per model appear in the debug tab; the second narration reads the cache', async h => {
+s.test('usage totals and cost per model appear in the debug tab, per role too; the second narration, parse and bookkeeping read the cache', async h => {
   const { page, queue } = await openReal(h);
+  const use = (input, read, write) => ({ input_tokens: input, output_tokens: 80, cache_read_input_tokens: read, cache_creation_input_tokens: write });
   queue('narrator', narrReply(null, { usage: { input_tokens: 1000, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 700 }, output: 50 }));
   queue('narrator', narrReply(null, { usage: { input_tokens: 1000, output_tokens: 1, cache_read_input_tokens: 700, cache_creation_input_tokens: 0 }, output: 50 }));
+  // The parser's and the bookkeeper's cast blocks: written by the first call of the session, read by the second.
+  queue('parser', () => message(JSON.stringify(PARSE), { usage: use(300, 0, 1200) }), () => message(JSON.stringify(PARSE), { usage: use(300, 1200, 0) }));
+  queue('bookkeeper', () => message(JSON.stringify(DIFF), { usage: use(300, 0, 900) }), () => message(JSON.stringify(DIFF), { usage: use(300, 900, 0) }));
   await sendText(page, 'I ask the ferryman about the tide');
   await sendText(page, 'I ask the ferryman about the fare');
   const u = await page.evaluate(() => JSON.parse(JSON.stringify(Game.Api.usage)));
-  // Per turn: parser + bookkeeper (Sonnet 5.5, 300 in / 80 out each) + narrator (Opus 5.5).
-  const sonnet = 2 * (300 * 2 + 80 * 10) / 1e6;
-  const turn1 = sonnet + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
-  const turn2 = sonnet + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
+  // Per turn: parser (Haiku 5.5) + bookkeeper (Sonnet 5.5), 300 in / 80 out each, + narrator (Opus 5.5).
+  const haiku = (read, write) => (300 * 0.1 + 80 * 0.5 + read * 0.01 + write * 0.1 * 1.25) / 1e6;
+  const sonnet = (read, write) => (300 * 2 + 80 * 10 + read * 0.2 + write * 2 * 1.25) / 1e6;
+  const turn1 = haiku(0, 1200) + sonnet(0, 900) + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
+  const turn2 = haiku(1200, 0) + sonnet(900, 0) + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
   assert.equal(u.turn.calls, 3);
   assert.equal(u.turn.input, 1600);
   assert.equal(u.turn.output, 210);
-  assert.equal(u.turn.cacheRead, 700, 'second narration reads the cache');
+  assert.equal(u.turn.cacheRead, 2800, 'the second narration, parse and bookkeeping read the cache');
   assert.ok(Math.abs(u.turn.cost - turn2) < 1e-12, `turn cost ${u.turn.cost} vs ${turn2}`);
   assert.equal(u.session.calls, 6);
-  assert.equal(u.session.cacheCreation, 700);
+  assert.equal(u.session.cacheCreation, 2800);
   assert.ok(Math.abs(u.session.cost - (turn1 + turn2)) < 1e-12);
   await sendText(page, '/debug');
   const dbg = await page.innerText('#panel-body');
-  assert.ok(dbg.includes(`turn: 3 calls, in 1600, out 210, cache read 700, cache write 0, $${turn2.toFixed(4)}`), dbg);
-  assert.ok(dbg.includes(`session: 6 calls, in 3200, out 420, cache read 700, cache write 700, $${(turn1 + turn2).toFixed(4)}`));
+  assert.ok(dbg.includes(`turn: 3 calls, in 1600, out 210, cache read 2800, cache write 0, $${turn2.toFixed(4)}`), dbg);
+  assert.ok(dbg.includes(`session: 6 calls, in 3200, out 420, cache read 2800, cache write 2800, $${(turn1 + turn2).toFixed(4)}`));
+  // Per role and model, so each role's cache reads show.
+  assert.ok(dbg.includes(`  parser claude-haiku-5-5: 2 calls, in 600, out 160, cache read 1200, cache write 1200, $${(haiku(0, 1200) + haiku(1200, 0)).toFixed(4)}`), dbg);
+  assert.ok(dbg.includes(`  bookkeeper claude-sonnet-5-5: 2 calls, in 600, out 160, cache read 900, cache write 900, $${(sonnet(0, 900) + sonnet(900, 0)).toFixed(4)}`), dbg);
+  assert.match(dbg, /\n {2}narrator claude-opus-5-5: 2 calls, in 2000, out 100, cache read 700, cache write 700, \$/);
   assert.match(dbg, /API \(claude\)/i);
   assert.match(dbg, /request-id req_bookkeeper_2/);
   assert.match(dbg, /"cache_read_input_tokens":700/);
   // An unknown model shows tokens without a price.
-  await page.evaluate(() => Game.Storage.saveSettings({ parserModel: 'claude-mystery-9' }));
+  await page.evaluate(() => Game.Storage.saveSettings({ bookkeeperModel: 'claude-mystery-9' }));
   await sendText(page, 'I nod');
   const u2 = await page.evaluate(() => Game.Api.usage.turn);
   assert.equal(u2.priced, false);
@@ -395,7 +428,7 @@ s.test('an arrival that cannot reach the API (network error) leaves no pending p
   assert.deepEqual(r.narration, [r.log]);
 });
 
-s.test('Api.chronicle summarises log entries with the parser model in plain text', async h => {
+s.test('Api.chronicle summarises log entries with the bookkeeper model in plain text', async h => {
   const { page, reqs } = await openReal(h);
   await sendText(page, 'I ask the ferryman about the tide');
   const summary = await page.evaluate(() => Game.Api.chronicle(Game.state.log.slice()));
@@ -446,7 +479,7 @@ s.test('a reply the game cannot read is asked for once more: a narrator body tha
   assert.equal(await stateJson(page), before);
 });
 
-s.test('the cast is fixed with the API: a person the parser sends as new: is someone in the cast or nobody, with no extra call; the parser hears everyone else in town; the narrator gets the town and the cast as cached system blocks, with ages, the dead and the far away; the model cannot add a person', async h => {
+s.test('the cast is fixed with the API: a person the parser sends as new: is someone in the cast or nobody, with no extra call; the parser hears everyone in town in its cached block; the narrator gets the town and the cast as cached system blocks, with ages, the dead and the far away; the model cannot add a person', async h => {
   const { page, reqs, queue } = await openReal(h);
   const c = await page.evaluate(() => {
     const T = Game.data.TOWN_DATA;
@@ -462,8 +495,8 @@ s.test('the cast is fixed with the API: a person the parser sends as new: is som
   assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id), `${c.husband.first}'s wife is ${c.wife.id}`);
   assert.equal(await page.evaluate(() => Game.state.npcs.length), c.count, 'nobody new');
   const parser = reqs.slice(n0).find(r => r.role === 'parser');
-  assert.match(parser.body.system, /`new:` is never used for a person/);
-  assert.ok(parser.body.messages[0].content.includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `) && parser.body.messages[0].content.includes(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), 'the parser hears the whole cast');
+  assert.match(parser.body.system[0].text, /`new:` is never used for a person/);
+  assert.ok(parser.body.system[1].text.startsWith('EVERYONE IN TOWN (the whole cast, one a line; nobody else exists.') && parser.body.system[1].text.includes(`\n${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), 'the parser hears the whole cast, in its cached block');
   // The narrator: the style block, the town, then the cast, all cached; the cast line for Mavis gives her age, says whose wife she is and where she is.
   const narr = reqs.slice(n0).find(r => r.role === 'narrator');
   assert.equal(narr.body.system.length, 3);

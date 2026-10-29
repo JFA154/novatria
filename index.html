@@ -1030,15 +1030,22 @@ select.input { padding-right: 32px; }
               <label class="check"><input type="checkbox" id="set-mock" aria-describedby="set-mock-hint"> Mock mode</label>
               <p class="hint" id="set-mock-hint">On: the built-in placeholder narrator, no API calls, free. Off: Claude narrates with your key.</p>
             </div>
-            <div class="field two">
-              <div>
-                <label class="label" for="set-narrator-model">Narrator model</label>
-                <input class="input" id="set-narrator-model" spellcheck="false">
+            <div class="field">
+              <div class="two">
+                <div>
+                  <label class="label" for="set-narrator-model">Narrator model</label>
+                  <input class="input" id="set-narrator-model" spellcheck="false" placeholder="claude-opus-5-5" aria-describedby="set-models-hint">
+                </div>
+                <div>
+                  <label class="label" for="set-parser-model">Parser model</label>
+                  <input class="input" id="set-parser-model" spellcheck="false" placeholder="claude-haiku-5-5" aria-describedby="set-models-hint">
+                </div>
+                <div>
+                  <label class="label" for="set-bookkeeper-model">Bookkeeper model</label>
+                  <input class="input" id="set-bookkeeper-model" spellcheck="false" placeholder="claude-sonnet-5-5" aria-describedby="set-models-hint">
+                </div>
               </div>
-              <div>
-                <label class="label" for="set-parser-model">Parser model</label>
-                <input class="input" id="set-parser-model" spellcheck="false">
-              </div>
+              <p class="hint" id="set-models-hint">Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-haiku-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).</p>
             </div>
             <div class="field">
               <span class="label">Effort</span>
@@ -8728,27 +8735,33 @@ const Style = (() => {
 // ===== Module: Api =====
 /* One interface over two providers (Settings.mockMode picks one):
      parse(packet)            -> parse_action object; packet from Pipeline.parsePacket()
+                                 ({ text, block, ... }: block is Pipeline.parserBlock(),
+                                 a cached system block after the parser's prompt)
      narrate(packet, onDelta) -> { text, stopReason }; onDelta(chunk, textSoFar) while
                                  streaming; packet = { text, system, town, cast, context }
                                  (system: the style block; town: Pipeline.townBlock();
                                  cast: Pipeline.castBlock(); three cached system blocks)
      bookkeep(packet)         -> record_changes object (applied with source 'model');
-                                 packet = { text, context }
-     chronicle(entries)       -> summary string (entries are log entries)
+                                 packet = { text, block, context } (block:
+                                 Pipeline.bookkeeperBlock(), cached like the parser's)
+     chronicle(entries)       -> summary string (entries are log entries; bookkeeper model)
      rewriteMemories(packet)  -> { people: [{ npcId, memories: [{ from, text, weight }] }] };
                                  packet from Upgrade.memoryPacket() (an older game's
-                                 memories brought up to the current rules; parser model)
+                                 memories brought up to the current rules; bookkeeper model)
      revealPlaces(packet)     -> { placesRevealed: [{ name, type, description, nearId,
                                  ownerNpcId, kind, turn }] }; packet from
                                  Upgrade.placesPacket() (places people named in an older
-                                 game's story; parser model)
+                                 game's story; bookkeeper model)
      checkClock(packet)       -> { behind, phase, dayOffset, reason }; packet from
                                  Upgrade.clockPacket() (whether an older game's clock ran
-                                 ahead of its story; parser model)
+                                 ahead of its story; bookkeeper model)
      fixPeople(packet)        -> { people: [{ npcId, name, pronouns, role, look, voice,
                                  relationToNpcId, relation, homeLocationId }] }; packet from
                                  Upgrade.peoplePacket() (people the game made up, checked
-                                 against what the story says about them; parser model)
+                                 against what the story says about them; bookkeeper model)
+   Models per role (Settings): the narrator model narrates, the parser model
+   only parses, and the bookkeeper model does everything else (the
+   bookkeeper, the chronicle and every Upgrade call).
    Any of them may instead resolve to a refusal { refused: true, role,
    category, explanation }, which the Pipeline turns into an in-feed notice.
    Failures throw ApiError with a player-facing message (err.detail holds the
@@ -8780,7 +8793,11 @@ const Api = (() => {
      exact words (say; the composer's Do / Say toggle), with one more for
      running off in do mode, and one on things the player does not carry
      (missingItem: the narrator then hears NOT CARRIED). Short and static:
-     everything volatile goes in the user message as a labelled packet.
+     everything volatile goes in the user message as a labelled packet, and
+     the lists that do not change turn to turn (the cast, the dead and the
+     far away, the places out of town) follow the prompt as a cached system
+     block (Pipeline.parserBlock; the bookkeeper's is
+     Pipeline.bookkeeperBlock).
      MEMORY_RULES is the bookkeeper's memory rule; the memory rewrite
      (Upgrade) states it word for word, so an updated game holds the same
      kind of memory a new one records. PLACE_RULE is the bookkeeper's rule
@@ -8791,7 +8808,7 @@ const Api = (() => {
   const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
   const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists: EVERYONE IN TOWN, after these instructions, has the whole cast (the message says who is here and whom the player knows), and NOT IN TOWN the dead and the people who live elsewhere; a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
@@ -8925,14 +8942,20 @@ const Api = (() => {
 
   // ----- usage and the debug ring -----
   function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0, priced: true, calls: 0 }; }
-  const usage = { turn: blankUsage(), session: blankUsage() };
+  /* turn and session totals; byRole: the session's totals per role and
+     model ("parser claude-haiku-5-5"), so the Debug tab shows each role's
+     cache reads and cost, the parser's and the bookkeeper's included. */
+  const usage = { turn: blankUsage(), session: blankUsage(), byRole: {} };
   const responses = [];
   function addRaw(total, raw) {
     if (!isObj(raw)) return total;
     for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) total[k] = (total[k] | 0) + (raw[k] | 0);
     return total;
   }
-  function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
+  /* A model per role: the narrator, the parser, and the bookkeeper model for
+     everything else (the bookkeeper, the chronicle and the Upgrade calls,
+     which are the bookkeeper's judgement applied to an old game). */
+  function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : role === 'parser' ? s.parserModel : s.bookkeeperModel; }
   /* The memory rewrite, the places re-read and the clock check (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
   const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
@@ -8940,12 +8963,25 @@ const Api = (() => {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
   }
   /* No temperature/top_p/top_k, no thinking, no tools or tool_choice, never a
-     trailing assistant message. JSON comes from output_config.format. */
+     trailing assistant message. JSON comes from output_config.format.
+     A cached system prompt is a list of text blocks: the role's prompt,
+     then its further blocks (opts.blocks). cache true (the narrator) puts a
+     breakpoint on every block, so its style block stays cached on its own
+     when the cast changes. cache 'last' (the parser and the bookkeeper)
+     puts one on the last block only: their prompts are close to or under
+     the 512-token minimum on their own, so prompt and lists are cached
+     together as one prefix, and nothing is padded. Without blocks the
+     prompt stays a plain string. */
   function requestBody(role, opts) {
     opts = opts || {};
     const body = { model: roleModel(role), max_tokens: opts.maxTokens || MAX_TOKENS[role] || 1500, messages: [{ role: 'user', content: String(opts.user || '') }] };
-    // The narrator's system prompt is cached: the style block, then any further blocks (the cast), each its own cache breakpoint.
-    if (opts.system) body.system = opts.cache ? [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []).map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })) : opts.system;
+    if (opts.system) {
+      const texts = [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []);
+      const block = (text, cached) => (cached ? { type: 'text', text, cache_control: { type: 'ephemeral' } } : { type: 'text', text });
+      if (opts.cache === true) body.system = texts.map(text => block(text, true));
+      else if (opts.cache === 'last' && texts.length > 1) body.system = texts.map((text, i) => block(text, i === texts.length - 1));
+      else body.system = opts.system;
+    }
     body.output_config = { effort: roleEffort(role) };
     if (opts.schema) body.output_config.format = { type: 'json_schema', schema: opts.schema };
     if (opts.stream) body.stream = true;
@@ -8956,11 +8992,13 @@ const Api = (() => {
     if (!p) return null;
     return (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheCreation * p.input * 1.25) / 1e6;
   }
-  function record(model, raw) {
+  function record(model, raw, role) {
     const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: raw.cache_creation_input_tokens | 0 };
     const spent = u.input + u.output + u.cacheRead + u.cacheCreation > 0;
     const c = costOf(model, u);
-    for (const b of [usage.turn, usage.session]) {
+    const key = `${role || 'call'} ${model || 'unknown'}`;
+    const byRole = usage.byRole[key] || (usage.byRole[key] = blankUsage());
+    for (const b of [usage.turn, usage.session, byRole]) {
       b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.calls += 1;
       if (c === null) { if (spent) b.priced = false; } else b.cost += c;
     }
@@ -9478,7 +9516,7 @@ const Api = (() => {
     },
     clear() { for (const k of Object.keys(Mock.pending)) Mock.pending[k].length = 0; Mock.calls.length = 0; },
     take(method, packet) {
-      Mock.calls.push({ method, text: packet && typeof packet.text === 'string' ? packet.text : null, input: packet && packet.input, mode: packet && packet.mode });
+      Mock.calls.push({ method, text: packet && typeof packet.text === 'string' ? packet.text : null, block: packet && typeof packet.block === 'string' ? packet.block : null, input: packet && packet.input, mode: packet && packet.mode });
       if (Mock.calls.length > 60) Mock.calls.shift();
       const canned = Mock.pending[method].length ? Mock.pending[method].shift() : undefined;
       if (isObj(canned) && canned.error) {
@@ -9513,10 +9551,15 @@ const Api = (() => {
       return { result: { text: soFar.trim(), stopReason: (isObj(canned) && canned.stopReason) || 'end_turn' }, usage: MOCK_ZERO, model: 'mock' };
     },
     async bookkeep(packet) {
+      // A queued { delay } (ms) holds the reply back, an error or a refusal with it too: a slow bookkeeper, for the tests of the closing turn.
+      const next = Mock.pending.bookkeep[0];
+      if (isObj(next) && Number.isFinite(next.delay) && next.delay > 0) await sleep(next.delay);
       const canned = Mock.take('bookkeep', packet);
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
       const auto = mockBookkeep(packet || {});
-      return { result: isObj(canned) ? Object.assign(auto, canned) : auto, usage: MOCK_ZERO, model: 'mock' };
+      const extra = isObj(canned) ? Object.assign({}, canned) : null;
+      if (extra) delete extra.delay;
+      return { result: extra ? Object.assign(auto, extra) : auto, usage: MOCK_ZERO, model: 'mock' };
     },
     async chronicle(entries) {
       const canned = Mock.take('chronicle', { text: null });
@@ -9591,12 +9634,13 @@ const Api = (() => {
     return block && typeof block.text === 'string' ? block.text : '';
   }
   /* Parser, bookkeeper (structured outputs) and chronicle (plain text). A
-     JSON reply cut off by max_tokens is retried once with twice the limit. */
+     JSON reply cut off by max_tokens is retried once with twice the limit.
+     opts.blocks and opts.cache: the cached system blocks (requestBody). */
   async function messageCall(role, opts) {
     const total = {};
     let maxTokens = MAX_TOKENS[role];
     for (let attempt = 1; ; attempt++) {
-      const body = requestBody(role, { system: opts.system, user: opts.user, schema: opts.schema, maxTokens });
+      const body = requestBody(role, { system: opts.system, blocks: opts.blocks, cache: opts.cache, user: opts.user, schema: opts.schema, maxTokens });
       const fail = (type, extra) => new ApiError(type, FRIENDLY[type], Object.assign({ usage: total, model: body.model, retryable: false }, extra));
       const { res, requestId } = await post(role, body);
       let data;
@@ -9693,8 +9737,9 @@ const Api = (() => {
   }
   const Real = {
     name: 'claude',
-    parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
-    bookkeep(packet) { return messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.record_changes }); },
+    // The parser and the bookkeeper: the role's prompt, then its cast lists (Pipeline.parserBlock, Pipeline.bookkeeperBlock: the same until the cast changes), cached together as one prefix.
+    parse(packet) { return messageCall('parser', { system: SYSTEM.parser, blocks: [typeof packet.block === 'string' ? packet.block : Pipeline.parserBlock()], cache: 'last', user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
+    bookkeep(packet) { return messageCall('bookkeeper', { system: SYSTEM.bookkeeper, blocks: [typeof packet.block === 'string' ? packet.block : Pipeline.bookkeeperBlock()], cache: 'last', user: packet.text || JSON.stringify(packet), schema: SCHEMAS.record_changes }); },
     chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
@@ -9735,10 +9780,10 @@ const Api = (() => {
     try {
       out = await p[method].apply(p, args);
     } catch (err) {
-      if (err && err.usage) record(err.model || roleModel(role), err.usage);
+      if (err && err.usage) record(err.model || roleModel(role), err.usage, role);
       throw err;
     }
-    if (out && out.usage) record(out.model || roleModel(role), out.usage);
+    if (out && out.usage) record(out.model || roleModel(role), out.usage, role);
     if (!out.logged) remember({ role, provider: p.name, data: out.refusal ? { refusal: out.refusal } : out.result });
     if (out.refusal) return { refused: true, role, category: out.refusal.category, explanation: out.refusal.explanation };
     return out.result;
@@ -9777,7 +9822,7 @@ const Api = (() => {
    from their point of view (Api.MEMORY_RULES). Older games hold long
    play-by-play memories. Everyone with a memory the engine did not write
    itself (PROTECTED: the loose-end lines and story-point facts, which stay
-   exactly as they are) goes to the parser model in one structured-output
+   exactly as they are) goes to the bookkeeper model in one structured-output
    call (split by person past CHUNK memories), which returns each person's
    kept lines as { from: [numbers], text, weight }. A line keeps the earliest
    turn of the memories it came from, is cut like a bookkeeper memory
@@ -9788,7 +9833,7 @@ const Api = (() => {
    specific place someone names into a real place (placesRevealed). An older
    game's story may already hold such a line. The whole log (each turn's
    input and narration) and the chronicle summaries, labelled as summaries,
-   go to the parser model in one structured-output call (Api.revealPlaces,
+   go to the bookkeeper model in one structured-output call (Api.revealPlaces,
    SYSTEM.places, which states the bookkeeper's PLACE_RULE word for word)
    with every place (id, name, type) and person (id, name); it returns
    placesRevealed entries in the bookkeeper's shape plus the turn the
@@ -9805,7 +9850,7 @@ const Api = (() => {
    may already have ticked into morning in the middle of a night scene. The
    clock (day, phase, shorts) and the last CLOCK_ENTRIES log entries (input
    and narration, oldest first, each stamped with the clock it was narrated
-   at) go to the parser model in one structured-output call (Api.checkClock,
+   at) go to the bookkeeper model in one structured-output call (Api.checkClock,
    SYSTEM.clock), which answers { behind, phase, dayOffset (0 or -1),
    reason }. Only a reply that is behind and puts the story earlier than the
    clock is applied (the clock never moves forward): day + dayOffset (at
@@ -9823,7 +9868,7 @@ const Api = (() => {
    (State.fillPronouns). Then every person made during play (anyone not in
    the town data: the tables, a context call, the story, a loose end, a
    story point) whom the story mentions, by name or by their relation
-   phrase, goes to the parser model in one structured-output call
+   phrase, goes to the bookkeeper model in one structured-output call
    (Api.fixPeople, SYSTEM.people) with their record and every log narration
    and chronicle summary that mentions them (at most MENTIONS each, the
    latest), the places and everyone in the game; it returns each record
@@ -10565,6 +10610,42 @@ const Pipeline = (() => {
     if (away.length) lines.push(`OUT OF TOWN (talked about, never a scene; the story stays in ${s.meta.townName || 'town'}): ${away.map(l => `${l.id} — ${l.name} (${l.distance || 'out of town'}): ${l.history || sentenceOne(l.description)}`).join(' | ')}`);
     return lines.join('\n');
   }
+  /* The parser's and the bookkeeper's cached system blocks: Api.parse and
+     Api.bookkeep send each after the role's prompt, with one cache
+     breakpoint, so the lists that do not change turn to turn are read from
+     the cache and the user message carries only what does (who is here and
+     whom the player knows, with attitudes; the places they know; items;
+     threads). Like castBlock, built from the records alone, never from who
+     the player has met, where anyone is now, attitudes or what has been
+     discovered, so each stays byte-identical, and cached, until the cast
+     itself changes (an edit, a merge, a death, someone leaving town).
+     parserBlock: everyone in town (id, name, pronouns, role, ties), the dead
+     and the people who live elsewhere, and the places out of town.
+     bookkeeperBlock: everyone in town (id, name, pronouns, role) and the
+     factions. '' with no game. */
+  const PARSER_CAST_HEAD = 'EVERYONE IN TOWN (the whole cast, one a line; nobody else exists. NPCS PRESENT and OTHER KNOWN NPCS in the message say who is here and whom the player knows):';
+  const BOOK_CAST_HEAD = 'EVERYONE IN TOWN (the whole cast, one a line: ids you may use; nobody else exists. Who is here and whom the player knows, with attitudes, is in the message):';
+  function parserBlock(st) {
+    const s = st || State.current;
+    if (!s) return '';
+    const town = s.npcs.filter(n => presenceOf(n) === 'here');
+    const absent = s.npcs.filter(n => presenceOf(n) !== 'here');
+    const away = s.locations.filter(x => x.away === true);
+    return [PARSER_CAST_HEAD]
+      .concat(town.map(n => { const ties = tieWords(n); return `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}${ties ? `; ${ties}` : ''})`; }))
+      .concat([
+        `NOT IN TOWN (dead, or living elsewhere; talked about, never met): ${absent.map(n => `${n.id} — ${n.name} (${presenceOf(n) === 'dead' ? 'dead' : 'lives elsewhere'}; ${n.role})`).join('; ') || 'none'}`,
+        `OUT OF TOWN (never a destination; the story stays here): ${away.map(x => `${x.id} — ${x.name}${x.type ? ` (${x.type})` : ''}`).join('; ') || 'none'}`
+      ]).join('\n');
+  }
+  function bookkeeperBlock(st) {
+    const s = st || State.current;
+    if (!s) return '';
+    const town = s.npcs.filter(n => presenceOf(n) === 'here');
+    return [BOOK_CAST_HEAD]
+      .concat(town.map(n => `${who(n)}${n.unnamed ? ' (no name yet)' : ''}`))
+      .concat([`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ') || 'none'}`]).join('\n');
+  }
   function sentenceOne(text) { const m = /^.*?[.!?](?=\s|$)/.exec(String(text || '')); return m ? m[0] : String(text || ''); }
   function isRefusal(x) { return Api.isRefusal(x); }
   function nowTime() { const t = State.current.time; return { day: t.day, phase: t.phase }; }
@@ -10680,7 +10761,9 @@ const Pipeline = (() => {
     return out;
   }
   /* Structured packet for the parser (the mock reads the fields, the real
-     parser reads `text`, a labelled plain-text version). */
+     parser reads `text`, a labelled plain-text version of what changes
+     turn to turn, after `block`, the cached parserBlock with the whole
+     cast, the dead and the far away, and the places out of town). */
   function parsePacket(input, opts) {
     const s = State.current;
     const p = s.player;
@@ -10703,6 +10786,7 @@ const Pipeline = (() => {
       knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed }))
     };
     // Everyone else who exists (the cast is fixed): a person the player names or describes is one of these ids.
+    // These three lists are for the mock parser; the real parser reads them in the cached block (parserBlock).
     const listed = new Set(packet.present.map(n => n.id).concat(packet.knownNpcs.map(n => n.id)));
     packet.cast = s.npcs.filter(n => n.alive !== false && n.status !== 'gone' && !listed.has(n.id)).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, ties: tieWords(n) }));
     // The dead and the people who live elsewhere: a person the player names may be one of them (talked about, never met).
@@ -10728,12 +10812,11 @@ const Pipeline = (() => {
       `ITEMS HERE: ${ids(packet.itemsHere)}`,
       `INVENTORY: ${ids(packet.inventory)}`,
       `OTHER KNOWN NPCS (not here): ${packet.knownNpcs.filter(n => !presentIds.includes(n.id)).map(n => `${who(n)}${n.heard ? ' (heard of, not met)' : ''}`).join('; ') || 'none'}`,
-      `EVERYONE ELSE IN TOWN (not met yet; nobody else exists): ${packet.cast.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}${n.ties ? `; ${n.ties}` : ''})`).join('; ') || 'none'}`,
       // Every discovered place, by type too ("the bar"): one move reaches any of them.
-      `OTHER PLACES IN TOWN (one move reaches any): ${ids(packet.knownLocations.filter(x => x.id !== l.id))}`,
-      `NOT IN TOWN (dead, or living elsewhere; talked about, never met): ${packet.absent.map(n => `${n.id} — ${n.name} (${n.presence === 'dead' ? 'dead' : 'lives elsewhere'}; ${n.role})`).join('; ') || 'none'}`,
-      `OUT OF TOWN (never a destination; the story stays here): ${ids(packet.away)}`
+      `OTHER PLACES IN TOWN (one move reaches any): ${ids(packet.knownLocations.filter(x => x.id !== l.id))}`
     ].join('\n');
+    // Everyone else in town, the dead and the far away, and the places out of town: the cached block, not the message.
+    packet.block = parserBlock();
     return packet;
   }
 
@@ -11444,14 +11527,11 @@ const Pipeline = (() => {
     // Someone the narration names who is neither here nor known yet (whose home was just described, say), so placesRevealed can name the owner.
     const named = s.npcs.filter(n => !n.knownToPlayer && !presentIds.includes(n.id) && n.alive !== false && Town.nameMentions(ctx.narration || '', n));
     if (named.length) lines.push(`NAMED IN THE NARRATION (not here): ${named.map(npcRow).join('; ')}`);
-    // Everyone else in the cast, so a home someone names can say whose it is (the cast is fixed: nobody new is added).
-    const listed = new Set(presentIds.concat(named.map(n => n.id)));
-    const rest = s.npcs.filter(n => presenceOf(n) === 'here' && !listed.has(n.id) && !n.knownToPlayer && !State.npcsAt(l.id).includes(n));
-    lines.push(`EVERYONE ELSE IN TOWN (not met; the whole cast, nobody else exists): ${rest.map(n => `${who(n)}${n.unnamed ? ' (no name yet)' : ''}`).join('; ') || 'none'}`);
+    // Everyone else in the cast (so a home someone names can say whose it is; the cast is fixed: nobody new is added) and the factions are in the cached block (bookkeeperBlock).
+    lines.push('EVERYONE ELSE AND THE FACTIONS: in the system prompt (EVERYONE IN TOWN, FACTIONS).');
     // The places the player knows. A home in the cast they have not found yet is not listed, so a line that tells them about it goes in placesRevealed (the engine finds it).
     lines.push(`LOCATIONS (the places list): ${s.locations.filter(x => x.discovered).map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
     lines.push(`ITEMS HERE: ${(l.items || []).map(i => `${i.id} (${i.name})`).join(', ') || 'none'}`);
-    lines.push(`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ')}`);
     lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'})`).join('; ') || 'none'}`);
     return lines.join('\n');
   }
@@ -11520,7 +11600,7 @@ const Pipeline = (() => {
 
   // ----- step 12: chronicle compression -----
   /* Every 10 turns the oldest 10 log entries become one chronicle entry
-     (Api.chronicle: the parser model in plain text, or the mock's
+     (Api.chronicle: the bookkeeper model in plain text, or the mock's
      deterministic summary) through State.apply({ chronicleEntry }), which
      drops them from the log; the log keeps the rest. Due when the log holds
      10 entries and 10 turns have passed since the last entry's toTurn, so a
@@ -11643,13 +11723,16 @@ const Pipeline = (() => {
       const told = await narrate(ctx);
       if (replaced()) return fail(snap, mark, null, {});
       if (told.refusal) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
+      // The story is written: the composer is handed back for the next line while the bookkeeper (and any chronicle) finish.
+      // busy stays true, so nothing is sent, loaded or undone before the turn closes (finally).
+      UI.setBusy('closing');
       let narration = told.narration;
       ctx.narration = narration;
       noteIntroductions(narration, ctx.location && ctx.location.id);
       noteMentioned(narration);
       // Steps 8-9. Bookkeep, then apply the diff as model output.
       if (opts.bookkeep !== false) {
-        const diff = await Api.bookkeep({ text: bookkeeperPacket(ctx), context: ctx });
+        const diff = await Api.bookkeep({ text: bookkeeperPacket(ctx), block: bookkeeperBlock(), context: ctx });
         if (replaced()) return fail(snap, mark, null, {});
         if (isRefusal(diff)) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
         const clean = isObj(diff) ? Object.assign({}, diff) : {};
@@ -12064,7 +12147,7 @@ const Pipeline = (() => {
   return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
-    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, wouldKnow, newsHeard, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
+    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, wouldKnow, newsHeard, compressIfDue, passTime, castBlock, townBlock, parserBlock, bookkeeperBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, carriedAs, carryingLine, notCarriedLine,
     ACTION_TYPES, NOTICES, hooks,
     forceNextRoll(d20) { hooks.nextD20 = Number.isInteger(d20) ? clamp(d20, 1, 20) : null; },
@@ -12085,20 +12168,28 @@ const Storage = (() => {
   const SLOTS = 3;
   const SAVE_KIND = 'novatria-save';
   /* Defaults chosen for the best play-through rather than the cheapest: the
-     current Opus writes the story, the current Sonnet does the parsing,
-     bookkeeping and chronicle, and the roles that need judgement think a
-     little harder. settingsVersion lets init() upgrade settings saved under
-     the previous defaults (v1: Sonnet narrator, Haiku parser, all effort low)
-     while keeping anything the player typed in themselves. narrationStyle
+     current Opus writes the story, the current Haiku turns the player's
+     text into an action (a short, fixed job where speed matters: it runs
+     before anything is shown), the current Sonnet does the bookkeeping, the
+     chronicle and the Upgrade calls, and the roles that need judgement
+     think a little harder. settingsVersion lets init() upgrade settings
+     saved under earlier defaults while keeping anything the player typed in
+     themselves: v1 (Sonnet narrator, Haiku parser, all effort low) and v2
+     (one "parser model", Sonnet, for the parser, bookkeeper, chronicle and
+     Upgrade; v3 splits it into parserModel and bookkeeperModel). A parser
+     model saved at its version's default becomes the current pair; any
+     other model the player typed is kept for both roles. narrationStyle
      (casual or literary) and inputMode (the composer's Do / Say toggle,
      remembered per browser) are newer fields: a settings object without
      them gets the defaults, and the version is not involved. */
-  const SETTINGS_VERSION = 2;
+  const SETTINGS_VERSION = 3;
   const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
+  const V2_DEFAULTS = { parserModel: 'claude-sonnet-5-5' };
   const DEFAULTS = {
     settingsVersion: SETTINGS_VERSION,
     narratorModel: 'claude-opus-5-5',
-    parserModel: 'claude-sonnet-5-5',
+    parserModel: 'claude-haiku-5-5',
+    bookkeeperModel: 'claude-sonnet-5-5',
     effort: { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' },
     showRolls: true,
     permadeath: false,
@@ -12133,11 +12224,20 @@ const Storage = (() => {
   function cleanSettings(raw) {
     const s = deepCopy(DEFAULTS);
     if (!isObj(raw)) return s;
-    const legacy = !(typeof raw.settingsVersion === 'number' && raw.settingsVersion >= SETTINGS_VERSION);
+    const version = typeof raw.settingsVersion === 'number' ? raw.settingsVersion : 1;
+    const legacy = version < 2; // v1: the effort and the narrator's old defaults are upgraded too
     const narr = typeof raw.narratorModel === 'string' ? raw.narratorModel.trim() : '';
     const pars = typeof raw.parserModel === 'string' ? raw.parserModel.trim() : '';
+    const book = typeof raw.bookkeeperModel === 'string' ? raw.bookkeeperModel.trim() : '';
     if (narr && !(legacy && narr === V1_DEFAULTS.narratorModel)) s.narratorModel = narr;
-    if (pars && !(legacy && pars === V1_DEFAULTS.parserModel)) s.parserModel = pars;
+    if (version >= SETTINGS_VERSION) {
+      if (pars) s.parserModel = pars;
+      if (book) s.bookkeeperModel = book;
+    } else if (pars && pars !== (legacy ? V1_DEFAULTS : V2_DEFAULTS).parserModel) {
+      // One model for every role but the narrator, typed by the player: kept for both.
+      s.parserModel = pars;
+      s.bookkeeperModel = pars;
+    }
     const allLow = isObj(raw.effort) && Object.keys(s.effort).every(k => raw.effort[k] === 'low' || raw.effort[k] === undefined);
     if (isObj(raw.effort) && !(legacy && allLow)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
     for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
@@ -12287,6 +12387,7 @@ const UI = (() => {
   let debugOn = false;
   let stick = true;
   let busy = false;
+  let turnPhase = 'idle'; // the composer's state (setBusy): 'busy', 'closing' or 'idle'
   let toastTimer = null;
   const ac = { items: [], index: -1 };
   const pendingWarnings = [];
@@ -12304,13 +12405,15 @@ const UI = (() => {
     'cr-cancel', 'cr-back', 'cr-next', 'cr-review', 'cr-edit', 'cr-begin', 'summary-card', 'tb-time', 'tb-loc', 'tb-hp', 'tb-gold', 'tb-gold-unit',
     'tb-save', 'tb-settings', 'tb-panel', 'tb-menu', 'menu-pop', 'game-body', 'feed-scroll', 'feed', 'new-btn', 'ac', 'cmd', 'send',
     'panel', 'panel-tabs', 'panel-close', 'panel-body', 'settings-form', 'set-key', 'set-remember', 'set-mock', 'set-narrator-model',
-    'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
+    'set-parser-model', 'set-bookkeeper-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind',
     'narrator-banner', 'narrator-banner-inner', 'narrator-banner-text', 'narrator-banner-actions', 'narrator-banner-go', 'narrator-banner-close'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
+    d.composer = document.querySelector('.composer');
+    d.composer.dataset.turn = turnPhase;
     // Title
     d.btnNew.addEventListener('click', () => App.newGame());
     d.btnContinue.addEventListener('click', () => App.continueGame());
@@ -13571,7 +13674,7 @@ const UI = (() => {
         el('h3', null, 'Threads'), pre(threads || '-'),
         el('h3', null, 'Chronicle'), pre(`${chron || 'none yet'}\n${logSpan}`),
         el('h3', null, 'Rejected changes'), pre(rejects || 'none'),
-        el('h3', null, `API (${Api.providerName()})`), pre(`turn: ${fmtU(u.turn)}\nsession: ${fmtU(u.session)}`),
+        el('h3', null, `API (${Api.providerName()})`), pre([`turn: ${fmtU(u.turn)}`, `session: ${fmtU(u.session)}`].concat(Object.keys(u.byRole || {}).map(k => `  ${k}: ${fmtU(u.byRole[k])}`)).join('\n')),
         el('h3', null, 'API errors'), pre(apiErrors || 'none'),
         el('h3', null, 'Last raw responses'), pre(Api.responses.slice(-4).map(r => {
           const head = [r.at, r.role, 'via ' + r.provider, r.status ? 'HTTP ' + r.status : '', r.requestId ? 'request-id ' + r.requestId : '', r.stopReason ? 'stop ' + r.stopReason : ''].filter(Boolean).join(' · ');
@@ -13663,10 +13766,30 @@ const UI = (() => {
     ta.style.overflowY = want > max + 1 ? 'auto' : 'hidden';
   }
   /* While a turn or arrival is running, nothing may load or start a game
-     (App refuses those too): New game, Continue, Load and Import are off. */
+     (App refuses those too): New game, Continue, Load and Import are off.
+     The composer has three states (data-turn on .composer; UI.turnPhase):
+     'busy' (setBusy(true): from the start of a turn to the end of its
+     narration), 'closing' (setBusy('closing'): Pipeline.runTurn once the
+     narration is in, while the bookkeeper and any chronicle finish) and
+     'idle'. Closing counts as busy for everything above, and Send (Wait
+     when the box is empty), Enter and the commands stay refused, so
+     nothing is sent, loaded or undone until the turn closes. The box itself
+     takes typing in every state (it never did lock: only Send did), and
+     closing hands it back: on a laptop the focus returns to it unless the
+     player has put it somewhere else, so the next line can be written
+     while the turn closes; it is kept when the turn closes, and Send comes
+     back. */
   function setBusy(b) {
-    busy = !!b;
+    const was = turnPhase;
+    turnPhase = b === 'closing' ? 'closing' : b ? 'busy' : 'idle';
+    busy = turnPhase !== 'idle';
+    if (d.composer) d.composer.dataset.turn = turnPhase;
     d.send.disabled = busy;
+    syncSendLabel();
+    if (turnPhase === 'closing' && was === 'busy' && screen === 'game' && !isMobile()) {
+      const at = document.activeElement;
+      if (!at || at === document.body || at === d.send) d.cmd.focus({ preventScroll: true });
+    }
     d.feed.setAttribute('aria-busy', String(busy));
     d.btnNew.disabled = busy;
     d.btnLoad.disabled = busy;
@@ -13683,11 +13806,11 @@ const UI = (() => {
     // People: no edit starts or saves while a turn runs.
     $$('.pcard-edit, .pedit-save', d.panelBody).forEach(btn => { btn.disabled = busy; if (busy) btn.title = App.BUSY_NOTICE; else btn.removeAttribute('title'); });
   }
-  /* With nothing typed, Send reads Wait and runs a beat (Pipeline.pass). */
+  /* With nothing typed, Send reads Wait and runs a beat (Pipeline.pass). While a turn runs its title says why it is off. */
   function syncSendLabel() {
     const empty = !d.cmd.value.trim();
     d.send.textContent = empty ? 'Wait' : 'Send';
-    d.send.title = empty ? 'Say nothing and see what they do' : 'Send';
+    d.send.title = turnPhase === 'closing' ? 'Finishing the turn: you can type your next move' : busy ? 'Wait for the turn to finish' : empty ? 'Say nothing and see what they do' : 'Send';
   }
   async function send() {
     const text = d.cmd.value;
@@ -13706,7 +13829,13 @@ const UI = (() => {
     syncAddressee();
     let res = null;
     try { res = await Pipeline.submit(text, { mode: composer.mode, to: composer.to }); } catch (e) { console.error(e); res = { restoreInput: true }; }
-    if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = text; autosize(); }
+    // A failed turn puts its text back. A next line typed while it ran (the box takes typing throughout) stays too, after it.
+    if (res && res.restoreInput) {
+      const typed = d.cmd.value;
+      if (!typed.trim()) d.cmd.value = text;
+      else if (typed.trim() !== text.trim()) d.cmd.value = `${text}\n${typed}`;
+      autosize();
+    }
     syncSendLabel();
     // A command that put the focus somewhere on purpose (/edit: the editor's name field) keeps it there.
     if (!isMobile() && screen === 'game' && !(res && res.keepFocus)) d.cmd.focus({ preventScroll: true });
@@ -13826,6 +13955,7 @@ const UI = (() => {
     d.setMock.checked = s.mockMode;
     d.setNarratorModel.value = s.narratorModel;
     d.setParserModel.value = s.parserModel;
+    d.setBookkeeperModel.value = s.bookkeeperModel;
     $$('[data-effort]').forEach(sel => { sel.value = s.effort[sel.dataset.effort]; });
     d.setRolls.checked = s.showRolls;
     d.setPermadeath.checked = s.permadeath;
@@ -13853,6 +13983,7 @@ const UI = (() => {
       mockMode: d.setMock.checked,
       narratorModel: d.setNarratorModel.value.trim() || Storage.DEFAULTS.narratorModel,
       parserModel: d.setParserModel.value.trim() || Storage.DEFAULTS.parserModel,
+      bookkeeperModel: d.setBookkeeperModel.value.trim() || Storage.DEFAULTS.bookkeeperModel,
       effort,
       showRolls: d.setRolls.checked,
       permadeath: d.setPermadeath.checked
@@ -14217,7 +14348,8 @@ const UI = (() => {
     get screen() { return screen; },
     get tab() { return tab; },
     get debug() { return debugOn; },
-    get stuckToBottom() { return stick; }
+    get stuckToBottom() { return stick; },
+    get turnPhase() { return turnPhase; }
   };
 })();
 

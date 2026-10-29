@@ -32,14 +32,19 @@ Minimal body:
 
 ## Models
 
-| Role | Default | Notes |
+| Role (Settings field) | Default | Notes |
 |---|---|---|
-| Narrator | `claude-opus-5-5` | $4 / $20 per MTok in/out, cache read $0.20 |
-| Parser, bookkeeper, chronicle | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20 |
-| Also valid | `claude-haiku-5-5` | $0.10 / $0.50 per MTok (prompts under 100K), cache read 0.1x; the original cheap default |
+| Narrator (Narrator model) | `claude-opus-5-5` | $4 / $20 per MTok in/out, cache read $0.20 |
+| Parser (Parser model) | `claude-haiku-5-5` | $0.10 / $0.50 per MTok (prompts under 100K), cache read $0.01 (0.1x). A short, fixed job that runs before anything is shown, so the fastest model |
+| Bookkeeper, chronicle, every Upgrade call (Bookkeeper model) | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20 |
 
-Use these exact strings. Never append a date suffix. Both are editable in
-Settings, so the request body must not contain anything model-specific.
+Cache writes cost 1.25x the input rate (five-minute cache). Until 29 Oct 2026
+one "Parser model" field (default `claude-sonnet-5-5`) drove the parser, the
+bookkeeper, the chronicle and the Upgrade calls; settings saved under it are
+upgraded in `Storage.cleanSettings` (settings version 3).
+
+Use these exact strings. Never append a date suffix. All three are editable
+in Settings, so the request body must not contain anything model-specific.
 
 ## Never send these (400 on current models)
 
@@ -152,17 +157,45 @@ project does not use the fallback beta.
 
 ## Prompt caching
 
-- Narrator `system` is one text block, byte-identical every turn:
-  `STYLE_GUIDE` + the example turns, with
-  `"cache_control": { "type": "ephemeral" }`. No dates, names, state or
-  settings inside it. Everything volatile goes in the user message.
-- Minimum cacheable prefix on Sonnet 5.5 and Haiku 5.5 is 512 tokens. The
-  style guide plus examples is about 700, so it caches. The parser and
-  bookkeeper system prompts are shorter and simply will not cache; that is
-  fine, do not pad them.
-- Caches are per model: changing the narrator model starts cold.
-- Verify: on the second narration of a session,
-  `usage.cache_read_input_tokens > 0`. Show these fields in debug view.
+- Everything in a cached block is byte-identical from turn to turn: no
+  dates, the player, attitudes, who is here, what is discovered or settings
+  inside it. Everything volatile goes in the user message.
+- Narrator `system`: three text blocks, each with
+  `"cache_control": { "type": "ephemeral" }` (three of the four breakpoints
+  a request may have): the style guide with its example turns
+  (`Style.systemPrompt()`), the town (`Pipeline.townBlock()`) and the cast
+  (`Pipeline.castBlock()`). A breakpoint on each lets the style block stay
+  cached on its own when the cast changes.
+- Parser and bookkeeper `system`: two text blocks, the role's fixed prompt
+  (`SYSTEM.parser`, `SYSTEM.bookkeeper`, no `cache_control`), then its cast
+  lists with `cache_control` on that block only:
+
+  ```json
+  "system": [
+    { "type": "text", "text": "<SYSTEM.parser>" },
+    { "type": "text", "text": "<Pipeline.parserBlock()>", "cache_control": { "type": "ephemeral" } }
+  ]
+  ```
+
+  `Pipeline.parserBlock()`: everyone in town (id, name, pronouns, role,
+  ties), the dead and the people elsewhere, the places out of town.
+  `Pipeline.bookkeeperBlock()`: everyone in town (id, name, pronouns, role)
+  and the factions. Both are built from the records alone, so they change
+  only when the cast does (an edit, a merge, a death). The user message
+  keeps what changes: the people here and the people the player knows, with
+  attitudes, the places they know, items, threads.
+- Minimum cacheable prefix on Opus 5.5, Sonnet 5.5 and Haiku 5.5 is 512
+  tokens; shorter prefixes silently do not cache. The narrator's style block
+  is about 700 tokens. The parser and bookkeeper prompts alone are about
+  550 and 340, close to or under the minimum, so they are not marked on
+  their own and never padded: the one breakpoint on the block caches prompt
+  and block as one prefix (about 3,340 and 1,360 tokens).
+- The structured-output schema (`output_config.format`) is the same on
+  every call of a role, so it does not break that role's cache.
+- Caches are per model: changing a model in Settings starts that role cold.
+- Verify: on the second narration, parse and bookkeeping of a session (within
+  five minutes), `usage.cache_read_input_tokens > 0`. The debug view shows
+  these fields per turn, per session, and per role and model.
 
 ## Errors
 
@@ -189,4 +222,5 @@ Log the `request-id` response header with every failure in debug view.
 
 cost = input × in_rate + output × out_rate + cache_read × read_rate +
 cache_creation × in_rate × 1.25, using the table under Models, by model id;
-unknown model id → show tokens only.
+unknown model id → show tokens only. Totals per turn, per session, and per
+role and model for the session.

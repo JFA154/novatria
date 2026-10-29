@@ -476,49 +476,74 @@ s.test('pacing report: clock completion days and rumour spread over 200 seeded r
 
 /* Cost (README): the packets the mock was sent over a mixed session, measured,
    and priced at the default models with docs/API_NOTES.md prices. Tokens are
-   estimated at 3.5 characters each (prose plus ids); the structured-output
-   schema is counted as input; output and thinking are assumptions, printed. */
-s.test('cost per turn at the default models, from measured packet sizes', async h => {
+   estimated at 3.5 characters each (prose plus ids). What each call caches
+   is priced at the cache-read rate: the narrator's three system blocks, and
+   the parser's and the bookkeeper's prompt with its cast block (direction
+   change 15); the user message and the structured-output schema at the
+   input rate (where the API puts the schema is not documented, so it is not
+   counted as cached). Output and thinking are assumptions, printed. */
+s.test('cost per turn at the default models, from measured packet sizes, the cached blocks at the cache-read rate', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: SEED, kinds: ['debt', 'lost', 'promise'] });
-  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); window.__all = []; const take = Game.Api.Mock.take; Game.Api.Mock.take = function (m, p) { window.__all.push({ m, n: p && typeof p.text === 'string' ? p.text.length : 0 }); return take.apply(this, arguments); };
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); window.__all = []; const take = Game.Api.Mock.take; Game.Api.Mock.take = function (m, p) { window.__all.push({ m, n: p && typeof p.text === 'string' ? p.text.length : 0, block: p && typeof p.block === 'string' ? p.block : null }); return take.apply(this, arguments); };
     // The chronicle's user message as the real provider builds it (Api chronicleText).
     const chron = Game.Api.Mock.chronicle; Game.Api.Mock.chronicle = function (entries) { window.__chron = entries.map(e => `TURN ${e.turn} (day ${e.day}, ${e.phase})\nPLAYER: ${e.input || '(none)'}${e.roll && e.roll.line ? '\nROLL: ' + e.roll.line : ''}\nNARRATION: ${e.narration}`).join('\n\n').length; return chron.apply(this, arguments); }; });
   const inputs = ['I look around', 'I ask around about work', 'I try to climb the fence', '/look', 'I walk to Town Hall', 'I talk to whoever is at the desk', '/rest', 'I look around', 'I head to the bar', 'I ask about the bridge', 'I buy a lighter', '/wait evening', 'I look around', 'I try to sneak out the back', 'I ask about the river'];
   for (const t of inputs) await sendText(page, t);
   const m = await page.evaluate(() => {
     const avg = (k) => { const v = window.__all.filter(x => x.m === k).map(x => x.n); return { n: v.length, avg: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0, max: Math.max(0, ...v) }; };
+    const blocks = k => { const v = window.__all.filter(x => x.m === k).map(x => x.block); return { n: v.filter(b => typeof b === 'string').length, distinct: new Set(v).size, chars: v.length ? Math.max(...v.map(b => (b || '').length)) : 0 }; };
+    const st = Game.Storage.settings();
     return {
       parse: avg('parse'), narrate: avg('narrate'), bookkeep: avg('bookkeep'),
-      sys: { narrator: Game.Style.systemPrompt().length + Game.Pipeline.castBlock().length, style: Game.Style.systemPrompt().length, cast: Game.Pipeline.castBlock().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
+      blocks: { parser: blocks('parse'), bookkeeper: blocks('bookkeep') },
+      sys: { style: Game.Style.systemPrompt().length, town: Game.Pipeline.townBlock().length, cast: Game.Pipeline.castBlock().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
       schema: { parser: JSON.stringify(Game.Api.SCHEMAS.parse_action).length, bookkeeper: JSON.stringify(Game.Api.SCHEMAS.record_changes).length },
       chronicleInput: window.__chron || 0,
-      prices: Game.Api.PRICES, models: [Game.Storage.settings().narratorModel, Game.Storage.settings().parserModel]
+      prices: Game.Api.PRICES, models: { narrator: st.narratorModel, parser: st.parserModel, bookkeeper: st.bookkeeperModel }
     };
   });
   const T = chars => Math.round(chars / 3.5);
-  const [narrModel, parseModel] = m.models;
+  const M = m.models;
   const P = m.prices;
   const OUT = { parser: 90, narrator: 120, bookkeeper: 180, chronicle: 110 };
   const THINK = 150;
-  const parser = { in: T(m.sys.parser + m.schema.parser + m.parse.avg), out: OUT.parser };
-  const book = { in: T(m.sys.bookkeeper + m.schema.bookkeeper + m.bookkeep.avg), out: OUT.bookkeeper };
-  const narr = { cached: T(m.sys.narrator), in: T(m.narrate.avg), out: OUT.narrator };
+  // in: the user message and the schema (input rate); cached: what is read from the cache.
+  const parser = { in: T(m.schema.parser + m.parse.avg), cached: T(m.sys.parser + m.blocks.parser.chars), out: OUT.parser };
+  const book = { in: T(m.schema.bookkeeper + m.bookkeep.avg), cached: T(m.sys.bookkeeper + m.blocks.bookkeeper.chars), out: OUT.bookkeeper };
+  const narr = { in: T(m.narrate.avg), cached: T(m.sys.style + m.sys.town + m.sys.cast), out: OUT.narrator };
   assert.ok(m.chronicleInput > 0, 'a chronicle call was measured');
   const chron = { in: T(m.sys.chronicle + m.chronicleInput), out: OUT.chronicle };
   const usd = (model, inTok, outTok, cacheRead) => (inTok * P[model].input + outTok * P[model].output + (cacheRead || 0) * P[model].cacheRead) / 1e6;
-  const turn = think => usd(parseModel, parser.in, parser.out + think) + usd(narrModel, narr.in, narr.out + think, narr.cached) + usd(parseModel, book.in, book.out + think) + usd(parseModel, chron.in, chron.out + think) / 10;
-  const first = usd(narrModel, narr.cached * 1.25, 0) - usd(narrModel, 0, 0, narr.cached);
+  const call = (model, c, think) => usd(model, c.in, c.out + think, c.cached);
+  const turn = think => call(M.parser, parser, think) + call(M.narrator, narr, think) + call(M.bookkeeper, book, think) + usd(M.bookkeeper, chron.in, chron.out + think) / 10;
+  // The same turn with the parser's and the bookkeeper's lists in the message, uncached (as before direction change 15), at the same models.
+  const uncached = think => usd(M.parser, parser.in + parser.cached, parser.out + think) + call(M.narrator, narr, think) + usd(M.bookkeeper, book.in + book.cached, book.out + think) + usd(M.bookkeeper, chron.in, chron.out + think) / 10;
+  // The first call of a session (or after five idle minutes) writes each cache at 1.25 times the input rate instead of reading it.
+  const write = (model, tok) => usd(model, tok * 1.25, 0) - usd(model, 0, 0, tok);
+  const first = { narrator: write(M.narrator, narr.cached), parser: write(M.parser, parser.cached), bookkeeper: write(M.bookkeeper, book.cached) };
   console.log('        measured over ' + inputs.length + ' inputs (chars; tokens at 3.5 chars each):');
-  console.log(`          parser: packet avg ${m.parse.avg} (max ${m.parse.max}) + system ${m.sys.parser} + schema ${m.schema.parser} = ~${parser.in} input tokens; ~${parser.out} output assumed`);
-  console.log(`          narrator: packet avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens + cached system ${m.sys.narrator} (style ${m.sys.style} + cast ${m.sys.cast}) = ~${narr.cached} tokens; ~${narr.out} output assumed`);
-  console.log(`          bookkeeper: packet avg ${m.bookkeep.avg} (max ${m.bookkeep.max}) + system ${m.sys.bookkeeper} + schema ${m.schema.bookkeeper} = ~${book.in} input tokens; ~${book.out} output assumed`);
-  console.log(`          chronicle (every 10 turns): ~${chron.in} input, ~${chron.out} output`);
-  console.log(`          cost per ordinary turn at ${narrModel} + ${parseModel}: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${(usd(narrModel, narr.in, narr.out, narr.cached)).toFixed(4)}-$${(usd(narrModel, narr.in, narr.out + THINK, narr.cached)).toFixed(4)}; first narration of a session +$${first.toFixed(4)} to write the cache`);
+  console.log(`          parser (${M.parser}): message avg ${m.parse.avg} (max ${m.parse.max}) + schema ${m.schema.parser} = ~${parser.in} input tokens; cached: system ${m.sys.parser} + cast block ${m.blocks.parser.chars} = ~${parser.cached} tokens; ~${parser.out} output assumed`);
+  console.log(`          narrator (${M.narrator}): message avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens; cached: style ${m.sys.style} + town ${m.sys.town} + cast ${m.sys.cast} = ~${narr.cached} tokens; ~${narr.out} output assumed`);
+  console.log(`          bookkeeper (${M.bookkeeper}): message avg ${m.bookkeep.avg} (max ${m.bookkeep.max}) + schema ${m.schema.bookkeeper} = ~${book.in} input tokens; cached: system ${m.sys.bookkeeper} + cast block ${m.blocks.bookkeeper.chars} = ~${book.cached} tokens; ~${book.out} output assumed`);
+  console.log(`          chronicle (${M.bookkeeper}, every 10 turns): ~${chron.in} input, ~${chron.out} output`);
+  console.log(`          per call, without thinking: parser $${call(M.parser, parser, 0).toFixed(4)}, narrator $${call(M.narrator, narr, 0).toFixed(4)}, bookkeeper $${call(M.bookkeeper, book, 0).toFixed(4)}`);
+  console.log(`          cost per ordinary turn: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${call(M.narrator, narr, 0).toFixed(4)}-$${call(M.narrator, narr, THINK).toFixed(4)}`);
+  console.log(`          the same turn with the parser and bookkeeper lists uncached in the message: $${uncached(0).toFixed(4)}-$${uncached(THINK).toFixed(4)}`);
+  console.log(`          first call of a session writes the caches: narrator +$${first.narrator.toFixed(4)}, parser +$${first.parser.toFixed(4)}, bookkeeper +$${first.bookkeeper.toFixed(4)}`);
   console.log(`          100 turns: about $${(turn(0) * 100).toFixed(2)}-$${(turn(THINK) * 100).toFixed(2)}`);
-  assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
+  // Every cached prefix is over the 512-token minimum, so it does cache.
+  for (const [role, c] of [['narrator', narr], ['parser', parser], ['bookkeeper', book]]) assert.ok(c.cached > 512, `the ${role}'s cached prefix is long enough to cache (512-token minimum): ${c.cached}`);
+  // The cast blocks went with every call and stayed byte-identical over the session (nobody joined or left the cast).
+  for (const role of ['parser', 'bookkeeper']) {
+    assert.equal(m.blocks[role].n, role === 'parser' ? m.parse.n : m.bookkeep.n, `every ${role} call carried its block`);
+    assert.equal(m.blocks[role].distinct, 1, `the ${role} block never changed`);
+  }
+  // The messages are what changes turn to turn: the parser's was about 11,000 characters with the cast in it.
+  assert.ok(m.parse.max < 6000, `parser message ${m.parse.max} characters`);
   // The narrator's packet carries the goal, traits and secret of everyone here and every turn of the scene, up to about 700 words (direction change 10); it was under 8000 when it carried three turns and no secrets.
   assert.ok(m.narrate.max < 16000 && m.bookkeep.max < 12000, 'packets stay small');
+  assert.ok(turn(THINK) < uncached(THINK), 'caching the lists makes a turn cheaper');
   assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');
 });
 

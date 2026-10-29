@@ -1111,7 +1111,162 @@ changes" held only after a failure, and a success cleared the lock.
 
 ### 15. Faster, cheaper turns
 
-(written by the package that implements it)
+The review the owner agreed with (finding 8): each turn is three serial
+calls and the input stays locked until the third returns; the parser and
+bookkeeper packets carry the whole cast every turn, uncached (the parser's
+averaged 11,000 characters); moving those lists into a cached system block,
+letting the player type while the bookkeeper finishes, and using Haiku for
+the parser would cut the felt wait and the cost. Root causes:
+`Pipeline.parsePacket` wrote EVERYONE ELSE IN TOWN (every unmet person with
+ties), NOT IN TOWN and OUT OF TOWN into the user message, and
+`Pipeline.bookkeeperPacket` wrote EVERYONE ELSE IN TOWN and FACTIONS, so
+about 6,000 tokens a turn went at the full input rate; one "Parser model"
+setting (`Api.roleModel`) drove the parser, the bookkeeper, the chronicle
+and every Upgrade call, so the parser could not be made cheaper without the
+bookkeeper; and `UI.setBusy(true)` held Send off until `runTurn`'s
+`finally`, after the bookkeeper. One finding of our own: the textarea was
+never disabled during a turn (only Send, and Enter through `UI.send`), so
+the box always took typing; what the player lacked after the narration was
+the focus (a turn sent with the mouse left it on the disabled button), any
+sign that the turn was closing, and a failure after the narration lost the
+failed action when something had been typed meanwhile.
+
+- **Cached cast lists for the parser and the bookkeeper.**
+  `Pipeline.parserBlock()` (beside `castBlock` and `townBlock`):
+  `EVERYONE IN TOWN (the whole cast, one a line; ...)`, then one line per
+  person in town (`id — Name (pronouns; role; ties)`, `tieWords`), then
+  `NOT IN TOWN (dead, or living elsewhere; ...)` and `OUT OF TOWN (never a
+  destination; ...)` as they were in the message. `Pipeline.bookkeeperBlock()`:
+  `EVERYONE IN TOWN (the whole cast, one a line: ids you may use; ...)`, one
+  `who(n)` line per person in town, then `FACTIONS:`. Both list the whole
+  cast rather than the people not met yet, and are built from the records
+  alone (never knownToPlayer, attitudes, where anyone is now, what is
+  discovered, nor arrests), so they stay byte-identical until the cast
+  itself changes: an edit, a merge, a death, someone leaving town.
+  `parsePacket` sets `packet.block = parserBlock()`, and its text drops the
+  three lists (it keeps PLAYER INPUT, MODE, TIME, PLAYER, LOCATION, NPCS
+  PRESENT with attitudes and looks, ITEMS HERE, INVENTORY, OTHER KNOWN NPCS
+  and OTHER PLACES IN TOWN); the structured fields the mock parser reads
+  (`present`, `knownNpcs`, `cast`, `absent`, `away`, ...) are unchanged.
+  `bookkeeperPacket` drops EVERYONE ELSE IN TOWN and FACTIONS and says, under
+  IDS YOU MAY USE, `EVERYONE ELSE AND THE FACTIONS: in the system prompt
+  (EVERYONE IN TOWN, FACTIONS).`; `runTurn` passes `block:
+  bookkeeperBlock()` to `Api.bookkeep`. `SYSTEM.parser` names the lists
+  ("EVERYONE IN TOWN, after these instructions, has the whole cast (the
+  message says who is here and whom the player knows), and NOT IN TOWN the
+  dead and the people who live elsewhere") where it named EVERYONE ELSE IN
+  TOWN.
+- **The request.** `Api.requestBody` takes `cache: 'last'` beside the
+  narrator's `cache: true`: the system prompt becomes `[{ type: 'text',
+  text: prompt }, { type: 'text', text: block, cache_control: { type:
+  'ephemeral' } }]`, one breakpoint on the block. The parser prompt alone is
+  about 550 tokens and the bookkeeper's about 340, close to or under the
+  512-token minimum, so the brief's fallback (merge the block into the
+  prompt) is not needed: a breakpoint caches the whole prefix up to it, so
+  prompt and block cache together (about 3,340 and 1,360 tokens), and the
+  prompt is never padded. `Real.parse` and `Real.bookkeep` send
+  `packet.block` (built on the spot when a caller left it out);
+  `messageCall` passes `blocks` and `cache` through. The chronicle and the
+  Upgrade calls stay uncached (a short prompt, every ten turns or once).
+  `MAX_TOKENS` and `PRICES` were checked and need no change (Haiku's cache
+  read is already $0.01).
+- **A model per role.** `Storage` settings gain `bookkeeperModel`;
+  `parserModel` now drives the parser only. `Api.roleModel`: narrator ->
+  `narratorModel`, parser -> `parserModel`, everything else (bookkeeper,
+  chronicle, memories, places, clock, people) -> `bookkeeperModel`. Defaults:
+  parser `claude-haiku-5-5`, bookkeeper `claude-sonnet-5-5` (narrator
+  unchanged). `SETTINGS_VERSION` 3; `cleanSettings`: below version 3 a saved
+  parser model equal to its version's default (v1 Haiku, v2 Sonnet) becomes
+  the new pair, Haiku parser and Sonnet bookkeeper; any other saved value
+  was typed by the player and is kept for both fields; from version 3 both
+  are read as saved (an empty one falls back to its default). The v1 rules
+  for the narrator and an all-low effort set are unchanged and still apply
+  to v1 only. The settings screen shows Narrator, Parser and Bookkeeper
+  model (with their defaults as placeholders) and one line under them, tied
+  by `aria-describedby`, saying what each does and its default.
+- **Debug.** `Api.usage.byRole` keeps the session's totals per role and
+  model (`record(model, raw, role)`); the Debug tab's API section lists them
+  under the session line (`  parser claude-haiku-5-5: 2 calls, in 600, out
+  160, cache read 1200, cache write 1200, $0.0003`), so the parser's and the
+  bookkeeper's cache reads show on their own. The turn and session lines
+  are unchanged.
+- **Typing while the turn closes.** The composer has three states
+  (`UI.setBusy(true | 'closing' | false)`, `UI.turnPhase`, `data-turn` on
+  `.composer`): `busy` from the start of a turn to the end of its narration,
+  `closing` from `runTurn`'s narration (after the style check and any
+  refusal check) until its `finally`, while the bookkeeper and any chronicle
+  run, and `idle`. Closing counts as busy for everything that checks
+  `busy` (New game, Continue, Load, Import, Update, the map's Go, People
+  edits, Turn on the narrator), Send stays disabled (its title says
+  "Finishing the turn: you can type your next move"), Enter and Wait do
+  nothing, and `Pipeline.busy` stays true, so `submit` (commands, `/undo`,
+  `/load`) and `App`'s loads refuse as before. What closing adds: on a
+  laptop the focus returns to the box unless the player has put it
+  somewhere else, so the next line can be typed at once; the placeholder is
+  unchanged. The typed text is kept when the turn closes and Send comes
+  back. `UI.send`: a failed turn (restoreInput) puts its text back in the
+  box as before, and a line typed while it ran now follows it on a new line
+  instead of displacing it. The bookkeeper still runs inside the turn,
+  never in the background of the next one (the snapshot and `/undo` model
+  stays as it was). `arrival` has no bookkeeper and does not use closing.
+- **Mock.** `Mock.calls` records `block`; a queued bookkeeper reply may
+  carry `delay` (ms), honoured before an error or a refusal too, for the
+  tests of the closing state. The mock parser and bookkeeper read the same
+  structured fields as before.
+- **Older saves and settings.** Nothing is stored in a save. Settings move
+  to version 3 at load as above; nothing else changes.
+- **Cost** (README "What a turn costs", from the playtest's cost report,
+  which now prices each role's cached prefix at the cache-read rate and the
+  message and schema at the input rate, and counts the narrator's town
+  block, which it had left out). The parser's message fell from 10,980
+  characters on average to 2,785 and the bookkeeper's from 5,462 to 2,895.
+  An ordinary turn is $0.0213 to $0.0261 (it was $0.0318 to $0.0380), 100
+  turns about $2.13 to $2.61; at the new models with the lists still in the
+  messages it would be $0.0241 to $0.0288. The first call of a session
+  writes each cache: narrator +$0.0656, parser +$0.0004, bookkeeper
+  +$0.0031.
+- **SPEC.md.** A deviation, listed in README.md: sections 6 and 13 give the
+  bookkeeper and the chronicle the parser model; they have their own
+  Bookkeeper model setting. The Haiku parser default is SPEC.md's own.
+- **Not covered.** There is no API key in this session: the request shape is
+  checked against canned responses (`tests/api.test.cjs`), but neither the
+  API's acceptance of the two-block system prompt nor real cache reads on
+  the second parse and bookkeeping, nor Haiku's parsing on this game's
+  packets, were checked live. README "Verified against the live API" says
+  what to look for in the Debug tab.
+- **Tests.** api: the request test now checks a model per role (Haiku
+  parser, Opus narrator, Sonnet bookkeeper; a bookkeeper model setting
+  moves the bookkeeper and the chronicle, not the parser), the parser's
+  and the bookkeeper's system as two blocks with `cache_control` on the
+  second only, the blocks' heads, that they list everyone in town and stay
+  byte-identical after the player meets someone, that each prefix is over
+  512 tokens counted low, and that the messages no longer carry the lists;
+  the usage test prices the Haiku parser and shows the parser's and the
+  bookkeeper's cache writes and reads per role in the Debug tab; the
+  chronicle runs on the bookkeeper model; the cast test reads the parser's
+  cast from its block. settings: the new defaults and version 3, both
+  upgrade rules (old default to Haiku plus Sonnet, from v1 and from v2; a
+  typed model kept for both, from v1 and from v2), v3 read as saved, an
+  emptied field back to its default, and the screen saving the bookkeeper
+  field. pipeline: a new test drives a turn with a slow narrator and a slow
+  bookkeeper: busy during the narration, closing once it is in (narration
+  shown, bookkeeper not answered, focus back in the box after a mouse
+  Send, placeholder unchanged), typing works, Enter, a submit, `/undo`,
+  `/load`, `App.loadSlot`, Continue and New game are refused, the typed
+  line survives the end of the turn and then sends as the next one; a
+  delayed bookkeeper error puts the action back with the typed line after
+  it and keeps nothing of the turn; with nothing typed, an error or a
+  refusal after the narration restore the action as before. shell: the
+  settings screen shows the three model fields with their defaults and the
+  line under them, and saves the bookkeeper field. playtest: the cost
+  report, as above, asserting every cached prefix is over 512 tokens, the
+  blocks went with every call and never changed in the session, the
+  parser's message is under 6,000 characters, and caching makes a turn
+  cheaper. Changed on purpose: the pipeline checks that the parser hears
+  the cast, the dead and the far away and the places out of town now read
+  its block (`lastBlock`); the secret test also scans the two new blocks;
+  the state suite's settings version is 3; the upgrade suite's labels say
+  the bookkeeper model (the model asserted is the same, Sonnet).
 
 ### 16. Work and trouble: paid jobs and fights that come to the player
 

@@ -9,6 +9,8 @@ const { suite, quickStart, stateJson, sendText, fixtures, findScene, place, LAPT
 const s = suite('pipeline');
 
 const lastPacket = (page, method) => page.evaluate(m => { const c = Game.Api.Mock.calls.filter(x => x.method === m); return c.length ? c[c.length - 1].text : null; }, method || 'narrate');
+/* The cached system block the last parser or bookkeeper call carried (Pipeline.parserBlock, Pipeline.bookkeeperBlock; direction change 15). */
+const lastBlock = (page, method) => page.evaluate(m => { const c = Game.Api.Mock.calls.filter(x => x.method === m); return c.length ? c[c.length - 1].block : null; }, method || 'parse');
 const calls = page => page.evaluate(() => Game.Api.Mock.calls.map(c => c.method));
 const counts = page => page.evaluate(() => ({ npcs: Game.state.npcs.length, locs: Game.state.locations.length, items: Game.state.locations.reduce((n, l) => n + ((l.items || []).length), 0), inv: Game.state.player.inventory.length }));
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? n.textContent : null; });
@@ -159,7 +161,8 @@ s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PR
   // Her name alone, as the player types it: the mock parser hears the whole cast.
   await sendText(page, 'I ask Loretta if Mavis is working tonight');
   assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id));
-  assert.ok((await lastPacket(page, 'parse')).includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `));
+  assert.ok((await lastBlock(page, 'parse')).startsWith('EVERYONE IN TOWN (the whole cast, one a line; nobody else exists.'), 'the parser hears the whole cast in its cached block');
+  assert.ok(!(await lastPacket(page, 'parse')).includes('\nEVERYONE ELSE IN TOWN'), 'and not in the message');
   assert.deepEqual(await counts(page), before);
   // The narrator: the style block, the town and the cast (cached system blocks), the same every turn.
   const narr = await page.evaluate(() => ({ calls: window.__narr, style: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock() }));
@@ -1030,6 +1033,86 @@ s.test('while a turn is running, loading a save or starting a game is refused an
   await page.waitForFunction(() => !Game.Pipeline.busy);
   assert.equal((await page.evaluate(() => window.__turn)).reason, 'replaced');
   assert.equal(await stateJson(page), swapped, 'neither restored over nor written to');
+});
+
+/* ----- Typing while the turn closes (docs/BUILD_PLAN.md, direction change 15) ----- */
+s.test('once the narration is in, the box takes the next line while the bookkeeper finishes: Send, Enter, commands, loads and /undo wait for the turn to close, the line is kept, and a failure after the narration puts the action back with the new line after it', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await sendText(page, '/save Before');
+  const phase = () => page.evaluate(() => ({ phase: Game.UI.turnPhase, data: document.querySelector('.composer').dataset.turn, busy: Game.Pipeline.busy, send: document.getElementById('send').disabled }));
+  const parses = () => page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'parse').length);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; Game.Api.Mock.queue('narrate', { delay: 500 }); Game.Api.Mock.queue('bookkeep', { delay: 1500 }); });
+  const t0 = await page.evaluate(() => ({ turn: Game.state.meta.turn, log: Game.state.log.length }));
+  assert.deepEqual(await phase(), { phase: 'idle', data: 'idle', busy: false, send: false });
+  // Sent with the mouse, so the focus leaves the box for the button.
+  await page.fill('#cmd', 'I look around');
+  await page.click('#send');
+  await page.waitForFunction(() => Game.Api.Mock.calls.some(c => c.method === 'narrate'));
+  assert.deepEqual(await phase(), { phase: 'busy', data: 'busy', busy: true, send: true }, 'busy while the narrator writes');
+  await page.waitForFunction(() => Game.UI.turnPhase === 'closing');
+  const mid = await page.evaluate(() => ({
+    narrated: !document.querySelector('#feed .f-narr.pending') && !!document.querySelector('#feed .f-narr'),
+    booked: Game.Api.Mock.calls.some(c => c.method === 'bookkeep'),
+    focus: document.activeElement && document.activeElement.id,
+    placeholder: document.getElementById('cmd').placeholder,
+    title: document.getElementById('send').title
+  }));
+  assert.deepEqual(await phase(), { phase: 'closing', data: 'closing', busy: true, send: true }, 'closing: the turn still runs and Send stays off');
+  assert.ok(mid.narrated, 'the narration is in the feed');
+  assert.ok(!mid.booked, 'the bookkeeper has not answered yet');
+  assert.equal(mid.focus, 'cmd', 'the box has the focus back');
+  assert.equal(mid.placeholder, 'What do you do? (/ for commands)', 'the placeholder is unchanged');
+  assert.match(mid.title, /^Finishing the turn/);
+  // The next line can be typed now; Enter sends nothing, and nothing else can start.
+  await page.keyboard.type('I ask about the bridge');
+  assert.equal(await page.inputValue('#cmd'), 'I ask about the bridge');
+  await page.press('#cmd', 'Enter');
+  const refused = await page.evaluate(async () => ({
+    submit: (await Game.Pipeline.submit('I wave')).reason,
+    undo: (await Game.Pipeline.submit('/undo')).reason,
+    load: (await Game.Pipeline.submit('/load Before')).reason,
+    tries: [Game.App.loadSlot(1), Game.App.continueGame(), Game.App.newGame()]
+  }));
+  assert.deepEqual(refused, { submit: 'busy', undo: 'busy', load: 'busy', tries: [false, false, false] }, 'nothing is sent, undone or loaded mid-turn');
+  assert.equal(await parses(), 1, 'Enter sent nothing');
+  assert.equal(await page.inputValue('#cmd'), 'I ask about the bridge', 'and the line stays in the box');
+  assert.equal((await phase()).phase, 'closing');
+  // The turn closes: the line is still there and Send comes back.
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  const end = await page.evaluate(() => ({ turn: Game.state.meta.turn, log: Game.state.log.length, input: Game.state.log[Game.state.log.length - 1].input, label: document.getElementById('send').textContent }));
+  assert.deepEqual(await phase(), { phase: 'idle', data: 'idle', busy: false, send: false });
+  assert.deepEqual(end, { turn: t0.turn + 1, log: t0.log + 1, input: 'I look around', label: 'Send' }, 'the turn is done, once');
+  assert.equal(await page.inputValue('#cmd'), 'I ask about the bridge', 'the typed line survives the end of the turn');
+  // Then it sends as the next turn.
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(n => Game.state.log.length === n, t0.log + 2);
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].input), 'I ask about the bridge');
+  assert.equal(await page.inputValue('#cmd'), '');
+  // A bookkeeper failure after the narration: everything is taken back, the action returns to the box and the line typed meanwhile follows it.
+  const before = await stateJson(page);
+  await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { delay: 1200, error: 'api_error' }));
+  await page.fill('#cmd', 'I try the door');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.UI.turnPhase === 'closing');
+  await page.keyboard.type('and then I leave');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  assert.equal(await page.inputValue('#cmd'), 'I try the door\nand then I leave');
+  assert.match(await lastError(page), /internal error.*Your action was kept in the box\./);
+  assert.equal(await stateJson(page), before, 'nothing of the failed turn is kept');
+  assert.equal((await phase()).phase, 'idle');
+  // With nothing typed meanwhile it is just the action, as before; a refusal after the narration does the same.
+  await page.fill('#cmd', 'I try the door');
+  await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { delay: 300, error: 'overloaded_error' }));
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  assert.equal(await page.inputValue('#cmd'), 'I try the door');
+  await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { delay: 300, refusal: { category: 'test', explanation: 'no' } }));
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  assert.equal(await page.inputValue('#cmd'), 'I try the door');
+  assert.equal(await lastNotice(page), 'The narrator declined that one. Try it another way.');
+  assert.equal(await stateJson(page), before);
 });
 
 /* ----- Do / Say (docs/BUILD_PLAN.md, direction changes) ----- */
@@ -1960,8 +2043,8 @@ s.test('someone the player asks for is the cast\'s or nobody: a stranger by desc
   const bartender = await ask('bartender', 'I wave the bartender over');
   assert.ok(await page.evaluate(([id, loc]) => / bartender\b|^owner and bartender/.test(Game.State.npc(id).role) && Game.State.npcsAt(loc).some(n => n.id === id), [bartender[0], fx.tavern.id]), 'the bartender here: ' + bartender);
   assert.deepEqual(await counts(page), before, 'still nobody made');
-  // The parser hears everyone, with pronouns.
-  assert.ok((await lastPacket(page, 'parse')).includes(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`));
+  // The parser hears everyone, with pronouns, in its cached block.
+  assert.ok((await lastBlock(page, 'parse')).includes(`\n${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`));
 });
 
 s.test('when time passes, people who arrive at or leave the player\'s place are handed to the next narration, then cleared', async h => {
@@ -2315,7 +2398,8 @@ s.test('a place out of town is never a destination: the parser\'s destination, a
   r = await page.evaluate(() => Game.Pipeline.submit('I look around'));
   assert.equal(r.ok, true);
   const parse = await lastPacket(page, 'parse');
-  assert.ok(parse.includes(`\nOUT OF TOWN (never a destination; the story stays here): `) && parse.includes(`${x.id} — ${x.name}`), 'the parser hears the places out of town');
+  const parseBlock = await lastBlock(page, 'parse');
+  assert.ok(parseBlock.includes(`\nOUT OF TOWN (never a destination; the story stays here): `) && parseBlock.includes(`${x.id} — ${x.name}`), 'the parser hears the places out of town, in its cached block');
   assert.ok(!parse.split('\n').find(l => l.startsWith('OTHER PLACES IN TOWN')).includes(x.id), 'never among the places one move reaches');
 });
 
@@ -2354,8 +2438,9 @@ s.test('the dead and the people who live elsewhere are never present: not schedu
   for (const n of here) assert.ok(present.includes(`${n.name} (${n.age}, ${n.pron}; `), n.name);
   const parse = await lastPacket(page, 'parse');
   assert.match(parse, /\nPLAYER: Tester \(\d+; [^)]+\); /);
-  assert.ok(parse.includes(`\nNOT IN TOWN (dead, or living elsewhere; talked about, never met): `) && parse.includes(`${x.dead.id} — ${x.dead.name} (dead; `) && parse.includes(`${x.away.id} — ${x.away.name} (lives elsewhere; `));
-  assert.ok(!parse.split('\n').find(l => l.startsWith('EVERYONE ELSE IN TOWN')).includes(x.dead.id), 'not among the people in town');
+  const parseBlock = await lastBlock(page, 'parse');
+  assert.ok(parseBlock.includes(`\nNOT IN TOWN (dead, or living elsewhere; talked about, never met): `) && parseBlock.includes(`${x.dead.id} — ${x.dead.name} (dead; `) && parseBlock.includes(`${x.away.id} — ${x.away.name} (lives elsewhere; `));
+  assert.ok(!parseBlock.split('\n').some(l => l.startsWith(`${x.dead.id} — `) || l.startsWith(`${x.away.id} — `)), 'not among the people in town');
   // The story names them: the player knows of them now (asking for them already named them in the narration).
   await page.click('#tab-people');
   await page.evaluate(n => Game.Api.Mock.queue('narrate', `Somebody at the counter says ${n.dead.first} would have hated all this, and that ${n.away.name} has not called in weeks.`), x);
@@ -2468,7 +2553,8 @@ s.test('the people here carry what they want, their traits and a guarded secret 
     return {
       here: G.Pipeline.lastTurn.ctx.presentIds,
       people: G.state.npcs.map(n => ({ id: n.id, name: n.name, goal: n.goal, secret: n.secret, traits: n.personality || [] })),
-      narr: text('narrate'), parse: text('parse'), book: text('bookkeep'), cast: G.Pipeline.castBlock(), town: G.Pipeline.townBlock()
+      narr: text('narrate'), parse: text('parse'), book: text('bookkeep'), cast: G.Pipeline.castBlock(), town: G.Pipeline.townBlock(),
+      parseBlock: G.Pipeline.parserBlock(), bookBlock: G.Pipeline.bookkeeperBlock()
     };
   });
   const lines = r.narr.split('\n');
@@ -2491,7 +2577,7 @@ s.test('the people here carry what they want, their traits and a guarded secret 
     assert.equal(r.narr.split(bareText(n.goal)).length - 1, 1, 'the goal once, in its own line: ' + n.id);
   }
   // Nobody else's goal or secret anywhere; the parser, the bookkeeper and the cached blocks carry nobody's.
-  const where = [['narrator', r.narr], ['parser', r.parse], ['bookkeeper', r.book], ['cast block', r.cast], ['town block', r.town]];
+  const where = [['narrator', r.narr], ['parser', r.parse], ['bookkeeper', r.book], ['cast block', r.cast], ['town block', r.town], ['parser block', r.parseBlock], ['bookkeeper block', r.bookBlock]];
   for (const n of r.people) {
     for (const t of [n.goal, n.secret].filter(Boolean)) {
       for (const [w, text] of where) {
