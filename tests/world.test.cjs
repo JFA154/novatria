@@ -92,9 +92,13 @@ function packetProblems() {
   const p = calls.length ? calls[calls.length - 1].text : '';
   const get = label => (p.split('\n').find(l => l.startsWith(label + ':')) || '').slice(label.length + 1).trim();
   const bad = [];
+  // The people in the scene carry their goal and secret in their own line (direction change 10); nobody else's ever shows.
+  const inScene = (G.Pipeline.lastTurn && G.Pipeline.lastTurn.ctx && Array.isArray(G.Pipeline.lastTurn.ctx.present) ? G.Pipeline.lastTurn.ctx.present : []).map(n => n.id);
+  const bare = t => String(t).replace(/[.]+$/, '');
   for (const n of st.npcs) {
-    if (n.secret && n.secret.length > 20 && p.includes(n.secret)) bad.push('secret of ' + n.id);
-    if (n.goal && n.goal.length > 20 && p.includes(n.goal)) bad.push('goal of ' + n.id);
+    if (inScene.includes(n.id)) continue;
+    if (n.secret && n.secret.length > 20 && p.includes(bare(n.secret))) bad.push('secret of ' + n.id);
+    if (n.goal && n.goal.length > 20 && p.includes(bare(n.goal))) bad.push('goal of ' + n.id);
   }
   for (const f of st.factions) {
     if (f.goal && p.includes(f.goal)) bad.push('goal of ' + f.id);
@@ -111,8 +115,9 @@ function packetProblems() {
   }
   const story = get('STORY SO FAR');
   if (story !== 'nothing yet' && story.split(/\s+/).length > 150) bad.push('story so far over 150 words');
-  const last3 = get('LAST 3 TURNS');
-  if (last3 !== 'none' && last3.split(' | ').length > 3) bad.push('more than 3 turns of log');
+  const scene = p.split('\n').find(l => l.startsWith('THIS SCENE (since the player came to ')) || '';
+  if (!scene) bad.push('no THIS SCENE line');
+  else if (scene.split(' | ').length > 12) bad.push('more than 12 turns of scene');
   const due = get('DUE EVENT');
   if (due !== 'none' && due.split(' / ').length > 2) bad.push('more than 2 due events');
   for (const sd of st.seeds) if (due.includes(sd.effect) && !sd.fired) bad.push('due but unfired ' + sd.id);

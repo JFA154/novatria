@@ -189,6 +189,19 @@ histories but leaves out looks, goals and secrets, so it spoils nothing.
   usually are and their history), then the dead and the people who live
   elsewhere, one short line each. So a person the story mentions is always
   the same person, with the same name, age, spouse and job.
+- **The narrator knows what the people in front of you want.** Everyone in
+  the scene comes with their two traits, what they want and their secret,
+  under one rule: a secret is never told or hinted at in the narration. It
+  decides what that person dodges, lies about or bristles at, and they let
+  part of it slip only when you have earned it, caught them out or found
+  proof; nobody else in the scene knows it. The people at a place you are
+  walking to, the cast list and everyone else never carry a goal or a
+  secret, so a secret is in play only while its keeper is in front of you.
+- **The narrator knows why you came.** Every narration carries your goal,
+  your flaw (it colours what tempts or needles you; the narrator never acts
+  on it for you) and the threads you know are open, your loose ends with
+  their people among them. The arrival is told why you came, so the opening
+  can hint at it.
 - **Loose ends are people in the cast.** Each loose end you pick at creation
   ties to someone already written who fits the option you kept: a debt to
   someone who lends, a repo man or a bookie; someone looking for you to a
@@ -202,11 +215,21 @@ histories but leaves out looks, goals and secrets, so it spoils nothing.
 ## People
 
 People know about you only what they have seen since you came to town and
-what their own memory list says (someone from a loose end, like a creditor,
-remembers the past you share). The narrator is told this every turn, with how
-long you have been in town, and on your first day a spoken line that invents
-a past with you ("I've known a while", "he called me last night") is sent back
-to be rewritten.
+what their own memory list says. Someone from a loose end remembers the
+past you share from the first morning, in a short line of their own: a
+creditor "owes me more money than they can pay", the man you testified
+against "testified against me, and I did years for it". It is on their
+People card, and a game saved before 30 Oct 2026 gets the same line in
+place of its old "Loose end with ..." note when it loads. The narrator is
+told this every turn, with how long you have been in town, and on your
+first day a spoken line that invents a past with you ("I've known a while",
+"he called me last night") is sent back to be rewritten.
+
+What has happened in front of them is the scene you are in: the narrator
+gets every turn since you came to the place you are in (up to twelve turns,
+about 700 words), the three turns before when you have only just arrived,
+and the chronicle (STORY SO FAR) for the rest, so a long conversation does
+not lose its thread after the third exchange.
 
 The People tab lists who you have met, with how they feel about you, where
 you last saw them and what they remember, then the people you have only
@@ -441,7 +464,7 @@ without it reads as 1). The steps that bring a game up to date are listed in
 
 ## What a turn costs
 
-The defaults are set for the best play-through, not the cheapest: Opus 5.5 narrates, Sonnet 5.5 parses and bookkeeps, with medium effort where judgement matters. At those settings a turn is roughly 3 cents, so about $3 per 100 turns. The measured figures below were taken with the original cheap defaults (Sonnet 5.5 narrator, Haiku 5.5 parser, all effort low), which you can set in Settings if you want them back.
+The defaults are set for the best play-through, not the cheapest: Opus 5.5 narrates, Sonnet 5.5 parses and bookkeeps, with medium effort where judgement matters. At those settings a turn is roughly 3 to 4 cents, so about $3.20 to $3.80 per 100 turns (the playtest's estimate; see the last point below). The measured figures below were taken with the original cheap defaults (Sonnet 5.5 narrator, Haiku 5.5 parser, all effort low), which you can set in Settings if you want them back.
 
 Measured against the live API on 28 Oct 2026, in a 4-turn run (the arrival
 plus three turns) at the default models and effort `low` for every role. The
@@ -477,6 +500,19 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   the people not met yet, one short line each (about 1,100 and 700 tokens,
   not cached): roughly 0.4 cents a turn on Sonnet 5.5. Nobody is ever made
   in play, so there is no call for it.
+- Since 30 Oct 2026 the narrator's packet (not cached) also carries the
+  traits, goal and secret of everyone in the scene (about 90 tokens a
+  person, and one rule line of about 110), your goal, flaw and open threads
+  (about 190 tokens with three loose ends), and every turn of the scene you
+  are in instead of the last three (up to twelve turns and about 700
+  words, so up to about 1,000 tokens in a long scene). The cached blocks
+  are unchanged. The playtest's cost report, over the same 15 mixed inputs
+  in mock mode, measures the packet at 8,202 characters on average (11,455
+  at most), about 2,340 tokens, where it was 5,189 (7,559 at most), about
+  1,480. Priced at Opus 5.5 and Sonnet 5.5 that puts an ordinary turn at
+  $0.0319 to $0.0380 (it was $0.0284 to $0.0346) and 100 turns at about
+  $3.19 to $3.80 (was $2.84 to $3.46). Mock narrations are short; real ones
+  make a long scene cost a little more, up to the 700-word cap.
 - The chronicle (parser model, every 10 turns) was not part of the run; it
   is estimated at about 1,000 input and 110 output tokens. Higher effort or
   the Opus model costs more. The Debug tab shows the real token counts and
@@ -573,6 +609,17 @@ input has the Do / Say switch described above. Direction change 8 (a full
 cast): every person is written by hand and the game never creates one in
 play, so SPEC.md's NPC creation in "check and create" (and the bookkeeper's
 new people) is gone; loose ends tie to cast members instead of new NPCs.
+
+And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 10):
+SPEC.md section 10 says never to send hidden NPC secrets. The narrator
+packet sends the secret, goal and traits of each person in the scene, with
+one rule that a secret is never told or hinted at and only shapes what that
+person dodges, lies about or lets slip once the player has earned it,
+because without it the narrator cannot write an evasion, a lie or a slip.
+Nobody else's secret is ever sent, and the cached cast block carries none.
+The packet's LAST 3 TURNS (section 10's example) is THIS SCENE, every turn
+since the player came to the place they are in (capped), with BEFORE THIS
+SCENE on a fresh arrival.
 
 ## Verified against the live API on 28 Oct 2026
 

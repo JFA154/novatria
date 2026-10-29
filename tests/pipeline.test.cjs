@@ -63,12 +63,15 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   assert.match(r.roll, /^Wits 15/);
   const packet = await lastPacket(page);
   const lines = packet.split('\n').map(l => l.split(':')[0]);
-  for (const label of ['DAY 1, MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
+  for (const label of ['DAY 1, MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
+  assert.ok(lines.some(l => l.startsWith('THIS SCENE (since the player came to ')), 'packet line THIS SCENE');
+  assert.ok(!lines.includes('LAST 3 TURNS'), 'THIS SCENE took the place of LAST 3 TURNS');
   // The player's age beside the name: the background's default when the form left it alone.
   assert.equal(r.age, r.bgAge);
   assert.ok(packet.includes(`PLAYER: Tester (${r.age}, ${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
   assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.\nVARIETY: [^\n]+$/, 'MODE, then the LENGTH line last');
-  const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
+  // Seeds and the goals and secrets of anyone not in the scene stay hidden; the people here carry theirs in their own line (direction change 10).
+  const hidden = await page.evaluate(() => { const here = Game.Pipeline.lastTurn.ctx.presentIds; const bare = t => t.replace(/[.]+$/, ''); return [].concat(...Game.state.npcs.filter(n => !here.includes(n.id)).map(n => [n.secret, n.goal]), Game.state.seeds.map(sd => sd.effect)).filter(Boolean).map(bare); });
   for (const x of hidden) assert.ok(!packet.includes(x), 'hidden field in packet: ' + x.slice(0, 40));
   // The tag survives a rebuild of the feed (reload).
   await page.reload();
@@ -1255,7 +1258,7 @@ s.test('Say lines keep their mode and addressee through /undo, a save slot and t
   const chron = await page.evaluate(async () => ({ text: Game.Api.chronicleText(Game.state.log), mock: await Game.Api.chronicle(Game.state.log) }));
   assert.ok(chron.text.includes(`\nPLAYER SAID (to ${a.name}): "You still fix trucks?"\n`), chron.text);
   assert.ok(chron.mock.includes(`said "You still fix trucks?" to ${a.name}`), chron.mock);
-  // The narrator's LAST 3 TURNS marks it as speech too.
+  // The narrator's THIS SCENE marks it as speech too.
   assert.ok((await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).includes(`> (says to ${a.name}) "You still fix trucks?" `));
   // An old save: no mode fields anywhere in the log. It loads and the lines read as Do.
   const old = await page.evaluate(() => {
@@ -2034,7 +2037,7 @@ s.test('the narrator packet says what people can know about the player: came to 
     return out;
   });
   assert.equal(r.after, r.present + 1, 'right after PRESENT');
-  assert.ok(r.d1.startsWith(`WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Each person knows about ${r.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${r.name} never met them, heard of them, or got a call, news or a warning about them before they came.`), r.d1);
+  assert.ok(r.d1.startsWith(`WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Each person knows about ${r.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, THIS SCENE). Anyone with no memory of a past with ${r.name} never met them, heard of them, or got a call, news or a warning about them before they came.`), r.d1);
   assert.ok(r.d2.includes(' came to ' + r.town + ' yesterday (this is day 2) and'), r.d2);
   assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
 });
@@ -2197,6 +2200,281 @@ s.test('the player has only what they carry: "I stab X" with no knife tells the 
   assert.match(await lastPacket(page, 'parse'), /INVENTORY: .*item_kitchen_knife/);
   const names = await page.evaluate(() => ['Folding knife', 'Socket set', 'Car keys', 'Thumb drive', 'Hunting rifle'].map(n => ['knife', 'gun', 'car'].filter(k => Game.Pipeline.carriedAs(n, k))));
   assert.deepEqual(names, [['knife'], [], ['car'], [], ['gun']]);
+});
+
+
+/* The narrator knows what everyone wants (docs/BUILD_PLAN.md, direction change 10). */
+const bareText = t => String(t).replace(/[.]+$/, '');
+/* Each present person's own stretch of the PRESENT line, by where their name starts. */
+const ownLines = (present, people) => {
+  const starts = people.map(n => ({ n, i: present.indexOf(n.name + ' (') })).filter(x => x.i >= 0).sort((a, b) => a.i - b.i);
+  return starts.map(({ n, i }, k) => ({ n, line: present.slice(i, k + 1 < starts.length ? starts[k + 1].i : undefined) }));
+};
+
+s.test('the people here carry what they want, their traits and a guarded secret under one WANTS AND SECRETS rule right before PRESENT; nobody else\'s goal or secret reaches any packet (a destination, the cached blocks, the parser, the bookkeeper); nobody here, no rule', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const sc = await findScene(page, { min: 2 });
+  assert.ok(sc, 'a place with two people');
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => Game.Api.Mock.clear());
+  await sendText(page, `I ask ${sc.npcs[0].name} about the river`);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const text = m => G.Api.Mock.calls.filter(c => c.method === m).map(c => c.text).join('\n');
+    return {
+      here: G.Pipeline.lastTurn.ctx.presentIds,
+      people: G.state.npcs.map(n => ({ id: n.id, name: n.name, goal: n.goal, secret: n.secret, traits: n.personality || [] })),
+      narr: text('narrate'), parse: text('parse'), book: text('bookkeep'), cast: G.Pipeline.castBlock(), town: G.Pipeline.townBlock()
+    };
+  });
+  const lines = r.narr.split('\n');
+  const at = lines.findIndex(l => l.startsWith('PRESENT:'));
+  assert.equal(lines.filter(l => l.startsWith('WANTS AND SECRETS:')).length, 1, 'one rule for everyone');
+  const rule = lines[at - 1];
+  assert.ok(rule.startsWith('WANTS AND SECRETS: '), 'the rule sits right before PRESENT: ' + rule);
+  assert.match(rule, /Their secret is never told or hinted at in the narration/);
+  assert.match(rule, /it only decides what they avoid, lie about or bristle at/);
+  assert.match(rule, /only when the player has earned it, caught them out or found proof/);
+  assert.match(rule, /Nobody else present knows someone's secret unless their own line says so/);
+  const here = r.people.filter(n => r.here.includes(n.id));
+  assert.ok(here.length >= 2);
+  const own = ownLines(lines[at], here);
+  assert.equal(own.length, here.length, 'everyone here has a line');
+  for (const { n, line } of own) {
+    assert.ok(line.includes(`; traits: ${n.traits.join(', ')}; `), 'traits: ' + line);
+    assert.ok(line.includes(`; wants: ${bareText(n.goal)}; secret: ${bareText(n.secret)}`), 'wants, then the secret: ' + line);
+    assert.equal(r.narr.split(bareText(n.secret)).length - 1, 1, 'the secret once, in its own line: ' + n.id);
+    assert.equal(r.narr.split(bareText(n.goal)).length - 1, 1, 'the goal once, in its own line: ' + n.id);
+  }
+  // Nobody else's goal or secret anywhere; the parser, the bookkeeper and the cached blocks carry nobody's.
+  const where = [['narrator', r.narr], ['parser', r.parse], ['bookkeeper', r.book], ['cast block', r.cast], ['town block', r.town]];
+  for (const n of r.people) {
+    for (const t of [n.goal, n.secret].filter(Boolean)) {
+      for (const [w, text] of where) {
+        if (w === 'narrator' && r.here.includes(n.id)) continue;
+        assert.ok(!text.includes(bareText(t)), `${n.id}'s ${t === n.goal ? 'goal' : 'secret'} in the ${w} packet`);
+      }
+    }
+  }
+  // A walk: the people at the destination are a brief line, with no traits, wants or secret.
+  const go = await page.evaluate(() => {
+    const G = Game;
+    const open = l => l && !l.closed && l.away !== true && l.discovered !== false;
+    for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      for (const l of G.state.locations.filter(open)) {
+        const here = G.State.npcsAt(l.id, ph);
+        for (const d of l.exits.map(id => G.State.loc(id)).filter(open)) {
+          const there = G.State.npcsAt(d.id, ph);
+          if (here.length && there.length && !there.some(n => here.includes(n))) return { from: l.id, ph, name: d.name, people: there.map(n => ({ id: n.id, name: n.name, goal: n.goal, secret: n.secret })) };
+        }
+      }
+    }
+    return null;
+  });
+  assert.ok(go, 'a walk between two places with people in both');
+  await place(page, go.from, go.ph);
+  await page.evaluate(() => Game.Api.Mock.clear());
+  await sendText(page, `I walk to ${go.name}`);
+  const p = await lastPacket(page);
+  const dest = p.split('\n').find(l => l.startsWith('DESTINATION:')) || '';
+  assert.ok(go.people.every(n => dest.includes(n.name + ' (')), 'the people there are listed: ' + dest);
+  assert.doesNotMatch(dest, /; (traits|wants|secret): /, 'a brief line');
+  for (const n of go.people) for (const t of [n.goal, n.secret]) assert.ok(!p.includes(bareText(t)), 'nothing hidden about someone at the destination: ' + n.id);
+  // Nobody here: no rule, and PRESENT says nobody.
+  const empty = await page.evaluate(() => {
+    const G = Game;
+    for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      for (const l of G.state.locations) if (l.away !== true && l.discovered !== false && !G.State.npcsAt(l.id, ph).length) return { id: l.id, ph };
+    }
+    return null;
+  });
+  assert.ok(empty, 'somewhere with nobody');
+  await place(page, empty.id, empty.ph);
+  const lonely = (await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).split('\n');
+  assert.ok(lonely.includes('PRESENT: nobody.'));
+  assert.ok(!lonely.some(l => l.startsWith('WANTS AND SECRETS:')), 'no rule with nobody to apply it to');
+});
+
+s.test('the player\'s hooks follow CARRYING: WHY THEY CAME (the goal), FLAW (never acted on for them) and THREADS, the open threads the player knows (the loose ends name their person); a thread they do not know, or one that has closed, is left out; no goal or flaw, no line', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['debt', 'enemy', 'secret'] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const st = G.state;
+    const lines = () => G.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n');
+    const out = { goal: st.player.goal, flaw: st.player.flaw, name: st.player.name, ends: st.player.looseEnds.map(le => ({ title: G.State.thread(le.threadId).title, summary: G.State.thread(le.threadId).summary, npc: G.State.npc(le.npcId).name, threadId: le.threadId })) };
+    out.first = lines();
+    const town = st.threads.find(t => !t.knownToPlayer && t.status === 'open');
+    out.town = { id: town.id, title: town.title, summary: town.summary };
+    G.State.apply({ threadUpdates: [{ threadId: town.id, knownToPlayer: true }, { threadId: out.ends[0].threadId, status: 'resolved' }] });
+    out.second = lines();
+    st.player.goal = '';
+    st.player.flaw = '';
+    out.bare = lines();
+    return out;
+  });
+  const i = r.first.findIndex(l => l.startsWith('CARRYING:'));
+  assert.ok(r.first[i - 1].startsWith('PLAYER: '), 'CARRYING follows PLAYER');
+  assert.equal(r.first[i + 1], `WHY THEY CAME: ${bareText(r.goal)}.`);
+  assert.equal(r.first[i + 2], `FLAW: ${bareText(r.flaw)}. It colours what tempts or needles ${r.name}; the narration never acts, speaks or decides on it for them.`);
+  const threads = r.first[i + 3];
+  assert.ok(threads.startsWith('THREADS (what the player is caught up in): '), threads);
+  for (const e of r.ends) assert.ok(threads.includes(`${e.title}: ${e.summary}`) && threads.includes(e.npc), 'a loose end and its person: ' + e.title);
+  assert.equal(threads.split(' | ').length, r.ends.length, 'only the threads the player knows');
+  assert.ok(!threads.includes(r.town.summary.slice(0, 40)), 'a thread the player does not know is left out');
+  assert.ok(r.first[i + 4].startsWith('WANTS AND SECRETS:') || r.first[i + 4].startsWith('PRESENT:'), 'then the people here');
+  // Known now: it comes in. Resolved: the loose end goes.
+  const t2 = r.second.find(l => l.startsWith('THREADS'));
+  assert.ok(t2.includes(`${r.town.title}: ${r.town.summary.slice(0, 60)}`), t2);
+  assert.ok(!t2.includes(r.ends[0].summary), 'a closed thread is left out');
+  assert.ok(t2.includes(r.ends[1].summary));
+  // No goal and no flaw (a bare or older game): no lines for them.
+  assert.ok(!r.bare.some(l => /^(WHY THEY CAME|FLAW):/.test(l)));
+  assert.ok(r.bare.some(l => l.startsWith('THREADS')));
+});
+
+s.test('a loose end\'s person knows from day 1: the creditor remembers the debt in the bookkeeper\'s own form (weight 3; the line for the option kept, the kind\'s line for words the player wrote), it is in their line in PRESENT and on their People card, and the memory rewrite leaves it alone', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  const D = await page.evaluate(() => Game.data.LOOSE_ENDS);
+  // Every kind, every option: under twelve words, the option's own line, the kind's line for free words; all recognised as the loose end's.
+  const lines = await page.evaluate(() => {
+    const T = Game.Town;
+    return Object.keys(Game.data.LOOSE_ENDS).map(k => ({ k, opts: Game.data.LOOSE_ENDS[k].options.map(o => T.looseEndMemory(k, o, 'Tester')), free: T.looseEndMemory(k, 'Something I wrote myself.', 'Tester') }));
+  });
+  for (const x of lines) {
+    assert.deepEqual(x.opts, D[x.k].memory.options, x.k + ': one line per option');
+    assert.equal(x.free, D[x.k].memory.text, x.k + ': words the player wrote get the kind\'s line');
+    for (const t of x.opts.concat(x.free)) {
+      assert.ok(t.split(/\s+/).length < 12 && !/[.]$/.test(t) && !/Tester|Loose end/.test(t), 'the bookkeeper\'s form: ' + t);
+      assert.equal(await page.evaluate(t => Game.Town.isLooseEndMemory(t), t), true);
+    }
+  }
+  assert.equal(await page.evaluate(() => Game.Town.isLooseEndMemory('flirted with me')), false);
+  // A new game: the creditor holds it on day 1, weight 3, and no "Loose end with" line.
+  await quickStart(page, { kinds: ['debt', 'enemy'] });
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const c = await page.evaluate(() => {
+    const G = Game;
+    const le = G.state.player.looseEnds.find(x => x.kind === 'debt');
+    const n = G.State.npc(le.npcId);
+    let at = null;
+    for (const ph of ['morning', 'afternoon', 'evening', 'night']) { const l = G.state.locations.find(x => x.away !== true && !x.closed && G.State.npcsAt(x.id, ph).some(m => m.id === n.id)); if (l) { at = { id: l.id, ph }; break; } }
+    return { id: n.id, name: n.name, memories: n.memories, at, everyone: G.state.npcs.flatMap(x => x.memories.map(m => m.text)) };
+  });
+  assert.deepEqual(c.memories, [{ turn: 0, text: D.debt.memory.options[0], weight: 3 }]);
+  assert.ok(!c.everyone.some(t => /^Loose end with /.test(t)), 'the old form is gone');
+  await place(page, c.at.id, c.at.ph);
+  const present = (await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).split('\n').find(l => l.startsWith('PRESENT:'));
+  const own = ownLines(present, [{ name: c.name }])[0];
+  assert.ok(own && own.line.includes(`; remembers: ${D.debt.memory.options[0]})`), 'the creditor knows about the debt: ' + (own && own.line));
+  await page.evaluate(id => { Game.UI.openPanel('people'); Game.UI.togglePerson(id); }, c.id);
+  assert.ok((await page.textContent(`#panel-body [data-npc="${c.id}"]`)).includes(D.debt.memory.options[0]), 'and the People card shows it');
+  // A turn later it is still there, and the memory rewrite (Settings: re-read this game) does not touch it.
+  await sendText(page, 'I look around');
+  const r = await page.evaluate(async () => {
+    const ends = () => Game.state.player.looseEnds.map(le => JSON.stringify(Game.State.npc(le.npcId).memories));
+    const before = ends();
+    const res = await Game.App.updateGame();
+    return { before, after: ends(), ok: !!res };
+  });
+  assert.ok(r.ok);
+  assert.deepEqual(r.after, r.before, 'the re-read leaves the loose ends\' lines as they were');
+  assert.deepEqual(await page.evaluate(id => Game.State.npc(id).memories, c.id), [{ turn: 0, text: D.debt.memory.options[0], weight: 3 }]);
+});
+
+s.test('THIS SCENE holds every turn since the player came to this place, oldest first, and none from before; a fresh arrival also gets BEFORE THIS SCENE (the three turns before it); log entries carry where they were narrated and when the scene began', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const rt = await route(page);
+  const packet = () => page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n'));
+  const label = name => `THIS SCENE (since the player came to ${the(name)}): `;
+  // The arrival: the scene is empty and nothing came before.
+  let p = await packet();
+  assert.ok(p.some(l => l.startsWith(label(rt.here.name))), 'the label names the place');
+  for (const t of ['I hum verse one', 'I hum verse two', 'I hum verse three']) await sendText(page, t);
+  p = await packet();
+  let scene = p.find(l => l.startsWith('THIS SCENE'));
+  const opening = await page.evaluate(() => Game.state.log[0].narration.replace(/\s+/g, ' ').slice(0, 60));
+  assert.ok(scene.startsWith(label(rt.here.name)), scene);
+  const order = ['', '> I hum verse one ', '> I hum verse two ', '> I hum verse three '].map(x => (x ? scene.indexOf(x) : scene.indexOf(opening)));
+  assert.ok(order.every(i => i >= 0) && order.every((x, i) => !i || x > order[i - 1]), 'the arrival and three turns, oldest first: ' + scene);
+  assert.ok(!p.some(l => l.startsWith('BEFORE THIS SCENE:')), 'four turns here: nothing before');
+  assert.ok(!p.some(l => l.startsWith('LAST 3 TURNS')));
+  // Walk on: the walk is the first turn of the new scene, and the three before it come along.
+  await sendText(page, `I walk to ${rt.a.name}`);
+  p = await packet();
+  scene = p.find(l => l.startsWith('THIS SCENE'));
+  assert.ok(scene.startsWith(`${label(rt.a.name)}> I walk to ${rt.a.name} `), scene);
+  assert.ok(!scene.includes('I hum verse'), 'turns from before are not in this scene');
+  const before = p.find(l => l.startsWith('BEFORE THIS SCENE: '));
+  assert.ok(before, 'a fresh arrival keeps the turns before it');
+  assert.equal(before, `BEFORE THIS SCENE: ${['one', 'two', 'three'].map(w => before.slice(before.indexOf(`> I hum verse ${w} `)).split(' | ')[0]).join(' | ')}`, 'the three turns before, oldest first');
+  assert.ok(!before.includes(opening), 'only three');
+  assert.ok(p.indexOf(before) === p.findIndex(l => l.startsWith('STORY SO FAR:')) + 1 && p.indexOf(scene) === p.indexOf(before) + 1, 'STORY SO FAR, BEFORE THIS SCENE, THIS SCENE');
+  for (const t of ['I lean on the wall alpha', 'I lean on the wall beta']) await sendText(page, t);
+  p = await packet();
+  scene = p.find(l => l.startsWith('THIS SCENE'));
+  assert.equal(scene.split(' | ').length, 3);
+  assert.ok(scene.includes('> I lean on the wall alpha ') && scene.indexOf('beta') > scene.indexOf('alpha'));
+  assert.ok(!p.some(l => l.startsWith('BEFORE THIS SCENE:')), 'three turns here: nothing before');
+  // The log: each entry where it was narrated, and the turn its scene began.
+  const log = await page.evaluate(() => Game.state.log.map(e => [e.turn, e.locationId, e.sceneFrom]));
+  assert.deepEqual(log, [[0, rt.here.id, 0], [1, rt.here.id, 0], [2, rt.here.id, 0], [3, rt.here.id, 0], [4, rt.a.id, 4], [5, rt.a.id, 4], [6, rt.a.id, 4]]);
+});
+
+s.test('THIS SCENE is capped (12 turns, about 700 words, the oldest left out, and it says so); a scene that began before the chronicle says its start is in STORY SO FAR; an older save\'s log with no places counts as the turns before this scene, and plays on', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const scene = () => G.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').find(l => l.startsWith('THIS SCENE'));
+    const words = t => t.trim().split(/\s+/).length;
+    const add = (n, text) => { for (let i = 1; i <= n; i++) { S.apply({ beginTurn: true }); S.apply({ logEntry: { input: `step ${i}`, roll: null, narration: text(i) } }); } };
+    const out = {};
+    // Fourteen short turns: the twelve newest.
+    add(14, i => `Short narration number ${i} here.`);
+    let sc = scene();
+    out.short = { n: sc.split(' | ').length, note: sc.includes('(earlier turns of this scene are left out to keep this short) '), first: sc.includes('> step 1 ') || sc.includes('> step 2 '), last: sc.includes('> step 14 ') };
+    // Long turns: about 700 words at most, the newest kept.
+    add(9, i => `Long ${i} ` + Array(118).fill('word').join(' ') + '.');
+    sc = scene();
+    const body = sc.slice(sc.indexOf('): ') + 3);
+    out.long = { words: words(body), n: body.split(' | ').length, note: sc.includes('left out'), newest: body.includes('Long 9 ') };
+    // The chronicle takes the oldest of this scene's turns away: what is left says the start is in STORY SO FAR.
+    const log = G.state.log;
+    S.apply({ chronicleEntry: { fromTurn: log[0].turn, toTurn: log[log.length - 3].turn, summary: 'They waited a long time.' } });
+    sc = scene();
+    out.chron = { n: G.state.log.length, note: sc.includes(': (earlier turns of this scene are in STORY SO FAR) > step 8 '), sceneFrom: G.state.log.map(e => e.sceneFrom) };
+    // An older save: no places in the log. It loads; the last three entries come in as BEFORE THIS SCENE.
+    const env = G.Storage.envelope('old');
+    for (const e of env.state.log) { delete e.locationId; delete e.sceneFrom; }
+    env.state.log = env.state.log.concat([1, 2, 3].map(i => ({ turn: G.state.meta.turn, day: 1, phase: G.state.time.phase, input: `old ${i}`, roll: null, narration: `Old narration ${i}.` })));
+    out.entered = G.App.enter(G.Storage.parseEnvelope(JSON.stringify(env)));
+    const p = G.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n');
+    out.old = { scene: p.find(l => l.startsWith('THIS SCENE')), before: p.find(l => l.startsWith('BEFORE THIS SCENE')) };
+    return out;
+  });
+  assert.deepEqual(r.short, { n: 12, note: true, first: false, last: true });
+  assert.ok(r.long.words <= 700 && r.long.n >= 5 && r.long.note && r.long.newest, JSON.stringify(r.long));
+  assert.deepEqual(r.chron.n, 2);
+  assert.ok(r.chron.note, 'the scene began before the chronicle');
+  assert.ok(r.chron.sceneFrom.every(x => x === 0), 'the scene began at the arrival');
+  assert.ok(r.entered);
+  assert.equal(r.old.scene, `THIS SCENE (since the player came to ${the(await page.evaluate(() => Game.State.loc(Game.state.player.locationId).name))}): nothing yet; the player has just got here`);
+  assert.equal(r.old.before, 'BEFORE THIS SCENE: > old 1 Old narration 1. | > old 2 Old narration 2. | > old 3 Old narration 3.');
+  // It plays on: the new turn is this scene, the old ones still come in before it.
+  await sendText(page, 'I hum a tune');
+  const p = (await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).split('\n');
+  assert.ok(p.find(l => l.startsWith('THIS SCENE')).includes(': > I hum a tune '));
+  assert.equal(p.find(l => l.startsWith('BEFORE THIS SCENE')), 'BEFORE THIS SCENE: > old 1 Old narration 1. | > old 2 Old narration 2. | > old 3 Old narration 3.');
+  const e = await page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
+  assert.equal(e.locationId, await page.evaluate(() => Game.state.player.locationId));
+  assert.equal(e.sceneFrom, e.turn);
 });
 
 s.run();

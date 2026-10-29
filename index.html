@@ -4212,7 +4212,10 @@ const FLAWS = [
 // by the seeded dice), and optionTags, one per preset option, narrow it when
 // the player keeps that option's words (a note sold to someone here is the
 // repo man, a lost bet is the man who runs the card game). The game never
-// makes a person for a loose end.
+// makes a person for a loose end. memory is what that person remembers about
+// the player from day 1, in the bookkeeper's own form (under twelve words,
+// from their point of view, the player the unnamed subject): the line in
+// options for the preset option the player kept, else text.
 const LOOSE_ENDS = {
   debt: {
     label: "A debt",
@@ -4222,6 +4225,14 @@ const LOOSE_ENDS = {
       "I lost a bet I couldn't cover and swore I'd pay by the end of the month."
     ],
     link: { tag: "lender", optionTags: ["lender", "collector", "bookie"] },
+    memory: {
+      text: "owes me money and hasn't paid a dollar of it",
+      options: [
+        "owes me more money than they can pay",
+        "I hold the note on their unpaid loan",
+        "lost a bet to me, swore to pay by month's end"
+      ]
+    },
     seed: {
       dayOffset: [3, 5],
       effect: "{npc} slides into the booth across from {player} uninvited, sets down a folded printout with {player}'s name on it, and says the money is due in three days.",
@@ -4236,6 +4247,14 @@ const LOOSE_ENDS = {
       "I humiliated someone in public, and they swore I would pay for it."
     ],
     link: { tag: "enemy", optionTags: ["enemy", "parolee", "enemy"] },
+    memory: {
+      text: "wronged me once, and I haven't let it go",
+      options: [
+        "wronged me, and I followed them all the way here",
+        "testified against me, and I did years for it",
+        "humiliated me in public, and I swore they'd pay"
+      ]
+    },
     seed: {
       dayOffset: [4, 7],
       effect: "{npc} shows the night clerk at the Riverview Motor Court a photo of {player} and asks which room {player} has been sleeping in.",
@@ -4250,6 +4269,14 @@ const LOOSE_ENDS = {
       "I am carrying something stolen, and its owner wants it back."
     ],
     link: { tag: "informant" },
+    memory: {
+      text: "is hiding something, and I know what it is",
+      options: [
+        "I know what they did before they came here",
+        "goes by a false name; I know the real one",
+        "carrying something stolen; I know who wants it back"
+      ]
+    },
     seed: {
       dayOffset: [3, 6],
       effect: "{npc} catches {player} alone, repeats one true detail of {player}'s secret, and names a price in cash for keeping it quiet.",
@@ -4264,6 +4291,14 @@ const LOOSE_ENDS = {
       "My best friend took a job on a towboat out of this town and never came home."
     ],
     link: { tag: "records" },
+    memory: {
+      text: "wrote to me asking after someone who went missing",
+      options: [
+        "wrote to me asking after a brother who went quiet",
+        "wrote asking who left them at a church group home",
+        "wrote asking after a friend lost off a towboat"
+      ]
+    },
     seed: {
       dayOffset: [4, 8],
       effect: "{npc} leaves word at the Low Water that an old record in town holds a name {player} will want to see, and asks {player} to come by after Wednesday supper.",
@@ -4278,6 +4313,14 @@ const LOOSE_ENDS = {
       "I promised a woman I'd bring her daughter home from this town."
     ],
     link: { tag: "bartender" },
+    memory: {
+      text: "made a promise that someone here is owed",
+      options: [
+        "promised a dying man to bring his letter here",
+        "swore to pay back the family who took them in",
+        "promised to bring a woman's daughter home from here"
+      ]
+    },
     seed: {
       dayOffset: [2, 4],
       effect: "{npc} hands {player} an envelope a trucker left behind the bar, unsigned, that says only: you gave your word, and the time to keep it is now.",
@@ -4349,7 +4392,7 @@ LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first
 
 VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.
 
-DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. Do not reuse a phrase, opener or joke from LAST 3 TURNS. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. Do not reuse a phrase, opener or joke from THIS SCENE. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
 
 NEVER:
 - Act, speak, think or feel for the player character beyond what they typed.
@@ -5855,6 +5898,34 @@ const State = (() => {
     }
     return filled;
   }
+  /* A loose end's person in a game saved before 30 Oct 2026 holds
+     "Loose end with <player> (a debt): <the option's words>", which the
+     narrator never saw. State.load rewrites it once to the line a new game
+     writes (Town.looseEndMemory: "owes me more money than they can pay",
+     weight 3), keeping its turn; the label picks which of that person's
+     loose ends it is. Returns the ids rewritten. */
+  const OLD_LOOSE_END = /^Loose end with .*? \(([^)]*)\): /i;
+  function fillLooseEndMemories(s) {
+    const done = [];
+    const ends = isObj(s.player) && Array.isArray(s.player.looseEnds) ? s.player.looseEnds.filter(le => isObj(le) && LOOSE_ENDS[le.kind]) : [];
+    for (const n of Array.isArray(s.npcs) ? s.npcs : []) {
+      if (!isObj(n) || !Array.isArray(n.memories)) continue;
+      const mine = ends.filter(le => le.npcId === n.id);
+      if (!mine.length) continue;
+      for (const m of n.memories) {
+        const old = isObj(m) && typeof m.text === 'string' ? OLD_LOOSE_END.exec(m.text) : null;
+        if (!old) continue;
+        const label = old[1].trim().toLowerCase();
+        const le = mine.find(x => lowerFirst(LOOSE_ENDS[x.kind].label).toLowerCase() === label) || mine[0];
+        const text = Town.looseEndMemory(le.kind, le.text || m.text.slice(old[0].length), s.player.name);
+        if (!text) continue;
+        m.text = text;
+        m.weight = Town.LOOSE_END_MEMORY_WEIGHT;
+        if (!done.includes(n.id)) done.push(n.id);
+      }
+    }
+    return done;
+  }
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
     if (t.status === status) return `${t.id} already ${status}`;
@@ -6929,6 +7000,16 @@ const State = (() => {
         // What the player called them at the time ('the mechanic' before an introduction); display only.
         entry.toLabel = entry.to === 'everyone' ? null : (cleanText(e.toLabel, 80) || null);
       }
+      /* Where the narration left the player (a known place given, else
+         where they stand when the entry is written: a move's turn belongs to
+         the place it arrived at), and the turn the player came to that
+         place (sceneFrom: carried on from the entry before while they stay,
+         so it survives the chronicle dropping older entries). The narrator's
+         THIS SCENE is every entry since (Pipeline.sceneTurns). Entries
+         without them (older saves) belong to no scene. */
+      entry.locationId = typeof e.locationId === 'string' && s.locations.some(l => l.id === e.locationId) ? e.locationId : p.locationId;
+      const prev = s.log[s.log.length - 1];
+      entry.sceneFrom = prev && prev.locationId === entry.locationId && Number.isInteger(prev.sceneFrom) ? prev.sceneFrom : entry.turn;
       s.log.push(entry);
       if (s.log.length > LOG_MAX) s.log.splice(0, s.log.length - LOG_MAX);
       noteSeen(s, entry);
@@ -7197,6 +7278,8 @@ const State = (() => {
     if (!isObj(s.seen)) s.seen = {};
     // Pronouns, once, for people saved before records carried them.
     fillPronouns(s, townData || TOWN_DATA);
+    // A loose end's person remembers it in the short form the narrator reads (older saves held "Loose end with ...").
+    fillLooseEndMemories(s);
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
@@ -7678,6 +7761,34 @@ const Town = (() => {
     for (const p of PHASES) for (const l of s.locations) if (((l.npcIdsBySchedule || {})[p] || []).includes(npcId)) return l.id;
     return null;
   }
+  /* What the loose end's person remembers about the player from day 1, in
+     the bookkeeper's own form (Api.MEMORY_RULES: under twelve words, their
+     point of view, the player the unnamed subject), so the narrator's
+     person line has the creditor knowing about the debt before anything is
+     said: LOOSE_ENDS[kind].memory.options for the preset option the player
+     kept, else memory.text (a text the player wrote themselves). Weight 3,
+     so it outlasts the small things (State.apply's MEMORY_MAX, the
+     narrator's pickMemories). */
+  const LOOSE_END_MEMORY_WEIGHT = 3;
+  function looseEndMemory(kind, text, playerName) {
+    const def = LOOSE_ENDS[kind];
+    if (!def) return '';
+    const m = isObj(def.memory) ? def.memory : {};
+    const at = (def.options || []).findIndex(o => cleanText(o, 200) === cleanText(text, 200));
+    const tpl = (at >= 0 && Array.isArray(m.options) && m.options[at]) || m.text || `tied to me by ${lowerFirst(def.label)}`;
+    return cleanText(fillTemplate(tpl, { player: playerName || (State.current && State.current.player.name) || 'the newcomer' }), 120);
+  }
+  /* Every line looseEndMemory can write. Upgrade's memory rewrite leaves
+     these alone, as it does /fact lines: the loose end set them, not play. */
+  function isLooseEndMemory(text) {
+    const t = cleanText(text, 400);
+    if (!t) return false;
+    const name = State.current ? State.current.player.name : '';
+    return Object.keys(LOOSE_ENDS).some(k => {
+      const m = isObj(LOOSE_ENDS[k].memory) ? LOOSE_ENDS[k].memory : {};
+      return [m.text].concat(Array.isArray(m.options) ? m.options : []).some(x => typeof x === 'string' && cleanText(fillTemplate(x, { player: name }), 120) === t);
+    });
+  }
   function resolveLooseEnd(le) {
     const s = State.current;
     const def = le && LOOSE_ENDS[le.kind];
@@ -7716,7 +7827,7 @@ const Town = (() => {
         { op: 'plantSeed', seed: seedObj },
         { op: 'openThread', thread: { id: threadId, title: def.label, summary: `${text} (${target.name}, ${target.role})`, status: 'open', knownToPlayer: true, linkedIds: [target.id] } }
       ].filter(Boolean),
-      newMemories: [{ npcId: target.id, text: `Loose end with ${s.player.name} (${lowerFirst(def.label)}): ${text}`, weight: 2 }],
+      newMemories: [{ npcId: target.id, text: looseEndMemory(le.kind, text, s.player.name), weight: LOOSE_END_MEMORY_WEIGHT }],
       npcKnownToPlayer: [target.id],
       addLooseEnd: { kind: le.kind, label: def.label, text, npcId: target.id, seedId, threadId, created }
     });
@@ -7750,7 +7861,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, looseEndMemory, isLooseEndMemory, LOOSE_END_MEMORY_WEIGHT, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
 })();
 
 // ===== Module: World =====
@@ -8310,7 +8421,7 @@ const Style = (() => {
   /* The narrator packet's last line (Pipeline.narratorPacket) and the
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
-  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
+  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in THIS SCENE; a person's habit shows at most once in a scene, and they can answer plainly.`; }
   return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast };
 })();
 
@@ -9439,7 +9550,8 @@ const Upgrade = (() => {
     refused: 'The model declined to re-read this game, so nothing was changed. You can keep playing it as it is.',
     failed: 'Nothing was changed; the game is as it was.'
   };
-  function isProtected(m) { return !!m && PROTECTED.some(re => re.test(String(m.text || ''))); }
+  // The loose end's own line (Town.looseEndMemory) is protected like the older "Loose end with" form.
+  function isProtected(m) { return !!m && (PROTECTED.some(re => re.test(String(m.text || ''))) || Town.isLooseEndMemory(m.text)); }
   function behind(st) { return !!st && State.rulesVersion(st) < State.RULES_VERSION; }
   function pending(st) {
     const v = State.rulesVersion(st);
@@ -10579,9 +10691,11 @@ const Pipeline = (() => {
 
   /* The memories that matter: every serious one (newest w3), the newest notable
      ones (w2), and a small one only if recent; oldest first, capped. Shared by
-     the narrator packet and the People cards. */
+     the narrator packet and the People cards. A loose end's own line
+     (Town.looseEndMemory, weight 3) is one of them, so the creditor knows
+     about the debt from day 1. */
   function pickMemories(list, turn, o) {
-    const ms = (list || []).filter(m => !/^Loose end with /i.test(m.text));
+    const ms = Array.isArray(list) ? list : [];
     const keep = new Set([].concat(
       ms.filter(m => m.weight >= 3).slice(-o.w3),
       ms.filter(m => m.weight === 2).slice(-o.w2),
@@ -10626,7 +10740,13 @@ const Pipeline = (() => {
      turns (the newest three of those). brief (people at a destination, not
      yet in the scene) leaves memories out altogether. */
   /* Pronouns come right after the name ("Mavis Toler (she/her; ...)"), so
-     the narration and the People card always agree. */
+     the narration and the People card always agree. Someone in the scene
+     also carries their traits, what they want and their secret (direction
+     change 10: the narrator cannot write an evasion, a lie or a slip for a
+     secret it does not know), under the packet's one WANTS AND SECRETS rule;
+     a brief line (someone at a destination, not in the scene yet) never
+     does, and nor does the cached cast block, so nobody's secret reaches the
+     narrator unless they are standing in front of the player. */
   function npcLine(n, turn, brief) {
     const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
     const age = ageText(n.age);
@@ -10639,11 +10759,24 @@ const Pipeline = (() => {
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
     else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
+    const traits = brief ? [] : strArr(n.personality, 30);
+    if (traits.length) parts.push('traits: ' + traits.join(', '));
     if (n.voice) parts.push('voice (a habit, not every line): ' + lowerFirst(n.voice).replace(/\.$/, ''));
     parts.push('attitude ' + n.attitude);
+    if (!brief && n.goal) parts.push('wants: ' + noStop(n.goal));
+    if (!brief && n.secret) parts.push('secret: ' + noStop(n.secret));
     if (mems.length) parts.push('remembers: ' + mems.join(' / '));
     return `${n.name} (${parts.join('; ')})`;
   }
+  function noStop(t) { return cleanText(t, 400).replace(/[.]+$/, ''); }
+  /* The player's own words as one sentence: a full stop unless they end in ? or !. */
+  function asSentence(t) { const b = noStop(t); return /[!?]$/.test(b) ? b : `${b}.`; }
+  /* The packet's one rule for the wants and secrets in PRESENT (just before
+     it): a secret shapes what its keeper dodges and lies about and is never
+     told or hinted at in narration, and nobody else knows it. STYLE_GUIDE's
+     "mention anything not in the packet" is about what exists, so the rule
+     is spelled out here rather than in the fixed style guide. */
+  const WANTS_RULE = 'WANTS AND SECRETS: what someone in PRESENT wants and their traits drive what they say and do. Their secret is never told or hinted at in the narration; it only decides what they avoid, lie about or bristle at, and they let part of it slip only when the player has earned it, caught them out or found proof. Nobody else present knows someone\'s secret unless their own line says so.';
   /* One fresh rumour a present NPC might share when the player talks to them
      (SPEC section 8, news spreads). How well an NPC would know a rumour:
        5  news (a rumour the world added during play, such as a clock that
@@ -10701,18 +10834,80 @@ const Pipeline = (() => {
     ctx.turn = s.meta.turn;
     return ctx;
   }
-  /* Labelled plain text per SPEC.md section 10. Hidden secrets, goals,
-     seeds and rumour truth are never included. */
+  /* Labelled plain text per SPEC.md section 10. Seeds, rumour truth and the
+     secrets and goals of anyone not in the scene are never included; the
+     people in PRESENT carry theirs under WANTS_RULE (direction change 10,
+     a deliberate deviation from section 10). */
   /* What people can know about the player: they came to town on day 1 and
      were a stranger before; each person knows only their own memories (a
-     loose end's creditor or enemy remembers the past they share) and what
-     has happened in front of them. The narrator invents the rest otherwise
-     ("I've known a while", "he called me last night" on day 1). */
+     loose end's creditor or enemy remembers the past they share, from day
+     1: Town.looseEndMemory) and what has happened in front of them. The
+     narrator invents the rest otherwise ("I've known a while", "he called
+     me last night" on day 1). */
   function knowledgeLine(s) {
     const p = s.player;
     const days = s.time.day - 1;
     const since = days === 0 ? 'today (day 1)' : days === 1 ? 'yesterday (this is day 2)' : `${days} days ago (this is day ${s.time.day})`;
-    return `WHAT PEOPLE KNOW: ${p.name} came to ${s.meta.townName || 'town'} ${since} and was a stranger here before that. Each person knows about ${p.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${p.name} never met them, heard of them, or got a call, news or a warning about them before they came. Nothing about ${p.name} happened "last night" or "a while ago" that the story does not show.`;
+    return `WHAT PEOPLE KNOW: ${p.name} came to ${s.meta.townName || 'town'} ${since} and was a stranger here before that. Each person knows about ${p.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, THIS SCENE). Anyone with no memory of a past with ${p.name} never met them, heard of them, or got a call, news or a warning about them before they came. Nothing about ${p.name} happened "last night" or "a while ago" that the story does not show.`;
+  }
+  /* The player's hooks, after PLAYER and CARRYING: why they came (the goal
+     from creation), their flaw (what tempts or needles them, never acted on
+     for them: the style guide's NEVER rule stands) and the threads they
+     know are open, loose ends included (each names its person). Closed
+     threads are left out: a thread keeps no turn for when it closed, and
+     the chronicle and people's memories carry how it ended. */
+  const THREADS_MAX = 8;
+  function playerHooks(s) {
+    const p = s.player;
+    const out = [];
+    if (cleanText(p.goal, 200)) out.push(`WHY THEY CAME: ${asSentence(p.goal)}`);
+    if (cleanText(p.flaw, 200)) out.push(`FLAW: ${asSentence(p.flaw)} It colours what tempts or needles ${p.name}; the narration never acts, speaks or decides on it for them.`);
+    const open = (s.threads || []).filter(t => isObj(t) && t.knownToPlayer && t.status === 'open').slice(0, THREADS_MAX);
+    if (open.length) out.push(`THREADS (what the player is caught up in): ${open.map(t => `${cleanText(t.title, 80)}: ${shortText(t.summary, 240)}`).join(' | ')}`);
+    return out;
+  }
+  function shortText(t, max) {
+    const c = cleanText(t, 2000);
+    if (c.length <= max) return c;
+    const cut = c.slice(0, max);
+    return cut.slice(0, cut.lastIndexOf(' ') > max / 2 ? cut.lastIndexOf(' ') : max).replace(/[,;:]$/, '') + '...';
+  }
+  /* One log entry as the narrator reads it: "> input narration", a Say line
+     marked as speech, on one line (a narration's paragraph breaks become
+     spaces, so every label in the packet stays one line). */
+  function turnText(e) { return `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${e.input}"` : e.input) + ' ' : ''}${e.narration}`.replace(/\s+/g, ' ').trim(); }
+  /* THIS SCENE: every log entry since the player last came to the place
+     they are in (the newest run of entries whose locationId is here), oldest
+     first, at most SCENE_MAX.entries entries and about SCENE_MAX.words words (the
+     oldest go first, and the line says so). The chronicle drops summarised
+     entries from the log, so a scene that began before them (the newest
+     entry's sceneFrom is older than the first one kept) says its earlier
+     turns are in STORY SO FAR. With fewer than three entries, BEFORE THIS
+     SCENE carries the three turns before it, so a fresh arrival keeps the
+     thread; entries with no locationId (older saves) are never part of a
+     scene and come in that way, as the last three turns did. */
+  const SCENE_MAX = { entries: 12, words: 700 };
+  function sceneTurns(s, locId) {
+    const log = s.log || [];
+    let i = log.length;
+    while (i > 0 && log[i - 1].locationId === locId) i--;
+    const all = log.slice(i);
+    const turns = [];
+    let words = 0;
+    for (let k = all.length - 1; k >= 0 && turns.length < SCENE_MAX.entries; k--) {
+      const t = turnText(all[k]);
+      const w = wordCount(t);
+      if (turns.length && words + w > SCENE_MAX.words) break;
+      turns.unshift(t);
+      words += w;
+    }
+    const newest = all[all.length - 1];
+    const chronicled = !!newest && Number.isInteger(newest.sceneFrom) && newest.sceneFrom < all[0].turn;
+    return {
+      turns,
+      note: turns.length < all.length ? '(earlier turns of this scene are left out to keep this short) ' : chronicled ? '(earlier turns of this scene are in STORY SO FAR) ' : '',
+      before: all.length < 3 ? log.slice(Math.max(0, i - 3), i).map(turnText) : []
+    };
   }
   function narratorPacket(ctx) {
     const s = State.current;
@@ -10722,7 +10917,7 @@ const Pipeline = (() => {
     const conds = p.conditions.map(c => c.name.toLowerCase()).join(', ') || 'none';
     const present = State.npcsAt(l.id).map(n => npcLine(n, turn));
     const story = s.chronicle.map(c => c.summary).join(' ').split(/\s+/).filter(Boolean).slice(-150).join(' ');
-    const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${e.input}"` : e.input) + ' ' : ''}${e.narration}`).join(' | ');
+    const sc = sceneTurns(s, l.id);
     const a = ctx.action || {};
     const roll = ctx.roll;
     const lines = [
@@ -10733,6 +10928,11 @@ const Pipeline = (() => {
     lines.push(
       `PLAYER: ${p.name} (${ageText(p.age) ? `${p.age}, ` : ''}${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.${p.hp < p.maxHp ? ` HP ${p.hp}/${p.maxHp}.` : ''}`,
       carryingLine(p),
+      ...playerHooks(s)
+    );
+    // One rule for everyone's wants and secrets, right before the people it is about (none when nobody is here).
+    if (present.length) lines.push(WANTS_RULE);
+    lines.push(
       `PRESENT: ${present.join('; ') || 'nobody'}.`,
       knowledgeLine(s)
     );
@@ -10791,7 +10991,8 @@ const Pipeline = (() => {
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}`);
     lines.push(`STORY SO FAR: ${story || 'nothing yet'}`);
-    lines.push(`LAST 3 TURNS: ${last3 || 'none'}`);
+    if (sc.before.length) lines.push(`BEFORE THIS SCENE: ${sc.before.join(' | ')}`);
+    lines.push(`THIS SCENE (since the player came to ${String(l.name).replace(/^The /, 'the ')}): ${sc.note}${sc.turns.join(' | ') || 'nothing yet; the player has just got here'}`);
     lines.push(`MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
     // Last, so it is the freshest instruction: the length the style check enforces.
     lines.push(Style.lengthLine(ctx.mode === 'zoom' || ctx.mode === 'arrival'));
@@ -11381,6 +11582,9 @@ const Pipeline = (() => {
         const bg = BACKGROUNDS.find(b => b.id === s.player.backgroundId);
         const ctx = { input: '', mode: 'arrival', roll: null, created: [], notPresent: [], links: [], due: [] };
         ctx.action = normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${bg && bg.arrival === 'docks' ? 'arriving by the river' : 'arriving by the road'}, at ${here().name}`, targets: [], timeCost: 'instant' });
+        // Why they came, so the opening can hint at it (set after normaliseParse, whose 200-character cap would cut it).
+        const goal = cleanText(s.player.goal, 200);
+        if (goal) ctx.action.summary += `. Why they came (the opening may hint at it; nobody here knows it): ${asSentence(goal)}`;
         scene(ctx);
         ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
         if (ctx.due.length) scene(ctx);

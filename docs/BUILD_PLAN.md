@@ -665,7 +665,119 @@ that implements it, in the style of the entries above.
 
 ### 10. The narrator knows what everyone wants
 
-(written by the package that implements it)
+The review the owner agreed with (findings 1 and 4): the narrator writes
+Royce Pittman without knowing who holds his note and writes dialogue for
+people whose wants it does not know; the player's goal, flaw, loose ends
+and threads reach no prompt; on day 1 the creditor has never heard of the
+player; and a conversation drifts after its third exchange. Root causes:
+`Pipeline.npcLine` sent role, ties, look, voice, attitude and memories but
+never `goal`, `secret` or `personality` (SPEC.md section 10 said never to
+send secrets); the narrator packet carried nothing about the player beyond
+PLAYER and CARRYING; `Pipeline.pickMemories` dropped every memory starting
+"Loose end with ", which was the one memory `Town.resolveLooseEnd` wrote on
+the loose end's person; and the packet's memory of the scene was
+`LAST 3 TURNS`.
+
+- **The people here carry their wants and a guarded secret.**
+  `Pipeline.npcLine` adds `traits: <personality>`, `wants: <goal>` and
+  `secret: <secret>` (final full stop dropped) to the line of everyone in
+  PRESENT. `narratorPacket` puts one rule line right before PRESENT, and
+  only when someone is there (`WANTS_RULE`, `WANTS AND SECRETS:`): wants and
+  traits drive what people say and do; a secret is never told or hinted at
+  in the narration, it decides what they avoid, lie about or bristle at, and
+  they let part of it slip only when the player has earned it, caught them
+  out or found proof; nobody else present knows it unless their own line
+  says so. The rule is packet text, not style-guide text, so the fixed
+  guides stay as they are. A `brief` line (people at a DESTINATION) and
+  `castBlock` (cached; `tests/api.test.cjs` limits its size) carry no
+  traits, goal or secret, so a secret reaches the narrator only while its
+  keeper is in the scene. This is a deliberate deviation from SPEC.md
+  section 10: without the secret the narrator cannot write the evasion, the
+  lie or the slip.
+- **The player's hooks.** `Pipeline.playerHooks`, after PLAYER and
+  CARRYING: `WHY THEY CAME: <goal>`, `FLAW: <flaw> It colours what tempts
+  or needles <name>; the narration never acts, speaks or decides on it for
+  them.` (the NEVER rule stands) and `THREADS (what the player is caught up
+  in): <title>: <summary> | ...` for the open threads the player knows, at
+  most eight, each summary cut at 240 characters (loose ends are known
+  threads that name their person, so they come along). A line is left out
+  when its field is empty. Closed threads are left out: a thread keeps no
+  turn for when it closed, so "recently resolved" cannot be told apart from
+  long ago, and the chronicle and people's memories carry how it ended.
+  `Pipeline.arrival` adds why they came to the arrival's ACTION ("Why they
+  came (the opening may hint at it; nobody here knows it): ...", set after
+  `normaliseParse`, whose 200-character cap would cut it).
+- **The loose end's person knows.** `LOOSE_ENDS[kind].memory` is `{ text,
+  options }`: one line per preset option and one for the kind, in the
+  bookkeeper's own form (`Api.MEMORY_RULES`: under twelve words, that
+  person's point of view, the player the unnamed subject; "owes me more
+  money than they can pay", "testified against me, and I did years for it",
+  "wrote to me asking after a brother who went quiet"). `Town.looseEndMemory
+  (kind, text)` picks the option's line when the player kept a preset's
+  words, else the kind's (`{player}` is filled if a line uses it), and
+  `Town.resolveLooseEnd` writes it at weight 3 (`LOOSE_END_MEMORY_WEIGHT`)
+  instead of "Loose end with ...". `pickMemories` no longer filters
+  anything, so the line is in the person's PRESENT line and on their People
+  card from day 1. `knowledgeLine` stays true (people know their remembers
+  list and what happened in front of them: STORY SO FAR, THIS SCENE).
+  `Upgrade.isProtected` also protects these lines (`Town.isLooseEndMemory`,
+  every line the templates can make), so the memory rewrite leaves them as
+  it left the old form. `tests/validate-town.cjs` requires `memory` on each
+  loose end: `text`, and `options` one per preset when given, each under
+  twelve words, no full stop, no `{npc}`.
+- **This scene, not the last three turns.** Log entries gain `locationId`
+  and `sceneFrom` (the `logEntry` normaliser in `State.apply`): the place
+  given if it is known, else where the player stands when the entry is
+  written (so a move's turn belongs to the place it arrived at, as
+  `noteSeen` already assumed), and the turn the player came to that place,
+  carried on from the entry before while the place is the same. `runTurn`,
+  `arrival`, `/fact` and the opening all get it from the normaliser.
+  `Pipeline.sceneTurns` takes the newest run of entries at the current
+  place, oldest first, at most 12 entries and about 700 words (the oldest
+  go first); `narratorPacket` sends `THIS SCENE (since the player came to
+  <place>): ...` in place of `LAST 3 TURNS`, with "(earlier turns of this
+  scene are left out to keep this short)" when capped, or "(earlier turns of
+  this scene are in STORY SO FAR)" when the chronicle has already taken the
+  scene's first turns out of the log (the newest entry's `sceneFrom` is
+  older than the oldest kept). When the scene has fewer than three entries,
+  `BEFORE THIS SCENE: ...` carries the three entries before it, so a fresh
+  arrival keeps the thread. Each entry reads as before (`> input
+  narration`, Say marked as speech), on one line. STORY SO FAR stays. The
+  VARIETY line (`Style.lengthLine`) and the casual guide's DIALOGUE line
+  name THIS SCENE instead of LAST 3 TURNS (only that label changed);
+  `Style.check`'s repeated-phrase check still reads the last three
+  narrations. The chronicle still drops summarised entries every ten turns
+  (acceptance check 6), so a scene older than the last compression is
+  partly in STORY SO FAR.
+- **Older saves.** No rules version. `State.load` runs
+  `fillLooseEndMemories` (the `fillPronouns` pattern): a "Loose end with
+  <player> (<label>): <text>" memory on a loose end's person becomes that
+  loose end's line at weight 3, its turn kept (the label picks which of
+  that person's loose ends it is; the same line on anyone else is left
+  alone). Log entries without `locationId` load as they are and belong to
+  no scene: the next narration sends them as BEFORE THIS SCENE, the last
+  three, as LAST 3 TURNS did.
+- **Cost.** The narrator packet grows by the goal, traits and secret of
+  each person here (about 90 tokens each, and one rule line of about 110), the player's hooks and the
+  scene; see "What a turn costs" in README.md for the measured numbers. The
+  cached blocks do not change.
+- **Tests.** pipeline: wants, traits and secret on each present person's
+  line under one rule right before PRESENT, nobody else's goal or secret in
+  the narrator, parser or bookkeeper packets, a DESTINATION or the cached
+  blocks, no rule with nobody here; WHY THEY CAME, FLAW and THREADS (a
+  thread the player does not know or that closed is left out, no line for
+  an empty goal or flaw); every loose-end line under twelve words, the
+  option's or the kind's, the creditor's day-1 memory in PRESENT and on the
+  card, untouched by the re-read; THIS SCENE holds every turn at the place
+  and none from before, BEFORE THIS SCENE on a fresh arrival, the 12-entry
+  and 700-word caps, the chronicle note, and an older save's log with no
+  places. state: `locationId` and `sceneFrom` on log entries; the load-time
+  rewrite of the old loose-end line. Changed on purpose: the full-turn
+  packet test (THIS SCENE for LAST 3 TURNS; only absent people's goals and
+  secrets are hidden), the knowledge line's wording, the api arrival's
+  ACTION (it now says why they came), and the playtest's and world suite's
+  clean-packet checks (a present person's secret and goal once, in their
+  own line; nobody else's; THIS SCENE at most 12 turns).
 
 ### 11. The first impression
 

@@ -617,7 +617,7 @@ s.test('town data passes validation and every content constant has the contract 
       bg: D.BACKGROUNDS.map(b => ({ k: keys(b), total: Object.values(b.stats).reduce((a, x) => a + x, 0), range: Object.values(b.stats).every(v => v >= -1 && v <= 3), items: b.items.length, arrival: b.arrival })),
       flaws: D.FLAWS.every(f => typeof f === 'string' && f.length > 0),
       loose: keys(D.LOOSE_ENDS),
-      looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length) })),
+      looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length), memory: keys(le.memory).filter(k => k !== 'options').join() === 'text' && (!le.memory.options || le.memory.options.length === le.options.length) })),
       templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => keys(t).join() === 'dayOffset,effect' && t.effect.includes('{npc}'))
     };
   });
@@ -653,9 +653,10 @@ s.test('town data passes validation and every content constant has the contract 
   assert.ok(r.flaws);
   assert.deepEqual(r.loose, ['debt', 'enemy', 'lost', 'promise', 'secret']);
   for (const le of r.looseShape) {
-    assert.deepEqual(le.k, ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
+    assert.deepEqual(le.k, ['label', 'link', 'memory', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast, and that person remembers it (direction change 10)');
     assert.deepEqual(le.seed, ['dayOffset', 'effect', 'trigger']);
     assert.ok(le.link);
+    assert.ok(le.memory, 'memory: text, and one line per option when options is given');
   }
   assert.ok(r.templates.every(Boolean));
 });
@@ -677,7 +678,7 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
         const at = def.options.indexOf(le.text);
         return {
           kind: le.kind, created: le.created, inTown: townNpcIds.includes(npc.id), tag: (def.link.optionTags && at >= 0 ? def.link.optionTags[at] : null) || def.link.tag, tags: npc.tags,
-          known: npc.knownToPlayer, memory: npc.memories.some(m => m.weight === 2 && m.text.includes(le.text)),
+          known: npc.knownToPlayer, memory: npc.memories.some(m => m.weight === 3 && m.text === (at >= 0 && def.memory.options ? def.memory.options[at] : def.memory.text)),
           seed, offset: def.seed.dayOffset, trigger: def.seed.trigger,
           thread: thread && thread.knownToPlayer && thread.linkedIds.includes(npc.id),
           made: !!npc.created, scheduled: ['morning', 'afternoon', 'evening', 'night'].every(p => st.locations.some(l => (l.npcIdsBySchedule[p] || []).includes(npc.id)))
@@ -2052,6 +2053,74 @@ s.test('a save from before ages loads and plays as it is; State.load drops an ag
   assert.equal(r.turn.ok, true, 'and it plays');
   assert.equal(r.undef, false, 'nothing undefined in the packets');
   assert.equal(r.behind, false, 'a current rules version is not behind');
+});
+
+
+/* The narrator knows what everyone wants (docs/BUILD_PLAN.md, direction change 10). */
+s.test('log entries carry where they were narrated (a known place given, else where the player stands) and the turn their scene began (carried while the place stays; new at another place or after an entry with no place)', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const S = Game.State;
+    const st = Game.state;
+    const here = st.player.locationId;
+    const other = S.loc(here).exits.find(id => S.loc(id).away !== true);
+    const log = (e) => { S.apply({ beginTurn: true }); S.apply({ logEntry: Object.assign({ input: 'x', roll: null, narration: 'y' }, e) }); const x = st.log[st.log.length - 1]; return [x.turn, x.locationId, x.sceneFrom]; };
+    const out = { here, other, opening: [st.log[0].turn, st.log[0].locationId, st.log[0].sceneFrom] };
+    out.same = log({});
+    out.given = log({ locationId: other });
+    out.unknown = log({ locationId: 'loc_nowhere' });
+    S.apply({ playerLocationId: other });
+    out.moved = log({});
+    out.stays = log({});
+    delete st.log[st.log.length - 1].locationId;
+    out.afterOld = log({});
+    return out;
+  });
+  assert.deepEqual(r.opening, [0, r.here, 0], 'the opening is the first scene');
+  assert.deepEqual(r.same, [1, r.here, 0], 'same place: the scene goes on');
+  assert.deepEqual(r.given, [2, r.other, 2], 'a known place given: a new scene there');
+  assert.deepEqual(r.unknown, [3, r.here, 3], 'an unknown place: where the player stands');
+  assert.deepEqual(r.moved, [4, r.other, 4]);
+  assert.deepEqual(r.stays, [5, r.other, 4]);
+  assert.deepEqual(r.afterOld, [6, r.other, 6], 'after an entry with no place (an older save), a new scene');
+});
+
+s.test('State.load rewrites an older save\'s "Loose end with" line on a loose end\'s person to the line a new game writes (weight 3, its turn kept; the label picks which loose end, a written one gets the kind\'s line); the same line on anyone else stays; a current save loads as it is', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt', 'enemy', 'secret'] });
+  const r = await page.evaluate(() => {
+    const S = Game.State;
+    const D = Game.data.LOOSE_ENDS;
+    const env = Game.Storage.envelope('x');
+    const st = env.state;
+    const same = JSON.stringify(st);
+    S.load(JSON.parse(same), env.town);
+    const out = { same: JSON.stringify(Game.state) === same };
+    // The old form, as games saved before 30 Oct 2026 hold it.
+    const ends = st.player.looseEnds;
+    const npc = id => st.npcs.find(n => n.id === id);
+    const old = le => ({ turn: 0, weight: 2, text: `Loose end with Tester (${D[le.kind].label.toLowerCase()}): ${le.text}` });
+    for (const le of ends) npc(le.npcId).memories = [old(le), { turn: 3, weight: 2, text: 'flirted with me' }];
+    // Someone holding two loose ends: the label picks which.
+    const two = npc(ends[0].npcId);
+    two.memories.push({ turn: 0, weight: 2, text: 'Loose end with Tester (an enemy): A cousin wants me dead.' });
+    ends.push({ kind: 'enemy', label: 'An enemy', text: 'A cousin wants me dead.', npcId: two.id, seedId: null, threadId: null, created: false });
+    // The same old line on someone with no loose end stays as it is.
+    const stranger = st.npcs.find(n => !ends.some(le => le.npcId === n.id) && n.alive !== false);
+    stranger.memories = [{ turn: 1, weight: 2, text: 'Loose end with Tester (a debt): something' }];
+    S.load(st, env.town);
+    out.ends = ends.map(le => ({ kind: le.kind, text: le.text, memories: S.npc(le.npcId).memories }));
+    out.stranger = S.npc(stranger.id).memories;
+    out.want = { debt: D.debt.memory.options[0], enemy: D.enemy.memory.options[0], secret: D.secret.memory.options[0], written: D.enemy.memory.text };
+    return out;
+  });
+  assert.ok(r.same, 'a current save loads byte for byte');
+  const [debt, enemy, secret] = r.ends;
+  assert.deepEqual(debt.memories, [{ turn: 0, weight: 3, text: r.want.debt }, { turn: 3, weight: 2, text: 'flirted with me' }, { turn: 0, weight: 3, text: r.want.written }], 'the debt by its label; the second loose end by its own');
+  assert.deepEqual(enemy.memories, [{ turn: 0, weight: 3, text: r.want.enemy }, { turn: 3, weight: 2, text: 'flirted with me' }]);
+  assert.deepEqual(secret.memories, [{ turn: 0, weight: 3, text: r.want.secret }, { turn: 3, weight: 2, text: 'flirted with me' }]);
+  assert.deepEqual(r.stranger, [{ turn: 1, weight: 2, text: 'Loose end with Tester (a debt): something' }], 'nobody else is touched');
 });
 
 s.run();

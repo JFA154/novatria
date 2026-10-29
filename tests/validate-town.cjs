@@ -1190,7 +1190,7 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
   for (const key of LOOSE_END_KEYS) {
     const le = LOOSE_ENDS[key];
     const where = 'LOOSE_ENDS.' + key;
-    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where)) continue;
+    if (!checkKeys(le, ['label', 'options', 'link', 'memory', 'seed'], where)) continue;
     checkStr(le.label, where + '.label', { noPlaceholders: true });
     checkStrList(le.options, where + '.options', 3, { noPlaceholders: true, maxSentences: 1 });
     (Array.isArray(le.options) ? le.options : []).forEach((o, oi) => {
@@ -1206,6 +1206,25 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
       if (le.link.optionTags !== undefined) {
         if (!Array.isArray(le.link.optionTags) || le.link.optionTags.length !== (le.options || []).length) err(where + '.link.optionTags', 'one tag per option');
         else le.link.optionTags.forEach((t, ti) => { if (!carriers(t)) err(where + '.link.optionTags[' + ti + ']', 'no NPC carries the tag "' + t + '"'); });
+      }
+    }
+    // What the loose end's person remembers about the player from day 1
+    // (Town.looseEndMemory), in the bookkeeper's own form: one short line,
+    // under twelve words, no full stop, from their point of view (so no
+    // {npc}); one line per preset option when options is given.
+    const memoryLine = (v, w) => {
+      if (!checkStr(v, w)) return;
+      const n = v.trim().split(/\s+/).length;
+      if (n >= 12) err(w, 'a memory is under twelve words, found ' + n);
+      if (/[.!?]$/.test(v)) err(w, 'a memory is a short line with no full stop');
+      if (/\{npc\}/.test(v)) err(w, 'a memory is from that person\'s point of view: no {npc}');
+      checkPlaceholders(v, w, []);
+    };
+    if (checkKeys(le.memory, ['text'], where + '.memory', ['options'])) {
+      memoryLine(le.memory.text, where + '.memory.text');
+      if (le.memory.options !== undefined) {
+        if (!Array.isArray(le.memory.options) || le.memory.options.length !== (le.options || []).length) err(where + '.memory.options', 'one memory per option');
+        else le.memory.options.forEach((m, mi) => memoryLine(m, where + '.memory.options[' + mi + ']'));
       }
     }
     if (checkKeys(le.seed, ['dayOffset', 'effect', 'trigger'], where + '.seed')) {

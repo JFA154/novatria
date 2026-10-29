@@ -348,7 +348,10 @@ s.test('with a key and mock mode off, Begin narrates the arrival through the nar
   assert.deepEqual(reqs.map(r => r.role), ['narrator']);
   const user = reqs[0].body.messages[0].content;
   assert.match(user, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
-  assert.ok(user.includes(`\nACTION: Tester arrives in ${fx.town} for the first time, arriving by the river, at ${fx.startName}\n`), user);
+  // Why they came rides on the arrival's ACTION, so the opening can hint at it (direction change 10).
+  assert.ok(user.includes(`\nACTION: Tester arrives in ${fx.town} for the first time, arriving by the river, at ${fx.startName}. Why they came (the opening may hint at it; nobody here knows it): Find out who sent the letter.\n`), user);
+  assert.ok(user.includes('\nWHY THEY CAME: Find out who sent the letter.\n'), 'and the player\'s hooks follow CARRYING');
+  assert.ok(user.includes('\nTHIS SCENE (since the player came to ') && !user.includes('\nBEFORE THIS SCENE:'), 'the first scene starts empty, with nothing before it');
   const st = await page.evaluate(() => ({ log: Game.state.log, journal: Game.state.journal.map(j => j.text), turn: Game.state.meta.turn }));
   assert.equal(st.log.length, 1);
   assert.equal(st.log[0].narration, NARRATION.join(''));

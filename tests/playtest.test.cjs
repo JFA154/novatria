@@ -13,8 +13,9 @@
    after turn 10 and a second after turn 20.
    After every turn: no page errors (the harness), no rejected State.apply
    diffs, the log never over 30 entries, every narrator packet lists only the
-   people present and carries no secret, goal or unfired seed, and no
-   narration in the feed has a banned phrase. The final state summary and the
+   people present, carries each one's secret and goal once in their own line
+   and nobody else's, and no unfired seed, and no narration in the feed has
+   a banned phrase. The final state summary and the
    pacing numbers are printed to the test output.
    Run with: node tests/run.cjs playtest */
 const assert = require('assert/strict');
@@ -43,12 +44,20 @@ function installProbes() {
     const get = label => (p.split('\n').find(l => l.startsWith(label + ':')) || '').slice(label.length + 1).trim();
     const presentIds = G.State.npcsAt(st.player.locationId).map(n => n.id);
     const presentLine = get('PRESENT');
+    // A present person's secret and goal sit in their own line of PRESENT, once (direction change 10); nobody else's appear anywhere.
+    const bare = t => String(t).replace(/[.]+$/, '');
+    const starts = st.npcs.filter(n => presentIds.includes(n.id)).map(n => ({ id: n.id, at: presentLine.indexOf(n.name + ' (') })).filter(x => x.at >= 0).sort((a, b) => a.at - b.at);
+    const ownLine = id => { const i = starts.findIndex(x => x.id === id); return i < 0 ? '' : presentLine.slice(starts[i].at, i + 1 < starts.length ? starts[i + 1].at : undefined); };
     for (const n of st.npcs) {
       const listed = presentLine.includes(n.name + ' (');
       if (listed && !presentIds.includes(n.id)) problems.push('listed but not present: ' + n.id);
       if (!listed && presentIds.includes(n.id)) problems.push('present but not listed: ' + n.id);
-      if (n.secret && n.secret.length > 20 && p.includes(n.secret)) problems.push('secret of ' + n.id);
-      if (n.goal && n.goal.length > 20 && p.includes(n.goal)) problems.push('goal of ' + n.id);
+      for (const [kind, text] of [['secret', n.secret], ['goal', n.goal]]) {
+        if (!text || text.length <= 20) continue;
+        const times = p.split(bare(text)).length - 1;
+        if (!presentIds.includes(n.id)) { if (times) problems.push(`${kind} of ${n.id}, who is not here`); }
+        else if (times !== 1 || !ownLine(n.id).includes(bare(text))) problems.push(`${kind} of ${n.id} not once in their own line (${times})`);
+      }
     }
     for (const sd of st.seeds) if (!sd.fired && p.includes(sd.effect)) problems.push('unfired seed ' + sd.id);
     for (const f of st.factions) {
@@ -463,7 +472,8 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   console.log(`          cost per ordinary turn at ${narrModel} + ${parseModel}: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${(usd(narrModel, narr.in, narr.out, narr.cached)).toFixed(4)}-$${(usd(narrModel, narr.in, narr.out + THINK, narr.cached)).toFixed(4)}; first narration of a session +$${first.toFixed(4)} to write the cache`);
   console.log(`          100 turns: about $${(turn(0) * 100).toFixed(2)}-$${(turn(THINK) * 100).toFixed(2)}`);
   assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
-  assert.ok(m.narrate.max < 8000 && m.bookkeep.max < 12000, 'packets stay small');
+  // The narrator's packet carries the goal, traits and secret of everyone here and every turn of the scene, up to about 700 words (direction change 10); it was under 8000 when it carried three turns and no secrets.
+  assert.ok(m.narrate.max < 16000 && m.bookkeep.max < 12000, 'packets stay small');
   assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');
 });
 
