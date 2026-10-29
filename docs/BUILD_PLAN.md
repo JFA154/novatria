@@ -161,7 +161,7 @@ Exactly SPEC.md section 3, plus:
 ```js
 state.flags = { priceMultiplier: 1, weather: "..." };
 state.time = { day: 1, phase: "morning", shorts: 0 };   // 3 shorts = one phase
-state.meta = { seed, turn, createdAt, townName, townVersion: 1, lastRollKey: null };
+state.meta = { seed, turn, createdAt, townName, townVersion: 1, lastRollKey: null, lastRoll: null };  // lastRoll: direction change 13
 state.player.storyPoints // 0..3
 ```
 
@@ -204,7 +204,7 @@ checked, per SPEC.md section 10 "Validation in State.apply()".
 | Module | Owns |
 |---|---|
 | `Rng` | mulberry32 seeded by `meta.seed`; `Rng.int(a,b)`, `Rng.pick(arr)`, `Rng.d(n)`; advances a counter stored in `meta.rngCalls` so a loaded save continues deterministically |
-| `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complication selection, the retry lock (`meta.lastRollKey`) |
+| `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complication selection, the retry lock (`meta.lastRollKey`, and `meta.lastRoll`: what the roll was and the asks granted in the scene) |
 | `Tables` | create NPC / minor location / item / complication / weather from `TABLES` via `Rng` |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()` |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type |
@@ -870,7 +870,110 @@ default changes; mock mode plays exactly as before.
 
 ### 13. A granted ask stays granted (the retry lock on successes)
 
-(written by the package that implements it)
+The review the owner agreed with (finding 5): social successes can be
+farmed. The playtest asked Lyman Coker to put in a good word seven times in
+one phase; every ask rolled, every one succeeded, the mock bookkeeper added
+attitude each time (8 a yes), and Lyman went from 0 to 61 ("loyal") and
+planted a favour. With the real bookkeeper (5 to 15 a turn) it is slower but the same,
+and the narrator was told each time "OUTCOME: the ask succeeded ... The
+person goes along with what the player asked". Root cause: `Dice.lockFor`
+returned the lock key only for `failure` and `critical_failure`, so SPEC.md
+section 7's "the same roll can't be retried immediately unless the situation
+changes" held only after a failure, and a success cleared the lock.
+
+- **Every roll locks.** `Dice.lockFor(result, key)` returns the key for
+  every tier. `Pipeline.resolve` stores a record with it, `meta.lastRoll`
+  (`Dice.lockRecord`): `{ key, outcome, line, granted }`. `outcome` is
+  `granted` (critical, success or partial: `Dice.outcomeOf`) or `failed`;
+  `line` is the roll line; `granted` lists the asks granted in this scene
+  (`[{ key, words, line }]`, at most 8, carried over to the next roll's
+  record while its place, day and phase are the same, so rolling something
+  else in between does not reopen them). The key itself is unchanged
+  (action type, stat, targets, item, place, day, phase).
+- **What the player asked for.** `Dice.askWords(text, skip)`: the input (a
+  command's own name left off) lowercased, apostrophes dropped, a plural
+  "s" folded, and stop words (function words, fillers, contractions and the
+  verbs of asking: ask, persuade, convince, tell, try, beg, say, talk) and
+  the names of the people it is aimed at left out; sorted and unique.
+  `Dice.sameAsk(was, now)`: an ask with no content words of its own
+  ("Please?") is the same; otherwise it is the same when at least 60 per
+  cent (`SAME_ASK_SHARE`) of the shorter ask's words are in the other. "I
+  persuade Lyman Coker to put in a good word for me" is {good, put, word};
+  "Come on, put in a good word for me" is the same ask, "lend me twenty
+  dollars until Friday" a new one. A threshold on the shorter ask means a
+  repeat with more words added ("... with your boss") is still the same.
+- **What a repeat gets** (`Pipeline.resolve`; `/reroll` and `/cheat`
+  bypass all of it). An ask granted under this key in this scene that the
+  words repeat (`Dice.grantedAsk`): in Say or a social action,
+  `ctx.granted = { key, line, name }` (`agreedBy`: the person spoken to,
+  else the only person here it was aimed at), no roll, and the scene
+  answers; anything else (a lock picked again, a search made again) gets
+  the locked notice and nothing is spent. Otherwise, when the lock holds
+  and its latest roll failed (`Dice.lockedOutcome`), the behaviour of
+  before: `ctx.pressed` in conversation (its roll line now from the
+  record, else the log as before), the notice otherwise. Otherwise (no
+  lock, or a different ask after a granted one) it rolls, and the record
+  takes the new roll.
+- **The packets.** For a granted repeat the narrator gets, right after
+  `ROLL: none` where SAME ASK AGAIN goes for a failed one, `ALREADY GRANTED:
+  the player asked this before and <name> agreed (<roll line>); there is no
+  new roll and nothing more is gained. Show them noting it is already
+  settled (a shrug, "I said yes", mild impatience) and move the scene on;
+  grant nothing further.` ("the people here" when no one person said yes).
+  There is no OUTCOME line, since nothing was rolled. The bookkeeper gets
+  the same fact and "Record no attitude change, no memory and nothing
+  gained; no move." The mock narrator says "<name> already said yes."; the
+  mock bookkeeper records nothing on such a turn.
+- **The notice.** `NOTICES.locked` covers both cases: "You already tried
+  that here. Change something first: a different approach, something to
+  use or offer, another place, or let time pass (/wait or /rest)." (It
+  said "You just tried that and it failed.")
+- **The lock lifts as before** once the situation changes: a new place,
+  phase, day, target, stat or item makes a new key, and `runTurn` lifts it
+  after a turn without a roll that moved the player, passed a phase or took
+  time. One change there: a turn answered as SAME ASK AGAIN or ALREADY
+  GRANTED does not lift it just by taking time (a real parser may call the
+  repeat short), only by a move or a new phase, so a third identical ask is
+  not rolled either. `State.apply` gains the engine-only `lastRoll` op
+  (`Dice.cleanLock`; it must be the record of the current `lastRollKey`; a
+  malformed one is refused, and the model may not send it), and a
+  `lastRollKey` change without `lastRoll` in the same diff drops the
+  record, so a record never outlives its key (the tests' and `runTurn`'s
+  `lastRollKey: null` clear both). `/undo` restores both with the snapshot.
+- **Older saves.** No rules version. `State.load` fills `meta.lastRoll`:
+  null when it is missing, malformed or not the current lock's. A lock with
+  no record can only come from before this change, when only failures
+  locked, so `Dice.lockedOutcome` reads it as `failed`: exactly the old
+  behaviour.
+- **Cost.** Nothing on ordinary turns. The ALREADY GRANTED lines (about 70
+  tokens each) go out only on a repeat, which has no OUTCOME line.
+- **SPEC.md.** Not a deviation: section 7 never limited the rule to
+  failures, and this brings the lock in line with it.
+- **Not covered.** A roll of something else in between keeps a granted
+  ask settled, but a failed roll is still reopened by one (as before), and
+  any turn without a roll that takes time lifts the whole lock (as before).
+  Rewording an ask in quite different words ("tell your boss I'm a hard
+  worker" after "put in a good word for me") is a new ask by the words and
+  rolls; the narrator and the bookkeeper still see the scene.
+- **Tests.** pipeline: a granted ask asked again is settled (ALREADY
+  GRANTED in both packets, no roll, no attitude change or memory, no
+  notice, the lock kept when the repeat takes time), reworded in Say it is
+  the same ask, a different ask to the same person rolls and the lock
+  keeps both, going back to the first is still settled, and a new phase
+  lifts the lock so the same ask rolls; something done that is not an ask
+  and done again gets the notice whatever came between, a different
+  attempt rolls, and a move lifts the lock; an older save with a lock and
+  no record plays (SAME ASK AGAIN), the next roll writes the record, and a
+  reload keeps it. state: `askWords` and `sameAsk` on examples, every tier
+  locks, and the record's rules in `State.apply` and `State.load`. Changed
+  on purpose: the notice's wording in acceptance check 3 and in the two
+  pipeline lock tests; the `/reroll` test (a success now sets the lock, as
+  granted, where it cleared it; `/reroll` still goes past it); the Dice
+  unit test in the state suite (a success and a partial now lock); and the
+  playtest's favour, which asked the same thing seven times and now asks
+  seven different things, asserting along the way that the identical ask
+  in the same phase gets ALREADY GRANTED and no gain (Lyman still ends at
+  61, and the run is one turn longer). The pacing report is unchanged.
 
 ### 14. Seeds are events: effects on seeds, loose ends that fit anywhere, a hook on day 1
 

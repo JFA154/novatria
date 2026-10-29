@@ -7,7 +7,8 @@
    What it covers, in order: the arrival; talking to three different people; a
    chain of moves through five or more places; a purchase; a failed roll with a
    complication (and the refused retry); a fight that costs HP; two insults; a
-   favour earned by /fact and persuasion that becomes a favour seed and fires;
+   favour earned by /fact and persuasion (different asks; the same ask again
+   is settled, with no roll and nothing gained) that becomes a favour seed and fires;
    /rest, /skip, /look, /zoom, /fact and /undo; faction clocks left to run (one
    faction's dice forced to 6) until at least one completes; a chronicle entry
    after turn 10 and a second after turn 20.
@@ -255,11 +256,27 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   await turn(`/skip to ${plan.favour.locName} in the ${plan.favour.phase}`, 'skip');
   // A loose end's person can be off with the player somewhere else this phase (their seed brought them): they come over.
   await page.evaluate(id => { if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] }); }, plan.favour.id);
-  for (let i = 0; i < 8; i++) {
-    const att = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
-    if (att >= 60) break;
+  // Goodwill is earned one granted ask at a time: the same ask again in the same phase is settled, with no roll and
+  // nothing gained (direction change 13), so the favour comes from different asks.
+  const asks = ['put in a good word for me', 'vouch for me if anyone asks', 'keep an ear open for work I could do', 'lend me twenty dollars until Friday',
+    'save me a seat at supper on Sunday', 'keep my name out of any gossip', 'share whatever news they hear this week', 'think kindly of me when trouble comes'];
+  const favourNow = () => page.evaluate(id => { const n = Game.State.npc(id); return { attitude: n.attitude, memories: n.memories.length }; }, plan.favour.id);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
+  await turn(`I persuade ${plan.favour.name} to ${asks[0]}`, 'persuade');
+  assert.ok((await last()).t.roll && (await last()).t.roll.success, 'the first ask rolled and was granted');
+  const granted = await favourNow();
+  await turn(`I persuade ${plan.favour.name} to ${asks[0]}`, 'persuade-again');
+  const settled = await last();
+  assert.equal(settled.t.roll, null, 'the identical ask in the same phase is not rolled again');
+  assert.ok(settled.t.packet.includes(`\nALREADY GRANTED: the player asked this before and ${plan.favour.name} agreed (`), 'the narrator hears it is settled');
+  assert.ok((await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop().text)).includes('Record no attitude change, no memory and nothing gained'), 'and so does the bookkeeper');
+  assert.deepEqual(await favourNow(), granted, 'nothing gained by asking again');
+  for (let i = 1; i < asks.length && (await favourNow()).attitude < 60; i++) {
+    const att = (await favourNow()).attitude;
     await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
-    await turn(`I persuade ${plan.favour.name} to put in a good word for me`, 'persuade');
+    await turn(`I persuade ${plan.favour.name} to ${asks[i]}`, 'persuade');
+    assert.ok((await last()).t.roll, `a different ask rolls: ${asks[i]}`);
+    assert.ok((await favourNow()).attitude > att, `and the yes warms them: ${asks[i]}`);
   }
   const warm = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
   assert.ok(warm >= 60, 'warm enough for a favour: ' + warm);

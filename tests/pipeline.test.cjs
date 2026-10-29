@@ -17,6 +17,8 @@ const lastQuiet = page => page.evaluate(() => { const n = [...document.querySele
 const lastLog = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const esc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const the = name => name.replace(/^The /, 'the ');
+/* The retry lock's notice: one wording for a failed roll and for something already done (direction change 13). */
+const LOCKED = 'You already tried that here. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).';
 /* Two exits: one from where the player stands, and one onward from there. */
 const route = page => page.evaluate(() => {
   const G = Game;
@@ -197,7 +199,7 @@ s.test('a failed lockpick is narrated as a failure, changes something, and the i
   assert.ok(r.lock);
   const before = await stateJson(page);
   await sendText(page, 'I try to pick the lock on the back door');
-  assert.equal(await lastNotice(page), 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).');
+  assert.equal(await lastNotice(page), LOCKED);
   assert.equal(await stateJson(page), before, 'the refused retry changed nothing');
   assert.equal(await page.inputValue('#cmd'), '');
   // Once the situation changes (another place), the same attempt rolls again.
@@ -880,7 +882,7 @@ s.test('the retry lock holds across /look and an instant chat in the same place,
   }
   const before = await stateJson(page);
   await sendText(page, pick);
-  assert.equal(await lastNotice(page), 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).');
+  assert.equal(await lastNotice(page), LOCKED);
   assert.equal(await stateJson(page), before, 'still refused');
   // Moving away lifts it; back at the door the same attempt rolls again.
   await sendText(page, `I walk to ${r0.a.name}`);
@@ -1344,6 +1346,150 @@ s.test('pushing a failed ask again in conversation gets an answer, not a notice:
   assert.equal(await page.evaluate(() => Game.state.meta.lastRollKey), lock, 'the lock still holds, so the dice are not re-rolled');
 });
 
+/* Direction change 13: a granted ask stays granted. */
+const lockNow = page => page.evaluate(() => ({ key: Game.state.meta.lastRollKey, rec: Game.state.meta.lastRoll }));
+const npcNow = (page, id) => page.evaluate(id => { const n = Game.State.npc(id); return { attitude: n.attitude, memories: n.memories.length }; }, id);
+const nextPhaseOf = page => page.evaluate(() => { const P = ['morning', 'afternoon', 'evening', 'night']; return P[(P.indexOf(Game.state.time.phase) + 1) % 4]; });
+
+s.test('a granted ask asked again in the same scene is settled: ALREADY GRANTED in both packets, no roll, no attitude change or memory, the lock kept even when the repeat takes time; reworded or said, it is the same ask; a different ask to the same person rolls, and going back to the first is still settled; a new phase lifts the lock', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 1, watchy: false });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const a = sc.npcs[0];
+  const ask = `I persuade ${a.name} to put in a good word for me`;
+  const n0 = await npcNow(page, a.id);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
+  await sendText(page, ask);
+  const first = await turnInfo(page);
+  assert.equal(first.act.actionType, 'persuade');
+  assert.equal(first.last.roll && first.last.roll.d20, 19, 'the first ask rolled');
+  const n1 = await npcNow(page, a.id);
+  assert.equal(n1.attitude, n0.attitude + 8, 'and the yes warmed them (mock bookkeeper, +8)');
+  const lock = await lockNow(page);
+  assert.ok(lock.key, 'a granted ask sets the lock');
+  assert.equal(lock.rec.outcome, 'granted');
+  assert.equal(lock.rec.line, first.last.roll.line);
+  assert.deepEqual(lock.rec.granted.map(g => g.words), [['good', 'put', 'word']], 'with what was asked: the name and the filler left out');
+  const notices = await page.evaluate(() => document.querySelectorAll('#feed .f-notice').length);
+  // The identical ask, taking time this once (a real parser may call it short): settled, no roll, nothing gained.
+  await page.evaluate(() => Game.Api.Mock.queue('parse', { timeCost: 'short' }));
+  await sendText(page, ask);
+  const again = await turnInfo(page);
+  assert.equal(again.last.roll, null, 'no new roll');
+  assert.ok(again.last.narration.includes(`${a.name} already said yes.`), again.last.narration);
+  const packet = await lastPacket(page);
+  assert.match(packet, new RegExp(`\\nROLL: none\\nALREADY GRANTED: the player asked this before and ${esc(a.name)} agreed \\(${esc(first.last.roll.line)}\\); there is no new roll and nothing more is gained\\. Show them noting it is already settled \\(a shrug, "I said yes", mild impatience\\) and move the scene on; grant nothing further\\.\\n`));
+  assert.doesNotMatch(packet, /SAME ASK AGAIN|\nOUTCOME:/, 'neither a refusal nor a fresh success');
+  const book = await lastPacket(page, 'bookkeep');
+  assert.ok(book.includes(`\nALREADY GRANTED: the player asked this before and ${a.name} agreed (${first.last.roll.line}); there is no new roll. Record no attitude change, no memory and nothing gained; no move.\n`), book);
+  assert.deepEqual(await npcNow(page, a.id), n1, 'no attitude change and no memory');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-notice').length), notices, 'the scene answers; no system notice');
+  assert.deepEqual(await lockNow(page), lock, 'the repeat took time but changed nothing, so the lock holds');
+  // Reworded and said (Say mode, the same key): still the same ask.
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); }, a.id);
+  await sendText(page, 'Come on, put in a good word for me.');
+  assert.equal((await turnInfo(page)).last.roll, null, 'said in other words: no roll');
+  assert.match(await lastPacket(page), new RegExp(`\\nALREADY GRANTED: the player asked this before and ${esc(a.name)} agreed `));
+  assert.deepEqual(await npcNow(page, a.id), n1);
+  // A clearly different ask to the same person rolls, and the lock keeps both.
+  await page.evaluate(() => { Game.UI.setMode('do'); Game.Pipeline.forceNextRoll(19); });
+  await sendText(page, `I persuade ${a.name} to lend me twenty dollars until Friday`);
+  const other = await turnInfo(page);
+  assert.equal(other.last.roll && other.last.roll.d20, 19, 'a different ask rolls');
+  assert.match(await lastPacket(page), /\nOUTCOME: the ask succeeded\./);
+  assert.equal((await npcNow(page, a.id)).attitude, n1.attitude + 8);
+  const both = await lockNow(page);
+  assert.equal(both.key, lock.key, 'under the same key');
+  assert.deepEqual(both.rec.granted.map(g => g.words), [['good', 'put', 'word'], ['dollar', 'friday', 'lend', 'twenty']]);
+  // Going back to the first: still settled.
+  await sendText(page, ask);
+  assert.equal((await turnInfo(page)).last.roll, null, 'the first ask is still settled');
+  assert.match(await lastPacket(page), /\nROLL: none\nALREADY GRANTED: /);
+  // A new phase lifts the lock and its record: the same ask rolls again.
+  await sendText(page, `/wait ${await nextPhaseOf(page)}`);
+  assert.deepEqual(await lockNow(page), { key: null, rec: null }, 'time passing lifts the lock');
+  await page.evaluate(id => { if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] }); Game.Pipeline.forceNextRoll(19); }, a.id);
+  await sendText(page, ask);
+  assert.equal((await turnInfo(page)).last.roll && (await turnInfo(page)).last.roll.d20, 19, 'in a new phase the same ask rolls');
+});
+
+s.test('something done (not an ask) done again in the same scene gets the locked notice and changes nothing, whatever came between; a different attempt rolls; a move lifts the lock', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r0 = await route(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Pipeline.forceNextRoll(18); });
+  const pick = 'I try to pick the lock on the back door';
+  await sendText(page, pick);
+  const done = await turnInfo(page);
+  assert.ok(['success', 'critical'].includes(done.last.roll.tier), done.last.roll.line);
+  const lock = await lockNow(page);
+  assert.equal(lock.rec.outcome, 'granted', 'a success sets the lock');
+  let before = await stateJson(page);
+  await sendText(page, pick);
+  assert.equal(await lastNotice(page), LOCKED);
+  assert.equal(await stateJson(page), before, 'the repeat changed nothing');
+  assert.equal(await page.inputValue('#cmd'), '');
+  // Another lock here is a different attempt (the same key, other words): it rolls, and fails.
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(4));
+  await sendText(page, 'I try to pick the lock on the front gate');
+  const other = await turnInfo(page);
+  assert.equal(other.last.roll && other.last.roll.d20, 4, 'a different attempt rolls');
+  assert.equal(other.last.roll.tier, 'failure');
+  assert.equal((await lockNow(page)).key, lock.key, 'under the same key');
+  // Neither comes back: the first is done, the second failed.
+  before = await stateJson(page);
+  for (const t of [pick, 'I try to pick the lock on the front gate']) {
+    await sendText(page, t);
+    assert.equal(await lastNotice(page), LOCKED, t);
+    assert.equal(await stateJson(page), before, t);
+  }
+  // Moving away lifts it; back at the door the first attempt rolls again.
+  await sendText(page, `I walk to ${r0.a.name}`);
+  assert.deepEqual(await lockNow(page), { key: null, rec: null }, 'moving away lifts the lock');
+  await sendText(page, `I walk to ${r0.here.name}`);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(7));
+  await sendText(page, pick);
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.roll.d20), 7, 'allowed again');
+});
+
+s.test('an older save with a retry lock and no record of it loads and plays: the lock reads as a failure (SAME ASK AGAIN in conversation), the next roll writes the record, and a reload keeps it', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const sc = await findScene(page, { min: 1, watchy: false });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const a = sc.npcs[0];
+  const r = await page.evaluate(id => {
+    const G = Game;
+    // Saved before granted asks were locked: the lock holds a (failed) Say ask to this person, and meta has no lastRoll.
+    const env = G.Storage.envelope('old');
+    env.state.meta.lastRollKey = G.Dice.lockKey({ actionType: 'persuade', stat: 'charm', targets: [id] });
+    delete env.state.meta.lastRoll;
+    const entered = G.App.enter(G.Storage.parseEnvelope(JSON.stringify(env)));
+    return { entered, key: G.state.meta.lastRollKey, has: Object.prototype.hasOwnProperty.call(G.state.meta, 'lastRoll'), rec: G.state.meta.lastRoll };
+  }, a.id);
+  assert.ok(r.entered && r.key);
+  assert.deepEqual([r.has, r.rec], [true, null], 'the missing record loads as null');
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); }, a.id);
+  await sendText(page, 'Please, give me a chance and hire me.');
+  assert.equal((await turnInfo(page)).last.roll, null, 'locked: no roll');
+  assert.match(await lastPacket(page), /\nROLL: none\nSAME ASK AGAIN: the player already tried this and it failed/);
+  // Another roll plays and writes the record; a reload keeps it, and the lock still holds.
+  await page.evaluate(() => { Game.UI.setMode('do'); Game.Pipeline.forceNextRoll(18); });
+  await sendText(page, 'I try to pick the lock on the back door');
+  const lock = await lockNow(page);
+  assert.equal(lock.rec && lock.rec.outcome, 'granted');
+  await page.reload();
+  await page.waitForFunction(() => window.Game);
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  assert.deepEqual(await lockNow(page), lock, 'the record survives a reload');
+  await sendText(page, 'I try to pick the lock on the back door');
+  assert.equal(await lastNotice(page), LOCKED);
+});
+
 s.test('/reroll (cheat) takes the last turn back and plays it again with a fresh die, ignoring the retry lock; nothing to reroll without a roll', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
@@ -1370,7 +1516,8 @@ s.test('/reroll (cheat) takes the last turn back and plays it again with a fresh
   assert.equal(await page.evaluate(() => Game.state.log.length), logLen, 'the old turn is gone, the new one is in its place');
   assert.equal(await inputs(), 1, 'one input line in the feed, not two');
   assert.ok(await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet, #feed .f-roll')].some(n => /Rerolled\./.test(n.textContent))), 'the feed says it was rerolled');
-  assert.equal(await page.evaluate(() => Game.state.meta.lastRollKey), null, 'a success clears the lock');
+  // A success locks too now (direction change 13), recorded as granted; /reroll still goes past it below.
+  assert.deepEqual(await page.evaluate(() => [!!Game.state.meta.lastRollKey, Game.state.meta.lastRoll && Game.state.meta.lastRoll.outcome]), [true, 'granted'], 'a success sets the lock as granted');
   // Reroll again straight away: allowed without limit, even after a fresh failure.
   await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
   await sendText(page, '/reroll');

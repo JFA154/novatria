@@ -85,7 +85,24 @@ s.test('Dice: targets, tiers (natural 20, success, partial, failure, natural 1),
       spec2: D.resolve({ stat: 'stealth', d20: 9, statValue: 0, difficulty: 'hard', modifiers: [], state: null, complication: 'someone saw you' }),
       neg: D.resolve({ stat: 'might', d20: 10, statValue: -1, difficulty: 'normal', modifiers: [], state: null, complication: 'it breaks' }).line,
       lockFail: D.lockFor({ tier: 'failure' }, 'k'), lockCrit: D.lockFor({ tier: 'critical_failure' }, 'k'),
-      lockOk: D.lockFor({ tier: 'success' }, 'k'), lockPartial: D.lockFor({ tier: 'partial' }, 'k')
+      lockOk: D.lockFor({ tier: 'success' }, 'k'), lockPartial: D.lockFor({ tier: 'partial' }, 'k'), lockNone: D.lockFor(null, 'k'),
+      outcomes: ['critical', 'success', 'partial', 'failure', 'critical_failure'].map(D.outcomeOf),
+      // What an ask asks for (direction change 13): names, filler and the verbs of asking left out, plurals folded.
+      words: [
+        D.askWords('I persuade Lyman Coker to put in a good word for me', ['Lyman Coker']),
+        D.askWords('Lyman, please put in a good word for me with Pittman\'s boss!', ['Lyman Coker']),
+        D.askWords('Please?'),
+        D.askWords('/zoom I ask him to lend me twenty dollars until Friday'.replace(/^\/\S+\s*/, ''))
+      ],
+      same: [
+        D.sameAsk(['good', 'put', 'word'], ['good', 'put', 'word']),
+        D.sameAsk(['good', 'put', 'word'], ['boss', 'good', 'pittman', 'put', 'word']),
+        D.sameAsk(['good', 'put', 'word'], []),
+        D.sameAsk(['good', 'put', 'word'], ['dollar', 'friday', 'lend', 'twenty']),
+        D.sameAsk(['back', 'door', 'lock', 'pick'], ['front', 'gate', 'lock', 'pick']),
+        D.sameAsk(['back', 'door', 'lock', 'pick'], ['back', 'door', 'lock', 'pick', 'quietly']),
+        D.sameAsk([], ['job'])
+      ]
     };
   });
   assert.deepEqual(r.targets, { easy: 8, normal: 12, hard: 15, very_hard: 18 });
@@ -108,10 +125,66 @@ s.test('Dice: targets, tiers (natural 20, success, partial, failure, natural 1),
   assert.equal(r.spec2.line, 'Stealth 9 vs 15 · Failure');
   assert.equal(r.spec2.packetLine, 'Stealth 9 vs 15 · Failure · Complication: someone saw you');
   assert.equal(r.neg, 'Might 10 − 1 = 9 vs 12 · Partial');
+  // Every outcome locks (direction change 13; a success or partial no longer clears the lock).
   assert.equal(r.lockFail, 'k');
   assert.equal(r.lockCrit, 'k');
-  assert.equal(r.lockOk, null);
-  assert.equal(r.lockPartial, null);
+  assert.equal(r.lockOk, 'k');
+  assert.equal(r.lockPartial, 'k');
+  assert.equal(r.lockNone, null, 'no roll, no lock');
+  assert.deepEqual(r.outcomes, ['granted', 'granted', 'granted', 'failed', 'failed']);
+  assert.deepEqual(r.words, [['good', 'put', 'word'], ['boss', 'good', 'pittman', 'put', 'word'], [], ['dollar', 'friday', 'lend', 'twenty']]);
+  assert.deepEqual(r.same, [true, true, true, false, false, true, false], 'the same ask: 60% of the shorter one\'s words, or nothing new asked');
+});
+
+s.test('the retry lock\'s record goes with its key: lastRoll must name the current key, a new or cleared key drops it, the model cannot write it, a bad one is refused, and a load drops one that is not the lock\'s', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const D = G.Dice;
+    const meta = () => ({ key: G.state.meta.lastRollKey, rec: G.state.meta.lastRoll });
+    const ok = { tier: 'success', line: 'Charm 15 + 1 = 16 vs 12 · Success' };
+    const out = { fresh: meta() };
+    const rec = D.lockRecord(ok, 'k1', ['put', 'word'], null);
+    out.rec = rec;
+    S.apply({ lastRollKey: 'k1', lastRoll: rec });
+    out.set = meta();
+    out.state = [D.lockState(), D.lockedOutcome('k1'), D.lockedOutcome('k2'), D.grantedAsk('k1', ['put', 'word', 'good']), D.grantedAsk('k1', ['lend', 'truck'])];
+    out.wrongKey = S.apply({ lastRoll: D.lockRecord(ok, 'k2', [], null) }).rejected.map(x => x.path);
+    out.bad = S.apply({ lastRoll: { key: 'k1', outcome: 'maybe' } }).rejected.map(x => x.path);
+    out.model = S.apply({ lastRoll: null }, { source: 'model' }).rejected.map(x => x.reason);
+    out.kept = meta();
+    S.apply({ lastRollKey: 'k2' });
+    out.newKey = meta();
+    out.oldSave = D.lockedOutcome('k2');
+    S.apply({ lastRollKey: null });
+    out.cleared = meta();
+    // A load keeps the record only with its own key.
+    const env = G.Storage.envelope('x');
+    env.state.meta.lastRollKey = 'k3';
+    env.state.meta.lastRoll = D.lockRecord(ok, 'k4', [], null);
+    S.load(env.state, env.town);
+    out.loadedOther = meta();
+    env.state.meta.lastRoll = D.lockRecord(ok, 'k3', ['job'], null);
+    S.load(env.state, env.town);
+    out.loadedOwn = meta();
+    return out;
+  });
+  assert.deepEqual(r.fresh, { key: null, rec: null }, 'a new game starts with no lock and no record');
+  assert.deepEqual(r.rec, { key: 'k1', outcome: 'granted', line: 'Charm 15 + 1 = 16 vs 12 · Success', granted: [{ key: 'k1', words: ['put', 'word'], line: 'Charm 15 + 1 = 16 vs 12 · Success' }] });
+  assert.deepEqual(r.set, { key: 'k1', rec: r.rec });
+  assert.deepEqual(r.state, [r.rec, 'granted', null, r.rec.granted[0], null]);
+  assert.deepEqual(r.wrongKey, ['lastRoll'], 'a record for another key is refused');
+  assert.deepEqual(r.bad, ['lastRoll'], 'a malformed record is refused');
+  assert.deepEqual(r.model, ['not allowed from the model']);
+  assert.deepEqual(r.kept, r.set, 'refusals change nothing');
+  assert.deepEqual(r.newKey, { key: 'k2', rec: null }, 'a new key alone drops the record');
+  assert.equal(r.oldSave, 'failed', 'a lock with no record (an older save\'s) reads as a failure');
+  assert.deepEqual(r.cleared, { key: null, rec: null });
+  assert.deepEqual(r.loadedOther, { key: 'k3', rec: null });
+  assert.equal(r.loadedOwn.rec.key, 'k3');
+  assert.deepEqual(r.loadedOwn.rec.granted.map(g => g.words), [['job']]);
 });
 
 s.test('Dice applies item, attitude and condition modifiers from state', async h => {

@@ -4846,10 +4846,18 @@ const Rng = (() => {
 
 // ===== Module: Dice =====
 /* d20 + stat + modifiers (capped at +/-4) against a difficulty target.
-   Tiers per SPEC.md section 7. The retry lock: after a failure the action's
-   key is stored in meta.lastRollKey (through State.apply); the identical roll
-   is refused until something in the key changes (place, phase, day, target,
-   item, stat or action type). */
+   Tiers per SPEC.md section 7. The retry lock ("the same roll can't be
+   retried immediately unless the situation changes"): every roll, whatever
+   its outcome, stores the action's key in meta.lastRollKey and what the roll
+   was in meta.lastRoll (lockRecord; both through State.apply). While the key
+   holds (same place, phase, day, targets, item, stat and action type) a
+   failed roll is not rolled again, and neither is an ask already granted:
+   repeating it (askWords, sameAsk: mostly the same content words) gets "it
+   is settled" with no roll and nothing gained. A clearly different ask
+   rolls, and the asks granted in the same scene are kept beside the lock,
+   so going back to one of them is still the same ask. Pipeline.resolve
+   decides what each case gets; runTurn lifts the lock once the situation
+   changes. */
 const Dice = (() => {
   const TARGETS = { easy: 8, normal: 12, hard: 15, very_hard: 18 };
   const MOD_CAP = 4;
@@ -4930,8 +4938,106 @@ const Dice = (() => {
     return [action.actionType || 'other', action.stat || '', targets, action.usesItemId || ''].concat(where).join('|');
   }
   function isLocked(key, state) { state = state || State.current; return !!(state && key && state.meta.lastRollKey === key); }
-  function lockFor(result, key) { return result && (result.tier === 'failure' || result.tier === 'critical_failure') ? key : null; }
-  return { TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, target, capModifier, sumModifiers, tier, isSuccess, needsComplication, modifiersFor, resolve, formatLine, lockKey, isLocked, lockFor };
+  /* Every roll locks its key, whatever the outcome (SPEC section 7 never
+     limits the rule to failures; locking only failures let a granted ask be
+     asked again and again for more). */
+  function lockFor(result, key) { return result && key ? key : null; }
+
+  // ----- the ask: what the player asked for, as content words -----
+  const LOCK_OUTCOMES = Object.freeze(['granted', 'failed']);
+  const LOCK_GRANTED_MAX = 8;   // asks granted in one scene that the lock remembers
+  const SAME_ASK_SHARE = 0.6;   // shared words, as a share of the shorter ask, that make it the same ask
+  /* Words that ask for nothing: function words, fillers, contractions with
+     the apostrophe dropped, and the verbs of asking (the action type is
+     already in the key). */
+  const ASK_STOP = new Set((
+    'a an the and or but nor if so than then to of in on at by for from with without into onto about over under up down out off as ' +
+    'until till since after before while because through around ' +
+    'is are was were be been being am do does did done have has had will would can could should may might must shall ' +
+    'i me my mine myself you your yours yourself he him his she her hers they them their theirs it its we us our ' +
+    'this that these those there here what which who whom whose when where why how ' +
+    'just really very too also again still please now some any all more much no not yes ok okay oh hey well ' +
+    'come let lets get got gonna wanna want need ' +
+    'im ive ill id youre youve youll youd dont doesnt didnt cant wont isnt arent wasnt thats theres whats ' +
+    'ask asks asked asking persuade persuades persuading convince convinces convincing tell tells try tries trying ' +
+    'attempt attempts beg begs say says talk talks once louder'
+  ).split(/\s+/));
+  function plainWords(text) { return String(text || '').toLowerCase().replace(/[’']/g, '').split(/[^a-z0-9]+/).filter(Boolean); }
+  /* The content words of an ask: lowercased, apostrophes dropped, a plural
+     "s" taken off, stop words and the words of `skip` (the names of the
+     people it is aimed at, already in the key) left out. Sorted, unique. */
+  function askWords(text, skip) {
+    const drop = new Set([].concat(skip || []).flatMap(plainWords));
+    const out = new Set();
+    for (let w of plainWords(text)) {
+      if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) w = w.slice(0, -1);
+      if (!ASK_STOP.has(w) && !drop.has(w)) out.add(w);
+    }
+    return [...out].sort();
+  }
+  /* The same ask: one with no content words of its own ("Please?") adds
+     nothing, so it is the same; otherwise at least SAME_ASK_SHARE of the
+     shorter ask's words are in the other. */
+  function sameAsk(was, now) {
+    const a = Array.isArray(was) ? was : [];
+    const b = Array.isArray(now) ? now : [];
+    if (!b.length) return true;
+    if (!a.length) return false;
+    const seen = new Set(a);
+    return b.filter(w => seen.has(w)).length / Math.min(a.length, b.length) >= SAME_ASK_SHARE;
+  }
+  function outcomeOf(t) { return isSuccess(t) ? 'granted' : 'failed'; }
+  // The place, day and phase at the end of a key: the scene it was rolled in.
+  function sceneOf(key) { return String(key || '').split('|').slice(-3).join('|'); }
+  /* meta.lastRoll, as State keeps it: { key (meta.lastRollKey), outcome
+     ('granted' | 'failed': the latest roll), line (its roll line), granted
+     ([{ key, words, line }]: the asks granted in this scene since the lock
+     was last lifted, oldest first) }, or null. */
+  function cleanLock(v) {
+    if (!isObj(v) || typeof v.key !== 'string' || !v.key || !LOCK_OUTCOMES.includes(v.outcome)) return null;
+    const line = x => (typeof x === 'string' && x ? x.slice(0, 200) : null);
+    const words = w => (Array.isArray(w) ? w.filter(x => typeof x === 'string' && x).map(x => x.slice(0, 40)).slice(0, 40) : []);
+    const granted = (Array.isArray(v.granted) ? v.granted : []).filter(g => isObj(g) && typeof g.key === 'string' && g.key)
+      .map(g => ({ key: g.key, words: words(g.words), line: line(g.line) }));
+    return { key: v.key, outcome: v.outcome, line: line(v.line), granted: granted.slice(-LOCK_GRANTED_MAX) };
+  }
+  /* The record a roll leaves: its outcome and line, and the granted asks of
+     the same scene carried over from the record before (prev), with this one
+     added when it was granted. */
+  function lockRecord(result, key, words, prev) {
+    if (!result || !key) return null;
+    const outcome = outcomeOf(result.tier);
+    const p = cleanLock(prev);
+    const kept = p ? p.granted.filter(g => sceneOf(g.key) === sceneOf(key)) : [];
+    if (outcome === 'granted') kept.push({ key, words: Array.isArray(words) ? words.slice() : [], line: result.line || null });
+    return { key, outcome, line: result.line || null, granted: kept.slice(-LOCK_GRANTED_MAX) };
+  }
+  /* The lock's record while it holds (meta.lastRollKey set, and the record
+     its own), or null. */
+  function lockState(state) {
+    state = state || State.current;
+    if (!state || !state.meta.lastRollKey) return null;
+    const r = cleanLock(state.meta.lastRoll);
+    return r && r.key === state.meta.lastRollKey ? r : null;
+  }
+  /* What the lock says about this key: 'failed' when it is locked and the
+     latest roll on it failed (or the lock has no record: a save from before
+     granted asks were locked, when only failures locked), 'granted' when it
+     is locked after a granted roll, else null. */
+  function lockedOutcome(key, state) {
+    if (!isLocked(key, state)) return null;
+    const r = lockState(state);
+    return r ? r.outcome : 'failed';
+  }
+  /* An ask granted under this key in this scene that these words repeat
+     ({ key, words, line }), or null. */
+  function grantedAsk(key, words, state) {
+    const r = lockState(state);
+    if (!r || !key) return null;
+    return r.granted.slice().reverse().find(g => g.key === key && sameAsk(g.words, words)) || null;
+  }
+  return { TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, LOCK_OUTCOMES, SAME_ASK_SHARE, target, capModifier, sumModifiers, tier, isSuccess, needsComplication, modifiersFor, resolve, formatLine,
+    lockKey, isLocked, lockFor, askWords, sameAsk, outcomeOf, cleanLock, lockRecord, lockState, lockedOutcome, grantedAsk };
 })();
 
 // ===== Module: Tables =====
@@ -5043,7 +5149,9 @@ const Tables = (() => {
    - engine-only fields (source 'engine', the default): addNpcs, addLocations,
      addItems ([{ locationId, item }]: things noticed in a place, which
      itemsGained can then pick up), conditionsRemoved, storyPointsDelta,
-     lastRollKey, beginTurn, advanceTime, setTime ({ day, phase, shorts,
+     lastRollKey (a new or cleared key drops meta.lastRoll unless the same
+     diff brings it), lastRoll (Dice.lockRecord: what the roll under
+     lastRollKey was; null clears it), beginTurn, advanceTime, setTime ({ day, phase, shorts,
      late }: the clock set outright, /cheat time and Upgrade version 4; no
      phase passes, so nothing ticks), logEntry, seedsFired,
      chronicleEntry, weather, addLooseEnd, defeat ({ outcome }), and the
@@ -5194,7 +5302,7 @@ const State = (() => {
 
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
-  const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
+  const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'lastRoll', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn'];
@@ -6835,7 +6943,18 @@ const State = (() => {
         if (v !== null && typeof v !== 'string') bad('must be a string or null');
         if (s.meta.lastRollKey === v) return null;
         s.meta.lastRollKey = v;
+        // The record belongs to its key: a new or cleared key drops it, unless this diff brings the new one.
+        if (!Object.prototype.hasOwnProperty.call(diff, 'lastRoll')) s.meta.lastRoll = null;
         return v ? 'retry lock set' : 'retry lock cleared';
+      });
+    }
+    if (Object.prototype.hasOwnProperty.call(diff, 'lastRoll') && allowed.includes('lastRoll')) {
+      run('lastRoll', () => {
+        const v = diff.lastRoll === null ? null : Dice.cleanLock(diff.lastRoll);
+        if (diff.lastRoll !== null && !v) bad('must be { key, outcome: granted | failed, line, granted } or null');
+        if (v && v.key !== s.meta.lastRollKey) bad('must be the record of the current retry lock (lastRollKey)');
+        s.meta.lastRoll = v;
+        return v ? `retry lock: ${v.outcome}` : null;
       });
     }
     one('beginTurn', v => {
@@ -7205,7 +7324,7 @@ const State = (() => {
     t.factions.forEach(f => { reputation[f.id] = 0; });
     const st = {
       version: 1,
-      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
+      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, lastRoll: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
       time: { day: 1, phase: 'morning', shorts: 0 },
       flags: { priceMultiplier: 1, weather: '', season: 'spring' },
       player: {
@@ -7264,6 +7383,9 @@ const State = (() => {
     s.time.shorts = s.time.shorts | 0;
     if (!Number.isInteger(s.meta.rngCalls)) s.meta.rngCalls = 0;
     if (s.meta.lastRollKey === undefined) s.meta.lastRollKey = null;
+    // The lock's record (Dice.lockRecord). A save from before granted asks were locked has none: its lock, if any, was a failure, and reads as one.
+    const lockRecord = s.meta.lastRollKey ? Dice.cleanLock(s.meta.lastRoll) : null;
+    s.meta.lastRoll = lockRecord && lockRecord.key === s.meta.lastRollKey ? lockRecord : null;
     if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
     // An age that is not a whole number from AGE_MIN to AGE_MAX is dropped; a save without one gets it from Upgrade version 7.
     if (s.player.age !== undefined && !(Number.isInteger(s.player.age) && s.player.age >= AGE_MIN && s.player.age <= AGE_MAX)) delete s.player.age;
@@ -8918,6 +9040,7 @@ const Api = (() => {
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
+    if (c.granted) out.push(`${c.granted.name || 'They'} already said yes.`);
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
       if (c.sceneChange.arrived.length) out.push(`${joinAnd(names(c.sceneChange.arrived))} ${c.sceneChange.arrived.length > 1 ? 'arrive' : 'arrives'}.`);
@@ -9131,6 +9254,8 @@ const Api = (() => {
     // A home someone names in a quoted line becomes a place (State.apply checks it like any other).
     const told = mockHomeFrom(c.narration, { lives: true, nearId: s.player.locationId });
     if (told) out.placesRevealed = [told];
+    // ALREADY GRANTED: an ask repeated after a yes records no attitude change, no memory and nothing gained.
+    if (c.granted) return out;
     const presentIds = c.presentIds || State.npcsAt(s.player.locationId).map(n => n.id);
     const npcs = (a.targets || []).map(id => State.npc(id)).filter(n => n && presentIds.includes(n.id));
     const first = npcs[0];
@@ -10135,7 +10260,8 @@ const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
     noReroll: 'Nothing to reroll: the last turn had no dice roll.',
-    locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
+    // A roll repeated while the retry lock holds, failed or already done (Dice; resolve).
+    locked: 'You already tried that here. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.'
   };
   const CONSEQUENCES = {
@@ -10646,24 +10772,52 @@ const Pipeline = (() => {
     if (tier === 'partial' && tierOf(d) !== 'partial') { for (let x = 19; x >= 2; x--) if (tierOf(x) === 'partial') { d = x; break; } }
     return d;
   }
-  /* Returns { locked: true } when the identical failed roll is retried. An
+  /* Who said yes to a granted ask, by name: the one person spoken to in Say
+     mode, else the only person here the ask was aimed at; else null. */
+  function agreedBy(ctx, people) {
+    const sp = ctx.speech;
+    if (isSay(sp) && sp.to !== 'everyone') return sp.toName || (State.npc(sp.to) || {}).name || null;
+    const here = people.filter(n => (ctx.presentIds || []).includes(n.id));
+    return here.length === 1 ? here[0].name : null;
+  }
+  /* The retry lock (SPEC section 7; see Dice). Returns { locked: true } when
+     the roll may not be made again and nobody in the scene answers it: a
+     failed roll repeated while its key holds, or something already done
+     (granted) done again. In conversation (Say, or a social action) the
+     scene answers instead, with no roll: a failed ask pushed again gets
+     ctx.pressed (the person holds their ground), a granted ask asked again
+     gets ctx.granted (it is settled, and nothing more is gained). A clearly
+     different ask after a granted one rolls, and the lock records it. An
      action without a roll leaves the lock alone here: runTurn lifts it once
-     the situation has changed (SPEC section 7). */
+     the situation has changed. /reroll and /cheat (ctx.reroll) bypass it. */
   function resolve(ctx) {
     const s = State.current;
     const a = ctx.action;
     if (!a.needsRoll) return {};
     const key = Dice.lockKey(a);
-    if (Dice.isLocked(key) && !ctx.reroll) {
-      // Pushing the same point in conversation again: no new roll (the dice
-      // are not re-rolled), but the scene still answers, so the player sees
-      // the person hold their ground instead of a system notice.
-      if (isSay(ctx.speech) || Dice.SOCIAL_ACTIONS.includes(a.actionType)) {
-        const last = s.log.slice().reverse().find(e => e.roll && /fail/i.test(String(e.roll.tier || e.roll.line || '')));
-        ctx.pressed = { key, line: last && last.roll && last.roll.line ? last.roll.line : null };
+    const people = a.targets.map(id => State.npc(id)).filter(Boolean);
+    // What was asked for: the typed words (a command's own name left off), less the names of the people it is aimed at.
+    const words = Dice.askWords(String(ctx.input || '').replace(/^\/\S+\s*/, ''), people.map(n => n.name));
+    if (!ctx.reroll) {
+      const social = isSay(ctx.speech) || Dice.SOCIAL_ACTIONS.includes(a.actionType);
+      const granted = Dice.grantedAsk(key, words);
+      if (granted) {
+        if (!social) return { locked: true };
+        ctx.granted = { key, line: granted.line, name: agreedBy(ctx, people) };
         return {};
       }
-      return { locked: true };
+      if (Dice.lockedOutcome(key) === 'failed') {
+        // Pushing the same point in conversation again: no new roll (the dice
+        // are not re-rolled), but the scene still answers, so the player sees
+        // the person hold their ground instead of a system notice.
+        if (social) {
+          const rec = Dice.lockState();
+          const last = s.log.slice().reverse().find(e => e.roll && /fail/i.test(String(e.roll.tier || e.roll.line || '')));
+          ctx.pressed = { key, line: (rec && rec.line) || (last && last.roll && last.roll.line ? last.roll.line : null) };
+          return {};
+        }
+        return { locked: true };
+      }
     }
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
     // After /undo or /reroll the restored state would hand back the very
@@ -10673,7 +10827,8 @@ const Pipeline = (() => {
     if (hooks.nextTier) { forced = dieFor(hooks.nextTier, { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType }); hooks.nextTier = null; }
     const roll = Dice.resolve({ stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, d20: forced });
     ctx.roll = roll;
-    State.apply({ lastRollKey: Dice.lockFor(roll, key) });
+    // Every outcome locks; the record says how it went and keeps this scene's granted asks.
+    State.apply({ lastRollKey: Dice.lockFor(roll, key), lastRoll: Dice.lockRecord(roll, key, words, s.meta.lastRoll) });
     UI.feed.roll(roll);
     if (roll.tier === 'critical' && s.player.storyPoints < State.LIMITS.storyPoints) {
       State.apply({ storyPointsDelta: 1 });
@@ -10974,6 +11129,7 @@ const Pipeline = (() => {
     if (ctx.missing) lines.push(notCarriedLine(ctx.missing));
     lines.push(`ROLL: ${roll ? roll.line : 'none'}`);
     if (ctx.pressed) lines.push(`SAME ASK AGAIN: the player already tried this and it failed${ctx.pressed.line ? ` (${ctx.pressed.line})` : ''}; there is no new roll and the answer does not change. Show them holding their position and reacting to being pushed (shorter, cooler or amused). Nothing new is granted.`);
+    if (ctx.granted) lines.push(`ALREADY GRANTED: the player asked this before and ${ctx.granted.name || 'the people here'} agreed${ctx.granted.line ? ` (${ctx.granted.line})` : ''}; there is no new roll and nothing more is gained. Show them noting it is already settled (a shrug, "I said yes", mild impatience) and move the scene on; grant nothing further.`);
     lines.push(`COMPLICATION: ${[roll && roll.complication, ctx.consequence].filter(Boolean).join('; ') || 'none'}`);
     if (roll && !roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push('OUTCOME: the ask failed. The person does not give the player what they asked for, in any form; the complication is on top of the refusal, not instead of it.');
     if (roll && roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push(`OUTCOME: the ask succeeded. ${roll.tier === 'critical' ? 'It works, and then some.' : roll.tier === 'partial' ? 'It works, but at the cost named in COMPLICATION.' : 'It works.'} The person goes along with what the player asked, at least in part, whatever they said before; do not narrate a refusal or a watered-down substitute. If it seems out of character, the difficulty already allowed for that: the dice decided.`);
@@ -11074,6 +11230,7 @@ const Pipeline = (() => {
     // The same fact the narrator had: record no use of the thing and nothing that needed it.
     if (ctx.missing) lines.push(`${notCarriedLine(ctx.missing)} Record no use of it, no item used or lost, and nothing that needed it.`);
     if (ctx.pressed) lines.push('SAME ASK AGAIN: this repeats an ask that already failed; grant nothing new; a small attitude drop (-5 to -10) for the person pushed is reasonable; no move.');
+    if (ctx.granted) lines.push(`ALREADY GRANTED: the player asked this before and ${ctx.granted.name || 'the people here'} agreed${ctx.granted.line ? ` (${ctx.granted.line})` : ''}; there is no new roll. Record no attitude change, no memory and nothing gained; no move.`);
     if (ctx.beat) lines.push('BEAT: the player did and said nothing; record only what the others did.');
     const missing = (ctx.notPresent || []).filter(x => x.reason === 'does_not_exist' || x.reason === 'unproven').map(x => x.label);
     if (missing.length) lines.push(`DOES NOT EXIST (record nothing about it): ${missing.join(', ')}`);
@@ -11339,11 +11496,13 @@ const Pipeline = (() => {
       if (ctx.due.length) World.dueNarrated(ctx.due);
       if (s.pendingScene) State.apply({ sceneChangeDone: true });
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
-      // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
+      // Retry lock (SPEC section 7): a roll set it in resolve(). An
       // action without a roll lifts it only once the situation has changed:
       // the action took time, time passed or the player moved. An instant
-      // look or chat in the same place leaves it on.
-      if (!ctx.roll && s.meta.lastRollKey && (action.timeCost !== 'instant' || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
+      // look or chat in the same place leaves it on. The ask repeated (SAME
+      // ASK AGAIN, ALREADY GRANTED) changes nothing by taking time itself.
+      const asked = !!(ctx.pressed || ctx.granted);
+      if (!ctx.roll && s.meta.lastRollKey && ((!asked && action.timeCost !== 'instant') || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
       if (!sameTime(narrTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
       // Step 12. Chronicle compression every 10 turns (never fails the turn).
       try { await compressIfDue(); } catch (e) { console.warn('[Pipeline] compression failed', e); }

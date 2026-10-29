@@ -306,6 +306,25 @@ bookkeeper are told where in the phase the scene is (early, mid or late), at
 night that you have not slept yet, and on a morning you reached without
 sleeping that you had no sleep last night.
 
+## Dice
+
+A roll is a d20 plus a stat and small modifiers against a difficulty, made
+only when the outcome is uncertain (**Show dice rolls** shows the line). The
+same roll is never made twice in a row, whatever it came to: the same kind of
+action at the same person or thing, in the same place and phase, waits until
+something changes (you move, time passes, or you try something different). A
+failed attempt tried again gets "You already tried that here. Change something
+first: ..." and costs nothing; in conversation the person holds their ground
+instead. **A granted ask stays granted**: ask the same person for the same
+thing again and there is no roll and nothing more to gain. They note it is
+already settled ("I said yes") and think no better of you for asking twice.
+An ask counts as the same when most of its words are, leaving out names,
+filler and words like "persuade" or "ask": "Come on, put in a good word for
+me" repeats "I persuade Lyman to put in a good word for me", while "lend me
+twenty dollars until Friday" is a new ask and rolls. Something you have
+already done that is not an ask (a lock picked, a search made) gets the
+notice if you do it again. `/reroll` and `/cheat` ignore the rule.
+
 ## Settings
 
 | Field | What it does |
@@ -337,7 +356,7 @@ When time passes while you stay put, anyone who arrives at or leaves your place 
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` | Take back the last turn exactly (up to 20 turns) | None |
-| `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die | Narrator, bookkeeper |
+| `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule (see Dice). The same action replays with a fresh die | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to day 1, night." One `/undo` takes it back | None |
 | `/pronouns <name> <pronoun>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, look and voice turn with it (Dewayne's husband becomes Dewayne's wife) | None |
