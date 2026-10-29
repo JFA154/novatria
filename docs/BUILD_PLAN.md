@@ -866,7 +866,129 @@ default changes; mock mode plays exactly as before.
 
 ### 12. The town talks: clock pace, rumours that spread, news in the journal
 
-(written by the package that implements it)
+The review the owner agreed with (finding 2): the plot resolves itself and
+the player cannot see it. The pacing report showed the first clock
+completing around day 4 and all nine by about day 14 in 200 of 200 runs,
+with no player involvement; in the 37-turn playtest five completions
+happened off-screen and the player heard one rumour. Root causes:
+`World.rollClocks` rolled a d6 for every faction at every phase change
+(SPEC.md section 8), four a day; `Pipeline.wouldKnow` let a rumour pass only
+from its source, a faction mate or (for news) a gossip, and most of the cast
+has no faction, so each of the town's ten rumours had exactly one person who
+could tell it; and nothing dated reached the Journal when the town moved.
+
+- **Clock pace** (`World.tick`). The clocks roll only at the morning and
+  evening ticks (`World.CLOCK_PHASES`): two rolls a day, so a six-segment
+  clock takes about nine days on average and a faction's three about 27.
+  Clock-trigger seeds and completions still run at every tick (a
+  bookkeeper's `clockNudges` can fill a clock at any phase). The player's
+  lever stays `clockNudges` (+/-1 a turn). Measured (pacing report, 200
+  seeded runs): a faction's first clock completes on day 9.6 on average
+  (median 9, 10-90% days 6-13), the second on 18.6, the third on 25.4; the
+  first completion anywhere in town comes on day 7.2; no run finishes every
+  clock by day 14, 54 of 200 by day 29.
+- **Who knows a rumour** (`knownBy`). Every rumour carries `knownBy`, the
+  ids of the people who know it: its source first, then for a faction's
+  news (`factionId`, set by `World.completeClock`) the faction's free
+  members, then anyone an engine `addRumour` names (`State.firstKnowers`,
+  called by `normaliseRumour`, which also accepts an optional `knownBy` of
+  known npc ids). A new game fills it for the town's rumours
+  (`State.fillKnownBy` in `newGame`). `State.mergePerson` (rules version 6)
+  swaps a merged person's id in it.
+- **Rumours spread** (`World.spreadRumours`, from `newMorning`, after the
+  weather and the conditions). Every rumour the player has not heard moves
+  one step each morning. The people who share a scheduled place with
+  someone who knows it (listed at the same place in the same phase, any
+  phase; `npcIdsBySchedule`, not the day's visits) and do not know it yet
+  are the candidates; each learns it on a 1-in-2 roll through `Rng`
+  (`SPREAD_CHANCE`), and when more than two succeed two are kept at random
+  (`SPREAD_CAP`). A gossip (`isGossip`: `GOSSIP_TAGS` informant, bartender,
+  innkeeper, or `GOSSIP_ROLE`; moved from Pipeline to the shared helpers so
+  World and Pipeline both use them) learns everything anyone at their place
+  knows, for certain and outside the cap. Everyone is judged on who knew it
+  at dawn, so a rumour moves one gathering a morning. Only the free tell or
+  learn (`talks`: alive, status free, in town), so the dead, the far away
+  and the arrested never do, and a false rumour spreads like a true one.
+  The learners go through the new engine-only op `rumourSpread` ([{
+  rumourId, npcIds }]; `ENGINE_KEYS`), which refuses a whole entry when
+  anyone in it is not free. One World event a morning lists the rumours
+  that spread. Decision left open by the review: a rumour the player has
+  heard stops spreading, because nothing reads who knows it any more
+  (`pickRumour` offers only unheard ones), and that keeps the morning's
+  dice for the rumours that matter. Measured (pacing report): the town's
+  ten rumours are each known by 4.3 people on the morning of day 2, 10 on
+  day 4, 17.4 on day 7 and 31.7 on day 14; 98% of the free town knows one
+  the player has not heard by day 7.
+- **`Pipeline.wouldKnow` reads `knownBy`**: 5 the source of news (a rumour
+  with `addedTurn`), 4 anyone else who knows news, 3 the source of an older
+  rumour, 2 anyone else who knows it, 0 otherwise. `pickRumour` is
+  unchanged: social actions only, the people aimed at (or everyone present
+  for a plain talk), nobody at attitude -25 or below, the best pair wins.
+  A gossip no longer knows all news on the spot; they hear it at the next
+  morning from anyone at their place.
+- **News in the Journal.** A new engine-only op, `journalNews` ([{ text,
+  day? }]), writes `{ turn, day, text, kind: 'news' }` (the day given if it
+  is today or earlier, else today) and never the same text twice; the
+  model's `journalEntry` stays the model's. `State.apply`'s `rumoursHeard`
+  now reports `result.heard` (the rumours it marked heard). After the
+  bookkeeper's diff, `Pipeline.newsHeard` (called from `runTurn` in place of
+  the single `rumourToldBy` line) writes "Around town: <text, final stop
+  dropped> (from <teller>)." for each, and records the teller when it is
+  not the source (`rumourToldBy`, as before). The teller is whoever the
+  rumour was offered by; for a rumour the bookkeeper marked heard without
+  it being offered, someone present who knows it (the person spoken to
+  first), else nobody and the line names no one. `World.completeClock`
+  writes "Around town: <the completion text>" when the completion is
+  `noticeable` (the same case as the quiet feed line), dated with the day
+  of the tick it happened in. The Journal tab lists them as it lists every
+  entry, newest first ("Turn N: ..."); the day is stored but the tab is
+  unchanged.
+- **Debug tab**: each rumour line adds "known by N".
+- **Older saves.** No rules version. `State.load` runs `fillKnownBy` (the
+  `fillPronouns` pattern): a rumour without `knownBy` gets
+  `firstKnowers`, its source and, for a faction's news, the faction's free
+  members (the people the old `wouldKnow` let tell it, apart from the
+  gossips and, for older rumours, the source's faction mates at weight 1,
+  who now hear it in the morning like anyone else); a list already there
+  keeps only people in the game, each once. A save's clocks simply roll
+  half as often from the next tick.
+- **SPEC.md.** Section 8 rolls the clocks at every phase change: a
+  deliberate deviation, listed in README.md. Its "someone likely to know"
+  a rumour is now whoever has heard it.
+- **Tests.** world: the clocks roll only at the morning and evening ticks
+  (forced sixes fill at those ticks and not at afternoon or night; natural
+  dice draw one d6 per running clock at the evening tick and none at the
+  others), a clock a nudge filled still completes and fires its clock seed
+  at an afternoon tick; the spread is the same for a seed, never adds
+  someone who knew it, who cannot learn or who shared no place with a
+  knower at dawn, adds two non-gossips a rumour a morning at most and every
+  gossip with a knower at their place; a false rumour spreads, never to the
+  dead or the arrested, and someone dead, far away or in the cells tells
+  nobody (and `rumourSpread` refuses them); a heard rumour stops; an older
+  save gets `knownBy` at load with no rules version; news of a completion
+  is known by its source and the faction's free members, offered by one of
+  them, written in the journal with the teller, once; a completion in view
+  is journalled with its day and turn, an off-screen one is not. state:
+  the town's rumours start with their source, a faction's news lists its
+  source, the faction's free members and anyone named once each, an
+  unknown name refuses the rumour; `rumourSpread` and `journalNews` are
+  refused from the model, `rumourSpread` refuses a whole entry with someone
+  dead, far away or unknown and adds a new person once; `journalNews`
+  trims, dates (a future day reads as today) and never repeats a text;
+  `rumoursHeard` reports only what it newly marked heard. pipeline:
+  the fresh-rumour test also has a non-source offer a rumour once they have
+  heard it, with the teller recorded and both journal lines. Changed on
+  purpose: world's first clock test (one roll per faction at each morning
+  and evening tick, not per phase; its forced loop allows 60 phases), its
+  seed test (the forced six lands at the next morning or evening,
+  `rollPhase`), its news test (rewritten for `knownBy`); acceptance [12]
+  (the forced loop allows 16 phases instead of 8, since six segments need
+  up to twelve at two rolls a day; its three natural days are unchanged);
+  playtest's pacing report (it prints the new rule, every-clock-done counts
+  by day 14 and 29 and the rumour spread on days 2, 4, 7 and 14; it asserts
+  a first clock around day 9 to 10, none finished by day 14, and spread that
+  grows and never passes the free town, where it asserted a mean completion
+  day between 5 and 16).
 
 ### 13. A granted ask stays granted (the retry lock on successes)
 

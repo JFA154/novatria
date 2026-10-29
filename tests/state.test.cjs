@@ -2196,4 +2196,56 @@ s.test('State.load rewrites an older save\'s "Loose end with" line on a loose en
   assert.deepEqual(r.stranger, [{ turn: 1, weight: 2, text: 'Loose end with Tester (a debt): something' }], 'nobody else is touched');
 });
 
+s.test('rumours carry knownBy (source first; a faction\'s news its free members; extra names checked); rumourSpread and journalNews are engine-only and checked; rumoursHeard reports what it marked heard', async h => {
+  const page = await h.open();
+  await quickStart(page, { seed: 77 });
+  const r = await page.evaluate(() => {
+    const S = Game.State;
+    const st = Game.state;
+    const out = {};
+    const free = st.npcs.filter(n => n.alive !== false && n.status === 'free');
+    const f = st.factions.find(x => free.filter(n => n.factionId === x.id).length >= 2);
+    const members = free.filter(n => n.factionId === f.id).map(n => n.id);
+    const src = free.find(n => n.factionId !== f.id);
+    const other = free.find(n => n.factionId !== f.id && n.id !== src.id);
+    const dead = st.npcs.find(n => n.presence === 'dead');
+    const away = st.npcs.find(n => n.presence === 'away');
+    out.town = st.rumours.every(x => JSON.stringify(x.knownBy) === JSON.stringify([x.sourceNpcId]));
+    // A faction's news: its source, then the faction's free members, then anyone named; each once.
+    S.apply({ effects: [{ op: 'addRumour', rumour: { id: 'rum_test_a', text: 'Test news.', sourceNpcId: src.id, factionId: f.id, knownBy: [other.id, members[0], src.id] } }] });
+    out.news = { got: S.rumour('rum_test_a').knownBy.slice(), want: [src.id].concat(members, [other.id]) };
+    out.badKnown = S.apply({ effects: [{ op: 'addRumour', rumour: { id: 'rum_test_b', text: 'Test.', sourceNpcId: src.id, knownBy: ['npc_nobody_here'] } }] }).rejected.length === 1 && !S.rumour('rum_test_b');
+    // rumourSpread: never from the model; a whole entry refused for someone dead, far away or unknown; known people once.
+    out.model = S.apply({ rumourSpread: [{ rumourId: 'rum_test_a', npcIds: [] }], journalNews: [{ text: 'x' }] }, { source: 'model' }).rejected.map(x => x.reason);
+    out.refused = ['dead', 'away', 'unknown'].map(k => S.apply({ rumourSpread: [{ rumourId: 'rum_test_a', npcIds: [free[0].id, k === 'dead' ? dead.id : k === 'away' ? away.id : 'npc_nobody_here'] }] }).rejected.length);
+    out.afterRefused = S.rumour('rum_test_a').knownBy.length;
+    const learner = free.find(n => !S.rumour('rum_test_a').knownBy.includes(n.id));
+    const res = S.apply({ rumourSpread: [{ rumourId: 'rum_test_a', npcIds: [learner.id, src.id] }] });
+    out.spread = { applied: res.applied.length, last: S.rumour('rum_test_a').knownBy.slice(-1)[0] === learner.id, length: S.rumour('rum_test_a').knownBy.length };
+    // journalNews: dated (today, or an earlier day given), marked news, never the same text twice.
+    const day = st.time.day;
+    S.apply({ journalNews: [{ text: '  Around town:  test one. ' }, { text: 'Around town: test two.', day: day + 5 }, { text: 'Around town: test one.' }, 'Around town: test three.'] });
+    out.journal = st.journal.filter(j => j.kind === 'news').map(j => [j.text, j.day, j.turn]);
+    out.day = day;
+    out.turn = st.meta.turn;
+    out.emptyRefused = S.apply({ journalNews: [''] }).rejected.length;
+    // rumoursHeard: result.heard lists only what it marked heard now.
+    const first = st.rumours[0].id;
+    out.heard1 = S.apply({ rumoursHeard: [first] }, { source: 'model' }).heard;
+    out.heard2 = S.apply({ rumoursHeard: [first] }, { source: 'model' }).heard || null;
+    return out;
+  });
+  assert.equal(r.town, true, 'the town\'s rumours start with their source alone');
+  assert.deepEqual(r.news.got, r.news.want);
+  assert.equal(r.badKnown, true, 'an unknown person in knownBy refuses the rumour');
+  assert.deepEqual(r.model, ['not allowed from the model', 'not allowed from the model']);
+  assert.deepEqual(r.refused, [1, 1, 1], 'refused for the dead, the far away and the unknown');
+  assert.equal(r.afterRefused, r.news.want.length, 'nobody added by a refused entry');
+  assert.deepEqual(r.spread, { applied: 1, last: true, length: r.news.want.length + 1 }, 'a new person added once; someone who knew it already is not added again');
+  assert.deepEqual(r.journal, [['Around town: test one.', r.day, r.turn], ['Around town: test two.', r.day, r.turn], ['Around town: test three.', r.day, r.turn]]);
+  assert.equal(r.emptyRefused, 1);
+  assert.equal(r.heard1.length, 1);
+  assert.equal(r.heard2, null, 'nothing reported for a rumour already heard');
+});
+
 s.run();

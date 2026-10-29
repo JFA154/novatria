@@ -550,7 +550,7 @@ s.test('the opening scene introduces present NPCs in a sentence', async h => {
   }
 });
 
-s.test('the packet carries only relevant memories and one fresh rumour from a present NPC who would share it', async h => {
+s.test('the packet carries only relevant memories and one fresh rumour from a present NPC who would share it: its source, or someone who has heard it; the journal gets it with who told it', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const sc = await findScene(page, { rumour: true, minAtt: -25 });
@@ -573,9 +573,43 @@ s.test('the packet carries only relevant memories and one fresh rumour from a pr
   const line = packet.split('\n').find(l => l.startsWith('RUMOUR:'));
   assert.equal(line, `RUMOUR: ${x.name} might mention this, if it fits: "${rumour.text}"`, 'the text only, never its truth');
   assert.equal(await page.evaluate(id => Game.State.rumour(id).heard, rumour.id), true, 'the mock bookkeeper marked it heard');
+  // News in the journal, from whoever told it (its source here, so no teller is recorded: People lists it under the source anyway).
+  const heard = await page.evaluate(id => ({ heardFrom: Game.State.rumour(id).heardFrom || null, news: Game.state.journal.filter(j => j.kind === 'news').map(j => j.text) }), rumour.id);
+  assert.deepEqual(heard.news, [`Around town: ${rumour.text.replace(/\.+$/, '')} (from ${x.name}).`], 'a journal line when the rumour is heard');
+  assert.equal(heard.heardFrom, null);
   await sendText(page, `I ask ${x.name} about the weather`);
   const again = (await lastPacket(page)).split('\n').find(l => l.startsWith('RUMOUR:')) || '';
   assert.ok(!again.includes(rumour.text), 'not offered again once heard');
+  // Someone who is not its source shares a rumour once they have heard it (World's morning spread; here its engine op, rumourSpread).
+  const other = await page.evaluate(xid => {
+    const G = Game;
+    const st = G.state;
+    const risky = /\b(look|examine|rest|sleep|wait|go|walk|head|run|enter|attack|hit|fight|insult|mock|buy|try|my)\b/i;
+    const knowsAny = n => st.rumours.some(r => !r.heard && (r.sourceNpcId === n.id || (r.knownBy || []).includes(n.id)));
+    for (const l of st.locations) {
+      if (l.closed) continue;
+      for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+        const here = G.State.npcsAt(l.id, ph);
+        const y = here.find(n => n.id !== xid && n.attitude > -25 && !knowsAny(n) && !risky.test(n.name) && here.every(m => m === n || !G.Town.mentions(n.name.toLowerCase(), m)));
+        const r = y && st.rumours.find(q => !q.heard && q.sourceNpcId !== y.id);
+        if (y && r) return { loc: l.id, phase: ph, id: y.id, name: y.name, rumour: { id: r.id, text: r.text, source: r.sourceNpcId } };
+      }
+    }
+    return null;
+  }, x.id);
+  assert.ok(other, 'someone to hear a rumour from');
+  await place(page, other.loc, other.phase);
+  await sendText(page, `I ask ${other.name} about the river`);
+  assert.doesNotMatch(await lastPacket(page), new RegExp('\nRUMOUR: ' + other.name), 'nothing to share before they hear it');
+  assert.deepEqual(await page.evaluate(([rid, nid]) => Game.State.apply({ rumourSpread: [{ rumourId: rid, npcIds: [nid] }] }).rejected, [other.rumour.id, other.id]), []);
+  await sendText(page, `I ask ${other.name} about the river`);
+  const second = (await lastPacket(page)).split('\n').find(l => l.startsWith('RUMOUR:'));
+  assert.equal(second, `RUMOUR: ${other.name} might mention this, if it fits: "${other.rumour.text}"`, 'a non-source who knows it offers it');
+  const told = await page.evaluate(id => ({ heard: Game.State.rumour(id).heard, heardFrom: Game.State.rumour(id).heardFrom, last: Game.state.journal.filter(j => j.kind === 'news').pop() }), other.rumour.id);
+  assert.equal(told.heard, true);
+  assert.equal(told.heardFrom, other.id, 'the teller is recorded');
+  assert.equal(told.last.text, `Around town: ${other.rumour.text.replace(/\.+$/, '')} (from ${other.name}).`, 'the journal names who told it');
+  await place(page, sc.loc.id, sc.phase);
   // A hostile NPC shares nothing.
   await page.evaluate(id => Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: id, delta: -200 }] }), x.id);
   await sendText(page, `I ask ${x.name} what they have seen`);

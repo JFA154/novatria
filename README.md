@@ -296,7 +296,7 @@ A day has four phases: morning, afternoon, evening and night, shown in the
 top bar. Talking and looking take no time. A short action (minutes to half an
 hour: a walk across town, a search, a chore) takes a third of a phase, so
 three of them move the clock on. A long one (an hour or more) takes a whole
-phase. The town moves on at every change of phase.
+phase. The town moves on at every change of phase (see The living world).
 
 **Night lasts until you sleep.** Short actions never carry the clock from
 night into morning: after the third one it stays at night, late, however long
@@ -305,6 +305,49 @@ the scene runs. Morning comes when you `/rest` (sleep), `/wait morning`,
 bookkeeper are told where in the phase the scene is (early, mid or late), at
 night that you have not slept yet, and on a morning you reached without
 sleeping that you had no sleep last night.
+
+## The living world
+
+The town moves whether or not you do. The land company, the smugglers and
+the police each work through two or three plans in order, and each plan is a
+clock of six segments (the Debug tab shows them).
+
+- **Clocks fill twice a day.** When the morning starts and when the evening
+  starts, every faction with a plan running rolls a die, and a 5 or 6 fills
+  a segment. A plan takes about nine days on average. Over 200 seeded runs
+  (the playtest's pacing report) a faction's first plan completes on day 9.6
+  on average (day 6 to 13 in eight runs out of ten), the first completion
+  anywhere in town comes around day 7, and no run finishes every plan in two
+  weeks (54 of 200 finish them all by day 29). Before, the clocks rolled at
+  every change of phase and the whole plot was over by about day 14 with no
+  help from you. What you do can still move a clock one segment either way
+  in a turn: the bookkeeper decides (sabotage the smugglers and their clock
+  loses one).
+- **A finished plan changes the town**: a place closes, someone is arrested
+  or leaves, prices go up. If it happens where you are, or to someone
+  standing with you, a quiet line in the story says so and the Journal gets
+  the same text as "Around town: ...". Otherwise it happens off-screen, and
+  you hear of it the way you hear anything else.
+- **Rumours spread.** A rumour starts with the person it comes from (the news
+  of a finished plan also with the faction's own people). Every morning it
+  moves one step: each person who is at the same place at the same time of
+  day as someone who knows it may pick it up (1 in 2, and two new people a
+  rumour a morning at most), and the town's gossips (the two bartenders at
+  the Low Water, the motor court's night clerk, the hairdresser and the
+  police dispatcher) pick up everything said at their place. The dead, the
+  people who live elsewhere and anyone in the cells hear nothing and tell
+  nothing. A false rumour travels as fast as a true one. In the pacing
+  report the town's ten rumours are each known by about 4 people on the
+  morning of day 2, 10 on day 4, 17 on day 7 and 32 on day 14, and from
+  about day 7 nearly everyone in town knows something you have not heard.
+- **You hear them by talking.** When you talk to someone who knows a rumour
+  you have not heard, the narrator may have them bring it up (fresh news
+  first, then what they started themselves, then what they picked up).
+  Anyone who dislikes you (cold or worse) keeps it to themselves. Once you
+  have heard it, it stops spreading, the Journal gets "Around town: <what
+  you heard> (from <who told you>)." on that turn, and the teller's People
+  card lists it under "Told you". In the 34-turn playtest you hear three of
+  them (it was one before rumours spread).
 
 ## Dice
 
@@ -363,7 +406,7 @@ When time passes while you stay put, anyone who arrives at or leaves your place 
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens the Saves screen) | None |
 | `/load <name>` | Load a named slot (no name opens the Saves screen) | None |
-| `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth, rejected changes, token totals and the last raw API responses | None |
+| `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth and how many people know each rumour, rejected changes, token totals and the last raw API responses | None |
 
 Story points: you start with 2. You earn 1 when a thread resolves or on a
 natural 20, up to 3.
@@ -534,6 +577,13 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   $0.0319 to $0.0380 (it was $0.0284 to $0.0346) and 100 turns at about
   $3.19 to $3.80 (was $2.84 to $3.46). Mock narrations are short; real ones
   make a long scene cost a little more, up to the 700-word cap.
+- Since the town talks (see The living world), no call and no packet line
+  is added: the one RUMOUR line a turn was already there and the journal's
+  news is written by the game. The same 15 inputs meet a slightly
+  different town (the clocks roll half as often and the morning spread
+  uses the dice too), and the report now measures the packet at 8,168
+  characters on average (11,455 at most), about 2,330 tokens: an ordinary
+  turn $0.0318 to $0.0380, 100 turns about $3.18 to $3.80.
 - The chronicle (parser model, every 10 turns) was not part of the run; it
   is estimated at about 1,000 input and 110 output tokens. Higher effort or
   the Opus model costs more. The Debug tab shows the real token counts and
@@ -591,8 +641,8 @@ build environment. Elsewhere, run `npm i playwright` and
 
 - `tests/acceptance.test.cjs`: the twelve acceptance checks of SPEC.md section 14.
 - `tests/playtest.test.cjs`: a scripted 30+ turn game, the pacing reports
-  (faction clocks over 200 seeded runs, insult-to-grudge timing), the cost
-  estimate, and the mock parser rules.
+  (faction clocks and rumour spread over 200 seeded runs, insult-to-grudge
+  timing), the cost estimate, and the mock parser rules.
 - `tests/mobile.test.cjs`: 375x740 and 390x844 checks for tap targets, input
   size, overflow and safe areas, the narrator strip included.
 - `tests/constraints.test.cjs`: the single-file rules.
@@ -641,6 +691,14 @@ Nobody else's secret is ever sent, and the cached cast block carries none.
 The packet's LAST 3 TURNS (section 10's example) is THIS SCENE, every turn
 since the player came to the place they are in (capped), with BEFORE THIS
 SCENE on a fresh arrival.
+
+And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 12):
+SPEC.md section 8 rolls the faction clocks at every phase change. They roll
+at the morning and evening ticks only (two rolls a day), because at four a
+day the town's whole plot finished by about day 14 in every seeded run, with
+no help from the player. Section 8's "someone likely to know" a rumour is
+now whoever has heard it: rumours spread each morning between people who
+share a place (see The living world).
 
 ## Verified against the live API on 28 Oct 2026
 

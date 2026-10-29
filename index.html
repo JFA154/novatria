@@ -4663,6 +4663,12 @@ const PERSON_FIELDS = ['age', 'presence', 'history', 'where', 'reach', 'died', '
    'away' (status gone: they live elsewhere, or have left town), else 'here'.
    The dead and the away are never scheduled and never present. */
 function presenceOf(n) { return !n ? 'here' : n.alive === false || n.status === 'dead' ? 'dead' : n.status === 'gone' ? 'away' : 'here'; }
+/* The town's gossips: an informant, a bartender or an innkeeper, by tag or
+   by role. Each morning they hear everything anyone at their place knows
+   (World's spread, direction change 12). */
+const GOSSIP_TAGS = ['informant', 'bartender', 'innkeeper'];
+const GOSSIP_ROLE = /\b(informant|bartender|barkeep|barman|barmaid|innkeeper|publican)\b/i;
+function isGossip(n) { return !!n && ((Array.isArray(n.tags) && n.tags.some(t => GOSSIP_TAGS.includes(t))) || GOSSIP_ROLE.test(n.role || '')); }
 /* Why someone is not in the scene, in a few words: "dead (August 2026, an
    overdose at Riverbend)", "not in town (the state penitentiary, ...)",
    "gone from town"; '' for someone here. */
@@ -5162,8 +5168,13 @@ const Tables = (() => {
      ([seedId]: narrated or dropped), visits ([{ npcId, locationId }]: the NPC
      is there for the current day and phase only, whatever their schedule
      says), npcHome ([{ npcId, locationId, phases }]: a schedule for an NPC
-     who had none) and rumourToldBy ([{ rumourId, npcId }]: who told the
-     player a heard rumour, when it was not its source); and Upgrade's own:
+     who had none), rumourToldBy ([{ rumourId, npcId }]: who told the
+     player a heard rumour, when it was not its source), rumourSpread
+     ([{ rumourId, npcIds }]: people who heard a rumour this morning, added
+     to its knownBy; only the free can learn) and journalNews ([{ text }]:
+     a line the engine writes in the journal, { turn, day, text, kind:
+     'news' }, never twice the same; the model's journalEntry stays the
+     model's); and Upgrade's own:
      setMemories ([{ npcId, memories: [{ turn, text, weight }] }]: a person's
      memories replaced outright, in the order given, at most MEMORY_MAX),
      fixPeople ([{ npcId, name?, pronouns?, role?, look?, voice?,
@@ -5261,7 +5272,13 @@ const Tables = (() => {
    out of town (away) is never a playerLocationId or a visit. editPerson
    also takes age (a whole number 0 to 120, null to clear) and history
    (text, at most 400).
-   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn? }. */
+   Every rumour carries knownBy (direction change 12): the ids of the people
+   who know it, its source first, then for a faction's news (factionId) the
+   faction's free members, then anyone an engine rumour names; World adds
+   to it each morning (rumourSpread) and Pipeline.wouldKnow reads it. A save
+   from before gets it at load (fillKnownBy). rumoursHeard lists the
+   rumours it marks heard in result.heard.
+   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?, heard? }. */
 const State = (() => {
   let current = null;
   let town = null;
@@ -5304,7 +5321,7 @@ const State = (() => {
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'lastRoll', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'rumourSpread', 'journalNews', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
@@ -5401,11 +5418,29 @@ const State = (() => {
     const text = cleanText(r.text, 300);
     if (!text) bad('rumour needs text');
     if (r.sourceNpcId !== null && r.sourceNpcId !== undefined) needNpc(r.sourceNpcId);
-    // Rumours added during play are news (Pipeline.pickRumour spreads them first);
+    if (r.knownBy !== undefined && r.knownBy !== null) {
+      if (!Array.isArray(r.knownBy)) bad('knownBy must be a list of npc ids');
+      r.knownBy.forEach(needNpc);
+    }
+    // Rumours added during play are news (Pipeline.pickRumour offers them first);
     // one a faction's clock added also carries that faction (its members know it).
     const out = { id: r.id, text, true: r.true !== false, sourceNpcId: r.sourceNpcId || null, heard: r.heard === true, addedTurn: current.meta.turn, addedDay: current.time.day };
     if (typeof r.factionId === 'string' && faction(r.factionId)) out.factionId = r.factionId;
+    out.knownBy = firstKnowers(out, current.npcs, r.knownBy);
     return out;
+  }
+  /* Who knows a rumour to begin with (direction change 12): its source,
+     then, for a faction's news, the faction's free members (the people
+     wouldKnow always let tell it), then anyone else given; each once, and
+     only people in the game. World's morning spread adds the rest. */
+  function firstKnowers(r, npcs, extra) {
+    const list = Array.isArray(npcs) ? npcs : [];
+    const ids = [];
+    const add = id => { if (typeof id === 'string' && !ids.includes(id) && list.some(n => isObj(n) && n.id === id)) ids.push(id); };
+    add(r.sourceNpcId);
+    if (r.factionId) for (const n of list) if (isObj(n) && n.factionId === r.factionId && n.alive !== false && n.status === 'free') add(n.id);
+    if (Array.isArray(extra)) extra.forEach(add);
+    return ids;
   }
   function normaliseSeed(raw, requireAhead) {
     if (!isObj(raw)) bad('seed must be an object');
@@ -6033,6 +6068,26 @@ const State = (() => {
       }
     }
     return done;
+  }
+  /* Who knows each rumour, for a new game and for a game saved before
+     rumours carried knownBy (direction change 12; State.newGame and
+     State.load, no rules version): firstKnowers, so an older save's news
+     is still known by its source and the faction's free members. A list
+     already there keeps only people in the game, each once. Returns the ids
+     of the rumours filled. */
+  function fillKnownBy(s) {
+    const npcs = Array.isArray(s.npcs) ? s.npcs : [];
+    const filled = [];
+    for (const r of Array.isArray(s.rumours) ? s.rumours : []) {
+      if (!isObj(r)) continue;
+      if (Array.isArray(r.knownBy)) {
+        r.knownBy = r.knownBy.filter((id, i, a) => typeof id === 'string' && a.indexOf(id) === i && npcs.some(n => isObj(n) && n.id === id));
+        continue;
+      }
+      r.knownBy = firstKnowers(r, npcs);
+      filled.push(r.id);
+    }
+    return filled;
   }
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
@@ -6680,7 +6735,11 @@ const State = (() => {
       const moved = s.visits.map(v => (v.npcId === from.id ? Object.assign({}, v, { npcId: into.id }) : v));
       s.visits = moved.filter((v, i) => moved.findIndex(w => w.npcId === v.npcId) === i);
     }
-    for (const r of s.rumours) { if (r.sourceNpcId === from.id) r.sourceNpcId = into.id; if (r.heardFrom === from.id) r.heardFrom = into.id; }
+    for (const r of s.rumours) {
+      if (r.sourceNpcId === from.id) r.sourceNpcId = into.id;
+      if (r.heardFrom === from.id) r.heardFrom = into.id;
+      if (Array.isArray(r.knownBy)) r.knownBy = Array.from(new Set(r.knownBy.map(swap)));
+    }
     for (const entry of s.log) if (entry.to === from.id) { entry.to = into.id; entry.toName = into.name; }
     if (isObj(s.seen) && s.seen[from.id]) {
       const a = s.seen[from.id];
@@ -6904,6 +6963,8 @@ const State = (() => {
       const r = rumour(id) || bad(`unknown rumour id "${id}"`);
       if (r.heard) return null;
       r.heard = true;
+      // The engine writes the news in the journal with who told it (Pipeline.newsHeard).
+      (result.heard = result.heard || []).push(r.id);
       return `${r.id} heard`;
     });
     one('journalEntry', v => {
@@ -7070,6 +7131,35 @@ const State = (() => {
       if (r.heardFrom === n.id) return null;
       r.heardFrom = n.id;
       return `${r.id} heard from ${n.id}`;
+    });
+    /* The morning's spread (World): people who learned a rumour. Only the
+       free learn (the dead, the far away and the arrested never do); the
+       whole entry is checked before anyone is added. */
+    each('rumourSpread', t => {
+      if (!isObj(t)) bad('must be an object');
+      const r = rumour(t.rumourId) || bad(`unknown rumour id "${t.rumourId}"`);
+      if (!Array.isArray(t.npcIds)) bad('npcIds must be a list of npc ids');
+      for (const id of t.npcIds) {
+        const n = needNpc(id);
+        if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status} and hears nothing`);
+      }
+      if (!Array.isArray(r.knownBy)) r.knownBy = firstKnowers(r, s.npcs);
+      const added = [];
+      for (const id of t.npcIds) if (!r.knownBy.includes(id)) { r.knownBy.push(id); added.push(id); }
+      return added.length ? `${r.id} now known by ${added.join(', ')} (${r.knownBy.length} in all)` : null;
+    });
+    /* A line the engine writes in the journal (news the player heard or saw
+       happen: "Around town: ..."), dated: the day given (World passes the
+       day of the tick it happened in, which a long rest may have left
+       behind), else today. The same text is never written twice. */
+    each('journalNews', v => {
+      const text = cleanText(isObj(v) ? v.text : v, 500);
+      if (!text) bad('needs text');
+      const d = isObj(v) ? toInt(v.day) : null;
+      const day = d !== null && d >= 1 && d <= s.time.day ? d : s.time.day;
+      if (s.journal.some(j => j.text === text)) return null;
+      s.journal.push({ turn: s.meta.turn, day, text, kind: 'news' });
+      return `journal "${text}"`;
     });
     each('visits', v => {
       if (!isObj(v)) bad('must be an object');
@@ -7347,6 +7437,8 @@ const State = (() => {
       visits: [],
       seen: {}
     };
+    // Who knows each rumour: its source to begin with (World spreads it each morning).
+    fillKnownBy(st);
     current = st;
     town = deepCopy(townData);
     muted = opts.pending === true;
@@ -7402,6 +7494,8 @@ const State = (() => {
     fillPronouns(s, townData || TOWN_DATA);
     // A loose end's person remembers it in the short form the narrator reads (older saves held "Loose end with ...").
     fillLooseEndMemories(s);
+    // Who knows each rumour (direction change 12): older saves start from its source.
+    fillKnownBy(s);
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
@@ -7485,7 +7579,7 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
-    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
+    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, fillKnownBy, firstKnowers, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
@@ -7992,17 +8086,27 @@ const Town = (() => {
 
    tick(info) runs once for every phase that passes (Pipeline.passTime calls
    it from normal turns, /skip, /rest, /wait and defeat), in this order:
-     a. Faction clocks. Every faction with a running clock rolls a d6 through
-        Rng; 5 or 6 fills one segment. Seeds with a clock trigger are checked
-        right after the rolls, before a full clock hands over to the next.
-     b. Clock complete. Its onComplete.effects run through applyEffects, the
-        next clock in sequence starts (activeClock + 1, or -1 when none are
-        left), and a quiet feed notice is posted only if the player could
-        plausibly see it: an effect that changes a place or a person names
-        the place they stand in or someone standing there with them.
-        Otherwise it happens off-screen. The content's own addRumour carries
-        the news (content note 2); only a completion without one gets a
-        rumour made from its text, so there is never a second one.
+     a. Faction clocks. At the morning and evening ticks only (CLOCK_PHASES:
+        two rolls a day, direction change 12; SPEC section 8 rolls at every
+        phase change, which finished the town's plot in about two weeks with
+        no help from the player), every faction with a running clock rolls a
+        d6 through Rng; 5 or 6 fills one segment. A six-segment clock takes
+        about nine days on average, a faction's three about 27. The player's
+        lever is the bookkeeper's clockNudges (+/-1 a turn). Seeds with a
+        clock trigger are checked right after the rolls (at every tick, since
+        a nudge can fill a clock too), before a full clock hands over to the
+        next.
+     b. Clock complete (every tick). Its onComplete.effects run through
+        applyEffects, the next clock in sequence starts (activeClock + 1, or
+        -1 when none are left), and a quiet feed notice is posted only if the
+        player could plausibly see it: an effect that changes a place or a
+        person names the place they stand in or someone standing there with
+        them. Then the journal gets the same text, "Around town: ..."
+        (journalNews). Otherwise it happens off-screen. The content's own
+        addRumour carries the news (content note 2); only a completion
+        without one gets a rumour made from its text, so there is never a
+        second one. Its knownBy starts with its source and the faction's
+        free members (State.firstKnowers).
      c. Schedules. Who is where is npcIdsBySchedule for the new phase
         (State.npcsAt). Arrested NPCs sit in the police station in every
         phase and gone or dead ones are nowhere (State's npcStatus and npcMove
@@ -8018,12 +8122,26 @@ const Town = (() => {
         dayOffset (2 to 5 days), with {npc} and {player} filled in. At most
         one unfired grudge or favour seed per NPC: nothing is planted for an
         NPC while one is waiting.
-     e. News spreads. Nothing to do at tick time: completions added their
-        rumours (b), and Pipeline.pickRumour offers one fresh unheard rumour
-        to the next NPC the player talks to who would know it.
+     e. News spreads (each morning, in f). Every rumour the player has not
+        heard yet moves one step through the town (spreadRumours): the people
+        who share a scheduled place with someone who knows it (listed at the
+        same place in the same phase, any phase of the day; npcIdsBySchedule,
+        not today's visits) and do not know it yet each learn it on a 1 in 2
+        roll (SPREAD_CHANCE), at most SPREAD_CAP (2) of them a rumour a
+        morning; a gossip (isGossip: informant, bartender, innkeeper) learns
+        everything anyone at their place knows, for certain and outside the
+        cap. Only the free tell or learn: the dead, the far away and the
+        arrested never do. A false rumour spreads like a true one. One step
+        a morning: who learns today tells from tomorrow. A rumour the player
+        has heard stops spreading, since nothing reads who knows it any more
+        (Pipeline.pickRumour offers only unheard ones), which also keeps the
+        dice for the rumours that matter. Pipeline.pickRumour offers one
+        fresh unheard rumour to the next person the player talks to who knows
+        it (wouldKnow reads knownBy).
      f. A new morning. Weather is rolled from TABLES.weather for the season
-        (never the same as yesterday) into flags.weather, and conditions that
-        ran out (untilDay before today) are removed with a quiet line.
+        (never the same as yesterday) into flags.weather, conditions that
+        ran out (untilDay before today) are removed with a quiet line, and
+        the rumours spread (e).
 
    Seeds and due events (state.dueEvents):
      fireSeeds(ctx), Pipeline step 11, fires every unfired seed whose trigger
@@ -8051,8 +8169,9 @@ const Town = (() => {
    faction and forceClockRoll(value, factionId) of one (that wins over the
    all-factions value); forceClockRoll(null) clears them all and
    forceClockRoll(null, factionId) just that one. forceAttitude(npcId,
-   value) sets an attitude through State.apply; recent lists the latest
-   world events for the debug view (memory only, not saved), and
+   value) sets an attitude through State.apply; spreadRumours() runs one
+   morning's spread on its own (it returns who learned what); recent lists
+   the latest world events for the debug view (memory only, not saved), and
    forget(turn) drops those of turns taken back by /undo or a failed turn. */
 const World = (() => {
   const MAX_DUE = 2;
@@ -8061,6 +8180,9 @@ const World = (() => {
   const REP_DIVISOR = 5;
   const REP_CAP = 5;
   const RECENT_MAX = 60;
+  const CLOCK_PHASES = ['morning', 'evening']; // the ticks at which the clocks roll (a)
+  const SPREAD_CAP = 2;    // new knowers a rumour gains a morning, gossips aside (e)
+  const SPREAD_CHANCE = 2; // a 1 in SPREAD_CHANCE roll for each of them
   const W = { source: 'world' };
   const hooks = { clockRolls: {} }; // forced d6 per faction id, '*' for every faction
   const recent = [];
@@ -8175,7 +8297,11 @@ const World = (() => {
     const next = activeClock(f);
     note(`${f.id} completes "${c.label}" ${seen ? 'where the player can see it' : 'off-screen'}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}; ${next ? `next clock "${next.label}"` : 'no clocks left'}`, { kind: 'complete', factionId: f.id, clock: idx });
     const ev = { kind: 'clock', factionId: f.id, clock: idx, seen, rejected: res.rejected.length };
-    if (seen && text) ev.notice = text;
+    if (seen && text) {
+      ev.notice = text;
+      // What the player saw happen goes in the journal too, dated with the day of this tick.
+      State.apply({ journalNews: [{ text: `Around town: ${text}`, day: (tickAt || s.time).day }] }, W);
+    }
     events.push(ev);
   }
   function completeClocks(phase, events) {
@@ -8263,6 +8389,54 @@ const World = (() => {
     return planted;
   }
 
+  // ----- e. news spreads -----
+  /* Someone who can pass news on or take it in: alive, free and in town. */
+  function talks(n) { return isFree(n) && presenceOf(n) === 'here'; }
+  /* The people listed together at a place in a phase (the schedules, any
+     phase of the day), only those who talk, each group of two or more. */
+  function gatherings() {
+    const groups = [];
+    for (const l of st().locations) {
+      if (l.away === true) continue;
+      for (const p of PHASES) {
+        const ids = Array.from(new Set(((l.npcIdsBySchedule || {})[p] || []).filter(id => talks(State.npc(id)))));
+        if (ids.length > 1) groups.push(ids);
+      }
+    }
+    return groups;
+  }
+  /* One step of every unheard rumour (e): returns [{ rumourId, npcIds }]
+     for the people who learned one, after applying them. Everyone is judged
+     on who knew it at dawn, so news moves one gathering a morning. */
+  function spreadRumours() {
+    const s = st();
+    const groups = gatherings();
+    const spread = [];
+    for (const r of s.rumours) {
+      if (!isObj(r) || r.heard) continue;
+      const knows = new Set(Array.isArray(r.knownBy) ? r.knownBy : r.sourceNpcId ? [r.sourceNpcId] : []);
+      const sure = [];
+      const maybe = [];
+      for (const g of groups) {
+        if (!g.some(id => knows.has(id))) continue;
+        for (const id of g) {
+          if (knows.has(id) || sure.includes(id) || maybe.includes(id)) continue;
+          (isGossip(State.npc(id)) ? sure : maybe).push(id);
+        }
+      }
+      if (!sure.length && !maybe.length) continue;
+      let learned = maybe.filter(() => Rng.int(1, SPREAD_CHANCE) === 1);
+      while (learned.length > SPREAD_CAP) learned.splice(Rng.int(0, learned.length - 1), 1);
+      // Gossips first, then the rest, in the order the schedules list them.
+      const ids = sure.concat(learned);
+      if (ids.length) spread.push({ rumourId: r.id, npcIds: ids });
+    }
+    if (!spread.length) return [];
+    const res = State.apply({ rumourSpread: spread }, W);
+    note(`rumours spread: ${spread.map(x => `${x.rumourId} +${x.npcIds.length}`).join(', ')}${res.rejected.length ? ` (${res.rejected.length} rejected)` : ''}`, { kind: 'rumour' });
+    return spread;
+  }
+
   // ----- f. a new morning -----
   function newMorning(day, events) {
     const s = st();
@@ -8275,6 +8449,7 @@ const World = (() => {
       State.apply({ conditionsRemoved: ended.map(c => c.id) }, W);
       for (const c of ended) events.push({ kind: 'condition', notice: `Condition over: ${c.name}${c.effect ? ` (${c.effect})` : ''}.` });
     }
+    spreadRumours();                                                    // e
   }
 
   function tick(info) {
@@ -8284,7 +8459,7 @@ const World = (() => {
     const to = (info && info.to) || { day: s.time.day, phase: s.time.phase };
     tickAt = to;
     try {
-      rollClocks();                                                     // a
+      if (CLOCK_PHASES.includes(to.phase)) rollClocks();                // a: twice a day
       fireWhere(sd => isObj(sd.trigger) && sd.trigger.type === 'clock');  // a: clock seeds, before a full clock hands over
       completeClocks(to.phase, events);                                 // b
       settleHomes();                                                    // c
@@ -8417,8 +8592,8 @@ const World = (() => {
   }
 
   return {
-    MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, hooks, recent,
-    tick, fireSeeds, dueSeeds, dueNarrated, applyEffects,
+    MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, CLOCK_PHASES, SPREAD_CAP, SPREAD_CHANCE, hooks, recent,
+    tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, spreadRumours,
     attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
     forceClockRoll, forceAttitude
   };
@@ -10936,26 +11111,25 @@ const Pipeline = (() => {
      is spelled out here rather than in the fixed style guide. */
   const WANTS_RULE = 'WANTS AND SECRETS: what someone in PRESENT wants and their traits drive what they say and do. Their secret is never told or hinted at in the narration; it only decides what they avoid, lie about or bristle at, and they let part of it slip only when the player has earned it, caught them out or found proof. Nobody else present knows someone\'s secret unless their own line says so.';
   /* One fresh rumour a present NPC might share when the player talks to them
-     (SPEC section 8, news spreads). How well an NPC would know a rumour:
+     (SPEC section 8, news spreads). Who knows a rumour is its knownBy (the
+     source, a faction's free members for its news, and whoever World's
+     morning spread has reached since; direction change 12). How well an
+     NPC would know it:
        5  news (a rumour the world added during play, such as a clock that
           completed off-screen) that they are the source of
-       4  news from someone in their faction or about their faction's doings
-          (a clock's rumour carries its factionId), or any news if they are
-          an informant, bartender or innkeeper (by tag or role)
+       4  news they know from someone else
        3  an older rumour of their own (sourceNpcId)
-       1  an older rumour from someone in their faction
+       2  an older rumour they know from someone else
+       0  a rumour they have not heard
      The best pair wins; ties go to the NPC the player is talking to first,
      then to the newest news, then to the town's own order. Hostile NPCs
      (attitude -25 or below) share nothing. */
-  const GOSSIP_TAGS = ['informant', 'bartender', 'innkeeper'];
-  const GOSSIP_ROLE = /\b(informant|bartender|barkeep|barman|barmaid|innkeeper|publican)\b/i;
-  function gossip(n) { return (n.tags || []).some(t => GOSSIP_TAGS.includes(t)) || GOSSIP_ROLE.test(n.role || ''); }
   function wouldKnow(n, r) {
-    const src = r.sourceNpcId ? State.npc(r.sourceNpcId) : null;
-    const own = r.sourceNpcId === n.id;
-    const mate = !own && !!n.factionId && ((src && src.factionId === n.factionId) || r.factionId === n.factionId);
-    if (Number.isInteger(r.addedTurn)) return own ? 5 : (mate || gossip(n)) ? 4 : 0;
-    return own ? 3 : mate ? 1 : 0;
+    const own = !!r.sourceNpcId && r.sourceNpcId === n.id;
+    const knowers = Array.isArray(r.knownBy) ? r.knownBy : [];
+    if (!own && !knowers.includes(n.id)) return 0;
+    if (Number.isInteger(r.addedTurn)) return own ? 5 : 4;
+    return own ? 3 : 2;
   }
   function pickRumour(ctx) {
     const s = State.current;
@@ -10974,6 +11148,31 @@ const Pipeline = (() => {
       }
     }
     return best ? { id: best.r.id, npcId: best.n.id, npcName: best.n.name, text: best.r.text } : null;
+  }
+  /* After the bookkeeper's diff: the rumours it marked heard this turn
+     (State.apply's result.heard) go in the journal as news, "Around town:
+     <text> (from <teller>).", and a teller who is not the source is
+     recorded (rumourToldBy, so People lists it under them). The teller is
+     whoever it was offered by (RUMOUR), else someone here who knows it, the
+     person the player spoke to first; with nobody, the line names no one. */
+  function newsHeard(ctx, ids) {
+    if (!Array.isArray(ids) || !ids.length) return;
+    const present = State.npcsAt(State.current.player.locationId);
+    const spoke = speakerOf(ctx);
+    const told = [];
+    const lines = [];
+    for (const id of ids) {
+      const r = State.rumour(id);
+      if (!r) continue;
+      let teller = ctx.rumour && ctx.rumour.id === r.id ? State.npc(ctx.rumour.npcId) : null;
+      if (!teller) {
+        const knows = present.filter(n => wouldKnow(n, r) > 0);
+        teller = knows.find(n => n.id === spoke) || knows[0] || null;
+      }
+      if (teller && teller.id !== r.sourceNpcId) told.push({ rumourId: r.id, npcId: teller.id });
+      lines.push({ text: `Around town: ${noStop(r.text)}${teller ? ` (from ${teller.name})` : ''}.` });
+    }
+    if (told.length || lines.length) State.apply({ rumourToldBy: told, journalNews: lines });
   }
   /* Fills the scene part of the turn context (shared by the narrator packet,
      the bookkeeper packet and the mock provider). */
@@ -11469,8 +11668,6 @@ const Pipeline = (() => {
           if (Array.isArray(clean[k])) clean[k] = clean[k].map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
         }
         const before = World.attitudes();
-        const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
-        const wasHeard = !!(offered && offered.heard);
         ctx.applied = State.apply(clean, { source: 'model' });
         // Step 13 renders the map and the Places list from state; the feed says what was added.
         ctx.revealed = (ctx.applied.revealed || []).slice();
@@ -11479,8 +11676,8 @@ const Pipeline = (() => {
         ctx.people = (ctx.applied.people || []).slice();
         for (const x of ctx.people) if (x.named) UI.feed.quiet(`Added to People: ${personTag(State.npc(x.id))}.`);
         ctx.reputation = World.driftReputation(before);
-        // Someone other than its source told it: People lists it under the teller.
-        if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
+        // A rumour heard: news in the journal, and People lists it under a teller who is not its source.
+        newsHeard(ctx, ctx.applied.heard);
       }
       arriveIfLeftBehind(ctx);
       // Defeat at 0 HP, from the fight or from the bookkeeper's hpDelta.
@@ -11864,7 +12061,7 @@ const Pipeline = (() => {
   return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
-    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
+    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, wouldKnow, newsHeard, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, carriedAs, carryingLine, notCarriedLine,
     ACTION_TYPES, NOTICES, hooks,
     forceNextRoll(d20) { hooks.nextD20 = Number.isInteger(d20) ? clamp(d20, 1, 20) : null; },
@@ -13350,7 +13547,7 @@ const UI = (() => {
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
       const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
       const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
-      const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
+      const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Array.isArray(r.knownBy) ? ` · known by ${r.knownBy.length}` : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
       const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');
       const chron = s.chronicle.map(c => `turns ${c.fromTurn}-${c.toTurn}: ${c.summary}`).join('\n');
       const logSpan = s.log.length ? `log: ${s.log.length} entries, turns ${s.log[0].turn}-${s.log[s.log.length - 1].turn}` : 'log: empty';

@@ -517,7 +517,7 @@ s.test('[12] In debug view, faction clocks visibly advance over several in-game 
   const day1 = await glance();
   assert.equal(day1.length, await page.evaluate(() => Game.state.factions.length), 'one clock line per faction');
   assert.ok(day1.every(l => / □{6} 0\/6 \(1 of /.test(l)), 'all start empty: ' + day1.join(' | '));
-  // Natural d6 rolls (5 or 6 fills a segment) over three days and nights.
+  // Natural d6 rolls (5 or 6 fills a segment) over three days and nights: one at each morning and evening tick (direction change 12).
   for (let i = 0; i < 3; i++) await sendText(page, '/rest');
   const day4 = await glance();
   assert.notDeepEqual(day4, day1, 'the clocks moved: ' + day4.join(' | '));
@@ -533,8 +533,9 @@ s.test('[12] In debug view, faction clocks visibly advance over several in-game 
     return null;
   });
   assert.ok(target, 'a running clock that closes a place or takes someone away');
+  // Forced sixes fill one segment at each morning and evening tick, so a six-segment clock needs up to twelve phases.
   await page.evaluate(id => { Game.World.forceClockRoll(1); Game.World.forceClockRoll(6, id); }, target.factionId);
-  for (let i = 0; i < 8 && await page.evaluate(([id, label]) => { const f = Game.State.faction(id); return f.activeClock >= 0 && f.clocks[f.activeClock].label === label; }, [target.factionId, target.label]); i++) {
+  for (let i = 0; i < 16 && await page.evaluate(([id, label]) => { const f = Game.State.faction(id); return f.activeClock >= 0 && f.clocks[f.activeClock].label === label; }, [target.factionId, target.label]); i++) {
     await sendText(page, `/wait ${await nextPhase(page)}`);
   }
   await page.evaluate(() => Game.World.forceClockRoll(null));

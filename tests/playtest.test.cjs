@@ -1,7 +1,7 @@
 'use strict';
 /* Milestone 5: a scripted playtest of 30+ turns against the mock provider,
-   with a fixed seed, plus the pacing reports (faction clocks over 200 seeded
-   runs, attitude and grudge timing). Every id and name comes from Game.data /
+   with a fixed seed, plus the pacing reports (faction clocks and rumour
+   spread over 200 seeded runs, attitude and grudge timing). Every id and name comes from Game.data /
    Game.state, so the script survives a change of town; the seed makes it
    repeat exactly.
    What it covers, in order: the arrival; talking to three different people; a
@@ -363,12 +363,16 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   console.log(`          checked: ${checked.turns} inputs, ${checked.packets} narrator packets, ${visited.size} places visited, ${talked.size} people talked to`);
 });
 
-/* Pacing (milestone 5): reports, not new rules. The d6 clock rule is the
-   spec's (a faction fills a segment on 5 or 6 at every phase change); this
-   runs it 200 times from different seeds and prints the day each clock
-   completes. Then it plays insults on one person through real turns and
-   prints how long a grudge takes to plant, fire and reach the narrator. */
-s.test('pacing report: clock completion days over 200 seeded runs of the world tick; insult-to-grudge timing in play', async h => {
+/* Pacing (milestone 5): reports, not new rules. The d6 clock rule (a
+   faction fills a segment on 5 or 6) rolls at the morning and evening ticks
+   only (direction change 12; the spec rolled at every phase change, and the
+   whole plot was over by about day 14 in every run); this runs it 200 times
+   from different seeds and prints the day each clock completes, and how far
+   the town's own rumours have spread on given mornings when the player
+   hears none of them. Then it plays insults on one person through real
+   turns and prints how long a grudge takes to plant, fire and reach the
+   narrator. */
+s.test('pacing report: clock completion days and rumour spread over 200 seeded runs of the world tick; insult-to-grudge timing in play', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const runs = await page.evaluate(() => {
     const G = Game;
@@ -377,17 +381,29 @@ s.test('pacing report: clock completion days over 200 seeded runs of the world t
     const ch = { name: 'Sim', backgroundId: bg.id, stats: Object.assign({}, bg.stats), goal: 'g', flaw: D.FLAWS[0], looseEnds: ['debt', 'enemy', 'secret'].map(k => ({ kind: k, text: D.LOOSE_ENDS[k].options[0] })) };
     G.World.forceClockRoll(null);
     const out = [];
+    const SPREAD_DAYS = [2, 4, 7, 14];
     for (let i = 1; i <= 200; i++) {
       // pending: a silent game (no autosave, no render) driven by the real tick.
       G.State.newGame(D.TOWN_DATA, ch, { seed: 7000 + i, pending: true });
+      const own = G.state.rumours.map(r => r.id);
       const done = [];
+      const spread = {};
       for (let ph = 0; ph < 29 * 4; ph++) {
         const was = G.state.factions.map(f => f.activeClock);
         const t = G.State.apply({ advanceTime: 'long' }).time;
         G.World.tick({ from: t.from, to: t.to, phasesPassed: 1, cause: 'sim' });
         G.state.factions.forEach((f, k) => { if (f.activeClock !== was[k]) done.push({ fac: f.id, clock: was[k] + 1, day: t.to.day }); });
+        if (t.to.phase === 'morning' && SPREAD_DAYS.includes(t.to.day)) {
+          // How many people know each of the town's own rumours, and how much of the free town knows something the player has not heard.
+          const free = G.state.npcs.filter(n => n.alive !== false && n.status === 'free');
+          spread[t.to.day] = {
+            known: G.state.rumours.filter(r => own.includes(r.id)).map(r => r.knownBy.length),
+            share: free.filter(n => G.state.rumours.some(r => !r.heard && r.knownBy.includes(n.id))).length / free.length,
+            free: free.length
+          };
+        }
       }
-      out.push({ done, clocks: G.state.factions.reduce((n, f) => n + f.clocks.length, 0) });
+      out.push({ done, spread, clocks: G.state.factions.reduce((n, f) => n + f.clocks.length, 0) });
     }
     G.State.clear();
     return out;
@@ -404,14 +420,26 @@ s.test('pacing report: clock completion days over 200 seeded runs of the world t
   const first = runs.map(r => Math.min(...r.done.map(d => d.day)));
   const hist = {};
   for (const d of all) hist[d] = (hist[d] || 0) + 1;
-  console.log('        faction clocks, d6 rule (5-6 fills one of 6 segments per phase change), 200 seeded runs, days 1-29:');
+  const allBy = day => runs.filter(r => r.done.length === r.clocks && r.done.every(d => d.day <= day)).length;
+  console.log('        faction clocks, d6 rule (5-6 fills one of 6 segments, rolled at the morning and evening ticks), 200 seeded runs, days 1-29:');
   for (const k of Object.keys(byClock).sort()) console.log(`          clock ${k} of each faction completes: ${fmt(stat(byClock[k]))}`);
   console.log(`          every completion: ${fmt(stat(all))}`);
   console.log(`          first completion anywhere in town: ${fmt(stat(first))}`);
   console.log(`          completions per day: ${Object.keys(hist).sort((a, b) => a - b).map(d => `d${d}:${hist[d]}`).join(' ')}`);
-  console.log(`          runs with every clock done by day 29: ${runs.filter(r => r.done.length === r.clocks).length}/200`);
+  console.log(`          runs with every clock done by day 14: ${allBy(14)}/200; by day 29: ${allBy(29)}/200`);
+  const mean = a => +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1);
+  console.log('        rumours (the town\'s ten, none heard by the player; a step each morning: 1 in 2 for each person who shares a place with someone who knows one, two a morning at most, gossips always):');
+  for (const d of Object.keys(runs[0].spread).sort((a, b) => a - b)) {
+    const known = runs.flatMap(r => r.spread[d].known);
+    console.log(`          day ${d} morning: each known by ${mean(known)} people on average (${Math.min(...known)}-${Math.max(...known)}); ${mean(runs.map(r => r.spread[d].share * 100))}% of the ${runs[0].spread[d].free} free people know one`);
+  }
   assert.equal(runs.length, 200);
-  assert.ok(all.length > 0 && stat(all).mean >= 5 && stat(all).mean <= 16, 'clocks complete within the first weeks');
+  const one = stat(byClock[1]);
+  assert.ok(one.mean >= 8 && one.mean <= 12, 'a faction\'s first clock completes around day 9 to 10: ' + one.mean);
+  assert.equal(allBy(14), 0, 'the plot no longer finishes itself in two weeks');
+  const spreadAt = d => mean(runs.flatMap(r => r.spread[d].known));
+  assert.ok(spreadAt(2) > 1 && spreadAt(7) > spreadAt(2) && spreadAt(14) >= spreadAt(7), 'rumours spread from their source over the days');
+  assert.ok(runs.every(r => Object.values(r.spread).every(x => x.known.every(k => k <= x.free + 1))), 'never past the people who can hear');
 
   // Insults to a grudge, through real turns (mock bookkeeper: -15 an insult; State.apply clamps at ±25 a turn).
   await quickStart(page, { seed: 99 });
