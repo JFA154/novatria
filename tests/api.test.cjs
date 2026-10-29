@@ -401,6 +401,32 @@ s.test('an error event inside the stream is surfaced and the input kept', async 
   assert.ok(await page.evaluate(() => Game.Api.responses.some(r => r.error && r.error.message === 'Overloaded')));
 });
 
+s.test('a reply the game cannot read is asked for once more: a narrator body that is not JSON, a structured reply that does not parse; twice in a row shows the notice and keeps the input', async h => {
+  const { page, reqs, queue } = await openReal(h);
+  const garbage = () => ({ status: 200, contentType: 'application/json', body: '<html>gateway hiccup</html>' });
+  // The narrator: garbage once, then the stream.
+  queue('narrator', garbage, narrReply());
+  await sendText(page, 'I ask the ferryman about the tide');
+  assert.deepEqual(reqs.filter(r => r.role === 'narrator').length, 2, 'asked twice');
+  assert.match(await page.evaluate(() => Game.state.log.slice(-1)[0].narration), /Tide's wrong/);
+  assert.ok(await page.evaluate(() => Game.Api.responses.some(r => r.role === 'narrator' && r.error && r.error.type === 'bad_response' && /trying again/.test(r.error.message))), 'the first try is logged');
+  // The bookkeeper: text that is not JSON once, then a good reply.
+  let n = reqs.length;
+  queue('bookkeeper', () => message('Sure! Here is the record: {'), bookReply({ journalEntry: 'Asked about the fare.' }));
+  await sendText(page, 'I ask the ferryman about the fare');
+  assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser', 'narrator', 'bookkeeper', 'bookkeeper']);
+  assert.equal(await page.evaluate(() => Game.state.journal.slice(-1)[0].text), 'Asked about the fare.');
+  // Twice in a row: the notice, the input kept, the state as before, no third try.
+  n = reqs.length;
+  const before = await stateJson(page);
+  queue('parser', () => message('not json'), () => message('still not json'));
+  await sendText(page, 'I ask the ferryman about the weather');
+  assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser', 'parser']);
+  assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /could not read\. Try again\. Your action was kept in the box\./);
+  assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the weather');
+  assert.equal(await stateJson(page), before);
+});
+
 s.test('a person the player asks for: one create_person call on the parser model with the description, the last three turns, everyone in the game and a shortlist; the reply makes her (she/her, his wife); a bad reply or an error falls back to the tables; existingNpcId reuses someone', async h => {
   const { page, reqs, queue } = await openReal(h);
   const x = await page.evaluate(() => {

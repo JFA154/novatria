@@ -1869,4 +1869,175 @@ s.test('the player fixes someone\'s pronouns: chips on the People card, or /pron
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.length), 0, 'none of it calls the API');
 });
 
+s.test('the player edits someone on their People card: Edit opens the whole record; Save is one engine edit and one /undo step with a quiet line naming what changed, and the card, the narrator and the schedule follow; Cancel, Escape and Enter change nothing; a taken name is refused with the reason and the form stays open; /edit <name> opens the editor; no edit while a turn runs', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  // A town person scheduled somewhere and free in some phase (now in the cells), met; someone else to be related to; a place for a home.
+  const x = await page.evaluate(() => {
+    const st = Game.state;
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    const at = id => PH.map(p => { const l = st.locations.find(y => ((y.npcIdsBySchedule || {})[p] || []).includes(id)); return l ? l.id : null; });
+    const townIds = Game.town.npcs.map(n => n.id);
+    const first = n => n.name.split(' ')[0];
+    const who = st.npcs.find(n => townIds.includes(n.id) && at(n.id).includes(null) && at(n.id).some(Boolean) && st.npcs.filter(m => first(m) === first(n)).length === 1);
+    const other = st.npcs.find(n => n.id !== who.id && townIds.includes(n.id) && first(n) !== 'Mavis');
+    const home = st.locations.find(l => l.discovered && !l.closed && !at(who.id).includes(l.id) && !['police', 'watch'].includes(l.type));
+    const schedule = at(who.id);
+    Game.State.apply({ npcKnownToPlayer: [who.id], newMemories: [{ npcId: who.id, text: 'Tester asked too many questions', weight: 1 }], effects: [{ op: 'npcStatus', npcId: who.id, status: 'arrested' }] });
+    return {
+      who: { id: who.id, name: who.name, first: first(who), pronouns: who.pronouns, voice: who.voice, schedule, free: PH.filter((p, i) => !schedule[i]) },
+      other: { id: other.id, name: other.name, first: first(other) }, home: home.id
+    };
+  });
+  const id = x.who.id;
+  const card = `.pcard[data-npc="${id}"]`;
+  const f = k => `#pe-${k}-${id}`;
+  const want = x.who.pronouns === 'she' ? 'he' : 'she';
+  const label = want === 'she' ? 'she/her' : 'he/him';
+  const depth = () => page.evaluate(() => Game.State.undoDepth());
+  const editing = () => page.evaluate(() => Game.UI.editing);
+  await page.click('#tab-people');
+  await page.click(`#phead-${id}`);
+  assert.ok(await page.isVisible(`${card} .pcard-fix .pcard-pchip`) && await page.isVisible(`${card} .pcard-fix .pcard-edit`), 'Edit sits beside the pronoun chips');
+  const before = await stateJson(page);
+  const d0 = await depth();
+
+  // Cancel, Escape and Enter in a one-line field change nothing.
+  await page.click(`${card} .pcard-edit`);
+  assert.ok(await page.isVisible(`${card} .pedit`));
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.pedit .pcard-look, .pedit .pcard-notes, .pedit .pcard-fix')].length), 0, 'the form takes the place of the card body');
+  assert.equal(await page.inputValue(f('name')), x.who.name);
+  assert.equal(await page.inputValue(f('pronouns')), x.who.pronouns);
+  assert.ok(await page.isChecked(`${card} input[name="status"][value="arrested"]`));
+  assert.ok(await page.isDisabled(f('relation')), 'no relation without someone to be related to');
+  assert.ok(await page.isHidden(f('goal')), 'goal and secret are folded away');
+  await page.fill(f('name'), 'Somebody Else');
+  await page.click(`${card} .pedit-cancel`);
+  assert.equal(await page.locator(`${card} .pedit`).count(), 0);
+  assert.ok(await page.isVisible(`${card} .pcard-look`), 'Cancel puts the card back');
+  await page.click(`${card} .pcard-edit`);
+  assert.equal(await page.inputValue(f('name')), x.who.name, 'a cancelled draft is gone');
+  await page.fill(f('role'), 'something else');
+  await page.press(f('role'), 'Escape');
+  assert.equal(await page.locator(`${card} .pedit`).count(), 0, 'Escape cancels');
+  await page.click(`${card} .pcard-edit`);
+  await page.fill(f('name'), 'Mavis Toler');
+  await page.press(f('name'), 'Enter');
+  assert.equal(await editing(), id, 'Enter in a one-line field does not save');
+  assert.deepEqual([await stateJson(page), await depth()], [before, d0]);
+
+  // A taken name: refused, the reason in the feed and the form, everything typed kept.
+  await page.fill(f('name'), x.other.name);
+  await page.fill(f('role'), 'night clerk at the motor court');
+  await page.click(`${card} .pedit-save`);
+  assert.deepEqual([await stateJson(page), await depth()], [before, d0], 'nothing changed, no undo step');
+  assert.equal(await lastNotice(page), `${x.who.name} was not changed: the name ${x.other.name} is taken: ${x.other.id} (${x.other.name}).`);
+  assert.equal(await editing(), id, 'the form stays open');
+  assert.deepEqual([await page.inputValue(f('name')), await page.inputValue(f('role'))], [x.other.name, 'night clerk at the motor court'], 'with the values typed');
+  assert.match(await page.textContent(`${card} .pedit .err`), /^Not saved: the name .* is taken/);
+
+  // The whole record.
+  await page.fill(f('name'), 'Mavis Toler');
+  await page.selectOption(f('pronouns'), want);
+  await page.fill(f('look'), 'A small, tired woman in a motel smock.');
+  await page.evaluate(sel => { const r = document.querySelector(sel); r.value = '40'; r.dispatchEvent(new Event('input', { bubbles: true })); }, f('attitude'));
+  assert.equal(await page.textContent(f('attitude-word')), '+40 · warm', 'the live word beside the slider');
+  await page.selectOption(f('relTo'), x.other.id);
+  assert.ok(await page.isEnabled(f('relation')));
+  await page.fill(f('relation'), 'wife');
+  await page.selectOption(f('home'), x.home);
+  await page.check(`${card} input[name="status"][value="free"]`);
+  await page.click(`${card} .pedit-add`);
+  assert.equal(await page.evaluate(sel => document.activeElement === document.querySelector(sel), f('mem-1')), true, 'the new memory line has the focus');
+  await page.fill(f('mem-1'), 'Tester paid back the twenty');
+  await page.selectOption(f('memw-1'), '3');
+  await page.click(`${card} .pedit-mem[data-i="0"] .pedit-mem-del`);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.pedit-mem textarea')].map(t => t.value)), ['Tester paid back the twenty'], 'removed; what was typed in the other line stays');
+  assert.equal(await page.inputValue(f('name')), 'Mavis Toler', 'and so does the rest of the form');
+  await page.click(`${card} .pedit-hidden > summary`);
+  assert.match(await page.textContent(`${card} .pedit-hidden`), /These are the game's secrets about this person\. Reading them spoils the story\./);
+  await page.fill(f('goal'), 'Get out of this town.');
+  await page.fill(f('secret'), 'She skimmed the till for a year.');
+  const pre = await stateJson(page);
+  const turn = JSON.parse(pre).meta.turn;
+  await page.click(`${card} .pedit-save`);
+
+  const r = await page.evaluate(id => JSON.parse(JSON.stringify(Game.State.npc(id))), id);
+  const voiceTurned = await page.evaluate(([v, p, was]) => Game.turnLook(v, p, was) !== v, [x.who.voice, want, x.who.pronouns]);
+  assert.deepEqual([r.name, r.pronouns, r.role, r.look, r.attitude, r.status, r.alive, r.goal, r.secret],
+    ['Mavis Toler', want, 'night clerk at the motor court', 'A small, tired woman in a motel smock.', 40, 'free', true, 'Get out of this town.', 'She skimmed the till for a year.']);
+  assert.deepEqual(r.created, { turn: null, day: null, by: 'edit', relationToNpcId: x.other.id, relation: 'wife' });
+  assert.deepEqual(r.home, { locationId: x.home, phases: x.who.free, revealed: true });
+  assert.deepEqual(r.memories, [{ turn, text: 'Tester paid back the twenty', weight: 3 }]);
+  const fields = ['name', 'pronouns', 'role', 'look'].concat(voiceTurned ? ['voice'] : [], ['attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret']);
+  assert.equal(await lastQuiet(page), `Edited Mavis Toler: ${fields.join(', ')}.`);
+  assert.equal(await depth(), d0 + 1, 'one undo step');
+  assert.deepEqual(await page.evaluate(() => [Game.state.meta.turn, Game.Api.Mock.calls.length]), [turn, 0], 'no turn and no API call');
+  // The card: closed editor, its details open, the new record.
+  const shown = await page.evaluate(sel => { const c = document.querySelector(sel); return { edit: !!c.querySelector('.pedit'), open: !c.querySelector('.pcard-more').hidden, name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, look: c.querySelector('.pcard-look').textContent, notes: c.querySelector('.pcard-notes').textContent, focus: document.activeElement.classList.contains('pcard-edit') }; }, card);
+  assert.deepEqual(shown, { edit: false, open: true, name: 'Mavis Toler', pron: label, role: `Night clerk at the motor court · ${x.other.first}'s wife`, look: 'A small, tired woman in a motel smock.', notes: shown.notes, focus: true });
+  assert.match(shown.notes, /paid back the twenty/);
+  // The schedule (and so the map): at home in the phases nothing else holds, back at the town's own schedule in the rest.
+  assert.ok(await page.evaluate(([home, ph, id]) => ph.every(p => Game.State.npcsAt(home, p).some(n => n.id === id)), [x.home, x.who.free, id]), 'at the new home');
+  // The narrator, next turn: the new name, pronouns, role and relation.
+  await place(page, await page.evaluate(id => Game.World.whereIs(id), id), null);
+  const packet = await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }));
+  assert.ok(packet.includes(`Mavis Toler (${label}; night clerk at the motor court; ${x.other.first}'s wife; `), packet.split('\n').find(l => l.startsWith('PRESENT')));
+
+  // One /undo takes all of it back.
+  await sendText(page, '/undo');
+  assert.equal(await stateJson(page), pre);
+  assert.equal(await depth(), d0);
+  assert.equal(await page.textContent(`${card} .pcard-name`), x.who.name);
+
+  // /edit <first name> opens the editor; nobody and no name are told so.
+  await sendText(page, `/edit ${x.who.first}`);
+  assert.equal(await editing(), id);
+  assert.equal(await page.getAttribute('#panel-body', 'data-tab'), 'people');
+  assert.ok(await page.isVisible(`${card} .pedit`));
+  assert.ok(await page.evaluate(sel => document.activeElement === document.querySelector(sel), f('name')), 'the name field has the focus');
+  await page.press(f('name'), 'Escape');
+  await sendText(page, '/edit Nobody Atall');
+  assert.equal(await lastNotice(page), 'There is nobody called Nobody Atall in the game.');
+  await sendText(page, '/edit');
+  assert.equal(await lastNotice(page), 'Edit whom? Try /edit Mavis.');
+  assert.equal(await editing(), null);
+
+  // While a turn runs, Edit and Save are off and say why.
+  await page.click(`${card} .pcard-edit`);
+  await page.evaluate(() => { Game.Api.Mock.delay = 120; Game.Api.Mock.queue('narrate', { delay: 400 }); window.__turn = Game.Pipeline.submit('I wait a moment'); });
+  await page.waitForFunction(() => Game.Pipeline.busy);
+  const busy = await page.evaluate(sel => ({ save: document.querySelector(sel + ' .pedit-save').disabled, title: document.querySelector(sel + ' .pedit-save').title, start: Game.UI.editPerson(Game.state.npcs[0].id) }), card);
+  assert.deepEqual(busy, { save: true, title: 'Wait for the current turn to finish.', start: false });
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  assert.ok(await page.isEnabled(`${card} .pedit-save`), 'back on after the turn; the form stayed open');
+  await page.click(`${card} .pedit-cancel`);
+  assert.ok(await page.isEnabled(`${card} .pcard-edit`));
+  await page.evaluate(() => { Game.Api.Mock.delay = 120; Game.Api.Mock.queue('narrate', { delay: 400 }); window.__turn = Game.Pipeline.submit('I wait a moment more'); });
+  await page.waitForFunction(() => Game.Pipeline.busy);
+  assert.deepEqual(await page.evaluate(sel => { const b = document.querySelector(sel + ' .pcard-edit'); return [b.disabled, b.title]; }, card), [true, 'Wait for the current turn to finish.']);
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+});
+
+s.test('the narrator packet says what people can know about the player: came to town today on day 1, yesterday on day 2, N days ago after; only their memories and what happened in front of them; and the check runs with the day', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const line = () => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').find(l => l.startsWith('WHAT PEOPLE KNOW:'));
+    const name = Game.state.player.name;
+    const town = Game.state.meta.townName;
+    const out = { name, town, d1: line(), after: Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').findIndex(l => l.startsWith('WHAT PEOPLE KNOW:')) };
+    Game.State.apply({ setTime: { day: 2, phase: 'morning' } });
+    out.d2 = line();
+    Game.State.apply({ setTime: { day: 4, phase: 'night' } });
+    out.d4 = line();
+    return out;
+  });
+  assert.equal(r.after, 3, 'right after PRESENT');
+  assert.ok(r.d1.startsWith(`WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Each person knows about ${r.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${r.name} never met them, heard of them, or got a call, news or a warning about them before they came.`), r.d1);
+  assert.ok(r.d2.includes(' came to ' + r.town + ' yesterday (this is day 2) and'), r.d2);
+  assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
+});
+
 s.run();

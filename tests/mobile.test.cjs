@@ -1,7 +1,8 @@
 'use strict';
 /* SPEC.md section 11, mobile rules, on two phone sizes (375x740 and 390x844):
    on every screen (title, each creation step and the summary, the game, the
-   autocomplete list, the menu, each sheet tab, the debug tab, settings, saves,
+   autocomplete list, the menu, each sheet tab, an open person card and its
+   editor, the debug tab, settings, saves,
    a warning banner, the "New" button) every button, tab, select, text field
    and tappable label is at least 44px each way, text fields use 16px or more
    (so iOS does not zoom), and nothing is wider than the screen (the Do / Say
@@ -94,6 +95,33 @@ for (const size of SIZES) {
       await page.click('#panel-close');
       await page.waitForTimeout(300);
     }
+    // People: someone met, their card open (the pronoun chips and Edit), then their card in edit mode through /edit,
+    // with a new memory line and the hidden goal and secret open: every control a tap tall, 16px fields, nothing wider than the screen.
+    const who = await page.evaluate(() => {
+      const n = Game.State.npcsAt(Game.state.player.locationId)[0] || Game.state.npcs[0];
+      Game.State.apply({ npcKnownToPlayer: [n.id], newMemories: [{ npcId: n.id, text: 'Ilse asked who was hiring around here', weight: 2 }] });
+      return { id: n.id, name: n.name };
+    });
+    await page.click('[data-open-tab="people"]');
+    await page.waitForTimeout(300);
+    await page.click(`#phead-${who.id}`);
+    await page.waitForTimeout(250);
+    assert.ok(await page.isVisible(`.pcard[data-npc="${who.id}"] .pcard-edit`));
+    await check('sheet: people, a card open');
+    await page.click('#panel-close');
+    await page.waitForTimeout(300);
+    await sendText(page, `/edit ${who.name}`);
+    await page.waitForTimeout(300);
+    assert.ok(await page.isVisible(`.pcard[data-npc="${who.id}"] .pedit`), '/edit opens the sheet with the editor');
+    await page.click('.pedit-add');
+    await page.click('.pedit-hidden > summary');
+    await page.selectOption(`#pe-relTo-${who.id}`, await page.evaluate(id => Game.state.npcs.find(n => n.id !== id).id, who.id));
+    assert.ok(await page.evaluate(() => { const b = document.getElementById('panel-body'); return b.scrollHeight > b.clientHeight; }), 'the form scrolls inside the sheet');
+    await check('sheet: people, the editor');
+    await page.press(`#pe-name-${who.id}`, 'Escape');
+    assert.equal(await page.evaluate(() => Game.UI.editing), null);
+    await page.click('#panel-close');
+    await page.waitForTimeout(300);
     await sendText(page, '/debug');
     await page.waitForTimeout(300);
     await check('sheet: debug');

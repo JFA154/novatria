@@ -431,3 +431,60 @@ talking, I can direct it to one person or all."
    People card, `/pronouns <name> <pronoun>`, `App.setPronouns`): the
    engine turns a gendered relation, role and tag with them (husband ->
    wife; `genderPhrase`), unless the same fix states those itself.
+6. **Edit anyone, fully** (owner, 29 Oct: "Let me edit characters fully",
+   after a wife recorded as a man). The engine-only `editPerson` op
+   (`ENGINE_KEYS`; `State.apply(diff, { source: 'player' })`, so the debug
+   log names the player) takes `{ npcId, name?, pronouns?, role?, look?,
+   voice?, personality?, goal?, secret?, attitude?, relationToNpcId?,
+   relation?, homeLocationId?, status?, alive?, memories? }` (or a list),
+   checks all of it before changing anything (name 2-40 and not someone
+   else's by `samePerson`; pronouns; role 1-60; look, voice and goal 200;
+   secret 300; 0-3 traits of 30; attitude a whole number clamped to
+   -100..100 with no per-turn ledger; a living other person or null for the
+   relation, the word cleaned by `cleanRelation`; a known place or null for
+   the home; `NPC_STATUSES`; memories as `setMemories`, text refused over
+   400) and changes only what differs, reporting `result.edited = [{ id,
+   fields }]`. It shares its helpers with `fixPeople` (`personName`,
+   `checkMemories`, `turnRelation`, `turnLines`, `setHome`). A null home
+   takes them off the home's phases; a place moves them in where nothing
+   else holds them. Dead or gone takes them off every schedule (dead: alive
+   false); arrested puts them in the cells; free brings them back alive to
+   the town's schedule and their home. A relation on someone without
+   `created` (a town person) gives them `created { turn: null, day: null,
+   by: 'edit', relationToNpcId, relation }` ('edit' is in `CREATED_BY` and
+   Upgrade's `MADE_BY`; a town person is never `madeUp`), removed again when
+   the relation is cleared. New pronouns, through `editPerson` or
+   `fixPeople` (the chips), now also turn the look and voice lines
+   (`turnLook`, shared with the mock's people check: person words such as
+   man/woman via `genderPhrase` with `LOOK_WORDS`, never kin words; he, him,
+   his, himself and the she forms, and the they forms only from they; the
+   verb after a subject that changes number; quoted words untouched),
+   unless the same change states them. The narrator's person line adds who
+   someone is to whom when the role does not already say it
+   (`State.relationNote`), as does the card's role line. UI: every People
+   card has **Edit** beside the pronoun chips (off, with a title, while a
+   turn runs); it swaps the card body for a form (name, pronouns, role,
+   look, voice, three trait fields, an attitude slider with
+   `State.attitudeWord`, related-to select and relation, home select,
+   status, memory lines with weight and Remove plus "Add a memory", and a
+   `<details>` "Hidden from you: goal and secret"). Save sends only what
+   differs from the values the form opened with to `App.editPerson`: one
+   snapshot, one `editPerson`, the snapshot dropped when nothing changed,
+   restored on a refusal (the reason in the feed and above the buttons, the
+   form kept as typed); a quiet line "Edited Mavis Toler: pronouns, role,
+   home." Escape cancels; Enter in a one-line field does nothing. The draft
+   survives re-renders. `/edit <who>` (after `/pronouns` in the list) opens
+   it.
+7. **What people know, and unreadable replies** (29 Oct 2026). On day 1
+   an NPC told the player "I've known a while" and "he called me last
+   night": the narrator was never told how long the player had been in
+   town or what anyone could know. Every narrator packet now carries a
+   `WHAT PEOPLE KNOW` line (`Pipeline.knowledgeLine`): the player came to
+   town on day 1 (today, yesterday, N days ago) and was a stranger before;
+   each person knows only their own memories and what happened in front of
+   them. On day 1, `Style.check` (given `day`) flags a quoted line to the
+   player that claims a past (`Style.inventedPast`: last night, known you,
+   a while now, since you came) and the rewrite note says why. A reply the
+   game cannot read (a narrator body that is not JSON, a structured reply
+   that does not parse, a non-JSON body) is asked for once more before the
+   turn fails with "The API sent a reply the game could not read".

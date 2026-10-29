@@ -594,6 +594,39 @@ select.input { padding-right: 32px; }
 .pcard-fix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
 .pcard-fix-k { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
 .pcard-chips .chip { padding: 6px 12px; font-size: 13px; }
+.pcard-edit { margin-left: auto; }
+/* People: a card's editor (UI.editPerson), in place of the card's body:
+   the full width of the card, every control a tap tall, 16px fields. */
+.pcard.editing .pcard-more { padding: 4px 8px 16px; }
+.pedit { display: grid; gap: 16px; min-width: 0; }
+.pedit .field { margin: 0; min-width: 0; }
+.pedit .label { margin-bottom: 6px; }
+.pedit .hint { font-size: 12px; }
+.pedit textarea.input { display: block; resize: vertical; line-height: 1.4; }
+.pedit-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.pedit-att { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pedit-range { flex: 1 1 auto; min-width: 0; height: var(--tap); margin: 0; font-size: 16px; accent-color: var(--accent); background: transparent; }
+.pedit-att-word { flex: none; min-width: 6.5em; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pedit .seg { gap: 6px; }
+.pedit .seg label { padding: 0 12px; font-size: 14px; }
+.pedit-mems, .pedit-status { min-width: 0; margin: 0; padding: 0; border: 0; }
+.pedit-mems { display: grid; gap: 10px; }
+.pedit-mems > legend, .pedit-status > legend { padding: 0; }
+.pedit-mem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.pedit-mem textarea { grid-column: 1 / -1; }
+.pedit-mems .empty { margin: 0; font-size: 13px; }
+.pedit-add { justify-self: start; }
+.pedit-hidden { min-width: 0; padding: 0 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
+.pedit-hidden > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; }
+.pedit-hidden > summary::-webkit-details-marker { display: none; }
+.pedit-hidden > summary::before { content: ""; flex: none; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); }
+.pedit-hidden[open] > summary::before { transform: rotate(45deg); }
+.pedit-hidden[open] { padding-bottom: 12px; }
+.pedit-hidden > .hint { margin: 0 0 12px; }
+.pedit-hidden .field + .field { margin-top: 12px; }
+.pedit .err { margin: 0; }
+.pedit-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.pedit-actions .btn { flex: 1 1 120px; }
 /* Places: the town map, edge to edge at the top of the tab. Sizes inside the
    SVG are viewBox units (UI.renderMap works out the label size). */
 .map { position: relative; margin: -16px -16px 0; background: var(--map-land); border-bottom: 1px solid var(--border); }
@@ -2422,9 +2455,10 @@ const PRONOUN_LABELS = { he: 'he/him', she: 'she/her', they: 'they/them' };
 const PRONOUN_OBJECT = { he: 'him', she: 'her', they: 'them' };
 /* People someone in the story names (State.apply peopleRevealed, proposed by
    the bookkeeper's record_changes): what kind of person, and how a person
-   came to be in the game (npc.created.by; town people have no created). */
+   came to be in the game (npc.created.by; town people have no created,
+   unless the player gave them a relation in the People editor: 'edit'). */
 const REVEALED_PERSON_KINDS = ['relative', 'worker', 'visitor', 'other'];
-const CREATED_BY = ['story', 'tables', 'context', 'loose_end', 'fact'];
+const CREATED_BY = ['story', 'tables', 'context', 'loose_end', 'fact', 'edit'];
 /* Relations that live under the same roof as the person they are related
    to (a revealed person shares that person's home), and relations a person
    has only one of. */
@@ -2440,13 +2474,98 @@ const GENDERED_WORDS = [['wife', 'husband'], ['girlfriend', 'boyfriend'], ['fian
   ['mother', 'father'], ['mom', 'dad'], ['momma', 'daddy'], ['mama', 'papa'], ['stepmother', 'stepfather'], ['grandmother', 'grandfather'], ['grandma', 'grandpa'], ['granddaughter', 'grandson'],
   ['aunt', 'uncle'], ['niece', 'nephew'], ['mother-in-law', 'father-in-law'], ['sister-in-law', 'brother-in-law'], ['daughter-in-law', 'son-in-law'], ['widow', 'widower'], ['ex-wife', 'ex-husband'],
   ['girl', 'boy'], ['woman', 'man'], ['lady', 'gentleman'], ['landlady', 'landlord'], ['waitress', 'waiter'], ['actress', 'actor']];
-function genderWord(word, pronouns) {
+function genderWord(word, pronouns, pairs) {
   const w = String(word || '').toLowerCase();
-  for (const [she, he] of GENDERED_WORDS) if (w === she || w === he) return pronouns === 'she' ? she : pronouns === 'he' ? he : w;
+  for (const [she, he] of pairs || GENDERED_WORDS) if (w === she || w === he) return pronouns === 'she' ? she : pronouns === 'he' ? he : w;
   return w;
 }
-function genderPhrase(text, pronouns) {
-  return String(text || '').replace(/[A-Za-z][a-z-]*/g, w => { const g = genderWord(w, pronouns); return g === w.toLowerCase() ? w : (/^[A-Z]/.test(w) ? capFirst(g) : g); });
+/* pairs: the word pairs to turn (default GENDERED_WORDS; a look uses LOOK_WORDS). */
+function genderPhrase(text, pronouns, pairs) {
+  return String(text || '').replace(/[A-Za-z][a-z-]*/g, w => { const g = genderWord(w, pronouns, pairs); return g === w.toLowerCase() ? w : (/^[A-Z]/.test(w) ? capFirst(g) : g); });
+}
+/* Words that say what a person is (not who they are to someone: kin words
+   in a look are about someone else), for turning a look with new pronouns. */
+const LOOK_WORDS = [['woman', 'man'], ['women', 'men'], ['girl', 'boy'], ['lady', 'gentleman'], ['gal', 'guy'], ['landlady', 'landlord'], ['waitress', 'waiter'], ['actress', 'actor'],
+  ['barmaid', 'barman'], ['saleswoman', 'salesman'], ['businesswoman', 'businessman'], ['policewoman', 'policeman'], ['cowgirl', 'cowboy']];
+const PRONOUN_FORMS = {
+  he: { subj: 'he', obj: 'him', det: 'his', pos: 'his', refl: 'himself' },
+  she: { subj: 'she', obj: 'her', det: 'her', pos: 'hers', refl: 'herself' },
+  they: { subj: 'they', obj: 'them', det: 'their', pos: 'theirs', refl: 'themself' }
+};
+const PRONOUN_KIND = { he: 'subj', she: 'subj', they: 'subj', him: 'obj', them: 'obj', their: 'det', hers: 'pos', theirs: 'pos', himself: 'refl', herself: 'refl', themself: 'refl', themselves: 'refl' };
+/* After "her" or "his", a word that makes it him / her / hers rather than his / her hat. */
+const NOT_OWNED = new Set(['and', 'or', 'but', 'nor', 'so', 'to', 'in', 'on', 'at', 'by', 'with', 'from', 'for', 'of', 'off', 'out', 'up', 'down', 'over', 'about', 'around', 'away', 'again',
+  'too', 'as', 'like', 'than', 'then', 'when', 'while', 'if', 'the', 'a', 'an', 'that', 'this', 'these', 'those', 'is', 'was', 'be', 'been', 'are', 'were', 'alone', 'anyway', 'though', 'now',
+  'here', 'there', 'yet', 'still', 'all', 'both', 'much', 'more', 'well', 'before', 'after', 'into', 'onto', 'through', 'since', 'until', 'because', 'any', 'some', 'what', 'who', 'how', 'why', 'where']);
+const VERB_PLURAL = { is: 'are', was: 'were', has: 'have', does: 'do', "doesn't": "don't", "isn't": "aren't", "wasn't": "weren't", "hasn't": "haven't" };
+const VERB_SINGULAR = { are: 'is', were: 'was', have: 'has', do: 'does', "don't": "doesn't", "aren't": "isn't", "weren't": "wasn't", "haven't": "hasn't" };
+const VERB_SKIP = new Set(['always', 'never', 'often', 'sometimes', 'usually', 'rarely', 'seldom', 'still', 'just', 'only', 'also', 'even', 'barely', 'hardly', 'mostly', 'really', 'probably']);
+const NOT_A_VERB = new Set(['can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might', 'must', 'had', 'did', 'used', 'ought', "can't", "won't", "couldn't", "wouldn't", "shouldn't", "didn't",
+  "hadn't", 'perhaps', 'towards', 'afterwards', 'besides', 'unless', 'this', 'thus', 'yes', 'plus', 'its', 'his', 'hers', 'us', 'less', 'as', 'too', 'and', 'or', 'but', 'not', 'the', 'a', 'an']);
+/* A look or voice line turned to new pronouns (State's fixPeople and
+   editPerson when the pronouns change and the same edit does not state the
+   line; the mock's people check): the words that say what the person is
+   (LOOK_WORDS: a man -> a woman; they leaves them alone, as genderPhrase
+   does) and the third-person pronouns (he, him, his, himself; she, her,
+   hers, herself; and they, them, their, theirs, themself only when the
+   person went by they before, from, since otherwise "all of them" is
+   about something else; with no from, as the mock's check sends, all of
+   them), with the plain verb after a subject whose number changes ("she
+   says" -> "they say", "they are" -> "he is"). Words in quotes are
+   someone's speech and stay. */
+function turnLook(text, pronouns, from) {
+  const to = PRONOUN_FORMS[pronouns];
+  if (!to) return String(text || '');
+  const theyToo = !from || from === 'they';
+  // Quoted words: "...", “...”, or '...' (an apostrophe inside, as in 'he's fine', does not end it).
+  const segs = String(text || '').split(/("[^"]*"|“[^”]*”|(?<![\p{L}\p{N}])'(?:[^']|'(?=[\p{L}\p{N}]))*'(?![\p{L}\p{N}]))/u);
+  return segs.map((seg, i) => (i % 2 ? seg : turnSegment(seg, pronouns, to, theyToo))).join('');
+}
+const THEY_FORMS = new Set(['they', 'them', 'their', 'theirs', 'themself', 'themselves']);
+function turnSegment(seg, pronouns, to, theyToo) {
+  const words = [];
+  const re = /[A-Za-z]+(?:['’][A-Za-z]+)?/g;
+  for (let m = re.exec(seg); m; m = re.exec(seg)) words.push({ at: m.index, w: m[0] });
+  const keepCase = (w, r) => (/^[A-Z]/.test(w) ? capFirst(r) : r);
+  let agree = null; // 'plural' (now they) or 'singular' (now he or she): the verb after a turned subject
+  for (let i = 0; i < words.length; i++) {
+    const t = words[i];
+    const raw = t.w;
+    const w = raw.toLowerCase().replace(/’/g, "'");
+    const next = words[i + 1];
+    const nextWord = next && /^\s+$/.test(seg.slice(t.at + raw.length, next.at)) ? next.w.toLowerCase() : null;
+    if (agree) {
+      const mode = agree;
+      agree = null;
+      if (VERB_SKIP.has(w)) { agree = mode; continue; }
+      let r = null;
+      if (mode === 'plural') {
+        if (VERB_PLURAL[w]) r = VERB_PLURAL[w];
+        else if (!NOT_A_VERB.has(w) && /^[a-z]+s$/.test(w) && !/(ss|us|is)$/.test(w)) r = /ies$/.test(w) && w.length > 4 ? w.slice(0, -3) + 'y' : /(sh|ch|x|z|o)es$/.test(w) ? w.slice(0, -2) : w.slice(0, -1);
+      } else if (VERB_SINGULAR[w]) r = VERB_SINGULAR[w];
+      else if (!NOT_A_VERB.has(w) && !PRONOUN_KIND[w] && /^[a-z]+$/.test(w) && !/(ed|s)$/.test(w)) r = /[^aeiou]y$/.test(w) ? w.slice(0, -1) + 'ies' : /(sh|ch|x|z|o)$/.test(w) ? w + 'es' : w + 's';
+      if (r) { t.r = keepCase(raw, r); continue; }
+    }
+    const c = /^(he|she|they)'(s|re|ve|d|ll)$/.exec(w);
+    if (c && (theyToo || c[1] !== 'they')) {
+      let suffix = c[2];
+      if (to.subj === 'they' && suffix === 's') suffix = nextWord === 'got' || nextWord === 'been' ? 've' : 're';
+      else if (to.subj !== 'they' && (suffix === 're' || suffix === 've')) suffix = 's';
+      t.r = keepCase(raw, `${to.subj}'${suffix}`);
+      continue;
+    }
+    let kind = PRONOUN_KIND[w];
+    if (w === 'his') kind = nextWord && !NOT_OWNED.has(nextWord) ? 'det' : 'pos';
+    if (w === 'her') kind = nextWord && !NOT_OWNED.has(nextWord) ? 'det' : 'obj';
+    if (!kind || (!theyToo && THEY_FORMS.has(w))) continue;
+    t.r = keepCase(raw, to[kind]);
+    if (kind === 'subj' && (w === 'they') !== (to.subj === 'they')) agree = to.subj === 'they' ? 'plural' : 'singular';
+  }
+  let out = '';
+  let pos = 0;
+  for (const t of words) if (t.r !== undefined && t.r !== t.w) { out += seg.slice(pos, t.at) + t.r; pos = t.at + t.w.length; }
+  out += seg.slice(pos);
+  return pronouns === 'they' ? out : genderPhrase(out, pronouns, LOOK_WORDS);
 }
 const WORK_RELATIONS = ['boss', 'employee', 'worker', 'hand', 'helper', 'apprentice', 'employer', 'manager'];
 const OTHER_RELATIONS = ['friend', 'buddy', 'neighbor', 'neighbour', 'roommate', 'landlord', 'landlady', 'tenant', 'lodger', 'rival', 'enemy'];
@@ -2914,7 +3033,27 @@ const Tables = (() => {
      relationToNpcId?, relation?, homeLocationId? }]: a person's record
      corrected to match the story, version 5; fields left out or null are
      kept, memories and the id always are) and rulesVersion (the rules the
-     game has been brought up to).
+     game has been brought up to); and the player's own (source 'player',
+     App.editPerson from the People card's editor and /edit): editPerson
+     ({ npcId, name?, pronouns?, role?, look?, voice?, personality?, goal?,
+     secret?, attitude?, relationToNpcId?, relation?, homeLocationId?,
+     status?, alive?, memories? }, or a list of them: anything about a
+     person, town people and made people alike). Everything is checked
+     first (name 2-40 and not taken, pronouns, role 1-60, look and voice
+     200, goal 200, secret 300, personality 0-3 traits of 30, attitude a
+     whole number clamped to -100..100 with no per-turn limit, a living
+     other person or null for the relation (30, cleanRelation; a relation
+     word alone applies to the person already on record), a known place or
+     null for the home, a status of NPC_STATUSES, memories as setMemories
+     with text refused over 400); only what differs changes. New pronouns
+     turn a gendered relation, role, tag, look and voice with them, unless
+     the edit states those. A null home takes them off the home's phases
+     and clears home; a place moves them in (setHome). Dead or gone takes
+     them off every schedule, arrested puts them in the cells, free brings
+     them back alive to the town's schedule or their home. A relation on
+     someone without created gives them created { turn: null, day: null,
+     by: 'edit', relationToNpcId, relation }, cleared again with it.
+     result.edited lists { id, fields } (EDIT_FIELDS order).
    A logEntry also notes who the player saw: state.seen[npcId] = { locationId,
    day, phase, turn } for everyone present with them in the narrated scene
    (People: "Last seen"). Display only; no model ever reads it.
@@ -2991,7 +3130,7 @@ const State = (() => {
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -3437,6 +3576,17 @@ const State = (() => {
   }
   /* "Dewayne's wife", from who they are to someone. */
   function relationPhrase(relTo, relation) { return relTo && relation ? `${firstName(relTo)}'s ${relation}` : ''; }
+  /* Who someone is to someone, for a line that shows their role too (the
+     narrator's person line, the People card): "Dewayne's brother", or
+     "related to Dewayne Pruitt" with no relation word; '' when there is no
+     relation or the role already says it. */
+  function relationNote(n) {
+    const c = n && isObj(n.created) ? n.created : null;
+    const t = c && c.relationToNpcId ? npc(c.relationToNpcId) : null;
+    if (!t) return '';
+    const phrase = c.relation ? relationPhrase(t, c.relation) : `related to ${t.name}`;
+    return String(n.role || '').toLowerCase().replace(/[’‘]/g, "'").includes(phrase.toLowerCase()) ? '' : phrase;
+  }
   /* The bookkeeper's one-line who, split into the relation and the rest:
      "wife, night clerk at the motor court" -> wife + "night clerk at the
      motor court"; "his older brother who runs the bait shop" -> older
@@ -3650,11 +3800,8 @@ const State = (() => {
       if (n.status === 'gone' || n.status === 'dead' || n.alive === false) return `no-op: ${n.id} is already ${n.alive === false ? 'dead' : n.status}`;
       n.status = e.status;
       if (e.status === 'dead') n.alive = false;
-      else if (e.status === 'arrested') {
-        removeFromSchedules(n.id);
-        const watch = current.locations.find(l => l.type === 'police') || current.locations.find(l => l.type === 'watch');
-        if (watch) PHASES.forEach(p => addToSchedule(watch, p, n.id));
-      } else if (e.status === 'gone') removeFromSchedules(n.id);
+      else if (e.status === 'arrested') jail(n);
+      else if (e.status === 'gone') removeFromSchedules(n.id);
       else restoreSchedule(n);
       return `${n.id} is ${e.status}`;
     },
@@ -3789,6 +3936,221 @@ const State = (() => {
     return `DAY ${t.day}, ${String(t.phase).toUpperCase()} (${notes.join('; ')})`;
   }
   function clockWords(t) { return `day ${t.day} ${t.phase}, shorts ${t.shorts | 0}${t.late === true ? ', late' : ''}${t.noSleep === true ? ', no sleep' : ''}`; }
+
+  // ----- correcting a person (fixPeople, editPerson) -----
+  /* A person's new name, cleaned and checked: 2 to 40 characters, and
+     nobody else's (samePerson). */
+  function personName(n, raw) {
+    const name = capFirst(cleanText(String(raw).replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
+    if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
+    const other = current.npcs.find(m => m !== n && samePerson(m.name, name));
+    if (other) bad(`the name ${name} is taken: ${other.id} (${other.name})`);
+    return name;
+  }
+  /* A full list of memories (setMemories, editPerson): each { turn 0 to
+     meta.turn, text, weight 1 to 3 }, at most MEMORY_MAX, in the order
+     given. strict (the player's edit) refuses text over 400 characters
+     instead of cutting it. */
+  function checkMemories(list, strict) {
+    if (!Array.isArray(list)) bad('memories must be an array');
+    if (list.length > MEMORY_MAX) bad(`at most ${MEMORY_MAX} memories per person (got ${list.length})`);
+    return list.map((m, i) => {
+      if (!isObj(m)) bad(`memories[${i}] must be an object`);
+      if (strict && typeof m.text === 'string' && cleanText(m.text, 100000).length > 400) bad(`memories[${i}]: text must be at most 400 characters`);
+      const text = cleanText(m.text, 400);
+      if (!text) bad(`memories[${i}] needs text`);
+      if (!Number.isInteger(m.turn) || m.turn < 0 || m.turn > current.meta.turn) bad(`memories[${i}]: turn must be 0 to ${current.meta.turn}`);
+      if (!Number.isInteger(m.weight) || m.weight < 1 || m.weight > 3) bad(`memories[${i}]: weight must be 1, 2 or 3`);
+      return Object.assign({ turn: m.turn, text, weight: m.weight }, m.model === true ? { model: true } : {});
+    });
+  }
+  /* New pronouns turn a gendered relation with them (husband -> wife), and
+     the tags and the role that carry the word (unless roleStated); they
+     leaves the word alone. Returns the parts for the applied line. */
+  function turnRelation(n, pron, roleStated) {
+    const parts = [];
+    if (pron === 'they' || !isObj(n.created) || !n.created.relation) return parts;
+    const was = n.created.relation;
+    const now = genderPhrase(was, pron);
+    if (now === was) return parts;
+    n.created.relation = now;
+    n.tags = (n.tags || []).map(t => genderWord(t, pron));
+    if (!roleStated && n.role) { const r = genderPhrase(n.role, pron); if (r !== n.role) { parts.push(`role ${JSON.stringify(n.role)} -> ${JSON.stringify(r)}`); n.role = r; } }
+    parts.push(`${was} -> ${now} of ${n.created.relationToNpcId}`);
+    return parts;
+  }
+  /* New pronouns turn the look and voice lines with them (turnLook from the
+     old pronouns: "A man with a bitter look about him" -> "A woman with a
+     bitter look about her"), each unless stated(k) says the same change
+     gives it. */
+  function turnLines(n, pron, stated, from) {
+    const parts = [];
+    for (const k of ['look', 'voice']) {
+      if (stated(k) || !n[k]) continue;
+      const t = turnLook(n[k], pron, from);
+      if (t !== n[k]) { n[k] = t; parts.push(`${k} turned to ${pronounLabel(pron)}`); }
+    }
+    return parts;
+  }
+  /* A new home takes over from the old one: they leave the old home's
+     phases and are at the new one in every phase no schedule holds them
+     (moveIn). Someone in the cells, gone or dead keeps their schedule (as
+     npcMove); only the home on record changes. */
+  function setHome(n, home) {
+    const free = n.alive !== false && n.status === 'free';
+    if (free && n.home && Array.isArray(n.home.phases)) removeFromSchedules(n.id, n.home.phases);
+    const ph = free ? moveIn(n, home) : [];
+    if (!ph.length) n.home = { locationId: home.id, phases: n.home && Array.isArray(n.home.phases) ? n.home.phases : PHASES.slice(), revealed: true };
+    return `lives at ${home.id}${ph.length ? ` (there ${ph.join(', ')})` : ''}`;
+  }
+  /* No home any more: off the home's phases there, and no home on record. */
+  function leaveHome(n) {
+    const l = n.home && loc(n.home.locationId);
+    if (l) {
+      const sch = l.npcIdsBySchedule || (l.npcIdsBySchedule = {});
+      for (const p of Array.isArray(n.home.phases) ? n.home.phases : PHASES) if (Array.isArray(sch[p])) sch[p] = sch[p].filter(x => x !== n.id);
+    }
+    delete n.home;
+  }
+  /* In the cells: at the police station (else the watch house) in every phase. */
+  function jail(n) {
+    removeFromSchedules(n.id);
+    const watch = current.locations.find(l => l.type === 'police') || current.locations.find(l => l.type === 'watch');
+    if (watch) PHASES.forEach(p => addToSchedule(watch, p, n.id));
+  }
+  /* The player sets a status outright (editPerson; unlike npcStatus, the
+     dead and the gone can come back): dead or gone takes them off every
+     schedule (dead also alive false), arrested puts them in the cells, and
+     free makes them alive and puts them back where they belong (the town's
+     schedule, else their home: restoreSchedule). A visit is cancelled. */
+  function setStatus(n, status, was) {
+    current.visits = (current.visits || []).filter(v => v.npcId !== n.id);
+    n.status = status;
+    n.alive = status !== 'dead';
+    if (status === 'dead' || status === 'gone') removeFromSchedules(n.id);
+    else if (status === 'arrested') jail(n);
+    else restoreSchedule(n);
+    return `status ${was} -> ${status}`;
+  }
+  /* editPerson: the player's edit of anyone's record (see the apply()
+     header). The fields the editor may send, the fields an edit reports
+     (in the editor's order) and the limits. */
+  const EDIT_KEYS = ['npcId', 'name', 'pronouns', 'role', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'relationToNpcId', 'relation', 'homeLocationId', 'status', 'alive', 'memories'];
+  const EDIT_FIELDS = ['name', 'pronouns', 'role', 'look', 'voice', 'personality', 'attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret'];
+  const EDIT_MAX = Object.freeze({ name: 40, role: 60, look: 200, voice: 200, goal: 200, secret: 300, relation: 30, trait: 30, traits: 3, memory: 400 });
+  /* Returns { id, fields, line }, or null when nothing changed. */
+  function editPerson(e) {
+    if (!isObj(e)) bad('must be an object');
+    const n = needNpc(e.npcId);
+    for (const k of Object.keys(e)) if (!EDIT_KEYS.includes(k)) bad(`unknown field "${k}"`);
+    const given = k => e[k] !== undefined;
+    const text = (k, max) => {
+      if (typeof e[k] !== 'string') bad(`${k} must be text`);
+      const v = cleanText(e[k], 100000);
+      if (v.length > max) bad(`${k} must be at most ${max} characters (it is ${v.length})`);
+      return v;
+    };
+    // 1. Check everything; nothing changes unless all of it passes.
+    const want = {};
+    if (given('name')) { if (typeof e.name !== 'string') bad('name must be text'); want.name = personName(n, e.name); }
+    if (given('pronouns')) want.pronouns = validPronouns(e.pronouns) || bad('pronouns must be he, she or they');
+    if (given('role')) { want.role = text('role', EDIT_MAX.role); if (!want.role) bad('role cannot be empty: say who they are or what they do'); }
+    for (const k of ['look', 'voice', 'goal', 'secret']) if (given(k)) want[k] = text(k, EDIT_MAX[k]);
+    if (given('personality')) {
+      if (!Array.isArray(e.personality)) bad('personality must be a list of traits');
+      const traits = e.personality.map((x, i) => { if (typeof x !== 'string') bad(`personality[${i}] must be text`); return cleanText(x, 100000); }).filter(Boolean);
+      if (traits.length > EDIT_MAX.traits) bad(`at most ${EDIT_MAX.traits} personality traits (got ${traits.length})`);
+      const long = traits.find(x => x.length > EDIT_MAX.trait);
+      if (long) bad(`a personality trait must be at most ${EDIT_MAX.trait} characters ("${long.slice(0, 40)}")`);
+      want.personality = traits;
+    }
+    if (given('attitude')) {
+      const a = typeof e.attitude === 'number' || typeof e.attitude === 'string' ? toInt(e.attitude) : null;
+      if (a === null) bad('attitude must be a whole number from -100 to 100');
+      want.attitude = clamp(a, -100, 100);
+    }
+    const c = isObj(n.created) ? n.created : null;
+    const curTo = c && c.relationToNpcId ? c.relationToNpcId : null;
+    const curRel = curTo ? c.relation || null : null;
+    let relTo = curTo;
+    if (given('relationToNpcId')) {
+      const v = e.relationToNpcId;
+      if (v === null || v === '') relTo = null;
+      else {
+        const t = needNpc(v);
+        if (t.id === n.id) bad('a person cannot be related to themself');
+        if (t.alive === false && t.id !== curTo) bad(`${t.name} is dead: a relation needs a living person`);
+        relTo = t.id;
+      }
+    }
+    let relation = relTo ? curRel : null;
+    if (given('relation')) {
+      if (e.relation !== null && typeof e.relation !== 'string') bad('relation must be text');
+      const raw = cleanText(e.relation || '', 100000);
+      if (raw.length > EDIT_MAX.relation) bad(`relation must be at most ${EDIT_MAX.relation} characters (it is ${raw.length})`);
+      const r = cleanRelation(raw) || null;
+      if (r && !relTo) bad('a relation needs someone to be related to (relationToNpcId)');
+      relation = relTo ? r : null;
+    }
+    const relChanged = relTo !== curTo || relation !== curRel;
+    let home;
+    if (given('homeLocationId')) home = e.homeLocationId === null || e.homeLocationId === '' ? null : needLoc(e.homeLocationId);
+    const wasStatus = n.alive === false ? 'dead' : NPC_STATUSES.includes(n.status) ? n.status : 'free';
+    let status = wasStatus;
+    if (given('status')) { if (!NPC_STATUSES.includes(e.status)) bad('status must be free, arrested, gone or dead'); status = e.status; }
+    if (given('alive')) {
+      if (typeof e.alive !== 'boolean') bad('alive must be true or false');
+      if (given('status') && e.alive === (status === 'dead')) bad(`alive ${e.alive} does not go with status ${status}`);
+      if (!e.alive) status = 'dead';
+      else if (status === 'dead') status = 'free';
+    }
+    const memories = given('memories') ? checkMemories(e.memories, true) : null;
+
+    // 2. Change what is different, and say what.
+    const fields = new Set();
+    const parts = [];
+    const show = v => JSON.stringify(v);
+    if (want.name !== undefined && want.name !== n.name) { parts.push(`name ${show(n.name)} -> ${show(want.name)}`); n.name = want.name; delete n.unnamed; fields.add('name'); }
+    const pronWas = n.pronouns;
+    const pronChanged = want.pronouns !== undefined && want.pronouns !== pronWas;
+    if (pronChanged) { parts.push(`pronouns ${show(n.pronouns)} -> ${show(want.pronouns)}`); n.pronouns = want.pronouns; fields.add('pronouns'); }
+    for (const k of ['role', 'look', 'voice', 'goal', 'secret']) {
+      if (want[k] === undefined || want[k] === (n[k] || '')) continue;
+      parts.push(k === 'role' ? `role ${show(n.role || '')} -> ${show(want.role)}` : `${k} replaced`);
+      n[k] = want[k];
+      fields.add(k);
+    }
+    if (want.personality && show(want.personality) !== show(n.personality || [])) { parts.push(`personality ${show(n.personality || [])} -> ${show(want.personality)}`); n.personality = want.personality; fields.add('personality'); }
+    if (want.attitude !== undefined && want.attitude !== n.attitude) { parts.push(`attitude ${n.attitude} -> ${want.attitude}`); n.attitude = want.attitude; fields.add('attitude'); }
+    if (relChanged) {
+      if (relTo) {
+        // A town person has no created record until the player gives them a relation.
+        if (!isObj(n.created)) n.created = { turn: null, day: null, by: 'edit', relationToNpcId: null, relation: null };
+        n.created.relationToNpcId = relTo;
+        n.created.relation = relation;
+        parts.push(`${relation || 'related'} of ${relTo}`);
+      } else {
+        parts.push(`no relation (was ${curRel || 'related'} of ${curTo})`);
+        if (c.by === 'edit') delete n.created;
+        else { c.relationToNpcId = null; c.relation = null; }
+      }
+      fields.add('relation');
+    } else if (pronChanged && !given('relationToNpcId') && !given('relation')) {
+      const role = n.role;
+      const turned = turnRelation(n, n.pronouns, given('role'));
+      if (turned.length) { parts.push(...turned); fields.add('relation'); if (n.role !== role) fields.add('role'); }
+    }
+    if (pronChanged) for (const part of turnLines(n, n.pronouns, given, pronWas)) { parts.push(part); fields.add(part.split(' ')[0]); }
+    if (status !== wasStatus) { parts.push(setStatus(n, status, wasStatus)); fields.add('status'); }
+    if (home !== undefined) {
+      const cur = n.home && n.home.locationId ? n.home.locationId : null;
+      if (home === null && cur) { leaveHome(n); parts.push(`no home (was ${cur})`); fields.add('home'); }
+      else if (home && home.id !== cur) { parts.push(setHome(n, home)); fields.add('home'); }
+    }
+    if (memories && show(memories) !== show(n.memories || [])) { parts.push(`memories ${(n.memories || []).length} -> ${memories.length}`); n.memories = memories; fields.add('memories'); }
+    if (!fields.size) return null;
+    return { id: n.id, fields: EDIT_FIELDS.filter(f => fields.has(f)), line: `${n.id} edited: ${parts.join('; ')}` };
+  }
 
   // ----- apply -----
   function apply(diff, opts) {
@@ -4219,37 +4581,25 @@ const State = (() => {
     each('setMemories', e => {
       if (!isObj(e)) bad('must be an object');
       const n = needNpc(e.npcId);
-      if (!Array.isArray(e.memories)) bad('memories must be an array');
-      if (e.memories.length > MEMORY_MAX) bad(`at most ${MEMORY_MAX} memories per person (got ${e.memories.length})`);
-      const list = e.memories.map((m, i) => {
-        if (!isObj(m)) bad(`memories[${i}] must be an object`);
-        const text = cleanText(m.text, 400);
-        if (!text) bad(`memories[${i}] needs text`);
-        if (!Number.isInteger(m.turn) || m.turn < 0 || m.turn > s.meta.turn) bad(`memories[${i}]: turn must be 0 to ${s.meta.turn}`);
-        if (!Number.isInteger(m.weight) || m.weight < 1 || m.weight > 3) bad(`memories[${i}]: weight must be 1, 2 or 3`);
-        return Object.assign({ turn: m.turn, text, weight: m.weight }, m.model === true ? { model: true } : {});
-      });
+      const list = checkMemories(e.memories, false);
       const before = (n.memories || []).length;
       n.memories = list;
       return `${n.id} memories rewritten (${before} -> ${list.length})`;
     });
-    /* A person's record corrected to match the story (Upgrade version 5).
-       Everything is checked before anything changes; the id and memories
-       stay. A new home takes over from the old one: they are taken off the
-       old home's phases and are at the new one in every phase no schedule
-       holds them. */
+    /* A person's record corrected to match the story (Upgrade version 5;
+       the People card's pronoun chips and /pronouns). Everything is checked
+       before anything changes; the id and memories stay. New pronouns turn
+       a gendered relation, role and tag with them (turnRelation) and the
+       look and voice lines (turnLines), unless the fix states those itself.
+       A new home takes over from the old one (setHome). */
     each('fixPeople', f => {
       if (!isObj(f)) bad('must be an object');
       const n = needNpc(f.npcId);
       const has = k => f[k] !== undefined && f[k] !== null && f[k] !== '';
-      let name = null;
-      if (has('name')) {
-        name = capFirst(cleanText(String(f.name).replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
-        if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
-        const other = s.npcs.find(m => m !== n && samePerson(m.name, name));
-        if (other) bad(`the name ${name} is taken: ${other.id} (${other.name})`);
-      }
+      const name = has('name') ? personName(n, f.name) : null;
       const pron = has('pronouns') ? (validPronouns(f.pronouns) || bad('pronouns must be he, she or they')) : null;
+      const pronWas = n.pronouns;
+      const pronChanged = !!pron && pronWas !== pron;
       const relTo = has('relationToNpcId') ? needNpc(f.relationToNpcId) : null;
       if (relTo && relTo.id === n.id) bad('a person cannot be related to themself');
       const relation = relTo ? cleanRelation(f.relation) || null : null;
@@ -4264,27 +4614,22 @@ const State = (() => {
       if (relTo) {
         if (!isObj(n.created)) n.created = { turn: null, day: null, by: CREATED_BY.includes(f.by) ? f.by : 'tables' };
         if (n.created.relationToNpcId !== relTo.id || n.created.relation !== relation) { n.created.relationToNpcId = relTo.id; n.created.relation = relation; parts.push(`${relation || 'related'} of ${relTo.id}`); }
-      } else if (pron && pron !== 'they' && isObj(n.created) && n.created.relation) {
-        // New pronouns turn a gendered relation with them (husband -> wife), and the role and tags that carry the word, unless this fix states those itself.
-        const was = n.created.relation;
-        const now = genderPhrase(was, pron);
-        if (now !== was) {
-          n.created.relation = now;
-          n.tags = (n.tags || []).map(t => genderWord(t, pron));
-          if (!has('role') && n.role) { const r = genderPhrase(n.role, pron); if (r !== n.role) { parts.push(`role ${JSON.stringify(n.role)} -> ${JSON.stringify(r)}`); n.role = r; } }
-          parts.push(`${was} -> ${now} of ${n.created.relationToNpcId}`);
-        }
-      }
-      if (home && !(n.home && n.home.locationId === home.id && scheduledPhases(n.id).length)) {
-        // Someone in the cells, gone or dead keeps their schedule (as npcMove); only the home on record changes.
-        const free = n.alive !== false && n.status === 'free';
-        if (free && n.home && Array.isArray(n.home.phases)) removeFromSchedules(n.id, n.home.phases);
-        const ph = free ? moveIn(n, home) : [];
-        if (!ph.length) n.home = { locationId: home.id, phases: n.home && Array.isArray(n.home.phases) ? n.home.phases : PHASES.slice(), revealed: true };
-        parts.push(`lives at ${home.id}${ph.length ? ` (there ${ph.join(', ')})` : ''}`);
-      }
+      } else if (pron) parts.push(...turnRelation(n, pron, has('role')));
+      if (pronChanged) parts.push(...turnLines(n, pron, has, pronWas));
+      if (home && !(n.home && n.home.locationId === home.id && scheduledPhases(n.id).length)) parts.push(setHome(n, home));
       return parts.length ? `${n.id}: ${parts.join('; ')}` : null;
     });
+    /* The player's own edit of a person (the People card's editor, /edit:
+       App.editPerson, source 'player'). One object, or a list of them. */
+    const edits = val('editPerson');
+    const editOne = (path, raw) => run(path, () => {
+      const r = editPerson(raw);
+      if (!r) return null;
+      (result.edited = result.edited || []).push({ id: r.id, fields: r.fields });
+      return r.line;
+    });
+    if (Array.isArray(edits)) edits.forEach((x, i) => editOne(`editPerson[${i}]`, x));
+    else if (edits !== undefined) editOne('editPerson', edits);
     one('rulesVersion', v => {
       if (!Number.isInteger(v) || v < 1 || v > RULES_VERSION) bad(`must be a whole number from 1 to ${RULES_VERSION}`);
       if (s.meta.rulesVersion === v) return null;
@@ -4521,8 +4866,8 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
-    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, cleanRelation, splitWho, fillPronouns, homeOf,
-    RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory, phasePart, clockLine,
+    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, cleanRelation, splitWho, fillPronouns, homeOf,
+    RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
@@ -5437,6 +5782,19 @@ const Style = (() => {
     }
     return out;
   }
+  /* A quoted line that addresses the player ("you") and speaks of last
+     night, yesterday, a while, or having met before: on day 1 there is no
+     such past. Returns the phrase, or null. */
+  const PAST_RE = /\b(last night|last week|last month|yesterday|the other day|the other night|known you|knew you|we've met|we have met|met you before|seen you before|you've been (?:here|around|in town)|you been (?:here|around|in town)|been (?:here|around) a while|known a while|for a while now|a while now|go way back|since you (?:came|got|showed up|turned up|rolled in)|the last time you|every time you)\b/i;
+  function inventedPast(text) {
+    const quotes = String(text || '').replace(/[‘’]/g, "'").match(/"[^"]*"|“[^”]*”/g) || [];
+    for (const q of quotes) {
+      if (!/\b(you|your|you're|you've|you'd|you'll)\b/i.test(q)) continue;
+      const m = PAST_RE.exec(q);
+      if (m) return m[1].toLowerCase();
+    }
+    return null;
+  }
   function repeatedPhrase(text, previous) {
     const seen = new Set();
     for (const p of previous || []) for (const g of spokenPhrases(p)) seen.add(g);
@@ -5463,6 +5821,11 @@ const Style = (() => {
     }
     const again = opts && Array.isArray(opts.previous) && opts.previous.length ? repeatedPhrase(t, opts.previous) : null;
     if (again) problems.push({ type: 'repeat', detail: `repeats the spoken phrase "${again}" from an earlier turn`, phrase: again });
+    // Day 1: nobody here had a past with the player, so a spoken line to them about last night or a while ago invents one.
+    if (opts && opts.day === 1) {
+      const past = inventedPast(t);
+      if (past) problems.push({ type: 'past', detail: `on day 1, someone speaks to the player of a past that never happened ("${past}")`, phrase: past });
+    }
     return { ok: problems.length === 0, problems, words, style };
   }
   /* Names each problem; a length problem names the word count and the limit
@@ -5471,7 +5834,7 @@ const Style = (() => {
     const what = problems.map(p => p.type === 'banned' ? `banned phrase "${p.detail}"` : p.detail).join('; ');
     const long = problems.find(p => p.type === 'length');
     const others = problems.some(p => p.type !== 'length');
-    const plain = (problems.some(p => p.type === 'simile') ? ' Say it plainly, with no comparisons.' : '') + (problems.some(p => p.type === 'repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '');
+    const plain = (problems.some(p => p.type === 'past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (problems.some(p => p.type === 'simile') ? ' Say it plainly, with no comparisons.' : '') + (problems.some(p => p.type === 'repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '');
     const fix = long
       ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
       : `Write it again without that.${plain}`;
@@ -5481,7 +5844,7 @@ const Style = (() => {
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase };
+  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast };
 })();
 
 // ===== Module: Api =====
@@ -6131,14 +6494,7 @@ const Api = (() => {
      before it) or "Mavis, Dewayne's wife", and then the role "Dewayne's
      wife" and the home of that person if they share it. A look built on
      the other pronoun's words ("A man with ... about them") is turned
-     around. Everything else is kept. */
-  const SWAP = { she: { man: 'woman', men: 'women', guy: 'woman', boy: 'girl', him: 'her', his: 'her', he: 'she', them: 'her', their: 'her', they: 'she', husband: 'wife', father: 'mother', son: 'daughter', brother: 'sister' },
-    he: { woman: 'man', women: 'men', lady: 'man', girl: 'boy', her: 'him', she: 'he', them: 'him', their: 'his', they: 'he', wife: 'husband', mother: 'father', daughter: 'son', sister: 'brother' } };
-  function turnLook(look, p) {
-    const map = SWAP[p];
-    if (!map) return look;
-    return String(look || '').replace(/\b[A-Za-z]+\b/g, w => { const r = map[w.toLowerCase()]; return r ? (w[0] === w[0].toUpperCase() ? capFirst(r) : r) : w; });
-  }
+     around (turnLook). Everything else is kept. */
   function mockFixPeople(packet) {
     const s = State.current;
     const esc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -6383,7 +6739,12 @@ const Api = (() => {
       const fail = (type, extra) => new ApiError(type, FRIENDLY[type], Object.assign({ usage: total, model: body.model, retryable: false }, extra));
       const { res, requestId } = await post(role, body);
       let data;
-      try { data = await res.json(); } catch (e) { throw fail('bad_response', { requestId, detail: 'reply was not JSON' }); }
+      try { data = await res.json(); } catch (e) {
+        // A body that is not JSON (a cut-off transfer, a proxy page): once more, then give up.
+        const err = fail('bad_response', { requestId, detail: 'reply was not JSON' });
+        if (attempt === 1) { logCall(role, { attempt, status: res.status, requestId, error: err }); continue; }
+        throw err;
+      }
       addRaw(total, data.usage);
       const text = textOf(data);
       logCall(role, { status: res.status, requestId, stopReason: data.stop_reason, usage: data.usage, maxTokens, data: { text: text.slice(0, 4000), stop_details: data.stop_details || null } });
@@ -6394,7 +6755,11 @@ const Api = (() => {
       }
       if (!opts.schema) return { result: text.trim(), usage: total, model: body.model, logged: true };
       try { return { result: JSON.parse(text), usage: total, model: body.model, logged: true }; }
-      catch (e) { throw fail('bad_response', { requestId, detail: 'reply did not match the schema' }); }
+      catch (e) {
+        const err = fail('bad_response', { requestId, detail: 'reply did not match the schema' });
+        if (attempt === 1) { logCall(role, { attempt, status: res.status, requestId, error: err }); continue; }
+        throw err;
+      }
     }
   }
   /* Server-sent events per docs/API_NOTES.md: text_delta is appended,
@@ -6477,23 +6842,27 @@ const Api = (() => {
     fixPeople(packet) { return messageCall('people', { system: SYSTEM.people, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
     async narrate(packet, onDelta) {
       const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
-      const { res, requestId } = await post('narrator', body);
-      let out;
-      try {
-        if (/json/i.test(res.headers.get('content-type') || '')) {
-          const data = await res.json();
-          out = { text: textOf(data), stopReason: data.stop_reason || null, stopDetails: data.stop_details || null, usage: data.usage || {}, model: data.model || null, events: 0 };
-          if (onDelta && out.text) onDelta(out.text, out.text);
-        } else out = await readStream(res, onDelta);
-      } catch (err) {
-        if (err instanceof ApiError) { err.requestId = requestId; err.model = body.model; logCall('narrator', { status: res.status, requestId, error: err, usage: err.usage }); throw err; }
-        const e = new ApiError('bad_response', FRIENDLY.bad_response, { requestId, retryable: false, detail: String(err && err.message), model: body.model });
-        logCall('narrator', { status: res.status, requestId, error: e });
-        throw e;
+      // A stream cut off part-way (the phone locking, a dropped connection) is asked for once more before the turn fails.
+      for (let attempt = 1; ; attempt++) {
+        const { res, requestId } = await post('narrator', body);
+        let out;
+        try {
+          if (/json/i.test(res.headers.get('content-type') || '')) {
+            const data = await res.json();
+            out = { text: textOf(data), stopReason: data.stop_reason || null, stopDetails: data.stop_details || null, usage: data.usage || {}, model: data.model || null, events: 0 };
+            if (onDelta && out.text) onDelta(out.text, out.text);
+          } else out = await readStream(res, onDelta);
+        } catch (err) {
+          if (err instanceof ApiError) { err.requestId = requestId; err.model = body.model; logCall('narrator', { attempt, status: res.status, requestId, error: err, usage: err.usage }); throw err; }
+          const e = new ApiError('bad_response', FRIENDLY.bad_response, { requestId, retryable: false, detail: `${String(err && err.message)}${attempt === 1 ? '; trying again' : ''}`, model: body.model });
+          logCall('narrator', { attempt, status: res.status, requestId, error: e });
+          if (attempt === 1) { if (onDelta) onDelta('', ''); continue; }
+          throw e;
+        }
+        logCall('narrator', { attempt, status: res.status, requestId, stopReason: out.stopReason, usage: out.usage, maxTokens: body.max_tokens, data: { text: out.text.slice(0, 4000), events: out.events, stop_details: out.stopDetails } });
+        if (out.stopReason === 'refusal') return { result: { text: out.text, stopReason: 'refusal' }, refusal: refusalOf(out.stopDetails), usage: out.usage, model: body.model, logged: true };
+        return { result: { text: out.text.trim(), stopReason: out.stopReason || 'end_turn' }, usage: out.usage, model: body.model, logged: true };
       }
-      logCall('narrator', { status: res.status, requestId, stopReason: out.stopReason, usage: out.usage, maxTokens: body.max_tokens, data: { text: out.text.slice(0, 4000), events: out.events, stop_details: out.stopDetails } });
-      if (out.stopReason === 'refusal') return { result: { text: out.text, stopReason: 'refusal' }, refusal: refusalOf(out.stopDetails), usage: out.usage, model: body.model, logged: true };
-      return { result: { text: out.text.trim(), stopReason: out.stopReason || 'end_turn' }, usage: out.usage, model: body.model, logged: true };
     }
   };
 
@@ -6814,9 +7183,12 @@ const Upgrade = (() => {
   const MENTIONS = 16;
   const MADE_BY = {
     tables: 'from random tables when the player first asked for them', context: 'to fit the story when the player first asked for them',
-    story: 'when someone in the story named them', loose_end: "for one of the player's loose ends at the start", fact: 'for a story point the player spent'
+    story: 'when someone in the story named them', loose_end: "for one of the player's loose ends at the start", fact: 'for a story point the player spent',
+    edit: 'and since edited by the player, who set who they are to whom by hand'
   };
-  /* Everyone the game made during play: not in this game's town data. */
+  /* Everyone the game made during play: not in this game's town data (a
+     town person the player gave a relation in the People editor has
+     created.by 'edit' and is still the town's own). */
   function madeUp(st) {
     const town = State.town && Array.isArray(State.town.npcs) ? State.town.npcs : TOWN_DATA.npcs;
     const ids = new Set(town.map(n => n.id));
@@ -7554,6 +7926,8 @@ const Pipeline = (() => {
   function npcLine(n, turn, brief) {
     const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
     const parts = [pronounLabel(n.pronouns), n.role];
+    const rel = State.relationNote(n);
+    if (rel) parts.push(rel);
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
     else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
@@ -7621,6 +7995,17 @@ const Pipeline = (() => {
   }
   /* Labelled plain text per SPEC.md section 10. Hidden secrets, goals,
      seeds and rumour truth are never included. */
+  /* What people can know about the player: they came to town on day 1 and
+     were a stranger before; each person knows only their own memories (a
+     loose end's creditor or enemy remembers the past they share) and what
+     has happened in front of them. The narrator invents the rest otherwise
+     ("I've known a while", "he called me last night" on day 1). */
+  function knowledgeLine(s) {
+    const p = s.player;
+    const days = s.time.day - 1;
+    const since = days === 0 ? 'today (day 1)' : days === 1 ? 'yesterday (this is day 2)' : `${days} days ago (this is day ${s.time.day})`;
+    return `WHAT PEOPLE KNOW: ${p.name} came to ${s.meta.townName || 'town'} ${since} and was a stranger here before that. Each person knows about ${p.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${p.name} never met them, heard of them, or got a call, news or a warning about them before they came. Nothing about ${p.name} happened "last night" or "a while ago" that the story does not show.`;
+  }
   function narratorPacket(ctx) {
     const s = State.current;
     const p = s.player;
@@ -7635,7 +8020,8 @@ const Pipeline = (() => {
     const lines = [
       `${State.clockLine(s.time)} · Location: ${l.name} — ${l.description}${l.closed ? ' (closed)' : ''}`,
       `PLAYER: ${p.name} (${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.${p.hp < p.maxHp ? ` HP ${p.hp}/${p.maxHp}.` : ''}`,
-      `PRESENT: ${present.join('; ') || 'nobody'}.`
+      `PRESENT: ${present.join('; ') || 'nobody'}.`,
+      knowledgeLine(s)
     ];
     if (s.flags.weather) lines.push(`WEATHER: ${s.flags.weather}`);
     const items = (l.items || []).map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
@@ -7716,7 +8102,7 @@ const Pipeline = (() => {
       if (isRefusal(res)) { node.remove(); return { refusal: res }; }
       let narration = String((res && res.text) || '').trim();
       const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
-      let check = Style.check(narration, { zoom, style, previous });
+      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
       ctx.style = [check];
       if (!check.ok) {
         State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
@@ -7726,7 +8112,7 @@ const Pipeline = (() => {
         if (isRefusal(res)) { node.remove(); return { refusal: res }; }
         const second = String((res && res.text) || '').trim();
         if (second) narration = second;
-        check = Style.check(narration, { zoom, style, previous });
+        check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
         ctx.style.push(check);
         if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
       }
@@ -8793,6 +9179,7 @@ const UI = (() => {
     d.panel.addEventListener('touchstart', e => {
       if (!isMobile() || !d.gameBody.classList.contains('sheet-open') || e.touches.length !== 1) return;
       if (d.panelBody.contains(e.target) && d.panelBody.scrollTop > 0) return;
+      if (e.target.closest && e.target.closest('input, textarea, select')) return; // the editor's slider and fields
       drag = { y: e.touches[0].clientY, dy: 0 };
     }, { passive: true });
     d.panel.addEventListener('touchmove', e => {
@@ -8830,6 +9217,12 @@ const UI = (() => {
   function renderPanel() {
     renderTabs();
     const s = State.current;
+    // An open editor keeps what is typed, the focused field and the scroll through a re-render.
+    const form = editing ? $('.pedit', d.panelBody) : null;
+    const focusId = form && form.contains(document.activeElement) ? document.activeElement.id : null;
+    const scroll = form ? d.panelBody.scrollTop : null;
+    if (form && form.dataset.npc === editing.id) editing.draft = readForm(form);
+    if (editing && (!s || State.muted || !State.npc(editing.id))) editing = null;
     d.panelBody.replaceChildren();
     d.panelBody.dataset.tab = tab;
     d.panelBody.setAttribute('aria-labelledby', 'tab-' + tab);
@@ -8837,6 +9230,9 @@ const UI = (() => {
     if (!s || State.muted) return;
     appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
     if (tab === 'places') placeChip($('.map', d.panelBody));
+    if (scroll !== null && $('.pedit', d.panelBody)) d.panelBody.scrollTop = scroll;
+    const again = focusId && document.getElementById(focusId);
+    if (again) again.focus({ preventScroll: true });
   }
   function list(items, fmt, empty) { return items.length ? el('ul', null, items.map(x => el('li', null, fmt(x)))) : el('p', { class: 'empty' }, empty); }
 
@@ -8936,22 +9332,25 @@ const UI = (() => {
     const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
     const moreId = 'pmore-' + n.id;
     const notes = personNotes(s, n);
-    return el('article', { class: 'pcard' + (known ? '' : ' stranger') + (open ? ' open' : ''), dataset: { npc: n.id, status: status || 'free' } },
+    const edit = !!editing && editing.id === n.id;
+    const roleLine = [capFirst(n.role || ''), State.relationNote(n), status].filter(Boolean).join(' · ');
+    return el('article', { class: 'pcard' + (known ? '' : ' stranger') + (open ? ' open' : '') + (edit ? ' editing' : ''), dataset: { npc: n.id, status: status || 'free' } },
       el('button', { type: 'button', class: 'pcard-head', id: 'phead-' + n.id, 'aria-expanded': String(open), 'aria-controls': moreId, onclick: () => togglePerson(n.id) },
         el('span', { class: 'mono', dataset: { hue: String(personHue(n.id)) }, 'aria-hidden': 'true' }, initials(name)),
         el('span', { class: 'pcard-main' },
           el('span', { class: 'pcard-nameline' }, el('span', { class: 'pcard-name' }, name),
             el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
-          n.role || status ? el('span', { class: 'pcard-role' }, capFirst(n.role || '') + (status ? (n.role ? ' · ' : '') + status : '')) : null,
+          roleLine ? el('span', { class: 'pcard-role' }, roleLine) : null,
           el('span', { class: 'pcard-meta' }, heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere)])),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
-      el('div', { class: 'pcard-more', id: moreId, hidden: !open },
+      el('div', { class: 'pcard-more', id: moreId, hidden: !open }, edit ? editForm(s, n) : [
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
         notes.length ? [el('h4', { class: 'pcard-notes-h' }, 'Notes'),
           el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
         !n.look && !notes.length ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null,
         el('div', { class: 'pcard-fix' }, el('span', { class: 'pcard-fix-k' }, 'Pronouns'),
-          el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, onclick: () => App.setPronouns(n.id, p) }, pronounLabel(p)))))));
+          el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, onclick: () => App.setPronouns(n.id, p) }, pronounLabel(p)))),
+          el('button', { type: 'button', class: 'btn small pcard-edit', id: 'pedit-btn-' + n.id, 'aria-label': `Edit ${name}`, disabled: Pipeline.busy, title: Pipeline.busy ? App.BUSY_NOTICE : null, onclick: () => startEdit(n.id) }, 'Edit'))]));
   }
   /* Open one card (or close it). In memory only, never saved; a re-render
      keeps the open card open. Game.UI.togglePerson(id, open?). */
@@ -8968,6 +9367,204 @@ const UI = (() => {
       more.hidden = !isOpen;
     }
     return openPerson;
+  }
+  // ----- People: a card's editor -----
+  /* Edit (on any open card) swaps the card's body for a form with the whole
+     record: name, pronouns, role, look, voice, personality, attitude, who
+     they are to whom, home, status, memories, and (folded away) the goal
+     and secret the game keeps hidden. Save sends what the player changed
+     to App.editPerson (one editPerson through the engine, one /undo step);
+     a refusal keeps the form open with the reason; Cancel or Escape puts
+     the card back. Enter in a one-line field never saves. One editor at a
+     time, in memory only (editing): whose it is (id), the values it opened
+     with (base: only what differs from them is sent, so a turn that lands
+     while it is open is not undone), what is typed (draft, kept through any
+     re-render) and the engine's last refusal (error). */
+  let editing = null;
+  const WEIGHTS = [[1, '1 small'], [2, '2 notable'], [3, '3 serious']];
+  const EDIT_STATUSES = [['free', 'Free'], ['arrested', 'Arrested'], ['gone', 'Gone'], ['dead', 'Dead']];
+  function hasCard(s, n) { return hasMet(s, n) || heardOfOnly(s, n); }
+  function editBase(n) {
+    const c = isObj(n.created) ? n.created : {};
+    const traits = (n.personality || []).slice(0, 3);
+    while (traits.length < 3) traits.push('');
+    return {
+      name: n.name, pronouns: validPronouns(n.pronouns) || 'they', role: n.role || '', look: n.look || '', voice: n.voice || '', traits,
+      attitude: n.attitude | 0, relTo: c.relationToNpcId || '', relation: c.relationToNpcId ? c.relation || '' : '',
+      home: n.home && n.home.locationId ? n.home.locationId : '', status: n.alive === false ? 'dead' : (n.status || 'free'),
+      memories: (n.memories || []).map(m => ({ turn: m.turn, text: m.text, weight: m.weight, model: m.model === true })),
+      goal: n.goal || '', secret: n.secret || '', hiddenOpen: false
+    };
+  }
+  function editForm(s, n) {
+    const v = editing.draft || editing.base;
+    const id = n.id;
+    const max = State.EDIT_MAX;
+    const fid = k => `pe-${k}-${id}`;
+    const field = (k, label, control, hint) => el('div', { class: 'field' }, el('label', { class: 'label', for: fid(k) }, label), control, hint ? el('p', { class: 'hint' }, hint) : null);
+    const input = (k, value, len, extra) => el('input', Object.assign({ class: 'input', id: fid(k), name: k, type: 'text', value, maxlength: String(len), autocomplete: 'off' }, extra || {}));
+    // A text box tall enough for what is in it (about 30 characters a line on a phone), from rows up to 6 lines.
+    const area = (k, value, len, rows) => el('textarea', { class: 'input', id: fid(k), name: k, rows: String(clamp(Math.ceil(String(value || '').length / 30), rows, 6)), maxlength: String(len), value });
+    const select = (k, value, options, extra) => {
+      const node = el('select', Object.assign({ class: 'input', id: fid(k), name: k }, extra || {}), options.map(([val, label]) => el('option', { value: val }, label)));
+      node.value = value;
+      return node;
+    };
+    const others = s.npcs.filter(m => m.id !== id && (m.alive !== false || m.id === v.relTo)).slice().sort((a, b) => a.name.localeCompare(b.name));
+    const places = s.locations.filter(l => l.discovered || l.id === v.home).slice().sort((a, b) => a.name.localeCompare(b.name));
+    const word = a => `${a > 0 ? '+' : ''}${a} · ${State.attitudeWord(a)}`;
+    const attOut = el('output', { class: 'pedit-att-word', id: fid('attitude-word'), for: fid('attitude') }, word(v.attitude));
+    const range = el('input', { class: 'pedit-range', id: fid('attitude'), name: 'attitude', type: 'range', min: '-100', max: '100', step: '1', value: String(v.attitude), 'aria-valuetext': word(v.attitude),
+      oninput: e => { const a = parseInt(e.target.value, 10) || 0; attOut.textContent = word(a); e.target.setAttribute('aria-valuetext', word(a)); } });
+    const relation = input('relation', v.relation, max.relation, { placeholder: 'wife, brother, boss', disabled: !v.relTo });
+    const relTo = select('relTo', v.relTo, [['', 'Nobody']].concat(others.map(m => [m.id, m.name + (m.alive === false ? ' (dead)' : '')])),
+      { onchange: e => { relation.disabled = !e.target.value; } });
+    const mems = v.memories.map((m, i) => el('div', { class: 'pedit-mem', dataset: { i: String(i) } },
+      el('label', { class: 'visually-hidden', for: fid('mem-' + i) }, `Memory ${i + 1}`),
+      el('textarea', { class: 'input', id: fid('mem-' + i), rows: '2', maxlength: String(max.memory), value: m.text, dataset: { mem: 'text' }, placeholder: 'What they remember about you' }),
+      el('label', { class: 'visually-hidden', for: fid('memw-' + i) }, `How much memory ${i + 1} matters`),
+      (() => { const w = el('select', { class: 'input', id: fid('memw-' + i), dataset: { mem: 'weight' } }, WEIGHTS.map(([val, label]) => el('option', { value: String(val) }, label))); w.value = String(m.weight); return w; })(),
+      el('button', { type: 'button', class: 'btn small pedit-mem-del', 'aria-label': `Remove memory ${i + 1}`, onclick: () => editMemories(list => list.splice(i, 1), i) }, 'Remove')));
+    const full = v.memories.length >= State.MEMORY_MAX;
+    return el('form', { class: 'pedit', dataset: { npc: id }, 'aria-label': `Edit ${n.name}`, novalidate: true, onsubmit: e => e.preventDefault(), onkeydown: editKey },
+      field('name', 'Name', input('name', v.name, max.name)),
+      field('pronouns', 'Pronouns', select('pronouns', v.pronouns, PRONOUNS.map(p => [p, pronounLabel(p)]))),
+      field('role', 'Role', input('role', v.role, max.role), 'Who they are or what they do, in a line.'),
+      field('look', 'Look', area('look', v.look, max.look, 3)),
+      field('voice', 'Voice', area('voice', v.voice, max.voice, 2)),
+      el('div', { class: 'field' }, el('span', { class: 'label', id: fid('traits') }, 'Personality'),
+        el('div', { class: 'pedit-traits', role: 'group', 'aria-labelledby': fid('traits') }, [0, 1, 2].map(i => input('trait' + i, v.traits[i] || '', max.trait, { 'aria-label': `Trait ${i + 1}`, placeholder: ['stubborn', 'kind', 'nosy'][i] })))),
+      el('div', { class: 'field' }, el('label', { class: 'label', for: fid('attitude') }, 'Attitude to you'), el('div', { class: 'pedit-att' }, range, attOut)),
+      field('relTo', 'Related to', relTo),
+      field('relation', 'Relation', relation, 'What they are to that person.'),
+      field('home', 'Home', select('home', v.home, [['', 'Nowhere / off-screen']].concat(places.map(l => [l.id, l.name]))), 'Where they are whenever nothing else has them.'),
+      el('fieldset', { class: 'field pedit-status' }, el('legend', { class: 'label' }, 'Status'),
+        el('div', { class: 'seg' }, EDIT_STATUSES.map(([val, label]) => el('label', null, el('input', { type: 'radio', name: 'status', value: val, checked: v.status === val, dataset: { status: val } }), label)))),
+      el('fieldset', { class: 'field pedit-mems' }, el('legend', { class: 'label' }, 'Memories'),
+        mems.length ? mems : el('p', { class: 'empty' }, 'They remember nothing about you.'),
+        el('button', { type: 'button', class: 'btn small pedit-add', disabled: full, title: full ? `At most ${State.MEMORY_MAX} memories` : null,
+          onclick: () => editMemories(list => list.push({ turn: State.current.meta.turn, text: '', weight: 2, model: false }), v.memories.length) }, 'Add a memory')),
+      el('details', { class: 'pedit-hidden', open: v.hiddenOpen === true },
+        el('summary', null, 'Hidden from you: goal and secret'),
+        el('p', { class: 'hint' }, "These are the game's secrets about this person. Reading them spoils the story."),
+        field('goal', 'Goal', area('goal', v.goal, max.goal, 2)),
+        field('secret', 'Secret', area('secret', v.secret, max.secret, 3))),
+      el('p', { class: 'err', role: 'alert' }, editing.error || ''),
+      el('div', { class: 'pedit-actions' },
+        el('button', { type: 'button', class: 'btn primary pedit-save', disabled: Pipeline.busy, title: Pipeline.busy ? App.BUSY_NOTICE : null, onclick: () => saveEdit() }, 'Save'),
+        el('button', { type: 'button', class: 'btn pedit-cancel', onclick: () => cancelEdit() }, 'Cancel')));
+  }
+  /* What is typed in an editor form. */
+  function readForm(form) {
+    const val = k => { const x = form.querySelector(`[name="${k}"]`); return x ? x.value : ''; };
+    const was = (editing.draft || editing.base).memories;
+    const st = form.querySelector('input[name="status"]:checked');
+    const hidden = $('.pedit-hidden', form);
+    return {
+      name: val('name'), pronouns: val('pronouns'), role: val('role'), look: val('look'), voice: val('voice'),
+      traits: [0, 1, 2].map(i => val('trait' + i)), attitude: parseInt(val('attitude'), 10) || 0,
+      relTo: val('relTo'), relation: val('relation'), home: val('home'), status: st ? st.value : editing.base.status,
+      memories: $$('.pedit-mem', form).map(row => {
+        const m = was[+row.dataset.i] || {};
+        return { turn: m.turn, model: m.model === true, text: $('[data-mem="text"]', row).value, weight: parseInt($('[data-mem="weight"]', row).value, 10) || 1 };
+      }),
+      goal: val('goal'), secret: val('secret'), hiddenOpen: !!(hidden && hidden.open)
+    };
+  }
+  /* The editPerson fields for what differs from what the form opened with. */
+  function editChanges(base, v) {
+    const out = {};
+    for (const k of ['name', 'pronouns', 'role', 'look', 'voice', 'goal', 'secret']) if (v[k] !== base[k]) out[k] = v[k];
+    const traits = list => list.map(t => String(t || '').trim()).filter(Boolean);
+    if (JSON.stringify(traits(v.traits)) !== JSON.stringify(traits(base.traits))) out.personality = traits(v.traits);
+    if (v.attitude !== base.attitude) out.attitude = v.attitude;
+    if (v.relTo !== base.relTo) out.relationToNpcId = v.relTo || null;
+    if (v.relTo && v.relation !== base.relation) out.relation = v.relation;
+    if (v.home !== base.home) out.homeLocationId = v.home || null;
+    if (v.status !== base.status) out.status = v.status;
+    // A memory left empty (a new one never written, or one cleared) is dropped.
+    const mems = list => list.filter(m => String(m.text || '').trim()).map(m => Object.assign({ turn: m.turn, text: m.text, weight: m.weight }, m.model ? { model: true } : {}));
+    const key = list => JSON.stringify(list.map(m => [m.turn, String(m.text).trim(), m.weight]));
+    if (key(mems(v.memories)) !== key(mems(base.memories))) out.memories = mems(v.memories);
+    return out;
+  }
+  function editKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit(); return; }
+    // Enter in a one-line field does nothing: only the Save button saves.
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
+  }
+  /* Add or remove a memory line: the form is drawn again from what is typed. */
+  function editMemories(change, focusAt) {
+    const form = editing && $('.pedit', d.panelBody);
+    if (!form) return;
+    editing.draft = readForm(form);
+    change(editing.draft.memories);
+    const n = State.npc(editing.id);
+    const fresh = editForm(State.current, n);
+    form.replaceWith(fresh);
+    const rows = $$('.pedit-mem', fresh);
+    const target = rows[Math.min(focusAt, rows.length - 1)];
+    const f = target ? $('[data-mem="text"]', target) : $('.pedit-add', fresh);
+    if (f) f.focus();
+  }
+  /* Open someone's card in edit mode (the card's Edit button; /edit via
+     UI.editPerson). Refused while a turn runs and for someone with no card. */
+  function startEdit(id) {
+    const s = State.current;
+    const n = s && !State.muted ? State.npc(id) : null;
+    if (!n || !hasCard(s, n)) return false;
+    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return false; }
+    editing = { id, base: editBase(n), draft: null, error: '' };
+    openPerson = id;
+    renderPanel();
+    const form = $('.pedit', d.panelBody);
+    if (form) {
+      if (!isMobile()) $('[name="name"]', form).focus({ preventScroll: true });
+      const card = form.closest('.pcard');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+    }
+    return true;
+  }
+  /* /edit <name> (UI.editPerson): the People panel, with that person's card
+     open in edit mode. false when they have no card or a turn is running. */
+  function editPersonFromCommand(id) {
+    const s = State.current;
+    const n = s && State.npc(id);
+    if (!n || !hasCard(s, n)) return false;
+    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return false; }
+    tab = 'people';
+    if (isMobile()) openSheet(); else setCollapsed(false);
+    return startEdit(id);
+  }
+  function focusEdit(id) { const b = document.getElementById('pedit-btn-' + id); if (b) b.focus({ preventScroll: true }); }
+  function cancelEdit() {
+    const id = editing && editing.id;
+    editing = null;
+    renderPanel();
+    if (id) focusEdit(id);
+  }
+  /* Save: one engine edit, or nothing when nothing differs. A refusal (the
+     engine's reason, in the feed and above the buttons) keeps the form
+     open with everything typed. */
+  function saveEdit() {
+    if (!editing) return null;
+    const form = $('.pedit', d.panelBody);
+    if (form) editing.draft = readForm(form);
+    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return { ok: false, reason: 'busy' }; }
+    const keep = editing;
+    const fields = editChanges(keep.base, keep.draft || keep.base);
+    editing = null;
+    const r = Object.keys(fields).length ? App.editPerson(keep.id, fields) : { ok: true, same: true, fields: [] };
+    if (!r.ok) {
+      editing = Object.assign(keep, { error: r.why ? `Not saved: ${r.why}.` : 'Not saved.' });
+      renderPanel();
+      const save = $('.pedit-save', d.panelBody);
+      if (save) save.focus({ preventScroll: true });
+      return r;
+    }
+    renderPanel();
+    focusEdit(keep.id);
+    return r;
   }
   // ----- Places: the town map -----
   /* An inline SVG at the top of the Places tab, drawn from state on every
@@ -9506,8 +10103,9 @@ const UI = (() => {
   function rebuildFeed() {
     const s = State.current;
     feed.clear();
-    // A load, a new game or an undo: Say mode starts again from the default addressee.
+    // A load, a new game or an undo: Say mode starts again from the default addressee, and an open editor closes.
     composer.chosen = false;
+    if (editing) { editing = null; renderPanel(); }
     renderComposer();
     if (!s) return;
     const showRolls = Storage.settings().showRolls;
@@ -9554,6 +10152,8 @@ const UI = (() => {
     $$('[data-action="update"]', d.slotList).forEach(btn => { btn.disabled = busy; });
     // A turn has started: a "Go to" chip on the map goes away.
     if (busy && mapPick) setPick(null);
+    // People: no edit starts or saves while a turn runs.
+    $$('.pcard-edit, .pedit-save', d.panelBody).forEach(btn => { btn.disabled = busy; if (busy) btn.title = App.BUSY_NOTICE; else btn.removeAttribute('title'); });
   }
   /* With nothing typed, Send reads Wait and runs a beat (Pipeline.pass). */
   function syncSendLabel() {
@@ -9580,7 +10180,8 @@ const UI = (() => {
     try { res = await Pipeline.submit(text, { mode: composer.mode, to: composer.to }); } catch (e) { console.error(e); res = { restoreInput: true }; }
     if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = text; autosize(); }
     syncSendLabel();
-    if (!isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true });
+    // A command that put the focus somewhere on purpose (/edit: the editor's name field) keeps it there.
+    if (!isMobile() && screen === 'game' && !(res && res.keepFocus)) d.cmd.focus({ preventScroll: true });
   }
   function onKey(e) {
     if (!d.ac.hidden && ac.items.length) {
@@ -10056,7 +10657,9 @@ const UI = (() => {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
     setMode, setAddressee, renderComposer, togglePerson, renderMap, mapLayout,
+    editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     get openPerson() { return openPerson; },
+    get editing() { return editing ? editing.id : null; },
     get mapPick() { return mapPick; },
     get mode() { return composer.mode; },
     get addressee() { syncAddressee(); return composer.to; },
@@ -10088,6 +10691,7 @@ const Commands = (() => {
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
     { name: '/pronouns', args: '<who> she', desc: 'Set someone\'s pronouns (she, he or they)' },
+    { name: '/edit', args: '<who>', desc: 'Edit someone on the People tab' },
     { name: '/save', args: '<name>', desc: 'Save to a named slot' },
     { name: '/load', args: '', desc: 'Open saved games' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
@@ -10128,6 +10732,19 @@ const Commands = (() => {
         const pick = known.length === 1 ? known[0] : people.length === 1 ? people[0] : null;
         if (!pick) return usage(people.length ? `Which ${who}? ${people.map(n => n.name).join(', ')}.` : `There is nobody called ${who} in the game.`);
         return App.setPronouns(pick.id, p);
+      }
+      case '/edit': {
+        // Matched like /pronouns (full name, first name, or a word of it), the dead too, so they can be brought back.
+        const who = String(arg || '').trim();
+        if (!who) return usage('Edit whom? Try /edit Mavis.');
+        const people = State.current.npcs.filter(n => State.samePerson(n.name, who) || State.personKey(n.name).split(' ').includes(State.personKey(who)));
+        const known = people.filter(n => n.knownToPlayer || n.created);
+        const pick = known.length === 1 ? known[0] : people.length === 1 ? people[0] : null;
+        if (!pick) return usage(people.length ? `Which ${who}? ${people.map(n => n.name).join(', ')}.` : `There is nobody called ${who} in the game.`);
+        if (UI.editPerson(pick.id)) return { ok: true, keepFocus: true };
+        if (Pipeline.busy) return { ok: false, reason: 'busy' };
+        UI.feed.notice(`${pick.name} is not on your People tab yet, so there is no card to edit.`);
+        return { ok: false, reason: 'no-card' };
       }
       case '/cheat': {
         if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
@@ -10297,15 +10914,40 @@ const App = (() => {
     UI.feed.quiet(`${n.name} goes by ${pronounLabel(p)} now${role}.`);
     return { ok: true };
   }
+  /* The player edits someone (the People card's editor, /edit): one
+     State.apply({ editPerson }) with source 'player' after one snapshot,
+     so one /undo takes the whole edit back; when nothing changed the
+     snapshot goes again. A quiet line names what changed ("Edited Mavis
+     Toler: pronouns, role, home."); a refusal restores the state exactly
+     and the feed gives the engine's reason. No turn and no API call.
+     Returns { ok, fields } or { ok: false, reason, why }. */
+  function editPerson(npcId, fields) {
+    if (turnRunning()) return { ok: false, reason: 'busy', why: BUSY_NOTICE.replace(/\.$/, '') };
+    const n = State.current && !State.muted ? State.npc(npcId) : null;
+    if (!n) return { ok: false, reason: 'missing' };
+    const was = n.name;
+    const snap = State.snapshot();
+    const r = State.apply({ editPerson: Object.assign({}, fields, { npcId }) }, { source: 'player' });
+    if (r.rejected.length) {
+      State.restore(snap);
+      const why = r.rejected[0].reason;
+      UI.feed.notice(`${was} was not changed: ${why}.`);
+      return { ok: false, reason: 'rejected', why };
+    }
+    const e = (r.edited || [])[0];
+    if (!e || JSON.stringify(State.current) === snap) { State.restore(snap); return { ok: true, same: true, fields: [] }; }
+    UI.feed.quiet(`Edited ${State.npc(npcId).name}: ${e.fields.join(', ')}.`);
+    return { ok: true, fields: e.fields };
+  }
   function quitToTitle() { inGame = false; UI.showScreen('title'); }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, updateGame, updateSave, setPronouns, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel,
+  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })

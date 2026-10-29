@@ -80,6 +80,13 @@ on the map). The game adds at most one such place a turn and twelve a game.
 
 ## People
 
+People know about you only what they have seen since you came to town and
+what their own memory list says (someone from a loose end, like a creditor,
+remembers the past you share). The narrator is told this every turn, with how
+long you have been in town, and on your first day a spoken line that invents
+a past with you ("I've known a while", "he called me last night") is sent back
+to be rewritten.
+
 The People tab lists who you have met, with how they feel about you, where
 you last saw them and what they remember. Everyone has pronouns (he/him,
 she/her or they/them), shown beside their name on the card, and the narrator
@@ -87,7 +94,29 @@ gets the same pronouns right after each person's name, so the story and the
 sheet always agree. If the sheet has someone wrong, open their card and tap
 the right pronouns (or type `/pronouns Mavis she`): the story follows from
 the next turn, and a relation that carries a gendered word turns with it
-("Dewayne's husband" becomes "Dewayne's wife").
+("Dewayne's husband" becomes "Dewayne's wife"), as do the look and voice
+lines ("A man with a bitter look about him." becomes "A woman with a bitter
+look about her."; words in quotes are left alone).
+
+**Editing people.** Anything else wrong about someone, you can fix yourself:
+open their card (anyone you have met, or heard of) and tap **Edit** beside
+the pronouns, or type `/edit Mavis`. The card turns into a form with their
+name, pronouns, role, look, voice, up to three personality traits, how they
+feel about you (a slider from -100 to 100, with the word the card shows),
+who they are to whom (someone else in the game and the relation, such as
+wife or boss), their home (any place you know, or nowhere: off-screen when
+nothing else has them), whether they are free, arrested, gone or dead (dead
+takes them off the map; free brings them back to their usual places and
+home), and what they remember about you (change, add or remove lines, each
+small, notable or serious). Their goal and secret sit folded away under
+"Hidden from you": they are the game's secrets about this person, and
+reading them spoils the story. **Save** checks everything first (a name
+someone else has, say, is refused with the reason and the form stays as you
+typed it), changes only what you changed, and says so in the story ("Edited
+Mavis Toler: pronouns, role, home."); **Cancel** or Escape leaves them as
+they were, and Enter in a field never saves by accident. One `/undo` takes
+a whole edit back. The narrator, the parser and the map use the new record
+from the next turn. Editing waits while a turn is running.
 
 **People the story names become real.** When someone mentions a specific
 person who is not in the game yet, by name or by who they are to someone
@@ -161,7 +190,8 @@ When time passes while you stay put, anyone who arrives at or leaves your place 
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to day 1, night." One `/undo` takes it back | None |
-| `/pronouns <name> <pronoun>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation turns with it (Dewayne's husband becomes Dewayne's wife) | None |
+| `/pronouns <name> <pronoun>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, look and voice turn with it (Dewayne's husband becomes Dewayne's wife) | None |
+| `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens the Saves screen) | None |
 | `/load <name>` | Load a named slot (no name opens the Saves screen) | None |
 | `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth, rejected changes, token totals and the last raw API responses | None |

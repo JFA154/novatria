@@ -1461,4 +1461,259 @@ s.test('fixPeople: new pronouns turn a gendered relation, role and tag with them
   assert.deepEqual(r.cousin, { pronouns: 'she', role: 'Runs the motor court', tags: ['relative', 'husband'], relation: 'cousin' }, 'a relation given in the fix is taken as it is');
 });
 
+/* A town person who is free and has phases no schedule holds, someone else
+   alive to be related to, a place that is not where the first one is
+   scheduled, and the police station (if the town has one). */
+const editSetup = page => page.evaluate(() => {
+  const st = Game.state;
+  const phases = ['morning', 'afternoon', 'evening', 'night'];
+  const at = id => phases.map(p => { const l = st.locations.find(x => ((x.npcIdsBySchedule || {})[p] || []).includes(id)); return l ? l.id : null; });
+  const townIds = Game.town.npcs.map(n => n.id);
+  const who = st.npcs.find(n => townIds.includes(n.id) && n.status === 'free' && at(n.id).includes(null) && at(n.id).some(Boolean) && !n.created);
+  const other = st.npcs.find(n => n.id !== who.id && n.alive !== false && townIds.includes(n.id));
+  const third = st.npcs.find(n => n.id !== who.id && n.id !== other.id && n.alive !== false && townIds.includes(n.id));
+  const home = st.locations.find(l => l.discovered && !l.closed && !at(who.id).includes(l.id) && !['police', 'watch'].includes(l.type));
+  const police = st.locations.find(l => l.type === 'police') || st.locations.find(l => l.type === 'watch') || null;
+  for (let i = 0; i < 3; i++) Game.State.apply({ beginTurn: true });
+  return {
+    who: { id: who.id, name: who.name, pronouns: who.pronouns, schedule: at(who.id), free: phases.filter((p, i) => !at(who.id)[i]) },
+    other: { id: other.id, name: other.name, first: other.name.split(' ')[0] }, third: { id: third.id, name: third.name },
+    home: home.id, police: police ? police.id : null, turn: st.meta.turn
+  };
+});
+
+s.test('editPerson: the player edits anything about anyone (name, pronouns, role, look, voice, personality, goal, secret, attitude, relation, home, status, memories); only what changed, one applied line naming each field, logged as the player; the model cannot send it', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await editSetup(page);
+  const r = await page.evaluate(x => {
+    const S = Game.State;
+    const st = Game.state;
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    const at = id => PH.map(p => { const l = st.locations.find(y => ((y.npcIdsBySchedule || {})[p] || []).includes(id)); return l ? l.id : null; });
+    const n = S.npc(x.who.id);
+    const pron = x.who.pronouns === 'she' ? 'he' : 'she';
+    const out = {};
+    out.r1 = S.apply({ editPerson: {
+      npcId: n.id, name: 'Mavis  Toler ', pronouns: pron, role: 'night clerk at the motor court', look: 'Small and tired, in a motel smock.', voice: 'Short and dry.',
+      personality: ['tired', ' sharp ', ''], goal: 'Sleep through one whole day.', secret: 'She has money put aside to leave.', attitude: 140,
+      relationToNpcId: x.other.id, relation: 'His Wife', homeLocationId: x.home,
+      memories: [{ turn: 1, text: 'woke me up knocking', weight: 2 }, { turn: x.turn, text: 'paid back the twenty', weight: 3 }]
+    } }, { source: 'player' });
+    out.rec = JSON.parse(JSON.stringify(n));
+    out.at = at(n.id);
+    out.debug = S.debugLog.filter(d => /editPerson/.test(d.text || d.path || '')).map(d => [d.kind, d.source]);
+    out.same = S.apply({ editPerson: { npcId: n.id, name: 'Mavis Toler', attitude: 100, relation: 'wife' } }, { source: 'player' });
+    out.ledger = [S.apply({ editPerson: { npcId: n.id, attitude: -250 } }, { source: 'player' }).applied[0], n.attitude, S.apply({ editPerson: { npcId: n.id, attitude: '35' } }, { source: 'player' }).applied[0], n.attitude];
+    // No home: off the home's phases, home cleared; the town's own schedule stays.
+    out.r2 = S.apply({ editPerson: { npcId: n.id, homeLocationId: null } }, { source: 'player' });
+    out.noHome = [n.home === undefined, at(n.id)];
+    S.apply({ editPerson: { npcId: n.id, homeLocationId: x.home } }, { source: 'player' });
+    // Dead: alive false, on no schedule; free again: alive, back at the town's schedule and the home.
+    out.r3 = S.apply({ editPerson: { npcId: n.id, status: 'dead' } }, { source: 'player' });
+    out.dead = [n.alive, n.status, at(n.id), S.npcsAt(x.home, x.who.free[0]).some(m => m.id === n.id)];
+    out.r4 = S.apply({ editPerson: { npcId: n.id, status: 'free' } }, { source: 'player' });
+    out.free = [n.alive, n.status, at(n.id)];
+    out.r5 = S.apply({ editPerson: { npcId: n.id, status: 'gone' } }, { source: 'player' });
+    out.gone = [n.alive, n.status, at(n.id)];
+    out.r6 = S.apply({ editPerson: { npcId: n.id, status: 'arrested' } }, { source: 'player' });
+    out.arrested = at(n.id);
+    out.r7 = S.apply({ editPerson: { npcId: n.id, alive: false } }, { source: 'player' });
+    out.aliveFalse = [n.alive, n.status];
+    out.r8 = S.apply({ editPerson: { npcId: n.id, alive: true } }, { source: 'player' });
+    out.aliveTrue = [n.alive, n.status, at(n.id)];
+    // The relation: another word alone keeps the person; a new person keeps the word; null clears it (and the created record a town person got with it).
+    out.r9 = S.apply({ editPerson: { npcId: n.id, relation: 'sister' } }, { source: 'player' });
+    out.r10 = S.apply({ editPerson: { npcId: n.id, relationToNpcId: x.third.id } }, { source: 'player' });
+    out.rel = JSON.parse(JSON.stringify(n.created));
+    out.r11 = S.apply({ editPerson: { npcId: n.id, relationToNpcId: null } }, { source: 'player' });
+    out.cleared = n.created === undefined;
+    // A list of edits works too; the model may not send any.
+    out.list = S.apply({ editPerson: [{ npcId: n.id, role: 'clerk' }, { npcId: x.other.id, role: 'boss' }] }, { source: 'player' }).edited;
+    out.model = S.apply({ editPerson: { npcId: n.id, role: 'x' } }, { source: 'model' }).rejected;
+    out.keys = S.ENGINE_KEYS.includes('editPerson') && !S.RECORD_KEYS.includes('editPerson') && !Object.keys(Game.Api.SCHEMAS.record_changes.properties).includes('editPerson');
+    return out;
+  }, x);
+  const pron = x.who.pronouns === 'she' ? 'he' : 'she';
+  assert.deepEqual(r.r1.rejected, []);
+  assert.deepEqual(r.r1.edited, [{ id: x.who.id, fields: ['name', 'pronouns', 'role', 'look', 'voice', 'personality', 'attitude', 'relation', 'home', 'memories', 'goal', 'secret'] }]);
+  const line = r.r1.applied[0];
+  assert.match(line, new RegExp(`^editPerson: ${x.who.id} edited: name "${x.who.name}" -> "Mavis Toler"; pronouns "${x.who.pronouns}" -> "${pron}"; role ".*" -> "night clerk at the motor court"; look replaced; voice replaced; goal replaced; secret replaced; personality \\[.*\\] -> \\["tired","sharp"\\]; attitude -?\\d+ -> 100; wife of ${x.other.id}; lives at ${x.home} \\(there ${x.who.free.join(', ')}\\); memories 0 -> 2$`), line);
+  const rec = r.rec;
+  assert.deepEqual([rec.name, rec.pronouns, rec.role, rec.look, rec.voice, rec.personality, rec.goal, rec.secret, rec.attitude],
+    ['Mavis Toler', pron, 'night clerk at the motor court', 'Small and tired, in a motel smock.', 'Short and dry.', ['tired', 'sharp'], 'Sleep through one whole day.', 'She has money put aside to leave.', 100]);
+  assert.deepEqual(rec.created, { turn: null, day: null, by: 'edit', relationToNpcId: x.other.id, relation: 'wife' }, 'a town person gets created only with the relation');
+  assert.deepEqual(rec.home, { locationId: x.home, phases: x.who.free, revealed: true });
+  assert.deepEqual(rec.memories, [{ turn: 1, text: 'woke me up knocking', weight: 2 }, { turn: x.turn, text: 'paid back the twenty', weight: 3 }]);
+  assert.deepEqual(r.at, x.who.schedule.map(id => id || x.home), 'moved in for the phases nothing else holds');
+  assert.deepEqual(r.debug, [['applied', 'player']], 'the debug log has the edit, from the player');
+  assert.deepEqual([r.same.applied, r.same.rejected, r.same.edited], [[], [], undefined], 'nothing different: nothing applied');
+  assert.match(r.ledger[0], /attitude 100 -> -100$/);
+  assert.deepEqual([r.ledger[1], r.ledger[3]], [-100, 35], 'clamped, and no per-turn limit on the player\'s own edit');
+  assert.deepEqual([r.r2.edited[0].fields, r.noHome], [['home'], [true, x.who.schedule]], 'no home: off its phases, the town schedule stays');
+  assert.match(r.r3.applied[0], /status free -> dead$/);
+  assert.deepEqual(r.dead, [false, 'dead', [null, null, null, null], false], 'dead: on no schedule');
+  assert.deepEqual(r.free, [true, 'free', x.who.schedule.map(id => id || x.home)], 'free again: the town schedule and the home');
+  assert.deepEqual(r.gone, [true, 'gone', [null, null, null, null]]);
+  if (x.police) assert.deepEqual(r.arrested, [x.police, x.police, x.police, x.police], 'arrested: in the cells');
+  assert.deepEqual(r.aliveFalse, [false, 'dead'], 'alive false is dead');
+  assert.deepEqual(r.aliveTrue, [true, 'free', x.who.schedule.map(id => id || x.home)], 'alive true brings them back free');
+  assert.match(r.r9.applied[0], new RegExp(`sister of ${x.other.id}$`));
+  assert.deepEqual([r.rel.relationToNpcId, r.rel.relation, r.rel.by], [x.third.id, 'sister', 'edit'], 'a new person keeps the word');
+  assert.match(r.r11.applied[0], new RegExp(`no relation \\(was sister of ${x.third.id}\\)$`));
+  assert.ok(r.cleared, 'a town person has no created record once the relation is gone');
+  assert.deepEqual(r.list.map(e => [e.id, e.fields]), [[x.who.id, ['role']], [x.other.id, ['role']]]);
+  assert.match(r.model[0].reason, /not allowed from the model/);
+  assert.ok(r.keys, 'editPerson is engine-only and not in the bookkeeper schema');
+});
+
+s.test('editPerson refuses bad values with a reason and changes nothing: name, pronouns, every text limit, personality, attitude, relation, home, status, alive, memories, unknown fields', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await editSetup(page);
+  const r = await page.evaluate(x => {
+    const S = Game.State;
+    const id = x.who.id;
+    const ok = { npcId: id, role: 'a fine new role', attitude: 50 }; // valid, sent with each bad field: the whole edit is refused
+    S.apply({ editPerson: { npcId: x.third.id, status: 'dead' } }, { source: 'player' });
+    const long = k => 'x'.repeat(k);
+    const cases = [
+      ['name', { name: 'M' }], ['name', { name: long(41) }], ['name', { name: x.other.name }], ['name', { name: x.other.first }], ['name', { name: null }], ['name', { name: 7 }],
+      ['pronouns', { pronouns: 'it' }], ['pronouns', { pronouns: null }],
+      ['role', { role: '' }], ['role', { role: long(61) }], ['role', { role: 5 }],
+      ['look', { look: long(201) }], ['voice', { voice: long(201) }], ['goal', { goal: long(201) }], ['secret', { secret: long(301) }],
+      ['personality', { personality: 'kind' }], ['personality', { personality: ['a', 'b', 'c', 'd'] }], ['personality', { personality: [long(31)] }], ['personality', { personality: [3] }],
+      ['attitude', { attitude: 'warm' }], ['attitude', { attitude: null }],
+      ['relationToNpcId', { relationToNpcId: 'npc_nobody_at_all' }], ['relationToNpcId', { relationToNpcId: id }], ['relationToNpcId', { relationToNpcId: x.third.id }],
+      ['relation', { relation: 'wife' }], ['relation', { relationToNpcId: x.other.id, relation: long(31) }], ['relation', { relationToNpcId: null, relation: 'wife' }],
+      ['homeLocationId', { homeLocationId: 'loc_nowhere_at_all' }],
+      ['status', { status: 'sleeping' }], ['alive', { alive: 'yes' }], ['alive', { alive: false, status: 'free' }], ['alive', { alive: true, status: 'dead' }],
+      ['memories', { memories: 'x' }], ['memories', { memories: Array.from({ length: S.MEMORY_MAX + 1 }, () => ({ turn: 0, text: 'x', weight: 1 })) }],
+      ['memories', { memories: [{ turn: x.turn + 1, text: 'x', weight: 1 }] }], ['memories', { memories: [{ turn: -1, text: 'x', weight: 1 }] }], ['memories', { memories: [{ turn: 1.5, text: 'x', weight: 1 }] }],
+      ['memories', { memories: [{ turn: 0, text: 'x', weight: 4 }] }], ['memories', { memories: [{ turn: 0, text: 'x', weight: 0 }] }], ['memories', { memories: [{ turn: 0, text: '  ', weight: 1 }] }],
+      ['memories', { memories: [{ turn: 0, text: long(401), weight: 1 }] }], ['memories', { memories: [7] }],
+      ['unknown', { tags: ['x'] }], ['npcId', { npcId: 'npc_nobody_at_all' }]
+    ];
+    const before = JSON.stringify(Game.state);
+    const out = cases.map(([k, bad]) => { const res = S.apply({ editPerson: Object.assign({}, ok, bad) }, { source: 'player' }); return [k, res.rejected.map(x => x.reason)[0] || null, res.applied.length]; });
+    return { out, unchanged: JSON.stringify(Game.state) === before, notObject: S.apply({ editPerson: 'x' }, { source: 'player' }).rejected[0].reason };
+  }, x);
+  const want = [
+    /name must be 2 to 40/, /name must be 2 to 40/, new RegExp(`the name ${x.other.name} is taken: ${x.other.id}`), new RegExp(`is taken: ${x.other.id}`), /name must be text/, /name must be text/,
+    /pronouns must be he, she or they/, /pronouns must be he, she or they/,
+    /role cannot be empty/, /role must be at most 60 characters/, /role must be text/,
+    /look must be at most 200/, /voice must be at most 200/, /goal must be at most 200/, /secret must be at most 300/,
+    /personality must be a list/, /at most 3 personality traits/, /trait must be at most 30/, /personality\[0\] must be text/,
+    /attitude must be a whole number/, /attitude must be a whole number/,
+    /unknown npc id/, /cannot be related to themself/, /is dead: a relation needs a living person/,
+    /a relation needs someone to be related to/, /relation must be at most 30/, /a relation needs someone to be related to/,
+    /unknown location id/,
+    /status must be free, arrested, gone or dead/, /alive must be true or false/, /alive false does not go with status free/, /alive true does not go with status dead/,
+    /memories must be an array/, /at most \d+ memories per person/,
+    /turn must be 0 to/, /turn must be 0 to/, /turn must be 0 to/, /weight must be 1, 2 or 3/, /weight must be 1, 2 or 3/, /needs text/,
+    /text must be at most 400/, /memories\[0\] must be an object/,
+    /unknown field "tags"/, /unknown npc id/
+  ];
+  assert.equal(r.out.length, want.length);
+  r.out.forEach(([k, reason, applied], i) => {
+    assert.ok(reason && want[i].test(reason), `${k} (case ${i}): ${reason}`);
+    assert.equal(applied, 0, `${k} (case ${i}): nothing applied`);
+  });
+  assert.ok(r.unchanged, 'a refused edit changes nothing, not even its valid fields');
+  assert.match(r.notObject, /must be an object/);
+});
+
+s.test('new pronouns turn a gendered relation, role, tag, look and voice (fixPeople and editPerson: "A man with a bitter look about him." -> "A woman with a bitter look about her."); what the same edit states stands; they leaves the person words alone; quotes and "them" about something else stay', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(x => {
+    const S = Game.State;
+    const st = Game.state;
+    const rec = n => ({ pronouns: n.pronouns, role: n.role, tags: n.tags.slice(), relation: n.created.relation, look: n.look, voice: n.voice });
+    S.apply({ beginTurn: true });
+    S.apply({ peopleRevealed: [{ name: 'Mavis Toler', pronouns: 'he', relationToNpcId: x.owner.id, who: 'husband, works nights at the motor court' }] }, { source: 'model' });
+    const n = st.npcs.find(m => m.name === 'Mavis Toler');
+    const look = 'A man with a bitter look about him.';
+    const voice = "Few words, all of them about engines; says 'he's fine' about everyone, and talks to the truck he's working on.";
+    S.apply({ editPerson: { npcId: n.id, look, voice } }, { source: 'player' });
+    const out = { by: n.created.by };
+    out.f1 = S.apply({ fixPeople: [{ npcId: n.id, pronouns: 'she' }] }).applied[0];
+    out.she = rec(n);
+    out.e1 = S.apply({ editPerson: { npcId: n.id, pronouns: 'he' } }, { source: 'player' });
+    out.he = rec(n);
+    out.e2 = S.apply({ editPerson: { npcId: n.id, pronouns: 'she', look: 'A tall man in a feed cap.', role: 'Runs the motor court' } }, { source: 'player' });
+    out.stated = rec(n);
+    out.e3 = S.apply({ editPerson: { npcId: n.id, pronouns: 'they' } }, { source: 'player' });
+    out.they = rec(n);
+    S.apply({ editPerson: { npcId: n.id, look: 'A woman with a bitter look about them.' } }, { source: 'player' });
+    out.e4 = S.apply({ editPerson: { npcId: n.id, pronouns: 'he', relationToNpcId: x.owner.id, relation: 'cousin' } }, { source: 'player' });
+    out.cousin = rec(n);
+    out.helper = [Game.turnLook('A man with a bitter look about him.', 'she', 'he'), Game.turnLook('A man with a bitter look about them.', 'she'), Game.turnLook('They talk fast and they are always late; their hands shake.', 'he', 'they'),
+      Game.turnLook('She says little, and she means it.', 'they', 'she'), Game.turnLook('Keeps a rag in his back pocket; the truck is his.', 'she', 'he')];
+    return out;
+  }, x);
+  const f = x.owner.first;
+  assert.equal(r.by, 'story', 'an edit keeps how they were made');
+  assert.match(r.f1, /; look turned to she\/her; voice turned to she\/her$/, r.f1);
+  assert.deepEqual(r.she, { pronouns: 'she', role: `${f}'s wife, works nights at the motor court`, tags: ['relative', 'wife'], relation: 'wife',
+    look: 'A woman with a bitter look about her.', voice: "Few words, all of them about engines; says 'he's fine' about everyone, and talks to the truck she's working on." }, 'the chips (fixPeople with pronouns only) turn the look and voice too');
+  assert.deepEqual(r.e1.edited[0].fields, ['pronouns', 'role', 'look', 'voice', 'relation']);
+  assert.deepEqual(r.he, { pronouns: 'he', role: `${f}'s husband, works nights at the motor court`, tags: ['relative', 'husband'], relation: 'husband',
+    look: 'A man with a bitter look about him.', voice: "Few words, all of them about engines; says 'he's fine' about everyone, and talks to the truck he's working on." });
+  assert.deepEqual([r.stated.look, r.stated.role, r.stated.relation, r.stated.voice.endsWith("truck she's working on.")], ['A tall man in a feed cap.', 'Runs the motor court', 'wife', true], 'a look and role given in the edit stand; the relation and voice still turn');
+  assert.deepEqual([r.they.look, r.they.relation, r.they.voice.endsWith("truck they're working on.")], ['A tall man in a feed cap.', 'wife', true], 'they leaves the person words and the relation alone, and turns the pronouns');
+  assert.deepEqual([r.cousin.relation, r.cousin.look], ['cousin', 'A man with a bitter look about him.'], 'a stated relation is taken as it is; from they, "them" turns');
+  assert.deepEqual(r.helper, ['A woman with a bitter look about her.', 'A woman with a bitter look about her.', 'He talks fast and he is always late; his hands shake.', 'They say little, and they mean it.', 'Keeps a rag in her back pocket; the truck is hers.']);
+});
+
+s.test('an edited person and the version 5 check: a town person with a relation stays the town\'s own (not madeUp); a made person edited keeps created and reads as edited by the player in the people packet', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await editSetup(page);
+  const r = await page.evaluate(x => {
+    const S = Game.State;
+    const st = Game.state;
+    S.apply({ editPerson: { npcId: x.who.id, relationToNpcId: x.other.id, relation: 'brother' } }, { source: 'player' });
+    S.apply({ addNpcs: [{ id: 'npc_test_drifter', name: 'Earl Drifter', role: 'drifter', look: 'A man in a dusty coat.' }] });
+    S.apply({ editPerson: { npcId: 'npc_test_drifter', relationToNpcId: x.other.id, relation: 'cousin' } }, { source: 'player' });
+    const made = Game.Upgrade.madeUp(st).map(n => n.id);
+    const packet = Game.Upgrade.peoplePacket(st, [{ n: S.npc('npc_test_drifter'), mentions: [] }]);
+    return { made, created: S.npc('npc_test_drifter').created, line: packet.text.split('\n').find(l => l.startsWith('PERSON ')), related: packet.text.split('\n').find(l => l.includes('related to:')), by: packet.people[0].by };
+  }, x);
+  assert.ok(!r.made.includes(x.who.id), 'a town person is never one the game made up');
+  assert.ok(r.made.includes('npc_test_drifter'));
+  assert.deepEqual(r.created, { turn: null, day: null, by: 'edit', relationToNpcId: x.other.id, relation: 'cousin' });
+  assert.equal(r.by, 'edit');
+  assert.equal(r.line, 'PERSON npc_test_drifter (made by the game and since edited by the player, who set who they are to whom by hand)');
+  assert.equal(r.related, `  related to: cousin of ${x.other.id}`);
+});
+
+s.test('Style.check on day 1 flags a spoken line to the player that invents a past (last night, known you); not on day 2, not when nobody speaks to the player, and the rewrite note says why', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const C = (t, o) => Game.Style.check(t, o).problems.filter(p => p.type === 'past').map(p => p.phrase);
+    const mavis = 'Mavis sighs through her nose. "Fine, plain English. I know about you and Dewayne, I\'ve known a while, and he called me over and over last night while I let it ring."';
+    return {
+      day1: C(mavis, { day: 1 }), day2: C(mavis, { day: 2 }), noDay: C(mavis, {}),
+      aboutOthers: C('Royce shrugs. "Yesterday the lift broke again. Dewayne was under it till midnight."', { day: 1 }),
+      narrationOnly: C('You slept badly last night and it shows. Royce looks you over.', { day: 1 }),
+      met: C('She squints. "Have we met? You look like somebody I knew back in Macon."', { day: 1 }),
+      fine: C('She squints at you. "Today? Huh. Then you walked into something you know nothing about."', { day: 1 }),
+      note: Game.Style.regenerationNote(Game.Style.check(mavis, { day: 1 }).problems),
+      fn: Game.Style.inventedPast(mavis)
+    };
+  });
+  assert.deepEqual(r.day1, ['known a while'], 'the first phrase found');
+  assert.deepEqual(r.day2, [], 'day 2 may have a last night');
+  assert.deepEqual(r.noDay, [], 'no day given: no check');
+  assert.deepEqual(r.aboutOthers, [], 'a past between other people is fine');
+  assert.deepEqual(r.narrationOnly, [], 'only spoken lines count');
+  assert.deepEqual(r.met, [], 'a "have we met" question is not a claim');
+  assert.deepEqual(r.fine, []);
+  assert.match(r.note, /^STYLE CHECK FAILED on your last attempt: on day 1, someone speaks to the player of a past that never happened \("known a while"\)\. Write it again without that\. It is day 1: the player came to town today, nobody here knew them or heard of them before/);
+  assert.equal(r.fn, 'known a while');
+});
+
 s.run();
