@@ -120,49 +120,61 @@ s.test('"I talk to the dragon by the fire" in the tavern: no dragon, nothing cre
   assert.match(await lastPacket(page), /NOT PRESENT: cousin of yours \(the player claims this, but it is not true in this world/);
 });
 
-s.test('someone who is not in the town data (a barmaid) is created from the tables, joins People and survives a reload', async h => {
+/* The cast is fixed (docs/BUILD_PLAN.md, direction change 8): every person
+   is written by hand, and the game never makes one. */
+const castFacts = page => page.evaluate(() => {
+  const T = Game.data.TOWN_DATA;
+  const wife = T.npcs.find(n => /^Mavis /.test(n.name));
+  const husband = T.npcs.find(n => (n.relations || []).some(r => r.npcId === wife.id && r.relation === 'wife'));
+  return { wife: { id: wife.id, name: wife.name, role: wife.role }, husband: { id: husband.id, name: husband.name, first: husband.name.split(' ')[0] } };
+});
+s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PRESENT (does_not_exist) and nothing is made; "Dewayne\'s wife" and "Mavis" are the cast\'s Mavis; the narrator gets the cast as a second cached system block; the model cannot add a person', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const fx = await fixtures(page);
   await place(page, fx.tavern.id, 'evening');
-  // Words the mock knows as people, that nobody in this town answers to yet.
-  const [role1, role2] = await page.evaluate(() => ['barmaid', 'bartender', 'waitress', 'serving girl', 'stable boy', 'clerk', 'mechanic', 'deputy']
-    .filter(w => !Game.state.npcs.some(n => Game.Town.mentions(' ' + w + ' ', n))));
-  assert.ok(role1 && role2, 'two unused roles');
+  const c = await castFacts(page);
+  await page.evaluate(() => { window.__narr = []; const orig = Game.Api.Mock.narrate; Game.Api.Mock.narrate = function (packet) { window.__narr.push({ system: packet.system, cast: packet.cast }); return orig.apply(this, arguments); }; });
   const before = await counts(page);
-  await sendText(page, `I ask the ${role1} for a drink`);
-  const made = await page.evaluate(locId => {
-    const st = Game.state;
-    const townIds = Game.data.TOWN_DATA.npcs.map(n => n.id).concat(st.player.looseEnds.map(le => le.npcId));
-    const l = Game.State.loc(locId);
-    return st.npcs.filter(n => !townIds.includes(n.id)).map(n => ({ id: n.id, name: n.name, role: n.role, known: n.knownToPlayer, voice: n.voice, traits: n.personality, everywhere: Object.values(l.npcIdsBySchedule).every(a => a.includes(n.id)), tableName: Game.data.TABLES.npc.firstNames.includes(n.name.split(' ')[0]) }));
-  }, fx.tavern.id);
-  assert.equal(made.length, 1);
-  const b = made[0];
-  assert.equal(b.role, role1);
-  assert.ok(b.known, 'known to the player');
-  assert.ok(b.tableName, 'name rolled from the tables');
-  assert.ok(b.voice && b.traits.length === 2);
-  assert.ok(b.everywhere, 'works at the tavern');
-  assert.equal((await counts(page)).npcs, before.npcs + 1);
-  assert.ok((await lastPacket(page)).includes(`NEW IN THE SCENE: ${b.name} (${role1}, new to the scene)`));
-  await page.click('#tab-people');
-  assert.ok((await page.innerText('#panel-body')).includes(b.name), 'listed in People');
-  // Asking again reuses them.
-  await sendText(page, `I ask the ${role1} for another drink`);
-  assert.equal((await counts(page)).npcs, before.npcs + 1, 'nobody new');
-  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(b.id));
-  // Someone else is a different person.
-  await sendText(page, `I wave the ${role2} over`);
-  assert.equal((await counts(page)).npcs, before.npcs + 2);
-  // Reload and continue: still there.
+  // Someone nobody in the cast is: not there, nothing made, the narrator and the bookkeeper told.
+  assert.ok(await page.evaluate(() => !Game.state.npcs.some(n => Game.Town.mentions(' barmaid ', n))), 'no barmaid in the cast');
+  await sendText(page, 'I ask the barmaid for a drink');
+  assert.deepEqual(await counts(page), before, 'nobody was made');
+  assert.match(await lastPacket(page), /\nNOT PRESENT: barmaid \(does not exist in this town; it is simply not there\)\./);
+  assert.match(await lastPacket(page, 'bookkeep'), /DOES NOT EXIST \(record nothing about it\): barmaid/);
+  assert.match((await lastLog(page)).narration, /There is no barmaid here\./);
+  // "Dewayne's wife": the cast's relations say who she is.
+  await page.evaluate(first => Game.Api.Mock.queue('parse', { actionType: 'talk', targets: [`new:${first}'s wife`] }), c.husband.first);
+  await sendText(page, `I ask around for ${c.husband.first}'s wife`);
+  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id), `${c.husband.first}'s wife is ${c.wife.id}`);
+  assert.deepEqual(await counts(page), before);
+  assert.ok((await lastPacket(page)).includes(`NOT PRESENT: ${c.wife.name} (not here right now)`), 'she exists, elsewhere');
+  // Her name alone, as the player types it: the mock parser hears the whole cast.
+  await sendText(page, 'I ask Loretta if Mavis is working tonight');
+  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id));
+  assert.ok((await lastPacket(page, 'parse')).includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `));
+  assert.deepEqual(await counts(page), before);
+  // The narrator: the style block, then the cast (a second cached system block), the same every turn.
+  const narr = await page.evaluate(() => ({ calls: window.__narr, style: Game.Style.systemPrompt(), cast: Game.Pipeline.castBlock() }));
+  assert.ok(narr.calls.length >= 3);
+  for (const x of narr.calls) assert.deepEqual([x.system, x.cast], [narr.style, narr.cast]);
+  assert.ok(narr.cast.startsWith('CAST (everyone who exists in this town; never invent anyone else):\n'));
+  const line = narr.cast.split('\n').find(l => l.startsWith(c.wife.id + ' — '));
+  assert.ok(line.startsWith(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), line);
+  assert.match(line, /home: the Mangum House/);
+  const body = await page.evaluate(n => Game.Api.requestBody('narrator', { system: n.style, blocks: [n.cast], user: 'x', cache: true, stream: true }).system, narr);
+  assert.deepEqual(body, [{ type: 'text', text: narr.style, cache_control: { type: 'ephemeral' } }, { type: 'text', text: narr.cast, cache_control: { type: 'ephemeral' } }]);
+  // The bookkeeper cannot add a person: the cast is fixed.
+  await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { peopleRevealed: [{ name: 'Earl Toler', pronouns: 'he', relationToNpcId: '', who: 'brother' }] }));
+  await sendText(page, 'I ask Loretta about her brother');
+  assert.deepEqual(await counts(page), before);
+  assert.match(await page.evaluate(() => Game.State.debugLog.filter(d => d.kind === 'rejected' && /^peopleRevealed/.test(d.path || '')).map(d => d.reason).join(' | ')), /the cast is fixed/);
+  // Reload: still exactly the cast.
   await page.reload();
   await page.waitForFunction(() => window.Game);
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
-  assert.ok(await page.evaluate(([id, loc]) => !!Game.State.npc(id) && Game.State.npcsAt(loc).some(n => n.id === id), [b.id, fx.tavern.id]));
-  await page.click('#tab-people');
-  assert.ok((await page.innerText('#panel-body')).includes(b.name), 'still in People after reload');
+  assert.deepEqual(await counts(page), before);
 });
 
 s.test('a failed lockpick is narrated as a failure, changes something, and the identical retry is refused', async h => {
@@ -426,28 +438,19 @@ s.test('/fact spends a story point to make a statement true; it is refused with 
   const fx = await fixtures(page);
   await page.evaluate(() => Game.Api.Mock.clear());
   const before = await counts(page);
+  // A fact cannot add a person: everyone in town is already written (the cast is fixed). No point is spent.
   await sendText(page, '/fact my cousin lives here');
   assert.deepEqual(await calls(page), ['parse'], 'parser only');
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls[0].mode), 'fact');
-  const cousin = await page.evaluate(() => Game.state.npcs.find(n => /cousin/.test(n.role)));
-  assert.ok(cousin, 'a cousin exists');
-  assert.equal(cousin.role, "Tester's cousin");
-  assert.ok(cousin.knownToPlayer);
-  assert.ok(cousin.memories.some(m => m.weight === 3 && m.text === "Fact (a story point): Tester's cousin lives here"));
-  assert.equal((await counts(page)).npcs, before.npcs + 1);
-  const st = await page.evaluate(() => ({ sp: Game.state.player.storyPoints, journal: Game.state.journal.map(j => j.text), last: Game.state.log[Game.state.log.length - 1] }));
-  assert.equal(st.sp, 1);
-  assert.ok(st.journal.includes('Fact: my cousin lives here'));
-  assert.equal(st.last.input, '/fact my cousin lives here');
-  assert.match(await lastNotice(page), /^Story point spent \(1 left\)\. It is now true: my cousin lives here/);
-  // Now the cousin is real: mentioning them is not a claim any more.
-  await sendText(page, 'I talk to my cousin');
-  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(cousin.id));
-  assert.doesNotMatch(await lastPacket(page), /NOT PRESENT/);
+  assert.equal(await lastNotice(page), `Nobody like that lives in ${fx.town}: everyone in town is already written, so a story point can make something true about someone here, but it cannot add a person. No story point was spent.`);
+  assert.deepEqual(await counts(page), before, 'nobody was made');
+  assert.equal(await page.evaluate(() => Game.state.player.storyPoints), 2);
+  assert.equal(await page.inputValue('#cmd'), '/fact my cousin lives here', 'the line is kept to edit');
+  await page.fill('#cmd', '');
   // Something impossible costs nothing.
   await sendText(page, '/fact a dragon sleeps under the bridge');
   assert.equal(await lastNotice(page), `That cannot be true in ${fx.town}. No story point was spent.`);
-  assert.equal(await page.evaluate(() => Game.state.player.storyPoints), 1);
+  assert.equal(await page.evaluate(() => Game.state.player.storyPoints), 2);
   await page.fill('#cmd', '');
   // A link to an existing NPC named by their role ("the ferryman").
   const npc = await page.evaluate(() => {
@@ -460,7 +463,13 @@ s.test('/fact spends a story point to make a statement true; it is refused with 
   const linked = await page.evaluate(id => Game.State.npc(id), npc.id);
   assert.ok(linked.memories.some(m => m.text === `Fact (a story point): the ${npc.head} owes Tester a favour` && m.weight === 3), JSON.stringify(linked.memories));
   assert.ok(linked.knownToPlayer);
-  assert.equal(await page.evaluate(() => Game.state.player.storyPoints), 0);
+  assert.equal(await page.evaluate(() => Game.state.player.storyPoints), 1);
+  assert.match(await lastNotice(page), /^Story point spent \(1 left\)\. It is now true: the /);
+  const st = await page.evaluate(() => ({ journal: Game.state.journal.map(j => j.text), last: Game.state.log[Game.state.log.length - 1] }));
+  assert.ok(st.journal.includes(`Fact: the ${npc.head} owes me a favour`));
+  assert.equal(st.last.input, `/fact the ${npc.head} owes me a favour`);
+  assert.equal((await counts(page)).npcs, before.npcs, 'a fact about someone here makes nobody');
+  await page.evaluate(() => Game.State.apply({ storyPointsDelta: -1 }));
   // With no points left it is refused politely and nothing changes.
   const snap = await stateJson(page);
   await sendText(page, '/fact the baker is my uncle');
@@ -1023,7 +1032,7 @@ s.test('Say "run away" to one person: the player stays, the action is talk aimed
   // The parser hears the exact words and MODE say.
   const parse = await lastPacket(page, 'parse');
   assert.ok(parse.startsWith(`PLAYER INPUT: "run away"\nMODE: say, to ${a.id} (${a.name}). The input is the player's exact spoken words, said aloud to ${a.name}; nothing else was done. actionType must be talk, persuade, deceive or intimidate`), parse.split('\n').slice(0, 2).join('\n'));
-  assert.match(parse, new RegExp(`targets must include ${a.id}\\. destinationId must be null\\. A new:<description> target is allowed only for a person mentioned in the words who is not in the lists\\.`));
+  assert.match(parse, new RegExp(`targets must include ${a.id}\\. destinationId must be null\\. A person mentioned in the words is one of the listed ids; never use new: for a person\\.`));
   // The narrator gets PLAYER SAYS with the exact words and who answers first, instead of ACTION.
   const narr = await lastPacket(page);
   assert.ok(narr.includes(`\nPLAYER SAYS (to ${a.name}): "run away"\nThese are the player's exact words, already spoken; do not repeat them in full. Show how ${a.name} answers first; others present may react.\nROLL: none\n`), narr);
@@ -1585,25 +1594,29 @@ s.test('a beat: Send with nothing typed (or /pass) lets the scene come to the pl
 /* A place someone names (the owner's scene: Royce on where Dewayne lives),
    with this town's people: a speaker present here, and an owner elsewhere
    with a phase no schedule holds them in. */
+/* Someone here to do the telling, and someone not here whose home in the
+   cast the player has not found yet (its name, and what "X's house" means). */
 const homeScene = page => page.evaluate(() => {
   const st = Game.state;
-  const phases = ['morning', 'afternoon', 'evening', 'night'];
-  const nowhere = id => phases.filter(p => !st.locations.some(l => ((l.npcIdsBySchedule || {})[p] || []).includes(id)));
   const first = n => n.name.split(' ')[0];
   const here = Game.State.npcsAt(st.player.locationId);
   const speaker = here[0];
-  const owner = st.npcs.find(n => n.id !== speaker.id && !here.includes(n) && n.status === 'free' && nowhere(n.id).length > 0 && nowhere(n.id).length < 4 && st.npcs.filter(m => first(m) === first(n)).length === 1);
-  return { loc: st.player.locationId, speaker: { id: speaker.id, name: speaker.name }, owner: { id: owner.id, first: first(owner), nowhere: nowhere(owner.id) }, place: `${first(owner)}'s house` };
+  const owner = st.npcs.find(n => n.id !== speaker.id && !here.includes(n) && n.status === 'free' && n.home && !Game.State.loc(n.home.locationId).discovered && st.npcs.filter(m => first(m) === first(n)).length === 1);
+  const home = Game.State.loc(owner.home.locationId);
+  return { loc: st.player.locationId, speaker: { id: speaker.id, name: speaker.name }, owner: { id: owner.id, first: first(owner) }, place: `${first(owner)}'s house`, home: { id: home.id, name: home.name, description: home.description, exits: home.exits.slice() } };
 });
 
-s.test('a person names a place that is not on the map: the bookkeeper adds it, the feed says so, the map and Places show it dashed; "I head to X\'s house" walks there and the dash goes; /undo takes it all back', async h => {
+s.test('a person tells the player about a home the cast has written: the bookkeeper\'s place discovers it (never a second one), the feed says so, the map and Places show it dashed; walking there takes the dash away; /undo hides it again; a place the cast does not have is still added', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
   const sc = await findScene(page, { min: 1 });
   await place(page, sc.loc.id, sc.phase);
   await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
   const x = await homeScene(page);
+  const locs0 = await page.evaluate(() => Game.state.locations.length);
   await page.click('#tab-places');
+  assert.equal(await page.evaluate(id => !!document.querySelector(`.map-place[data-loc="${id}"]`), x.home.id), false, 'not on the map before anyone says');
+  assert.ok(!(await lastPacket(page, 'parse') || '').includes(x.home.name), 'nor in what the parser knows');
   await page.click('#mode-say');
   await page.click(`#say-to [data-to="${x.speaker.id}"]`);
   await page.evaluate(x => {
@@ -1611,17 +1624,17 @@ s.test('a person names a place that is not on the map: the bookkeeper adds it, t
     Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: x.place, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: x.loc, ownerNpcId: x.owner.id, kind: 'home' }] });
   }, x);
   await sendText(page, `Where does ${x.owner.first} live? He said I could stay over.`);
-  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
-  const made = await page.evaluate(name => JSON.parse(JSON.stringify(Game.state.locations.find(l => l.name === name) || null)), x.place);
-  assert.ok(made, 'the place exists');
-  assert.deepEqual(made.exits, [x.loc]);
-  assert.equal(made.revealed.byNpcId, x.speaker.id, 'credited to the person the player asked');
-  assert.equal(made.revealed.ownerNpcId, x.owner.id);
+  assert.equal(await lastQuiet(page), `Added to the map: ${x.home.name}.`);
+  const made = await page.evaluate(id => JSON.parse(JSON.stringify(Game.State.loc(id))), x.home.id);
+  assert.equal(await page.evaluate(() => Game.state.locations.length), locs0, 'no second place: the cast\'s home is discovered');
+  assert.equal(made.discovered, true);
+  assert.deepEqual(made.exits, x.home.exits, 'its own roads');
+  assert.equal(made.description, x.home.description, 'its own description');
+  assert.deepEqual([made.revealed.byNpcId, made.revealed.ownerNpcId, made.revealed.visited, made.revealed.authored], [x.speaker.id, x.owner.id, false, true], 'credited to the person the player asked');
   assert.equal(await page.evaluate(() => Game.state.player.locationId), x.loc, 'asking moves nobody');
   const book = await lastPacket(page, 'bookkeep');
-  assert.ok(book.includes('\nLOCATIONS (the places list): '), 'the bookkeeper sees the places list');
+  assert.ok(book.includes('\nLOCATIONS (the places list): ') && !book.split('\n').find(l => l.startsWith('LOCATIONS')).includes(x.home.id), 'the bookkeeper sees only the places the player knows');
   assert.ok(book.includes(`\nNAMED IN THE NARRATION (not here): ${x.owner.id} — `), 'and the owner, named but not here, so it can say whose home it is');
-  // The panel re-rendered with the turn: the map marker is dashed, the legend explains it, the Places list has it.
   const panel = () => page.evaluate(id => ({
     heard: (document.querySelector(`.map-place[data-loc="${id}"]`) || { dataset: {} }).dataset.heard || null,
     here: (document.querySelector(`.map-place[data-loc="${id}"]`) || { dataset: {} }).dataset.here || null,
@@ -1634,30 +1647,38 @@ s.test('a person names a place that is not on the map: the bookkeeper adds it, t
   assert.ok(p.dash && p.dash !== 'none', 'a dashed outline: ' + p.dash);
   assert.ok(p.road, 'with its road');
   assert.match(p.legend, /Heard of/);
-  assert.ok(p.text.includes(`${x.place} (heard of)`), 'in Places you know and Exits from here');
-  // Walking there: the mock parser finds it by name.
+  assert.ok(p.text.includes(`${x.home.name} (heard of)`), 'in Places you know');
+  // Walking there by its name.
   await page.click('#mode-do');
-  await sendText(page, `I head to ${x.place}`);
+  await sendText(page, `I head to ${x.home.name}`);
   assert.equal(await page.evaluate(() => Game.state.player.locationId), made.id, 'the player is there');
-  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.destinationId), made.id);
-  assert.ok((await lastPacket(page)).includes(`DESTINATION: ${x.place} — The white house about a mile up the river road, on the left.`));
+  assert.ok((await lastPacket(page)).includes(`DESTINATION: ${x.home.name} — ${x.home.description}`));
   assert.equal(await page.evaluate(id => Game.State.loc(id).revealed.visited, made.id), true);
   p = await panel();
   assert.deepEqual([p.heard, p.here], ['0', '1'], 'the first visit takes the dash away');
   assert.equal(p.dash, 'none');
-  assert.ok(!/Heard of/.test(p.legend));
-  assert.equal(await page.textContent('#panel-body h2'), x.place);
-  // /undo: the walk, then the place itself.
+  // /undo: the walk, then the telling.
   await sendText(page, '/undo');
   assert.equal(await page.evaluate(() => Game.state.player.locationId), x.loc);
   assert.equal((await panel()).heard, '1', 'heard of again');
   await sendText(page, '/undo');
-  const gone = await page.evaluate(([name, id, near, owner]) => ({
-    loc: Game.state.locations.some(l => l.name === name), exit: Game.State.loc(near).exits.includes(id), home: Game.State.npc(owner).home || null,
+  const gone = await page.evaluate(([id, name]) => ({
+    discovered: Game.State.loc(id).discovered, revealed: Game.State.loc(id).revealed || null,
     marker: !!document.querySelector(`.map-place[data-loc="${id}"]`), list: document.getElementById('panel-body').innerText.includes(name),
     feed: [...document.querySelectorAll('#feed .f-quiet')].some(n => n.textContent.includes('Added to the map'))
-  }), [x.place, made.id, x.loc, x.owner.id]);
-  assert.deepEqual(gone, { loc: false, exit: false, home: null, marker: false, list: false, feed: false });
+  }), [made.id, x.home.name]);
+  assert.deepEqual(gone, { discovered: false, revealed: null, marker: false, list: false, feed: false });
+  // A place the cast does not have (an empty garage on Front Street) is still added, near where it was told.
+  await page.evaluate(x => {
+    Game.Api.Mock.queue('narrate', `${x.speaker.name} nods down the street. "${x.owner.first} wants that empty garage on Front Street. Been saving for years."`);
+    Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: 'the empty garage', type: 'shop', description: 'An empty garage on Front Street that someone has been saving to buy.', nearId: x.loc, ownerNpcId: x.owner.id, kind: 'business' }] });
+  }, x);
+  await sendText(page, `What does ${x.owner.first} want?`);
+  const garage = await page.evaluate(() => JSON.parse(JSON.stringify(Game.state.locations.find(l => l.name === 'The empty garage') || null)));
+  assert.ok(garage, 'a new place');
+  assert.deepEqual([garage.exits, garage.discovered, garage.revealed.kind, garage.revealed.ownerNpcId], [[x.loc], true, 'business', x.owner.id]);
+  assert.equal(await page.evaluate(() => Game.state.locations.length), locs0 + 1);
+  assert.equal(await page.evaluate(id => Game.State.loc(id).discovered, x.home.id), false, 'the home stays unfound');
 });
 
 s.test('the mock bookkeeper hears a home named in a quoted line; one already on the map, or a line naming a town place, adds nothing', async h => {
@@ -1672,129 +1693,89 @@ s.test('the mock bookkeeper hears a home named in a quoted line; one already on 
   await say(`${x.owner.first}'s place is the white house up past ${town}.`);
   assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 0, 'a line that names a town place adds nothing');
   await say(`${x.owner.first}'s is the white house about a mile up the river road, on the left.`);
-  const made = await page.evaluate(() => Game.state.locations.filter(l => l.revealed).map(l => ({ name: l.name, owner: l.revealed.ownerNpcId, desc: l.description })));
-  assert.deepEqual(made, [{ name: x.place, owner: x.owner.id, desc: `${x.owner.first}'s is the white house about a mile up the river road, on the left.` }]);
-  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
+  const made = await page.evaluate(() => Game.state.locations.filter(l => l.revealed).map(l => ({ id: l.id, owner: l.revealed.ownerNpcId, discovered: l.discovered })));
+  assert.deepEqual(made, [{ id: x.home.id, owner: x.owner.id, discovered: true }], 'the cast\'s home for them, found');
+  assert.equal(await lastQuiet(page), `Added to the map: ${x.home.name}.`);
   await say(`Told you, ${x.owner.first}'s is the white house up the road.`);
   assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 1, 'once on the map, not again');
 });
 
-/* People match the story: someone the narration names becomes a real
-   person (the bookkeeper's peopleRevealed), and someone the player asks for
-   is made with pronouns that fit (the tables in mock mode). */
-s.test('a person the story names becomes real: "X\'s wife" is added silently, named later as the same person, lives at X\'s house, gets a quiet feed line, shows under Heard of with her pronouns, and the narrator gets (she/her; ...); /undo takes it back', async h => {
+/* People match the story, with the cast fixed: someone the narration names
+   is a person the cast already has (their home can be found, nobody is
+   added), and someone the player asks for is the cast's or nobody. */
+s.test('a person the story names is someone in the cast: "X\'s wife" and their house are the cast\'s, the house is found, nobody is added even when the bookkeeper tries, and the narrator gets her from the cast; /undo takes the telling back', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
-  const sc = await findScene(page, { min: 1 });
-  await place(page, sc.loc.id, sc.phase);
+  const c = await castFacts(page);
+  // A scene with someone to tell it who is neither of them.
+  const sc = await page.evaluate(c => {
+    for (const l of Game.state.locations) for (const ph of ['morning', 'afternoon', 'evening', 'night']) {
+      const here = Game.State.npcsAt(l.id, ph).filter(n => n.id !== c.husband.id && n.id !== c.wife.id);
+      if (l.discovered && here.length && !Game.State.npcsAt(l.id, ph).some(n => n.id === c.wife.id)) return { loc: l.id, phase: ph, speaker: { id: here[0].id, name: here[0].name } };
+    }
+    return null;
+  }, c);
+  await place(page, sc.loc, sc.phase);
   await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
-  const x = await homeScene(page);
-  // The compact entry the real bookkeeper sends (name, pronouns, relationToNpcId, who).
-  const wife = { name: `${x.owner.first}'s wife`, pronouns: 'she', relationToNpcId: x.owner.id, who: 'wife' };
+  const home = await page.evaluate(id => { const h = Game.State.npc(id).home; const l = Game.State.loc(h.locationId); return { id: l.id, name: l.name, discovered: l.discovered }; }, c.husband.id);
+  assert.equal(home.discovered, false, 'the house is not on the map yet');
+  assert.equal(await page.evaluate(id => Game.State.npc(id).home.locationId, c.wife.id), home.id, 'she lives there too');
+  const before = await counts(page);
   await page.click('#mode-say');
-  await page.click(`#say-to [data-to="${x.speaker.id}"]`);
-  await page.evaluate(([x, wife]) => {
-    Game.Api.Mock.queue('narrate', `${x.speaker.name} jerks a thumb up the road. "${x.owner.first}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife's gonna be thrilled when you knock."`);
-    Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: x.place, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: x.loc, ownerNpcId: x.owner.id, kind: 'home' }], peopleRevealed: [wife] });
-  }, [x, wife]);
-  await sendText(page, `Where does ${x.owner.first} live? He said I could stay over.`);
-  const quiet = () => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
-  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
-  assert.ok(!(await quiet()).some(t => t.startsWith('Added to People')), 'an unnamed wife is added silently');
-  const story = () => page.evaluate(() => JSON.parse(JSON.stringify(Game.state.npcs.filter(n => n.created && n.created.by === 'story'))));
-  let made = await story();
-  assert.equal(made.length, 1);
-  const id = made[0].id;
-  const houseId = await page.evaluate(name => Game.state.locations.find(l => l.name === name).id, x.place);
-  assert.deepEqual([made[0].name, made[0].unnamed, made[0].pronouns, made[0].created.byNpcId], [`${x.owner.first}'s wife`, true, 'she', x.speaker.id], 'credited to the person the player asked');
-  assert.equal(made[0].home.locationId, houseId, 'she lives at the house');
-  assert.match(await lastPacket(page, 'bookkeep'), /\nEVERYONE ELSE IN THE GAME \(not met; listed only so peopleRevealed never adds them again\): /);
-  // A later turn names her: the same person, renamed, and now a quiet line.
-  await page.evaluate(([x, wife]) => {
-    Game.Api.Mock.queue('narrate', `${x.speaker.name} laughs. "Alone? No. Mavis, his wife. Mavis Toler. She works nights."`);
-    Game.Api.Mock.queue('bookkeep', { peopleRevealed: [Object.assign({}, wife, { name: 'Mavis Toler' })] });
-  }, [x, wife]);
-  await sendText(page, 'Does he live alone?');
-  const book = await lastPacket(page, 'bookkeep');
-  assert.ok(new RegExp(`${id} — ${x.owner.first}'s wife \\(she/her; ${x.owner.first}'s wife(; attitude 0)?\\) \\(no name yet\\)`).test(book), 'the bookkeeper sees her waiting for a name: ' + book);
-  assert.equal(await lastQuiet(page), `Added to People: Mavis Toler (${x.owner.first}'s wife).`);
-  made = await story();
-  assert.equal(made.length, 1, 'one person, not two');
-  assert.deepEqual([made[0].id, made[0].name, made[0].unnamed, made[0].pronouns, made[0].role, made[0].home.locationId], [id, 'Mavis Toler', undefined, 'she', `${x.owner.first}'s wife`, houseId]);
-  // People: under Heard of, by name, with her pronouns; the parser hears of her too.
-  await page.click('#tab-people');
-  const card = await page.evaluate(id => { const c = document.querySelector(`#panel-body [data-group="heard"] .pcard[data-npc="${id}"]`); return c ? { name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, text: c.textContent } : null; }, id);
-  assert.ok(card, 'listed under Heard of');
-  assert.deepEqual([card.name, card.pron, card.role], ['Mavis Toler', 'she/her', `${x.owner.first}'s wife`]);
-  assert.match(card.text, /Heard of, not met/);
-  // Walking to the house: she is there, and the narrator gets her pronouns right after her name.
+  await page.click(`#say-to [data-to="${sc.speaker.id}"]`);
+  await page.evaluate(([c, sc]) => {
+    Game.Api.Mock.queue('narrate', `${sc.speaker.name} jerks a thumb up the road. "${c.husband.first}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife Mavis is gonna be thrilled when you knock."`);
+    // What an older bookkeeper sent: the house, and the wife as somebody new. The house is found; the wife is refused.
+    Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: `${c.husband.first}'s house`, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: sc.loc, ownerNpcId: c.husband.id, kind: 'home' }], peopleRevealed: [{ name: 'Mavis', pronouns: 'she', relationToNpcId: c.husband.id, who: 'wife' }] });
+  }, [c, sc]);
+  await sendText(page, `Where does ${c.husband.first} live? He said I could stay over.`);
+  assert.equal(await lastQuiet(page), `Added to the map: ${home.name}.`);
+  assert.deepEqual(await counts(page), before, 'nobody added, no second house');
+  assert.ok(!(await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent))).some(t => t.startsWith('Added to People')));
+  assert.match(await page.evaluate(() => Game.State.debugLog.filter(d => d.kind === 'rejected' && /^peopleRevealed/.test(d.path || '')).map(d => d.reason).join(' | ')), /the cast is fixed/);
+  // Walking there: she is home in the morning (asleep after the night counter), and the narrator gets her from the cast.
   await page.click('#mode-do');
-  await sendText(page, `I head to ${x.place}`);
-  assert.equal(await page.evaluate(() => Game.state.player.locationId), houseId);
-  assert.ok((await lastPacket(page, 'parse')).includes(`${id} — Mavis Toler (she/her; ${x.owner.first}'s wife) (heard of, not met)`), 'the parser hears of her');
-  const narr = await lastPacket(page);
-  assert.ok(narr.includes(`Mavis Toler (she/her; ${x.owner.first}'s wife; not met yet: the player has heard of them by this name from others, but has never met them;`), narr.split('\n').find(l => l.startsWith('DESTINATION')) || narr);
+  await page.evaluate(() => { while (Game.state.time.phase !== 'morning') Game.State.apply({ advanceTime: 'long' }); });
+  await sendText(page, `I head to ${home.name}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), home.id);
   await sendText(page, 'I look around');
-  assert.ok((await lastPacket(page)).includes(`PRESENT: `) && /Mavis Toler \(she\/her; /.test(await lastPacket(page)), 'PRESENT: Mavis Toler (she/her; ...)');
-  // /undo: the look, the walk, the name, then the reveal itself.
+  const present = (await lastPacket(page)).split('\n').find(l => l.startsWith('PRESENT:'));
+  assert.ok(present.includes(`${c.wife.name} (she/her; ${c.wife.role}; ${c.husband.first}'s wife; husband: ${c.husband.name}`), present);
+  // /undo: the look, the walk, then the telling: the house is unfound again.
   for (let i = 0; i < 3; i++) await sendText(page, '/undo');
-  made = await story();
-  assert.deepEqual([made.length, made[0].name, made[0].unnamed], [1, `${x.owner.first}'s wife`, true], 'unnamed again');
-  await sendText(page, '/undo');
-  assert.deepEqual(await story(), [], 'gone');
-  assert.ok(!(await quiet()).some(t => t.startsWith('Added to People')), 'and so is the line');
+  assert.equal(await page.evaluate(id => Game.State.loc(id).discovered, home.id), false);
+  assert.deepEqual(await counts(page), before);
 });
 
-s.test('someone the player asks for in mock mode: pronouns from the words, a rolled occupation and never a bare "man" or "woman" role, a name from the words, and "X\'s wife" read as a relation', async h => {
+s.test('someone the player asks for is the cast\'s or nobody: a stranger by description is not there and nothing is made; a name, "X\'s wife" and a one-word job find the cast member; the parser hears pronouns', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
   const fx = await fixtures(page);
   await place(page, fx.tavern.id, 'evening');
   await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const c = await castFacts(page);
+  const before = await counts(page);
   const ask = async (desc, text) => {
-    const before = await page.evaluate(() => Game.state.npcs.map(n => n.id));
     await page.evaluate(desc => Game.Api.Mock.queue('parse', { actionType: 'talk', targets: ['new:' + desc], needsRoll: false, timeCost: 'instant' }), desc);
     await sendText(page, text);
-    return page.evaluate(before => JSON.parse(JSON.stringify(Game.state.npcs.filter(n => !before.includes(n.id)))), before);
+    return page.evaluate(() => Game.Pipeline.lastTurn.action.targets);
   };
-  const occupations = await page.evaluate(() => Game.data.TABLES.npc.occupations);
-  const [w] = await ask('woman by the jukebox', 'I talk to the woman by the jukebox');
-  assert.ok(w, 'someone was made');
-  assert.equal(w.pronouns, 'she');
-  assert.ok(occupations.includes(w.role) && !/^(man|woman)$/i.test(w.role), 'a rolled occupation: ' + w.role);
-  assert.ok(w.tags.includes('woman'), 'the word kept as a tag');
-  assert.match(w.look, /^A woman with an? .+ look about her\.$/);
-  assert.notEqual(await page.evaluate(n => Game.namePronouns(n), w.name), 'he', 'a first name that fits: ' + w.name);
-  assert.equal(w.created.by, 'tables');
-  assert.ok((await lastPacket(page)).includes(`${w.name} (she/her; ${w.role}; `), 'the narrator packet: name, then pronouns');
-  const [m] = await ask('man at the end of the bar', 'I nod at the man at the end of the bar');
-  assert.equal(m.pronouns, 'he');
-  assert.ok(occupations.includes(m.role), m.role);
-  assert.match(m.look, /^A man with an? .+ look about him\.$/);
-  // A name only: the name is kept and a family name added; the pronouns come from it.
-  const [v] = await ask('Wanda', 'I ask for Wanda');
-  assert.match(v.name, /^Wanda \S+$/);
-  assert.equal(v.pronouns, 'she');
-  assert.ok(occupations.includes(v.role), 'never "Wanda" or "Man" as a role: ' + v.role);
-  // "X's wife": a relation to X, the family name, she.
-  const owner = await page.evaluate(() => {
-    const here = Game.State.npcsAt(Game.state.player.locationId).map(n => n.id);
-    const first = n => n.name.split(' ')[0];
-    return Game.state.npcs.filter(n => !here.includes(n.id) && n.pronouns === 'he' && Game.state.npcs.filter(m => first(m) === first(n)).length === 1).map(n => ({ id: n.id, name: n.name, first: first(n) }))[0];
-  });
-  const [wife] = await ask(`${owner.first}'s wife`, `I ask about ${owner.first}'s wife`);
-  assert.ok(wife, 'someone new, not ' + owner.name);
-  assert.equal(wife.role, `${owner.first}'s wife`);
-  assert.equal(wife.pronouns, 'she');
-  assert.deepEqual([wife.created.relationToNpcId, wife.created.relation], [owner.id, 'wife']);
-  assert.equal(wife.name.split(' ').slice(-1)[0], owner.name.split(' ').slice(-1)[0], 'she shares his family name');
-  // Asking again finds her, not him.
-  const again = await ask(`${owner.first}'s wife`, `I ask ${owner.first}'s wife for a light`);
-  assert.deepEqual(again, [], 'nobody new');
-  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(wife.id));
-  assert.ok(!(await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(owner.id), 'never the husband');
-  // The parser hears pronouns too.
-  assert.ok((await lastPacket(page, 'parse')).includes(`${wife.id} — ${wife.name} (she/her; ${owner.first}'s wife; attitude to the player`));
+  for (const [desc, word] of [['woman by the jukebox', 'woman'], ['man at the end of the bar', 'man']]) {
+    assert.deepEqual(await ask(desc, `I talk to the ${desc}`), [], desc);
+    assert.ok((await lastPacket(page)).includes(`NOT PRESENT: ${word} (does not exist in this town; it is simply not there).`), desc);
+  }
+  assert.deepEqual(await counts(page), before, 'nobody was made');
+  // By name, by who she is to someone, by a one-word job: the cast's own.
+  assert.deepEqual(await ask('Mavis', 'I ask for Mavis'), [c.wife.id]);
+  assert.deepEqual(await ask(`${c.husband.first}'s wife`, `I ask about ${c.husband.first}'s wife`), [c.wife.id], 'never the husband');
+  const clerk = await ask('the clerk', 'I ask for the clerk');
+  assert.equal(clerk.length, 1);
+  assert.match(await page.evaluate(id => Game.State.npc(id).role, clerk[0]), /\bclerk\b/, 'someone whose job is clerk');
+  const bartender = await ask('bartender', 'I wave the bartender over');
+  assert.ok(await page.evaluate(([id, loc]) => / bartender\b|^owner and bartender/.test(Game.State.npc(id).role) && Game.State.npcsAt(loc).some(n => n.id === id), [bartender[0], fx.tavern.id]), 'the bartender here: ' + bartender);
+  assert.deepEqual(await counts(page), before, 'still nobody made');
+  // The parser hears everyone, with pronouns.
+  assert.ok((await lastPacket(page, 'parse')).includes(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`));
 });
 
 s.test('when time passes, people who arrive at or leave the player\'s place are handed to the next narration, then cleared', async h => {
@@ -1873,20 +1854,20 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
   await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
-  // A town person scheduled somewhere and free in some phase (now in the cells), met; someone else to be related to; a place for a home.
+  // A town person at home in some phases and out in the rest (now in the cells), met; someone else to be related to; a place for a home.
   const x = await page.evaluate(() => {
     const st = Game.state;
     const PH = ['morning', 'afternoon', 'evening', 'night'];
     const at = id => PH.map(p => { const l = st.locations.find(y => ((y.npcIdsBySchedule || {})[p] || []).includes(id)); return l ? l.id : null; });
     const townIds = Game.town.npcs.map(n => n.id);
     const first = n => n.name.split(' ')[0];
-    const who = st.npcs.find(n => townIds.includes(n.id) && at(n.id).includes(null) && at(n.id).some(Boolean) && st.npcs.filter(m => first(m) === first(n)).length === 1);
+    const who = st.npcs.find(n => townIds.includes(n.id) && n.home && n.home.phases.length > 0 && n.home.phases.length < 4 && first(n) !== 'Mavis' && st.npcs.filter(m => first(m) === first(n)).length === 1);
     const other = st.npcs.find(n => n.id !== who.id && townIds.includes(n.id) && first(n) !== 'Mavis');
     const home = st.locations.find(l => l.discovered && !l.closed && !at(who.id).includes(l.id) && !['police', 'watch'].includes(l.type));
     const schedule = at(who.id);
     Game.State.apply({ npcKnownToPlayer: [who.id], newMemories: [{ npcId: who.id, text: 'Tester asked too many questions', weight: 1 }], effects: [{ op: 'npcStatus', npcId: who.id, status: 'arrested' }] });
     return {
-      who: { id: who.id, name: who.name, first: first(who), pronouns: who.pronouns, voice: who.voice, schedule, free: PH.filter((p, i) => !schedule[i]) },
+      who: { id: who.id, name: who.name, first: first(who), pronouns: who.pronouns, voice: who.voice, schedule, free: who.home.phases.slice() },
       other: { id: other.id, name: other.name, first: first(other) }, home: home.id
     };
   });
@@ -1978,7 +1959,7 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   const shown = await page.evaluate(sel => { const c = document.querySelector(sel); return { edit: !!c.querySelector('.pedit'), open: !c.querySelector('.pcard-more').hidden, name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, look: c.querySelector('.pcard-look').textContent, notes: c.querySelector('.pcard-notes').textContent, focus: document.activeElement.classList.contains('pcard-edit') }; }, card);
   assert.deepEqual(shown, { edit: false, open: true, name: 'Mavis Toler', pron: label, role: `Night clerk at the motor court · ${x.other.first}'s wife`, look: 'A small, tired woman in a motel smock.', notes: shown.notes, focus: true });
   assert.match(shown.notes, /paid back the twenty/);
-  // The schedule (and so the map): at home in the phases nothing else holds, back at the town's own schedule in the rest.
+  // The schedule (and so the map): at the new home in the phases the old one held, back at the town's own schedule in the rest.
   assert.ok(await page.evaluate(([home, ph, id]) => ph.every(p => Game.State.npcsAt(home, p).some(n => n.id === id)), [x.home, x.who.free, id]), 'at the new home');
   // The narrator, next turn: the new name, pronouns, role and relation.
   await place(page, await page.evaluate(id => Game.World.whereIs(id), id), null);

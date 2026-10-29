@@ -146,6 +146,58 @@ const RESERVED_FLAGS = (() => {
   return vm.runInNewContext(m[1], {}, { filename: 'index.html#RESERVED_FLAGS', timeout: 1000 });
 })();
 
+// Relation words: the lists the engine reads relations with (HOUSEHOLD_,
+// FAMILY_, WORK_ and OTHER_RELATIONS) and the she / he forms of a gendered
+// word (GENDERED_WORDS), read from the same file so the two cannot drift.
+const ENGINE_WORDS = (() => {
+  const grab = name => {
+    const m = new RegExp('const ' + name + ' = ([\\s\\S]*?\\]\\)?);\\n').exec(html);
+    if (!m) fatal('file', 'index.html has no ' + name + ' list');
+    return m[1];
+  };
+  const code = ['HOUSEHOLD_RELATIONS', 'FAMILY_RELATIONS', 'WORK_RELATIONS', 'OTHER_RELATIONS', 'GENDERED_WORDS']
+    .map(n => 'const ' + n + ' = ' + grab(n) + ';').join('\n') + '\n;({ words: FAMILY_RELATIONS.concat(WORK_RELATIONS, OTHER_RELATIONS), gendered: GENDERED_WORDS })';
+  return vm.runInNewContext(code, {}, { filename: 'index.html#relations', timeout: 1000 });
+})();
+const RELATION_WORDS = new Set(ENGINE_WORDS.words);
+// What the other person must call this one back: A lists B as a word on the
+// left, so B lists A as one on the right (and the other way round).
+const RELATION_PAIRS = [
+  [['wife', 'husband', 'spouse', 'partner'], ['wife', 'husband', 'spouse', 'partner']],
+  [['girlfriend', 'boyfriend', 'fiancee', 'fiance'], ['girlfriend', 'boyfriend', 'fiancee', 'fiance']],
+  [['son', 'daughter', 'child', 'kid', 'boy', 'girl', 'baby'], ['mother', 'father', 'mom', 'dad', 'momma', 'mama', 'daddy']],
+  [['stepson', 'stepdaughter'], ['stepmother', 'stepfather']],
+  [['brother', 'sister'], ['brother', 'sister']],
+  [['stepbrother', 'stepsister'], ['stepbrother', 'stepsister']],
+  [['grandson', 'granddaughter'], ['grandmother', 'grandfather', 'grandma', 'grandpa', 'granny', 'granddad']],
+  [['nephew', 'niece'], ['aunt', 'uncle']],
+  [['cousin'], ['cousin']],
+  [['son-in-law', 'daughter-in-law'], ['mother-in-law', 'father-in-law']],
+  [['sister-in-law', 'brother-in-law'], ['sister-in-law', 'brother-in-law']],
+  [['ex-wife', 'ex-husband', 'ex'], ['ex-wife', 'ex-husband', 'ex']],
+  [['employee', 'worker', 'hand', 'helper', 'apprentice'], ['boss', 'employer', 'manager']],
+  [['tenant', 'lodger'], ['landlord', 'landlady']],
+  [['friend', 'buddy'], ['friend', 'buddy']],
+  [['neighbor', 'neighbour'], ['neighbor', 'neighbour']],
+  [['roommate'], ['roommate']], [['rival'], ['rival']], [['enemy'], ['enemy']]
+];
+function inverseWords(w) {
+  const out = new Set();
+  for (const [a, b] of RELATION_PAIRS) { if (a.indexOf(w) !== -1) b.forEach(x => out.add(x)); if (b.indexOf(w) !== -1) a.forEach(x => out.add(x)); }
+  return out;
+}
+// The pronouns a relation word asks of the person it describes ("wife": she), or null.
+function wordPronouns(w) {
+  for (const [she, he] of ENGINE_WORDS.gendered) { if (w === she) return 'she'; if (w === he) return 'he'; }
+  return null;
+}
+// Home types: a place someone lives that the player finds out about (discovered false until told).
+const HOME_TYPES = ['house', 'trailer', 'apartment', 'farm', 'cabin', 'home'];
+// A role must say who someone is, never only what they are.
+const GENERIC_ROLES = ['man', 'woman', 'person', 'guy', 'lady', 'boy', 'girl', 'townsfolk', 'stranger', 'local', 'resident', 'somebody', 'someone'];
+const CAST_MIN = 40;
+const CAST_MAX = 45;
+
 const trimmed = src.replace(/\s+$/, '');
 let body = trimmed;
 if (trimmed.endsWith(END_BLOCK)) body = trimmed.slice(0, -END_BLOCK.length);
@@ -521,7 +573,7 @@ function checkEffect(e, where) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage']);
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
 else {
@@ -542,7 +594,12 @@ if (checkKeys(T.startLocationIds, ['gate', 'docks'], 'TOWN_DATA.startLocationIds
 }
 
 // Locations
-if (locations.length < 8 || locations.length > 10) err('TOWN_DATA.locations', 'expected 8 to 10 locations, found ' + locations.length);
+// The town's own places (discovered from the start), 8 to 10, plus the homes
+// of the cast, which stay undiscovered until someone tells the player.
+const townPlaces = locations.filter((l) => l && l.discovered !== false);
+const homePlaces = locations.filter((l) => l && l.discovered === false);
+if (townPlaces.length < 8 || townPlaces.length > 10) err('TOWN_DATA.locations', 'expected 8 to 10 town places (discovered), found ' + townPlaces.length);
+if (homePlaces.length > 12) err('TOWN_DATA.locations', 'at most 12 undiscovered homes, found ' + homePlaces.length);
 const locById = new Map(locations.filter(isObj).map((l) => [l.id, l]));
 const typesSeen = {};
 const npcPhaseSlots = new Map(); // npcId -> { phase: [locIds] }
@@ -554,7 +611,11 @@ locations.forEach((l, i) => {
   else if (FANTASY_LOCATION_TYPES.indexOf(l.type) !== -1) err(where, 'type "' + l.type + '" is from the fantasy town; use a modern type');
   typesSeen[l.type] = (typesSeen[l.type] || 0) + 1;
   checkStr(l.description, where + '.description', { sentences: 2, noPlaceholders: true });
-  if (l.discovered !== true) err(where, 'discovered must be true for starter locations');
+  if (l.discovered === false) {
+    // A home the player has not heard of: a dwelling, reached by an exit from a place the player knows.
+    if (HOME_TYPES.indexOf(l.type) === -1) err(where, 'only a home (' + HOME_TYPES.join(', ') + ') may start undiscovered, found type "' + l.type + '"');
+    if (Array.isArray(l.exits) && !l.exits.some((x) => locById.has(x) && locById.get(x).discovered === true)) err(where, 'an undiscovered home must have an exit to a discovered place');
+  } else if (l.discovered !== true) err(where, 'discovered must be true or false');
   if (l.closed !== false) err(where, 'closed must be false at start');
   if (!Array.isArray(l.exits) || l.exits.length === 0) err(where, 'exits must be a non-empty array');
   else {
@@ -667,7 +728,8 @@ for (let i = 0; i < mapped.length; i++) {
 }
 
 // NPCs
-if (npcs.length < 12 || npcs.length > 15) err('TOWN_DATA.npcs', 'expected 12 to 15 NPCs, found ' + npcs.length);
+// The whole cast, written by hand: the game never makes a person in play.
+if (npcs.length < CAST_MIN || npcs.length > CAST_MAX) err('TOWN_DATA.npcs', 'expected the full cast of ' + CAST_MIN + ' to ' + CAST_MAX + ' people, found ' + npcs.length);
 const tagSet = new Set();
 const seenNames = new Set();
 const seenFirst = new Set();
@@ -676,7 +738,7 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'memories', 'alive', 'knownToPlayer', 'status'], where)) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where)) return;
   // Pronouns (he, she or they), and never against what the look says ("woman" is she, "man" is he).
   if (['he', 'she', 'they'].indexOf(n.pronouns) === -1) err(where, 'pronouns must be "he", "she" or "they", found ' + JSON.stringify(n.pronouns));
   else if (typeof n.look === 'string') {
@@ -692,6 +754,7 @@ npcs.forEach((n, i) => {
     seenNames.add(n.name);
   }
   checkStr(n.role, where + '.role', { noPlaceholders: true });
+  if (typeof n.role === 'string' && GENERIC_ROLES.indexOf(n.role.trim().toLowerCase().replace(/^(a|an|the)\s+/, '')) !== -1) err(where, 'role "' + n.role + '" only says what they are; say who they are or what they do');
   if (n.factionId !== null && !isFac(n.factionId)) err(where, 'factionId "' + n.factionId + '" is not a faction (or null)');
   if (!Array.isArray(n.tags) || n.tags.length === 0) err(where, 'tags must be a non-empty array');
   else {
@@ -704,6 +767,8 @@ npcs.forEach((n, i) => {
     if (n.tags.indexOf('watch') !== -1 && n.tags.indexOf('police') === -1) err(where, 'the "watch" tag is only an alias; add "police"');
   }
   for (const f of ['look', 'voice', 'goal', 'secret']) checkStr(n[f], where + '.' + f, { noPlaceholders: true, maxSentences: f === 'voice' ? 4 : 2 });
+  // The People editor's limits (State.EDIT_MAX), so editing anyone never has to cut what is written.
+  for (const [f, max] of [['look', 200], ['voice', 200], ['goal', 200], ['secret', 300]]) if (typeof n[f] === 'string' && n[f].length > max) err(where + '.' + f, 'at most ' + max + ' characters, found ' + n[f].length);
   if (typeof n.voice === 'string') { if (seenVoices.has(n.voice)) err(where, 'voice duplicates another NPC'); seenVoices.add(n.voice); }
   if (typeof n.look === 'string') { if (seenLooks.has(n.look)) err(where, 'look duplicates another NPC'); seenLooks.add(n.look); }
   if (!Array.isArray(n.personality) || n.personality.length !== 2 || !n.personality.every(isStr)) err(where, 'personality must be exactly 2 trait strings');
@@ -715,8 +780,49 @@ npcs.forEach((n, i) => {
   if (typeof n.secret === 'string' && mentionsCast(n.secret, n.id)) connectedSecrets++;
   const slots = npcPhaseSlots.get(n.id) || {};
   const phasesPresent = PHASES.filter((p) => slots[p] && slots[p].length);
-  if (phasesPresent.length < 2) err(where, 'appears in ' + phasesPresent.length + ' phase(s); every NPC needs at least 2');
+  if (phasesPresent.length !== PHASES.length) err(where, 'is somewhere in ' + phasesPresent.length + ' of 4 phases; everyone needs a place in every phase (missing ' + PHASES.filter((p) => phasesPresent.indexOf(p) === -1).join(', ') + ')');
+  // Home: a place in the town, where they are in at least one phase.
+  if (!isLoc(n.home)) err(where + '.home', '"' + n.home + '" is not a location');
+  else if (!PHASES.some((p) => slots[p] && slots[p].indexOf(n.home) !== -1)) err(where + '.home', 'is never at home (' + n.home + ') in any phase');
   for (const p of PHASES) if (slots[p] && slots[p].length > 1) err(where, 'scheduled in two places at once (' + p + ': ' + slots[p].join(', ') + ')');
+});
+// Relations: [{ npcId, relation }], "npcId is this person's relation", a
+// word from the engine's lists, written on both sides with words that answer
+// each other (Dewayne's wife Mavis; Mavis's husband Dewayne), gendered words
+// matching the pronouns of the person they describe.
+let relationCount = 0;
+npcs.forEach((n, i) => {
+  if (!isObj(n)) return;
+  const where = 'npcs[' + i + '](' + n.id + ').relations';
+  if (!Array.isArray(n.relations)) { err(where, 'must be an array of { npcId, relation }'); return; }
+  const seen = new Set();
+  n.relations.forEach((r, ri) => {
+    const w = where + '[' + ri + ']';
+    if (!checkKeys(r, ['npcId', 'relation'], w)) return;
+    relationCount++;
+    if (r.npcId === n.id) { err(w, 'a person cannot be related to themself'); return; }
+    if (!isNpc(r.npcId)) { err(w, '"' + r.npcId + '" is not an NPC'); return; }
+    if (seen.has(r.npcId)) err(w, 'lists ' + r.npcId + ' twice');
+    seen.add(r.npcId);
+    if (typeof r.relation !== 'string' || !RELATION_WORDS.has(r.relation)) { err(w, 'relation "' + r.relation + '" is not one of the engine\'s relation words'); return; }
+    const other = npcById.get(r.npcId);
+    const want = wordPronouns(r.relation);
+    if (want && other && other.pronouns !== want) err(w, '"' + r.relation + '" is ' + want + ', but ' + other.id + ' is ' + other.pronouns);
+    const back = other && Array.isArray(other.relations) ? other.relations.find((x) => x && x.npcId === n.id) : null;
+    if (!back) { err(w, other.id + ' does not list ' + n.id + ' back (relations are written on both sides)'); return; }
+    const inv = inverseWords(r.relation);
+    if (!inv.has(back.relation)) err(w, n.id + ' calls ' + other.id + ' "' + r.relation + '", but ' + other.id + ' calls ' + n.id + ' "' + back.relation + '" (expected one of ' + Array.from(inv).join(', ') + ')');
+  });
+});
+// Offstage people: named in the story, never in town (the dead, the far away).
+const offstage = Array.isArray(T.offstage) ? T.offstage : [];
+if (T.offstage !== undefined && !Array.isArray(T.offstage)) err('TOWN_DATA.offstage', 'must be an array of { name, about }');
+offstage.forEach((o, i) => {
+  const w = 'TOWN_DATA.offstage[' + i + ']';
+  if (!checkKeys(o, ['name', 'about'], w)) return;
+  checkStr(o.name, w + '.name', { noPlaceholders: true });
+  checkStr(o.about, w + '.about', { noPlaceholders: true, maxSentences: 1 });
+  if (typeof o.name === 'string' && npcs.some((n) => n && n.name === o.name)) err(w, '"' + o.name + '" is in the cast; offstage is for people who never appear');
 });
 const firstNames = npcs.filter((n) => n && typeof n.name === 'string').map((n) => {
   const parts = n.name.split(/\s+/);
@@ -917,23 +1023,23 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
   for (const key of LOOSE_END_KEYS) {
     const le = LOOSE_ENDS[key];
     const where = 'LOOSE_ENDS.' + key;
-    if (!checkKeys(le, ['label', 'options', 'link', 'newNpc', 'seed'], where)) continue;
+    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where)) continue;
     checkStr(le.label, where + '.label', { noPlaceholders: true });
     checkStrList(le.options, where + '.options', 3, { noPlaceholders: true, maxSentences: 1 });
     (Array.isArray(le.options) ? le.options : []).forEach((o, oi) => {
       if (typeof o === 'string' && !/\b(I|I'm|I've|I'd|my|me|mine)\b/i.test(o)) err(where + '.options[' + oi + ']', 'should be written in the first person');
     });
-    // Content note 4: the enemy always creates a new NPC; the debt links to a lender.
-    if (key === 'enemy' && le.link !== null) err(where + '.link', 'must be null (the enemy is always a new NPC)');
-    if (key === 'debt' && !(isObj(le.link) && le.link.tag === 'lender')) err(where + '.link', 'must be { tag: "lender" }');
-    if (le.link !== null) {
-      if (checkKeys(le.link, ['tag'], where + '.link')) {
-        if (!tagSet.has(le.link.tag)) err(where + '.link.tag', 'no NPC carries the tag "' + le.link.tag + '"');
+    // Every loose end binds to the cast (the game never makes a person): the
+    // debt links to a lender; link.tag is carried by at least two people, so
+    // a tie is there to make, and each option's tag by at least one.
+    if (key === 'debt' && !(isObj(le.link) && le.link.tag === 'lender')) err(where + '.link', 'must link the tag "lender"');
+    const carriers = (tag) => npcs.filter((n) => n && Array.isArray(n.tags) && n.tags.indexOf(tag) !== -1).length;
+    if (checkKeys(le.link, ['tag'], where + '.link', ['optionTags'])) {
+      if (carriers(le.link.tag) < 2) err(where + '.link.tag', 'the tag "' + le.link.tag + '" needs at least two people in the cast, found ' + carriers(le.link.tag));
+      if (le.link.optionTags !== undefined) {
+        if (!Array.isArray(le.link.optionTags) || le.link.optionTags.length !== (le.options || []).length) err(where + '.link.optionTags', 'one tag per option');
+        else le.link.optionTags.forEach((t, ti) => { if (!carriers(t)) err(where + '.link.optionTags[' + ti + ']', 'no NPC carries the tag "' + t + '"'); });
       }
-    }
-    if (checkKeys(le.newNpc, ['role', 'look', 'voice', 'personality', 'goal', 'secret'], where + '.newNpc')) {
-      for (const f of ['role', 'look', 'voice', 'goal', 'secret']) checkStr(le.newNpc[f], where + '.newNpc.' + f, { noPlaceholders: true, maxSentences: 2 });
-      if (!Array.isArray(le.newNpc.personality) || le.newNpc.personality.length !== 2 || !le.newNpc.personality.every(isStr)) err(where + '.newNpc.personality', 'must be exactly 2 trait strings');
     }
     if (checkKeys(le.seed, ['dayOffset', 'effect', 'trigger'], where + '.seed')) {
       checkDayOffset(le.seed.dayOffset, where + '.seed.dayOffset', 2, 15);
@@ -1070,7 +1176,7 @@ const effectTotal = allEffects.length;
 console.log(
   'OK ' + T.name + ': ' +
   locations.length + ' locations, ' +
-  npcs.length + ' npcs (' + connectedSecrets + ' linked secrets), ' +
+  npcs.length + ' npcs (' + connectedSecrets + ' linked secrets, ' + relationCount + ' relations, ' + homePlaces.length + ' homes to find, ' + offstage.length + ' offstage), ' +
   factions.length + ' factions (' + clockTotal + ' clocks, ' + effectTotal + ' effects), ' +
   threads.length + ' threads, ' +
   seeds.length + ' seeds, ' +

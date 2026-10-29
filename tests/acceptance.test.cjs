@@ -123,7 +123,11 @@ s.test('[1] "I talk to the dragon by the fire" in the tavern → narration says 
 });
 
 // 2
-s.test('[2] Asking for a barmaid who isn\'t in the town data → one is created from the tables, appears in People, and is still there after reload.', async h => {
+/* SPEC.md's checkbox 2 made the barmaid from the tables. The owner's
+   direction of 29 Oct 2026 (docs/BUILD_PLAN.md, direction change 8)
+   replaces that: every person is written by hand and the game never makes
+   one, so asking for someone who is not in the cast finds nobody. */
+s.test('[2] Asking for a barmaid who isn\'t in the town data → nobody is made up (the cast is fixed): the narration says there is no barmaid, People and the cast stay as written, and so after reload.', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const fx = await fixtures(page);
@@ -131,23 +135,25 @@ s.test('[2] Asking for a barmaid who isn\'t in the town data → one is created 
   assert.ok(await page.evaluate(() => !Game.data.TOWN_DATA.npcs.some(n => Game.Town.mentions(' barmaid ', n))), 'no barmaid in the town data');
   const before = await world(page);
   await sendText(page, 'I ask the barmaid for a drink');
-  const made = await page.evaluate(ids => Game.state.npcs.filter(n => !ids.includes(n.id)), before.npcs);
-  assert.equal(made.length, 1, 'exactly one person created');
-  const b = made[0];
-  assert.equal(b.role, 'barmaid');
-  assert.ok(await page.evaluate(n => Game.data.TABLES.npc.firstNames.includes(n.split(' ')[0]) && Game.data.TABLES.npc.familyNames.includes(n.split(' ').slice(1).join(' ')), b.name), 'name rolled from the tables: ' + b.name);
-  assert.ok(await page.evaluate(t => Game.data.TABLES.npc.traits.includes(t[0]) && Game.data.TABLES.npc.traits.includes(t[1]), b.personality), 'traits from the tables');
-  assert.ok(b.knownToPlayer);
+  const after = await world(page);
+  assert.deepEqual(after.npcs, before.npcs, 'nobody was created');
+  const packet = await lastPacket(page);
+  assert.match(line(packet, 'NOT PRESENT'), /barmaid \(does not exist in this town; it is simply not there\)/);
+  assert.match((await lastLog(page)).narration, /There is no barmaid here\./);
   await page.click('#tab-people');
-  assert.ok((await page.innerText('#panel-body')).includes(b.name), 'in People');
+  assert.ok(!/barmaid/i.test(await page.innerText('#panel-body')), 'no barmaid in People');
+  // Someone the cast does have answers when asked for by their job.
+  await sendText(page, 'I ask the bartender for a drink');
+  const t = await page.evaluate(() => Game.Pipeline.lastTurn.action.targets);
+  const bartender = await page.evaluate(loc => Game.State.npcsAt(loc).find(n => Game.Town.mentions(' bartender ', n)), fx.tavern.id);
+  assert.ok(bartender && t.includes(bartender.id), 'the bartender is the cast\'s: ' + JSON.stringify(t));
+  assert.deepEqual((await world(page)).npcs, before.npcs);
   await page.reload();
   await page.waitForFunction(() => window.Game);
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
-  assert.deepEqual(await page.evaluate(id => { const n = Game.State.npc(id); return n && { name: n.name, role: n.role }; }, b.id), { name: b.name, role: 'barmaid' }, 'still in the state');
-  assert.ok(await page.evaluate(([id, loc]) => Game.State.npcsAt(loc, 'evening').some(n => n.id === id), [b.id, fx.tavern.id]), 'still works at the tavern');
-  await page.click('#tab-people');
-  assert.ok((await page.innerText('#panel-body')).includes(b.name), 'still in People after reload');
+  assert.deepEqual((await world(page)).npcs, before.npcs, 'still exactly the cast after reload');
+  assert.equal(await page.evaluate(() => Game.state.meta.castFixed), true);
 });
 
 // 3

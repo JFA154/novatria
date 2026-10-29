@@ -62,20 +62,24 @@ const TOWN_DATA = {
     description,                    // two sentences
     exits: ["loc_..."],             // symmetric: if A lists B, B lists A
     npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
-    discovered: true,               // starter locations are discovered
+    discovered: true,               // town places true; a cast member's home (house, trailer,
+                                    // apartment, farm) false until someone tells the player
     closed: false                   // set true by a clock effect; still exists
   }],
-  npcs: [{
-    id, name, role, factionId,      // factionId may be null
+  npcs: [{                          // the whole cast, 40 to 45, written by hand (direction change 8)
+    id, name, pronouns, role, factionId,  // factionId may be null; role never just "man" / "woman"
     tags: ["lender", ...],          // free-form, used to link loose ends (see LOOSE_ENDS)
     look, voice,                    // one line each
     personality: ["trait", "trait"],
     goal, secret,
     attitude: 0,                    // -100..100
+    relations: [{ npcId, relation }],  // "npcId is this person's relation", written on both sides
+    home: "loc_...",                // where they live; they are there in at least one phase
     memories: [],                   // { turn, text, weight: 1|2|3 }
     alive: true, knownToPlayer: false,
     status: "free"                  // free | arrested | gone | dead
-  }],
+  }],                               // everyone is in npcIdsBySchedule in every phase
+  offstage: [{ name, about }],      // optional: people the story names who never appear
   factions: [{
     id, name, goal, methods,
     clocks: [{                      // 2 or 3, run in sequence
@@ -140,8 +144,9 @@ const LOOSE_ENDS = {               // keys: debt, enemy, secret, lost, promise
   debt: {
     label: "A debt",
     options: ["I owe someone money", ...],     // 3 presets, editable
-    link: { tag: "lender" },                   // link to an existing NPC with this tag, else create one
-    newNpc: { role: "moneylender", ... },      // used only if no tagged NPC exists
+    link: { tag: "lender", optionTags: ["lender", "collector", "bookie"] },
+                                               // bind to a free cast member with the option's tag,
+                                               // else the tag, else anyone free; never a new NPC
     seed: { dayOffset: [3, 5], effect: "...{npc}..." , trigger: "day" }
   }, ...
 };
@@ -260,7 +265,8 @@ The real town is Ommelveer (`content/town-data.js`, validated by
    the world did). One clock sets `thr_bridge_charter` to `failed`.
 4. Loose-end seeds use `trigger: "day"`; `dayOffset` counts from day 1 of
    the game. The `enemy` loose end has `link: null` and always creates a new
-   NPC. `newNpc` fields contain no placeholders.
+   NPC. `newNpc` fields contain no placeholders. (Superseded by direction
+   change 8: every loose end links to the cast and `newNpc` is retired.)
 5. Location types are open-ended (the Old Piers are `"riverbank"`). The
    plausibility check must accept unknown types and fall back to a generic
    judgement.
@@ -488,3 +494,76 @@ talking, I can direct it to one person or all."
    game cannot read (a narrator body that is not JSON, a structured reply
    that does not parse, a non-JSON body) is asked for once more before the
    turn fails with "The API sent a reply the game could not read".
+8. **A full cast, written by hand** (owner, 29 Oct 2026: "So since this has
+   characters, I want you to create all of them and proper. Don't let the
+   AI in game make them cz it is messy."). The game had made people up on
+   demand (the tables when the player asked for someone, the
+   `create_person` call, the bookkeeper's `peopleRevealed`), and it went
+   wrong: a wife built as a man, put at the gas station, with no voice.
+   Now every person who can appear is in `TOWN_DATA.npcs`: 41 people (the
+   15 of the town plus their households, the staff and regulars of each
+   place, a dispatcher and a third officer, a teacher, a farmer and his
+   family, an old-timer, three teenagers, the people the loose ends need),
+   each with `relations` ([{ npcId, relation }]: "npcId is this person's
+   relation", written on both sides, words from the engine's relation
+   lists) and a `home` (a location id; in state `{ locationId, phases }`,
+   the phases the schedule has them there), and a place in every phase.
+   The 8 homes the town lacked are locations of a dwelling type with
+   `discovered: false`; `TOWN_DATA.offstage` ([{ name, about }]) names the
+   people the story may mention who never appear (Amber Lott, the bridge
+   engineer). `tests/validate-town.cjs` checks the cast (40 to 45 people,
+   symmetric relations whose words answer each other and match the
+   pronouns of the person they describe, everyone somewhere every phase,
+   unique names, no role that is only "man" or "woman", homes that exist
+   and that they are at, undiscovered homes reached from a discovered
+   place, loose-end tags carried by two people or more); `docs/CAST.md` is
+   the roster, written by `tests/cast-doc.cjs` and checked by
+   `tests/content.test.cjs`.
+   - **Nobody is made in play.** A new game has `meta.castFixed: true`.
+     Step 4 resolves a `new:` person through `Town.matchExisting` (a name,
+     a role, a one-word job, "Dewayne's wife" read through the cast's
+     relations) and otherwise marks them NOT PRESENT, `does_not_exist`
+     ("nobody like that lives in this town"); that holds for every game,
+     one not yet updated too (`createPerson`, `tablesPerson`,
+     `contextPerson`, the `create_person` schema and `SYSTEM.person` are
+     gone). A `/fact` cannot add a person either. Loose ends bind to the
+     cast: `LOOSE_ENDS[kind].link = { tag, optionTags? }` (`newNpc` is
+     retired); the option the player kept picks the tag (a note sold to
+     someone here is the repo man, a lost bet is the man who runs the card
+     game), then the kind's tag, then anyone free. `peopleRevealed` is out
+     of `record_changes` (41 properties now, under the grammar limit of
+     46) and of the bookkeeper's prompt and the mock; `State.apply` keeps
+     the op for the engine and refuses the model's with "the cast is
+     fixed". The parser is told that everyone who exists is listed (its
+     packet gains `EVERYONE ELSE IN TOWN`) and never to use `new:` for a
+     person.
+   - **The narrator gets the cast.** `Api.narrate` sends two cached system
+     blocks: `Style.systemPrompt()` (unchanged, byte-identical per style)
+     and `Pipeline.castBlock()`: "CAST (everyone who exists in this town;
+     never invent anyone else):", one line per person (`id — Name
+     (pronouns; role; wife of X, employee of Y; usually at Z (phases);
+     home: W)`), the rule that anyone mentioned is one of them or does not
+     exist, and the offstage names. It is built from the records only, so
+     it changes only when the cast does (an edit, a merge, an arrest) and
+     the cache holds. A person line in the packet shows their people
+     ("wife: Mavis Mangum"); the People card adds a Ties note.
+   - **Homes to find.** A `placesRevealed` entry that names a home the cast
+     has written (by name or map label, as the owner's home, or as the
+     home of the person whose name it carries: "Dewayne's house") discovers
+     that location, with the same `revealed` record and dashed "heard of"
+     marker, instead of making a second one; a home for a town person who
+     already lives somewhere known is refused. The parser's exits, the
+     flee exit and the bookkeeper's and re-read's place lists leave
+     undiscovered places out.
+   - **Rules version 6, "A full cast"** (rerun). `Upgrade.fullCast`, with
+     no model call: `addCast` (every person and place missing by id, homes
+     undiscovered; the game's town copy takes them in), `recastPeople`
+     (someone made up under an id the cast now has keeps their history and
+     takes the cast's record), `mergePlaces` (a told home folded into the
+     cast's: "Dewayne's house is the Mangum House"), `mergePeople` (a
+     made-up person onto the cast member they were, by relation, by name,
+     or by first name and role: knownToPlayer, attitude, memories and every
+     reference move over, the made-up record goes), `castSchedules` (the
+     cast's schedule wherever someone is nowhere) and `castFixed`. Anyone
+     nobody matches is kept and named in the summary. `Upgrade.madeUp`
+     treats cast members as town people.

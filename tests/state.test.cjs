@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const assert = require('assert/strict');
-const { suite, quickStart, stateJson, ROOT } = require('./helpers.cjs');
+const { suite, quickStart, legacyTown, stateJson, ROOT } = require('./helpers.cjs');
 
 const s = suite('state');
 
@@ -605,17 +605,18 @@ s.test('town data passes validation and every content constant has the contract 
       bg: D.BACKGROUNDS.map(b => ({ k: keys(b), total: Object.values(b.stats).reduce((a, x) => a + x, 0), range: Object.values(b.stats).every(v => v >= -1 && v <= 3), items: b.items.length, arrival: b.arrival })),
       flaws: D.FLAWS.every(f => typeof f === 'string' && f.length > 0),
       loose: keys(D.LOOSE_ENDS),
-      looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), npc: keys(le.newNpc), seed: keys(le.seed), link: le.link === null || keys(le.link).join() === 'tag' })),
+      looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length) })),
       templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => keys(t).join() === 'dayOffset,effect' && t.effect.includes('{npc}'))
     };
   });
   assert.deepEqual(r.errors, []);
   assert.ok(r.asym, 'validation catches an asymmetric exit');
-  // map is optional on the town and on each location (docs/BUILD_PLAN.md, "Map").
-  const optional = k => k !== 'map';
+  // map is optional on the town and on each location (docs/BUILD_PLAN.md, "Map"); offstage on the town.
+  const optional = k => k !== 'map' && k !== 'offstage';
   assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'locations', 'name', 'npcs', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads']);
   for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'discovered', 'exits', 'id', 'name', 'npcIdsBySchedule', 'type']);
-  for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'role', 'secret', 'status', 'tags', 'voice']);
+  // The cast (docs/BUILD_PLAN.md, direction change 8): relations and a home on everyone.
+  for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'home', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'relations', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
   for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc, ['effects', 'text']); }
   assert.deepEqual(r.tables.top, ['complications', 'items', 'location', 'npc', 'weather']);
@@ -635,8 +636,7 @@ s.test('town data passes validation and every content constant has the contract 
   assert.ok(r.flaws);
   assert.deepEqual(r.loose, ['debt', 'enemy', 'lost', 'promise', 'secret']);
   for (const le of r.looseShape) {
-    assert.deepEqual(le.k, ['label', 'link', 'newNpc', 'options', 'seed']);
-    assert.deepEqual(le.npc, ['goal', 'look', 'personality', 'role', 'secret', 'voice']);
+    assert.deepEqual(le.k, ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
     assert.deepEqual(le.seed, ['dayOffset', 'effect', 'trigger']);
     assert.ok(le.link);
   }
@@ -657,21 +657,24 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
         const npc = G.State.npc(le.npcId);
         const seed = G.State.seed(le.seedId);
         const thread = G.State.thread(le.threadId);
+        const at = def.options.indexOf(le.text);
         return {
-          kind: le.kind, created: le.created, inTown: townNpcIds.includes(npc.id), tag: def.link && def.link.tag, tags: npc.tags,
+          kind: le.kind, created: le.created, inTown: townNpcIds.includes(npc.id), tag: (def.link.optionTags && at >= 0 ? def.link.optionTags[at] : null) || def.link.tag, tags: npc.tags,
           known: npc.knownToPlayer, memory: npc.memories.some(m => m.weight === 2 && m.text.includes(le.text)),
           seed, offset: def.seed.dayOffset, trigger: def.seed.trigger,
           thread: thread && thread.knownToPlayer && thread.linkedIds.includes(npc.id),
-          role: npc.role, newRole: def.newNpc.role, scheduled: st.locations.some(l => Object.values(l.npcIdsBySchedule).some(a => a.includes(npc.id)))
+          made: !!npc.created, scheduled: ['morning', 'afternoon', 'evening', 'night'].every(p => st.locations.some(l => (l.npcIdsBySchedule[p] || []).includes(npc.id)))
         };
       });
     });
     assert.equal(r.length, 3);
     assert.equal(new Set(r.map(x => x.kind)).size, 3);
     for (const le of r) {
-      if (le.tag && !le.created) assert.ok(le.tags.includes(le.tag), `${le.kind} linked by tag`);
-      if (!le.tag) assert.ok(le.created, `${le.kind} with link null creates an NPC`);
-      if (le.created) { assert.ok(!le.inTown); assert.equal(le.role, le.newRole); assert.equal(le.scheduled, false, 'created NPCs stay off-screen'); }
+      // The cast is fixed: every loose end is someone written in the town data, by the option's tag, never someone made.
+      assert.equal(le.created, false, `${le.kind}: nobody created`);
+      assert.ok(le.inTown && !le.made, `${le.kind}: a cast member`);
+      assert.ok(le.tags.includes(le.tag), `${le.kind} linked by the tag ${le.tag}`);
+      assert.ok(le.scheduled, `${le.kind}: their schedule already places them, every phase`);
       assert.ok(le.known && le.memory && le.thread, le.kind);
       assert.equal(le.seed.hidden, true);
       assert.equal(le.seed.fired, false);
@@ -1044,6 +1047,7 @@ const revealEntry = (x, over) => Object.assign({ name: `${x.owner.first}'s house
 s.test('placesRevealed: the place is created with a road both ways, a spot on the map clear of every marker, its owner home in their free phases, and the revealed record', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, entry]) => {
     const S = Game.State;
@@ -1095,6 +1099,7 @@ s.test('placesRevealed: the place is created with a road both ways, a spot on th
 s.test('placesRevealed refuses a place already in town under any form of its name, an unknown or undiscovered nearId, an unknown owner and a bad name; one a turn from the model, twelve a game', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, entry]) => {
     const S = Game.State;
@@ -1152,6 +1157,7 @@ s.test('placesRevealed refuses a place already in town under any form of its nam
 s.test('a model diff may carry placesRevealed (validated like the rest); an unknown key still cannot; turn and day come only from the engine', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, entry]) => {
     const S = Game.State;
@@ -1213,11 +1219,7 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
     if (/\bman\b/i.test(n.look)) assert.equal(n.pronouns, 'he', n.id + ': ' + n.look);
   }
   for (const n of r.town) assert.equal(r.inState.find(x => x[0] === n.id)[1], n.pronouns, 'a new game carries the town pronouns: ' + n.id);
-  assert.ok(r.looseIds.length >= 1, 'a loose end made someone');
-  for (const id of r.looseIds) {
-    const [, p, look] = r.inState.find(x => x[0] === id);
-    assert.equal(p, /\bwoman\b/i.test(look) ? 'she' : /\bman\b/i.test(look) ? 'he' : p, `${id}: ${look}`);
-  }
+  assert.deepEqual(r.looseIds, [], 'a loose end makes nobody: it is someone in the cast, with the cast\'s pronouns');
   assert.deepEqual(r.infer, ['she', 'she', 'he', 'she', 'they', 'he', 'she', 'he', 'she']);
   for (const [p, name, look, byName] of r.women) {
     assert.equal(p, 'she');
@@ -1243,6 +1245,7 @@ const wifeOf = (x, over) => Object.assign({ name: `${x.owner.first}'s wife`, unn
 s.test('peopleRevealed: an unnamed wife shares her husband\'s house in every phase; named later, the same record is renamed; repeats, a second wife, a taken name and bad entries are refused; one a turn from the model, twelve a game', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, house, wife, PH]) => {
     const S = Game.State;
@@ -1328,9 +1331,10 @@ s.test('peopleRevealed: an unnamed wife shares her husband\'s house in every pha
   assert.equal(r.story, 12);
 });
 
-s.test('peopleRevealed: a son named before his father\'s house is known moves in when the house is revealed; peopleRevealed is a record_changes field in the schema, fixPeople is engine-only', async h => {
+s.test('peopleRevealed: a son named before his father\'s house is known moves in when the house is revealed; peopleRevealed is no longer in the bookkeeper\'s schema (the cast is fixed) and the model\'s is refused in a new game; fixPeople is engine-only', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, house, PH]) => {
     const S = Game.State;
@@ -1346,9 +1350,10 @@ s.test('peopleRevealed: a son named before his father\'s house is known moves in
     return {
       id, role: S.npc(id).role, relation: S.npc(id).created.relation, before, after, line: placed.applied[0], home: S.npc(id).home, houseId,
       keys: S.RECORD_KEYS.includes('peopleRevealed') && !S.ENGINE_KEYS.includes('peopleRevealed') && S.ENGINE_KEYS.includes('fixPeople') && !S.RECORD_KEYS.includes('fixPeople'),
-      schema: Game.Api.SCHEMAS.record_changes.required.includes('peopleRevealed'),
-      item: Object.keys(Game.Api.SCHEMAS.record_changes.properties.peopleRevealed.items.properties),
-      model: S.apply({ fixPeople: [{ npcId: id, pronouns: 'she' }] }, { source: 'model' }).rejected[0].reason
+      schema: Game.Api.SCHEMAS.record_changes.required.includes('peopleRevealed') || 'peopleRevealed' in Game.Api.SCHEMAS.record_changes.properties,
+      model: S.apply({ fixPeople: [{ npcId: id, pronouns: 'she' }] }, { source: 'model' }).rejected[0].reason,
+      // With the cast fixed (every new game), the model's attempt is refused.
+      fixed: (() => { st.meta.castFixed = true; const res = S.apply({ peopleRevealed: [{ name: 'Earl Toler', pronouns: 'he', relationToNpcId: '', who: 'brother' }] }, { source: 'model' }); return [res.rejected.map(x => x.reason), st.npcs.some(n => n.name === 'Earl Toler')]; })()
     };
   }, [x, revealEntry(x), PHASES4]);
   assert.equal(r.role, `${x.owner.first}'s son, works the bait shop`, 'the relation first, then what was said');
@@ -1357,14 +1362,16 @@ s.test('peopleRevealed: a son named before his father\'s house is known moves in
   assert.deepEqual(r.after, PHASES4, 'he lives at the house once it is known');
   assert.match(r.line, new RegExp(`; ${r.id} lives there too`));
   assert.deepEqual(r.home, { locationId: r.houseId, phases: PHASES4, revealed: true });
-  assert.ok(r.keys && r.schema);
-  assert.deepEqual(r.item, ['name', 'pronouns', 'relationToNpcId', 'who'], 'the compact entry the bookkeeper sends: the API grammar has no room for more');
+  assert.ok(r.keys, 'the op stays in State for the engine');
+  assert.equal(r.schema, false, 'not in record_changes any more');
   assert.match(r.model, /not allowed from the model/);
+  assert.deepEqual(r.fixed, [['the cast is fixed: everyone in town is already written, so nobody new is added'], false]);
 });
 
 s.test('peopleRevealed, the bookkeeper\'s compact entry: who is read into the relation, the role and the kind, the name tells unnamed from named, whose person can come from the name, and a later compact entry names the same person', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, house, PH]) => {
     const S = Game.State;
@@ -1432,6 +1439,7 @@ s.test('peopleRevealed, the bookkeeper\'s compact entry: who is read into the re
 s.test('fixPeople: a wife, husband or child given a relation and no home moves in with that person when their home is known; a home named in the same fix wins; a cousin stays put', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(([x, house, PH]) => {
     const S = Game.State;
@@ -1471,6 +1479,7 @@ s.test('fixPeople: a wife, husband or child given a relation and no home moves i
 s.test('fixPeople: new pronouns turn a gendered relation, role and tag with them (husband -> wife), they leaves the word alone, and a fix that states the relation or role itself is not second-guessed', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(x => {
     const S = Game.State;
@@ -1524,6 +1533,7 @@ const editSetup = page => page.evaluate(() => {
 s.test('editPerson: the player edits anything about anyone (name, pronouns, role, look, voice, personality, goal, secret, attitude, relation, home, status, memories); only what changed, one applied line naming each field, logged as the player; the model cannot send it', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await editSetup(page);
   const r = await page.evaluate(x => {
     const S = Game.State;
@@ -1609,6 +1619,7 @@ s.test('editPerson: the player edits anything about anyone (name, pronouns, role
 s.test('editPerson refuses bad values with a reason and changes nothing: name, pronouns, every text limit, personality, attitude, relation, home, status, alive, memories, unknown fields', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await editSetup(page);
   const r = await page.evaluate(x => {
     const S = Game.State;
@@ -1665,6 +1676,7 @@ s.test('editPerson refuses bad values with a reason and changes nothing: name, p
 s.test('new pronouns turn a gendered relation, role, tag, look and voice (fixPeople and editPerson: "A man with a bitter look about him." -> "A woman with a bitter look about her."); what the same edit states stands; they leaves the person words alone; quotes and "them" about something else stay', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await revealSetup(page);
   const r = await page.evaluate(x => {
     const S = Game.State;
@@ -1709,6 +1721,7 @@ s.test('new pronouns turn a gendered relation, role, tag, look and voice (fixPeo
 s.test('an edited person and the version 5 check: a town person with a relation stays the town\'s own (not madeUp); a made person edited keeps created and reads as edited by the player in the people packet', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
+  await legacyTown(page); // the engine's paths for a game from before the full cast
   const x = await editSetup(page);
   const r = await page.evaluate(x => {
     const S = Game.State;
@@ -1753,6 +1766,189 @@ s.test('Style.check on day 1 flags a spoken line to the player that invents a pa
   assert.deepEqual(r.fine, []);
   assert.match(r.note, /^STYLE CHECK FAILED on your last attempt: on day 1, someone speaks to the player of a past that never happened \("known a while"\)\. Write it again without that\. It is day 1: the player came to town today, nobody here knew them or heard of them before/);
   assert.equal(r.fn, 'known a while');
+});
+
+/* The full cast (docs/BUILD_PLAN.md, direction change 8). */
+s.test('the cast\'s ties: tiesOf reads both sides of the written relations (and a relation made in play), relationNote says the family tie, and "X\'s wife", a name and a one-word job resolve to the cast', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const T = G.data.TOWN_DATA;
+    const wife = T.npcs.find(n => /^Mavis /.test(n.name));
+    const husband = T.npcs.find(n => (n.relations || []).some(r => r.npcId === wife.id && r.relation === 'wife'));
+    const first = n => n.name.split(' ')[0];
+    const ties = id => JSON.parse(JSON.stringify(S.tiesOf(S.npc(id))));
+    const match = d => G.Town.matchExisting(d, {});
+    const out = {
+      wife: wife.id, husband: husband.id, hf: first(husband),
+      wifeTies: ties(wife.id), husbandTies: ties(husband.id),
+      wifeNote: S.relationNote(S.npc(wife.id)), husbandNote: S.relationNote(S.npc(husband.id)),
+      byRel: match(`${first(husband)}'s wife`), byName: match(first(wife)), byFull: match(wife.name), byJob: match('mechanic'),
+      none: match('woman at the pumps'), ownersWife: match(`${first(wife)}'s husband`)
+    };
+    // A relation made in play shows on both sides too.
+    const other = G.state.npcs.find(n => n.id !== wife.id && n.id !== husband.id && !(n.relations || []).length);
+    S.apply({ editPerson: { npcId: other.id, relationToNpcId: husband.id, relation: 'cousin' } }, { source: 'player' });
+    out.other = other.id;
+    out.after = ties(husband.id);
+    out.otherNote = S.relationNote(S.npc(other.id));
+    return out;
+  });
+  assert.ok(r.wifeTies.has.some(x => x.id === r.husband && x.relation === 'husband'), 'her husband, by her own list');
+  assert.ok(r.wifeTies.isTo.some(x => x.id === r.husband && x.relation === 'wife'), 'his wife, by his list');
+  assert.ok(r.husbandTies.has.some(x => x.id === r.wife && x.relation === 'wife'));
+  assert.equal(r.wifeNote, `${r.hf}'s wife`);
+  assert.match(r.husbandNote, /'s husband$/);
+  assert.deepEqual(r.byRel, { kind: 'npc', id: r.wife }, `${r.hf}'s wife is the cast's wife`);
+  assert.deepEqual([r.byName, r.byFull], [{ kind: 'npc', id: r.wife }, { kind: 'npc', id: r.wife }]);
+  assert.equal(r.byJob.kind, 'npc');
+  assert.equal(r.none, null, 'nobody like that');
+  assert.deepEqual(r.ownersWife, { kind: 'npc', id: r.husband }, 'her husband is him');
+  assert.ok(r.after.has.some(x => x.id === r.other && x.relation === 'cousin'), 'a relation made in play is one of his ties');
+  assert.equal(r.otherNote, `${r.hf}'s cousin`);
+});
+
+s.test('a home the cast has written is found, not made: placesRevealed by the owner, by the home\'s name or by "X\'s house" discovers it with a revealed record that is not counted against the twelve; a second home for someone who already has one on the map is refused; undiscovered places stay out of the exits the parser and a flight use', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const st = G.state;
+    const here = st.player.locationId;
+    const first = n => n.name.split(' ')[0];
+    const homes = st.locations.filter(l => !l.discovered).map(l => ({ l, owners: st.npcs.filter(n => n.home && n.home.locationId === l.id) })).filter(x => x.owners.length);
+    const [a, b, c] = homes;
+    const entry = (name, owner, kind) => ({ name, type: 'house', description: 'Told about in passing.', nearId: here, ownerNpcId: owner || null, kind: kind || 'home' });
+    const n0 = st.locations.length;
+    const out = { n0 };
+    S.apply({ beginTurn: true });
+    const r1 = S.apply({ placesRevealed: [entry(`${first(a.owners[0])}'s house`, a.owners[0].id)] }, { source: 'model' });
+    out.one = { id: r1.revealed && r1.revealed[0], want: a.l.id, revealed: JSON.parse(JSON.stringify(S.loc(a.l.id).revealed)), discovered: S.loc(a.l.id).discovered, line: r1.applied[0] };
+    S.apply({ beginTurn: true });
+    const r2 = S.apply({ placesRevealed: [entry(b.l.name, null)] }, { source: 'model' });
+    out.two = { id: r2.revealed && r2.revealed[0], want: b.l.id, owner: S.loc(b.l.id).revealed.ownerNpcId, owners: b.owners.map(n => n.id) };
+    S.apply({ beginTurn: true });
+    const r3 = S.apply({ placesRevealed: [entry(`${first(c.owners[0])}'s place`, null, 'other')] }, { source: 'model' });
+    out.three = { id: r3.revealed && r3.revealed[0], want: c.l.id };
+    S.apply({ beginTurn: true });
+    out.again = S.apply({ placesRevealed: [entry(`${first(a.owners[0])}'s house`, a.owners[0].id)] }, { source: 'model' }).rejected.map(x => x.reason);
+    // Someone whose home was always on the map (a town place) gets no second one.
+    const local = st.npcs.find(n => n.home && S.loc(n.home.locationId).discovered && !S.loc(n.home.locationId).revealed && st.npcs.filter(m => first(m) === first(n)).length === 1);
+    S.apply({ beginTurn: true });
+    out.local = S.apply({ placesRevealed: [entry(`${first(local)}'s place`, local.id)] }, { source: 'model' }).rejected.map(x => x.reason);
+    out.n = st.locations.length;
+    out.counted = st.locations.filter(l => l.revealed && !l.revealed.authored).length;
+    // What the parser hears of the ways out, and where running away goes: only places the player knows.
+    const still = st.locations.filter(l => !l.discovered).map(l => l.id);
+    const by = st.locations.find(l => l.discovered && l.exits.some(x => still.includes(x)));
+    S.apply({ playerLocationId: by.id });
+    out.exits = G.Pipeline.parsePacket('I look around', {}).exits.map(x => x.id);
+    out.still = still;
+    out.book = G.Pipeline.bookkeeperPacket({ action: {}, presentIds: [], narration: '' }).split('\n').find(l => l.startsWith('LOCATIONS'));
+    return out;
+  });
+  assert.equal(r.one.id, r.one.want, 'the owner\'s own home, found');
+  assert.equal(r.one.discovered, true);
+  assert.deepEqual([r.one.revealed.kind, r.one.revealed.visited, r.one.revealed.authored], ['home', false, true]);
+  assert.match(r.one.line, new RegExp(`^placesRevealed\\[0\\]: ${r.one.want} \\(.+\\) discovered as ".+'s house"; home of npc_`));
+  assert.equal(r.two.id, r.two.want, 'by the home\'s own name');
+  assert.ok(r.two.owners.includes(r.two.owner), 'credited to someone who lives there');
+  assert.equal(r.three.id, r.three.want, 'by whose place it is');
+  assert.match(r.again[0], /already has a home on the map/);
+  assert.match(r.local[0], /lives at loc_/);
+  assert.equal(r.n, r.n0, 'no place was made');
+  assert.equal(r.counted, 0, 'found homes do not count against the twelve');
+  for (const id of r.still) {
+    assert.ok(!r.exits.includes(id), 'an unfound home is no way out: ' + id);
+    assert.ok(!r.book.includes(id + ' '), 'nor in the bookkeeper\'s places: ' + id);
+  }
+});
+
+s.test('loose ends pick the person by the option kept: each preset option\'s tag, then the kind\'s; free words fall back to the kind\'s tag; two loose ends never share a person while anyone else is free', async h => {
+  const page = await h.open();
+  const D = await page.evaluate(() => Game.data.LOOSE_ENDS);
+  const picked = [];
+  for (let i = 0; i < D.debt.options.length; i++) {
+    await page.evaluate(() => Game.State.clear());
+    await page.evaluate(([i, text]) => {
+      const B = Game.data.BACKGROUNDS[0];
+      Game.App.quickStart({ name: 'Tester', backgroundId: B.id, stats: Object.assign({}, B.stats), goal: 'g', flaw: Game.data.FLAWS[0], looseEnds: [{ kind: 'debt', text }] }, { seed: 77 + i });
+    }, [i, D.debt.options[i]]);
+    await page.waitForSelector('#screen-game.active');
+    picked.push(await page.evaluate(() => { const n = Game.State.npc(Game.state.player.looseEnds[0].npcId); return { id: n.id, tags: n.tags }; }));
+  }
+  D.debt.link.optionTags.forEach((tag, i) => assert.ok(picked[i].tags.includes(tag), `option ${i}: ${tag}: ${JSON.stringify(picked[i])}`));
+  // Free words: the kind's own tag.
+  await page.evaluate(() => Game.State.clear());
+  await page.evaluate(() => {
+    const B = Game.data.BACKGROUNDS[0];
+    Game.App.quickStart({ name: 'Tester', backgroundId: B.id, stats: Object.assign({}, B.stats), goal: 'g', flaw: Game.data.FLAWS[0], looseEnds: [{ kind: 'debt', text: 'I owe the whole county' }, { kind: 'enemy', text: 'A cousin wants me dead.' }] }, { seed: 5 });
+  });
+  await page.waitForSelector('#screen-game.active');
+  const free = await page.evaluate(() => Game.state.player.looseEnds.map(le => ({ kind: le.kind, tags: Game.State.npc(le.npcId).tags, id: le.npcId })));
+  assert.ok(free[0].tags.includes(D.debt.link.tag), JSON.stringify(free[0]));
+  assert.ok(free[1].tags.includes(D.enemy.link.tag), JSON.stringify(free[1]));
+  // More loose ends of one kind than people with its tag: the next is someone else free, never a shared person.
+  const many = await page.evaluate(() => {
+    for (let i = 0; i < 4; i++) Game.Town.resolveLooseEnd({ kind: 'promise', text: 'I promised a dying man I\'d deliver his letter to someone here.' });
+    return Game.state.player.looseEnds.map(le => le.npcId);
+  });
+  assert.equal(new Set(many).size, many.length, 'nobody tied twice');
+  assert.equal(await page.evaluate(() => Game.state.npcs.filter(n => n.created).length), 0, 'nobody made');
+});
+
+s.test('the version 6 ops are the engine\'s: the model cannot send them; mergePeople moves a made-up person\'s history and references onto the cast member and removes them; recastPeople gives someone made up under a cast id the cast\'s record; bad entries are refused', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const st = G.state;
+    const out = {};
+    out.model = ['addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed'].map(k => S.apply({ [k]: [] }, { source: 'model' }).rejected[0].reason);
+    const wife = st.npcs.find(n => /^Mavis /.test(n.name));
+    const here = st.player.locationId;
+    S.apply({ beginTurn: true });
+    S.apply({ addNpcs: [{ id: 'npc_mavis_toler', name: 'Mavis Toler', role: 'Man', look: 'A man with a bitter look about them.', pronouns: 'he', knownToPlayer: true, attitude: -20, created: { by: 'tables' }, home: { locationId: here, phases: 'all' } }] });
+    S.apply({ newMemories: [{ npcId: 'npc_mavis_toler', text: 'woke me up knocking', weight: 2 }], logEntry: { input: 'hi', roll: null, narration: 'x', mode: 'say', to: 'npc_mavis_toler', toName: 'Mavis Toler' }, effects: [{ op: 'openThread', thread: { id: 'thr_test', title: 'T', summary: 's', status: 'open', knownToPlayer: true, linkedIds: ['npc_mavis_toler'] } }] });
+    st.seen.npc_mavis_toler = { locationId: here, day: 1, phase: 'morning', turn: 1 };
+    const res = S.apply({ mergePeople: [{ fromId: 'npc_mavis_toler', intoId: wife.id }] });
+    const m = JSON.parse(JSON.stringify(S.npc(wife.id)));
+    out.merge = { applied: res.applied[0], merged: res.merged, gone: !S.npc('npc_mavis_toler'), name: m.name, known: m.knownToPlayer, attitude: m.attitude, mems: m.memories.map(x => x.text),
+      log: st.log.slice(-1)[0].to + '|' + st.log.slice(-1)[0].toName, thread: S.thread('thr_test').linkedIds, seen: !!st.seen[wife.id] && !st.seen.npc_mavis_toler,
+      sched: st.locations.some(l => Object.values(l.npcIdsBySchedule).some(a => a.includes('npc_mavis_toler'))) };
+    out.bad = [
+      S.apply({ mergePeople: [{ fromId: wife.id, intoId: 'npc_dewayne' }] }).rejected[0].reason,
+      S.apply({ mergePeople: [{ fromId: 'npc_nobody', intoId: wife.id }] }).rejected[0].reason,
+      S.apply({ mergePlaces: [{ fromId: here, intoId: here }] }).rejected[0].reason,
+      S.apply({ recastPeople: [{ npcId: wife.id }] }).rejected[0].reason
+    ];
+    // Someone the story named "Mavis" was made as npc_mavis in an older game: recast in place.
+    const was = JSON.parse(JSON.stringify(S.npc(wife.id)));
+    Object.assign(S.npc(wife.id), { name: 'Mavis', role: "Dewayne's wife", look: '', voice: '', created: { by: 'story', relationToNpcId: 'npc_dewayne', relation: 'wife' }, relations: [] });
+    const rc = S.apply({ recastPeople: [{ npcId: wife.id }] });
+    const n = JSON.parse(JSON.stringify(S.npc(wife.id)));
+    out.recast = { line: rc.applied[0], name: n.name, role: n.role, created: n.created || null, ties: n.relations, look: n.look === was.look, mems: n.memories.length };
+    return out;
+  });
+  for (const reason of r.model) assert.match(reason, /not allowed from the model/);
+  assert.match(r.merge.applied, /^mergePeople\[0\]: npc_mavis_toler \(Mavis Toler\) merged into npc_mavis \(Mavis Mangum\)/);
+  assert.deepEqual(r.merge.merged, [{ fromId: 'npc_mavis_toler', intoId: 'npc_mavis', from: 'Mavis Toler' }]);
+  assert.deepEqual([r.merge.gone, r.merge.name, r.merge.known, r.merge.attitude], [true, 'Mavis Mangum', true, -20], 'the cast record, with the history the player made');
+  assert.deepEqual(r.merge.mems, ['woke me up knocking']);
+  assert.equal(r.merge.log, 'npc_mavis|Mavis Mangum', 'the log points at her');
+  assert.deepEqual(r.merge.thread, ['npc_mavis']);
+  assert.ok(r.merge.seen && !r.merge.sched);
+  assert.match(r.bad[0], /is in the cast; only someone the game made up is merged/);
+  assert.match(r.bad[1], /unknown npc id/);
+  assert.match(r.bad[2], /cannot be merged into itself/);
+  assert.match(r.bad[3], /is the cast's own already/);
+  assert.match(r.recast.line, /^recastPeople\[0\]: npc_mavis \(Mavis\) is the cast's Mavis Mangum$/);
+  assert.deepEqual([r.recast.name, r.recast.created, r.recast.look, r.recast.mems], ['Mavis Mangum', null, true, 1]);
+  assert.ok(r.recast.ties.some(t => t.relation === 'husband'));
 });
 
 s.run();

@@ -1020,7 +1020,7 @@ select.input { padding-right: 32px; }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, and fixes people the game made up so they match what the story says about them. About four API calls (none in mock mode).</p>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were. About four API calls (none in mock mode).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -1119,11 +1119,11 @@ const TOWN_DATA = {
       type: "gas",
       map: { x: 250, y: 56, label: "Pittman's", anchor: "e" },
       description: "Four pumps under a buzzing canopy where the state highway meets the river road, with a bus-stop sign bolted to the ice machine and a hand-lettered board out front that reads CRICKETS, NIGHT CRAWLERS, CARTONS. Out back, two open service bays smell of hot oil and tire rubber, and a radio plays gospel to whatever truck is up on the lift.",
-      exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_sturdivant_house"],
+      exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_sturdivant_house", "loc_mangum_house", "loc_pittman_place"],
       npcIdsBySchedule: {
-        morning: ["npc_royce", "npc_dewayne"],
-        afternoon: ["npc_dewayne"],
-        evening: ["npc_royce", "npc_marcus", "npc_travis"],
+        morning: ["npc_royce", "npc_dewayne", "npc_leon", "npc_boyd", "npc_jodie"],
+        afternoon: ["npc_dewayne", "npc_darlene", "npc_kaylee", "npc_lamar", "npc_trent"],
+        evening: ["npc_royce", "npc_marcus", "npc_travis", "npc_kaylee", "npc_leon", "npc_dwight"],
         night: []
       },
       discovered: true,
@@ -1135,12 +1135,12 @@ const TOWN_DATA = {
       type: "bar",
       map: { x: 184, y: 170, label: "Low Water", anchor: "s" },
       description: "A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door. On weekends the gravel lot fills with car tags from the dry county, and the kitchen hatch at the back sends out catfish baskets and the smell of old fryer grease.",
-      exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_riverside_church", "loc_old_bridge", "loc_purvis_landing"],
+      exits: ["loc_motor_court", "loc_town_hall", "loc_byrds_pawn", "loc_riverside_church", "loc_old_bridge", "loc_purvis_landing", "loc_gentry_house"],
       npcIdsBySchedule: {
-        morning: [],
-        afternoon: ["npc_loretta", "npc_royce", "npc_tammy"],
-        evening: ["npc_loretta", "npc_carter", "npc_wade", "npc_tammy"],
-        night: ["npc_loretta"]
+        morning: ["npc_loretta"],
+        afternoon: ["npc_loretta", "npc_royce", "npc_tammy", "npc_elbert", "npc_curtis", "npc_jodie"],
+        evening: ["npc_loretta", "npc_carter", "npc_wade", "npc_tammy", "npc_lyman", "npc_curtis", "npc_jodie"],
+        night: ["npc_loretta", "npc_lyman", "npc_curtis", "npc_jodie"]
       },
       discovered: true,
       closed: false
@@ -1151,12 +1151,12 @@ const TOWN_DATA = {
       type: "motel",
       map: { x: 118, y: 94, label: "Motor Court", anchor: "n" },
       description: "Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster. The office smells of burnt coffee and air freshener, and a monitor on the counter shows the lot in four gray squares.",
-      exits: ["loc_pittmans", "loc_low_water"],
+      exits: ["loc_pittmans", "loc_low_water", "loc_haskins_farm"],
       npcIdsBySchedule: {
-        morning: [],
-        afternoon: [],
-        evening: ["npc_tyler"],
-        night: ["npc_tyler", "npc_travis"]
+        morning: ["npc_lyman", "npc_curtis", "npc_brianna"],
+        afternoon: ["npc_lyman", "npc_brianna"],
+        evening: ["npc_tyler", "npc_mavis", "npc_boyd"],
+        night: ["npc_tyler", "npc_travis", "npc_mavis", "npc_leon", "npc_boyd"]
       },
       discovered: true,
       closed: false
@@ -1165,13 +1165,13 @@ const TOWN_DATA = {
       id: "loc_riverside_church",
       name: "Riverside Baptist Church",
       type: "church",
-      map: { x: 84, y: 142, label: "Church", anchor: "w" },
+      map: { x: 84, y: 142, label: "Church", anchor: "n" },
       description: "A white clapboard church on the slope above Front Street, with a steeple that leans a little toward the river and a marquee sign out front that reads PRAY FOR OUR BRIDGE. Inside, the pews smell of lemon polish and old hymnals, and the fellowship hall out back keeps a coffee urn and a box of donated coats going all week.",
-      exits: ["loc_low_water", "loc_riverbend", "loc_sturdivant_house"],
+      exits: ["loc_low_water", "loc_riverbend", "loc_sturdivant_house", "loc_parsonage", "loc_gentry_house"],
       npcIdsBySchedule: {
-        morning: ["npc_ray"],
-        afternoon: ["npc_vada", "npc_june"],
-        evening: ["npc_ray", "npc_jolene"],
+        morning: ["npc_ray", "npc_nadine", "npc_elbert", "npc_pearl"],
+        afternoon: ["npc_vada", "npc_june", "npc_nadine"],
+        evening: ["npc_ray", "npc_jolene", "npc_odessa", "npc_annette"],
         night: []
       },
       discovered: true,
@@ -1183,12 +1183,12 @@ const TOWN_DATA = {
       type: "police",
       map: { x: 262, y: 146, label: "Town Hall", anchor: "e" },
       description: "A two-story brick building with the mayor's office upstairs and the police department downstairs, one patrol car out front and a second up on blocks behind it. The station is a front counter, three desks and a single holding cell, and the window unit drips onto a box of unpaid parking tickets.",
-      exits: ["loc_pittmans", "loc_byrds_pawn", "loc_low_water", "loc_old_bridge"],
+      exits: ["loc_pittmans", "loc_byrds_pawn", "loc_low_water", "loc_old_bridge", "loc_overstreet_house"],
       npcIdsBySchedule: {
-        morning: ["npc_carter", "npc_jolene", "npc_marcus", "npc_travis"],
-        afternoon: ["npc_jolene"],
+        morning: ["npc_carter", "npc_jolene", "npc_marcus", "npc_travis", "npc_glenda", "npc_nikki"],
+        afternoon: ["npc_jolene", "npc_pearl", "npc_glenda", "npc_nikki"],
         evening: [],
-        night: []
+        night: ["npc_marcus"]
       },
       discovered: true,
       closed: false
@@ -1199,11 +1199,11 @@ const TOWN_DATA = {
       type: "pawn",
       map: { x: 222, y: 104, label: "Byrd's Pawn", anchor: "w" },
       description: "A narrow storefront between two empty ones, its window crowded with chainsaws, guitars and fishing reels behind a security grille that never goes all the way up. Inside it smells of gun oil and stale smoke, and a glass counter of rings and phones sits under a hand-lettered sign that says NO REFUNDS NO STORIES.",
-      exits: ["loc_pittmans", "loc_town_hall", "loc_low_water"],
+      exits: ["loc_pittmans", "loc_town_hall", "loc_low_water", "loc_byrd_apartment"],
       npcIdsBySchedule: {
         morning: ["npc_hollis"],
         afternoon: ["npc_hollis"],
-        evening: [],
+        evening: ["npc_hollis"],
         night: []
       },
       discovered: true,
@@ -1215,12 +1215,12 @@ const TOWN_DATA = {
       type: "trailerpark",
       map: { x: 40, y: 190, label: "Riverbend", anchor: "n" },
       description: "Thirty-odd trailers on the low ground downstream of the landing, some with flower boxes and some with blue tarps on the roofs, strung along a gravel loop that floods to the axles every spring. Dogs bark on chains, a trampoline rusts in the middle of the loop, and a cross of plastic flowers is wired to the fence by the mailboxes.",
-      exits: ["loc_purvis_landing", "loc_riverside_church"],
+      exits: ["loc_purvis_landing", "loc_riverside_church", "loc_lott_trailer"],
       npcIdsBySchedule: {
-        morning: ["npc_june", "npc_tammy"],
-        afternoon: ["npc_colt", "npc_ray", "npc_tyler"],
-        evening: ["npc_june"],
-        night: ["npc_june", "npc_tammy"]
+        morning: ["npc_june", "npc_colt", "npc_tyler", "npc_shayla", "npc_burl"],
+        afternoon: ["npc_colt", "npc_ray", "npc_tyler", "npc_travis", "npc_austin", "npc_leon", "npc_shayla"],
+        evening: ["npc_june", "npc_brianna", "npc_shayla", "npc_burl"],
+        night: ["npc_june", "npc_brianna", "npc_shayla", "npc_dwight", "npc_burl"]
       },
       discovered: true,
       closed: false
@@ -1233,10 +1233,10 @@ const TOWN_DATA = {
       description: "A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and bass boats, beside the concrete public ramp where the river road runs straight down into the water. At night the dock lights stay off, and every morning the mud at the foot of the ramp is cut with fresh trailer tracks.",
       exits: ["loc_low_water", "loc_old_bridge", "loc_riverbend"],
       npcIdsBySchedule: {
-        morning: ["npc_wade"],
-        afternoon: ["npc_wade"],
-        evening: ["npc_colt", "npc_dewayne"],
-        night: ["npc_hollis", "npc_wade"]
+        morning: ["npc_wade", "npc_lorna"],
+        afternoon: ["npc_wade", "npc_micah", "npc_lorna", "npc_burl"],
+        evening: ["npc_colt", "npc_dewayne", "npc_trent", "npc_lorna"],
+        night: ["npc_hollis", "npc_wade", "npc_micah", "npc_trent", "npc_lorna"]
       },
       discovered: true,
       closed: false
@@ -1249,10 +1249,10 @@ const TOWN_DATA = {
       description: "A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road. At the end of the drive by the water tower you can get the town's one bar of cell signal, and there is usually a truck parked there with someone holding a phone up to the sky.",
       exits: ["loc_pittmans", "loc_riverside_church"],
       npcIdsBySchedule: {
-        morning: ["npc_vada"],
-        afternoon: [],
+        morning: ["npc_vada", "npc_odessa", "npc_dwight"],
+        afternoon: ["npc_odessa"],
         evening: ["npc_vada"],
-        night: ["npc_vada", "npc_carter"]
+        night: ["npc_vada", "npc_carter", "npc_odessa"]
       },
       discovered: true,
       closed: false
@@ -1266,11 +1266,139 @@ const TOWN_DATA = {
       exits: ["loc_town_hall", "loc_low_water", "loc_purvis_landing"],
       npcIdsBySchedule: {
         morning: [],
-        afternoon: ["npc_carter", "npc_marcus"],
-        evening: [],
+        afternoon: ["npc_carter", "npc_marcus", "npc_virgil", "npc_boyd", "npc_dwight"],
+        evening: ["npc_austin", "npc_virgil"],
         night: ["npc_colt"]
       },
       discovered: true,
+      closed: false
+    },
+    {
+      id: "loc_mangum_house",
+      name: "The Mangum House",
+      type: "house",
+      map: { x: 330, y: 118, label: "Mangum house", anchor: "w" },
+      description: "A white frame house about a mile up the river road from Pittman's, on the left, with a carport full of engine parts and a porch light left on for whoever gets home last. In the daytime it is dim and quiet, blackout curtains drawn over the bedroom where Mavis sleeps off the night shift.",
+      exits: ["loc_pittmans"],
+      npcIdsBySchedule: {
+        morning: ["npc_mavis"],
+        afternoon: ["npc_mavis"],
+        evening: [],
+        night: ["npc_dewayne"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_pittman_place",
+      name: "The Pittman Place",
+      type: "house",
+      map: { x: 306, y: 30, label: "Pittman place", anchor: "w" },
+      description: "A brick ranch house up the bluff behind the station, with a basketball hoop over the garage, a bass boat on a trailer and the station's ledgers spread across the kitchen table. The curtains are always half shut, and from the back steps you can see every truck that stops at the pumps.",
+      exits: ["loc_pittmans"],
+      npcIdsBySchedule: {
+        morning: ["npc_darlene", "npc_kaylee"],
+        afternoon: [],
+        evening: ["npc_darlene"],
+        night: ["npc_royce", "npc_darlene", "npc_kaylee"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_parsonage",
+      name: "The Parsonage",
+      type: "house",
+      map: { x: 30, y: 108, label: "Parsonage", anchor: "e" },
+      description: "A small white house beside Riverside Baptist that the church owns, with a porch swing, a vegetable garden gone to seed and the church van parked on the grass. Inside it smells of coffee and cough drops, and the front room is stacked with boxes of canned goods for the pantry.",
+      exits: ["loc_riverside_church"],
+      npcIdsBySchedule: {
+        morning: ["npc_micah"],
+        afternoon: [],
+        evening: ["npc_nadine", "npc_micah"],
+        night: ["npc_ray", "npc_nadine"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_lott_trailer",
+      name: "The Lott Trailer",
+      type: "trailer",
+      map: { x: 20, y: 158, label: "Lott trailer", anchor: "e" },
+      description: "A single-wide at the far end of the Riverbend loop, with a wind chime of bent spoons on the porch and a girl's pink bicycle chained to the steps that nobody rides now. A handmade sign taped inside the front window says JUSTICE FOR AMBER in marker.",
+      exits: ["loc_riverbend"],
+      npcIdsBySchedule: {
+        morning: ["npc_tammy", "npc_austin"],
+        afternoon: [],
+        evening: [],
+        night: ["npc_tammy", "npc_austin"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_byrd_apartment",
+      name: "The Apartment over Byrd's",
+      type: "apartment",
+      map: { x: 192, y: 76, label: "Apartment", anchor: "n" },
+      description: "Two rooms up an outside staircase above Byrd's Pawn, rented by the month, with a dripping window unit, a police radio on the counter and a view straight down into the alley where trucks stop after dark. The landlord's boxes of unclaimed merchandise still fill the hall closet.",
+      exits: ["loc_byrds_pawn"],
+      npcIdsBySchedule: {
+        morning: [],
+        afternoon: [],
+        evening: ["npc_nikki"],
+        night: ["npc_nikki"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_haskins_farm",
+      name: "The Haskins Farm",
+      type: "farm",
+      map: { x: 188, y: 40, label: "Haskins farm", anchor: "w" },
+      description: "A tin-roofed farmhouse at the end of a gravel road north of town, with a grain truck under the shed, soybean stubble out to the tree line and a hand-painted sign by the mailbox that once said NO NEW BRIDGE and has been painted over. The kitchen table is covered in seed bills and a county map with the downstream bridge route drawn on it in pencil.",
+      exits: ["loc_motor_court"],
+      npcIdsBySchedule: {
+        morning: ["npc_virgil", "npc_lamar", "npc_trent"],
+        afternoon: [],
+        evening: ["npc_lamar"],
+        night: ["npc_virgil", "npc_lamar"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_overstreet_house",
+      name: "The Overstreet House",
+      type: "house",
+      map: { x: 310, y: 166, label: "Overstreet house", anchor: "s" },
+      description: "A neat yellow house on the rise behind Town Hall, with a flag on the porch, a scanner squawking in the front window and a chest freezer humming in the carport. The front room is full of the mayor's binders and council minutes, and somebody is always home.",
+      exits: ["loc_town_hall"],
+      npcIdsBySchedule: {
+        morning: ["npc_annette", "npc_gerald"],
+        afternoon: ["npc_annette", "npc_gerald"],
+        evening: ["npc_gerald"],
+        night: ["npc_jolene", "npc_annette", "npc_gerald"]
+      },
+      discovered: false,
+      closed: false
+    },
+    {
+      id: "loc_gentry_house",
+      name: "The Gentry House",
+      type: "house",
+      map: { x: 136, y: 140, label: "Gentry house", anchor: "e" },
+      description: "The oldest house in town, a gray two-story with a deep porch on the slope between the church and Front Street, built by the family that ran the ferry before there was a bridge. Photographs of the river in flood cover every wall, and three rocking chairs on the porch face the water.",
+      exits: ["loc_riverside_church", "loc_low_water"],
+      npcIdsBySchedule: {
+        morning: [],
+        afternoon: [],
+        evening: ["npc_elbert", "npc_pearl", "npc_glenda"],
+        night: ["npc_elbert", "npc_pearl", "npc_glenda"]
+      },
+      discovered: false,
       closed: false
     }
   ],
@@ -1289,6 +1417,8 @@ const TOWN_DATA = {
       goal: "Keep the old bridge open, because half her trade drives over from the dry county and none of it will drive the long way round.",
       secret: "She has been seeing Royce Pittman on Tuesday afternoons for eleven years, and she is the reason he has not promised his vote to Carter Sturdivant.",
       attitude: 5,
+      relations: [{ npcId: "npc_tammy", relation: "employee" }, { npcId: "npc_lyman", relation: "employee" }, { npcId: "npc_jodie", relation: "employee" }],
+      home: "loc_low_water",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1307,6 +1437,8 @@ const TOWN_DATA = {
       goal: "Get out from under the note on his station without having to pick a side where anybody can see him do it.",
       secret: "Carter Sturdivant holds the note on the station and has offered to tear it up and give him the truck stop lease at the new interchange in return for a yes vote.",
       attitude: 10,
+      relations: [{ npcId: "npc_darlene", relation: "wife" }, { npcId: "npc_kaylee", relation: "daughter" }, { npcId: "npc_dewayne", relation: "employee" }],
+      home: "loc_pittman_place",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1325,6 +1457,8 @@ const TOWN_DATA = {
       goal: "Keep the old bridge her father fought the state for in 1938, and keep the bottomland out of Carter's hands while she is alive.",
       secret: "The Sturdivant money started with her father running whiskey into the dry county, and Wade Purvis still brings her an envelope every month, which is why the landing lease has never gone up.",
       attitude: 0,
+      relations: [{ npcId: "npc_carter", relation: "son" }, { npcId: "npc_odessa", relation: "employee" }, { npcId: "npc_lamar", relation: "tenant" }],
+      home: "loc_sturdivant_house",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1343,6 +1477,8 @@ const TOWN_DATA = {
       goal: "Get the new bridge built downstream on Sturdivant bottomland, sell the state the right-of-way and own the truck stop at the new interchange.",
       secret: "He is two years behind on the family's timber loans, and he has asked a doctor in the city to find his mother Vada unfit so he can sign the bottomland over himself.",
       attitude: 10,
+      relations: [{ npcId: "npc_vada", relation: "mother" }, { npcId: "npc_dwight", relation: "employee" }],
+      home: "loc_sturdivant_house",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1354,13 +1490,15 @@ const TOWN_DATA = {
       pronouns: "she",
       role: "mayor and town clerk",
       factionId: "fac_sturdivant",
-      tags: ["council", "mayor"],
+      tags: ["council", "mayor", "records"],
       look: "Heavy-set woman in her fifties in a cardigan over a church T-shirt, with a lanyard of keys and a phone she keeps checking for a signal it never finds.",
       voice: "Brisk and procedural; cites ordinances by number, says 'that's a council matter' to shut a subject, and drops to a whisper to say anything kind.",
       personality: ["officious", "frightened"],
       goal: "Get the downstream bridge approved and the police department dissolved before the town's money runs out in January.",
       secret: "Carter Sturdivant pays her five hundred dollars a month in cash, handed over in the motel parking lot, and she used the first year of it to cover money missing from the water fund.",
       attitude: 0,
+      relations: [{ npcId: "npc_gerald", relation: "husband" }, { npcId: "npc_annette", relation: "daughter" }],
+      home: "loc_overstreet_house",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1372,13 +1510,15 @@ const TOWN_DATA = {
       pronouns: "he",
       role: "owner of Byrd's Pawn",
       factionId: "fac_nightrun",
-      tags: ["fence", "merchant"],
+      tags: ["fence", "merchant", "lender"],
       look: "Stooped, pot-bellied man of sixty-five in suspenders and a fishing vest, with a jeweler's loupe on a cord and a toothpick that never leaves his mouth.",
       voice: "Slow and sideways, never a straight yes or no; calls everything 'merchandise', prices things before you ask, and says 'I don't ask where, I ask how much.'",
       personality: ["sociable", "greedy"],
       goal: "Sell the shop and retire to the coast before the bridge closes and the building is worth nothing.",
       secret: "He runs the Night Run's cash through his books as pawn sales, and the catalytic converters stacked behind the shop came off cars in three counties.",
       attitude: 5,
+      relations: [{ npcId: "npc_nikki", relation: "tenant" }],
+      home: "loc_byrds_pawn",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1397,6 +1537,8 @@ const TOWN_DATA = {
       goal: "Keep the old bridge open and the river unwatched after dark, and keep his nephew out of prison.",
       secret: "He knows Colt is selling pills on the side and has not stopped him, because Colt was there the night Wade beat a man half to death for cutting in on the run, and could send him to prison for it.",
       attitude: -10,
+      relations: [{ npcId: "npc_lorna", relation: "wife" }, { npcId: "npc_colt", relation: "nephew" }],
+      home: "loc_purvis_landing",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1415,6 +1557,8 @@ const TOWN_DATA = {
       goal: "Make enough money to quit working for his uncle and buy a truck in his own name.",
       secret: "He sells pain pills bought across the river to people at Riverbend, and the bottle Amber Lott died with came from him.",
       attitude: 5,
+      relations: [{ npcId: "npc_wade", relation: "uncle" }, { npcId: "npc_lorna", relation: "aunt" }, { npcId: "npc_trent", relation: "friend" }],
+      home: "loc_riverbend",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1433,6 +1577,8 @@ const TOWN_DATA = {
       goal: "Make a bust big enough to save his department before the council votes to dissolve it, and prove the bridge report was bought.",
       secret: "He has known for months that Travis Cagle takes Night Run money and has let it go on, because he needs Travis on the payroll until the vote and on the witness stand after it.",
       attitude: -5,
+      relations: [{ npcId: "npc_travis", relation: "employee" }, { npcId: "npc_nikki", relation: "employee" }, { npcId: "npc_glenda", relation: "employee" }],
+      home: "loc_town_hall",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1451,6 +1597,8 @@ const TOWN_DATA = {
       goal: "Keep taking Wade Purvis's money until his boat is paid off, then get on with the county before anyone looks closely.",
       secret: "Wade Purvis pays him three hundred dollars a week to park at the motel during the runs, and he keeps Wade's texts on a second phone in case he ever needs to trade them.",
       attitude: 10,
+      relations: [{ npcId: "npc_marcus", relation: "boss" }, { npcId: "npc_shayla", relation: "girlfriend" }],
+      home: "loc_riverbend",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1462,13 +1610,15 @@ const TOWN_DATA = {
       pronouns: "he",
       role: "pastor of Riverside Baptist Church",
       factionId: null,
-      tags: ["priest", "pastor"],
+      tags: ["priest", "pastor", "records"],
       look: "Round-faced man of sixty-five in a short-sleeved white shirt and clip-on tie, with a hearing aid and a pocket full of peppermints.",
       voice: "Slow and warm, with a preacher's rhythm even at the gas pump; sometimes answers a hard question with a Bible story, and somehow gets the answer out of you instead.",
       personality: ["kind", "nosy"],
       goal: "Keep the Riverbend families housed and fed through the winter, and bury no more young people this year.",
       secret: "The church's new roof was paid for by an anonymous cash gift that he knows came from Wade Purvis, and he has preached against the Night Run every Sunday since without giving a dollar of it back.",
       attitude: 15,
+      relations: [{ npcId: "npc_nadine", relation: "wife" }, { npcId: "npc_micah", relation: "grandson" }],
+      home: "loc_parsonage",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1487,6 +1637,8 @@ const TOWN_DATA = {
       goal: "Keep Riverbend's people out of an emergency room forty miles away, and get the pills off the lot without anyone she knows going to prison.",
       secret: "She has reversed four overdoses at Riverbend this fall without reporting one, and three of the four told her they bought from Colt Purvis.",
       attitude: 5,
+      relations: [{ npcId: "npc_burl", relation: "husband" }],
+      home: "loc_riverbend",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1505,6 +1657,8 @@ const TOWN_DATA = {
       goal: "Save enough to buy the empty garage on Front Street and stop working out of Royce Pittman's bays.",
       secret: "On the morning of the bridge inspection he towed the engineer's rental car out of a ditch and watched Carter Sturdivant drive the man off to lunch, though the report says he spent the whole day under the spans.",
       attitude: 0,
+      relations: [{ npcId: "npc_mavis", relation: "wife" }, { npcId: "npc_royce", relation: "boss" }],
+      home: "loc_mangum_house",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1523,6 +1677,8 @@ const TOWN_DATA = {
       goal: "Save enough cash to leave Lockett's Ferry for good and never work another night shift.",
       secret: "The motel's parking-lot camera has caught Carter Sturdivant handing Jolene Overstreet an envelope every month since spring, and Tyler has copied the clips to a thumb drive he is trying to sell.",
       attitude: 5,
+      relations: [{ npcId: "npc_mavis", relation: "boss" }, { npcId: "npc_brianna", relation: "cousin" }],
+      home: "loc_riverbend",
       memories: [],
       alive: true,
       knownToPlayer: false,
@@ -1541,11 +1697,545 @@ const TOWN_DATA = {
       goal: "See whoever sold Amber the pills that killed her locked up or run out of town.",
       secret: "She took a tire iron to Colt Purvis's truck the week after the funeral, and Wade Purvis paid for the windshield himself and told her the next one would cost her more.",
       attitude: -5,
+      relations: [{ npcId: "npc_loretta", relation: "boss" }, { npcId: "npc_austin", relation: "son" }],
+      home: "loc_lott_trailer",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_mavis",
+      name: "Mavis Mangum",
+      pronouns: "she",
+      role: "night manager at the Riverview Motor Court",
+      factionId: null,
+      tags: ["clerk", "manager"],
+      look: "Small, sharp-faced woman of forty-one with dyed black hair scraped into a clip, a motel key ring on a coiled cord around her wrist and an unlit cigarette behind one ear.",
+      voice: "Clipped and sour; tells you what a thing will cost her before she says yes or no, calls people mister or miss like a complaint, and jingles her keys when she wants you gone.",
+      personality: ["bitter", "shrewd"],
+      goal: "Keep the motor court open and her job with it, which means keeping the old bridge, and talk Dewayne out of the Front Street garage.",
+      secret: "In the spring she emptied the account Dewayne was saving for the garage to pay off a note Sturdivant Land and Timber held on her late mother's house, and she has been putting it back out of the motel till one cash room at a time.",
+      attitude: -5,
+      relations: [{ npcId: "npc_dewayne", relation: "husband" }, { npcId: "npc_tyler", relation: "employee" }, { npcId: "npc_brianna", relation: "employee" }],
+      home: "loc_mangum_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_darlene",
+      name: "Darlene Pittman",
+      pronouns: "she",
+      role: "Royce's wife, who keeps the books at Pittman's",
+      factionId: null,
+      tags: ["bookkeeper"],
+      look: "Tall, careful woman in her fifties with a short silver bob, a blouse buttoned to the collar and a pencil she taps against her teeth while she adds.",
+      voice: "Polite and exact; answers questions about Royce with figures instead of feelings, slips into talking about him in the past tense, and excuses herself to get back to the books.",
+      personality: ["proud", "watchful"],
+      goal: "Keep the station and the house out of Carter Sturdivant's hands, however Royce votes.",
+      secret: "She has known about Royce and Loretta Gaddis for years and keeps a folder of dates and photographs in the station safe, to use the day Royce tries to sign anything without her.",
+      attitude: 0,
+      relations: [{ npcId: "npc_royce", relation: "husband" }, { npcId: "npc_kaylee", relation: "daughter" }],
+      home: "loc_pittman_place",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_kaylee",
+      name: "Kaylee Pittman",
+      pronouns: "she",
+      role: "Royce's daughter, who works the register after school",
+      factionId: null,
+      tags: ["teenager", "cashier"],
+      look: "Sixteen-year-old girl with a long brown ponytail, a softball team hoodie and nails painted the green of the station sign.",
+      voice: "Deadpan; answers in as few words as she can get away with, then says out loud the one thing about you nobody else noticed.",
+      personality: ["bored", "sharp"],
+      goal: "Win a softball scholarship and get out of town before her parents stop pretending.",
+      secret: "She drives her father's truck up to the water tower at night for signal, and she has seen Travis Cagle's patrol car parked dark behind the motor court every night the boats go across.",
+      attitude: 5,
+      relations: [{ npcId: "npc_royce", relation: "father" }, { npcId: "npc_darlene", relation: "mother" }],
+      home: "loc_pittman_place",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_nadine",
+      name: "Nadine Dees",
+      pronouns: "she",
+      role: "church secretary and pianist at Riverside Baptist",
+      factionId: null,
+      tags: ["records", "secretary"],
+      look: "Plump, bright-eyed woman of sixty-three in a holiday sweater whatever the season, with reading glasses pushed up into her curls.",
+      voice: "Chirpy and thorough; reads records aloud in full, including the parts you did not ask for, and says bless you when she means go away.",
+      personality: ["fussy", "kind"],
+      goal: "Keep the church records straight and the fellowship hall pantry stocked through the winter.",
+      secret: "For forty dollars a time she has changed names and dates in the baptism and membership books for people who needed a different past, and the torn-out pages are in a shoebox in the parsonage closet that Ray has never opened.",
+      attitude: 10,
+      relations: [{ npcId: "npc_ray", relation: "husband" }, { npcId: "npc_micah", relation: "grandson" }],
+      home: "loc_parsonage",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_micah",
+      name: "Micah Dees",
+      pronouns: "he",
+      role: "Ray's grandson, who works the Purvis Landing bait shop",
+      factionId: null,
+      tags: ["teenager", "lookout"],
+      look: "Lanky seventeen-year-old boy with a grown-out buzz cut, a church camp T-shirt and fish scales dried on his jeans.",
+      voice: "Says yes ma'am and no sir on reflex, then mumbles the true answer right after, as if he hopes you missed it.",
+      personality: ["earnest", "restless"],
+      goal: "Pay for another month of his mother's treatment program in the city without his grandparents finding out where the money comes from.",
+      secret: "Wade Purvis pays him fifty dollars a night to sit in the dark bait shop and flash the dock light twice when a patrol car comes down the river road.",
+      attitude: 5,
+      relations: [{ npcId: "npc_ray", relation: "grandfather" }, { npcId: "npc_nadine", relation: "grandmother" }, { npcId: "npc_lorna", relation: "boss" }],
+      home: "loc_parsonage",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_austin",
+      name: "Austin Lott",
+      pronouns: "he",
+      role: "Tammy's son, Amber Lott's little brother",
+      factionId: null,
+      tags: ["teenager"],
+      look: "Skinny fifteen-year-old boy in a hand-me-down Army jacket, with a bike he never locks and his sister's name written on his sneakers in marker.",
+      voice: "Says almost nothing to grown-ups, then asks one question too exact for his age, like what time somebody's truck usually leaves.",
+      personality: ["watchful", "angry"],
+      goal: "Prove that Colt Purvis sold Amber the pills and put the proof in front of someone who will act on it.",
+      secret: "He has followed Colt on his bike for weeks and knows about the tackle box on the girder under the first span of the old bridge, but he will not tell anyone until he can hand it to the state police himself.",
+      attitude: 0,
+      relations: [{ npcId: "npc_tammy", relation: "mother" }],
+      home: "loc_lott_trailer",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_odessa",
+      name: "Odessa Fairley",
+      pronouns: "she",
+      role: "housekeeper and companion to Vada Sturdivant",
+      factionId: null,
+      tags: ["housekeeper"],
+      look: "Tall, gray-haired woman of sixty-six in a starched apron over a church dress, with a small silver cross at her throat and shoes that make no sound.",
+      voice: "Soft and exact; says Miss Vada says when she means herself, and hums a hymn under her breath when she disapproves of what you just said.",
+      personality: ["discreet", "stubborn"],
+      goal: "Keep Miss Vada in her own house to the end, the way she promised her.",
+      secret: "Carter has offered her five thousand dollars to tell the city doctor that Vada wanders at night and leaves the stove on, and she has not said no yet, because Sturdivant Land and Timber holds the note on her sister's house.",
+      attitude: 0,
+      relations: [{ npcId: "npc_vada", relation: "boss" }],
+      home: "loc_sturdivant_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_lyman",
+      name: "Lyman Coker",
+      pronouns: "he",
+      role: "night bartender at the Low Water",
+      factionId: null,
+      tags: ["bartender"],
+      look: "Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube looped over his ears and a ledger of bar tabs in his shirt pocket.",
+      voice: "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
+      personality: ["gloomy", "honest"],
+      goal: "Keep his regulars paid up and out of trouble, and keep the job long enough to never see the county home.",
+      secret: "He reads every letter and package anyone leaves with him before he hands it over, and he has steamed open two envelopes Carter Sturdivant left at the bar for Jolene Overstreet.",
+      attitude: 0,
+      relations: [{ npcId: "npc_loretta", relation: "boss" }, { npcId: "npc_curtis", relation: "friend" }],
+      home: "loc_motor_court",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_elbert",
+      name: "Elbert Gentry",
+      pronouns: "he",
+      role: "the oldest man in town, whose granddaddy ran the last ferry",
+      factionId: null,
+      tags: ["oldtimer"],
+      look: "Bent, bright-eyed man of eighty-eight in suspenders and a cap from the 1982 bass tournament, with a cane carved from a cypress knee.",
+      voice: "Tells you the year of everything, and corrects other people's stories about the river with the date it really happened and who drowned.",
+      personality: ["sly", "garrulous"],
+      goal: "See the old bridge stand until he is buried, because his granddaddy lost the ferry to it and made his peace.",
+      secret: "As a boy he rowed whiskey across the river for Vada Sturdivant's father, and the family Bible on his nightstand holds a page of names showing who the Sturdivants paid at the state highway department in 1938.",
+      attitude: 10,
+      relations: [{ npcId: "npc_pearl", relation: "sister" }, { npcId: "npc_glenda", relation: "granddaughter" }],
+      home: "loc_gentry_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_pearl",
+      name: "Pearl Gentry",
+      pronouns: "she",
+      role: "columnist for the county weekly",
+      factionId: null,
+      tags: ["records", "writer"],
+      look: "Tiny woman of seventy-nine in a lavender pantsuit, with a steno pad in her purse and a pencil stuck through her white bun.",
+      voice: "Talks in newspaper headlines, asks for the spelling of your name before she asks anything else, and writes your answers down whether you like it or not.",
+      personality: ["nosy", "fair"],
+      goal: "Write the true story of the bridge vote before somebody from the city writes a wrong one.",
+      secret: "She has kept every birth, marriage and death notice the town printed in fifty years, with the ones families paid her to leave out, and one of those is about Carter Sturdivant.",
+      attitude: 5,
+      relations: [{ npcId: "npc_elbert", relation: "brother" }],
+      home: "loc_gentry_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_glenda",
+      name: "Glenda Pryor",
+      pronouns: "she",
+      role: "police dispatcher and clerk at Town Hall",
+      factionId: "fac_police",
+      tags: ["dispatcher", "informant"],
+      look: "Broad, freckled woman of forty with a dispatch headset pushed back in her red hair and a cardigan pocket full of pens.",
+      voice: "Talks in radio shorthand out of habit, ten-four and what is your twenty, and repeats the last thing you said back to you as a question.",
+      personality: ["curious", "loyal"],
+      goal: "Keep her job, and her grandfather's medicine paid for, when the council votes on the police.",
+      secret: "She tapes every call that comes into the station on a cassette recorder under the desk, including the one that warned Wade Purvis's people the chief was on his way to the ramp.",
+      attitude: 5,
+      relations: [{ npcId: "npc_elbert", relation: "grandfather" }, { npcId: "npc_marcus", relation: "boss" }],
+      home: "loc_gentry_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_nikki",
+      name: "Nikki Ballard",
+      pronouns: "she",
+      role: "day-shift police officer",
+      factionId: "fac_police",
+      tags: ["police", "watch"],
+      look: "Compact, sunburned woman of thirty-one with a tight braid, a vest one size too big and mirrored sunglasses she takes off to look at you.",
+      voice: "Brisk and dry; asks for your ID before small talk, answers a joke with the single word noted, and never fills a silence.",
+      personality: ["disciplined", "ambitious"],
+      goal: "Keep a badge when the department dissolves, here or with the county.",
+      secret: "She has already interviewed with the county sheriff and promised to bring him Chief Bell's case files if the council votes the department out.",
+      attitude: -5,
+      relations: [{ npcId: "npc_marcus", relation: "boss" }, { npcId: "npc_hollis", relation: "landlord" }],
+      home: "loc_byrd_apartment",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_virgil",
+      name: "Virgil Odom",
+      pronouns: "he",
+      role: "retired state bridge inspector who fishes the pier",
+      factionId: null,
+      tags: ["inspector", "fisherman"],
+      look: "Lean, stooped man of seventy-two in a faded state highway cap, with a rusty tape measure clipped to his belt and a bucket of cut bait.",
+      voice: "Speaks in load ratings and rust, ends an opinion with that is not my opinion, that is steel, and taps whatever he leans on to listen to it.",
+      personality: ["precise", "lonely"],
+      goal: "Get someone to read his own inspection reports before the state tears down a bridge he says is good for twenty more years.",
+      secret: "The consulting engineer Carter Sturdivant hired called him the week before the inspection to ask what the bridge would need to fail, and Virgil told him, and has been ashamed of it every day since.",
+      attitude: 5,
+      relations: [{ npcId: "npc_lamar", relation: "son-in-law" }, { npcId: "npc_trent", relation: "grandson" }],
+      home: "loc_haskins_farm",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_annette",
+      name: "Annette Overstreet",
+      pronouns: "she",
+      role: "seventh-grade teacher at the county middle school",
+      factionId: null,
+      tags: ["teacher"],
+      look: "Slight woman of thirty-four with short dark hair, chalk dust on one sleeve and a tote bag of ungraded papers she carries everywhere.",
+      voice: "Patient and precise; explains things in numbered steps whether you asked or not, and checks with make sense? before she lets you go.",
+      personality: ["patient", "principled"],
+      goal: "Keep Austin Lott and the other Riverbend kids in school through the spring.",
+      secret: "She is the one who called the state about the bridge after the school bus bounced on the first span, and she has never told anyone in town, least of all Jolene.",
+      attitude: 5,
+      relations: [{ npcId: "npc_jolene", relation: "mother" }, { npcId: "npc_gerald", relation: "father" }],
+      home: "loc_overstreet_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_gerald",
+      name: "Gerald Overstreet",
+      pronouns: "he",
+      role: "Jolene's husband, retired from the paper mill",
+      factionId: null,
+      tags: ["retired"],
+      look: "Big, slow man of sixty-one in house slippers and a mill union jacket, with a police scanner clipped to his belt and turned up loud.",
+      voice: "Starts half of what he says with scanner says, repeats every call he heard that day, and calls his wife the mayor even at supper.",
+      personality: ["gossipy", "gentle"],
+      goal: "Get Jolene to quit before whatever she is mixed up in comes out.",
+      secret: "He found Jolene's envelope of cash in the chest freezer last spring, counted it and put it back, and he has written down every date it got fatter.",
+      attitude: 5,
+      relations: [{ npcId: "npc_jolene", relation: "wife" }, { npcId: "npc_annette", relation: "daughter" }],
+      home: "loc_overstreet_house",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_lamar",
+      name: "Lamar Haskins",
+      pronouns: "he",
+      role: "farmer and council member who leases Sturdivant land",
+      factionId: null,
+      tags: ["farmer", "council"],
+      look: "Thick, weathered man of fifty-eight in a seed company cap and mud-caked boots, with a farmer's tan that stops at his sleeves.",
+      voice: "Slow and careful; talks in acres, bushels and inches of rain, and checks the sky before he answers anything hard.",
+      personality: ["practical", "worried"],
+      goal: "Get the downstream bridge built across the fields he leases, because Carter promised him a buyout that would clear his equipment loans.",
+      secret: "He has already signed Carter's option papers on the lease, which he had no right to do while Vada is alive, and the check is sitting uncashed in his glove box.",
+      attitude: 0,
+      relations: [{ npcId: "npc_trent", relation: "son" }, { npcId: "npc_virgil", relation: "father-in-law" }, { npcId: "npc_vada", relation: "landlady" }],
+      home: "loc_haskins_farm",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_trent",
+      name: "Trent Haskins",
+      pronouns: "he",
+      role: "Lamar's son, who drives the farm's grain truck",
+      factionId: "fac_nightrun",
+      tags: ["driver", "smuggler"],
+      look: "Broad, easygoing man of twenty-four in a sleeveless camo shirt and a feed-store cap turned backward, with a sunburned neck and a cooler always in reach.",
+      voice: "Easy and friendly; calls everybody cuz, is always halfway out the door on some errand, and laughs off a question with gotta run.",
+      personality: ["easygoing", "reckless"],
+      goal: "Keep his father and his grandfather from finding out what the grain truck carries at night.",
+      secret: "Twice a week he drives cases of liquor across the old bridge in the grain truck for Wade Purvis, a hundred pounds under the limit, and his own father's bridge vote would put him out of that work.",
+      attitude: 10,
+      relations: [{ npcId: "npc_lamar", relation: "father" }, { npcId: "npc_virgil", relation: "grandfather" }, { npcId: "npc_colt", relation: "friend" }],
+      home: "loc_haskins_farm",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_leon",
+      name: "Leon Varner",
+      pronouns: "he",
+      role: "repo man who buys bad debts for a title-loan outfit",
+      factionId: null,
+      tags: ["collector", "repo"],
+      look: "Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.",
+      voice: "Polite and slow; calls you friend and works the late fees into every other sentence, the way another man would mention the weather.",
+      personality: ["patient", "merciless"],
+      goal: "Clear his list of overdue accounts in the county before the month is out, with fees.",
+      secret: "He bought most of the debts on his list for a dime on the dollar from the lender Carter Sturdivant uses, and he would settle any of them for half if somebody pushed.",
+      attitude: -5,
+      relations: [],
+      home: "loc_motor_court",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_curtis",
+      name: "Curtis Pruett",
+      pronouns: "he",
+      role: "insurance man who runs the card game at the Low Water",
+      factionId: null,
+      tags: ["bookie", "gambler"],
+      look: "Dapper man of fifty-two in a short-sleeved dress shirt and a bolo tie, with a pinky ring and a deck of cards he shuffles one-handed.",
+      voice: "Puts odds on everything, offers to settle any argument with a bet, and never says a number without saying what it pays.",
+      personality: ["charming", "calculating"],
+      goal: "Win back the house his wife put him out of, one Friday game at a time.",
+      secret: "He takes bets on the bridge vote from both sides, and Royce Pittman owes him eleven hundred dollars he lost on the game in October.",
+      attitude: 5,
+      relations: [{ npcId: "npc_lyman", relation: "friend" }],
+      home: "loc_motor_court",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_boyd",
+      name: "Boyd Teague",
+      pronouns: "he",
+      role: "stranger who has had Room 9 at the motor court a week",
+      factionId: null,
+      tags: ["enemy", "parolee", "stranger"],
+      look: "Big, quiet man of fifty in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.",
+      voice: "Says very little, all of it polite, and always uses a person's full name, first and last, as if he were reading it off a list.",
+      personality: ["patient", "vindictive"],
+      goal: "Settle an old account with someone in Lockett's Ferry, quietly, and be gone before the law notices him.",
+      secret: "He is on parole from a prison two states over and left without his parole officer's permission, so one phone call would send him back.",
+      attitude: -10,
+      relations: [],
+      home: "loc_motor_court",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_jodie",
+      name: "Jodie Strayhorn",
+      pronouns: "she",
+      role: "new waitress at the Low Water",
+      factionId: null,
+      tags: ["enemy", "waitress", "stranger"],
+      look: "Wiry woman of twenty-nine with bleached hair growing out dark, a Low Water apron and a fading bruise she covers with makeup.",
+      voice: "Quick and bright with the customers, then flat and careful the second anyone asks where she is from, and she changes the subject to the specials.",
+      personality: ["guarded", "resourceful"],
+      goal: "Finish the business that brought her to Lockett's Ferry and leave before anyone learns her real name.",
+      secret: "Jodie Strayhorn is not her name: she skipped bail in the next state over, and Loretta hired her because nobody at the Low Water has ever run a background check.",
+      attitude: -5,
+      relations: [{ npcId: "npc_loretta", relation: "boss" }],
+      home: "loc_low_water",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_lorna",
+      name: "Lorna Purvis",
+      pronouns: "she",
+      role: "Wade's wife, who runs the bait shop at Purvis Landing",
+      factionId: null,
+      tags: ["shopkeeper"],
+      look: "Round, cheerful woman of fifty-five in rubber clogs, with a fishing-lure earring in one ear and a tub of crickets on the counter beside her.",
+      voice: "Bait-shop chatter about what is biting and where, and the moment you ask about Wade, a bright you would have to ask him.",
+      personality: ["cheerful", "loyal"],
+      goal: "Keep the landing, the shop and her husband out of court until they can sell up and go.",
+      secret: "The man Wade beat half to death for cutting in on the run is alive in a nursing home at the county seat, and she sends his sister money every month out of the bait shop till.",
+      attitude: 5,
+      relations: [{ npcId: "npc_wade", relation: "husband" }, { npcId: "npc_colt", relation: "nephew" }, { npcId: "npc_micah", relation: "employee" }],
+      home: "loc_purvis_landing",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_brianna",
+      name: "Brianna Tolliver",
+      pronouns: "she",
+      role: "housekeeper at the Riverview Motor Court",
+      factionId: null,
+      tags: ["maid"],
+      look: "Pale, thin young woman of twenty-three in a motel smock, with chipped nail polish and a hospital bracelet she has not cut off.",
+      voice: "Soft and quick; apologizes before she says anything, sorry, sorry, and says thank you twice for anything at all.",
+      personality: ["shy", "grateful"],
+      goal: "Stay clean, keep the job and save enough for a used car that runs.",
+      secret: "She is one of the four people June Satterfield brought back from an overdose this fall, and she still owes Colt Purvis forty dollars for the pills.",
+      attitude: 5,
+      relations: [{ npcId: "npc_mavis", relation: "boss" }, { npcId: "npc_tyler", relation: "cousin" }],
+      home: "loc_riverbend",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_shayla",
+      name: "Shayla Rawls",
+      pronouns: "she",
+      role: "hairdresser who works out of her trailer at Riverbend",
+      factionId: null,
+      tags: ["hairdresser", "informant"],
+      look: "Pretty, round-faced woman of twenty-five in a hairdresser's smock, with a vape pen in one hand and two phones in the other.",
+      voice: "Sweet and sticky; calls you sugar and asks three personal questions for every one you answer.",
+      personality: ["nosy", "greedy"],
+      goal: "Turn what she hears in her chair into enough cash to open a real salon at the county seat.",
+      secret: "She found Travis's second phone and photographed every text on it, and she is deciding whether to sell the pictures to Chief Bell or to Wade Purvis.",
+      attitude: 5,
+      relations: [{ npcId: "npc_travis", relation: "boyfriend" }],
+      home: "loc_riverbend",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_dwight",
+      name: "Dwight Spann",
+      pronouns: "he",
+      role: "timber foreman for Sturdivant Land and Timber",
+      factionId: "fac_sturdivant",
+      tags: ["foreman"],
+      look: "Rangy man of forty-nine in a hi-vis vest over a flannel shirt, with a can of survey paint in his hand and sunflower-seed shells on his boots.",
+      voice: "Few words and a lot of spat sunflower seeds; never says Carter, only Mr. Sturdivant, and answers anything else with that is above my pay.",
+      personality: ["dutiful", "hard"],
+      goal: "Keep his crew working through the winter by doing whatever Mr. Sturdivant asks.",
+      secret: "On Carter's orders he moved the survey stakes for the downstream bridge fifty yards onto Vada's land the night before the state crew came.",
+      attitude: -5,
+      relations: [{ npcId: "npc_carter", relation: "boss" }],
+      home: "loc_riverbend",
+      memories: [],
+      alive: true,
+      knownToPlayer: false,
+      status: "free"
+    },
+    {
+      id: "npc_burl",
+      name: "Burl Satterfield",
+      pronouns: "he",
+      role: "June's husband, who fixes outboard motors",
+      factionId: null,
+      tags: ["outboard", "retired"],
+      look: "Wide, red-faced man of sixty-six in bib overalls, with a lineman's scarred hands and a bent outboard propeller he files smooth while he talks.",
+      voice: "Talks too loud after forty years around power lines, says what's that? and then answers what he thought you said.",
+      personality: ["cheerful", "stubborn"],
+      goal: "Keep June from wearing herself out on everybody at Riverbend.",
+      secret: "He rebuilt the motors on two of Wade Purvis's johnboats this fall for cash and told June the money came from his pension.",
+      attitude: 5,
+      relations: [{ npcId: "npc_june", relation: "wife" }],
+      home: "loc_riverbend",
       memories: [],
       alive: true,
       knownToPlayer: false,
       status: "free"
     }
+  ],
+
+  offstage: [
+    { name: "Amber Lott", about: "Tammy's daughter and Austin's sister, nineteen, who died of an overdose at Riverbend in August" },
+    { name: "Dale Purvis", about: "Wade's younger brother and Colt's father, eight years into a sentence at the state penitentiary" },
+    { name: "the bridge engineer", about: "the consulting engineer from the city who wrote the report that condemned the old bridge; he does not come back to town" },
+    { name: "Renee Byrd", about: "Hollis's daughter, a dental hygienist in the city who has not spoken to him in three years" },
+    { name: "the chief's sister", about: "Marcus Bell's sister, a nurse in the city and the only family he has left" },
+    { name: "Leah Dees", about: "Ray and Nadine's daughter and Micah's mother, in a treatment program in the city since the summer" },
+    { name: "Ruth Haskins", about: "Lamar's wife and Virgil's daughter, who died three winters ago" },
+    { name: "the motor court's owner", about: "a man in the city who has not set foot on the lot in two years and runs it by email" },
+    { name: "Vada's father", about: "the Sturdivant who ran whiskey across the river and fought the state for the bridge in 1938, long dead" }
   ],
 
   factions: [
@@ -1886,7 +2576,7 @@ const TABLES = {
   npc: {
     firstNames: [
       "Ashley", "Bobby", "Brandi", "Clint", "Crystal", "Darrell", "Dakota", "Dusty", "Earl", "Faye",
-      "Gary", "Heather", "Jamal", "Jesse", "Keisha", "Kenny", "Lacey", "Lonnie", "Mavis", "Misty",
+      "Gary", "Heather", "Jamal", "Jesse", "Keisha", "Kenny", "Lacey", "Lonnie", "Opal", "Misty",
       "Odell", "Patsy", "Randy", "Rhonda", "Shawn", "Terrell", "Trina", "Vernon", "Wanda", "Wesley"
     ],
     familyNames: [
@@ -2207,6 +2897,12 @@ const FLAWS = [
 ];
 
 // ===== LOOSE_ENDS =====
+// Every loose end binds to a person in the cast above: link.tag names the
+// people it can be (the first free one not already tied to the player, drawn
+// by the seeded dice), and optionTags, one per preset option, narrow it when
+// the player keeps that option's words (a note sold to someone here is the
+// repo man, a lost bet is the man who runs the card game). The game never
+// makes a person for a loose end.
 const LOOSE_ENDS = {
   debt: {
     label: "A debt",
@@ -2215,15 +2911,7 @@ const LOOSE_ENDS = {
       "I took out a loan I couldn't cover, and the note was sold to someone here.",
       "I lost a bet I couldn't cover and swore I'd pay by the end of the month."
     ],
-    link: { tag: "lender" },
-    newNpc: {
-      role: "debt collector",
-      look: "Heavy man in a golf shirt and wraparound sunglasses, with a clipboard and a company truck he never turns off.",
-      voice: "Polite and slow, calls you 'friend', and mentions the late fees in every other sentence.",
-      personality: ["patient", "merciless"],
-      goal: "Collect what the newcomer owes, with fees, before the end of the month.",
-      secret: "He bought the debt for a fraction of its value and would settle for half if pressed."
-    },
+    link: { tag: "lender", optionTags: ["lender", "collector", "bookie"] },
     seed: {
       dayOffset: [3, 5],
       effect: "{npc} slides into the booth across from {player} uninvited, sets down a folded printout with {player}'s name on it, and says the money is due in three days.",
@@ -2237,18 +2925,10 @@ const LOOSE_ENDS = {
       "A man I testified against is out on parole and wants me found.",
       "I humiliated someone in public, and they swore I would pay for it."
     ],
-    link: null,
-    newNpc: {
-      role: "old enemy",
-      look: "Big, quiet man in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.",
-      voice: "Says very little, all of it polite, and always uses your full name.",
-      personality: ["patient", "vindictive"],
-      goal: "Settle an old score with the newcomer, quietly and for good.",
-      secret: "He has already spent the money he was paid to find the newcomer, so he cannot go home until it is done."
-    },
+    link: { tag: "enemy", optionTags: ["enemy", "parolee", "enemy"] },
     seed: {
       dayOffset: [4, 7],
-      effect: "{npc} takes a room at the Riverview Motor Court, shows the night clerk a photo of {player}, and asks where {player} has been sleeping.",
+      effect: "{npc} shows the night clerk at the Riverview Motor Court a photo of {player} and asks which room {player} has been sleeping in.",
       trigger: "day"
     }
   },
@@ -2260,14 +2940,6 @@ const LOOSE_ENDS = {
       "I am carrying something stolen, and its owner wants it back."
     ],
     link: { tag: "informant" },
-    newNpc: {
-      role: "small-town gossip",
-      look: "Wiry woman in a hairdresser's smock, with a vape pen in one hand and two phones in the other.",
-      voice: "Sweet and sticky; calls you 'sugar' and asks three personal questions for every one you answer.",
-      personality: ["nosy", "greedy"],
-      goal: "Turn what she knows into cash before someone else does.",
-      secret: "She has already sold the same secret to someone else."
-    },
     seed: {
       dayOffset: [3, 6],
       effect: "{npc} catches {player} alone, repeats one true detail of {player}'s secret, and names a price in cash for keeping it quiet.",
@@ -2281,18 +2953,10 @@ const LOOSE_ENDS = {
       "I want to know who left me at a church group home, and why.",
       "My best friend took a job on a towboat out of this town and never came home."
     ],
-    link: { tag: "priest" },
-    newNpc: {
-      role: "church secretary",
-      look: "Plump, short-sighted woman in a holiday sweater, with a lanyard of keys and a stack of Sunday bulletins.",
-      voice: "Chirpy and thorough; reads records aloud in full, including the parts you didn't ask for, and says 'bless you' when she means 'go away'.",
-      personality: ["fussy", "kind"],
-      goal: "Keep the church records straight and match every lost name to a living one.",
-      secret: "She has let people pay to have entries in the baptism and membership records changed."
-    },
+    link: { tag: "records" },
     seed: {
       dayOffset: [4, 8],
-      effect: "{npc} leaves word at the Low Water that the church records hold a name {player} will want to see, and asks {player} to come by Riverside Baptist after Wednesday supper.",
+      effect: "{npc} leaves word at the Low Water that an old record in town holds a name {player} will want to see, and asks {player} to come by after Wednesday supper.",
       trigger: "day"
     }
   },
@@ -2304,14 +2968,6 @@ const LOOSE_ENDS = {
       "I promised a woman I'd bring her daughter home from this town."
     ],
     link: { tag: "bartender" },
-    newNpc: {
-      role: "night bartender",
-      look: "Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube over his ears and a ledger of tabs on the bar.",
-      voice: "Gloomy and courteous; expects the worst of everyone and thanks you for proving him right.",
-      personality: ["gloomy", "honest"],
-      goal: "Keep his regulars paid up and out of trouble.",
-      secret: "He reads every letter and package left in his care before he hands it over."
-    },
     seed: {
       dayOffset: [2, 4],
       effect: "{npc} hands {player} an envelope a trucker left behind the bar, unsigned, that says only: you gave your word, and the time to keep it is now.",
@@ -3095,7 +3751,29 @@ const Tables = (() => {
    them from the role and look, then the first name. Engine-made people
    carry created { turn, day, by } (CREATED_BY). A save from before pronouns
    gets them at load (fillPronouns).
-   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people? }. */
+   The cast (rules version 6): every person is written by hand in TOWN_DATA,
+   with relations ([{ npcId, relation }]: "npcId is this person's
+   relation", written on both sides) and a home (a location; in state
+   { locationId, phases }). A new game has meta.castFixed; with it the
+   model's peopleRevealed is refused ("the cast is fixed"), and nothing in
+   the engine makes a person in play (Pipeline step 4 and the loose ends bind
+   to the cast). tiesOf(n) reads both kinds of relation: the authored lists
+   and a made person's created relation. A placesRevealed entry that names
+   a cast member's home, or any place the player has not discovered yet,
+   discovers that place (with the same revealed record and "heard of"
+   marker) instead of making a second one. Upgrade version 6's own ops:
+   addCast ({ locations, npcs }: town records missing by id, added as a new
+   game would have them, exits both ways), mergePlaces ([{ fromId, intoId
+   }]: a home someone told the player about folded into the authored home it
+   was: schedules, homes, visits, seen, seeds and the player move over, the
+   told place goes), castSchedules ([{ locationId, phase, npcId }]: a
+   schedule entry, unless they are already somewhere in that phase),
+   mergePeople ([{ fromId, intoId }]: a person the game made up merged onto
+   the cast member they were: the cast member keeps their own record and
+   takes over the made-up person's knownToPlayer, attitude, memories and
+   every reference to them; the made-up record goes) and castFixed (true).
+   result.merged lists { fromId, intoId, from } for each person merged.
+   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged? }. */
 const State = (() => {
   let current = null;
   let town = null;
@@ -3117,8 +3795,12 @@ const State = (() => {
      ran ahead of its story is set back, setTime). 5: "People match the
      story" (every person has pronouns; people the story names become real,
      peopleRevealed; someone the game made up before the story said who they
-     were is corrected, fixPeople). */
-  const RULES_VERSION = 5;
+     were is corrected, fixPeople). 6: "A full cast" (every person is
+     written by hand in TOWN_DATA and the game never makes one; an older game
+     gains the cast and the homes it lacks, and the people it made up are
+     merged onto the cast members they were: addCast, mergePlaces,
+     castSchedules, mergePeople, castFixed). */
+  const RULES_VERSION = 6;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -3130,7 +3812,8 @@ const State = (() => {
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
+    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -3485,12 +4168,34 @@ const State = (() => {
     const anchor = sides.find(x => fits(box(x)) && !covers(box(x))) || sides.find(x => fits(box(x))) || away;
     return { x: best.x, y: best.y, label, anchor };
   }
+  /* A place the town has that the player has not found yet (a cast member's
+     home, discovered false), which a placesRevealed entry names: by its name
+     or map label, as the owner's home, or as the home of the person the
+     name belongs to ("Dewayne's house"). Or null. */
+  const HOME_WORDS = /\b(house|home|place|trailer|apartment|farm|cabin)\b/i;
+  function hiddenPlace(name, owner, kind) {
+    const unseen = current.locations.filter(l => l.discovered === false);
+    if (!unseen.length) return null;
+    const want = placeNames(name);
+    for (const l of unseen) {
+      const c = mapPointOf(l);
+      for (const known of [l.name, c && c.label]) if (known && [...placeNames(known)].some(x => want.has(x))) return l;
+    }
+    const homeOfPerson = n => { const h = n && n.home ? loc(n.home.locationId) : null; return h && h.discovered === false ? h : null; };
+    if (owner && kind !== 'business' && homeOfPerson(owner)) return homeOfPerson(owner);
+    const pm = /^(?:the\s+)?([A-Za-z][\w-]*)'s?\b/i.exec(String(name).replace(/[’‘]/g, "'"));
+    if (pm && (kind === 'home' || HOME_WORDS.test(name))) {
+      const who = current.npcs.filter(n => n.alive !== false && !n.unnamed && (firstName(n).toLowerCase() === pm[1].toLowerCase() || String(n.name).split(/\s+/).slice(-1)[0].toLowerCase() === pm[1].toLowerCase()));
+      const h = who.map(homeOfPerson).find(Boolean);
+      if (h) return h;
+    }
+    return null;
+  }
   /* One placesRevealed entry (see the apply() header). Returns { id, line }. */
   function revealPlace(raw, source) {
     if (!isObj(raw)) bad('must be an object');
     const s = current;
     if (source === 'model' && ledger.places >= LIMITS.placesPerTurn) bad(`at most ${LIMITS.placesPerTurn} new place a turn`);
-    if (s.locations.filter(l => isObj(l.revealed)).length >= LIMITS.revealedPlaces) bad(`at most ${LIMITS.revealedPlaces} places people told you about in one game`);
     const name = capFirst(cleanText(String(typeof raw.name === 'string' ? raw.name : '').replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
     if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
     const type = typeof raw.type === 'string' && REVEALED_TYPES.includes(raw.type.trim().toLowerCase()) ? raw.type.trim().toLowerCase() : 'other';
@@ -3500,6 +4205,26 @@ const State = (() => {
     if (!near.discovered) bad(`${near.id} is not a place the player knows`);
     const owner = raw.ownerNpcId === null || raw.ownerNpcId === undefined || raw.ownerNpcId === '' ? null : needNpc(raw.ownerNpcId);
     const kind = REVEALED_KINDS.includes(raw.kind) ? raw.kind : 'other';
+    let turn = s.meta.turn;
+    let day = s.time.day;
+    if (source !== 'model') {
+      if (Number.isInteger(raw.turn) && raw.turn >= 0 && raw.turn <= s.meta.turn) turn = raw.turn;
+      if (Number.isInteger(raw.day) && raw.day >= 1 && raw.day <= s.time.day) day = raw.day;
+    }
+    const byNpcId = typeof raw.byNpcId === 'string' && npc(raw.byNpcId) ? raw.byNpcId : null;
+    // Somewhere the town already has, not found yet (Dewayne's house, written in the cast): now the player knows it.
+    const hidden = hiddenPlace(name, owner, kind);
+    if (hidden) {
+      const resident = owner || s.npcs.find(n => n.home && n.home.locationId === hidden.id) || null;
+      hidden.discovered = true;
+      hidden.revealed = { turn, day, byNpcId, ownerNpcId: resident ? resident.id : null, kind: kind === 'other' ? 'home' : kind, visited: false, authored: true };
+      if (source === 'model') ledger.places += 1;
+      return { id: hidden.id, line: `${hidden.id} (${hidden.name}) discovered as "${name}"${resident ? `; home of ${resident.id}` : ''}` };
+    }
+    // Someone written into the cast lives where the cast says: a second home for them is never made.
+    const ownHome = kind === 'home' && owner && !isObj(owner.created) && owner.home ? loc(owner.home.locationId) : null;
+    if (ownHome && ownHome.discovered && !isObj(ownHome.revealed)) bad(`${owner.id} lives at ${ownHome.id} (${ownHome.name})`);
+    if (s.locations.filter(l => isObj(l.revealed) && !l.revealed.authored).length >= LIMITS.revealedPlaces) bad(`at most ${LIMITS.revealedPlaces} places people told you about in one game`);
     const want = placeNames(name);
     for (const l of s.locations) {
       const c = mapPointOf(l);
@@ -3508,18 +4233,12 @@ const State = (() => {
       }
     }
     if (kind === 'home' && owner && owner.home && isObj((loc(owner.home.locationId) || {}).revealed)) bad(`${owner.id} already has a home on the map (${owner.home.locationId})`);
-    let turn = s.meta.turn;
-    let day = s.time.day;
-    if (source !== 'model') {
-      if (Number.isInteger(raw.turn) && raw.turn >= 0 && raw.turn <= s.meta.turn) turn = raw.turn;
-      if (Number.isInteger(raw.day) && raw.day >= 1 && raw.day <= s.time.day) day = raw.day;
-    }
     const id = uniqueId('loc_' + slugify(name.replace(/'/g, '')), x => !!loc(x));
     const l = {
       id, name, type, description, exits: [near.id],
       npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
       discovered: true, closed: false, items: [],
-      revealed: { turn, day, byNpcId: typeof raw.byNpcId === 'string' && npc(raw.byNpcId) ? raw.byNpcId : null, ownerNpcId: owner ? owner.id : null, kind, visited: false }
+      revealed: { turn, day, byNpcId, ownerNpcId: owner ? owner.id : null, kind, visited: false }
     };
     const spot = revealSpot(near, revealLabel(name));
     if (spot) l.map = spot;
@@ -3576,15 +4295,45 @@ const State = (() => {
   }
   /* "Dewayne's wife", from who they are to someone. */
   function relationPhrase(relTo, relation) { return relTo && relation ? `${firstName(relTo)}'s ${relation}` : ''; }
+  /* Who someone is to whom, both ways, from the cast's own relations lists
+     ([{ npcId, relation }]: "npcId is this person's relation") and from a
+     made person's created relation: has, the people who are this person's
+     something ({ id, relation }: Dewayne has his wife Mavis), and isTo,
+     what this person is to someone ({ id, relation }: Mavis is Dewayne's
+     wife). Only people still in the game, each other person once a side,
+     in the order written. */
+  function tiesOf(n) {
+    const has = [];
+    const isTo = [];
+    if (!n || !current) return { has, isTo };
+    const add = (list, id, relation) => { if (typeof id === 'string' && id !== n.id && npc(id) && !list.some(x => x.id === id)) list.push({ id, relation: relation || null }); };
+    for (const r of Array.isArray(n.relations) ? n.relations : []) if (isObj(r)) add(has, r.npcId, r.relation);
+    const c = isObj(n.created) ? n.created : null;
+    if (c && c.relationToNpcId) add(isTo, c.relationToNpcId, c.relation);
+    for (const m of current.npcs) {
+      if (m === n) continue;
+      for (const r of Array.isArray(m.relations) ? m.relations : []) if (isObj(r) && r.npcId === n.id) add(isTo, m.id, r.relation);
+      const mc = isObj(m.created) ? m.created : null;
+      if (mc && mc.relationToNpcId === n.id) add(has, m.id, mc.relation);
+    }
+    return { has, isTo };
+  }
   /* Who someone is to someone, for a line that shows their role too (the
      narrator's person line, the People card): "Dewayne's brother", or
      "related to Dewayne Pruitt" with no relation word; '' when there is no
-     relation or the role already says it. */
+     relation or the role already says it. A relation the story or the
+     player gave (created) comes first, then the family the cast data
+     gives them (a household relation first: "Dewayne's wife"); work and
+     other ties are left to the person's ties list. */
   function relationNote(n) {
-    const c = n && isObj(n.created) ? n.created : null;
-    const t = c && c.relationToNpcId ? npc(c.relationToNpcId) : null;
+    if (!n) return '';
+    const c = isObj(n.created) ? n.created : null;
+    const isTo = tiesOf(n).isTo;
+    const pick = isTo.find(x => c && x.id === c.relationToNpcId)
+      || isTo.find(x => HOUSEHOLD_RELATIONS.includes(x.relation)) || isTo.find(x => FAMILY_RELATIONS.includes(x.relation));
+    const t = pick ? npc(pick.id) : null;
     if (!t) return '';
-    const phrase = c.relation ? relationPhrase(t, c.relation) : `related to ${t.name}`;
+    const phrase = pick.relation ? relationPhrase(t, pick.relation) : `related to ${t.name}`;
     return String(n.role || '').toLowerCase().replace(/[’‘]/g, "'").includes(phrase.toLowerCase()) ? '' : phrase;
   }
   /* The bookkeeper's one-line who, split into the relation and the rest:
@@ -4152,6 +4901,193 @@ const State = (() => {
     return { id: n.id, fields: EDIT_FIELDS.filter(f => fields.has(f)), line: `${n.id} edited: ${parts.join('; ')}` };
   }
 
+  // ----- the full cast (Upgrade version 6) -----
+  /* The town data people and places come from: this game's own copy, or
+     the built-in town's for a game of that town. */
+  function castTown() {
+    if (current && current.meta.townName === TOWN_DATA.name) return TOWN_DATA;
+    return town && Array.isArray(town.npcs) ? town : null;
+  }
+  /* Is this person written in the town's cast (not made in play)? */
+  function inCast(id) {
+    const t = castTown();
+    return !!(t && t.npcs.some(n => n.id === id)) || !!(town && Array.isArray(town.npcs) && town.npcs.some(n => n.id === id));
+  }
+  /* addCast { town }: every place and person of that town data missing here
+     by id, as a new game has them (Town.instantiate): places with their
+     map point, discovered as written (a home starts undiscovered), exits
+     both ways to places here, and an empty schedule (castSchedules fills
+     it); people with their relations, home, no memories, not met. A town
+     person already here who has no relations or no home on record gets
+     the cast's. The game's copy of the town takes in what was added, so
+     a person freed from the cells goes back to the cast's schedule. */
+  function addCast(v) {
+    if (!isObj(v) || !isObj(v.town) || !Array.isArray(v.town.locations) || !Array.isArray(v.town.npcs)) bad('needs a town with locations and npcs');
+    const t = v.town;
+    for (const n of t.npcs) if (n.factionId && !faction(n.factionId)) bad(`${n.id}: unknown faction ${n.factionId}`);
+    const inst = Town.instantiate(Object.assign({ factions: [], threads: [], seeds: [], rumours: [] }, deepCopy({ locations: t.locations, npcs: t.npcs })));
+    const newLocs = inst.locations.filter(l => !loc(l.id));
+    const newNpcs = inst.npcs.filter(n => !npc(n.id));
+    const ids = new Set(current.locations.map(l => l.id).concat(newLocs.map(l => l.id)));
+    for (const l of newLocs) {
+      const out = { id: l.id, name: l.name, type: l.type, description: l.description, exits: (l.exits || []).filter(x => ids.has(x)),
+        npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] }, discovered: l.discovered !== false, closed: l.closed === true, items: [] };
+      if (isObj(l.map)) out.map = deepCopy(l.map);
+      current.locations.push(out);
+    }
+    for (const l of newLocs) for (const x of loc(l.id).exits) { const o = loc(x); if (o && !o.exits.includes(l.id)) o.exits.push(l.id); }
+    const people = new Set(current.npcs.map(n => n.id).concat(newNpcs.map(n => n.id)));
+    const keepTies = list => (Array.isArray(list) ? list : []).filter(r => isObj(r) && people.has(r.npcId)).map(r => ({ npcId: r.npcId, relation: r.relation }));
+    for (const n of newNpcs) {
+      const o = deepCopy(n);
+      o.relations = keepTies(o.relations);
+      if (o.home && !loc(o.home.locationId)) delete o.home;
+      current.npcs.push(o);
+    }
+    let filled = 0;
+    for (const n of inst.npcs) {
+      const here = npc(n.id);
+      if (!here || newNpcs.includes(n)) continue;
+      let did = false;
+      if (!Array.isArray(here.relations)) { here.relations = keepTies(n.relations); did = true; }
+      if (!here.home && n.home && loc(n.home.locationId)) { here.home = deepCopy(n.home); did = true; }
+      if (did) filled += 1;
+    }
+    // The game's copy of the town follows (it is what restoreSchedule and the cast block read).
+    if (town && Array.isArray(town.locations) && Array.isArray(town.npcs) && town !== t) {
+      for (const l of t.locations) if (!town.locations.some(x => x.id === l.id)) town.locations.push(deepCopy(l));
+      for (const l of t.locations) { const x = town.locations.find(y => y.id === l.id); if (x) x.npcIdsBySchedule = deepCopy(l.npcIdsBySchedule); }
+      for (const n of t.npcs) if (!town.npcs.some(x => x.id === n.id)) town.npcs.push(deepCopy(n));
+      for (const n of t.npcs) { const x = town.npcs.find(y => y.id === n.id); if (x) { if (!Array.isArray(x.relations)) x.relations = deepCopy(n.relations || []); if (x.home === undefined) x.home = n.home; } }
+      if (Array.isArray(t.offstage) && !Array.isArray(town.offstage)) town.offstage = deepCopy(t.offstage);
+    }
+    if (!newLocs.length && !newNpcs.length && !filled) return null;
+    return `added ${newLocs.length} places (${newLocs.map(l => l.id).join(', ') || 'none'}) and ${newNpcs.length} people (${newNpcs.map(n => n.id).join(', ') || 'none'}); ${filled} town people gained their relations or home`;
+  }
+  /* recastPeople { npcId }: someone the game made up in play under an id
+     the cast now has (a story's "Mavis" made as npc_mavis): their record
+     becomes the cast's (name, pronouns, role, faction, tags, look, voice,
+     personality, goal, secret, relations, home), their memories, attitude,
+     meetings and every reference stay (the id is the same), the made-in-
+     play record (created, unnamed) goes, and they leave their old schedule
+     (castSchedules gives them the cast's). */
+  function recastPerson(e) {
+    if (!isObj(e)) bad('must be an object');
+    const n = needNpc(e.npcId);
+    const t = castTown();
+    const rec = t ? t.npcs.find(x => x.id === n.id) : null;
+    if (!rec) bad(`${n.id} is not in the cast`);
+    if (!isObj(n.created) || n.created.by === 'edit') bad(`${n.id} is the cast's own already`);
+    const inst = Town.instantiate({ locations: t.locations, npcs: [rec], factions: [], threads: [], seeds: [], rumours: [] }).npcs[0];
+    const was = n.name;
+    for (const k of ['name', 'pronouns', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret']) n[k] = deepCopy(inst[k]);
+    if (n.factionId && !faction(n.factionId)) n.factionId = null;
+    n.relations = (inst.relations || []).filter(r => npc(r.npcId)).map(r => ({ npcId: r.npcId, relation: r.relation }));
+    delete n.created;
+    delete n.unnamed;
+    removeFromSchedules(n.id);
+    if (inst.home && loc(inst.home.locationId)) n.home = deepCopy(inst.home); else delete n.home;
+    return `${n.id} (${was}) is the cast's ${n.name}`;
+  }
+  /* castSchedules [{ locationId, phase, npcId }]: each one a schedule entry,
+     unless that person is already somewhere in that phase, is not free, or
+     is dead. One line for the lot. */
+  function castSchedules(list) {
+    if (!Array.isArray(list)) bad('must be an array');
+    let put = 0;
+    let skipped = 0;
+    for (const e of list) {
+      if (!isObj(e) || !PHASES.includes(e.phase)) { skipped += 1; continue; }
+      const l = loc(e.locationId);
+      const n = npc(e.npcId);
+      if (!l || !n || n.alive === false || n.status !== 'free' || scheduledPhases(n.id).includes(e.phase)) { skipped += 1; continue; }
+      addToSchedule(l, e.phase, n.id);
+      put += 1;
+    }
+    return put || skipped ? `${put} schedule entries placed${skipped ? `, ${skipped} skipped (already somewhere then, or not free)` : ''}` : null;
+  }
+  /* mergePlaces { fromId, intoId }: a home someone told the player about
+     (a placesRevealed place) that the cast has written: everything that
+     points at it moves to the written place, which takes over the told
+     record (discovered, heard of until visited), and the told place goes. */
+  function mergePlace(e) {
+    if (!isObj(e)) bad('must be an object');
+    const from = needLoc(e.fromId);
+    const into = needLoc(e.intoId);
+    if (from === into) bad('a place cannot be merged into itself');
+    if (!isObj(from.revealed)) bad(`${from.id} is not a place someone told the player about`);
+    const s = current;
+    for (const p of PHASES) for (const id of ((from.npcIdsBySchedule || {})[p] || [])) addToSchedule(into, p, id);
+    for (const n of s.npcs) {
+      if (n.home && n.home.locationId === from.id) n.home.locationId = into.id;
+      if (isObj(n.created) && n.created.locationId === from.id) n.created.locationId = into.id;
+    }
+    if (s.player.locationId === from.id) s.player.locationId = into.id;
+    for (const v of s.visits || []) if (v.locationId === from.id) v.locationId = into.id;
+    for (const k of Object.keys(s.seen || {})) if (isObj(s.seen[k]) && s.seen[k].locationId === from.id) s.seen[k].locationId = into.id;
+    for (const sd of s.seeds) if (isObj(sd.trigger) && sd.trigger.type === 'location' && sd.trigger.value === from.id) sd.trigger.value = into.id;
+    for (const t of s.threads) t.linkedIds = Array.from(new Set(t.linkedIds.map(x => (x === from.id ? into.id : x))));
+    if (s.pendingScene && s.pendingScene.locationId === from.id) s.pendingScene.locationId = into.id;
+    if (Array.isArray(from.items) && from.items.length) into.items = (into.items || []).concat(from.items);
+    for (const l of s.locations) if (l !== from) l.exits = l.exits.filter(x => x !== from.id);
+    into.discovered = true;
+    into.revealed = Object.assign({}, from.revealed, { authored: true });
+    s.locations.splice(s.locations.indexOf(from), 1);
+    return `${from.id} (${from.name}) is ${into.id} (${into.name})`;
+  }
+  /* mergePeople { fromId, intoId }: someone the game made up (not in the
+     cast) who is a cast member: the cast member keeps their own record and
+     takes over knownToPlayer, the made-up person's attitude (when nobody
+     had met the cast member yet) and memories (both lists, oldest first,
+     at most MEMORY_MAX), and every reference: log addressees, threads,
+     seeds, due events, visits, the player's loose ends, rumours, seen,
+     relations made in play, told places' owners and the pending scene.
+     The made-up record and its schedule go. */
+  function mergePerson(e) {
+    if (!isObj(e)) bad('must be an object');
+    const from = needNpc(e.fromId);
+    const into = needNpc(e.intoId);
+    if (from === into) bad('a person cannot be merged into themself');
+    if (inCast(from.id)) bad(`${from.id} is in the cast; only someone the game made up is merged`);
+    const s = current;
+    const fresh = !into.knownToPlayer && !(into.memories || []).length;
+    if (from.knownToPlayer) into.knownToPlayer = true;
+    if (fresh) into.attitude = clamp(toInt(from.attitude) || 0, -100, 100);
+    const mems = (into.memories || []).concat(from.memories || []).map((m, i) => ({ m, i })).sort((a, b) => ((a.m.turn | 0) - (b.m.turn | 0)) || a.i - b.i).map(x => x.m);
+    while (mems.length > MEMORY_MAX) { const minW = Math.min(...mems.map(x => x.weight)); mems.splice(mems.findIndex(x => x.weight === minW), 1); }
+    into.memories = mems;
+    const swap = id => (id === from.id ? into.id : id);
+    for (const le of s.player.looseEnds || []) le.npcId = swap(le.npcId);
+    for (const t of s.threads) t.linkedIds = Array.from(new Set(t.linkedIds.map(swap)));
+    for (const sd of s.seeds) {
+      if (isObj(sd.origin) && sd.origin.npcId === from.id) sd.origin.npcId = into.id;
+      if (isObj(sd.trigger) && sd.trigger.type === 'npc' && sd.trigger.value === from.id) sd.trigger.value = into.id;
+    }
+    for (const ev of s.dueEvents || []) if (ev.npcId === from.id) ev.npcId = into.id;
+    if (Array.isArray(s.visits)) {
+      const moved = s.visits.map(v => (v.npcId === from.id ? Object.assign({}, v, { npcId: into.id }) : v));
+      s.visits = moved.filter((v, i) => moved.findIndex(w => w.npcId === v.npcId) === i);
+    }
+    for (const r of s.rumours) { if (r.sourceNpcId === from.id) r.sourceNpcId = into.id; if (r.heardFrom === from.id) r.heardFrom = into.id; }
+    for (const entry of s.log) if (entry.to === from.id) { entry.to = into.id; entry.toName = into.name; }
+    if (isObj(s.seen) && s.seen[from.id]) {
+      const a = s.seen[from.id];
+      const b = s.seen[into.id];
+      if (!b || (a.turn | 0) > (b.turn | 0)) s.seen[into.id] = a;
+      delete s.seen[from.id];
+    }
+    for (const m of s.npcs) {
+      if (m === from || !isObj(m.created) || m.created.relationToNpcId !== from.id) continue;
+      if (m === into) { m.created.relationToNpcId = null; m.created.relation = null; if (m.created.by === 'edit') delete m.created; }
+      else m.created.relationToNpcId = into.id;
+    }
+    for (const l of s.locations) if (isObj(l.revealed)) { if (l.revealed.ownerNpcId === from.id) l.revealed.ownerNpcId = into.id; if (l.revealed.byNpcId === from.id) l.revealed.byNpcId = into.id; }
+    if (s.pendingScene) for (const k of ['arrived', 'left']) if (Array.isArray(s.pendingScene[k])) s.pendingScene[k] = Array.from(new Set(s.pendingScene[k].map(swap)));
+    removeFromSchedules(from.id);
+    s.npcs.splice(s.npcs.indexOf(from), 1);
+    return { fromId: from.id, intoId: into.id, from: from.name, line: `${from.id} (${from.name}) merged into ${into.id} (${into.name}); memories ${mems.length}` };
+  }
+
   // ----- apply -----
   function apply(diff, opts) {
     const source = (opts && opts.source) || 'engine';
@@ -4197,6 +5133,8 @@ const State = (() => {
     });
     // A person someone named (record_changes), after the places, so a home named in the same turn takes them in.
     each('peopleRevealed', raw => {
+      // The cast is written by hand (rules version 6): the model can name people, never add them.
+      if (source === 'model' && s.meta.castFixed === true) bad('the cast is fixed: everyone in town is already written, so nobody new is added');
       const r = revealPerson(raw, source);
       (result.people = result.people || []).push({ id: r.id, named: r.named, renamed: r.renamed });
       return r.line;
@@ -4634,6 +5572,22 @@ const State = (() => {
     });
     if (Array.isArray(edits)) edits.forEach((x, i) => editOne(`editPerson[${i}]`, x));
     else if (edits !== undefined) editOne('editPerson', edits);
+    // ----- the full cast (Upgrade version 6), in this order -----
+    one('addCast', v => addCast(v));
+    each('recastPeople', e => recastPerson(e));
+    each('mergePlaces', e => mergePlace(e));
+    one('castSchedules', list => castSchedules(list));
+    each('mergePeople', e => {
+      const r = mergePerson(e);
+      (result.merged = result.merged || []).push({ fromId: r.fromId, intoId: r.intoId, from: r.from });
+      return r.line;
+    });
+    one('castFixed', v => {
+      if (v !== true) bad('must be true');
+      if (s.meta.castFixed === true) return null;
+      s.meta.castFixed = true;
+      return 'the cast is fixed: nobody is made up in play';
+    });
     one('rulesVersion', v => {
       if (!Number.isInteger(v) || v < 1 || v > RULES_VERSION) bad(`must be a whole number from 1 to ${RULES_VERSION}`);
       if (s.meta.rulesVersion === v) return null;
@@ -4722,7 +5676,7 @@ const State = (() => {
     t.factions.forEach(f => { reputation[f.id] = 0; });
     const st = {
       version: 1,
-      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION },
+      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
       time: { day: 1, phase: 'morning', shorts: 0 },
       flags: { priceMultiplier: 1, weather: '', season: 'spring' },
       player: {
@@ -4870,7 +5824,7 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
-    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, cleanRelation, splitWho, fillPronouns, homeOf,
+    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
@@ -4892,8 +5846,19 @@ const Town = (() => {
   function instantiate(townData) {
     const t = deepCopy(townData);
     t.locations = t.locations.map(l => Object.assign({ discovered: true, closed: false }, l));
-    t.npcs = t.npcs.map(n => Object.assign({ tags: [], memories: [], alive: true, knownToPlayer: false, status: 'free', attitude: 0 }, n,
-      { pronouns: validPronouns(n.pronouns) || inferPronouns(`${n.role || ''} ${n.look || ''}`) }));
+    /* A cast member's home is a location id in the town data; in a game it
+       is { locationId, phases }: the phases the schedule has them there. */
+    const homeOf = n => {
+      const l = t.locations.find(x => x.id === n.home);
+      return { locationId: n.home, phases: l ? PHASES.filter(p => ((l.npcIdsBySchedule || {})[p] || []).includes(n.id)) : [] };
+    };
+    t.npcs = t.npcs.map(n => {
+      const o = Object.assign({ tags: [], memories: [], alive: true, knownToPlayer: false, status: 'free', attitude: 0, relations: [] }, n,
+        { pronouns: validPronouns(n.pronouns) || inferPronouns(`${n.role || ''} ${n.look || ''}`) });
+      if (typeof n.home === 'string' && n.home) o.home = homeOf(n);
+      else if (!isObj(n.home)) delete o.home;
+      return o;
+    });
     t.factions = t.factions.map(f => Object.assign({ relations: {} }, f, { activeClock: Number.isInteger(f.activeClock) ? f.activeClock : 0 }));
     t.threads = t.threads || [];
     t.seeds = t.seeds || [];
@@ -5033,10 +5998,17 @@ const Town = (() => {
     }
     return false;
   }
-  /* Does free text name this NPC: their full name, or a given or family name? */
+  /* Does free text name this NPC: their full name, or a given or family name?
+     A family name they share with someone whose own first or full name is
+     in the text is that person's ("Pearl Gentry" is not her brother Elbert). */
   function nameMentions(text, n) {
     const t = String(text || '').toLowerCase();
-    return hasPhrase(t, String(n.name || '').toLowerCase()) || nameTokens(n).some(x => hasPhrase(t, x));
+    if (hasPhrase(t, String(n.name || '').toLowerCase())) return true;
+    const toks = nameTokens(n);
+    const first = String(n.name || '').toLowerCase().split(/\s+/).find(w => !TITLES.has(w)) || '';
+    const others = State.current ? State.current.npcs.filter(m => m !== n && m.id !== n.id) : [];
+    const theirs = x => others.some(m => nameTokens(m).includes(x) && (hasPhrase(t, String(m.name || '').toLowerCase()) || nameTokens(m).some(y => y !== x && hasPhrase(t, y))));
+    return toks.some(x => hasPhrase(t, x) && (x === first || !theirs(x)));
   }
   /* Does free text refer to this NPC: by name, or by the head of their role
      ("the smith", "the bartender")? */
@@ -5071,7 +6043,10 @@ const Town = (() => {
     if (own) {
       const owners = live.filter(n => nameTokens(n).includes(own.owner));
       const rel = State.cleanRelation(own.rel);
-      const kin = live.filter(n => (isObj(n.created) && owners.some(o => o.id === n.created.relationToNpcId) && n.created.relation === rel)
+      // Who is that to them: the cast's own relations ("Dewayne's wife" is Mavis), a relation made in play, or a role that says so.
+      const sameRel = (a, b) => a === b || genderWord(a, 'she') === genderWord(b, 'she');
+      const kin = live.filter(n => owners.some(o => State.tiesOf(o).has.some(x => x.id === n.id && x.relation && sameRel(State.cleanRelation(x.relation), rel)))
+        || (isObj(n.created) && owners.some(o => o.id === n.created.relationToNpcId) && n.created.relation === rel)
         || hasPhrase(String(n.role || '').toLowerCase(), `${own.owner}'s ${rel}`) || plainName(n.name) === plainName(own.phrase));
       if (kin.length) return { kind: 'npc', id: byPresence(kin)[0].id };
       const rest = head.replace(own.phrase, ' ').replace(/\s+/g, ' ').trim();
@@ -5080,6 +6055,11 @@ const Town = (() => {
     }
     const npcs = live.filter(n => mentions(' ' + head + ' ', n)).sort((a, b) => presentIds.includes(b.id) - presentIds.includes(a.id));
     if (npcs.length) return { kind: 'npc', id: npcs[0].id };
+    // A one-word job ("the clerk", "the officer") is the person whose role ends in it, someone here first.
+    if (/^[a-z][a-z-]+$/.test(head) && head.length >= 4 && personWords().test(head)) {
+      const ends = live.filter(n => rolePhrases(n).some(x => x === head || x.endsWith(' ' + head)));
+      if (ends.length) return { kind: 'npc', id: byPresence(ends)[0].id };
+    }
     const itemWant = plainName(headPhrase(desc, 'item'));
     const here2 = State.loc(here);
     const items = s.player.inventory.concat((here2 && here2.items) || []);
@@ -5156,6 +6136,14 @@ const Town = (() => {
       if (!Array.isArray(n.tags)) e(`${n.id}: tags must be an array`);
       if (!NPC_STATUSES.includes(n.status)) e(`${n.id}: bad status ${n.status}`);
       if (!PRONOUNS.includes(n.pronouns)) e(`${n.id}: pronouns must be he, she or they`);
+      // The cast's home and relations (written on both sides; tests/validate-town.cjs checks the words too).
+      if (n.home !== undefined && n.home !== null && !locById.has(n.home)) e(`${n.id}: home ${n.home} is not a location`);
+      if (n.relations !== undefined && !Array.isArray(n.relations)) e(`${n.id}: relations must be an array`);
+      for (const r of arr(n.relations)) {
+        if (!isObj(r) || !npcIds.has(r.npcId)) { e(`${n.id}: relation to unknown ${r && r.npcId}`); continue; }
+        const other = arr(t.npcs).find(x => x.id === r.npcId);
+        if (!arr(other.relations).some(x => isObj(x) && x.npcId === n.id)) e(`${n.id}: ${r.npcId} does not list ${n.id} back`);
+      }
     }
     const checkRef = (where, kind, id) => { const ok = kind === 'loc' ? locById.has(id) : kind === 'npc' ? npcIds.has(id) : kind === 'fac' ? facIds.has(id) : ids.has(id); if (!ok) e(`${where}: unknown ${kind} ${id}`); };
     const checkTrigger = (where, tr) => {
@@ -5193,15 +6181,17 @@ const Town = (() => {
   }
 
   // ----- loose ends (SPEC.md section 5 step 6) -----
-  /* Each loose end becomes a real entity: the first free NPC carrying
-     LOOSE_ENDS[kind].link.tag (link may be null), otherwise a new NPC built
-     from newNpc plus Tables. The NPC becomes known to the player, gets a
-     memory and a small attitude shift, a known thread records the loose end,
-     and a hidden seed is planted. Created NPCs are not put on any schedule:
-     they stay off-screen until their seed fires; then they come to the
-     player for that scene and get a home (World.fireSeeds, World.tick).
-     dayOffset [a, b] is read as day numbers counted from day 1, so [3, 5]
-     fires on day 3, 4 or 5 (never earlier than tomorrow). */
+  /* Each loose end binds to someone in the cast (the game never makes a
+     person): a free person carrying the tag of the option the player kept
+     (LOOSE_ENDS[kind].link.optionTags, when the text is that option's
+     words), else the kind's link.tag, else anyone free, never someone
+     already tied to another loose end while anyone else is left; picked
+     with the seeded Rng. They become known to the player, get a memory and
+     a small attitude shift, a known thread records the loose end, and a
+     hidden seed is planted. Their schedule already places them in town;
+     when the seed fires they come to the player for that scene
+     (World.fireSeeds). dayOffset [a, b] is read as day numbers counted from
+     day 1, so [3, 5] fires on day 3, 4 or 5 (never earlier than tomorrow). */
   const LOOSE_END_ATTITUDE = { debt: -10, enemy: -40, secret: -5, lost: 10, promise: 5 };
   function firstScheduledLocation(npcId) {
     const s = State.current;
@@ -5214,25 +6204,18 @@ const Town = (() => {
     if (!def) throw new Error('unknown loose end: ' + (le && le.kind));
     const text = cleanText(le.text, 200) || def.options[0];
     const used = new Set((s.player.looseEnds || []).map(x => x.npcId));
-    const tag = def.link && def.link.tag;
-    let target = null;
-    let created = false;
-    if (tag) {
-      const cands = s.npcs.filter(n => n.alive !== false && n.status === 'free' && Array.isArray(n.tags) && n.tags.includes(tag) && !used.has(n.id));
-      if (cands.length) target = Rng.pick(cands);
-    }
-    if (!target) {
-      const spec = def.newNpc || {};
-      const made = Tables.npc({
-        role: spec.role, look: spec.look, voice: spec.voice, personality: spec.personality,
-        goal: spec.goal, secret: spec.secret, tags: tag ? [tag] : []
-      });
-      made.created = { by: 'loose_end' };
-      const r = State.apply({ addNpcs: [made] });
-      if (r.rejected.length) throw new Error('could not create the loose-end NPC: ' + r.rejected[0].reason);
-      target = State.npc(made.id);
-      created = true;
-    }
+    const link = isObj(def.link) ? def.link : {};
+    const at = (def.options || []).findIndex(o => cleanText(o, 200) === text);
+    const tags = [Array.isArray(link.optionTags) && at >= 0 ? link.optionTags[at] : null, link.tag].filter(Boolean);
+    const free = s.npcs.filter(n => n.alive !== false && n.status === 'free' && !n.unnamed);
+    const tagged = tag => free.filter(n => Array.isArray(n.tags) && n.tags.includes(tag));
+    let cands = [];
+    for (const tag of tags) { cands = tagged(tag).filter(n => !used.has(n.id)); if (cands.length) break; }
+    if (!cands.length) cands = free.filter(n => !used.has(n.id));
+    if (!cands.length) cands = free;
+    if (!cands.length) throw new Error('nobody in town is free to tie a loose end to');
+    const target = Rng.pick(cands);
+    const created = false;
     const sd = def.seed || {};
     const off = Array.isArray(sd.dayOffset) && sd.dayOffset.length ? sd.dayOffset : [3, 5];
     const lo = toInt(off[0]) || 3;
@@ -5855,7 +6838,9 @@ const Style = (() => {
 /* One interface over two providers (Settings.mockMode picks one):
      parse(packet)            -> parse_action object; packet from Pipeline.parsePacket()
      narrate(packet, onDelta) -> { text, stopReason }; onDelta(chunk, textSoFar) while
-                                 streaming; packet = { text, system, context }
+                                 streaming; packet = { text, system, cast, context }
+                                 (system: the style block; cast: Pipeline.castBlock(),
+                                 the second cached system block)
      bookkeep(packet)         -> record_changes object (applied with source 'model');
                                  packet = { text, context }
      chronicle(entries)       -> summary string (entries are log entries)
@@ -5869,11 +6854,6 @@ const Style = (() => {
      checkClock(packet)       -> { behind, phase, dayOffset, reason }; packet from
                                  Upgrade.clockPacket() (whether an older game's clock ran
                                  ahead of its story; parser model)
-     createPerson(packet)     -> { existingNpcId, name, pronouns, role, look, voice,
-                                 personality, goal, secret, relationToNpcId, relation };
-                                 packet from Pipeline's personPacket (a person the player
-                                 asked for who is not in the game, made to fit the story;
-                                 parser model; real provider only, mock mode uses the tables)
      fixPeople(packet)        -> { people: [{ npcId, name, pronouns, role, look, voice,
                                  relationToNpcId, relation, homeLocationId }] }; packet from
                                  Upgrade.peoplePacket() (people the game made up, checked
@@ -5891,7 +6871,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, person: 3000, people: 6000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, people: 6000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -5917,15 +6897,10 @@ const Api = (() => {
      story (SYSTEM.places); it sits before MEMORY_RULES so the bookkeeper's
      prompt still ends with the memory rules. */
   const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
-  /* PEOPLE_RULE: the bookkeeper's rule for peopleRevealed (a specific person
-     someone names who is not in the game yet, by name or by relation),
-     modelled on PLACE_RULE. */
-  const PEOPLE_RULE = "Add a person to peopleRevealed only when someone in the narration names a specific person who is in none of the people lists, by name or by a clear relation (\"my wife\", \"his brother Earl\"). name is the name as used; when no name was given, call them by who they are to a listed person (\"Dewayne's wife\"), and when a later turn names them, give the name with the same relationToNpcId and who. Pronouns follow what was said: a wife or a mother is she, a husband or a brother is he, otherwise they. relationToNpcId is the id of the listed person they are related to or work for, else empty. who is one plain line only from what was said: what they are to that person first (\"wife\", \"older brother\", \"boss\"), then anything else said about them (\"night clerk at the motor court\"); empty when nothing was said. Not for vague mentions, crowds, or anyone already listed.";
   const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. Describe a new person as a person, with what is known about them: `new:Mavis, Dewayne's wife`, `new:woman at the counter`. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
-    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + PEOPLE_RULE + " At most one per turn. " + MEMORY_RULES,
-    person: "You create one person for a text RPG set in a small present-day town, because the player asked for someone who is not in the game yet. Read the description and the last turns first. If the story already named this person, by name or by who they are to someone (\"his wife Mavis\"), keep every detail it gave: the name stays the name, a wife stays a woman, a son stays a man. If the description is someone in the people list, return their id as existingNpcId and fill the rest with empty strings and nulls. Otherwise fill in the rest so it fits the story and the place: a first and family name (from the shortlists unless the story gave one; a wife or child usually shares the family's name), pronouns, a one-line role (their job, or who they are to someone, like \"Dewayne's wife\"), a one-line look, a one-line voice, two personality traits, a goal and a secret that fit. relationToNpcId and relation only when the story states a relation to someone listed. Plain lines, nothing supernatural.",
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
@@ -5953,18 +6928,6 @@ const Api = (() => {
     ownerNpcId: nullable(STR, "A listed person's id when it is their home or business, else null"),
     kind: { type: 'string', enum: REVEALED_KINDS }
   }, extra || {}));
-  /* One person someone named (record_changes.peopleRevealed). Four fields
-     only: the API compiles every structured-output schema to a grammar with
-     a size limit, and record_changes sits right under it (a fifth field here
-     is refused as "compiled grammar too large"). State.apply derives the
-     rest (unnamed, relation, role, kind) from name and who. Probe the API
-     before adding a field anywhere in record_changes. */
-  const personItem = () => obj({
-    name: { type: 'string', description: "The name as used (\"Mavis\", \"Earl Toler\"); when no name was given, who they are to a listed person (\"Dewayne's wife\")" },
-    pronouns: { type: 'string', enum: PRONOUNS, description: 'From what was said: a wife or a mother is she, a husband or a brother is he, otherwise they' },
-    relationToNpcId: { type: 'string', description: 'The id of the listed person they are said to be related to or to work for; empty when none' },
-    who: { type: 'string', description: 'One plain line only from what was said: what they are to that person first ("wife", "older brother", "boss"), then anything else said about them ("night clerk at the motor court"); empty when nothing was said' }
-  });
   const SCHEMAS = {
     parse_action: obj({
       actionType: { type: 'string', enum: ACTION_TYPES },
@@ -6005,21 +6968,7 @@ const Api = (() => {
       })),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
-      peopleRevealed: list(personItem(), 'A specific person someone in the narration named who is in none of the people lists; at most one, usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
-    }),
-    create_person: obj({
-      existingNpcId: nullable(STR, 'The id of the person in the people list the description already is, else null'),
-      name: { type: 'string', description: 'First and family name; the name the story gave, if it gave one' },
-      pronouns: { type: 'string', enum: PRONOUNS },
-      role: { type: 'string', description: 'One plain line: their job, or who they are to someone ("Dewayne\'s wife")' },
-      look: { type: 'string', description: 'One plain line' },
-      voice: { type: 'string', description: 'One plain line: how they talk' },
-      personality: list(STR, 'Two traits'),
-      goal: { type: 'string', description: 'What they want, one line' },
-      secret: { type: 'string', description: 'Something they hide, one line' },
-      relationToNpcId: nullable(STR, 'The id of the listed person the story says they are related to or work for, else null'),
-      relation: nullable(STR, 'What they are to that person: "wife", "brother", "boss"; else null')
     }),
     fix_people: obj({
       people: list(obj({
@@ -6092,7 +7041,7 @@ const Api = (() => {
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
   /* The memory rewrite, the places re-read and the clock check (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
-  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper', person: 'parser' };
+  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
@@ -6102,7 +7051,8 @@ const Api = (() => {
   function requestBody(role, opts) {
     opts = opts || {};
     const body = { model: roleModel(role), max_tokens: opts.maxTokens || MAX_TOKENS[role] || 1500, messages: [{ role: 'user', content: String(opts.user || '') }] };
-    if (opts.system) body.system = opts.cache ? [{ type: 'text', text: opts.system, cache_control: { type: 'ephemeral' } }] : opts.system;
+    // The narrator's system prompt is cached: the style block, then any further blocks (the cast), each its own cache breakpoint.
+    if (opts.system) body.system = opts.cache ? [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []).map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })) : opts.system;
     body.output_config = { effort: roleEffort(role) };
     if (opts.schema) body.output_config.format = { type: 'json_schema', schema: opts.schema };
     if (opts.stream) body.stream = true;
@@ -6158,8 +7108,6 @@ const Api = (() => {
        Mock.queue('revealPlaces', { placesRevealed: [...] })     instead of the rule-based re-read
        Mock.queue('checkClock', { behind, phase, dayOffset, reason })  instead of the rule-based check
        Mock.queue('fixPeople', { people: [...] })                instead of the rule-based check of people
-       Mock.queue('createPerson', { ... })   a canned create_person reply (Pipeline only asks the
-                                       real provider; tests call Api.Mock.createPerson directly)
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -6248,6 +7196,11 @@ const Api = (() => {
       }
     }
     const all = people.filter(n => Town.mentions(lower, n));
+    // Someone in the cast the player has not met yet, named as a name ("I ask for Mavis"): capitalised as written, and not a surname that is part of a place's name.
+    const placeWords = new Set([].concat(packet.knownLocations || [], packet.exits || []).flatMap(l => String(l.name || '').split(/[^A-Za-z]+/)).concat(String(packet.townName || '').split(/[^A-Za-z]+/)).filter(Boolean));
+    const castNamed = (packet.cast || []).filter(n => !people.some(p => p.id === n.id) && String(n.name || '').split(/\s+/)
+      .some(w => w.length >= 3 && !placeWords.has(w) && new RegExp(`(^|[^A-Za-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`).test(input)));
+    all.push(...castNamed);
     /* Who the text names. Anyone here answers to their name or role; someone
        who is not here only to their name, or to a role nobody else in the
        lists answers to ("the cook"), so a shared word ("the owner") picks
@@ -6563,7 +7516,7 @@ const Api = (() => {
     const out = {
       attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [],
       playerLocationId: a.actionType === 'move' && a.destinationId ? a.destinationId : null,
-      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], peopleRevealed: [], journalEntry: null
+      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], journalEntry: null
     };
     if (!s) return out;
     // A home someone names in a quoted line becomes a place (State.apply checks it like any other).
@@ -6607,7 +7560,7 @@ const Api = (() => {
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [], fixPeople: [], createPerson: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [], fixPeople: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -6693,11 +7646,6 @@ const Api = (() => {
       await sleep(Mock.delay);
       return { result: isObj(canned) && Array.isArray(canned.people) ? canned : mockFixPeople(packet || {}), usage: MOCK_ZERO, model: 'mock' };
     },
-    async createPerson(packet) {
-      const canned = Mock.take('createPerson', packet);
-      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
-      return { result: isObj(canned) ? canned : null, usage: MOCK_ZERO, model: 'mock' };
-    }
   };
 
   // ----- real provider -----
@@ -6842,10 +7790,10 @@ const Api = (() => {
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
     checkClock(packet) { return messageCall('clock', { system: SYSTEM.clock, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
-    createPerson(packet) { return messageCall('person', { system: SYSTEM.person, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.create_person }); },
     fixPeople(packet) { return messageCall('people', { system: SYSTEM.people, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
     async narrate(packet, onDelta) {
-      const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
+      // Two cached system blocks: the style guide with its examples (byte-identical per style), then the town's cast (Pipeline.castBlock, the same until the cast changes).
+      const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), blocks: [packet.cast || Pipeline.castBlock()], user: packet.text, cache: true, stream: true });
       // A stream cut off part-way (the phone locking, a dropped connection) is asked for once more before the turn fails.
       for (let attempt = 1; ; attempt++) {
         const { res, requestId } = await post('narrator', body);
@@ -6887,7 +7835,7 @@ const Api = (() => {
     return out.result;
   }
   return {
-    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, PEOPLE_RULE,
+    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, roleModel, roleEffort, isRefusal, readStream, chronicleText,
     providerName: () => provider().name,
@@ -6899,7 +7847,6 @@ const Api = (() => {
     rewriteMemories: packet => call('memories', 'rewriteMemories', [packet]),
     revealPlaces: packet => call('places', 'revealPlaces', [packet]),
     checkClock: packet => call('clock', 'checkClock', [packet]),
-    createPerson: packet => call('person', 'createPerson', [packet]),
     fixPeople: packet => call('people', 'fixPeople', [packet])
   };
 })();
@@ -6974,7 +7921,20 @@ const Api = (() => {
    corrected (name, pronouns, role, look, voice, relationToNpcId, relation,
    homeLocationId). Only what changed goes through State.apply({ fixPeople
    }): the id and memories stay, and a home given moves them in there.
-   Nobody to check costs no call. */
+   Nobody to check costs no call. Cast members count as town people here
+   even before version 6 has added them (madeUp).
+
+   Version 6, "A full cast": the owner's direction of 29 Oct 2026 (the
+   game made people up on demand, and a wife came out a man at the gas
+   station with no voice). Every person who can appear is now written by
+   hand in TOWN_DATA, with relations, a home and a schedule, and the game
+   never makes one. An older game gains every cast member and home it
+   lacks, folds the homes people told the player about into the cast's
+   own, merges the people it made up onto the cast members they were
+   (Mavis Toler, Dewayne's wife, becomes Mavis Mangum, keeping what she
+   remembers and every turn that names her), keeps anyone nobody matches
+   for the player to edit or remove, and is marked castFixed (fullCast).
+   It is deterministic: no call, in mock mode or with the API. */
 const Upgrade = (() => {
   const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
   const PER_PERSON = 6;
@@ -7100,7 +8060,8 @@ const Upgrade = (() => {
     const text = [
       `PLAYER: ${st.player.name}; now at ${here.id} (${here.name})`,
       `TURN NOW: ${st.meta.turn}`,
-      `PLACES (the places list): ${st.locations.map(l => `${l.id} — ${l.name} (${l.type})`).join('; ')}`,
+      // The places the player knows: a cast home not found yet is left out, so a line about it comes back and discovers it.
+      `PLACES (the places list): ${st.locations.filter(l => l.discovered).map(l => `${l.id} — ${l.name} (${l.type})`).join('; ')}`,
       `PEOPLE: ${st.npcs.map(n => `${n.id} — ${n.name}`).join('; ') || 'none'}`,
       '',
       'STORY (a SUMMARY covers earlier turns; each TURN is what the player did and the narration they read):',
@@ -7193,10 +8154,22 @@ const Upgrade = (() => {
   /* Everyone the game made during play: not in this game's town data (a
      town person the player gave a relation in the People editor has
      created.by 'edit' and is still the town's own). */
+  /* The cast's ids: this game's own town data and, for a game of the
+     built-in town, the full cast written in TOWN_DATA (rules version 6), so
+     a cast member is a town person even in a game the update has not
+     reached yet. */
+  function castIds(st) {
+    const ids = new Set();
+    for (const t of [State.town, st && st.meta && st.meta.townName === TOWN_DATA.name ? TOWN_DATA : null, State.town ? null : TOWN_DATA]) if (t && Array.isArray(t.npcs)) t.npcs.forEach(n => ids.add(n.id));
+    return ids;
+  }
+  /* Everyone the game made during play: not in the cast, or holding a cast
+     id the game handed out in play before the cast was written (a story's
+     "Mavis" made as npc_mavis). A town person the player gave a relation in
+     the People editor has created.by 'edit' and is still the town's own. */
   function madeUp(st) {
-    const town = State.town && Array.isArray(State.town.npcs) ? State.town.npcs : TOWN_DATA.npcs;
-    const ids = new Set(town.map(n => n.id));
-    return st.npcs.filter(n => !ids.has(n.id) && n.alive !== false);
+    const ids = castIds(st);
+    return st.npcs.filter(n => n.alive !== false && (!ids.has(n.id) || (isObj(n.created) && n.created.by !== 'edit')));
   }
   function madeBy(st, n) {
     if (isObj(n.created) && CREATED_BY.includes(n.created.by)) return n.created.by;
@@ -7323,13 +8296,145 @@ const Upgrade = (() => {
     return res;
   }
 
+  // ----- version 6: a full cast -----
+  /* The town data a game's cast comes from: TOWN_DATA for a game of the
+     built-in town, else the game's own copy (a town with its own cast). */
+  function castData(st) {
+    if (st.meta.townName === TOWN_DATA.name) return TOWN_DATA;
+    return State.town && Array.isArray(State.town.npcs) && Array.isArray(State.town.locations) ? State.town : null;
+  }
+  const ROLE_STOP = new Set(['with', 'from', 'that', 'this', 'their', 'there', 'town', 'works', 'work', 'runs', 'keeps', 'lives', 'after', 'about', 'before', 'school', 'everyone', 'somebody', 'someone', 'townsfolk']);
+  function roleWords(n) {
+    return String(n.role || '').toLowerCase().replace(/[’‘]/g, "'").replace(/'s\b/g, ' ').replace(/[^a-z -]+/g, ' ').split(/\s+/)
+      .filter(w => w.length >= 4 && !ROLE_STOP.has(w)).concat((n.tags || []).map(t => String(t).toLowerCase()));
+  }
+  function firstOf(n) { return String(State.firstName(n) || '').toLowerCase(); }
+  const sameRel = (a, b) => !!a && !!b && (a === b || genderWord(a, 'she') === genderWord(b, 'she'));
+  /* The cast member a made-up person was: the one who is that relation to
+     the person their record names ("Dewayne's wife" is Mavis), else the one
+     their name is (State.samePerson: "Mavis" and "Mavis Mangum"), else the
+     one with their first name and a role that shares a word with theirs.
+     Or null. */
+  function castMatch(m, cast) {
+    const c = isObj(m.created) ? m.created : {};
+    if (c.relationToNpcId && c.relation) {
+      const owner = State.npc(c.relationToNpcId);
+      const tie = owner ? State.tiesOf(owner).has.find(x => cast.has(x.id) && x.id !== m.id && sameRel(State.cleanRelation(x.relation || ''), State.cleanRelation(c.relation))) : null;
+      if (tie) return { id: tie.id, by: 'relation' };
+    }
+    const people = Array.from(cast).map(id => State.npc(id)).filter(n => n && n.id !== m.id);
+    if (!m.unnamed) {
+      const named = people.filter(n => State.samePerson(n.name, m.name));
+      if (named.length === 1) return { id: named[0].id, by: 'name' };
+      const mine = new Set(roleWords(m));
+      const both = people.filter(n => firstOf(n) === firstOf(m) && roleWords(n).some(w => mine.has(w)));
+      if (both.length === 1) return { id: both[0].id, by: 'first name and role' };
+    }
+    return null;
+  }
+  /* "Mavis Mangum (Dewayne's wife)": the name, and who they are to someone
+     (else the first part of the role). */
+  function castTag(n) {
+    const rel = State.relationNote(n) || tieTag(n);
+    const role = rel || String(n.role || '').split(',')[0].trim();
+    return role ? `${n.name} (${role})` : n.name;
+  }
+  function tieTag(n) {
+    const t = State.tiesOf(n).isTo.find(x => FAMILY_RELATIONS.includes(x.relation));
+    return t ? State.relationPhrase(State.npc(t.id), t.relation) : '';
+  }
+  /* Version 6, "A full cast": every person is written by hand and the game
+     never makes one in play. A game from before gains every cast member and
+     home it lacks by id (addCast: as a new game has them, homes
+     undiscovered), and its people made up in play are folded onto the cast:
+     one who already holds a cast id is recast in place (recastPeople: the
+     cast's record, their own memories, attitude and meetings); a home
+     someone told the player about that the cast has written is folded into
+     it (mergePlaces, "Dewayne's house is the Mangum House"); anyone else
+     made up is merged onto the cast member they were (castMatch,
+     mergePeople), keeping their memories, attitude, meetings and every
+     reference; the schedules the cast gives are filled in wherever someone
+     is nowhere (castSchedules), and the game is marked castFixed. A made-up
+     person nobody matches is kept and named in the summary, for the player
+     to edit or remove. Deterministic: no call, mock or real. */
+  async function fullCast(st) {
+    const res = { added: { places: [], people: [] }, recast: [], places: [], merged: [], kept: [], calls: 0 };
+    const T = castData(st);
+    const first = st.meta.castFixed !== true;
+    const run = (diff, what) => {
+      const r = State.apply(diff);
+      if (r.rejected.length) note(st, `cast: ${what}: ` + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+      return r;
+    };
+    if (T) {
+      const beforeLocs = new Set(st.locations.map(l => l.id));
+      const beforeNpcs = new Set(st.npcs.map(n => n.id));
+      run({ addCast: { town: T } }, 'adding the cast');
+      res.added.places = st.locations.filter(l => !beforeLocs.has(l.id)).map(l => l.id);
+      res.added.people = st.npcs.filter(n => !beforeNpcs.has(n.id)).map(n => n.id);
+      const castSet = new Set(T.npcs.map(n => n.id).filter(id => State.npc(id)));
+      // Made up in play under an id the cast now has: the cast's record, their own history.
+      const recast = st.npcs.filter(n => castSet.has(n.id) && isObj(n.created) && n.created.by !== 'edit').map(n => ({ npcId: n.id, was: n.name }));
+      if (recast.length) { run({ recastPeople: recast.map(x => ({ npcId: x.npcId })) }, 'recasting'); res.recast = recast.filter(x => State.npc(x.npcId) && !isObj(State.npc(x.npcId).created)); }
+      // Who each made-up person was.
+      const pairs = [];
+      for (const m of madeUp(st)) {
+        if (castSet.has(m.id)) continue;
+        const hit = castMatch(m, castSet);
+        if (hit) pairs.push({ fromId: m.id, intoId: hit.id, by: hit.by, from: m.name });
+      }
+      const into = id => (pairs.find(x => x.fromId === id) || {}).intoId || id;
+      // Homes someone told the player about that the cast has written (by owner, or by name).
+      const homes = T.locations.filter(l => l.discovered === false);
+      const places = [];
+      for (const l of st.locations) {
+        if (!isObj(l.revealed) || T.locations.some(x => x.id === l.id)) continue;
+        const owner = l.revealed.ownerNpcId ? T.npcs.find(n => n.id === into(l.revealed.ownerNpcId)) : null;
+        let target = owner && l.revealed.kind === 'home' && typeof owner.home === 'string' ? owner.home : null;
+        if (!target) {
+          const want = State.placeNames(l.name);
+          const named = homes.find(h => [h.name, h.map && h.map.label].some(k => k && [...State.placeNames(k)].some(x => want.has(x))));
+          target = named ? named.id : null;
+        }
+        if (target && target !== l.id && State.loc(target)) places.push({ fromId: l.id, intoId: target, from: l.name });
+      }
+      if (places.length) { run({ mergePlaces: places.map(x => ({ fromId: x.fromId, intoId: x.intoId })) }, 'folding told homes'); res.places = places.filter(x => !State.loc(x.fromId)); }
+      if (pairs.length) {
+        const r = run({ mergePeople: pairs.map(x => ({ fromId: x.fromId, intoId: x.intoId })) }, 'merging people');
+        const done = new Set((r.merged || []).map(x => x.fromId));
+        res.merged = pairs.filter(x => done.has(x.fromId));
+      }
+      // The cast's schedules: everywhere on a first update; on a re-read, only for who and where is new.
+      const fresh = new Set(res.added.people.concat(res.recast.map(x => x.npcId)));
+      const freshPlaces = new Set(res.added.places);
+      const entries = [];
+      for (const l of T.locations) for (const ph of PHASES) for (const id of ((l.npcIdsBySchedule || {})[ph] || [])) {
+        if (first || fresh.has(id) || freshPlaces.has(l.id)) entries.push({ locationId: l.id, phase: ph, npcId: id });
+      }
+      if (entries.length) run({ castSchedules: entries }, 'schedules');
+    }
+    run({ castFixed: true }, 'fixing the cast');
+    res.kept = madeUp(st).filter(n => !(T && T.npcs.some(x => x.id === n.id)));
+    const parts = [];
+    const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    if (res.added.people.length || res.added.places.length) parts.push(`Added the rest of the town's cast, written by hand: ${n(res.added.people.length, 'person', 'people')} and ${n(res.added.places.filter(id => (State.loc(id) || {}).discovered === false).length, 'home', 'homes')} to find.`);
+    for (const x of res.recast) parts.push(`${x.was} is now ${castTag(State.npc(x.npcId))}.`);
+    for (const x of res.places) parts.push(`${x.from} is ${String((State.loc(x.intoId) || {}).name || x.intoId).replace(/^The /, 'the ')}.`);
+    for (const x of res.merged) { const into = State.npc(x.intoId); parts.push(`${x.from} is now ${into && into.name === x.from ? "the cast's " : ''}${castTag(into)}.`); }
+    if (res.kept.length) parts.push(`Kept ${n(res.kept.length, 'person', 'people')} the game made up who ${res.kept.length === 1 ? 'is' : 'are'} not in the cast: ${joinNames(res.kept.map(k => k.name))}. Edit or remove ${res.kept.length === 1 ? 'them' : 'them'} on the People tab.`);
+    res.kept = res.kept.map(k => k.id);
+    res.text = parts.length ? parts.join(' ') : 'The cast is complete.';
+    return res;
+  }
+
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
     Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces }),
     Object.freeze({ version: 4, title: 'Clock follows the story', rerun: true, run: followStory }),
-    Object.freeze({ version: 5, title: 'People match the story', rerun: true, run: matchStory })
+    Object.freeze({ version: 5, title: 'People match the story', rerun: true, run: matchStory }),
+    Object.freeze({ version: 6, title: 'A full cast', rerun: true, run: fullCast })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData };
 })();
 
 // ===== Module: Pipeline =====
@@ -7379,6 +8484,68 @@ const Pipeline = (() => {
      name but not met: People lists them under Heard of. */
   function heardOf(n) { return !!n && isObj(n.created) && n.created.by === 'story' && !n.unnamed && !n.knownToPlayer && n.alive !== false; }
   function who(n) { return `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`; }
+  /* Who someone is to whom, in words: "wife of Dewayne Mangum, employee of
+     Royce Pittman" (what they are to others), and "wife: Mavis Mangum, boss:
+     Royce Pittman" (who their people are), from State.tiesOf. */
+  /* Family first (a household relation, then any other), then work and the rest, each kept in the order written. */
+  function tieRank(x) { return HOUSEHOLD_RELATIONS.includes(x.relation) ? 0 : FAMILY_RELATIONS.includes(x.relation) ? 1 : 2; }
+  function byRank(list) { return list.map((x, i) => ({ x, i })).sort((a, b) => tieRank(a.x) - tieRank(b.x) || a.i - b.i).map(o => o.x); }
+  function tieWords(n) {
+    return byRank(State.tiesOf(n).isTo).slice(0, 4).map(x => `${x.relation || 'related'} of ${State.npc(x.id).name}`).join(', ');
+  }
+  function hasWords(n) {
+    return byRank(State.tiesOf(n).has).slice(0, 5).map(x => `${x.relation || 'related'}: ${State.npc(x.id).name}`).join(', ');
+  }
+  /* Where the town's schedule has someone and where they live: "usually at
+     the Riverview Motor Court (evening, night); home: the Mangum House
+     (morning, afternoon)". A cast member's schedule is read from the town
+     data (so it does not move with a visit or a clock), anyone else's from
+     the game. */
+  function usualPlaces(n, s) {
+    const t = State.town;
+    const fromTown = t && Array.isArray(t.locations) && Array.isArray(t.npcs) && t.npcs.some(x => x.id === n.id);
+    const locs = fromTown ? t.locations : s.locations;
+    const at = {};
+    for (const l of locs) for (const p of PHASES) if (((l.npcIdsBySchedule || {})[p] || []).includes(n.id)) (at[l.id] = at[l.id] || []).push(p);
+    const homeId = n.home && n.home.locationId ? n.home.locationId : null;
+    const name = id => { const l = State.loc(id) || locs.find(x => x.id === id); return l ? String(l.name).replace(/^The /, 'the ') : id; };
+    const out = [];
+    const when = id => (at[id].length === PHASES.length ? 'all day and night' : at[id].join(', '));
+    const away = Object.keys(at).filter(id => id !== homeId).sort((a, b) => PHASES.indexOf(at[a][0]) - PHASES.indexOf(at[b][0])).map(id => `${name(id)} (${when(id)})`);
+    if (away.length) out.push(`usually at ${away.join(', ')}`);
+    if (homeId) out.push(`home: ${name(homeId)}${at[homeId] ? ` (${when(homeId)})` : ''}`);
+    return out.join('; ');
+  }
+  /* The narrator's second cached system block (Api.narrate sends it after
+     the style block): everyone who exists in this town, one line each
+     ("id — Name (pronouns; role; wife of X; usually at Z; home: W)"), the
+     rule that nobody else does, and the people the story may talk about who
+     are never in town (TOWN_DATA.offstage). Built from the records alone,
+     never from anything that changes turn to turn, so it stays
+     byte-identical, and stays cached, until the cast itself changes (an
+     edit, a merge, an arrest or a death). */
+  const CAST_HEAD = 'CAST (everyone who exists in this town; never invent anyone else):';
+  const CAST_RULE = 'Anyone a character mentions (a wife, a husband, a brother, a boss, a friend, a neighbor, a customer) is one of the people above or does not exist: never make up a relative, a worker or a stranger, and never give someone a family the list does not show. People not in PRESENT can be talked about, but they never appear in the scene unless the packet lists them.';
+  function castBlock(st) {
+    const s = st || State.current;
+    if (!s) return '';
+    const lines = [CAST_HEAD];
+    for (const n of s.npcs) {
+      const parts = [pronounLabel(n.pronouns), n.role || 'townsfolk'];
+      const ties = tieWords(n);
+      if (ties) parts.push(ties);
+      const where = usualPlaces(n, s);
+      if (where) parts.push(where);
+      const status = n.alive === false || n.status === 'dead' ? 'dead' : n.status === 'gone' ? 'gone from town' : n.status === 'arrested' ? 'under arrest, in the cell at the police station' : '';
+      if (status) parts.push(status);
+      lines.push(`${n.id} — ${n.name}${n.unnamed ? ' (no name yet)' : ''} (${parts.join('; ')})`);
+    }
+    lines.push(CAST_RULE);
+    const t = State.town && Array.isArray(State.town.offstage) ? State.town : s.meta.townName === TOWN_DATA.name ? TOWN_DATA : null;
+    const off = t && Array.isArray(t.offstage) ? t.offstage.filter(o => isObj(o) && o.name) : [];
+    if (off.length) lines.push(`NOT IN TOWN (they can be talked about, but they never appear): ${off.map(o => `${o.name}, ${o.about}`).join('; ')}.`);
+    return lines.join('\n');
+  }
   function isRefusal(x) { return Api.isRefusal(x); }
   function nowTime() { const t = State.current.time; return { day: t.day, phase: t.phase }; }
   function sameTime(a, b) { return a.day === b.day && a.phase === b.phase; }
@@ -7465,7 +8632,8 @@ const Pipeline = (() => {
       speech: sp ? Object.assign({}, sp) : null,
       playerName: p.name,
       location: { id: l.id, name: l.name, type: l.type },
-      exits: l.exits.map(id => State.loc(id)).filter(Boolean).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
+      // Only the ways out the player knows: a home nobody has told them about is not one.
+      exits: l.exits.map(id => State.loc(id)).filter(x => x && x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
       present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, look: n.look, attitude: n.attitude })),
       itemsHere: (l.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       inventory: p.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
@@ -7473,13 +8641,16 @@ const Pipeline = (() => {
       knownNpcs: s.npcs.filter(n => (n.knownToPlayer || heardOf(n)) && n.alive !== false).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, heard: heardOf(n) })),
       knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed }))
     };
+    // Everyone else who exists (the cast is fixed): a person the player names or describes is one of these ids.
+    const listed = new Set(packet.present.map(n => n.id).concat(packet.knownNpcs.map(n => n.id)));
+    packet.cast = s.npcs.filter(n => n.alive !== false && n.status !== 'gone' && !listed.has(n.id)).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, ties: tieWords(n) }));
     const ids = arr => arr.map(x => `${x.id} — ${x.name}${x.role ? ` (${x.role})` : ''}${x.type ? ` (${x.type})` : ''}${x.closed ? ' (closed)' : ''}${x.qty > 1 ? ` x${x.qty}` : ''}`).join('; ') || 'none';
     const presentIds = packet.present.map(n => n.id);
     let modeLine;
     if (mode === 'fact') modeLine = 'MODE: fact. The player is spending a story point to make this statement true in the world. Put the ids of existing people, places and things it refers to in targets, and new:<short description> for anyone or anything it adds. Set declaresWorldFact to true, needsRoll to false and timeCost to instant.';
     else if (isSay(sp)) {
       const all = sp.to === 'everyone';
-      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A new:<description> target is allowed only for a person mentioned in the words who is not in the lists.`;
+      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
     packet.text = [
       isSay(sp) ? `PLAYER INPUT: "${input}"` : `PLAYER INPUT: ${input}`,
@@ -7492,6 +8663,7 @@ const Pipeline = (() => {
       `ITEMS HERE: ${ids(packet.itemsHere)}`,
       `INVENTORY: ${ids(packet.inventory)}`,
       `OTHER KNOWN NPCS (not here): ${packet.knownNpcs.filter(n => !presentIds.includes(n.id)).map(n => `${who(n)}${n.heard ? ' (heard of, not met)' : ''}`).join('; ') || 'none'}`,
+      `EVERYONE ELSE IN TOWN (not met yet; nobody else exists): ${packet.cast.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}${n.ties ? `; ${n.ties}` : ''})`).join('; ') || 'none'}`,
       // Every discovered place, by type too ("the bar"): one move reaches any of them.
       `OTHER PLACES IN TOWN (one move reaches any): ${ids(packet.knownLocations.filter(x => x.id !== l.id))}`
     ].join('\n');
@@ -7554,7 +8726,7 @@ const Pipeline = (() => {
   function fleeExit(ctx) {
     const a = ctx.action;
     if (a.actionType !== 'move' || a.destinationId || !ctx.speech || ctx.speech.mode !== 'do' || !FLEEING.test(ctx.input || '')) return null;
-    const exit = here().exits.map(id => State.loc(id)).find(l => l && !l.closed);
+    const exit = here().exits.map(id => State.loc(id)).find(l => l && l.discovered && !l.closed);
     if (!exit) return null;
     a.destinationId = exit.id;
     State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'destinationId', reason: `a move with no place named: the engine sends the player out through ${exit.id}` });
@@ -7579,158 +8751,22 @@ const Pipeline = (() => {
 
   // ----- step 4: check and create -----
   /* For every `new:` target: reuse an entity that already answers to the
-     description; otherwise create it if it is plausible here (a barmaid in a
-     tavern) or mark it does_not_exist (a dragon). A claimed world fact
-     without a story point creates nothing. Existing NPC targets who are not
-     in the scene are flagged "not here", except someone the story named who
+     description (Town.matchExisting: a name, a role, "Dewayne's wife" read
+     through the cast's relations, a one-word job); otherwise a place or a
+     thing is created if it is plausible here (a back room, a coil of rope)
+     and marked does_not_exist if not (a dragon). A person is never created:
+     the whole cast is written in TOWN_DATA (rules version 6), so someone
+     who is not one of them is NOT PRESENT with reason does_not_exist
+     ("nobody like that lives in this town"), for every game, an older one
+     not yet updated too. A claimed world fact without a story point
+     creates nothing. Existing NPC targets who are not in the scene are
+     flagged "not here", except someone the story named in an older game who
      has no schedule and is asked for where they live or work: they come to
      the door (a visit for this phase). Created entities are saved through
-     State.apply before the narrator hears about them.
-     A person: with the real provider, one structured call on the parser
-     model (Api.createPerson, create_person) with the description, the last
-     three turns, everyone in the game and a shortlist rolled from the
-     tables, so the new person fits what the story already said (a wife
-     stays a woman) or turns out to be someone already in the game
-     (existingNpcId). The reply is checked like the tables' own (a free
-     name, lengths, pronouns, a known relation); any failure, refusal or
-     error falls back to the tables. In mock mode, and as that fallback, the
-     tables make them (tablesPerson): pronouns from the description's words,
-     a role that is never just "man" or "woman" (an occupation is rolled and
-     the word kept as a tag), a name from the description when it gives one,
-     and "Dewayne's wife" read as a relation to Dewayne. */
-  const GENERIC_PEOPLE = ['man', 'woman', 'guy', 'lady', 'gal', 'girl', 'boy', 'person', 'someone', 'somebody', 'stranger', 'fella', 'fellow', 'kid',
-    'old man', 'old woman', 'young man', 'young woman', 'old lady', 'old guy', 'dude', 'teenager', 'teen', 'child', 'men', 'women'];
-  /* Where a new person lives: with the person they are a wife, husband or
-     child of when that person has a home, else here (or the place the
-     action names), in every phase. A home elsewhere still brings them here
-     for this phase: the player is asking for them now. */
-  function homeFor(n, relTo, relation, opts) {
-    const l = here();
-    const shared = relTo && HOUSEHOLD_RELATIONS.includes(relation) ? State.homeOf(relTo) : null;
-    n.home = { locationId: shared ? shared.id : opts.homeId || l.id, phases: 'all' };
-    return shared && shared.id !== l.id ? shared : null;
-  }
-  function addPerson(n, label, away) {
-    const r = State.apply({ addNpcs: [n] });
-    if (r.rejected.length) throw new Error(`could not create ${label}: ${r.rejected[0].reason}`);
-    if (away) State.apply({ visits: [{ npcId: n.id, locationId: here().id }] });
-    const made = State.npc(n.id);
-    return { kind: 'npc', id: made.id, name: made.name, role: made.role, label, pronouns: made.pronouns };
-  }
-  /* The tables' person (mock mode, and the fallback). */
-  function tablesPerson(desc, opts) {
-    const s = State.current;
-    const p = s.player;
-    const mine = /^\s*my\b/i.test(desc);
-    const raw = cleanText(String(desc || '').replace(/[’‘]/g, "'"), 200);
-    // "Dewayne's wife", "Mavis, Dewayne's wife": a relation to someone in the game.
-    let relTo = null;
-    let relation = null;
-    for (const m of raw.matchAll(/\b([A-Za-z][a-z-]+)'s\s+([a-z]+)/g)) {
-      const owner = s.npcs.find(n => n.alive !== false && String(n.name).split(/\s+/)[0].toLowerCase() === m[1].toLowerCase());
-      if (owner && Town.guessKind(m[2]) === 'npc') { relTo = owner; relation = State.cleanRelation(m[2]); break; }
-    }
-    const plain = raw.replace(/\b[A-Za-z][a-z-]+'s\s+[a-z]+/g, ' ').replace(/[,;()]+/g, ' ').replace(/\s+/g, ' ').trim();
-    const given = Town.properName(plain);
-    const head = relTo ? `${String(relTo.name).split(/\s+/)[0]}'s ${relation}` : (Town.headPhrase(plain || desc, 'npc') || 'stranger');
-    const generic = !relTo && !given && GENERIC_PEOPLE.includes(head);
-    const said = inferPronouns(raw);
-    const pronouns = said !== 'they' ? said : (given ? namePronouns(given) : null);
-    const name = given ? (given.split(/\s+/).length > 1 ? given : `${given} ${relTo && !relTo.unnamed ? String(relTo.name).split(/\s+/).slice(-1)[0] : Rng.pick(TABLES.npc.familyNames)}`) : '';
-    const role = mine ? `${p.name}'s ${head}` : relTo ? head : generic || given ? '' : head;
-    const family = relTo && !relTo.unnamed && HOUSEHOLD_RELATIONS.includes(relation) ? String(relTo.name).split(/\s+/).slice(-1)[0] : '';
-    const n = Tables.npc({ name, familyName: family, role, pronouns: pronouns || undefined, noun: generic ? head : '', tags: generic ? [head] : [], knownToPlayer: true });
-    n.created = { by: opts.fact ? 'fact' : 'tables', relationToNpcId: relTo ? relTo.id : null, relation };
-    const away = homeFor(n, relTo, relation, opts);
-    return addPerson(n, given || head, away);
-  }
-  /* The create_person packet: structured (tests read it) and as labelled text. */
-  function personPacket(desc, opts) {
-    const s = State.current;
-    const l = here();
-    const pick = (list, k) => {
-      const pool = list.slice();
-      const out = [];
-      while (pool.length && out.length < k) out.push(pool.splice(Rng.int(0, pool.length - 1), 1)[0]);
-      return out;
-    };
-    const T = TABLES.npc;
-    const shortlist = { firstNames: pick(T.firstNames, 6), familyNames: pick(T.familyNames, 6), traits: pick(T.traits, 6), quirks: pick(T.speechQuirks, 4) };
-    const people = s.npcs.filter(n => n.alive !== false && n.status !== 'dead').map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role }));
-    const present = State.npcsAt(l.id);
-    const turns = s.log.slice(-3);
-    const text = [
-      `DESCRIPTION: ${desc} (the person the player asked for, in the parser's words)`,
-      `PLAYER INPUT: ${opts.input || '(none)'}`,
-      `PLACE: ${l.id} — ${l.name} (${l.type}); here now: ${present.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`).join('; ') || 'nobody'}`,
-      '',
-      'LAST 3 TURNS (oldest first):',
-      turns.length ? Api.chronicleText(turns) : 'none',
-      '',
-      `PEOPLE (everyone in the game; if the description is one of them, return their id as existingNpcId): ${people.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`).join('; ')}`,
-      '',
-      'SHORTLISTS (draw from these for anything the story has not already said):',
-      `FIRST NAMES: ${shortlist.firstNames.join(', ')}`,
-      `FAMILY NAMES: ${shortlist.familyNames.join(', ')}`,
-      `TRAITS: ${shortlist.traits.join(', ')}`,
-      `SPEECH QUIRKS: ${shortlist.quirks.join('; ')}`
-    ].join('\n');
-    return { description: desc, shortlist, people, text };
-  }
-  /* The context call's reply, checked like the tables' person; null when it
-     does not hold up (the caller falls back to the tables). */
-  function checkPerson(reply, packet) {
-    const s = State.current;
-    const why = reason => { State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason }); return null; };
-    if (!isObj(reply)) return why('no reply');
-    if (typeof reply.existingNpcId === 'string' && reply.existingNpcId) {
-      const n = State.npc(reply.existingNpcId);
-      if (n && n.alive !== false && n.status !== 'dead' && n.status !== 'gone') return { existing: n.id };
-      return why(`existingNpcId ${reply.existingNpcId} is not someone in the game`);
-    }
-    const name = cleanText(reply.name, 60).replace(/[.,;:!?]+$/, '');
-    if (name.length < 2 || name.length > 40) return why('name must be 2 to 40 characters');
-    const same = s.npcs.find(n => State.samePerson(n.name, name));
-    if (same) return same.alive !== false && same.status !== 'dead' && same.status !== 'gone' ? { existing: same.id } : why(`the name ${name} is taken by ${same.id}`);
-    const pronouns = validPronouns(reply.pronouns);
-    if (!pronouns) return why('pronouns must be he, she or they');
-    const role = cleanText(reply.role, 60);
-    const look = cleanText(reply.look, 200);
-    const voice = cleanText(reply.voice, 200);
-    if (!role || !look || !voice) return why('needs a role, a look and a voice');
-    const traits = strArr(reply.personality, 40).slice(0, 2);
-    if (traits.length < 2) traits.push(...packet.shortlist.traits.filter(t => !traits.includes(t)).slice(0, 2 - traits.length));
-    const relTo = typeof reply.relationToNpcId === 'string' && reply.relationToNpcId ? State.npc(reply.relationToNpcId) : null;
-    if (reply.relationToNpcId && !relTo) return why(`relationToNpcId ${reply.relationToNpcId} is not someone in the game`);
-    return { name, pronouns, role, look, voice, personality: traits, goal: cleanText(reply.goal, 200), secret: cleanText(reply.secret, 300), relTo, relation: relTo ? State.cleanRelation(reply.relation) || null : null };
-  }
-  async function contextPerson(desc, opts) {
-    const packet = personPacket(desc, opts);
-    const reply = await Api.createPerson(packet);
-    if (isRefusal(reply)) { State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason: 'refused; the tables make them instead' }); return null; }
-    const c = checkPerson(reply, packet);
-    if (!c) return null;
-    if (c.existing) return { existing: c.existing };
-    const n = Tables.npc({ name: c.name, role: c.role, look: c.look, voice: c.voice, personality: c.personality, goal: c.goal, secret: c.secret, pronouns: c.pronouns, knownToPlayer: true });
-    n.created = { by: opts.fact ? 'fact' : 'context', relationToNpcId: c.relTo ? c.relTo.id : null, relation: c.relation };
-    const away = homeFor(n, c.relTo, c.relation, opts);
-    return addPerson(n, Town.headPhrase(desc, 'npc') || c.name, away);
-  }
-  async function createPerson(desc, opts) {
-    if (Api.providerName() !== 'mock') {
-      try {
-        const made = await contextPerson(desc, opts);
-        if (made) return made;
-      } catch (err) {
-        if (err && err.replaced) throw err;
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason: `the call failed (${(err && (err.type || err.message)) || err}); the tables make them instead` });
-      }
-    }
-    return tablesPerson(desc, opts);
-  }
+     State.apply before the narrator hears about them. */
   async function createEntity(kind, desc, opts) {
     const l = here();
-    if (kind === 'npc') return createPerson(desc, opts);
+    if (kind === 'npc') throw new Error('the cast is fixed: a person is never created in play');
     if (kind === 'location') {
       const head = Town.headPhrase(desc, 'location') || 'side room';
       const loc = Tables.location({ name: capFirst(head), type: Town.placeType(head), fromId: opts.fromId || l.id });
@@ -7791,6 +8827,8 @@ const Pipeline = (() => {
       if (unproven) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'unproven' }); continue; }
       const verdict = Town.plausible(desc, l.type);
       if (!verdict.plausible) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }); continue; }
+      // Everyone who exists is in the cast: a person nobody in it answers to is simply not there.
+      if (verdict.kind === 'npc') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', person: true, why: 'nobody like that lives in this town' }); continue; }
       const made = await createEntity(verdict.kind, desc, { fact: !!opts.fact, homeId: linkedLoc, fromId: linkedLoc, input: opts.input });
       if (State.current !== s) throw Object.assign(new Error('another game was loaded'), { replaced: true });
       if (made.existing) { existing(made.existing, raw); continue; }
@@ -7932,6 +8970,9 @@ const Pipeline = (() => {
     const parts = [pronounLabel(n.pronouns), n.role];
     const rel = State.relationNote(n);
     if (rel) parts.push(rel);
+    // Their people, by name ("wife: Mavis Mangum"), so nobody gets a family the cast does not give them.
+    const has = hasWords(n);
+    if (has) parts.push(has);
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
     else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
@@ -8098,7 +9139,7 @@ const Pipeline = (() => {
     const node = UI.feed.beginNarration({ mock });
     const once = async extra => {
       UI.feed.stream(node, '');
-      const res = await Api.narrate({ text: extra ? `${text}\n${extra}` : text, system: Style.systemPrompt(style), context: ctx }, (chunk, soFar) => UI.feed.stream(node, soFar));
+      const res = await Api.narrate({ text: extra ? `${text}\n${extra}` : text, system: Style.systemPrompt(style), cast: castBlock(), context: ctx }, (chunk, soFar) => UI.feed.stream(node, soFar));
       return res;
     };
     try {
@@ -8167,11 +9208,12 @@ const Pipeline = (() => {
     // Someone the narration names who is neither here nor known yet (whose home was just described, say), so placesRevealed can name the owner.
     const named = s.npcs.filter(n => !n.knownToPlayer && !presentIds.includes(n.id) && n.alive !== false && Town.nameMentions(ctx.narration || '', n));
     if (named.length) lines.push(`NAMED IN THE NARRATION (not here): ${named.map(npcRow).join('; ')}`);
-    // Everyone else, so peopleRevealed never adds someone who is already in the game (an unnamed one is named by the same relation).
+    // Everyone else in the cast, so a home someone names can say whose it is (the cast is fixed: nobody new is added).
     const listed = new Set(presentIds.concat(named.map(n => n.id)));
     const rest = s.npcs.filter(n => n.alive !== false && !listed.has(n.id) && !n.knownToPlayer && !State.npcsAt(l.id).includes(n));
-    lines.push(`EVERYONE ELSE IN THE GAME (not met; listed only so peopleRevealed never adds them again): ${rest.map(n => `${who(n)}${n.unnamed ? ' (no name yet)' : ''}`).join('; ') || 'none'}`);
-    lines.push(`LOCATIONS (the places list): ${s.locations.map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
+    lines.push(`EVERYONE ELSE IN TOWN (not met; the whole cast, nobody else exists): ${rest.map(n => `${who(n)}${n.unnamed ? ' (no name yet)' : ''}`).join('; ') || 'none'}`);
+    // The places the player knows. A home in the cast they have not found yet is not listed, so a line that tells them about it goes in placesRevealed (the engine finds it).
+    lines.push(`LOCATIONS (the places list): ${s.locations.filter(x => x.discovered).map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
     lines.push(`ITEMS HERE: ${(l.items || []).map(i => `${i.id} (${i.name})`).join(', ') || 'none'}`);
     lines.push(`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ')}`);
     lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'})`).join('; ') || 'none'}`);
@@ -8431,7 +9473,8 @@ const Pipeline = (() => {
     const p = s.player;
     const statement = cleanText(opts.fact, 200);
     if (!ctx.created.length && !ctx.links.length) {
-      const why = ctx.notPresent.some(x => x.reason === 'does_not_exist') ? `That cannot be true in ${s.meta.townName}.` : 'Nothing in that could be made true. Name a person, place or thing in town.';
+      const why = ctx.notPresent.some(x => x.person) ? `Nobody like that lives in ${s.meta.townName}: everyone in town is already written, so a story point can make something true about someone here, but it cannot add a person.`
+        : ctx.notPresent.some(x => x.reason === 'does_not_exist') ? `That cannot be true in ${s.meta.townName}.` : 'Nothing in that could be made true. Name a person, place or thing in town.';
       return fail(snap, mark, { text: `${why} No story point was spent.` }, { reason: 'fact-refused', restoreInput: true });
     }
     const memory = `Fact (a story point): ${firstPerson(statement, p.name)}`;
@@ -8755,7 +9798,7 @@ const Pipeline = (() => {
   return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
-    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
+    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     ACTION_TYPES, NOTICES, hooks,
     forceNextRoll(d20) { hooks.nextD20 = Number.isInteger(d20) ? clamp(d20, 1, 20) : null; },
     get busy() { return busy; },
@@ -9326,6 +10369,9 @@ const UI = (() => {
       notes.push([t.title + (t.status !== 'open' ? ` (${t.status})` : ''), t.summary]);
     }
     for (const x of loose) notes.push([x.label, x.text]);
+    // Who their people are, from the cast (and anyone the story or the player tied to them): "wife Mavis Mangum; boss Royce Pittman".
+    const ties = State.tiesOf(n).has.map(x => `${x.relation || 'related to'} ${State.npc(x.id).name}`);
+    if (ties.length) notes.push(['Ties', ties.join('; ')]);
     return notes;
   }
   function personCard(s, n, isHere) {

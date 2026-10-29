@@ -244,6 +244,8 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   assert.equal(await page.evaluate(() => Game.state.player.storyPoints), sp - 1, 'a story point spent');
   assert.ok(await page.evaluate(id => Game.State.npc(id).memories.some(m => m.weight === 3 && /^Fact/.test(m.text)), plan.favour.id), 'they remember it');
   await turn(`/skip to ${plan.favour.locName} in the ${plan.favour.phase}`, 'skip');
+  // A loose end's person can be off with the player somewhere else this phase (their seed brought them): they come over.
+  await page.evaluate(id => { if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] }); }, plan.favour.id);
   for (let i = 0; i < 8; i++) {
     const att = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
     if (att >= 60) break;
@@ -434,7 +436,7 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
     const avg = (k) => { const v = window.__all.filter(x => x.m === k).map(x => x.n); return { n: v.length, avg: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0, max: Math.max(0, ...v) }; };
     return {
       parse: avg('parse'), narrate: avg('narrate'), bookkeep: avg('bookkeep'),
-      sys: { narrator: Game.Style.systemPrompt().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
+      sys: { narrator: Game.Style.systemPrompt().length + Game.Pipeline.castBlock().length, style: Game.Style.systemPrompt().length, cast: Game.Pipeline.castBlock().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
       schema: { parser: JSON.stringify(Game.Api.SCHEMAS.parse_action).length, bookkeeper: JSON.stringify(Game.Api.SCHEMAS.record_changes).length },
       chronicleInput: window.__chron || 0,
       prices: Game.Api.PRICES, models: [Game.Storage.settings().narratorModel, Game.Storage.settings().parserModel]
@@ -455,7 +457,7 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   const first = usd(narrModel, narr.cached * 1.25, 0) - usd(narrModel, 0, 0, narr.cached);
   console.log('        measured over ' + inputs.length + ' inputs (chars; tokens at 3.5 chars each):');
   console.log(`          parser: packet avg ${m.parse.avg} (max ${m.parse.max}) + system ${m.sys.parser} + schema ${m.schema.parser} = ~${parser.in} input tokens; ~${parser.out} output assumed`);
-  console.log(`          narrator: packet avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens + cached system ${m.sys.narrator} = ~${narr.cached} tokens; ~${narr.out} output assumed`);
+  console.log(`          narrator: packet avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens + cached system ${m.sys.narrator} (style ${m.sys.style} + cast ${m.sys.cast}) = ~${narr.cached} tokens; ~${narr.out} output assumed`);
   console.log(`          bookkeeper: packet avg ${m.bookkeep.avg} (max ${m.bookkeep.max}) + system ${m.sys.bookkeeper} + schema ${m.schema.bookkeeper} = ~${book.in} input tokens; ~${book.out} output assumed`);
   console.log(`          chronicle (every 10 turns): ~${chron.in} input, ~${chron.out} output`);
   console.log(`          cost per ordinary turn at ${narrModel} + ${parseModel}: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${(usd(narrModel, narr.in, narr.out, narr.cached)).toFixed(4)}-$${(usd(narrModel, narr.in, narr.out + THINK, narr.cached)).toFixed(4)}; first narration of a session +$${first.toFixed(4)} to write the cache`);

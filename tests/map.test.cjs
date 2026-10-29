@@ -450,13 +450,16 @@ s.test('a place someone told you about is drawn at its stored point with a dashe
   const page = await h.open({ viewport: PHONE });
   await quickStart(page, { kinds: [] });
   await fast(page);
-  const id = await page.evaluate(() => {
+  // A cast member's home the player has not found: someone telling them about it puts it on the map.
+  const { id, hidden } = await page.evaluate(() => {
     const st = Game.state;
-    const owner = st.npcs.find(n => !st.locations.some(l => (l.npcIdsBySchedule.night || []).includes(n.id)));
+    const owner = st.npcs.find(n => n.home && !Game.State.loc(n.home.locationId).discovered);
+    const hidden = owner.home.locationId;
     Game.State.apply({ beginTurn: true });
     const r = Game.State.apply({ placesRevealed: [{ name: owner.name.split(' ')[0] + "'s house", type: 'house', description: 'A white house up the river road.', nearId: st.player.locationId, ownerNpcId: owner.id, kind: 'home' }] }, { source: 'model' });
-    return r.revealed[0];
+    return { id: r.revealed[0], hidden };
   });
+  assert.equal(id, hidden, 'the home the cast wrote, discovered, not a second one');
   await openPlaces(page);
   const r = await page.evaluate(id => {
     const L = Game.UI.mapLayout(Game.state);
@@ -483,7 +486,7 @@ s.test('a place someone told you about is drawn at its stored point with a dashe
   assert.deepEqual(await overflowReport(page, 375), [], 'nothing overflows at 375');
   // It taps like any place: the chip offers the walk.
   await tapPlace(page, id);
-  assert.match(await page.textContent('.map-go'), /^Go to .+'s house\?$/);
+  assert.equal(await page.textContent('.map-go'), `Go to ${await page.evaluate(id => Game.State.loc(id).name.replace(/^The /, 'the '), id)}?`);
 });
 
 s.run();

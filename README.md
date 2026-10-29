@@ -30,7 +30,7 @@ news spreads.
    to play with Claude.
 4. **New game** walks you through character creation: name, background, one
    stat point to move, a goal, a flaw and three loose ends. Each loose end
-   becomes a real person in town. Then press **Begin**.
+   ties to someone already in town (see The cast). Then press **Begin**.
 5. Type what you do and press Enter (Shift+Enter for a new line). The
    **Do / Say** switch at the left of the input says whether you are doing
    something or saying something (see below). Type `/` to list the commands.
@@ -69,14 +69,56 @@ remembered in this browser; who you were talking to is not.
 
 ## Places and the map
 
-People can tell you about places that are not on the map yet. When someone
-names a specific place you could walk to ("Dewayne's is the white house about
-a mile up the river road"), it is added to the map, the Places list and the
-roads, with a quiet "Added to the map: Dewayne's house." in the story. It
-shows with a dashed marker, marked "heard of", until you visit. If it is
-someone's home, they are there at the times they are nowhere else, usually at
-night. Walk there like anywhere else ("I head to Dewayne's house", or tap it
-on the map). The game adds at most one such place a turn and twelve a game.
+The map starts with the town's ten public places. The homes the cast lives
+in (eight of them: the Mangum House, the Pittman Place, the Parsonage and the
+rest) are written into the town but start off the map, until someone tells
+you about one. When someone names a specific place you could walk to
+("Dewayne's is the white house about a mile up the river road"), the home
+the cast has written for that person appears on the map, in the Places list
+and on the roads, with a quiet "Added to the map" line in the story. It
+shows with a dashed marker, marked "heard of", until you visit. Walk there
+like anywhere else ("I head to Dewayne's house", or tap it on the map). A
+place the town does not have (a fishing camp up the creek) is added as a new
+place in the same way; the game adds at most one place a turn and twelve new
+ones a game (the written homes do not count).
+
+## The cast
+
+Everyone who can appear in Lockett's Ferry is written by hand: 41 people in
+`TOWN_DATA` in `index.html`, in households (the Mangums, the Pittmans, the
+Deeses at the parsonage, the Overstreets, the Gentrys, the Haskins farm, the
+Lotts' trailer, the Sturdivant house, the motor court's long-stay rooms) and
+the regulars, staff and loose-end people around them: a dispatcher, a
+day-shift officer, a retired nurse, a teacher, a farmer, a bookie, a repo man, a
+parolee, a waitress with a grudge, teenagers and an old-timer. Each one has
+pronouns, a real job or place in town (never just "man" or "woman"), a
+look, a voice, two traits, a goal, a secret, how they feel about strangers,
+who they are to whom (written on both sides: Mavis Mangum's husband is
+Dewayne, and Dewayne's wife is Mavis), a home, and a place in every phase of
+the day. Nine more (the dead and the far away, such as the bridge engineer)
+can be talked about but never appear. `docs/CAST.md` is the roster, by
+household, with who everyone is to whom and where they usually are; it
+leaves out looks, goals and secrets, so it spoils nothing.
+
+- **The game never makes a person up.** Not the narrator, not the parser,
+  not the bookkeeper, not the loose ends, not a story point. Anyone the story
+  or you mention is one of the cast or does not exist (see People). A
+  `/fact` can make something true about someone in town ("the mechanic owes
+  me a favour") but cannot add anyone.
+- **The narrator knows everyone.** Every narration carries the whole cast as
+  a second cached system block after the style guide: one line each with
+  name, pronouns, job, who they are to whom, where they usually are and
+  their home. So a person the story mentions is always the same person, with
+  the same name, spouse and job.
+- **Loose ends are people in the cast.** Each loose end you pick at creation
+  ties to someone already written who fits the option you kept: a debt to
+  someone who lends, a repo man or a bookie; someone looking for you to a
+  parolee or a stranger with a grudge; a secret to someone in town who
+  trades in them; something lost to someone who keeps old records; a
+  promise to a bartender. Nobody is tied to two loose ends
+  while anyone else is free.
+- **Homes to find.** The cast's eight homes start off the map and appear
+  when someone tells you where a person lives (see Places and the map).
 
 ## People
 
@@ -113,32 +155,30 @@ small, notable or serious). Their goal and secret sit folded away under
 reading them spoils the story. **Save** checks everything first (a name
 someone else has, say, is refused with the reason and the form stays as you
 typed it), changes only what you changed, and says so in the story ("Edited
-Mavis Toler: pronouns, role, home."); **Cancel** or Escape leaves them as
+Mavis Mangum: pronouns, role, home."); **Cancel** or Escape leaves them as
 they were, and Enter in a field never saves by accident. One `/undo` takes
 a whole edit back. The narrator, the parser and the map use the new record
 from the next turn. Editing waits while a turn is running.
 
-**People the story names become real.** When someone mentions a specific
-person who is not in the game yet, by name or by who they are to someone
-("his wife's gonna be thrilled", "my brother Earl"), that person is added to
-the game then, with what was said about them: pronouns, a one-line role
-("Dewayne's wife, night clerk at the motor court") and who they are to whom. A
-person known only by a relation ("Dewayne's wife") is added quietly; when a
-later line names her ("his wife Mavis"), the same person gets the name, and
-the story says "Added to People: Mavis Toler (Dewayne's wife)." She shows
-under **Heard of** until you meet her. A wife, husband or child lives in the
-same home as the person they belong to (Dewayne's house, once someone has
-told you where it is); anyone else stays off-screen until you find them, and
-comes to the door if you ask for them where they live or work. At most one
-new person a turn and twelve a game.
+**People the story names are the cast.** When someone mentions a person
+("his wife's gonna be thrilled", "my wife Mavis works the night counter"),
+that is someone already written: Dewayne's wife is Mavis Mangum, with her
+own name, job, voice and home, and the narrator has known her from the
+first turn. Nobody is added to the game, however the story phrases it, and
+the bookkeeper is not even asked for new people.
 
-**People you ask for fit the story.** If you ask for someone the game does
-not have ("I knock and ask for Mavis"), the game makes them with what the
-last few turns already said (a wife stays a woman, a name stays the name),
-or recognises them as someone already in the game. With Claude this is one
-small call to the parser model; if it fails, or in mock mode, the person is
-rolled from the town's tables, with pronouns taken from your words and a
-real job rather than a bare "man" or "woman".
+**People you ask for are the cast's.** Asking for someone ("I knock and ask
+for Mavis", "I ask about Dewayne's wife", "I wave the bartender over") finds
+them in the cast by name, by who they are to someone or by their job, never
+the wrong person in the scene. If they are somewhere else right now, the
+narrator is told they are not here. Someone nobody in the cast answers to
+("the woman by the jukebox") is simply not there: the narrator is told they
+do not exist in this town, nothing is rolled from tables and no call is
+made.
+
+The People tab card shows who someone's people are ("Ties: wife Mavis
+Mangum; boss Royce Pittman"), from the cast and from anything you set in the
+editor.
 
 ## Time
 
@@ -170,7 +210,7 @@ sleeping that you had no sleep last night.
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
-| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, and fixes people the game made up so they match the story (see Updating an older game). About four API calls. |
+| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, fixes people the game made up so they match the story, and brings in the town's full cast, folding anyone the game made up into the person they were (see Updating an older game). About four API calls. |
 
 When time passes while you stay put, anyone who arrives at or leaves your place is worked into the next scene as it happens: a truck pulling in, a door, a goodbye.
 
@@ -276,8 +316,28 @@ the old kind: long play-by-play accounts of whole scenes.
   wife (she/her)." or "People already match the story." One more call to the
   parser model (none when nobody the game made up is in the story); mock
   mode reads "his wife Mavis" and "she" near the name by a fixed rule.
+- **A full cast** (added 29 Oct 2026, rules version 6). Games from before
+  the cast was written had about fifteen people and made the rest up as the
+  story went. The update adds every cast member and home the game lacks (the
+  homes start off the map, as in a new game), puts everyone where the cast's
+  schedule has them whenever they were nowhere, and folds each person the
+  game made up into the cast member they were: by who they are to someone
+  (the made-up "Mavis Toler", Dewayne's wife, is Mavis Mangum), else by
+  name, else by first name and job. The cast member keeps their own written
+  record and takes over the made-up person's memories, how they feel about
+  you, having met you and every line and reference that pointed at them (who
+  you spoke to in the story, threads, seeds, loose ends, visits); the
+  made-up record goes. A home someone told you about becomes the home the
+  cast wrote ("Dewayne's house" is the Mangum House), still heard of. The
+  feed says, for example, "Added the rest of the town's cast, written by
+  hand: 26 people and 7 homes to find. Dewayne's house is the Mangum House.
+  Mavis Toler is now Mavis Mangum (Dewayne's wife)." Anyone made up whom
+  nobody in the cast matches is kept and named ("Kept 1 person the game made
+  up who is not in the cast: ... Edit or remove them on the People tab.").
+  From then on the game is marked as having a fixed cast. No call, in mock
+  mode or with Claude; `/undo` takes it back like the rest of the update.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (5 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (6 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -308,9 +368,13 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
   roll and a plain move) gave first drafts of 70 to 89 words, all within the
   90-word limit, so none was rewritten ($0.0301 for the six turns).
-- Asking for someone the game does not have yet ("I knock and ask for
-  Mavis") adds one small call to the parser model to make them fit the
-  story; ordinary turns do not.
+- Since the full cast (rules version 6), every narration also carries the
+  cast block, about 2,700 tokens of cached system text: written to the cache
+  once a session (about 1.4 cents with Opus 5.5) and then read at $0.20 per
+  million, about $0.0005 a narration. The parser and bookkeeper packets list
+  the people not met yet, one short line each (about 1,100 and 700 tokens,
+  not cached): roughly 0.4 cents a turn on Sonnet 5.5. Nobody is ever made
+  in play, so there is no call for it.
 - The chronicle (parser model, every 10 turns) was not part of the run; it
   is estimated at about 1,000 input and 110 output tokens. Higher effort or
   the Opus model costs more. The Debug tab shows the real token counts and
@@ -330,7 +394,18 @@ node tests/validate-town.cjs
 ```
 
 It checks every field and cross-reference: ids, symmetric exits, schedules,
-clock effects and seed triggers. It lists every problem it finds and exits 1.
+clock effects and seed triggers, and for the cast: unique ids and names,
+pronouns that match the look, a real role, relations written on both sides
+with matching words ("husband" one way, "wife" the other), a home that
+exists, a place in every phase, and every home to find reachable from a
+place on the map. It lists every problem it finds and exits 1. After
+changing the cast, regenerate the roster:
+
+```
+node tests/cast-doc.cjs           # rewrites docs/CAST.md from the data
+node tests/cast-doc.cjs --check   # exits 1 when docs/CAST.md is out of date (the content suite runs this)
+```
+
 A game already in progress keeps the town it started with.
 
 ## Running the tests
@@ -356,8 +431,12 @@ build environment. Elsewhere, run `npm i playwright` and
   size, overflow and safe areas.
 - `tests/constraints.test.cjs`: the single-file rules.
 - `tests/upgrade.test.cjs`: updating an older game (rules version, the
-  Update buttons, the memory rewrite, the places re-read and the clock check
-  in mock mode and against canned API replies, failure, refusal and `/undo`).
+  Update buttons, the memory rewrite, the places re-read, the clock check,
+  people matching the story and the full cast, in mock mode and against
+  canned API replies, failure, refusal and `/undo`).
+- `tests/content.test.cjs` also checks the cast: 40 to 45 people, everyone
+  somewhere in every phase, relations both ways, homes, a new game with
+  nobody made, and `docs/CAST.md` up to date.
 - `shell`, `state`, `pipeline`, `api`, `world` and `content`: the milestone suites.
 
 ## Deliberate deviations from SPEC.md
@@ -381,7 +460,10 @@ still `player.gold`).
 
 And from `docs/BUILD_PLAN.md` ("Direction changes"): narration is casual by
 default, with the SPEC.md style guide kept as the Literary option, and the
-input has the Do / Say switch described above.
+input has the Do / Say switch described above. Direction change 8 (a full
+cast): every person is written by hand and the game never creates one in
+play, so SPEC.md's NPC creation in "check and create" (and the bookkeeper's
+new people) is gone; loose ends tie to cast members instead of new NPCs.
 
 ## Verified against the live API on 28 Oct 2026
 

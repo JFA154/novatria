@@ -133,6 +133,47 @@ function place(page, locId, phase) {
   }, [locId, phase]);
 }
 
+/* The running game made over as a game from before the full cast (rules
+   version 6): only the people the town's story names (threads, rumours,
+   clock effects) and anyone tied to a loose end stay, the cast's homes the
+   player has not found are gone (so those people are nowhere in the phases
+   they spent at home), and nobody has relations or a home on record; not
+   castFixed. For the engine's older paths (a home someone names becomes a
+   new place, a person the story names, fixPeople) and for older saves.
+   opts.town: also make the game's own copy of the town match (State.town),
+   as an older save carries. Resolves to the ids of the people kept. */
+function legacyTown(page, opts) {
+  return page.evaluate(o => {
+    const G = Game;
+    const st = G.state;
+    const T = G.data.TOWN_DATA;
+    const keep = new Set((st.player.looseEnds || []).map(le => le.npcId));
+    for (const t of T.threads) for (const id of t.linkedIds) keep.add(id);
+    for (const r of T.rumours) keep.add(r.sourceNpcId);
+    for (const f of T.factions) for (const c of f.clocks) for (const e of c.onComplete.effects) {
+      if (e.npcId) keep.add(e.npcId);
+      if (e.rumour) keep.add(e.rumour.sourceNpcId);
+      if (e.seed && e.seed.trigger && e.seed.trigger.type === 'npc') keep.add(e.seed.trigger.value);
+    }
+    const gone = new Set(st.locations.filter(l => l.discovered === false).map(l => l.id));
+    st.npcs = st.npcs.filter(n => keep.has(n.id));
+    st.locations = st.locations.filter(l => !gone.has(l.id));
+    for (const l of st.locations) {
+      l.exits = l.exits.filter(x => !gone.has(x));
+      for (const p of Object.keys(l.npcIdsBySchedule)) l.npcIdsBySchedule[p] = l.npcIdsBySchedule[p].filter(id => keep.has(id));
+    }
+    for (const n of st.npcs) { delete n.relations; delete n.home; }
+    delete st.meta.castFixed;
+    if (o && o.town) {
+      const t = G.State.town;
+      t.npcs = t.npcs.filter(n => keep.has(n.id)).map(n => { const c = Object.assign({}, n); delete c.relations; delete c.home; return c; });
+      t.locations = t.locations.filter(l => !gone.has(l.id)).map(l => Object.assign({}, l, { exits: l.exits.filter(x => !gone.has(x)), npcIdsBySchedule: Object.fromEntries(Object.entries(l.npcIdsBySchedule).map(([p, ids]) => [p, ids.filter(id => keep.has(id))])) }));
+      delete t.offstage;
+    }
+    return st.npcs.map(n => n.id);
+  }, opts || {});
+}
+
 /* Type into the composer and send with Enter; wait until the turn is over. */
 async function sendText(page, text) {
   await page.fill('#cmd', text);
@@ -161,4 +202,4 @@ function overflowReport(page, width) {
   }, width);
 }
 
-module.exports = { suite, quickStart, stateJson, sendText, overflowReport, fixtures, findScene, place, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };
+module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };

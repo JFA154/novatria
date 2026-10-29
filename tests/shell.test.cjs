@@ -697,7 +697,9 @@ s.test('People: cards for the people met, with monogram, name, role and attitude
   const na = npc(sc.a);
   assert.equal(a.name, na.name);
   assert.equal(a.mono, initialsOf(na.name));
-  assert.equal(a.role, na.role.charAt(0).toUpperCase() + na.role.slice(1));
+  // The role, then who they are to someone in the cast's own family ("Darlene's husband"), when there is such a tie.
+  const note = await page.evaluate(id => Game.State.relationNote(Game.State.npc(id)), sc.a);
+  assert.equal(a.role, na.role.charAt(0).toUpperCase() + na.role.slice(1) + (note ? ` · ${note}` : ''));
   assert.equal(a.word, await page.evaluate(v => Game.State.attitudeWord(v), na.attitude));
   assert.deepEqual([a.on, a.segs], [ATT_LEVEL[a.word], 5]);
   assert.equal(a.where, 'Here now');
@@ -787,8 +789,10 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   const known = await page.evaluate(() => [...document.querySelectorAll('#panel-body [data-group="known"] .pcard')].map(c => ({ id: c.dataset.npc, turn: (Game.state.seen[c.dataset.npc] || { turn: -1 }).turn, where: !!c.querySelector('.pcard-where') })));
   for (let i = 1; i < known.length; i++) assert.ok(known[i - 1].turn >= known[i].turn, 'Known is ordered by the most recent sighting');
   for (const k of known) assert.equal(k.where, k.turn >= 0, 'a location line only for someone seen: ' + k.id);
-  const enemy = await page.evaluate(() => Game.state.player.looseEnds.find(x => x.kind === 'enemy').npcId);
-  assert.equal((await cardInfo(page, enemy)).where, null, 'the enemy has not been seen yet');
+  // A loose end's person the player has not run into yet (the cast places them in town, maybe not where the player has been).
+  const unseen = await page.evaluate(() => Game.state.player.looseEnds.map(x => x.npcId).find(id => !Game.state.seen[id]));
+  assert.ok(unseen, 'someone from a loose end not seen yet');
+  assert.equal((await cardInfo(page, unseen)).where, null, 'someone never seen has no location line');
   // The keyboard works too: Enter on a focused header toggles it.
   await page.focus(head(sc.c));
   await page.keyboard.press('Enter');
