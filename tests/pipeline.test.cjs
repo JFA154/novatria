@@ -1679,4 +1679,41 @@ s.test('the mock bookkeeper hears a home named in a quoted line; one already on 
   assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 1, 'once on the map, not again');
 });
 
+s.test('when time passes, people who arrive at or leave the player\'s place are handed to the next narration, then cleared', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  // A place and a daytime phase whose next phase changes who is there (never night -> morning: night holds).
+  const sc = await page.evaluate(() => {
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    for (const l of Game.state.locations) for (let i = 0; i < 3; i++) {
+      const a = (l.npcIdsBySchedule[PH[i]] || []), b = (l.npcIdsBySchedule[PH[i + 1]] || []);
+      const arrived = b.filter(x => !a.includes(x)), left = a.filter(x => !b.includes(x));
+      if (arrived.length || left.length) return { loc: l.id, phase: PH[i], next: PH[i + 1], arrived, left };
+    }
+    return null;
+  });
+  assert.ok(sc, 'the town has a schedule change somewhere in daytime');
+  await place(page, sc.loc, sc.phase);
+  await sendText(page, '/wait ' + sc.next);
+  const pending = await page.evaluate(() => Game.state.pendingScene || null);
+  assert.equal(pending, null, 'the wait narration consumed the scene change');
+  const packet = await lastPacket(page);
+  assert.match(packet, /\nSINCE THE LAST TURN \(time moved on to \w+\): /, packet);
+  for (const id of sc.arrived) assert.ok(packet.includes(await page.evaluate(id => Game.State.npc(id).name, id)), 'arrival named: ' + id);
+  for (const id of sc.left) assert.ok(packet.includes(await page.evaluate(id => Game.State.npc(id).name, id)), 'departure named: ' + id);
+  const narr = await page.evaluate(() => Game.state.log[Game.state.log.length - 1].narration);
+  assert.ok(/arrives?\.|ha(s|ve) left\./.test(narr), narr);
+  // A normal turn afterwards carries no stale line.
+  await sendText(page, 'I look around');
+  assert.doesNotMatch(await lastPacket(page), /SINCE THE LAST TURN/);
+  // A change recorded for another place is dropped, not narrated.
+  await page.evaluate(id => Game.State.apply({ sceneChange: { locationId: id, arrived: [Game.state.npcs[0].id], left: [] } }), sc.loc);
+  const other = await page.evaluate(id => Game.State.loc(id).exits[0], sc.loc);
+  await place(page, other, sc.next);
+  await sendText(page, 'I look around');
+  assert.doesNotMatch(await lastPacket(page), /SINCE THE LAST TURN/);
+  assert.equal(await page.evaluate(() => Game.state.pendingScene || null), null, 'a stale change is cleared');
+});
+
 s.run();

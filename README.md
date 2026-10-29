@@ -110,6 +110,8 @@ sleeping that you had no sleep last night.
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
 | Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, and sets the clock back if it ran ahead of the story (see Updating an older game). About three API calls. |
 
+When time passes while you stay put, anyone who arrives at or leaves your place is worked into the next scene as it happens: a truck pulling in, a door, a goodbye.
+
 ## Commands
 
 | Command | What it does | API calls |

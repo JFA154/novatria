@@ -2839,7 +2839,7 @@ const State = (() => {
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion'];
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -3736,6 +3736,20 @@ const State = (() => {
       list.splice(i, 1);
       return `${id} done`;
     });
+    /* Who came and went at the player's place while time passed (Pipeline.passTime).
+       The next narration works it in, then sceneChangeDone clears it. */
+    one('sceneChange', sc => {
+      if (!isObj(sc)) bad('must be an object');
+      const l = loc(sc.locationId);
+      if (!l) bad('unknown location');
+      const ids = arr => (Array.isArray(arr) ? arr : []).map(String).filter(id => npc(id)).slice(0, 6);
+      const arrived = ids(sc.arrived);
+      const left = ids(sc.left);
+      if (!arrived.length && !left.length) { delete s.pendingScene; return 'scene unchanged'; }
+      s.pendingScene = { locationId: l.id, day: s.time.day, phase: s.time.phase, arrived, left, cause: cleanText(sc.cause, 20) || 'time' };
+      return `scene at ${l.id}: arrived ${arrived.join(', ') || 'nobody'}; left ${left.join(', ') || 'nobody'}`;
+    });
+    one('sceneChangeDone', () => { delete s.pendingScene; return 'scene change narrated'; });
     each('npcHome', hm => {
       if (!isObj(hm)) bad('must be an object');
       const n = needNpc(hm.npcId);
@@ -5450,6 +5464,11 @@ const Api = (() => {
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
+    if (c.sceneChange) {
+      const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
+      if (c.sceneChange.arrived.length) out.push(`${joinAnd(names(c.sceneChange.arrived))} ${c.sceneChange.arrived.length > 1 ? 'arrive' : 'arrives'}.`);
+      if (c.sceneChange.left.length) out.push(`${joinAnd(names(c.sceneChange.left))} ${c.sceneChange.left.length > 1 ? 'have' : 'has'} left.`);
+    }
     if (c.defeated) out.push('You go down hard.');
     if (c.consequence) out.push(sentence(c.consequence.replace(/\s*\([^)]*\)$/, '')));
     const target = s && (a.targets || []).map(id => State.npc(id)).find(n => n && (c.presentIds || []).includes(n.id));
@@ -6229,6 +6248,9 @@ const Pipeline = (() => {
      night (night holds until the player sleeps: State advanceTime) passes
      no phase, so nothing ticks. */
   function passTime(cost, cause) {
+    const s0 = State.current;
+    const here = s0 ? s0.player.locationId : null;
+    const wasHere = here ? State.npcsAt(here).map(n => n.id) : [];
     const t = State.apply({ advanceTime: cost }).time;
     if (!t || !t.phasesPassed) return t || null;
     let cur = { day: t.from.day, phase: t.from.phase };
@@ -6238,6 +6260,13 @@ const Pipeline = (() => {
       const res = World.tick({ from: cur, to: next, phasesPassed: 1, step: i + 1, of: t.phasesPassed, cause: cause || 'turn' });
       for (const ev of (res && Array.isArray(res.events) ? res.events : [])) if (ev && typeof ev.notice === 'string') UI.feed.quiet(ev.notice);
       cur = next;
+    }
+    // Who came and went where the player stands: the next narration shows it happening.
+    if (here && State.current === s0) {
+      const nowHere = State.npcsAt(here).map(n => n.id);
+      const arrived = nowHere.filter(id => !wasHere.includes(id));
+      const left = wasHere.filter(id => !nowHere.includes(id));
+      if (arrived.length || left.length) State.apply({ sceneChange: { locationId: here, arrived, left, cause: cause || 'turn' } });
     }
     return t;
   }
@@ -6725,6 +6754,15 @@ const Pipeline = (() => {
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
     // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
     const due = (ctx.due || []).map(d => d.text).join(' / ');
+    const ps = s.pendingScene;
+    if (ps && ps.locationId === l.id && ((ps.arrived || []).length || (ps.left || []).length)) {
+      ctx.sceneChange = ps;
+      const who = ids => ids.map(id => { const n = State.npc(id); if (!n) return id; const home = n.home && n.home.locationId === l.id ? ' (this is their home)' : ''; return n.name + home; }).join(', ');
+      const parts = [];
+      if (ps.arrived.length) parts.push(`arrived here: ${who(ps.arrived)}`);
+      if (ps.left.length) parts.push(`left: ${who(ps.left)}`);
+      lines.push(`SINCE THE LAST TURN (time moved on to ${s.time.phase}${s.time.late ? ', late' : ''}): ${parts.join('; ')}. The player has not acted in between. Show the arrival or departure as it happens or has just happened (a truck pulling in, a door, a goodbye), and let them react to finding the player here.`);
+    }
     lines.push(`DUE EVENT: ${due ? `${due} (already true; work it into the scene naturally, not as an announcement)` : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}`);
@@ -7024,6 +7062,7 @@ const Pipeline = (() => {
       if (!s.player.dead) passTime(action.timeCost, opts.cause || 'turn');
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
       if (ctx.due.length) World.dueNarrated(ctx.due);
+      if (s.pendingScene) State.apply({ sceneChangeDone: true });
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
       // action without a roll lifts it only once the situation has changed:
@@ -7278,7 +7317,7 @@ const Pipeline = (() => {
         const told = await narrate(ctx);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
         if (told.refusal) notice = { text: NOTICES.refused };
-        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); }
+        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); if (s.pendingScene) State.apply({ sceneChangeDone: true }); }
       } catch (err) {
         console.error(err);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
