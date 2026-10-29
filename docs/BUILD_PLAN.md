@@ -655,3 +655,42 @@ talking, I can direct it to one person or all."
      (`path: "missingItem"`). When something carried does answer to it, it
      becomes `usesItemId`. The mock parser sets `missingItem` for stab,
      knife, shoot, gun and drive with no matching item.
+
+## Direction changes, second round (owner, 29 Oct 2026)
+
+The owner read a review of the finished game and agreed with all of it:
+"I agree with everything." The review's findings, in the order they were
+ranked, are in the entries below. Each entry is written by the work package
+that implements it, in the style of the entries above.
+
+### 10. The narrator knows what everyone wants
+
+(written by the package that implements it)
+
+### 11. The first impression
+
+(written by the package that implements it)
+
+### 12. The town talks: clock pace, rumours that spread, news in the journal
+
+(written by the package that implements it)
+
+### 13. A granted ask stays granted (the retry lock on successes)
+
+(written by the package that implements it)
+
+### 14. Seeds are events: effects on seeds, loose ends that fit anywhere, a hook on day 1
+
+(written by the package that implements it)
+
+### 15. Faster, cheaper turns
+
+(written by the package that implements it)
+
+### 16. Work and trouble: paid jobs and fights that come to the player
+
+(written by the package that implements it)
+
+### 17. Code health: built from parts, dead tables gone
+
+(written by the package that implements it)
