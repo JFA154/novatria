@@ -28,9 +28,10 @@ news spreads.
    the dice, the commands and the living world without a key or any tokens.
    Mock narration is tagged "Mock narration" in the feed. Untick it in Settings
    to play with Claude.
-4. **New game** walks you through character creation: name, background, one
-   stat point to move, a goal, a flaw and three loose ends. Each loose end
-   ties to someone already in town (see The cast). Then press **Begin**.
+4. **New game** walks you through character creation: name, background and
+   age, one stat point to move, a goal, a flaw and three loose ends. Each
+   loose end ties to someone already in town (see The cast). Then press
+   **Begin**.
 5. Type what you do and press Enter (Shift+Enter for a new line). The
    **Do / Say** switch at the left of the input says whether you are doing
    something or saying something (see below). Type `/` to list the commands.
@@ -67,9 +68,29 @@ stays where it was.
 Commands (`/look`, `/undo` and the rest) work in either mode. The switch is
 remembered in this browser; who you were talking to is not.
 
+**You have only what you carry.** Every turn the narrator is told exactly
+what you carry and how much money you have, and that you have nothing else.
+When you try something that needs a thing you do not have and that is not
+lying here ("I stab Royce" with no knife, "I drive off" with no car), the
+turn still plays, but as what you can do without it: bare hands, a bluff,
+or finding out you have nothing. The roll counts no item, and the
+bookkeeper records no use of the thing.
+
+## Character creation
+
+The background step also asks your age, 16 to 90. Each background starts
+at its own age (a veteran at 34, a dropout at 19, a fired bookkeeper at 38,
+a river deckhand at 36, a group home kid at 18, a poker hustler at 31), and
+picking a background fills it in until you type your own. The summary card
+and the Character tab show it beside your name ("Tomas Reed · 34") with what
+your background means, and the narrator and the parser hear it with your
+name every turn.
+
 ## Places and the map
 
-The map starts with the town's ten public places. The homes the cast lives
+The map starts with the town's fifteen public places, from Pittman's and the
+Low Water to Front Street, Riverside Cemetery, the Water Tower, the Bluff
+where the highway comes in and the River Road. The homes the cast lives
 in (eight of them: the Mangum House, the Pittman Place, the Parsonage and the
 rest) are written into the town but start off the map, until someone tells
 you about one. When someone names a specific place you could walk to
@@ -81,6 +102,24 @@ like anywhere else ("I head to Dewayne's house", or tap it on the map). A
 place the town does not have (a fishing camp up the creek) is added as a new
 place in the same way; the game adds at most one place a turn and twelve new
 ones a game (the written homes do not count).
+
+**Places tab.** Under the map, **Places you know** lists every place you have
+been or heard of. Tap one to open its sheet: what it is, what you notice
+inside, when it is open, how it came to be, who lives there, who works there
+or drinks there, who is buried there and who is there right now.
+
+**Out of town.** Fifteen more places are written into the town because
+people talk about them: Clayburn, the county seat twenty-six miles north,
+with the sheriff's office, the county home, the county school and the old
+county hospital; Calder, with Calder Regional and the Willows treatment
+program; the state penitentiary; the Sturdivant bottomland and timber; the
+old paper mill; the bypass; the dry county across the bridge; and the
+coast. They are listed under **Out of town** with how far away they are and
+their history, but they are never on the map and the story never goes
+there. Asking to go ("I drive to Clayburn", or the parser picking one)
+costs nothing and says so plainly: "Clayburn is out of town (twenty-six
+miles north up the state highway, about forty minutes by car). The story
+stays in Lockett's Ferry: you can talk about it, but you can't go there."
 
 ## The cast
 
@@ -94,22 +133,48 @@ parolee, a waitress with a grudge, teenagers and an old-timer. Each one has
 pronouns, a real job or place in town (never just "man" or "woman"), a
 look, a voice, two traits, a goal, a secret, how they feel about strangers,
 who they are to whom (written on both sides: Mavis Mangum's husband is
-Dewayne, and Dewayne's wife is Mavis), a home, and a place in every phase of
-the day. Nine more (the dead and the far away, such as the bridge engineer)
-can be talked about but never appear. `docs/CAST.md` is the roster, by
-household, with who everyone is to whom and where they usually are; it
-leaves out looks, goals and secrets, so it spoils nothing.
+Dewayne, and Dewayne's wife is Mavis), a home, a place in every phase of
+the day, an age that fits their look and their family (a parent is 16 to 60
+years older than their child), and a history of two or three sentences:
+where they come from, what happened to them and how they came to be where
+they are.
+
+**Everyone the town mentions exists.** Anyone the written town names, even
+once and only by name, is a record: 25 more people who never appear. Eight
+are dead (Clyde Pittman, who opened Pittman's in 1966 and died at the pumps
+in 2009; Ruth Haskins; Inez Crocker, whose house the Mangums live in; Amber
+Lott, at nineteen), each with when and how they died and where they are
+buried. Seventeen live elsewhere (Dale Purvis in the state penitentiary,
+Sheriff Hoyt Bramlett in Clayburn, Stanley Wexler, who runs the motor court
+by email from Calder, and Leah Dees at the Willows), each with where they
+are and how they can be reached. They can be talked about, called or written
+to in the story, but they never walk in. `tests/mentions.cjs` scans every
+line of the content for capitalised names and "the <kind of place>" phrases
+that are not records (with a short list of words like Mr, Bible and the
+months), and the town check fails on any.
+
+**The town has a past.** The narrator is told how Lockett's Ferry came to be
+(the ferry, the 1938 bridge, the school, the bypass and the mill leaving),
+eleven things that happened in the last three years (from Ruth Haskins's
+death in January 2024 to the council setting its bridge vote in September
+2026), and every place's history and hours. It is 2026.
+
+`docs/CAST.md` is the roster, by household, then the people who live
+elsewhere, the dead, the town's history and every place; it gives ages and
+histories but leaves out looks, goals and secrets, so it spoils nothing.
 
 - **The game never makes a person up.** Not the narrator, not the parser,
   not the bookkeeper, not the loose ends, not a story point. Anyone the story
   or you mention is one of the cast or does not exist (see People). A
   `/fact` can make something true about someone in town ("the mechanic owes
   me a favour") but cannot add anyone.
-- **The narrator knows everyone.** Every narration carries the whole cast as
-  a second cached system block after the style guide: one line each with
-  name, pronouns, job, who they are to whom, where they usually are and
-  their home. So a person the story mentions is always the same person, with
-  the same name, spouse and job.
+- **The narrator knows everyone.** Every narration carries the town and the
+  whole cast as two cached system blocks after the style guide: the town's
+  history, recent events and places, then one line for each person here
+  ("Mavis Mangum (41, she/her; ...)", with who they are to whom, where they
+  usually are and their history), then the dead and the people who live
+  elsewhere, one short line each. So a person the story mentions is always
+  the same person, with the same name, age, spouse and job.
 - **Loose ends are people in the cast.** Each loose end you pick at creation
   ties to someone already written who fits the option you kept: a debt to
   someone who lends, a repo man or a bookie; someone looking for you to a
@@ -130,10 +195,15 @@ a past with you ("I've known a while", "he called me last night") is sent back
 to be rewritten.
 
 The People tab lists who you have met, with how they feel about you, where
-you last saw them and what they remember. Everyone has pronouns (he/him,
-she/her or they/them), shown beside their name on the card, and the narrator
-gets the same pronouns right after each person's name, so the story and the
-sheet always agree. If the sheet has someone wrong, open their card and tap
+you last saw them and what they remember, then the people you have only
+heard of. Everyone has an age and pronouns (he/him, she/her or they/them),
+shown beside their name on the card ("Mavis Mangum · 41", she/her), and the
+narrator gets the same age and pronouns right after each person's name, so
+the story and the sheet always agree. An open card also shows their age,
+home, ties and history. Someone the story names who is dead or lives
+elsewhere (Clyde Pittman, Dale Purvis) is listed under **Gone** or
+**Elsewhere** once their name comes up, with when they died and where they
+are buried, or where they live and how to reach them. If the sheet has someone wrong, open their card and tap
 the right pronouns (or type `/pronouns Mavis she`): the story follows from
 the next turn, and a relation that carries a gendered word turns with it
 ("Dewayne's husband" becomes "Dewayne's wife"), as do the look and voice
@@ -143,7 +213,8 @@ look about her."; words in quotes are left alone).
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside
 the pronouns, or type `/edit Mavis`. The card turns into a form with their
-name, pronouns, role, look, voice, up to three personality traits, how they
+name, age (0 to 120, or blank), pronouns, role, look, voice, history (up to
+400 characters), up to three personality traits, how they
 feel about you (a slider from -100 to 100, with the word the card shows),
 who they are to whom (someone else in the game and the relation, such as
 wife or boss), their home (any place you know, or nowhere: off-screen when
@@ -210,7 +281,7 @@ sleeping that you had no sleep last night.
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
-| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, fixes people the game made up so they match the story, and brings in the town's full cast, folding anyone the game made up into the person they were (see Updating an older game). About four API calls. |
+| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, fixes people the game made up so they match the story, brings in the town's full cast, folding anyone the game made up into the person they were, and fills in the lived-in town: ages, histories, the dead, the people who live elsewhere and the places out of town (see Updating an older game). About four API calls. |
 
 When time passes while you stay put, anyone who arrives at or leaves your place is worked into the next scene as it happens: a truck pulling in, a door, a goodbye.
 
@@ -336,8 +407,21 @@ the old kind: long play-by-play accounts of whole scenes.
   up who is not in the cast: ... Edit or remove them on the People tab.").
   From then on the game is marked as having a fixed cast. No call, in mock
   mode or with Claude; `/undo` takes it back like the rest of the update.
+- **A lived-in town** (added 29 Oct 2026, rules version 7). The update fills
+  in what older games lack from the town's own data: everyone's age and
+  history, and every place's history, what you notice inside and its hours.
+  It adds the dead and the people who live elsewhere, the new town places
+  (on the map, as in a new game) and the places out of town, and gives you
+  the age your background starts at (a veteran is 34). Anything already in
+  the game (a name, a home, memories, an edit you made) stays as it is. The
+  feed says, for example, "Added 25 people the story names (8 dead, 17
+  living elsewhere) and 20 places (5 in town, 15 out of town). Filled in the
+  ages and histories of 41 people and the history, details and hours of 18
+  places. Tomas Reed is 34, the age a veteran starts at." or "The town is
+  already lived in." No call, in mock mode or with Claude; `/undo` takes it
+  back like the rest of the update.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (6 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (7 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -368,10 +452,14 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
   roll and a plain move) gave first drafts of 70 to 89 words, all within the
   90-word limit, so none was rewritten ($0.0301 for the six turns).
-- Since the full cast (rules version 6), every narration also carries the
-  cast block, about 2,700 tokens of cached system text: written to the cache
-  once a session (about 1.4 cents with Opus 5.5) and then read at $0.20 per
-  million, about $0.0005 a narration. The parser and bookkeeper packets list
+- Since the lived-in town (rules version 7), every narration carries three
+  cached system blocks: the style guide (about 650 tokens), the town (its
+  history, recent events and places, about 2,600) and the cast (everyone
+  here with their history, then the dead and the people elsewhere, about
+  8,200): about 11,500 tokens in all by the tests' estimate of 1.4 tokens a
+  word (they fail over 12,000). That is written to the cache once a session
+  (about 6 cents with Opus 5.5) and then read at $0.20 per million, about a
+  quarter of a cent a narration. The parser and bookkeeper packets list
   the people not met yet, one short line each (about 1,100 and 700 tokens,
   not cached): roughly 0.4 cents a turn on Sonnet 5.5. Nobody is ever made
   in play, so there is no call for it.
@@ -398,7 +486,14 @@ clock effects and seed triggers, and for the cast: unique ids and names,
 pronouns that match the look, a real role, relations written on both sides
 with matching words ("husband" one way, "wife" the other), a home that
 exists, a place in every phase, and every home to find reachable from a
-place on the map. It lists every problem it finds and exits 1. After
+place on the map. It checks ages against looks and family (parents 16 to 60
+years older, grandparents at least 32, spouses within 20 years, siblings
+within 25), histories of two or three sentences, the dead (when they died,
+never scheduled) and the people elsewhere (where, how to reach them), places
+out of town (no exits, no map, never discovered), every place's details,
+hours and history, and runs `tests/mentions.cjs`, so a name or a place the
+content mentions with no record fails. It lists every problem it finds and
+exits 1. After
 changing the cast, regenerate the roster:
 
 ```

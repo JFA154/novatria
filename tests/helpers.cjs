@@ -138,12 +138,17 @@ function place(page, locId, phase) {
    clock effects) and anyone tied to a loose end stay, the cast's homes the
    player has not found are gone (so those people are nowhere in the phases
    they spent at home), and nobody has relations or a home on record; not
-   castFixed. For the engine's older paths (a home someone names becomes a
+   castFixed. Nor does it have what rules version 7 brought (a lived-in
+   town): no ages or histories on people, no details, hours or history on
+   places, no age for the player, and none of the dead, the far away or the
+   places out of town (they are not in the stories the kept people come
+   from). For the engine's older paths (a home someone names becomes a
    new place, a person the story names, fixPeople) and for older saves.
    opts.town: also make the game's own copy of the town match (State.town),
    as an older save carries. Resolves to the ids of the people kept. */
 function legacyTown(page, opts) {
   return page.evaluate(o => {
+    const LIVED = { people: ['age', 'presence', 'history', 'where', 'reach', 'died', 'buried'], places: ['away', 'distance', 'details', 'hours', 'history', 'aka'] };
     const G = Game;
     const st = G.state;
     const T = G.data.TOWN_DATA;
@@ -162,13 +167,16 @@ function legacyTown(page, opts) {
       l.exits = l.exits.filter(x => !gone.has(x));
       for (const p of Object.keys(l.npcIdsBySchedule)) l.npcIdsBySchedule[p] = l.npcIdsBySchedule[p].filter(id => keep.has(id));
     }
-    for (const n of st.npcs) { delete n.relations; delete n.home; }
+    for (const n of st.npcs) { delete n.relations; delete n.home; for (const k of LIVED.people) delete n[k]; }
+    for (const l of st.locations) for (const k of LIVED.places) delete l[k];
+    delete st.player.age;
     delete st.meta.castFixed;
     if (o && o.town) {
       const t = G.State.town;
-      t.npcs = t.npcs.filter(n => keep.has(n.id)).map(n => { const c = Object.assign({}, n); delete c.relations; delete c.home; return c; });
-      t.locations = t.locations.filter(l => !gone.has(l.id)).map(l => Object.assign({}, l, { exits: l.exits.filter(x => !gone.has(x)), npcIdsBySchedule: Object.fromEntries(Object.entries(l.npcIdsBySchedule).map(([p, ids]) => [p, ids.filter(id => keep.has(id))])) }));
+      t.npcs = t.npcs.filter(n => keep.has(n.id)).map(n => { const c = Object.assign({}, n); delete c.relations; delete c.home; for (const k of LIVED.people) delete c[k]; return c; });
+      t.locations = t.locations.filter(l => !gone.has(l.id)).map(l => { const c = Object.assign({}, l, { exits: l.exits.filter(x => !gone.has(x)), npcIdsBySchedule: Object.fromEntries(Object.entries(l.npcIdsBySchedule).map(([p, ids]) => [p, ids.filter(id => keep.has(id))])) }); for (const k of LIVED.places) delete c[k]; return c; });
       delete t.offstage;
+      for (const k of ['year', 'history', 'recent']) delete t[k];
     }
     return st.npcs.map(n => n.id);
   }, opts || {});

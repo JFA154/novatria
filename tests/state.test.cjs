@@ -591,11 +591,23 @@ s.test('town data passes validation and every content constant has the contract 
     const D = Game.data;
     const keys = o => Object.keys(o).sort();
     const asym = JSON.parse(JSON.stringify(D.TOWN_DATA));
-    asym.locations[0].exits.push(asym.locations[asym.locations.length - 1].id);
-    if (asym.locations[asym.locations.length - 1].exits.includes(asym.locations[0].id)) asym.locations[asym.locations.length - 1].exits = asym.locations[asym.locations.length - 1].exits.filter(x => x !== asym.locations[0].id);
+    const lastInTown = asym.locations.filter(l => !l.away).pop();
+    asym.locations[0].exits.push(lastInTown.id);
+    if (lastInTown.exits.includes(asym.locations[0].id)) lastInTown.exits = lastInTown.exits.filter(x => x !== asym.locations[0].id);
+    // A road to a place out of town is refused; so is a dead person in a schedule.
+    const roadOut = JSON.parse(JSON.stringify(D.TOWN_DATA));
+    const out = roadOut.locations.find(l => l.away);
+    roadOut.locations[0].exits.push(out.id);
+    out.exits.push(roadOut.locations[0].id);
+    const haunted = JSON.parse(JSON.stringify(D.TOWN_DATA));
+    const dead = haunted.npcs.find(n => n.presence === 'dead');
+    haunted.locations[0].npcIdsBySchedule.night.push(dead.id);
     return {
       errors: Game.Town.validate(D.TOWN_DATA),
       asym: Game.Town.validate(asym).some(e => /symmetric/.test(e)),
+      roadOut: Game.Town.validate(roadOut),
+      haunted: Game.Town.validate(haunted),
+      deadId: dead.id, outId: out.id,
       townKeys: keys(D.TOWN_DATA),
       locKeys: D.TOWN_DATA.locations.map(keys),
       npcKeys: D.TOWN_DATA.npcs.map(keys),
@@ -611,12 +623,17 @@ s.test('town data passes validation and every content constant has the contract 
   });
   assert.deepEqual(r.errors, []);
   assert.ok(r.asym, 'validation catches an asymmetric exit');
-  // map is optional on the town and on each location (docs/BUILD_PLAN.md, "Map"); offstage on the town.
-  const optional = k => k !== 'map' && k !== 'offstage';
-  assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'locations', 'name', 'npcs', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads']);
-  for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'discovered', 'exits', 'id', 'name', 'npcIdsBySchedule', 'type']);
-  // The cast (docs/BUILD_PLAN.md, direction change 8): relations and a home on everyone.
-  for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'home', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'relations', 'role', 'secret', 'status', 'tags', 'voice']);
+  assert.ok(r.roadOut.some(e => e.includes(`a place out of town has no exits`)) && r.roadOut.some(e => e.includes(`exit to ${r.outId}, a place out of town`)), r.roadOut.join(' | '));
+  assert.ok(r.haunted.some(e => e === `${r.deadId}: is dead but scheduled in town`), r.haunted.join(' | '));
+  // map is optional on the town and on each location (docs/BUILD_PLAN.md, "Map"); offstage on the town. A lived-in town (direction change 9):
+  // the town's year, history and recent events; every place's details, hours and history, other names (aka), and away and distance out of town.
+  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance'].includes(k);
+  assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'history', 'locations', 'name', 'npcs', 'recent', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads', 'year']);
+  for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'details', 'discovered', 'exits', 'history', 'hours', 'id', 'name', 'npcIdsBySchedule', 'type']);
+  // The cast (docs/BUILD_PLAN.md, direction changes 8 and 9): an age, a presence, a history, relations and a home on everyone;
+  // where they are and how to reach them for someone away, when they died (and where they lie) for the dead.
+  const extra = ['where', 'reach', 'died', 'buried'];
+  for (const k of r.npcKeys) assert.deepEqual(k.filter(x => !extra.includes(x)), ['age', 'alive', 'attitude', 'factionId', 'goal', 'history', 'home', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'presence', 'pronouns', 'relations', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
   for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc, ['effects', 'text']); }
   assert.deepEqual(r.tables.top, ['complications', 'items', 'location', 'npc', 'weather']);
@@ -626,7 +643,7 @@ s.test('town data passes validation and every content constant has the contract 
   assert.deepEqual(r.tables.weather, ['autumn', 'spring', 'summer', 'winter']);
   for (const g of r.tables.goods) assert.deepEqual(g, ['name', 'price']);
   for (const b of r.bg) {
-    assert.deepEqual(b.k, ['arrival', 'blurb', 'gold', 'id', 'items', 'name', 'stats']);
+    assert.deepEqual(b.k, ['age', 'arrival', 'blurb', 'gold', 'id', 'items', 'name', 'stats']);
     assert.equal(b.total, 3);
     assert.ok(b.range);
     assert.equal(b.items, 2);
@@ -1949,6 +1966,92 @@ s.test('the version 6 ops are the engine\'s: the model cannot send them; mergePe
   assert.match(r.recast.line, /^recastPeople\[0\]: npc_mavis \(Mavis\) is the cast's Mavis Mangum$/);
   assert.deepEqual([r.recast.name, r.recast.created, r.recast.look, r.recast.mems], ['Mavis Mangum', null, true, 1]);
   assert.ok(r.recast.ties.some(t => t.relation === 'husband'));
+});
+
+s.test('a lived-in town: editPerson takes an age (a whole number 0 to 120; null clears it) and a history (at most 400), only what changed, one line each; bad values are refused with the reason and change nothing; the player has an age from creation (16 to 90, else the background\'s)', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const S = Game.State;
+    const n = Game.state.npcs.find(x => Game.presenceOf(x) === 'here');
+    const dead = Game.state.npcs.find(x => Game.presenceOf(x) === 'dead');
+    const out = { was: [n.age, n.history] };
+    const ok = S.apply({ editPerson: { npcId: n.id, age: n.age + 3, history: 'Came back from Calder in the spring.' } }, { source: 'player' });
+    out.ok = { rejected: ok.rejected, edited: ok.edited, line: ok.applied[0], age: n.age, history: n.history };
+    out.same = S.apply({ editPerson: { npcId: n.id, age: n.age, history: n.history } }, { source: 'player' }).applied.length;
+    out.str = (S.apply({ editPerson: { npcId: n.id, age: ' 45 ' } }, { source: 'player' }), n.age);
+    const before = JSON.stringify(Game.state);
+    const bad = v => S.apply({ editPerson: Object.assign({ npcId: n.id }, v) }, { source: 'player' }).rejected.map(x => x.reason)[0];
+    out.bad = [bad({ age: 121 }), bad({ age: -1 }), bad({ age: 30.5 }), bad({ age: 'old' }), bad({ age: true }), bad({ history: 'x'.repeat(401) }), bad({ history: 7 }), bad({ age: 40, history: 'y'.repeat(401) })];
+    out.unchanged = JSON.stringify(Game.state) === before;
+    out.max = (S.apply({ editPerson: { npcId: n.id, age: 120, history: 'z'.repeat(400) } }, { source: 'player' }).rejected.length);
+    out.clear = S.apply({ editPerson: { npcId: n.id, age: null } }, { source: 'player' }).edited;
+    out.cleared = 'age' in n;
+    // The dead have an age too: their age when they died, editable like anyone's.
+    out.dead = S.apply({ editPerson: { npcId: dead.id, age: dead.age + 1 } }, { source: 'player' }).edited;
+    out.model = S.apply({ editPerson: { npcId: n.id, age: 30 } }, { source: 'model' }).rejected.length;
+    out.max2 = [S.EDIT_MAX.age, S.EDIT_MAX.history, S.AGE_MIN, S.AGE_MAX];
+    // The player: an age given at creation, the background's when none is, and a bad one refused.
+    const D = Game.data;
+    const bg = D.BACKGROUNDS[1];
+    const make = age => { try { return S.newGame(D.TOWN_DATA, { name: 'Ada', age, backgroundId: bg.id, stats: Object.assign({}, bg.stats), goal: 'x', flaw: D.FLAWS[0], looseEnds: [] }, { seed: 7, pending: true }).player.age; } catch (e) { return e.message; } };
+    out.player = [make(undefined), make(52), make('61'), make(15), make(91), make('old')];
+    out.bgAge = bg.age;
+    return out;
+  });
+  assert.deepEqual(r.ok.rejected, []);
+  assert.deepEqual(r.ok.edited, [{ id: r.ok.edited[0].id, fields: ['age', 'history'] }]);
+  assert.match(r.ok.line, new RegExp(`age ${r.was[0]} -> ${r.was[0] + 3}; history replaced`));
+  assert.deepEqual([r.ok.age, r.ok.history], [r.was[0] + 3, 'Came back from Calder in the spring.']);
+  assert.equal(r.same, 0, 'the same values change nothing');
+  assert.equal(r.str, 45, 'a whole number typed as text');
+  for (const reason of r.bad.slice(0, 5)) assert.equal(reason, 'age must be a whole number from 0 to 120');
+  assert.equal(r.bad[5], 'history must be at most 400 characters (it is 401)');
+  assert.equal(r.bad[6], 'history must be text');
+  assert.equal(r.bad[7], 'history must be at most 400 characters (it is 401)', 'one bad field and nothing changes');
+  assert.ok(r.unchanged, 'refused edits change nothing');
+  assert.equal(r.max, 0, '120 and 400 are allowed');
+  assert.deepEqual(r.clear[0].fields, ['age']);
+  assert.equal(r.cleared, false, 'null clears the age');
+  assert.deepEqual(r.dead[0].fields, ['age']);
+  assert.equal(r.model, 1, 'the model cannot send it');
+  assert.deepEqual(r.max2, [120, 400, 16, 90]);
+  assert.deepEqual(r.player.slice(0, 3), [r.bgAge, 52, 61]);
+  for (const m of r.player.slice(3)) assert.equal(m, 'age must be a whole number from 16 to 90');
+});
+
+s.test('a save from before ages loads and plays as it is; State.load drops an age or history of the wrong shape (version 7 fills them from the town data); everyone in a new game has an age, a history and a presence', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(async () => {
+    const S = Game.State;
+    const fresh = Game.state.npcs.filter(n => !Number.isInteger(n.age) || !n.history || !n.presence).map(n => n.id);
+    const env = Game.Storage.envelope('x');
+    const st = env.state;
+    delete st.player.age;
+    for (const n of st.npcs) { delete n.age; delete n.history; }
+    st.npcs[0].age = 'forty';
+    st.npcs[1].history = 12;
+    st.npcs[2].age = 300;
+    st.npcs[3].age = 51;
+    S.load(st, env.town);
+    const now = Game.state;
+    const out = { fresh, player: 'age' in now.player, ages: now.npcs.slice(0, 4).map(n => n.age), history: 'history' in now.npcs[1] };
+    Game.Api.Mock.delay = 0;
+    out.turn = await Game.Pipeline.submit('I look around');
+    const packet = Game.Pipeline.narratorPacket({ action: { summary: 'x' } });
+    out.player = packet.split('\n').find(l => l.startsWith('PLAYER:'));
+    out.undef = /undefined|NaN/.test(packet + Game.Pipeline.castBlock());
+    out.behind = Game.Upgrade.behind(now);
+    return out;
+  });
+  assert.deepEqual(r.fresh, [], 'a new game: everyone has an age, a history and a presence');
+  assert.equal(r.player, 'PLAYER: Tester (veteran). Reputation: unknown. Conditions: none.', 'no age: the line as it was');
+  assert.deepEqual(r.ages, [undefined, undefined, undefined, 51], 'ages of the wrong shape are dropped; a good one stays');
+  assert.equal(r.history, false);
+  assert.equal(r.turn.ok, true, 'and it plays');
+  assert.equal(r.undef, false, 'nothing undefined in the packets');
+  assert.equal(r.behind, false, 'a current rules version is not behind');
 });
 
 s.run();

@@ -52,6 +52,8 @@ for (const size of SIZES) {
     await page.click('#cr-next');
     await check('creation: background');
     await page.click('.bg-choice >> nth=1');
+    assert.ok(await page.isVisible('#cr-age'), 'the age sits with the background');
+    await check('creation: background picked, with its age');
     await page.click('#cr-next');
     await check('creation: stats');
     await page.selectOption('#cr-move-from', await page.evaluate(() => [...document.querySelectorAll('#cr-move-from option')].find(o => o.value && !o.disabled).value));
@@ -120,6 +122,35 @@ for (const size of SIZES) {
     await check('sheet: people, the editor');
     await page.press(`#pe-name-${who.id}`, 'Escape');
     assert.equal(await page.evaluate(() => Game.UI.editing), null);
+    await page.click('#panel-close');
+    await page.waitForTimeout(300);
+    // The longer cards: someone who lives elsewhere (where, how to reach them, ties, history), then the
+    // Places sheet with the place here open and one out of town open.
+    const far = await page.evaluate(() => {
+      const n = Game.state.npcs.filter(x => Game.presenceOf(x) === 'away' && x.history).sort((a, b) => (b.where + b.reach + b.history).length - (a.where + a.reach + a.history).length)[0];
+      Game.State.apply({ npcKnownToPlayer: [n.id] });
+      return n.id;
+    });
+    await page.click('[data-open-tab="people"]');
+    await page.waitForTimeout(300);
+    await page.click(`#phead-${far}`);
+    await page.waitForTimeout(250);
+    assert.ok(await page.isVisible(`.pcard[data-npc="${far}"] .pcard-facts`), 'the card shows where they live and their history');
+    await check('sheet: people, a card from Elsewhere open');
+    await page.click('#panel-close');
+    await page.waitForTimeout(300);
+    await page.click('[data-open-tab="places"]');
+    await page.waitForTimeout(300);
+    const spot = await page.evaluate(() => Game.state.player.locationId);
+    await page.click(`#plhead-${spot}`);
+    await page.waitForTimeout(250);
+    assert.ok(await page.isVisible(`.plcard[data-loc="${spot}"] .plcard-facts`), 'the place sheet has its rows');
+    await check('sheet: places, the place here open');
+    const out = await page.evaluate(() => document.querySelector('.place-list[data-list="away"] .plcard').dataset.loc);
+    await page.click(`#plhead-${out}`);
+    await page.waitForTimeout(250);
+    assert.ok(await page.isVisible(`.plcard[data-loc="${out}"] .plcard-facts`));
+    await check('sheet: places, a place out of town open');
     await page.click('#panel-close');
     await page.waitForTimeout(300);
     await sendText(page, '/debug');

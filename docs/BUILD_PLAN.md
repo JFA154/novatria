@@ -567,3 +567,91 @@ talking, I can direct it to one person or all."
      cast's schedule wherever someone is nowhere) and `castFixed`. Anyone
      nobody matches is kept and named in the summary. `Upgrade.madeUp`
      treats cast members as town people.
+9. **A lived-in town** (owner, 29 Oct 2026: "Add everything in the
+   database like locations, all the characters, even if only mentioned by
+   name. Make the character sheet better too, like some have an age some
+   don't. Have the age next to the name for example, and make the world
+   lived in.").
+   - **Everything mentioned exists.** `TOWN_DATA.npcs` is 66 people: the
+     41 who appear (`presence: "here"`), 17 who live elsewhere
+     (`presence: "away"`, `alive: true`, `status: "gone"`, `where`,
+     `reach`, `home` an out-of-town place or null) and 8 dead
+     (`presence: "dead"`, `alive: false`, `status: "dead"`, `died`,
+     optional `buried`, `home: null`). `offstage` is gone from the data (a
+     save's copy is still read: its names stay in the cast block). The
+     dead and the away are never in a schedule, never PRESENT, never
+     brought by a visit, and a `new:` person or a name that is one of them
+     resolves to them as NOT PRESENT with why (`absentNote`). Named in the
+     narration (full or first name), they become known to the player and
+     the People tab lists them under Elsewhere or Gone. `TOWN_DATA.locations`
+     is 38 places: 15 public town places on the map (Front Street, Riverside
+     Cemetery, the Water Tower, the Bluff and the River Road are new), 8
+     homes to find, and 15 out of town (`away: true`, `distance`, no map,
+     `exits: []`, `discovered: false`, empty schedules). An out-of-town
+     place is never a destination, never `playerLocationId`, never visited
+     and never a home the bookkeeper finds: a move there is refused before
+     anything is spent, with a plain line ("Clayburn is out of town
+     (...). The story stays in Lockett's Ferry: you can talk about it, but
+     you can't go there."). `tests/mentions.cjs` scans every content string
+     for capitalised names and "the <kind of place>" phrases with no
+     record (a short ALLOW list: titles, the calendar, Bible, Army, Civil
+     War, Christmas, Room); `tests/validate-town.cjs` runs it.
+   - **Ages.** Every person has `age` (0 to 120; the cast's fit their look
+     and their family: parent 16 to 60 years older, grandparent 32 or more,
+     spouses within 20, siblings within 25) and `history` (two or three
+     sentences, 400 characters at most). `BACKGROUNDS[].age` is the
+     default player age (veteran 34, dropout 19, fired bookkeeper 38, river
+     deckhand 36, group home kid 18, poker hustler 31); creation asks for an
+     age on the background step (`State.playerAge`, 16 to 90) and stores
+     `player.age`. The age shows beside the name on the Character tab and the
+     summary ("Tomas Reed · 34", with the background's blurb), on People
+     cards ("Mavis Mangum · 41" then pronouns), in the cast block and every
+     person line ("Mavis Mangum (41, she/her; ...)"), on the narrator's and
+     parser's PLAYER lines and in `docs/CAST.md`. The People editor gains Age
+     and History (`editPerson` refuses an age outside 0 to 120 or not whole;
+     blank clears it). A save with a bad age or history loads without it.
+   - **A lived-in town.** `TOWN_DATA` gains `year` (2026), `history` and
+     `recent` ([{ when, what }], eleven events from January 2024 to September
+     2026); every place gains `details`, `hours` and `history` (and optional
+     `aka`, its other names). The narrator now sends three cached system
+     blocks: the style guide, `Pipeline.townBlock()` (THE TOWN: HISTORY,
+     RECENT, PLACES with history and hours, OUT OF TOWN) and
+     `Pipeline.castBlock()` (everyone here with age, pronouns, role, ties,
+     usual places and history; then NOT IN TOWN, the dead and the people
+     elsewhere one a line). About 11,500 tokens cached in all (words x 1.4;
+     the api suite fails over 12,000). The packet gains a PLACE line (what
+     you notice, when it is open). The People card's open section shows
+     Age, Home (or Lives, Reach, Buried), Ties and History; the Places tab
+     lists the places you know and the places out of town, each opening to
+     a sheet (how far, inside, hours, history, who lives, works, drinks or is
+     buried there, who is here now).
+   - **Rules version 7, "A lived-in town"** (rerun, no model call).
+     `Upgrade.livedInTown`: `addCast` for every person and place missing by
+     id, the cast's schedules for the people added, then the engine-only
+     `livedIn` op, which fills ages, histories and the presence fields of
+     people from the town data, places' details, hours, history and aka,
+     ties written on both sides, and the player's age from their
+     background, never overwriting what the game already has. It says what
+     it did ("Added 25 people the story names (8 dead, 17 living
+     elsewhere) and 20 places (5 in town, 15 out of town). Filled in ...")
+     or "The town is already lived in."; `/undo` takes it back.
+   - **Only what you carry** (owner, 29 Oct 2026: "I stabbed someone
+     successfully but I didn't have a knife in my inventory."). The
+     narrator packet carries `CARRYING: <items with qty>; <money> (nothing
+     else: no weapon, tool, phone, keys, car or money beyond this).` right
+     after PLAYER, every turn. `parse_action` gains `missingItem`
+     (nullable string: a thing the action needs that is not in INVENTORY
+     and not lying here; `usesItemId` stays for a listed item), and
+     `SYSTEM.parser` one sentence about it; the bookkeeper's schema is
+     unchanged. When the parser names one and nothing carried or lying here
+     answers to it by name (`Pipeline.carriedAs`: a folding knife is a
+     knife, car keys a car), the narrator packet gets `NOT CARRIED: a knife.
+     The player has no knife and nothing like one; they cannot stab or cut
+     anyone. Narrate what they can do without it (bare hands, bluff, or
+     realising they have nothing), and nothing happens that needs it.` and
+     the bookkeeper packet the same fact (record no use of it). The turn is
+     not refused and no call is added; the roll stands with no item bonus
+     (an attack is bare-handed), and the debug log records the missing item
+     (`path: "missingItem"`). When something carried does answer to it, it
+     becomes `usesItemId`. The mock parser sets `missingItem` for stab,
+     knife, shoot, gun and drive with no matching item.

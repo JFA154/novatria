@@ -195,8 +195,45 @@ function wordPronouns(w) {
 const HOME_TYPES = ['house', 'trailer', 'apartment', 'farm', 'cabin', 'home'];
 // A role must say who someone is, never only what they are.
 const GENERIC_ROLES = ['man', 'woman', 'person', 'guy', 'lady', 'boy', 'girl', 'townsfolk', 'stranger', 'local', 'resident', 'somebody', 'someone'];
-const CAST_MIN = 40;
+const CAST_MIN = 40; // the people in town (presence "here")
 const CAST_MAX = 45;
+const PEOPLE_MAX = 90; // everyone, the dead and the far away included
+const PRESENCES = ['here', 'away', 'dead'];
+// Town places on the map from the start, and the most homes to find.
+const TOWN_PLACES_MIN = 8;
+const TOWN_PLACES_MAX = 16;
+const HOMES_MAX = 12;
+// The People editor's limit on a history (State.EDIT_MAX.history).
+const HISTORY_MAX = 400;
+// Ages a look can state: "woman of forty-one", "sixteen-year-old girl", "in his fifties".
+const NUMBER_WORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+  sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+function wordNumber(w) {
+  const parts = String(w).toLowerCase().split('-');
+  if (parts.length === 1) return Object.prototype.hasOwnProperty.call(NUMBER_WORDS, parts[0]) ? NUMBER_WORDS[parts[0]] : null;
+  if (parts.length === 2 && NUMBER_WORDS[parts[0]] >= 20 && NUMBER_WORDS[parts[0]] % 10 === 0 && NUMBER_WORDS[parts[1]] >= 1 && NUMBER_WORDS[parts[1]] <= 9) return NUMBER_WORDS[parts[0]] + NUMBER_WORDS[parts[1]];
+  return null;
+}
+const DECADES = { teens: 13, twenties: 20, thirties: 30, forties: 40, fifties: 50, sixties: 60, seventies: 70, eighties: 80, nineties: 90 };
+/* The age a look states: { exact } or { min, max }, or null when it says none. */
+function lookAge(look) {
+  const t = String(look || '').toLowerCase();
+  const NUM = "([a-z]+(?:-[a-z]+)?)";
+  let m = new RegExp("\\b(?:man|woman|kid|boy|girl|guy|gal|lady|fellow|teenager)\\s+of\\s+" + NUM + "\\b").exec(t);
+  if (m && wordNumber(m[1]) !== null) return { exact: wordNumber(m[1]) };
+  m = new RegExp("\\b" + NUM + "-year-old\\b").exec(t);
+  if (m && wordNumber(m[1]) !== null) return { exact: wordNumber(m[1]) };
+  m = /\bin (?:his|her|their) (early |mid-|late )?(teens|twenties|thirties|forties|fifties|sixties|seventies|eighties|nineties)\b/.exec(t);
+  if (m) {
+    const lo = DECADES[m[2]];
+    const span = m[2] === 'teens' ? [13, 19] : m[1] === 'early ' ? [lo, lo + 3] : m[1] === 'mid-' ? [lo + 3, lo + 6] : m[1] === 'late ' ? [lo + 6, lo + 9] : [lo, lo + 9];
+    return { min: span[0], max: span[1] };
+  }
+  return null;
+}
+/* The year in a short phrase ("spring of 1979, a stroke"), or null. */
+function yearIn(s) { const m = /\b(1[89]\d\d|20\d\d)\b/.exec(String(s || '')); return m ? Number(m[1]) : null; }
 
 const trimmed = src.replace(/\s+$/, '');
 let body = trimmed;
@@ -573,7 +610,7 @@ function checkEffect(e, where) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent']);
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
 else {
@@ -587,6 +624,32 @@ if (checkKeys(T.currency, ['symbol', 'name'], 'TOWN_DATA.currency')) {
   if (T.currency.symbol !== CURRENCY.symbol) err('TOWN_DATA.currency.symbol', 'must be "' + CURRENCY.symbol + '", found ' + JSON.stringify(T.currency.symbol));
   if (T.currency.name !== CURRENCY.name) err('TOWN_DATA.currency.name', 'must be "' + CURRENCY.name + '", found ' + JSON.stringify(T.currency.name));
 }
+// A lived-in town (direction change 9): the story's present year, the town's
+// history and its recent events, dated, oldest first, none after the present.
+const YEAR = isInt(T.year) ? T.year : null;
+if (T.year !== undefined && (!isInt(T.year) || T.year < 1990 || T.year > 2100)) err('TOWN_DATA.year', 'must be a whole year, the story\'s present');
+if (T.history !== undefined || T.recent !== undefined) {
+  if (YEAR === null) err('TOWN_DATA.year', 'needed with a history: the present year the dates count from');
+  if (typeof T.history !== 'string' || T.history.length < 300) err('TOWN_DATA.history', 'a paragraph or two about how the town came to be what it is');
+  else checkStr(T.history, 'TOWN_DATA.history', { noPlaceholders: true });
+  if (!Array.isArray(T.recent) || T.recent.length < 5 || T.recent.length > 14) err('TOWN_DATA.recent', 'expected 5 to 14 dated events');
+  else {
+    let last = 0;
+    T.recent.forEach((r, i) => {
+      const w = 'TOWN_DATA.recent[' + i + ']';
+      if (!checkKeys(r, ['when', 'what'], w)) return;
+      checkStr(r.when, w + '.when', { noPlaceholders: true });
+      checkStr(r.what, w + '.what', { noPlaceholders: true, maxSentences: 2 });
+      const y = yearIn(r.when);
+      if (y === null) err(w + '.when', 'must name a year');
+      else {
+        if (YEAR !== null && (y > YEAR || y < YEAR - 3)) err(w + '.when', 'recent means the last two or three years before ' + YEAR + ', found ' + y);
+        if (y < last) err(w, 'events are oldest first');
+        last = y;
+      }
+    });
+  }
+}
 if (checkKeys(T.startLocationIds, ['gate', 'docks'], 'TOWN_DATA.startLocationIds')) {
   if (!isLoc(T.startLocationIds.gate)) err('TOWN_DATA.startLocationIds.gate', '"' + T.startLocationIds.gate + '" is not a location');
   if (!isLoc(T.startLocationIds.docks)) err('TOWN_DATA.startLocationIds.docks', '"' + T.startLocationIds.docks + '" is not a location');
@@ -594,35 +657,69 @@ if (checkKeys(T.startLocationIds, ['gate', 'docks'], 'TOWN_DATA.startLocationIds
 }
 
 // Locations
-// The town's own places (discovered from the start), 8 to 10, plus the homes
-// of the cast, which stay undiscovered until someone tells the player.
-const townPlaces = locations.filter((l) => l && l.discovered !== false);
-const homePlaces = locations.filter((l) => l && l.discovered === false);
-if (townPlaces.length < 8 || townPlaces.length > 10) err('TOWN_DATA.locations', 'expected 8 to 10 town places (discovered), found ' + townPlaces.length);
-if (homePlaces.length > 12) err('TOWN_DATA.locations', 'at most 12 undiscovered homes, found ' + homePlaces.length);
+// The town's own places (discovered from the start), the homes of the cast,
+// which stay undiscovered until someone tells the player, and the places out
+// of town the story names (away: true): never on the map, never reached,
+// never a destination, nobody scheduled there.
+const awayPlaces = locations.filter((l) => l && l.away === true);
+const townPlaces = locations.filter((l) => l && l.discovered !== false && l.away !== true);
+const homePlaces = locations.filter((l) => l && l.discovered === false && l.away !== true);
+if (townPlaces.length < TOWN_PLACES_MIN || townPlaces.length > TOWN_PLACES_MAX) err('TOWN_DATA.locations', 'expected ' + TOWN_PLACES_MIN + ' to ' + TOWN_PLACES_MAX + ' town places (discovered), found ' + townPlaces.length);
+if (homePlaces.length > HOMES_MAX) err('TOWN_DATA.locations', 'at most ' + HOMES_MAX + ' undiscovered homes, found ' + homePlaces.length);
+// Every other name a place goes by (aka) belongs to that place alone.
+const akaOwner = new Map();
+locations.forEach((l) => {
+  if (!isObj(l)) return;
+  for (const k of [l.name].concat(Array.isArray(l.aka) ? l.aka : [])) {
+    if (typeof k !== 'string') continue;
+    const key = k.toLowerCase().replace(/^the /, '');
+    if (akaOwner.has(key) && akaOwner.get(key) !== l.id) err('locations(' + l.id + ').aka', '"' + k + '" is also a name of ' + akaOwner.get(key));
+    akaOwner.set(key, l.id);
+  }
+});
 const locById = new Map(locations.filter(isObj).map((l) => [l.id, l]));
 const typesSeen = {};
 const npcPhaseSlots = new Map(); // npcId -> { phase: [locIds] }
 locations.forEach((l, i) => {
   const where = 'locations[' + i + '](' + (l && l.id) + ')';
-  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where, ['map'])) return;
+  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'details', 'hours', 'history', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where, ['map', 'aka', 'away', 'distance'])) return;
   checkStr(l.name, where + '.name', { noPlaceholders: true });
+  // What you notice there, when it is open, and how it came to be.
+  checkStr(l.details, where + '.details', { noPlaceholders: true, maxSentences: 3 });
+  if (typeof l.details === 'string' && l.details.length > 400) err(where + '.details', 'at most 400 characters');
+  checkStr(l.history, where + '.history', { noPlaceholders: true, maxSentences: 2 });
+  if (typeof l.history === 'string' && l.history.length > 300) err(where + '.history', 'at most 300 characters');
+  checkStr(l.hours, where + '.hours', { noPlaceholders: true });
+  if (typeof l.hours === 'string' && l.hours.length > 80) err(where + '.hours', 'one short line, at most 80 characters');
+  if (l.aka !== undefined) checkStrList(l.aka, where + '.aka', undefined, { noPlaceholders: true });
+  if (l.away !== undefined && l.away !== true) err(where + '.away', 'is true for a place out of town, or left out');
+  if (l.away === true) {
+    // Out of town: how far and how you get there; no roads, nobody scheduled, not on the map.
+    checkStr(l.distance, where + '.distance', { noPlaceholders: true, maxSentences: 1 });
+    if (l.discovered !== false) err(where, 'a place out of town is never discovered (it is not on the map)');
+    if (!Array.isArray(l.exits) || l.exits.length) err(where + '.exits', 'a place out of town has no exits: the game never goes there');
+    if (l.map !== undefined) err(where + '.map', 'a place out of town is not on the map');
+    if (isObj(l.npcIdsBySchedule) && PHASES.some((p) => Array.isArray(l.npcIdsBySchedule[p]) && l.npcIdsBySchedule[p].length)) err(where + '.npcIdsBySchedule', 'nobody is scheduled out of town');
+  } else if (l.distance !== undefined) err(where + '.distance', 'only a place out of town has a distance');
   if (typeof l.type !== 'string' || !/^[a-z]+$/.test(l.type)) err(where, 'type must be a lowercase word');
   else if (FANTASY_LOCATION_TYPES.indexOf(l.type) !== -1) err(where, 'type "' + l.type + '" is from the fantasy town; use a modern type');
   typesSeen[l.type] = (typesSeen[l.type] || 0) + 1;
   checkStr(l.description, where + '.description', { sentences: 2, noPlaceholders: true });
-  if (l.discovered === false) {
+  if (l.away === true) {
+    // Checked above.
+  } else if (l.discovered === false) {
     // A home the player has not heard of: a dwelling, reached by an exit from a place the player knows.
     if (HOME_TYPES.indexOf(l.type) === -1) err(where, 'only a home (' + HOME_TYPES.join(', ') + ') may start undiscovered, found type "' + l.type + '"');
     if (Array.isArray(l.exits) && !l.exits.some((x) => locById.has(x) && locById.get(x).discovered === true)) err(where, 'an undiscovered home must have an exit to a discovered place');
   } else if (l.discovered !== true) err(where, 'discovered must be true or false');
   if (l.closed !== false) err(where, 'closed must be false at start');
-  if (!Array.isArray(l.exits) || l.exits.length === 0) err(where, 'exits must be a non-empty array');
+  if (l.away === true) { /* no exits */ } else if (!Array.isArray(l.exits) || l.exits.length === 0) err(where, 'exits must be a non-empty array');
   else {
     if (new Set(l.exits).size !== l.exits.length) err(where, 'duplicate exit');
     l.exits.forEach((x) => {
       if (x === l.id) err(where, 'exit to itself');
       else if (!isLoc(x)) err(where, 'exit "' + x + '" is not a location');
+      else if (locById.get(x) && locById.get(x).away === true) err(where, 'exit to ' + x + ', a place out of town');
       else {
         const other = locById.get(x);
         if (other && Array.isArray(other.exits) && other.exits.indexOf(l.id) === -1) err(where, 'exit to ' + x + ' is not symmetric (' + x + ' does not list ' + l.id + ')');
@@ -656,7 +753,7 @@ if (isLoc(T.startLocationIds && T.startLocationIds.gate)) {
     const l = locById.get(queue.shift());
     (l && Array.isArray(l.exits) ? l.exits : []).forEach((x) => { if (isLoc(x) && !seen.has(x)) { seen.add(x); queue.push(x); } });
   }
-  locations.forEach((l) => { if (l && !seen.has(l.id)) err('locations(' + l.id + ')', 'not reachable from the gate'); });
+  locations.forEach((l) => { if (l && l.away !== true && !seen.has(l.id)) err('locations(' + l.id + ')', 'not reachable from the gate'); });
 }
 
 // The town map (docs/BUILD_PLAN.md, "Map"). Optional; once TOWN_DATA.map is
@@ -706,7 +803,7 @@ const mapped = [];
 locations.forEach((l, i) => {
   if (!isObj(l)) return;
   const where = 'locations[' + i + '](' + l.id + ').map';
-  if (l.map === undefined) { if (T.map !== undefined) err(where, 'missing: with TOWN_DATA.map every location needs map { x, y, label, anchor }'); return; }
+  if (l.map === undefined) { if (T.map !== undefined && l.away !== true) err(where, 'missing: with TOWN_DATA.map every location needs map { x, y, label, anchor }'); return; }
   if (!checkKeys(l.map, ['x', 'y', 'label', 'anchor'], where)) return;
   const c = l.map;
   const inX = isNum(c.x) && c.x >= 0 && c.x <= mapSize.width;
@@ -729,7 +826,14 @@ for (let i = 0; i < mapped.length; i++) {
 
 // NPCs
 // The whole cast, written by hand: the game never makes a person in play.
-if (npcs.length < CAST_MIN || npcs.length > CAST_MAX) err('TOWN_DATA.npcs', 'expected the full cast of ' + CAST_MIN + ' to ' + CAST_MAX + ' people, found ' + npcs.length);
+// Everyone the content mentions is a record (direction change 9), with a
+// presence: here (in town, somewhere every phase), away (alive, living
+// elsewhere: where, and how to reach them; never scheduled) or dead (alive
+// false, when and how they died; never scheduled).
+const presenceOf = (n) => (isObj(n) && PRESENCES.indexOf(n.presence) !== -1 ? n.presence : 'here');
+const herePeople = npcs.filter((n) => presenceOf(n) === 'here');
+if (herePeople.length < CAST_MIN || herePeople.length > CAST_MAX) err('TOWN_DATA.npcs', 'expected the full cast of ' + CAST_MIN + ' to ' + CAST_MAX + ' people in town, found ' + herePeople.length);
+if (npcs.length > PEOPLE_MAX) err('TOWN_DATA.npcs', 'at most ' + PEOPLE_MAX + ' people in all, found ' + npcs.length);
 const tagSet = new Set();
 const seenNames = new Set();
 const seenFirst = new Set();
@@ -738,7 +842,35 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where)) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried'])) return;
+  const pres = n.presence;
+  if (PRESENCES.indexOf(pres) === -1) err(where + '.presence', 'must be here, away or dead, found ' + JSON.stringify(pres));
+  // Age: a whole number (the dead: their age at death), and what the look says.
+  if (!isInt(n.age) || n.age < 0 || n.age > 110) err(where + '.age', 'must be a whole number of years, 0 to 110');
+  else {
+    const said = lookAge(n.look);
+    if (said && said.exact !== undefined && said.exact !== n.age) err(where + '.age', 'is ' + n.age + ', but the look says ' + said.exact);
+    if (said && said.min !== undefined && (n.age < said.min || n.age > said.max)) err(where + '.age', 'is ' + n.age + ', but the look says ' + said.min + ' to ' + said.max);
+    if (!said && pres === 'here') err(where + '.look', 'say how old they look ("a woman of forty-one", "in his fifties"), to match age ' + n.age);
+  }
+  checkStr(n.history, where + '.history', { noPlaceholders: true, maxSentences: 3 });
+  if (typeof n.history === 'string' && sentenceCount(n.history) < 2) err(where + '.history', 'two or three plain sentences');
+  if (typeof n.history === 'string' && n.history.length > HISTORY_MAX) err(where + '.history', 'at most ' + HISTORY_MAX + ' characters (the People editor\'s limit), found ' + n.history.length);
+  for (const k of ['where', 'reach']) if (n[k] !== undefined && pres !== 'away') err(where + '.' + k, 'only someone away has ' + k);
+  for (const k of ['died', 'buried']) if (n[k] !== undefined && pres !== 'dead') err(where + '.' + k, 'only someone dead has ' + k);
+  if (pres === 'away') {
+    checkStr(n.where, where + '.where', { noPlaceholders: true, maxSentences: 1 });
+    checkStr(n.reach, where + '.reach', { noPlaceholders: true, maxSentences: 1 });
+    if (n.alive !== true || n.status !== 'gone') err(where, 'someone away is alive with status "gone" (not in town)');
+    if (n.home !== null && !(isLoc(n.home) && locById.get(n.home).away === true)) err(where + '.home', 'someone away lives out of town: a place with away true, or null');
+  } else if (pres === 'dead') {
+    checkStr(n.died, where + '.died', { noPlaceholders: true, maxSentences: 1 });
+    if (typeof n.died === 'string' && yearIn(n.died) === null) err(where + '.died', 'say when, with the year ("spring of 2021, a stroke")');
+    if (typeof n.died === 'string' && YEAR !== null && yearIn(n.died) > YEAR) err(where + '.died', 'after the present year ' + YEAR);
+    if (n.alive !== false || n.status !== 'dead') err(where, 'someone dead has alive false and status "dead"');
+    if (n.home !== null) err(where + '.home', 'the dead have no home (null)');
+    if (n.buried !== undefined && !(isLoc(n.buried) && locById.get(n.buried).away !== true)) err(where + '.buried', 'a place in town');
+  }
   // Pronouns (he, she or they), and never against what the look says ("woman" is she, "man" is he).
   if (['he', 'she', 'they'].indexOf(n.pronouns) === -1) err(where, 'pronouns must be "he", "she" or "they", found ' + JSON.stringify(n.pronouns));
   else if (typeof n.look === 'string') {
@@ -774,11 +906,18 @@ npcs.forEach((n, i) => {
   if (!Array.isArray(n.personality) || n.personality.length !== 2 || !n.personality.every(isStr)) err(where, 'personality must be exactly 2 trait strings');
   if (!isInt(n.attitude) || n.attitude < -20 || n.attitude > 20) err(where, 'attitude must be an integer -20..20');
   if (!Array.isArray(n.memories) || n.memories.length !== 0) err(where, 'memories must be []');
-  if (n.alive !== true) err(where, 'alive must be true');
   if (n.knownToPlayer !== false) err(where, 'knownToPlayer must be false');
-  if (n.status !== 'free') err(where, 'status must be "free"');
   if (typeof n.secret === 'string' && mentionsCast(n.secret, n.id)) connectedSecrets++;
   const slots = npcPhaseSlots.get(n.id) || {};
+  if (pres !== 'here') {
+    // Never in town: nowhere in any schedule.
+    const at = PHASES.filter((p) => slots[p] && slots[p].length);
+    if (at.length) err(where, 'is ' + pres + ' but scheduled in town (' + at.join(', ') + ')');
+    return;
+  }
+  if (n.alive !== true) err(where, 'alive must be true');
+  if (n.status !== 'free') err(where, 'status must be "free"');
+  if (isLoc(n.home) && locById.get(n.home).away === true) err(where + '.home', 'someone in town lives in town, not at ' + n.home);
   const phasesPresent = PHASES.filter((p) => slots[p] && slots[p].length);
   if (phasesPresent.length !== PHASES.length) err(where, 'is somewhere in ' + phasesPresent.length + ' of 4 phases; everyone needs a place in every phase (missing ' + PHASES.filter((p) => phasesPresent.indexOf(p) === -1).join(', ') + ')');
   // Home: a place in the town, where they are in at least one phase.
@@ -814,7 +953,33 @@ npcs.forEach((n, i) => {
     if (!inv.has(back.relation)) err(w, n.id + ' calls ' + other.id + ' "' + r.relation + '", but ' + other.id + ' calls ' + n.id + ' "' + back.relation + '" (expected one of ' + Array.from(inv).join(', ') + ')');
   });
 });
+// Family maths, by the year each person was born (the dead: the year they
+// died less their age at death): a parent is 16 to 60 years older than their
+// child, a grandparent at least 32 older, spouses and partners at most 20
+// years apart, brothers and sisters at most 25.
+const bornYear = (n) => (isInt(n.age) && YEAR !== null ? (n.presence === 'dead' ? yearIn(n.died) : YEAR) - n.age : null);
+const CHILD_WORDS = ['son', 'daughter', 'child', 'kid', 'boy', 'girl', 'baby', 'stepson', 'stepdaughter'];
+const GRANDCHILD_WORDS = ['grandson', 'granddaughter'];
+const SPOUSE_WORDS = ['wife', 'husband', 'spouse', 'partner', 'girlfriend', 'boyfriend', 'fiancee', 'fiance', 'ex-wife', 'ex-husband', 'ex'];
+const SIBLING_WORDS = ['brother', 'sister', 'stepbrother', 'stepsister'];
+let familyChecks = 0;
+npcs.forEach((n) => {
+  if (!isObj(n) || !Array.isArray(n.relations)) return;
+  const a = bornYear(n);
+  for (const r of n.relations) {
+    const o = isObj(r) ? npcById.get(r.npcId) : null;
+    const b = o ? bornYear(o) : null;
+    if (a === null || b === null || typeof r.relation !== 'string') continue;
+    const w = 'npcs(' + n.id + ').relations(' + o.id + ')';
+    // r: o is n's <relation>; o is younger than n by (b - a) years.
+    if (CHILD_WORDS.indexOf(r.relation) !== -1) { familyChecks++; if (b - a < 16 || b - a > 60) err(w, n.id + ' (born ' + a + ') is ' + (b - a) + ' years older than their ' + r.relation + ' ' + o.id + ' (born ' + b + '); a parent is 16 to 60 years older'); }
+    if (GRANDCHILD_WORDS.indexOf(r.relation) !== -1) { familyChecks++; if (b - a < 32) err(w, n.id + ' (born ' + a + ') is only ' + (b - a) + ' years older than their ' + r.relation + ' ' + o.id + '; a grandparent is at least 32 older'); }
+    if (SPOUSE_WORDS.indexOf(r.relation) !== -1) { familyChecks++; if (Math.abs(b - a) > 20) err(w, n.id + ' and their ' + r.relation + ' ' + o.id + ' were born ' + Math.abs(b - a) + ' years apart (at most 20)'); }
+    if (SIBLING_WORDS.indexOf(r.relation) !== -1) { familyChecks++; if (Math.abs(b - a) > 25) err(w, n.id + ' and their ' + r.relation + ' ' + o.id + ' were born ' + Math.abs(b - a) + ' years apart (at most 25)'); }
+  }
+});
 // Offstage people: named in the story, never in town (the dead, the far away).
+// Superseded by records with a presence; still accepted, and never a record's name.
 const offstage = Array.isArray(T.offstage) ? T.offstage : [];
 if (T.offstage !== undefined && !Array.isArray(T.offstage)) err('TOWN_DATA.offstage', 'must be an array of { name, about }');
 offstage.forEach((o, i) => {
@@ -971,7 +1136,9 @@ if (!Array.isArray(BACKGROUNDS) || BACKGROUNDS.length !== 6) err('BACKGROUNDS', 
 const arrivals = new Set();
 (Array.isArray(BACKGROUNDS) ? BACKGROUNDS : []).forEach((b, i) => {
   const where = 'BACKGROUNDS[' + i + '](' + (b && b.id) + ')';
-  if (!checkKeys(b, ['id', 'name', 'blurb', 'stats', 'gold', 'items', 'arrival'], where)) return;
+  if (!checkKeys(b, ['id', 'name', 'blurb', 'age', 'stats', 'gold', 'items', 'arrival'], where)) return;
+  // The age the character creation form starts at for this background (16 to 90).
+  if (!isInt(b.age) || b.age < 16 || b.age > 90) err(where + '.age', 'a whole number of years, 16 to 90');
   checkStr(b.name, where + '.name', { noPlaceholders: true });
   checkStr(b.blurb, where + '.blurb', { sentences: 1, noPlaceholders: true });
   if (checkKeys(b.stats, ['might', 'wits', 'charm', 'stealth'], where + '.stats')) {
@@ -1168,7 +1335,15 @@ checkExamples('EXAMPLE_TURNS_LITERARY');
 checkExamples('EXAMPLE_TURNS_CASUAL');
 
 // ---------------------------------------------------------------------------
-// 9. Report
+// 9. Everything mentioned exists (direction change 9): every capitalised name
+//    and every "the <place>" phrase in the content is a record (tests/mentions.cjs).
+// ---------------------------------------------------------------------------
+const MENTIONS = require('./mentions.cjs');
+const unrecordedMentions = MENTIONS.unrecorded(data);
+for (const x of unrecordedMentions) err(x.where, (x.kind === 'name' ? 'the name "' : 'the place "') + x.text + '" matches no person, place or faction (tests/mentions.cjs): add a record, an aka, or reword');
+
+// ---------------------------------------------------------------------------
+// 10. Report
 // ---------------------------------------------------------------------------
 if (problems.length) report();
 
@@ -1176,7 +1351,7 @@ const effectTotal = allEffects.length;
 console.log(
   'OK ' + T.name + ': ' +
   locations.length + ' locations, ' +
-  npcs.length + ' npcs (' + connectedSecrets + ' linked secrets, ' + relationCount + ' relations, ' + homePlaces.length + ' homes to find, ' + offstage.length + ' offstage), ' +
+  npcs.length + ' npcs (' + herePeople.length + ' here, ' + npcs.filter((n) => presenceOf(n) === 'away').length + ' away, ' + npcs.filter((n) => presenceOf(n) === 'dead').length + ' dead; ' + connectedSecrets + ' linked secrets, ' + relationCount + ' relations, ' + familyChecks + ' family ages checked, ' + homePlaces.length + ' homes to find, ' + townPlaces.length + ' town places, ' + awayPlaces.length + ' out of town' + (offstage.length ? ', ' + offstage.length + ' offstage' : '') + '), ' +
   factions.length + ' factions (' + clockTotal + ' clocks, ' + effectTotal + ' effects), ' +
   threads.length + ' threads, ' +
   seeds.length + ' seeds, ' +

@@ -46,7 +46,7 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
     return {
       turn: st.meta.turn, log: st.log.length, last: st.log[1], shorts: st.time.shorts, journal: st.journal.map(j => j.text),
       saved: env.state.log.length, tag: [...document.querySelectorAll('#feed .f-narr[data-mock="1"] .f-tag')].map(e => e.textContent),
-      roll: document.querySelector('#feed .f-roll').textContent, bg: Game.data.BACKGROUNDS[0].name
+      roll: document.querySelector('#feed .f-roll').textContent, bg: Game.data.BACKGROUNDS[0].name, age: st.player.age, bgAge: Game.data.BACKGROUNDS[0].age
     };
   });
   assert.deepEqual(await calls(page), ['parse', 'narrate', 'bookkeep']);
@@ -64,7 +64,9 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   const packet = await lastPacket(page);
   const lines = packet.split('\n').map(l => l.split(':')[0]);
   for (const label of ['DAY 1, MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
-  assert.ok(packet.includes(`PLAYER: Tester (${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
+  // The player's age beside the name: the background's default when the form left it alone.
+  assert.equal(r.age, r.bgAge);
+  assert.ok(packet.includes(`PLAYER: Tester (${r.age}, ${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
   assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.\nVARIETY: [^\n]+$/, 'MODE, then the LENGTH line last');
   const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
   for (const x of hidden) assert.ok(!packet.includes(x), 'hidden field in packet: ' + x.slice(0, 40));
@@ -126,7 +128,7 @@ const castFacts = page => page.evaluate(() => {
   const T = Game.data.TOWN_DATA;
   const wife = T.npcs.find(n => /^Mavis /.test(n.name));
   const husband = T.npcs.find(n => (n.relations || []).some(r => r.npcId === wife.id && r.relation === 'wife'));
-  return { wife: { id: wife.id, name: wife.name, role: wife.role }, husband: { id: husband.id, name: husband.name, first: husband.name.split(' ')[0] } };
+  return { wife: { id: wife.id, name: wife.name, role: wife.role, age: wife.age }, husband: { id: husband.id, name: husband.name, first: husband.name.split(' ')[0] } };
 });
 s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PRESENT (does_not_exist) and nothing is made; "Dewayne\'s wife" and "Mavis" are the cast\'s Mavis; the narrator gets the cast as a second cached system block; the model cannot add a person', async h => {
   const page = await h.open({ viewport: LAPTOP });
@@ -134,7 +136,7 @@ s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PR
   const fx = await fixtures(page);
   await place(page, fx.tavern.id, 'evening');
   const c = await castFacts(page);
-  await page.evaluate(() => { window.__narr = []; const orig = Game.Api.Mock.narrate; Game.Api.Mock.narrate = function (packet) { window.__narr.push({ system: packet.system, cast: packet.cast }); return orig.apply(this, arguments); }; });
+  await page.evaluate(() => { window.__narr = []; const orig = Game.Api.Mock.narrate; Game.Api.Mock.narrate = function (packet) { window.__narr.push({ system: packet.system, town: packet.town, cast: packet.cast }); return orig.apply(this, arguments); }; });
   const before = await counts(page);
   // Someone nobody in the cast is: not there, nothing made, the narrator and the bookkeeper told.
   assert.ok(await page.evaluate(() => !Game.state.npcs.some(n => Game.Town.mentions(' barmaid ', n))), 'no barmaid in the cast');
@@ -154,16 +156,16 @@ s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PR
   assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id));
   assert.ok((await lastPacket(page, 'parse')).includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `));
   assert.deepEqual(await counts(page), before);
-  // The narrator: the style block, then the cast (a second cached system block), the same every turn.
-  const narr = await page.evaluate(() => ({ calls: window.__narr, style: Game.Style.systemPrompt(), cast: Game.Pipeline.castBlock() }));
+  // The narrator: the style block, the town and the cast (cached system blocks), the same every turn.
+  const narr = await page.evaluate(() => ({ calls: window.__narr, style: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock() }));
   assert.ok(narr.calls.length >= 3);
-  for (const x of narr.calls) assert.deepEqual([x.system, x.cast], [narr.style, narr.cast]);
+  for (const x of narr.calls) assert.deepEqual([x.system, x.town, x.cast], [narr.style, narr.town, narr.cast]);
   assert.ok(narr.cast.startsWith('CAST (everyone who exists in this town; never invent anyone else):\n'));
   const line = narr.cast.split('\n').find(l => l.startsWith(c.wife.id + ' — '));
-  assert.ok(line.startsWith(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), line);
+  assert.ok(line.startsWith(`${c.wife.id} — ${c.wife.name} (${c.wife.age}, she/her; ${c.wife.role}; wife of ${c.husband.name}`), line);
   assert.match(line, /home: the Mangum House/);
-  const body = await page.evaluate(n => Game.Api.requestBody('narrator', { system: n.style, blocks: [n.cast], user: 'x', cache: true, stream: true }).system, narr);
-  assert.deepEqual(body, [{ type: 'text', text: narr.style, cache_control: { type: 'ephemeral' } }, { type: 'text', text: narr.cast, cache_control: { type: 'ephemeral' } }]);
+  const body = await page.evaluate(n => Game.Api.requestBody('narrator', { system: n.style, blocks: [n.town, n.cast], user: 'x', cache: true, stream: true }).system, narr);
+  assert.deepEqual(body, [narr.style, narr.town, narr.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
   // The bookkeeper cannot add a person: the cast is fixed.
   await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { peopleRevealed: [{ name: 'Earl Toler', pronouns: 'he', relationToNpcId: '', who: 'brother' }] }));
   await sendText(page, 'I ask Loretta about her brother');
@@ -1740,7 +1742,7 @@ s.test('a person the story names is someone in the cast: "X\'s wife" and their h
   assert.equal(await page.evaluate(() => Game.state.player.locationId), home.id);
   await sendText(page, 'I look around');
   const present = (await lastPacket(page)).split('\n').find(l => l.startsWith('PRESENT:'));
-  assert.ok(present.includes(`${c.wife.name} (she/her; ${c.wife.role}; ${c.husband.first}'s wife; husband: ${c.husband.name}`), present);
+  assert.ok(present.includes(`${c.wife.name} (${c.wife.age}, she/her; ${c.wife.role}; ${c.husband.first}'s wife; husband: ${c.husband.name}`), present);
   // /undo: the look, the walk, then the telling: the house is unfound again.
   for (let i = 0; i < 3; i++) await sendText(page, '/undo');
   assert.equal(await page.evaluate(id => Game.State.loc(id).discovered, home.id), false);
@@ -1838,7 +1840,8 @@ s.test('the player fixes someone\'s pronouns: chips on the People card, or /pron
   const role = await page.evaluate(id => Game.State.npc(id).role, who.id);
   assert.equal(await lastQuiet(page), `${who.name} goes by ${want === 'she' ? 'she/her' : 'he/him'} now (${role.charAt(0).toLowerCase() + role.slice(1).split(/[,;]/)[0].trim()}).`);
   // The narrator sees the new pronouns right after the name.
-  assert.ok((await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).includes(`${who.name} (${want === 'she' ? 'she/her' : 'he/him'}; `));
+  const whoAge = await page.evaluate(id => Game.State.npc(id).age, who.id);
+  assert.ok((await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).includes(`${who.name} (${whoAge}, ${want === 'she' ? 'she/her' : 'he/him'}; `));
   // The command: by first name, with "they"; a wrong name and a wrong pronoun are told so.
   await sendText(page, `/pronouns ${who.name.split(' ')[0]} they`);
   assert.equal(await page.evaluate(id => Game.State.npc(id).pronouns, who.id), 'they');
@@ -1867,7 +1870,7 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
     const schedule = at(who.id);
     Game.State.apply({ npcKnownToPlayer: [who.id], newMemories: [{ npcId: who.id, text: 'Tester asked too many questions', weight: 1 }], effects: [{ op: 'npcStatus', npcId: who.id, status: 'arrested' }] });
     return {
-      who: { id: who.id, name: who.name, first: first(who), pronouns: who.pronouns, voice: who.voice, schedule, free: who.home.phases.slice() },
+      who: { id: who.id, name: who.name, first: first(who), pronouns: who.pronouns, voice: who.voice, age: who.age, history: who.history, schedule, free: who.home.phases.slice() },
       other: { id: other.id, name: other.name, first: first(other) }, home: home.id
     };
   });
@@ -1890,6 +1893,9 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('.pedit .pcard-look, .pedit .pcard-notes, .pedit .pcard-fix')].length), 0, 'the form takes the place of the card body');
   assert.equal(await page.inputValue(f('name')), x.who.name);
   assert.equal(await page.inputValue(f('pronouns')), x.who.pronouns);
+  // Age and history are on the form too.
+  assert.equal(await page.inputValue(f('age')), String(x.who.age));
+  assert.equal(await page.inputValue(f('history')), x.who.history);
   assert.ok(await page.isChecked(`${card} input[name="status"][value="arrested"]`));
   assert.ok(await page.isDisabled(f('relation')), 'no relation without someone to be related to');
   assert.ok(await page.isHidden(f('goal')), 'goal and secret are folded away');
@@ -1917,11 +1923,19 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   assert.equal(await editing(), id, 'the form stays open');
   assert.deepEqual([await page.inputValue(f('name')), await page.inputValue(f('role'))], [x.other.name, 'night clerk at the motor court'], 'with the values typed');
   assert.match(await page.textContent(`${card} .pedit .err`), /^Not saved: the name .* is taken/);
+  // An age out of range is refused the same way.
+  await page.fill(f('name'), 'Mavis Toler');
+  await page.fill(f('age'), '130');
+  await page.click(`${card} .pedit-save`);
+  assert.deepEqual([await stateJson(page), await depth()], [before, d0], 'a bad age changes nothing');
+  assert.match(await page.textContent(`${card} .pedit .err`), /^Not saved: age must be a whole number from 0 to 120/);
 
   // The whole record.
   await page.fill(f('name'), 'Mavis Toler');
   await page.selectOption(f('pronouns'), want);
+  await page.fill(f('age'), '38');
   await page.fill(f('look'), 'A small, tired woman in a motel smock.');
+  await page.fill(f('history'), 'She came down from Calder in the spring and took the night desk nobody else wanted.');
   await page.evaluate(sel => { const r = document.querySelector(sel); r.value = '40'; r.dispatchEvent(new Event('input', { bubbles: true })); }, f('attitude'));
   assert.equal(await page.textContent(f('attitude-word')), '+40 · warm', 'the live word beside the slider');
   await page.selectOption(f('relTo'), x.other.id);
@@ -1946,12 +1960,12 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
 
   const r = await page.evaluate(id => JSON.parse(JSON.stringify(Game.State.npc(id))), id);
   const voiceTurned = await page.evaluate(([v, p, was]) => Game.turnLook(v, p, was) !== v, [x.who.voice, want, x.who.pronouns]);
-  assert.deepEqual([r.name, r.pronouns, r.role, r.look, r.attitude, r.status, r.alive, r.goal, r.secret],
-    ['Mavis Toler', want, 'night clerk at the motor court', 'A small, tired woman in a motel smock.', 40, 'free', true, 'Get out of this town.', 'She skimmed the till for a year.']);
+  assert.deepEqual([r.name, r.age, r.pronouns, r.role, r.look, r.history, r.attitude, r.status, r.alive, r.goal, r.secret],
+    ['Mavis Toler', 38, want, 'night clerk at the motor court', 'A small, tired woman in a motel smock.', 'She came down from Calder in the spring and took the night desk nobody else wanted.', 40, 'free', true, 'Get out of this town.', 'She skimmed the till for a year.']);
   assert.deepEqual(r.created, { turn: null, day: null, by: 'edit', relationToNpcId: x.other.id, relation: 'wife' });
   assert.deepEqual(r.home, { locationId: x.home, phases: x.who.free, revealed: true });
   assert.deepEqual(r.memories, [{ turn, text: 'Tester paid back the twenty', weight: 3 }]);
-  const fields = ['name', 'pronouns', 'role', 'look'].concat(voiceTurned ? ['voice'] : [], ['attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret']);
+  const fields = ['name', 'age', 'pronouns', 'role', 'look'].concat(voiceTurned ? ['voice'] : [], ['history', 'attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret']);
   assert.equal(await lastQuiet(page), `Edited Mavis Toler: ${fields.join(', ')}.`);
   assert.equal(await depth(), d0 + 1, 'one undo step');
   assert.deepEqual(await page.evaluate(() => [Game.state.meta.turn, Game.Api.Mock.calls.length]), [turn, 0], 'no turn and no API call');
@@ -1959,12 +1973,15 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   const shown = await page.evaluate(sel => { const c = document.querySelector(sel); return { edit: !!c.querySelector('.pedit'), open: !c.querySelector('.pcard-more').hidden, name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, look: c.querySelector('.pcard-look').textContent, notes: c.querySelector('.pcard-notes').textContent, focus: document.activeElement.classList.contains('pcard-edit') }; }, card);
   assert.deepEqual(shown, { edit: false, open: true, name: 'Mavis Toler', pron: label, role: `Night clerk at the motor court · ${x.other.first}'s wife`, look: 'A small, tired woman in a motel smock.', notes: shown.notes, focus: true });
   assert.match(shown.notes, /paid back the twenty/);
+  // The age beside the name, and the new history in the card's facts.
+  assert.equal(await page.textContent(`${card} .pcard-age`), '· 38');
+  assert.equal(await page.textContent(`${card} .pcard-facts dd[data-fact="history"]`), 'She came down from Calder in the spring and took the night desk nobody else wanted.');
   // The schedule (and so the map): at the new home in the phases the old one held, back at the town's own schedule in the rest.
   assert.ok(await page.evaluate(([home, ph, id]) => ph.every(p => Game.State.npcsAt(home, p).some(n => n.id === id)), [x.home, x.who.free, id]), 'at the new home');
   // The narrator, next turn: the new name, pronouns, role and relation.
   await place(page, await page.evaluate(id => Game.World.whereIs(id), id), null);
   const packet = await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }));
-  assert.ok(packet.includes(`Mavis Toler (${label}; night clerk at the motor court; ${x.other.first}'s wife; `), packet.split('\n').find(l => l.startsWith('PRESENT')));
+  assert.ok(packet.includes(`Mavis Toler (38, ${label}; night clerk at the motor court; ${x.other.first}'s wife; `), packet.split('\n').find(l => l.startsWith('PRESENT')));
 
   // One /undo takes all of it back.
   await sendText(page, '/undo');
@@ -2008,17 +2025,178 @@ s.test('the narrator packet says what people can know about the player: came to 
     const line = () => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').find(l => l.startsWith('WHAT PEOPLE KNOW:'));
     const name = Game.state.player.name;
     const town = Game.state.meta.townName;
-    const out = { name, town, d1: line(), after: Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').findIndex(l => l.startsWith('WHAT PEOPLE KNOW:')) };
+    const lines = Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n');
+    const out = { name, town, d1: line(), after: lines.findIndex(l => l.startsWith('WHAT PEOPLE KNOW:')), present: lines.findIndex(l => l.startsWith('PRESENT:')) };
     Game.State.apply({ setTime: { day: 2, phase: 'morning' } });
     out.d2 = line();
     Game.State.apply({ setTime: { day: 4, phase: 'night' } });
     out.d4 = line();
     return out;
   });
-  assert.equal(r.after, 3, 'right after PRESENT');
+  assert.equal(r.after, r.present + 1, 'right after PRESENT');
   assert.ok(r.d1.startsWith(`WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Each person knows about ${r.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${r.name} never met them, heard of them, or got a call, news or a warning about them before they came.`), r.d1);
   assert.ok(r.d2.includes(' came to ' + r.town + ' yesterday (this is day 2) and'), r.d2);
   assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
+});
+
+/* A lived-in town (docs/BUILD_PLAN.md, direction change 9). */
+s.test('a place out of town is never a destination: the parser\'s destination, a move to its other name, and a walk-and-do there are refused with a plain line, nothing spent, the input kept in the feed; the parser hears where the game never goes', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const x = await page.evaluate(() => { const l = Game.state.locations.find(y => y.away && (y.aka || []).length); return { id: l.id, name: l.name, distance: l.distance, aka: l.aka[0], town: Game.state.meta.townName }; });
+  const line = `${x.name.replace(/^The /, 'the ').replace(/^./, c => c.toUpperCase())} is out of town (${x.distance}). The story stays in ${x.town}: you can talk about it, but you can't go there.`;
+  const before = await stateJson(page);
+  // The parser names it as the destination of a move.
+  await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'move', destinationId: id, targets: [], timeCost: 'long', summary: 'Drives out of town' }), x.id);
+  let r = await page.evaluate(() => Game.Pipeline.submit('I drive out there'));
+  assert.deepEqual([r.ok, r.reason, r.placeId], [false, 'away', x.id]);
+  assert.equal(await lastNotice(page), line);
+  assert.equal(await stateJson(page), before, 'nothing changed: no turn, no time, no move');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-input')].pop().textContent.includes('I drive out there')), true, 'the input stays in the feed');
+  // By another name (new:<aka>): the engine finds the place, and refuses it all the same.
+  await page.evaluate(aka => Game.Api.Mock.queue('parse', { actionType: 'move', destinationId: null, targets: [`new:${aka.replace(/^the /, '')}`], timeCost: 'long', summary: 'Goes there' }), x.aka);
+  r = await page.evaluate(aka => Game.Pipeline.submit(`I head up to ${aka}`), x.aka);
+  assert.deepEqual([r.ok, r.reason], [false, 'away']);
+  assert.equal(await stateJson(page), before);
+  // A walk and then something there (not a move): refused before anything moves.
+  await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'talk', destinationId: id, targets: [], timeCost: 'short', summary: 'Asks around there' }), x.id);
+  r = await page.evaluate(() => Game.Pipeline.submit('I go there and ask around'));
+  assert.deepEqual([r.ok, r.reason], [false, 'away']);
+  assert.equal(await stateJson(page), before);
+  // The engine never puts the player there either.
+  assert.match(await page.evaluate(id => Game.State.apply({ playerLocationId: id }).rejected[0].reason, x.id), /is out of town; the game never goes there/);
+  // Talking about it is fine: an ordinary turn, and the parser hears it among the places out of town.
+  r = await page.evaluate(() => Game.Pipeline.submit('I look around'));
+  assert.equal(r.ok, true);
+  const parse = await lastPacket(page, 'parse');
+  assert.ok(parse.includes(`\nOUT OF TOWN (never a destination; the story stays here): `) && parse.includes(`${x.id} — ${x.name}`), 'the parser hears the places out of town');
+  assert.ok(!parse.split('\n').find(l => l.startsWith('OTHER PLACES IN TOWN')).includes(x.id), 'never among the places one move reaches');
+});
+
+s.test('the dead and the people who live elsewhere are never present: not scheduled, not in PRESENT, not brought by a visit; asked for, they are NOT PRESENT with why; named in the story, the player knows of them and People lists them under Elsewhere and Gone with their age and when or where; ages in every person line', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const x = await page.evaluate(() => {
+    const st = Game.state;
+    const dead = st.npcs.find(n => Game.presenceOf(n) === 'dead' && n.died);
+    const away = st.npcs.find(n => Game.presenceOf(n) === 'away' && n.where);
+    const pick = n => ({ id: n.id, name: n.name, first: n.name.split(' ')[0], age: n.age, died: n.died, where: n.where, history: n.history, pron: Game.pronounLabel(n.pronouns) });
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    const seen = PH.flatMap(p => st.locations.flatMap(l => Game.State.npcsAt(l.id, p).filter(n => Game.presenceOf(n) !== 'here').map(n => `${n.id} ${p} ${l.id}`)));
+    const visit = Game.State.apply({ visits: [{ npcId: dead.id, locationId: st.player.locationId }, { npcId: away.id, locationId: st.player.locationId }] }).rejected.map(r => r.reason);
+    return { dead: pick(dead), away: pick(away), seen, visit, here: st.player.locationId };
+  });
+  assert.deepEqual(x.seen, [], 'nowhere in any phase');
+  // Before the story names them, People does not list them.
+  await page.click('#tab-people');
+  assert.equal(await page.locator(`.pcard[data-npc="${x.dead.id}"], .pcard[data-npc="${x.away.id}"]`).count(), 0);
+  assert.deepEqual(x.visit, [`${x.dead.id} is dead`, `${x.away.id} is gone`], 'a visit is refused');
+  // Asked for by name: NOT PRESENT, and the narrator is told why.
+  await page.evaluate(n => Game.Api.Mock.queue('parse', { actionType: 'talk', targets: [`new:${n}`], summary: 'Asks for them' }), x.dead.first);
+  await sendText(page, `I ask for ${x.dead.first}`);
+  let packet = await lastPacket(page);
+  assert.ok(packet.includes(`NOT PRESENT: ${x.dead.name} (dead (${x.dead.died}))`), packet.split('\n').find(l => l.startsWith('NOT PRESENT')));
+  assert.ok(!packet.split('\n').find(l => l.startsWith('PRESENT:')).includes(`${x.dead.name} (`), 'not in PRESENT');
+  await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'talk', targets: [id], summary: 'Asks for them' }), x.away.id);
+  await sendText(page, `I ask for ${x.away.first}`);
+  packet = await lastPacket(page);
+  assert.ok(packet.includes(`NOT PRESENT: ${x.away.name} (not in town (${x.away.where}))`), packet.split('\n').find(l => l.startsWith('NOT PRESENT')));
+  // Every person line carries the age before the pronouns; the parser hears the dead and the far away apart from the town.
+  const present = packet.split('\n').find(l => l.startsWith('PRESENT:'));
+  const here = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId).map(n => ({ name: n.name, age: n.age, pron: Game.pronounLabel(n.pronouns) })));
+  for (const n of here) assert.ok(present.includes(`${n.name} (${n.age}, ${n.pron}; `), n.name);
+  const parse = await lastPacket(page, 'parse');
+  assert.match(parse, /\nPLAYER: Tester \(\d+; [^)]+\); /);
+  assert.ok(parse.includes(`\nNOT IN TOWN (dead, or living elsewhere; talked about, never met): `) && parse.includes(`${x.dead.id} — ${x.dead.name} (dead; `) && parse.includes(`${x.away.id} — ${x.away.name} (lives elsewhere; `));
+  assert.ok(!parse.split('\n').find(l => l.startsWith('EVERYONE ELSE IN TOWN')).includes(x.dead.id), 'not among the people in town');
+  // The story names them: the player knows of them now (asking for them already named them in the narration).
+  await page.click('#tab-people');
+  await page.evaluate(n => Game.Api.Mock.queue('narrate', `Somebody at the counter says ${n.dead.first} would have hated all this, and that ${n.away.name} has not called in weeks.`), x);
+  await sendText(page, 'I listen to the talk at the counter');
+  const known = await page.evaluate(n => [Game.State.npc(n.dead.id).knownToPlayer, Game.State.npc(n.away.id).knownToPlayer], x);
+  assert.deepEqual(known, [true, true]);
+  const groups = await page.evaluate(() => [...document.querySelectorAll('#panel-body .people-group')].map(g => ({ key: g.dataset.group, title: g.querySelector('h3').firstChild.textContent, ids: [...g.querySelectorAll('.pcard')].map(c => c.dataset.npc) })));
+  const gone = groups.find(g => g.key === 'gone');
+  const elsewhere = groups.find(g => g.key === 'elsewhere');
+  assert.ok(gone && gone.title === 'Gone' && gone.ids.includes(x.dead.id), JSON.stringify(groups));
+  assert.ok(elsewhere && elsewhere.title === 'Elsewhere' && elsewhere.ids.includes(x.away.id), JSON.stringify(groups));
+  assert.deepEqual(groups.map(g => g.key).slice(-2), ['elsewhere', 'gone'], 'after the people in town');
+  const card = id => page.evaluate(id => { const c = document.querySelector(`.pcard[data-npc="${id}"]`); return { name: c.querySelector('.pcard-name').textContent, age: c.querySelector('.pcard-age').textContent, pron: c.querySelector('.pcard-pron').textContent, where: c.querySelector('.pcard-where').textContent, att: !!c.querySelector('.att') }; }, id);
+  assert.deepEqual(await card(x.dead.id), { name: x.dead.name, age: `· ${x.dead.age}`, pron: x.dead.pron, where: `Died ${x.dead.died}`, att: false });
+  assert.deepEqual(await card(x.away.id), { name: x.away.name, age: `· ${x.away.age}`, pron: x.away.pron, where: `Lives elsewhere: ${x.away.where}`, att: false });
+  // Opened: their history and their people.
+  await page.click(`#phead-${x.away.id}`);
+  const facts = await page.evaluate(id => Object.fromEntries([...document.querySelectorAll(`.pcard[data-npc="${id}"] .pcard-facts dd`)].map(d => [d.dataset.fact, d.textContent])), x.away.id);
+  assert.equal(facts.history, x.away.history);
+  assert.equal(facts.lives, x.away.where);
+  assert.ok(facts.ties && facts.ties.length > 0, JSON.stringify(facts));
+});
+
+s.test('the player has only what they carry: "I stab X" with no knife tells the narrator and the bookkeeper NOT CARRIED, the turn runs bare-handed with no extra call and the debug entry names the knife; CARRYING (with the money) follows PLAYER every turn; with a knife in hand there is no NOT CARRIED and the knife is the item used', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  // The owner: "I stabbed someone successfully but I didn't have a knife in my inventory."
+  const bgIndex = await page.evaluate(() => Game.data.BACKGROUNDS.findIndex(b => !(b.items || []).some(i => Game.Pipeline.carriedAs(i.name, 'knife'))));
+  assert.ok(bgIndex >= 0, 'a background with no knife');
+  await quickStart(page, { bgIndex });
+  const who = await page.evaluate(() => {
+    const here = Game.State.npcsAt(Game.state.player.locationId);
+    const n = here[0] || Game.state.npcs.find(x => Game.presenceOf(x) === 'here');
+    return n.name.split(' ')[0];
+  });
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Pipeline.forceNextRoll(15); });
+  await sendText(page, `I stab ${who}`);
+  const narr = await lastPacket(page, 'narrate');
+  const book = await lastPacket(page, 'bookkeep');
+  const lines = narr.split('\n');
+  const at = lines.findIndex(l => /^PLAYER: /.test(l));
+  assert.match(lines[at + 1], /^CARRYING: .+; .+ \(nothing else: no weapon, tool, phone, keys, car or money beyond this\)\.$/, 'CARRYING right after PLAYER');
+  assert.doesNotMatch(lines[at + 1], /knife/i);
+  assert.ok(lines.includes('NOT CARRIED: a knife. The player has no knife and nothing like one; they cannot stab or cut anyone. Narrate what they can do without it (bare hands, bluff, or realising they have nothing), and nothing happens that needs it.'), narr);
+  assert.match(book, /NOT CARRIED: a knife\. The player has no knife and nothing like one; they cannot stab or cut anyone\./);
+  assert.match(book, /Record no use of it/);
+  let r = await page.evaluate(() => {
+    const t = Game.Pipeline.lastTurn;
+    const d = Game.State.debugLog.filter(e => e.path === 'missingItem');
+    return { calls: Game.Api.Mock.calls.map(c => c.method), action: t.action, mods: t.roll ? t.roll.modifiers.map(m => m.label) : null, missing: t.ctx.missing, debug: d[d.length - 1], turn: Game.state.meta.turn, log: Game.state.log.length };
+  });
+  assert.deepEqual(r.calls, ['parse', 'narrate', 'bookkeep'], 'not refused, and no extra call');
+  assert.equal(r.turn, 1);
+  assert.equal(r.action.actionType, 'attack');
+  assert.equal(r.action.missingItem, 'knife');
+  assert.equal(r.action.usesItemId, null);
+  assert.ok(r.mods && !r.mods.includes('item'), 'the roll is bare-handed: no item bonus');
+  assert.deepEqual(r.missing, { name: 'knife' });
+  assert.equal(r.debug.item, 'knife');
+  assert.equal(r.debug.turn, 1);
+  // A turn with nothing missing still says what the player carries, and no NOT CARRIED.
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.State.apply({ lastRollKey: null }); });
+  await sendText(page, 'I look around');
+  assert.match(await lastPacket(page, 'narrate'), /^CARRYING: /m);
+  assert.doesNotMatch(await lastPacket(page, 'narrate'), /NOT CARRIED/);
+  // With a knife picked up, the same stab uses it.
+  await page.evaluate(() => {
+    const here = Game.state.player.locationId;
+    Game.State.apply({ addItems: [{ locationId: here, item: { id: 'item_kitchen_knife', name: 'Kitchen knife', qty: 1 } }] });
+    Game.State.apply({ itemsGained: ['item_kitchen_knife'], lastRollKey: null });
+    Game.Api.Mock.clear();
+    Game.Pipeline.forceNextRoll(15);
+  });
+  await sendText(page, `I stab ${who}`);
+  const narr2 = await lastPacket(page, 'narrate');
+  assert.doesNotMatch(narr2, /NOT CARRIED/);
+  assert.doesNotMatch(await lastPacket(page, 'bookkeep'), /NOT CARRIED/);
+  assert.match(narr2, /^CARRYING: .*Kitchen knife/m);
+  r = await page.evaluate(() => { const t = Game.Pipeline.lastTurn; return { action: t.action, mods: t.roll.modifiers.map(m => m.label), missing: t.ctx.missing || null }; });
+  assert.equal(r.action.usesItemId, 'item_kitchen_knife');
+  assert.equal(r.action.missingItem, null);
+  assert.equal(r.missing, null);
+  assert.ok(r.mods.includes('item'), 'the knife counts in the roll');
+  // The parser hears the rule; carriedAs knows a knife from a socket set.
+  assert.match(await lastPacket(page, 'parse'), /INVENTORY: .*item_kitchen_knife/);
+  const names = await page.evaluate(() => ['Folding knife', 'Socket set', 'Car keys', 'Thumb drive', 'Hunting rifle'].map(n => ['knife', 'gun', 'car'].filter(k => Game.Pipeline.carriedAs(n, k))));
+  assert.deepEqual(names, [['knife'], [], ['car'], [], ['gun']]);
 });
 
 s.run();

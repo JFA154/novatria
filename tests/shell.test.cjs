@@ -173,6 +173,23 @@ s.test('new game through character creation to the Begin card (laptop, one page)
   await page.fill('#cr-name', 'Tomas Reed');
   const bg = await page.evaluate(() => Game.data.BACKGROUNDS[0]);
   await page.click(`.bg-choice[data-id="${bg.id}"]`);
+  // Age sits with the background: it starts at the background's age, 16 to 90.
+  assert.equal(await page.inputValue('#cr-age'), String(bg.age), 'the background sets the age');
+  assert.match(await page.textContent('#cr-step-background'), new RegExp(`16 to 90\\. A ${bg.name.toLowerCase()} is usually about ${bg.age}\\.`));
+  const other = await page.evaluate(() => Game.data.BACKGROUNDS[1]);
+  await page.click(`.bg-choice[data-id="${other.id}"]`);
+  assert.equal(await page.inputValue('#cr-age'), String(other.age), 'another background, its own age');
+  await page.click(`.bg-choice[data-id="${bg.id}"]`);
+  for (const bad of ['12', '91', '30.5']) {
+    await page.fill('#cr-age', bad);
+    await page.click('#cr-review');
+    assert.equal(await page.textContent('#cr-step-background .err'), 'Age must be a whole number from 16 to 90.', bad);
+    assert.equal(await page.evaluate(() => Game.state), null);
+  }
+  await page.fill('#cr-age', '52');
+  await page.click(`.bg-choice[data-id="${other.id}"]`);
+  await page.click(`.bg-choice[data-id="${bg.id}"]`);
+  assert.equal(await page.inputValue('#cr-age'), '52', 'a typed age stays when the background changes');
   const from = Object.keys(bg.stats).find(k => bg.stats[k] > -1);
   const to = Object.keys(bg.stats).find(k => k !== from && bg.stats[k] < 3);
   await page.selectOption('#cr-move-from', from);
@@ -188,7 +205,9 @@ s.test('new game through character creation to the Begin card (laptop, one page)
 
   await page.waitForSelector('#create-summary-view:not([hidden])');
   const card = await page.textContent('#summary-card');
-  assert.match(card, /Tomas Reed/);
+  assert.match(card, /Tomas Reed · 52/);
+  assert.match(card, /Age52/);
+  assert.equal(await page.evaluate(() => Game.state.player.age), 52);
   assert.match(card, new RegExp(bg.name));
   assert.match(card, /The harbour clerk knows my real name\./);
   const enemyOption = await page.evaluate(() => Game.data.LOOSE_ENDS.enemy.options[1]);
@@ -286,6 +305,11 @@ s.test('panels show real state after Begin and never leak hidden fields', async 
 
   const ch = await panelText('character');
   assert.ok(ch.includes(st.player.name) && ch.includes(st.player.background) && ch.includes(String(st.player.gold)));
+  // The age beside the name, and what the background means.
+  const bg = await page.evaluate(id => Game.data.BACKGROUNDS.find(b => b.id === id), st.player.backgroundId);
+  assert.equal(st.player.age, bg.age, 'quick start takes the background\'s age');
+  assert.equal(await page.textContent('#panel-body .char-name'), `${st.player.name} · ${bg.age}`);
+  assert.equal(await page.textContent('#panel-body .char-blurb'), bg.blurb);
   for (const i of st.player.inventory) assert.ok(ch.includes(i.name), 'inventory shows ' + i.name);
 
   const people = await panelText('people');

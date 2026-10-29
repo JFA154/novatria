@@ -21,7 +21,7 @@ function roleOf(body) {
 
 // ----- canned responses -----
 const USAGE = { input_tokens: 300, output_tokens: 80, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
-const PARSE = { actionType: 'talk', summary: 'Asks about the tide', targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, timeCost: 'instant', declaresWorldFact: false };
+const PARSE = { actionType: 'talk', summary: 'Asks about the tide', targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'instant', declaresWorldFact: false };
 const DIFF = { attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null };
 const NARRATION = ['Rain needles the water. ', 'The old man spits into the river. ', '"Tide\'s wrong," he says.'];
 function message(text, opts) {
@@ -134,6 +134,13 @@ s.test('requests carry the four headers and a body the current API accepts, with
     const out = { objects: [], bad: [] };
     walkSchema(r.body.output_config.format.schema, r.role, out);
     assert.deepEqual(out.bad, [], r.role);
+    // parse_action names a thing the action needs that the player does not carry (the owner's knife), or null.
+    if (r.role === 'parser') {
+      const mi = r.body.output_config.format.schema.properties.missingItem;
+      assert.deepEqual(mi.anyOf, [{ type: 'string' }, { type: 'null' }], 'missingItem is a nullable string');
+      assert.match(mi.description, /not in INVENTORY and not lying here \(a knife, a gun, a car, a key, a tool\), named plainly; else null\. usesItemId is for a listed item\./);
+      assert.ok(r.body.output_config.format.schema.required.includes('missingItem'));
+    }
     // bookkeeper: the root, the seven array item objects (placesRevealed too; peopleRevealed is gone, the cast is fixed) and newSeeds[].trigger.
     assert.equal(out.objects.length, r.role === 'bookkeeper' ? 9 : 1, `${r.role}: nested objects spelled out`);
     // The API compiles the schema to a grammar with a size limit, and record_changes sits right at it
@@ -150,13 +157,19 @@ s.test('requests carry the four headers and a body the current API accepts, with
   }
   assert.ok(!('format' in narrator.body.output_config));
   assert.equal(narrator.body.stream, true);
-  const sys = await page.evaluate(() => ({ narrator: Game.Style.systemPrompt(), cast: Game.Pipeline.castBlock(), parser: Game.Api.SYSTEM.parser, book: Game.Api.SYSTEM.bookkeeper }));
-  // Two cached blocks: the style guide with its examples, then the town's cast.
-  assert.deepEqual(narrator.body.system, [{ type: 'text', text: sys.narrator, cache_control: { type: 'ephemeral' } }, { type: 'text', text: sys.cast, cache_control: { type: 'ephemeral' } }]);
+  const sys = await page.evaluate(() => ({ narrator: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock(), parser: Game.Api.SYSTEM.parser, book: Game.Api.SYSTEM.bookkeeper }));
+  // Three cached blocks: the style guide with its examples, the town (its history, recent events and places), then the town's cast.
+  assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
+  assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
+  // Cached text stays small: about 1.4 tokens a word, under 12,000 for the three blocks (README, "Costs").
+  const words = t => t.split(/\s+/).filter(Boolean).length;
+  assert.ok((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4 < 12000, 'cached blocks: ' + Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4) + ' tokens');
   assert.equal(parser.body.system, sys.parser);
   assert.equal(book.body.system, sys.book);
   assert.match(parser.body.system, /^You convert a player's free-text action into structured data for a game engine\./);
+  assert.match(parser.body.system, /The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else \(a knife to stab with, a gun, a car, a key, a tool\), name it in missingItem/);
+  assert.match(narrator.body.messages[0].content, /\nPLAYER: [^\n]+\nCARRYING: [^\n]+ \(nothing else: no weapon, tool, phone, keys, car or money beyond this\)\.\n/);
   assert.match(book.body.system, /^You record what changed in the game world after this turn\./);
   // Nothing volatile in the cached system prompt.
   const volatile = await page.evaluate(() => [Game.state.player.name, Game.state.meta.townName, 'DAY 1', Game.State.loc(Game.state.player.locationId).name].concat(Game.State.npcsAt(Game.state.player.locationId).map(n => n.name)));
@@ -430,7 +443,7 @@ s.test('a reply the game cannot read is asked for once more: a narrator body tha
   assert.equal(await stateJson(page), before);
 });
 
-s.test('the cast is fixed with the API: a person the parser sends as new: is someone in the cast or nobody, with no extra call; the parser hears everyone else in town; the narrator gets the cast as a second cached system block; the model cannot add a person', async h => {
+s.test('the cast is fixed with the API: a person the parser sends as new: is someone in the cast or nobody, with no extra call; the parser hears everyone else in town; the narrator gets the town and the cast as cached system blocks, with ages, the dead and the far away; the model cannot add a person', async h => {
   const { page, reqs, queue } = await openReal(h);
   const c = await page.evaluate(() => {
     const T = Game.data.TOWN_DATA;
@@ -448,24 +461,36 @@ s.test('the cast is fixed with the API: a person the parser sends as new: is som
   const parser = reqs.slice(n0).find(r => r.role === 'parser');
   assert.match(parser.body.system, /`new:` is never used for a person/);
   assert.ok(parser.body.messages[0].content.includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `) && parser.body.messages[0].content.includes(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), 'the parser hears the whole cast');
-  // The narrator: the style block, then the cast, both cached; the cast line for Mavis says whose wife she is and where she is.
+  // The narrator: the style block, the town, then the cast, all cached; the cast line for Mavis gives her age, says whose wife she is and where she is.
   const narr = reqs.slice(n0).find(r => r.role === 'narrator');
-  assert.equal(narr.body.system.length, 2);
+  assert.equal(narr.body.system.length, 3);
   assert.ok(narr.body.system.every(b => b.type === 'text' && b.cache_control && b.cache_control.type === 'ephemeral'));
   assert.equal(narr.body.system[0].text, await page.evaluate(() => Game.Style.systemPrompt()));
-  const cast = narr.body.system[1].text;
+  assert.equal(narr.body.system[1].text, await page.evaluate(() => Game.Pipeline.townBlock()));
+  const cast = narr.body.system[2].text;
   assert.equal(cast, await page.evaluate(() => Game.Pipeline.castBlock()));
-  assert.ok(cast.includes(`\n${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), cast.split('\n').find(l => l.startsWith(c.wife.id)));
+  const age = await page.evaluate(id => Game.State.npc(id).age, c.wife.id);
+  assert.ok(cast.includes(`\n${c.wife.id} — ${c.wife.name} (${age}, she/her; ${c.wife.role}; wife of ${c.husband.name}`), cast.split('\n').find(l => l.startsWith(c.wife.id)));
   assert.match(cast, /is one of the people above or does not exist/);
   assert.match(cast, /\nNOT IN TOWN \(they can be talked about, but they never appear\): /);
+  // The dead and the far away are in the cast block with when they died or where they live, after the people in town.
+  const absent = await page.evaluate(() => Game.state.npcs.filter(n => Game.presenceOf(n) !== 'here').map(n => ({ id: n.id, name: n.name, age: n.age, died: n.died, where: n.where, dead: Game.presenceOf(n) === 'dead' })));
+  assert.ok(absent.length);
+  const notIn = cast.indexOf('\nNOT IN TOWN');
+  for (const n of absent) {
+    const at = cast.indexOf(`\n${n.id} — ${n.name} (${n.age}, `);
+    assert.ok(at > notIn, n.id + ' is listed under NOT IN TOWN');
+    assert.ok(cast.slice(at).split('\n')[1].includes(n.dead ? `dead: ${n.died}` : `lives elsewhere: ${n.where}`), n.id);
+  }
   // A stranger the player describes: nobody like that, nothing made.
   queue('parser', parseReply({ actionType: 'talk', targets: ['new:woman at the pumps'], summary: 'Waves at a woman at the pumps' }));
   await sendText(page, 'I wave at the woman at the pumps');
   assert.equal(await page.evaluate(() => Game.state.npcs.length), c.count, 'still nobody new');
   assert.match(reqs.filter(r => r.role === 'narrator').pop().body.messages[0].content, /\nNOT PRESENT: woman \(does not exist in this town; it is simply not there\)\./);
   // The cast block is byte-identical turn to turn, so the cache holds.
-  const casts = reqs.filter(r => r.role === 'narrator').map(r => r.body.system[1].text);
+  const casts = reqs.filter(r => r.role === 'narrator').map(r => r.body.system[2].text);
   assert.equal(new Set(casts).size, 1);
+  assert.equal(new Set(reqs.filter(r => r.role === 'narrator').map(r => r.body.system[1].text)).size, 1, 'the town block never changes');
   // A bookkeeper reply that tries to add a person anyway (the schema no longer offers it): refused, nothing added.
   queue('bookkeeper', bookReply({ peopleRevealed: [{ name: 'Earl Toler', pronouns: 'he', relationToNpcId: '', who: 'brother' }] }));
   await sendText(page, 'I ask the ferryman about his brother');
