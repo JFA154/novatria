@@ -78,6 +78,36 @@ someone's home, they are there at the times they are nowhere else, usually at
 night. Walk there like anywhere else ("I head to Dewayne's house", or tap it
 on the map). The game adds at most one such place a turn and twelve a game.
 
+## People
+
+The People tab lists who you have met, with how they feel about you, where
+you last saw them and what they remember. Everyone has pronouns (he/him,
+she/her or they/them), shown beside their name on the card, and the narrator
+gets the same pronouns right after each person's name, so the story and the
+sheet always agree.
+
+**People the story names become real.** When someone mentions a specific
+person who is not in the game yet, by name or by who they are to someone
+("his wife's gonna be thrilled", "my brother Earl"), that person is added to
+the game then, with what was said about them: pronouns, a one-line role
+("Dewayne's wife, night clerk at the motor court") and who they are to whom. A
+person known only by a relation ("Dewayne's wife") is added quietly; when a
+later line names her ("his wife Mavis"), the same person gets the name, and
+the story says "Added to People: Mavis Toler (Dewayne's wife)." She shows
+under **Heard of** until you meet her. A wife, husband or child lives in the
+same home as the person they belong to (Dewayne's house, once someone has
+told you where it is); anyone else stays off-screen until you find them, and
+comes to the door if you ask for them where they live or work. At most one
+new person a turn and twelve a game.
+
+**People you ask for fit the story.** If you ask for someone the game does
+not have ("I knock and ask for Mavis"), the game makes them with what the
+last few turns already said (a wife stays a woman, a name stays the name),
+or recognises them as someone already in the game. With Claude this is one
+small call to the parser model; if it fails, or in mock mode, the person is
+rolled from the town's tables, with pronouns taken from your words and a
+real job rather than a bare "man" or "woman".
+
 ## Time
 
 A day has four phases: morning, afternoon, evening and night, shown in the
@@ -108,7 +138,7 @@ sleeping that you had no sleep last night.
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
-| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, and sets the clock back if it ran ahead of the story (see Updating an older game). About three API calls. |
+| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, and fixes people the game made up so they match the story (see Updating an older game). About four API calls. |
 
 When time passes while you stay put, anyone who arrives at or leaves your place is worked into the next scene as it happens: a truck pulling in, a door, a goodbye.
 
@@ -196,8 +226,20 @@ the old kind: long play-by-play accounts of whole scenes.
   still on its first morning); mock mode sets a morning clock back to the
   night before when the last scene has a lamp, a bed or a bedroom in it, or
   says night or tonight.
+- **People match the story** (added 29 Oct 2026, rules version 5). Older
+  games could hold someone the game made up from its random tables before
+  the story said who they were: "Mavis Toler", recorded as a man, whom the
+  story calls Dewayne's wife. Loading such a game gives everyone pronouns
+  (from the town's own data, else from their look); the update then reads
+  what the story says about each person the game made up and corrects their
+  record to match: name, pronouns, role, look, voice, who they are to whom,
+  and where they live (they move in there). Memories stay. The feed says,
+  for example, "Fixed 1 person to match the story: Mavis Toler is Dewayne's
+  wife (she/her)." or "People already match the story." One more call to the
+  parser model (none when nobody the game made up is in the story); mock
+  mode reads "his wife Mavis" and "she" near the name by a fixed rule.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (4 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (5 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -228,6 +270,9 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
   roll and a plain move) gave first drafts of 70 to 89 words, all within the
   90-word limit, so none was rewritten ($0.0301 for the six turns).
+- Asking for someone the game does not have yet ("I knock and ask for
+  Mavis") adds one small call to the parser model to make them fit the
+  story; ordinary turns do not.
 - The chronicle (parser model, every 10 turns) was not part of the run; it
   is estimated at about 1,000 input and 110 output tokens. Higher effort or
   the Opus model costs more. The Debug tab shows the real token counts and

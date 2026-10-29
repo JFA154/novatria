@@ -557,7 +557,9 @@ select.input { padding-right: 32px; }
 .mono[data-hue="6"] { background: var(--person-6); }
 .pcard[data-status="dead"] .mono, .pcard[data-status="gone"] .mono { filter: grayscale(1); opacity: .55; }
 .pcard-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pcard-nameline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
 .pcard-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.pcard-pron { font-size: 12px; line-height: 1.3; color: var(--faint); white-space: nowrap; }
 .pcard.stranger .pcard-name { color: var(--muted); font-weight: 500; }
 .pcard-role { font-size: 13px; line-height: 1.4; color: var(--muted); }
 .pcard:not(.open) .pcard-role { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
@@ -982,7 +984,7 @@ select.input { padding-right: 32px; }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, and sets the clock back if it ran ahead of the story. About three API calls (none in mock mode).</p>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, and fixes people the game made up so they match what the story says about them. About four API calls (none in mock mode).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -1241,6 +1243,7 @@ const TOWN_DATA = {
     {
       id: "npc_loretta",
       name: "Loretta Gaddis",
+      pronouns: "she",
       role: "owner and bartender of the Low Water",
       factionId: null,
       tags: ["bartender"],
@@ -1258,6 +1261,7 @@ const TOWN_DATA = {
     {
       id: "npc_royce",
       name: "Royce Pittman",
+      pronouns: "he",
       role: "owner of Pittman's Gas and Service and the swing vote on the town council",
       factionId: null,
       tags: ["council", "merchant"],
@@ -1275,6 +1279,7 @@ const TOWN_DATA = {
     {
       id: "npc_vada",
       name: "Vada Sturdivant",
+      pronouns: "she",
       role: "widow who owns Sturdivant House and the bottomland downstream",
       factionId: null,
       tags: ["owner", "landowner"],
@@ -1292,6 +1297,7 @@ const TOWN_DATA = {
     {
       id: "npc_carter",
       name: "Carter Sturdivant",
+      pronouns: "he",
       role: "head of Sturdivant Land and Timber, who holds half the town's paper",
       factionId: "fac_sturdivant",
       tags: ["lender", "landowner"],
@@ -1309,6 +1315,7 @@ const TOWN_DATA = {
     {
       id: "npc_jolene",
       name: "Jolene Overstreet",
+      pronouns: "she",
       role: "mayor and town clerk",
       factionId: "fac_sturdivant",
       tags: ["council", "mayor"],
@@ -1326,6 +1333,7 @@ const TOWN_DATA = {
     {
       id: "npc_hollis",
       name: "Hollis Byrd",
+      pronouns: "he",
       role: "owner of Byrd's Pawn",
       factionId: "fac_nightrun",
       tags: ["fence", "merchant"],
@@ -1343,6 +1351,7 @@ const TOWN_DATA = {
     {
       id: "npc_wade",
       name: "Wade Purvis",
+      pronouns: "he",
       role: "owner of Purvis Landing and boss of the Night Run",
       factionId: "fac_nightrun",
       tags: ["boatman", "smuggler"],
@@ -1360,6 +1369,7 @@ const TOWN_DATA = {
     {
       id: "npc_colt",
       name: "Colt Purvis",
+      pronouns: "he",
       role: "deckhand on the Night Run",
       factionId: "fac_nightrun",
       tags: ["boatman", "smuggler", "dealer"],
@@ -1377,6 +1387,7 @@ const TOWN_DATA = {
     {
       id: "npc_marcus",
       name: "Marcus Bell",
+      pronouns: "he",
       role: "chief of police",
       factionId: "fac_police",
       tags: ["police", "watch", "chief"],
@@ -1394,6 +1405,7 @@ const TOWN_DATA = {
     {
       id: "npc_travis",
       name: "Travis Cagle",
+      pronouns: "he",
       role: "night-shift police officer",
       factionId: "fac_police",
       tags: ["police", "watch"],
@@ -1411,6 +1423,7 @@ const TOWN_DATA = {
     {
       id: "npc_ray",
       name: "Ray Dees",
+      pronouns: "he",
       role: "pastor of Riverside Baptist Church",
       factionId: null,
       tags: ["priest", "pastor"],
@@ -1428,6 +1441,7 @@ const TOWN_DATA = {
     {
       id: "npc_june",
       name: "June Satterfield",
+      pronouns: "she",
       role: "retired nurse who patches people up at her kitchen table",
       factionId: null,
       tags: ["healer", "nurse"],
@@ -1445,6 +1459,7 @@ const TOWN_DATA = {
     {
       id: "npc_dewayne",
       name: "Dewayne Mangum",
+      pronouns: "he",
       role: "mechanic in the service bays at Pittman's",
       factionId: null,
       tags: ["mechanic"],
@@ -1462,6 +1477,7 @@ const TOWN_DATA = {
     {
       id: "npc_tyler",
       name: "Tyler Rasberry",
+      pronouns: "he",
       role: "night clerk at the Riverview Motor Court",
       factionId: null,
       tags: ["informant", "clerk"],
@@ -1479,6 +1495,7 @@ const TOWN_DATA = {
     {
       id: "npc_tammy",
       name: "Tammy Lott",
+      pronouns: "she",
       role: "cook at the Low Water",
       factionId: null,
       tags: ["cook"],
@@ -2395,6 +2412,45 @@ const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
    place it is, and whose. */
 const REVEALED_TYPES = ['house', 'shop', 'bar', 'spot', 'church', 'farm', 'dock', 'road', 'other'];
 const REVEALED_KINDS = ['home', 'business', 'spot', 'other'];
+/* Pronouns: every NPC record carries one (town data, the tables, people the
+   story names). The packets and the People card show the label. */
+const PRONOUNS = ['he', 'she', 'they'];
+const PRONOUN_LABELS = { he: 'he/him', she: 'she/her', they: 'they/them' };
+const PRONOUN_OBJECT = { he: 'him', she: 'her', they: 'them' };
+/* People someone in the story names (State.apply peopleRevealed, proposed by
+   the bookkeeper's record_changes): what kind of person, and how a person
+   came to be in the game (npc.created.by; town people have no created). */
+const REVEALED_PERSON_KINDS = ['relative', 'worker', 'visitor', 'other'];
+const CREATED_BY = ['story', 'tables', 'context', 'loose_end', 'fact'];
+/* Relations that live under the same roof as the person they are related
+   to (a revealed person shares that person's home), and relations a person
+   has only one of. */
+const HOUSEHOLD_RELATIONS = ['wife', 'husband', 'spouse', 'partner', 'girlfriend', 'boyfriend', 'fiance', 'fiancee', 'son', 'daughter', 'child', 'kid', 'boy', 'girl', 'stepson', 'stepdaughter', 'baby'];
+const SINGLE_RELATIONS = ['wife', 'husband', 'spouse', 'mother', 'father', 'mom', 'dad', 'stepmother', 'stepfather'];
+/* Words that name a relation, for reading the bookkeeper's one-line who
+   ("wife, night clerk at the motor court"): family, then work. */
+const FAMILY_RELATIONS = HOUSEHOLD_RELATIONS.concat(['brother', 'sister', 'mother', 'mom', 'momma', 'mama', 'father', 'dad', 'daddy', 'grandmother', 'grandma', 'granny', 'grandfather', 'grandpa', 'granddad',
+  'aunt', 'uncle', 'cousin', 'nephew', 'niece', 'mother-in-law', 'father-in-law', 'sister-in-law', 'brother-in-law', 'son-in-law', 'daughter-in-law', 'in-law', 'ex-wife', 'ex-husband', 'ex', 'widow', 'widower', 'stepmother', 'stepfather', 'stepbrother', 'stepsister', 'grandson', 'granddaughter']);
+const WORK_RELATIONS = ['boss', 'employee', 'worker', 'hand', 'helper', 'apprentice', 'employer', 'manager'];
+const OTHER_RELATIONS = ['friend', 'buddy', 'neighbor', 'neighbour', 'roommate', 'landlord', 'landlady', 'tenant', 'lodger', 'rival', 'enemy'];
+const RELATION_RE = new RegExp("\\b((?:older|younger|elder|eldest|oldest|youngest|little|big|baby|half|step|ex|late|second|first|middle|twin|kid|old|new)[- ]?)?(" +
+  FAMILY_RELATIONS.concat(WORK_RELATIONS, OTHER_RELATIONS).slice().sort((a, b) => b.length - a.length).join('|') + ")\\b", 'i');
+/* Words that say she or he: nouns count twice, pronouns once, so "his wife"
+   is she and "her husband" is he. */
+const SHE_NOUNS = ['woman', 'women', 'wife', 'wives', 'mother', 'mom', 'momma', 'mama', 'girl', 'girls', 'lady', 'ladies', 'gal', 'daughter', 'sister', 'aunt', 'auntie', 'niece',
+  'grandmother', 'grandma', 'granny', 'widow', 'girlfriend', 'waitress', 'barmaid', 'fiancee', 'mrs', 'ms', 'miss', "ma'am", 'stepmother', 'stepdaughter',
+  'granddaughter', 'landlady', 'housewife', 'nun', 'actress', 'hostess', 'bride', 'missus', 'cowgirl', 'saleswoman', 'businesswoman', 'policewoman', 'sis'];
+const HE_NOUNS = ['man', 'men', 'husband', 'father', 'dad', 'daddy', 'boy', 'boys', 'guy', 'fella', 'fellow', 'gentleman', 'son', 'brother', 'uncle', 'nephew',
+  'grandfather', 'grandpa', 'widower', 'boyfriend', 'fiance', 'mr', 'sir', 'stepfather', 'stepson', 'grandson', 'barman', 'cowboy', 'salesman',
+  'businessman', 'policeman', 'fisherman', 'ferryman', 'boatman', 'deliveryman', 'mailman', 'repairman', 'handyman', 'lineman', 'foreman', 'doorman', 'bro'];
+const SHE_PRONOUNS = ['she', 'her', 'hers', 'herself'];
+const HE_PRONOUNS = ['he', 'him', 'his', 'himself'];
+/* Which of the tables' first names read as she or he (names in neither list
+   go either way; a name the tables do not have tells nothing). */
+const NAME_PRONOUNS = {
+  she: ['Ashley', 'Brandi', 'Crystal', 'Faye', 'Heather', 'Keisha', 'Lacey', 'Mavis', 'Misty', 'Patsy', 'Rhonda', 'Trina', 'Wanda'],
+  he: ['Bobby', 'Clint', 'Darrell', 'Dusty', 'Earl', 'Gary', 'Jamal', 'Kenny', 'Lonnie', 'Odell', 'Randy', 'Shawn', 'Terrell', 'Vernon', 'Wesley']
+};
 const ID_RE = {
   loc: /^loc_[a-z0-9_]+$/, npc: /^npc_[a-z0-9_]+$/, fac: /^fac_[a-z0-9_]+$/, thr: /^thr_[a-z0-9_]+$/,
   seed: /^seed_[a-z0-9_]+$/, rum: /^rum_[a-z0-9_]+$/, item: /^item_[a-z0-9_]+$/, cond: /^cond_[a-z0-9_]+$/, bg: /^bg_[a-z0-9_]+$/
@@ -2430,6 +2486,30 @@ function strArr(v, max) { return Array.isArray(v) ? v.filter(x => typeof x === '
 function fmtMod(n) { n = n | 0; return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
 function plusMinus(n) { return n > 0 ? '+' + n : String(n); }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+/* Pronouns from what a text says about a person: she or he words (nouns
+   count twice, pronouns once), else they. */
+function inferPronouns(text) {
+  const words = String(text || '').toLowerCase().replace(/[’‘]/g, "'").match(/[a-z]+(?:'[a-z]+)?/g) || [];
+  let she = 0;
+  let he = 0;
+  for (const w0 of words) {
+    const w = w0.replace(/'s$/, '');
+    if (SHE_NOUNS.includes(w)) she += 2; else if (SHE_PRONOUNS.includes(w)) she += 1;
+    if (HE_NOUNS.includes(w)) he += 2; else if (HE_PRONOUNS.includes(w)) he += 1;
+  }
+  return she > he ? 'she' : he > she ? 'he' : 'they';
+}
+/* Pronouns a first name gives (NAME_PRONOUNS), or null. */
+function namePronouns(name) {
+  const words = String(name || '').trim().split(/\s+/);
+  const title = (words[0] || '').toLowerCase().replace(/\.$/, '');
+  if (['mrs', 'ms', 'miss'].includes(title)) return 'she';
+  if (title === 'mr') return 'he';
+  const first = words.find(w => !/^(mr|mrs|ms|miss|dr)\.?$/i.test(w)) || '';
+  return NAME_PRONOUNS.she.includes(first) ? 'she' : NAME_PRONOUNS.he.includes(first) ? 'he' : null;
+}
+function pronounLabel(p) { return PRONOUN_LABELS[p] || PRONOUN_LABELS.they; }
+function validPronouns(p) { return PRONOUNS.includes(p) ? p : null; }
 /* Do / Say (the composer's toggle, Pipeline.speechFor): a turn's speech or a
    log entry with mode 'say' was the player's exact words, said to one person
    (to: their id, toName: their name) or to everyone present. */
@@ -2442,6 +2522,8 @@ function npcLabel(npc) {
   if (!npc) return 'someone';
   if (npc.knownToPlayer) return npc.name;
   let r = String(npc.role || '').trim().split(/,| who | which | that /)[0].trim();
+  // "Dewayne's wife" (someone the story named by who they are to someone): as it is.
+  if (/^[A-Z][\w-]*['’]s\s+\S/.test(r) && r.split(/\s+/).length <= 4) return r;
   if (r.split(/\s+/).length > 4) {
     const cut = r.split(/ of | at | in | on | for | from | behind /)[0].trim();
     r = /^(head|man|woman|boy|girl|person)$/i.test(cut) ? (r.split(/\s+/).length <= 7 ? r : r.split(/\s+/).slice(0, 5).join(' ')) : cut;
@@ -2689,14 +2771,33 @@ const Dice = (() => {
 
 // ===== Module: Tables =====
 /* Builds entities from TABLES with the seeded Rng. Nothing here writes state:
-   callers pass the result to State.apply (addNpcs, addLocations, itemsGained). */
+   callers pass the result to State.apply (addNpcs, addLocations, itemsGained).
+   npc(opts): pronouns are opts.pronouns, else what the role, the look or
+   opts.noun says ("woman", "his wife"), else what the first name says, else
+   they; a first name rolled for someone known to be she or he is one that
+   fits (one draw either way, so the seeded stream stays in step). opts.noun
+   is a plain word for the person ("woman") when the role is to be rolled:
+   the look is built on it ("A woman with a bitter look about her.").
+   opts.familyName replaces the rolled family name. */
 const Tables = (() => {
   function taken(id) { return !!(State.current && State.entityById(id)); }
+  function fits(first, p) { return p === 'she' ? !NAME_PRONOUNS.he.includes(first) : p === 'he' ? !NAME_PRONOUNS.she.includes(first) : true; }
   function npc(opts, rng) {
     opts = opts || {};
     const r = rng || Rng;
     const T = TABLES.npc;
-    const name = cleanText(opts.name, 60) || `${r.pick(T.firstNames)} ${r.pick(T.familyNames)}`;
+    const noun = cleanText(opts.noun, 40);
+    const said = inferPronouns([opts.role, opts.look, noun].filter(Boolean).join(' '));
+    let pronouns = validPronouns(opts.pronouns) || (said !== 'they' ? said : null);
+    let name = cleanText(opts.name, 60);
+    if (!name) {
+      const pool = pronouns ? T.firstNames.filter(f => fits(f, pronouns)) : T.firstNames;
+      const first = r.pick(pool.length ? pool : T.firstNames);
+      const family = r.pick(T.familyNames);
+      // A wife or a child takes the family's name (opts.familyName); the draw is made either way.
+      name = `${first} ${cleanText(opts.familyName, 30) || family}`;
+    }
+    if (!pronouns) pronouns = namePronouns(name) || 'they';
     const role = cleanText(opts.role, 60) || r.pick(T.occupations);
     const t1 = r.pick(T.traits);
     let t2 = r.pick(T.traits);
@@ -2704,13 +2805,15 @@ const Tables = (() => {
     const voice = cleanText(opts.voice, 200) || r.pick(T.speechQuirks);
     const goal = cleanText(opts.goal, 200) || r.pick(T.wants);
     const isTaken = opts.taken || taken;
+    const who = noun || role;
     return {
       id: uniqueId('npc_' + slugify(name), isTaken),
       name,
+      pronouns,
       role,
       factionId: opts.factionId || null,
       tags: strArr(opts.tags),
-      look: cleanText(opts.look, 200) || `${capFirst(article(role))} ${role} with ${article(t1)} ${t1} look about them.`,
+      look: cleanText(opts.look, 200) || `${capFirst(article(who))} ${who} with ${article(t1)} ${t1} look about ${PRONOUN_OBJECT[pronouns]}.`,
       voice,
       personality: Array.isArray(opts.personality) && opts.personality.length ? strArr(opts.personality).slice(0, 3) : [t1, t2],
       goal,
@@ -2789,8 +2892,12 @@ const Tables = (() => {
      who had none) and rumourToldBy ([{ rumourId, npcId }]: who told the
      player a heard rumour, when it was not its source); and Upgrade's own:
      setMemories ([{ npcId, memories: [{ turn, text, weight }] }]: a person's
-     memories replaced outright, in the order given, at most MEMORY_MAX) and
-     rulesVersion (the rules the game has been brought up to).
+     memories replaced outright, in the order given, at most MEMORY_MAX),
+     fixPeople ([{ npcId, name?, pronouns?, role?, look?, voice?,
+     relationToNpcId?, relation?, homeLocationId? }]: a person's record
+     corrected to match the story, version 5; fields left out or null are
+     kept, memories and the id always are) and rulesVersion (the rules the
+     game has been brought up to).
    A logEntry also notes who the player saw: state.seen[npcId] = { locationId,
    day, phase, turn } for everyone present with them in the narrated scene
    (People: "Last seen"). Display only; no model ever reads it.
@@ -2807,7 +2914,32 @@ const Tables = (() => {
    ({ turn, day, byNpcId, ownerNpcId, kind, visited }); someone's home also
    holds its owner in every phase they are scheduled nowhere. turn and day
    are taken only from the engine. result.revealed lists the new ids.
-   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed? }. */
+   peopleRevealed ([{ name, pronouns, relationToNpcId, who }] from the
+   bookkeeper, read into the long form [{ name, unnamed, pronouns, role,
+   look, relationToNpcId, relation, locationId, kind, byNpcId? }], which the
+   engine and tests may send as is: a specific person someone in the
+   narration named, by name or by a clear relation, who is not in the game
+   yet) is the other: validated (name 2 to 40 characters, pronouns he, she
+   or they, a known relation target and place), refused when it is someone
+   already here by name (samePerson) or by the same relation to the same
+   person, at most LIMITS.peoplePerTurn from the model in a turn and
+   LIMITS.revealedPeople in a game. An unnamed one ("Dewayne's wife",
+   unnamed true) is replaced in place when a later entry names them with the
+   same relationToNpcId and relation: the name changes, the id stays. A new
+   one becomes npc_<slug> with knownToPlayer false, status free, attitude 0,
+   no memories, tags from kind and relation, empty voice, goal and secret,
+   pronouns, and created { turn, day, by: 'story', relationToNpcId,
+   relation, locationId, byNpcId }; a wife, husband, partner or child
+   (HOUSEHOLD_RELATIONS) shares the home of the person they are related to
+   (a home someone told the player about, or one of the dwelling types) in
+   every phase no schedule holds them, otherwise they have no schedule and
+   are off-screen until met. A home revealed later takes them in then.
+   result.people lists { id, named, renamed }.
+   Every NPC carries pronouns (he, she or they): addNpcs takes them or reads
+   them from the role and look, then the first name. Engine-made people
+   carry created { turn, day, by } (CREATED_BY). A save from before pronouns
+   gets them at load (fillPronouns).
+   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people? }. */
 const State = (() => {
   let current = null;
   let town = null;
@@ -2826,8 +2958,11 @@ const State = (() => {
      player or thank them for). 3: "Places people told you about" (a place
      someone named becomes a place on the map, placesRevealed). 4: "Clock
      follows the story" (night holds until the player sleeps; a clock that
-     ran ahead of its story is set back, setTime). */
-  const RULES_VERSION = 4;
+     ran ahead of its story is set back, setTime). 5: "People match the
+     story" (every person has pronouns; people the story names become real,
+     peopleRevealed; someone the game made up before the story said who they
+     were is corrected, fixPeople). */
+  const RULES_VERSION = 5;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -2836,18 +2971,18 @@ const State = (() => {
   let dirty = false;
 
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
-    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'journalEntry'];
+    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
-    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
+    'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'rulesVersion', 'sceneChange', 'sceneChangeDone'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
-  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12 };
+  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12, peoplePerTurn: 1, revealedPeople: 12 };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
   const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season']);
 
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0 }; }
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0 }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -2994,13 +3129,23 @@ const State = (() => {
       const ph = phasesOf(raw.home.phases) || bad('home phases must be "all" or a list of phases');
       home = { locationId: l.id, phases: ph };
     }
+    if (raw.pronouns !== undefined && raw.pronouns !== null && !validPronouns(raw.pronouns)) bad('pronouns must be he, she or they');
+    const role = cleanText(raw.role, 60) || 'townsfolk';
+    const look = cleanText(raw.look, 200);
+    const said = inferPronouns(`${role} ${look}`);
     const n = {
-      id: raw.id, name, role: cleanText(raw.role, 60) || 'townsfolk', factionId: raw.factionId || null,
-      tags: strArr(raw.tags), look: cleanText(raw.look, 200), voice: cleanText(raw.voice, 200),
+      id: raw.id, name, pronouns: validPronouns(raw.pronouns) || (said !== 'they' ? said : namePronouns(name) || 'they'),
+      role, factionId: raw.factionId || null,
+      tags: strArr(raw.tags), look, voice: cleanText(raw.voice, 200),
       personality: strArr(raw.personality).slice(0, 3), goal: cleanText(raw.goal, 200), secret: cleanText(raw.secret, 300),
       attitude: clamp(toInt(raw.attitude) || 0, -100, 100), memories: [], alive: true,
       knownToPlayer: raw.knownToPlayer === true, status: 'free'
     };
+    // How the engine came to make them (the tables, a context call, a loose end, a story point): when, and who they are to someone.
+    if (isObj(raw.created)) {
+      const rel = typeof raw.created.relationToNpcId === 'string' && npc(raw.created.relationToNpcId) ? raw.created.relationToNpcId : null;
+      n.created = { turn: current.meta.turn, day: current.time.day, by: CREATED_BY.includes(raw.created.by) ? raw.created.by : 'tables', relationToNpcId: rel, relation: rel ? cleanRelation(raw.created.relation) || null : null };
+    }
     if (home) n.home = home;
     current.npcs.push(n);
     if (home) home.phases.forEach(p => addToSchedule(loc(home.locationId), p, n.id));
@@ -3235,8 +3380,218 @@ const State = (() => {
       phases.forEach(p => addToSchedule(l, p, owner.id));
       if (!owner.home) owner.home = { locationId: l.id, phases: waiting ? PHASES.slice() : phases, revealed: true };
       home = `; home of ${owner.id}` + (phases.length ? ` (there ${phases.join(', ')})` : waiting ? ' (once their loose end comes due)' : '');
+      // People the story named who live with the owner (a wife, a son) and are nowhere yet move in.
+      for (const m of s.npcs) {
+        if (!isObj(m.created) || m.created.relationToNpcId !== owner.id || !HOUSEHOLD_RELATIONS.includes(m.created.relation) || scheduledPhases(m.id).length) continue;
+        if (moveIn(m, l).length) home += `; ${m.id} lives there too`;
+      }
     } else if (owner) home = `; ${kind === 'business' ? 'business' : 'place'} of ${owner.id}`;
     return { id, line: `${id} (${name}) reached from ${near.id}${home}${spot ? `; on the map at ${spot.x},${spot.y}` : ''}` };
+  }
+  // ----- people the story names (peopleRevealed) -----
+  /* A person's name for the duplicate check: lower case, no punctuation, no
+     title ("Mrs", "Old", "Officer"). */
+  const PERSON_TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'doc', 'old', 'young', 'big', 'little', 'aunt', 'auntie', 'uncle', 'cousin', 'granny', 'pastor', 'reverend', 'officer', 'chief', 'deputy', 'mayor', 'sheriff']);
+  function personKey(name) {
+    return String(name || '').toLowerCase().replace(/[’‘`]/g, "'").replace(/[^a-z0-9' -]+/g, ' ').split(/\s+/)
+      .filter(w => w && !PERSON_TITLES.has(w)).join(' ');
+  }
+  /* Two names for one person: the same once normalised, or one is a single
+     first name the other starts with ("Mavis" and "Mavis Toler"). */
+  function samePerson(a, b) {
+    const x = personKey(a);
+    const y = personKey(b);
+    if (!x || !y) return false;
+    if (x === y) return true;
+    const xs = x.split(' ');
+    const ys = y.split(' ');
+    return (xs.length === 1 && ys.length > 1 && ys[0] === xs[0]) || (ys.length === 1 && xs.length > 1 && xs[0] === ys[0]);
+  }
+  function firstName(n) {
+    if (!n) return '';
+    if (n.unnamed) return String(n.name || '');
+    const words = String(n.name || '').split(/\s+/);
+    return words.find(w => !PERSON_TITLES.has(w.toLowerCase().replace(/\.$/, ''))) || words[0] || '';
+  }
+  /* "wife", "older brother": lower case, without "his", "my" or "the". */
+  function cleanRelation(v) {
+    return cleanText(v, 30).toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z' -]+/g, ' ').replace(/\s+/g, ' ').trim()
+      .replace(/^(his|her|my|their|our|your|the|a|an)\s+/, '').trim();
+  }
+  /* "Dewayne's wife", from who they are to someone. */
+  function relationPhrase(relTo, relation) { return relTo && relation ? `${firstName(relTo)}'s ${relation}` : ''; }
+  /* The bookkeeper's one-line who, split into the relation and the rest:
+     "wife, night clerk at the motor court" -> wife + "night clerk at the
+     motor court"; "his older brother who runs the bait shop" -> older
+     brother + "runs the bait shop". With no relation word, the first clause
+     is the relation and the rest follows. */
+  function splitWho(who) {
+    const text = cleanText(who, 200).replace(/[’‘]/g, "'");
+    if (!text) return { relation: '', rest: '' };
+    const m = RELATION_RE.exec(text);
+    if (!m) {
+      const parts = text.split(/[,;]/);
+      return { relation: cleanRelation(parts[0]), rest: parts.slice(1).join(',').trim() };
+    }
+    const before = text.slice(0, m.index).replace(/\S+'s\s*$/, '').replace(/\b(his|her|their|my|our|the|a|an)\s*$/i, '').trim();
+    const after = text.slice(m.index + m[0].length).replace(/^[\s,;:.-]+/, '').replace(/^(who|that|which|and)\s+/i, '').trim();
+    const rest = [before, after].filter(Boolean).join(' ').replace(/\s+/g, ' ').replace(/^[,;:\s]+|[,;:\s]+$/g, '');
+    return { relation: cleanRelation(m[0]), rest };
+  }
+  /* What kind of person a relation makes them: family, someone's worker or
+     boss, else other. */
+  function kindOfRelation(relation) {
+    const word = (RELATION_RE.exec(relation || '') || [])[2];
+    if (!word) return 'other';
+    const w = word.toLowerCase();
+    if (WORK_RELATIONS.includes(w)) return 'worker';
+    return FAMILY_RELATIONS.includes(w) ? 'relative' : 'other';
+  }
+  /* A name that is only who they are to someone ("Dewayne's wife", "his
+     brother"): no proper name in it but the related person's first name. */
+  const NAME_STOP = new Set(['his', 'her', 'their', 'my', 'our', 'your', 'the', 'a', 'an', 'that', 'this', 'some', 'one', 'another']);
+  function looksUnnamed(name, relTo) {
+    const first = relTo ? firstName(relTo).toLowerCase() : '';
+    return !String(name || '').split(/\s+/).some(w => {
+      const bare = w.replace(/^["'(]+|["',.)]+$/g, '');
+      const lower = bare.toLowerCase().replace(/'s$/, '');
+      return /^[A-Z]/.test(bare) && !PERSON_TITLES.has(lower) && !NAME_STOP.has(lower) && lower !== first;
+    });
+  }
+  /* The one-line role: the relation first ("Dewayne's wife"), then what was
+     said about them if it adds something ("Dewayne's wife, night clerk at
+     the motor court"); with no relation, what was said, else townsfolk. */
+  function personRole(given, relTo, relation) {
+    const g = cleanText(given, 60).replace(/[.;]+$/, '');
+    const phrase = relationPhrase(relTo, relation);
+    if (!phrase) return g || 'townsfolk';
+    if (!g || new RegExp('\\b' + relation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(g)) return phrase;
+    const first = (/^\S+/.exec(g) || [''])[0];
+    const proper = current.npcs.some(n => String(n.name).split(/\s+/).includes(first)) || current.locations.some(l => String(l.name).split(/\s+/).includes(first));
+    const both = `${phrase}, ${proper ? g : lowerFirst(g)}`;
+    return both.length <= 60 ? both : phrase;
+  }
+  /* Where someone lives, for a household member who shares it: the home
+     someone told the player about, else their home if it is a dwelling. */
+  const DWELLING_TYPES = ['house', 'home', 'bighouse', 'trailer', 'trailerpark', 'farm', 'cabin', 'apartment'];
+  function homeOf(target) {
+    if (!target || !current) return null;
+    const told = current.locations.find(l => isObj(l.revealed) && l.revealed.kind === 'home' && l.revealed.ownerNpcId === target.id && !l.closed);
+    if (told) return told;
+    const h = target.home && loc(target.home.locationId);
+    return h && !h.closed && DWELLING_TYPES.includes(h.type) ? h : null;
+  }
+  function scheduledPhases(id) { return PHASES.filter(p => current.locations.some(x => ((x.npcIdsBySchedule || {})[p] || []).includes(id))); }
+  /* Someone settles at a home: there in every phase no schedule holds them. */
+  function moveIn(n, l) {
+    if (n.alive === false || n.status !== 'free') return [];
+    const busy = scheduledPhases(n.id);
+    const phases = PHASES.filter(p => !busy.includes(p));
+    if (!phases.length) return [];
+    phases.forEach(p => addToSchedule(l, p, n.id));
+    n.home = { locationId: l.id, phases, revealed: true };
+    return phases;
+  }
+  function storyPeople() { return current.npcs.filter(n => isObj(n.created) && n.created.by === 'story'); }
+  /* One peopleRevealed entry (see the apply() header). Returns { id, named, renamed, line }. */
+  function revealPerson(raw, source) {
+    if (!isObj(raw)) bad('must be an object');
+    const s = current;
+    if (source === 'model' && ledger.people >= LIMITS.peoplePerTurn) bad(`at most ${LIMITS.peoplePerTurn} new person a turn`);
+    const name = capFirst(cleanText(String(typeof raw.name === 'string' ? raw.name : '').replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
+    if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
+    const pronouns = validPronouns(raw.pronouns) || bad('pronouns must be he, she or they');
+    let relTo = raw.relationToNpcId === null || raw.relationToNpcId === undefined || raw.relationToNpcId === '' ? null : needNpc(raw.relationToNpcId);
+    // The bookkeeper's compact entry (name, pronouns, relationToNpcId, who): the rest is read from it.
+    const compact = typeof raw.who === 'string' && raw.relation === undefined;
+    let unnamed = raw.unnamed === true;
+    let relationIn = raw.relation;
+    let roleIn = raw.role;
+    let lookIn = raw.look;
+    let atIn = raw.locationId;
+    let kindIn = raw.kind;
+    if (compact) {
+      const d = splitWho(raw.who);
+      if (!relTo) {
+        // "Royce's cousin" with relationToNpcId left empty: the name or the line says whose.
+        const pm = /\b([A-Z][\w-]+)'s\s/.exec(`${name} ${raw.who}`);
+        const owner = pm && s.npcs.find(n => n.alive !== false && !n.unnamed && firstName(n).toLowerCase() === pm[1].toLowerCase());
+        if (owner) relTo = owner;
+      }
+      relationIn = relTo ? d.relation : '';
+      roleIn = relTo ? d.rest : cleanText(raw.who, 60);
+      lookIn = '';
+      atIn = null;
+      kindIn = relTo && d.relation ? kindOfRelation(d.relation) : 'other';
+      unnamed = looksUnnamed(name, relTo); // "the propane man" with nobody to belong to is refused below
+    }
+    const relation = relTo ? cleanRelation(relationIn) || null : null;
+    if (unnamed && !relation) bad('someone without a name needs a relation to a listed person');
+    const at = atIn === null || atIn === undefined || atIn === '' ? null : needLoc(atIn);
+    const kind = REVEALED_PERSON_KINDS.includes(kindIn) ? kindIn : 'other';
+    const byNpcId = typeof raw.byNpcId === 'string' && npc(raw.byNpcId) ? raw.byNpcId : null;
+    // Who is already this to the same person, and one of them still waiting for a name.
+    const kin = relation ? s.npcs.filter(n => isObj(n.created) && n.created.relationToNpcId === relTo.id && n.created.relation === relation) : [];
+    const waiting = unnamed ? null : kin.find(n => n.unnamed === true) || null;
+    if (unnamed && kin.length) bad(`already a person: ${kin[0].id} (${kin[0].name})`);
+    if (!waiting && kin.length && SINGLE_RELATIONS.includes(relation)) bad(`${relTo.id} already has a ${relation}: ${kin[0].id} (${kin[0].name})`);
+    for (const n of s.npcs) if (n !== waiting && samePerson(n.name, name)) bad(`already a person: ${n.id} (${n.name})`);
+    const look = cleanText(lookIn, 200);
+    const household = !!relation && HOUSEHOLD_RELATIONS.includes(relation);
+    if (waiting) {
+      // Named at last: the same person, the same id.
+      const was = waiting.name;
+      waiting.name = name;
+      delete waiting.unnamed;
+      if (pronouns !== 'they' || !validPronouns(waiting.pronouns)) waiting.pronouns = pronouns;
+      if (cleanText(roleIn, 60)) waiting.role = personRole(roleIn, relTo, relation);
+      if (look) waiting.look = look;
+      if (at && !waiting.created.locationId) waiting.created.locationId = at.id;
+      const h = household && !scheduledPhases(waiting.id).length ? homeOf(relTo) : null;
+      const ph = h ? moveIn(waiting, h) : [];
+      if (source === 'model') ledger.people += 1;
+      return { id: waiting.id, named: true, renamed: true, line: `${waiting.id} (${was}) is ${name} (${pronounLabel(waiting.pronouns)})${ph.length ? `; lives at ${h.id} (there ${ph.join(', ')})` : ''}` };
+    }
+    if (storyPeople().length >= LIMITS.revealedPeople) bad(`at most ${LIMITS.revealedPeople} people the story named in one game`);
+    let turn = s.meta.turn;
+    let day = s.time.day;
+    if (source !== 'model') {
+      if (Number.isInteger(raw.turn) && raw.turn >= 0 && raw.turn <= s.meta.turn) turn = raw.turn;
+      if (Number.isInteger(raw.day) && raw.day >= 1 && raw.day <= s.time.day) day = raw.day;
+    }
+    const id = uniqueId('npc_' + slugify(name.replace(/'/g, '')), x => !!npc(x));
+    const tags = Array.from(new Set([kind].concat(relation ? relation.split(/\s+/).filter(w => /^[a-z]+$/.test(w)) : [])));
+    const n = {
+      id, name, pronouns, role: personRole(roleIn, relTo, relation), factionId: null, tags, look, voice: '', personality: [], goal: '', secret: '',
+      attitude: 0, memories: [], alive: true, knownToPlayer: false, status: 'free',
+      created: { turn, day, by: 'story', relationToNpcId: relTo ? relTo.id : null, relation, locationId: at ? at.id : null, byNpcId }
+    };
+    if (unnamed) n.unnamed = true;
+    s.npcs.push(n);
+    if (source === 'model') ledger.people += 1;
+    const h = household ? homeOf(relTo) : null;
+    const ph = h ? moveIn(n, h) : [];
+    return {
+      id, named: !unnamed, renamed: false,
+      line: `${id} (${name}${unnamed ? ', no name yet' : ''}; ${pronounLabel(pronouns)})${relation ? ` ${relation} of ${relTo.id}` : ''}${ph.length ? `; lives at ${h.id} (there ${ph.join(', ')})` : '; off-screen until met'}`
+    };
+  }
+  /* Pronouns for people saved before records carried them (State.load and
+     Upgrade version 5): the town's own (this game's town data, else the
+     built-in town of the same name), else what their role and look say
+     (woman, wife, mother, she: she; man, husband, father, he: he; else
+     they). Returns the ids filled. */
+  function fillPronouns(s, townData) {
+    const own = townData && Array.isArray(townData.npcs) ? townData.npcs : [];
+    const builtIn = s.meta && s.meta.townName === TOWN_DATA.name ? TOWN_DATA.npcs : [];
+    const filled = [];
+    for (const n of Array.isArray(s.npcs) ? s.npcs : []) {
+      if (!isObj(n) || validPronouns(n.pronouns)) continue;
+      const t = own.find(x => x.id === n.id && validPronouns(x.pronouns)) || builtIn.find(x => x.id === n.id && validPronouns(x.pronouns));
+      n.pronouns = t ? t.pronouns : inferPronouns(`${n.role || ''} ${n.look || ''}`);
+      filled.push(n.id);
+    }
+    return filled;
   }
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
@@ -3459,6 +3814,12 @@ const State = (() => {
     each('placesRevealed', raw => {
       const r = revealPlace(raw, source);
       (result.revealed = result.revealed || []).push(r.id);
+      return r.line;
+    });
+    // A person someone named (record_changes), after the places, so a home named in the same turn takes them in.
+    each('peopleRevealed', raw => {
+      const r = revealPerson(raw, source);
+      (result.people = result.people || []).push({ id: r.id, named: r.named, renamed: r.renamed });
       return r.line;
     });
 
@@ -3855,6 +4216,48 @@ const State = (() => {
       n.memories = list;
       return `${n.id} memories rewritten (${before} -> ${list.length})`;
     });
+    /* A person's record corrected to match the story (Upgrade version 5).
+       Everything is checked before anything changes; the id and memories
+       stay. A new home takes over from the old one: they are taken off the
+       old home's phases and are at the new one in every phase no schedule
+       holds them. */
+    each('fixPeople', f => {
+      if (!isObj(f)) bad('must be an object');
+      const n = needNpc(f.npcId);
+      const has = k => f[k] !== undefined && f[k] !== null && f[k] !== '';
+      let name = null;
+      if (has('name')) {
+        name = capFirst(cleanText(String(f.name).replace(/[’‘]/g, "'").replace(/^["“”\s]+|["“”.,;:!?\s]+$/g, ''), 80));
+        if (name.length < 2 || name.length > 40) bad('name must be 2 to 40 characters');
+        const other = s.npcs.find(m => m !== n && samePerson(m.name, name));
+        if (other) bad(`the name ${name} is taken: ${other.id} (${other.name})`);
+      }
+      const pron = has('pronouns') ? (validPronouns(f.pronouns) || bad('pronouns must be he, she or they')) : null;
+      const relTo = has('relationToNpcId') ? needNpc(f.relationToNpcId) : null;
+      if (relTo && relTo.id === n.id) bad('a person cannot be related to themself');
+      const relation = relTo ? cleanRelation(f.relation) || null : null;
+      const home = has('homeLocationId') ? needLoc(f.homeLocationId) : null;
+      const parts = [];
+      const set = (k, v, show) => { if (v && n[k] !== v) { parts.push(show ? `${k} ${JSON.stringify(n[k] || '')} -> ${JSON.stringify(v)}` : `${k} replaced`); n[k] = v; } };
+      if (name) { set('name', name, true); delete n.unnamed; }
+      if (pron) set('pronouns', pron, true);
+      set('role', cleanText(f.role, 60), true);
+      set('look', cleanText(f.look, 200), false);
+      set('voice', cleanText(f.voice, 200), false);
+      if (relTo) {
+        if (!isObj(n.created)) n.created = { turn: null, day: null, by: CREATED_BY.includes(f.by) ? f.by : 'tables' };
+        if (n.created.relationToNpcId !== relTo.id || n.created.relation !== relation) { n.created.relationToNpcId = relTo.id; n.created.relation = relation; parts.push(`${relation || 'related'} of ${relTo.id}`); }
+      }
+      if (home && !(n.home && n.home.locationId === home.id && scheduledPhases(n.id).length)) {
+        // Someone in the cells, gone or dead keeps their schedule (as npcMove); only the home on record changes.
+        const free = n.alive !== false && n.status === 'free';
+        if (free && n.home && Array.isArray(n.home.phases)) removeFromSchedules(n.id, n.home.phases);
+        const ph = free ? moveIn(n, home) : [];
+        if (!ph.length) n.home = { locationId: home.id, phases: n.home && Array.isArray(n.home.phases) ? n.home.phases : PHASES.slice(), revealed: true };
+        parts.push(`lives at ${home.id}${ph.length ? ` (there ${ph.join(', ')})` : ''}`);
+      }
+      return parts.length ? `${n.id}: ${parts.join('; ')}` : null;
+    });
     one('rulesVersion', v => {
       if (!Number.isInteger(v) || v < 1 || v > RULES_VERSION) bad(`must be a whole number from 1 to ${RULES_VERSION}`);
       if (s.meta.rulesVersion === v) return null;
@@ -4006,6 +4409,8 @@ const State = (() => {
     if (!Array.isArray(s.dueEvents)) s.dueEvents = [];
     if (!Array.isArray(s.visits)) s.visits = [];
     if (!isObj(s.seen)) s.seen = {};
+    // Pronouns, once, for people saved before records carried them.
+    fillPronouns(s, townData || TOWN_DATA);
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
@@ -4089,7 +4494,7 @@ const State = (() => {
     get town() { return town; },
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
-    placeNames, mapPointOf, pathPoints, revealLabel,
+    placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
@@ -4111,7 +4516,8 @@ const Town = (() => {
   function instantiate(townData) {
     const t = deepCopy(townData);
     t.locations = t.locations.map(l => Object.assign({ discovered: true, closed: false }, l));
-    t.npcs = t.npcs.map(n => Object.assign({ tags: [], memories: [], alive: true, knownToPlayer: false, status: 'free', attitude: 0 }, n));
+    t.npcs = t.npcs.map(n => Object.assign({ tags: [], memories: [], alive: true, knownToPlayer: false, status: 'free', attitude: 0 }, n,
+      { pronouns: validPronouns(n.pronouns) || inferPronouns(`${n.role || ''} ${n.look || ''}`) }));
     t.factions = t.factions.map(f => Object.assign({ relations: {} }, f, { activeClock: Number.isInteger(f.activeClock) ? f.activeClock : 0 }));
     t.threads = t.threads || [];
     t.seeds = t.seeds || [];
@@ -4160,12 +4566,28 @@ const Town = (() => {
   const FANTASY_ONLY_RE = wordsRe(FANTASY_ONLY);
   let personRe = null;
   let placeRe = null;
+  function personWords() { return personRe || (personRe = wordsRe(PERSON_WORDS.concat(TABLES.npc.occupations || []))); }
   function guessKind(desc) {
-    if (!personRe) personRe = wordsRe(PERSON_WORDS.concat(TABLES.npc.occupations || []));
+    personWords();
     if (!placeRe) placeRe = wordsRe(PLACE_WORDS.concat(TABLES.location.types || []));
     if (personRe.test(desc)) return 'npc';
     if (placeRe.test(desc)) return 'location';
+    if (properName(desc)) return 'npc';
     return 'item';
+  }
+  /* A description that is someone's name ("Mavis", "Mrs. Toler", "Earl
+     Hux"): a title and a name, two or three capitalised words, or one that
+     is a first name the tables or the town use. Returns the name, or null. */
+  function properName(desc) {
+    const d = cleanText(String(desc || '').replace(/^new:/i, ''), 80).replace(/[’‘]/g, "'").replace(/^(the|a|an)\s+/i, '').replace(/[.!?]+$/, '').trim();
+    const words = d.split(/\s+/).filter(Boolean);
+    if (!words.length || words.length > 3) return null;
+    const cap = w => /^[A-Z][a-z'-]+$/.test(w);
+    if (/^(mr|mrs|ms|miss|dr)\.?$/i.test(words[0]) && words.length > 1 && words.slice(1).every(cap)) return d;
+    if (!words.every(cap)) return null;
+    if (words.length > 1) return d;
+    const firsts = TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, ((State.current && State.current.npcs) || []).map(n => String(n.name || '').split(/\s+/)[0]));
+    return firsts.includes(words[0]) ? d : null;
   }
   /* description: the text after `new:`. locationType may be any string;
      unknown types get the generic judgement (content note 5). opts.era
@@ -4260,6 +4682,26 @@ const Town = (() => {
     if (l) return { kind: 'location', id: l.id };
     const presentIds = State.npcsAt(here).map(n => n.id);
     const live = s.npcs.filter(n => n.alive !== false && n.status !== 'dead' && n.status !== 'gone');
+    /* "Dewayne's wife" is not Dewayne: a possessive name before a word for a
+       person names whoever is that to them (the story's own record, or a role
+       that says so); a name beside it ("Mavis, Dewayne's wife") may still be
+       someone here; otherwise nobody yet. */
+    const pw = personWords();
+    const own = Array.from(head.matchAll(/([a-z][a-z-]*)'s\s+([a-z]+)(?:\s+([a-z]+))?/g)).map(m => {
+      const rel = pw.test(m[2]) ? m[2] : m[3] && pw.test(`${m[2]} ${m[3]}`) && pw.test(m[3]) ? `${m[2]} ${m[3]}` : null;
+      return rel ? { owner: m[1], rel, phrase: `${m[1]}'s ${rel}` } : null;
+    }).filter(Boolean)[0];
+    const byPresence = list => list.sort((a, b) => presentIds.includes(b.id) - presentIds.includes(a.id));
+    if (own) {
+      const owners = live.filter(n => nameTokens(n).includes(own.owner));
+      const rel = State.cleanRelation(own.rel);
+      const kin = live.filter(n => (isObj(n.created) && owners.some(o => o.id === n.created.relationToNpcId) && n.created.relation === rel)
+        || hasPhrase(String(n.role || '').toLowerCase(), `${own.owner}'s ${rel}`) || plainName(n.name) === plainName(own.phrase));
+      if (kin.length) return { kind: 'npc', id: byPresence(kin)[0].id };
+      const rest = head.replace(own.phrase, ' ').replace(/\s+/g, ' ').trim();
+      const named = rest ? live.filter(n => nameMentions(' ' + rest + ' ', n)) : [];
+      return named.length ? { kind: 'npc', id: byPresence(named)[0].id } : null;
+    }
     const npcs = live.filter(n => mentions(' ' + head + ' ', n)).sort((a, b) => presentIds.includes(b.id) - presentIds.includes(a.id));
     if (npcs.length) return { kind: 'npc', id: npcs[0].id };
     const itemWant = plainName(headPhrase(desc, 'item'));
@@ -4337,6 +4779,7 @@ const Town = (() => {
       if (n.factionId !== null && n.factionId !== undefined && !facIds.has(n.factionId)) e(`${n.id}: unknown faction ${n.factionId}`);
       if (!Array.isArray(n.tags)) e(`${n.id}: tags must be an array`);
       if (!NPC_STATUSES.includes(n.status)) e(`${n.id}: bad status ${n.status}`);
+      if (!PRONOUNS.includes(n.pronouns)) e(`${n.id}: pronouns must be he, she or they`);
     }
     const checkRef = (where, kind, id) => { const ok = kind === 'loc' ? locById.has(id) : kind === 'npc' ? npcIds.has(id) : kind === 'fac' ? facIds.has(id) : ids.has(id); if (!ok) e(`${where}: unknown ${kind} ${id}`); };
     const checkTrigger = (where, tr) => {
@@ -4408,6 +4851,7 @@ const Town = (() => {
         role: spec.role, look: spec.look, voice: spec.voice, personality: spec.personality,
         goal: spec.goal, secret: spec.secret, tags: tag ? [tag] : []
       });
+      made.created = { by: 'loose_end' };
       const r = State.apply({ addNpcs: [made] });
       if (r.rejected.length) throw new Error('could not create the loose-end NPC: ' + r.rejected[0].reason);
       target = State.npc(made.id);
@@ -4467,7 +4911,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
 })();
 
 // ===== Module: World =====
@@ -5031,6 +5475,15 @@ const Style = (() => {
      checkClock(packet)       -> { behind, phase, dayOffset, reason }; packet from
                                  Upgrade.clockPacket() (whether an older game's clock ran
                                  ahead of its story; parser model)
+     createPerson(packet)     -> { existingNpcId, name, pronouns, role, look, voice,
+                                 personality, goal, secret, relationToNpcId, relation };
+                                 packet from Pipeline's personPacket (a person the player
+                                 asked for who is not in the game, made to fit the story;
+                                 parser model; real provider only, mock mode uses the tables)
+     fixPeople(packet)        -> { people: [{ npcId, name, pronouns, role, look, voice,
+                                 relationToNpcId, relation, homeLocationId }] }; packet from
+                                 Upgrade.peoplePacket() (people the game made up, checked
+                                 against what the story says about them; parser model)
    Any of them may instead resolve to a refusal { refused: true, role,
    category, explanation }, which the Pipeline turns into an in-feed notice.
    Failures throw ApiError with a player-facing message (err.detail holds the
@@ -5044,7 +5497,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, person: 3000, people: 6000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -5070,10 +5523,16 @@ const Api = (() => {
      story (SYSTEM.places); it sits before MEMORY_RULES so the bookkeeper's
      prompt still ends with the memory rules. */
   const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
+  /* PEOPLE_RULE: the bookkeeper's rule for peopleRevealed (a specific person
+     someone names who is not in the game yet, by name or by relation),
+     modelled on PLACE_RULE. */
+  const PEOPLE_RULE = "Add a person to peopleRevealed only when someone in the narration names a specific person who is in none of the people lists, by name or by a clear relation (\"my wife\", \"his brother Earl\"). name is the name as used; when no name was given, call them by who they are to a listed person (\"Dewayne's wife\"), and when a later turn names them, give the name with the same relationToNpcId and who. Pronouns follow what was said: a wife or a mother is she, a husband or a brother is he, otherwise they. relationToNpcId is the id of the listed person they are related to or work for, else empty. who is one plain line only from what was said: what they are to that person first (\"wife\", \"older brother\", \"boss\"), then anything else said about them (\"night clerk at the motor court\"); empty when nothing was said. Not for vague mentions, crowds, or anyone already listed.";
   const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
-    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. Describe a new person as a person, with what is known about them: `new:Mavis, Dewayne's wife`, `new:woman at the counter`. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + PEOPLE_RULE + " At most one per turn. " + MEMORY_RULES,
+    person: "You create one person for a text RPG set in a small present-day town, because the player asked for someone who is not in the game yet. Read the description and the last turns first. If the story already named this person, by name or by who they are to someone (\"his wife Mavis\"), keep every detail it gave: the name stays the name, a wife stays a woman, a son stays a man. If the description is someone in the people list, return their id as existingNpcId and fill the rest with empty strings and nulls. Otherwise fill in the rest so it fits the story and the place: a first and family name (from the shortlists unless the story gave one; a wife or child usually shares the family's name), pronouns, a one-line role (their job, or who they are to someone, like \"Dewayne's wife\"), a one-line look, a one-line voice, two personality traits, a goal and a secret that fit. relationToNpcId and relation only when the story states a relation to someone listed. Plain lines, nothing supernatural.",
+    people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Pronouns follow what was said: a wife or a mother is she, a husband or a brother is he, otherwise they. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
@@ -5100,6 +5559,18 @@ const Api = (() => {
     ownerNpcId: nullable(STR, "A listed person's id when it is their home or business, else null"),
     kind: { type: 'string', enum: REVEALED_KINDS }
   }, extra || {}));
+  /* One person someone named (record_changes.peopleRevealed). Four fields
+     only: the API compiles every structured-output schema to a grammar with
+     a size limit, and record_changes sits right under it (a fifth field here
+     is refused as "compiled grammar too large"). State.apply derives the
+     rest (unnamed, relation, role, kind) from name and who. Probe the API
+     before adding a field anywhere in record_changes. */
+  const personItem = () => obj({
+    name: { type: 'string', description: "The name as used (\"Mavis\", \"Earl Toler\"); when no name was given, who they are to a listed person (\"Dewayne's wife\")" },
+    pronouns: { type: 'string', enum: PRONOUNS, description: 'From what was said: a wife or a mother is she, a husband or a brother is he, otherwise they' },
+    relationToNpcId: { type: 'string', description: 'The id of the listed person they are said to be related to or to work for; empty when none' },
+    who: { type: 'string', description: 'One plain line only from what was said: what they are to that person first ("wife", "older brother", "boss"), then anything else said about them ("night clerk at the motor court"); empty when nothing was said' }
+  });
   const SCHEMAS = {
     parse_action: obj({
       actionType: { type: 'string', enum: ACTION_TYPES },
@@ -5140,7 +5611,34 @@ const Api = (() => {
       })),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
+      peopleRevealed: list(personItem(), 'A specific person someone in the narration named who is in none of the people lists; at most one, usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
+    }),
+    create_person: obj({
+      existingNpcId: nullable(STR, 'The id of the person in the people list the description already is, else null'),
+      name: { type: 'string', description: 'First and family name; the name the story gave, if it gave one' },
+      pronouns: { type: 'string', enum: PRONOUNS },
+      role: { type: 'string', description: 'One plain line: their job, or who they are to someone ("Dewayne\'s wife")' },
+      look: { type: 'string', description: 'One plain line' },
+      voice: { type: 'string', description: 'One plain line: how they talk' },
+      personality: list(STR, 'Two traits'),
+      goal: { type: 'string', description: 'What they want, one line' },
+      secret: { type: 'string', description: 'Something they hide, one line' },
+      relationToNpcId: nullable(STR, 'The id of the listed person the story says they are related to or work for, else null'),
+      relation: nullable(STR, 'What they are to that person: "wife", "brother", "boss"; else null')
+    }),
+    fix_people: obj({
+      people: list(obj({
+        npcId: STR,
+        name: { type: 'string', description: 'The name the story uses for this person (the record\'s, unless the story says otherwise)' },
+        pronouns: { type: 'string', enum: PRONOUNS },
+        role: { type: 'string', description: 'One plain line: who they are to someone ("Dewayne\'s wife"), or their job' },
+        look: { type: 'string', description: 'One plain line that fits the story' },
+        voice: { type: 'string', description: 'One plain line that fits the story' },
+        relationToNpcId: nullable(STR, 'The id of the listed person the story says they are related to, else null'),
+        relation: nullable(STR, 'What they are to that person: "wife", "brother"; else null'),
+        homeLocationId: nullable(STR, 'The id of the listed place the story says they live, else null')
+      }), 'Every person listed, in the order given')
     }),
     check_clock: obj({
       behind: { type: 'boolean', description: 'True only when the latest narration is clearly earlier than CLOCK NOW' },
@@ -5200,7 +5698,7 @@ const Api = (() => {
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
   /* The memory rewrite, the places re-read and the clock check (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
-  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper' };
+  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper', person: 'parser' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
@@ -5265,6 +5763,9 @@ const Api = (() => {
        Mock.queue('rewriteMemories', { people: [...] })         instead of the rule-based rewrite
        Mock.queue('revealPlaces', { placesRevealed: [...] })     instead of the rule-based re-read
        Mock.queue('checkClock', { behind, phase, dayOffset, reason })  instead of the rule-based check
+       Mock.queue('fixPeople', { people: [...] })                instead of the rule-based check of people
+       Mock.queue('createPerson', { ... })   a canned create_person reply (Pipeline only asks the
+                                       real provider; tests call Api.Mock.createPerson directly)
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -5596,6 +6097,76 @@ const Api = (() => {
     }
     return { behind: false, phase: PHASES.includes(t.phase) ? t.phase : PHASES[0], dayOffset: 0, reason: 'The story fits the clock (mock rule).' };
   }
+  /* Upgrade version 5's check of people the game made up, by rule: for each
+     person, pronouns from the words near their name in what the story says
+     ("his wife Mavis", "she"), a relation from a phrase like "Dewayne's
+     wife Mavis", "his wife Mavis" (whose: the nearest listed person named
+     before it) or "Mavis, Dewayne's wife", and then the role "Dewayne's
+     wife" and the home of that person if they share it. A look built on
+     the other pronoun's words ("A man with ... about them") is turned
+     around. Everything else is kept. */
+  const SWAP = { she: { man: 'woman', men: 'women', guy: 'woman', boy: 'girl', him: 'her', his: 'her', he: 'she', them: 'her', their: 'her', they: 'she', husband: 'wife', father: 'mother', son: 'daughter', brother: 'sister' },
+    he: { woman: 'man', women: 'men', lady: 'man', girl: 'boy', her: 'him', she: 'he', them: 'him', their: 'his', they: 'he', wife: 'husband', mother: 'father', daughter: 'son', sister: 'brother' } };
+  function turnLook(look, p) {
+    const map = SWAP[p];
+    if (!map) return look;
+    return String(look || '').replace(/\b[A-Za-z]+\b/g, w => { const r = map[w.toLowerCase()]; return r ? (w[0] === w[0].toUpperCase() ? capFirst(r) : r) : w; });
+  }
+  function mockFixPeople(packet) {
+    const s = State.current;
+    const esc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const listed = (packet.everyone || []).filter(x => x && x.name);
+    const out = [];
+    for (const p of packet.people || []) {
+      const first = String(p.name || '').split(/\s+/)[0];
+      const texts = (p.mentions || []).map(m => String(m.text || '').replace(/[’‘]/g, "'"));
+      const nameRe = new RegExp(`(^|[^A-Za-z])${esc(first)}(?![A-Za-z])`, 'g');
+      // Pronouns: the words around each mention of the name.
+      const near = [];
+      for (const t of texts) for (let m = nameRe.exec(t); m; m = nameRe.exec(t)) near.push(t.slice(Math.max(0, m.index - 40), m.index + first.length + 60));
+      const said = inferPronouns(near.join(' '));
+      let relTo = null;
+      let relation = null;
+      for (const t of texts) {
+        const pats = [
+          new RegExp(`\\b([A-Z][a-z]+)'s\\s+([a-z]+),?\\s+${esc(first)}\\b`),
+          new RegExp(`\\b(?:his|her|my)\\s+([a-z]+),?\\s+${esc(first)}\\b`, 'i'),
+          new RegExp(`\\b${esc(first)},\\s+([A-Z][a-z]+)'s\\s+([a-z]+)\\b`)
+        ];
+        let m = pats[0].exec(t);
+        if (m) { relTo = listed.find(x => x.id !== p.npcId && x.name.split(/\s+/)[0] === m[1]) || null; relation = m[2]; }
+        if (!relTo && (m = pats[2].exec(t))) { relTo = listed.find(x => x.id !== p.npcId && x.name.split(/\s+/)[0] === m[1]) || null; relation = m[2]; }
+        if (!relTo && (m = pats[1].exec(t))) {
+          // Whose: the nearest listed person named before the phrase.
+          const before = t.slice(0, m.index);
+          let best = null;
+          for (const x of listed) {
+            if (x.id === p.npcId) continue;
+            const at = before.lastIndexOf(x.name.split(/\s+/)[0]);
+            if (at >= 0 && (!best || at > best.at)) best = { x, at };
+          }
+          if (best) { relTo = best.x; relation = m[1].toLowerCase(); }
+        }
+        if (relTo && Town.guessKind(relation) === 'npc') break;
+        relTo = null;
+        relation = null;
+      }
+      let pronouns = said;
+      if (pronouns === 'they' && relation) pronouns = inferPronouns(relation);
+      if (pronouns === 'they') pronouns = validPronouns(p.pronouns) || 'they';
+      const owner = relTo && s ? State.npc(relTo.id) : null;
+      const home = owner && HOUSEHOLD_RELATIONS.includes(relation) ? State.homeOf(owner) : null;
+      out.push({
+        npcId: p.npcId, name: p.name, pronouns,
+        role: owner ? `${owner.name.split(/\s+/)[0]}'s ${relation}` : p.role,
+        look: pronouns !== p.pronouns ? turnLook(p.look, pronouns) : p.look,
+        voice: p.voice || '',
+        relationToNpcId: owner ? owner.id : (p.relationToNpcId || null), relation: owner ? relation : (p.relation || null),
+        homeLocationId: home ? home.id : (p.homeLocationId || null)
+      });
+    }
+    return { people: out };
+  }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
@@ -5604,7 +6175,7 @@ const Api = (() => {
     const out = {
       attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [],
       playerLocationId: a.actionType === 'move' && a.destinationId ? a.destinationId : null,
-      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], journalEntry: null
+      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], peopleRevealed: [], journalEntry: null
     };
     if (!s) return out;
     // A home someone names in a quoted line becomes a place (State.apply checks it like any other).
@@ -5648,7 +6219,7 @@ const Api = (() => {
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [], fixPeople: [], createPerson: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -5727,6 +6298,17 @@ const Api = (() => {
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
       await sleep(Mock.delay);
       return { result: isObj(canned) && typeof canned.behind === 'boolean' ? canned : mockCheckClock(packet || {}), usage: MOCK_ZERO, model: 'mock' };
+    },
+    async fixPeople(packet) {
+      const canned = Mock.take('fixPeople', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      await sleep(Mock.delay);
+      return { result: isObj(canned) && Array.isArray(canned.people) ? canned : mockFixPeople(packet || {}), usage: MOCK_ZERO, model: 'mock' };
+    },
+    async createPerson(packet) {
+      const canned = Mock.take('createPerson', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      return { result: isObj(canned) ? canned : null, usage: MOCK_ZERO, model: 'mock' };
     }
   };
 
@@ -5863,6 +6445,8 @@ const Api = (() => {
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
     checkClock(packet) { return messageCall('clock', { system: SYSTEM.clock, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
+    createPerson(packet) { return messageCall('person', { system: SYSTEM.person, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.create_person }); },
+    fixPeople(packet) { return messageCall('people', { system: SYSTEM.people, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
     async narrate(packet, onDelta) {
       const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
       const { res, requestId } = await post('narrator', body);
@@ -5902,7 +6486,7 @@ const Api = (() => {
     return out.result;
   }
   return {
-    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
+    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, PEOPLE_RULE,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, roleModel, roleEffort, isRefusal, readStream, chronicleText,
     providerName: () => provider().name,
@@ -5913,7 +6497,9 @@ const Api = (() => {
     chronicle: entries => call('chronicle', 'chronicle', [entries]),
     rewriteMemories: packet => call('memories', 'rewriteMemories', [packet]),
     revealPlaces: packet => call('places', 'revealPlaces', [packet]),
-    checkClock: packet => call('clock', 'checkClock', [packet])
+    checkClock: packet => call('clock', 'checkClock', [packet]),
+    createPerson: packet => call('person', 'createPerson', [packet]),
+    fixPeople: packet => call('people', 'fixPeople', [packet])
   };
 })();
 
@@ -5969,7 +6555,25 @@ const Api = (() => {
    least 1), that phase, shorts 2 (late in the phase), late at night,
    through State.apply({ setTime }), with no world tick. Nothing to compare
    (an empty log, or the first morning, which nothing is earlier than)
-   costs no call. */
+   costs no call.
+
+   Version 5, "People match the story": every person now carries pronouns,
+   people the story names become real (State peopleRevealed), and a person
+   the player asks for is made to fit the story (Pipeline's create_person
+   call). An older game may hold someone the tables made before the story
+   said who they were: "Mavis Toler", a man, whom the story calls Dewayne's
+   wife. First, anyone still without pronouns gets them by the load rule
+   (State.fillPronouns). Then every person made during play (anyone not in
+   the town data: the tables, a context call, the story, a loose end, a
+   story point) whom the story mentions, by name or by their relation
+   phrase, goes to the parser model in one structured-output call
+   (Api.fixPeople, SYSTEM.people) with their record and every log narration
+   and chronicle summary that mentions them (at most MENTIONS each, the
+   latest), the places and everyone in the game; it returns each record
+   corrected (name, pronouns, role, look, voice, relationToNpcId, relation,
+   homeLocationId). Only what changed goes through State.apply({ fixPeople
+   }): the id and memories stay, and a home given moves them in there.
+   Nobody to check costs no call. */
 const Upgrade = (() => {
   const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
   const PER_PERSON = 6;
@@ -6178,12 +6782,137 @@ const Upgrade = (() => {
     return res;
   }
 
+  // ----- version 5: people match the story -----
+  const MENTIONS = 16;
+  const MADE_BY = {
+    tables: 'from random tables when the player first asked for them', context: 'to fit the story when the player first asked for them',
+    story: 'when someone in the story named them', loose_end: "for one of the player's loose ends at the start", fact: 'for a story point the player spent'
+  };
+  /* Everyone the game made during play: not in this game's town data. */
+  function madeUp(st) {
+    const town = State.town && Array.isArray(State.town.npcs) ? State.town.npcs : TOWN_DATA.npcs;
+    const ids = new Set(town.map(n => n.id));
+    return st.npcs.filter(n => !ids.has(n.id) && n.alive !== false);
+  }
+  function madeBy(st, n) {
+    if (isObj(n.created) && CREATED_BY.includes(n.created.by)) return n.created.by;
+    return (st.player.looseEnds || []).some(le => le.npcId === n.id) ? 'loose_end' : 'tables';
+  }
+  function relationOf(n) {
+    const c = isObj(n.created) ? n.created : {};
+    return c.relationToNpcId ? State.relationPhrase(State.npc(c.relationToNpcId), c.relation) : '';
+  }
+  /* What the story says about someone: the log narrations and chronicle
+     summaries that name them, or say their relation phrase ("Dewayne's
+     wife"); oldest first, the latest MENTIONS. */
+  function mentionsOf(st, n) {
+    const rel = relationOf(n).toLowerCase();
+    const hit = text => (!n.unnamed && Town.nameMentions(text, n)) || (!!rel && String(text || '').toLowerCase().replace(/[’‘]/g, "'").includes(rel));
+    const out = [];
+    for (const c of st.chronicle) if (hit(c.summary)) out.push({ kind: 'summary', fromTurn: c.fromTurn, toTurn: c.toTurn, text: c.summary });
+    for (const e of st.log) if (e.narration && hit(e.narration)) out.push({ kind: 'turn', turn: e.turn, day: e.day, phase: e.phase, text: e.narration });
+    return out.slice(-MENTIONS);
+  }
+  /* The packet for Api.fixPeople: structured (the mock reads people and
+     everyone) and as labelled text (the model reads text). */
+  function peoplePacket(st, list) {
+    const everyone = st.npcs.filter(n => n.alive !== false).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role }));
+    const people = list.map(({ n, mentions }) => {
+      const c = isObj(n.created) ? n.created : {};
+      return { npcId: n.id, name: n.name, pronouns: n.pronouns || null, role: n.role || '', look: n.look || '', voice: n.voice || '', relationToNpcId: c.relationToNpcId || null, relation: c.relation || null,
+        homeLocationId: n.home ? n.home.locationId : null, by: madeBy(st, n), mentions };
+    });
+    const place = id => { const l = State.loc(id); return l ? `${l.id} (${l.name})` : id; };
+    const blocks = people.map(p => [
+      `PERSON ${p.npcId} (made by the game ${MADE_BY[p.by] || MADE_BY.tables})`,
+      `  name: ${p.name}`,
+      `  pronouns: ${p.pronouns ? pronounLabel(p.pronouns) : 'not set'}`,
+      `  role: ${p.role || '(none)'}`,
+      `  look: ${p.look || '(none)'}`,
+      `  voice: ${p.voice || '(none)'}`,
+      `  related to: ${p.relationToNpcId ? `${p.relation || 'related'} of ${p.relationToNpcId}` : 'nobody recorded'}`,
+      `  home: ${p.homeLocationId ? place(p.homeLocationId) : 'none'}`,
+      '  WHAT THE STORY SAYS (oldest first):',
+      ...p.mentions.map(m => (m.kind === 'summary' ? `  SUMMARY of turns ${m.fromTurn} to ${m.toTurn}: ${m.text}` : `  TURN ${m.turn} (day ${m.day}, ${m.phase}): ${m.text}`))
+    ].join('\n'));
+    const text = [
+      `PLAYER: ${st.player.name}`,
+      `PLACES (the places list): ${st.locations.map(l => `${l.id} — ${l.name} (${l.type})`).join('; ')}`,
+      `PEOPLE (everyone in the game): ${everyone.map(x => `${x.id} — ${x.name} (${pronounLabel(x.pronouns)}; ${x.role})`).join('; ')}`,
+      ''
+    ].concat(blocks.join('\n\n')).join('\n');
+    return { everyone, people, text };
+  }
+  /* "Mavis Toler is Dewayne's wife (she/her)". */
+  function personLine(n) {
+    const role = String(n.role || '').split(',')[0].trim();
+    const what = relationOf(n) || (/^[A-Z][\w-]*['’]s\s/.test(role) ? role : `${article(role)} ${lowerFirst(role)}`);
+    return `${n.name} is ${what} (${pronounLabel(n.pronouns)})`;
+  }
+  async function matchStory(st, api) {
+    const res = { calls: 0, fixed: [], filled: [], reply: null };
+    const same = 'People already match the story.';
+    // Pronouns for anyone still without them, by the load rule, through the engine.
+    const probe = { meta: st.meta, npcs: st.npcs.map(n => (validPronouns(n.pronouns) ? n : { id: n.id, role: n.role, look: n.look })) };
+    State.fillPronouns(probe, State.town);
+    const fill = probe.npcs.filter((x, i) => x !== st.npcs[i]).map(x => ({ npcId: x.id, pronouns: x.pronouns }));
+    if (fill.length) {
+      const r = State.apply({ fixPeople: fill });
+      if (r.rejected.length) throw new Error('the engine refused the pronouns: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+      res.filled = fill.map(x => x.npcId);
+    }
+    const filledText = res.filled.length ? ` Gave ${res.filled.length} ${res.filled.length === 1 ? 'person' : 'people'} pronouns.` : '';
+    const list = madeUp(st).map(n => ({ n, mentions: mentionsOf(st, n) })).filter(x => x.mentions.length);
+    if (!list.length) return Object.assign(res, { text: same + filledText });
+    const reply = await api.fixPeople(peoplePacket(st, list));
+    res.calls = 1;
+    if (Api.isRefusal(reply)) throw Object.assign(new Error('refused'), { refused: true, refusal: reply });
+    if (State.current !== st) throw Object.assign(new Error('another game was loaded'), { replaced: true });
+    res.reply = isObj(reply) ? deepCopy(reply) : reply;
+    const asked = new Set(list.map(x => x.n.id));
+    const byId = new Map();
+    for (const p of isObj(reply) && Array.isArray(reply.people) ? reply.people : []) {
+      if (!isObj(p) || typeof p.npcId !== 'string' || byId.has(p.npcId)) continue;
+      if (!asked.has(p.npcId)) { note(st, `people: the reply named ${p.npcId}, who was not asked about; ignored`); continue; }
+      byId.set(p.npcId, p);
+    }
+    const fixes = [];
+    for (const { n } of list) {
+      const r = byId.get(n.id);
+      if (!r) { note(st, `people: ${n.id} was missing from the reply; kept as they were`); continue; }
+      const c = isObj(n.created) ? n.created : {};
+      const f = { npcId: n.id, by: madeBy(st, n) };
+      const str = (v, max) => cleanText(typeof v === 'string' ? v : '', max);
+      if (str(r.name, 60) && str(r.name, 60) !== n.name) f.name = str(r.name, 60);
+      if (validPronouns(r.pronouns) && r.pronouns !== n.pronouns) f.pronouns = r.pronouns;
+      for (const [k, max] of [['role', 60], ['look', 200], ['voice', 200]]) if (str(r[k], max) && str(r[k], max) !== n[k]) f[k] = str(r[k], max);
+      const relTo = typeof r.relationToNpcId === 'string' && r.relationToNpcId !== n.id ? State.npc(r.relationToNpcId) : null;
+      if (r.relationToNpcId && !relTo) note(st, `people: ${n.id}: relationToNpcId ${r.relationToNpcId} is not someone in the game; ignored`);
+      if (relTo && (relTo.id !== c.relationToNpcId || State.cleanRelation(r.relation) !== c.relation)) { f.relationToNpcId = relTo.id; f.relation = r.relation || null; }
+      const home = typeof r.homeLocationId === 'string' ? State.loc(r.homeLocationId) : null;
+      if (r.homeLocationId && !home) note(st, `people: ${n.id}: homeLocationId ${r.homeLocationId} is not a place; ignored`);
+      if (home && !(n.home && n.home.locationId === home.id)) f.homeLocationId = home.id;
+      if (Object.keys(f).length > 2) fixes.push(f);
+    }
+    if (fixes.length) {
+      const r = State.apply({ fixPeople: fixes });
+      for (const x of r.rejected) note(st, `people: not fixed (${x.path}): ${x.reason}`);
+      const bad = new Set(r.rejected.map(x => +(/\[(\d+)\]/.exec(x.path) || [0, -1])[1]));
+      res.fixed = fixes.filter((f, i) => !bad.has(i)).map(f => f.npcId);
+    }
+    if (!res.fixed.length) return Object.assign(res, { text: same + filledText });
+    const lines = res.fixed.map(id => personLine(State.npc(id)));
+    res.text = `Fixed ${res.fixed.length} ${res.fixed.length === 1 ? 'person' : 'people'} to match the story: ${lines.join('; ')}.${filledText}`;
+    return res;
+  }
+
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
     Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces }),
-    Object.freeze({ version: 4, title: 'Clock follows the story', rerun: true, run: followStory })
+    Object.freeze({ version: 4, title: 'Clock follows the story', rerun: true, run: followStory }),
+    Object.freeze({ version: 5, title: 'People match the story', rerun: true, run: matchStory })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf };
 })();
 
 // ===== Module: Pipeline =====
@@ -6229,6 +6958,10 @@ const Pipeline = (() => {
 
   // ----- small helpers -----
   function here() { return State.loc(State.current.player.locationId); }
+  /* Someone the story named (peopleRevealed) whom the player has heard of by
+     name but not met: People lists them under Heard of. */
+  function heardOf(n) { return !!n && isObj(n.created) && n.created.by === 'story' && !n.unnamed && !n.knownToPlayer && n.alive !== false; }
+  function who(n) { return `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`; }
   function isRefusal(x) { return Api.isRefusal(x); }
   function nowTime() { const t = State.current.time; return { day: t.day, phase: t.phase }; }
   function sameTime(a, b) { return a.day === b.day && a.phase === b.phase; }
@@ -6316,10 +7049,11 @@ const Pipeline = (() => {
       playerName: p.name,
       location: { id: l.id, name: l.name, type: l.type },
       exits: l.exits.map(id => State.loc(id)).filter(Boolean).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
-      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, role: n.role, look: n.look, attitude: n.attitude })),
+      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, look: n.look, attitude: n.attitude })),
       itemsHere: (l.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       inventory: p.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
-      knownNpcs: s.npcs.filter(n => n.knownToPlayer && n.alive !== false).map(n => ({ id: n.id, name: n.name, role: n.role })),
+      // People the player knows, and people the story named whom they have only heard of.
+      knownNpcs: s.npcs.filter(n => (n.knownToPlayer || heardOf(n)) && n.alive !== false).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, heard: heardOf(n) })),
       knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed }))
     };
     const ids = arr => arr.map(x => `${x.id} — ${x.name}${x.role ? ` (${x.role})` : ''}${x.type ? ` (${x.type})` : ''}${x.closed ? ' (closed)' : ''}${x.qty > 1 ? ` x${x.qty}` : ''}`).join('; ') || 'none';
@@ -6337,10 +7071,10 @@ const Pipeline = (() => {
       `PLAYER: ${p.name} (${p.background}); ${STATS.map(k => `${k} ${fmtMod(p.stats[k])}`).join(', ')}; ${moneyLine(p.gold)}; hp ${p.hp}/${p.maxHp}`,
       `LOCATION: ${l.id} — ${l.name} (${l.type})`,
       // Looks let "the big man with the pens" resolve to the person who matches, not to new:<description>.
-      `NPCS PRESENT: ${packet.present.map(n => `${n.id} — ${n.name} (${n.role}; attitude to the player ${n.attitude | 0} on -100..100)${n.look ? `: ${n.look}` : ""}`).join("; ") || "none"}`,
+      `NPCS PRESENT: ${packet.present.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; attitude to the player ${n.attitude | 0} on -100..100)${n.look ? `: ${n.look}` : ""}`).join("; ") || "none"}`,
       `ITEMS HERE: ${ids(packet.itemsHere)}`,
       `INVENTORY: ${ids(packet.inventory)}`,
-      `OTHER KNOWN NPCS (not here): ${ids(packet.knownNpcs.filter(n => !presentIds.includes(n.id)))}`,
+      `OTHER KNOWN NPCS (not here): ${packet.knownNpcs.filter(n => !presentIds.includes(n.id)).map(n => `${who(n)}${n.heard ? ' (heard of, not met)' : ''}`).join('; ') || 'none'}`,
       // Every discovered place, by type too ("the bar"): one move reaches any of them.
       `OTHER PLACES IN TOWN (one move reaches any): ${ids(packet.knownLocations.filter(x => x.id !== l.id))}`
     ].join('\n');
@@ -6428,24 +7162,158 @@ const Pipeline = (() => {
 
   // ----- step 4: check and create -----
   /* For every `new:` target: reuse an entity that already answers to the
-     description; otherwise create it from the tables if it is plausible here
-     (a barmaid in a tavern) or mark it does_not_exist (a dragon). A claimed
-     world fact without a story point creates nothing. Existing NPC targets
-     who are not in the scene are flagged "not here". Created entities are
-     saved through State.apply before the narrator hears about them. */
-  function createEntity(kind, desc, opts) {
+     description; otherwise create it if it is plausible here (a barmaid in a
+     tavern) or mark it does_not_exist (a dragon). A claimed world fact
+     without a story point creates nothing. Existing NPC targets who are not
+     in the scene are flagged "not here", except someone the story named who
+     has no schedule and is asked for where they live or work: they come to
+     the door (a visit for this phase). Created entities are saved through
+     State.apply before the narrator hears about them.
+     A person: with the real provider, one structured call on the parser
+     model (Api.createPerson, create_person) with the description, the last
+     three turns, everyone in the game and a shortlist rolled from the
+     tables, so the new person fits what the story already said (a wife
+     stays a woman) or turns out to be someone already in the game
+     (existingNpcId). The reply is checked like the tables' own (a free
+     name, lengths, pronouns, a known relation); any failure, refusal or
+     error falls back to the tables. In mock mode, and as that fallback, the
+     tables make them (tablesPerson): pronouns from the description's words,
+     a role that is never just "man" or "woman" (an occupation is rolled and
+     the word kept as a tag), a name from the description when it gives one,
+     and "Dewayne's wife" read as a relation to Dewayne. */
+  const GENERIC_PEOPLE = ['man', 'woman', 'guy', 'lady', 'gal', 'girl', 'boy', 'person', 'someone', 'somebody', 'stranger', 'fella', 'fellow', 'kid',
+    'old man', 'old woman', 'young man', 'young woman', 'old lady', 'old guy', 'dude', 'teenager', 'teen', 'child', 'men', 'women'];
+  /* Where a new person lives: with the person they are a wife, husband or
+     child of when that person has a home, else here (or the place the
+     action names), in every phase. A home elsewhere still brings them here
+     for this phase: the player is asking for them now. */
+  function homeFor(n, relTo, relation, opts) {
+    const l = here();
+    const shared = relTo && HOUSEHOLD_RELATIONS.includes(relation) ? State.homeOf(relTo) : null;
+    n.home = { locationId: shared ? shared.id : opts.homeId || l.id, phases: 'all' };
+    return shared && shared.id !== l.id ? shared : null;
+  }
+  function addPerson(n, label, away) {
+    const r = State.apply({ addNpcs: [n] });
+    if (r.rejected.length) throw new Error(`could not create ${label}: ${r.rejected[0].reason}`);
+    if (away) State.apply({ visits: [{ npcId: n.id, locationId: here().id }] });
+    const made = State.npc(n.id);
+    return { kind: 'npc', id: made.id, name: made.name, role: made.role, label, pronouns: made.pronouns };
+  }
+  /* The tables' person (mock mode, and the fallback). */
+  function tablesPerson(desc, opts) {
     const s = State.current;
     const p = s.player;
-    const l = here();
     const mine = /^\s*my\b/i.test(desc);
-    if (kind === 'npc') {
-      const head = Town.headPhrase(desc, 'npc') || 'stranger';
-      const n = Tables.npc({ role: mine ? `${p.name}'s ${head}` : head, knownToPlayer: true });
-      n.home = { locationId: opts.homeId || l.id, phases: 'all' };
-      const r = State.apply({ addNpcs: [n] });
-      if (r.rejected.length) throw new Error(`could not create ${head}: ${r.rejected[0].reason}`);
-      return { kind, id: n.id, name: n.name, role: n.role, label: head };
+    const raw = cleanText(String(desc || '').replace(/[’‘]/g, "'"), 200);
+    // "Dewayne's wife", "Mavis, Dewayne's wife": a relation to someone in the game.
+    let relTo = null;
+    let relation = null;
+    for (const m of raw.matchAll(/\b([A-Za-z][a-z-]+)'s\s+([a-z]+)/g)) {
+      const owner = s.npcs.find(n => n.alive !== false && String(n.name).split(/\s+/)[0].toLowerCase() === m[1].toLowerCase());
+      if (owner && Town.guessKind(m[2]) === 'npc') { relTo = owner; relation = State.cleanRelation(m[2]); break; }
     }
+    const plain = raw.replace(/\b[A-Za-z][a-z-]+'s\s+[a-z]+/g, ' ').replace(/[,;()]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const given = Town.properName(plain);
+    const head = relTo ? `${String(relTo.name).split(/\s+/)[0]}'s ${relation}` : (Town.headPhrase(plain || desc, 'npc') || 'stranger');
+    const generic = !relTo && !given && GENERIC_PEOPLE.includes(head);
+    const said = inferPronouns(raw);
+    const pronouns = said !== 'they' ? said : (given ? namePronouns(given) : null);
+    const name = given ? (given.split(/\s+/).length > 1 ? given : `${given} ${relTo && !relTo.unnamed ? String(relTo.name).split(/\s+/).slice(-1)[0] : Rng.pick(TABLES.npc.familyNames)}`) : '';
+    const role = mine ? `${p.name}'s ${head}` : relTo ? head : generic || given ? '' : head;
+    const family = relTo && !relTo.unnamed && HOUSEHOLD_RELATIONS.includes(relation) ? String(relTo.name).split(/\s+/).slice(-1)[0] : '';
+    const n = Tables.npc({ name, familyName: family, role, pronouns: pronouns || undefined, noun: generic ? head : '', tags: generic ? [head] : [], knownToPlayer: true });
+    n.created = { by: opts.fact ? 'fact' : 'tables', relationToNpcId: relTo ? relTo.id : null, relation };
+    const away = homeFor(n, relTo, relation, opts);
+    return addPerson(n, given || head, away);
+  }
+  /* The create_person packet: structured (tests read it) and as labelled text. */
+  function personPacket(desc, opts) {
+    const s = State.current;
+    const l = here();
+    const pick = (list, k) => {
+      const pool = list.slice();
+      const out = [];
+      while (pool.length && out.length < k) out.push(pool.splice(Rng.int(0, pool.length - 1), 1)[0]);
+      return out;
+    };
+    const T = TABLES.npc;
+    const shortlist = { firstNames: pick(T.firstNames, 6), familyNames: pick(T.familyNames, 6), traits: pick(T.traits, 6), quirks: pick(T.speechQuirks, 4) };
+    const people = s.npcs.filter(n => n.alive !== false && n.status !== 'dead').map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role }));
+    const present = State.npcsAt(l.id);
+    const turns = s.log.slice(-3);
+    const text = [
+      `DESCRIPTION: ${desc} (the person the player asked for, in the parser's words)`,
+      `PLAYER INPUT: ${opts.input || '(none)'}`,
+      `PLACE: ${l.id} — ${l.name} (${l.type}); here now: ${present.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`).join('; ') || 'nobody'}`,
+      '',
+      'LAST 3 TURNS (oldest first):',
+      turns.length ? Api.chronicleText(turns) : 'none',
+      '',
+      `PEOPLE (everyone in the game; if the description is one of them, return their id as existingNpcId): ${people.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role})`).join('; ')}`,
+      '',
+      'SHORTLISTS (draw from these for anything the story has not already said):',
+      `FIRST NAMES: ${shortlist.firstNames.join(', ')}`,
+      `FAMILY NAMES: ${shortlist.familyNames.join(', ')}`,
+      `TRAITS: ${shortlist.traits.join(', ')}`,
+      `SPEECH QUIRKS: ${shortlist.quirks.join('; ')}`
+    ].join('\n');
+    return { description: desc, shortlist, people, text };
+  }
+  /* The context call's reply, checked like the tables' person; null when it
+     does not hold up (the caller falls back to the tables). */
+  function checkPerson(reply, packet) {
+    const s = State.current;
+    const why = reason => { State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason }); return null; };
+    if (!isObj(reply)) return why('no reply');
+    if (typeof reply.existingNpcId === 'string' && reply.existingNpcId) {
+      const n = State.npc(reply.existingNpcId);
+      if (n && n.alive !== false && n.status !== 'dead' && n.status !== 'gone') return { existing: n.id };
+      return why(`existingNpcId ${reply.existingNpcId} is not someone in the game`);
+    }
+    const name = cleanText(reply.name, 60).replace(/[.,;:!?]+$/, '');
+    if (name.length < 2 || name.length > 40) return why('name must be 2 to 40 characters');
+    const same = s.npcs.find(n => State.samePerson(n.name, name));
+    if (same) return same.alive !== false && same.status !== 'dead' && same.status !== 'gone' ? { existing: same.id } : why(`the name ${name} is taken by ${same.id}`);
+    const pronouns = validPronouns(reply.pronouns);
+    if (!pronouns) return why('pronouns must be he, she or they');
+    const role = cleanText(reply.role, 60);
+    const look = cleanText(reply.look, 200);
+    const voice = cleanText(reply.voice, 200);
+    if (!role || !look || !voice) return why('needs a role, a look and a voice');
+    const traits = strArr(reply.personality, 40).slice(0, 2);
+    if (traits.length < 2) traits.push(...packet.shortlist.traits.filter(t => !traits.includes(t)).slice(0, 2 - traits.length));
+    const relTo = typeof reply.relationToNpcId === 'string' && reply.relationToNpcId ? State.npc(reply.relationToNpcId) : null;
+    if (reply.relationToNpcId && !relTo) return why(`relationToNpcId ${reply.relationToNpcId} is not someone in the game`);
+    return { name, pronouns, role, look, voice, personality: traits, goal: cleanText(reply.goal, 200), secret: cleanText(reply.secret, 300), relTo, relation: relTo ? State.cleanRelation(reply.relation) || null : null };
+  }
+  async function contextPerson(desc, opts) {
+    const packet = personPacket(desc, opts);
+    const reply = await Api.createPerson(packet);
+    if (isRefusal(reply)) { State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason: 'refused; the tables make them instead' }); return null; }
+    const c = checkPerson(reply, packet);
+    if (!c) return null;
+    if (c.existing) return { existing: c.existing };
+    const n = Tables.npc({ name: c.name, role: c.role, look: c.look, voice: c.voice, personality: c.personality, goal: c.goal, secret: c.secret, pronouns: c.pronouns, knownToPlayer: true });
+    n.created = { by: opts.fact ? 'fact' : 'context', relationToNpcId: c.relTo ? c.relTo.id : null, relation: c.relation };
+    const away = homeFor(n, c.relTo, c.relation, opts);
+    return addPerson(n, Town.headPhrase(desc, 'npc') || c.name, away);
+  }
+  async function createPerson(desc, opts) {
+    if (Api.providerName() !== 'mock') {
+      try {
+        const made = await contextPerson(desc, opts);
+        if (made) return made;
+      } catch (err) {
+        if (err && err.replaced) throw err;
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'model', path: 'create_person', reason: `the call failed (${(err && (err.type || err.message)) || err}); the tables make them instead` });
+      }
+    }
+    return tablesPerson(desc, opts);
+  }
+  async function createEntity(kind, desc, opts) {
+    const l = here();
+    if (kind === 'npc') return createPerson(desc, opts);
     if (kind === 'location') {
       const head = Town.headPhrase(desc, 'location') || 'side room';
       const loc = Tables.location({ name: capFirst(head), type: Town.placeType(head), fromId: opts.fromId || l.id });
@@ -6462,7 +7330,14 @@ const Pipeline = (() => {
     else State.apply({ addItems: [{ locationId: l.id, item: { id, name, qty: 1, notes: '', price } }] });
     return { kind: 'item', id, name, label: head, carried: !!opts.fact };
   }
-  function checkAndCreate(action, opts) {
+  /* Someone the story named who is nowhere right now (no schedule, or not
+     this phase) and is asked for at the place they live or work. */
+  function comesToDoor(n, l) {
+    if (!isObj(n.created) || n.created.by !== 'story' || n.status !== 'free' || l.closed || World.whereIs(n.id)) return false;
+    const rel = n.created.relationToNpcId ? State.npc(n.created.relationToNpcId) : null;
+    return (n.home && n.home.locationId === l.id) || n.created.locationId === l.id || (!!rel && HOUSEHOLD_RELATIONS.includes(n.created.relation) && State.homeOf(rel) === l);
+  }
+  async function checkAndCreate(action, opts) {
     opts = opts || {};
     const s = State.current;
     const l = here();
@@ -6475,7 +7350,10 @@ const Pipeline = (() => {
       if (!e) { out.notPresent.push({ ref, label: labelFor(ref), reason: 'does_not_exist' }); return; }
       if (id.startsWith('npc_')) {
         if (e.alive === false || e.status === 'dead' || e.status === 'gone') { out.notPresent.push({ ref, id, label: e.name, reason: 'gone' }); return; }
-        if (!presentIds.includes(id) && !opts.fact) out.notPresent.push({ ref, id, label: e.name, reason: 'not_here' });
+        if (!presentIds.includes(id) && !opts.fact) {
+          if (comesToDoor(e, l) && !State.apply({ visits: [{ npcId: id, locationId: l.id }] }).rejected.length) presentIds.push(id);
+          else out.notPresent.push({ ref, id, label: e.name, reason: 'not_here' });
+        }
       }
       if (opts.fact && /^(npc|loc)_/.test(id)) out.links.push({ kind: id.startsWith('npc_') ? 'npc' : 'location', id, name: e.name });
       keep(id);
@@ -6496,7 +7374,9 @@ const Pipeline = (() => {
       if (unproven) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'unproven' }); continue; }
       const verdict = Town.plausible(desc, l.type);
       if (!verdict.plausible) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }); continue; }
-      const made = createEntity(verdict.kind, desc, { fact: !!opts.fact, homeId: linkedLoc, fromId: linkedLoc });
+      const made = await createEntity(verdict.kind, desc, { fact: !!opts.fact, homeId: linkedLoc, fromId: linkedLoc, input: opts.input });
+      if (State.current !== s) throw Object.assign(new Error('another game was loaded'), { replaced: true });
+      if (made.existing) { existing(made.existing, raw); continue; }
       out.created.push(made);
       keep(made.id);
     }
@@ -6613,7 +7493,7 @@ const Pipeline = (() => {
     if (!s || typeof narration !== 'string' || !narration) return [];
     const ids = [];
     for (const n of State.npcsAt(locationId || s.player.locationId)) {
-      if (n.knownToPlayer || n.alive === false) continue;
+      if (n.knownToPlayer || n.alive === false || n.unnamed) continue;
       // A surname that is also part of a place name ('Pittman's Gas and Service') proves nothing on its own.
       const placeNames = s.locations.map(x => String(x.name || '').toLowerCase());
       const names = String(n.name || '').trim().split(/\s+/).filter((w, i) => w.length >= 3 && (i === 0 || !placeNames.some(pn => pn.includes(w.toLowerCase())))).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -6628,11 +7508,14 @@ const Pipeline = (() => {
   /* SPEC section 13: only memories of weight 2 or more or from the last 20
      turns (the newest three of those). brief (people at a destination, not
      yet in the scene) leaves memories out altogether. */
+  /* Pronouns come right after the name ("Mavis Toler (she/her; ...)"), so
+     the narration and the People card always agree. */
   function npcLine(n, turn, brief) {
     const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
-    const parts = [n.role];
+    const parts = [pronounLabel(n.pronouns), n.role];
     if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
-    if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
+    if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
+    else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
     if (n.voice) parts.push('voice (a habit, not every line): ' + lowerFirst(n.voice).replace(/\.$/, ''));
     parts.push('attitude ' + n.attitude);
     if (mems.length) parts.push('remembers: ' + mems.join(' / '));
@@ -6822,7 +7705,7 @@ const Pipeline = (() => {
     const l = here();
     const a = ctx.action || {};
     const presentIds = ctx.presentIds || [];
-    const npcRow = n => `${n.id} — ${n.name} (${n.role}; attitude ${n.attitude})`;
+    const npcRow = n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; attitude ${n.attitude})${n.unnamed ? ' (no name yet)' : ''}`;
     const engine = [];
     if (ctx.damage) engine.push(`fight damage: the player lost ${ctx.damage} HP`);
     if (ctx.consequence) engine.push(ctx.consequence);
@@ -6853,6 +7736,10 @@ const Pipeline = (() => {
     // Someone the narration names who is neither here nor known yet (whose home was just described, say), so placesRevealed can name the owner.
     const named = s.npcs.filter(n => !n.knownToPlayer && !presentIds.includes(n.id) && n.alive !== false && Town.nameMentions(ctx.narration || '', n));
     if (named.length) lines.push(`NAMED IN THE NARRATION (not here): ${named.map(npcRow).join('; ')}`);
+    // Everyone else, so peopleRevealed never adds someone who is already in the game (an unnamed one is named by the same relation).
+    const listed = new Set(presentIds.concat(named.map(n => n.id)));
+    const rest = s.npcs.filter(n => n.alive !== false && !listed.has(n.id) && !n.knownToPlayer && !State.npcsAt(l.id).includes(n));
+    lines.push(`EVERYONE ELSE IN THE GAME (not met; listed only so peopleRevealed never adds them again): ${rest.map(n => `${who(n)}${n.unnamed ? ' (no name yet)' : ''}`).join('; ') || 'none'}`);
     lines.push(`LOCATIONS (the places list): ${s.locations.map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
     lines.push(`ITEMS HERE: ${(l.items || []).map(i => `${i.id} (${i.name})`).join(', ') || 'none'}`);
     lines.push(`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ')}`);
@@ -6860,6 +7747,14 @@ const Pipeline = (() => {
     return lines.join('\n');
   }
 
+  /* "Mavis Toler (Dewayne's wife)": the name, and who they are to someone
+     (else the first part of the role). */
+  function personTag(n) {
+    if (!n) return '';
+    const rel = isObj(n.created) && n.created.relationToNpcId ? State.relationPhrase(State.npc(n.created.relationToNpcId), n.created.relation) : '';
+    const role = rel || String(n.role || '').split(',')[0].trim();
+    return role && role !== 'townsfolk' ? `${n.name} (${role})` : n.name;
+  }
   /* Who the player was talking to this turn, for a place they named: the
      one person addressed in Say mode, else the first person present the
      action was aimed at, else the only person present; or null. */
@@ -6993,7 +7888,8 @@ const Pipeline = (() => {
       // Step 3b. A walk and then an action there: the engine moves the player first.
       if (!opts.fact) walkFirst(ctx);
       // Step 4. Check and create.
-      Object.assign(ctx, checkAndCreate(action, { fact: !!opts.fact }));
+      Object.assign(ctx, await checkAndCreate(action, { fact: !!opts.fact, input: opts.parse || opts.input }));
+      if (replaced()) return fail(snap, mark, null, {});
       if (opts.fact) return finishFact(ctx, opts, snap, mark);
       fleeExit(ctx);
       scene(ctx);
@@ -7035,9 +7931,9 @@ const Pipeline = (() => {
           delete clean.playerLocationId;
         }
         // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
-        if (Array.isArray(clean.placesRevealed)) {
-          const by = speakerOf(ctx);
-          clean.placesRevealed = clean.placesRevealed.map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
+        const by = speakerOf(ctx);
+        for (const k of ['placesRevealed', 'peopleRevealed']) {
+          if (Array.isArray(clean[k])) clean[k] = clean[k].map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
         }
         const before = World.attitudes();
         const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
@@ -7046,6 +7942,9 @@ const Pipeline = (() => {
         // Step 13 renders the map and the Places list from state; the feed says what was added.
         ctx.revealed = (ctx.applied.revealed || []).slice();
         for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
+        // A person the story named: a quiet line once they have a name (someone known only as "Dewayne's wife" is added silently).
+        ctx.people = (ctx.applied.people || []).slice();
+        for (const x of ctx.people) if (x.named) UI.feed.quiet(`Added to People: ${personTag(State.npc(x.id))}.`);
         ctx.reputation = World.driftReputation(before);
         // Someone other than its source told it: People lists it under the teller.
         if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
@@ -7910,6 +8809,11 @@ const UI = (() => {
       || s.rumours.some(r => r.heard && r.heardFrom === n.id)
       || s.log.some(e => e.to === n.id);
   }
+  /* Someone the story named (State peopleRevealed) whom the player has
+     only heard of: listed by name under Heard of until they meet. Someone
+     known only by who they are to someone ("Dewayne's wife") is not listed
+     until they have a name or the player meets them. */
+  function heardOfOnly(s, n) { return isObj(n.created) && n.created.by === 'story' && !n.unnamed && n.alive !== false && !hasMet(s, n); }
   const PERSON_HUES = 6;
   /* A colour from the id (a string hash), so a person keeps theirs all game. */
   function personHue(id) {
@@ -7984,8 +8888,9 @@ const UI = (() => {
     return notes;
   }
   function personCard(s, n, isHere) {
-    const known = !!n.knownToPlayer;
-    const name = npcLabel(n);
+    const heard = heardOfOnly(s, n);
+    const known = !!n.knownToPlayer || heard;
+    const name = heard ? n.name : npcLabel(n);
     const open = openPerson === n.id;
     const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
     const moreId = 'pmore-' + n.id;
@@ -7994,9 +8899,10 @@ const UI = (() => {
       el('button', { type: 'button', class: 'pcard-head', id: 'phead-' + n.id, 'aria-expanded': String(open), 'aria-controls': moreId, onclick: () => togglePerson(n.id) },
         el('span', { class: 'mono', dataset: { hue: String(personHue(n.id)) }, 'aria-hidden': 'true' }, initials(name)),
         el('span', { class: 'pcard-main' },
-          el('span', { class: 'pcard-name' }, name),
+          el('span', { class: 'pcard-nameline' }, el('span', { class: 'pcard-name' }, name),
+            el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
           n.role || status ? el('span', { class: 'pcard-role' }, capFirst(n.role || '') + (status ? (n.role ? ' · ' : '') + status : '')) : null,
-          el('span', { class: 'pcard-meta' }, attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere))),
+          el('span', { class: 'pcard-meta' }, heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere)])),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'pcard-more', id: moreId, hidden: !open },
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
@@ -8408,8 +9314,9 @@ const UI = (() => {
        loose ends, known threads). Never secrets, goals, factions or seeds. */
     people(s) {
       const here = State.npcsAt(s.player.locationId);
-      const people = s.npcs.filter(n => hasMet(s, n));
-      if (!people.length) return el('p', { class: 'empty' }, "You haven't met anyone yet.");
+      const heard = s.npcs.filter(n => heardOfOnly(s, n) && !here.includes(n));
+      const people = s.npcs.filter(n => hasMet(s, n) || (heardOfOnly(s, n) && here.includes(n)));
+      if (!people.length && !heard.length) return el('p', { class: 'empty' }, "You haven't met anyone yet.");
       const hereIds = here.map(n => n.id);
       const now = here.filter(n => people.includes(n));
       const seen = s.seen || {};
@@ -8419,7 +9326,7 @@ const UI = (() => {
       const group = (key, title, list) => (list.length ? el('section', { class: 'people-group', dataset: { group: key }, 'aria-label': title },
         el('h3', null, title, el('span', { class: 'people-count' }, String(list.length))),
         el('div', { class: 'people-list' }, list.map(n => personCard(s, n, hereIds.includes(n.id))))) : null);
-      return [group('here', 'Here now', now), group('known', 'Known', rest)];
+      return [group('here', 'Here now', now), group('known', 'Known', rest), group('heard', 'Heard of', heard)];
     },
     journal(s) {
       const threads = s.threads.filter(t => t.knownToPlayer);
@@ -8476,7 +9383,7 @@ const UI = (() => {
       const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
       const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
-      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
+      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
       const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
       const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');
       const chron = s.chronicle.map(c => `turns ${c.fromTurn}-${c.toTurn}: ${c.summary}`).join('\n');
@@ -9328,7 +10235,7 @@ const App = (() => {
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel,
+  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })

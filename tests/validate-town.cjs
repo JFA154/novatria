@@ -676,7 +676,16 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'memories', 'alive', 'knownToPlayer', 'status'], where)) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'attitude', 'memories', 'alive', 'knownToPlayer', 'status'], where)) return;
+  // Pronouns (he, she or they), and never against what the look says ("woman" is she, "man" is he).
+  if (['he', 'she', 'they'].indexOf(n.pronouns) === -1) err(where, 'pronouns must be "he", "she" or "they", found ' + JSON.stringify(n.pronouns));
+  else if (typeof n.look === 'string') {
+    const lk = n.look.toLowerCase();
+    const sheWord = /\b(woman|women|girl|lady|wife|mother|widow)\b/.test(lk);
+    const heWord = /\b(man|men|boy|guy|husband|father|widower)\b/.test(lk);
+    if (sheWord && !heWord && n.pronouns !== 'she') err(where, 'the look says she but pronouns are "' + n.pronouns + '"');
+    if (heWord && !sheWord && n.pronouns !== 'he') err(where, 'the look says he but pronouns are "' + n.pronouns + '"');
+  }
   checkStr(n.name, where + '.name', { noPlaceholders: true });
   if (typeof n.name === 'string') {
     if (seenNames.has(n.name)) err(where, 'duplicate name "' + n.name + '"');

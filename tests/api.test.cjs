@@ -16,6 +16,7 @@ function roleOf(body) {
   const sc = body.output_config && body.output_config.format && body.output_config.format.schema;
   if (sc && sc.properties && sc.properties.actionType) return 'parser';
   if (sc && sc.properties && sc.properties.attitudeChanges) return 'bookkeeper';
+  if (sc && sc.properties && sc.properties.existingNpcId) return 'person';
   return 'chronicle';
 }
 
@@ -56,7 +57,7 @@ function sse(parts, opts) {
 }
 const narrReply = (parts, opts) => () => sse(parts || NARRATION, opts);
 const errorReply = (status, type, msg) => () => ({ status, contentType: 'application/json', body: JSON.stringify({ type: 'error', error: { type, message: msg || `${type} happened` } }) });
-const DEFAULTS = { parser: parseReply(), narrator: narrReply(), bookkeeper: bookReply(), chronicle: () => message('They arrived and asked about the tide.') };
+const DEFAULTS = { parser: parseReply(), narrator: narrReply(), bookkeeper: bookReply(), chronicle: () => message('They arrived and asked about the tide.'), person: () => message('{}') };
 
 /* Opens the game with the route installed. The game starts in mock mode (so
    the arrival is the local text), then mock mode goes off and a key is set,
@@ -65,7 +66,7 @@ async function openReal(h, opts) {
   opts = opts || {};
   const page = await h.open({ viewport: LAPTOP });
   const reqs = [];
-  const queues = { parser: [], narrator: [], bookkeeper: [], chronicle: [] };
+  const queues = { parser: [], narrator: [], bookkeeper: [], chronicle: [], person: [] };
   await page.route(API, async route => {
     const req = route.request();
     const body = JSON.parse(req.postData());
@@ -134,8 +135,17 @@ s.test('requests carry the four headers and a body the current API accepts, with
     const out = { objects: [], bad: [] };
     walkSchema(r.body.output_config.format.schema, r.role, out);
     assert.deepEqual(out.bad, [], r.role);
-    // bookkeeper: the root, the seven array item objects (placesRevealed too) and newSeeds[].trigger.
-    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 9 : 1, `${r.role}: nested objects spelled out`);
+    // bookkeeper: the root, the eight array item objects (placesRevealed and peopleRevealed too) and newSeeds[].trigger.
+    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 10 : 1, `${r.role}: nested objects spelled out`);
+    // The API compiles the schema to a grammar with a size limit, and record_changes sits right at it
+    // (probed live: 46 properties pass, 47 are refused as "compiled grammar too large"). Adding a field
+    // anywhere in it needs another field removed, or a live probe first.
+    if (r.role === 'bookkeeper') {
+      let props = 0;
+      const count = node => { if (Array.isArray(node)) return node.forEach(count); if (node && typeof node === 'object') { if (node.type === 'object' && node.properties) props += Object.keys(node.properties).length; Object.values(node).forEach(count); } };
+      count(r.body.output_config.format.schema);
+      assert.ok(props <= 46, `record_changes has ${props} properties; the API's grammar limit is 46`);
+    }
   }
   assert.ok(!('format' in narrator.body.output_config));
   assert.equal(narrator.body.stream, true);
@@ -389,6 +399,70 @@ s.test('an error event inside the stream is surfaced and the input kept', async 
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /overloaded right now/);
   assert.equal(await stateJson(page), before);
   assert.ok(await page.evaluate(() => Game.Api.responses.some(r => r.error && r.error.message === 'Overloaded')));
+});
+
+s.test('a person the player asks for: one create_person call on the parser model with the description, the last three turns, everyone in the game and a shortlist; the reply makes her (she/her, his wife); a bad reply or an error falls back to the tables; existingNpcId reuses someone', async h => {
+  const { page, reqs, queue } = await openReal(h);
+  const x = await page.evaluate(() => {
+    const st = Game.state;
+    const here = Game.State.npcsAt(st.player.locationId).map(n => n.id);
+    const first = n => n.name.split(' ')[0];
+    const owner = st.npcs.find(n => !here.includes(n.id) && n.pronouns === 'he' && st.npcs.filter(m => first(m) === first(n)).length === 1);
+    const speaker = st.npcs.find(n => n.id !== owner.id);
+    const line = `${speaker.name} wipes his hands. "${first(owner)}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife Mavis is gonna be thrilled when you knock."`;
+    Game.State.apply({ logEntry: { input: `Where does ${first(owner)} live?`, roll: null, narration: line } });
+    return { owner: { id: owner.id, name: owner.name, first: first(owner), family: owner.name.split(' ').slice(-1)[0] }, line };
+  });
+  const person = { existingNpcId: null, name: `Mavis ${x.owner.family}`, pronouns: 'she', role: `${x.owner.first}'s wife`, look: 'A small, tired woman in a motel smock.', voice: 'Short and dry; never says more than she has to.', personality: ['tired', 'sharp'], goal: 'Sleep through one whole day.', secret: 'She has been putting money aside to leave.', relationToNpcId: x.owner.id, relation: 'wife' };
+  queue('parser', parseReply({ targets: [`new:Mavis, ${x.owner.first}'s wife`], summary: 'Knocks and asks for Mavis' }));
+  queue('person', () => message(JSON.stringify(person)));
+  await sendText(page, 'I knock and ask for Mavis.');
+  assert.deepEqual(reqs.slice(-4).map(r => r.role), ['parser', 'person', 'narrator', 'bookkeeper']);
+  const req = reqs.find(r => r.role === 'person');
+  assert.equal(req.body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(req.body.max_tokens, 3000);
+  assert.equal(req.body.output_config.effort, 'low', "the parser's effort");
+  assert.equal(req.body.system, await page.evaluate(() => Game.Api.SYSTEM.person));
+  const out = { objects: [], bad: [] };
+  walkSchema(req.body.output_config.format.schema, 'person', out);
+  assert.deepEqual(out.bad, []);
+  assert.deepEqual(Object.keys(req.body.output_config.format.schema.properties), ['existingNpcId', 'name', 'pronouns', 'role', 'look', 'voice', 'personality', 'goal', 'secret', 'relationToNpcId', 'relation']);
+  const user = req.body.messages[0].content;
+  assert.match(user, new RegExp(`^DESCRIPTION: Mavis, ${x.owner.first}'s wife \\(the person the player asked for, in the parser's words\\)\\nPLAYER INPUT: I knock and ask for Mavis\\.\\n`));
+  assert.ok(user.includes('LAST 3 TURNS (oldest first):') && user.includes("his wife Mavis is gonna be thrilled"), 'the last turns');
+  assert.ok(user.includes(`${x.owner.id} — ${x.owner.name} (he/him; `), 'everyone, with pronouns');
+  const short = await page.evaluate(u => { const T = Game.data.TABLES.npc; const line = (k, sep) => (u.split('\n').find(l => l.startsWith(k)) || '').slice(k.length).split(sep || ', '); return { f: line('FIRST NAMES: ').filter(n => T.firstNames.includes(n)).length, l: line('FAMILY NAMES: ').filter(n => T.familyNames.includes(n)).length, t: line('TRAITS: ').filter(n => T.traits.includes(n)).length, q: line('SPEECH QUIRKS: ', '; ').filter(n => T.speechQuirks.includes(n)).length }; }, user);
+  assert.deepEqual(short, { f: 6, l: 6, t: 6, q: 4 }, 'a shortlist from the tables');
+  const made = await page.evaluate(name => JSON.parse(JSON.stringify(Game.state.npcs.find(n => n.name === name) || null)), person.name);
+  assert.ok(made, 'she exists');
+  assert.deepEqual([made.pronouns, made.role, made.look, made.created.by, made.created.relationToNpcId, made.created.relation, made.knownToPlayer], ['she', person.role, person.look, 'context', x.owner.id, 'wife', true]);
+  assert.deepEqual(made.personality, ['tired', 'sharp']);
+  const narr = reqs.filter(r => r.role === 'narrator').pop().body.messages[0].content;
+  assert.ok(narr.includes(`${person.name} (she/her; ${person.role}; `), 'the narrator gets her pronouns');
+  assert.ok(narr.includes(`NEW IN THE SCENE: ${person.name} (${person.role}, new to the scene)`));
+  // A bad reply (pronouns that are not he, she or they): the tables make her, by the words.
+  queue('parser', parseReply({ targets: ['new:woman at the pumps'] }));
+  queue('person', () => message(JSON.stringify(Object.assign({}, person, { name: 'Faye Hux', pronouns: 'it' }))));
+  const n0 = await page.evaluate(() => Game.state.npcs.length);
+  await sendText(page, 'I wave at the woman at the pumps');
+  const fb = await page.evaluate(() => JSON.parse(JSON.stringify(Game.state.npcs[Game.state.npcs.length - 1])));
+  assert.equal(await page.evaluate(() => Game.state.npcs.length), n0 + 1);
+  assert.deepEqual([fb.created.by, fb.pronouns], ['tables', 'she']);
+  assert.match(await page.evaluate(() => Game.State.debugLog.filter(d => d.path === 'create_person').map(d => d.reason).join(' | ')), /pronouns must be he, she or they/);
+  // An API error: the tables again, and the turn goes on.
+  queue('parser', parseReply({ targets: ['new:old man on the bench'] }));
+  queue('person', errorReply(400, 'invalid_request_error', 'nope'));
+  await sendText(page, 'I sit by the old man on the bench');
+  const fb2 = await page.evaluate(() => JSON.parse(JSON.stringify(Game.state.npcs[Game.state.npcs.length - 1])));
+  assert.deepEqual([fb2.created.by, fb2.pronouns], ['tables', 'he']);
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].input), 'I sit by the old man on the bench', 'the turn went on');
+  // existingNpcId: the person is someone already here; nobody new.
+  const n1 = await page.evaluate(() => Game.state.npcs.length);
+  queue('parser', parseReply({ targets: ['new:the tired woman in the smock'] }));
+  queue('person', () => message(JSON.stringify(Object.assign({}, person, { existingNpcId: made.id, name: '', role: '', look: '', voice: '', personality: [], goal: '', secret: '', relationToNpcId: null, relation: null }))));
+  await sendText(page, 'I ask the tired woman in the smock for coffee');
+  assert.equal(await page.evaluate(() => Game.state.npcs.length), n1, 'nobody new');
+  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(made.id));
 });
 
 s.run();

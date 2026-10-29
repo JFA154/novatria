@@ -615,7 +615,7 @@ s.test('town data passes validation and every content constant has the contract 
   const optional = k => k !== 'map';
   assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'locations', 'name', 'npcs', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads']);
   for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'discovered', 'exits', 'id', 'name', 'npcIdsBySchedule', 'type']);
-  for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'role', 'secret', 'status', 'tags', 'voice']);
+  for (const k of r.npcKeys) assert.deepEqual(k, ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
   for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc, ['effects', 'text']); }
   assert.deepEqual(r.tables.top, ['complications', 'items', 'location', 'npc', 'weather']);
@@ -708,7 +708,8 @@ s.test('Tables build complete entities from the seeded stream', async h => {
     return { n1, n2, l, it, tr, comp: G.data.TABLES.complications.includes(G.Tables.complication(G.Rng.create(1))), weather: G.Tables.weather('winter', G.Rng.create(1)) };
   });
   assert.deepEqual(r.n1, r.n2);
-  assert.deepEqual(Object.keys(r.n1).sort(), ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'role', 'secret', 'status', 'tags', 'voice']);
+  assert.deepEqual(Object.keys(r.n1).sort(), ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'role', 'secret', 'status', 'tags', 'voice']);
+  assert.ok(['he', 'she', 'they'].includes(r.n1.pronouns), 'pronouns: ' + r.n1.pronouns);
   assert.match(r.n1.id, /^npc_[a-z0-9_]+$/);
   assert.equal(r.n1.personality.length, 2);
   assert.match(r.l.id, /^loc_[a-z0-9_]+$/);
@@ -1167,6 +1168,265 @@ s.test('a model diff may carry placesRevealed (validated like the rest); an unkn
   assert.deepEqual(r.res.rejected, [{ path: 'madeUpPlaces', reason: 'unknown field' }]);
   assert.equal(r.revealed.turn, r.turn, 'the model cannot backdate it');
   assert.equal(r.type, 'other', 'a type outside the list becomes other');
+});
+
+/* People match the story (rules version 5): pronouns on every person, and
+   people the story names becoming real (peopleRevealed). */
+s.test('pronouns: every town person has them, matching their look; the tables, loose ends and addNpcs give everyone one; a save without them gets them at load', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt', 'enemy', 'secret'] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const T = G.data.TOWN_DATA;
+    const st = G.state;
+    const infer = ['A woman in a red coat', "Dewayne's wife", 'her husband', 'his wife', 'the night clerk', 'A man with a bitter look about them.', 'mother of two', 'an old guy', 'she said so'].map(G.inferPronouns);
+    // The tables: someone known to be she gets a first name that fits and a look in her words; a name or a role decides when nothing else does.
+    const women = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ noun: 'woman' }, G.Rng.create(i + 1)));
+    const men = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ role: 'husband of the cook' }, G.Rng.create(i + 1)));
+    const anyone = Array.from({ length: 30 }, (_, i) => G.Tables.npc({}, G.Rng.create(i + 1)));
+    G.State.apply({ addNpcs: [
+      { id: 'npc_test_a', name: 'Test A', role: 'cook', look: 'A tall woman in an apron.' },
+      { id: 'npc_test_b', name: 'Earl Test', role: 'cook', look: 'Tall, in an apron.' },
+      { id: 'npc_test_c', name: 'Sam Test', role: 'cook' },
+      { id: 'npc_test_e', name: 'Sam Other', role: 'cook', pronouns: 'she' }
+    ] });
+    const bad = G.State.apply({ addNpcs: [{ id: 'npc_test_d', name: 'Dee', pronouns: 'it' }] }).rejected.map(x => x.reason);
+    const added = ['a', 'b', 'c', 'e'].map(k => G.State.npc('npc_test_' + k).pronouns);
+    // An older save: no pronouns anywhere, not even in its own town data, and a person the tables made as a man.
+    const env = G.Storage.envelope('old');
+    for (const n of env.state.npcs) delete n.pronouns;
+    for (const n of env.town.npcs) delete n.pronouns;
+    env.state.npcs.push({ id: 'npc_old_one', name: 'Mavis Toler', role: 'Man', factionId: null, tags: [], look: 'A man with a bitter look about them.', voice: 'x', personality: ['bitter', 'shy'], goal: 'x', secret: '', attitude: -10, memories: [], alive: true, knownToPlayer: true, status: 'free' });
+    G.State.load(env.state, env.town);
+    const loaded = G.state.npcs.map(n => [n.id, n.pronouns]);
+    return {
+      town: T.npcs.map(n => ({ id: n.id, pronouns: n.pronouns, look: n.look })), inState: st.npcs.map(n => [n.id, n.pronouns, n.look]),
+      looseIds: st.player.looseEnds.filter(le => le.created).map(le => le.npcId),
+      infer, women: women.map(n => [n.pronouns, n.name, n.look, G.namePronouns(n.name)]), men: men.map(n => [n.pronouns, G.namePronouns(n.name)]),
+      anyone: anyone.map(n => [n.pronouns, G.namePronouns(n.name), n.look]),
+      added, bad, loaded, label: [G.pronounLabel('she'), G.pronounLabel('he'), G.pronounLabel('they'), G.pronounLabel(undefined)]
+    };
+  });
+  for (const n of r.town) {
+    assert.ok(['he', 'she', 'they'].includes(n.pronouns), n.id);
+    if (/\bwoman\b/i.test(n.look)) assert.equal(n.pronouns, 'she', n.id + ': ' + n.look);
+    if (/\bman\b/i.test(n.look)) assert.equal(n.pronouns, 'he', n.id + ': ' + n.look);
+  }
+  for (const n of r.town) assert.equal(r.inState.find(x => x[0] === n.id)[1], n.pronouns, 'a new game carries the town pronouns: ' + n.id);
+  assert.ok(r.looseIds.length >= 1, 'a loose end made someone');
+  for (const id of r.looseIds) {
+    const [, p, look] = r.inState.find(x => x[0] === id);
+    assert.equal(p, /\bwoman\b/i.test(look) ? 'she' : /\bman\b/i.test(look) ? 'he' : p, `${id}: ${look}`);
+  }
+  assert.deepEqual(r.infer, ['she', 'she', 'he', 'she', 'they', 'he', 'she', 'he', 'she']);
+  for (const [p, name, look, byName] of r.women) {
+    assert.equal(p, 'she');
+    assert.notEqual(byName, 'he', 'a first name that fits: ' + name);
+    assert.match(look, /^A woman with an? .+ look about her\.$/, look);
+  }
+  for (const [p, byName] of r.men) { assert.equal(p, 'he'); assert.notEqual(byName, 'she'); }
+  for (const [p, byName, look] of r.anyone) {
+    assert.equal(p, byName || 'they', 'nothing else said: the name decides');
+    assert.ok(look.endsWith(`look about ${{ he: 'him', she: 'her', they: 'them' }[p]}.`), look);
+  }
+  assert.deepEqual(r.added, ['she', 'he', 'they', 'she'], 'addNpcs: the pronouns given, else the look, else the first name, else they');
+  assert.match(r.bad[0], /pronouns must be he, she or they/);
+  for (const n of r.town) assert.equal(r.loaded.find(x => x[0] === n.id)[1], n.pronouns, 'loaded: the town pronouns for ' + n.id);
+  assert.equal(r.loaded.find(x => x[0] === 'npc_old_one')[1], 'he', 'loaded: a man by his look and role, until the story says otherwise');
+  assert.ok(r.loaded.every(x => ['he', 'she', 'they'].includes(x[1])), 'everyone has pronouns after a load');
+  assert.deepEqual(r.label, ['she/her', 'he/him', 'they/them', 'they/them']);
+});
+
+const PHASES4 = ['morning', 'afternoon', 'evening', 'night'];
+const wifeOf = (x, over) => Object.assign({ name: `${x.owner.first}'s wife`, unnamed: true, pronouns: 'she', role: `${x.owner.first}'s wife`, look: '', relationToNpcId: x.owner.id, relation: 'wife', locationId: null, kind: 'relative' }, over || {});
+
+s.test('peopleRevealed: an unnamed wife shares her husband\'s house in every phase; named later, the same record is renamed; repeats, a second wife, a taken name and bad entries are refused; one a turn from the model, twelve a game', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, house, wife, PH]) => {
+    const S = Game.State;
+    const st = Game.state;
+    const reveal = (e, source) => S.apply({ peopleRevealed: [e] }, { source: source || 'model' });
+    const why = res => (res.rejected.length ? res.rejected[0].reason : 'ok');
+    const count0 = st.npcs.length;
+    S.apply({ beginTurn: true });
+    S.apply({ placesRevealed: [house] });
+    const houseId = st.locations.find(l => l.revealed).id;
+    const r1 = reveal(wife);
+    const turn1 = st.meta.turn;
+    const id = r1.people && r1.people[0].id;
+    const n1 = JSON.parse(JSON.stringify(S.npc(id)));
+    const home1 = PH.filter(p => S.npcsAt(houseId, p).some(n => n.id === id));
+    S.apply({ beginTurn: true });
+    const again = why(reveal(Object.assign({}, wife, { name: `${x.owner.first}s wife` })));
+    S.apply({ beginTurn: true });
+    const r2 = reveal(Object.assign({}, wife, { name: 'Mavis Toler', unnamed: false, look: 'A small woman with a tired smile.', role: '' }));
+    const n2 = JSON.parse(JSON.stringify(S.npc(id)));
+    const out = { id, r1, n1, home1, houseId, again, r2, n2, count: st.npcs.length - count0, turn: turn1, day: st.time.day };
+    S.apply({ beginTurn: true });
+    out.second = why(reveal(Object.assign({}, wife, { name: 'Linda Toler', unnamed: false })));
+    out.taken = why(reveal({ name: 'Mavis', unnamed: false, pronouns: 'she', role: 'a woman', look: '', relationToNpcId: null, relation: null, locationId: null, kind: 'other' }));
+    out.town = why(reveal({ name: x.owner.name, unnamed: false, pronouns: 'he', role: 'someone', look: '', relationToNpcId: null, relation: null, locationId: null, kind: 'other' }));
+    const base = { name: 'Earl Hux', unnamed: false, pronouns: 'he', role: 'trucker', look: '', relationToNpcId: null, relation: null, locationId: x.here, kind: 'worker' };
+    out.badPronouns = why(reveal(Object.assign({}, base, { pronouns: 'it' })));
+    out.short = why(reveal(Object.assign({}, base, { name: 'x' })));
+    out.long = why(reveal(Object.assign({}, base, { name: 'Earl Hux the third of that name from up the river' })));
+    out.noTarget = why(reveal(Object.assign({}, base, { relationToNpcId: 'npc_nobody', relation: 'cousin' })));
+    out.noPlace = why(reveal(Object.assign({}, base, { locationId: 'loc_nowhere' })));
+    out.noRelation = why(reveal(Object.assign({}, base, { name: 'His cousin', unnamed: true })));
+    out.m1 = why(reveal(base));
+    out.m2 = why(reveal(Object.assign({}, base, { name: 'Faye Hux', pronouns: 'she' })));
+    const earl = st.npcs.find(n => n.name === 'Earl Hux');
+    out.earl = { scheduled: st.locations.some(l => PH.some(p => (l.npcIdsBySchedule[p] || []).includes(earl.id))), where: Game.World.whereIs(earl.id), created: earl.created, tags: earl.tags, known: earl.knownToPlayer };
+    // The engine is not held to one a turn, but twelve a game is the most.
+    const more = [];
+    for (let i = 0; i < 12; i++) more.push(why(reveal(Object.assign({}, base, { name: `Hux Number${i + 1}`, locationId: null }), 'engine')));
+    out.more = more;
+    out.story = st.npcs.filter(n => n.created && n.created.by === 'story').length;
+    return out;
+  }, [x, revealEntry(x), wifeOf(x), PHASES4]);
+  const f = x.owner.first;
+  assert.deepEqual(r.r1.rejected, []);
+  assert.deepEqual(r.r1.people, [{ id: r.id, named: false, renamed: false }]);
+  assert.equal(r.id, `npc_${f.toLowerCase()}s_wife`);
+  assert.match(r.r1.applied[0], new RegExp(`^peopleRevealed\\[0\\]: ${r.id} \\(${f}'s wife, no name yet; she/her\\) wife of ${x.owner.id}; lives at ${r.houseId} \\(there morning, afternoon, evening, night\\)$`), r.r1.applied[0]);
+  const n1 = r.n1;
+  assert.deepEqual([n1.name, n1.unnamed, n1.pronouns, n1.role, n1.knownToPlayer, n1.status, n1.attitude, n1.factionId, n1.goal, n1.secret, n1.voice], [`${f}'s wife`, true, 'she', `${f}'s wife`, false, 'free', 0, null, '', '', '']);
+  assert.deepEqual(n1.memories, []);
+  assert.deepEqual(n1.tags, ['relative', 'wife']);
+  assert.deepEqual(n1.created, { turn: r.turn, day: r.day, by: 'story', relationToNpcId: x.owner.id, relation: 'wife', locationId: null, byNpcId: null });
+  assert.deepEqual(n1.home, { locationId: r.houseId, phases: PHASES4, revealed: true });
+  assert.deepEqual(r.home1, PHASES4, 'she is home in every phase no schedule holds her');
+  assert.match(r.again, /^already a person: /, 'the same unnamed relation again');
+  assert.deepEqual(r.r2.people, [{ id: r.id, named: true, renamed: true }]);
+  assert.equal(r.n2.id, r.id, 'the same id');
+  assert.equal(r.n2.name, 'Mavis Toler');
+  assert.equal(r.n2.unnamed, undefined);
+  assert.equal(r.n2.pronouns, 'she');
+  assert.equal(r.n2.role, `${f}'s wife`);
+  assert.equal(r.n2.look, 'A small woman with a tired smile.');
+  assert.deepEqual(r.n2.home, n1.home);
+  assert.equal(r.count, 1, 'one person, not two');
+  assert.match(r.second, new RegExp(`${x.owner.id} already has a wife`));
+  assert.match(r.taken, new RegExp(`^already a person: ${r.id} \\(Mavis Toler\\)`));
+  assert.match(r.town, new RegExp(`^already a person: ${x.owner.id}`));
+  assert.match(r.badPronouns, /pronouns must be he, she or they/);
+  assert.match(r.short, /name must be 2 to 40 characters/);
+  assert.match(r.long, /name must be 2 to 40 characters/);
+  assert.match(r.noTarget, /unknown npc id "npc_nobody"/);
+  assert.match(r.noPlace, /unknown location id "loc_nowhere"/);
+  assert.match(r.noRelation, /needs a relation to a listed person/);
+  assert.equal(r.m1, 'ok');
+  assert.match(r.m2, /at most 1 new person a turn/);
+  assert.deepEqual([r.earl.scheduled, r.earl.where, r.earl.known], [false, null, false], 'no household: no schedule, off-screen until met');
+  assert.equal(r.earl.created.locationId, x.here, 'where they are said to work');
+  assert.deepEqual(r.earl.tags, ['worker']);
+  // Two so far (the wife and Earl): ten more fit under twelve.
+  assert.deepEqual(r.more.slice(0, 10), Array(10).fill('ok'));
+  assert.ok(r.more.slice(10).every(w => /at most 12 people the story named in one game/.test(w)), r.more.slice(10).join(' | '));
+  assert.equal(r.story, 12);
+});
+
+s.test('peopleRevealed: a son named before his father\'s house is known moves in when the house is revealed; peopleRevealed is a record_changes field in the schema, fixPeople is engine-only', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, house, PH]) => {
+    const S = Game.State;
+    const st = Game.state;
+    S.apply({ beginTurn: true });
+    const son = S.apply({ peopleRevealed: [{ name: 'Bobby', unnamed: false, pronouns: 'he', role: 'works the bait shop', look: '', relationToNpcId: x.owner.id, relation: 'his son', locationId: null, kind: 'relative' }] }, { source: 'model' });
+    const id = son.people[0].id;
+    const before = PH.filter(p => st.locations.some(l => (l.npcIdsBySchedule[p] || []).includes(id)));
+    S.apply({ beginTurn: true });
+    const placed = S.apply({ placesRevealed: [house] }, { source: 'model' });
+    const houseId = placed.revealed[0];
+    const after = PH.filter(p => S.npcsAt(houseId, p).some(n => n.id === id));
+    return {
+      id, role: S.npc(id).role, relation: S.npc(id).created.relation, before, after, line: placed.applied[0], home: S.npc(id).home, houseId,
+      keys: S.RECORD_KEYS.includes('peopleRevealed') && !S.ENGINE_KEYS.includes('peopleRevealed') && S.ENGINE_KEYS.includes('fixPeople') && !S.RECORD_KEYS.includes('fixPeople'),
+      schema: Game.Api.SCHEMAS.record_changes.required.includes('peopleRevealed'),
+      item: Object.keys(Game.Api.SCHEMAS.record_changes.properties.peopleRevealed.items.properties),
+      model: S.apply({ fixPeople: [{ npcId: id, pronouns: 'she' }] }, { source: 'model' }).rejected[0].reason
+    };
+  }, [x, revealEntry(x), PHASES4]);
+  assert.equal(r.role, `${x.owner.first}'s son, works the bait shop`, 'the relation first, then what was said');
+  assert.equal(r.relation, 'son', '"his son" is kept as "son"');
+  assert.deepEqual(r.before, [], 'nowhere to live yet: off-screen');
+  assert.deepEqual(r.after, PHASES4, 'he lives at the house once it is known');
+  assert.match(r.line, new RegExp(`; ${r.id} lives there too`));
+  assert.deepEqual(r.home, { locationId: r.houseId, phases: PHASES4, revealed: true });
+  assert.ok(r.keys && r.schema);
+  assert.deepEqual(r.item, ['name', 'pronouns', 'relationToNpcId', 'who'], 'the compact entry the bookkeeper sends: the API grammar has no room for more');
+  assert.match(r.model, /not allowed from the model/);
+});
+
+s.test('peopleRevealed, the bookkeeper\'s compact entry: who is read into the relation, the role and the kind, the name tells unnamed from named, whose person can come from the name, and a later compact entry names the same person', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, house, PH]) => {
+    const S = Game.State;
+    const st = Game.state;
+    const reveal = e => { S.apply({ beginTurn: true }); return S.apply({ peopleRevealed: [e] }, { source: 'model' }); };
+    const why = res => (res.rejected.length ? res.rejected[0].reason : 'ok');
+    const snap = n => n && { id: n.id, name: n.name, unnamed: n.unnamed, pronouns: n.pronouns, role: n.role, look: n.look, tags: n.tags, relTo: n.created.relationToNpcId, relation: n.created.relation, home: n.home ? n.home.locationId : null };
+    S.apply({ beginTurn: true });
+    S.apply({ placesRevealed: [house] });
+    const houseId = st.locations.find(l => l.revealed).id;
+    const out = { houseId, split: [
+      S.splitWho('wife, night clerk at the motor court'), S.splitWho('his older brother who runs the bait shop'), S.splitWho("Dewayne's wife"), S.splitWho('boss'), S.splitWho('runs the bait shop'), S.splitWho(''), S.splitWho('mother-in-law, lives in the trailer out back')
+    ] };
+    // Unnamed, with the relation first and more after it.
+    out.r1 = reveal({ name: `${x.owner.first}'s wife`, pronouns: 'she', relationToNpcId: x.owner.id, who: 'wife, night clerk at the motor court' });
+    const wife = st.npcs.find(n => n.created && n.created.by === 'story');
+    out.wife1 = snap(wife);
+    out.home1 = PH.filter(p => S.npcsAt(houseId, p).some(n => n.id === wife.id));
+    // The same wife again, by relation: refused.
+    out.again = why(reveal({ name: 'his wife', pronouns: 'she', relationToNpcId: x.owner.id, who: 'wife' }));
+    // Named later: the same record.
+    out.r2 = reveal({ name: 'Mavis Toler', pronouns: 'she', relationToNpcId: x.owner.id, who: 'wife' });
+    out.wife2 = snap(S.npc(wife.id));
+    // relationToNpcId left empty, but the name says whose: a brother, off-screen, with what was said as his role.
+    out.r3 = reveal({ name: `${x.owner.first}'s brother`, pronouns: 'he', relationToNpcId: '', who: 'older brother who runs the bait shop' });
+    const bro = st.npcs.find(n => n.created && n.created.by === 'story' && n.id !== wife.id);
+    out.bro = snap(bro);
+    out.broWhere = Game.World.whereIs(bro.id);
+    // Nobody's: a worker by what they do; an unnamed one with no relation is refused.
+    out.r4 = reveal({ name: 'Earl Hux', pronouns: 'he', relationToNpcId: '', who: 'drives the propane truck' });
+    out.earl = snap(st.npcs.find(n => n.name === 'Earl Hux'));
+    out.noRelation = why(reveal({ name: 'the propane man', pronouns: 'he', relationToNpcId: '', who: '' }));
+    out.boss = reveal({ name: 'Mr. Culp', pronouns: 'he', relationToNpcId: x.owner.id, who: 'boss at the plant' });
+    out.culp = snap(st.npcs.find(n => n.name === 'Mr. Culp'));
+    return out;
+  }, [x, revealEntry(x), PHASES4]);
+  const f = x.owner.first;
+  assert.deepEqual(r.split, [
+    { relation: 'wife', rest: 'night clerk at the motor court' },
+    { relation: 'older brother', rest: 'runs the bait shop' },
+    { relation: 'wife', rest: '' },
+    { relation: 'boss', rest: '' },
+    { relation: 'runs the bait shop', rest: '' },
+    { relation: '', rest: '' },
+    { relation: 'mother-in-law', rest: 'lives in the trailer out back' }
+  ]);
+  assert.deepEqual(r.r1.rejected, []);
+  assert.deepEqual([r.wife1.name, r.wife1.unnamed, r.wife1.pronouns, r.wife1.role, r.wife1.look, r.wife1.tags, r.wife1.relTo, r.wife1.relation, r.wife1.home],
+    [`${f}'s wife`, true, 'she', `${f}'s wife, night clerk at the motor court`, '', ['relative', 'wife'], x.owner.id, 'wife', r.houseId]);
+  assert.deepEqual(r.home1, PHASES4);
+  assert.match(r.again, /already a person/);
+  assert.deepEqual(r.r2.rejected, []);
+  assert.deepEqual(r.r2.people, [{ id: r.wife1.id, named: true, renamed: true }]);
+  assert.deepEqual([r.wife2.id, r.wife2.name, r.wife2.unnamed, r.wife2.role], [r.wife1.id, 'Mavis Toler', undefined, `${f}'s wife, night clerk at the motor court`], 'named: the same person, the role kept');
+  assert.deepEqual(r.r3.rejected, []);
+  assert.deepEqual([r.bro.unnamed, r.bro.pronouns, r.bro.role, r.bro.tags, r.bro.relTo, r.bro.relation, r.bro.home], [true, 'he', `${f}'s older brother, runs the bait shop`, ['relative', 'older', 'brother'], x.owner.id, 'older brother', null]);
+  assert.equal(r.broWhere, null, 'a brother has no home of his own yet: off-screen');
+  assert.deepEqual(r.r4.rejected, []);
+  assert.deepEqual([r.earl.unnamed, r.earl.role, r.earl.tags, r.earl.relTo], [undefined, 'drives the propane truck', ['other'], null]);
+  assert.match(r.noRelation, /needs a relation to a listed person/);
+  assert.deepEqual(r.boss.rejected, []);
+  assert.deepEqual([r.culp.role, r.culp.tags, r.culp.relation], [`${f}'s boss, at the plant`, ['worker', 'boss'], 'boss']);
 });
 
 s.run();

@@ -378,3 +378,47 @@ talking, I can direct it to one person or all."
    story" (rerun), asks the parser model whether an older game's last six
    turns are still earlier than its clock and sets it back, never forward. A
    `/skip` that names the current phase now arrives in it with no time passing.
+5. **People match the story** (owner, 29 Oct: "Dewayne referred to Mavis as
+   'she' but I corrected him to 'he' because it says it is a man. But he said
+   he has a wife. And now Mavis says that they are his wife. But the people
+   sheet says man."). Root causes: NPC records had no pronouns; people the
+   narration named entered state only when the player targeted them; and the
+   tables made them with no regard for the story. Now every NPC record has
+   `pronouns: "he" | "she" | "they"` (all 15 in `TOWN_DATA`, checked against
+   each look by `tests/validate-town.cjs`; the tables, loose ends and
+   `addNpcs` set it from the role, the look, then the first name; a save
+   without it is filled once at load, `State.fillPronouns`). The narrator's
+   person line carries it right after the name (`Mavis Toler (she/her;
+   ...)`), as do the parser and bookkeeper packets and the People card.
+   Engine-made people carry `created: { turn, day, by, relationToNpcId,
+   relation }` (`by`: story, tables, context, loose_end, fact).
+   `record_changes` gains `peopleRevealed`. The bookkeeper sends the compact
+   entry { name, pronouns, relationToNpcId, who } (the API compiles each
+   structured-output schema to a grammar with a size limit, and
+   `record_changes` sits right at it: 46 properties pass, 47 are refused as
+   "compiled grammar too large", so a field added anywhere in it needs a
+   live probe first); `State.apply` reads it into the long form { name,
+   unnamed, pronouns, role, look, relationToNpcId, relation, locationId,
+   kind } (`State.splitWho`: the relation word first, the rest becomes the
+   role; a name with no proper name in it is unnamed), which the engine and
+   the tests may send as is, with the discipline
+   of `placesRevealed`: `State.apply` validates it (name 2-40, pronouns, a
+   known relation target and place; no duplicate by name, `State.samePerson`,
+   or by the same relation to the same person), one a turn from the model,
+   12 a game; an unnamed one ("Dewayne's wife") is renamed in place when a
+   later entry names her with the same relation; a household relation shares
+   the relation's home (a revealed home taken later moves them in), anyone
+   else is off-screen until met and comes to the door when asked for where
+   they live or work. The feed says "Added to People: Mavis Toler
+   (Dewayne's wife)." only once they have a name; People lists them under
+   Heard of. A `new:` person the player targets is made, with the real
+   provider, by one `create_person` structured call on the parser model (the
+   description, the last three turns, everyone, a shortlist rolled from the
+   tables; `existingNpcId` reuses someone), checked like the tables' person,
+   with the tables as the fallback; the tables path (and mock mode) takes
+   pronouns from the description's words, rolls an occupation for a bare
+   "man" or "woman" (kept as a tag), keeps a name the description gives and
+   reads "X's wife" as a relation to X. Rules version 5, "People match the
+   story" (rerun), sends every person made during play whom the story
+   mentions, with those mentions, to the parser model (`fix_people`) and
+   applies the corrected record through the engine-only `fixPeople`.

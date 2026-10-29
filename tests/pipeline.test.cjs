@@ -1679,6 +1679,124 @@ s.test('the mock bookkeeper hears a home named in a quoted line; one already on 
   assert.equal(await page.evaluate(() => Game.state.locations.filter(l => l.revealed).length), 1, 'once on the map, not again');
 });
 
+/* People match the story: someone the narration names becomes a real
+   person (the bookkeeper's peopleRevealed), and someone the player asks for
+   is made with pronouns that fit (the tables in mock mode). */
+s.test('a person the story names becomes real: "X\'s wife" is added silently, named later as the same person, lives at X\'s house, gets a quiet feed line, shows under Heard of with her pronouns, and the narrator gets (she/her; ...); /undo takes it back', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const x = await homeScene(page);
+  // The compact entry the real bookkeeper sends (name, pronouns, relationToNpcId, who).
+  const wife = { name: `${x.owner.first}'s wife`, pronouns: 'she', relationToNpcId: x.owner.id, who: 'wife' };
+  await page.click('#mode-say');
+  await page.click(`#say-to [data-to="${x.speaker.id}"]`);
+  await page.evaluate(([x, wife]) => {
+    Game.Api.Mock.queue('narrate', `${x.speaker.name} jerks a thumb up the road. "${x.owner.first}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife's gonna be thrilled when you knock."`);
+    Game.Api.Mock.queue('bookkeep', { placesRevealed: [{ name: x.place, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: x.loc, ownerNpcId: x.owner.id, kind: 'home' }], peopleRevealed: [wife] });
+  }, [x, wife]);
+  await sendText(page, `Where does ${x.owner.first} live? He said I could stay over.`);
+  const quiet = () => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
+  assert.equal(await lastQuiet(page), `Added to the map: ${x.place}.`);
+  assert.ok(!(await quiet()).some(t => t.startsWith('Added to People')), 'an unnamed wife is added silently');
+  const story = () => page.evaluate(() => JSON.parse(JSON.stringify(Game.state.npcs.filter(n => n.created && n.created.by === 'story'))));
+  let made = await story();
+  assert.equal(made.length, 1);
+  const id = made[0].id;
+  const houseId = await page.evaluate(name => Game.state.locations.find(l => l.name === name).id, x.place);
+  assert.deepEqual([made[0].name, made[0].unnamed, made[0].pronouns, made[0].created.byNpcId], [`${x.owner.first}'s wife`, true, 'she', x.speaker.id], 'credited to the person the player asked');
+  assert.equal(made[0].home.locationId, houseId, 'she lives at the house');
+  assert.match(await lastPacket(page, 'bookkeep'), /\nEVERYONE ELSE IN THE GAME \(not met; listed only so peopleRevealed never adds them again\): /);
+  // A later turn names her: the same person, renamed, and now a quiet line.
+  await page.evaluate(([x, wife]) => {
+    Game.Api.Mock.queue('narrate', `${x.speaker.name} laughs. "Alone? No. Mavis, his wife. Mavis Toler. She works nights."`);
+    Game.Api.Mock.queue('bookkeep', { peopleRevealed: [Object.assign({}, wife, { name: 'Mavis Toler' })] });
+  }, [x, wife]);
+  await sendText(page, 'Does he live alone?');
+  const book = await lastPacket(page, 'bookkeep');
+  assert.ok(new RegExp(`${id} — ${x.owner.first}'s wife \\(she/her; ${x.owner.first}'s wife(; attitude 0)?\\) \\(no name yet\\)`).test(book), 'the bookkeeper sees her waiting for a name: ' + book);
+  assert.equal(await lastQuiet(page), `Added to People: Mavis Toler (${x.owner.first}'s wife).`);
+  made = await story();
+  assert.equal(made.length, 1, 'one person, not two');
+  assert.deepEqual([made[0].id, made[0].name, made[0].unnamed, made[0].pronouns, made[0].role, made[0].home.locationId], [id, 'Mavis Toler', undefined, 'she', `${x.owner.first}'s wife`, houseId]);
+  // People: under Heard of, by name, with her pronouns; the parser hears of her too.
+  await page.click('#tab-people');
+  const card = await page.evaluate(id => { const c = document.querySelector(`#panel-body [data-group="heard"] .pcard[data-npc="${id}"]`); return c ? { name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, text: c.textContent } : null; }, id);
+  assert.ok(card, 'listed under Heard of');
+  assert.deepEqual([card.name, card.pron, card.role], ['Mavis Toler', 'she/her', `${x.owner.first}'s wife`]);
+  assert.match(card.text, /Heard of, not met/);
+  // Walking to the house: she is there, and the narrator gets her pronouns right after her name.
+  await page.click('#mode-do');
+  await sendText(page, `I head to ${x.place}`);
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), houseId);
+  assert.ok((await lastPacket(page, 'parse')).includes(`${id} — Mavis Toler (she/her; ${x.owner.first}'s wife) (heard of, not met)`), 'the parser hears of her');
+  const narr = await lastPacket(page);
+  assert.ok(narr.includes(`Mavis Toler (she/her; ${x.owner.first}'s wife; not met yet: the player has heard of them by this name from others, but has never met them;`), narr.split('\n').find(l => l.startsWith('DESTINATION')) || narr);
+  await sendText(page, 'I look around');
+  assert.ok((await lastPacket(page)).includes(`PRESENT: `) && /Mavis Toler \(she\/her; /.test(await lastPacket(page)), 'PRESENT: Mavis Toler (she/her; ...)');
+  // /undo: the look, the walk, the name, then the reveal itself.
+  for (let i = 0; i < 3; i++) await sendText(page, '/undo');
+  made = await story();
+  assert.deepEqual([made.length, made[0].name, made[0].unnamed], [1, `${x.owner.first}'s wife`, true], 'unnamed again');
+  await sendText(page, '/undo');
+  assert.deepEqual(await story(), [], 'gone');
+  assert.ok(!(await quiet()).some(t => t.startsWith('Added to People')), 'and so is the line');
+});
+
+s.test('someone the player asks for in mock mode: pronouns from the words, a rolled occupation and never a bare "man" or "woman" role, a name from the words, and "X\'s wife" read as a relation', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const fx = await fixtures(page);
+  await place(page, fx.tavern.id, 'evening');
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const ask = async (desc, text) => {
+    const before = await page.evaluate(() => Game.state.npcs.map(n => n.id));
+    await page.evaluate(desc => Game.Api.Mock.queue('parse', { actionType: 'talk', targets: ['new:' + desc], needsRoll: false, timeCost: 'instant' }), desc);
+    await sendText(page, text);
+    return page.evaluate(before => JSON.parse(JSON.stringify(Game.state.npcs.filter(n => !before.includes(n.id)))), before);
+  };
+  const occupations = await page.evaluate(() => Game.data.TABLES.npc.occupations);
+  const [w] = await ask('woman by the jukebox', 'I talk to the woman by the jukebox');
+  assert.ok(w, 'someone was made');
+  assert.equal(w.pronouns, 'she');
+  assert.ok(occupations.includes(w.role) && !/^(man|woman)$/i.test(w.role), 'a rolled occupation: ' + w.role);
+  assert.ok(w.tags.includes('woman'), 'the word kept as a tag');
+  assert.match(w.look, /^A woman with an? .+ look about her\.$/);
+  assert.notEqual(await page.evaluate(n => Game.namePronouns(n), w.name), 'he', 'a first name that fits: ' + w.name);
+  assert.equal(w.created.by, 'tables');
+  assert.ok((await lastPacket(page)).includes(`${w.name} (she/her; ${w.role}; `), 'the narrator packet: name, then pronouns');
+  const [m] = await ask('man at the end of the bar', 'I nod at the man at the end of the bar');
+  assert.equal(m.pronouns, 'he');
+  assert.ok(occupations.includes(m.role), m.role);
+  assert.match(m.look, /^A man with an? .+ look about him\.$/);
+  // A name only: the name is kept and a family name added; the pronouns come from it.
+  const [v] = await ask('Wanda', 'I ask for Wanda');
+  assert.match(v.name, /^Wanda \S+$/);
+  assert.equal(v.pronouns, 'she');
+  assert.ok(occupations.includes(v.role), 'never "Wanda" or "Man" as a role: ' + v.role);
+  // "X's wife": a relation to X, the family name, she.
+  const owner = await page.evaluate(() => {
+    const here = Game.State.npcsAt(Game.state.player.locationId).map(n => n.id);
+    const first = n => n.name.split(' ')[0];
+    return Game.state.npcs.filter(n => !here.includes(n.id) && n.pronouns === 'he' && Game.state.npcs.filter(m => first(m) === first(n)).length === 1).map(n => ({ id: n.id, name: n.name, first: first(n) }))[0];
+  });
+  const [wife] = await ask(`${owner.first}'s wife`, `I ask about ${owner.first}'s wife`);
+  assert.ok(wife, 'someone new, not ' + owner.name);
+  assert.equal(wife.role, `${owner.first}'s wife`);
+  assert.equal(wife.pronouns, 'she');
+  assert.deepEqual([wife.created.relationToNpcId, wife.created.relation], [owner.id, 'wife']);
+  assert.equal(wife.name.split(' ').slice(-1)[0], owner.name.split(' ').slice(-1)[0], 'she shares his family name');
+  // Asking again finds her, not him.
+  const again = await ask(`${owner.first}'s wife`, `I ask ${owner.first}'s wife for a light`);
+  assert.deepEqual(again, [], 'nobody new');
+  assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(wife.id));
+  assert.ok(!(await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(owner.id), 'never the husband');
+  // The parser hears pronouns too.
+  assert.ok((await lastPacket(page, 'parse')).includes(`${wife.id} — ${wife.name} (she/her; ${owner.first}'s wife; attitude to the player`));
+});
+
 s.test('when time passes, people who arrive at or leave the player\'s place are handed to the next narration, then cleared', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);

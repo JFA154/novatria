@@ -79,7 +79,7 @@ s.test('a new game is stamped with the current rules version; a save without one
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const fresh = await page.evaluate(() => ({ v: Game.state.meta.rulesVersion, current: Game.State.RULES_VERSION, read: Game.State.rulesVersion(Game.state), behind: Game.Upgrade.behind(Game.state) }));
-  assert.deepEqual(fresh, { v: 4, current: 4, read: 4, behind: false });
+  assert.deepEqual(fresh, { v: 5, current: 5, read: 5, behind: false });
   const { env } = await writeOldAutosave(page);
   assert.equal(await page.evaluate(st => Game.State.rulesVersion(st), env.state), 1, 'no rulesVersion reads as 1');
   await page.click('#btn-continue');
@@ -164,10 +164,10 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
   // Everyone else's memories and every other field byte for byte.
   for (const n of old.npcs) if (!ids.includes(n.id)) assert.deepEqual(mem(n.id), n.memories, n.id + ' untouched');
   assert.equal(rest(after), rest(before), 'nothing but memories and the rules version changed');
-  assert.equal(st.meta.rulesVersion, 4, 'stamped');
-  // The feed: the running notice, then the summary (version 2, then version 3, which finds nothing to add, then version 4: the first morning needs no check).
+  assert.equal(st.meta.rulesVersion, 5, 'stamped');
+  // The feed: the running notice, then the summary (version 2, then version 3, which finds nothing to add, then version 4: the first morning needs no check, then version 5: nobody the game made up is in the story).
   const notices = await page.$$eval('#feed .f-notice', ns => ns.map(n => n.textContent));
-  assert.deepEqual(notices.slice(-2), ['Updating this game to the latest rules...', 'Rewrote memories for 3 people: 17 memories became 11. No new places to add. The clock matches the story.']);
+  assert.deepEqual(notices.slice(-2), ['Updating this game to the latest rules...', 'Rewrote memories for 3 people: 17 memories became 11. No new places to add. The clock matches the story. People already match the story.']);
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length), 1, 'one call');
   // Autosaved, and the game stays loaded.
   const saved = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).state, AUTOSAVE);
@@ -216,7 +216,7 @@ s.test('a queued mock error, or a refusal, leaves the state exactly as it was an
   // Still behind: it can be tried again and then works.
   const r3 = await page.evaluate(() => Game.App.updateGame());
   assert.equal(r3.ok, true);
-  assert.equal(await page.evaluate(() => Game.state.meta.rulesVersion), 4);
+  assert.equal(await page.evaluate(() => Game.state.meta.rulesVersion), 5);
 });
 
 s.test('Settings: the Game section is off with no game, notes an older game, and re-reads a current one; a re-read that changes nothing is not an undo step', async h => {
@@ -225,7 +225,7 @@ s.test('Settings: the Game section is off with no game, notes an older game, and
   assert.ok(await page.isDisabled('#set-reread'), 'no game loaded');
   assert.ok(await page.isVisible('#set-reread-none'));
   assert.equal(await page.textContent('#set-reread'), 'Re-read this game with the latest rules');
-  assert.match(await page.textContent('#set-reread-hint'), /new short form.*places people told you about.*sets the clock back if it ran ahead of the story.*about three API calls/i);
+  assert.match(await page.textContent('#set-reread-hint'), /new short form.*places people told you about.*sets the clock back if it ran ahead of the story.*fixes people the game made up.*about four API calls/i);
   await page.click('#settings-done');
   // An older game: the note says so.
   await writeOldAutosave(page);
@@ -253,12 +253,12 @@ s.test('Settings: the Game section is off with no game, notes an older game, and
   await page.waitForSelector('#screen-game.active');
   await waitIdle(page);
   const r = await page.evaluate(i => ({ mems: Game.state.npcs.find(n => n.id === i).memories, v: Game.state.meta.rulesVersion, calls: Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length, depth: Game.State.undoDepth() }), id);
-  assert.equal(r.v, 4);
+  assert.equal(r.v, 5);
   assert.equal(r.calls, 1);
   assert.equal(r.mems.length, 3);
   assert.ok(r.mems.every(m => words(m.text) <= 12 && m.turn === 1), JSON.stringify(r.mems));
   assert.equal(r.depth, depth + 1, 'the re-read is one undo step');
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 1 person: 3 memories became 3. No new places to add. The clock matches the story.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 1 person: 3 memories became 3. No new places to add. The clock matches the story. People already match the story.');
   // Again: everything is short already, nothing changes, and no undo step is added.
   const same = await stateJson(page);
   await page.click('#tb-settings');
@@ -307,7 +307,7 @@ s.test('Saves screen: a slot under older rules says so and has an Update action 
   await page.waitForSelector('#screen-game.active');
   await waitIdle(page);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 4);
+  assert.equal(st.meta.rulesVersion, 5);
   assert.equal(st.npcs.find(n => n.id === ids[1]).memories.length, 6);
   assert.equal(rest(st), rest(env.state));
   const slot = await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.slot.1')));
@@ -412,14 +412,14 @@ s.test('the real provider: one structured-output call on the parser model at the
   assert.equal(knife[0].turn, 12);
   assert.ok(knife[0].text.length <= 120, 'cut like a bookkeeper memory');
   assert.deepEqual(mem(ids[2]), [], 'nothing worth keeping');
-  assert.equal(st.meta.rulesVersion, 4);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 3 people: 17 memories became 3. No new places to add. The clock matches the story.');
+  assert.equal(st.meta.rulesVersion, 5);
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 3 people: 17 memories became 3. No new places to add. The clock matches the story. People already match the story.');
   // The debug view shows the exchange.
   await sendText(page, '/debug');
   const dbg = await page.textContent('#panel-body');
   assert.match(dbg, /memories · via claude · HTTP 200 · request-id req_mem_1/);
   assert.match(dbg, /places · via claude · HTTP 200 · request-id req_places_2/);
-  assert.match(dbg, /rules v4/);
+  assert.match(dbg, /rules v5/);
 });
 
 /* A game saved at rules version opts.version (1: no rulesVersion at all)
@@ -471,8 +471,8 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
       atHome: l ? ['morning', 'afternoon', 'evening', 'night'].filter(p => Game.State.npcsAt(l.id, p).some(n => n.id === m.owner.id)) : []
     };
   }, m);
-  assert.equal(r.v, 4, 'stamped 4');
-  assert.deepEqual(r.calls.filter(c => c === 'rewriteMemories' || c === 'revealPlaces' || c === 'checkClock'), ['revealPlaces'], 'a save at 2 runs versions 3 and 4, in one call (the first morning needs no clock check)');
+  assert.equal(r.v, 5, 'stamped 5');
+  assert.deepEqual(r.calls.filter(c => c === 'rewriteMemories' || c === 'revealPlaces' || c === 'checkClock' || c === 'fixPeople'), ['revealPlaces'], 'a save at 2 runs versions 3, 4 and 5, in one call (the first morning needs no clock check; nobody the game made up)');
   assert.ok(r.l, 'the place exists: ' + m.place);
   assert.equal(r.locs, m.locs + 1);
   assert.equal(r.l.type, 'house');
@@ -483,7 +483,7 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   assert.ok(r.l.map && Number.isFinite(r.l.map.x) && Number.isFinite(r.l.map.y), 'placed on the map');
   assert.deepEqual(r.atHome, m.nowhere, 'the owner is home in every phase they were nowhere');
   assert.deepEqual(r.home, { locationId: r.l.id, phases: m.nowhere, revealed: true });
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story.`);
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story.`);
   // The map and the Places list show it, dashed.
   await page.click('#tab-places');
   await page.waitForSelector('.map-svg');
@@ -496,7 +496,7 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   await page.click('#tb-settings');
   await page.click('#set-reread');
   await waitIdle(page);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story.');
   assert.equal(await stateJson(page), before, 'a re-read adds nothing twice');
   assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth);
   // /undo takes the update back: no place, no home, version 2 again.
@@ -506,19 +506,19 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
 });
 
-s.test('a save at version 1 runs version 2, 3 then 4; with nothing in the story to add, version 3 adds no place and the game is stamped 4', async h => {
+s.test('a save at version 1 runs version 2, 3, 4 then 5; with nothing in the story to add, version 3 adds no place and the game is stamped 5', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const m = await writeMentionSave(page, { version: 1, line: "Couldn't tell you. Ask around." });
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story'], [5, 'People match the story']]);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 4);
+  assert.equal(st.meta.rulesVersion, 5);
   assert.equal(st.locations.length, m.locs, 'no new place');
   assert.ok(!st.locations.some(l => l.revealed));
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story.');
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method).filter(x => x === 'revealPlaces')), ['revealPlaces']);
 });
 
@@ -547,7 +547,7 @@ s.test('version 3 against the real provider: one structured-output call on the p
   await page.evaluate(() => { Game.Storage.saveSettings({ mockMode: false }); Game.Storage.setApiKey('sk-ant-test-0123456789', false); });
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true, JSON.stringify(res));
-  assert.equal(reqs.length, 1, 'one call (a save at 2 runs versions 3 and 4; the first morning needs no clock check)');
+  assert.equal(reqs.length, 1, 'one call (a save at 2 runs versions 3, 4 and 5; the first morning needs no clock check, and nobody the game made up is in the story)');
   const body = reqs[0];
   assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
   assert.equal(body.max_tokens, 6000);
@@ -583,12 +583,12 @@ s.test('version 3 against the real provider: one structured-output call on the p
   assert.deepEqual(made.map(l => l.name), [m.place], 'one place: the repeat and the existing place are refused');
   assert.deepEqual(made[0].exits, [m.here], 'an unknown nearId: reached from where the player is');
   assert.equal(made[0].revealed.turn, 3);
-  assert.equal(st.meta.rulesVersion, 4);
+  assert.equal(st.meta.rulesVersion, 5);
   const dbg = await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join('\n'));
   assert.match(dbg, /nearId loc_nowhere is not a known place/);
   assert.match(dbg, /place not added \(placesRevealed\[1\]\): already a place/);
   assert.match(dbg, /place not added \(placesRevealed\[2\]\): already a place/);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story.`);
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story.`);
 });
 
 /* The owner's night at Dewayne's house, saved at rules version 3 with the
@@ -637,7 +637,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   const after = await stateJson(page);
   const st = JSON.parse(after);
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true }, 'night again, late in it');
-  assert.equal(st.meta.rulesVersion, 4);
+  assert.equal(st.meta.rulesVersion, 5);
   assert.equal(noClock(after), noClock(before), 'everything else byte for byte');
   const r = await page.evaluate(() => ({
     calls: Game.Api.Mock.calls.map(c => c.method), packet: Game.Api.Mock.calls.filter(c => c.method === 'checkClock').pop().text,
@@ -646,11 +646,11 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
     dbg: Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | '),
     saved: JSON.parse(localStorage.getItem('novatria.autosave')).state.time
   }));
-  assert.deepEqual(r.calls, ['checkClock'], 'a save at 3 runs version 4 only, in one call');
+  assert.deepEqual(r.calls, ['checkClock'], 'a save at 3 runs versions 4 and 5, in one call (nobody the game made up)');
   assert.match(r.packet, /^CLOCK NOW: day 2, morning \(early in the phase; 0 of 3 short actions gone\)\n/);
   assert.ok(r.packet.indexOf('TURN 10 (day 1, night)') < r.packet.indexOf('TURN 11 (day 2, morning)\nPLAYER: Go to the back bedroom and let him lead'), 'oldest first');
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
-  assert.deepEqual(r.feed, ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning.', 'Day 1 · Night']);
+  assert.deepEqual(r.feed, ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning. People already match the story.', 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
   assert.ok(r.narr.startsWith('DAY 1, NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
@@ -668,19 +668,19 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
 });
 
-s.test('version 4: a save whose story matches its clock is left as it is and stamped 4; a reply that would move the clock forward is ignored; a re-read of a fixed clock changes nothing', async h => {
+s.test('version 4: a save whose story matches its clock is left as it is and stamped 5; a reply that would move the clock forward is ignored; a re-read of a fixed clock changes nothing', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const before = await writeNightSave(page, { last: 'The diner is loud with the breakfast crowd, and somebody is burning toast behind the counter.' });
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.'], [5, 'People match the story', 'People already match the story.']]);
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 2, phase: 'morning', shorts: 0 });
-  assert.equal(st.meta.rulesVersion, 4, 'stamped');
+  assert.equal(st.meta.rulesVersion, 5, 'stamped');
   assert.equal(noClock(st), noClock(before));
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'The clock matches the story.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'The clock matches the story. People already match the story.');
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method)), ['checkClock']);
   // The clock never moves forward: a later phase on the same day is ignored...
   await page.evaluate(() => Game.Api.Mock.queue('checkClock', { behind: true, phase: 'evening', dayOffset: 0, reason: 'It is evening.' }));
@@ -691,7 +691,7 @@ s.test('version 4: a save whose story matches its clock is left as it is and sta
   // ...and an earlier phase that is not night is set late in its phase, without the late-night flag.
   await page.evaluate(() => Game.Api.Mock.queue('checkClock', { behind: true, phase: 'evening', dayOffset: -1, reason: 'Still the evening before.' }));
   const back = await page.evaluate(() => Game.App.updateGame());
-  assert.equal(back.summaries.pop().text, 'Set the clock back to day 1, evening: the story had not reached morning.');
+  assert.equal(back.summaries.find(x => x.version === 4).text, 'Set the clock back to day 1, evening: the story had not reached morning.');
   assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 1, phase: 'evening', shorts: 2 });
   // A re-read of a clock the story fits: nothing changes and no undo step.
   const same = await stateJson(page);
@@ -763,9 +763,184 @@ s.test('version 4 against the real provider: one structured-output call on the p
   assert.ok(user.trim().endsWith(BEDROOM), 'the latest narration last');
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true });
-  assert.equal(st.meta.rulesVersion, 4);
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent)), ['Set the clock back to day 1, night: the story had not reached morning.', 'Day 1 · Night']);
+  assert.equal(st.meta.rulesVersion, 5);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent)), ['Set the clock back to day 1, night: the story had not reached morning. People already match the story.', 'Day 1 · Night']);
   assert.match(await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | ')), /clock: day 2, morning -> day 1, night \(He is taking his boots off for bed; nobody has slept yet\.\)/);
+});
+
+/* The owner's Mavis, saved at rules version 4: the tables made "Mavis
+   Toler" a man (no pronouns, role "Man") when the player first asked for
+   her, while the story calls her the owner's wife. The owner is a man in
+   this town with a unique first name and a house someone told the player
+   about; one narration is the speaker's line on where he lives ("his wife
+   Mavis"), one is the owner's own ("My wife Mavis works the night counter
+   at the motor court"). opts.plain leaves Mavis and the lines out. Then the
+   page reloads to the title screen. Resolves to { owner, house, here, json }. */
+async function writeMavisSave(page, opts = {}) {
+  await quickStart(page, { kinds: [] });
+  const out = await page.evaluate(([key, opts]) => {
+    const S = Game.State;
+    const st = Game.state;
+    const phases = ['morning', 'afternoon', 'evening', 'night'];
+    const nowhere = id => phases.filter(p => !st.locations.some(l => ((l.npcIdsBySchedule || {})[p] || []).includes(id)));
+    const first = n => n.name.split(' ')[0];
+    const unique = n => st.npcs.filter(m => first(m) === first(n)).length === 1;
+    const owner = st.npcs.find(n => n.status === 'free' && n.pronouns === 'he' && unique(n) && nowhere(n.id).length > 0 && nowhere(n.id).length < 4);
+    const here = st.player.locationId;
+    const speaker = S.npcsAt(here).find(n => n.id !== owner.id) || st.npcs.find(n => n.id !== owner.id);
+    S.apply({ beginTurn: true });
+    const house = S.apply({ placesRevealed: [{ name: `${first(owner)}'s house`, type: 'house', description: 'The white house about a mile up the river road, on the left.', nearId: here, ownerNpcId: owner.id, kind: 'home' }] }).revealed[0];
+    const env = Game.Storage.envelope('Autosave');
+    const s = env.state;
+    s.meta.rulesVersion = 4;
+    s.meta.turn = 5;
+    if (!opts.plain) {
+      // As the tables made her before this version: a man, no pronouns, at the place she was first asked for, in every phase.
+      s.npcs.push({ id: 'npc_mavis_toler', name: 'Mavis Toler', role: 'Man', factionId: null, tags: [], look: 'A man with a bitter look about them.', voice: "says 'I tell you what' before every opinion", personality: ['bitter', 'nosy'], goal: 'to be left alone', secret: '', attitude: -10, memories: [{ turn: 4, text: 'woke me up knocking', weight: 2 }], alive: true, knownToPlayer: true, status: 'free', home: { locationId: here, phases } });
+      for (const p of phases) s.locations.find(l => l.id === here).npcIdsBySchedule[p].push('npc_mavis_toler');
+      s.log.push(
+        { turn: 3, day: 1, phase: 'morning', input: `Where does ${first(owner)} live? He said I could stay over.`, roll: null, mode: 'say', to: speaker.id, toName: speaker.name, toLabel: null,
+          narration: `${speaker.name} wipes his hands on a rag. "${first(owner)}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife Mavis is gonna be thrilled when you knock."` },
+        { turn: 4, day: 1, phase: 'morning', input: 'I knock and ask for Mavis.', roll: null, mode: 'do',
+          narration: `${first(owner)} opens the door in his socks and squints at you. "My wife Mavis works the night counter at the motor court," he says. "She won't be up till noon, and she won't thank you for it."` }
+      );
+    }
+    const json = JSON.stringify(env);
+    localStorage.setItem(key, json);
+    return { owner: { id: owner.id, name: owner.name, first: first(owner) }, house, here, json: JSON.stringify(s) };
+  }, [AUTOSAVE, opts]);
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  return out;
+}
+
+s.test('version 5 on a save at version 4: a tables-made "Mavis Toler", a man, whom the story calls the owner\'s wife becomes she/her, his wife, at his house; nothing else changes; /undo takes it back', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  const m = await writeMavisSave(page);
+  assert.ok(await page.isVisible('#btn-update'), 'a save at version 4 is behind');
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  const loaded = await stateJson(page);
+  const before = await page.evaluate(() => JSON.parse(JSON.stringify(Game.State.npc('npc_mavis_toler'))));
+  assert.equal(before.pronouns, 'he', 'loading gives her pronouns by the old record: a man');
+  const res = await page.evaluate(() => Game.App.updateGame());
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[5, 'People match the story']]);
+  const r = await page.evaluate(m => {
+    const S = Game.State;
+    const n = JSON.parse(JSON.stringify(S.npc('npc_mavis_toler')));
+    const phases = ['morning', 'afternoon', 'evening', 'night'];
+    return {
+      n, v: Game.state.meta.rulesVersion, calls: Game.Api.Mock.calls.map(c => c.method), packet: Game.Api.Mock.calls.filter(c => c.method === 'fixPeople').pop().text,
+      atHouse: phases.filter(p => S.npcsAt(m.house, p).some(x => x.id === n.id)), atOld: phases.filter(p => S.npcsAt(m.here, p).some(x => x.id === n.id)),
+      feed: document.querySelector('#feed .f-notice:last-child').textContent, narr: Game.Pipeline.narratorPacket({ action: { summary: 'x' } })
+    };
+  }, m);
+  assert.equal(r.v, 5, 'stamped 5');
+  assert.deepEqual(r.calls.filter(c => c === 'fixPeople'), ['fixPeople'], 'one call');
+  assert.ok(r.packet.includes('PERSON npc_mavis_toler (made by the game from random tables when the player first asked for them)\n  name: Mavis Toler\n  pronouns: he/him\n  role: Man\n'), r.packet);
+  assert.ok(r.packet.includes("his wife Mavis is gonna be thrilled") && r.packet.includes('My wife Mavis works the night counter'), 'every narration that names her');
+  assert.ok(r.packet.includes(`PEOPLE (everyone in the game): `) && r.packet.includes(`${m.owner.id} — ${m.owner.name} (he/him; `), 'everyone, with pronouns');
+  assert.equal(r.n.pronouns, 'she');
+  assert.equal(r.n.role, `${m.owner.first}'s wife`);
+  assert.equal(r.n.look, 'A woman with a bitter look about her.');
+  assert.equal(r.n.id, 'npc_mavis_toler', 'the same id');
+  assert.equal(r.n.name, 'Mavis Toler');
+  assert.deepEqual(r.n.memories, before.memories, 'memories kept');
+  assert.deepEqual([r.n.created.relationToNpcId, r.n.created.relation], [m.owner.id, 'wife']);
+  assert.deepEqual(r.n.home, { locationId: m.house, phases: ['morning', 'afternoon', 'evening', 'night'], revealed: true });
+  assert.deepEqual(r.atHouse, ['morning', 'afternoon', 'evening', 'night'], 'she lives at his house');
+  assert.deepEqual(r.atOld, [], 'and no longer where she was first asked for');
+  assert.equal(r.feed, `Fixed 1 person to match the story: Mavis Toler is ${m.owner.first}'s wife (she/her).`);
+  // Nothing else changed: the rest of the save, byte for byte.
+  const rest5 = json => { const st = JSON.parse(json); delete st.meta.rulesVersion; st.npcs = st.npcs.filter(n => n.id !== 'npc_mavis_toler'); for (const l of st.locations) for (const p of Object.keys(l.npcIdsBySchedule)) l.npcIdsBySchedule[p] = l.npcIdsBySchedule[p].filter(x => x !== 'npc_mavis_toler'); return JSON.stringify(st); };
+  assert.equal(rest5(await stateJson(page)), rest5(loaded));
+  // A re-read finds her already fixed: nothing changes.
+  const same = await stateJson(page);
+  const res2 = await page.evaluate(() => Game.App.updateGame());
+  assert.equal(res2.summaries.find(x => x.version === 5).text, 'People already match the story.');
+  assert.equal(await stateJson(page), same);
+  // /undo takes the update back: a man again, version 4.
+  await sendText(page, '/undo');
+  assert.equal(await stateJson(page), loaded, 'exactly the save as it loaded');
+  assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
+});
+
+s.test('version 5 on a save with nobody to fix: no call, "People already match the story.", stamped 5', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  const m = await writeMavisSave(page, { plain: true });
+  await page.click('#btn-update');
+  await page.waitForSelector('#screen-game.active');
+  await waitIdle(page);
+  const st = JSON.parse(await stateJson(page));
+  assert.equal(st.meta.rulesVersion, 5);
+  assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method).filter(x => x === 'fixPeople')), [], 'no call');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'People already match the story.');
+  const was = JSON.parse(m.json);
+  delete was.meta.rulesVersion;
+  delete st.meta.rulesVersion;
+  assert.equal(JSON.stringify(st), JSON.stringify(was), 'nothing else changed');
+});
+
+s.test('version 5 against the real provider: one structured-output call on the parser model with the person, what the story says about them, the places and the people; the reply applied through the engine; a bad home or relation is ignored', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  const reqs = [];
+  let reply = null;
+  await page.route('https://api.anthropic.com/v1/messages', async route => {
+    const body = JSON.parse(route.request().postData());
+    reqs.push(body);
+    return route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'access-control-expose-headers': 'request-id', 'request-id': 'req_people_' + reqs.length },
+      body: JSON.stringify({ id: 'msg_f', type: 'message', role: 'assistant', model: body.model, content: [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: JSON.stringify(reply) }], stop_reason: 'end_turn', stop_details: null, usage: { input_tokens: 1500, output_tokens: 160, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } })
+    });
+  });
+  const m = await writeMavisSave(page);
+  const family = m.owner.name.split(' ').slice(-1)[0];
+  reply = { people: [{ npcId: 'npc_mavis_toler', name: `Mavis ${family}`, pronouns: 'she', role: `${m.owner.first}'s wife`, look: 'A tired woman in a motel smock, with reading glasses pushed up in her hair.', voice: "Short and dry; says 'I tell you what' before every opinion.", relationToNpcId: m.owner.id, relation: 'wife', homeLocationId: m.house }] };
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  await page.evaluate(() => { Game.Storage.saveSettings({ mockMode: false }); Game.Storage.setApiKey('sk-ant-test-0123456789', false); });
+  const res = await page.evaluate(() => Game.App.updateGame());
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(reqs.length, 1, 'one call (a save at 4 runs version 5 only)');
+  const body = reqs[0];
+  assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
+  assert.equal(body.max_tokens, 6000);
+  assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
+  assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
+  const bad = [];
+  (function walk(node, where) {
+    if (Array.isArray(node)) return node.forEach((x, i) => walk(x, `${where}[${i}]`));
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'object') {
+      if (node.additionalProperties !== false) bad.push(where + ': additionalProperties');
+      if (JSON.stringify((node.required || []).slice().sort()) !== JSON.stringify(Object.keys(node.properties || {}).sort())) bad.push(where + ': required');
+    }
+    for (const k of ['minimum', 'maximum', 'minLength', 'maxLength', 'minItems', 'maxItems', 'pattern', 'format', '$ref']) if (k in node) bad.push(`${where}: ${k}`);
+    for (const k of Object.keys(node)) walk(node[k], `${where}.${k}`);
+  })(body.output_config.format.schema, 'schema');
+  assert.deepEqual(bad, []);
+  assert.deepEqual(Object.keys(body.output_config.format.schema.properties.people.items.properties), ['npcId', 'name', 'pronouns', 'role', 'look', 'voice', 'relationToNpcId', 'relation', 'homeLocationId']);
+  assert.equal(body.system, await page.evaluate(() => Game.Api.SYSTEM.people));
+  const user = body.messages[0].content;
+  assert.match(user, /^PLAYER: Tester\nPLACES \(the places list\): /);
+  assert.ok(user.includes(`${m.house} — ${m.owner.first}'s house (house)`), 'the places, the house too');
+  assert.ok(user.includes('\n  WHAT THE STORY SAYS (oldest first):\n  TURN 3 (day 1, morning): ') && user.includes('My wife Mavis works the night counter'), user);
+  const n = await page.evaluate(() => JSON.parse(JSON.stringify(Game.State.npc('npc_mavis_toler'))));
+  assert.deepEqual([n.name, n.pronouns, n.role, n.home.locationId, n.created.relationToNpcId, n.created.relation], [`Mavis ${family}`, 'she', `${m.owner.first}'s wife`, m.house, m.owner.id, 'wife']);
+  assert.match(n.look, /motel smock/);
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Fixed 1 person to match the story: Mavis ${family} is ${m.owner.first}'s wife (she/her).`);
+  // A reply with a home and a relation that do not exist: they are ignored and the rest applies.
+  await page.evaluate(() => Game.State.apply({ fixPeople: [{ npcId: 'npc_mavis_toler', pronouns: 'he' }] }));
+  reply = { people: [{ npcId: 'npc_mavis_toler', name: `Mavis ${family}`, pronouns: 'she', role: `${m.owner.first}'s wife`, look: '', voice: '', relationToNpcId: 'npc_nobody', relation: 'wife', homeLocationId: 'loc_nowhere' }, { npcId: 'npc_not_asked', name: 'X Y', pronouns: 'he', role: 'r', look: '', voice: '', relationToNpcId: null, relation: null, homeLocationId: null }] };
+  const res2 = await page.evaluate(() => Game.App.updateGame());
+  assert.equal(res2.ok, true);
+  assert.equal(await page.evaluate(() => Game.State.npc('npc_mavis_toler').pronouns), 'she');
+  const dbg = await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | '));
+  assert.match(dbg, /relationToNpcId npc_nobody is not someone in the game/);
+  assert.match(dbg, /homeLocationId loc_nowhere is not a place/);
+  assert.match(dbg, /npc_not_asked, who was not asked about/);
 });
 
 s.run();
