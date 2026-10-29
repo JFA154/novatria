@@ -63,7 +63,7 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   assert.match(r.roll, /^Wits 15/);
   const packet = await lastPacket(page);
   const lines = packet.split('\n').map(l => l.split(':')[0]);
-  for (const label of ['DAY 1, MORNING · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
+  for (const label of ['DAY 1, MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
   assert.ok(packet.includes(`PLAYER: Tester (${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
   assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.\nVARIETY: [^\n]+$/, 'MODE, then the LENGTH line last');
   const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
@@ -364,7 +364,7 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   const packet = await lastPacket(page);
   assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.ok(packet.includes(`\nTIME PASSED: the player skipped ahead to ${t1.name}, night of day 1`));
-  assert.ok(packet.startsWith(`DAY 1, NIGHT · Location: ${t1.name}`));
+  assert.ok(packet.startsWith(`DAY 1, NIGHT (early; the player has not slept) · Location: ${t1.name}`));
   assert.equal(r.last.phase, 'night');
   assert.ok(r.last.narration.includes(`You arrive at ${the(t1.name)}`));
   assert.equal(r.divider, 'Day 1 · Night');
@@ -373,6 +373,12 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   assert.match(await lastNotice(page), /Try \/skip to the docks at night/);
   assert.equal(await page.inputValue('#cmd'), '/skip somewhere nice');
   await page.fill('#cmd', '');
+  // A skip that names the phase it already is arrives in that phase: no time passes.
+  const night0 = await page.evaluate(() => JSON.stringify(Game.state.time));
+  await page.evaluate(() => { window.__ticks = []; });
+  await sendText(page, `/skip to ${t2.name} at night`);
+  assert.deepEqual(await page.evaluate(() => [Game.state.player.locationId, JSON.stringify(Game.state.time), window.__ticks.length]), [t2.id, night0, 0]);
+  await sendText(page, `/skip to ${t1.name} at night`);
   // Skipping across midnight ticks into the next day.
   await page.evaluate(() => { window.__ticks = []; });
   await sendText(page, `/skip to ${t2.name} in the afternoon`);
@@ -1446,6 +1452,103 @@ s.test('/cheat success|partial|fail|crit|fumble|<n> redoes the last roll with th
   await sendText(page, '/cheat sideways');
   assert.match(await lastNotice(page), /Say which outcome/);
   assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.input === 'I try to pick the lock on the back door').length), 1, 'still one turn in the log');
+});
+
+s.test('night holds until the player sleeps: a run of short actions from evening ends at night (late), never morning; the packets say where in the phase it is; a long action reaches morning with no sleep, /rest sleeps', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await place(page, null, 'evening');
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); window.__ticks = []; const orig = Game.World.tick; Game.World.tick = info => { window.__ticks.push(`${info.to.day}:${info.to.phase}`); return orig(info); }; });
+  const chores = ['I sweep the floor', 'I stretch my legs', 'I check my phone for signal', 'I fold my jacket', 'I sweep the floor again', 'I stretch my legs again', 'I check my phone again', 'I fold my jacket again'];
+  const clocks = [];
+  for (const c of chores) {
+    await sendText(page, c);
+    clocks.push(await page.evaluate(() => { const t = Game.state.time; return `${t.day}:${t.phase}:${t.shorts}${t.late ? ':late' : ''}`; }));
+  }
+  assert.deepEqual(clocks, ['1:evening:1', '1:evening:2', '1:night:0', '1:night:1', '1:night:2', '1:night:2:late', '1:night:2:late', '1:night:2:late'], 'shorts never cross into morning');
+  const r = await page.evaluate(() => ({
+    ticks: window.__ticks.slice(),
+    dividers: [...document.querySelectorAll('#feed .f-divider')].map(d => d.textContent), bar: document.getElementById('tb-time').textContent
+  }));
+  assert.deepEqual(r.ticks, ['1:night'], 'the world ticked once, into the night, and not for the held shorts');
+  assert.ok(!r.dividers.some(d => /Day 2/.test(d)), 'no new morning in the feed: ' + r.dividers.join(' | '));
+  assert.equal(r.dividers[r.dividers.length - 1], 'Day 1 · Night');
+  assert.equal(r.bar, 'Day 1 · Night');
+  // The last chore was narrated late at night: the narrator, the bookkeeper and the parser are told.
+  const narr = await lastPacket(page);
+  assert.ok(narr.startsWith('DAY 1, NIGHT (late; the player has not slept) · Location: '), narr.split('\n')[0]);
+  assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 1, NIGHT \(late; the player has not slept\)\. Any new seed must trigger on day 2 or later\./);
+  assert.match(await lastPacket(page, 'parse'), /\nTIME: day 1, night \(late\)\n/);
+  const schema = await page.evaluate(() => Game.Api.SCHEMAS.parse_action.properties.timeCost.description);
+  assert.equal(schema, 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.');
+  // Hours pass: a long action reaches morning, the world ticks, and the next narration hears there was no sleep.
+  await sendText(page, 'I wait for the sun to come up');
+  const morning = await page.evaluate(() => ({ t: JSON.parse(JSON.stringify(Game.state.time)), ticks: window.__ticks.slice(-1), divider: [...document.querySelectorAll('#feed .f-divider')].pop().textContent, cost: Game.Pipeline.lastTurn.action.timeCost }));
+  assert.equal(morning.cost, 'long');
+  assert.deepEqual(morning.t, { day: 2, phase: 'morning', shorts: 0, noSleep: true });
+  assert.deepEqual(morning.ticks, ['2:morning']);
+  assert.equal(morning.divider, 'Day 2 · Morning');
+  await sendText(page, 'I sweep the floor');
+  assert.ok((await lastPacket(page)).startsWith('DAY 2, MORNING (early; no sleep last night) · Location: '));
+  assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 2, MORNING \(early; no sleep last night\)\. /);
+  // Sleeping clears it.
+  await sendText(page, '/rest');
+  assert.ok((await lastPacket(page)).startsWith('DAY 3, MORNING (early) · Location: '));
+  assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), '{"day":3,"phase":"morning","shorts":0}');
+});
+
+s.test('/cheat time night sets the clock (no tick, no narration), shows the divider and a quiet line, and /undo restores it; /cheat morning 2 sets the day too', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); window.__ticks = 0; const orig = Game.World.tick; Game.World.tick = info => { window.__ticks += 1; return orig(info); }; });
+  await sendText(page, '/cheat');
+  assert.match(await lastNotice(page), /\/cheat time <phase> \[day\] sets the clock, as in \/cheat time night or \/cheat morning 2\.$/);
+  const s0 = await stateJson(page);
+  const depth = await page.evaluate(() => Game.State.undoDepth());
+  await sendText(page, '/cheat time night');
+  const r = await page.evaluate(() => ({
+    time: JSON.parse(JSON.stringify(Game.state.time)), turn: Game.state.meta.turn, log: Game.state.log.length, calls: Game.Api.Mock.calls.length, ticks: window.__ticks,
+    last: [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => [n.className, n.textContent]),
+    bar: document.getElementById('tb-time').textContent, depth: Game.State.undoDepth(),
+    saved: JSON.parse(localStorage.getItem('novatria.autosave')).state.time
+  }));
+  assert.deepEqual(r.time, { day: 1, phase: 'night', shorts: 0 });
+  assert.equal(r.turn, JSON.parse(s0).meta.turn, 'not a turn');
+  assert.equal(r.log, JSON.parse(s0).log.length, 'nothing narrated');
+  assert.equal(r.calls, 0, 'no API call');
+  assert.equal(r.ticks, 0, 'no world tick');
+  assert.deepEqual(r.last.map(x => x[1]), ['Day 1 · Night', 'Clock set to day 1, night.']);
+  assert.match(r.last[0][0], /f-divider/);
+  assert.match(r.last[1][0], /f-quiet/);
+  assert.equal(r.bar, 'Day 1 · Night');
+  assert.equal(r.depth, depth + 1, 'one undo step');
+  assert.deepEqual(r.saved, r.time, 'autosaved');
+  // The same clock again: nothing to do, no undo step.
+  await sendText(page, '/cheat night');
+  assert.equal(await lastNotice(page), 'The clock is already at day 1, night.');
+  assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth + 1);
+  // A phase and a day.
+  await sendText(page, '/cheat morning 2');
+  assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 2, phase: 'morning', shorts: 0 });
+  assert.equal(await lastQuiet(page), 'Clock set to day 2, morning.');
+  // Bad input is refused and kept in the box.
+  await sendText(page, '/cheat time');
+  assert.match(await lastNotice(page), /^Set the clock to which phase\? Try \/cheat time night/);
+  assert.equal(await page.inputValue('#cmd'), '/cheat time');
+  await page.fill('#cmd', '');
+  await sendText(page, '/cheat night 0');
+  assert.equal(await lastNotice(page), 'The day must be 1 or more.');
+  await page.fill('#cmd', '');
+  // /undo takes each one back.
+  await sendText(page, '/undo');
+  assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 1, phase: 'night', shorts: 0 });
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-divider')].pop().textContent), 'Day 1 · Night');
+  await sendText(page, '/undo');
+  assert.equal(await stateJson(page), s0, 'the clock as it was');
+  assert.equal(await page.evaluate(() => document.getElementById('tb-time').textContent), 'Day 1 · Morning');
+  // The cheats still redo rolls.
+  await sendText(page, '/cheat success');
+  assert.match(await lastNotice(page), /^Cheat armed: your next roll will be a success\./);
 });
 
 s.test('a beat: Send with nothing typed (or /pass) lets the scene come to the player: no roll, a short, the people here act, the player says nothing', async h => {

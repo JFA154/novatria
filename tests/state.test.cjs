@@ -456,6 +456,135 @@ s.test('time: three shorts make a phase, long is a phase, rest heals 3 and wakes
   assert.deepEqual(r, ['1:morning:0', '1:morning:1', '1:morning:2', '1:afternoon:0', 1, '1:afternoon:0', '1:evening:0', '1:night:0', '2:morning:0', 1, 3, 8, 1]);
 });
 
+s.test('night holds until the player sleeps: shorts at night stop at late with no phase change and no tick; a long reaches morning with no sleep; /rest clears it', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const r = await page.evaluate(async () => {
+    const G = Game;
+    const t = () => { const x = G.state.time; return `${x.day}:${x.phase}:${x.shorts}${x.late ? ':late' : ''}${x.noSleep ? ':nosleep' : ''}`; };
+    const ticks = [];
+    const orig = G.World.tick;
+    G.World.tick = info => { ticks.push(`${info.to.day}:${info.to.phase}`); return orig(info); };
+    G.Api.Mock.delay = 0;
+    const out = { steps: [], parts: [], lines: [] };
+    const note = () => { out.steps.push(t()); out.parts.push(G.State.phasePart(G.state.time)); out.lines.push(G.State.clockLine(G.state.time)); };
+    // Evening into night as before: three shorts make a phase, and the world ticks.
+    G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' });
+    for (let i = 0; i < 3; i++) G.Pipeline.passTime('short');
+    note();
+    out.ticksToNight = ticks.splice(0);
+    // At night: shorts climb to late, then hold there; no phase passes, nothing ticks.
+    const results = [];
+    for (let i = 0; i < 5; i++) { results.push(G.Pipeline.passTime('short')); note(); }
+    out.held = results.map(x => [x.phasesPassed, x.held]);
+    out.ticksAtNight = ticks.splice(0);
+    out.applied = G.State.debugLog.filter(x => x.kind === 'applied' && /^advanceTime/.test(x.text)).pop().text;
+    // A long action (hours pass) reaches morning: the world ticks, the new day starts early, no sleep last night.
+    const long = G.Pipeline.passTime('long');
+    note();
+    out.long = [long.phasesPassed, long.to.day, long.to.phase];
+    out.ticksLong = ticks.splice(0);
+    // Leaving morning keeps the note in state but the DAY line drops it; /rest clears it.
+    G.Pipeline.passTime('long'); note();
+    G.State.apply({ hpDelta: -2 });
+    G.Pipeline.passTime('rest'); note();
+    out.ticksRest = ticks.splice(0);
+    // /wait morning from night also counts as no sleep.
+    G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' });
+    G.State.apply({ advanceTime: 'short' }); G.State.apply({ advanceTime: 'short' }); G.State.apply({ advanceTime: 'short' });
+    note();
+    G.World.tick = orig;
+    await G.Pipeline.wait('morning');
+    note();
+    return out;
+  });
+  assert.deepEqual(r.ticksToNight, ['1:night'], 'evening into night by the old rule: three shorts make the phase, and the world ticks');
+  assert.deepEqual(r.steps, [
+    '1:night:0',
+    '1:night:1', '1:night:2', '1:night:2:late', '1:night:2:late', '1:night:2:late',
+    '2:morning:0:nosleep', '2:afternoon:0:nosleep', '3:morning:0',
+    '3:night:2:late', '4:morning:0:nosleep'
+  ]);
+  assert.deepEqual(r.held, [[0, false], [0, false], [0, true], [0, true], [0, true]], 'no phase passes at night, however many shorts');
+  assert.deepEqual(r.ticksAtNight, [], 'World.tick is not called for the held rollover');
+  assert.match(r.applied, /^advanceTime: short: day 1 night \(late: night holds until the player sleeps\)$/);
+  assert.deepEqual(r.long, [1, 2, 'morning']);
+  assert.deepEqual(r.ticksLong, ['2:morning'], 'a long at night ticks into morning');
+  assert.deepEqual(r.ticksRest, ['2:afternoon', '2:evening', '2:night', '3:morning'], 'the long into the afternoon, then a rest ticks through the night as before');
+  assert.deepEqual(r.parts, ['early', 'mid', 'late', 'late', 'late', 'late', 'early', 'early', 'early', 'late', 'early']);
+  assert.deepEqual(r.lines, [
+    'DAY 1, NIGHT (early; the player has not slept)',
+    'DAY 1, NIGHT (mid; the player has not slept)', 'DAY 1, NIGHT (late; the player has not slept)',
+    'DAY 1, NIGHT (late; the player has not slept)', 'DAY 1, NIGHT (late; the player has not slept)', 'DAY 1, NIGHT (late; the player has not slept)',
+    'DAY 2, MORNING (early; no sleep last night)', 'DAY 2, AFTERNOON (early)', 'DAY 3, MORNING (early)',
+    'DAY 3, NIGHT (late; the player has not slept)', 'DAY 4, MORNING (early; no sleep last night)'
+  ]);
+});
+
+s.test('setTime sets the clock outright (engine only, validated, no tick); late needs night and the last short', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    let ticks = 0;
+    const orig = G.World.tick;
+    G.World.tick = info => { ticks += 1; return orig(info); };
+    const reason = diff => { const x = S.apply(diff); return x.rejected.length ? x.rejected[0].reason : null; };
+    const out = {};
+    S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); // day 2 morning, no sleep
+    out.start = JSON.stringify(G.state.time);
+    out.bad = [
+      reason({ setTime: null }) || 'none',
+      reason({ setTime: 'night' }),
+      reason({ setTime: { day: 1, phase: 'dusk' } }),
+      reason({ setTime: { day: 0, phase: 'night' } }),
+      reason({ setTime: { day: 1.5, phase: 'night' } }),
+      reason({ setTime: { day: 1, phase: 'night', shorts: 3 } }),
+      reason({ setTime: { day: 1, phase: 'night', shorts: -1 } }),
+      reason({ setTime: { day: 1, phase: 'evening', shorts: 2, late: true } }),
+      reason({ setTime: { day: 1, phase: 'night', shorts: 0, late: true } }),
+      reason({ setTime: { day: 1, phase: 'night', late: 'yes' } })
+    ];
+    out.unchanged = JSON.stringify(G.state.time) === out.start;
+    out.fromModel = S.apply({ setTime: { day: 1, phase: 'night' } }, { source: 'model' }).rejected[0].reason;
+    out.ok = S.apply({ setTime: { day: 1, phase: 'night', shorts: 2, late: true } });
+    out.after = JSON.parse(JSON.stringify(G.state.time));
+    out.line = S.clockLine(G.state.time);
+    out.plain = S.apply({ setTime: { day: 3, phase: 'afternoon' } }).applied;
+    out.after2 = JSON.parse(JSON.stringify(G.state.time));
+    out.same = S.apply({ setTime: { day: 3, phase: 'afternoon', shorts: 0, late: false } }).applied;
+    out.ticks = ticks;
+    out.engine = S.ENGINE_KEYS.includes('setTime') && !S.RECORD_KEYS.includes('setTime');
+    G.World.tick = orig;
+    return out;
+  });
+  assert.equal(r.start, '{"day":2,"phase":"morning","shorts":0,"noSleep":true}');
+  assert.deepEqual(r.bad, [
+    'none',
+    'must be an object',
+    'phase must be morning, afternoon, evening, night',
+    'day must be a whole number, 1 or more',
+    'day must be a whole number, 1 or more',
+    'shorts must be 0 to 2',
+    'shorts must be 0 to 2',
+    'late is only for night',
+    'late needs shorts 2',
+    'late must be true or false'
+  ]);
+  assert.equal(r.unchanged, true, 'a refused setTime leaves the clock alone');
+  assert.match(r.fromModel, /not allowed from the model/);
+  assert.deepEqual(r.ok.rejected, []);
+  assert.deepEqual(r.ok.applied, ['setTime: clock day 2 morning, shorts 0, no sleep -> day 1 night, shorts 2, late']);
+  assert.deepEqual(r.after, { day: 1, phase: 'night', shorts: 2, late: true }, 'the no-sleep note goes with a set clock');
+  assert.equal(r.line, 'DAY 1, NIGHT (late; the player has not slept)');
+  assert.deepEqual(r.plain, ['setTime: clock day 1 night, shorts 2, late -> day 3 afternoon, shorts 0']);
+  assert.deepEqual(r.after2, { day: 3, phase: 'afternoon', shorts: 0 });
+  assert.deepEqual(r.same, [], 'the same clock again changes nothing');
+  assert.equal(r.ticks, 0, 'setting the clock never ticks the world');
+  assert.equal(r.engine, true);
+});
+
 s.test('town data passes validation and every content constant has the contract shape', async h => {
   const page = await h.open();
   const r = await page.evaluate(() => {

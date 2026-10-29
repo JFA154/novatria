@@ -148,7 +148,7 @@ s.test('requests carry the four headers and a body the current API accepts, with
   // Nothing volatile in the cached system prompt.
   const volatile = await page.evaluate(() => [Game.state.player.name, Game.state.meta.townName, 'DAY 1', Game.State.loc(Game.state.player.locationId).name].concat(Game.State.npcsAt(Game.state.player.locationId).map(n => n.name)));
   for (const v of volatile) assert.ok(!sys.narrator.includes(v), 'system prompt contains ' + v);
-  assert.ok(narrator.body.messages[0].content.startsWith(`DAY 1, MORNING · Location: ${fx.startName}`));
+  assert.ok(narrator.body.messages[0].content.startsWith(`DAY 1, MORNING (early) · Location: ${fx.startName}`));
   assert.match(parser.body.messages[0].content, /^PLAYER INPUT: I ask the ferryman about the tide\n/);
   assert.match(book.body.messages[0].content, /\nNARRATION: Rain needles the water\./);
   // A second turn: the narrator system block is byte-identical.

@@ -78,6 +78,22 @@ someone's home, they are there at the times they are nowhere else, usually at
 night. Walk there like anywhere else ("I head to Dewayne's house", or tap it
 on the map). The game adds at most one such place a turn and twelve a game.
 
+## Time
+
+A day has four phases: morning, afternoon, evening and night, shown in the
+top bar. Talking and looking take no time. A short action (minutes to half an
+hour: a walk across town, a search, a chore) takes a third of a phase, so
+three of them move the clock on. A long one (an hour or more) takes a whole
+phase. The town moves on at every change of phase.
+
+**Night lasts until you sleep.** Short actions never carry the clock from
+night into morning: after the third one it stays at night, late, however long
+the scene runs. Morning comes when you `/rest` (sleep), `/wait morning`,
+`/skip` ahead, or do something that takes hours. The narrator and the
+bookkeeper are told where in the phase the scene is (early, mid or late), at
+night that you have not slept yet, and on a morning you reached without
+sleeping that you had no sleep last night.
+
 ## Settings
 
 | Field | What it does |
@@ -92,7 +108,7 @@ on the map). The game adds at most one such place a turn and twelve a game.
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
-| Game: Re-read this game with the latest rules | Rewrites what people remember in the game you have open, in the current short form (see Updating an older game). About one API call. |
+| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, and sets the clock back if it ran ahead of the story (see Updating an older game). About three API calls. |
 
 ## Commands
 
@@ -100,15 +116,16 @@ on the map). The game adds at most one such place a turn and twelve a game.
 |---|---|---|
 | `/look` | Describe the whole scene, with the longer zoom length | Narrator |
 | `/zoom <action>` | Play the action as a normal turn with the longer limit, for big moments | Parser, narrator, bookkeeper |
-| `/skip <goal>` | Jump ahead to a place and/or time ("/skip to the bar at night"). The world ticks once for each phase skipped | Narrator |
+| `/skip <goal>` | Jump ahead to a place and/or time ("/skip to the bar at night"). The world ticks once for each phase skipped; naming the phase it already is moves you with no time passing | Narrator |
 | `/pass` (or press **Wait**: the Send button with nothing typed) | Say and do nothing for a few minutes and let the people here act, speak or react to your silence | Narrator, bookkeeper |
-| `/rest` | Sleep until morning, heal 3 HP. The world ticks through the night | Narrator |
+| `/rest` | Sleep until morning, heal 3 HP. The world ticks through the night. Night lasts until you sleep (see Time) | Narrator |
 | `/wait <phase>` | Wait where you are until morning, afternoon, evening or night | Narrator |
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` | Take back the last turn exactly (up to 20 turns) | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
+| `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to day 1, night." One `/undo` takes it back | None |
 | `/save <name>` | Save to a named slot (no name opens the Saves screen) | None |
 | `/load <name>` | Load a named slot (no name opens the Saves screen) | None |
 | `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth, rejected changes, token totals and the last raw API responses | None |
@@ -166,8 +183,19 @@ the old kind: long play-by-play accounts of whole scenes.
   about: Dewayne's house." or "No new places to add." This is one more call
   to the parser model; mock mode finds a quoted line like "Dewayne's is the
   white house" by a fixed rule instead.
+- **Clock follows the story** (added 29 Oct 2026, rules version 4). In older
+  games a run of short actions could tick the clock from night into morning
+  in the middle of a night scene. The update reads the clock and the last six
+  turns and, when the story is clearly still earlier (the night before, say),
+  sets the clock back to it, late in that phase. The feed says, for example,
+  "Set the clock back to day 1, night: the story had not reached morning." or
+  "The clock matches the story." It never moves the clock forward and the
+  town does not move on. One more call to the parser model (none for a game
+  still on its first morning); mock mode sets a morning clock back to the
+  night before when the last scene has a lamp, a bed or a bedroom in it, or
+  says night or tonight.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (3 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (4 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -243,8 +271,8 @@ build environment. Elsewhere, run `npm i playwright` and
   size, overflow and safe areas.
 - `tests/constraints.test.cjs`: the single-file rules.
 - `tests/upgrade.test.cjs`: updating an older game (rules version, the
-  Update buttons, the memory rewrite in mock mode and against canned API
-  replies, failure, refusal and `/undo`).
+  Update buttons, the memory rewrite, the places re-read and the clock check
+  in mock mode and against canned API replies, failure, refusal and `/undo`).
 - `shell`, `state`, `pipeline`, `api`, `world` and `content`: the milestone suites.
 
 ## Deliberate deviations from SPEC.md
@@ -285,6 +313,13 @@ an arrival and three Do turns in the casual style (no similes, no rewrites),
 Say "Run." to one person (the player stayed, he answered), Say "Anybody here
 hiring?" to everyone (both people answered) and Do "I run away from Royce."
 (the player ran off to another place).
+
+The clock fix was checked live on 29 Oct 2026. A save at rules version 3
+whose clock had ticked into day 2 morning in the middle of the night at
+Dewayne's house went through **Update this game**. The parser model answered
+`{"behind":true,"phase":"night","dayOffset":-1,...}`, and the clock went back
+to day 1, night (late). Three short actions after that all stayed at night.
+The whole check took 10 calls and cost $0.088.
 
 If a request fails, the feed shows a short message and your typed action stays
 in the box. Type `/debug` and look in the Debug tab:

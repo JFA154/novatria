@@ -982,7 +982,7 @@ select.input { padding-right: 32px; }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, and adds places people told you about to the map. About two API calls (none in mock mode).</p>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, and sets the clock back if it ran ahead of the story. About three API calls (none in mock mode).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -2383,6 +2383,7 @@ const EXAMPLE_TURNS_CASUAL = [
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const STATS = ['might', 'wits', 'charm', 'stealth'];
 const TIME_COSTS = ['instant', 'short', 'long', 'rest'];
+const SHORTS_PER_PHASE = 3; // SPEC section 7: three shorts make a phase
 const ACTION_TYPES = ['move', 'talk', 'look', 'search', 'take', 'use', 'give', 'buy', 'sell', 'persuade', 'deceive', 'intimidate', 'sneak', 'steal', 'attack', 'rest', 'wait', 'other'];
 const DIFFICULTIES = ['easy', 'normal', 'hard', 'very_hard'];
 const THREAD_STATUSES = ['open', 'resolved', 'failed'];
@@ -2774,7 +2775,9 @@ const Tables = (() => {
    - engine-only fields (source 'engine', the default): addNpcs, addLocations,
      addItems ([{ locationId, item }]: things noticed in a place, which
      itemsGained can then pick up), conditionsRemoved, storyPointsDelta,
-     lastRollKey, beginTurn, advanceTime, logEntry, seedsFired,
+     lastRollKey, beginTurn, advanceTime, setTime ({ day, phase, shorts,
+     late }: the clock set outright, /cheat time and Upgrade version 4; no
+     phase passes, so nothing ticks), logEntry, seedsFired,
      chronicleEntry, weather, addLooseEnd, defeat ({ outcome }), and the
      living world's own (milestone 4, written by World): clockFill
      ([{ factionId, delta }]: a faction's roll, no per-turn limit), clockNext
@@ -2821,8 +2824,10 @@ const State = (() => {
      up with, bump it and add the step to Upgrade.MIGRATIONS. 2: "Memories
      that matter" (short memories, only what a person would hold against the
      player or thank them for). 3: "Places people told you about" (a place
-     someone named becomes a place on the map, placesRevealed). */
-  const RULES_VERSION = 3;
+     someone named becomes a place on the map, placesRevealed). 4: "Clock
+     follows the story" (night holds until the player sleeps; a clock that
+     ran ahead of its story is set back, setTime). */
+  const RULES_VERSION = 4;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -2833,7 +2838,7 @@ const State = (() => {
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
     'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'journalEntry'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
-    'advanceTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
+    'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'rulesVersion'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
@@ -3345,6 +3350,18 @@ const State = (() => {
   const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
 
   // ----- time -----
+  /* SPEC section 7: a short adds one to time.shorts and SHORTS_PER_PHASE of
+     them make a phase, a long is a phase, a rest sleeps until the next
+     morning and heals 3. Night holds until the player sleeps: a short never
+     crosses from night into morning. When the shorts would roll over at
+     night the clock stays at night with shorts at the most (2) and
+     time.late = true (the small hours); no phase passes, so World.tick does
+     not run (Pipeline.passTime ticks per phase passed). Morning comes only
+     with a rest, a long (an hour or more; /wait and /skip pass longs) or a
+     defeat. A new day starts early (shorts 0); reached by anything but a
+     rest it sets time.noSleep (no sleep last night), which a rest clears.
+     Any phase change clears time.late. Both flags are kept only while
+     true, so a clock that never used them keeps its old shape. */
   function advanceTime(cost) {
     if (!TIME_COSTS.includes(cost)) bad('time cost must be instant, short, long or rest');
     const t = current.time;
@@ -3352,9 +3369,13 @@ const State = (() => {
     const from = { day: t.day, phase: t.phase };
     let steps = 0;
     let healed = 0;
+    let held = false;
     if (cost === 'short') {
       t.shorts = (t.shorts | 0) + 1;
-      if (t.shorts >= 3) { t.shorts = 0; steps = 1; }
+      if (t.shorts >= SHORTS_PER_PHASE) {
+        if (t.phase === 'night') { t.shorts = SHORTS_PER_PHASE - 1; t.late = true; held = true; }
+        else { t.shorts = 0; steps = 1; }
+      }
     } else if (cost === 'long') {
       steps = 1;
     } else if (cost === 'rest') {
@@ -3364,15 +3385,38 @@ const State = (() => {
       const before = p.hp;
       p.hp = clamp(p.hp + 3, 0, p.maxHp);
       healed = p.hp - before;
+      delete t.noSleep;
     }
     for (let i = 0; i < steps; i++) {
       const idx = PHASES.indexOf(t.phase);
-      if (idx === PHASES.length - 1) { t.phase = PHASES[0]; t.day += 1; } else t.phase = PHASES[idx + 1];
+      if (idx === PHASES.length - 1) {
+        t.phase = PHASES[0]; t.day += 1; t.shorts = 0;
+        if (cost !== 'rest') t.noSleep = true;
+      } else t.phase = PHASES[idx + 1];
     }
+    if (steps) delete t.late;
     // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene).
     if (steps && Array.isArray(current.visits)) current.visits = current.visits.filter(v => v.day === t.day && v.phase === t.phase);
-    return { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed };
+    return { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed, held };
   }
+  /* Where in its phase the clock is: early, mid or late (shorts 0, 1, 2 or
+     more; the late-night flag is late too). */
+  function phasePart(t) {
+    t = t || (current && current.time) || {};
+    const n = t.shorts | 0;
+    return t.late === true || n >= SHORTS_PER_PHASE - 1 ? 'late' : n >= 1 ? 'mid' : 'early';
+  }
+  /* The clock as the narrator and the bookkeeper read it, e.g.
+     "DAY 1, NIGHT (late; the player has not slept)" or
+     "DAY 2, MORNING (early; no sleep last night)". */
+  function clockLine(t) {
+    t = t || current.time;
+    const notes = [phasePart(t)];
+    if (t.phase === 'night') notes.push('the player has not slept');
+    else if (t.phase === 'morning' && t.noSleep === true) notes.push('no sleep last night');
+    return `DAY ${t.day}, ${String(t.phase).toUpperCase()} (${notes.join('; ')})`;
+  }
+  function clockWords(t) { return `day ${t.day} ${t.phase}, shorts ${t.shorts | 0}${t.late === true ? ', late' : ''}${t.noSleep === true ? ', no sleep' : ''}`; }
 
   // ----- apply -----
   function apply(diff, opts) {
@@ -3619,7 +3663,30 @@ const State = (() => {
     one('advanceTime', v => {
       const info = advanceTime(v);
       result.time = info;
-      return `${v}: day ${info.to.day} ${info.to.phase}` + (info.healed ? ` (+${info.healed} hp)` : '');
+      return `${v}: day ${info.to.day} ${info.to.phase}` + (info.healed ? ` (+${info.healed} hp)` : '') + (info.held ? ' (late: night holds until the player sleeps)' : '');
+    });
+    /* The clock set outright (/cheat time, Upgrade version 4). No phase
+       passes, so nothing ticks, and the no-sleep note goes. late needs
+       night and the last short (SHORTS_PER_PHASE - 1). */
+    one('setTime', v => {
+      if (!isObj(v)) bad('must be an object');
+      if (!PHASES.includes(v.phase)) bad('phase must be ' + PHASES.join(', '));
+      if (!Number.isInteger(v.day) || v.day < 1) bad('day must be a whole number, 1 or more');
+      const shorts = v.shorts === undefined || v.shorts === null ? 0 : v.shorts;
+      if (!Number.isInteger(shorts) || shorts < 0 || shorts >= SHORTS_PER_PHASE) bad(`shorts must be 0 to ${SHORTS_PER_PHASE - 1}`);
+      if (v.late !== undefined && v.late !== null && typeof v.late !== 'boolean') bad('late must be true or false');
+      const late = v.late === true;
+      if (late && v.phase !== 'night') bad('late is only for night');
+      if (late && shorts !== SHORTS_PER_PHASE - 1) bad(`late needs shorts ${SHORTS_PER_PHASE - 1}`);
+      const t = s.time;
+      const before = clockWords(t);
+      t.day = v.day;
+      t.phase = v.phase;
+      t.shorts = shorts;
+      if (late) t.late = true; else delete t.late;
+      delete t.noSleep;
+      const after = clockWords(t);
+      return before === after ? null : `clock ${before} -> ${after}`;
     });
     one('weather', v => {
       if (typeof v !== 'string') bad('must be a string');
@@ -4009,7 +4076,7 @@ const State = (() => {
     get muted() { return muted; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
     placeNames, mapPointOf, pathPoints, revealLabel,
-    RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory,
+    RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
@@ -4947,6 +5014,9 @@ const Style = (() => {
                                  ownerNpcId, kind, turn }] }; packet from
                                  Upgrade.placesPacket() (places people named in an older
                                  game's story; parser model)
+     checkClock(packet)       -> { behind, phase, dayOffset, reason }; packet from
+                                 Upgrade.clockPacket() (whether an older game's clock ran
+                                 ahead of its story; parser model)
    Any of them may instead resolve to a refusal { refused: true, role,
    category, explanation }, which the Pipeline turns into an in-feed notice.
    Failures throw ApiError with a player-facing message (err.detail holds the
@@ -4960,7 +5030,7 @@ const Style = (() => {
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000 }; // thinking tokens count toward these
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
   const RETRY_STATUSES = [429, 500, 529];
@@ -4990,6 +5060,7 @@ const Api = (() => {
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
+    clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these 10 turns in under 80 words: what the player did, who they met, what changed, what's unresolved. Past tense, plain facts."
@@ -5025,7 +5096,7 @@ const Api = (() => {
       stat: nullable({ type: 'string', enum: STATS }, 'The stat for the roll, or null when no roll'),
       difficulty: nullable({ type: 'string', enum: DIFFICULTIES }, 'The difficulty of the roll, or null when no roll'),
       usesItemId: nullable(STR, 'An inventory item id the action relies on, or null'),
-      timeCost: { type: 'string', enum: TIME_COSTS, description: 'instant: talking, looking. short: a few minutes (3 shorts make a phase). long: a whole phase. rest: sleep until morning.' },
+      timeCost: { type: 'string', enum: TIME_COSTS, description: 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.' },
       declaresWorldFact: { type: 'boolean', description: 'True if the player is asserting a fact about the world rather than acting' }
     }),
     record_changes: obj({
@@ -5056,6 +5127,12 @@ const Api = (() => {
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
+    }),
+    check_clock: obj({
+      behind: { type: 'boolean', description: 'True only when the latest narration is clearly earlier than CLOCK NOW' },
+      phase: { type: 'string', enum: PHASES, description: 'The phase the latest narration takes place in' },
+      dayOffset: { type: 'integer', enum: [0, -1], description: "0: on the clock's day; -1: the day before" },
+      reason: { type: 'string', description: 'One short sentence' }
     }),
     reveal_places: obj({
       placesRevealed: list(placeItem({ turn: nullable(INT, 'The TURN the mention comes from, or null when it comes from a summary') }), 'Every place to add, each once; empty when there is nothing to add')
@@ -5108,8 +5185,8 @@ const Api = (() => {
     return total;
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
-  /* The memory rewrite and the places re-read (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
-  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper' };
+  /* The memory rewrite, the places re-read and the clock check (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
+  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
@@ -5173,6 +5250,7 @@ const Api = (() => {
        Mock.queue('chronicle', 'Summary.')
        Mock.queue('rewriteMemories', { people: [...] })         instead of the rule-based rewrite
        Mock.queue('revealPlaces', { placesRevealed: [...] })     instead of the rule-based re-read
+       Mock.queue('checkClock', { behind, phase, dayOffset, reason })  instead of the rule-based check
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -5487,6 +5565,18 @@ const Api = (() => {
     }
     return { placesRevealed: out };
   }
+  /* Upgrade's clock check, by rule: a clock at morning whose last narration
+     has a lamp, a bed or bedroom, "night" or "tonight" in it is behind, at
+     the night before; anything else fits the clock. */
+  function mockCheckClock(packet) {
+    const t = isObj(packet.time) ? packet.time : {};
+    const entries = Array.isArray(packet.entries) ? packet.entries : [];
+    const last = entries.length ? String(entries[entries.length - 1].narration || '') : '';
+    if (t.phase === 'morning' && /\b(lamps?|beds?|bedrooms?|night|tonight)\b/i.test(last)) {
+      return { behind: true, phase: 'night', dayOffset: -1, reason: 'The last scene is still at night (mock rule).' };
+    }
+    return { behind: false, phase: PHASES.includes(t.phase) ? t.phase : PHASES[0], dayOffset: 0, reason: 'The story fits the clock (mock rule).' };
+  }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
@@ -5539,7 +5629,7 @@ const Api = (() => {
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -5612,6 +5702,12 @@ const Api = (() => {
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
       await sleep(Mock.delay);
       return { result: isObj(canned) && Array.isArray(canned.placesRevealed) ? canned : mockRevealPlaces(packet || {}), usage: MOCK_ZERO, model: 'mock' };
+    },
+    async checkClock(packet) {
+      const canned = Mock.take('checkClock', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      await sleep(Mock.delay);
+      return { result: isObj(canned) && typeof canned.behind === 'boolean' ? canned : mockCheckClock(packet || {}), usage: MOCK_ZERO, model: 'mock' };
     }
   };
 
@@ -5747,6 +5843,7 @@ const Api = (() => {
     chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
+    checkClock(packet) { return messageCall('clock', { system: SYSTEM.clock, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
     async narrate(packet, onDelta) {
       const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), user: packet.text, cache: true, stream: true });
       const { res, requestId } = await post('narrator', body);
@@ -5796,7 +5893,8 @@ const Api = (() => {
     bookkeep: packet => call('bookkeeper', 'bookkeep', [packet]),
     chronicle: entries => call('chronicle', 'chronicle', [entries]),
     rewriteMemories: packet => call('memories', 'rewriteMemories', [packet]),
-    revealPlaces: packet => call('places', 'revealPlaces', [packet])
+    revealPlaces: packet => call('places', 'revealPlaces', [packet]),
+    checkClock: packet => call('clock', 'checkClock', [packet])
   };
 })();
 
@@ -5838,7 +5936,21 @@ const Api = (() => {
    validation and the per-game cap hold, the one-a-turn limit does not, and
    each gets the same map spot, "heard of" marker, home schedule and
    revealed record as one the bookkeeper adds. Nothing to read (an empty
-   log) costs no call. */
+   log) costs no call.
+
+   Version 4, "Clock follows the story": a short action no longer crosses
+   from night into morning (State advanceTime), but an older game's clock
+   may already have ticked into morning in the middle of a night scene. The
+   clock (day, phase, shorts) and the last CLOCK_ENTRIES log entries (input
+   and narration, oldest first, each stamped with the clock it was narrated
+   at) go to the parser model in one structured-output call (Api.checkClock,
+   SYSTEM.clock), which answers { behind, phase, dayOffset (0 or -1),
+   reason }. Only a reply that is behind and puts the story earlier than the
+   clock is applied (the clock never moves forward): day + dayOffset (at
+   least 1), that phase, shorts 2 (late in the phase), late at night,
+   through State.apply({ setTime }), with no world tick. Nothing to compare
+   (an empty log, or the first morning, which nothing is earlier than)
+   costs no call. */
 const Upgrade = (() => {
   const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
   const PER_PERSON = 6;
@@ -5972,6 +6084,52 @@ const Upgrade = (() => {
     ].join('\n');
     return { locationId: here.id, turn: st.meta.turn, entries, text };
   }
+  // ----- version 4: the clock follows the story -----
+  const CLOCK_ENTRIES = 6;
+  /* The packet for Api.checkClock: structured (the mock reads time and
+     entries) and as labelled text (the model reads text). */
+  function clockPacket(st) {
+    const t = st.time;
+    const time = { day: t.day, phase: t.phase, shorts: t.shorts | 0 };
+    const entries = st.log.filter(e => e.narration).slice(-CLOCK_ENTRIES).map(e => Object.assign({}, e));
+    const text = [
+      `CLOCK NOW: day ${time.day}, ${time.phase} (${State.phasePart(t)} in the phase; ${time.shorts} of ${SHORTS_PER_PHASE} short actions gone)`,
+      'PHASES, in order: morning, afternoon, evening, night, then the next day\'s morning.',
+      '',
+      `LAST TURNS (oldest first; the last is the latest narration; each is what the player did and the narration they read):`,
+      Api.chronicleText(entries)
+    ].join('\n');
+    return { time, entries, text };
+  }
+  async function followStory(st, api) {
+    const res = { calls: 0, changed: false, reply: null };
+    const same = 'The clock matches the story.';
+    const t = st.time;
+    const packet = clockPacket(st);
+    if (!packet.entries.length || (t.day === 1 && t.phase === PHASES[0])) return Object.assign(res, { text: same });
+    const reply = await api.checkClock(packet);
+    res.calls = 1;
+    if (Api.isRefusal(reply)) throw Object.assign(new Error('refused'), { refused: true, refusal: reply });
+    if (State.current !== st) throw Object.assign(new Error('another game was loaded'), { replaced: true });
+    res.reply = isObj(reply) ? deepCopy(reply) : reply;
+    if (!isObj(reply) || reply.behind !== true || !PHASES.includes(reply.phase)) {
+      note(st, `clock: the story fits day ${t.day}, ${t.phase}${isObj(reply) && reply.reason ? ` (${cleanText(String(reply.reason), 200)})` : ''}`);
+      return Object.assign(res, { text: same });
+    }
+    const day = Math.max(1, t.day + (toInt(reply.dayOffset) === -1 ? -1 : 0));
+    const phase = reply.phase;
+    const earlier = day < t.day || (day === t.day && PHASES.indexOf(phase) < PHASES.indexOf(t.phase));
+    if (!earlier) {
+      note(st, `clock: the reply put the story at day ${day}, ${phase}, which is not earlier than day ${t.day}, ${t.phase}; the clock never moves forward`);
+      return Object.assign(res, { text: same });
+    }
+    const from = { day: t.day, phase: t.phase, shorts: t.shorts | 0 };
+    const r = State.apply({ setTime: { day, phase, shorts: 2, late: phase === 'night' } });
+    if (r.rejected.length) throw new Error('the engine refused the clock: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+    note(st, `clock: day ${from.day}, ${from.phase} -> day ${day}, ${phase}${reply.reason ? ` (${cleanText(String(reply.reason), 200)})` : ''}`);
+    return Object.assign(res, { changed: true, from, to: { day, phase }, text: `Set the clock back to day ${day}, ${phase}: the story had not reached ${from.phase}.` });
+  }
+
   function joinNames(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
   async function revealPlaces(st, api) {
     const res = { added: [], calls: 0 };
@@ -6003,9 +6161,10 @@ const Upgrade = (() => {
 
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
-    Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces })
+    Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces }),
+    Object.freeze({ version: 4, title: 'Clock follows the story', rerun: true, run: followStory })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket };
 })();
 
 // ===== Module: Pipeline =====
@@ -6066,7 +6225,9 @@ const Pipeline = (() => {
     return { dawn: 'morning', noon: 'afternoon', midday: 'afternoon', dusk: 'evening', midnight: 'night', tonight: 'night' }[w] || w;
   }
   /* Time passes: State.apply advances the clock, then World.tick runs once
-     for every phase that went by, in order (SPEC section 8). */
+     for every phase that went by, in order (SPEC section 8). A short held at
+     night (night holds until the player sleeps: State advanceTime) passes
+     no phase, so nothing ticks. */
   function passTime(cost, cause) {
     const t = State.apply({ advanceTime: cost }).time;
     if (!t || !t.phasesPassed) return t || null;
@@ -6143,7 +6304,7 @@ const Pipeline = (() => {
     packet.text = [
       isSay(sp) ? `PLAYER INPUT: "${input}"` : `PLAYER INPUT: ${input}`,
       modeLine,
-      `TIME: day ${s.time.day}, ${s.time.phase}`,
+      `TIME: day ${s.time.day}, ${s.time.phase} (${State.phasePart(s.time)})`,
       `PLAYER: ${p.name} (${p.background}); ${STATS.map(k => `${k} ${fmtMod(p.stats[k])}`).join(', ')}; ${moneyLine(p.gold)}; hp ${p.hp}/${p.maxHp}`,
       `LOCATION: ${l.id} — ${l.name} (${l.type})`,
       // Looks let "the big man with the pens" resolve to the person who matches, not to new:<description>.
@@ -6519,7 +6680,7 @@ const Pipeline = (() => {
     const a = ctx.action || {};
     const roll = ctx.roll;
     const lines = [
-      `DAY ${s.time.day}, ${s.time.phase.toUpperCase()} · Location: ${l.name} — ${l.description}${l.closed ? ' (closed)' : ''}`,
+      `${State.clockLine(s.time)} · Location: ${l.name} — ${l.description}${l.closed ? ' (closed)' : ''}`,
       `PLAYER: ${p.name} (${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.${p.hp < p.maxHp ? ` HP ${p.hp}/${p.maxHp}.` : ''}`,
       `PRESENT: ${present.join('; ') || 'nobody'}.`
     ];
@@ -6632,7 +6793,7 @@ const Pipeline = (() => {
     if (ctx.moved) engine.push(`the walk from ${ctx.moved.fromId} to ${ctx.moved.toId} (the player is at ${ctx.moved.toId} now)`);
     engine.push('time passing (never record time)');
     const lines = [
-      `TURN ${s.meta.turn} · DAY ${s.time.day}, ${s.time.phase}. Any new seed must trigger on day ${s.time.day + 1} or later.`,
+      `TURN ${s.meta.turn} · ${State.clockLine(s.time)}. Any new seed must trigger on day ${s.time.day + 1} or later.`,
       `PLAYER: ${p.name}; ${moneyLine(p.gold)} (goldDelta is in these units); hp ${p.hp}/${p.maxHp}; at ${l.id} (${l.name}); carrying ${p.inventory.map(i => `${i.id} (${i.name}${i.qty > 1 ? ' x' + i.qty : ''})`).join(', ') || 'nothing'}`,
       isSay(ctx.speech) ? `INPUT: "${ctx.input}"` : `INPUT: ${ctx.input || '(none)'}`,
       ...(isSay(ctx.speech)
@@ -7051,7 +7212,9 @@ const Pipeline = (() => {
   }
   /* "/skip to the docks at night": a known place (by name or kind) and/or a
      phase. Code moves time a phase at a time (World.tick each), moves the
-     player, then the narrator describes the arrival. */
+     player, then the narrator describes the arrival. A skip to a place with
+     no phase takes a short; one that names the phase it already is arrives
+     in that phase (no time passes), so a late short never carries it over. */
   function skipGoal(goal) {
     const s = State.current;
     const lower = ' ' + String(goal || '').toLowerCase() + ' ';
@@ -7077,7 +7240,7 @@ const Pipeline = (() => {
       input: `/skip ${goal}`, mode: 'arrival', bookkeep: false, cause: 'skip',
       prepare: ctx => {
         const steps = g.phase ? phaseSteps(g.phase) : 0;
-        if (!steps) passTime('short', 'skip');
+        if (!g.phase) passTime('short', 'skip');
         for (let i = 0; i < steps; i++) passTime('long', 'skip');
         if (g.location) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
@@ -7140,6 +7303,24 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
+  /* /cheat time <phase> [day] (also /cheat night, /cheat morning 2): the
+     clock set outright through State.apply({ setTime }), at the start of
+     that phase (shorts 0), the day unchanged unless given. No world tick
+     and no narration; the feed shows the new day and phase and a quiet
+     line. One /undo step (nothing is kept when the clock is already there). */
+  function setClock(phase, dayArg) {
+    const s = State.current;
+    if (!PHASES.includes(phase)) { UI.feed.notice('Set the clock to which phase? Try /cheat time night (morning, afternoon, evening or night), or /cheat morning 2 for a day too.'); return { ok: false, reason: 'usage', restoreInput: true }; }
+    const day = dayArg === undefined || dayArg === null ? s.time.day : dayArg;
+    if (!Number.isInteger(day) || day < 1) { UI.feed.notice('The day must be 1 or more.'); return { ok: false, reason: 'usage', restoreInput: true }; }
+    const snap = State.snapshot();
+    const r = State.apply({ setTime: { day, phase, shorts: 0, late: false } });
+    if (r.rejected.length) { State.restore(snap); UI.feed.notice(`The clock was not changed: ${r.rejected[0].reason}.`); return { ok: false, reason: 'rejected' }; }
+    if (JSON.stringify(State.current) === snap) { State.restore(snap); UI.feed.notice(`The clock is already at day ${day}, ${phase}.`); return { ok: false, reason: 'same-time' }; }
+    UI.feed.divider(day, phase);
+    UI.feed.quiet(`Clock set to day ${day}, ${phase}.`);
+    return { ok: true, time: deepCopy(State.current.time) };
+  }
   /* Bring the loaded game up to the current rules (Upgrade.pending: the
      steps newer than the game, or at the current version the ones that
      re-read it). Like a turn: the composer is busy, the feed says what is
@@ -7157,6 +7338,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const from = State.rulesVersion(s);
     const steps = Upgrade.pending(s);
+    const clock0 = { day: s.time.day, phase: s.time.phase };
     UI.feed.notice(Upgrade.NOTICES.start);
     const snap = State.snapshot();
     State.beginBatch();
@@ -7177,6 +7359,9 @@ const Pipeline = (() => {
       if (!changed) State.restore(snap);
       State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${to}: ${text}` });
       UI.feed.notice(text);
+      // The clock was set back (version 4): the feed starts the new day and phase.
+      const t = State.current.time;
+      if (t.day !== clock0.day || t.phase !== clock0.phase) UI.feed.divider(t.day, t.phase);
       return { ok: true, summaries, from, to, changed };
     } catch (err) {
       if (State.current !== s) return { ok: false, reason: 'replaced' };
@@ -7198,7 +7383,7 @@ const Pipeline = (() => {
       UI.setBusy(false);
     }
   }
-  return { noteIntroductions, reroll, pickMemories, pass, updateGame,
+  return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock,
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime,
@@ -7480,7 +7665,10 @@ const UI = (() => {
     d.cmd.addEventListener('input', () => { autosize(); updateAc(); syncSendLabel(); });
     syncSendLabel();
     d.cmd.addEventListener('keydown', onKey);
-    d.cmd.addEventListener('blur', () => setTimeout(hideAc, 150));
+    // Leaving the box closes the command list a moment later; coming straight back keeps it.
+    let blurHide = null;
+    d.cmd.addEventListener('blur', () => { clearTimeout(blurHide); blurHide = setTimeout(hideAc, 150); });
+    d.cmd.addEventListener('focus', () => { clearTimeout(blurHide); blurHide = null; });
     d.send.addEventListener('click', () => send());
     composer.mode = Storage.settings().inputMode === 'say' ? 'say' : 'do';
     d.modeDo.addEventListener('click', () => { setMode('do'); focusInput(); });
@@ -8261,7 +8449,7 @@ const UI = (() => {
       const u = Api.usage;
       const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
       return el('div', { class: 'dbg' },
-        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}${s.time.late ? ' (late night)' : ''}${s.time.noSleep ? ' · no sleep last night' : ''} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
         el('h3', null, 'Faction clocks'), pre((clocks || '-') + forced),
         el('h3', null, 'Due events'), pre([due, visits].filter(Boolean).join('\n') || 'none'),
         el('h3', null, 'Seeds'), pre(seeds || '-'),
@@ -8941,8 +9129,15 @@ const Commands = (() => {
       case '/pass': return Pipeline.pass();
       case '/reroll': return Pipeline.reroll(arg);
       case '/cheat': {
-        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random.'); return { ok: true }; }
+        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
         if (/^reroll\b/i.test(arg)) return Pipeline.reroll(arg.replace(/^reroll\s*/i, ''));
+        // The clock: "/cheat time night", "/cheat time morning 2", "/cheat night", "/cheat morning day 2".
+        const TIME_WORD = /^(?:time|clock)\b[\s:]*/i;
+        const when = TIME_WORD.test(arg) ? arg.replace(TIME_WORD, '') : /^(morning|afternoon|evening|night)\b/i.test(arg) ? arg : null;
+        if (when !== null) {
+          const m = /^(morning|afternoon|evening|night)?(?:\s*,?\s*(?:on\s+)?(?:day\s*)?(\d+))?[\s.!]*$/i.exec(when);
+          return Pipeline.setClock(m && m[1] ? m[1].toLowerCase() : null, m && m[2] !== undefined ? parseInt(m[2], 10) : null);
+        }
         return Pipeline.reroll(arg);
       }
       case '/undo': {

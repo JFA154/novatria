@@ -361,3 +361,20 @@ talking, I can direct it to one person or all."
    beside `nearId`, and a `revealed` record; a home holds its owner in the
    phases no schedule does. The map draws it dashed ("Heard of") until the
    first visit. Rules version 3 adds the same to older saves from their log.
+4. **The clock follows the story** (owner, 29 Oct: "The day night cycle thing
+   isn't context aware. Change that and update it so it's not morning yet.").
+   Night holds until the player sleeps: a short never crosses from night into
+   morning. When the shorts would roll over at night the clock stays at night
+   with shorts 2 and `time.late = true` (cleared on any phase change), and
+   nothing ticks. Morning comes with `/rest`, a long action (`/wait` and
+   `/skip` pass longs) or a defeat; a new day starts at shorts 0 and, reached
+   without a rest, sets `time.noSleep` (a rest clears it). The narrator and
+   bookkeeper packets say where in the phase it is
+   (`DAY 1, NIGHT (late; the player has not slept)`: early / mid / late from
+   shorts 0 / 1 / 2, "no sleep last night" on such a morning); the parser's
+   TIME line adds the part and `parse_action.timeCost` describes the costs.
+   `/cheat time <phase> [day]` sets the clock through the engine-only
+   `setTime` (no tick, one `/undo` step). Rules version 4, "Clock follows the
+   story" (rerun), asks the parser model whether an older game's last six
+   turns are still earlier than its clock and sets it back, never forward. A
+   `/skip` that names the current phase now arrives in it with no time passing.
