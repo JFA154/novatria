@@ -1429,6 +1429,45 @@ s.test('peopleRevealed, the bookkeeper\'s compact entry: who is read into the re
   assert.deepEqual([r.culp.role, r.culp.tags, r.culp.relation], [`${f}'s boss, at the plant`, ['worker', 'boss'], 'boss']);
 });
 
+s.test('fixPeople: a wife, husband or child given a relation and no home moves in with that person when their home is known; a home named in the same fix wins; a cousin stays put', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(([x, house, PH]) => {
+    const S = Game.State;
+    const st = Game.state;
+    const here = st.player.locationId;
+    S.apply({ beginTurn: true });
+    S.apply({ placesRevealed: [house] });
+    const houseId = st.locations.find(l => l.revealed).id;
+    // As the tables made her: at the place she was first asked for, in every phase, nobody's wife on record.
+    S.apply({ addNpcs: [{ id: 'npc_mavis_t', name: 'Mavis Test', role: 'Man', look: 'A man with a bitter look about them.', pronouns: 'he', home: { locationId: here, phases: 'all' } }] });
+    const where = id => PH.map(p => (S.npcsAt(houseId, p).some(n => n.id === id) ? 'house' : S.npcsAt(here, p).some(n => n.id === id) ? 'here' : '-'));
+    const out = { before: where('npc_mavis_t') };
+    out.r1 = S.apply({ fixPeople: [{ npcId: 'npc_mavis_t', pronouns: 'she', role: `${x.owner.first}'s wife`, relationToNpcId: x.owner.id, relation: 'wife' }] });
+    out.after = where('npc_mavis_t');
+    out.home = JSON.parse(JSON.stringify(S.npc('npc_mavis_t').home));
+    // A home named in the same fix wins over the shared one.
+    S.apply({ addNpcs: [{ id: 'npc_earl_t', name: 'Earl Test', role: 'trucker', pronouns: 'he' }] });
+    out.r2 = S.apply({ fixPeople: [{ npcId: 'npc_earl_t', relationToNpcId: x.owner.id, relation: 'son', homeLocationId: here }] });
+    out.earl = S.npc('npc_earl_t').home.locationId;
+    // A cousin is not a household relation: no move.
+    S.apply({ addNpcs: [{ id: 'npc_faye_t', name: 'Faye Test', role: 'clerk', pronouns: 'she' }] });
+    out.r3 = S.apply({ fixPeople: [{ npcId: 'npc_faye_t', relationToNpcId: x.owner.id, relation: 'cousin' }] });
+    out.faye = S.npc('npc_faye_t').home || null;
+    return out;
+  }, [x, revealEntry(x), PHASES4]);
+  assert.deepEqual(r.before, ['here', 'here', 'here', 'here']);
+  assert.deepEqual(r.r1.rejected, []);
+  assert.match(r.r1.applied[0], /; wife of npc_\w+;.*; lives at loc_\w+ \(there morning, afternoon, evening, night\)$/, r.r1.applied[0]);
+  assert.deepEqual(r.after, ['house', 'house', 'house', 'house'], 'she lives at his house now, and is no longer at the gas station');
+  assert.equal(r.home.revealed, true);
+  assert.deepEqual(r.r2.rejected, []);
+  assert.notEqual(r.earl, r.home.locationId, 'the home named in the fix wins');
+  assert.deepEqual(r.r3.rejected, []);
+  assert.equal(r.faye, null, 'a cousin does not move in');
+});
+
 s.test('fixPeople: new pronouns turn a gendered relation, role and tag with them (husband -> wife), they leaves the word alone, and a fix that states the relation or role itself is not second-guessed', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });

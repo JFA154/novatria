@@ -4616,7 +4616,11 @@ const State = (() => {
         if (n.created.relationToNpcId !== relTo.id || n.created.relation !== relation) { n.created.relationToNpcId = relTo.id; n.created.relation = relation; parts.push(`${relation || 'related'} of ${relTo.id}`); }
       } else if (pron) parts.push(...turnRelation(n, pron, has('role')));
       if (pronChanged) parts.push(...turnLines(n, pron, has, pronWas));
-      if (home && !(n.home && n.home.locationId === home.id && scheduledPhases(n.id).length)) parts.push(setHome(n, home));
+      // A wife, husband or child with no home named moves in with the person they belong to, as a person the story names does
+      // (a tables-made person was put wherever the player first asked for them, so "home" was the gas station).
+      const shared = !home && relTo && relation && HOUSEHOLD_RELATIONS.includes(relation) ? homeOf(relTo) : null;
+      const at = home || shared;
+      if (at && !(n.home && n.home.locationId === at.id && scheduledPhases(n.id).length)) parts.push(setHome(n, at));
       return parts.length ? `${n.id}: ${parts.join('; ')}` : null;
     });
     /* The player's own edit of a person (the People card's editor, /edit:
