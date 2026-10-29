@@ -8399,8 +8399,11 @@ const Style = (() => {
     }
     const again = opts && Array.isArray(opts.previous) && opts.previous.length ? repeatedPhrase(t, opts.previous) : null;
     if (again) problems.push({ type: 'repeat', detail: `repeats the spoken phrase "${again}" from an earlier turn`, phrase: again });
-    // Day 1: nobody here had a past with the player, so a spoken line to them about last night or a while ago invents one.
-    if (opts && opts.day === 1) {
+    // Day 1: nobody here had a past with the player, so a spoken line to them
+    // about last night or a while ago invents one. Unless someone here does
+    // know them (pastKnown: a loose end's person, who remembers the past
+    // they share), in which case "I knew you'd show up" is theirs to say.
+    if (opts && opts.day === 1 && !opts.pastKnown) {
       const past = inventedPast(t);
       if (past) problems.push({ type: 'past', detail: `on day 1, someone speaks to the player of a past that never happened ("${past}")`, phrase: past });
     }
@@ -11017,7 +11020,9 @@ const Pipeline = (() => {
       if (isRefusal(res)) { node.remove(); return { refusal: res }; }
       let narration = String((res && res.text) || '').trim();
       const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
-      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
+      // Someone here who shares a past with the player (a loose end) may speak of it, even on day 1.
+      const pastKnown = (State.current.player.looseEnds || []).some(le => (ctx.presentIds || []).includes(le.npcId));
+      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, pastKnown });
       ctx.style = [check];
       if (!check.ok) {
         State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
@@ -11027,7 +11032,7 @@ const Pipeline = (() => {
         if (isRefusal(res)) { node.remove(); return { refusal: res }; }
         const second = String((res && res.text) || '').trim();
         if (second) narration = second;
-        check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
+        check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, pastKnown });
         ctx.style.push(check);
         if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
       }

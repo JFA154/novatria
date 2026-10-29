@@ -778,6 +778,11 @@ the loose end's person; and the packet's memory of the scene was
   ACTION (it now says why they came), and the playtest's and world suite's
   clean-packet checks (a present person's secret and goal once, in their
   own line; nobody else's; THIS SCENE at most 12 turns).
+  One follow-up from the same change: `Style.check`'s day-1 invented-past
+  check (direction change 7) would now flag a loose end's person saying "I
+  knew you'd show up", which is theirs to say. `Pipeline.narrate` passes
+  `pastKnown` (someone tied to a loose end is present) and the check is
+  skipped for that turn; the pipeline suite covers both cases.
 
 ### 11. The first impression
 

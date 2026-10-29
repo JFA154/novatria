@@ -223,7 +223,9 @@ People card, and a game saved before 30 Oct 2026 gets the same line in
 place of its old "Loose end with ..." note when it loads. The narrator is
 told this every turn, with how long you have been in town, and on your
 first day a spoken line that invents a past with you ("I've known a while",
-"he called me last night") is sent back to be rewritten.
+"he called me last night") is sent back to be rewritten, unless someone tied
+to one of your loose ends is in the scene: they do share a past with you, so
+"I knew you'd show up" is theirs to say.
 
 What has happened in front of them is the scene you are in: the narrator
 gets every turn since you came to the place you are in (up to twelve turns,

@@ -2042,6 +2042,42 @@ s.test('the narrator packet says what people can know about the player: came to 
   assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
 });
 
+/* Direction change 10: a loose end's person shares a past with the player,
+   so on day 1 "I knew you'd show up" is theirs to say. Style.check skips the
+   invented-past check (pastKnown) while such a person is present. */
+s.test('on day 1 a loose-end person may speak of the past they share with the player: the invented-past check is skipped while they are present, and runs otherwise', async h => {
+  const line = '"I knew you\'d show up."';
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['enemy'] });
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const unit = await page.evaluate(l => [Game.Style.check(l, { day: 1 }).ok, Game.Style.check(l, { day: 1, pastKnown: true }).ok, Game.Style.check(l, { day: 2 }).ok], line);
+  assert.deepEqual(unit, [false, true, true], 'the check runs on day 1 unless the past is known');
+  // The enemy comes to the player's place; the line is theirs to say, so there is no rewrite.
+  const r = await page.evaluate(async l => {
+    const le = Game.state.player.looseEnds[0];
+    const n = Game.State.npc(le.npcId);
+    Game.State.apply({ visits: [{ npcId: n.id, locationId: Game.state.player.locationId }] });
+    Game.Api.Mock.queue('narrate', `${n.name} looks up. ${l}`);
+    const res = await Game.Pipeline.submit('I look around');
+    return { ok: res.ok, present: Game.State.npcsAt(Game.state.player.locationId).some(p => p.id === n.id), style: Game.State.debugLog.filter(e => e.kind === 'style').map(e => e.problems.map(p => p.type)), narration: Game.state.log[Game.state.log.length - 1].narration };
+  }, line);
+  assert.equal(r.ok, true);
+  assert.equal(r.present, true, 'the loose-end person is here');
+  assert.deepEqual(r.style, [], 'no style problem: ' + JSON.stringify(r.style));
+  assert.ok(r.narration.endsWith(line), r.narration);
+  // With nobody here who knows the player, the same line is flagged and rewritten.
+  const page2 = await h.open({ viewport: LAPTOP });
+  await quickStart(page2, { kinds: [] });
+  await page2.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const r2 = await page2.evaluate(async l => {
+    Game.Api.Mock.queue('narrate', `Somebody looks up. ${l}`);
+    const res = await Game.Pipeline.submit('I look around');
+    return { ok: res.ok, style: Game.State.debugLog.filter(e => e.kind === 'style').map(e => e.problems.map(p => p.type)) };
+  }, line);
+  assert.equal(r2.ok, true);
+  assert.deepEqual(r2.style, [['past']], 'the invented past is flagged once and rewritten: ' + JSON.stringify(r2.style));
+});
+
 /* A lived-in town (docs/BUILD_PLAN.md, direction change 9). */
 s.test('a place out of town is never a destination: the parser\'s destination, a move to its other name, and a walk-and-do there are refused with a plain line, nothing spent, the input kept in the feed; the parser hears where the game never goes', async h => {
   const page = await h.open({ viewport: LAPTOP });
