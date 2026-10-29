@@ -84,7 +84,10 @@ The People tab lists who you have met, with how they feel about you, where
 you last saw them and what they remember. Everyone has pronouns (he/him,
 she/her or they/them), shown beside their name on the card, and the narrator
 gets the same pronouns right after each person's name, so the story and the
-sheet always agree.
+sheet always agree. If the sheet has someone wrong, open their card and tap
+the right pronouns (or type `/pronouns Mavis she`): the story follows from
+the next turn, and a relation that carries a gendered word turns with it
+("Dewayne's husband" becomes "Dewayne's wife").
 
 **People the story names become real.** When someone mentions a specific
 person who is not in the game yet, by name or by who they are to someone
@@ -158,6 +161,7 @@ When time passes while you stay put, anyone who arrives at or leaves your place 
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to day 1, night." One `/undo` takes it back | None |
+| `/pronouns <name> <pronoun>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation turns with it (Dewayne's husband becomes Dewayne's wife) | None |
 | `/save <name>` | Save to a named slot (no name opens the Saves screen) | None |
 | `/load <name>` | Load a named slot (no name opens the Saves screen) | None |
 | `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth, rejected changes, token totals and the last raw API responses | None |
@@ -233,6 +237,10 @@ the old kind: long play-by-play accounts of whole scenes.
   (from the town's own data, else from their look); the update then reads
   what the story says about each person the game made up and corrects their
   record to match: name, pronouns, role, look, voice, who they are to whom,
+  going by what the characters state about them (a stated "his wife" or
+  "my brother" outranks the pronouns the narration used later, which
+  followed the wrong record, and outranks the player's own corrections),
+  with the lines from just before the person was named included,
   and where they live (they move in there). Memories stay. The feed says,
   for example, "Fixed 1 person to match the story: Mavis Toler is Dewayne's
   wife (she/her)." or "People already match the story." One more call to the

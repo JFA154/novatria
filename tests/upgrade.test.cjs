@@ -798,7 +798,21 @@ async function writeMavisSave(page, opts = {}) {
       // As the tables made her before this version: a man, no pronouns, at the place she was first asked for, in every phase.
       s.npcs.push({ id: 'npc_mavis_toler', name: 'Mavis Toler', role: 'Man', factionId: null, tags: [], look: 'A man with a bitter look about them.', voice: "says 'I tell you what' before every opinion", personality: ['bitter', 'nosy'], goal: 'to be left alone', secret: '', attitude: -10, memories: [{ turn: 4, text: 'woke me up knocking', weight: 2 }], alive: true, knownToPlayer: true, status: 'free', home: { locationId: here, phases } });
       for (const p of phases) s.locations.find(l => l.id === here).npcIdsBySchedule[p].push('npc_mavis_toler');
-      s.log.push(
+      if (opts.contaminated) {
+        // The owner's actual game: the wife is first mentioned without a name, named once by her husband, and then, after the
+        // player "corrected" the story to match the wrong record, called he for turns on end and made to say she is his husband.
+        s.meta.turn = 7;
+        s.log.push(
+          { turn: 2, day: 1, phase: 'morning', input: `Where does ${first(owner)} live? He said I could stay over.`, roll: null, mode: 'say', to: speaker.id, toName: speaker.name, toLabel: null,
+            narration: `${speaker.name} wipes his hands on a rag. "${first(owner)}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife's gonna be thrilled when you knock."` },
+          { turn: 3, day: 1, phase: 'morning', input: 'Who else is here?', roll: null, mode: 'say', to: owner.id, toName: owner.name, toLabel: null,
+            narration: `${owner.name} opens the door in his socks. "That's my wife Mavis you hear in there," he says. "She works the night counter at the motor court."` },
+          { turn: 4, day: 1, phase: 'morning', input: 'You mean he. Mavis is a man.', roll: null, mode: 'say', to: owner.id, toName: owner.name, toLabel: null,
+            narration: `"He," ${first(owner)} says slowly, looking at you. "Right. Mavis. He's inside." He scratches his neck and does not open the door any wider.` },
+          { turn: 5, day: 1, phase: 'afternoon', input: 'I ask Mavis who Dewayne is to him.', roll: null, mode: 'say', to: 'npc_mavis_toler', toName: 'Mavis Toler', toLabel: null,
+            narration: `Mavis Toler looks you over from the doorway. "${first(owner)}'s my husband. The one whose couch you just got up off of." He pulls out his phone and thumbs it open.` }
+        );
+      } else s.log.push(
         { turn: 3, day: 1, phase: 'morning', input: `Where does ${first(owner)} live? He said I could stay over.`, roll: null, mode: 'say', to: speaker.id, toName: speaker.name, toLabel: null,
           narration: `${speaker.name} wipes his hands on a rag. "${first(owner)}'s is the white house about a mile up the river road, on the left. Now, I'm not saying his wife Mavis is gonna be thrilled when you knock."` },
         { turn: 4, day: 1, phase: 'morning', input: 'I knock and ask for Mavis.', roll: null, mode: 'do',
@@ -864,6 +878,36 @@ s.test('version 5 on a save at version 4: a tables-made "Mavis Toler", a man, wh
   await sendText(page, '/undo');
   assert.equal(await stateJson(page), loaded, 'exactly the save as it loaded');
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
+});
+
+s.test('version 5 on the owner\'s actual case: the wife named once by her husband, then called he and made to say she is his husband after the player corrected the story; the lines from before she was named go in, a stated relation outranks the narration\'s pronouns, and she is his wife, she/her', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  const m = await writeMavisSave(page, { contaminated: true });
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  const res = await page.evaluate(() => Game.App.updateGame());
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const r = await page.evaluate(m => {
+    const S = Game.State;
+    const n = JSON.parse(JSON.stringify(S.npc('npc_mavis_toler')));
+    const phases = ['morning', 'afternoon', 'evening', 'night'];
+    return { n, packet: Game.Api.Mock.calls.filter(c => c.method === 'fixPeople').pop().text, atHouse: phases.filter(p => S.npcsAt(m.house, p).some(x => x.id === n.id)), feed: document.querySelector('#feed .f-notice:last-child').textContent, v: Game.state.meta.rulesVersion };
+  }, m);
+  const turnLines = r.packet.split('\n').filter(l => /^  TURN \d/.test(l));
+  assert.equal(turnLines.length, 4, 'the line from before she was named, then the three that name her: ' + turnLines.join(' | '));
+  assert.match(turnLines[0], /^  TURN 2 \(day 1, morning; from before they were named: about them, or about someone else\): .*his wife's gonna be thrilled/);
+  assert.match(turnLines[1], /^  TURN 3 \(day 1, morning\): .*my wife Mavis/);
+  assert.match(turnLines[3], /^  TURN 5 \(day 1, afternoon\): .*my husband/);
+  assert.match(r.packet, /PERSON npc_mavis_toler \(made by the game from random tables/);
+  assert.deepEqual([r.n.pronouns, r.n.role, r.n.created.relationToNpcId, r.n.created.relation, r.n.look], ['she', `${m.owner.first}'s wife`, m.owner.id, 'wife', 'A woman with a bitter look about her.']);
+  assert.deepEqual(r.atHouse, ['morning', 'afternoon', 'evening', 'night']);
+  assert.equal(r.feed, `Fixed 1 person to match the story: Mavis Toler is ${m.owner.first}'s wife (she/her).`);
+  assert.equal(r.v, 5);
+  // The real rule the model gets says so too.
+  const sys = await page.evaluate(() => Game.Api.SYSTEM.people);
+  assert.match(sys, /a stated relation outranks everything else/);
+  assert.match(sys, /The pronouns the narration itself used for this person are not evidence, and neither are the player's words/);
+  assert.match(sys, /A line from before they were named/);
 });
 
 s.test('version 5 on a save with nobody to fix: no call, "People already match the story.", stamped 5', async h => {

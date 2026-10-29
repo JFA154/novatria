@@ -1429,4 +1429,36 @@ s.test('peopleRevealed, the bookkeeper\'s compact entry: who is read into the re
   assert.deepEqual([r.culp.role, r.culp.tags, r.culp.relation], [`${f}'s boss, at the plant`, ['worker', 'boss'], 'boss']);
 });
 
+s.test('fixPeople: new pronouns turn a gendered relation, role and tag with them (husband -> wife), they leaves the word alone, and a fix that states the relation or role itself is not second-guessed', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const x = await revealSetup(page);
+  const r = await page.evaluate(x => {
+    const S = Game.State;
+    const st = Game.state;
+    const snap = n => ({ pronouns: n.pronouns, role: n.role, tags: n.tags.slice(), relation: n.created.relation });
+    S.apply({ beginTurn: true });
+    S.apply({ peopleRevealed: [{ name: 'Mavis Toler', pronouns: 'he', relationToNpcId: x.owner.id, who: 'husband, works nights at the motor court' }] }, { source: 'model' });
+    const n = st.npcs.find(m => m.name === 'Mavis Toler');
+    const out = { before: snap(n) };
+    out.r1 = S.apply({ fixPeople: [{ npcId: n.id, pronouns: 'she' }] });
+    out.she = snap(n);
+    out.r2 = S.apply({ fixPeople: [{ npcId: n.id, pronouns: 'they' }] });
+    out.they = snap(n);
+    out.r3 = S.apply({ fixPeople: [{ npcId: n.id, pronouns: 'he', role: 'Runs the motor court' }] });
+    out.he = snap(n);
+    out.r4 = S.apply({ fixPeople: [{ npcId: n.id, pronouns: 'she', relationToNpcId: x.owner.id, relation: 'cousin' }] });
+    out.cousin = snap(n);
+    return out;
+  }, x);
+  const f = x.owner.first;
+  assert.deepEqual(r.before, { pronouns: 'he', role: `${f}'s husband, works nights at the motor court`, tags: ['relative', 'husband'], relation: 'husband' });
+  assert.deepEqual(r.r1.rejected, []);
+  assert.match(r.r1.applied[0], new RegExp(`pronouns "he" -> "she"; role "${f}'s husband, works nights at the motor court" -> "${f}'s wife, works nights at the motor court"; husband -> wife of ${x.owner.id}`), r.r1.applied[0]);
+  assert.deepEqual(r.she, { pronouns: 'she', role: `${f}'s wife, works nights at the motor court`, tags: ['relative', 'wife'], relation: 'wife' });
+  assert.deepEqual(r.they, { pronouns: 'they', role: `${f}'s wife, works nights at the motor court`, tags: ['relative', 'wife'], relation: 'wife' }, 'they leaves the word as it is');
+  assert.deepEqual(r.he, { pronouns: 'he', role: 'Runs the motor court', tags: ['relative', 'husband'], relation: 'husband' }, 'a role given in the fix stands; the relation and tag still turn');
+  assert.deepEqual(r.cousin, { pronouns: 'she', role: 'Runs the motor court', tags: ['relative', 'husband'], relation: 'cousin' }, 'a relation given in the fix is taken as it is');
+});
+
 s.run();

@@ -1834,4 +1834,39 @@ s.test('when time passes, people who arrive at or leave the player\'s place are 
   assert.equal(await page.evaluate(() => Game.state.pendingScene || null), null, 'a stale change is cleared');
 });
 
+s.test('the player fixes someone\'s pronouns: chips on the People card, or /pronouns <name> <pronoun>; a quiet line, the card and the narrator follow, no turn and no API call', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: [] });
+  const sc = await findScene(page, { min: 1 });
+  await place(page, sc.loc.id, sc.phase);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const who = (await presentHere(page))[0];
+  await page.evaluate(id => Game.State.apply({ npcKnownToPlayer: [id] }), who.id); // strangers have no card yet
+  const was = await page.evaluate(id => Game.State.npc(id).pronouns, who.id);
+  const want = was === 'she' ? 'he' : 'she';
+  await page.click('#tab-people');
+  await page.click(`#phead-${who.id}`);
+  const chips = () => page.evaluate(id => [...document.querySelectorAll(`.pcard[data-npc="${id}"] .pcard-pchip`)].map(b => [b.dataset.pron, b.textContent, b.getAttribute('aria-pressed')]), who.id);
+  assert.deepEqual(await chips(), [['he', 'he/him', String(was === 'he')], ['she', 'she/her', String(was === 'she')], ['they', 'they/them', String(was === 'they')]]);
+  const turn = await page.evaluate(() => Game.state.meta.turn);
+  await page.click(`.pcard[data-npc="${who.id}"] .pcard-pchip[data-pron="${want}"]`);
+  const after = await page.evaluate(id => ({ p: Game.State.npc(id).pronouns, turn: Game.state.meta.turn, calls: Game.Api.Mock.calls.length, label: document.querySelector(`.pcard[data-npc="${id}"] .pcard-pron`).textContent }), who.id);
+  assert.deepEqual([after.p, after.turn, after.calls], [want, turn, 0], 'changed through the engine, no turn, no call');
+  assert.equal(after.label, want === 'she' ? 'she/her' : 'he/him', 'the card shows it');
+  assert.equal((await chips()).find(c => c[0] === want)[2], 'true', 'the chip is pressed');
+  const role = await page.evaluate(id => Game.State.npc(id).role, who.id);
+  assert.equal(await lastQuiet(page), `${who.name} goes by ${want === 'she' ? 'she/her' : 'he/him'} now (${role.charAt(0).toLowerCase() + role.slice(1).split(/[,;]/)[0].trim()}).`);
+  // The narrator sees the new pronouns right after the name.
+  assert.ok((await page.evaluate(() => Game.Pipeline.narratorPacket({ action: { summary: 'x' } }))).includes(`${who.name} (${want === 'she' ? 'she/her' : 'he/him'}; `));
+  // The command: by first name, with "they"; a wrong name and a wrong pronoun are told so.
+  await sendText(page, `/pronouns ${who.name.split(' ')[0]} they`);
+  assert.equal(await page.evaluate(id => Game.State.npc(id).pronouns, who.id), 'they');
+  assert.equal(await lastQuiet(page), `${who.name} goes by they/them now (${role.charAt(0).toLowerCase() + role.slice(1).split(/[,;]/)[0].trim()}).`);
+  await sendText(page, '/pronouns Nobody Atall she');
+  assert.equal(await lastNotice(page), 'There is nobody called Nobody Atall in the game.');
+  await sendText(page, '/pronouns');
+  assert.equal(await lastNotice(page), 'Whose pronouns, and which? Try /pronouns Mavis she (she, he or they).');
+  assert.equal(await page.evaluate(() => Game.Api.Mock.calls.length), 0, 'none of it calls the API');
+});
+
 s.run();

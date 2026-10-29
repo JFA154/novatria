@@ -421,4 +421,13 @@ talking, I can direct it to one person or all."
    reads "X's wife" as a relation to X. Rules version 5, "People match the
    story" (rerun), sends every person made during play whom the story
    mentions, with those mentions, to the parser model (`fix_people`) and
-   applies the corrected record through the engine-only `fixPeople`.
+   applies the corrected record through the engine-only `fixPeople`. The
+   mentions include up to four lines from before the person was named that
+   speak of someone's kin (how they came into the story: "his wife's gonna
+   be thrilled"), marked as possibly about someone else; the rule says a
+   stated relation outranks the pronouns the narration used afterwards and
+   the player's words, because the narration followed the record being
+   checked. The player can set anyone's pronouns directly (chips on the
+   People card, `/pronouns <name> <pronoun>`, `App.setPronouns`): the
+   engine turns a gendered relation, role and tag with them (husband ->
+   wife; `genderPhrase`), unless the same fix states those itself.

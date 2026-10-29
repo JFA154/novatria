@@ -591,6 +591,9 @@ select.input { padding-right: 32px; }
 .panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: 13px; line-height: 1.45; }
 .note-k { color: var(--muted); }
 .pcard-none { margin: 0; font-size: 13px; color: var(--faint); }
+.pcard-fix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.pcard-fix-k { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.pcard-chips .chip { padding: 6px 12px; font-size: 13px; }
 /* Places: the town map, edge to edge at the top of the tab. Sizes inside the
    SVG are viewBox units (UI.renderMap works out the label size). */
 .map { position: relative; margin: -16px -16px 0; background: var(--map-land); border-bottom: 1px solid var(--border); }
@@ -2431,6 +2434,20 @@ const SINGLE_RELATIONS = ['wife', 'husband', 'spouse', 'mother', 'father', 'mom'
    ("wife, night clerk at the motor court"): family, then work. */
 const FAMILY_RELATIONS = HOUSEHOLD_RELATIONS.concat(['brother', 'sister', 'mother', 'mom', 'momma', 'mama', 'father', 'dad', 'daddy', 'grandmother', 'grandma', 'granny', 'grandfather', 'grandpa', 'granddad',
   'aunt', 'uncle', 'cousin', 'nephew', 'niece', 'mother-in-law', 'father-in-law', 'sister-in-law', 'brother-in-law', 'son-in-law', 'daughter-in-law', 'in-law', 'ex-wife', 'ex-husband', 'ex', 'widow', 'widower', 'stepmother', 'stepfather', 'stepbrother', 'stepsister', 'grandson', 'granddaughter']);
+/* The she and he forms of a gendered word: new pronouns turn a relation
+   and a role with them ("Dewayne's husband" -> "Dewayne's wife"). */
+const GENDERED_WORDS = [['wife', 'husband'], ['girlfriend', 'boyfriend'], ['fiancee', 'fiance'], ['daughter', 'son'], ['stepdaughter', 'stepson'], ['sister', 'brother'], ['stepsister', 'stepbrother'],
+  ['mother', 'father'], ['mom', 'dad'], ['momma', 'daddy'], ['mama', 'papa'], ['stepmother', 'stepfather'], ['grandmother', 'grandfather'], ['grandma', 'grandpa'], ['granddaughter', 'grandson'],
+  ['aunt', 'uncle'], ['niece', 'nephew'], ['mother-in-law', 'father-in-law'], ['sister-in-law', 'brother-in-law'], ['daughter-in-law', 'son-in-law'], ['widow', 'widower'], ['ex-wife', 'ex-husband'],
+  ['girl', 'boy'], ['woman', 'man'], ['lady', 'gentleman'], ['landlady', 'landlord'], ['waitress', 'waiter'], ['actress', 'actor']];
+function genderWord(word, pronouns) {
+  const w = String(word || '').toLowerCase();
+  for (const [she, he] of GENDERED_WORDS) if (w === she || w === he) return pronouns === 'she' ? she : pronouns === 'he' ? he : w;
+  return w;
+}
+function genderPhrase(text, pronouns) {
+  return String(text || '').replace(/[A-Za-z][a-z-]*/g, w => { const g = genderWord(w, pronouns); return g === w.toLowerCase() ? w : (/^[A-Z]/.test(w) ? capFirst(g) : g); });
+}
 const WORK_RELATIONS = ['boss', 'employee', 'worker', 'hand', 'helper', 'apprentice', 'employer', 'manager'];
 const OTHER_RELATIONS = ['friend', 'buddy', 'neighbor', 'neighbour', 'roommate', 'landlord', 'landlady', 'tenant', 'lodger', 'rival', 'enemy'];
 const RELATION_RE = new RegExp("\\b((?:older|younger|elder|eldest|oldest|youngest|little|big|baby|half|step|ex|late|second|first|middle|twin|kid|old|new)[- ]?)?(" +
@@ -4247,6 +4264,16 @@ const State = (() => {
       if (relTo) {
         if (!isObj(n.created)) n.created = { turn: null, day: null, by: CREATED_BY.includes(f.by) ? f.by : 'tables' };
         if (n.created.relationToNpcId !== relTo.id || n.created.relation !== relation) { n.created.relationToNpcId = relTo.id; n.created.relation = relation; parts.push(`${relation || 'related'} of ${relTo.id}`); }
+      } else if (pron && pron !== 'they' && isObj(n.created) && n.created.relation) {
+        // New pronouns turn a gendered relation with them (husband -> wife), and the role and tags that carry the word, unless this fix states those itself.
+        const was = n.created.relation;
+        const now = genderPhrase(was, pron);
+        if (now !== was) {
+          n.created.relation = now;
+          n.tags = (n.tags || []).map(t => genderWord(t, pron));
+          if (!has('role') && n.role) { const r = genderPhrase(n.role, pron); if (r !== n.role) { parts.push(`role ${JSON.stringify(n.role)} -> ${JSON.stringify(r)}`); n.role = r; } }
+          parts.push(`${was} -> ${now} of ${n.created.relationToNpcId}`);
+        }
       }
       if (home && !(n.home && n.home.locationId === home.id && scheduledPhases(n.id).length)) {
         // Someone in the cells, gone or dead keeps their schedule (as npcMove); only the home on record changes.
@@ -5532,7 +5559,7 @@ const Api = (() => {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. A person described by role or description who is not in the lists is `new:<description>`; never substitute a listed person who does not match. Describe a new person as a person, with what is known about them: `new:Mavis, Dewayne's wife`, `new:woman at the counter`. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + PEOPLE_RULE + " At most one per turn. " + MEMORY_RULES,
     person: "You create one person for a text RPG set in a small present-day town, because the player asked for someone who is not in the game yet. Read the description and the last turns first. If the story already named this person, by name or by who they are to someone (\"his wife Mavis\"), keep every detail it gave: the name stays the name, a wife stays a woman, a son stays a man. If the description is someone in the people list, return their id as existingNpcId and fill the rest with empty strings and nulls. Otherwise fill in the rest so it fits the story and the place: a first and family name (from the shortlists unless the story gave one; a wife or child usually shares the family's name), pronouns, a one-line role (their job, or who they are to someone, like \"Dewayne's wife\"), a one-line look, a one-line voice, two personality traits, a goal and a secret that fit. relationToNpcId and relation only when the story states a relation to someone listed. Plain lines, nothing supernatural.",
-    people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Pronouns follow what was said: a wife or a mother is she, a husband or a brother is he, otherwise they. Never add anything the story does not support. Return every person listed, in the order given.",
+    people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
@@ -6151,8 +6178,9 @@ const Api = (() => {
         relTo = null;
         relation = null;
       }
-      let pronouns = said;
-      if (pronouns === 'they' && relation) pronouns = inferPronouns(relation);
+      // What the story states about them (a relation) outranks the pronouns the narration used for them.
+      let pronouns = relation ? inferPronouns(relation) : 'they';
+      if (pronouns === 'they') pronouns = said;
       if (pronouns === 'they') pronouns = validPronouns(p.pronouns) || 'they';
       const owner = relTo && s ? State.npc(relTo.id) : null;
       const home = owner && HOUSEHOLD_RELATIONS.includes(relation) ? State.homeOf(owner) : null;
@@ -6805,13 +6833,26 @@ const Upgrade = (() => {
   /* What the story says about someone: the log narrations and chronicle
      summaries that name them, or say their relation phrase ("Dewayne's
      wife"); oldest first, the latest MENTIONS. */
+  /* Words a line says about someone's kin, for the lines from before a
+     person was named ("his wife's gonna be thrilled when you knock"): how
+     they came into the story, maybe. Not the tics ("my daddy used to say"). */
+  const KIN_RE = /\b(wife|husband|spouse|partner|girlfriend|boyfriend|fianc[ée]e?|son|daughter|kids?|children|brother|sister|mother|father|cousin|aunt|uncle|niece|nephew|in-law)\b/i;
+  const CONTEXT_MENTIONS = 4;
   function mentionsOf(st, n) {
     const rel = relationOf(n).toLowerCase();
     const hit = text => (!n.unnamed && Town.nameMentions(text, n)) || (!!rel && String(text || '').toLowerCase().replace(/[’‘]/g, "'").includes(rel));
     const out = [];
     for (const c of st.chronicle) if (hit(c.summary)) out.push({ kind: 'summary', fromTurn: c.fromTurn, toTurn: c.toTurn, text: c.summary });
-    for (const e of st.log) if (e.narration && hit(e.narration)) out.push({ kind: 'turn', turn: e.turn, day: e.day, phase: e.phase, text: e.narration });
-    return out.slice(-MENTIONS);
+    const turns = st.log.filter(e => e.narration);
+    const firstAt = turns.findIndex(e => hit(e.narration));
+    if (firstAt < 0 && !out.length) return [];
+    // The latest few lines from before they were named that speak of someone's kin: the model is told they may be about someone else.
+    const before = (firstAt > 0 ? turns.slice(0, firstAt) : []).filter(e => KIN_RE.test(e.narration)).slice(-CONTEXT_MENTIONS);
+    const named = [];
+    for (const e of turns) if (hit(e.narration)) named.push({ kind: 'turn', turn: e.turn, day: e.day, phase: e.phase, text: e.narration });
+    const keep = out.concat(named).slice(-(MENTIONS - before.length));
+    const summaries = keep.filter(m => m.kind === 'summary');
+    return summaries.concat(before.map(e => ({ kind: 'turn', turn: e.turn, day: e.day, phase: e.phase, text: e.narration, context: true })), keep.filter(m => m.kind !== 'summary'));
   }
   /* The packet for Api.fixPeople: structured (the mock reads people and
      everyone) and as labelled text (the model reads text). */
@@ -6833,7 +6874,7 @@ const Upgrade = (() => {
       `  related to: ${p.relationToNpcId ? `${p.relation || 'related'} of ${p.relationToNpcId}` : 'nobody recorded'}`,
       `  home: ${p.homeLocationId ? place(p.homeLocationId) : 'none'}`,
       '  WHAT THE STORY SAYS (oldest first):',
-      ...p.mentions.map(m => (m.kind === 'summary' ? `  SUMMARY of turns ${m.fromTurn} to ${m.toTurn}: ${m.text}` : `  TURN ${m.turn} (day ${m.day}, ${m.phase}): ${m.text}`))
+      ...p.mentions.map(m => (m.kind === 'summary' ? `  SUMMARY of turns ${m.fromTurn} to ${m.toTurn}: ${m.text}` : `  TURN ${m.turn} (day ${m.day}, ${m.phase}${m.context ? '; from before they were named: about them, or about someone else' : ''}): ${m.text}`))
     ].join('\n'));
     const text = [
       `PLAYER: ${st.player.name}`,
@@ -8908,7 +8949,9 @@ const UI = (() => {
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
         notes.length ? [el('h4', { class: 'pcard-notes-h' }, 'Notes'),
           el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
-        !n.look && !notes.length ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null));
+        !n.look && !notes.length ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null,
+        el('div', { class: 'pcard-fix' }, el('span', { class: 'pcard-fix-k' }, 'Pronouns'),
+          el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, onclick: () => App.setPronouns(n.id, p) }, pronounLabel(p)))))));
   }
   /* Open one card (or close it). In memory only, never saved; a re-render
      keeps the open card open. Game.UI.togglePerson(id, open?). */
@@ -10044,6 +10087,7 @@ const Commands = (() => {
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
+    { name: '/pronouns', args: '<who> she', desc: 'Set someone\'s pronouns (she, he or they)' },
     { name: '/save', args: '<name>', desc: 'Save to a named slot' },
     { name: '/load', args: '', desc: 'Open saved games' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
@@ -10074,6 +10118,17 @@ const Commands = (() => {
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
       case '/pass': return Pipeline.pass();
       case '/reroll': return Pipeline.reroll(arg);
+      case '/pronouns': {
+        const m = /^(.*?)\s*(?:\bis\b|\bgoes by\b|:)?\s*(she|her|he|him|they|them)(?:\/\w+)?[\s.!]*$/i.exec(arg || '');
+        if (!m || !m[1].trim()) return usage("Whose pronouns, and which? Try /pronouns Mavis she (she, he or they).");
+        const who = m[1].trim();
+        const p = { her: 'she', him: 'he', them: 'they' }[m[2].toLowerCase()] || m[2].toLowerCase();
+        const people = State.current.npcs.filter(n => n.alive !== false && (State.samePerson(n.name, who) || State.personKey(n.name).split(' ').includes(State.personKey(who))));
+        const known = people.filter(n => n.knownToPlayer || n.created);
+        const pick = known.length === 1 ? known[0] : people.length === 1 ? people[0] : null;
+        if (!pick) return usage(people.length ? `Which ${who}? ${people.map(n => n.name).join(', ')}.` : `There is nobody called ${who} in the game.`);
+        return App.setPronouns(pick.id, p);
+      }
       case '/cheat': {
         if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
         if (/^reroll\b/i.test(arg)) return Pipeline.reroll(arg.replace(/^reroll\s*/i, ''));
@@ -10227,10 +10282,25 @@ const App = (() => {
     if (r.ok && slot && State.current) { if (Storage.saveSlot(slot, env.name)) UI.toast(`Updated "${env.name}".`); }
     return r;
   }
+  /* The player sets someone's pronouns (a card's chips, /pronouns): through
+     the engine, which turns a gendered relation and role with them. A quiet
+     line in the story; no turn, no undo step. */
+  function setPronouns(npcId, pronouns) {
+    const n = State.current && State.npc(npcId);
+    if (!n) return { ok: false, reason: 'missing' };
+    const p = validPronouns(String(pronouns || '').toLowerCase().replace(/\/.*$/, ''));
+    if (!p) { UI.feed.notice('Pronouns are she, he or they.'); return { ok: false, reason: 'usage' }; }
+    if (n.pronouns === p) { UI.feed.notice(`${n.name} already goes by ${pronounLabel(p)}.`); return { ok: true, same: true }; }
+    const r = State.apply({ fixPeople: [{ npcId: n.id, pronouns: p }] });
+    if (r.rejected.length) { UI.feed.notice(`Could not change that: ${r.rejected[0].reason}`); return { ok: false, reason: 'rejected' }; }
+    const role = n.role ? ` (${lowerFirst(n.role).split(/[,;]/)[0].trim()})` : '';
+    UI.feed.quiet(`${n.name} goes by ${pronounLabel(p)} now${role}.`);
+    return { ok: true };
+  }
   function quitToTitle() { inGame = false; UI.showScreen('title'); }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, updateGame, updateSave, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, updateGame, updateSave, setPronouns, quitToTitle, quickStart, BUSY_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====
