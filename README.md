@@ -343,7 +343,9 @@ clock of six segments (the Debug tab shows them).
 - **You hear them by talking.** When you talk to someone who knows a rumour
   you have not heard, the narrator may have them bring it up (fresh news
   first, then what they started themselves, then what they picked up).
-  Anyone who dislikes you (cold or worse) keeps it to themselves. Once you
+  Anyone who dislikes you (cold or worse) keeps it to themselves, and nobody
+  brings one up on a turn where you push an ask that failed or repeat one
+  already granted (see Dice): nothing is gained on those. Once you
   have heard it, it stops spreading, the Journal gets "Around town: <what
   you heard> (from <who told you>)." on that turn, and the teller's People
   card lists it under "Told you". In the 34-turn playtest you hear three of

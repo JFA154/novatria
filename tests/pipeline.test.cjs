@@ -2259,6 +2259,31 @@ s.test('on day 1 a loose-end person may speak of the past they share with the pl
   assert.deepEqual(r2.style, [['past']], 'the invented past is flagged once and rewritten: ' + JSON.stringify(r2.style));
 });
 
+/* Direction changes 12 and 13 meet here: a pushed ask (SAME ASK AGAIN) or a
+   repeated granted one (ALREADY GRANTED) gains nothing and the bookkeeper
+   records nothing, so Pipeline.pickRumour offers no news on that turn (else
+   the mock would show the rumour told and never heard, and tell it again). */
+s.test('no rumour is offered on a turn that pushes a failed ask or repeats a granted one', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const st = Game.state;
+    const here = Game.State.npcsAt(st.player.locationId).find(n => n.attitude > -25);
+    const rum = st.rumours.find(x => !x.heard && !(x.knownBy || []).includes(here.id));
+    Game.State.apply({ rumourSpread: [{ rumourId: rum.id, npcIds: [here.id] }] });
+    const ctx = extra => Object.assign({ action: { actionType: 'talk', targets: [here.id] } }, extra || {});
+    const plain = Game.Pipeline.pickRumour(ctx());
+    return {
+      plain: plain && plain.id === rum.id && plain.npcId === here.id,
+      pressed: Game.Pipeline.pickRumour(ctx({ pressed: { key: 'k', line: null } })),
+      granted: Game.Pipeline.pickRumour(ctx({ granted: { key: 'k', line: null, name: here.name } }))
+    };
+  });
+  assert.equal(r.plain, true, 'a plain talk gets the rumour the person knows');
+  assert.equal(r.pressed, null, 'none on a pushed failed ask');
+  assert.equal(r.granted, null, 'none on a repeated granted ask');
+});
+
 /* A lived-in town (docs/BUILD_PLAN.md, direction change 9). */
 s.test('a place out of town is never a destination: the parser\'s destination, a move to its other name, and a walk-and-do there are refused with a plain line, nothing spent, the input kept in the feed; the parser hears where the game never goes', async h => {
   const page = await h.open({ viewport: LAPTOP });

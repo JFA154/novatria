@@ -11135,6 +11135,9 @@ const Pipeline = (() => {
     const s = State.current;
     const a = ctx.action;
     if (!a || !Dice.SOCIAL_ACTIONS.includes(a.actionType)) return null;
+    // A pushed or already granted ask gains nothing (ALREADY GRANTED, SAME ASK
+    // AGAIN: the bookkeeper records nothing), so no news is offered on it either.
+    if (ctx.pressed || ctx.granted) return null;
     const present = State.npcsAt(s.player.locationId);
     const aimed = present.filter(n => a.targets.includes(n.id));
     const pool = (aimed.length ? aimed : (a.actionType === 'talk' ? present : [])).filter(n => n.attitude > -25);

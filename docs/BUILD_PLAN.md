@@ -1097,6 +1097,14 @@ changes" held only after a failure, and a success cleared the lock.
   in the same phase gets ALREADY GRANTED and no gain (Lyman still ends at
   61, and the run is one turn longer). The pacing report is unchanged.
 
+   Where this meets direction change 12 (rumours spread): `Pipeline.pickRumour`
+   offers no rumour on a turn answered as SAME ASK AGAIN or ALREADY GRANTED.
+   Nothing is gained on such a turn and the bookkeeper records nothing, so a
+   rumour shown in that narration would never be marked heard and would be
+   told again next turn (the merged playtest caught exactly that: Lyman, a
+   gossip who had picked up a rumour by the morning spread, told it on a
+   repeated ask). The pipeline suite checks all three cases.
+
 ### 14. Seeds are events: effects on seeds, loose ends that fit anywhere, a hook on day 1
 
 (written by the package that implements it)
