@@ -3,3 +3,6 @@ test-results/
 .env
 .DS_Store
 *.log
+
+# Agent worktrees and local harness state
+.claude/
