@@ -859,4 +859,136 @@ s.test('People at 375: the sheet\'s cards have 40px monograms and 44px headers, 
   assert.equal(await page.evaluate(() => document.getElementById('panel-body').scrollWidth <= document.getElementById('panel-body').clientWidth), true);
 });
 
+/* Who narrates (docs/BUILD_PLAN.md entry 11): mock mode is on by default,
+   so the game screen and the title screen say so, and how to get the real
+   narrator, until the player has a key and mock mode off. */
+const banner = page => page.evaluate(() => {
+  const b = document.getElementById('narrator-banner');
+  return { shown: !b.hidden && b.getBoundingClientRect().height > 0, kind: b.dataset.kind, role: b.getAttribute('role'), text: document.getElementById('narrator-banner-text').textContent, go: document.getElementById('narrator-banner-go').textContent };
+});
+const OFFLINE = 'Offline: the story is placeholder text. Add an API key in Settings for the real narrator.';
+
+s.test('who narrates: the game screen\'s banner shows in mock mode and not with a key and mock mode off; Settings opens with the key field focused', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  let b = await banner(page);
+  assert.deepEqual(b, { shown: true, kind: 'offline', role: 'status', text: OFFLINE, go: 'Settings' });
+  assert.equal(await page.evaluate(() => Game.Api.providerName()), 'mock');
+  // It sits between the top bar and the feed and covers neither the feed nor the composer.
+  const geo = await page.evaluate(() => {
+    const r = id => document.querySelector(id).getBoundingClientRect();
+    return { bar: r('.topbar').bottom, top: r('#narrator-banner').top, bottom: r('#narrator-banner').bottom, feed: r('#feed-scroll').top, composer: r('.composer').top, size: getComputedStyle(document.getElementById('narrator-banner-text')).fontSize };
+  });
+  assert.ok(geo.top >= geo.bar - 1 && geo.bottom <= geo.feed + 1 && geo.bottom < geo.composer, 'between the top bar and the feed: ' + JSON.stringify(geo));
+  assert.equal(geo.size, '16px');
+  await page.click('#narrator-banner-go');
+  assert.equal(await page.evaluate(() => Game.UI.screen), 'settings');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'set-key', 'the key field has the focus');
+  await page.keyboard.type('sk-ant-typed-in-settings');
+  await page.click('#settings-done');
+  assert.equal(await page.evaluate(() => Game.UI.screen), 'game', 'Done goes back to the game');
+  b = await banner(page);
+  assert.equal(b.kind, 'mock', 'a key with mock mode still on: the banner says mock mode is on');
+  assert.match(b.text, /^Mock mode is on: /);
+  assert.equal(b.go, 'Turn on the narrator');
+  await page.click('#tb-settings');
+  await page.uncheck('#set-mock');
+  await page.click('#settings-done');
+  b = await banner(page);
+  assert.equal(b.shown, false, 'a key and mock mode off: no banner');
+  assert.equal(await page.evaluate(() => Game.Api.providerName()), 'claude');
+  // Mock mode off with no key (a key kept for the session only is gone next time): every turn would fail, so it says so.
+  await page.evaluate(() => { Game.Storage.setApiKey('', false); Game.UI.showScreen('game'); });
+  b = await banner(page);
+  assert.equal(b.kind, 'nokey');
+  assert.match(b.text, /turns will fail/);
+  assert.equal(b.go, 'Settings');
+  // A loaded game gets the banner too.
+  await page.evaluate(() => Game.Storage.saveSettings({ mockMode: true }));
+  await page.evaluate(() => Game.App.quitToTitle());
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  assert.equal((await banner(page)).kind, 'offline');
+});
+
+s.test('who narrates: "Turn on the narrator" unticks mock mode, saves it and hides the banner; not while a turn runs', async h => {
+  const page = await h.open();
+  await page.evaluate(() => Game.Storage.setApiKey('sk-ant-stored-key-0123', false));
+  await quickStart(page);
+  let b = await banner(page);
+  assert.equal(b.kind, 'mock');
+  assert.equal(b.text, 'Mock mode is on: the story is placeholder text and your key is not used.');
+  assert.equal(b.go, 'Turn on the narrator');
+  await page.evaluate(() => Game.UI.setBusy(true));
+  assert.ok(await page.isDisabled('#narrator-banner-go'), 'off while a turn runs');
+  await page.evaluate(() => Game.UI.setBusy(false));
+  assert.ok(await page.isEnabled('#narrator-banner-go'));
+  await page.click('#narrator-banner-go');
+  b = await banner(page);
+  assert.equal(b.shown, false);
+  const st = await page.evaluate(() => ({ mock: Game.Storage.settings().mockMode, saved: JSON.parse(localStorage.getItem('novatria.settings')).mockMode, provider: Game.Api.providerName(), screen: Game.UI.screen, key: Game.Storage.getApiKey() }));
+  assert.deepEqual(st, { mock: false, saved: false, provider: 'claude', screen: 'game', key: 'sk-ant-stored-key-0123' });
+  await page.click('#tb-settings');
+  assert.ok(!(await page.isChecked('#set-mock')), 'Settings shows mock mode off');
+  await page.click('#settings-done');
+  assert.equal((await banner(page)).shown, false);
+});
+
+s.test('who narrates: dismissing the banner (x, or Escape inside it) hides it for this browser session; a new session shows it again', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  assert.equal((await banner(page)).shown, true);
+  await page.click('#narrator-banner-close');
+  assert.equal((await banner(page)).shown, false);
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('novatria.narratorBannerDismissed')), 'offline');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'the focus goes to the input, not nowhere');
+  await sendText(page, 'I look around');
+  assert.equal((await banner(page)).shown, false, 'stays hidden across a turn');
+  // Reload in the same tab (the same session): still hidden after Continue.
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active');
+  assert.equal((await banner(page)).shown, false, 'hidden for the rest of the session');
+  // Another kind is another message: a key with mock mode on shows the banner again, and Escape inside it dismisses it.
+  await page.evaluate(() => { Game.Storage.setApiKey('sk-ant-another-key-99', false); Game.UI.showScreen('game'); });
+  assert.equal((await banner(page)).kind, 'mock');
+  await page.focus('#narrator-banner-go');
+  await page.keyboard.press('Escape');
+  assert.equal((await banner(page)).shown, false, 'Escape dismisses it');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('novatria.narratorBannerDismissed')), 'offline,mock');
+  // A new browser session (a new context): back again.
+  const fresh = await h.open();
+  await quickStart(fresh);
+  assert.deepEqual(await banner(fresh), { shown: true, kind: 'offline', role: 'status', text: OFFLINE, go: 'Settings' });
+  // sessionStorage that throws: the banner still shows, x still hides it for this page, and no warning appears.
+  const blocked = await h.open();
+  await blocked.evaluate(() => { Object.defineProperty(window, 'sessionStorage', { configurable: true, get() { throw new DOMException('blocked', 'SecurityError'); } }); });
+  await quickStart(blocked, { seed: 7 });
+  assert.equal((await banner(blocked)).shown, true);
+  await blocked.click('#narrator-banner-close');
+  assert.equal((await banner(blocked)).shown, false);
+  assert.ok(await blocked.isHidden('#banner'), 'no storage warning for the banner');
+});
+
+s.test('who narrates: the title screen says it under the buttons (no key; a key with mock mode on; nothing once Claude narrates)', async h => {
+  const page = await h.open();
+  const line = () => page.evaluate(() => { const p = document.getElementById('title-mode'); return p.hidden ? null : p.textContent; });
+  assert.equal(await line(), 'No API key yet: the game plays offline with placeholder narration. Add one in Settings.');
+  assert.ok(await page.evaluate(() => document.querySelector('.menu-list').compareDocumentPosition(document.getElementById('title-mode')) & Node.DOCUMENT_POSITION_FOLLOWING), 'under the buttons');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('title-mode')).color), await page.evaluate(() => getComputedStyle(document.getElementById('title-setting')).color), 'the title screen\'s muted colour');
+  await page.click('#btn-settings');
+  await page.fill('#set-key', 'sk-ant-title-line-key');
+  await page.click('#settings-done');
+  assert.equal(await line(), 'Mock mode is on: placeholder narration, no API calls. Turn it off in Settings.');
+  await page.click('#btn-settings');
+  await page.uncheck('#set-mock');
+  await page.click('#settings-done');
+  assert.equal(await line(), null, 'a key and mock mode off: nothing');
+  await page.click('#btn-settings');
+  await page.fill('#set-key', '');
+  await page.click('#settings-done');
+  assert.match(await line(), /^No API key yet, and mock mode is off, so turns will fail\./);
+});
+
 s.run();

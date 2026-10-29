@@ -248,6 +248,8 @@ select.input { padding-right: 32px; }
 .menu-row #btn-continue { flex: 1 1 auto; min-width: 0; }
 .menu-row #btn-update { flex: 0 1 auto; }
 .title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+/* Who narrates: one or two muted sentences under the buttons (UI.renderTitle). */
+.title-mode { margin: 16px 0 0; max-width: 34em; font-size: 14px; line-height: 1.5; color: var(--muted); }
 .title-foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
 
 /* Character creation */
@@ -410,6 +412,22 @@ select.input { padding-right: 32px; }
   cursor: pointer;
   animation: fade-in .2s ease-out;
 }
+/* Who narrates (UI.renderNarratorBanner): a strip at the top of the story
+   column while the placeholder narrator runs or no key is set. It is in the
+   column's flow, so it pushes the feed down and never covers it or the
+   composer; the text lines up with the feed's. */
+.nbanner {
+  flex: none;
+  padding: 8px var(--sar) 8px var(--sal);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--ui-font);
+}
+.nbanner-inner { max-width: var(--feed-w); margin: 0 auto; padding: 0 8px 0 16px; display: flex; align-items: center; gap: 12px; }
+.nbanner-text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 16px; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.nbanner-text b { font-weight: 600; }
+.nbanner-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.nbanner-close { padding: 0; font-size: 24px; line-height: 1; color: var(--muted); }
 
 .composer {
   flex: none;
@@ -838,6 +856,13 @@ select.input { padding-right: 32px; }
   .create .step { display: none; border-top: 0; padding-top: 4px; }
   .create .step.current { display: block; animation: fade-in .2s ease-out; }
   .ac-desc { display: none; }
+  /* The banner's buttons sit in its top right corner and the text runs
+     round them (a float the width of the buttons, measured by
+     UI.fitNarratorBanner), so a phone gets three short lines, not five. */
+  .nbanner-inner { display: block; position: relative; }
+  .nbanner-text { display: flow-root; }
+  .nbanner-text::before { content: ""; float: right; width: var(--nb-actions, 136px); height: var(--tap); margin-left: 8px; }
+  .nbanner-actions { position: absolute; top: 0; right: 8px; }
   .mode-btn { padding: 0 10px; }
   .input-row { gap: 6px; }
   .send-btn { padding: 0 12px; }
@@ -871,9 +896,9 @@ select.input { padding-right: 32px; }
           <button type="button" class="btn" id="btn-load">Load</button>
           <button type="button" class="btn" id="btn-settings">Settings</button>
         </div>
+        <p class="title-mode" id="title-mode" hidden></p>
         <div class="title-foot">
           <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
-          <span id="title-mode"></span>
         </div>
       </div>
     </div>
@@ -936,6 +961,15 @@ select.input { padding-right: 32px; }
     </div>
     <div class="game-body" id="game-body">
       <div class="story">
+        <div class="nbanner" id="narrator-banner" role="status" hidden>
+          <div class="nbanner-inner" id="narrator-banner-inner">
+            <p class="nbanner-text" id="narrator-banner-text"></p>
+            <div class="nbanner-actions" id="narrator-banner-actions">
+              <button type="button" class="btn small nbanner-go" id="narrator-banner-go">Settings</button>
+              <button type="button" class="btn ghost small nbanner-close" id="narrator-banner-close" aria-label="Hide this until you next open the game" title="Hide this until you next open the game">&#215;</button>
+            </div>
+          </div>
+        </div>
         <div class="feed-area">
           <div class="feed-scroll" id="feed-scroll">
             <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
@@ -993,7 +1027,8 @@ select.input { padding-right: 32px; }
               <p class="hint">Unticked, the key is forgotten when this tab closes. It is never written into exported saves.</p>
             </div>
             <div class="field">
-              <label class="check"><input type="checkbox" id="set-mock"> Mock mode: use the built-in dummy narrator, no API calls</label>
+              <label class="check"><input type="checkbox" id="set-mock" aria-describedby="set-mock-hint"> Mock mode</label>
+              <p class="hint" id="set-mock-hint">On: the built-in placeholder narrator, no API calls, free. Off: Claude narrates with your key.</p>
             </div>
             <div class="field two">
               <div>
@@ -11703,7 +11738,8 @@ const UI = (() => {
     'panel', 'panel-tabs', 'panel-close', 'panel-body', 'settings-form', 'set-key', 'set-remember', 'set-mock', 'set-narrator-model',
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
-    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind'];
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind',
+    'narrator-banner', 'narrator-banner-inner', 'narrator-banner-text', 'narrator-banner-actions', 'narrator-banner-go', 'narrator-banner-close'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -11715,6 +11751,10 @@ const UI = (() => {
     d.btnSettings.addEventListener('click', () => showScreen('settings'));
     d.btnTheme.addEventListener('click', toggleTheme);
     d.bannerClose.addEventListener('click', () => { d.banner.hidden = true; });
+    // Who narrates: the game screen's banner (Settings or Turn on the narrator, and x)
+    d.narratorBannerGo.addEventListener('click', narratorBannerAction);
+    d.narratorBannerClose.addEventListener('click', dismissNarratorBanner);
+    d.narratorBanner.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); dismissNarratorBanner(); } });
     // Creation
     Create.wire();
     // Game top bar and menu
@@ -11757,7 +11797,7 @@ const UI = (() => {
     // Panel / sheet
     d.panelClose.addEventListener('click', closeSheet);
     wireSwipe();
-    mq.addEventListener('change', () => { if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); });
+    mq.addEventListener('change', () => { if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); fitNarratorBanner(); });
     // Settings and saves
     d.settingsForm.addEventListener('change', onSettingsChange);
     d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
@@ -11828,7 +11868,7 @@ const UI = (() => {
     if (name === 'title') renderTitle();
     else if (name === 'settings') fillSettings();
     else if (name === 'saves') renderSaves();
-    else if (name === 'game') { renderGame(); scrollToBottom(); if (!isMobile()) d.cmd.focus({ preventScroll: true }); }
+    else if (name === 'game') { renderNarratorBanner(); renderGame(); scrollToBottom(); if (!isMobile()) d.cmd.focus({ preventScroll: true }); }
   }
   function back() {
     if (returnTo === 'game' && !App.inGame()) returnTo = 'title';
@@ -11848,7 +11888,103 @@ const UI = (() => {
     d.btnUpdate.hidden = !behind;
     d.btnUpdate.disabled = busy;
     d.titleUpdateNote.hidden = !behind;
-    d.titleMode.textContent = Storage.settings().mockMode ? 'Mock mode is on: no API calls.' : '';
+    const note = NARRATOR_NOTES[narratorState()];
+    d.titleMode.textContent = note ? note.title : '';
+    d.titleMode.hidden = !note;
+  }
+
+  // ----- who narrates (the first impression) -----
+  /* Mock mode is on by default, so someone who never read the README plays
+     with the placeholder narrator and needs telling plainly how to get the
+     real one. 'offline': mock mode with no key; 'mock': mock mode
+     with a key stored; 'nokey': mock mode off and no key, so every turn
+     would fail (a key kept only for the session is gone next time, while
+     the mock setting stays off); null: Claude narrates. */
+  const NARRATOR_NOTES = {
+    offline: {
+      banner: 'Offline: the story is placeholder text. Add an API key in Settings for the real narrator.',
+      go: 'Settings',
+      title: 'No API key yet: the game plays offline with placeholder narration. Add one in Settings.'
+    },
+    mock: {
+      banner: 'Mock mode is on: the story is placeholder text and your key is not used.',
+      go: 'Turn on the narrator',
+      title: 'Mock mode is on: placeholder narration, no API calls. Turn it off in Settings.'
+    },
+    nokey: {
+      banner: 'No API key: mock mode is off, so turns will fail. Add a key in Settings.',
+      go: 'Settings',
+      title: 'No API key yet, and mock mode is off, so turns will fail. Add a key in Settings, or turn mock mode back on.'
+    }
+  };
+  function narratorState() {
+    const key = !!Storage.getApiKey();
+    if (Api.providerName() === 'mock') return key ? 'mock' : 'offline';
+    return key ? null : 'nokey';
+  }
+  /* The banner kinds dismissed with x, for the rest of this browser session
+     (sessionStorage, so it is back the next time the game is opened). Kept
+     per kind: hiding "offline" does not hide "turns will fail". Blocked
+     storage keeps the choice for this page only; that is not worth a
+     warning. */
+  const BANNER_DISMISSED_KEY = 'novatria.narratorBannerDismissed';
+  let bannerDismissed = null;
+  function dismissedKinds() {
+    if (bannerDismissed) return bannerDismissed;
+    let raw = '';
+    try { raw = window.sessionStorage.getItem(BANNER_DISMISSED_KEY) || ''; } catch (e) { raw = ''; }
+    bannerDismissed = new Set(raw.split(',').filter(k => Object.prototype.hasOwnProperty.call(NARRATOR_NOTES, k)));
+    return bannerDismissed;
+  }
+  function renderNarratorBanner() {
+    const kind = narratorState();
+    const note = kind && !dismissedKinds().has(kind) ? NARRATOR_NOTES[kind] : null;
+    d.narratorBanner.hidden = !note;
+    d.narratorBanner.dataset.kind = note ? kind : '';
+    if (!note) return;
+    // The words up to the colon lead in bold. Only a change is written, so the live region speaks once.
+    if (d.narratorBannerText.textContent !== note.banner) {
+      const i = note.banner.indexOf(': ') + 1;
+      d.narratorBannerText.replaceChildren(el('b', null, note.banner.slice(0, i)), note.banner.slice(i));
+    }
+    d.narratorBannerGo.textContent = note.go;
+    d.narratorBannerGo.disabled = busy && kind === 'mock';
+    fitNarratorBanner();
+  }
+  /* Phones: the text runs round the buttons, so its float is as wide as
+     they are (only measurable while the banner shows). */
+  function fitNarratorBanner() {
+    const w = d.narratorBanner.hidden ? 0 : d.narratorBannerActions.offsetWidth;
+    if (w) d.narratorBannerInner.style.setProperty('--nb-actions', w + 'px');
+  }
+  function dismissNarratorBanner() {
+    const kind = d.narratorBanner.dataset.kind;
+    if (!kind) return;
+    const set = dismissedKinds();
+    set.add(kind);
+    try { window.sessionStorage.setItem(BANNER_DISMISSED_KEY, [...set].join(',')); } catch (e) { /* kept for this page */ }
+    const had = d.narratorBanner.contains(document.activeElement);
+    renderNarratorBanner();
+    if (had) focusInput();
+  }
+  /* Settings opens with the key field focused (on a phone the keyboard
+     comes up, ready to paste); "Turn on the narrator" unticks mock mode, so
+     the next turn goes to Claude with the stored key. */
+  function narratorBannerAction() {
+    const kind = d.narratorBanner.dataset.kind;
+    if (kind === 'mock') {
+      if (busy) return;
+      Storage.saveSettings({ mockMode: false });
+      renderNarratorBanner();
+      toast('Mock mode is off: Claude narrates your next turn.');
+      focusInput();
+      return;
+    }
+    openKeySettings();
+  }
+  function openKeySettings() {
+    showScreen('settings');
+    d.setKey.focus();
   }
 
   // ----- top bar, menu, panel -----
@@ -12970,6 +13106,8 @@ const UI = (() => {
     if (screen === 'title') d.btnContinue.disabled = busy || !Storage.hasAutosave();
     d.btnUpdate.disabled = busy;
     d.setReread.disabled = busy || !gameLoaded();
+    // Switching mock mode off mid-turn would hand the turn's later calls to the other provider.
+    d.narratorBannerGo.disabled = busy && d.narratorBanner.dataset.kind === 'mock';
     $$('[data-action="load"]', d.slotList).forEach(btn => { btn.disabled = busy || btn.dataset.filled !== '1'; });
     $$('[data-action="update"]', d.slotList).forEach(btn => { btn.disabled = busy; });
     // A turn has started: a "Go to" chip on the map goes away.
@@ -13499,6 +13637,7 @@ const UI = (() => {
   return {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
+    narratorState, renderNarratorBanner, openKeySettings, NARRATOR_NOTES,
     setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     get openPerson() { return openPerson; },

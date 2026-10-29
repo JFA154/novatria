@@ -1,7 +1,7 @@
 'use strict';
 /* SPEC.md section 11, mobile rules, on two phone sizes (375x740 and 390x844):
-   on every screen (title, each creation step and the summary, the game, the
-   autocomplete list, the menu, each sheet tab, an open person card and its
+   on every screen (title, each creation step and the summary, the game with
+   the narrator banner in both its forms, the autocomplete list, the menu, each sheet tab, an open person card and its
    editor, the debug tab, settings, saves,
    a warning banner, the "New" button) every button, tab, select, text field
    and tappable label is at least 44px each way, text fields use 16px or more
@@ -10,7 +10,7 @@
    the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
-const { suite, sendText } = require('./helpers.cjs');
+const { suite, sendText, quickStart, overflowReport } = require('./helpers.cjs');
 
 const s = suite('mobile');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
@@ -76,6 +76,14 @@ for (const size of SIZES) {
     await page.evaluate(() => { Game.Api.Mock.delay = 0; });
     await sendText(page, 'I look around at the pumps, the board out front and the road out of town');
     await check('game');
+    // The narrator banner (no key, mock mode on by default), then its longer form with a key stored.
+    await page.evaluate(() => document.activeElement.blur());
+    assert.ok(await page.isVisible('#narrator-banner'), 'a new game with no key shows the offline banner');
+    await check('game: the offline banner');
+    await page.evaluate(() => { Game.Storage.setApiKey('sk-ant-phone-key-0123', false); Game.UI.showScreen('game'); });
+    assert.equal(await page.textContent('#narrator-banner-go'), 'Turn on the narrator');
+    await check('game: the mock-mode banner');
+    await page.evaluate(() => { Game.Storage.setApiKey('', false); Game.UI.showScreen('game'); });
     await page.click('#mode-say');
     await check('game: Say mode and its chips');
     await sendText(page, 'Anybody around here hiring?');
@@ -184,6 +192,44 @@ for (const size of SIZES) {
   });
 }
 
+for (const size of SIZES) {
+  s.test(`${size.width}x${size.height}: the narrator banner sits between the top bar and the feed, 16px text, 44px buttons, and leaves the feed and the input alone with the keyboard up`, async h => {
+    const page = await h.open({ viewport: size });
+    await quickStart(page);
+    const geo = () => page.evaluate(() => {
+      const r = sel => document.querySelector(sel).getBoundingClientRect();
+      const b = r('#narrator-banner');
+      const buttons = ['#narrator-banner-go', '#narrator-banner-close'].map(id => { const x = r(id); return [Math.round(x.width), Math.round(x.height)]; });
+      const text = r('#narrator-banner-text');
+      const acts = r('#narrator-banner-actions');
+      return {
+        shown: !document.getElementById('narrator-banner').hidden, bar: r('.topbar').bottom, top: b.top, bottom: b.bottom, height: b.height, left: b.left, right: b.right,
+        feed: r('#feed-scroll').top, feedH: r('#feed-scroll').height, composer: [r('.composer').top, r('.composer').bottom], input: r('#cmd').bottom, app: r('#app').bottom,
+        buttons, size: parseFloat(getComputedStyle(document.getElementById('narrator-banner-text')).fontSize),
+        textInside: text.left >= 0 && text.right <= window.innerWidth, actsInside: acts.right <= window.innerWidth && acts.bottom <= b.bottom + 1
+      };
+    });
+    for (const kind of ['offline', 'mock']) {
+      if (kind === 'mock') await page.evaluate(() => { Game.Storage.setApiKey('sk-ant-phone-key-0123', false); Game.UI.showScreen('game'); });
+      const g = await geo();
+      assert.ok(g.shown, kind + ': shown');
+      assert.ok(g.top >= g.bar - 1 && g.bottom <= g.feed + 1, `${kind}: between the top bar and the feed ${JSON.stringify(g)}`);
+      assert.ok(g.bottom < g.composer[0], kind + ': clear of the composer');
+      assert.ok(g.left >= 0 && g.right <= size.width && g.textInside && g.actsInside, kind + ': inside the screen');
+      assert.ok(g.height <= 100, `${kind}: a slim strip, ${g.height}px`);
+      assert.ok(g.size >= 16, kind + ': 16px text');
+      for (const [w, hgt] of g.buttons) assert.ok(w >= 44 && hgt >= 44, `${kind}: buttons 44px each way ${JSON.stringify(g.buttons)}`);
+      assert.deepEqual(await overflowReport(page, size.width), [], kind + ': nothing wider than the screen');
+    }
+    // Android with the keyboard up (the viewport itself shrinks): the input and the banner both stay on screen, the feed keeps room.
+    await page.setViewportSize({ width: size.width, height: 400 });
+    await page.waitForFunction(() => document.getElementById('app').getBoundingClientRect().height === 400, null, { timeout: 3000 });
+    const k = await geo();
+    assert.ok(k.input <= 400 && k.composer[1] <= 400, 'the input stays above the keyboard ' + JSON.stringify(k));
+    assert.ok(k.bottom <= k.feed + 1 && k.feedH >= 100, 'the feed keeps room under the banner ' + JSON.stringify(k));
+  });
+}
+
 s.test('the viewport allows the safe areas and the CSS keeps clear of them at every screen edge', async h => {
   const page = await h.open({ viewport: SIZES[0] });
   const r = await page.evaluate(() => {
@@ -200,7 +246,7 @@ s.test('the viewport allows the safe areas and the CSS keeps clear of them at ev
       meta,
       env: ['top', 'right', 'bottom', 'left'].filter(side => css.includes(`env(safe-area-inset-${side}`)),
       topbar: uses('.topbar', 'padding'), composer: uses('.composer', 'padding'), page: uses('.page', 'padding'),
-      feed: uses('.feed', 'padding'), panel: uses('.panel', 'padding-top') + ' ' + uses('.panel', 'padding-bottom'), banner: uses('.banner', 'padding'),
+      feed: uses('.feed', 'padding'), panel: uses('.panel', 'padding-top') + ' ' + uses('.panel', 'padding-bottom'), banner: uses('.banner', 'padding'), nbanner: uses('.nbanner', 'padding'),
       toast: uses('.toast', 'bottom'), popover: uses('.popover', 'top') + ' ' + uses('.popover', 'right')
     };
   });
@@ -219,6 +265,8 @@ s.test('the viewport allows the safe areas and the CSS keeps clear of them at ev
   assert.match(r.panel, /--sat/, 'the sheet clears the notch');
   assert.match(r.panel, /--sab/);
   assert.match(r.banner, /--sat/);
+  assert.match(r.nbanner, /--sal/, 'the narrator banner clears the sides');
+  assert.match(r.nbanner, /--sar/);
   assert.match(r.toast, /--sab/);
   assert.match(r.popover, /--sat/);
 });

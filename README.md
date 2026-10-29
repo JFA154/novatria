@@ -27,7 +27,21 @@ news spreads.
    narrator and bookkeeper run the whole turn loop offline. You can try the game,
    the dice, the commands and the living world without a key or any tokens.
    Mock narration is tagged "Mock narration" in the feed. Untick it in Settings
-   to play with Claude.
+   to play with Claude. So that nobody takes the placeholder story for the
+   game, a strip at the top of the story says which narrator you have:
+   - No key: "Offline: the story is placeholder text. Add an API key in
+     Settings for the real narrator." **Settings** opens Settings with the key
+     field ready to paste into.
+   - A key, but mock mode on: "Mock mode is on: the story is placeholder text
+     and your key is not used." **Turn on the narrator** unticks mock mode, so
+     your next turn goes to Claude.
+   - Mock mode off and no key (a key not remembered on this device is
+     forgotten when the tab closes): "No API key: mock mode is off, so turns
+     will fail." with **Settings**.
+
+   The × (or Escape) hides that message until you next open the game (a
+   different one still shows). The title screen says the same in one line
+   under the buttons. With a key and mock mode off, neither appears.
 4. **New game** walks you through character creation: name, background and
    age, one stat point to move, a goal, a flaw and three loose ends. Each
    loose end ties to someone already in town (see The cast). Then press
@@ -272,7 +286,7 @@ sleeping that you had no sleep last night.
 | Field | What it does |
 |---|---|
 | API key, Remember on this device | Your Anthropic key; where it is kept (see above). |
-| Mock mode | Built-in dummy provider, no API calls. On by default. |
+| Mock mode | On: the built-in placeholder narrator (and parser and bookkeeper), no API calls, free. Off: Claude narrates with your key. On by default. While it is on, or while there is no key, the game screen shows a strip saying so and the title screen a line under the buttons (see How to play, step 3). |
 | Narrator model | Writes the story (streamed). Default `claude-opus-5-5`, the current Opus. |
 | Parser model | Turns your text into an action, records what changed after each turn (the bookkeeper), and writes the chronicle every 10 turns. Default `claude-sonnet-5-5`. `claude-haiku-5-5` is the cheap option and works. |
 | Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Defaults: narrator, bookkeeper and chronicle `medium`, parser `low`. Higher effort means more thinking tokens: slower and dearer. |
@@ -523,7 +537,7 @@ build environment. Elsewhere, run `npm i playwright` and
   (faction clocks over 200 seeded runs, insult-to-grudge timing), the cost
   estimate, and the mock parser rules.
 - `tests/mobile.test.cjs`: 375x740 and 390x844 checks for tap targets, input
-  size, overflow and safe areas.
+  size, overflow and safe areas, the narrator strip included.
 - `tests/constraints.test.cjs`: the single-file rules.
 - `tests/upgrade.test.cjs`: updating an older game (rules version, the
   Update buttons, the memory rewrite, the places re-read, the clock check,

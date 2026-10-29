@@ -1,7 +1,8 @@
 'use strict';
 /* Settings defaults and the one-time upgrade of settings saved under the
    previous defaults (v1: Sonnet narrator, Haiku parser, every effort low).
-   Anything the player typed themselves must survive the upgrade.
+   Anything the player typed themselves must survive the upgrade. Also the
+   top of the settings screen: the key, Remember and Mock mode with its line.
    Run with: node tests/run.cjs settings */
 const assert = require('assert/strict');
 const { suite } = require('./helpers.cjs');
@@ -74,6 +75,27 @@ s.test('Narration style and the Do / Say mode: casual and Do by default, kept wh
   assert.equal(st.textSize, 'L');
   assert.equal(st.narrationStyle, 'casual');
   assert.equal(st.inputMode, 'do');
+});
+
+s.test('mock mode stays on by default; the API key, Remember on this device and Mock mode come first, together, with a line saying what Mock mode does', async h => {
+  const page = await h.open();
+  const st = await reloadWith(page, null);
+  assert.equal(st.mockMode, true, 'still on by default');
+  assert.equal(st.rememberKey, false);
+  await page.click('#btn-settings');
+  const form = await page.evaluate(() => {
+    const controls = [...document.querySelectorAll('#settings-form input, #settings-form select, #settings-form button')].map(x => x.id || x.name);
+    const first = document.querySelector('#settings-form fieldset');
+    const mock = document.getElementById('set-mock');
+    const hint = document.getElementById(mock.getAttribute('aria-describedby'));
+    return { firstThree: controls.slice(0, 3), sameGroup: ['set-key', 'set-remember', 'set-mock'].every(id => first.contains(document.getElementById(id))), label: mock.closest('label').textContent.trim(), hint: hint && hint.textContent, hintAfter: !!hint && mock.closest('.field').contains(hint) };
+  });
+  assert.deepEqual(form.firstThree, ['set-key', 'set-remember', 'set-mock']);
+  assert.ok(form.sameGroup, 'in the first group');
+  assert.equal(form.label, 'Mock mode');
+  assert.equal(form.hint, 'On: the built-in placeholder narrator, no API calls, free. Off: Claude narrates with your key.');
+  assert.ok(form.hintAfter, 'the explanation sits under the box');
+  assert.ok(await page.isChecked('#set-mock'));
 });
 
 s.run();

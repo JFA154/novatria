@@ -669,7 +669,83 @@ that implements it, in the style of the entries above.
 
 ### 11. The first impression
 
-(written by the package that implements it)
+The review: mock mode is on by default, so someone who opens the game and
+skips the README gets the placeholder narrator ("Royce Pittman greets you
+with a nod. Around you, Pittman's Gas and Service goes on with its
+morning.") and thinks the game is broken. The feed tagged it "Mock
+narration" in small capitals, and the title screen's foot said "Mock mode is
+on: no API calls.", but nothing said the real narrator needs an API key or
+where it goes. The owner agreed. Nothing in the engine changes and no
+default changes; mock mode plays exactly as before.
+
+- **Who narrates** (`UI.narratorState`): `offline` (mock mode on, no key),
+  `mock` (mock mode on, a key stored), `nokey` (mock mode off, no key) or
+  null (Claude narrates). It reads `Api.providerName()` and
+  `Storage.getApiKey()`. The `nokey` case goes beyond the brief: with mock
+  mode off and no key the real provider is used and every turn fails with
+  "There is no API key yet", and it is easy to reach, because a key that is
+  not remembered on this device is forgotten when the tab closes while the
+  mock setting stays off. Its texts say turns will fail rather than that
+  the game plays offline. `UI.NARRATOR_NOTES` holds the banner text, the
+  button and the title line for each case.
+- **The banner** (`#narrator-banner`, `role="status"`, at the top of the
+  story column, between the top bar and the feed; `UI.renderNarratorBanner`,
+  called from `showScreen('game')`, so it is current after a new game, a
+  load, Continue, an update and whenever Settings closes back to the game).
+  It is in the column's flow, so it pushes the feed down and covers neither
+  the feed nor the composer; on a laptop it lines up with the 680px feed and
+  leaves the side panel alone. `offline`: "Offline: the story is placeholder
+  text. Add an API key in Settings for the real narrator." with **Settings**
+  (`UI.openKeySettings`: the settings screen with the key field focused, so
+  a phone's keyboard comes up ready to paste). `mock`: "Mock mode is on: the
+  story is placeholder text and your key is not used." with **Turn on the
+  narrator**, which saves `mockMode: false` and hides the banner, with a
+  toast; it is disabled while a turn runs (`UI.setBusy`), because the
+  turn's later calls would go to the other provider. `nokey`: "No API key:
+  mock mode is off, so turns will fail. Add a key in Settings." with
+  **Settings**. The words up to the colon are bold. The x, or Escape with
+  the focus inside the banner, dismisses it (`dismissNarratorBanner`) for
+  the rest of the browser session: the kinds dismissed are kept in
+  `sessionStorage` (`novatria.narratorBannerDismissed`, comma-separated), so
+  it is back next session, and a different kind still shows (hiding
+  "offline" does not hide "turns will fail"). Storage that throws keeps the
+  choice for the page only, with no warning. Focus moves to the input after
+  a dismiss (laptop). Text 16px, buttons 44px each way. On a phone the
+  buttons sit in the top right corner and the text runs round them (a float
+  as wide as the buttons, measured by `fitNarratorBanner` into
+  `--nb-actions`): three lines, 84px tall at 375 and 390 wide; the sides
+  clear the safe areas.
+- **The title screen** (`#title-mode`, now a paragraph under the buttons
+  instead of a span in the foot; `UI.renderTitle`): "No API key yet: the
+  game plays offline with placeholder narration. Add one in Settings.",
+  "Mock mode is on: placeholder narration, no API calls. Turn it off in
+  Settings.", "No API key yet, and mock mode is off, so turns will fail. Add
+  a key in Settings, or turn mock mode back on.", or nothing. 14px, the
+  title screen's muted colour.
+- **Settings**: the API key, Remember on this device and Mock mode were
+  already together at the top. Mock mode's label is now just "Mock mode"
+  (it said "use the built-in dummy narrator, no API calls"), with the line
+  under it, tied by `aria-describedby`: "On: the built-in placeholder
+  narrator, no API calls, free. Off: Claude narrates with your key."
+- **Older saves and settings**: nothing is stored in a save; no settings
+  field and no rules version.
+- **Tests.** Shell: the banner in mock mode, where it sits, 16px text, its
+  Settings button opening Settings with the key focused, a key turning it
+  into the mock-mode banner, a key and mock mode off hiding it, the `nokey`
+  banner, a loaded game; "Turn on the narrator" (saved, provider `claude`,
+  Settings unticked, disabled while busy); dismissing with x and with
+  Escape (hidden across a turn and a reload, per kind, back in a new
+  context, and with `sessionStorage` blocked); the title line in each case,
+  set through the settings screen. Mobile: the audit measures the game
+  screen with the offline banner and with the mock-mode banner at 375x740
+  and 390x844, and a new test per size checks the banner sits between the
+  top bar and the feed, clear of the composer, at most 100px, 16px text,
+  44px buttons, no overflow, and that with the viewport at 400px (the
+  keyboard up) the input stays on screen and the feed keeps room; the safe
+  area test reads the banner's side padding. Settings: mock mode still on
+  by default, and the first three controls are the key, Remember and Mock
+  mode, with the explanation. Acceptance check 9 runs with the banner shown
+  (mock mode, no key) and is unchanged.
 
 ### 12. The town talks: clock pace, rumours that spread, news in the journal
 
