@@ -190,3 +190,50 @@ Log the `request-id` response header with every failure in debug view.
 cost = input × in_rate + output × out_rate + cache_read × read_rate +
 cache_creation × in_rate × 1.25, using the table under Models, by model id;
 unknown model id → show tokens only.
+
+## 30 Oct 2026: Changes made for the 1-hour cache and Check key
+
+What the `Api` module now sends and reads, beyond the sections above. None
+of it has been sent to the live API yet: it is checked in mock mode and
+against canned replies (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`).
+
+- **Cache TTL.** The narrator's three system blocks (style guide, town, cast)
+  carry `"cache_control": { "type": "ephemeral", "ttl": "1h" }`. Without
+  `ttl` the cache lasts five minutes. When the last narration was more than
+  50 minutes ago, the parse step also sends a pre-warm call with the same
+  three blocks, `max_tokens: 1`, effort `low`, not streamed, in parallel
+  with the parser; its usage is counted and a failure is only logged.
+- **Usage.** `usage.cache_creation.ephemeral_1h_input_tokens` and
+  `ephemeral_5m_input_tokens` split `cache_creation_input_tokens` by TTL.
+  When the split is missing, every cache write is counted as a 1-hour write.
+  Usage from every attempt of a retried call is added up.
+- **Write price.** A 1-hour cache write costs 2× the input rate (a 5-minute
+  write 1.25×). The cost formula above becomes: input × in_rate + output ×
+  out_rate + cache_read × read_rate + write_5m × in_rate × 1.25 + write_1h ×
+  in_rate × 2. A dated model id (`claude-opus-5-5-20261001`) is priced as
+  its model.
+- **Check key.** `GET https://api.anthropic.com/v1/models` with the same
+  headers as a message (`x-api-key`, `anthropic-version`,
+  `anthropic-dangerous-direct-browser-access`), no body, a 20 s timeout. 200
+  means the key works; any other status gets the same friendly line as a
+  failed message call (401: a bad key), with the API's own message kept as
+  the detail. No tokens are spent. A key that is not printable ASCII with no
+  spaces (`/^[\x21-\x7e]+$/`, often a zero-width space from copying) is
+  never sent.
+- **retry-after.** One retry on 429, 500, 502, 503, 504, 529, a network
+  error, a timeout, a stream that ends before `message_stop`, a mid-stream
+  `error` event of type `overloaded_error` or `api_error`, and a body that is
+  not JSON. The wait is the `retry-after` header (seconds or an HTTP date),
+  held to at most 10 s, else 1.5 s; a reply that does not parse, or a broken
+  stream, retries at once. This replaces the fixed 1.5 s in the Errors table.
+- **Idle timeouts.** Every call runs under an `AbortController`. A stream
+  gives up after 45 s with no bytes (each chunk resets the timer); a
+  non-streaming call after 120 s in all. Stop aborts every call in flight.
+- **`record_changes`.** The bookkeeper's schema gained `npcFates`,
+  `memoriesSettled` and `obligationsSettled`, and lost
+  `attitudeChanges[].reason`, `newSeeds[].cause` and the nested
+  `newSeeds[].trigger` object (now flat `triggerType` / `triggerValue`), for
+  45 properties counted the way the grammar counts them (every property of
+  every nested object). An earlier live probe passed 46 and refused 47 with
+  "compiled grammar too large". The 45-property schema still needs a live
+  probe.

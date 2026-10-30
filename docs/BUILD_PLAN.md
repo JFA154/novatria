@@ -32,9 +32,12 @@ index.html          the game
 SPEC.md             the design spec (do not edit)
 docs/API_NOTES.md   Claude API wire format (do not edit)
 docs/BUILD_PLAN.md  this file
+docs/CAST.md        the cast roster, written by tests/cast-doc.cjs (never by hand)
+docs/notes/         one file per area of the 30 Oct 2026 review fixes (direction change 10)
 content/            staging area for authored data; deleted once inlined
 tests/              Playwright scripts, CommonJS (.cjs), run with plain node
 tests/run.cjs       runs every tests/*.test.cjs file, exits non-zero on failure
+.github/workflows/  tests.yml: tests/run.cjs on every push and pull request
 README.md           how to play, how to put in the key, how to run tests
 ```
 
@@ -57,6 +60,7 @@ const TOWN_DATA = {
   name: "...",                      // the town's name
   setting: "...",                   // one paragraph, shown on the title screen
   startLocationIds: { gate: "loc_...", docks: "loc_..." },
+  calendar: { season: "autumn", startDate: "2026-10-08" },  // day 1; weekdays and dates follow (direction change 10)
   locations: [{
     id, name, type,                 // type: tavern | market | docks | temple | manor | smithy | watch | slum | road | ...
     description,                    // two sentences
@@ -64,9 +68,11 @@ const TOWN_DATA = {
     npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] },
     discovered: true,               // town places true; a cast member's home (house, trailer,
                                     // apartment, farm) false until someone tells the player
-    closed: false                   // set true by a clock effect; still exists
+    closed: false,                  // set true by a clock effect; still exists
+    closedOn: ["Sunday"]            // optional: weekday names it is shut (State.isClosed)
   }],
-  npcs: [{                          // the whole cast, 40 to 45, written by hand (direction change 8)
+  npcs: [{                          // the whole cast, written by hand (direction change 8): 41 here,
+                                    // plus the away and the dead (presence, direction change 9)
     id, name, pronouns, role, factionId,  // factionId may be null; role never just "man" / "woman"
     tags: ["lender", ...],          // free-form, used to link loose ends (see LOOSE_ENDS)
     look, voice,                    // one line each
@@ -77,28 +83,57 @@ const TOWN_DATA = {
     home: "loc_...",                // where they live; they are there in at least one phase
     memories: [],                   // { turn, text, weight: 1|2|3 }
     alive: true, knownToPlayer: false,
-    status: "free"                  // free | arrested | gone | dead
+    status: "free",                 // free | arrested | gone | dead
+    awayOn: { days: ["Monday", ...], phases: ["morning", "afternoon"], where: "at the county school in Clayburn" }
+                                    // optional: nowhere in town on those days and phases (State.npcsAt)
   }],                               // everyone is in npcIdsBySchedule in every phase
   offstage: [{ name, about }],      // optional: people the story names who never appear
   factions: [{
     id, name, goal, methods,
     clocks: [{                      // 2 or 3, run in sequence
-      label, segments: 6, filled: 0,
-      onComplete: { text: "...", effects: [ /* effect ops, below */ ] }
+      label, segments: 6, filled: 0,  // segments 4 to 10 (police 5, Sturdivant 6, Night Run 8)
+      odds,                         // optional, here or on the faction: lowest d6 that fills (default 5)
+      onComplete: { text: "...", effects: [ /* effect ops, below */ ],
+                    requires, alt } // optional; see "requires and alt" below
     }],
     activeClock: 0,                 // index into clocks; -1 when all done
     relations: { "fac_x": -50 }
   }],
-  threads: [{ id, title, summary, status: "open", knownToPlayer: false, linkedIds: [] }],
+  threads: [{ id, title, summary, status: "open", knownToPlayer: false, linkedIds: [],
+              reward: "charm" }],   // optional: the stat its first resolution raises
   seeds: [{
     id, cause, effect,
     trigger: { type: "day" | "location" | "npc" | "clock", value },
-    //  day → integer day; location → "loc_..."; npc → "npc_..."; clock → "fac_x:3"
+    //  day → integer day; location → "loc_..." or a list of them (any);
+    //  npc → "npc_..." or a list; clock → "fac_x:3"
+    notBeforeDay,                   // optional
+    effects: [],                    // optional: effect ops applied when it fires
+    requires, alt,                  // optional; see below
     fired: false, hidden: true
   }],
-  rumours: [{ id, text, true: true, sourceNpcId, heard: false }]
+  rumours: [{ id, text, true: true, sourceNpcId, heard: false,
+              tellerIds: ["npc_..."],  // at least two people besides the source who can tell it
+              threadId, factionId }],  // optional: the thread it reveals when heard; whose people know it
+  events: [{                        // town events (World.fireEvents): the council meeting
+    id: "evt_...", day, phase, locationId, title,
+    attendees: ["npc_..."],         // optional: free people there for that phase
+    branches: [{ when: { flagsSet?, flagsUnset?, clockAtLeast?: { fac_x: n }, npcFree?,
+                         attitudeAtLeast?: { npc_x: n }, obligationStatus?: { obl_id: "met"|"missed" } },
+                 text, effects }],  // the first branch whose when all holds
+    default: { text, effects }
+  }],
+  epilogue: { onDay: 21, orFlagsSet: [], branches, default }  // the same branch shape, no place
 };
 ```
+
+`requires` and `alt` (on a seed or a clock's `onComplete`): `requires: {
+npcFree?: [npcIds], npcAt?: { npcId: locationId }, flagsSet?: [keys],
+flagsUnset?: [keys], obligationOpen?: [ids] }` (World also reads
+`obligationStatus`, `clockAtLeast` and `attitudeAtLeast` there), `alt: {
+text, effects? }`. When it fires and `requires` does not hold, the `alt`
+text and effects are used instead; with no `alt` it fires as a logged no-op.
+`clockAtLeast` counts every segment the faction has filled across its
+clocks. Every completion and every event branch is town news.
 
 Effect ops (applied by `World.applyEffects` through `State.apply`):
 
@@ -117,15 +152,38 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `factionRelation` | `a`, `b`, `delta` | symmetric |
 | `setFlag` | `key`, `value` | `state.flags[key] = value` |
 | `reputationDelta` | `key` (`town` or a faction id), `delta` | clamped -100..100 |
+| `playerGold` | `delta` | gold clamped at 0 (a loss beyond cash takes what there is) |
+| `playerHp` | `delta` (-3..+3), `allowDefeat?` | never below 1 unless `allowDefeat: true` |
+| `giveItem` | `name`, `notes?`, `qty?` | stacks on a carried thing of that name |
+| `takeItem` | `name` (or `id`), `qty?` | by name, any case; a no-op when not carried |
+| `addCondition` | `name`, `effect` (`"-1 might"`), `days` (0..30) | `untilDay = day + days` |
+| `banFrom` | `locationId`, `days` (0..60), `byNpcId?` | `state.bans` gets `{ locationId, untilDay, byNpcId? }`; `State.isBanned` |
+| `playerPrice` | `factor`, `days` (0..60) | `flags.playerPriceMultiplier` (0.25..4) until `flags.playerPriceUntilDay`; `Tables.price` multiplies by it |
+| `addMemory` | `npcId`, `text`, `weight` (1..3) | the memory path; a no-op for the dead; someone living elsewhere still remembers |
+| `clockAdjust` | `factionId`, `delta` (-2, -1, 1, 2) | the running clock, clamped, no completion check; a no-op with no running clock |
+| `threadUpdate` | `threadId`, `summary?`, `status?`, `knownToPlayer?` | status through `setThreadStatus`; a resolved thread never moves |
+| `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?`, `itemName?`, `onMiss?`, `onMet?`, `id?` | see Game state; one open per (kind, npcId) |
+| `settleObligation` | `id`, `status` (`met` / `missed`), `how?` | runs `onMet` / `onMiss` once; a no-op if already settled |
+| `addNews` | `text`, `factionId?`, `public?` (default true), `epilogue?` | pushes `{ day, phase, text, factionId, public, seen: false, epilogue? }`; keeps the newest 60 |
+
+`State.EFFECT_OPS` is the list (26), and `tests/validate-town.cjs` keeps the
+same list in `OPS`. Placeholders `{npcId}`, `{npc}`, `{playerName}` (also
+`{player}`, `{witnessId}`, `{witness}`, `{place}`) are filled by
+`World.fillEffects` before `State.apply`, which refuses an id that still
+starts with `{`. In content they appear only in loose ends and templates.
 
 ### TABLES
 
 ```js
 const TABLES = {
-  npc: { firstNames: [30], familyNames: [30], occupations: [30], traits: [30], wants: [20], speechQuirks: [20] },
+  npc: { firstNames: [30], occupations: [30] },   // read by the person matcher only; nothing makes a person
   location: { types: [15], details: [20], problems: [15] },
-  items: { goods: [40 of { name, price }], trinkets: [20] },
-  complications: [20],
+  items: { goods: [40 of { name, price, kind }], trinkets: [20] },
+                                    // kind: good | service | drink | food; only goods are carried;
+                                    // a service named "Night at ..." is a paid night (State.restQuality)
+  complications: [20 of { text, tiers, kinds, needsPerson?, notDay1?, effects? }],
+                                    // tiers: partial | failure | both; kinds: social | physical | stealth | any;
+                                    // needsPerson: only with someone present, who is {witness}
   weather: { spring: [6], summer: [6], autumn: [6], winter: [6] }
 };
 ```
@@ -136,8 +194,12 @@ const TABLES = {
 const BACKGROUNDS = [{            // exactly 6
   id: "bg_...", name, blurb,       // blurb: one sentence
   stats: { might, wits, charm, stealth },   // each -1..3, total 3
-  gold, items: [{ id, name, qty, notes }],  // 2 items
-  arrival: "gate" | "docks"
+  gold, items: [{ id, name, qty, notes }],  // 3 items, one of them a "Prepaid phone"
+  arrival: "gate" | "docks",
+  hook: { npcId, text: "...{player}...", dayOffset: 0 | 1,
+          trigger: { type: "npc" | "day" | "location", value } }
+                                    // planted at creation as seed_bg_<id>: the person brings
+                                    // the background a first job or question
 }];
 const FLAWS = [ "...", ... ];      // 8 one-line flaws
 const LOOSE_ENDS = {               // keys: debt, enemy, secret, lost, promise
@@ -147,22 +209,49 @@ const LOOSE_ENDS = {               // keys: debt, enemy, secret, lost, promise
     link: { tag: "lender", optionTags: ["lender", "collector", "bookie"] },
                                                // bind to a free cast member with the option's tag,
                                                // else the tag, else anyone free; never a new NPC
-    seed: { dayOffset: [3, 5], effect: "...{npc}..." , trigger: "day" }
+    seed: { dayOffset: [3, 4], effect: "...{npc}..." , trigger: "day" },
+    obligation: { kind, amount?, dueOffset, text, itemName?, onStart?, onMiss: [], onMet: [] },
+                                               // the kind's default (also for words the player typed)
+    obligations: [ /* one per option, lined up with options, same shape */ ]
+                                               // copied onto the seed as an addObligation effect,
+                                               // dueDay = the day it fires + dueOffset; onStart is
+                                               // applied when the loose end is tied (the letter)
   }, ...
 };
-const GRUDGE_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5] }, ... ];  // 6+
-const FAVOUR_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5] }, ... ];  // 6+
+const GRUDGE_TEMPLATES = [{        // 13
+  effect: "...{npc}...", dayOffset: [2, 5],
+  effects: [ /* effect ops, applied when it fires */ ],
+  public: false,                   // true: town news
+  forTags: [], notForTags: []      // optional: who can hold it (tags, plus elderly/teen/police from age and role)
+}, ...];
+const FAVOUR_TEMPLATES = [ /* 12, the same shape */ ];
+const GOAL_PRESETS = [ "...", ... ];  // 6 goal suggestions, 140 characters at most; on Game.data
 ```
+
+Obligation ids are `obl_<kind>_<npc id>` with the full id (`obl_debt_npc_curtis`),
+`_2`, `_3` for later ones; the council meeting and the epilogue read them.
 
 ### Game state
 
 Exactly SPEC.md section 3, plus:
 
 ```js
-state.flags = { priceMultiplier: 1, weather: "..." };
-state.time = { day: 1, phase: "morning", shorts: 0 };   // 3 shorts = one phase
+state.flags = { priceMultiplier: 1, weather: "..." };   // also season, playerPriceMultiplier,
+                                    // playerPriceUntilDay, lodgingPaidUntilDay, epilogueShown
+state.time = { day: 1, phase: "morning", shorts: 0 };   // 3 shorts = one phase; late, noSleep and
+                                    // instants (6 instants = a short) are kept only while set
 state.meta = { seed, turn, createdAt, townName, townVersion: 1, lastRollKey: null };
+                                    // lastRollKey: the retry locks, keys joined by ";"
 state.player.storyPoints // 0..3
+state.player.obligations = [{ id, kind: "debt"|"blackmail"|"promise"|"errand"|"lodging",
+  npcId, text, amount, dueDay, itemName, status: "open"|"met"|"missed",
+  onMiss: [], onMet: [], createdTurn, createdDay }];
+state.player.progression = [{ turn, day, threadId, gain }];   // a thread's first resolution
+state.news = [{ day, phase, text, factionId, public, seen, epilogue? }];   // newest 60
+state.bans = [{ locationId, untilDay, byNpcId? }];
+state.eventsFired = ["evt_..."];
+state.fight = { npcId, hits, day, phase, locationId };   // the Pipeline's, inside the turn
+npc.hurtUntilDay                    // knocked down: at home every phase until then
 ```
 
 ### Map
@@ -197,23 +286,34 @@ another place asks "Go to ...?"; only that chip sends the Do turn "I head to
 `record_changes` shape (SPEC.md section 10) plus an `effects` array of the
 ops above. It returns `{ applied: [...], rejected: [{ path, reason }] }` and
 pushes rejections to the debug console. Every number is clamped, every id
-checked, per SPEC.md section 10 "Validation in State.apply()".
+checked, per SPEC.md section 10 "Validation in State.apply()". The
+bookkeeper's diff comes with `{ source: 'model', present: [npcIds],
+rollSuccess, attacked }` and is held to one turn: `goldDelta` ±500, `hpDelta`
+±3 and never from above 0 to 0 unless `attacked` and the roll failed, two
+things carried, one seed, conditions of three days at most, and items refused
+when their payment was. `record_changes` gains `npcFates: [{ npcId, status:
+'arrested'|'gone'|'dead'|'hurt' }]` (someone present, one a turn, all but
+`hurt` only after a roll that succeeded; `hurt` sets `hurtUntilDay = day +
+2`), `memoriesSettled: [{ npcId, text }]` and `obligationsSettled: [id]`. A
+debt or blackmail is also met by a `goldDelta` that hands over the amount
+with the person present, an errand by an `itemsLost` of its `itemName`. The
+result adds `progressed` and `settled`.
 
 ## Module responsibilities
 
 | Module | Owns |
 |---|---|
 | `Rng` | mulberry32 seeded by `meta.seed`; `Rng.int(a,b)`, `Rng.pick(arr)`, `Rng.d(n)`; advances a counter stored in `meta.rngCalls` so a loaded save continues deterministically |
-| `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complication selection, the retry lock (`meta.lastRollKey`) |
-| `Tables` | create NPC / minor location / item / complication / weather from `TABLES` via `Rng` |
-| `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()` |
-| `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type |
-| `World` | world tick (clocks, schedules, grudges, favours, news), seed firing, `applyEffects` |
-| `Style` | banned-phrase and length checks |
-| `Api` | real provider and mock provider behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting |
-| `Pipeline` | the 13 steps of SPEC.md section 6 |
-| `Storage` | autosave, slots, export, import, settings (key storage per SPEC.md section 13) |
-| `UI` | rendering, feed, panels, sheet, screens, autocomplete |
+| `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complications that fit the action (`complication(ctx)`), the retry locks (`lockKey`, `isLocked`, `lockFor`, `lock`, `clearLocks`; a set in `meta.lastRollKey`), `threat(npc)` and `fightDamage(tier)` |
+| `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
+| `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
+| `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
+| `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
+| `Style` | banned-phrase and length checks, hard and soft problems, invented names |
+| `Api` | real provider and mock provider behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting (1-hour cache writes); timeouts, `abort()`, retries, `checkKey()`, `prewarm()` |
+| `Pipeline` | the 13 steps of SPEC.md section 6; the status listener, `abort()`, the one-deep queue, the card game, `/recap`, the epilogue turn |
+| `Storage` | autosave (and the previous autosave), slots, export, import, settings and presets (key storage per SPEC.md section 13), the second-tab guard |
+| `UI` | rendering, feed, panels, sheet, screens, autocomplete, the ⋯ actions, the status line |
 | `Commands` | the `/` commands |
 | `App` | boot, screen routing |
 
@@ -281,6 +381,21 @@ The real town is Ommelveer (`content/town-data.js`, validated by
    different town; none of these people or places exist in this game):".
 9. The dead tally clerk Jouke Feikema is referenced in text only and is not
    an NPC record.
+10. Lockett's Ferry (30 Oct 2026, direction change 10). Flags set by
+    content: `royceBought`, `royceTurned`, `riverUnwatched`, `coltArrested`,
+    `bridgeReportVoid`, `oldBridgeClosed`, `secondInspectionOrdered`,
+    `engineerNoShow`, `vadaNewWill`, and from the council meeting
+    `councilVoted`, `councilBackedDownstream`, `councilBackedInTown`,
+    `bridgeVoteTabled`, `policeDissolutionPassed`, `policeKept`; every flag a
+    condition reads is set somewhere (the validator checks). The council has
+    five seats: Jolene Overstreet (mayor), Royce Pittman (the swing vote),
+    Lamar Haskins, Hollis Byrd and Elbert Gentry. The factions run 5
+    (police), 6 (Sturdivant) and 8 (Night Run) segments a clock, and a
+    completion never adjusts its own faction's clock. Seeds may carry
+    `effects`, `requires`, `alt` and `notBeforeDay`, and a location trigger
+    may name several places (the tackle box). Tags read by rules: `elderly`,
+    `teen`, `tough`, `police` and `gossip` (`armed` and `frail` too, though
+    nobody carries them yet); `council` marks the five seats for people only.
 
 ## Setting change: modern day (owner direction, 27 Oct)
 
@@ -655,3 +770,159 @@ talking, I can direct it to one person or all."
      (`path: "missingItem"`). When something carried does answer to it, it
      becomes `usesItemId`. The mock parser sets `missingItem` for stab,
      knife, shoot, gun and drive with no matching item.
+10. **The approved review** (owner, 30 Oct 2026). Six reviews of the code at
+    8c11bad were consolidated into one the owner approved: the narrator did
+    not know the story (goals, loose ends, threads, what the clocks did), the
+    living world talked to itself, actions did not bite, the first five
+    minutes misled (the demo was the default), and robustness had holes (no
+    timeouts, truncated turns saved, autosaves overwritten). Six agents fixed
+    it in parallel, one area each, to written contracts between the areas,
+    and an integration pass joined the seams. Each area's full notes are in
+    `docs/notes/` (`content`, `engine-world`, `engine-state`, `prompts`,
+    `transport`, `ui`), each ending with what changed at integration. The
+    shapes are in "Shared data contract" above. Rules version 8.
+   - **Content.** The calendar (`TOWN_DATA.calendar`; day 1 is Thursday 8
+     October 2026), `closedOn: ["Sunday"]` on the Low Water and Byrd's Pawn,
+     school days (`awayOn`) for the teacher and the three teenagers, and
+     people put where their own text says they are. Facts that agree (prices,
+     dates, the river road, a five-seat council). Nobody made up in any
+     string (`tests/mentions.cjs` gains a `NOBODY` list of made-up crowds).
+     Every loose-end option binds by its own tag to the person it means and
+     carries an obligation (`obligation`, `obligations[i]`, `onStart` for the
+     letter). Every background has a prepaid phone and a `hook`. 13 grudges
+     and 12 favours with `effects`, `public`, `forTags` / `notForTags` (new
+     tags `elderly`, `teen`, `tough`, `gossip`). Clocks of 5, 6 and 8
+     segments with `requires` / `alt` and `clockAdjust` reactions; seeds with
+     `effects`, `requires`, `alt`, `notBeforeDay` and a list trigger. The
+     council meeting (`TOWN_DATA.events`: day 6, evening, Town Hall, six
+     attendees, seven branches and a default, the police dissolution as item
+     four in every branch) and the epilogue (day 21 or `oldBridgeClosed` /
+     `secondInspectionOrdered`, five branches and a default). 20 rumours with
+     `tellerIds`, `threadId`, `factionId`; thread `reward`s; goods `kind`s;
+     `GOAL_PRESETS`. `TABLES.npc` keeps `firstNames` and `occupations` only.
+   - **Engine state.** The 13 new effect ops. `State.season`, `weekday`,
+     `dateLine`, `isClosed`, `isBanned`, `priceFactor`, `restQuality`,
+     `obligations`, `tickObligations`, `expireDaily`, `news`, `absentNote`,
+     `awayNow`, `laidUp`. The ledger in `player.obligations` (ids
+     `obl_<kind>_<npc id>`; settled by an engine op, by the bookkeeper's
+     `obligationsSettled` with the person present, or by paying or handing
+     over in play). Time: `advanceTime` takes `{ cost, toPhaseStart?, cause?
+     }`; `/wait` and `/skip` land at shorts 0; six instants make a short
+     except when the cause is `rest`, `wait`, `skip`, `arrival`, `defeat`,
+     `arrest` or `epilogue`; a sleepless morning adds Tired (`-1 all`,
+     until a rest); a rest heals 3 in a bed, 1 rough with Stiff (`-1 might`)
+     for the day; a defeat is not a sleepless night. The bookkeeper's diff is
+     capped (see above) and gains `npcFates`, `memoriesSettled`,
+     `obligationsSettled`. A story point only on a thread's first resolution
+     (`resolvedOnce`), with progression: +1 to `thread.reward` (at most +3),
+     else +2 max HP (at most 16), in `player.progression`. The dead leave
+     every schedule. `validateShape` is deep with string caps and checks the
+     town too; snapshots hold `State.town`; `load` returns `{ state,
+     rulesVersion, newer }`. Engine keys `expireDaily`, `newsSeen` (`true`,
+     or `'public'` for what "Overnight in town" told) and `eventsFired`.
+     `RULES_VERSION` is 8.
+   - **Engine world.** Conditions count sign and size (`"+2 might"` is +2;
+     words with no number count nothing). The retry lock is a set of keys:
+     the action's family (talk and persuade `ask`; buy, sell, give `deal`;
+     deceive `lie`; intimidate `threaten`; attack `fight`; sneak, steal
+     `sneak`; search, look `search`; `take`; the rest `handle`), its targets
+     and item, at that place, day and phase; an attack on someone still
+     present has no key. `Dice.threat`, `Dice.fightDamage` (partial 1,
+     failure 1 to 3, fumble 3), `Dice.complication` (20 object entries that
+     fit the action's kind, the tier and who is present; five carry
+     effects). `Dice.successes` and `Dice.diminishing` (1, ½, ¼, then 0) are
+     there for repeated asks, but nothing calls them yet (see the
+     transport bullet). Who people mean: `Town.matchExisting` reads tags, kin
+     words ("Colt's dad"), titles ("Mrs. Pittman") and words like cop,
+     preacher, kid, old man; `guessKind` and plausibility read the head
+     noun; a 13th made place is refused. World honours `requires` / `alt` on
+     seeds and completions, applies seed and template effects through
+     `fillEffects`, makes every completion news, fires town events (the
+     attendees come for that phase; a scene when the player is there) and
+     the epilogue once (`flags.epilogueShown`), ticks obligations each
+     morning (a missed one is private news and a due event that brings the
+     person), plants a grudge or favour from the templates whose filters fit
+     (one per memory, none for 7 days after one fires, +10 when a grudge
+     fires), drifts attitudes 2 a day toward the town's starting attitude
+     without a fresh weight-3 memory, reads `State.season()` for the weather,
+     and has `knockDown` and `arrestPlayer`. `Tables.npc()` is gone;
+     `ACTION_TYPES` has `gamble`.
+   - **Prompts.** The narrator packet runs oldest to newest: STORY SO FAR
+     (the chronicle, up to 400 words of whole day-stamped entries), EARLIER
+     (the last ten journal lines), LAST 3 TURNS, the clock line with the
+     date (`DAY 2 (Friday 9 October), EVENING (late)`), PLACE, PLAYER with
+     goal and flaw, a CARRYING line derived from what is carried, PRESENT
+     with traits, `wants` and loose-end ties, WHAT PEOPLE KNOW (its rules
+     moved into the cached style block), LOOSE ENDS, OPEN (threads and
+     obligations), TOWN NEWS (the last five public items; the cached town
+     block says TOWN NEWS wins), DESTINATION saying why a place is shut,
+     THEN for a walk after the action, TIME THIS TAKES, PLAYER TYPED, and
+     `MODE: epilogue`. Secrets only for `ctx.revealSecretFor`. `Style.check`
+     marks each problem hard or soft and catches names the town does not
+     have; the rewrite note leads with the hard ones. Eight casual example
+     turns written in the packet's field format. The parser gets LAST TURN,
+     a difficulty and stat rubric, `moveWhen`, `aboutIds` and `gamble`; the
+     bookkeeper a field rubric, each present person's last three memories,
+     the running clocks, thread clauses, open obligations and news.
+     `record_changes` has 45 properties: the three new fields add seven, so
+     `attitudeChanges[].reason`, `newSeeds[].cause` and the nested
+     `newSeeds[].trigger` (now flat `triggerType` / `triggerValue`) were
+     dropped. A live grammar probe is still owed. Rumours spread through
+     `tellerIds`, the `gossip` tag and households. The mock plays like a
+     demo.
+   - **Transport.** Every call runs under an `AbortController`: 45 s idle on
+     streams, 120 s on JSON calls, and `Api.abort()` behind Stop. One retry
+     on 429, 500, 502, 503, 504, 529, a network error, a timeout, a broken
+     stream or a mid-stream overload, after `retry-after` (at most 10 s) or
+     1.5 s. A `max_tokens` stop retries once at twice the limit and is never
+     committed; the narrator's `max_tokens` follows its effort (2000, 3000,
+     6000). `cache_control: { type: 'ephemeral', ttl: '1h' }` on the
+     narrator's three blocks, writes priced at 2x from
+     `usage.cache_creation.ephemeral_1h_input_tokens`, `prewarm` after 50
+     minutes; `checkKey` (`GET /v1/models`) and `validKey`. A narration is
+     rewritten only for a hard problem, as an edit of the draft, which stays
+     on screen. A bookkeeper failure keeps the narration (`changes: 'not
+     recorded'`, one retry in the background). The chronicle runs after the
+     turn is saved, once the log has 16 entries, keeping 6.
+     `setStatusListener`, `abort`, `acceptsQueue` and a one-deep `submit`
+     queue. A `new:` item an action rolls for is made only when the roll
+     succeeds (a failed search finds nothing); narrated due
+     events are bookkept on `/look`, `/rest`, `/wait`, `/skip`; scene
+     changes are shown the turn after they happen; a defeat is not charged
+     its action's time. Shut doors (`closedOn`, bans) wherever a walk
+     happens; `/skip to X at <phase>` walks first. The card game, fights
+     (`state.fight`, written directly inside the turn's snapshot; the third
+     hit knocks down; police present arrests), `revealSecretFor`, `/recap`,
+     "Overnight in town", the epilogue turn, "Cheat: success". The Pipeline
+     stores the retry lock through `Dice.lock`, which locks a social roll
+     that succeeded as well as one that failed; `Dice.diminishing` is not
+     applied. Upgrade stamps each step as it completes and keeps the ones
+     that worked, never cuts memories within `MEMORY_MAX`, refuses a newer
+     save, and adds version 8, "An arc". The CI workflow.
+   - **UI.** The demo is no longer the default (`settings.playChoice`; the
+     choice view; the demo bar; a chip on the title; entering a key turns
+     the demo off). The title puts the buttons first. Creation is five
+     steps on a phone with Random character, stat steppers, goal suggestions
+     and loose-end chips; a first-turn tip. The status line, Stop and
+     Queued; Enter on an empty box does nothing; the phone Say row with its
+     "To:" picker; the ⋯ actions; quiet lines kept on their log entry
+     (`notes`); attitude band lines. The Journal's five sections; People
+     search, sort and folded groups; map labels that avoid each other, Go
+     there and Expand map; closed and banned places; Character standings,
+     Spend and Grown; Debug's news, obligations, bans and events. Settings
+     presets (Thrifty, Standard, Best; the rest under Advanced), Check key,
+     the session line and the warning beside Remember. Saves: the previous
+     autosave, asking before replacing an unslotted one, drawing a loaded
+     game before saving it, the second-tab guard, the newer-save banner, the
+     5 MB import cap, the damaged autosave's download. A content security
+     policy (`connect-src https://api.anthropic.com`). Focus moves to each
+     screen's heading, the phone sheet is modal, the tablist takes arrow
+     keys, streaming stays out of the live region, and `--faint` meets
+     4.5:1.
+   - **Left open** (from the integration pass): a due event can be narrated
+     many turns late after a string of `/rest` (two a narration); a town
+     event the clock jumps over (`/cheat time`) fires late with its "on
+     Tuesday" text; `state.fight` has no op; `State.obligationEffect`, which
+     Upgrade asks for, does not exist (its fallback builds the same effect);
+     the live grammar probe for `record_changes`; no recorded live opening
+     scene for the demo.

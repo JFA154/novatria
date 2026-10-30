@@ -7,36 +7,58 @@ three-officer police department each want something from the town, and the
 player arrives with three loose ends of their own. You type any action and
 Claude narrates it. The game's code owns every fact, number and dice roll.
 Claude only describes what the game state says is there, and the town keeps
-moving on its own: faction plans advance, grudges and favours come due, and
-news spreads.
+moving on its own: faction plans advance, debts fall due, grudges and favours
+come due, news spreads, the council votes on the bridge on the first Tuesday,
+and the town's story reaches an ending by the third week.
 
 ## How to play
 
 1. Open `index.html` in a browser. It is one self-contained file, so it works
    straight from disk (`file://`) or from any static host. No build step, no
    server.
-2. **Settings → API key**: paste an Anthropic API key from
-   [console.anthropic.com](https://console.anthropic.com). The browser calls
-   `https://api.anthropic.com/v1/messages` directly with your key. Nothing goes
-   anywhere else.
-   - **Remember on this device** ticked: the key is kept in this browser's
-     `localStorage` and survives closing the browser, on this device only.
-     Unticked: it is kept in `sessionStorage` and forgotten when the tab closes.
-     The key is never written into a save or an export.
-3. **Mock mode** is on by default. In mock mode a built-in dummy parser,
-   narrator and bookkeeper run the whole turn loop offline. You can try the game,
-   the dice, the commands and the living world without a key or any tokens.
-   Mock narration is tagged "Mock narration" in the feed. Untick it in Settings
-   to play with Claude.
-4. **New game** walks you through character creation: name, background and
-   age, one stat point to move, a goal, a flaw and three loose ends. Each
-   loose end ties to someone already in town (see The cast). Then press
+2. **New game** first asks how you want to play, until you have chosen:
+   - **Play with Claude (paste your API key)**: paste an Anthropic API key
+     from [console.anthropic.com](https://console.anthropic.com) and press
+     Continue. The browser calls `https://api.anthropic.com/v1/messages`
+     directly with your key, and `https://api.anthropic.com/v1/models` when
+     you press **Check key** in Settings. The page's content security policy
+     refuses every other host, so nothing goes anywhere else.
+   - **Try the offline demo (placeholder text)**: a built-in dummy parser,
+     narrator and bookkeeper run the whole turn loop with no key, no calls and
+     no cost. The replies are canned and tagged "Mock narration", so the story
+     barely moves, but the controls, the dice, the commands and the living
+     town all work. It is a demo of the game, not the game: while it is on, a
+     slim bar under the top bar says "Offline demo: replies are canned." with
+     a button to add a key.
+
+   Entering a key anywhere (that view, Settings, or the chip on the title
+   screen that says which way you are playing) turns the demo off, with the
+   note "Mock mode off: playing with Claude". The demo switch itself is in
+   Settings under **Advanced**.
+
+   **Remember on this device**, beside the key field, ticked: the key is kept
+   in this browser's `localStorage` and survives closing the browser. Other
+   HTML files you open from this computer in the same browser can read it, so
+   tick it only on your own device. Unticked: it is kept in `sessionStorage`
+   and forgotten when the tab closes. The key is never written into a save or
+   an export.
+3. **Character creation** asks for a name, a background and age, one stat
+   point to move, a goal and a flaw, and three loose ends, or **Random
+   character** fills in all of it (see Character creation). Then press
    **Begin**.
-5. Type what you do and press Enter (Shift+Enter for a new line). The
+4. Type what you do and press Enter (Shift+Enter for a new line). The
    **Do / Say** switch at the left of the input says whether you are doing
-   something or saying something (see below). Type `/` to list the commands.
-   The side panel (on a phone, the tab bar above the input) has Character,
-   People, Journal and Places.
+   something or saying something (see below). Type `/`, or press the **⋯**
+   button beside the switch, for the commands. The side panel (on a phone,
+   the tab bar above the input) has Character, People, Journal and Places.
+   After the first narration of your first game a three-line tip says this
+   again; × closes it.
+5. While a turn runs, a line above the input says what is happening
+   ("Reading your action…", "Writing…", "Updating the town…") and **Send**
+   becomes **Stop**. Stop cancels the turn: nothing changes and your words go
+   back in the box. Once the narration is in, the box is yours again while
+   the town is updated: type the next line and press Send, and it waits
+   ("Queued") and runs as soon as the turn is done.
 
 ## Do and Say
 
@@ -53,7 +75,9 @@ In Say mode a row of buttons appears above the input: **Everyone**, plus one
 button for each person here, by name. One is always picked: the only person
 here if there is just one, otherwise Everyone. Tap another to talk to them.
 The row changes with the scene (after each turn, when you move, when you load
-a game), and your pick is forgotten when you go somewhere else.
+a game), and your pick is forgotten when you go somewhere else. On a phone the
+row is one line that scrolls sideways, and with more than four people here a
+"To: Everyone ▾" picker leads it and stays put while the names scroll.
 
 In the story, a Say line shows your words in quotes and who you said them to:
 `“Run.” — to Royce Pittman` or `“Anybody here hiring?” — to everyone`.
@@ -68,58 +92,95 @@ stays where it was.
 Commands (`/look`, `/undo` and the rest) work in either mode. The switch is
 remembered in this browser; who you were talking to is not.
 
+**Wait, ⋯ and Undo.** Enter on an empty box does nothing. With the box empty,
+the button beside it reads **Wait**: pressing it is a paid turn in which you
+say and do nothing and let the people here act (`/pass`). The **⋯** button (on
+a phone also Menu → Actions and commands) lists Look around, Wait until… (the
+other three phases), Sleep, Recap, Undo last turn, Spend a story point (it
+fills in `/fact ` for you to finish) and Commands help. The newest line you
+typed carries a small **Undo** link too. Quiet lines in the story ("Added to
+the map", "Edited …", damage) are saved with their turn, so they survive a
+reload, and an undo takes them back with it.
+
 **You have only what you carry.** Every turn the narrator is told exactly
 what you carry and how much money you have, and that you have nothing else.
 When you try something that needs a thing you do not have and that is not
 lying here ("I stab Royce" with no knife, "I drive off" with no car), the
 turn still plays, but as what you can do without it: bare hands, a bluff,
 or finding out you have nothing. The roll counts no item, and the
-bookkeeper records no use of the thing.
+bookkeeper records no use of the thing. Every background starts with a
+prepaid phone (one bar, by the water tower), so the people who live
+elsewhere can be called. A drink, a meal, a haircut or a night at the motel
+is had where you pay for it and never carried. A thing you look for that the
+town has not written in is made only when the roll for it succeeds; a failed
+search turns up nothing.
 
 ## Character creation
 
-The background step also asks your age, 16 to 90. Each background starts
-at its own age (a veteran at 34, a dropout at 19, a fired bookkeeper at 38,
-a river deckhand at 36, a group home kid at 18, a poker hustler at 31), and
-picking a background fills it in until you type your own. The summary card
-and the Character tab show it beside your name ("Tomas Reed · 34") with what
-your background means, and the narrator and the parser hear it with your
-name every turn.
+On a phone creation is five steps; on a laptop, one page. **Random
+character** at the top fills in every step (a name nobody in town has, a
+background, maybe a moved stat point, a suggested goal, a flaw and three loose
+ends) and goes to the summary, where everything can still be changed.
+
+- **Background and age.** The background step also asks your age, 16 to 90.
+  Each background starts at its own age (a veteran at 34, a dropout at 19, a
+  fired bookkeeper at 38, a river deckhand at 36, a group home kid at 18, a
+  poker hustler at 31), and picking a background fills it in until you type
+  your own. The summary card and the Character tab show it beside your name
+  ("Tomas Reed · 34") with what your background means, and the narrator and
+  the parser hear it with your name every turn. Each background starts with
+  three things, one of them the prepaid phone, and someone in town has a
+  first job or question for it, which they bring up when you are first with
+  them: Chief Marcus Bell for the veteran, Dewayne Mangum for the dropout,
+  Hollis Byrd for the fired bookkeeper, Wade Purvis for the river deckhand
+  (from day 2), Nadine Dees for the group home kid and Curtis Pruett for the
+  poker hustler.
+- **Stats.** Might, wits, charm and stealth are tiles, each with a line on
+  what it is for, and − / + steppers: you take one point from one stat and
+  give it to another.
+- **Goal and flaw** share a step. The goal has six suggestions from the
+  town's own stories to tap, or you type your own.
+- **Loose ends.** Pick three kinds. Each is one line you can edit, with the
+  kind's three options as suggestions to tap. Each option means someone in
+  the cast (see The cast and The story moves).
 
 ## Places and the map
 
 The map starts with the town's fifteen public places, from Pittman's and the
-Low Water to Front Street, Riverside Cemetery, the Water Tower, the Bluff
-where the highway comes in and the River Road. The homes the cast lives
-in (eight of them: the Mangum House, the Pittman Place, the Parsonage and the
-rest) are written into the town but start off the map, until someone tells
-you about one. When someone names a specific place you could walk to
-("Dewayne's is the white house about a mile up the river road"), the home
-the cast has written for that person appears on the map, in the Places list
-and on the roads, with a quiet "Added to the map" line in the story. It
-shows with a dashed marker, marked "heard of", until you visit. Walk there
-like anywhere else ("I head to Dewayne's house", or tap it on the map). A
-place the town does not have (a fishing camp up the creek) is added as a new
-place in the same way; the game adds at most one place a turn and twelve new
-ones a game (the written homes do not count).
+Low Water to Front Street, the Water Tower, the Bluff and the River Road. The
+cast's eight homes (the Mangum House, the Pittman Place, the Parsonage and
+the rest) start off the map until someone tells you about one ("Dewayne's is
+the white house about a mile up the river road"): then it appears on the
+map, in the Places list and on the roads, with a quiet "Added to the map"
+line, dashed and marked "heard of" until you visit. A place the town does not
+have (a fishing camp up the creek) is added the same way, at most one a turn
+and twelve a game. Walking to a place nobody has told you about yet says
+"You don't know where that is yet. Ask around." and spends nothing.
+
+Each label sits where it hides the fewest markers and other labels; where you
+are shows as a ring and a bold label. On a phone, **Expand map** fills the
+screen with it (Close map or Escape to go back).
 
 **Places tab.** Under the map, **Places you know** lists every place you have
 been or heard of. Tap one to open its sheet: what it is, what you notice
-inside, when it is open, how it came to be, who lives there, who works there
-or drinks there, who is buried there and who is there right now.
+inside, when it is open ("Closed Sundays" beside the hours where it is), how
+it came to be, who lives there, who works there or drinks there, who is
+buried there and who is there right now. Each exit and each sheet has a **Go
+there** button, the same Do turn as tapping the place on the map and then its
+"Go to" chip ("I head to the Low Water."). A place shut today is marked
+"(closed today)", and a place you are barred from says "You are banned until
+Day 9." on its sheet. Walking to either is a walk to a shut door, and the
+narrator is told why.
 
 **Out of town.** Fifteen more places are written into the town because
-people talk about them: Clayburn, the county seat twenty-six miles north,
-with the sheriff's office, the county home, the county school and the old
-county hospital; Calder, with Calder Regional and the Willows treatment
-program; the state penitentiary; the Sturdivant bottomland and timber; the
-old paper mill; the bypass; the dry county across the bridge; and the
-coast. They are listed under **Out of town** with how far away they are and
-their history, but they are never on the map and the story never goes
-there. Asking to go ("I drive to Clayburn", or the parser picking one)
-costs nothing and says so plainly: "Clayburn is out of town (twenty-six
-miles north up the state highway, about forty minutes by car). The story
-stays in Lockett's Ferry: you can talk about it, but you can't go there."
+people talk about them: Clayburn, the county seat (the sheriff, the county
+home, the county school), Calder with its hospital and the Willows, the state
+penitentiary, the Sturdivant bottomland, the old mill, the bypass, the dry
+county across the bridge and the coast. They are listed under **Out of
+town** with how far away they are and their history, but the story never
+goes there. Asking to go costs nothing and says so: "Clayburn is out of town
+(...). The story stays in Lockett's Ferry: you can talk about it, but you
+can't go there."
 
 ## The cast
 
@@ -137,27 +198,25 @@ Dewayne, and Dewayne's wife is Mavis), a home, a place in every phase of
 the day, an age that fits their look and their family (a parent is 16 to 60
 years older than their child), and a history of two or three sentences:
 where they come from, what happened to them and how they came to be where
-they are.
+they are. The council has five seats: Mayor Jolene Overstreet, Royce Pittman,
+Lamar Haskins, Hollis Byrd and Elbert Gentry.
 
 **Everyone the town mentions exists.** Anyone the written town names, even
-once and only by name, is a record: 25 more people who never appear. Eight
-are dead (Clyde Pittman, who opened Pittman's in 1966 and died at the pumps
-in 2009; Ruth Haskins; Inez Crocker, whose house the Mangums live in; Amber
-Lott, at nineteen), each with when and how they died and where they are
-buried. Seventeen live elsewhere (Dale Purvis in the state penitentiary,
-Sheriff Hoyt Bramlett in Clayburn, Stanley Wexler, who runs the motor court
-by email from Calder, and Leah Dees at the Willows), each with where they
-are and how they can be reached. They can be talked about, called or written
-to in the story, but they never walk in. `tests/mentions.cjs` scans every
-line of the content for capitalised names and "the <kind of place>" phrases
-that are not records (with a short list of words like Mr, Bible and the
-months), and the town check fails on any.
+once, is a record: 25 more people who never appear. Eight are dead (Clyde
+Pittman, who died at the pumps in 2009; Amber Lott, at nineteen), each with
+when and how they died and where they are buried. Seventeen live elsewhere
+(Dale Purvis in the state penitentiary, Leah Dees at the Willows), each with
+where they are and how they can be reached: they can be talked about, called
+or written to, but they never walk in. `tests/mentions.cjs` fails the town
+check on any capitalised name, "the <kind of place>" or made-up crowd ("two
+other boys", "the night clerk") in the content that is not a record.
 
 **The town has a past.** The narrator is told how Lockett's Ferry came to be
 (the ferry, the 1938 bridge, the school, the bypass and the mill leaving),
 eleven things that happened in the last three years (from Ruth Haskins's
 death in January 2024 to the council setting its bridge vote in September
-2026), and every place's history and hours. It is 2026.
+2026), and every place's history and hours. The story starts on Thursday 8
+October 2026.
 
 `docs/CAST.md` is the roster, by household, then the people who live
 elsewhere, the dead, the town's history and every place; it gives ages and
@@ -167,21 +226,19 @@ histories but leaves out looks, goals and secrets, so it spoils nothing.
   not the bookkeeper, not the loose ends, not a story point. Anyone the story
   or you mention is one of the cast or does not exist (see People). A
   `/fact` can make something true about someone in town ("the mechanic owes
-  me a favour") but cannot add anyone.
-- **The narrator knows everyone.** Every narration carries the town and the
-  whole cast as two cached system blocks after the style guide: the town's
-  history, recent events and places, then one line for each person here
-  ("Mavis Mangum (41, she/her; ...)", with who they are to whom, where they
-  usually are and their history), then the dead and the people who live
-  elsewhere, one short line each. So a person the story mentions is always
-  the same person, with the same name, age, spouse and job.
-- **Loose ends are people in the cast.** Each loose end you pick at creation
-  ties to someone already written who fits the option you kept: a debt to
-  someone who lends, a repo man or a bookie; someone looking for you to a
-  parolee or a stranger with a grudge; a secret to someone in town who
-  trades in them; something lost to someone who keeps old records; a
-  promise to a bartender. Nobody is tied to two loose ends
-  while anyone else is free.
+  me a favour") but cannot add anyone. A narration that names someone or
+  somewhere the town does not have is sent back to be written again.
+- **The narrator knows everyone.** Every narration carries the town (history,
+  recent events, places) and the whole cast (one line each: "Mavis Mangum
+  (41, she/her; ...)", with ties, usual places and history; then the dead and
+  the people elsewhere) as cached system blocks, so a person the story
+  mentions is always the same person.
+- **Loose ends are people in the cast.** Each option you keep ties to the
+  person its words mean: the card debt to the man who runs the card game,
+  the title loan to the repo man, the letter to the young woman it is
+  addressed to, the girl who died in August to the people who loved her.
+  Words you write yourself tie to someone who fits the kind. Nobody is tied
+  to two loose ends while anyone else is free.
 - **Homes to find.** The cast's eight homes start off the map and appear
   when someone tells you where a person lives (see Places and the map).
 
@@ -194,42 +251,55 @@ long you have been in town, and on your first day a spoken line that invents
 a past with you ("I've known a while", "he called me last night") is sent back
 to be rewritten.
 
-The People tab lists who you have met, with how they feel about you, where
-you last saw them and what they remember, then the people you have only
-heard of. Everyone has an age and pronouns (he/him, she/her or they/them),
-shown beside their name on the card ("Mavis Mangum · 41", she/her), and the
-narrator gets the same age and pronouns right after each person's name, so
-the story and the sheet always agree. An open card also shows their age,
-home, ties and history. Someone the story names who is dead or lives
-elsewhere (Clyde Pittman, Dale Purvis) is listed under **Gone** or
-**Elsewhere** once their name comes up, with when they died and where they
-are buried, or where they live and how to reach them. If the sheet has someone wrong, open their card and tap
-the right pronouns (or type `/pronouns Mavis she`): the story follows from
-the next turn, and a relation that carries a gendered word turns with it
-("Dewayne's husband" becomes "Dewayne's wife"), as do the look and voice
-lines ("A man with a bitter look about him." becomes "A woman with a bitter
-look about her."; words in quotes are left alone).
+**The narrator knows who people are to you.** Every turn it is told your goal
+and flaw, the traits of each person here and what they want (never to be
+said outright), your loose ends from the other person's side ("tied to you by
+a debt"), the town's open stories and what you owe, and the latest town news.
+So the man you owe money greets you as the man you owe money, from the first
+turn. Someone's secret reaches the narrator only after a social roll aimed at
+them succeeds, or once they like you (attitude 50 or more).
+
+The People tab lists who is here now, who you have met, with how they feel
+about you, where you last saw them and what they remember, then the people you
+have only heard of. A search box at the top (name, job, or a place you saw them
+or they live) stays put while the list scrolls, and the people you know can be
+sorted by last seen, attitude or name. Everyone has an age and pronouns
+(he/him, she/her or they/them), shown beside their name on the card ("Mavis
+Mangum · 41", she/her), and the narrator gets the same age and pronouns right
+after each person's name, so the story and the sheet always agree. An open
+card also shows their age, home, ties and history, and what is up with them
+today: "Hurt, until day 5", "At the county school in Clayburn until evening",
+"Banned you from the Low Water until day 9". Someone the story names who is
+dead or lives elsewhere (Clyde Pittman, Dale Purvis) is listed under **Gone**
+or **Elsewhere** once their name comes up, with when they died and where they
+are buried, or where they live and how to reach them; both groups start
+folded away and open for a search that finds someone in them. If the sheet
+has someone wrong, open their card and tap the right pronouns (or type
+`/pronouns Mavis she`): the story follows from the next turn, and a relation
+that carries a gendered word turns with it ("Dewayne's husband" becomes
+"Dewayne's wife"), as do the look and voice lines ("A man with a bitter look
+about him." becomes "A woman with a bitter look about her."; words in quotes
+are left alone).
+
+When someone you know crosses a line in how they feel about you, a quiet line
+says so after the turn: "Loretta Gaddis warms to you.", "... cools toward
+you." or "... won't forget that."
 
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside
-the pronouns, or type `/edit Mavis`. The card turns into a form with their
-name, age (0 to 120, or blank), pronouns, role, look, voice, history (up to
-400 characters), up to three personality traits, how they
-feel about you (a slider from -100 to 100, with the word the card shows),
-who they are to whom (someone else in the game and the relation, such as
-wife or boss), their home (any place you know, or nowhere: off-screen when
-nothing else has them), whether they are free, arrested, gone or dead (dead
-takes them off the map; free brings them back to their usual places and
-home), and what they remember about you (change, add or remove lines, each
-small, notable or serious). Their goal and secret sit folded away under
-"Hidden from you": they are the game's secrets about this person, and
-reading them spoils the story. **Save** checks everything first (a name
-someone else has, say, is refused with the reason and the form stays as you
-typed it), changes only what you changed, and says so in the story ("Edited
-Mavis Mangum: pronouns, role, home."); **Cancel** or Escape leaves them as
-they were, and Enter in a field never saves by accident. One `/undo` takes
-a whole edit back. The narrator, the parser and the map use the new record
-from the next turn. Editing waits while a turn is running.
+the pronouns, or type `/edit Mavis`. The form has their name, age (0 to 120,
+or blank), pronouns, role, up to three traits, how they feel about you (a
+slider from -100 to 100), who they are to whom, their home, whether they are
+free, arrested, gone or dead, and what they remember about you (each line
+small, notable or serious). Look, voice and history (up to 400 characters)
+sit folded under their own heading, and their goal and secret under "Hidden
+from you", because reading them spoils the story. **Save** and **Cancel**
+stay at the bottom of the panel while you scroll. Save checks everything
+first (a name someone else has is refused with the reason, and the form
+stays as you typed it), changes only what you changed, and says so in the
+story ("Edited Mavis Mangum: pronouns, role, home."); Cancel or Escape
+leaves them as they were, and Enter in a field never saves. One `/undo`
+takes a whole edit back. Editing waits while a turn is running.
 
 **People the story names are the cast.** When someone mentions a person
 ("his wife's gonna be thrilled", "my wife Mavis works the night counter"),
@@ -238,90 +308,290 @@ own name, job, voice and home, and the narrator has known her from the
 first turn. Nobody is added to the game, however the story phrases it, and
 the bookkeeper is not even asked for new people.
 
-**People you ask for are the cast's.** Asking for someone ("I knock and ask
-for Mavis", "I ask about Dewayne's wife", "I wave the bartender over") finds
-them in the cast by name, by who they are to someone or by their job, never
-the wrong person in the scene. If they are somewhere else right now, the
-narrator is told they are not here. Someone nobody in the cast answers to
-("the woman by the jukebox") is simply not there: the narrator is told they
-do not exist in this town, nothing is rolled from tables and no call is
-made.
+**People you ask for are the cast's.** Asking for someone finds them in the
+cast by name, by what they are ("the cop", "the preacher", "the kid", "the
+old man", "the dispatcher"), by who they are to someone ("Colt's dad",
+"Kaylee's mom", "Dewayne's wife") or by title ("Mrs. Pittman"), and someone
+here comes first. If they are somewhere else right now, the narrator is told
+they are not here. Someone nobody in the cast answers to ("the guy at the
+counter") is simply not there: the narrator is told they do not exist in this
+town, nothing is rolled from tables and no call is made. Asking someone about
+a person or a place ("ask Loretta about Wade") is talk about them, not a
+search for them.
 
 The People tab card shows who someone's people are ("Ties: wife Mavis
 Mangum; boss Royce Pittman"), from the cast and from anything you set in the
 editor.
 
+**Rumours spread.** Each of the town's starting rumours has its source and at
+least two other people who can pass it on, and from day 3 the town's gossips
+and the source's own household can tell it too. Hearing a rumour can show
+you the story it belongs to (it joins the Journal's threads).
+
+## Journal
+
+The Journal tab has five parts:
+
+- **Story so far**: the town news you have heard, with its day, and the
+  chronicle (the summary of older turns), newest first.
+- **Leads**: every rumour you have heard, with who told you and when
+  ("Loretta Gaddis told you, day 2").
+- **Threads**: the town's stories you know of, open, resolved or failed, with
+  the people each one links as buttons that open their People card.
+- **You owe / are owed**: each obligation with its day ("due Day 7 (2
+  days)"), red once it is overdue, struck through once it is settled or
+  missed.
+- **Notes**: the lines the bookkeeper writes each turn, with the day and
+  phase.
+
+`/recap` (or Recap in the ⋯ list) prints the gist in the story with no API
+call: the day, date, phase and place, who is here, the open threads, what you
+owe and by when, the three people warmest and coldest to you with the memory
+behind it, the last three rumours you heard and the last two news items. It
+also shows after Continue and after `/rest`.
+
+## Character
+
+The Character tab shows your name and age, background, stats, HP, cash, story
+points with a **Spend** button beside them (it fills in `/fact ` for you to
+finish), your reputation in town and a **Standing** line for each faction,
+your goal and flaw, **Grown** (the threads you resolved and what each gave
+you), your conditions with how long each has left ("until you rest" for
+Tired) and what you carry.
+
+Story points: you start with 2 and hold at most 3. You earn one on a natural
+20 and the first time a thread resolves (setting a thread back to open and
+resolving it again earns nothing). Resolving a thread you know about for the
+first time also makes you better: +1 to the stat the thread rewards (the
+bridge vote charm, the police vote wits, the pills at Riverbend stealth; no
+stat goes above +3), or +2 max HP (up to 16) when that stat is already +3.
+A quiet line says so: "Resolved: The bridge vote. +1 Charm."
+
 ## Time
 
-A day has four phases: morning, afternoon, evening and night, shown in the
-top bar. Talking and looking take no time. A short action (minutes to half an
-hour: a walk across town, a search, a chore) takes a third of a phase, so
-three of them move the clock on. A long one (an hour or more) takes a whole
-phase. The town moves on at every change of phase.
+A day has four phases: morning, afternoon, evening and night. The top bar
+shows the weekday, day and phase ("Fri · Day 2 · Evening"), and the story's
+dividers the same ("Day 2 · Friday · Evening"). A short action (minutes to
+half an hour: a walk across town, a search, a chore) takes a third of a
+phase, so three of them move the clock on. A long one (an hour or more) takes
+a whole phase. Talking and looking take only moments, but the clock follows
+talk too: every six of those instant actions make a short. (The narration of
+`/rest`, `/wait`, `/skip`, an arrival, a defeat, an arrest or an ending does
+not count.) The town moves on at every change of phase.
+
+**The calendar.** Day 1 is Thursday 8 October 2026, in autumn, and the
+narrator and the parser are told the weekday and date every turn ("DAY 2
+(Friday 9 October), EVENING"). The town keeps to it. The Low Water and Byrd's
+Pawn are shut on Sundays. Annette Overstreet, the teacher, and the three
+teenagers (Kaylee Pittman, Austin Lott and Micah Dees) are at the county
+school in Clayburn on weekday mornings and afternoons, so they are nowhere in
+town then, and their People cards say where they are. The council meets on
+Tuesday evening, day 6 (see The story moves).
 
 **Night lasts until you sleep.** Short actions never carry the clock from
 night into morning: after the third one it stays at night, late, however long
 the scene runs. Morning comes when you `/rest` (sleep), `/wait morning`,
-`/skip` ahead, or do something that takes hours. The narrator and the
-bookkeeper are told where in the phase the scene is (early, mid or late), at
-night that you have not slept yet, and on a morning you reached without
-sleeping that you had no sleep last night.
+`/skip` ahead, or do something that takes hours. `/wait` and `/skip` arrive at
+the start of the phase you asked for. The narrator and the bookkeeper are
+told where in the phase the scene is (early, mid or late), at night that you
+have not slept yet, and on a morning you reached without sleeping that you
+had no sleep last night.
+
+**Sleep.** Where you sleep matters. A bed heals 3 HP; sleeping rough heals 1
+and leaves you Stiff (-1 might) for the day. A bed is a night you paid for at
+the motor court (buy "a night at the motel", $49; sleeping there uses it), or
+a home where someone who lives there likes you (attitude 25 or more).
+Anywhere else is rough. A morning you reach without sleeping leaves you Tired
+(-1 to everything) until you rest. Being knocked out until morning in a
+defeat is not a night without sleep.
+
+When time passes while you stay put, anyone who arrives at or leaves your
+place is worked into the next scene as it happens: a truck pulling in, a
+door, a goodbye.
+
+## The story moves
+
+**Loose ends that know you.** The person each loose end ties to knows you
+from the first turn, and comes to you in the first week or so: the creditor
+on day 3 or 4, the person from your past on day 4 to 7, and so on. Some come
+with a number and a day:
+
+| Loose end | What you owe | Due |
+|---|---|---|
+| A debt | $600 to the lender, $300 on the title-loan note, or the $400 card debt to Curtis Pruett, by the option you kept | three days after they come to collect |
+| A secret | $200 for the blackmailer's silence | two days after they name the price |
+| The letter you promised to deliver | the letter itself, which is in your pocket from the start | four days after its addressee asks who sent you |
+| Any other promise | your word, kept in front of the person it is about | four or five days after they ask |
+
+The Journal, `/recap` and the narrator all know what you owe and when. Paying
+the full amount with the person there settles a debt or the blackmail;
+handing over the letter with its addressee there settles the errand; a
+promise is kept when the story shows you keeping it in front of them. Miss
+the day and it costs you, the next morning: the lender takes your phone, the
+repo man $150 of your cash (or what there is) and the phone, the bookie gets
+you barred from the Low Water for three days and tells the town you welshed,
+the blackmailer tells Chief Bell what you are hiding, and whoever asked the
+favour remembers you broke your word. Whoever you missed also comes looking
+for you, and the next scene starts with it.
+
+**Town news.** What the town does becomes news: a faction's plan coming off,
+the council meeting, a grudge or favour done in public, a fight in a public
+place, someone caught cheating at cards. On each new morning the news you
+have not heard yet shows as one quiet line, "Overnight in town: …", and goes
+into the Journal's Story so far. The narrator hears the last five items every
+turn and is told they are newer than anything in the town it was given at
+the start. The three factions move at different speeds, and each step of a
+plan checks the town before it happens: if someone it needs is arrested,
+dead or gone, or the vote has already been taken, something else happens
+instead, and a step for one side sets the others back.
+
+**The council meeting.** A flyer on the door at Pittman's and at the bait
+shop calls the town to the bridge vote, and from Monday (day 5) the agenda on
+the Town Hall door adds a second vote: whether to keep the police. The
+council meets on Tuesday evening, day 6, at Town Hall, with its five members
+and Chief Bell in the room. Be there and it happens in front of you
+(`/skip to Town Hall in the evening` walks you there first and then waits);
+otherwise you hear it the next morning. What the council does depends on what
+has happened by then: who has got to Royce Pittman, the swing vote, first,
+whether the bridge report still stands, how Royce feels about you, and
+whether you paid Curtis Pruett what you owed him. Every outcome settles the
+police vote too.
+
+**The ending.** On day 21, or as soon as the bridge story is decided (the old
+bridge closes, or the state orders a second inspection), one turn tells how
+the town came out of it: one of six endings, picked by what happened. Then a
+quiet line: "This is one ending. You can keep playing." The town goes on
+after it.
+
+**Grudges and favours.** Someone who comes to hate you (attitude -60 or
+below, with a serious memory of what you did) acts on it a few days later;
+someone who comes to like you that much (60 or more, with a memory of
+something that mattered) does you a good turn. Each does something real: on
+the cold side, prices up a quarter for five days, three days barred from the
+Low Water, a beating (3 HP and Beaten, -1 might, for two days; never from the
+old, the young or the police), a word to Chief Bell, a $50 police ticket; on
+the warm side, a day of cash work that pays $100, goods at cost, a meal and a
+couch (2 HP), an alibi, a warning. What is done in public becomes news. One
+feeling per offence: after one comes due, that person starts no other for a
+week, and a grudge that comes due leaves them less angry (they got even).
+Feelings with no fresh serious memory behind them for five days, and no open
+loose end with you, drift back 2 points a day toward where they started.
+
+**Asking again.** A roll that fails can't be retried in the same place and
+phase, but a different approach can (persuading after a lie, climbing after a
+lockpick), and in a fight you can keep swinging at someone who is still
+there. A social roll that worked holds too: asking the same person the same
+kind of thing again in the same place and phase gets no new roll and nothing
+more, until you move on or the phase changes.
+
+**Fights.** Who you fight sets how hard it is: the police and anyone tough or
+armed are hard, the old, the young and the frail easy. A partial costs you 1
+HP, a failure 1 to 3, a fumble 3. Three hits on one person in one scene
+(partials count) put them down: they are hurt and laid up at home for two
+days, they and everyone who saw it remember, and in a public place it is
+news. Start a fight with the police there, or at Town Hall, and you spend the
+night in the holding cell, pay a fine of up to $50, and Chief Bell remembers.
+
+**Cards.** When Curtis Pruett is at the Low Water (afternoons, evenings and
+nights), there is a card game at the back table. Say you bet ("I put $50 in",
+"deal me in"): the stake is what you name, $20 if you name nothing, never
+more than your cash. It rolls wits at normal difficulty, +2 with a deck of
+cards on you. A win pays the stake, a partial half of it, a loss costs the
+stake, and a fumble costs the stake and gets you caught cheating: Curtis
+remembers, you are thrown out and barred for three days, and the town hears
+of it. The game moves the money itself. With no game here, or nobody dealing,
+nothing is bet.
+
+**What one turn can do.** The bookkeeper that records each turn is held to
+what a turn can do: $500 in or out, 3 HP, two things gained, one new plan, a
+condition of three days at most, and nobody dies, is arrested or leaves town
+without a roll against them that succeeded. A thing bought is refused when
+the money for it was. HP never reaches 0 from what it writes unless you
+attacked and the roll failed. If the bookkeeper fails, the story you read
+stands: a quiet line says what changed was not recorded yet, and it is asked
+once more in the background.
 
 ## Settings
 
 | Field | What it does |
 |---|---|
-| API key, Remember on this device | Your Anthropic key; where it is kept (see above). |
-| Mock mode | Built-in dummy provider, no API calls. On by default. |
-| Narrator model | Writes the story (streamed). Default `claude-opus-5-5`, the current Opus. |
-| Parser model | Turns your text into an action, records what changed after each turn (the bookkeeper), and writes the chronicle every 10 turns. Default `claude-sonnet-5-5`. `claude-haiku-5-5` is the cheap option and works. |
-| Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Defaults: narrator, bookkeeper and chronicle `medium`, parser `low`. Higher effort means more thinking tokens: slower and dearer. |
+| API key, Check key, Remember on this device | Your Anthropic key and where it is kept (see How to play), with the warning beside Remember. **Check key** asks the API whether the key works (`GET /v1/models`, no tokens spent); a key with a space or a hidden character in it is caught before any call. |
+| This session | The line at the top: "This session: 23 turns · $0.61", from the token counts the API reports. |
+| Quality | **Thrifty**: Sonnet 5.5 narrates, Haiku 5.5 reads your action and keeps the books, all at low effort; about 1 cent a turn. **Standard** (the default): Opus 5.5 narrates at medium effort, Sonnet 5.5 parses at low and keeps the books at medium; about 4 to 5 cents a turn once warm (see What a turn costs). **Best**: Opus 5.5 and Sonnet 5.5 at high effort (the parser at medium); slower and dearer. Settings that match none of these show as Custom. |
+| Advanced | The offline demo switch; the narrator model (writes the story, streamed) and the parser model (reads your action, records what changed after each turn as the bookkeeper, and writes the chronicle); the effort per role (narrator, parser, bookkeeper, chronicle: `low` / `medium` / `high`, sent as `output_config.effort`; higher means more thinking, slower and dearer). |
 | Show dice rolls | Shows the quiet roll line, e.g. `Wits 14 + 2 = 16 vs 15 · Success`. |
 | Narration style | **Casual** (the default): plain and direct, like someone running the game at the table, with short sentences, no similes and little scenery. **Literary**: the original style guide, tighter and more like a novel. Takes effect from the next narration. |
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
-| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, fixes people the game made up so they match the story, brings in the town's full cast, folding anyone the game made up into the person they were, and fills in the lived-in town: ages, histories, the dead, the people who live elsewhere and the places out of town (see Updating an older game). About four API calls. |
-
-When time passes while you stay put, anyone who arrives at or leaves your place is worked into the next scene as it happens: a truck pulling in, a door, a goodbye.
+| Game: Re-read this game with the latest rules | Brings the game you have open up to the latest rules again: rewrites what people remember in the current short form, adds places people told you about, sets the clock back if it ran ahead of the story, fixes people the game made up, brings in the town's full cast, fills in the lived-in town, and gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost (see Updating an older game). About four API calls. |
 
 ## Commands
 
 | Command | What it does | API calls |
 |---|---|---|
-| `/look` | Describe the whole scene, with the longer zoom length | Narrator |
+| `/look` | Describe the whole scene, with the longer zoom length | Narrator (and the bookkeeper when something due happens in it) |
 | `/zoom <action>` | Play the action as a normal turn with the longer limit, for big moments | Parser, narrator, bookkeeper |
-| `/skip <goal>` | Jump ahead to a place and/or time ("/skip to the bar at night"). The world ticks once for each phase skipped; naming the phase it already is moves you with no time passing | Narrator |
-| `/pass` (or press **Wait**: the Send button with nothing typed) | Say and do nothing for a few minutes and let the people here act, speak or react to your silence | Narrator, bookkeeper |
-| `/rest` | Sleep until morning, heal 3 HP. The world ticks through the night. Night lasts until you sleep (see Time) | Narrator |
-| `/wait <phase>` | Wait where you are until morning, afternoon, evening or night | Narrator |
+| `/skip <goal>` | Jump ahead to a place and/or time ("/skip to the bar at night"). The world ticks once for each phase skipped, and you arrive at the start of the phase; naming the phase it already is moves you with no time passing. A place and a time go there first and then wait, so what happens there happens in front of you. A place that will not have you ("You are not welcome at the Low Water until day 9.") refuses before anything passes | Narrator (and the bookkeeper when something due happens) |
+| `/pass` (or **Wait**: the button beside the box while it is empty) | Say and do nothing for a few minutes and let the people here act, speak or react to your silence | Narrator, bookkeeper |
+| `/rest` | Sleep until morning: 3 HP in a bed, 1 sleeping rough (see Time). The world ticks through the night. The recap follows | Narrator (and the bookkeeper when something due happens) |
+| `/wait <phase>` | Wait where you are until the start of morning, afternoon, evening or night | Narrator (and the bookkeeper when something due happens) |
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
+| `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` | Take back the last turn exactly (up to 20 turns) | None |
-| `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die | Narrator, bookkeeper |
-| `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
+| `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." | Narrator, bookkeeper |
+| `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."). `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to day 1, night." One `/undo` takes it back | None |
 | `/pronouns <name> <pronoun>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, look and voice turn with it (Dewayne's husband becomes Dewayne's wife) | None |
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens the Saves screen) | None |
 | `/load <name>` | Load a named slot (no name opens the Saves screen) | None |
-| `/debug` | Toggle the Debug tab: secrets, seeds, faction clocks, rumour truth, rejected changes, token totals and the last raw API responses | None |
+| `/debug` | Toggle the Debug tab: town news, obligations, bans and town events fired, secrets, seeds, faction clocks, rumour truth, rejected changes, token totals (with 1-hour cache writes) and session cost, and the last raw API responses | None |
 
-Story points: you start with 2. You earn 1 when a thread resolves or on a
-natural 20, up to 3.
+The **⋯** button lists the everyday ones (see Do and Say). While a turn runs
+the Send button is **Stop**, and once the narration is in, a line you send
+waits its turn (see How to play). `/undo`, loads, edits and updates wait
+until no turn is running.
 
 ## Saves, export and import
 
-- **Autosave** after every turn, in this browser's `localStorage`. **Continue**
-  on the title screen picks it up.
+- **Autosave** after every turn, in this browser's `localStorage`.
+  **Continue** on the title screen picks it up, with a line under it saying
+  who, which day and where ("Tomas Reed · Day 3 · The Low Water").
 - **Three named slots** on the Saves screen (laptop: Save in the top bar; phone:
   Menu → Save / Load), or with `/save <name>`.
+- **Nothing is replaced without a copy.** Before the autosave is written with
+  a different game, the old one is kept as the previous autosave: the Saves
+  screen lists it as "Previous autosave" with **Restore previous** (the two
+  swap, so nothing is lost). New game, Load, Import and a slot's Update over
+  an autosave that is in no slot ask first ("Replace the autosave?", with
+  Keep it and Go ahead). A loaded game is drawn before anything is saved: if
+  it cannot be shown, the game that was open comes back and nothing of the
+  new one is written.
+- **Two tabs.** When another tab writes the autosave, this one goes read
+  only, with the banner "This game is open in another tab. This tab will not
+  save until you play here instead." and **Play here instead**, which makes
+  the other tab the read-only one.
 - **Export current game** downloads a `.json` file holding the full state and
-  the town data, never the API key. **Import from file** loads one on any
-  device, so a game moves between laptop and phone. Saves carry their own
+  the town data, never the API key; the Saves screen says when you last did
+  ("Last exported: 3 days ago", or never). **Import from file** loads one on
+  any device, so a game moves between laptop and phone. Saves carry their own
   copy of the town, so editing the town later does not break old saves.
-- If the browser refuses storage (private mode, full disk), a warning banner
-  appears. Export to keep your game.
+- **Import checks.** A file over 5 MB is refused before it is read. A save
+  whose shape is wrong is refused with the first problem found, and nothing
+  changes: a record without its id or name, a list that is not a list, or a
+  string longer than the game ever writes one (a history over 400 characters,
+  a narration over 6,000, anything else over 4,000, the town's own history or
+  setting over 8,000).
+- **A damaged autosave** is explained on the title screen with **Download
+  it**, which saves the stored text exactly as it is, as
+  `damaged-autosave.json`.
+- **A save from a newer build** of the game loads with a warning banner (it
+  may not play correctly here) and is never updated.
+- The game asks the browser once to keep its storage. If the browser refuses
+  storage (private mode, full disk), a warning banner appears. Export to keep
+  your game.
 
 ## Updating an older game
 
@@ -329,7 +599,8 @@ The rules for what people remember changed on 28 Oct 2026. People now
 remember only what they would hold against you or thank you for later, as a
 short line in their own words ("flirted with me", "told me to fuck off",
 "lied about car trouble to get Dewayne outside"). Games saved before then hold
-the old kind: long play-by-play accounts of whole scenes.
+the old kind: long play-by-play accounts of whole scenes. Later rule changes
+added steps of their own, listed below.
 
 - **You don't have to do anything.** An older save loads and plays exactly as
   it is. Only new memories follow the new rules.
@@ -337,164 +608,189 @@ the old kind: long play-by-play accounts of whole scenes.
   "This game was saved under older rules" and shows **Update this game** next
   to **Continue**. The Saves screen marks each older slot "Saved under older
   rules" and gives it an **Update** button. Either one loads the game and
-  re-reads everyone's memories. Each person keeps at most six short lines,
-  only the ones that matter to them. Repeats are merged, and each line keeps
-  the turn of the earliest memory it came from. Loose ends and `/fact` lines
-  stay exactly as they were. The feed then says what happened, for example
-  "Rewrote memories for 5 people: 23 memories became 9." The game stays loaded
-  and is autosaved, and an updated slot is saved back under its own name.
+  re-reads everyone's memories. A person whose memories are in the old long
+  form keeps at most six short lines, only the ones that matter to them.
+  Repeats are merged, and each line keeps the turn of the earliest memory it
+  came from. Someone whose lines are all short already (twelve words or
+  fewer) and within the twelve a person may hold is left alone, so re-reading
+  a current game cuts nothing. Loose ends and `/fact` lines stay exactly as
+  they were. The feed then says what happened, for example "Rewrote memories
+  for 5 people: 23 memories became 9." The game stays loaded and is
+  autosaved, and an updated slot is saved back under its own name.
 - **Settings → Game → Re-read this game with the latest rules** does the same
   for the game you have open, and you can run it again at any time.
-- **Cost:** about one call to the parser model (Sonnet 5.5 by default, at the
-  bookkeeper's effort). Measured live on 28 Oct 2026: two people with eight
-  memories cost $0.005 (1,682 tokens in, 183 out). A game with more than
-  about 40 memories is sent in a few calls. Mock mode rewrites by a fixed rule
-  instead and makes no calls.
-- **If it fails** (no key, a network error, a refusal), nothing changes and
-  the feed says why. The details are in the Debug tab. An update counts as one
-  step for `/undo`, so `/undo` straight after it brings the old memories back.
-- **Places people told you about** (added 28 Oct 2026, rules version 3). The
-  same update also reads the game's story so far for places people named
-  that are not on the map yet, and adds them as "heard of" places (see Places
-  and the map). The feed says, for example, "Added 1 place people told you
-  about: Dewayne's house." or "No new places to add." This is one more call
-  to the parser model; mock mode finds a quoted line like "Dewayne's is the
-  white house" by a fixed rule instead.
-- **Clock follows the story** (added 29 Oct 2026, rules version 4). In older
-  games a run of short actions could tick the clock from night into morning
-  in the middle of a night scene. The update reads the clock and the last six
-  turns and, when the story is clearly still earlier (the night before, say),
-  sets the clock back to it, late in that phase. The feed says, for example,
-  "Set the clock back to day 1, night: the story had not reached morning." or
-  "The clock matches the story." It never moves the clock forward and the
-  town does not move on. One more call to the parser model (none for a game
-  still on its first morning); mock mode sets a morning clock back to the
-  night before when the last scene has a lamp, a bed or a bedroom in it, or
-  says night or tonight.
-- **People match the story** (added 29 Oct 2026, rules version 5). Older
-  games could hold someone the game made up from its random tables before
-  the story said who they were: "Mavis Toler", recorded as a man, whom the
-  story calls Dewayne's wife. Loading such a game gives everyone pronouns
-  (from the town's own data, else from their look); the update then reads
-  what the story says about each person the game made up and corrects their
-  record to match: name, pronouns, role, look, voice, who they are to whom,
-  going by what the characters state about them (a stated "his wife" or
-  "my brother" outranks the pronouns the narration used later, which
-  followed the wrong record, and outranks the player's own corrections),
-  with the lines from just before the person was named included,
-  and where they live (they move in there). Memories stay. The feed says,
-  for example, "Fixed 1 person to match the story: Mavis Toler is Dewayne's
-  wife (she/her)." or "People already match the story." One more call to the
-  parser model (none when nobody the game made up is in the story); mock
-  mode reads "his wife Mavis" and "she" near the name by a fixed rule.
-- **A full cast** (added 29 Oct 2026, rules version 6). Games from before
-  the cast was written had about fifteen people and made the rest up as the
-  story went. The update adds every cast member and home the game lacks (the
-  homes start off the map, as in a new game), puts everyone where the cast's
-  schedule has them whenever they were nowhere, and folds each person the
-  game made up into the cast member they were: by who they are to someone
-  (the made-up "Mavis Toler", Dewayne's wife, is Mavis Mangum), else by
-  name, else by first name and job. The cast member keeps their own written
-  record and takes over the made-up person's memories, how they feel about
-  you, having met you and every line and reference that pointed at them (who
-  you spoke to in the story, threads, seeds, loose ends, visits); the
-  made-up record goes. A home someone told you about becomes the home the
-  cast wrote ("Dewayne's house" is the Mangum House), still heard of. The
-  feed says, for example, "Added the rest of the town's cast, written by
-  hand: 26 people and 7 homes to find. Dewayne's house is the Mangum House.
-  Mavis Toler is now Mavis Mangum (Dewayne's wife)." Anyone made up whom
-  nobody in the cast matches is kept and named ("Kept 1 person the game made
-  up who is not in the cast: ... Edit or remove them on the People tab.").
-  From then on the game is marked as having a fixed cast. No call, in mock
-  mode or with Claude; `/undo` takes it back like the rest of the update.
-- **A lived-in town** (added 29 Oct 2026, rules version 7). The update fills
-  in what older games lack from the town's own data: everyone's age and
-  history, and every place's history, what you notice inside and its hours.
-  It adds the dead and the people who live elsewhere, the new town places
-  (on the map, as in a new game) and the places out of town, and gives you
-  the age your background starts at (a veteran is 34). Anything already in
-  the game (a name, a home, memories, an edit you made) stays as it is. The
-  feed says, for example, "Added 25 people the story names (8 dead, 17
-  living elsewhere) and 20 places (5 in town, 15 out of town). Filled in the
-  ages and histories of 41 people and the history, details and hours of 18
-  places. Tomas Reed is 34, the age a veteran starts at." or "The town is
-  already lived in." No call, in mock mode or with Claude; `/undo` takes it
-  back like the rest of the update.
+- **Cost:** about one call to the parser model (measured live on 28 Oct
+  2026: two people with eight memories, $0.005); more than about 40 memories
+  go in a few calls. Mock mode rewrites by a fixed rule and makes no calls.
+- **Step by step.** Each step stamps the game's rules version as it
+  completes. If a step fails or is refused (no key, a network error, a
+  refusal), only that step is taken back; the steps before it stay, and the
+  feed says which ("The step "…" changed nothing. The step before it (…) was
+  kept: …"). The details are in the Debug tab. The whole update counts as one
+  step for `/undo`, so `/undo` straight after it brings the old game back.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (7 now; a save
+The steps after the memory rewrite, each added when the rules changed, run in
+the same update and each says in the feed what it did ("Added 1 place people
+told you about: Dewayne's house.", "The clock matches the story."):
+
+| Rules version | Step | What it does to an older game | Calls |
+|---|---|---|---|
+| 3 (28 Oct 2026) | Places people told you about | Reads the story so far for places people named and adds them as "heard of" | One to the parser model; mock mode by a fixed rule |
+| 4 (29 Oct 2026) | Clock follows the story | Sets the clock back when the last six turns are clearly still earlier (the night before, say); never forward, and the town does not move on | One, none on a first morning |
+| 5 (29 Oct 2026) | People match the story | Corrects anyone the game made up ("Mavis Toler", a man, whom the story calls Dewayne's wife) to what the characters say about them | One, none when nobody was made up |
+| 6 (29 Oct 2026) | A full cast | Adds every cast member and home the game lacks and folds each made-up person into the cast member they were (Mavis Toler is Mavis Mangum), with their memories and feelings; anyone nobody matches is kept and named | None |
+| 7 (29 Oct 2026) | A lived-in town | Fills in ages, histories, the dead, the people elsewhere, the new places and the places out of town, never over what the game has | None |
+
+- **An arc** (added 30 Oct 2026, rules version 8). Games from before this
+  change have no calendar, council meeting, ending, ledger of what you owe or
+  town news. The update gives the game's copy of the town the calendar, the
+  town events and the ending where it has none, its rumours their tellers and
+  threads, and its threads their rewards, filling in only what is missing
+  (a town of your own or an edited one is never overwritten). It starts the
+  news, obligations, bans and events lists. A loose end whose moment has not
+  come yet gets the obligation its option now carries (an undelivered letter
+  goes into your pocket); one that has already come gets nothing, because its
+  moment is past and a debt invented now would contradict the story. A
+  grudge or favour still to come gets the effects of the template it was
+  written from. The feed says, for example, "The town now has its calendar,
+  events, ending. 1 loose end still to come now carries an obligation." or
+  "The story already has its arc." No call, in mock mode or with Claude.
+
+Behind the scenes a save carries `state.meta.rulesVersion` (8 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
+The bookkeeper's reply format gained three fields with this change (people
+hurt, arrested, gone or dead; memories a turn settled; obligations met), for
+45 properties against the API's grammar limit of 46. It passes the canned-API
+tests but has not been sent to the live API yet (see Verified against the
+live API).
+
 ## What a turn costs
 
-The defaults are set for the best play-through, not the cheapest: Opus 5.5 narrates, Sonnet 5.5 parses and bookkeeps, with medium effort where judgement matters. At those settings a turn is roughly 3 cents, so about $3 per 100 turns. The measured figures below were taken with the original cheap defaults (Sonnet 5.5 narrator, Haiku 5.5 parser, all effort low), which you can set in Settings if you want them back.
+The defaults (the Standard preset) are set for the best play-through, not the
+cheapest. Prices are those in `docs/API_NOTES.md`: Opus 5.5 at $4 / $20 per
+million input / output tokens, Sonnet 5.5 at $2 / $10, both $0.20 for a
+cache read; Haiku 5.5 at $0.10 / $0.50.
 
-Measured against the live API on 28 Oct 2026, in a 4-turn run (the arrival
-plus three turns) at the default models and effort `low` for every role. The
-prices are those in `docs/API_NOTES.md`: Sonnet 5.5 at $2 / $10 per million
-input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
+Every narration carries three cached system blocks: the style guide, the town
+and the cast. Together they are about 12,500 tokens by the api suite's
+estimate of 1.4 tokens a word (it fails over 13,000), nearer 15,000 at 3.5
+characters a token. Read from the cache they cost about 0.3 cents a
+narration; writing them costs twice the input price on Opus, about 10 to 12
+cents.
 
-| Call | Input (measured) | Output (measured) |
+**Warm and cold.** The cache is kept for an hour (`ttl: '1h'`). At the old
+five minutes, a player who stopped to read, think or answer the door paid a
+fresh write after almost every pause, about 25 times the cost of a read, and
+for a slow reader half the turns were cold. Now the write is paid once a
+session and again only after an hour away; coming back after more than 50
+minutes, the game warms the cache with a one-token call while your action is
+being read, so the narration finds it warm.
+
+These figures come from the playtest suite's cost test, which measures the
+packets the game builds over a 15-input mock session and prices them at the
+default models (tokens estimated at 3.5 characters each, output assumed):
+
+| Call | Input per turn | Output assumed |
 |---|---|---|
-| Parser | ~1,800 tokens | ~125 |
-| Narrator | ~900 to 1,200 tokens of packet + ~830 cached system tokens | 160 to 510 |
-| Bookkeeper | ~3,300 tokens | 180 to 340 |
+| Parser | ~5,200 tokens (packet ~12,000 characters, system prompt 3,500, schema 2,700) | ~90 |
+| Narrator | ~2,000 tokens of packet (7,100 characters on average, at most 9,500) plus the cached blocks | ~120 |
+| Bookkeeper | ~4,400 tokens (packet ~6,700 characters, system prompt 2,900, schema 5,700) | ~180 |
+| Chronicle (every ten turns or so) | ~1,100 tokens | ~110 |
 
-- The whole run (arrival plus three turns) cost **$0.0297**: about
-  **$0.0075 per turn**, so **100 turns is roughly $0.75**. Most of that is
-  the narrator.
-- The prompt cache was read on every narration after the first. The first
-  narration of a session pays a little extra to write it, and the cache lasts
-  about five minutes between turns.
-- `/look`, `/rest`, `/wait` and `/skip` call only the narrator. A narration
-  that fails the style check is written a second time, which adds one
-  narrator call. Since the narrator packet ends with an explicit LENGTH
-  line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
-  roll and a plain move) gave first drafts of 70 to 89 words, all within the
-  90-word limit, so none was rewritten ($0.0301 for the six turns).
-- Since the lived-in town (rules version 7), every narration carries three
-  cached system blocks: the style guide (about 650 tokens), the town (its
-  history, recent events and places, about 2,600) and the cast (everyone
-  here with their history, then the dead and the people elsewhere, about
-  8,200): about 11,500 tokens in all by the tests' estimate of 1.4 tokens a
-  word (they fail over 12,000). That is written to the cache once a session
-  (about 6 cents with Opus 5.5) and then read at $0.20 per million, about a
-  quarter of a cent a narration. The parser and bookkeeper packets list
-  the people not met yet, one short line each (about 1,100 and 700 tokens,
-  not cached): roughly 0.4 cents a turn on Sonnet 5.5. Nobody is ever made
-  in play, so there is no call for it.
-- The chronicle (parser model, every 10 turns) was not part of the run; it
-  is estimated at about 1,000 input and 110 output tokens. Higher effort or
-  the Opus model costs more. The Debug tab shows the real token counts and
-  cost for the turn and the session.
+- A warm turn is about **3.5 cents** with no thinking and about 4.2 cents with
+  some 150 thinking tokens a call; at medium effort the models often think
+  longer, so expect 4 to 5 cents. A hundred warm turns are about $3.60 to
+  $4.20 plus the cache writes.
+- The first narration of a session, or the first after an hour away, adds
+  the cache write: about 12 cents.
+- `/look`, `/rest`, `/wait` and `/skip` call only the narrator (plus the
+  bookkeeper when something due happens in them): about 1.4 to 1.7 cents.
+- A narration with a hard style problem (more than 15 words over the length
+  limit, a past invented on day 1, "What do you do?" outside dialogue, a name
+  the town does not have) is rewritten once, which adds one narrator call.
+  Softer problems (a simile, a banned phrase, a few words over) go along
+  with a hard one but never cause a rewrite on their own. The first draft
+  stays on screen, dimmed, while the rewrite is written, and stays if the
+  rewrite fails.
+- Thrifty is about 1 cent a turn; Best costs more for the extra thinking.
+- None of this was measured against the live API this round. The Debug tab
+  shows the real token counts and cost for the turn and the session, a
+  retried call included, and Settings shows the session's total.
+
+**When a call fails or stalls.** A reply that stops arriving gives up after
+45 seconds with nothing new (two minutes in all for the parser and the
+bookkeeper). A busy or failing API (429, 500, 502, 503, 504, 529, a network
+error, a stream cut short) is tried once more, after the wait the API asks
+for (at most 10 seconds) or 1.5 seconds. A reply cut off by its length limit
+is asked for again with twice the room and is never saved half finished.
+Either way, if the turn fails, nothing changes and your words go back in the
+box.
 
 ## Editing the town
 
 The whole town lives in `index.html` between the markers
 `// ===== BEGIN CONTENT =====` and `// ===== END CONTENT =====`: `TOWN_DATA`
-(places, people, factions and their clocks, threads, seeds, rumours), `TABLES`
-(random tables), `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES` and
-`FAVOUR_TEMPLATES`. It is plain data with double-quoted strings. The shape is
-in `docs/BUILD_PLAN.md` under "Shared data contract". After editing, run:
+(places, people, factions and their clocks, threads, seeds, rumours, the
+calendar, town events and the ending), `TABLES` (random tables),
+`BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`
+and `GOAL_PRESETS`. It is plain data with double-quoted strings. The shape is
+in `docs/BUILD_PLAN.md` under "Shared data contract". The fields that make
+the town move:
+
+- `TOWN_DATA.calendar = { season, startDate }` (day 1 is that date); a
+  place's `closedOn: ["Sunday"]`; a person's `awayOn: { days, phases, where }`
+  (school days).
+- Faction clocks of 4 to 10 `segments`, and on a clock's `onComplete`
+  and on a seed, `requires: { npcFree, npcAt, flagsSet, flagsUnset,
+  obligationOpen }` with an `alt: { text, effects }` for when it does not
+  hold. Seeds also take `effects` (applied when they fire), `notBeforeDay`
+  and a list of places or people as a trigger's value (any of them).
+- Effect ops beyond the original thirteen: `playerGold`, `playerHp`,
+  `giveItem`, `takeItem`, `addCondition`, `banFrom`, `playerPrice`,
+  `addMemory`, `clockAdjust`, `threadUpdate`, `addObligation`,
+  `settleObligation` and `addNews`. Placeholders (`{npc}`, `{npcId}`,
+  `{playerName}`) only in loose ends and templates.
+- `TOWN_DATA.events` (the council meeting: a day, phase, place, `attendees`,
+  and `branches` of `{ when, text, effects }` with a `default`; the first
+  branch whose `when` holds wins) and `TOWN_DATA.epilogue` (`onDay`,
+  `orFlagsSet`, the same branches).
+- Rumours: `tellerIds` (at least two people besides the source who can tell
+  it), `threadId`, `factionId`. Threads: `reward` (the stat it raises).
+- `LOOSE_ENDS[kind].obligation` (the kind's default) and `obligations` (one
+  per option, lined up with `options`): `{ kind, amount, dueOffset, text,
+  itemName, onStart, onMiss, onMet }`.
+- `BACKGROUNDS[].hook = { npcId, text, dayOffset, trigger }`, the first lead
+  for a background.
+- Grudge and favour templates: `effects`, `public`, `forTags` and
+  `notForTags` (who can hold it).
+- Goods: `kind` (`good`, `service`, `drink` or `food`); only goods are
+  carried. Complications: objects `{ text, tiers, kinds, needsPerson,
+  notDay1, effects }`.
+
+After editing, run:
 
 ```
 node tests/validate-town.cjs
 ```
 
-It checks every field and cross-reference: ids, symmetric exits, schedules,
-clock effects and seed triggers, and for the cast: unique ids and names,
-pronouns that match the look, a real role, relations written on both sides
-with matching words ("husband" one way, "wife" the other), a home that
-exists, a place in every phase, and every home to find reachable from a
-place on the map. It checks ages against looks and family (parents 16 to 60
-years older, grandparents at least 32, spouses within 20 years, siblings
-within 25), histories of two or three sentences, the dead (when they died,
-never scheduled) and the people elsewhere (where, how to reach them), places
-out of town (no exits, no map, never discovered), every place's details,
-hours and history, and runs `tests/mentions.cjs`, so a name or a place the
-content mentions with no record fails. It lists every problem it finds and
-exits 1. After
-changing the cast, regenerate the roster:
+It checks every field and cross-reference. For the cast: unique ids and
+names, pronouns that match the look, a real role, relations written on both
+sides with matching words, homes, a place in every phase, ages that fit looks
+and families, histories, the dead and the people elsewhere. For places:
+symmetric exits, homes reachable from the map, details, hours and history,
+hours that name a shut day matched by `closedOn`, someone in every public
+place. For the moving parts: the calendar, school days for the teacher and
+the teenagers, rumours (10 to 20, two tellers each), clock lengths (4 to
+10), `requires` and `alt`, events and the ending, every flag a condition
+reads set somewhere, every effect op and its fields, obligations, a grudge
+and a favour for everyone in town and no beating from the old, the young or
+the police, no template that assumes your phone or a vehicle, the
+backgrounds' phone and hook, goods' kinds, the goal suggestions and the
+narrator's example turns. It runs `tests/mentions.cjs`, so a name, a place
+or a crowd the content mentions with no record fails. It lists every problem
+it finds and exits 1. After changing the cast, regenerate the roster:
 
 ```
 node tests/cast-doc.cjs           # rewrites docs/CAST.md from the data
@@ -510,29 +806,34 @@ node tests/run.cjs              # everything: the town check, then every tests/*
 node tests/run.cjs acceptance   # only files whose name contains "acceptance"
 TEST_FILTER='\[4\]' node tests/acceptance.test.cjs     # tests whose title matches
 PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playtest's story
+UI_SHOTS=/some/folder node tests/ui-fixes.test.cjs     # keep the screenshots the UI suite takes there
 ```
 
 The tests drive the game in headless Chromium with Playwright, in mock mode,
 from `file://`, with the network blocked. Playwright is preinstalled in the
-build environment. Elsewhere, run `npm i playwright` and
-`npx playwright install chromium` in this folder first. There is no
-`package.json` and nothing else to install.
+build environment. Elsewhere, install it outside this folder (as the CI
+workflow does) and point `NODE_PATH` at it, because
+`tests/constraints.test.cjs` checks there is no `package.json` here. There is
+nothing else to install. The whole run is about 340 tests and takes about
+five minutes.
 
-- `tests/acceptance.test.cjs`: the twelve acceptance checks of SPEC.md section 14.
-- `tests/playtest.test.cjs`: a scripted 30+ turn game, the pacing reports
-  (faction clocks over 200 seeded runs, insult-to-grudge timing), the cost
-  estimate, and the mock parser rules.
-- `tests/mobile.test.cjs`: 375x740 and 390x844 checks for tap targets, input
-  size, overflow and safe areas.
-- `tests/constraints.test.cjs`: the single-file rules.
-- `tests/upgrade.test.cjs`: updating an older game (rules version, the
-  Update buttons, the memory rewrite, the places re-read, the clock check,
-  people matching the story and the full cast, in mock mode and against
-  canned API replies, failure, refusal and `/undo`).
-- `tests/content.test.cjs` also checks the cast: 40 to 45 people, everyone
-  somewhere in every phase, relations both ways, homes, a new game with
-  nobody made, and `docs/CAST.md` up to date.
-- `shell`, `state`, `pipeline`, `api`, `world` and `content`: the milestone suites.
+- `acceptance`: the twelve acceptance checks of SPEC.md section 14.
+  `playtest`: a scripted 30+ turn game, the pacing reports, and the cost
+  estimate, which fails outside a band (1 to 6 cents a warm turn, under 8
+  with thinking, a cache write under 12). `mobile`: phone sizes. `constraints`:
+  the single-file rules (no `innerHTML`; `fetch` only to the two API
+  endpoints). `upgrade`: every update step, in mock mode and against canned
+  API replies. `content`: the cast, the calendar, loose ends binding in a
+  real game, grudges and favours, the council meeting and the ending, and
+  `docs/CAST.md` up to date.
+- One suite per area of the review fixes: `engine-state-fixes`,
+  `engine-world-fixes`, `prompts-fixes`, `transport-fixes` and `ui-fixes`,
+  and `integration` for the seams between them.
+- `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
+  milestone suites.
+
+`.github/workflows/tests.yml` runs `node tests/run.cjs` on every push and pull
+request (Node 20, Playwright and Chromium installed outside the checkout).
 
 ## Deliberate deviations from SPEC.md
 
@@ -549,9 +850,8 @@ From `docs/BUILD_PLAN.md`:
   unattended. Each milestone is verified by Playwright tests instead.
 
 Also from `docs/BUILD_PLAN.md` ("Setting change: modern day"): the town is
-present-day, not low fantasy. The narrator's three example turns are
-rewritten as modern scenes, and money is shown as dollars (the state field is
-still `player.gold`).
+present-day, not low fantasy. The narrator's example turns are modern scenes,
+and money is shown as dollars (the state field is still `player.gold`).
 
 And from `docs/BUILD_PLAN.md` ("Direction changes"): narration is casual by
 default, with the SPEC.md style guide kept as the Literary option, and the
@@ -559,41 +859,52 @@ input has the Do / Say switch described above. Direction change 8 (a full
 cast): every person is written by hand and the game never creates one in
 play, so SPEC.md's NPC creation in "check and create" (and the bookkeeper's
 new people) is gone; loose ends tie to cast members instead of new NPCs.
+Direction change 10 (the approved review, 30 Oct 2026): the offline demo is
+no longer the default; the town keeps a calendar and an arc (obligations with
+due days, town news, a council meeting on day 6 and an ending by day 21);
+seeds, clocks and templates carry their effects in code; the retry lock no
+longer stops a fight; the chronicle waits for 16 turns and keeps the newest
+6, so the narrator always has its last turns; the narrator's cache lasts an hour
+instead of five minutes; and the casual example turns are eight, written in
+the packet's own format.
 
-## Verified against the live API on 28 Oct 2026
+## Verified against the live API
 
-The live path was checked on 28 Oct 2026 with the default models at effort
-`low`: an arrival plus several turns, including a walk and an action in one
-line ("I head to the bar and ask the bartender..."). Every call returned 200,
-and the narrator's prompt cache was read on every narration after the first.
-The automated tests still run in mock mode, or against canned API responses
-served inside the browser (`tests/api.test.cjs`).
+**This round (30 Oct 2026) was not checked against the live API.** It was
+verified in mock mode and against canned API replies served inside the
+browser (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`). Before
+relying on it with a key, a short live session should confirm:
 
-The casual style and the Do / Say switch were checked live the same day at
-the current defaults (Opus 5.5 narrator at medium effort, Sonnet 5.5 parser):
-an arrival and three Do turns in the casual style (no similes, no rewrites),
-Say "Run." to one person (the player stayed, he answered), Say "Anybody here
-hiring?" to everyone (both people answered) and Do "I run away from Royce."
-(the player ran off to another place).
+- the `record_changes` schema, now 45 properties, compiles (the API refused
+  47 in an earlier probe with "compiled grammar too large"; 46 passed);
+- the 1-hour cache is accepted as `cache_control: { "type": "ephemeral",
+  "ttl": "1h" }` on the narrator's system blocks, and the usage reports the
+  write under `cache_creation.ephemeral_1h_input_tokens` (on the second
+  narration `cache_read_input_tokens` should be above zero);
+- **Check key** (`GET /v1/models` with the key) answers 200 for a good key and
+  401 for a bad one, from `file://` under the page's content security policy.
 
-The clock fix was checked live on 29 Oct 2026. A save at rules version 3
-whose clock had ticked into day 2 morning in the middle of the night at
-Dewayne's house went through **Update this game**. The parser model answered
-`{"behind":true,"phase":"night","dayOffset":-1,...}`, and the clock went back
-to day 1, night (late). Three short actions after that all stayed at night.
-The whole check took 10 calls and cost $0.088.
+Earlier rounds were checked live: on 28 Oct 2026 an arrival and several
+turns (every call 200, the narrator's cache read on every narration after
+the first), then the casual style and the Do / Say switch at the current
+defaults (no similes, no rewrites; Say to one person and to everyone; "I run
+away from Royce." ran off); on 29 Oct 2026 the clock fix, through **Update
+this game** on a save at rules version 3 (10 calls, $0.088).
 
 If a request fails, the feed shows a short message and your typed action stays
 in the box. Type `/debug` and look in the Debug tab:
 
 - **API errors**: each failure with its role (parser, narrator, bookkeeper,
   chronicle), HTTP status, `request-id` and the API's own message, verbatim.
-- **Last raw responses**: the last four exchanges, with status, request-id,
+  A stall reads "timed out after 45 s with no data".
+- **Last raw responses**: the latest exchanges, with status, request-id,
   stop reason, token usage and the reply.
-- **API (claude)**: token and cost totals for the turn and the session. On the
-  second narration, "cache read" should be above zero.
+- **API (claude)**: token and cost totals for the turn and the session, the
+  1-hour cache writes after the cost, and the narrator's `cache_control`. On
+  the second narration, "cache read" should be above zero.
 
-Usual causes: 401, a bad key (check Settings); 404, a model name the API does
-not know (check the two model fields); 400, a request the API rejects (the
-message says what; please report it); 429 or 529, busy, already retried once,
-so try again. To keep playing while you sort it out, tick Mock mode.
+Usual causes: 401, a bad key (Settings → Check key); 404, a model name the
+API does not know (check the model fields under Advanced); 400, a request the
+API rejects (the message says what; please report it); 429, 5xx or 529,
+busy, already retried once, so try again. To keep playing while you sort it
+out, turn on the offline demo under Settings → Advanced.
