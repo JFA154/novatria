@@ -1022,3 +1022,30 @@ talking, I can direct it to one person or all."
      modals and Undo outside the live region, names place types, lists
      only known exits and fills the view with the expanded map. Left open:
      as in wave 2.
+   - **Wave 4** (30 Oct 2026). The third code review (8 bugs, its risks
+     and dead code), the third playtest (R1 to R11, D1 to D5 and its
+     design notes) and the third visual, mobile and accessibility QA
+     (defects A to H) were fixed by two agents in parallel (engine with
+     content and the mock; UI), then a fourth integration pass. Notes:
+     each `docs/notes/*` file's "Wave 4" section; tests:
+     `tests/wave4-fixes.test.cjs`, the "wave 4" tests in
+     `tests/ui-fixes.test.cjs` and `tests/integration.test.cjs`. A
+     purchase in Say mode is no payment and no gift; a failed ask settles
+     nothing with that person; a loose end's thread gives the story point
+     only, and the Character tab's Grown line shows each entry's own gain;
+     names: an adverb before a known name or what a sign "says" is no name,
+     two unknown words the story points at are; a walk that lands in the
+     next phase or at the council meeting tells it there, once; thrown out
+     of cards onto Front Street; a due event that names a home reveals it;
+     memories carry their day, so attitudes drift; grudges answer by their
+     template's kind; arrests and what the player carries read a weapon by
+     the head of its name; two rough nights in public and Chief Bell moves
+     the player on (closing wave 2's "rough night costs nothing");
+     `/cheat time` past a town event fires it; an updated game takes the
+     town's plans as now written. The UI keeps the focus through layout
+     changes, gives a phone on its side room to type, and styles `/help`'s
+     "Commands" heading. Integration removed every guard on a function the
+     file always has, merged the composer's two focus helpers, and made a
+     failed queued line go back through the UI (it was dropped when
+     something new was typed). Left open: the live grammar probe and a
+     recorded live opening scene.
