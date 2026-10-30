@@ -586,3 +586,27 @@ is here" (see the engine needs below).
 5. B9's engine half: one news item per event (the branch text and its
    `addNews` both land today), and news told in front of the player is not
    told again overnight.
+
+## Integration (wave 2)
+
+- Engine needs 1 and 2 are in. `playerAt` is read by `World.conditionsMet`
+  (false for a phase slept or waited through elsewhere, or jumped over), by
+  `Town.validate` and by `validate-town.cjs` (a town place on the map). The
+  council meeting has the attendance pair, placed before the bought
+  branches: Royce at 15 or more with the player at Town Hall tables the
+  bridge (three to two, police kept, Carter set back a segment), and its
+  Hollis-out twin (two to two, over to the next meeting; police kept three
+  to one). Passive games never reach it.
+- `owedTo` and `missText` ride from `LOOSE_ENDS` through `Town.obligationFor`
+  onto the obligation; the miss's due event is `missText` (with nobody
+  brought when the person owed lives elsewhere), and its news is the
+  obligation's own `onMiss` addNews when it has one, so a miss is told once.
+- Need 4: the complication now reads "{witness} sees it, and will know your
+  face from now on".
+- Two background hooks named the player and then "they" ("asks where they
+  served", "which boats they worked"); they name the player twice now, so
+  the mock tells them as "you".
+- `tests/content.test.cjs`, changed by design: the live meeting reads the
+  branch's own news (the engine tells an event once, by its addNews, not by
+  its text as well); the validator test also refuses a `playerAt` that is
+  no place.

@@ -356,3 +356,20 @@ Review bugs 5, 6, 8 (World side) and the playtest's B5, B6, B7, B9 and B18
   `World.arrestPlayer({ told: true })` then plants no due event.
   `knockDown`'s news is marked seen (the player was there). Place names in
   these sentences read "the Low Water" (`placeIn`).
+
+## Integration (wave 2)
+
+- `Town.obligationFor` copies content's `owedTo` (filled; `askerId` read as
+  the same) as well as `missText`. `World.missedObligations`: the person owed
+  is `owedTo`, else the bound person (an errand without one has nobody); the
+  news is the obligation's own `onMiss` addNews when it has one, else
+  `missText`, else "Missed: <task>"; the quiet line stays "Missed: <task>
+  (due day N)."; the due event is `missText` (or the plain "comes looking"
+  line), bringing the person only when free and in town, else told with
+  nobody brought.
+- `conditionsMet(c, { playerAway })` reads `playerAt`; `pickBranch` passes
+  `playerAway` for an event fired on a tick that is not now (slept or waited
+  through) or late. A town event slept through dates its news to its own
+  tick.
+- `TABLES.complications`: the witness line no longer says the player was
+  known before.

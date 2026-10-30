@@ -919,10 +919,84 @@ talking, I can direct it to one person or all."
      screen's heading, the phone sheet is modal, the tablist takes arrow
      keys, streaming stays out of the live region, and `--faint` meets
      4.5:1.
-   - **Left open** (from the integration pass): a due event can be narrated
+   - **Left open** (from the first integration pass; wave 2 closed all but
+     the last two): a due event can be narrated
      many turns late after a string of `/rest` (two a narration); a town
      event the clock jumps over (`/cheat time`) fires late with its "on
      Tuesday" text; `state.fight` has no op; `State.obligationEffect`, which
      Upgrade asks for, does not exist (its fallback builds the same effect);
      the live grammar probe for `record_changes`; no recorded live opening
      scene for the demo.
+   - **Wave 2** (30 Oct 2026). A QA playtest of the merged wave (20 bugs),
+     a second code review (10 bugs, state written outside `State.apply`,
+     risks) and a visual, mobile and accessibility QA (15 defects) were
+     fixed by three agents in parallel (engine, UI, content with the mock),
+     then joined by a second integration pass. Notes: each `docs/notes/*`
+     file's "Wave 2" section; tests: `tests/wave2-fixes.test.cjs`, the area
+     suites and `tests/integration.test.cjs`.
+     - Rolls and asks: a success locks nothing (`Dice.lockFor` stored
+       through `State.apply({ lastRollKey })`); the same ask that already
+       worked this phase earns half, a quarter, then nothing
+       (`Dice.diminishing` scales the bookkeeper's positive attitude
+       change); a second gift to someone in a day earns none (`meta.gifts`);
+       complication effects are applied; an attack or plea at someone not
+       here rolls nothing; the witness complication reads "will know your
+       face from now on".
+     - Fights: one fight is the same person and place, attack after
+       attack, across a phase change (`state.fight` through `State.apply`);
+       the third hit's knockdown and an arrest are told in that turn's
+       narration (OUTCOME, ARREST; TIME THIS TAKES says the night in the
+       cell) and never again the next turn.
+     - Things: a take of anything not lying here makes nothing; guns and
+       ammunition, boats and vehicles only where they fit, explosives
+       nowhere; "X and a Y" is two things; `/reroll` and `/cheat` replay
+       the action as parsed.
+     - Time and the town: three due events a turn and all of them on
+       `/rest`, `/wait` and `/skip`, told where the player now is (the
+       person comes there); DESTINATION shows the phase a walk lands in;
+       one news item per town event, not retold overnight once watched; an
+       event the clock jumped over is news only, and one slept through is
+       dated when it happened; a place shut today holds only its residents,
+       has no card game and is a rough night; `/skip` refuses a place shut
+       on the day of arrival.
+     - Obligations: paid over several turns (`paid`; a payment to the
+       person may pass the $500 cap up to what is still owed); a missed one
+       stays owed and is met late with its `onMet`; content's `missText` is
+       the miss's due event and `owedTo` the person owed (`askerId` read as
+       the same), who comes looking only when free and in town; an errand
+       already done is met as it is made; the Journal keeps a missed one
+       still owed with the open ones.
+     - Content: the council counts who is free (each voting branch names
+       its voters in `npcFree` and has a twin for Hollis Byrd's empty
+       chair), leans toward the player's levers (Royce at 30, Curtis paid,
+       a bought Royce at 20) and has an attendance branch (`playerAt:
+       "loc_town_hall"` with Royce at 15; World's conditions and both
+       validators read `playerAt`, true at the tick that fires the event,
+       after any walk or `/skip` into it, false for a phase slept through);
+       the ending settles the bridge and police threads and plants two or
+       three aftermath seeds (days 21 to 30); the big run waits on the
+       boats; loose ends are told to "you", hooks name the player.
+     - Turn lifecycle: a late bookkeeper retry applies only while its turn
+       is the newest and never moves the player; Stop while the town is
+       updated keeps the narration (not recorded, no retry) and puts a
+       queued line back in the box; the ending is seen only once its own
+       turn commits; `Pipeline.canStop`, `cancelQueued` and read-only
+       guards on every entry point (one toast, the UI's or the Pipeline's);
+       new engine keys `fight`, `logUpdate`, `giftGiven`, `arcFill`;
+       `validateShape` type-checks every field the engine reads, the town
+       copy too, and numbers written as text load as numbers.
+     - Style and the mock: brands and regional words are on the allow
+       list, a lone unknown capitalised word is soft and a marked one hard;
+       the mock walks to places by name, tells due events to "you", keeps a
+       Say reply when people come and go, deals Curtis's Friday game, and
+       its memory rewrite keeps `State.MEMORY_MAX`.
+     - UI: one guard (`UI.canAct`) for everything that plays; **Play here
+       instead** loads the newer game before this tab writes; the phone
+       composer keeps its width and the command list spans the row; the
+       expanded map is a modal dialog on a laptop too and scrolls a place
+       reached with Tab into view; focus is never dropped; parchment text
+       at 4.5:1 and control edges at 3:1; the recap is one notice under
+       "Where things stand"; "Next: …" with ×; Stop during the town update.
+     - Left open: the live grammar probe for `record_changes` and a
+       recorded live opening scene (both need a real API call); a rough
+       night in a public place costs nothing beyond the HP.

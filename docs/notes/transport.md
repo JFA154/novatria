@@ -513,3 +513,9 @@ lines.
 - `transport-fixes.test.cjs` (the recap's heading and person lines).
 - `upgrade.test.cjs` (the re-read prompt's cap is PER_PERSON).
 - `ui-fixes.test.cjs` (screenshots only with `UI_SHOTS`; coordinator item d).
+
+## Integration (wave 2)
+
+- Checked at the seams: a walk or `/skip` into the evening moves the player
+  before `World.tick` fires the council meeting, so `playerAt` holds; a
+  `/rest` through it does not count as being there.

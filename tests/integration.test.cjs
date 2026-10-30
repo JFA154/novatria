@@ -7,6 +7,10 @@
    place shut today or barred as a shut door, "then go to X" (moveWhen
    after), the no-op rules for effects on the dead, an engine seed with a list
    trigger, and the narration of /rest and /wait never counted as an instant.
+   Wave 2: content's owedTo and missText on a missed obligation, the Journal
+   keeping one still owed, playerAt and the council's attendance branch, the
+   witness complication and the mock's memory cap, one read-only toast, and
+   Stop while the town is updated.
    Mock mode; ids come from Game.data and Game.state, never one town. */
 const assert = require('assert/strict');
 const { suite, quickStart, sendText } = require('./helpers.cjs');

@@ -450,3 +450,16 @@ colon.
   "me" becomes "him", "her" or "them" by their pronouns), and only when it
   fits the side it is on (never "Warm … remembers you insulted him"). No
   memory in quotes, and never the raw "Loose end with …" form.
+
+## Integration (wave 2)
+
+- The read-only toast is shown once per refused action: the UI's guards
+  return before the Pipeline is called, and the Pipeline's guards return
+  before calling each other (`tests/integration.test.cjs` counts them).
+- Stop shows during "Updating the town…" with the box empty and keeps the
+  narration (checked through the button, not only `Pipeline.abort`).
+- The Journal keeps a missed obligation that is still owed
+  (`State.obligations('owed')`) with the open ones: "missed Day N, still
+  owed", with what is paid so far; "Settled late" once it is made good.
+- The expanded map scrolls a place reached with Tab into view (on a phone
+  it pans sideways, and an SVG mark is not scrolled to on focus).

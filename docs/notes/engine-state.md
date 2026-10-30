@@ -392,3 +392,11 @@ playtest's B12, B13, B14, B18 on the State side. Tests:
   attendees lists, the epilogue, calendar and map records. Storage's
   `parseEnvelope` now passes the town it carries.
 - `State.NOT_ACTIONS` is exported (the Pipeline's TIME THIS TAKES reads it).
+
+## Integration (wave 2)
+
+- `addObligation` keeps content's `owedTo` (placeholders filled; `askerId`
+  is read as the same and stored as `owedTo`); `validateShape` refuses an
+  `owedTo` or `askerId` that names nobody and a `missText` that is not text.
+- The mock's memory rewrite keeps `State.MEMORY_MAX` (it kept six);
+  `tests/upgrade.test.cjs` follows (changed by design).

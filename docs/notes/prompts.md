@@ -412,3 +412,10 @@ Region: the Style module and the mock provider. Tests:
   mock.
 - B17's engine half: `Pipeline.resolve` rolls no social action whose target
   is not present.
+
+## Integration (wave 2)
+
+- `mockRewrite` keeps `State.MEMORY_MAX` per person (it kept six), the cap
+  the real call is given.
+- The two hooks that called the player "they" name the player instead, so
+  `secondPerson` tells them as "you" ("asks where you served").
