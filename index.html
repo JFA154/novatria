@@ -906,7 +906,6 @@ select.input { padding-right: 32px; }
    the pill takes what is left, its line cut short (the title has it all). */
 .turn-status.has-queued #turn-status-text { flex: 0 0 auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 96px; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: 12px; color: var(--text); }
-.turn-status .queued[data-cancel="0"] { padding-right: 12px; }
 .queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .turn-status.nudge { color: var(--text); }
@@ -1303,7 +1302,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             </div>
             <div class="popover act-pop" id="act-pop" role="menu" aria-label="Actions and commands" hidden></div>
             <div class="say-to" id="say-to" role="group" aria-label="Say it to" hidden></div>
-            <div class="turn-status" id="turn-status" role="status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line" hidden>&#215;</button></span></div>
+            <div class="turn-status" id="turn-status" role="status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line">&#215;</button></span></div>
             <div class="input-row">
               <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
               <div class="mode-toggle" role="group" aria-label="Do or say">
@@ -1425,7 +1424,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost.</li></ul><p>About four API calls (none in mock mode).</p></div>
+              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost.</li></ul><p>About four API calls (none in the offline demo).</p></div>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -15599,8 +15598,7 @@ const Pipeline = (() => {
     unknownPlace: "You don't know where that is yet. Ask around.",
     epilogueEnd: 'This is one ending. You can keep playing.',
     endingStopped: 'Stopped. The ending will be told after your next turn.',
-    endingLater: why => `The ending could not be told just now${why ? ` (${why})` : ''}. It will be told after your next turn.`,
-    readOnly: 'This game is open in another tab, so this tab is read-only: nothing here is played or saved. Play it in the other tab.'
+    endingLater: why => `The ending could not be told just now${why ? ` (${why})` : ''}. It will be told after your next turn.`
   };
   /* The status line above the input (ui), one per stage. */
   const STATUS_TEXT = { parse: 'Reading your action…', narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Writing up the story so far…', idle: '' };
@@ -15637,8 +15635,7 @@ const Pipeline = (() => {
     let ro = false;
     try { ro = typeof Storage !== 'undefined' && !!Storage.readOnly; } catch (e) { ro = false; }
     if (!ro) return null;
-    const text = typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : NOTICES.readOnly;
-    if (typeof UI.toast === 'function') UI.toast(text); else UI.feed.notice(text);
+    UI.toast(UI.READ_ONLY_NOTICE);
     return { ok: false, reason: 'read-only', restoreInput: true };
   }
 
@@ -17142,19 +17139,17 @@ const Pipeline = (() => {
         const note = Style.regenerationNote(problems);
         ctx.regenerated = note;
         status('rewrite');
-        const dim = typeof UI.feed.rewriting === 'function';
-        if (dim) UI.feed.rewriting(node, true);
-        else UI.feed.stream(node, '');
+        UI.feed.rewriting(node, true);
         let second = null;
         try {
-          const res2 = await Api.narrate(Object.assign({ text: `${text}\n${note}`, base: text, draft: narration, note, context: ctx }, blocks), dim ? null : (chunk, soFar) => UI.feed.stream(node, soFar));
+          const res2 = await Api.narrate(Object.assign({ text: `${text}\n${note}`, base: text, draft: narration, note, context: ctx }, blocks), null);
           if (isRefusal(res2)) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: 'the rewrite was refused; the first draft stands' });
           else { cutOff(res2); second = String((res2 && res2.text) || '').trim() || null; }
         } catch (err) {
           if (err && err.type === 'aborted') throw err;
           State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: `the rewrite failed (${(err && (err.type || err.message)) || err}); the first draft stands` });
         }
-        if (dim) UI.feed.rewriting(node, false);
+        UI.feed.rewriting(node, false);
         if (second) {
           narration = second;
           check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
@@ -17770,13 +17765,10 @@ const Pipeline = (() => {
       while (idleWaiters.length) { try { idleWaiters.shift()(); } catch (e) { console.error(e); } }
     }
   }
-  /* A queued input that failed goes back in the box (UI.restoreInput when
-     the UI has it), unless the player has typed something since. */
-  function restoreQueued(text) {
-    if (typeof UI.restoreInput === 'function') { UI.restoreInput(text); return; }
-    const box = typeof document !== 'undefined' ? document.getElementById('cmd') : null;
-    if (box && !box.value) { box.value = text; box.dispatchEvent(new Event('input', { bubbles: true })); }
-  }
+  /* A queued input that failed goes back in the box, or, when the player
+     has typed something since, into a notice ("Your action: …"), so
+     nothing is lost (UI.restoreAction, as the queued line's ×). */
+  function restoreQueued(text) { UI.restoreAction(text); }
   /* An ending (TOWN_DATA.epilogue, through the news): a narrator-only turn
      in MODE epilogue with the ending as its due event, then a quiet line. */
   function epilogue(item) {
@@ -18151,7 +18143,7 @@ const Pipeline = (() => {
     const s = State.current;
     if (!s || State.muted) return { ok: false, reason: 'no game' };
     if (busy) return { ok: false, reason: 'busy' };
-    if (typeof Upgrade.newer === 'function' && Upgrade.newer(s)) { UI.feed.notice(Upgrade.NOTICES.newer); return { ok: false, reason: 'newer' }; }
+    if (Upgrade.newer(s)) { UI.feed.notice(Upgrade.NOTICES.newer); return { ok: false, reason: 'newer' }; }
     busy = true;
     acceptsQueue = false;
     UI.setBusy(true);
@@ -18892,13 +18884,13 @@ const UI = (() => {
     for (const b of [d.actBtn, d.actBtnM]) b.addEventListener('click', e => { e.stopPropagation(); if (d.actPop.hidden) openActions(b); else closeActions(true); });
     d.queuedCancel.addEventListener('click', cancelQueued);
     composer.mode = Storage.settings().inputMode === 'say' ? 'say' : 'do';
-    d.modeDo.addEventListener('click', () => { setMode('do'); focusInput(); });
-    d.modeSay.addEventListener('click', () => { setMode('say'); focusInput(); });
+    d.modeDo.addEventListener('click', () => { setMode('do'); focusComposer({ stay: true }); });
+    d.modeSay.addEventListener('click', () => { setMode('say'); focusComposer({ stay: true }); });
     d.sayTo.addEventListener('click', e => {
       const b = e.target.closest('[data-to]');
-      if (b && b.tagName === 'BUTTON' && setAddressee(b.dataset.to)) focusInput();
+      if (b && b.tagName === 'BUTTON' && setAddressee(b.dataset.to)) focusComposer({ stay: true });
     });
-    d.sayTo.addEventListener('change', e => { if (e.target.classList.contains('say-pick') && setAddressee(e.target.value)) focusInput(); });
+    d.sayTo.addEventListener('change', e => { if (e.target.classList.contains('say-pick') && setAddressee(e.target.value)) focusComposer({ stay: true }); });
     $$('[data-open-tab]').forEach(b => b.addEventListener('click', () => { sheetOpener = b; openPanel(b.dataset.openTab); }));
     // Panel / sheet
     d.panelClose.addEventListener('click', closeSheet);
@@ -18937,10 +18929,8 @@ const UI = (() => {
     d.askYes.addEventListener('click', () => { d.ask.close('yes'); syncBanner(); });
     d.askNo.addEventListener('click', () => { d.ask.close('no'); syncBanner(); });
     try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyDisplay); } catch (e) { /* old browsers */ }
-    // The Pipeline reports each stage of a turn (when it can).
-    if (typeof Pipeline.setStatusListener === 'function') {
-      try { Pipeline.setStatusListener(onPipelineStatus); } catch (e) { console.warn('[UI] status listener', e); }
-    }
+    // The Pipeline reports each stage of a turn.
+    Pipeline.setStatusListener(onPipelineStatus);
     initViewport();
     applyDisplay();
     setCollapsed(Storage.settings().panelCollapsed, true);
@@ -19300,9 +19290,8 @@ const UI = (() => {
   }
 
   // ----- top bar, menu, panel -----
-  /* The weekday of a game day ('Friday'), once the engine keeps a calendar. */
+  /* The weekday of a game day ('Friday'). */
   function weekdayOf(day) {
-    if (typeof State.weekday !== 'function') return '';
     try { const w = State.weekday(day); return typeof w === 'string' ? w : ''; } catch (e) { return ''; }
   }
   function renderGame() {
@@ -19380,18 +19369,17 @@ const UI = (() => {
   /* The everyday commands, so nobody needs to know the slash: each runs
      through Pipeline.submit like a typed command. */
   let actOpener = null;
-  function recapAvailable() { return Commands.LIST.some(c => c.name === '/recap') || typeof Pipeline.recapText === 'function' || typeof Pipeline.recap === 'function'; }
   function actionItems() {
     const s = State.current;
     return [
       { id: 'look', label: 'Look around', cmd: '/look' },
       { id: 'wait', label: 'Wait until…', sub: 'wait' },
       { id: 'rest', label: 'Sleep', cmd: '/rest' },
-      recapAvailable() ? { id: 'recap', label: 'Recap', cmd: '/recap' } : null,
+      { id: 'recap', label: 'Recap', cmd: '/recap' },
       { id: 'undo', label: 'Undo last turn', cmd: '/undo' },
       { id: 'fact', label: 'Spend a story point', fill: '/fact ', off: !s || s.player.storyPoints < 1 },
       { id: 'help', label: 'Commands help', help: true }
-    ].filter(Boolean);
+    ];
   }
   function renderActions(sub) {
     // A turn item is off while a turn runs or in a read-only tab (the title says which).
@@ -19465,12 +19453,10 @@ const UI = (() => {
     releaseTurnFocus();
     return res;
   }
-  /* Recap without a /recap command (and on Continue): the Pipeline's text, as the recap notice. */
+  /* The recap on Continue: the Pipeline's text, as the recap notice. */
   function showRecap() {
-    const fn = typeof Pipeline.recapText === 'function' ? Pipeline.recapText : typeof Pipeline.recap === 'function' ? Pipeline.recap : null;
-    if (!fn) return null;
     let text = null;
-    try { text = fn(); } catch (e) { console.error(e); }
+    try { text = Pipeline.recapText(); } catch (e) { console.error(e); }
     if (typeof text === 'string' && text.trim()) feed.notice(text.trim(), 'recap');
     return text;
   }
@@ -19753,15 +19739,12 @@ const UI = (() => {
   function personFlags(s, n) {
     const out = [];
     const day = s.time.day;
-    // Hurt: the engine's own test when it has one (State.isHurt), else the rule State.laidUp uses (every day before hurtUntilDay).
-    let hurt = false;
-    if (typeof State.isHurt === 'function') { try { hurt = !!State.isHurt(n); } catch (e) { hurt = false; } }
-    else hurt = Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > day;
+    // Hurt: the engine's own test (State.isHurt: every day before hurtUntilDay).
+    const hurt = State.isHurt(n);
     // "Until Day N" is the day it ends, for a hurt as for a ban: hurtUntilDay, the day they are about again, as the engine's note says it.
     if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt until Day ${Math.max(day + 1, n.hurtUntilDay)}`, hard: true });
     if (isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
-      let note = '';
-      try { note = typeof State.absentNote === 'function' ? State.absentNote(n) || '' : ''; } catch (e) { note = ''; }
+      const note = State.absentNote(n) || '';
       out.push({ text: note ? capFirst(note) : `Away ${weekdayOf(day)}s${n.awayOn.where ? ' ' + n.awayOn.where : ''}`, hard: false });
     }
     for (const b of (Array.isArray(s.bans) ? s.bans : [])) {
@@ -20247,20 +20230,14 @@ const UI = (() => {
   }
   /* A place the player has only heard of: told about, never visited. */
   function heardOf(l) { return !!l && isObj(l.revealed) && !l.revealed.visited; }
-  /* Closed now (shut for good, or on today's weekday once the engine keeps a calendar). */
-  function closedNow(l) {
-    if (!l) return false;
-    if (typeof State.isClosed === 'function') { try { return !!State.isClosed(l); } catch (e) { /* older engine */ } }
-    return !!l.closed;
-  }
+  /* Closed now (shut for good, or on today's weekday). */
+  function closedNow(l) { return !!l && State.isClosed(l); }
   /* The day a ban from this place ends, or null. */
   function bannedUntil(s, l) {
     if (!l) return null;
     const day = s.time.day;
     const ban = (Array.isArray(s.bans) ? s.bans : []).filter(b => isObj(b) && b.locationId === l.id && b.untilDay > day).sort((a, b) => b.untilDay - a.untilDay)[0];
-    if (ban) return ban.untilDay;
-    if (typeof State.isBanned === 'function') { try { if (State.isBanned(l.id)) return true; } catch (e) { /* older engine */ } }
-    return null;
+    return ban ? ban.untilDay : null;
   }
   /* "Closed Sundays", "Closed Sundays and Mondays". */
   function closedDays(l) { return Array.isArray(l.closedOn) ? l.closedOn.filter(x => typeof x === 'string' && x) : []; }
@@ -20843,10 +20820,7 @@ const UI = (() => {
     return n > 1 ? `${n} days` : n === 1 ? 'tomorrow' : n === 0 ? 'today' : 'overdue';
   }
   function obligationsOf(s) {
-    let list = null;
-    if (typeof State.obligations === 'function') { try { list = State.obligations(); } catch (e) { list = null; } }
-    if (!Array.isArray(list)) list = isObj(s.player) && Array.isArray(s.player.obligations) ? s.player.obligations : [];
-    return list.filter(o => isObj(o));
+    return State.obligations().filter(o => isObj(o));
   }
   /* An obligation in the player's words: its own text, else from its kind. */
   function obligationText(o) {
@@ -21043,8 +21017,7 @@ const UI = (() => {
       threads.sort((a, b) => (ORDER[a.status] | 0) - (ORDER[b.status] | 0));
       const obl = obligationsOf(s);
       // A missed obligation that can still be made good (State.obligations('owed')) stays with the open ones, not struck through.
-      let owedIds = new Set();
-      if (typeof State.obligations === 'function') { try { owedIds = new Set((State.obligations('owed') || []).map(o => o && o.id)); } catch (e) { owedIds = new Set(); } }
+      const owedIds = new Set(State.obligations('owed').map(o => o && o.id));
       const stillOwed = o => o.status === 'missed' && owedIds.has(o.id);
       const open = obl.filter(o => o.status === 'open' || !o.status || stillOwed(o)).sort((a, b) => (a.dueDay || 1e9) - (b.dueDay || 1e9));
       const done = obl.filter(o => (o.status === 'met' || o.status === 'missed') && !stillOwed(o));
@@ -21348,7 +21321,7 @@ const UI = (() => {
       const node = feed.add(quietNode(text));
       pendingNotes.push(String(text));
       pendingNodes.push(node);
-      if (!busy && !Pipeline.busy) Promise.resolve().then(() => { if (!busy && !Pipeline.busy && typeof App.flushNotes === 'function') App.flushNotes(); });
+      if (!busy && !Pipeline.busy) Promise.resolve().then(() => { if (!busy && !Pipeline.busy) App.flushNotes(); });
       return node;
     },
     divider(day, phase) { return feed.add(dividerNode(day, phase)); },
@@ -21542,7 +21515,7 @@ const UI = (() => {
     d.turnStatus.hidden = !on;
     d.turnStatus.classList.remove('nudge');
     d.turnStatusText.textContent = on ? (STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '';
-    // The queued line is shown, not just a pill, with × to take it back (when the Pipeline can).
+    // The queued line is shown, not just a pill, with × to take it back.
     const q = on && status.queued;
     d.queuedNote.hidden = !q;
     d.turnStatus.classList.toggle('has-queued', q);
@@ -21550,15 +21523,11 @@ const UI = (() => {
       const held = typeof Pipeline.queued === 'string' ? Pipeline.queued : status.queuedText;
       d.queuedText.textContent = held ? `Next: “${held}”` : Pipeline.queued === '' ? 'Next: Wait' : 'Queued';
       d.queuedNote.title = held || '';
-      const can = typeof Pipeline.cancelQueued === 'function';
-      d.queuedCancel.hidden = !can;
-      d.queuedNote.dataset.cancel = can ? '1' : '0';
     }
   }
   /* × on the queued line: it does not run; its text goes back in the box
      (or, if something new is typed there, into a notice). */
   function cancelQueued() {
-    if (typeof Pipeline.cancelQueued !== 'function') return false;
     let text = null;
     try { text = Pipeline.cancelQueued(); } catch (e) { console.error(e); }
     const back = typeof text === 'string' && text ? text : status.queuedText;
@@ -21575,14 +21544,14 @@ const UI = (() => {
   function nudge() {
     if (!d.turnStatus || d.turnStatus.hidden) return;
     d.turnStatus.classList.add('nudge');
-    d.turnStatusText.textContent = typeof Pipeline.abort === 'function' ? 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.' : 'Still working on the last turn. Your line stays in the box.';
+    d.turnStatusText.textContent = 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.';
     clearTimeout(nudgeTimer);
     nudgeTimer = setTimeout(() => renderStatus(), 2600);
   }
   function turnRunning() { return busy || !!Pipeline.busy; }
-  function canQueue() { return turnRunning() && Pipeline.acceptsQueue === true && typeof Pipeline.submit === 'function'; }
+  function canQueue() { return turnRunning() && Pipeline.acceptsQueue === true; }
   // Stop also while the town is being updated (Pipeline.canStop: the narration stays), unless a line typed then is to be queued.
-  function canStop() { return turnRunning() && typeof Pipeline.abort === 'function' && (Pipeline.canStop === undefined ? !canQueue() : !!Pipeline.canStop && !(canQueue() && d.cmd && d.cmd.value.trim())); }
+  function canStop() { return turnRunning() && Pipeline.canStop && !(canQueue() && d.cmd && d.cmd.value.trim()); }
   /* The button: Wait with nothing typed, Send, Stop while a turn runs (it
      can be stopped), Send again while the next line can be queued. */
   function syncSendLabel() {
@@ -21616,7 +21585,6 @@ const UI = (() => {
     return !a || a === document.body || a === d.cmd || a === d.send;
   }
   function stopTurn() {
-    if (typeof Pipeline.abort !== 'function') return false;
     try { Pipeline.abort(); } catch (e) { console.error(e); }
     if (d.turnStatusText && !d.turnStatus.hidden) d.turnStatusText.textContent = 'Stopping…';
     return true;
@@ -21627,7 +21595,7 @@ const UI = (() => {
   function restoreAction(text) {
     const now = d.cmd.value;
     if (!now.trim() || now === text) {
-      if (now !== text) { d.cmd.value = text; autosize(); }
+      if (now !== text) { d.cmd.value = text; autosize(); syncSendLabel(); }
       return 'box';
     }
     const KEPT = KEPT_LINE;
@@ -21721,10 +21689,14 @@ const UI = (() => {
   }
 
   // ----- Do / Say -----
-  function focusInput() { if (!isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true }); }
-  /* The composer's place for the focus when what had it goes: the box on a laptop, Send on a phone (no keyboard pops up). */
-  function focusComposer() {
+  /* The composer's place for the focus: the box on a laptop, Send on a
+     phone (no keyboard pops up) when what had it goes. opts.stay (Do / Say,
+     a Say chip): on a phone the focus stays on the control pressed while it
+     is still there. */
+  function focusComposer(opts) {
     if (screen !== 'game') return;
+    const a = document.activeElement;
+    if (opts && opts.stay && isMobile() && a && a !== document.body && focusableNow(a)) return;
     const to = [isMobile() ? d.send : d.cmd, d.send, d.cmd].find(focusableNow);
     if (to) moveFocus(to);
   }
@@ -21895,7 +21867,6 @@ const UI = (() => {
     if (!key) { keyStatus('Paste a key first.', false); return { ok: false, reason: 'empty' }; }
     if (key !== Storage.getApiKey()) Storage.setApiKey(key, d.setRemember.checked);
     if (!KEY_CHARS.test(key)) { keyStatus('That key has a space or a hidden character in it. Copy it again from the console.', false); return { ok: false, reason: 'characters' }; }
-    if (typeof Api.checkKey !== 'function') { keyStatus('This version cannot check keys yet. Start a game to try it.', null); return { ok: false, reason: 'unavailable' }; }
     keyStatus('Checking…', null);
     d.setCheckKey.disabled = true;
     let r = null;
@@ -22607,7 +22578,7 @@ const Commands = (() => {
         return Pipeline.reroll(arg);
       }
       case '/undo': {
-        if (Storage.readOnly) { UI.toast(typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : Pipeline.NOTICES.readOnly); return { ok: false, reason: 'read-only', restoreInput: true }; }
+        if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
         World.forget(State.current.meta.turn);
         Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
@@ -22775,7 +22746,7 @@ const App = (() => {
     return State.current;
   }
   function newerRules(st) {
-    try { return typeof State.rulesVersion === 'function' && Number.isInteger(State.RULES_VERSION) && State.rulesVersion(st) > State.RULES_VERSION; } catch (e) { return false; }
+    return State.rulesVersion(st) > State.RULES_VERSION;
   }
   /* Load a game and draw it before anything is saved: State's listeners
      (the autosave) hear about it only once it is on screen. If it cannot be

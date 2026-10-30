@@ -12,10 +12,13 @@
    witness complication and the mock's memory cap, one read-only toast, and
    Stop while the town is updated.
    Wave 4: the Character tab's Grown line reads the entry's own gain, as the
-   quiet line does.
+   quiet line does; no module guards a function the file always has; one
+   composer focus helper; a queued line that fails goes back without loss.
    Mock mode; ids come from Game.data and Game.state, never one town. */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText } = require('./helpers.cjs');
+const fs = require('fs');
+const path = require('path');
+const { suite, quickStart, sendText, ROOT } = require('./helpers.cjs');
 
 const s = suite('integration');
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
@@ -451,6 +454,50 @@ s.test('wave 4: the Character tab\'s Grown line says what the quiet line said: t
   await page.evaluate(() => { for (const e of Game.state.player.progression) delete e.gain; });
   const old = await grown();
   assert.equal(old[0], `${ids.title}: +1 ${ids.reward[0].toUpperCase()}${ids.reward.slice(1)}`);
+});
+
+s.test('wave 4: no module guards a function this file always has (typeof State.x, Pipeline.x, Api.x, UI.x, Upgrade.x, App.x); one composer focus helper: Do / Say put the focus in the box on a laptop, and leave it on the button pressed on a phone', async h => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const guards = html.match(/typeof (?:Rng|Dice|Tables|State|Town|World|Style|Api|Upgrade|Pipeline|Storage|UI|Commands|App)\.[\w.]+ [!=]== 'function'/g) || [];
+  assert.deepEqual(guards, []);
+  assert.ok(!/function focusInput\(/.test(html) && !/\bfocusInput\(/.test(html), 'focusInput folded into focusComposer');
+  assert.ok(!/\breadOnly: 'This game is open/.test(html), 'one read-only notice (the UI\'s)');
+  const page = await h.open();
+  await quickStart(page);
+  await page.click('#mode-say');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd');
+  await page.click('#mode-do');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd');
+  const phone = await h.open({ viewport: { width: 375, height: 740 } });
+  await quickStart(phone);
+  await phone.click('#mode-say');
+  assert.equal(await phone.evaluate(() => document.activeElement.id), 'mode-say', 'no keyboard pops up');
+  await phone.click('#mode-do');
+  assert.equal(await phone.evaluate(() => document.activeElement.id), 'mode-do');
+});
+
+s.test('wave 4: a queued line shows its × always; one that fails while something new is in the box goes into a notice ("Your action: …"), not lost', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  await fast(page);
+  await page.evaluate(() => {
+    const M = Game.Api.Mock, real = M.bookkeep;
+    M.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 1200)); M.bookkeep = real; return real(...args); };
+    M.queue('parse', {}, { error: { type: 'invalid_request_error', message: 'mock: refused' } });
+  });
+  await page.fill('#cmd', 'I look at the board out front');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
+  await page.fill('#cmd', 'I wave at the mechanic');
+  await page.press('#cmd', 'Enter');
+  assert.equal(await page.evaluate(() => Game.Pipeline.queued), 'I wave at the mechanic');
+  assert.equal(await page.evaluate(() => !document.getElementById('queued-cancel').hidden), true, 'the × is there');
+  await page.fill('#cmd', 'Something new');
+  await page.waitForFunction(() => !Game.Pipeline.busy && !Game.Pipeline.queued, null, { timeout: 10000 });
+  await page.waitForTimeout(50);
+  assert.equal(await page.inputValue('#cmd'), 'Something new', 'what was typed since stays');
+  const notices = await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].map(n => n.textContent));
+  assert.ok(notices.some(t => t.includes('Your action: “I wave at the mechanic”')), notices.join(' | '));
 });
 
 s.run();
