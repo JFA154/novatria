@@ -139,7 +139,8 @@ s.test('B18: a missed debt is still owed (OPEN and the recap say so), paying it 
   assert.ok(r.due.length === 1 && !/came looking: Pay/.test(r.due[0]), 'the due event is not the task text: ' + r.due[0]);
   assert.ok(r.memories >= 1, 'the person missed remembers it');
   assert.match(r.open, /missed: it was due day \d+ and is still owed/);
-  assert.match(r.recap, /missed on day \d+, still owed/);
+  // Changed by design in wave 3: the recap's Owed line uses the Journal's form ("missed Day 7, still owed").
+  assert.match(r.recap, /missed Day \d+, still owed/);
   assert.deepEqual(r.late, ['met', true, true], 'paid late: met, late, and its onMet ran');
 });
 

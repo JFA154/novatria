@@ -1991,6 +1991,7 @@ const MENTIONS = require('./mentions.cjs');
 const unrecordedMentions = MENTIONS.unrecorded(data);
 for (const x of unrecordedMentions) {
   if (x.kind === 'person') err(x.where, '"' + x.text + '" puts someone in the story who is not in the cast (tests/mentions.cjs): name a cast member, or let the person act alone');
+  else if (x.kind === 'pair') err(x.where, '"' + x.text + '" is one person\'s first name with another\'s family name, and nobody is called that (tests/mentions.cjs): use the full name as written');
   else err(x.where, (x.kind === 'name' ? 'the name "' : 'the place "') + x.text + '" matches no person, place or faction (tests/mentions.cjs): add a record, an aka, or reword');
 }
 

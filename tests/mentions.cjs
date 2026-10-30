@@ -11,6 +11,8 @@
 //   - "the <place>" phrases for kinds of place (PLACE_NOUNS: the bluff, the
 //     county seat, the paper mill) that no place's name, map label or aka
 //     answers to;
+//   - a "First Last" pair of one person's first name and another person's
+//     family name that is nobody's name (PAIR_ALLOW: names used on purpose);
 //   - phrases that put a person with no record in town (NOBODY: "two other
 //     boys", "pays two men", "the farmers", "a boy at Riverbend"): name a
 //     cast member instead, or let the person act alone.
@@ -53,6 +55,11 @@ const NOBODY = [
   /\bthe consulting engineer Carter\b/i,
   /\ba trucker left\b/i
 ];
+// A "First Last" pair made of one person's first name and another's family
+// name names nobody ("Glenda Gentry" for Glenda Pryor; playtest N13). These
+// are real names the content uses on purpose: a maiden name, a name before a
+// marriage.
+const PAIR_ALLOW = ['Mavis Crocker', 'Jodie Ogletree'];
 // Fields that hold ids or codes, not prose.
 const SKIP_KEYS = new Set(['id', 'type', 'tags', 'pronouns', 'presence', 'status', 'op', 'key', 'anchor', 'arrival', 'relation', 'trigger', 'river', 'roads', 'bridges', 'flagsSet', 'flagsUnset', 'orFlagsSet', 'phases', 'kind']);
 
@@ -112,11 +119,19 @@ function known(data) {
 function unrecorded(data) {
   const K = known(data);
   const found = [];
+  // First names and family names of the cast, and their full names.
+  const npcs = (data.TOWN_DATA.npcs || []).map(n => String(n.name || '').trim().split(/\s+/)).filter(p => p.length >= 2);
+  const firsts = new Set(npcs.map(p => p[0]));
+  const lasts = new Set(npcs.map(p => p[p.length - 1]));
+  const fulls = new Set(npcs.map(p => p.join(' ')).concat(npcs.map(p => p[0] + ' ' + p[p.length - 1])).concat(PAIR_ALLOW));
   const nameRe = K.names.map(n => new RegExp("(^|[^A-Za-z])" + esc(n) + "(?=('s|s'|')?(?![A-Za-z]))", 'g'));
   const nounRe = new RegExp("\\bthe\\s+((?:[a-z][a-z'-]*\\s+){0,3}?)(" + PLACE_NOUNS.map(esc).join('|') + ")(?![a-z])", 'gi');
   for (const [where, raw, key] of strings(data)) {
     if (/^[a-z_]+$/.test(raw)) continue; // a code word
     if (key !== 'role') for (const re of NOBODY) { const m = re.exec(raw); if (m) found.push({ where, kind: 'person', text: m[0], in: raw.slice(Math.max(0, m.index - 30), m.index + 50) }); }
+    for (const m of raw.matchAll(/\b([A-Z][a-z]+) ([A-Z][a-z]+)(?![a-z])/g)) {
+      if (firsts.has(m[1]) && lasts.has(m[2]) && !fulls.has(m[1] + ' ' + m[2]) && !K.names.includes(m[1] + ' ' + m[2])) found.push({ where, kind: 'pair', text: m[0], in: raw.slice(Math.max(0, m.index - 30), m.index + 50) });
+    }
     // A title's full stop does not end a sentence ("Mr. Sturdivant").
     let s = raw.replace(/\{(npc|player|playerName|npcId)\}/g, 'someone').replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
     for (const re of nameRe) s = s.replace(re, (m, pre) => pre + ' '.repeat(m.length - pre.length));
@@ -141,7 +156,7 @@ function unrecorded(data) {
   return found;
 }
 
-module.exports = { unrecorded, known, load, ALLOW, CALENDAR, PLACE_NOUNS, NOBODY };
+module.exports = { unrecorded, known, load, ALLOW, CALENDAR, PLACE_NOUNS, NOBODY, PAIR_ALLOW };
 
 if (require.main === module) {
   const file = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(__dirname, '..', 'index.html');

@@ -118,7 +118,7 @@ s.test('banFrom and playerPrice last until their day and run out with the mornin
     S.apply({ effects: [{ op: 'priceMultiplier', factor: 1.5 }, { op: 'playerPrice', factor: 2, days: 0 }] });
     out.factor = S.priceFactor();
     out.flags = [st.flags.playerPriceMultiplier, st.flags.playerPriceUntilDay];
-    // Day 2: the price is over (untilDay 1), the ban still holds (untilDay 2).
+    // Day 2: the price is over (untilDay 1), and so is the ban (wave 3: a ban ends before its untilDay, the day the player is welcome again).
     for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
     out.day2 = [st.time.day, S.priceFactor(), 'playerPriceMultiplier' in st.flags, !!S.isBanned(l.id)];
     for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
@@ -131,13 +131,14 @@ s.test('banFrom and playerPrice last until their day and run out with the mornin
     return out;
   });
   assert.equal(r.notYet, null);
-  assert.ok(r.ban && r.ban.untilDay === 2 && r.ban.byNpcId, 'banned through day 2: ' + JSON.stringify(r.ban));
+  assert.ok(r.ban && r.ban.untilDay === 2 && r.ban.byNpcId, 'banned until day 2 (welcome again then): ' + JSON.stringify(r.ban));
   assert.deepEqual(r.banObj, r.ban, 'a place object works too');
   assert.equal(r.keptLater, 2, 'a shorter second ban keeps the later day');
   assert.match(r.walkIn, /banned/);
   assert.equal(r.factor, 3);
   assert.deepEqual(r.flags, [2, 1]);
-  assert.deepEqual(r.day2, [2, 1.5, false, true]);
+  // Changed by design in wave 3 (playtest N2): one day's ban is today only; on its untilDay the player is welcome again.
+  assert.deepEqual(r.day2, [2, 1.5, false, false]);
   assert.deepEqual(r.day3, [3, null, 0]);
   assert.deepEqual(r.expired, [`no longer banned from ${r.ban.locationId}`]);
   assert.match(r.engineOnly, /not allowed from the model/);

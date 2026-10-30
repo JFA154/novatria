@@ -4762,7 +4762,7 @@ const TOWN_DATA = {
           { op: "plantSeed", seed: {
             id: "seed_after_packing",
             cause: "The town police are packing up Town Hall for the end of the month.",
-            effect: "The police office at Town Hall is half packed into boxes, and Glenda Gentry is carrying the old radio logs out to her car rather than see them thrown away.",
+            effect: "The police office at Town Hall is half packed into boxes, and Glenda Pryor is carrying the old radio logs out to her car rather than see them thrown away.",
             trigger: { type: "location", value: "loc_town_hall" },
             requires: { npcFree: ["npc_glenda"] },
             alt: {
@@ -5259,7 +5259,7 @@ const BACKGROUNDS = [
     arrival: "gate",
     hook: {
       npcId: "npc_nadine",
-      text: "Nadine Dees sees the group home's name stamped inside {player}'s pocket Bible, says she knows the housemother whose handwriting that is, and asks {player} to come to Wednesday supper at the church.",
+      text: "Nadine Dees sees the group home's name stamped inside {player}'s pocket Bible, says she knows the housemother whose handwriting that is, and asks {player} to come by the Parsonage for supper on Wednesday evening.",
       dayOffset: 0,
       trigger: { type: "npc", value: "npc_nadine" }
     }
@@ -5279,7 +5279,7 @@ const BACKGROUNDS = [
     arrival: "docks",
     hook: {
       npcId: "npc_curtis",
-      text: "Curtis Pruett watches {player} shuffle, smiles, and invites them to his Friday night game at the back table of the Low Water, hundred-dollar buy-in, house rules.",
+      text: "Curtis Pruett watches {player} shuffle, smiles, and invites {player} to his Friday night game at the back table of the Low Water, hundred-dollar buy-in, house rules.",
       dayOffset: 0,
       trigger: { type: "npc", value: "npc_curtis" }
     }
@@ -5674,7 +5674,7 @@ const GRUDGE_TEMPLATES = [
     forTags: ["police", "dispatcher"]
   },
   {
-    effect: "{npc} tells Shayla Rawls in her chair that {player} is not who they say they are, and by the end of the week half of Riverbend has heard it.",
+    effect: "{npc} tells Shayla Rawls in her chair that {player}'s story about where {player} came from does not add up, and by the end of the week half of Riverbend has heard it.",
     dayOffset: [2, 5],
     effects: [
       { op: "attitudeDelta", npcId: "npc_shayla", delta: -5 },
@@ -6158,6 +6158,15 @@ function fillPlaceholders(effects, vars) {
   return (Array.isArray(effects) ? effects : []).filter(isObj).map(fill).filter(e => !unfilled(e));
 }
 function cleanText(v, max) { return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max || 500) : ''; }
+/* Text held to max characters at a whole word, with "…" when it was cut
+   (wave 3: the ending's news was cut mid-word, "she always said t."). */
+function clipWords(v, max) {
+  const t = cleanText(v, 100000);
+  if (t.length <= max) return t;
+  const head = t.slice(0, max - 1);
+  const i = head.lastIndexOf(' ');
+  return `${(i > max * 0.5 ? head.slice(0, i) : head).replace(/[\s,;:—–-]+$/, '')}…`;
+}
 function strArr(v, max) { return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).map(x => cleanText(x, max || 60)) : []; }
 function fmtMod(n) { n = n | 0; return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
 function plusMinus(n) { return n > 0 ? '+' + n : String(n); }
@@ -6544,7 +6553,8 @@ const Dice = (() => {
 
   /* opts: { stat, difficulty, usesItemId?, npcId?, actionType?, social?,
      presentIds?, modifiers? (override), statValue? (override), d20?
-     (forced, for tests), complication? (forced text) }. rng defaults to the
+     (forced, for tests), complication? (forced text; null or false: none,
+     and none is rolled: the card game's) }. rng defaults to the
      state-bound Rng. */
   function resolve(opts, rng) {
     opts = opts || {};
@@ -6561,17 +6571,17 @@ const Dice = (() => {
     const t = tier(d20, total, tgt);
     let complicationText = null;
     let complicationEffects = [];
-    let complicationWitness = null;
-    if (needsComplication(t)) {
+    const none = opts.complication === null || opts.complication === false;
+    if (needsComplication(t) && !none) {
       if (opts.complication) complicationText = String(opts.complication);
       else {
         const where = state ? state.player.locationId : null;
         const presentIds = Array.isArray(opts.presentIds) ? opts.presentIds : (state && state === State.current && where ? State.npcsAt(where).map(n => n.id) : []);
         const c = complication({ actionType: opts.actionType, tier: t, presentIds, day: state ? state.time.day : 1, locationId: where, witnessId: opts.npcId }, r);
-        if (c) { complicationText = c.text; complicationEffects = c.effects; complicationWitness = c.witnessId; }
+        if (c) { complicationText = c.text; complicationEffects = c.effects; }
       }
     }
-    const res = { stat, statValue, modifiers, modifier, d20, total, target: tgt, difficulty, tier: t, label: TIER_LABELS[t], success: isSuccess(t), complication: complicationText, complicationEffects, complicationWitness };
+    const res = { stat, statValue, modifiers, modifier, d20, total, target: tgt, difficulty, tier: t, label: TIER_LABELS[t], success: isSuccess(t), complication: complicationText, complicationEffects };
     res.line = formatLine(res, false);
     res.packetLine = formatLine(res, true);
     return res;
@@ -6599,7 +6609,8 @@ const Dice = (() => {
     if (fam === 'fight' && targets.some(id => c.presentIds.includes(id))) return null;
     // Aimed at nothing in particular ("climb the wall", "pick the lock"): the stat is all that tells one try from another.
     const aim = targets.length || SOCIAL_FAMILIES.includes(fam) ? targets.join(',') : `~${STATS.includes(action.stat) ? action.stat : ''}`;
-    return `${fam}|${aim}|${action.usesItemId || ''}@${c.locationId}|${c.day}|${c.phase}`;
+    // ';' separates the keys in meta.lastRollKey (lockSet): never inside one (a `new:` target may hold it; wave 3).
+    return `${fam}|${aim}|${action.usesItemId || ''}@${c.locationId}|${c.day}|${c.phase}`.replace(/;/g, ',');
   }
   function scopeOf(key) { const k = String(key || '').replace(/^\+/, ''); const i = k.lastIndexOf('@'); return i >= 0 ? k.slice(i + 1) : null; }
   function scopeNow(state) {
@@ -6611,11 +6622,12 @@ const Dice = (() => {
     const v = state && state.meta ? state.meta.lastRollKey : null;
     return typeof v === 'string' && v ? v.split(';').filter(Boolean) : [];
   }
-  function isLocked(key, state) { return !!key && lockSet(state).includes(key); }
+  function isLocked(key, state) { return !!key && lockSet(state).includes(String(key).replace(/;/g, ',')); }
   /* The value meta.lastRollKey takes after this roll: the locks still in
      force here (this place and phase), plus the key when the roll failed,
      or plus '+key' when a social roll worked; null when nothing is left. */
   function lockFor(result, key, state) {
+    key = key ? String(key).replace(/;/g, ',') : key;
     const now = scopeNow(state);
     const set = lockSet(state).filter(k => now !== null && scopeOf(k) === now);
     const t = result && result.tier;
@@ -6623,13 +6635,6 @@ const Dice = (() => {
     else if (key && isSuccess(t) && SOCIAL_FAMILIES.includes(String(key).split('|')[0])) set.push('+' + key);
     const kept = set.slice(-MAX_LOCKS);
     return kept.length ? kept.join(';') : null;
-  }
-  /* Lock a key outright (through State.apply). Returns the new lock value. */
-  function lock(key) {
-    if (!key || !State.current) return null;
-    const v = lockFor({ tier: 'failure' }, key);
-    State.apply({ lastRollKey: v });
-    return v;
   }
   /* Lift every lock: on a move or a phase change ({ move: true } or
      { phase: true }; both false does nothing), or always with no argument. */
@@ -6641,7 +6646,7 @@ const Dice = (() => {
     return true;
   }
   /* How often the same social ask has already worked here this phase. */
-  function successes(key, state) { return key ? lockSet(state).filter(k => k === '+' + key).length : 0; }
+  function successes(key, state) { return key ? lockSet(state).filter(k => k === '+' + String(key).replace(/;/g, ',')).length : 0; }
   function diminishing(n) { n = Math.max(0, n | 0); return n < DIMINISHING.length ? DIMINISHING[n] : 0; }
 
   // ----- fights -----
@@ -6666,7 +6671,7 @@ const Dice = (() => {
   return {
     TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, FAMILIES, SOCIAL_FAMILIES, COMPLICATION_KIND,
     target, capModifier, sumModifiers, tier, isSuccess, needsComplication, conditionAffects, modifiersFor, resolve, formatLine, complication,
-    family, lockKey, isLocked, lockFor, lock, clearLocks, successes, diminishing, threat, fightDamage
+    family, lockKey, isLocked, lockFor, clearLocks, successes, diminishing, threat, fightDamage
   };
 })();
 
@@ -6847,7 +6852,9 @@ const Tables = (() => {
    also takes age (a whole number 0 to 120, null to clear) and history
    (text, at most 400).
    Wave 1 of the review fixes (docs/notes/engine-state.md has the list):
-   apply(diff, { source: 'model', present: [npcIds], rollSuccess, attacked })
+   apply(diff, { source: 'model', present: [npcIds], rollSuccess, attacked,
+   targets, actionType }) (targets and actionType: the action's, which say
+   whether money went to a creditor; wave 3)
    holds a bookkeeper's diff to what the turn could do: gold +/-500 and HP
    +/-3 a turn (HP never from above 0 to 0 unless attacked and the roll
    failed), at most 2 items carried in, items refused when their payment was
@@ -7872,18 +7879,39 @@ const State = (() => {
   }
   /* An obligation met or missed: its onMet or onMiss effects run once, as
      part of the apply that settled it (their own lines and refusals). */
-  function settle(o, status, how) {
-    // A missed one still owed can be met late, once (late: true; its onMet runs then).
-    const late = o.status === 'missed' && status === 'met' && stillOwed(o);
+  function settle(o, status, how, lateNow) {
+    // A missed one still owed can be met late, once (late: true; its onMet runs then). lateNow: settled by play just now (paid in full, the thing handed over), so no longer "still owed".
+    const late = o.status === 'missed' && status === 'met' && (lateNow === true || stillOwed(o));
     if (o.status !== 'open' && !late) return `no-op: ${o.id} is already ${o.status}`;
     o.status = status;
     if (late) o.late = true;
     o.settledDay = current.time.day;
     o.settledTurn = current.meta.turn;
     if (applyCtx) (applyCtx.result.settled = applyCtx.result.settled || []).push({ id: o.id, status });
-    const done = runNested(status === 'met' ? o.onMet : o.onMiss, `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`);
+    const done = runNested(status === 'met' ? (late ? lateEffects(o.onMet) : o.onMet) : o.onMiss, `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`);
+    // A loose end's obligation met (on time or late) settles the loose end: its thread is resolved (wave 3, playtest N7).
+    if (status === 'met') for (const t of looseEndThreads(o)) done.push(setThreadStatus(t, 'resolved'));
     return `${o.id} ${status}${how ? ` (${how})` : ''}${done.length ? `; ${done.join('; ')}` : ''}`;
   }
+  /* The open threads of the player's loose ends an obligation settles: the
+     same person, and the kind of obligation that loose end makes (a debt a
+     debt; a secret blackmail; a promise a promise or an errand; someone
+     lost an errand). */
+  const LOOSE_END_OBLIGATIONS = { debt: ['debt'], secret: ['blackmail'], promise: ['promise', 'errand'], lost: ['errand'] };
+  function looseEndThreads(o) {
+    return (Array.isArray(current.player.looseEnds) ? current.player.looseEnds : [])
+      .filter(le => isObj(le) && le.npcId === o.npcId && (LOOSE_END_OBLIGATIONS[le.kind] || []).includes(o.kind) && le.threadId)
+      .map(le => thread(le.threadId)).filter(t => t && t.status === 'open');
+  }
+  /* An obligation met late (wave 3): its onMet runs, but a memory that says
+     it was on time says it was late ("paid the six hundred in full and on
+     time" is remembered as "paid the six hundred in full, but late"). */
+  const ON_TIME_RE = /,?\s*(?:and\s+|but\s+)?(?:right\s+|just\s+)?(?:on time|ahead of time|before it was due|early)\b/i;
+  function lateEffects(list) {
+    if (!Array.isArray(list)) return list;
+    return list.map(e => (isObj(e) && e.op === 'addMemory' && typeof e.text === 'string' && ON_TIME_RE.test(e.text) ? Object.assign({}, e, { text: lateText(e.text) }) : e));
+  }
+  function lateText(text) { return String(text).replace(ON_TIME_RE, ', but late'); }
   // ----- effects that run inside an apply -----
   /* The apply in progress, so effects run later in it (an obligation's
      onMet and onMiss) report their refusals in its result. */
@@ -8058,8 +8086,10 @@ const State = (() => {
       if (days === null || days < 0 || days > 30) bad('days must be a whole number from 0 to 30');
       return putCondition({ name, effect: cleanText(e.effect, 80), untilDay: current.time.day + days });
     },
-    /* Not welcome at a place until day + days (state.bans; isBanned). A
-       second ban there keeps the later day. */
+    /* Not welcome at a place for `days` days, today counted: untilDay =
+       day + days is the day they are welcome again (wave 3: a ban ends
+       before its untilDay, so "until day N" means back on day N, and days 1
+       is tonight only). A second ban there keeps the later day. */
     banFrom(e) {
       const l = needLoc(e.locationId);
       const days = toInt(e.days);
@@ -8189,7 +8219,8 @@ const State = (() => {
        again) }: town news (state.news, the newest LIMITS.news kept). day
        and phase default to now (a tick may name the phase it ran for). */
     addNews(e) {
-      const text = cleanText(e.text, 400);
+      // An ending is told whole (up to 1500 characters); other news to 400, cut at a word.
+      const text = clipWords(e.text, e.epilogue === true ? 1500 : 400);
       if (!text) bad('news needs text');
       const factionId = e.factionId !== undefined && e.factionId !== null ? needFaction(e.factionId).id : null;
       const t = current.time;
@@ -8303,19 +8334,27 @@ const State = (() => {
     return out;
   }
   /* 'bed' or 'rough': a bed at a motel (LODGING_TYPES) with a night paid for
-     (flags.lodgingPaidUntilDay today or later), or at a motel or a home
-     (DWELLING_TYPES) where someone living there has attitude 25 or more;
-     anywhere else is rough (CONTRACTS section 7). */
+     (flags.lodgingPaidUntilDay today or later), or anywhere someone who
+     lives there or owns the place (their role says "owner of" it: Loretta
+     and the Low Water) has attitude 25 or more and is in town (wave 3, the
+     README's "rough unless a friend lives there", and the owner of a bar is
+     a friend with a couch in the back); anywhere else is rough (CONTRACTS
+     section 7). A place shut today has only that friend's bed (playtest
+     B14). */
+  function ownerOf(n, l) {
+    const role = String(n.role || '').toLowerCase();
+    const name = String(l.name || '').toLowerCase().replace(/^the /, '');
+    return /\bown(?:er|s)\b/.test(role) && name.length >= 3 && role.includes(name);
+  }
   function restQuality() {
     if (!current) return 'rough';
     const l = loc(current.player.locationId);
-    const type = l ? String(l.type || '').toLowerCase() : '';
-    if (!l || !(LODGING_TYPES.includes(type) || DWELLING_TYPES.includes(type))) return 'rough';
-    // A place shut today is no bed for anyone who does not live there (playtest B14).
-    if (isClosed(l) && !current.npcs.some(n => isObj(n.home) && n.home.locationId === l.id && n.attitude >= 25 && n.alive !== false)) return 'rough';
+    if (!l) return 'rough';
+    const type = String(l.type || '').toLowerCase();
+    const host = current.npcs.some(n => n.alive !== false && n.status === 'free' && n.attitude >= 25 && ((isObj(n.home) && n.home.locationId === l.id) || ownerOf(n, l)));
+    if (isClosed(l)) return host ? 'bed' : 'rough';
     const paid = current.flags.lodgingPaidUntilDay;
     if (LODGING_TYPES.includes(type) && Number.isInteger(paid) && paid >= current.time.day) return 'bed';
-    const host = current.npcs.some(n => n.alive !== false && n.status === 'free' && isObj(n.home) && n.home.locationId === l.id && n.attitude >= 25);
     return host ? 'bed' : 'rough';
   }
   /* What runs out with a new day (the morning tick; advanceTime calls it, and
@@ -8329,18 +8368,19 @@ const State = (() => {
     }
     if (Number.isInteger(fl.lodgingPaidUntilDay) && fl.lodgingPaidUntilDay < day) { delete fl.lodgingPaidUntilDay; out.push('the paid night is over'); }
     if (Array.isArray(current.bans)) {
-      const ended = current.bans.filter(b => !(Number.isInteger(b.untilDay) && b.untilDay >= day));
+      const ended = current.bans.filter(b => !(Number.isInteger(b.untilDay) && b.untilDay > day));
       if (ended.length) { current.bans = current.bans.filter(b => !ended.includes(b)); out.push(`no longer banned from ${ended.map(b => b.locationId).join(', ')}`); }
     }
     return out;
   }
   /* The ban on a place that holds today ({ locationId, untilDay, byNpcId? }),
-     or null. */
+     or null. A ban holds on the days before its untilDay (the day the
+     player is welcome again). */
   function isBanned(where, day) {
     if (!current || !Array.isArray(current.bans)) return null;
     const id = isObj(where) ? where.id : where;
     const d = Number.isInteger(day) ? day : current.time.day;
-    return current.bans.find(b => b.locationId === id && Number.isInteger(b.untilDay) && b.untilDay >= d) || null;
+    return current.bans.find(b => b.locationId === id && Number.isInteger(b.untilDay) && b.untilDay > d) || null;
   }
   /* What prices are multiplied by: the town's (flags.priceMultiplier) times
      the player's own while it lasts (Tables.price). */
@@ -8886,8 +8926,9 @@ const State = (() => {
      takes over knownToPlayer, the made-up person's attitude (when nobody
      had met the cast member yet) and memories (both lists, oldest first,
      at most MEMORY_MAX), and every reference: log addressees, threads,
-     seeds, due events, visits, the player's loose ends, rumours, seen,
-     relations made in play, told places' owners and the pending scene.
+     seeds (and their effects), due events, visits, the player's loose ends
+     and obligations, bans, the fight, gifts, rumours, seen, relations,
+     told places' owners and the pending scene.
      The made-up record and its schedule go. */
   function mergePerson(e) {
     if (!isObj(e)) bad('must be an object');
@@ -8928,7 +8969,27 @@ const State = (() => {
       else m.created.relationToNpcId = into.id;
     }
     for (const l of s.locations) if (isObj(l.revealed)) { if (l.revealed.ownerNpcId === from.id) l.revealed.ownerNpcId = into.id; if (l.revealed.byNpcId === from.id) l.revealed.byNpcId = into.id; }
-    if (s.pendingScene) for (const k of ['arrived', 'left']) if (Array.isArray(s.pendingScene[k])) s.pendingScene[k] = Array.from(new Set(s.pendingScene[k].map(swap)));
+    if (s.pendingScene) for (const k of ['arrived', 'left', 'before']) if (Array.isArray(s.pendingScene[k])) s.pendingScene[k] = Array.from(new Set(s.pendingScene[k].map(swap)));
+    /* Wave 3 (the review's risk): everything else that names them, so the
+       save still loads (validateShape checks an obligation's person exists):
+       obligations (their person, who is owed, the ids in their effects),
+       bans, the fight, today's gifts, seeds' effects, alternatives and
+       requirements, everyone's relations and rumours' tellers. */
+    const swapDeep = v => (typeof v === 'string' ? swap(v) : Array.isArray(v) ? v.map(swapDeep) : isObj(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [swap(k), swapDeep(x)])) : v);
+    for (const o of obligationList()) {
+      o.npcId = swap(o.npcId);
+      for (const k of ['owedTo', 'askerId']) if (typeof o[k] === 'string') o[k] = swap(o[k]);
+      for (const k of ['onMiss', 'onMet']) if (Array.isArray(o[k])) o[k] = swapDeep(o[k]);
+    }
+    for (const b of Array.isArray(s.bans) ? s.bans : []) if (b.byNpcId === from.id) b.byNpcId = into.id;
+    if (isObj(s.fight) && s.fight.npcId === from.id) s.fight.npcId = into.id;
+    if (isObj(s.meta.gifts) && Array.isArray(s.meta.gifts.ids)) s.meta.gifts.ids = s.meta.gifts.ids.map(swap);
+    for (const sd of s.seeds) {
+      for (const k of ['effects', 'alt', 'requires']) if (sd[k] !== undefined) sd[k] = swapDeep(sd[k]);
+      if (isObj(sd.trigger) && sd.trigger.type === 'npc') sd.trigger.value = swapDeep(sd.trigger.value);
+    }
+    for (const m of s.npcs) if (m !== from && Array.isArray(m.relations)) m.relations = m.relations.map(r => (isObj(r) && r.npcId === from.id ? Object.assign({}, r, { npcId: into.id }) : r)).filter(r => !(isObj(r) && r.npcId === m.id));
+    for (const r of s.rumours) if (Array.isArray(r.tellerIds)) r.tellerIds = Array.from(new Set(r.tellerIds.map(swap)));
     removeFromSchedules(from.id);
     s.npcs.splice(s.npcs.indexOf(from), 1);
     return { fromId: from.id, intoId: into.id, from: from.name, line: `${from.id} (${from.name}) merged into ${into.id} (${into.name}); memories ${mems.length}` };
@@ -8965,8 +9026,9 @@ const State = (() => {
     const present = opts && Array.isArray(opts.present) ? opts.present.filter(x => typeof x === 'string') : null;
     const rollSuccess = opts ? opts.rollSuccess : undefined;
     const attacked = opts && typeof opts.attacked === 'string' && opts.attacked ? opts.attacked : null;
-    // Whom the action was aimed at (transport passes the action's targets with a bookkeeper's diff).
+    // Whom the action was aimed at, and what it was (transport passes the action's targets and type with a bookkeeper's diff).
     const targets = opts && Array.isArray(opts.targets) ? opts.targets.filter(x => typeof x === 'string') : [];
+    const actionType = opts && typeof opts.actionType === 'string' ? opts.actionType : null;
     const model = source === 'model';
     let goldRefused = false; // an unaffordable payment: what it bought is refused too (review E3)
     let paid = 0; // money the player handed over this diff (settles a debt by play)
@@ -8984,10 +9046,15 @@ const State = (() => {
        pays nothing off. Such a payment may move up to what is still owed in
        one turn (the bookkeeper's usual cap is LIMITS.modelGoldPerTurn), and
        what is paid is kept on the obligation (paid), turn after turn, until
-       it covers the amount. */
+       it covers the amount. Wave 3: money that bought something (a buy, or
+       a diff that gains anything: a cold drink from the creditor alone at
+       his own counter) is the price of it, never a payment, unless the
+       bookkeeper names the obligation; only a payment raises the cap. */
     const named = Array.isArray(val('obligationsSettled')) ? val('obligationsSettled') : [];
+    const gained = val('itemsGained');
+    const bought = actionType === 'buy' || (Array.isArray(gained) && gained.length > 0);
     const payees = model && present ? obligations('owed').filter(o => (o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0
-      && present.includes(o.npcId) && (named.includes(o.id) || targets.includes(o.npcId) || present.length === 1)) : [];
+      && present.includes(o.npcId) && (named.includes(o.id) || (!bought && (targets.includes(o.npcId) || present.length === 1)))) : [];
     const owedNow = payees.reduce((sum, o) => sum + Math.max(0, o.amount - (o.paid | 0)), 0);
     const each = (k, fn) => {
       const list = val(k);
@@ -9271,15 +9338,13 @@ const State = (() => {
         if (o.paid >= o.amount) {
           // Paid in full: met (a missed one late; stillOwed is false once paid, so it is settled here directly).
           const wasMissed = o.status === 'missed';
-          if (wasMissed) o.status = 'open';
-          run(`settled.${o.id}`, () => { const line = settle(o, 'met', `paid ${money(o.amount)}${o.paid > give ? ` in all (${money(give)} this time)` : ''}${wasMissed ? ', late' : ''}`); if (wasMissed) o.late = true; return line; });
+          run(`settled.${o.id}`, () => settle(o, 'met', `paid ${money(o.amount)}${o.paid > give ? ` in all (${money(give)} this time)` : ''}${wasMissed ? ', late' : ''}`, wasMissed));
         } else run(`paid.${o.id}`, () => `${money(give)} paid toward ${o.id}: ${money(o.paid)} of ${money(o.amount)}`);
       }
       for (const o of obligations()) {
         if ((o.status === 'open' || o.status === 'missed') && o.kind === 'errand' && o.itemName && present.includes(o.npcId) && lostNames.some(nm => sameThing(nm, o.itemName))) {
           const wasMissed = o.status === 'missed';
-          if (wasMissed) o.status = 'open';
-          run(`settled.${o.id}`, () => { const line = settle(o, 'met', `handed over ${o.itemName}${wasMissed ? ', late' : ''}`); if (wasMissed) o.late = true; return line; });
+          run(`settled.${o.id}`, () => settle(o, 'met', `handed over ${o.itemName}${wasMissed ? ', late' : ''}`, wasMissed));
         }
       }
     }
@@ -9477,6 +9542,8 @@ const State = (() => {
       const left = ids(sc.left);
       if (!arrived.length && !left.length) { delete s.pendingScene; return 'scene unchanged'; }
       s.pendingScene = { locationId: l.id, day: s.time.day, phase: s.time.phase, arrived, left, cause: cleanText(sc.cause, 20) || 'time' };
+      // Who was here when it began (wave 3): a later change in the same untold stretch is measured from them, start to end.
+      if (Array.isArray(sc.before)) s.pendingScene.before = sc.before.map(String).filter(id => npc(id)).slice(0, 40);
       return `scene at ${l.id}: arrived ${arrived.join(', ') || 'nobody'}; left ${left.join(', ') || 'nobody'}`;
     });
     one('sceneChangeDone', () => { delete s.pendingScene; return 'scene change narrated'; });
@@ -9505,10 +9572,25 @@ const State = (() => {
       if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status}`);
       if (l.away === true) bad(`${l.id} is out of town`);
       if (l.closed) bad(`${l.id} is closed`);
+      /* For now, or (wave 3) for the phase a walk lands in: { day?, phase? },
+         this phase or a later one today, or the morning after a night, so
+         someone who comes for the player at the end of a walk that crosses
+         into the next phase is there when they arrive (and stays, as visits
+         for the phase that has come do). */
+      let day = s.time.day;
+      let phase = s.time.phase;
+      if (v.phase !== undefined && v.phase !== null) {
+        if (!PHASES.includes(v.phase)) bad(`phase must be ${PHASES.join(', ')}`);
+        const d = v.day === undefined || v.day === null ? s.time.day : toInt(v.day);
+        const later = d === s.time.day ? PHASES.indexOf(v.phase) >= PHASES.indexOf(s.time.phase) : d === s.time.day + 1 && s.time.phase === 'night' && v.phase === PHASES[0];
+        if (!later) bad('a visit is for now or the phase a walk lands in');
+        day = d;
+        phase = v.phase;
+      }
       if (!Array.isArray(s.visits)) s.visits = [];
       s.visits = s.visits.filter(x => x.npcId !== n.id);
-      s.visits.push({ npcId: n.id, locationId: l.id, day: s.time.day, phase: s.time.phase });
-      return `${n.id} at ${l.id} for day ${s.time.day} ${s.time.phase}`;
+      s.visits.push({ npcId: n.id, locationId: l.id, day, phase });
+      return `${n.id} at ${l.id} for day ${day} ${phase}`;
     });
     one('chronicleEntry', c => {
       if (!isObj(c)) bad('must be an object');
@@ -9986,6 +10068,17 @@ const State = (() => {
     for (const k of STATS) if (p.stats[k] !== undefined && !numberLike(p.stats[k])) return `player.stats.${k} is not a number`;
     if (typeof p.name !== 'string' || !p.name.trim()) return 'player.name missing';
     if (st.time.shorts !== undefined && !numberLike(st.time.shorts)) return 'time.shorts is not a number';
+    // Wave 3 (review bug 9): every other number the engine counts with is a number too (text that reads as one is converted at load).
+    for (const k of ['turn', 'rngCalls']) if (st.meta[k] !== undefined && st.meta[k] !== null && !numberLike(st.meta[k])) return `meta.${k} is not a number`;
+    const thingNumbers = (list, where) => {
+      for (const it of Array.isArray(list) ? list : []) for (const k of ['qty', 'price']) if (isObj(it) && it[k] !== undefined && it[k] !== null && !numberLike(it[k])) return `${where}: ${it.id}'s ${k} is not a number`;
+      return null;
+    };
+    const invBad = thingNumbers(p.inventory, 'player.inventory');
+    if (invBad) return invBad;
+    for (const l of st.locations) { const bad = thingNumbers(l.items, l.id); if (bad) return bad; }
+    for (const b of Array.isArray(st.bans) ? st.bans : []) if (!numberLike(b.untilDay)) return `bans: ${b.locationId} has no day it ends`;
+    for (const c of Array.isArray(p.conditions) ? p.conditions : []) if (isObj(c) && c.untilDay !== undefined && c.untilDay !== null && !numberLike(c.untilDay)) return `player.conditions: ${c.name}'s untilDay is not a day`;
     const npcIds = new Set(st.npcs.map(n => n.id));
     const idList = (v, known) => Array.isArray(v) && v.every(x => typeof x === 'string' && (!known || known.has(x)));
     for (const l of st.locations) {
@@ -10039,7 +10132,14 @@ const State = (() => {
     for (const k of ['gold', 'hp', 'maxHp', 'storyPoints']) num(s.player, k);
     for (const k of STATS) num(s.player.stats, k);
     num(s.time, 'shorts');
-    for (const n of s.npcs) { num(n, 'attitude'); for (const m of n.memories || []) num(m, 'weight'); }
+    num(s.meta, 'turn');
+    num(s.meta, 'rngCalls');
+    num(s.player, 'age');
+    for (const it of s.player.inventory || []) { num(it, 'qty'); num(it, 'price'); }
+    for (const l of s.locations) for (const it of Array.isArray(l.items) ? l.items : []) { num(it, 'qty'); num(it, 'price'); }
+    for (const b of Array.isArray(s.bans) ? s.bans : []) num(b, 'untilDay');
+    for (const c of Array.isArray(s.player.conditions) ? s.player.conditions : []) num(c, 'untilDay');
+    for (const n of s.npcs) { num(n, 'attitude'); num(n, 'age'); for (const m of n.memories || []) num(m, 'weight'); }
     for (const f of s.factions) for (const c of f.clocks || []) { num(c, 'segments'); num(c, 'filled'); }
   }
   /* The town copy a save carries is read the same way: its people and
@@ -10178,12 +10278,13 @@ const State = (() => {
      Today's calendar holds too: someone away for the day (awayOn: school)
      is nowhere in those phases, and someone hurt (hurtUntilDay) is at
      home, every phase, until they mend. */
-  function npcsAt(locId, phase) {
+  function npcsAt(locId, phase, onDay) {
     if (!current) return [];
     const l = loc(locId);
     if (!l) return [];
     const ph = phase || current.time.phase;
-    const day = current.time.day;
+    // onDay (wave 3): the day a walk lands on (the morning after a night), else today.
+    const day = Number.isInteger(onDay) ? onDay : current.time.day;
     const ids = ((l.npcIdsBySchedule && l.npcIdsBySchedule[ph]) || []).slice();
     const visits = (current.visits || []).filter(v => v.day === day && v.phase === ph);
     for (const v of visits) {
@@ -10343,6 +10444,19 @@ const Town = (() => {
     { words: ['car', 'cars', 'truck', 'trucks', 'pickup', 'pickup truck', 'van', 'motorcycle', 'motorbike', 'tractor', 'bus', 'four-wheeler', 'atv', 'semi'],
       where: ['road', 'highway', 'street', 'marina', 'farm', 'gas', 'motel', 'garage', 'trailerpark', 'bridge', 'fields', 'mill', 'house', 'bighouse', 'parking', 'bar', 'tavern', 'church', 'pawn', 'police', 'office', 'school', 'hospital', 'clinic', 'care', 'town', 'market', 'diner', 'store'], what: 'one is parked' }
   ].map(r => Object.assign(r, { re: tailRe(r.words) }));
+  /* A word right before the head word that makes it an ordinary thing, not
+     the restricted one (wave 3, review bug 5): a grease gun, a staple gun, a
+     water pistol, peanut shells, taco shells, ink cartridges, a gravy boat,
+     a hand truck. */
+  const HARMLESS_BEFORE = new Set(('grease staple nail glue hot-glue caulk caulking spray paint heat water squirt nerf cap tape price label soldering solder rivet airbrush toy ' +
+    'peanut pecan walnut pistachio sunflower taco pasta egg oyster clam crab snail turtle sea conch ' +
+    'ink toner printer filter razor game propane gravy sauce paper model hand golf shopping').split(/\s+/));
+  function harmlessHead(thing, hit) {
+    const words = String(thing || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const n = String(hit || '').toLowerCase().split(/\s+/).filter(Boolean).length;
+    const before = words.length > n ? words[words.length - n - 1] : null;
+    return !!before && HARMLESS_BEFORE.has(before);
+  }
   const IMPLAUSIBLE_RE = tailRe(IMPLAUSIBLE);
   const MODERN_ONLY_RE = tailRe(MODERN_ONLY);
   const FANTASY_ONLY_RE = tailRe(FANTASY_ONLY);
@@ -10443,7 +10557,7 @@ const Town = (() => {
       const thing = headPhrase(d, 'item') || head;
       for (const r of RESTRICTED) {
         const h = blockHit(r.re, thing);
-        if (h && !r.where.includes(String(locationType || '').toLowerCase())) return { plausible: false, kind, reason: `no ${h} here: this is not a place where ${r.what}` };
+        if (h && !harmlessHead(thing, h) && !r.where.includes(String(locationType || '').toLowerCase())) return { plausible: false, kind, reason: `no ${h} here: this is not a place where ${r.what}` };
       }
     }
     const cap = State.LIMITS && Number.isInteger(State.LIMITS.revealedPlaces) ? State.LIMITS.revealedPlaces : 12;
@@ -10531,6 +10645,36 @@ const Town = (() => {
     return nameMentions(text, n) || rolePhrases(n).some(x => hasRolePhrase(String(text || '').toLowerCase(), x));
   }
   function plainName(x) { return String(x || '').toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  /* The place a possessive names, or null (the mock parser's mockPlace
+     reads walks the same way): "Pittman's" or "Byrd's" alone is the
+     business whose name starts so; "Royce's house" (place, home, trailer,
+     apartment, farm) the home of someone by that name; "Hollis's pawn shop"
+     or "Loretta's bar" a place of that name or kind tied to that person (its
+     name has theirs, they work there or live there); "Pittman's gas" the
+     business whose name it starts. A person's own things and kin ("Royce's
+     truck", "Dewayne's wife") are not places: null. */
+  const POSSESSIVE_HOMES = ['house', 'home', 'place', 'trailer', 'apartment', 'farm'];
+  function possessivePlace(want, s) {
+    const m = /^([a-z][a-z-]*(?: [a-z][a-z-]*)?)'s?(?:\s+(.*))?$/.exec(String(want || ''));
+    if (!m) return null;
+    const owner = m[1];
+    const rest = (m[2] || '').trim();
+    const poss = `${owner}'s`;
+    const names = l => [l.name].concat(Array.isArray(l.aka) ? l.aka : []).map(plainName);
+    const places = s.locations.filter(l => isObj(l));
+    const people = s.npcs.filter(n => nameTokens(n).includes(owner) || plainName(n.name) === owner);
+    const homeOf = n => { const id = isObj(n.home) ? n.home.locationId : typeof n.home === 'string' ? n.home : null; return id ? State.loc(id) : null; };
+    // A business whose own name starts with the possessive ("Pittman's Gas and Service", "Byrd's Pawn").
+    const business = places.find(l => names(l).some(x => x === poss || x.startsWith(`${poss} `)));
+    if (!rest) return business || people.map(homeOf).find(Boolean) || null;
+    if (business && names(business).some(x => x.startsWith(`${poss} ${rest}`))) return business;
+    if (POSSESSIVE_HOMES.includes(rest)) return people.map(homeOf).find(Boolean) || business || null;
+    // "Hollis's pawn shop", "Loretta's bar": a place of that name or kind tied to them.
+    const tied = l => names(l).some(x => x.includes(poss)) || people.some(n => homeOf(n) === l || PHASES.some(ph => ((l.npcIdsBySchedule || {})[ph] || []).includes(n.id)));
+    const byName = places.filter(l => names(l).includes(rest));
+    if (byName.length) return byName.find(tied) || (byName.length === 1 ? byName[0] : null);
+    return placeByPhrase(rest, places.filter(tied));
+  }
   /* An existing entity a `new:` description already names, or null. NPCs who
      are present win over absent ones. ctx: { locationId }. A place made in
      play (made: "Back room") is per building: only one here or next door
@@ -10549,6 +10693,9 @@ const Town = (() => {
     const l = byName.find(x => !made(x, town)) || byName.find(x => made(x, town) && near(x))
       || s.locations.find(x => Array.isArray(x.aka) && x.aka.some(a => plainName(a) === want));
     if (l) return { kind: 'location', id: l.id };
+    // A possessive that names a place, not its owner (wave 3, review bug 10): "Pittman's", "Hollis's pawn shop", "Dewayne's house".
+    const owned = possessivePlace(want, s);
+    if (owned) return { kind: 'location', id: owned.id };
     const presentIds = State.npcsAt(here).map(n => n.id);
     // The living in town first; then the dead and the people who live elsewhere, who exist and can be talked about but are never here.
     const inTown = s.npcs.filter(n => n.alive !== false && n.status !== 'dead' && n.status !== 'gone');
@@ -11219,9 +11366,9 @@ const World = (() => {
      it is noted in recent either way. opts: { factionId, public, epilogue,
      eventId?, seen? (it happened in front of the player), day?, phase? }. */
   function pushNews(text, opts) {
-    const t = cleanText(text, 400);
-    if (!t) return false;
     const o = opts || {};
+    const t = clipWords(text, o.epilogue === true ? 1500 : 400);
+    if (!t) return false;
     note(t, { kind: 'news', factionId: o.factionId || null, public: o.public === true, epilogue: o.epilogue === true });
     if (!hasOp('addNews')) return false;
     const op = { op: 'addNews', text: t, factionId: o.factionId || null, public: o.public === true };
@@ -11529,6 +11676,23 @@ const World = (() => {
     return (!want.length || want.some(x => tags.has(x))) && !not.some(x => tags.has(x));
   }
   function templatesOf(kind) { return kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES; }
+  /* What a grudge's memory is about, and what kind of answer a grudge
+     template is: violent (it hurts the player), police (it goes to the
+     law), or talk (gossip, a ban, a cold shoulder). */
+  function memoryKind(m) {
+    const t = String((m && m.text) || '').toLowerCase();
+    if (/\b(attack\w*|hit|hits|punch\w*|beat|beaten|knock\w*|shov\w*|fight|fought|slapp?\w*|hurt)\b/.test(t)) return 'violence';
+    if (/\b(stole|steal\w*|thief|rob\w*|took my|pickpocket\w*)\b/.test(t)) return 'theft';
+    if (/\b(insult\w*|called me|told me to|mock\w*|laugh\w* at|liar|lied|threat\w*|cheat\w*)\b/.test(t)) return 'insult';
+    return null;
+  }
+  const GRUDGE_FOR = { violence: ['violent', 'police'], theft: ['police', 'talk'], insult: ['talk'] };
+  function grudgeKind(t) {
+    const effects = arr(t && t.effects);
+    if (effects.some(e => isObj(e) && e.op === 'playerHp')) return 'violent';
+    if (/\b(police|chief bell|ticket)\b/i.test(String((t && t.effect) || '')) || effects.some(e => isObj(e) && (e.npcId === 'npc_marcus' || e.key === 'fac_police' || e.op === 'playerGold'))) return 'police';
+    return 'talk';
+  }
   function templateOf(sd) {
     const list = isFeeling(sd) ? templatesOf(sd.origin.kind) : null;
     return list && Number.isInteger(sd.origin.template) ? (list[sd.origin.template] || null) : null;
@@ -11543,6 +11707,10 @@ const World = (() => {
     if (!fit.length) return null;
     let idxs = fit.filter(i => !used.includes(i));
     if (!idxs.length) idxs = fit;
+    // What the memory is about picks the kind of answer (wave 3): a beating or a police report for violence, talk for an insult, the police or talk for a theft.
+    const want = kind === 'grudge' ? GRUDGE_FOR[memoryKind(memory)] : null;
+    const fitting = want ? idxs.filter(x => want.includes(grudgeKind(list[x]))) : [];
+    if (fitting.length) idxs = fitting;
     const i = Rng.pick(idxs);
     const t = list[i];
     const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : [2, 5];
@@ -11773,7 +11941,8 @@ const World = (() => {
     let obligationId = null;
     if (met || alt) {
       const own = met ? (Array.isArray(sd.effects) ? sd.effects : tpl && Array.isArray(tpl.effects) ? tpl.effects : []) : arr(alt.effects);
-      const filled = own.length ? fillEffects(own, { npc: n }) : [];
+      // Told to the player as its due event: its own news is not told again overnight (wave 3, the playtest's "seed news told twice").
+      const filled = own.length ? fillEffects(own, { npc: n }).map(e => (text && isObj(e) && e.op === 'addNews' ? Object.assign({}, e, { seen: true }) : e)) : [];
       if (filled.length) applyEffects(filled);
       const ob = filled.find(e => isObj(e) && e.op === 'addObligation');
       const made = ob ? obligations().filter(o => o.kind === ob.kind && o.npcId === ob.npcId && o.createdTurn === s.meta.turn).pop() : null;
@@ -11812,13 +11981,19 @@ const World = (() => {
   /* The due events to narrate now: at most MAX_DUE (ctx.max: more for a
      narration of time passing, /rest, /wait, /skip, so what a string of
      nights brought is told on time). Each keeps its day (firedDay), its
-     scene flag and its town event. */
+     scene flag and its town event. ctx.phase and ctx.day: the phase a walk
+     lands in, so whoever comes for the player meets them there and is
+     still there once the walk's time has passed (wave 3). */
   function dueSeeds(ctx) {
     const s = st();
     if (!s || !Array.isArray(s.dueEvents) || !s.dueEvents.length) return [];
     const here = (ctx && ctx.locationId) || s.player.locationId;
+    // Where in the day the player meets them (wave 3): the phase a walk lands in (ctx.phase, ctx.day), else now.
+    const phase = ctx && PHASES.includes(ctx.phase) ? ctx.phase : s.time.phase;
+    const day = ctx && Number.isInteger(ctx.day) ? ctx.day : s.time.day;
+    const later = phase !== s.time.phase || day !== s.time.day;
     const cap = ctx && (ctx.max === Infinity || (Number.isInteger(ctx.max) && ctx.max > 0)) ? ctx.max : MAX_DUE;
-    const out = [];
+    const cands = [];
     const drop = [];
     for (const ev of s.dueEvents.slice()) {
       const n = ev.npcId ? State.npc(ev.npcId) : null;
@@ -11828,19 +12003,23 @@ const World = (() => {
       // A place's event is told in that place: if the player has moved on, it waits for them to come back.
       const sd = State.seed(ev.seedId);
       if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (!anyOf(sd.trigger.value, v => v === here) || (ctx && ctx.leaving))) continue;
-      if (out.length >= cap) continue;
-      // A loose end's person comes to the player; so does the person a seed fired on meeting (an npc trigger: a background's hook), if they have moved on since.
-      const bring = n && (ev.bring || (sd && isObj(sd.trigger) && sd.trigger.type === 'npc'));
-      if (bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
       const item = { seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null };
       if (Number.isInteger(ev.firedDay)) item.firedDay = ev.firedDay;
       if (ev.scene === true) item.scene = true;
       if (ev.eventId) item.eventId = ev.eventId;
-      out.push(item);
+      // A loose end's person comes to the player; so does the person a seed fired on meeting (an npc trigger: a background's hook), if they have moved on since.
+      cands.push({ item, n, bring: !!n && !!(ev.bring || (sd && isObj(sd.trigger) && sd.trigger.type === 'npc')) });
     }
     // The scene first (a town event here), then someone come for the player, then the rest: the narration leads with what is in front of them.
+    // Sorted before the cap (wave 3), so a scene behind three waiting events is told now, not a turn late.
     const rank = e => (e.scene ? 0 : e.npcId ? 1 : 2);
-    out.sort((a, b) => rank(a) - rank(b));
+    const out = [];
+    for (const c of cands.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c.item) - rank(b.c.item) || a.i - b.i).map(x => x.c)) {
+      if (out.length >= cap) break;
+      // Brought for the phase the player meets them in (a walk's landing phase), so they are still there after the walk.
+      if (c.bring && !State.npcsAt(here, phase, day).some(x => x.id === c.n.id)) State.apply({ visits: [Object.assign({ npcId: c.n.id, locationId: here }, later ? { day, phase } : {})] }, W);
+      out.push(c.item);
+    }
     if (drop.length) {
       State.apply({ dueDone: drop }, W);
       drop.forEach(id => note(`${id} dropped: its NPC can no longer act on it, or what it was about is settled`, { kind: 'seed', seedId: id }));
@@ -11893,8 +12072,11 @@ const World = (() => {
      { text, seedId, locationId, fine, chiefId, timeCost }, or null. */
   /* A place's name inside a sentence: "the Low Water", not "The Low Water". */
   function placeIn(l) { return l ? String(l.name).replace(/^The /, 'the ') : 'town'; }
+  // What the police take off someone they lock up (World.arrestPlayer).
+  const WEAPON_RE = /\b(guns?|pistols?|rifles?|shotguns?|revolvers?|handguns?|knife|knives|switchblades?|machetes?|ammo|ammunition|shells|bullets|cartridges|brass knuckles|blackjack)\b/i;
   /* What an arrest would be, without doing it (the pipeline tells it in the
-     narration of the fight that caused it): { text, cellId, chiefId, fine }. */
+     narration of the fight that caused it): { text, cellId, chiefId, fine,
+     weapons: the names of what will be taken }. */
   function arrestPlan() {
     const s = st();
     if (!s) return null;
@@ -11905,8 +12087,10 @@ const World = (() => {
     const place = placeIn(from);
     const fine = Math.min(FINE, Math.max(0, s.player.gold | 0));
     const who = chief ? chief.name : 'The police';
-    const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${placeIn(cell)}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.`;
-    return { text, cellId: cell ? cell.id : null, chiefId: chief ? chief.id : null, fine, place };
+    const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || ''))).map(i => i.name);
+    const taken = weapons.length ? ` ${chief ? (chief.pronouns === 'she' ? 'She' : chief.pronouns === 'they' ? 'They' : 'He') : 'They'} take${chief && chief.pronouns !== 'they' ? 's' : ''} ${weapons.map(w => lowerFirst(w)).join(' and ')} off ${s.player.name}.` : '';
+    const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${placeIn(cell)}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.${taken}`;
+    return { text, cellId: cell ? cell.id : null, chiefId: chief ? chief.id : null, fine, place, weapons };
   }
   /* opts.told: the narration of the fight already told the arrest (the
      pipeline's ARREST line), so no due event tells it again. */
@@ -11920,7 +12104,11 @@ const World = (() => {
     const diff = {};
     if (cell && cell.id !== s.player.locationId) diff.playerLocationId = cell.id;
     if (fine > 0) diff.goldDelta = -fine;
-    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}`, weight: 3 }];
+    // Weapons go with the arrest (wave 3): taken off the player, and the chief remembers taking them.
+    const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || '')));
+    if (weapons.length) diff.itemsLost = weapons.map(i => ({ id: i.id, qty: i.qty || 1 }));
+    const took = weapons.length ? `, and took ${weapons.map(i => lowerFirst(i.name)).join(' and ')} off them` : '';
+    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}${took}`, weight: 3 }];
     State.apply(diff, W);
     const text = plan.text;
     const seedId = opts && opts.told ? null : dueNow({ key: `arrest_d${s.time.day}`, text, npcId: chief ? chief.id : null, bring: !!chief, locationId: cell ? cell.id : null });
@@ -12113,6 +12301,8 @@ const Style = (() => {
     'major colonel general corporal private senator governor president councilman councilwoman trooper aunt auntie uncle cousin granny grandma grandpa nana papa ' +
     'saint st wife husband son daughter boy girl friend buddy boss nephew niece grandson granddaughter mama daddy named called ' +
     'at in to from into toward towards near inside outside for ask asks asked tell tells told thank meet meets met hand hands handed pay pays paid introduces hey hi hello howdy bye').split(/\s+/));
+  // Wave 3: a name told about, right after the verb ("She says Darnell owes her money", "Royce mentions Darnell"); not two back ("says the Feds" is not a place).
+  const MARK_TOLD = new Set('says said mention mentions mentioned'.split(' '));
   const MARK_AFTER = new Set(('says said asks asked tells told answers answered replies replied shouts shouted yells yelled calls whispers whispered mutters muttered ' +
     'nods nodded shrugs shrugged laughs laughed grins grinned smiles smiled sighs sighed winks winked frowns frowned snorts snorted adds added agrees agreed waves waved').split(/\s+/));
   // Ordinary words that open a sentence capitalised: never a name, and never the unknown word beside one ("The Shack" is one unknown word, not two).
@@ -12181,7 +12371,15 @@ const Style = (() => {
   }
   /* Every capitalised word the game does not know, once each, with marked:
      true when something marks it as a person or a place (see NAME_ALLOW's
-     note), false when it stands alone. */
+     note), false when it stands alone. Unknown words side by side are one
+     name ("Earl Hux", "Red Seal"): what marks one marks them all. Wave 3
+     (the owner's rule and the review's bug 4): at a sentence start a name
+     is marked by a speech or gesture verb after it ("Darnell says the
+     bridge is out", "Bobby waves you over") as well as by being two words
+     or more ("Earl Hux leans on the counter"); within a sentence two words
+     or more are not a mark of their own ("He dips Red Seal", "The radio
+     plays Conway Twitty": soft), only the marks above are (a title, a
+     place word, "says", a possessive, a speech verb). */
   function nameHits(text, k) {
     if (!k) return [];
     // "Mr. Hux" and "Dr. Pepper" read as "Mr Hux" and "Dr Pepper".
@@ -12194,19 +12392,24 @@ const Style = (() => {
     const gap = (a, b) => s.slice(a.index + a[0].length, b.index);
     const hits = new Map();
     for (let i = 0; i < words.length; i++) {
-      const w = strip(words[i][0]);
-      if (!unknown(w)) continue;
+      if (!unknown(strip(words[i][0]))) continue;
+      // The run of unknown capitalised words that starts here ("Earl Hux"), side by side with only spaces between.
+      let j = i;
+      while (j + 1 < words.length && /^\s+$/.test(gap(words[j], words[j + 1])) && unknown(strip(words[j + 1][0])) && !/('s|s')$/.test(words[j][0])) j++;
+      const run = words.slice(i, j + 1);
       const head = s.slice(0, words[i].index);
       const before = head.replace(/["'“”(\s]+$/, '');
       // An opening quote starts a sentence too ('she says, "Now, listen"'); a closing one does not ('"Fine," Earl says').
       const opening = /(^|[\s(\[—–-])["“]\s*$/.test(head);
       const starts = opening || before === '' || /[.!?:;…—–]$/.test(before) || /\s-$/.test(before);
-      const nx = words[i + 1];
-      const next = nx && /^\s+$/.test(gap(words[i], nx)) ? strip(nx[0]) : null;
+      const nx = words[j + 1];
+      const after = nx && /^\s+$/.test(gap(words[j], nx)) ? nx[0].toLowerCase() : null;
+      const speaks = !!(after && MARK_AFTER.has(after));
+      const owns = run.some(w => /('s|s')$/.test(w[0]));
       let marked;
       if (starts) {
-        // A sentence start is an ordinary word, unless an unknown capitalised word follows it ("Earl Hux nods"; not "Ask Bobby").
-        if (!next || !unknown(next) || SENTENCE_STARTS.has(w)) continue;
+        // A sentence start is an ordinary word, unless a speech or gesture verb follows the name or it is two words or more (SENTENCE_STARTS such as "Ask" are COMMON: never in a run).
+        if (run.length === 1 && !speaks) { i = j; continue; }
         marked = true;
       } else {
         const pv = words[i - 1];
@@ -12214,12 +12417,10 @@ const Style = (() => {
         const prev = tight ? strip(pv[0]) : null;
         // "at the Shack", "to the Delta": a place word two back, with "the" between.
         const pv2 = prev && /^the$/i.test(prev) && words[i - 2] && /^\s+$/.test(gap(words[i - 2], pv)) ? words[i - 2][0].toLowerCase() : null;
-        const after = nx && /^\s+$/.test(gap(words[i], nx)) ? nx[0].toLowerCase() : null;
-        marked = !!(next && unknown(next)) || !!(prev && /^\s+$/.test(gap(pv, words[i])) && unknown(prev))
-          || !!(prev && MARK_BEFORE.has(prev.toLowerCase())) || !!(pv2 && MARK_BEFORE.has(pv2))
-          || /('s|s')$/.test(words[i][0]) || !!(after && MARK_AFTER.has(after));
+        marked = !!(prev && (MARK_BEFORE.has(prev.toLowerCase()) || MARK_TOLD.has(prev.toLowerCase()))) || !!(pv2 && MARK_BEFORE.has(pv2)) || owns || speaks;
       }
-      hits.set(w, hits.get(w) || marked);
+      for (const w of run) { const x = strip(w[0]); hits.set(x, hits.get(x) || marked); }
+      i = j;
     }
     return Array.from(hits, ([word, m]) => ({ word, marked: m }));
   }
@@ -12803,8 +13004,10 @@ const Api = (() => {
     const known = [].concat(packet.exits || [], packet.knownLocations || []);
     // The places the packet lists (with the other names the game has for them), and the homes in town nobody has told the player about yet.
     const knownIds = new Set(known.map(l => l.id));
+    // And the places out of town (wave 3, playtest D3): "I walk to Clayburn" is a walk there, which the engine refuses with its own line (nothing spent).
     const pool = known.map(l => (s && State.loc(l.id)) || l).filter((l, i, all) => all.findIndex(x => x.id === l.id) === i)
-      .concat(s ? s.locations.filter(l => l.away !== true && l.discovered === false && !knownIds.has(l.id)) : []);
+      .concat(s ? s.locations.filter(l => l.away !== true && l.discovered === false && !knownIds.has(l.id)) : [])
+      .concat((packet.away || []).map(l => (s && State.loc(l.id)) || l).filter(l => l && l.id && !knownIds.has(l.id)));
     const cands = [];
     for (const l of pool) {
       const point = s && State.loc(l.id) === l && typeof State.mapPointOf === 'function' ? State.mapPointOf(l) : null;
@@ -13025,17 +13228,26 @@ const Api = (() => {
     /* A thing, not a person: looking for one ("I look for some rope") may turn
        it up here (new:), and picking one up ("I pick up the rope") takes the
        item lying here by its id. */
-    const seek = /\b(?:look|looks|search|searches|hunt|hunts|rummage|rummages)\s+(?:around\s+)?for\s+(.+?)[\s.!?]*$/.exec(lower);
+    // "I look for some rope", "I look around for a crowbar", "I search the shelves for a flashlight" (wave 3).
+    const seek = /\b(?:look|looks|search|searches|hunt|hunts|rummage|rummages|dig|digs)\b(?:\s+(?:around|through|in|inside|under|behind|on|the|a|an|his|her|my|their|some)\b[a-z' -]*?)?\s+for\s+(.+?)[\s.!?]*$/.exec(lower);
     const grab = /\b(?:pick|picks)\s+up\s+(.+?)[\s.!?]*$/.exec(lower);
     const thing = (seek || grab) && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
     const escRe = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const lying = thing ? (packet.itemsHere || []).find(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : null;
+    // Every thing lying here the words name ("the fishing rod and the tackle box": both; "the rod and reel": the one), longest names first.
+    const named2 = thing ? (packet.itemsHere || []).filter(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : [];
+    const lyingAll = named2.filter(i => !named2.some(j => j !== i && j.name.length > i.name.length && j.name.toLowerCase().includes(i.name.toLowerCase())));
+    const lying = lyingAll[0] || null;
     // Something carried that the words name: its whole name, else one of its longer words ("the knife" for a folding knife).
     const inv = packet.inventory || [];
+    // Else the one whose words the line shares most ("the letter to Jodie" is the Letter for Jodie Strayhorn, not the Reference letter; wave 3), and on a tie the thing an errand is owed.
+    const wordsOf = i => String(i.name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4);
+    const shared = i => wordsOf(i).filter(w => new RegExp(`(^|[^a-z])${escRe(w)}s?([^a-z]|$)`).test(lower)).length;
+    const errandThing = i => { try { return State.obligations('owed').some(o => o.kind === 'errand' && o.itemName && String(o.itemName).toLowerCase() === String(i.name || '').toLowerCase()); } catch (e) { return false; } };
     const held = inv.find(i => new RegExp(`(^|[^a-z])${escRe(String(i.name || '').toLowerCase())}([^a-z]|$)`).test(lower))
-      || inv.find(i => String(i.name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4).some(w => new RegExp(`(^|[^a-z])${escRe(w)}s?([^a-z]|$)`).test(lower)));
+      || inv.filter(i => shared(i) > 0).sort((x, y) => shared(y) - shared(x) || errandThing(y) - errandThing(x))[0];
     const where = (packet.location && packet.location.type) || '';
-    if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; }
+    // A search for something not lying here rolls (the engine makes it only on a success; wave 3, playtest N12).
+    if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
     else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
     else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
     // Watching the room ("I watch who comes and goes") is a look that takes a while, not a walk.
@@ -13049,7 +13261,7 @@ const Api = (() => {
       const exit = (packet.exits || []).find(x => !x.closed);
       out.actionType = 'move'; out.destinationId = exit ? exit.id : null; out.timeCost = 'short';
     }
-    else if (has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'hard'); out.targets = target(); }
+    else if (has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'normal'); out.targets = target(); }
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
@@ -13057,7 +13269,8 @@ const Api = (() => {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
-      out.summary = `bets $${st ? parseInt(st[1] || st[2], 10) : 10} at cards`;
+      // The engine plays the stake the player named (else its own; the summary follows it).
+      out.summary = st ? `bets $${parseInt(st[1] || st[2], 10)} at cards` : 'sits in at cards';
       out.timeCost = 'short';
       out.targets = target();
     }
@@ -13073,7 +13286,7 @@ const Api = (() => {
     // A move names someone who is not here only by their name.
     for (const n of named) if (!out.targets.includes(n.id) && (out.actionType !== 'move' || isHere(n) || byName(n))) out.targets.push(n.id);
     for (const f of fresh) if (!out.targets.includes(f)) out.targets.push(f);
-    if (thing) out.targets.push(lying ? lying.id : 'new:' + thing);
+    if (thing) for (const id of lyingAll.length ? lyingAll.map(i => i.id) : ['new:' + thing]) if (!out.targets.includes(id)) out.targets.push(id);
     return out;
   }
   /* A stable pick among variants: the same turn, words and person always give
@@ -13140,10 +13353,7 @@ const Api = (() => {
      word for word (a rumour is told once). */
   function freshNews(s) {
     if (!s) return null;
-    let list = null;
-    try { list = typeof State.news === 'function' ? State.news() : State.news; } catch (e) { list = null; }
-    if (!Array.isArray(list)) list = Array.isArray(s.news) ? s.news : [];
-    const item = list.filter(x => isObj(x) && x.public !== false && typeof x.text === 'string' && Number.isInteger(x.day) && x.day >= s.time.day - 1).slice(-1)[0];
+    const item = State.news.filter(x => isObj(x) && x.public !== false && typeof x.text === 'string' && Number.isInteger(x.day) && x.day >= s.time.day - 1).slice(-1)[0];
     if (!item) return null;
     const clause = item.text.split(/(?<=[.!?])\s+|,\s+|;\s+/)[0].replace(/[.!?]+$/, '').trim();
     if (!clause || s.rumours.some(r => clause.includes(r.text) || r.text === clause)) return null;
@@ -13309,14 +13519,16 @@ const Api = (() => {
     const lineBudget = Math.max(1, (mode === 'normal' ? (c.moved ? 4 : isSay(c.speech) ? 4 : 3) : 6) - due.length);
     const said = isSay(c.speech) && !c.beat && mode !== 'arrival' ? mockReply(c, lineBudget - out.length) : null;
     if (said) out.push(...said.lines);
+    // The comings and goings are told after what the action came to (wave 3, playtest D2: a knockdown or a card loss is never the line cut).
+    const scenery = [];
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
       const came = names(c.sceneChange.arrived);
       if (came.length) {
-        out.push(`${joinAnd(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
-        out.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
+        scenery.push(`${joinAnd(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
+        scenery.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
       }
-      if (c.sceneChange.left.length) out.push(`${joinAnd(names(c.sceneChange.left))} ${c.sceneChange.left.length > 1 ? 'have' : 'has'} left.`);
+      if (c.sceneChange.left.length) scenery.push(`${joinAnd(names(c.sceneChange.left))} ${c.sceneChange.left.length > 1 ? 'have' : 'has'} left.`);
     }
     if (c.defeated) out.push('You go down hard.');
     if (c.consequence) out.push(sentence(c.consequence.replace(/\s*\([^)]*\)$/, '')));
@@ -13377,6 +13589,7 @@ const Api = (() => {
       const it = s && (a.targets || []).filter(id => /^item_/.test(id)).map(id => State.entityById(id)).find(Boolean);
       if (it) out.push(`You pick up the ${lowerFirst(it.name)}.`);
     }
+    out.push(...scenery);
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
     for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
     if (!out.length && !due.length) out.push(vary([`At ${loc}, nothing pushes back yet.`, `Nothing at ${loc} gets in your way.`, `${capFirst(loc)} carries on around you.`], key));
@@ -13559,10 +13772,8 @@ const Api = (() => {
   /* The open obligations (State.obligations once it exists, else the
      player's list read directly). */
   function openObligations(s) {
-    let list = null;
-    try { if (typeof State.obligations === 'function') list = State.obligations('open'); } catch (e) { list = null; }
-    if (!Array.isArray(list)) list = (s && s.player && Array.isArray(s.player.obligations) ? s.player.obligations : []).filter(o => isObj(o) && o.status === 'open');
-    return list;
+    // What is still owed: the open ones and the missed ones that can be made good (paid late).
+    return s ? State.obligations('owed') : [];
   }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
@@ -13591,7 +13802,8 @@ const Api = (() => {
     const said = (n, re) => (n.memories || []).some(m => re.test(m.text));
     const again = (n, text) => (said(n, /\b(insulted|called me|told me to)\b/i) ? `${text} again` : text);
     if (first && ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give', 'attack', 'gamble'].includes(a.actionType)) {
-      out.npcKnownToPlayer = npcs.filter(n => !n.knownToPlayer).map(n => n.id);
+      // A stranger introduced, or someone known (a loose end's person) not yet met face to face (wave 3, playtest N6).
+      out.npcKnownToPlayer = npcs.filter(n => !n.knownToPlayer || !Number.isInteger(n.metTurn)).map(n => n.id);
     }
     // Insults: the words themselves in Say mode, the word "insult" in a Do line.
     if (first && isSay(c.speech)) {
@@ -13681,14 +13893,19 @@ const Api = (() => {
         const amount = Math.min(parseInt(m[1] || m[2], 10), s.player.gold);
         if (amount > 0) {
           out.goldDelta = -amount;
-          const debt = openObligations(s).find(o => o.npcId === first.id && o.kind === 'debt' && (!Number.isInteger(o.amount) || amount >= o.amount));
-          if (debt) {
-            out.obligationsSettled.push(debt.id);
+          // Money toward what is owed them is a payment, not a gift (wave 3): no gift memory or warmth; the obligation's own onMet says what they think once it is paid.
+          const owes = openObligations(s).find(o => o.npcId === first.id && (o.kind === 'debt' || o.kind === 'blackmail'));
+          const left = owes && Number.isInteger(owes.amount) ? owes.amount - (owes.paid | 0) : null;
+          if (owes && (left === null || amount >= left)) {
+            out.obligationsSettled.push(owes.id);
             const owed = (first.memories || []).slice().reverse().find(x => !/^Loose end with /i.test(x.text) && /\b(owes? me|debt|money)\b/i.test(x.text));
             if (owed) out.memoriesSettled.push({ npcId: first.id, text: owed.text });
-            feel(first, 10);
-            remember(first, `paid me back ${money(amount)}`, 2);
+            // Paid back: remembered once, by the obligation's own onMet when it has a memory there, else here.
+            if (!(Array.isArray(owes.onMet) && owes.onMet.some(e => isObj(e) && e.op === 'addMemory' && e.npcId === first.id))) { feel(first, 10); remember(first, `paid me back ${money(amount)}`, 2); }
             out.journalEntry = `Paid ${first.name} ${money(amount)}.`;
+          } else if (owes) {
+            // Part of it: the engine counts it toward the debt (the give is aimed at them).
+            out.journalEntry = `Paid ${first.name} ${money(amount)} toward the ${money(owes.amount)} (${money(left - amount)} still owed).`;
           } else {
             feel(first, 5);
             remember(first, `gave me ${money(amount)}`, 2);
@@ -15188,12 +15405,15 @@ const Pipeline = (() => {
       if (next.phase === PHASES[0]) morning = true;
       cur = next;
     }
-    // Who came and went where the player stands: the next narration shows it happening.
+    // Who came and went where the player stands: the next narration shows it happening. Measured from who was here
+    // when the untold stretch began (wave 3, playtest N9: a /wait over three phases is one start-to-end change, not the last phase's).
     if (here && State.current === s0) {
       const nowHere = State.npcsAt(here).map(n => n.id);
-      const arrived = nowHere.filter(id => !wasHere.includes(id));
-      const left = wasHere.filter(id => !nowHere.includes(id));
-      if (arrived.length || left.length) State.apply({ sceneChange: { locationId: here, arrived, left, cause: cause || 'turn' } });
+      const ps = s0.pendingScene;
+      const base = ps && ps.locationId === here && Array.isArray(ps.before) ? ps.before : wasHere;
+      const arrived = nowHere.filter(id => !base.includes(id));
+      const left = base.filter(id => !nowHere.includes(id));
+      if (arrived.length || left.length || (ps && ps.locationId === here)) State.apply({ sceneChange: { locationId: here, arrived, left, before: base, cause: cause || 'turn' } });
     }
     if (State.current === s0) {
       noteEnding();
@@ -15564,6 +15784,8 @@ const Pipeline = (() => {
       if (action.actionType === 'take' && !opts.fact && verdict.kind === 'item') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'nothing_here', why: 'nothing like that is here to take' }); continue; }
       // Everyone who exists is in the cast: a person nobody in it answers to is simply not there.
       if (verdict.kind === 'npc') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', person: true, why: 'nobody like that lives in this town' }); continue; }
+      // A search for something that is not lying here always rolls (Wits, normal) and finds it only on a success (wave 3, playtest N12).
+      if (opts.defer && !opts.fact && verdict.kind === 'item' && action.actionType === 'search' && !action.needsRoll) Object.assign(action, { needsRoll: true, stat: STATS.includes(action.stat) ? action.stat : 'wits', difficulty: DIFFICULTIES.includes(action.difficulty) ? action.difficulty : 'normal' });
       if (opts.defer && !opts.fact && verdict.kind === 'item' && action.needsRoll) { out.deferred.push({ raw, desc }); keep(raw); continue; }
       const made = await createEntity(verdict.kind, desc, { fact: !!opts.fact, homeId: linkedLoc, fromId: linkedLoc, input: opts.input });
       if (State.current !== s) throw Object.assign(new Error('another game was loaded'), { replaced: true });
@@ -15583,15 +15805,16 @@ const Pipeline = (() => {
     if (action.usesItemId && !s.player.inventory.some(i => i.id === action.usesItemId)) action.usesItemId = null;
     return out;
   }
-  /* After the roll: the things checkAndCreate held back exist if there was
-     no roll or it succeeded; otherwise they are not found (NOT PRESENT, and
-     the bookkeeper hears to record nothing for them). */
+  /* After the roll: the things checkAndCreate held back exist only if the
+     roll succeeded (wave 3, playtest N12: no roll, nothing made); otherwise
+     they are not found (NOT PRESENT, and the bookkeeper hears to record
+     nothing for them). */
   async function createDeferred(ctx) {
     const list = Array.isArray(ctx.deferred) ? ctx.deferred : [];
     ctx.deferred = [];
     if (!list.length) return;
     const a = ctx.action;
-    const found = !ctx.roll || ctx.roll.success;
+    const found = !!ctx.roll && ctx.roll.success;
     const lost = [];
     for (const d of list) {
       const i = a.targets.indexOf(d.raw);
@@ -15659,17 +15882,44 @@ const Pipeline = (() => {
   }
   /* Gifts (playtest: money bought feelings, +5 a gift all day): the first
      gift to someone in a day may warm them; another to the same person that
-     day earns no attitude at all (ctx.diminish with factor 0). */
+     day earns no attitude at all. Wave 3 (the review's risk, the playtest's
+     design note): who a gift would go to is noted before the narration
+     (ctx.giftTo: the person the action is aimed at, a give or words in Say
+     mode alike), but it is a gift only when the bookkeeper's diff hands
+     them money or a thing (giftIn), it counts only once that diff is
+     applied (applyBookkeeping records giftGiven), and money toward what is
+     owed them, or the thing an errand brings them, is a payment, not a
+     gift. */
+  const NOT_GIFTS = ['buy', 'sell', 'gamble', 'steal', 'attack'];
   function giftCheck(ctx) {
     const a = ctx.action;
-    if (!a || a.actionType !== 'give') return;
+    ctx.giftTo = null;
+    if (!a || NOT_GIFTS.includes(a.actionType)) return;
     const to = (a.targets || []).find(t => /^npc_/.test(t) && (ctx.presentIds || []).includes(t));
     if (!to) return;
     const s = State.current;
     const g = s.meta.gifts;
     const times = isObj(g) && g.day === s.time.day && Array.isArray(g.ids) ? g.ids.filter(x => x === to).length : 0;
-    if (times > 0) ctx.diminish = { npcId: to, times, factor: 0, gift: true };
-    State.apply({ giftGiven: to });
+    ctx.giftTo = { npcId: to, times };
+  }
+  /* What the person is owed by the player: money (a debt or blackmail not
+     yet paid in full) or a thing (an errand). */
+  function owedTo(npcId, kind) {
+    return State.obligations('owed').some(o => o.npcId === npcId && (kind === 'money'
+      ? (o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > (o.paid | 0)
+      : o.kind === 'errand' && !!o.itemName));
+  }
+  /* The gift in this diff ({ npcId, times }), or null: money or a thing
+     handed to the person the action was aimed at, that is not a payment. */
+  function giftIn(ctx, diff) {
+    const g = ctx.giftTo;
+    if (!g || !isObj(diff)) return null;
+    const money = toInt(diff.goldDelta) < 0;
+    const things = Array.isArray(diff.itemsLost) && diff.itemsLost.length > 0;
+    if (!money && !things) return null;
+    if (money && !things && owedTo(g.npcId, 'money')) return null;
+    if (things && !money && owedTo(g.npcId, 'thing')) return null;
+    return g;
   }
   /* What a complication does (Dice: a lost HP, a cooler witness, a memory, a
      rumour, a police report), applied with the roll; the bookkeeper is told
@@ -15714,8 +15964,7 @@ const Pipeline = (() => {
     const s = State.current;
     const p = s.player;
     if (npcTarget) ctx.attacked = npcTarget;
-    const dmg = typeof Dice.fightDamage === 'function' ? Math.max(0, toInt(Dice.fightDamage(roll.tier)) || 0)
-      : roll.tier === 'partial' ? 1 : roll.tier === 'failure' ? Rng.int(1, 3) : roll.tier === 'critical_failure' ? 3 : 0;
+    const dmg = Math.max(0, toInt(Dice.fightDamage(roll.tier)) || 0);
     if (dmg > 0) {
       State.apply({ hpDelta: -dmg });
       ctx.damage = dmg;
@@ -15746,11 +15995,11 @@ const Pipeline = (() => {
     if (cop || (PLACE_KINDS.watch || []).includes(l.type) || l.type === 'police') {
       ctx.arrest = { npcId: cop ? cop.id : null, locationId: l.id };
       // Decided now, so this narration tells it (the night in the cell passes after it): once, not again next turn. A player beaten senseless here is the defeat's to tell.
-      const plan = !ctx.defeated && typeof World.arrestPlan === 'function' ? World.arrestPlan() : null;
+      const plan = !ctx.defeated ? World.arrestPlan() : null;
       if (plan) {
         ctx.arrest.plan = plan;
         ctx.narratorLines.push(`ARREST: ${plan.text} Narrate the fight being broken up and ${p.name} being taken in; the night in the cell passes after this narration.`);
-        ctx.bookLines.push(`ARRESTED BY THE ENGINE (already applied after this turn: the cell, the fine, the chief's memory; record no playerLocationId and no goldDelta for them): ${plan.text}`);
+        ctx.bookLines.push(`ARRESTED BY THE ENGINE (already applied after this turn: the cell, the fine, the chief's memory${plan.weapons && plan.weapons.length ? ', the weapons taken' : ''}; record no playerLocationId, no goldDelta${plan.weapons && plan.weapons.length ? ' and no itemsLost' : ''} for them): ${plan.text}`);
       }
     }
   }
@@ -15777,7 +16026,8 @@ const Pipeline = (() => {
       Object.assign(a, { needsRoll: false });
       return {};
     }
-    if (attack && npcTarget && (!a.difficulty || a.difficulty === 'normal') && typeof Dice.threat === 'function') {
+    // Who you fight sets how hard it is (wave 3, playtest D5): the target's threat wins over whatever difficulty the parser gave.
+    if (attack && npcTarget) {
       const d = Dice.threat(State.npc(npcTarget));
       if (DIFFICULTIES.includes(d)) a.difficulty = d;
     }
@@ -15821,10 +16071,12 @@ const Pipeline = (() => {
      no more than the player has. Wits against normal, +2 with a deck
      carried (the marked deck). Success wins the stake, a partial half of
      it, a failure loses it; a fumble loses it and the dealer catches them
-     cheating: a weight-3 memory, banned from the place for three days, and
+     cheating: a weight-3 memory, banned from the place for three days (today counted), and
      news. The money moves here; the narrator hears the result (OUTCOME) and
      the bookkeeper that it is done (and its goldDelta is ignored). */
   const GAMBLE_STAKE = 20;
+  // Caught cheating: not welcome for three days, today counted (the narrator's "three days" and the ban agree).
+  const CAUGHT_BAN_DAYS = 3;
   function cardGameAt(l) {
     if (!l) return false;
     if (l.cardGame === true || (Array.isArray(l.tags) && l.tags.includes('cards'))) return true;
@@ -15849,22 +16101,26 @@ const Pipeline = (() => {
     const nl = ctx.narratorLines = ctx.narratorLines || [];
     const bl = ctx.bookLines = ctx.bookLines || [];
     if (a.timeCost === 'instant') a.timeCost = 'short';
-    const shut = isShut(l);
+    // Why it is shut, in words (wave 3, playtest N8), and "today" before the evening.
+    const shut = shutReason(l);
     if (shut || !cardGameAt(l) || !dealer || (p.gold | 0) < 1) {
       Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
-      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game tonight` : !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
+      const when = ['evening', 'night'].includes(s.time.phase) ? 'tonight' : 'today';
+      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game ${when}` : !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
       nl.push(`CARD GAME: no game: ${why}. No money changes hands.`);
       bl.push(`CARD GAME: no game was played (${why}); record no goldDelta.`);
       ctx.gamble = { played: false, why };
       return {};
     }
     const stake = stakeFrom(ctx.input, p.gold);
+    // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
+    a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
     // A marked deck helps (+2), and is what gets a player caught; a plain deck is only cards.
     const deck = p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name) && /\bmarked\b/i.test(`${i.name} ${i.notes || ''}`)) || null;
     const mods = Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }).concat(deck ? [{ label: deck.name, value: 2 }] : []);
-    const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods };
+    // No complication at cards (none is rolled): the game's own outcome below is what goes wrong.
+    const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods, complication: null };
     const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
-    roll.complication = null;
     Object.assign(a, { needsRoll: true, stat: 'wits', difficulty: 'normal', targets: [dealer.id].concat(a.targets.filter(t => t !== dealer.id)) });
     ctx.roll = roll;
     UI.feed.roll(roll);
@@ -15879,13 +16135,14 @@ const Pipeline = (() => {
     const result = delta > 0 ? `wins ${amount}` : delta < 0 ? `loses ${amount}` : 'breaks even';
     ctx.gamble = { played: true, stake, delta, tier: roll.tier, caught, accused, dealerId: dealer.id, deck: deck ? deck.name : null };
     const how = { critical: `the player has a great night at ${dealer.name}'s table and wins ${money(stake)}`, success: `the player beats ${dealer.name}'s table and wins ${money(stake)}`, partial: `a close game at ${dealer.name}'s table: the player comes out ${money(Math.floor(stake / 2))} ahead`, failure: `the player loses ${money(stake)} at ${dealer.name}'s table`, critical_failure: caught ? `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${lowerFirst(deck.name)}` : `the player loses ${money(stake)} on a run of luck so bad that ${dealer.name} accuses them of cheating, though he finds nothing on them` }[roll.tier];
-    const out = caught ? ` ${dealer.name} throws the player out of ${place}, and they are not welcome back for three days.` : accused ? ` ${dealer.name} tells the player to clear out of ${place} for the night.` : '';
+    const out = caught ? ` ${dealer.name} throws the player out of ${place}, and they are not welcome back for three days (today counted: back on day ${s.time.day + CAUGHT_BAN_DAYS}).` : accused ? ` ${dealer.name} tells the player to clear out of ${place} for the night (they are welcome again tomorrow).` : '';
     nl.push(`OUTCOME: the card game (the player put up ${money(stake)}): ${how}. The money has already changed hands (cash now ${money(p.gold)}).${out}`);
     bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${result} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: his memory, his attitude and the three-day ban are recorded already.` : accused ? ` ${dealer.name} accused them of cheating: his memory, his attitude and the ban for the night are recorded already.` : ''}`);
     if (caught || accused) {
       const r = State.apply({
         newMemories: [{ npcId: dealer.id, text: caught ? `caught ${p.name} cheating at cards in ${place}` : `thinks ${p.name} was cheating at cards in ${place}`, weight: caught ? 3 : 2 }],
-        effects: [{ op: 'attitudeDelta', npcId: dealer.id, delta: caught ? -20 : -10 }, { op: 'banFrom', locationId: l.id, days: caught ? 3 : 1, byNpcId: dealer.id }]
+        // A ban ends before its untilDay (State.isBanned): days 1 is tonight only ("for the night"), three days is today and the two after (wave 3).
+        effects: [{ op: 'attitudeDelta', npcId: dealer.id, delta: caught ? -20 : -10 }, { op: 'banFrom', locationId: l.id, days: caught ? CAUGHT_BAN_DAYS : 1, byNpcId: dealer.id }]
           .concat(caught ? [{ op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true, seen: true }] : [])
       });
       if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
@@ -15928,13 +16185,20 @@ const Pipeline = (() => {
     if (ids.length) State.apply({ npcKnownToPlayer: ids });
     return ids;
   }
-  function noteIntroductions(narration, locationId) {
+  /* Wave 3 (playtest N5, N6): on a walk, the people where it lands (when:
+     { phase, day }) are the ones introduced; and someone already known
+     (a loose end's person) is met, so the narrator stops describing their
+     look, once the narration names them in front of the player or the
+     player speaks to them (also: ids spoken to). */
+  function noteIntroductions(narration, locationId, when, also) {
     const s = State.current;
     if (!s || typeof narration !== 'string' || !narration) return [];
     const ids = [];
-    const here = State.npcsAt(locationId || s.player.locationId);
+    const here = State.npcsAt(locationId || s.player.locationId, when && when.phase, when && when.day);
+    const done = n => n.knownToPlayer && Number.isInteger(n.metTurn);
+    for (const id of also || []) { const n = here.find(x => x.id === id); if (n && n.knownToPlayer && !done(n) && n.alive !== false) ids.push(n.id); }
     for (const n of here) {
-      if (n.knownToPlayer || n.alive === false || n.unnamed) continue;
+      if (done(n) || ids.includes(n.id) || n.alive === false || n.unnamed) continue;
       // A surname that is also part of a place name ('Pittman's Gas and Service') proves nothing on its own.
       const placeNames = s.locations.map(x => String(x.name || '').toLowerCase());
       const names = String(n.name || '').trim().split(/\s+/).filter((w, i) => w.length >= 3 && (i === 0 || !placeNames.some(pn => pn.includes(w.toLowerCase())))).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -15960,8 +16224,10 @@ const Pipeline = (() => {
     let cost = TIME_COSTS.includes(a.timeCost) ? a.timeCost : 'instant';
     const t = State.current.time;
     let lead = 'a few minutes';
-    // An arrest (decided before this narration): the night in the cell follows it.
-    if (ctx.arrest) return `the fight is broken up and the player spends the night in a cell; it will be morning (day ${t.day + 1}, ${weekdayOf(t.day + 1)}) when this is done`;
+    // Beaten senseless in this fight: the narration stops as they go down (DEFEAT); what comes after, and the time it takes, is the engine's (wave 3: never a night in a cell it will not give).
+    if (ctx.defeated) return 'the fight ends with the player going down; the narration stops there, and the engine decides what comes after and how long it takes';
+    // An arrest (decided before this narration, and only when it will happen: ctx.arrest.plan): the night in the cell follows it.
+    if (ctx.arrest && ctx.arrest.plan) return `the fight is broken up and the player spends the night in a cell; it will be morning (day ${t.day + 1}, ${weekdayOf(t.day + 1)}) when this is done`;
     if (cost === 'instant') {
       // Every LIMITS.instantsPerShort instant actions make a short (State advanceTime; the narration of /rest, /wait, /skip and the like never counts): the one that tips it takes a few minutes.
       const counts = !State.NOT_ACTIONS.includes(ctx.cause || 'turn');
@@ -16183,7 +16449,10 @@ const Pipeline = (() => {
     const a = ctx.action;
     const d = a && a.actionType === 'move' && a.destinationId ? State.loc(a.destinationId) : null;
     // Who is there when the player gets there: the phase the walk lands in (REVIEW E8, playtest B8).
-    ctx.destination = d ? { id: d.id, name: d.name, closed: isShut(d), why: shutReason(d) || null, phase: arrivalPhase(a.timeCost), present: State.npcsAt(d.id, arrivalPhase(a.timeCost)).map(n => n.name) } : null;
+    const landPhase = arrivalPhase(a && a.timeCost);
+    // The day it lands on: the morning after, for a long walk at night.
+    const landDay = s.time.phase === 'night' && landPhase === PHASES[0] ? s.time.day + 1 : s.time.day;
+    ctx.destination = d ? { id: d.id, name: d.name, closed: isShut(d), why: shutReason(d) || null, phase: landPhase, day: landDay, present: State.npcsAt(d.id, landPhase, landDay).map(n => n.name) } : null;
     ctx.turn = s.meta.turn;
     return ctx;
   }
@@ -16657,6 +16926,20 @@ const Pipeline = (() => {
   }
   function refusedText(role) { return NOTICES.refusedBy[role] || NOTICES.refused; }
 
+  /* Someone a due event brought to the player is no longer among those who
+     left, and is told by the due event, not as one more arrival (wave 3,
+     playtest N4: "Jodie Strayhorn has left" while she walks up). */
+  function squareScene(ctx) {
+    const s = State.current;
+    const ps = s.pendingScene;
+    if (!ps || ps.locationId !== s.player.locationId) return;
+    const now = State.npcsAt(ps.locationId).map(n => n.id);
+    const brought = (ctx.due || []).map(d => d && d.npcId).filter(Boolean);
+    const left = (ps.left || []).filter(id => !now.includes(id));
+    const arrived = (ps.arrived || []).filter(id => now.includes(id) && !brought.includes(id));
+    if (left.length === (ps.left || []).length && arrived.length === (ps.arrived || []).length) return;
+    State.apply({ sceneChange: { locationId: ps.locationId, arrived, left, before: ps.before, cause: ps.cause } });
+  }
   // ----- steps 8 and 9: the bookkeeper's diff -----
   /* The diff made safe for this turn: what the engine already did (fight
      damage, the card game's money) is not recorded twice, a Say turn and a
@@ -16670,8 +16953,10 @@ const Pipeline = (() => {
     if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
     if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
     if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) { reject('playerLocationId', `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn`); delete clean.playerLocationId; }
-    // The same ask worked here before this phase (Dice.diminishing): a warmer attitude counts for less each time.
-    const dim = ctx.diminish;
+    // The same ask worked here before this phase (Dice.diminishing): a warmer attitude counts for less each time; another gift to the same person today, none at all.
+    const gift = giftIn(ctx, clean);
+    ctx.gift = gift ? gift.npcId : null;
+    const dim = gift && gift.times > 0 ? { npcId: gift.npcId, times: gift.times, factor: 0, gift: true } : ctx.diminish;
     if (dim && Array.isArray(clean.attitudeChanges)) {
       clean.attitudeChanges = clean.attitudeChanges.map(c => {
         if (!isObj(c) || c.npcId !== dim.npcId || !(toInt(c.delta) > 0)) return c;
@@ -16698,7 +16983,10 @@ const Pipeline = (() => {
     const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
     const wasHeard = !!(offered && offered.heard);
     const targets = ((ctx.action && ctx.action.targets) || []).filter(id => typeof id === 'string' && id.startsWith('npc_'));
-    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null, targets });
+    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null });
+    // A gift counts once it was handed over (the money or the thing went), and is no payment toward what they are owed.
+    const handed = ctx.applied.applied.some(x => /^(goldDelta|itemsLost)/.test(x)) && !ctx.applied.applied.some(x => /^(paid|settled)\./.test(x));
+    if (ctx.gift && handed) State.apply({ giftGiven: ctx.gift });
     // Step 13 renders the map and the Places list from state; the feed says what was added.
     ctx.revealed = (ctx.applied.revealed || []).slice();
     for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
@@ -16719,7 +17007,18 @@ const Pipeline = (() => {
      would undo what came after, so then the turn stays not recorded). A
      late diff never moves the player (the engine already made any walk the
      turn narrated). The quiet line goes on that entry. */
+  /* Which game a state is (its createdAt and seed: the same through every
+     turn, a restore and a reload), and which log entry a turn is (its turn
+     number, its input and its narration): a failed later turn restores a
+     snapshot as a new state object, so object identity says nothing
+     (wave 3, the review's risk). */
+  function gameKey(st) { return isObj(st) && isObj(st.meta) ? `${st.meta.createdAt || ''}|${st.meta.seed}` : null; }
+  function entryStamp(e) { return isObj(e) ? { turn: e.turn, input: e.input || '', narration: e.narration || '' } : null; }
+  function sameEntry(e, stamp) { return !!e && !!stamp && e.turn === stamp.turn && (e.input || '') === stamp.input && (e.narration || '') === stamp.narration; }
   function retryBookkeeper(s, turn, packet, ctx) {
+    const game = gameKey(s);
+    const stamp = entryStamp(s.log.find(e => e.turn === turn));
+    const drop = why => State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry came back ${why}; turn ${turn} stays not recorded` });
     (async () => {
       let diff;
       try { diff = await Api.bookkeep(packet); } catch (err) {
@@ -16728,13 +17027,12 @@ const Pipeline = (() => {
       }
       if (isRefusal(diff)) { State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry was refused; turn ${turn} stays not recorded` }); return; }
       while (busy) await whenIdle();
-      if (State.current !== s) return;
-      const entry = s.log.find(e => e.turn === turn);
-      if (!entry || entry.changes !== 'not recorded') return;
-      if (s.log[s.log.length - 1] !== entry || s.meta.turn !== turn) {
-        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry came back after a later turn; turn ${turn} stays not recorded` });
-        return;
-      }
+      const cur = State.current;
+      if (!cur || gameKey(cur) !== game) { drop('after another game was loaded'); return; }
+      const entry = cur.log.find(e => sameEntry(e, stamp));
+      if (!entry) { drop('after the turn was taken back'); return; }
+      if (entry.changes !== 'not recorded') return;
+      if (cur.log[cur.log.length - 1] !== entry || cur.meta.turn !== turn) { drop('after a later turn'); return; }
       const late = isObj(diff) ? Object.assign({}, diff) : {};
       if (late.playerLocationId) {
         State.debugLog.push({ turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: a late bookkeeper never moves the player' });
@@ -16756,7 +17054,16 @@ const Pipeline = (() => {
     return { n: Array.isArray(p.progression) ? p.progression.length : 0, stats: Object.assign({}, p.stats), maxHp: p.maxHp };
   }
   /* A thread resolved for the first time gives a stat or max HP (State,
-     player.progression): one quiet line per thread, the gain on the last. */
+     player.progression): one quiet line per thread, each with its own gain
+     (wave 3, playtest N11: "wits +1" on the entry reads "+1 Wits"). An
+     entry from an older build without its gain: the turn's whole gain on
+     the last line, as before. */
+  function gainText(g) {
+    const m = /^(\w+) \+(\d+)$/.exec(String(g || ''));
+    if (m && STATS.includes(m[1])) return `+${m[2]} ${capFirst(m[1])}`;
+    const hp = /^max HP \+(\d+)$/.exec(String(g || ''));
+    return hp ? `+${hp[1]} max HP` : '';
+  }
   function progressLines(s, before) {
     const p = s.player;
     const list = Array.isArray(p.progression) ? p.progression : [];
@@ -16765,10 +17072,11 @@ const Pipeline = (() => {
     for (const k of STATS) { const d = (p.stats[k] | 0) - (before.stats[k] | 0); if (d > 0) gains.push(`+${d} ${capFirst(k)}`); }
     if (p.maxHp > before.maxHp) gains.push(`+${p.maxHp - before.maxHp} max HP`);
     const fresh = list.slice(before.n);
+    const own = fresh.every(x => isObj(x) && Object.prototype.hasOwnProperty.call(x, 'gain'));
     fresh.forEach((x, i) => {
       const t = x && x.threadId ? State.thread(x.threadId) : null;
-      const gain = i === fresh.length - 1 && gains.length ? ` ${gains.join(', ')}.` : '';
-      UI.feed.quiet(`Resolved: ${t ? t.title : 'a thread'}.${gain}`);
+      const g = own ? gainText(x.gain) : i === fresh.length - 1 ? gains.join(', ') : '';
+      UI.feed.quiet(`Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`);
     });
   }
 
@@ -16858,10 +17166,14 @@ const Pipeline = (() => {
       const quiet = opts.bookkeep === false;
       // A walk to an open place: what is due is told where the player arrives, and whoever comes for them meets them there (playtest B6).
       const dest = leaving && ctx.destination && !ctx.destination.closed ? ctx.destination : null;
-      ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }]
-        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined }) || [];
-      if (dest && ctx.due.length) ctx.destination.present = State.npcsAt(dest.id, dest.phase).map(n => n.name);
-      if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
+      // A narration of time passing (/rest, /wait, /skip, /look) fires what is due now before it is told (wave 3, playtest N4): the morning's visitor is in this narration, not "has left".
+      if (quiet && !opts.epilogue) World.fireSeeds({ turn: s.meta.turn, time: narrTime, locationId: s.player.locationId, movedFrom: ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: [] });
+      // An arrest this turn is all that happens next (wave 3): what else came due waits for the next narration.
+      ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }] : ctx.arrest && ctx.arrest.plan ? []
+        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, phase: dest ? dest.phase : undefined, day: dest ? dest.day : undefined, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined }) || [];
+      // Whoever came for the player is there in the phase the walk lands in (wave 3: and stays once the walk's time has passed).
+      if (dest && ctx.due.length) ctx.destination.present = State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.name);
+      if (ctx.due.length) { squareScene(ctx); scene(ctx); } // a due event may have brought someone into the scene
       ctx.rumour = opts.epilogue ? null : pickRumour(ctx);
       status('narrate');
       const told = await narrate(ctx);
@@ -16869,7 +17181,8 @@ const Pipeline = (() => {
       if (told.refusal) return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater('the narrator declined it') : refusedText('narrator') }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
-      noteIntroductions(narration, ctx.location && ctx.location.id);
+      // Who the narration introduces: on a walk, the people where it lands (wave 3, playtest N5); the one spoken to is met too.
+      noteIntroductions(narration, dest ? dest.id : ctx.location && ctx.location.id, dest ? { phase: dest.phase, day: dest.day } : null, isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' ? [ctx.speech.to] : []);
       noteMentioned(narration);
       // The narration is in: from here the next input can wait in the queue.
       acceptsQueue = true;
@@ -16913,7 +17226,7 @@ const Pipeline = (() => {
       // already took its long (and the action's own time is not charged on top); an
       // attack in front of the police ends with a night in the cell (World.arrestPlayer).
       if (!s.player.dead && !ctx.defeat) {
-        if (ctx.arrest && typeof World.arrestPlayer === 'function') {
+        if (ctx.arrest) {
           const t0 = JSON.stringify(s.time);
           // Told in this narration (ARREST): no due event for the next one.
           World.arrestPlayer({ npcId: ctx.arrest.npcId, locationId: ctx.arrest.locationId, turn: s.meta.turn, told: !!ctx.arrest.plan });
@@ -16924,14 +17237,10 @@ const Pipeline = (() => {
       if (ctx.due.length) World.dueNarrated(ctx.due);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       if (morningNews) { morningNews = false; overnightNews(); }
-      // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
-      // action without a roll lifts it only once the situation has changed:
-      // the action took time, time passed or the player moved. An instant
-      // look or chat in the same place leaves it on. With the set of locks
-      // (Dice.clearLocks), a move or a new phase clears them.
-      if (typeof Dice.clearLocks === 'function') {
-        if (s.player.locationId !== startLoc || startTime.phase !== s.time.phase || startTime.day !== s.time.day) Dice.clearLocks();
-      } else if (!ctx.roll && s.meta.lastRollKey && (action.timeCost !== 'instant' || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
+      // Retry lock (SPEC section 7): a roll set or cleared it in resolve().
+      // The locks hold for a place and a phase: a move or a new phase
+      // clears them (Dice.clearLocks).
+      if (s.player.locationId !== startLoc || startTime.phase !== s.time.phase || startTime.day !== s.time.day) Dice.clearLocks();
       if (!sameTime(narrTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
       if (replaced()) return fail(snap, mark, null, {});
       // Step 13. Log; the autosave and render follow when the batch closes.
@@ -17184,7 +17493,8 @@ const Pipeline = (() => {
       prepare: ctx => {
         const t = passTime('rest', 'rest');
         // A place shut today (they slept where they should not be): the morning says so (playtest B14).
-        const shut = isShut(here());
+        // Why it is shut, in words (wave 3, playtest N8: never "(true)").
+        const shut = shutReason(here());
         ctx.timePassed = `the player slept until morning, day ${State.current.time.day}${t && t.healed ? `, and recovered ${t.healed} HP` : ''}${t && t.quality === 'rough' ? ', sleeping rough' : ''}${shut ? `; ${placeName(here())} is shut today (${shut}), and nobody who does not live here is about` : ''}`;
       },
       afterCommit: () => printRecap({ brief: true }),
@@ -17240,8 +17550,10 @@ const Pipeline = (() => {
     if (shutThen) { const ban = State.isBanned(g.location.id, arrivalDay); UI.feed.notice(ban ? `You are not welcome at ${placeName(g.location)} until day ${ban.untilDay}.` : `${capFirst(placeName(g.location))} is shut then (${shutThen}).`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
     // Open then but shut now (the night before it opens): wait first and walk over when it opens.
     const waitFirst = !!(g.location && g.location.id !== s.player.locationId && isShut(g.location));
+    // Already there (with a phase to skip to): the player stays and waits, so the narration is no arrival (wave 3).
+    const stays = !g.location || g.location.id === s.player.locationId;
     return runTurn({
-      input: `/skip ${goal}`, mode: 'arrival', bookkeep: false, cause: 'skip',
+      input: `/skip ${goal}`, mode: stays ? 'normal' : 'arrival', bookkeep: false, cause: 'skip',
       prepare: ctx => {
         // The player goes there and waits there, so a town event at that place (the council meeting) happens in front of them.
         if (g.location && !waitFirst) State.apply({ playerLocationId: g.location.id });
@@ -17251,7 +17563,8 @@ const Pipeline = (() => {
         const st = State.current;
         ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
       },
-      action: () => ({ actionType: 'move', summary: `${State.current.player.name} arrives at ${here().name}`, targets: [], needsRoll: false, timeCost: 'instant' })
+      action: () => (stays ? { actionType: 'wait', summary: `${State.current.player.name} stays at ${here().name} until ${State.current.time.phase}`, targets: [], needsRoll: false, timeCost: 'instant' }
+        : { actionType: 'move', summary: `${State.current.player.name} arrives at ${here().name}`, targets: [], needsRoll: false, timeCost: 'instant' })
     });
   }
   /* The first narration of a game (MODE arrival), used when mock mode is off
@@ -17430,7 +17743,8 @@ const Pipeline = (() => {
     const owed = Number.isFinite(o.amount) ? o.amount - (o.paid | 0) : null;
     const what = o.kind === 'debt' ? `You owe ${who}${owed !== null ? ` ${money(owed)}${o.paid > 0 ? ` (${money(o.paid)} of ${money(o.amount)} paid)` : ''}` : ''}`
       : `${capFirst(o.kind || 'promise')} for ${who}${o.text ? `: ${lowerFirst(cutWords(o.text, 120)).replace(/\.$/, '')}` : ''}`;
-    if (o.status === 'missed') return `${what} · missed on day ${o.dueDay}, still owed`;
+    // The Journal's form (wave 3): "missed Day 7, still owed".
+    if (o.status === 'missed') return `${what} · missed Day ${o.dueDay}, still owed`;
     if (!Number.isInteger(o.dueDay)) return what;
     const left = o.dueDay - day;
     const when = left > 1 ? `${left} days` : left === 1 ? '1 day' : left === 0 ? 'today' : 'overdue';
@@ -17445,33 +17759,74 @@ const Pipeline = (() => {
     return `${(i > n * 0.5 ? head.slice(0, i) : head).replace(/[\s,;:.—–-]+$/, '')}…`;
   }
   /* Why someone is warm or cold, in a few plain words for the recap: for
-     someone tied to one of the player's loose ends "your loose end: a debt";
-     otherwise their newest memory of weight 2 or more after "remembers ",
-     the player's name read as "you" and the person's "me" as him, her or
-     them ("remembers you called him a liar", "remembers he saw you hit
-     Royce Pittman"); else nothing. Never the raw memory. */
-  const PRESENT_VERB = { is: 'are', has: 'have', owes: 'owe', says: 'say', claims: 'claim', wants: 'want', knows: 'know', works: 'work', lives: 'live', does: 'do', goes: 'go', calls: 'call', keeps: 'keep', seems: 'seem', drinks: 'drink', plays: 'play' };
+     someone tied to one of the player's loose ends "your loose end: a debt"
+     (either side); otherwise their newest memory of weight 2 or more whose
+     sense fits the side (side 'warm': a good one, side 'cold': a bad one;
+     wave 3: never "Warm to you: ... remembers you insulted him"), after
+     "remembers ", the player's name read as "you" and the person's "me" as
+     him, her or them ("remembers you called him a liar", "remembers he saw
+     you hit Royce Pittman"); else nothing. Never the raw memory. The verb
+     after "you" and after the person's "I" agrees ("you were", "you
+     have", "he thinks"; never "you was", "he think"). */
+  const PRESENT_VERB = { is: 'are', was: 'were', has: 'have', owes: 'owe', says: 'say', claims: 'claim', wants: 'want', knows: 'know', works: 'work', lives: 'live', does: 'do', goes: 'go', calls: 'call', keeps: 'keep', seems: 'seem', drinks: 'drink', plays: 'play', thinks: 'think', looks: 'look', needs: 'need', runs: 'run', talks: 'talk', asks: 'ask', "doesn't": "don't", "hasn't": "haven't", "wasn't": "weren't", "isn't": "aren't" };
+  // The person's own "I <verb>" told as "he <verb>s" (a they keeps the plain form; "I am" is "they are").
+  const FIRST_VERB = { am: 'is', have: 'has', do: 'does', "don't": "doesn't", "haven't": "hasn't", go: 'goes', guess: 'guesses', wish: 'wishes', think: 'thinks', know: 'knows', want: 'wants', figure: 'figures', reckon: 'reckons', believe: 'believes', hope: 'hopes', need: 'needs', like: 'likes', trust: 'trusts', owe: 'owes', say: 'says', hate: 'hates', love: 'loves', mean: 'means', see: 'sees', hear: 'hears', feel: 'feels', bet: 'bets', swear: 'swears', doubt: 'doubts', suppose: 'supposes', remember: 'remembers', expect: 'expects', heard: 'heard', saw: 'saw', was: 'was' };
   const PRONOUN_FORMS = { he: { subj: 'he', obj: 'him', pos: 'his', self: 'himself' }, she: { subj: 'she', obj: 'her', pos: 'her', self: 'herself' }, they: { subj: 'they', obj: 'them', pos: 'their', self: 'themselves' } };
-  function recapReason(n, p) {
+  /* The sense of a memory, for the side it is told on: -1 a grievance, 1 a
+     kindness, 0 neither. A grievance word wins ("never paid", "would not
+     pay"). */
+  const MEMORY_BAD = /\b(insult\w*|attack\w*|threat\w*|hit|hits|punch\w*|slap\w*|shov\w*|knock\w*|beat|beaten|fight|fought|stole|steal\w*|rob\w*|cheat\w*|lie|lied|lies|liar|lying|welsh\w*|swindl\w*|cop|cops|police|report\w*|arrest\w*|locked|spit|spat|curs\w*|yell\w*|mock\w*|laugh\w* at|called me|told me to|never|would not|wouldn't|refus\w*|past due|late|let .* go|broke|broken|hurt|hurts|threw|thrown|banned|mean|rude|nasty|trouble|creep|hiding|blackmail\w*|accus\w*|caught|sneak\w*|snoop\w*|dragged|ignored|embarrass\w*|humiliat\w*|wrong\w*|owes? me)\b/i;
+  const MEMORY_GOOD = /\b(help\w*|fix\w*|paid|pays|repaid|gave|given|brought|bought|saved|thank\w*|kind\w*|good for|trust\w*|kept|stood up|apologi[sz]\w*|sorry|came around|friend\w*|look\w* out for|listened|backed|defended|tipped|shared|warned|returned|honest|straight with|did right|treated)\b/i;
+  function memorySense(text) {
+    const t = String(text || '');
+    if (MEMORY_BAD.test(t)) return -1;
+    return MEMORY_GOOD.test(t) ? 1 : 0;
+  }
+  function recapReason(n, p, side) {
     const le = (p.looseEnds || []).find(x => x.npcId === n.id && (!x.threadId || !State.thread(x.threadId) || State.thread(x.threadId).status === 'open'));
     if (le) return `your loose end: ${lowerFirst(le.label || le.kind || 'a loose end')}`;
-    const m = (n.memories || []).filter(x => (x.weight | 0) >= 2 && !State.protectedMemory(x)).slice(-1)[0];
+    const fits = x => !side || memorySense(x.text) === (side === 'cold' ? -1 : 1);
+    const m = (n.memories || []).filter(x => (x.weight | 0) >= 2 && !State.protectedMemory(x) && fits(x)).slice(-1)[0];
     if (!m) return '';
     const pr = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
     const names = [p.name].concat(String(p.name || '').split(/\s+/).filter(w => w.length >= 3)).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     let t = cleanText(String(m.text || ''), 300).replace(/[.!]+$/, '');
-    for (const nm of names) t = t.replace(new RegExp(`\\b${nm}'s\\b`, 'g'), 'your').replace(new RegExp(`\\b${nm}\\b`, 'g'), 'you');
+    // The player named as the one doing something: "you" with the verb that goes with it ("you were", "you have").
+    const youVerb = (all, v) => `you ${PRESENT_VERB[v.toLowerCase()] || v}`;
+    for (const nm of names) {
+      t = t.replace(new RegExp(`\\b${nm}'s\\b`, 'g'), 'your');
+      t = t.replace(new RegExp(`\\b${nm}\\s+([A-Za-z']+)\\b`, 'g'), youVerb);
+      t = t.replace(new RegExp(`\\b${nm}\\b`, 'g'), 'you');
+    }
     const mine = /\b(me|my|myself|I)\b/.test(t);
-    const swap = x => x.replace(/\bmyself\b/g, pr.self).replace(/\bme\b/g, pr.obj).replace(/\bmy\b/g, pr.pos).replace(/\bI\b/g, pr.subj);
+    // Their "I think" is "he thinks" (or "they think"): the verb after the swapped "I" agrees.
+    const iVerb = (all, v) => {
+      const w = v.toLowerCase();
+      if (pr.subj === 'they') return `they ${w === 'am' ? 'are' : w === 'was' ? 'were' : v}`;
+      return `${pr.subj} ${FIRST_VERB[w] || v}`;
+    };
+    const swap = x => x.replace(/\bI\s+([A-Za-z']+)\b/g, iVerb).replace(/\bmyself\b/g, pr.self).replace(/\bme\b/g, pr.obj).replace(/\bmy\b/g, pr.pos).replace(/\bI\b/g, pr.subj);
     if (/^you\b/i.test(t)) return cutWords(`remembers ${swap(lowerFirst(t))}`, 120);
     // What the player did to them ("called me a liar", "owes me $40 by Friday").
     if (mine && /^[a-z]/.test(t)) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return cutWords(`remembers you ${swap(w.join(' '))}`, 120); }
     // What they did about the player ("saw them hit the bartender", "locked you up").
     if (/^[a-z]/.test(t)) return cutWords(`remembers ${pr.subj} ${t.replace(/\bthem\b/g, 'you')}`, 120);
-    return cutWords(`remembers ${lowerFirst(swap(t))}`, 120);
+    // A name keeps its capital ("remembers Glenda Pryor told him ..."; wave 3, playtest N10); an ordinary first word does not.
+    const ordinary = /^(The|A|An|He|She|They|It|We|This|That|These|Those|His|Her|Their|Its|My|Our|Your|Some|Someone|Somebody|Everyone|Everybody|Nobody|Once|When|After|Before|Last|Today|Yesterday)\b/.test(t);
+    return cutWords(`remembers ${ordinary ? lowerFirst(swap(t)) : swap(t)}`, 120);
   }
-  /* Whether the story's ending has happened (the epilogue fired). */
-  function endingFired() { return !!(State.current && State.current.flags && State.current.flags.epilogueShown); }
+  /* Whether the story's ending has happened: its news item has been told
+     (seen: its own turn was narrated; wave 3), not only fired (an ending
+     that came with a /rest, or whose narration failed, is told after the
+     next turn, and the recap does not announce it before then). A game
+     with no ending news item (older) reads flags.epilogueShown. */
+  function endingFired() {
+    const s = State.current;
+    if (!s) return false;
+    const ends = (Array.isArray(s.news) ? s.news : []).filter(n => isObj(n) && n.epilogue === true);
+    if (ends.length) return ends.some(n => n.seen === true);
+    return !!(s.flags && s.flags.epilogueShown);
+  }
   const ENDING_LINE = 'The story has reached an ending; you can keep playing.';
   /* The recap, one line each (the UI adds the heading "Where things stand"
      and bolds what comes before the first colon): where and when; once the
@@ -17491,23 +17846,30 @@ const Pipeline = (() => {
       if (opts && opts.brief) return out.join('\n');
     }
     const present = State.npcsAt(p.locationId);
-    out.push(`Here: ${present.length ? andList(present.map(n => (n.knownToPlayer ? n.name : npcLabel(n)))) : 'nobody'}.`);
+    const labels = present.map(n => (n.knownToPlayer ? n.name : npcLabel(n)));
+    // A serial comma when a label has "and" in it ("the new waitress, and the farmer and council member"; wave 3).
+    const serial = labels.length > 2 && labels.some(x => /\band\b/.test(x));
+    out.push(`Here: ${!labels.length ? 'nobody' : serial ? `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}` : andList(labels)}.`);
     const threads = s.threads.filter(x => x.status === 'open' && x.knownToPlayer);
     out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${cutWords(sentenceOne(cleanText(x.summary, 400)), 220).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
     const obls = State.obligations('owed');
     if (obls.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).join('; ')}.`);
-    const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here');
-    const person = n => { const why = recapReason(n, p); return `${n.name} (${State.attitudeWord(n.attitude)}${why ? `, ${why}` : ''})`; };
+    // Only people the player has dealt with (wave 3): met face to face, tied to a loose end, or remembering something of them; never a stranger at their starting attitude.
+    const dealt = n => Number.isInteger(n.metTurn) || (p.looseEnds || []).some(le => le.npcId === n.id) || (n.memories || []).some(m => (m.weight | 0) >= 2 && !State.protectedMemory(m));
+    const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here' && dealt(n));
+    const person = side => n => { const why = recapReason(n, p, side); return `${n.name} (${State.attitudeWord(n.attitude)}${why ? `, ${why}` : ''})`; };
     const warm = known.filter(n => n.attitude > 5).sort((a, b) => b.attitude - a.attitude).slice(0, 3);
     const cold = known.filter(n => n.attitude < -5).sort((a, b) => a.attitude - b.attitude).slice(0, 3);
-    if (warm.length) out.push(`Warm to you: ${warm.map(person).join(', ')}.`);
-    if (cold.length) out.push(`Cold to you: ${cold.map(person).join(', ')}.`);
+    if (warm.length) out.push(`Warm to you: ${warm.map(person('warm')).join(', ')}.`);
+    if (cold.length) out.push(`Cold to you: ${cold.map(person('cold')).join(', ')}.`);
     // The rumours heard last (by the day they were heard; the order heard within a day).
     const heard = s.rumours.filter(r => r.heard);
     const order = r => (Number.isInteger(r.heardDay) ? r.heardDay : -1);
     const lastHeard = heard.map((r, i) => ({ r, i })).sort((a, b) => order(a.r) - order(b.r) || a.i - b.i).slice(-3).map(x => x.r);
     if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cutWords(r.text, 140).replace(/[.]$/, '')}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
-    const news = newsList().filter(n => isObj(n) && n.public !== false && n.text && n.epilogue !== true).slice(-2);
+    // The latest two by their day (wave 3: a skipped-over event dated its own day is not listed after a later one).
+    const when = n => (Number.isInteger(n.day) ? n.day : 0) * 10 + Math.max(0, PHASES.indexOf(n.phase));
+    const news = newsList().filter(n => isObj(n) && n.public !== false && n.text && n.epilogue !== true).map((n, i) => ({ n, i })).sort((a, b) => when(a.n) - when(b.n) || a.i - b.i).map(x => x.n).slice(-2);
     if (news.length) out.push(`In town: ${news.map(n => `${Number.isInteger(n.day) ? `Day ${n.day}: ` : ''}${cutWords(n.text, 200)}`).join(' ')}`);
     return out.join('\n');
   }
@@ -18755,7 +19117,7 @@ const UI = (() => {
       out.push({ text: note ? capFirst(note) : `Away ${weekdayOf(day)}s${n.awayOn.where ? ' ' + n.awayOn.where : ''}`, hard: false });
     }
     for (const b of (Array.isArray(s.bans) ? s.bans : [])) {
-      if (!isObj(b) || b.byNpcId !== n.id || !(b.untilDay >= day)) continue;
+      if (!isObj(b) || b.byNpcId !== n.id || !(b.untilDay > day)) continue;
       const l = State.loc(b.locationId);
       if (l) out.push({ text: `Banned you from ${l.name} until day ${b.untilDay}`, hard: true });
     }
@@ -19247,7 +19609,7 @@ const UI = (() => {
   function bannedUntil(s, l) {
     if (!l) return null;
     const day = s.time.day;
-    const ban = (Array.isArray(s.bans) ? s.bans : []).filter(b => isObj(b) && b.locationId === l.id && b.untilDay >= day).sort((a, b) => b.untilDay - a.untilDay)[0];
+    const ban = (Array.isArray(s.bans) ? s.bans : []).filter(b => isObj(b) && b.locationId === l.id && b.untilDay > day).sort((a, b) => b.untilDay - a.untilDay)[0];
     if (ban) return ban.untilDay;
     if (typeof State.isBanned === 'function') { try { if (State.isBanned(l.id)) return true; } catch (e) { /* older engine */ } }
     return null;
@@ -21297,7 +21659,7 @@ const Commands = (() => {
   const LIST = [
     { name: '/look', args: '', desc: 'Describe the whole scene', turn: true },
     { name: '/zoom', args: '<action>', desc: 'A big moment, with more room', turn: true },
-    { name: '/skip', args: '<goal>', desc: 'Jump ahead to a place or time', turn: true },
+    { name: '/skip', args: '<where or when>', desc: 'Jump ahead to a place or time', turn: true },
     { name: '/pass', args: '', desc: 'Say nothing and see what they do', turn: true },
     { name: '/rest', args: '', desc: 'Sleep until morning and heal', turn: true },
     { name: '/wait', args: '<phase>', desc: 'Wait here until a phase', turn: true },
@@ -21310,13 +21672,21 @@ const Commands = (() => {
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
-    { name: '/pronouns', args: '<who> she', desc: 'Set someone\'s pronouns (she, he or they)' },
+    { name: '/pronouns', args: '<who> <she|he|they>', desc: 'Set someone\'s pronouns (she, he or they)' },
     { name: '/edit', args: '<who>', desc: 'Edit someone on the People tab' },
     { name: '/save', args: '[name]', desc: 'Save to a named slot (no name: open saved games)' },
     { name: '/load', args: '[name]', desc: 'Load a named save (no name: open saved games)' },
-    { name: '/debug', args: '', desc: 'Toggle the debug view' }
+    { name: '/debug', args: '', desc: 'Toggle the debug view' },
+    { name: '/help', args: '', desc: 'List the commands' }
   ];
   const PANEL_FOR = { '/sheet': 'character', '/people': 'people', '/journal': 'journal', '/places': 'places' };
+  // Other words for a command (not listed: they would crowd the list typed after "/").
+  const ALIASES = { '/commands': '/help' };
+  /* The command list as text, one line each: "/skip <where or when>: Jump
+     ahead to a place or time" (wave 3: /help and /commands print it). */
+  function helpText() {
+    return ['Commands (type / to pick one):'].concat(LIST.map(c => `${c.name}${c.args ? ' ' + c.args : ''}: ${c.desc}`)).join('\n');
+  }
   function match(input) {
     const head = String(input || '').trim().split(/\s+/)[0].toLowerCase();
     return head.startsWith('/') ? LIST.filter(c => c.name.startsWith(head)) : [];
@@ -21326,7 +21696,8 @@ const Commands = (() => {
     const trimmed = String(text || '').trim();
     // '/Cheat: reroll' and '/reroll.' still land: case and a trailing colon or full stop do not matter.
     const rawHead = trimmed.split(/\s+/)[0];
-    const head = rawHead.toLowerCase().replace(/[:.,!]+$/, '');
+    const said = rawHead.toLowerCase().replace(/[:.,!?]+$/, '');
+    const head = ALIASES[said] || said;
     const arg = trimmed.slice(rawHead.length).trim();
     const cmd = LIST.find(c => c.name === head);
     if (!cmd) { UI.feed.notice(`There is no ${head} command. Type / to see the list.`); return { ok: false, reason: 'unknown', restoreInput: true }; }
@@ -21334,6 +21705,12 @@ const Commands = (() => {
     const dead = !!(State.current && State.current.player.dead);
     if (dead && (cmd.turn || cmd.name === '/undo')) { UI.feed.notice(Pipeline.NOTICES.dead); return { ok: false, reason: 'dead' }; }
     switch (cmd.name) {
+      case '/help': {
+        // A notice in the feed, one command a line (no turn, no API call; the composer's list after "/" is the same).
+        const node = UI.feed.notice(helpText(), 'help');
+        if (node && node.style) node.style.whiteSpace = 'pre-line';
+        return { ok: true };
+      }
       case '/look': return Pipeline.look();
       case '/zoom': return arg ? Pipeline.zoom(arg) : usage('Zoom in on what? Try /zoom I kick the door in.');
       case '/skip': return arg ? Pipeline.skip(arg) : usage('Skip to where, or when? Try /skip to the docks at night.');
@@ -21417,7 +21794,7 @@ const Commands = (() => {
         return { ok: false, reason: 'unknown' };
     }
   }
-  return { LIST, match, run };
+  return { LIST, ALIASES, match, run, helpText };
 })();
 
 // ===== Module: App =====
