@@ -8163,10 +8163,21 @@ const State = (() => {
     // Its own onMiss is running (wave 6): money it credits toward it (obligationPaid) never meets it.
     if (status === 'missed') missing.add(o.id);
     let done;
-    try { done = runNested(status === 'met' ? (late ? lateEffects(o.onMet) : o.onMet) : o.onMiss, `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`); } finally { if (status === 'missed') missing.delete(o.id); }
+    try { done = runNested(status === 'met' ? (late ? lateEffects(o.onMet) : o.onMet) : missNews(o), `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`); } finally { if (status === 'missed') missing.delete(o.id); }
     // A loose end's obligation met (on time or late) settles the loose end: its thread is resolved (wave 3, playtest N7).
     if (status === 'met') for (const t of looseEndThreads(o)) done.push(setThreadStatus(t, 'resolved'));
     return `${o.id} ${status}${how ? ` (${how})` : ''}${done.length ? `; ${done.join('; ')}` : ''}`;
+  }
+  /* Wave 8 (the final pass): the news of a missed obligation that its
+     missText tells the player (World's due event, its eventId
+     missedEventId) is the same news: its onMiss addNews carries that
+     eventId, so the morning's "Overnight in town" leaves it out while the
+     due event waits and it is seen once that is told (World.dueNarrated:
+     newsSeen { eventId }). It stays in the ledger for everyone else. */
+  function missedEventId(o) { return `missed_${String(o && o.id || '')}`.slice(0, 60); }
+  function missNews(o) {
+    if (!Array.isArray(o.onMiss) || typeof o.missText !== 'string' || !o.missText.trim()) return o.onMiss;
+    return o.onMiss.map(e => (isObj(e) && e.op === 'addNews' && e.eventId === undefined ? Object.assign({}, e, { eventId: missedEventId(o) }) : e));
   }
   /* The open threads of the player's loose ends an obligation settles: the
      same person, and the kind of obligation that loose end makes (a debt a
@@ -10742,7 +10753,7 @@ const State = (() => {
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
     SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS, NOT_ACTIONS,
-    season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, expireDaily, goodNamed, goodSource,
+    season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, missedEventId, expireDaily, goodNamed, goodSource,
     absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory, newsWaits, MEMORY_ACTS,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
@@ -12053,18 +12064,27 @@ const World = (() => {
   /* Could the player see it happen? Effects on the player always; else only
      effects that change a place or a person, and only if they name the
      place the player stands in or someone standing there with them
-     (presence taken before the effects). */
+     (presence taken before the effects). Wave 8 (the final pass): what
+     reaches the player wherever they are (WIDE_OPS: the town's prices,
+     their own) is no sign of where it happens; and a plan with a place or
+     a person of its own (the barriers on the old bridge) is seen only
+     there, not wherever someone its thread links to stands (Royce at the
+     Low Water): the links count only for a plan with neither. Else it is
+     news (the morning's "Overnight in town", a "Meanwhile in town" line). */
+  const WIDE_OPS = ['priceMultiplier', 'playerPrice'];
   function noticeable(effects, where) {
     const ids = new Set();
+    const linked = new Set();
     for (const e of effects) {
-      if (!isObj(e)) continue;
+      if (!isObj(e) || WIDE_OPS.includes(e.op)) continue;
       if (PLAYER_OPS.includes(e.op)) return true;
       if (!SEEN_OPS.includes(e.op)) continue;
       if (e.locationId) ids.add(e.locationId);
       if (e.npcId) ids.add(e.npcId);
       const t = e.op === 'openThread' ? e.thread : e.op === 'threadStatus' ? State.thread(e.threadId) : null;
-      if (isObj(t) && Array.isArray(t.linkedIds)) t.linkedIds.forEach(x => ids.add(x));
+      if (isObj(t) && Array.isArray(t.linkedIds)) t.linkedIds.forEach(x => linked.add(x));
     }
+    if (!ids.size) linked.forEach(x => ids.add(x));
     return ids.has(where.locationId) || where.presentIds.some(id => ids.has(id));
   }
   function fallbackRumour(f, idx, text) {
@@ -12181,12 +12201,14 @@ const World = (() => {
         if (!told) applyEffects([{ op: 'addMemory', npcId: n.id, text: `${st().player.name} let it go past due: ${lowerFirst(what).replace(/[.!]$/, '')}`, weight: 3 }]);
       }
       // The due event: content's missText, else a plain line. Only someone free and in town comes looking.
+      // A missText tells its onMiss news too (wave 8, the final pass): that news (State.missedEventId) is seen once the due event is told, so "Overnight in town" does not tell it again.
+      const sameNews = missText && ownNews && o ? { eventId: State.missedEventId(o) } : {};
       const comes = isFree(n) && presenceOf(n) === 'here';
       if (comes) {
         const text = missText || `${n.name} comes looking for ${st().player.name} about ${MISSED_ABOUT[o && o.kind] || 'what was promised'}, now past due.`;
-        dueNow({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null });
+        dueNow(Object.assign({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null }, sameNews));
       } else if (missText) {
-        dueNow({ key: `missed_${id}`, text: missText, obligationId: o ? o.id : null });
+        dueNow(Object.assign({ key: `missed_${id}`, text: missText, obligationId: o ? o.id : null }, sameNews));
       }
       note(`obligation ${id} missed`, { kind: 'obligation', id });
       events.push({ kind: 'obligation', id, notice: line });
@@ -12457,7 +12479,8 @@ const World = (() => {
      order with the events ("Meanwhile in town"), not as a due event told
      after them; the player's own come as due events in day order. Returns
      what fired, in order: [{ id, seed?: true, day, text? (a town seed's
-     news), here?, late?, notice? (a morning's quiet line) }]. */
+     news), here?, late?, notice? (a morning's quiet line), prog (wave 8:
+     the length of player.progression once it had fired) }]. */
   const OWN_SEEDS = ['loose_end', 'grudge', 'favour', 'background'];
   function townSeed(sd) { return !seedNpcId(sd) && !OWN_SEEDS.includes(sd.origin && sd.origin.kind); }
   function morningChores(day, fired) {
@@ -12486,13 +12509,18 @@ const World = (() => {
     for (const ev of arr((State.town || {}).events)) if (isObj(ev) && typeof ev.id === 'string' && !eventDone(ev.id) && reached(ev.day, ev.phase, now)) order.push({ day: ev.day, phase: PHASES.includes(ev.phase) ? ev.phase : PHASES[0], ev, rank: 2 });
     order.sort((a, b) => a.day - b.day || PHASES.indexOf(a.phase) - PHASES.indexOf(b.phase) || a.rank - b.rank);
     const fired = [];
+    // What each step earned as it fired (wave 8, the final pass): prog, the length of player.progression after it, so setClock prints a Resolved line under its own day.
+    const earned = () => (Array.isArray(s.player.progression) ? s.player.progression.length : 0);
     for (const x of order) {
-      if (x.morning) { morningChores(x.day, fired); continue; }
-      if (x.ev) { fireEvent(x.ev, now, null, fired); continue; }
-      if (x.sd.fired) continue;
-      const town = townSeed(x.sd);
-      const told = fire(x.sd, { day: x.day, phase: x.phase, news: town });
-      if (told) fired.push(Object.assign({ id: x.sd.id, seed: true, day: x.day }, typeof told === 'string' ? { text: told } : {}));
+      const k = fired.length;
+      if (x.morning) morningChores(x.day, fired);
+      else if (x.ev) fireEvent(x.ev, now, null, fired);
+      else if (!x.sd.fired) {
+        const town = townSeed(x.sd);
+        const told = fire(x.sd, { day: x.day, phase: x.phase, news: town });
+        if (told) fired.push(Object.assign({ id: x.sd.id, seed: true, day: x.day }, typeof told === 'string' ? { text: told } : {}));
+      }
+      for (let i = k; i < fired.length; i++) fired[i].prog = earned();
     }
     fireEpilogue(now, null, fired);
     return fired;
@@ -18284,11 +18312,11 @@ const Pipeline = (() => {
     if (p.maxHp > before.maxHp) gains.push(`+${p.maxHp - before.maxHp} max HP`);
     const fresh = list.slice(before.n);
     const own = fresh.every(x => isObj(x) && Object.prototype.hasOwnProperty.call(x, 'gain'));
-    fresh.forEach((x, i) => {
-      const t = x && x.threadId ? State.thread(x.threadId) : null;
-      const g = own ? gainText(x.gain) : i === fresh.length - 1 ? gains.join(', ') : '';
-      UI.feed.quiet(`Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`);
-    });
+    fresh.forEach((x, i) => UI.feed.quiet(resolvedText(x, own ? gainText(x.gain) : i === fresh.length - 1 ? gains.join(', ') : '')));
+  }
+  function resolvedText(x, g) {
+    const t = x && x.threadId ? State.thread(x.threadId) : null;
+    return `Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`;
   }
 
   /* opts: { input (shown and logged), mode: 'normal' | 'zoom' | 'arrival' |
@@ -18918,13 +18946,35 @@ const Pipeline = (() => {
       else if (f.seed) { if (f.text) meanwhile(f.day, cleanText(f.text, 300)); }
       else if (!f.here) for (const n of State.news.filter(x => isObj(x) && x.public !== false && !x.seen && x.eventId === f.id)) meanwhile(n.day, cleanText(n.text, 300));
     }
-    for (const x of lines) UI.feed.quiet(x.meanwhile ? `Meanwhile in town, Day ${x.day}: ${x.texts.join(' ')}` : x.text);
-    for (const f of events) if (!f.here) State.apply({ newsSeen: { eventId: f.id } });
-    noteEnding();
     // A thread what the jump brought resolved (the council): its Resolved line now, under the "Meanwhile in town" line that told it (wave 6: what the
     // ending itself resolves is held by the engine until its narration, which prints it). Never held for the ending here (the wave-6 integration,
     // the fifth review's /cheat risk): one /undo of the turn that told the ending would lose the line of a gain the jump kept.
-    progressLines(s, earned);
+    // Wave 8 (the final pass): under its own day's lines, not after the last day's. The day of each: what a step earned as it fired (catchUp's
+    // prog), and an event's held reward (rewardHeld), released by its news now, its event's day.
+    const prog = () => (Array.isArray(State.current.player.progression) ? State.current.player.progression : []);
+    const dayOf = new Map();
+    let k = earned.n;
+    for (const f of fired) for (; Number.isInteger(f.prog) && k < f.prog; k++) dayOf.set(k, f.day);
+    const heldDay = new Map();
+    for (const f of events) if (!f.here) for (const t of State.current.threads) if (isObj(t) && t.rewardHeld === f.id) heldDay.set(t.id, f.day);
+    const n0 = prog().length;
+    for (const f of events) if (!f.here) State.apply({ newsSeen: { eventId: f.id } });
+    noteEnding();
+    prog().forEach((x, i) => { if (i >= n0 && isObj(x) && heldDay.has(x.threadId)) dayOf.set(i, heldDay.get(x.threadId)); });
+    const fresh = prog().map((x, i) => ({ x, i })).slice(earned.n);
+    const shown = new Set();
+    const resolved = d => {
+      for (const r of fresh) {
+        if (shown.has(r.i) || (d !== null && dayOf.get(r.i) !== d)) continue;
+        shown.add(r.i);
+        UI.feed.quiet(resolvedText(r.x, isObj(r.x) ? gainText(r.x.gain) : ''));
+      }
+    };
+    lines.forEach((x, i) => {
+      UI.feed.quiet(x.meanwhile ? `Meanwhile in town, Day ${x.day}: ${x.texts.join(' ')}` : x.text);
+      if (!lines[i + 1] || lines[i + 1].day !== x.day) resolved(x.day);
+    });
+    resolved(null);
     return { ok: true, time: deepCopy(State.current.time), events: events.map(f => f.id), seeds: fired.filter(f => f.seed).map(f => f.id) };
   }
   /* Bring the loaded game up to the current rules (Upgrade.pending: the
