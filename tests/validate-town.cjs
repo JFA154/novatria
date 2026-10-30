@@ -733,8 +733,13 @@ function checkAlt(a, where, maxSentences, requires, ending) {
 }
 // when (CONTRACTS section 11): an event branch's or the epilogue's conditions.
 function checkWhen(w, where) {
-  if (!checkKeys(w, [], where, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'obligationStatus'])) return;
+  if (!checkKeys(w, [], where, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'obligationStatus', 'playerAt'])) return;
   if (!Object.keys(w).length) err(where, 'empty: a branch with no condition is the default');
+  // playerAt: the player is at that place when it happens (the meeting with them in the room).
+  if (w.playerAt !== undefined) {
+    if (!isLoc(w.playerAt)) err(where + '.playerAt', '"' + w.playerAt + '" is not a location');
+    else if (locationById(w.playerAt).away === true || locationById(w.playerAt).discovered === false) err(where + '.playerAt', 'a town place on the map, where the player can be');
+  }
   if (w.flagsSet !== undefined) checkFlagList(w.flagsSet, where + '.flagsSet');
   if (w.flagsUnset !== undefined) checkFlagList(w.flagsUnset, where + '.flagsUnset');
   if (w.npcFree !== undefined) checkNpcList(w.npcFree, where + '.npcFree');

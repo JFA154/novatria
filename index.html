@@ -4499,6 +4499,32 @@ const TOWN_DATA = {
           ]
         },
         {
+          when: { playerAt: "loc_town_hall", attitudeAtLeast: { npc_royce: 15 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman looks down the rows of folding chairs, finds you in the back, and stands up before the vote to move that the bridge site be tabled until the engineer answers questions in public; Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns without looking at him.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With a friendly face in the back row, Royce Pittman moved to table the bridge site until the engineer answers questions in public, and it carried three to two. Carter Sturdivant needs his vote again." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting Royce Pittman moved to table the bridge vote until the engineer answers questions in public, and it carried three to two; the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { playerAt: "loc_town_hall", attitudeAtLeast: { npc_royce: 15 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman looks down the rows of folding chairs, finds you in the back, and moves to table the bridge site until the engineer answers questions in public; with Hollis Byrd's chair empty it ties two to two, the downstream site ties the same way, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With a friendly face in the back row and Hollis Byrd's seat empty, Royce Pittman moved to table the bridge site; it tied two to two and went over to the next meeting. Carter Sturdivant still needs his vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote tied two to two and went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
           when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts from the talks he has had this week, so he abstains on the bridge, and it ties two to two and goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
           effects: [
@@ -10775,6 +10801,7 @@ const Town = (() => {
       for (const [id, l] of Object.entries(isObj(c.npcAt) ? c.npcAt : {})) { checkRef(w, 'npc', id); checkRef(w, 'loc', l); }
       for (const id of Object.keys(isObj(c.attitudeAtLeast) ? c.attitudeAtLeast : {})) checkRef(w, 'npc', id);
       for (const id of Object.keys(isObj(c.clockAtLeast) ? c.clockAtLeast : {})) checkRef(w, 'fac', id);
+      if (c.playerAt !== undefined) { if (typeof c.playerAt !== 'string') e(`${w}.playerAt: must be a place id`); else checkRef(w, 'loc', c.playerAt); }
       for (const k of ['flagsSet', 'flagsUnset', 'npcFree', 'obligationOpen']) if (c[k] !== undefined && !Array.isArray(c[k])) e(`${w}.${k}: must be a list`);
     };
     const checkEffect = (w, ef) => {
@@ -11247,11 +11274,14 @@ const World = (() => {
      npcAt: { npcId: locationId } there now; flagsSet / flagsUnset: [keys];
      obligationOpen: [ids] still open; obligationStatus: { id: status };
      clockAtLeast: { factionId: n } (clockProgress); attitudeAtLeast:
-     { npcId: n }. Nothing named, or no object: it holds. */
-  function conditionsMet(c) {
+     { npcId: n }; playerAt: locationId (the player is there when it is
+     read: for a town event, the tick that fires it, after any walk into
+     that phase). Nothing named, or no object: it holds. */
+  function conditionsMet(c, opts) {
     if (!isObj(c)) return true;
     const s = st();
     const flags = (s && s.flags) || {};
+    if (typeof c.playerAt === 'string' && c.playerAt && ((opts && opts.playerAway) || !(s && s.player && s.player.locationId === c.playerAt))) return false;
     if (arr(c.flagsSet).some(k => !flags[k])) return false;
     if (arr(c.flagsUnset).some(k => !!flags[k])) return false;
     if (arr(c.npcFree).some(id => !isFree(State.npc(id)))) return false;
@@ -11570,10 +11600,12 @@ const World = (() => {
     const p = PHASES.includes(phase) ? phase : PHASES[0];
     return at.day > day || (at.day === day && PHASES.indexOf(at.phase) >= PHASES.indexOf(p));
   }
-  /* The first branch whose when holds, else the default. */
-  function pickBranch(ev) {
+  /* The first branch whose when holds, else the default. opts.playerAway:
+     the player was not there for it whatever their place (slept or waited
+     through it, or the clock jumped past it), so no playerAt holds. */
+  function pickBranch(ev, opts) {
     const brs = arr(ev.branches);
-    for (let i = 0; i < brs.length; i++) if (isObj(brs[i]) && conditionsMet(brs[i].when)) return { branch: brs[i], index: i };
+    for (let i = 0; i < brs.length; i++) if (isObj(brs[i]) && conditionsMet(brs[i].when, opts)) return { branch: brs[i], index: i };
     return { branch: isObj(ev.default) ? ev.default : { text: '', effects: [] }, index: -1 };
   }
   /* A town event fires on the tick of its own day and phase. The news it
@@ -11594,7 +11626,9 @@ const World = (() => {
     for (const ev of arr(t.events)) {
       if (!isObj(ev) || typeof ev.id !== 'string' || !ev.id || eventDone(ev.id) || !reached(ev.day, ev.phase, now)) continue;
       const late = now.day > ev.day || (now.day === ev.day && PHASES.indexOf(now.phase) > PHASES.indexOf(PHASES.includes(ev.phase) ? ev.phase : PHASES[0]));
-      const { branch, index } = pickBranch(ev);
+      // The scene itself only when this tick is now (not a phase slept or waited through on the way to a later one).
+      const live = now.day === s.time.day && now.phase === s.time.phase;
+      const { branch, index } = pickBranch(ev, { playerAway: late || !live });
       markEvent(ev.id);
       // The people it brings together are there for that phase (a visit), if they are free and in town today.
       if (!late && ev.locationId && now.day === s.time.day && now.phase === s.time.phase) {
@@ -11603,13 +11637,12 @@ const World = (() => {
         if (come.length) State.apply({ visits: come.map(n => ({ npcId: n.id, locationId: ev.locationId })) }, W);
       }
       const text = cleanText(branch.text, 600);
-      const when = late ? { day: ev.day, phase: PHASES.includes(ev.phase) ? ev.phase : PHASES[0] } : {};
+      // Its news is dated when it happened: the event's own day and phase when the clock jumped past it, the tick's when it was slept or waited through.
+      const when = late ? { day: ev.day, phase: PHASES.includes(ev.phase) ? ev.phase : PHASES[0] } : !live ? { day: now.day, phase: now.phase } : {};
       const own = arr(branch.effects).map(e => (isObj(e) && e.op === 'addNews' ? Object.assign({ eventId: ev.id }, when, e) : e));
       const res = applyEffects(fillEffects(own, { locationId: ev.locationId }));
       if (text && !own.some(e => isObj(e) && e.op === 'addNews')) pushNews(text, Object.assign({ public: true, eventId: ev.id }, when));
       const here = !late && ev.locationId && s.player.locationId === ev.locationId;
-      // The scene itself only when this tick is now (not a phase slept or waited through on the way to a later one).
-      const live = now.day === s.time.day && now.phase === s.time.phase;
       if (text && here) dueNow({ key: `event_${ev.id}`, text, locationId: ev.locationId, scene: live, eventId: ev.id });
       note(`event ${ev.id} (${index >= 0 ? `branch ${index + 1}` : 'default'})${here ? ' with the player there' : ''}${late ? `, late: the clock passed day ${ev.day} ${ev.phase} without a tick there, so it is news only` : ''}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}`, { kind: 'event', eventId: ev.id });
       if (events) events.push({ kind: 'event', id: ev.id, branch: index, here: !!here, late });

@@ -609,6 +609,10 @@ s.test('wave 2: the council meeting counts only members who are free (a councilm
   const r = validateEdited(html => once(html, '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },', '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /the text has npc_hollis acting: add them to npcFree/);
+  // Attendance (playerAt) names a town place the player can be in.
+  const r2 = validateEdited(html => html.replace(/playerAt: "loc_town_hall"/g, 'playerAt: "loc_nowhere"'));
+  assert.equal(r2.status, 1);
+  assert.match(r2.stderr, /playerAt[^\n]*"loc_nowhere" is not a location/);
 
   // In the page: what each lever does.
   const page = await h.open();
@@ -644,16 +648,20 @@ s.test('wave 2: the council meeting counts only members who are free (a councilm
   assert.match(paid.text, /Curtis Pruett, flush with the four hundred dollars/);
 
   // A live meeting: Hollis arrested in the afternoon, Carter's money in; the town hears the count without him.
+  // (The engine tells an event once: the branch's own addNews, not its text as well, so the news is the twin's count.)
   await levers(page, { flags: ['royceBought'], jailed: ['npc_hollis'] });
   const live = await page.evaluate(() => {
+    const ev = Game.data.TOWN_DATA.events.find(e => e.id === 'evt_council_meeting');
+    const b = ev.branches.find(x => Game.World.conditionsMet(x.when)) || ev.default;
     Game.State.apply({ setTime: { day: 6, phase: 'afternoon', shorts: 0 } });
     Game.Pipeline.passTime('long', 'wait');
     const st = Game.state;
-    return { voted: !!st.flags.councilVoted, news: st.news.filter(n => n.day === 6).map(n => n.text).join(' | ') };
+    return { voted: !!st.flags.councilVoted, text: b.text, own: b.effects.find(e => e.op === 'addNews').text, news: st.news.filter(n => n.day === 6).map(n => n.text) };
   });
   assert.ok(live.voted, 'the meeting happened');
-  assert.match(live.news, /with Hollis Byrd's chair empty/);
-  assert.doesNotMatch(live.news, /over Hollis Byrd and Elbert Gentry/);
+  assert.match(live.text, /with Hollis Byrd's chair empty/);
+  assert.deepEqual(live.news.filter(t => /council/.test(t)), [live.own], 'told once, in the branch\'s own news');
+  assert.doesNotMatch(live.news.join(' | '), /three to two|over Hollis Byrd and Elbert Gentry/);
 });
 
 s.test('wave 2: the ending never says how long it has been when a flag brings it early, gives Jolene a court date wherever she is, settles the vote threads and plants what happens next, which happens', async h => {

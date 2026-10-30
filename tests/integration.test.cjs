@@ -197,4 +197,200 @@ s.test('pace: the narration of /rest and /wait is no instant action; an ordinary
   assert.equal(await page.evaluate(() => Game.state.time.instants | 0), 1, 'an instant action');
 });
 
+// ----- Wave 2 seams (docs/notes/*.md, "Wave 2"; the integration pass) -----
+
+s.test('wave 2: a loose end\'s obligation keeps content\'s owedTo and missText; missed, it is told in content\'s words, the person owed remembers it, nobody who lives elsewhere or does not know of it comes looking, and a save with them loads', async h => {
+  const page = await h.open();
+  // The loose end whose obligation is owed to someone other than the person it binds (content: the letter, owed to the woman who wrote it).
+  const pick = await page.evaluate(() => {
+    const L = Game.data.LOOSE_ENDS;
+    for (const kind of Object.keys(L)) {
+      const i = (L[kind].obligations || []).findIndex(o => o && o.owedTo && o.missText && !/\{/.test(o.owedTo));
+      if (i >= 0) return { kind, index: i, ob: L[kind].obligations[i] };
+    }
+    return null;
+  });
+  assert.ok(pick, 'content has an obligation owed to someone else');
+  await page.evaluate(p => {
+    const D = Game.data;
+    const bg = D.BACKGROUNDS[0];
+    Game.Api.Mock.delay = 0;
+    Game.App.quickStart({ name: 'Tester', backgroundId: bg.id, stats: Object.assign({}, bg.stats), goal: 'Find out who sent the letter', flaw: D.FLAWS[0],
+      looseEnds: [{ kind: p.kind, text: D.LOOSE_ENDS[p.kind].options[p.index] }] }, { seed: 12345 });
+  }, pick);
+  await page.waitForSelector('#screen-game.active');
+  const r = await page.evaluate(() => {
+    const S = Game.State, st = Game.state;
+    const le = st.player.looseEnds[0];
+    S.apply({ effects: S.seed(le.seedId).effects });
+    const o = st.player.obligations[0];
+    const made = { owedTo: o.owedTo, missText: o.missText, npcId: o.npcId };
+    S.apply({ setTime: { day: o.dueDay, phase: 'night' } });
+    Game.Pipeline.passTime('long');
+    const owed = S.npc(o.owedTo);
+    return {
+      made, status: o.status, name: S.npc(o.npcId).name,
+      due: st.dueEvents.filter(e => e.obligationId === o.id).map(e => ({ text: e.text, npcId: e.npcId || null, bring: !!e.bring })),
+      lookingFor: st.dueEvents.filter(e => /came looking:/.test(e.text)).length,
+      news: st.news.filter(n => /letter|promise|Missed/i.test(n.text)).map(n => n.text),
+      remembers: owed.memories.length > 0,
+      shape: S.validateShape(JSON.parse(JSON.stringify(st))),
+      bad: (() => { const c = JSON.parse(JSON.stringify(st)); c.player.obligations[0].owedTo = 'npc_nobody'; return S.validateShape(c); })()
+    };
+  });
+  assert.equal(r.made.owedTo, pick.ob.owedTo);
+  assert.ok(r.made.missText && !/[{}]/.test(r.made.missText), 'missText filled: ' + r.made.missText);
+  assert.equal(r.status, 'missed');
+  assert.deepEqual(r.due, [{ text: r.made.missText, npcId: null, bring: false }], 'told in content\'s words, with nobody brought');
+  assert.equal(r.lookingFor, 0, 'never "<the recipient> came looking: <the task>"');
+  assert.equal(r.news.length, 1, 'one news item: ' + JSON.stringify(r.news));
+  assert.ok(r.remembers, 'the person owed remembers it');
+  assert.deepEqual(r.shape, []);
+  assert.match(r.bad.join(' '), /owedTo "npc_nobody" is nobody in this game/);
+  // The same in a game: the next narration tells it, and the quiet line names the task.
+  await sendText(page, '/look');
+  assert.match(await lastPacket(page), /\nDUE EVENT: [^\n]*(still in|come and gone)/);
+});
+
+s.test('wave 2: a missed obligation owed to someone in town brings them with content\'s words (askerId still read as owedTo); without missText the plain line, and only when they can come', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(() => {
+    const S = Game.State, st = Game.state;
+    const free = st.npcs.filter(n => n.alive !== false && n.status === 'free' && (n.presence || 'here') === 'here' && !S.awayNow(n));
+    const [a, b, c] = free;
+    S.apply({ effects: [
+      { op: 'addObligation', kind: 'promise', npcId: a.id, text: 'Fix {npc}\'s fence.', dueOffset: 0, owedTo: b.id, missText: '{npc}\'s fence is still down, and the one who asked comes by about it.' },
+      { op: 'addObligation', kind: 'errand', npcId: c.id, text: 'Take {npc} the parcel.', dueOffset: 0, askerId: a.id }] });
+    const os = st.player.obligations.map(o => ({ id: o.id, owedTo: o.owedTo }));
+    S.apply({ setTime: { day: st.time.day, phase: 'night' } });
+    Game.Pipeline.passTime('long');
+    return { a: a.id, b: b.id, c: c.id, aName: a.name, os, due: st.dueEvents.map(e => ({ npcId: e.npcId || null, text: e.text, bring: !!e.bring })), visits: (st.visits || []).map(v => v.npcId) };
+  });
+  assert.deepEqual(r.os.map(o => o.owedTo), [r.b, r.a], 'owedTo kept, askerId read as owedTo');
+  const fence = r.due.find(e => /fence/.test(e.text));
+  assert.deepEqual(fence, { npcId: r.b, text: `${r.aName}'s fence is still down, and the one who asked comes by about it.`, bring: true });
+  const parcel = r.due.find(e => e.npcId === r.a && !/fence/.test(e.text));
+  assert.ok(parcel && /comes looking for Tester about the errand/.test(parcel.text), JSON.stringify(r.due));
+  assert.ok(!r.due.some(e => e.npcId === r.c), 'the one the parcel is for does not know of it');
+  assert.ok(r.visits.includes(r.b) && r.visits.includes(r.a));
+});
+
+s.test('wave 2: playerAt: the council meeting with the player in the room and Royce warm to them is the attendance branch (a walk into the evening, /skip, /wait there); slept through or elsewhere it is not; the validators know the key', async h => {
+  const page = await h.open();
+  const branch = await page.evaluate(() => {
+    const ev = Game.data.TOWN_DATA.events.find(e => (e.branches || []).some(b => b.when && b.when.playerAt));
+    if (!ev) return null;
+    const i = ev.branches.findIndex(b => b.when && b.when.playerAt);
+    const b = ev.branches[i];
+    const n = Object.keys(b.when.attitudeAtLeast || {})[0] || null;
+    return { id: ev.id, day: ev.day, phase: ev.phase, loc: b.when.playerAt, name: Game.State.loc ? null : null, npc: n, at: n ? b.when.attitudeAtLeast[n] : null,
+      news: b.effects.find(e => e.op === 'addNews').text, twinNews: ev.branches[i + 1].effects.find(e => e.op === 'addNews').text };
+  });
+  assert.ok(branch, 'an event branch reads playerAt');
+  const PHASES = ['morning', 'afternoon', 'evening', 'night'];
+  const before = PHASES[PHASES.indexOf(branch.phase) - 1];
+  const setup = async (p, where) => {
+    await quickStart(p, { kinds: [] });
+    await p.evaluate(([b, before, where]) => {
+      const S = Game.State;
+      Game.Api.Mock.delay = 0;
+      if (b.npc) S.apply({ effects: [{ op: 'attitudeDelta', npcId: b.npc, delta: b.at - S.npc(b.npc).attitude }] });
+      S.apply({ setTime: { day: b.day, phase: before, shorts: 2 } });
+      if (where) S.apply({ playerLocationId: where });
+    }, [branch, before, where]);
+  };
+  const told = p => p.evaluate(d => Game.State.news.filter(n => n.day === d && n.eventId).map(n => n.text), branch.day);
+  // A walk that crosses into the evening: the player is in the room when the tick fires it.
+  await setup(page, null);
+  await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'move', summary: 'Walks over', targets: [], destinationId: id, needsRoll: false, timeCost: 'short' }), branch.loc);
+  await sendText(page, 'I walk over there');
+  assert.deepEqual(await page.evaluate(() => [Game.state.player.locationId, Game.state.time.phase]), [branch.loc, branch.phase]);
+  assert.deepEqual(await told(page), [branch.news], 'the walk');
+  await sendText(page, '/look');
+  assert.match(await lastPacket(page), /\nDUE EVENT: [^\n]*finds you[^\n]*\(the scene/, 'told to the player as the scene, the next narration');
+  // /wait there.
+  const p2 = await h.open();
+  await setup(p2, branch.loc);
+  await sendText(p2, `/wait ${branch.phase}`);
+  assert.deepEqual(await told(p2), [branch.news], '/wait in the room');
+  // /skip there at that phase.
+  const p5 = await h.open();
+  await setup(p5, null);
+  const hall = await p5.evaluate(id => Game.State.loc(id).name, branch.loc);
+  await sendText(p5, `/skip to ${hall} in the ${branch.phase}`);
+  assert.deepEqual(await told(p5), [branch.news], '/skip');
+  // Elsewhere: not this branch.
+  const p3 = await h.open();
+  await setup(p3, null);
+  await sendText(p3, `/wait ${branch.phase}`);
+  const elsewhere = await told(p3);
+  assert.equal(elsewhere.length, 1);
+  assert.ok(![branch.news, branch.twinNews].includes(elsewhere[0]), 'away from the room: ' + elsewhere[0]);
+  // Slept through in the room: not there for it, and its news is dated the evening it happened.
+  const p4 = await h.open();
+  await setup(p4, branch.loc);
+  await sendText(p4, '/rest');
+  const slept = await told(p4);
+  assert.equal(slept.length, 1);
+  assert.ok(![branch.news, branch.twinNews].includes(slept[0]), 'asleep: ' + slept[0]);
+  // The engine's own validator refuses a playerAt that is no place.
+  const bad = await p4.evaluate(id => {
+    const T = JSON.parse(JSON.stringify(Game.data.TOWN_DATA));
+    T.events.find(e => e.id === id).branches.find(b => b.when && b.when.playerAt).when.playerAt = 'loc_nowhere';
+    return Game.Town.validate(T).join(' | ');
+  }, branch.id);
+  assert.match(bad, /loc_nowhere/);
+});
+
+s.test('wave 2: the witness complication never says the player was known before; the mock\'s memory rewrite keeps as many as the game allows', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(async () => {
+    const texts = Game.data.TABLES.complications.map(c => (typeof c === 'string' ? c : c.text));
+    const mems = Array.from({ length: 16 }, (_, i) => ({ n: i + 1, text: `Remembers thing number ${i + 1} the player did`, weight: 2 }));
+    const res = await Game.Api.rewriteMemories({ people: [{ npcId: 'npc_x', memories: mems }] });
+    return { texts, kept: res.people[0].memories.length, max: Game.State.MEMORY_MAX };
+  });
+  assert.ok(!r.texts.some(t => /recogni[sz]es you|from somewhere|know(s)? you from/i.test(t)), r.texts.join(' | '));
+  assert.ok(r.texts.includes('{witness} sees it, and will know your face from now on'));
+  assert.equal(r.kept, r.max);
+});
+
+s.test('wave 2: a read-only tab says so once per refused action (the UI guard and the Pipeline guard never both toast); Stop shows while the town is updated with the box empty, and keeps the narration', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  await fast(page);
+  await page.evaluate(() => {
+    window.__toasts = 0;
+    new MutationObserver(m => { window.__toasts += m.filter(x => x.type === 'childList').length ? 1 : 0; }).observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true });
+  });
+  const count = async fn => { await page.evaluate(() => { window.__toasts = 0; }); await fn(); await page.waitForTimeout(50); return page.evaluate(() => window.__toasts); };
+  const turn0 = await page.evaluate(() => { Game.Storage.setReadOnly(true); return Game.state.meta.turn; });
+  assert.equal(await count(() => page.evaluate(() => { const b = document.getElementById('cmd'); b.readOnly = false; b.value = 'I look around'; })
+    .then(() => page.press('#cmd', 'Enter'))), 1, 'Enter');
+  assert.equal(await count(() => page.evaluate(() => Game.Pipeline.submit('I look around'))), 1, 'Pipeline.submit');
+  assert.equal(await count(() => page.evaluate(() => Game.Pipeline.submit('/rest'))), 1, '/rest');
+  assert.equal(await count(() => page.evaluate(() => Game.Pipeline.submit('/undo'))), 1, '/undo');
+  assert.equal(await count(() => page.evaluate(() => Game.Pipeline.pass())), 1, 'Wait');
+  assert.equal(await count(() => page.evaluate(() => Game.UI.runAction('/look'))), 1, 'the ⋯ list');
+  assert.equal(await page.evaluate(() => Game.state.meta.turn), turn0, 'nothing played');
+  await page.evaluate(() => { Game.Storage.setReadOnly(false); document.getElementById('cmd').value = ''; });
+  // Stop while the town is updated, with nothing typed: the button reads Stop, and stopping keeps the narration.
+  await page.evaluate(() => {
+    const M = Game.Api.Mock;
+    const orig = M.bookkeep;
+    M.bookkeep = async function (packet) { await new Promise(res => setTimeout(res, 1500)); M.bookkeep = orig; return orig.call(M, packet); };
+  });
+  await page.fill('#cmd', 'I look at the counter');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => document.getElementById('turn-status-text').textContent === 'Updating the town…', null, { timeout: 5000 });
+  assert.equal(await page.textContent('#send'), 'Stop');
+  assert.equal(await page.inputValue('#cmd'), '');
+  await page.click('#send');
+  await page.waitForFunction(() => !Game.Pipeline.busy);
+  const r = await page.evaluate(() => { const e = Game.state.log[Game.state.log.length - 1]; return { input: e.input, changes: e.changes, narration: !!e.narration, box: document.getElementById('cmd').value }; });
+  assert.deepEqual(r, { input: 'I look at the counter', changes: 'not recorded', narration: true, box: '' });
+  assert.ok((await quiets(page)).some(q => /^Stopped while the town was being updated/.test(q)));
+});
+
 s.run();
