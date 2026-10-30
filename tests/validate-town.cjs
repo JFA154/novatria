@@ -642,6 +642,8 @@ const OPS_OPTIONAL = {
   giveItem: ['notes'],
   placeItem: ['notes', 'locationId'],
   banFrom: ['byNpcId'],
+  // Wave 6: 'own', what the person did to the player (no grudge grows from it).
+  addMemory: ['act'],
   threadUpdate: ['summary', 'status', 'knownToPlayer'],
   addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
   obligationPaid: ['take'],
@@ -879,6 +881,7 @@ function checkEffect(e, where, opts) {
       if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
       checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 2 });
       if ([1, 2, 3].indexOf(e.weight) === -1) err(where + '.weight', 'must be 1, 2 or 3');
+      if (e.act !== undefined && e.act !== 'own') err(where + '.act', 'only "own" (what they did to the player)');
       break;
     case 'clockAdjust':
       if (!isFac(e.factionId)) err(where, 'factionId "' + e.factionId + '" is not a faction');
@@ -1842,7 +1845,9 @@ function checkTemplates(list, name) {
   const grudges = name === 'GRUDGE_TEMPLATES';
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
-    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, ['forTags', 'notForTags'])) return;
+    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'] : ['forTags', 'notForTags'])) return;
+    // Wave 6: the offences a grudge template answers, when only some (a theft, a beating, an insult).
+    if (grudges && t.about !== undefined && !(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['violence', 'theft', 'insult'].indexOf(k) !== -1))) err(where + '.about', 'a non-empty list of violence, theft or insult');
     if (grudges && GRUDGE_KINDS.indexOf(t.kind) === -1) err(where + '.kind', 'one of ' + GRUDGE_KINDS.join(', ') + ', found ' + JSON.stringify(t.kind));
     if (grudges && t.kind === 'violence' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'playerHp'))) err(where + '.kind', 'violence hurts the player (a playerHp effect)');
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });

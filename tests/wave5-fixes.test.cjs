@@ -57,14 +57,15 @@ s.test('bug 1 / Q1: in Say mode money that goes to a creditor is a payment unles
   assert.equal(rest.bought, false, 'a parsed give is never a purchase');
 });
 
-s.test('bug 1: in Say mode a line that buys is still a purchase ("Gimme one of those cold drinks", "How much for the rope?"); words that pay what is owed are never one', async h => {
+s.test('bug 1: in Say mode a line that buys is still a purchase ("Gimme one of those cold drinks", "How much for the flashlight?"); words that pay what is owed are never one', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   await hollisAlone(page, true);
   const drink = await sayToHollis(page, 'Gimme one of those cold drinks.', { goldDelta: -2 });
   assert.equal(drink.paid, 0, 'the price of a drink pays nothing off');
   assert.equal(drink.bought, true);
-  const rope = await sayToHollis(page, 'How much for the rope?', { goldDelta: -8 });
+  // Changed by design (wave 6, the fifth review's bug 1): a buying frame is anchored on a good of the goods table or one on sale here; rope is neither (tests/wave6-fixes.test.cjs pins it as a payment).
+  const rope = await sayToHollis(page, 'How much for the flashlight?', { goldDelta: -15 });
   assert.equal(rope.bought, true);
   assert.equal(rope.paid, 0);
   const owe = await sayToHollis(page, 'Gimme a minute, here is fifty toward what I owe you.', { goldDelta: -50 });
@@ -335,7 +336,8 @@ s.test('risk and Q4: rough nights count nights in a row at the same public place
   assert.equal(r.g.count, 1);
   assert.equal(r.cell, 0, 'a night in the cell starts it again');
   assert.equal(r.h.count, 1);
-  assert.match(r.i.due, /again, writes you a \$25 fine/);
+  // Changed by design (wave 6, the round-5 playtest's R9): "again," is dropped: "for the second morning running, writes you a $25 fine ...".
+  assert.match(r.i.due, /second morning running, writes you a \$25 fine/);
   assert.equal(r.fine, 25);
   assert.ok(r.first.some(t => /two nights running and told them to move along/.test(t)), r.first.join(' | '));
   assert.ok(r.chief.some(t => /again and fined them/.test(t)), r.chief.join(' | '));
@@ -387,7 +389,8 @@ s.test('risk: /cheat time onto a town event\'s own place tells it once, as the s
     const G = Game, M = G.Api.Mock, st = G.state, P = G.Pipeline;
     G.State.apply({ playerLocationId: 'loc_town_hall' });
     const res = await P.submit('/cheat time evening 6');
-    const meanwhile = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent).filter(t => /^Meanwhile in town: /.test(t)).length;
+    // Changed by design (wave 6, the round-5 playtest's R2): the seeds the jump passed are "Meanwhile in town, Day N: …" lines now; none tells the meeting held here.
+    const meanwhile = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent).filter(t => /^Meanwhile in town\b/.test(t) && /council meeting the|the council|vote to end the police (?:failed|died)/i.test(t)).length;
     M.queue('parse', { actionType: 'look', summary: 'Looks', targets: [], needsRoll: false, timeCost: 'instant' });
     M.queue('bookkeep', {});
     await P.submit('I look around');
@@ -430,7 +433,8 @@ s.test('QA: "until Day N" in the hurt note; the /cheat row says it sets the cloc
     return { note, row: { args: row.args, desc: row.desc }, news };
   });
   assert.match(r.note, /until Day \d+$/);
-  assert.deepEqual(r.row, { args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), or set the clock' });
+  // Changed by design (wave 6, the round-5 visual QA): the / list's line is short; /help keeps the long form (tests/wave6-fixes.test.cjs).
+  assert.deepEqual(r.row, { args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll, or set the clock' });
   const agenda = r.news.findIndex(x => /agenda for Tuesday night/.test(x.text));
   const meeting = r.news.findIndex(x => x.ev === 'evt_council_meeting');
   assert.ok(agenda >= 0 && meeting >= 0, JSON.stringify(r.news));
@@ -548,10 +552,12 @@ s.test('Q10: stealing from someone who is not here rolls nothing (NOT PRESENT)',
     M.queue('parse', { actionType: 'steal', summary: 'Steals a wallet', targets: [away.id], needsRoll: true, stat: 'stealth', difficulty: 'normal', timeCost: 'instant' });
     M.queue('bookkeep', {});
     await G.Pipeline.submit(`I steal ${away.name}'s wallet`);
-    return { roll: G.Pipeline.lastTurn.roll, noRoll: G.Pipeline.lastTurn.ctx.noRoll };
+    // Changed by design (wave 6, the fifth review's dead code): ctx.noRoll is gone (nothing read it); the narrator's NOT PRESENT line says who is not here.
+    const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
+    return { roll: G.Pipeline.lastTurn.roll, notPresent: (/^NOT PRESENT:.*$/m.exec(pk) || [''])[0], name: away.name };
   });
   assert.equal(r.roll, null);
-  assert.match(r.noRoll, /steal from is not here/);
+  assert.ok(r.notPresent.includes(r.name), r.notPresent);
 });
 
 s.test('Q11: a friend whose home is their shop gives a bed there only when they are there tonight (Hollis fishes at the landing at night)', async h => {

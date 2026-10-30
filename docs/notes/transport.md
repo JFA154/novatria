@@ -746,3 +746,73 @@ Q7, Q8, Q10, Q13 and prose items. Tests: `tests/wave5-fixes.test.cjs`.
 - The `/cheat` row: args "[outcome or time <phase> [day]]", "Cheat: redo
   the last roll (success, partial, fail, crit, fumble or 1-20), or set the
   clock" (round-4 QA).
+
+## Wave 6
+
+The fifth code review's bug 1, its turn-side risks and dead code; the
+round-5 visual QA's `/cheat` row; the round-5 playtest's R1, R2, R7, R8,
+R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
+
+### Turns
+
+- **Money in Say mode, the final design** (review bug 1, playtest R1;
+  three waves over-corrected it): money that goes to the one spoken to is
+  a payment toward what is owed them when something is, else a gift,
+  unless (a) the parser read a buy, (b) the bookkeeper's diff gains a good
+  (`State.goodNamed`: the goods table, or a thing on sale here; State.apply
+  and `giftIn` read it), or (c) the line names a good in a buying frame
+  (`buyingFrame`: "I'll take a beer", "gimme one of those cold drinks",
+  "how much for a flashlight", "two beers, please", "another round", "for
+  the coffee", "A beer.", "fill it up"). A frame is anchored on the good:
+  "give me a second", "can I get a few more days", "I'll take the fifty",
+  "I'll take care of the rest" buy nothing, and a thing that is no good
+  ("How much for the rope?") is no purchase. "Get yourself a beer", "buy
+  yourself lunch", "let me buy you a drink" (`GIFT_PHRASES`) are a gift.
+  Paying words (`PAYING_WORDS`: the rest, what's left, the balance, the
+  note, the loan, toward, owe, "us even") always win, over a parsed buy and
+  a good gained too (`ctx.paying`, `State.apply`'s `opts.paying`). A parsed
+  give is never a purchase. 36 lines from reviews 3 to 5 and playtests 3 to
+  5 are pinned one by one, and the three gift lines three times each.
+  `tests/wave5-fixes.test.cjs` follows (changed by design: "How much for the
+  rope?" became "How much for the flashlight?").
+- **A theft from a place still rolls** (the review's risk): only a
+  pickpocket of someone not here rolls nothing (`pickpocket`: aimed only at
+  people, and no place or thing named it is taken from, `THEFT_FROM`); "I
+  take the cash from Hollis's register" with Hollis away rolls Stealth.
+  `ctx.noRoll` is gone (dead code).
+- **Whom a failed ask is against** (the review's risk): said to everyone,
+  the one of them the player owes (`obligeeAmong`), else the first present.
+- **/cheat time** (playtest R2 and R8): forward only ("The clock only goes
+  forward: it is Day 3 · Morning now.", reason `backwards`); it passes
+  `from` to `World.catchUp` and prints, in the order it happened, one
+  "Meanwhile in town, Day N: …" line per day for the town's seeds and the
+  events elsewhere, and each morning's "Missed: …" and "Condition over: …"
+  lines. `tests/wave4-fixes.test.cjs` and `wave5-fixes` follow (changed by
+  design: the line's start is "Meanwhile in town, Day N: ").
+- **The log entry's input time** (playtest R7): `from: { day, phase }` when
+  the narration is told in another phase than the input was given in (the
+  UI's rebuild; engine-state.md, Wave 6).
+- `TIME PASSED: the player slept until morning, Day 4` (playtest R9;
+  `tests/pipeline.test.cjs` follows, changed by design).
+
+### Commands
+
+- The `/cheat` row (round-5 visual QA): `desc` "Cheat: redo the last roll,
+  or set the clock" fits the `/` list at every width; `help` keeps the long
+  form for `/help` ("… (success, partial, fail, crit, fumble or 1-20), or set
+  the clock (forward only)"). `helpText` reads `help` before `desc`.
+  `tests/wave5-fixes.test.cjs` follows (changed by design).
+
+### The mock (demo only)
+
+- D10: "I put $50 in", "I ante up $20" are bets at the bar (`MOCK_GAMBLE`).
+- D11: asking what something would cost or bring ("I ask Hollis what he
+  would give me for a thumb drive") is talk, not a give; a thumb drive, a
+  flash drive, the long drive need no car.
+- D12: a due event is never cut inside a sentence: whole, or its first
+  sentence, or a later one left out (the D8 clause cut is gone: it made
+  "From the holding cell." and lost the enemy's blow).
+- D13: a shove, a push, a slap, a kick is an attack ("push the door open"
+  is not).
+- D14: "I take the bus to Calder", a ride, a hitch somewhere is going there
+  (`MOCK_GO`): out of town, refused with the engine's line.

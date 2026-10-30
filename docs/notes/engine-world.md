@@ -561,3 +561,65 @@ Q9, prose items and design notes. Tests: `tests/wave5-fixes.test.cjs`.
   fourth. A bed, a night not slept, another place or the cell still start
   it again. `tests/wave4-fixes.test.cjs` follows (changed by design: the
   count is 2 after the move-along); `tests/integration.test.cjs` pins it.
+
+## Wave 6
+
+The fifth code review's bugs 2, 5 and 6, its World risks, and the round-5
+playtest's R2, R3, R4, R5, R6, R8, R9 and design notes. Tests:
+`tests/wave6-fixes.test.cjs`.
+
+- **The Missed line says what was taken** (review bug 2): "Missed: Pay
+  Hollis Byrd the three hundred dollars on the title-loan note (due Day 7).
+  Hollis Byrd took $150 toward it and your Prepaid phone." (from
+  `State.tickObligations(day, { detail: true })`); the collector's due event
+  and the news as before.
+- **A town event's reward waits for its news** (review bug 6, playtest R6):
+  `fireEvent` and `eventsOnArrival` apply a branch's effects with
+  `holdReward: <event id>`, the ending's with `holdReward: 'ending'`; an
+  event that leaves no public news releases at once (`toldOrHeld`). So the
+  council resolving the police vote while the player is at the Water Tower
+  prints its Resolved line (and grants +1 Wits) after the next morning's
+  "Overnight in town"; at Town Hall after `/cheat time evening 6`, after the
+  narration of the meeting; an ending whose narration failed, after it is
+  told (and again after an `/undo` of it).
+- **/cheat time** (playtest R2, R8, the design note): `catchUp({ day,
+  phase, from })` runs, for each morning the jump passed, what a new day
+  does first (`morningChores`: an obligation past its day is missed with
+  its Missed line, a condition or a ban that ran out ends); a town seed
+  (`townSeed`: no person of its own, not a loose end, grudge, favour or the
+  player's past) fires as news (`fire(sd, { news: true })` returns its
+  text) for setClock's "Meanwhile in town, Day N: …" lines, in day order
+  with the events; the player's own come as due events dated their day.
+  What a passed seed does counts from its day (`sinceDay`): a ban, a
+  condition, a due day, and a seed it plants some days on (the enemy's
+  follow-up comes three to five days after the jump, not minutes after its
+  first beat).
+- **After the ending** (the review's risk, decided): only the town's plans
+  stop; people's own business (a loose end's follow-up, a grudge, a favour)
+  still comes due.
+- **Grudges** (playtest R3 and its design note): `freshMemory` and
+  `memoryKind` skip a memory of what the person did to the player (`act:
+  'own'`: the enemy's beating, the repo man's seizure, the chief's cell and
+  his move-along); a grudge template with `about` answers only those kinds
+  of offence (the police told of things gone missing answer a theft; a new
+  one reports an assault). Exported for tests: `freshMemory`,
+  `plantFeeling`, `townSeed`, `theThing`, `ROUGH_FORGIVEN`.
+- **Rough nights** (the review's risk, playtest R9 and the design note):
+  the first time the chief comes says how many nights it has been ("for the
+  third morning running" when he was not about on the second; his memory
+  "three nights running"); the fine with less than $25 "takes what you
+  have, $10", with nothing "but you have nothing to pay it with"; no
+  "again,"; seven clear nights after he last found the player
+  (`flags.movedOnDay`, `ROUGH_FORGIVEN`) and the next time is a warning
+  again.
+- **Weapons** (review bug 5, playtest R4 and R5): a maker beside a bare
+  number of one or two digits is no gun ("Colt 45" is malt liquor; "Colt
+  .45", "Colt 1911" are guns; so "Savage 99" is none now); Taurus only with
+  a model or a calibre ("Ford Taurus", "Old Taurus" are none); a can, a
+  six-pack, a forty, a bottle, a tallboy or a case of a maker is a drink; a
+  calibre's rounds are ammunition ("9mm rounds", "Box of .38 rounds"), and
+  so are buckshot, birdshot, slugs and hollow points; spent, empty, fired
+  and disposable make it none; a Taser is a gun. An arrest keeps a maker's
+  capitals ("the Smith & Wesson", `Town.makerFirst`) and lowers a plain word
+  ("the folding knife").
+- `TIME PASSED` says "until morning, Day 4".

@@ -548,3 +548,56 @@ playtest's Q3, Q5, Q11, Q12 and design notes. Tests:
   drops the ending turn's own snapshot once it is told, when a step lies
   under it.
 - **"until Day N"** (round-4 QA): `absentNote` for someone hurt.
+
+## Wave 6
+
+The fifth code review's bugs 1, 2 and 6 and its State risks, and the
+round-5 playtest's R1, R3, R6, R7 and R9. Tests:
+`tests/wave6-fixes.test.cjs`.
+
+- **A good by name** (review bug 1, the final design): `goodNamed(text)`
+  is true when the text names a good (`GOOD_WORDS`: the words of the goods
+  table's names, not the measures, numbers and plain words in them, and
+  what a drink, food or service is called at a counter: a round, a cold
+  one, a room, a tab), or a thing on sale where the player stands (a scene
+  item with a price). `goodSource()` is the same as a regex source, for
+  Pipeline's buying frames.
+- **The payee rule** (review bug 1): a diff that gains a thing buys it only
+  when the thing is a good (a title or a receipt handed back is no
+  purchase), in Do mode too; `opts.paying` (a Say line's paying words)
+  always makes the money a payment.
+- **A seizure in its own onMiss** (review bug 2): while an obligation's
+  `onMiss` runs (`missing`), `obligationPaid` credits `paid` but never
+  meets it (no `onMet`, no late "paid off" memory). `tickObligations(day,
+  { detail: true })` settles each in an apply of its own and returns
+  `[{ id, gold, items }]`, what its onMiss took; without `detail` it
+  returns every id it marked missed, whatever happened after.
+- **A reward waits for its news** (review bug 6, playtest R6, the /cheat
+  risks): `apply(diff, { holdReward })` (World: a town event's id, or
+  `'ending'`) makes a thread those effects resolve hold its reward (the
+  story point, the step of progression, so its Resolved line and gain):
+  `thread.rewardHeld`. `newsSeen` releases it (`releaseRewards`) once no
+  unseen public news of that event is left (an ending: no unseen ending),
+  and the reward is earned in that turn, after what told it. Saved with the
+  thread: `/undo`, a reload and a failed ending narration hold it the same
+  way. `reward(t)` is what the first resolution earns.
+- **What they did to the player** (playtest R3): `MEMORY_ACTS` gains
+  `'own'`; `addMemory` takes `act` (one of them), and an engine
+  `newMemories` entry its own `act`. World skips `'own'` memories for
+  grudges.
+- **The feed's order** (playtest R7, for the UI): a log entry keeps `from:
+  { day, phase }`, the time its input was given, when the narration is told
+  in another (a `/wait`, a `/skip`); its `notes` may be strings (after the
+  narration, as before) or `{ text, day?, phase?, at?: 'before' | 'after' }`
+  (`logNote`). What the UI needs to rebuild in the live order: record each
+  quiet line's time and whether the turn's narration had been shown yet;
+  in `rebuildFeed`, draw the divider for `from` (or the entry's time)
+  before the input when it is not the last one drawn, the entry's own
+  divider after the input when `from` is set, the `at: 'before'` notes
+  before the narration, and a divider before a note whose time is not the
+  last one drawn.
+- **Due events in day order** (playtest R2): `dueAdd` takes `day` (a seed
+  `/cheat time` passed, dated its own day: `firedDay`) and puts an older one
+  before the newer ones.
+- **The roll line** (playtest R9): one minus sign, "Might 1 − 2 = −1"
+  (`Dice.formatLine`).

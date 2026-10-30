@@ -722,7 +722,10 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
     const sp = Game.state.player.storyPoints;
     S.apply({ setTime: { day: 15, phase: 'morning', shorts: 0 }, effects: [{ op: 'setFlag', key: 'councilVoted', value: true }, { op: 'setFlag', key: 'policeKept', value: true }, { op: 'setFlag', key: 'bridgeReportVoid', value: true }, { op: 'setFlag', key: 'secondInspectionOrdered', value: true }] });
     W.fireEvents({ day: 15, phase: 'morning' });
-    const out = { bridge: S.thread('thr_bridge_vote').status, police: S.thread('thr_police_vote').status, points: Game.state.player.storyPoints - sp, pillsKnown: S.thread('thr_riverbend_pills').knownToPlayer };
+    // Changed by design (wave 6, the fifth review's bug 6): what the ending settles is earned once the ending is told (its news seen), not before.
+    const held = Game.state.player.storyPoints - sp;
+    S.apply({ newsSeen: 'ending' });
+    const out = { bridge: S.thread('thr_bridge_vote').status, police: S.thread('thr_police_vote').status, held, points: Game.state.player.storyPoints - sp, pillsKnown: S.thread('thr_riverbend_pills').knownToPlayer };
     S.apply({ playerLocationId: 'loc_town_hall' });
     W.fireSeeds({});
     out.due = (Game.state.dueEvents || []).map(e => e.text).join(' | ');
@@ -731,6 +734,7 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
   });
   assert.equal(won.bridge, 'resolved');
   assert.equal(won.police, 'resolved');
+  assert.equal(won.held, 0, 'nothing before the ending is told');
   assert.ok(won.points >= 1, 'a settled ending pays a story point: ' + won.points);
   assert.equal(won.pillsKnown, false);
   assert.match(won.due, /says the next thing on (his|her) list is whoever is selling pills at Riverbend/);

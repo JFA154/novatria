@@ -681,3 +681,27 @@ The round-4 playtest's Q6, Q9, Q13 and design notes. Checked by
 - **The beating grudge** (Q13) is "gets {player} away from the others for a
   minute", not "alone after dark" (told in any phase, in a crowd).
 - Q9's plans after the ending are the engine's (engine-world.md, Wave 5).
+
+## Wave 6
+
+The round-5 playtest's R3 and its design note. Checked by
+`tests/validate-town.cjs`; tested in `tests/wave6-fixes.test.cjs`.
+
+- **What someone did to the player** (R3): the memories content writes of
+  what a person did to the player carry `act: "own"`, so no grudge grows
+  from them and none is read as the player's offence: the enemy's
+  follow-up ("Put {playerName} against a wall and hit them twice …"), the
+  lender's and the repo man's seizures ("so I took … the phone"), the
+  bookie's ("I made sure Loretta heard"), the blackmailer's ("so I told
+  Chief Bell"). The validator allows `act` on `addMemory`, only `"own"`.
+- **A beating is reported as a beating** (design note): the grudge
+  template that tells Chief Bell the player "was seen hanging around where
+  things went missing" answers a theft only (`about: ["theft"]`); a new one,
+  added last so a seed keeps its template by index, "goes to Chief Bell
+  about what {player} did to them" (`about: ["violence"]`, police, not for
+  the police). The validator allows `about` on a grudge template (violence,
+  theft or insult). 14 grudges now. `tests/state.test.cjs` follows (changed
+  by design: a template may carry `about`).
+- The ending's threads hold their reward until the ending is told
+  (engine-state.md, Wave 6): `tests/content.test.cjs` follows (changed by
+  design: the story point comes once the ending's news is seen).

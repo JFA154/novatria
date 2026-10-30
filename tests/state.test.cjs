@@ -624,7 +624,8 @@ s.test('town data passes validation and every content constant has the contract 
       looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length) })),
       // Grudges and favours carry their effects, whether the town hears (public) and who can hold them (CONTRACTS sections 2 and 3).
       // Changed by design in wave 4 (playtest R6): a grudge template says what kind of answer it is (kind).
-      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => ['dayOffset', 'effect', 'effects', 'public'].every(k => keys(t).includes(k)) && keys(t).every(k => ['dayOffset', 'effect', 'effects', 'public', 'forTags', 'notForTags', 'kind'].includes(k)) && t.effect.includes('{npc}'))
+      // Changed by design (wave 6, the round-5 playtest's design note): a grudge template may say which offences it answers (about).
+      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => ['dayOffset', 'effect', 'effects', 'public'].every(k => keys(t).includes(k)) && keys(t).every(k => ['dayOffset', 'effect', 'effects', 'public', 'forTags', 'notForTags', 'kind', 'about'].includes(k)) && t.effect.includes('{npc}'))
     };
   });
   assert.deepEqual(r.errors, []);
