@@ -282,12 +282,15 @@ s.test('Tables.price counts the player\'s own price factor until its day, on top
     const G = Game;
     const g = G.data.TABLES.items.goods[0];
     const base = G.Tables.price(g.name);
-    G.State.apply({ effects: [{ op: 'setFlag', key: 'playerPriceMultiplier', value: 2 }, { op: 'setFlag', key: 'playerPriceUntilDay', value: G.state.time.day }] });
+    // The flags are reserved (State), so the real op sets them: factor 2 until tomorrow.
+    const r1 = G.State.apply({ effects: [{ op: 'playerPrice', factor: 2, days: 1 }] });
     const doubled = G.Tables.price(g.name);
-    G.State.apply({ effects: [{ op: 'setFlag', key: 'playerPriceUntilDay', value: G.state.time.day - 1 }] });
-    return { raw: g.price, base, doubled, over: G.Tables.price(g.name) };
+    // Past its day it no longer counts (expiry itself is State.expireDaily's job, tested there).
+    G.state.flags.playerPriceUntilDay = G.state.time.day - 1;
+    return { raw: g.price, base, doubled, over: G.Tables.price(g.name), rejected: r1.rejected };
   });
   assert.equal(r.base, r.raw);
+  assert.deepEqual(r.rejected, [], 'the playerPrice op is accepted');
   assert.equal(r.doubled, Math.max(1, Math.round(r.raw * 2)));
   assert.equal(r.over, r.base, 'not after its day');
 });
