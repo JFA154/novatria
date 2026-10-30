@@ -630,3 +630,25 @@ The second playtest's N13, N14, N16 and Nadine's hook. Checked by
 - The debt `onMet` memories still say "in full and on time"; the engine
   rewrites them as late when the debt is paid after it was missed
   (engine-state.md, Wave 3).
+
+## Wave 4
+
+The third playtest's R6, R10, R11 and the README's ending. Checked by
+`tests/validate-town.cjs`; tested in `tests/wave4-fixes.test.cjs`.
+
+- Every grudge template says what kind of answer it is (`kind`: violence,
+  police, gossip, money, ban; World.grudgeKind reads it). The rumour that
+  the player "has been talking to the police" is gossip, not the police.
+  The validator requires a kind on a grudge, and a violent one hurts the
+  player; `state.test.cjs`' contract shape allows the key (changed by
+  design).
+- `seed_tackle_box` leaves the tackle box where the player finds it
+  (`placeItem`, a new effect op: engine-state.md), so it can be picked up.
+- Loose ends: the secret's seed "gets you to one side" (was "catches you
+  alone") and the lost seed "draws you aside" (was "finds you alone"): the
+  person may come into a crowd. `content.test.cjs`' fixture follows.
+- The default ending closes the bridge thread as failed ("nobody settled the
+  bridge while there was time"), so every ending settles the bridge and the
+  police threads, as the README says.
+- Nadine's hook needs no change: a due event that names a place in town not
+  found yet reveals it (engine-world.md, Wave 4).

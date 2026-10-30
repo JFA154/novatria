@@ -362,9 +362,9 @@ s.test('quiet lines are kept with their turn: they survive a reload and go with 
   await sendText(page, '/cheat time night');
   const before = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
   assert.ok(before.some(t => t.startsWith(`${who.name} goes by`)), before.join(' | '));
-  assert.ok(before.includes('Clock set to day 1, night.'));
+  assert.ok(before.includes('Clock set to Day 1 · Night.'));
   const notes = await page.evaluate(() => Game.state.log[Game.state.log.length - 1].notes);
-  assert.ok(Array.isArray(notes) && notes.includes('Clock set to day 1, night.'), JSON.stringify(notes));
+  assert.ok(Array.isArray(notes) && notes.includes('Clock set to Day 1 · Night.'), JSON.stringify(notes));
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await page.click('#btn-continue');

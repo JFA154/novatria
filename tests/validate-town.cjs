@@ -622,6 +622,7 @@ const OPS = {
   playerGold: ['delta'],
   playerHp: ['delta'],
   giveItem: ['name'],
+  placeItem: ['name'],
   takeItem: ['name'],
   addCondition: ['name', 'effect', 'days'],
   banFrom: ['locationId', 'days'],
@@ -637,6 +638,7 @@ const OPS = {
 const OPS_OPTIONAL = {
   playerHp: ['allowDefeat'],
   giveItem: ['notes'],
+  placeItem: ['notes', 'locationId'],
   banFrom: ['byNpcId'],
   threadUpdate: ['summary', 'status', 'knownToPlayer'],
   addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
@@ -845,6 +847,12 @@ function checkEffect(e, where, opts) {
     case 'giveItem':
       checkText(e.name, where + '.name', { ph, max: 60, maxSentences: 0 });
       if (e.notes !== undefined) checkText(e.notes, where + '.notes', { ph, max: 200, maxSentences: 2 });
+      break;
+    case 'placeItem':
+      // Wave 4: a thing left lying in a place (the player's, unless locationId names an in-town place).
+      checkText(e.name, where + '.name', { ph, max: 60, maxSentences: 0 });
+      if (e.notes !== undefined) checkText(e.notes, where + '.notes', { ph, max: 200, maxSentences: 2 });
+      if (e.locationId !== undefined && (!isLoc(e.locationId) || locationById(e.locationId).away === true)) err(where, 'locationId "' + e.locationId + '" is not a place in town');
       break;
     case 'takeItem':
       checkText(e.name, where + '.name', { ph, max: 60, maxSentences: 0 });
@@ -1801,12 +1809,17 @@ function holders(t) {
     (!Array.isArray(t.forTags) || t.forTags.some((g) => n.tags.indexOf(g) !== -1)) &&
     (!Array.isArray(t.notForTags) || !t.notForTags.some((g) => n.tags.indexOf(g) !== -1)));
 }
+// A grudge says what kind of answer it is (wave 4): a grudge answers in kind (World.grudgeKind).
+const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban'];
 function checkTemplates(list, name) {
   if (!Array.isArray(list) || list.length < 8) { err(name, 'needs at least 8 templates'); return; }
   const seen = new Set();
+  const grudges = name === 'GRUDGE_TEMPLATES';
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
-    if (!checkKeys(t, ['effect', 'dayOffset', 'effects', 'public'], where, ['forTags', 'notForTags'])) return;
+    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, ['forTags', 'notForTags'])) return;
+    if (grudges && GRUDGE_KINDS.indexOf(t.kind) === -1) err(where + '.kind', 'one of ' + GRUDGE_KINDS.join(', ') + ', found ' + JSON.stringify(t.kind));
+    if (grudges && t.kind === 'violence' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'playerHp'))) err(where + '.kind', 'violence hurts the player (a playerHp effect)');
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });
     checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}']);
     if (typeof t.effect === 'string' && PLAYER_GEAR.test(t.effect)) err(where + '.effect', 'assumes the player has a phone or a vehicle');

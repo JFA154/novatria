@@ -797,7 +797,8 @@ s.test('design: an arrest takes the player\'s weapons (the chief remembers takin
   // The word before makes it ordinary, as for plausibility (integration): a grease gun is no weapon to take.
   assert.ok(r.inv.includes('Grease gun') && !/grease gun/i.test(r.arrest), r.inv.join(', ') + ' | ' + r.arrest);
   assert.match(r.arrest, /takes? .*the shotgun.* off/i);
-  assert.match(r.mem, /took .*the shotgun.* off them/);
+  // Changed by design in wave 4 (the third review's bug 8): the player by name, which the narrator's memory line turns into "you".
+  assert.match(r.mem, /took .*the shotgun.* off Tester$/);
   assert.equal(r.offer, false, 'no other due event in the arrest\'s narration');
   assert.equal(r.waiting, true, 'it waits for the next one');
 });

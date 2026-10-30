@@ -695,7 +695,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.match(r.packet, /^CLOCK NOW: day 2, morning \(early in the phase; 0 of 3 short actions gone\)\n/);
   assert.ok(r.packet.indexOf('TURN 10 (day 1, night)') < r.packet.indexOf('TURN 11 (day 2, morning)\nPLAYER: Go to the back bedroom and let him lead'), 'oldest first');
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
-  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
+  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
   assert.ok(r.narr.startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
@@ -736,7 +736,7 @@ s.test('version 4: a save whose story matches its clock is left as it is and sta
   // ...and an earlier phase that is not night is set late in its phase, without the late-night flag.
   await page.evaluate(() => Game.Api.Mock.queue('checkClock', { behind: true, phase: 'evening', dayOffset: -1, reason: 'Still the evening before.' }));
   const back = await page.evaluate(() => Game.App.updateGame());
-  assert.equal(back.summaries.find(x => x.version === 4).text, 'Set the clock back to day 1, evening: the story had not reached morning.');
+  assert.equal(back.summaries.find(x => x.version === 4).text, 'Set the clock back to Day 1 · Evening: the story had not reached morning.');
   assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 1, phase: 'evening', shorts: 2 });
   // A re-read of a clock the story fits: nothing changes and no undo step.
   const same = await stateJson(page);
@@ -809,7 +809,7 @@ s.test('version 4 against the real provider: one structured-output call on the p
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true });
   assert.equal(st.meta.rulesVersion, 8);
-  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
+  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
   assert.match(await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | ')), /clock: day 2, morning -> day 1, night \(He is taking his boots off for bed; nobody has slept yet\.\)/);
 });
 

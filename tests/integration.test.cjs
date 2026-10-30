@@ -337,8 +337,10 @@ s.test('wave 2: playerAt: the council meeting with the player in the room and Ro
   await sendText(page, 'I walk over there');
   assert.deepEqual(await page.evaluate(() => [Game.state.player.locationId, Game.state.time.phase]), [branch.loc, branch.phase]);
   assert.deepEqual(await told(page), [branch.news], 'the walk');
+  // Changed by design in wave 4 (playtest R1): the meeting starts as the walk gets there, so the walk's own narration tells it, not the next one.
+  assert.match(await lastPacket(page), /\nDUE EVENT: [^\n]*finds you[^\n]*\(the scene/, 'told to the player as the scene, in the walk\'s narration');
   await sendText(page, '/look');
-  assert.match(await lastPacket(page), /\nDUE EVENT: [^\n]*finds you[^\n]*\(the scene/, 'told to the player as the scene, the next narration');
+  assert.doesNotMatch(await lastPacket(page), /\nDUE EVENT: [^\n]*finds you/, 'and not told again');
   // /wait there.
   const p2 = await h.open();
   await setup(p2, branch.loc);

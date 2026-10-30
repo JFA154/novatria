@@ -1564,7 +1564,8 @@ s.test('/cheat time night sets the clock (no tick, no narration), shows the divi
   assert.equal(r.log, JSON.parse(s0).log.length, 'nothing narrated');
   assert.equal(r.calls, 0, 'no API call');
   assert.equal(r.ticks, 0, 'no world tick');
-  assert.deepEqual(r.last.map(x => noWeekday(x[1])), ['Day 1 · Night', 'Clock set to day 1, night.']);
+  // Changed by design in wave 4 (coordinator copy item 3): "Day N · Phase", as the feed's dividers say it.
+  assert.deepEqual(r.last.map(x => noWeekday(x[1])), ['Day 1 · Night', 'Clock set to Day 1 · Night.']);
   assert.match(r.last[0][0], /f-divider/);
   assert.match(r.last[1][0], /f-quiet/);
   assert.equal(r.bar, 'Day 1 · Night');
@@ -1572,12 +1573,12 @@ s.test('/cheat time night sets the clock (no tick, no narration), shows the divi
   assert.deepEqual(r.saved, r.time, 'autosaved');
   // The same clock again: nothing to do, no undo step.
   await sendText(page, '/cheat night');
-  assert.equal(await lastNotice(page), 'The clock is already at day 1, night.');
+  assert.equal(await lastNotice(page), 'The clock is already at Day 1 · Night.');
   assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth + 1);
   // A phase and a day.
   await sendText(page, '/cheat morning 2');
   assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 2, phase: 'morning', shorts: 0 });
-  assert.equal(await lastQuiet(page), 'Clock set to day 2, morning.');
+  assert.equal(await lastQuiet(page), 'Clock set to Day 2 · Morning.');
   // Bad input is refused and kept in the box.
   await sendText(page, '/cheat time');
   assert.match(await lastNotice(page), /^Set the clock to which phase\? Try \/cheat time night/);

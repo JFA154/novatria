@@ -740,7 +740,8 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   // A loose end happens to the player: told to "you" (the due event reaches the narration as written).
   for (const [k, le] of Object.entries(D.LOOSE_ENDS)) assert.ok(/\byou(r)?\b/.test(le.seed.effect) && !le.seed.effect.includes('{player}'), k + ': ' + le.seed.effect);
   assert.equal(D.LOOSE_ENDS.debt.seed.effect, '{npc} walks up to you, reads your name off a folded paper with a number written under it, and says the money is due in three days.');
-  const tpl = validateEdited(html => once(html, 'effect: "{npc} finds you alone and says, low,', 'effect: "{npc} finds {player} alone and says, low,'));
+  // The fixture follows the wave-4 wording (playtest R11: "draws you aside", not "finds you alone", since the person may come into a crowd).
+  const tpl = validateEdited(html => once(html, 'effect: "{npc} draws you aside and says, low,', 'effect: "{npc} draws {player} aside and says, low,'));
   assert.equal(tpl.status, 1);
   assert.match(tpl.stderr, /a loose end happens to the player: write it to "you", not \{player\}/);
   const all = D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => t.effect).join('\n');

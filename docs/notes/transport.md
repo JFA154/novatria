@@ -606,3 +606,73 @@ turn items. Tests: `tests/wave3-fixes.test.cjs`.
 - The UI's Commands help runs `Commands.run('/help')`; the notice's
   line breaks come from `.f-notice.help` in the stylesheet (the inline
   `white-space` is gone).
+
+## Wave 4
+
+The third code review's bugs 1, 5 and 7 and its risks on the turn side,
+the coordinator's copy items, and the third playtest's R1, R2, R7, R8, R11
+and design notes. Tests: `tests/wave4-fixes.test.cjs`.
+
+### Turns
+
+- **Say-mode purchases** (review bug 1): `ctx.bought` is read before Say
+  mode makes the action talk: the parser's buy, or in Say mode words that
+  neither pay what is owed (`PAYING_WORDS`: owe, debt, toward, the money
+  ...) nor give something away (`GIVING_WORDS`: for you, keep the change,
+  tip, take this, here's ...). It goes to `State.apply` (`bought`) and
+  `giftCheck` (a purchase is no gift). Said to everyone, a gift needs one
+  person here (review risk).
+- **The turn's landing** (review bug 5): `scene` keeps `ctx.landing` (the
+  phase and day the turn's time lands in); with no walk to an open place it
+  goes to `World.dueSeeds` as `then`. DESTINATION reads the landing's day.
+- **A walk that lands in the next phase** (playtest R1): the walk's
+  narration shows the destination's crowd in that phase (`ctx.shown`);
+  `passTime(cost, cause, shown)` measures the scene change from it, so the
+  next turn tells nobody arriving or leaving that the walk already showed. A
+  walk that lands at a town event as it starts fires it first
+  (`World.eventsOnArrival`): the walk's narration tells the meeting with
+  its people in DESTINATION.
+- **Thrown out of the card game** (playtest R2): onto the street outside
+  (`outsideOf`: an exit that is a street, a road or a lot, else the first
+  open one; Front Street for the Low Water), not the first exit (the motel).
+  OUTCOME says so and ends the narration there; the bookkeeper hears the
+  engine moves the player. Caught with a marked deck, the dealer takes it
+  (design note).
+- **What the player carries answers to a gun or a knife by its head**
+  (playtest R7): `carriedAs` asks `Town.weaponOf` (a grease gun, gun oil, a
+  butter knife are none), so "I shoot Royce" with a grease gun is NOT
+  CARRIED and rolls with no item.
+- **A place shut today** (playtest R11): `/rest`'s TIME PASSED says who is
+  about once the due events have brought anyone ("nobody who does not live
+  here is about but Colt Purvis and Leon Varner, come to find the player":
+  `shutHereLine`).
+- **Two nights rough in public** (design note): `/rest` calls
+  `World.sleptRough` with the night's quality.
+- **/cheat time past a town event** (design note): `setClock` fires what the
+  clock jumped past at once (`World.fireEvents` for the new time: news dated
+  its own day and phase) and tells it ("Meanwhile in town: ..."), so the
+  recap knows the vote; an ending it reaches is noted for after the next
+  turn.
+
+### The recap
+
+- Reasons (review bug 7): "I'm", "I've", "I'd", "I'll" become the person's
+  own ("she's sure", "he's never trusted you", "they're").
+- Owed (playtest R8): part payments on any obligation with an amount
+  ("Blackmail for Shayla Rawls: ... ($50 of $200 paid)").
+
+### Copy (the coordinator's items)
+
+- No key: "There is no API key yet. Add yours in Settings, or try the
+  offline demo (Settings → Advanced)."
+- A barred `/skip`: "You are not welcome at the Low Water until Day 9."
+- `/cheat time`: "Clock set to Day 1 · Night." and "The clock is already at
+  Day 1 · Night."; Upgrade's clock step "Set the clock back to Day 3 ·
+  Evening: ..." (`pipeline`, `ui-fixes` and `upgrade` tests follow, changed
+  by design).
+- `/help`: the first line is "Commands" (the heading the UI styles), the
+  second "Type / to pick one.", then one line a command; `/pronouns` is
+  "Set someone's pronouns".
+- The OUTCOME of a card game caught cheating says "back on Day N".
+- Exported for the UI: `Pipeline.gainText` (a progression entry's gain as
+  "+1 Charm" / "+2 max HP"), `outsideOf`, `shutHereLine`.

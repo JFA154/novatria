@@ -463,3 +463,55 @@ Review bug 4 (Style) and the second playtest's demo items. Tests:
   them. The mock bookkeeper meets a loose end's person talked to who is
   known but not yet met.
 - `freshNews` reads `State.news` (its function fallback was dead).
+
+## Wave 4
+
+The third code review's bugs 2 and 3 and the invented-name middle ground
+(Style), and the third playtest's demo items D1 to D5. Tests:
+`tests/wave4-fixes.test.cjs`.
+
+### Style.nameHits
+
+- A known name is blanked with a mark of what it was (a person's first name,
+  a surname, a whole name or another part of one, anything else), never with
+  spaces: the words either side of it are not side by side. "Slowly Royce
+  nods", "Finally Loretta Gaddis nods" and "Okay Royce says" are no invented
+  name (they were a paid rewrite in wave 3). Common sentence adverbs and
+  interjections ("Okay", "Finally", "Slowly", "Meanwhile", "Sorry") are
+  `COMMON`.
+- An unknown word before a person's surname or after their first name is
+  part of a name: "Bobby Gaddis nods", "You see Loretta Smith" (hard).
+- Within a sentence, two unknown words or more are a name (hard) unless what
+  comes before makes them a thing: an article, a possessive, a number or
+  "of" (`THING_BEFORE`, also two back across a plain word: "an old Johnny
+  Cash song"), a verb done to a thing (`THING_VERBS`: dips, plays, drinks,
+  drives, smokes, wears, watches ...), or they follow another run in a list
+  ("plays Conway Twitty and Merle Haggard"). A title, a place word, "with",
+  a person's "says", a possessive or a speech verb always marks them: "You
+  notice Earl Hux at the bar", "Sitting at the end of the bar is Earl Hux",
+  "The only other customer is Bobby Lee Tate", "He drinks with Earl Hux",
+  "He lives on Willow Street" are hard.
+- "says", "said" and "mention(s/ed)" mark the word after them only when a
+  person says it (`saidByPerson`: a cast name, a pronoun, a person word such
+  as "the bartender", an unknown name, or a line of dialogue: '"Fine," says
+  Darnell'). "The sign on the door says Closed", "The card says Happy
+  Birthday", "The radio said Tornado Watch" are soft.
+- `NAME_ALLOW` has a few more countries ("Made in China").
+
+### The mock (demo only)
+
+- D1: a split at "and" inside the name of the place the whole line names
+  is no compound ("I head to Pittman's Gas and Service." is one walk, with
+  DESTINATION).
+- D2: a haircut (a trim, a shave) is had at the trailer park, where the
+  hairdresser works, not at the station.
+- D3: "I give Royce $100" with less on you: "You reach for $100 and come
+  up short."
+- D4: a thing an action needs is only the verb (stab, shoot, drive) or the
+  noun not looked for, bought, sold or asked about, and a weapon by
+  `Town.weaponOf` ("I search the bays for a grease gun" needs no gun).
+- D5: "the Mangum place" or "the Gentry house" names a family's home; one
+  not found yet is refused ("You don't know where that is yet"), nothing
+  spent.
+- Card game: "takes your deck and throws you out", and "You end up outside
+  on Front Street."

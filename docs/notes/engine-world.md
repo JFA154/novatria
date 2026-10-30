@@ -421,3 +421,60 @@ Dice side, its dead code, and the second playtest's engine items. Tests:
   word before it makes it ordinary as plausibility reads it
   (`Town.harmlessHead`, now exported): a grease gun, peanut shells or ink
   cartridges stay with the player.
+
+## Wave 4
+
+The third code review's bugs 4, 5, 6 and 8 and its risks on the World and
+Town side, and the third playtest's R1, R3 to R6, R10 and design notes.
+Tests: `tests/wave4-fixes.test.cjs`.
+
+- **A public grudge or favour is told once** (review bug 4, playtest R3):
+  its news is pushed seen when its text is also a due event.
+- **Brought through the phase the turn runs into** (review bug 5):
+  `dueSeeds({ then: { phase, day } })` (the pipeline passes the turn's
+  landing when the player stays: no walk, or a walk to a shut door) keeps
+  whoever a due event brings there now and then.
+- **A walk into a town event** (playtest R1): `eventsOnArrival({ locationId,
+  day, phase })` fires an event whose place and phase a walk lands in as the
+  player walks in (the branch read with `playerAt` there, the people it
+  brings visiting for that phase, its scene a due event there), so the walk's
+  narration tells it; the tick finds it done. It fires a moment before that
+  phase's clocks roll. `conditionsMet` takes `opts.playerAt`.
+- **Places named in what is told** (playtest R4): `dueNarrated` finds the
+  places in town the player has not found that a narrated due event names
+  (name or other name, five letters or more) and reveals them
+  (`placesRevealed` by name, credited to the event's person); it returns
+  `{ revealed }` and the pipeline prints "Added to the map: X.". Nadine's
+  hook reveals the Parsonage, and any other seed that names a cast home does
+  the same.
+- **Attitudes drift for an active player** (playtest R5): `heldHard` reads a
+  memory's day; one with no day that the log no longer reaches is old (it
+  was "recent" for anyone who plays several turns a day, so nobody drifted).
+- **Grudges answer in kind by their kind** (playtest R6): `grudgeKind` reads
+  the template's `kind` (violence, police, gossip, money, ban; content.md);
+  violence is answered with violence or the police, theft with the police,
+  gossip or money, an insult with gossip, a ban or money. A template with no
+  kind is read from its effects.
+- **What an arrest takes** (review bug 6): `Town.weaponOf(name)` reads the
+  head of the name (each part of "X and Y", "X, Y", "X (red)" alone; what a
+  box "of" holds): a gun, knife, razor, ammunition or club word at the end,
+  unless the word before makes it ordinary (`HARMLESS_BEFORE`, now with
+  radar, tattoo, butter, putty, palette, plastic), or a gun by calibre,
+  gauge or maker (a .38, a 12-gauge, a Glock 19). Gun oil, a gun case, a
+  knife sharpener, a pistol grip and a grease gun cartridge are not weapons.
+  The arrest line strips the article ("the .38 revolver"), keeps a maker's
+  capital ("the Glock") and joins with commas (`andList`, now one helper
+  for the whole file). The match is always at the end of the head, so
+  `harmlessHead` reads the right word.
+- **Plausibility**: a gun by calibre, gauge or maker is kept where guns are;
+  a flare gun is ordinary at the river (`QUALIFIED_GUNS`: marina, bridge,
+  landing, docks, ramp, riverbank, wharf, pier).
+- **The chief's memory** names the player (review bug 8): "took the deer
+  rifle off Nell Avery" (the narrator's memory line makes it "you").
+- **Sleeping rough in public** (playtest design note): `sleptRough(quality)`
+  after each `/rest` counts nights in a row slept rough in a public place
+  (`flags.roughNights`); on the second the chief (`chiefOf`, shared with the
+  arrest) moves the player on in the morning: a due event that brings him,
+  told in that narration, and a memory (weight 2). The count starts again.
+- **The tackle box** (playtest R10): its seed's `placeItem` leaves it where
+  the player found it (the landing or the old bridge).
