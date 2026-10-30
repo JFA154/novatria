@@ -757,7 +757,7 @@ s.test('the CSP: present, API-only connect-src, Google fonts only, and the game 
 
 // ----- F. Commands -----
 
-s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around runs /look; Wait until… lists the phases; Commands help opens the list with descriptions on two lines on a phone; Undo is a small link on the newest line', async h => {
+s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around runs /look; Wait until… lists the phases; Commands help prints the command list (as /help does), and the list typed after "/" has descriptions on two lines on a phone; Undo is a small link on the newest line', async h => {
   const page = await open(h, PHONE);
   await quickStart(page);
   await fast(page);
@@ -796,7 +796,15 @@ s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around ru
   assert.equal(await page.evaluate(() => document.activeElement.dataset.menu), 'saves', 'the menu takes the focus');
   await page.click('[data-menu="actions"]');
   assert.ok(await page.isVisible('#act-pop'));
+  // Changed by design at the wave-3 integration: Commands help runs /help (the list as a notice in the story), not "/" in the box.
+  const helps = await page.locator('#feed .f-notice.help').count();
   await page.click('#act-pop [data-act="help"]');
+  await page.waitForFunction(n => document.querySelectorAll('#feed .f-notice.help').length === n + 1, helps);
+  const help = await page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice.help')].pop(); return { text: n.textContent, ws: getComputedStyle(n).whiteSpace, inline: n.style.whiteSpace, box: document.getElementById('cmd').value, open: !document.getElementById('act-pop').hidden }; });
+  assert.match(help.text, /\/skip <where or when>: Jump ahead to a place or time\n/);
+  assert.deepEqual([help.ws, help.inline, help.box, help.open], ['pre-line', '', '', false], 'one command a line from the stylesheet; the box untouched; the list closed');
+  await page.click('#cmd');
+  await page.keyboard.type('/');
   await page.waitForSelector('#ac:not([hidden])');
   const desc = await page.evaluate(() => { const li = document.querySelector('#ac li'); const n = li.querySelector('.ac-name').getBoundingClientRect(); const d = li.querySelector('.ac-desc').getBoundingClientRect(); return { shown: getComputedStyle(li.querySelector('.ac-desc')).display !== 'none', below: d.top >= n.bottom - 2 }; });
   assert.deepEqual(desc, { shown: true, below: true }, 'descriptions on a second line');

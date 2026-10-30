@@ -461,6 +461,8 @@ select.input { padding-right: 32px; }
 .f-notice.recap { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
 .f-notice.recap::before { content: "Where things stand"; content: "Where things stand" / ""; display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-recap-k { font-weight: 600; }
+/* /help (and Commands help in the ⋯ list): the command list, one a line. */
+.f-notice.help { white-space: pre-line; color: var(--text); }
 .f-quiet {
   margin: 0 0 .75em;
   font-family: var(--ui-font);
@@ -18879,7 +18881,7 @@ const UI = (() => {
       kids = actionItems().map(a => item([a.label, a.cmd ? el('span', { class: 'act-k', 'aria-hidden': 'true' }, a.cmd) : null], e => {
         if (a.sub) { e.stopPropagation(); renderActions(a.sub); focusFirstAction(); return; }
         if (a.fill) { closeActions(); fillBox(a.fill); return; }
-        if (a.help) { closeActions(); fillBox('/'); updateAc(); return; }
+        if (a.help) { closeActions(true); Commands.run('/help'); return; }
         if (a.id === 'recap' && !Commands.LIST.some(c => c.name === '/recap')) { closeActions(true); showRecap(); return; }
         runAction(a.cmd);
       }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!why) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && why) || (a.fill && whyFill) || null }));
@@ -21952,8 +21954,7 @@ const Commands = (() => {
     switch (cmd.name) {
       case '/help': {
         // A notice in the feed, one command a line (no turn, no API call; the composer's list after "/" is the same).
-        const node = UI.feed.notice(helpText(), 'help');
-        if (node && node.style) node.style.whiteSpace = 'pre-line';
+        UI.feed.notice(helpText(), 'help');
         return { ok: true };
       }
       case '/look': return Pipeline.look();
