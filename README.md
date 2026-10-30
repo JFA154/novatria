@@ -280,8 +280,10 @@ histories but leaves out looks, goals and secrets, so it spoils nothing.
   and neither is a common word at a sentence start ("Silence answers."),
   what a sign, a cap or the radio "says" ("The sign says Closed") or an
   adverb before a name ("Slowly Royce nods"). Two unknown words the story points at as someone ("You notice Earl
-  Hux at the bar"), and a name a person says ("Royce finally says Darnell
-  took it"), are a name.
+  Hux at the bar"), a first name and a surname before what a person is or
+  does ("Earl Hux is cheap, Royce says.", "You watch Earl Hux playing
+  pool."), and a name a person says ("Royce finally says Darnell took it"),
+  are a name.
 - **The narrator knows everyone.** Every narration carries the town (history,
   recent events, places) and the whole cast (one line each: "Mavis Mangum
   (41, she/her; ...)", with ties, usual places and history; then the dead and
@@ -334,9 +336,13 @@ both groups start folded away and open for a search that finds someone in
 them. If the sheet has someone wrong, open their card and tap the right
 pronouns (or type `/pronouns Mavis she`): the story follows from the next
 turn, and a relation that carries a gendered word turns with it ("Dewayne's
-husband" becomes "Dewayne's wife"), as do the look and voice lines ("A man
-with a bitter look about him." becomes "A woman with a bitter look about
-her."; words in quotes are left alone).
+husband" becomes "Dewayne's wife"), as do their ties wherever they are shown,
+on the cards and to the narrator (after `/pronouns Mavis he` she is "husband
+of Dewayne Mangum, son of the late Inez Crocker", and Dewayne's card reads
+"Ties: husband Mavis Mangum"; they gives "spouse", "child", "parent",
+"sibling"), and the look and voice lines ("A man with a bitter look about
+him." becomes "A woman with a bitter look about her."; words in quotes are
+left alone).
 
 When someone you know crosses a line in how they feel about you, a quiet line
 says so after the turn: "Loretta Gaddis warms to you.", "... cools toward
@@ -683,11 +689,11 @@ once more in the background.
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
-| `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step | None |
+| `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step. The history is for this sitting only: a reload, **Continue** or **Play here instead** starts it empty | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."). `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none), forward only ("The clock only goes forward: it is Day 3 · Morning now."). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to Day 4 · Night." What the clock jumps past happens at once and in order, each on its own day: a "Meanwhile in town, Day 3: …" line for each day with town news or an event elsewhere, and each morning's "Missed: …" (what fell due) and "Condition over: …"; a town event at your own place happens in front of you in the next narration, and what came due for you (a loose end's moment, say) in the narrations that follow, oldest first. One `/undo` takes it back, with an ending it reached | None |
-| `/pronouns <who> <she\|he\|they>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, look and voice turn with it (Dewayne's husband becomes Dewayne's wife) | None |
+| `/pronouns <who> <she\|he\|they>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, their ties, look and voice turn with it (Dewayne's husband becomes Dewayne's wife; "husband of Dewayne Mangum" becomes "wife of Dewayne Mangum", or "spouse" for they) | None |
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens Save / Load) | None |
 | `/load <name>` | Load a named slot (no name opens Save / Load) | None |
@@ -1039,7 +1045,21 @@ relying on it with a key, a short live session should confirm:
   write under `cache_creation.ephemeral_1h_input_tokens` (on the second
   narration `cache_read_input_tokens` should be above zero);
 - **Check key** (`GET /v1/models` with the key) answers 200 for a good key and
-  401 for a bad one, from `file://` under the page's content security policy.
+  401 for a bad one, from `file://` under the page's content security policy;
+- the real narrator with the newer packets: `TIME PASSED` ("… until morning,
+  Day 4"), `ARREST`, a `DUE EVENT` that is the scene itself (the council
+  meeting), `SINCE THE LAST TURN` (who came and went while time passed), and
+  the narration read beside the "Meanwhile in town" lines and the Resolved
+  lines held until their news is told;
+- the real bookkeeper with money in Say mode: a part payment ("Here's fifty.
+  I'll get you the rest Friday."), an order that buys ("I'll take a beer")
+  and a gift ("Get yourself a beer"). The mock never moves money on a Say
+  line, so only a live session shows what the bookkeeper sends there;
+- how often the name check sends a narration back to be written again (the
+  Debug tab's style entries), now that a first name and a surname before "is"
+  or after "you watch" count as someone;
+- what a turn really costs (the Debug tab's session cost, with the 1-hour
+  cache writes).
 
 Earlier rounds were checked live: on 28 Oct 2026 an arrival, several turns,
 the casual style and the Do / Say switch (every call 200, the cache read on

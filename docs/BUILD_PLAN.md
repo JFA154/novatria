@@ -1128,3 +1128,25 @@ talking, I can direct it to one person or all."
      that told it lost them), and gave "Meanwhile in town, Day N" the
      news style. Left open: the live grammar probe and a recorded live
      opening scene.
+   - **Wave 8** (30 Oct 2026). The last items of the final verification
+     pass (six in the code, two in the README) were fixed by one agent,
+     beside the Journal hold fixed in parallel. Notes: the "Wave 8" sections
+     of `docs/notes/engine-world.md` and `docs/notes/prompts.md`; tests:
+     `tests/wave8-fixes.test.cjs`. `/pronouns` turns a person's ties with
+     them wherever they are read (the cast block, PRESENT, the People card:
+     "husband of Dewayne Mangum, son of the late Inez Crocker"; spouse,
+     child, parent, sibling for they), the records left as written; a first
+     name and a surname the town does not have, before what a person is or
+     does or after "watch", "see", "meet" or "hear", is a hard invented
+     name ("Earl Hux is cheap, Royce says.", "You watch Earl Hux playing
+     pool."), while brands, the radio and what a sign says stay soft;
+     `/cheat time` prints each day's Resolved lines under that day's lines;
+     a missed obligation's news that its missText tells is seen once that
+     is told, not repeated in "Overnight in town"; a plan's price changes
+     and the people its thread links to no longer make it seen wherever the
+     player is, only at its own place; the mock gives with "hand", searches
+     for "anything" without making it an item, names a skip's crowd once
+     and tells every due event it is handed. The README says `/undo` is for
+     the current sitting and lists what a live session should still check
+     (the newer packets, Say-mode money, how often the name check rewrites,
+     the cost of a turn). Left open: those live checks.

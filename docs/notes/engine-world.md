@@ -623,3 +623,37 @@ playtest's R2, R3, R4, R5, R6, R8, R9 and design notes. Tests:
   capitals ("the Smith & Wesson", `Town.makerFirst`) and lowers a plain word
   ("the folding knife").
 - `TIME PASSED` says "until morning, Day 4".
+
+## Wave 8 (30 Oct 2026)
+
+The final verification pass's World items. Tests:
+`tests/wave8-fixes.test.cjs`.
+
+- **A jump's Resolved lines under their day**: `/cheat time` prints each
+  day's Resolved lines right after that day's lines ("Meanwhile in town,
+  Day 6: … the vote to end the police failed", then "Resolved: Disbanding
+  the police. +1 Wits.", then Day 7), not after the last day's.
+  `catchUp` gives each step it returns `prog` (the length of
+  `player.progression` once it had fired), so what a seed or a morning
+  earned outright goes under its own day; an event's held reward
+  (`thread.rewardHeld`) goes under its event's day once `setClock` releases
+  it with the news. They are printed in that order, so a reload and an
+  `/undo` draw them the same way.
+- **A missed obligation's news told once**: an obligation with a
+  `missText` and its own public `addNews` in `onMiss` (the blackmail:
+  "Glenda Pryor has been telling people what you are hiding") runs that
+  news with `eventId: State.missedEventId(o)` ("missed_<id>"), and its due
+  event (the missText) carries the same id. `newsWaits` keeps it out of
+  "Overnight in town" while the due event waits; `dueNarrated` marks it
+  seen once the missText is told. The item stays in the ledger (public,
+  seen) for anyone to react to; an `onMiss` news with no missText is told
+  overnight as before.
+- **A plan's wide effects are no place**: `noticeable` skips `WIDE_OPS`
+  (`priceMultiplier`, `playerPrice`: they reach the player wherever they
+  are), and a plan with a place or a person of its own counts only those:
+  the thread it settles links to people all over town, so its links count
+  only for a plan with neither. The bridge barriers going up while the
+  player is at the Low Water (Royce, linked to the bridge vote, beside
+  them) are news for the morning, not a bare quiet line there; at the old
+  bridge they happen in front of the player. `tests/world.test.cjs`'s
+  `seenIds` follows (changed by design).
