@@ -839,3 +839,102 @@ with `UI_SHOTS`.
 - Do and Say (optional): on a phone on its side, while you type, the picker
   is narrow and stays beside the box while it is open.
 - People (optional): someone hurt shows "Hurt until Day N" alone.
+
+## Wave 6 (the round-5 visual, mobile and accessibility QA)
+
+Region as before: CSS, HTML, Storage, UI, App. The eight items of the
+round-5 UI report (one Low, the rest polish). Tests: 8 new ones in
+`tests/ui-fixes.test.cjs` ("wave 6, item N"), each failing on the build
+before (f02f7a0) and passing now; the picker test runs with
+`reducedMotion: 'no-preference'` as well as `'reduce'`; screenshots only with
+`UI_SHOTS`.
+
+### Focus and the keyboard (items 1, 5, 6)
+- 1: a phone on its side, the Say picker tapped with the keyboard down: on
+  iOS its wheel comes up in the keyboard's place (740x375 → 740x200, 568x320
+  → 568x170), and the typing layout stayed off, so the story had 0px and the
+  box and Send were below the window. `syncTyping` now lets the picker bring
+  that layout on, not only hold it: `onPick` is `(was || (isMobile() &&
+  landMq.matches)) && …`. At 740x200 the story keeps 137px, at 568x170 107px;
+  the box, Send and the picker are on screen; a pick keeps the focus and the
+  layout; the wheel gone (the window tall again), the bars come back and the
+  focus stays on the picker. Upright nothing changes (there is room).
+- 5: the ⋯ list's two columns (a phone on its side) are filled column by
+  column (`grid-auto-flow: column`, `grid-template-rows:
+  repeat(var(--act-rows), auto)`; `renderActions` sets `--act-rows` to the
+  heading's row and half the items, rounded up; the heading `grid-row: 1`).
+  The order read (down the first column, then the second), the markup's
+  order and the arrow keys' order are now one: Look around, Wait until…,
+  Sleep, Recap | Undo last turn, Spend a story point, Commands help; "Wait
+  until…": the three phases in the day's order, then Back. `wireMenuKeys` is
+  unchanged (it already went by the items' positions, column by column);
+  Left and Right still go across a row.
+- 6: the compact typing row (a phone on its side, keyboard up) is drawn Do,
+  Say, ⋯, the picker, the box, Send, but the Say row came first in the
+  markup, so Shift+Tab from the box skipped the picker and Tab went picker,
+  Do, Say… `placeSayTo` (run by `renderComposer`, which runs whenever that
+  layout comes or goes) moves the Say row in the markup to where it is drawn:
+  into the input row between ⋯ and the box while compact, back before the
+  status line after. It is never moved into the row while it has the focus
+  (the keyboard or the picker wheel is up; moving it would drop the focus and
+  shut the wheel): the CSS `order` rules, kept, draw it in its place
+  meanwhile, and it moves once the focus leaves it (the Say row's focusout
+  draws the composer again). Out of the row it goes at once, the focus kept
+  on the picker. Upright and on a laptop the markup is as written.
+
+### Layout (items 2, 4, 7, 8)
+- 2: the `/` list's description beside the command (a laptop, a phone on
+  its side) takes a second line when it is too long for the row (a two-line
+  clamp: `display: -webkit-box`, `-webkit-line-clamp: 2`), instead of an
+  ellipsis on one: the /cheat line ("…, or set the clock") is whole at 1280
+  and 740 (two lines, a 59px row). A row whose description fits is one line,
+  44px, as before; upright the description is on its own line under the
+  command, as many lines as it needs. With the engine's shorter description
+  ("Cheat: redo the last roll, or set the clock", Commands.LIST) /cheat fits
+  on one line at 1280 and 740 and takes two at 568.
+- 4: `autosize()` ran before Wait turned into Send, which is 5px wider and
+  narrows the box: a pasted line at a wrap point left the box one line short
+  and its last word cut. Send's label is set first now (the input handler,
+  `restoreAction`, `fillBox`, `completeAc`), and `syncSendLabel` sizes the box
+  again itself whenever the label changes (Wait, Send and Stop differ by a few
+  px; a turn ending with text in the box), while the box is drawn.
+- 7: the `/` list's height was set only in `renderAc`: the keyboard up, it
+  kept half the window (100px) until the next key; the keyboard down, it kept
+  the strip's 136px. `sizeAc` (out of `renderAc`) also runs on every viewport
+  change (`initViewport`'s update, after `--app-h`): up, the story's strip
+  (136px at 740x200, three commands whole); down, half the window again
+  (187px at 740x375, no height left inline).
+- 8: the phone's top bar is a wrapping flex row (was a grid with a fixed
+  second row): the place on a line of its own (`order: -1`; it follows the
+  time in the markup, and the bar has no focusable text), then the time, HP
+  and the money; what does not fit there goes on a third line, never under
+  Menu. At 320 that is the money even at "$140" (it ran past its column to
+  Menu's edge; "$12345" was under the word); at 375 and wider
+  a bar of up to five figures stays two lines. The phone's Menu opens just
+  under the bar as drawn (`openMenu` sets its `top`; it was 52px fixed).
+
+### Words
+- A save with a blank name is named as the field's default: "Tomas Reed,
+  Day 1" (was "Tomas Reed, day 1"; `Storage.envelope`).
+- For the engine (not changed here): the /cheat description "Cheat: redo the
+  last roll, or set the clock".
+
+### Tests changed by design
+- `tests/ui-fixes.test.cjs`, wave 5, defect 5: the `/` list at 740x200 has
+  44px rows except one whose description takes two lines (the /cheat row
+  until the engine's shorter description lands).
+- `tests/ui-fixes.test.cjs`, wave 5, defect 8: Down in the two columns
+  follows the list (Look around, Wait until…, Sleep, Recap, Undo, Spend,
+  Commands help); Right from Look around is Undo, Left from Spend is Wait
+  until…, Up from the top and End are Commands help.
+
+### README lines that change (the docs pass)
+- Do and Say: "it stays that way while the picker is open" → add "and
+  tapping the picker with the keyboard down brings it on too (on an iPhone
+  the picker wheel takes the keyboard's place)".
+- Wait, ⋯ and Undo: "on a phone on its side the list is two columns (the
+  arrow keys go down a column and across a row)" → "on a phone on its side
+  the list is two columns, read down the first and then the second (the
+  arrow keys follow that order, and go across a row)".
+- Saves (optional): after "or with `/save <name>`", add "A save with no name
+  is named after you and the day ('Tomas Reed, Day 3')."

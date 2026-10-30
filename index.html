@@ -580,7 +580,9 @@ select.input { padding-right: 32px; }
 .ac li[aria-selected="true"], .ac li:hover { background: var(--surface-2); }
 .ac-name { font-family: var(--mono-font); font-size: 14px; white-space: nowrap; }
 .ac-args { color: var(--faint); font-family: var(--mono-font); font-size: 13px; white-space: nowrap; }
-.ac-desc { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+.ac-desc { color: var(--muted); font-size: 13px; line-height: 1.35; min-width: 0; margin-left: auto; }
+/* Beside the name (a laptop, a phone on its side) a description too long for the row takes a second line, never cut off ("/cheat"); a third is clamped. */
+.ac li > .ac-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
 /* The command list spans the input row (not just the box), so its lines have room on a phone. */
 /* Side panel / mobile sheet */
@@ -1046,17 +1048,12 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .desktop-only { display: none !important; }
   .two, .move-row { grid-template-columns: 1fr; }
   .topbar { padding-left: calc(16px + var(--sal)); gap: 8px; }
-  .tb-main {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
-    grid-template-areas: "loc loc loc" "time hp gold";
-    gap: 0 12px;
-    align-items: baseline;
-  }
-  .tb-loc { grid-area: loc; font-size: 15px; }
-  .tb-time { grid-area: time; font-size: 13px; }
-  .tb-hp { grid-area: hp; font-size: 13px; }
-  .tb-gold { grid-area: gold; font-size: 13px; }
+  /* The place on a line of its own, the time, HP and money under it; what does not fit there (a lot of money at 320) goes on a third line, never under Menu. */
+  .tb-main { flex-wrap: wrap; gap: 0 12px; }
+  .tb-loc { order: -1; flex: 1 0 100%; font-size: 15px; } /* first (it follows the time in the markup); text only, so no focus order to keep */
+  .tb-time { font-size: 13px; }
+  .tb-hp { font-size: 13px; }
+  .tb-gold { font-size: 13px; }
   .tabrow { display: flex; }
   .tabbar { display: flex; flex: 1 1 auto; min-width: 0; }
   .game-body.panel-collapsed .panel { display: flex; }
@@ -1091,7 +1088,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .create .step.current { display: block; animation: fade-in .2s ease-out; }
   /* The command list: the description on a second line. */
   .ac li { flex-wrap: wrap; row-gap: 2px; padding: 8px 10px; }
-  .ac-desc { flex: 1 0 100%; margin-left: 0; white-space: normal; font-size: 12.5px; line-height: 1.35; }
+  .ac li > .ac-desc { display: block; flex: 1 0 100%; margin-left: 0; font-size: 12.5px; line-height: 1.35; overflow: visible; }
   /* The input row holds the toggle, ⋯, the box and Send: tighter, so the box keeps its room. */
   .composer { padding-left: calc(8px + var(--sal)); padding-right: calc(8px + var(--sar)); }
   .mode-btn { padding: 0 8px; }
@@ -1118,17 +1115,21 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 }
 /* A phone on its side (740x375; about 740x200 with the keyboard up). */
 @media (max-width: 899px) and (orientation: landscape) {
-  /* The ⋯ list in two columns, so all of it fits above the box (with the keyboard up it scrolls, the last items in reach). */
-  .act-pop { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: min(460px, calc(100vw - 24px)); }
-  .act-pop .act-h { grid-column: 1 / -1; }
-  /* The command list: one line a command, as on a laptop (there is room across), so more of them show above the box (UI.renderAc lets it use the story's strip). */
+  /* The ⋯ list in two columns, so all of it fits above the box (with the keyboard up it scrolls, the last items in reach).
+     Filled column by column (UI.renderActions sets --act-rows, the heading's row and half the items, rounded up), so the
+     order read, the order in the markup and the order the arrow keys follow are one: down the first column, then the second. */
+  .act-pop { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--act-rows, 4), auto); grid-auto-flow: column; min-width: min(460px, calc(100vw - 24px)); }
+  .act-pop .act-h { grid-column: 1 / -1; grid-row: 1; }
+  /* The command list: one line a command (two for a long description), as on a laptop (there is room across), so more of them show above the box (UI.renderAc lets it use the story's strip). */
   .ac li { flex-wrap: nowrap; row-gap: 0; padding: 11px 10px; }
-  .ac-desc { flex: 0 1 auto; margin-left: auto; white-space: nowrap; font-size: 13px; line-height: inherit; }
+  .ac li > .ac-desc { display: -webkit-box; flex: 0 1 auto; margin-left: auto; font-size: 13px; line-height: 1.35; overflow: hidden; }
   /* Typing: the top bar steps aside too, and the Say row is the picker alone, in the input row (UI.compactComposer), so the story keeps its room. */
   #app.typing #screen-game .topbar { display: none; }
   #app.typing .composer-inner { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 4px; }
   #app.typing .composer-inner > .input-row { display: contents; }
   #app.typing .turn-status { flex: 1 0 100%; }
+  /* Do, Say, ⋯, the picker, the box, Send: UI.placeSayTo puts the Say row in that place in the markup too (the focus order is the order
+     drawn); these orders draw it there while it waits to move (it is not moved while it has the focus). */
   #app.typing .mode-toggle { order: 1; }
   #app.typing #act-btn { order: 2; }
   /* The picker narrow (its list names everyone in full), so the box beside it is wide enough that a sentence takes two lines, not three. */
@@ -18956,7 +18957,7 @@ const Storage = (() => {
   function envelope(name) {
     const st = State.current;
     if (!st) throw new Error('no game in progress');
-    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
   }
   function serialise(env) {
     let json = JSON.stringify(env);
@@ -19253,7 +19254,8 @@ const UI = (() => {
     d.undoBtn.addEventListener('click', () => runAction('/undo', d.undoBtn));
     try { const ro = new ResizeObserver(() => placeUndo()); ro.observe(d.feed); ro.observe(d.feedScroll); } catch (e) { window.addEventListener('resize', () => placeUndo()); }
     // Composer
-    d.cmd.addEventListener('input', () => { autosize(); updateAc(); syncSendLabel(); });
+    // Send's label first: Wait → Send changes the box's width, so its height is measured after (autosize).
+    d.cmd.addEventListener('input', () => { syncSendLabel(); autosize(); updateAc(); });
     syncSendLabel();
     d.cmd.addEventListener('keydown', onKey);
     // Leaving the box closes the command list a moment later; coming straight back keeps it.
@@ -19360,7 +19362,10 @@ const UI = (() => {
      a turn's hold on it) goes first to the ⋯ in the tab row, then the
      layout changes. The Say picker ("To: …") holds it too while the
      keyboard (or the picker wheel that takes its place on iOS) is up: the
-     box and Send stay on screen beside it, and the story keeps its strip. */
+     box and Send stay on screen beside it, and the story keeps its strip.
+     On its side the picker also brings that layout on when it is tapped
+     with the keyboard down (the wheel comes up in the keyboard's place):
+     the story's strip is as short then as with the keyboard. */
   let typingOff = null;
   function syncTypingSoon() { clearTimeout(typingOff); typingOff = setTimeout(() => { typingOff = null; syncTyping(); }, 250); }
   function syncTyping() {
@@ -19368,7 +19373,7 @@ const UI = (() => {
     const a = document.activeElement;
     const was = d.app.classList.contains('typing');
     const kb = keyboardUp();
-    const onPick = was && !!a && a.id === 'say-pick' && d.sayTo.contains(a);
+    const onPick = (was || (isMobile() && landMq.matches)) && !!a && a.id === 'say-pick' && d.sayTo.contains(a);
     let on = (a === d.cmd || onPick) && kb;
     let handTo = null;
     if (!on && was && a && (a === d.actBtn || d.actPop.contains(a))) {
@@ -19386,6 +19391,29 @@ const UI = (() => {
   }
   /* A phone on its side with the keyboard up: the top bar steps aside and Say is the picker alone, beside the box (CSS: #app.typing in landscape). */
   function compactComposer() { return isMobile() && landMq.matches && !!d.app && d.app.classList.contains('typing'); }
+  /* Where the Say row sits in the markup follows where it is drawn, so the
+     focus order is the order on screen: its own row above the status line
+     and the input row (as written), or, in the compact row above, in the
+     input row between ⋯ and the box (Do, Say, ⋯, picker, box, Send; Shift+Tab
+     from the box reaches the picker). Not moved into that row while it has
+     the focus (the keyboard or the picker wheel is up: moving it would drop
+     the focus and shut the wheel): the CSS order draws it in its place
+     meanwhile, and it moves once the focus has left it (the Say row's
+     focusout draws the composer again). Out of that row it goes at once
+     (the keyboard is down), the focus kept on it. */
+  function placeSayTo() {
+    if (!d.sayTo || !d.cmd || !d.turnStatus) return;
+    const wrap = d.cmd.closest('.input-wrap');
+    const row = wrap && wrap.parentElement;
+    if (!row) return;
+    const compact = compactComposer();
+    if (compact === (d.sayTo.parentElement === row)) return;
+    const had = d.sayTo.contains(document.activeElement) ? document.activeElement : null;
+    if (had && compact) return;
+    if (compact) row.insertBefore(d.sayTo, wrap);
+    else d.turnStatus.parentElement.insertBefore(d.sayTo, d.turnStatus);
+    if (had && had.isConnected && document.activeElement !== had) had.focus({ preventScroll: true });
+  }
   /* A layout change (across 900px) can hide what has the focus: the
      laptop's Panel, Save, Settings, box-side ⋯ and the whole side panel
      (narrowed, it is the shut sheet), or the phone's Menu and its items, tab
@@ -19435,10 +19463,13 @@ const UI = (() => {
     const update = () => {
       syncTyping();
       if (editing) requestAnimationFrame(keepFieldClear);
-      if (!vv) return;
-      root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
-      d.app.style.transform = vv.offsetTop > 0 ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
-      if (stick && screen === 'game') scrollToBottom();
+      if (vv) {
+        root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+        d.app.style.transform = vv.offsetTop > 0 ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
+      }
+      // The command list, if open, sized for the window as it is now (the keyboard up or down).
+      sizeAc();
+      if (vv && stick && screen === 'game') scrollToBottom();
     };
     if (vv) { vv.addEventListener('resize', update); vv.addEventListener('scroll', update); }
     window.addEventListener('resize', update); // also on window resize, for a browser that skips the visualViewport event
@@ -19772,6 +19803,9 @@ const UI = (() => {
   function toggleMenu() { if (d.menuPop.hidden) openMenu(); else closeMenu(true); }
   function openMenu() {
     closeActions();
+    // Just under the top bar, which takes a third line when the money does not fit beside the time (320 wide).
+    const bar = $('#screen-game .topbar');
+    d.menuPop.style.top = bar && bar.offsetHeight ? Math.round(bar.offsetTop + bar.offsetHeight) + 'px' : '';
     d.menuPop.hidden = false;
     d.tbMenu.setAttribute('aria-expanded', 'true');
     const first = $('[role="menuitem"]', d.menuPop);
@@ -19788,7 +19822,8 @@ const UI = (() => {
      it. In two columns (the ⋯ list on a phone on its side) Up and Down stay
      in the column, on from the foot of one column to the head of the next,
      and Left and Right go across to the item in the same row (or the
-     nearest one). */
+     nearest one). The columns are filled in the list's order (CSS
+     grid-auto-flow: column), so Up and Down follow the list as read. */
   function wireMenuKeys(pop, close) {
     pop.addEventListener('keydown', e => {
       if (e.key === 'Tab') { close(); return; }
@@ -19852,6 +19887,9 @@ const UI = (() => {
       }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!why) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && why) || (a.fill && whyFill) || null }));
     }
     d.actPop.replaceChildren(...kids);
+    // Two columns (a phone on its side) are filled column by column: the heading's row and half the items, rounded up (CSS: --act-rows).
+    const items = kids.filter(k => k.getAttribute('role') === 'menuitem').length;
+    d.actPop.style.setProperty('--act-rows', String(Math.ceil(items / 2) + (kids.length > items ? 1 : 0)));
   }
   function focusFirstAction() { const f = $('[role="menuitem"]:not([disabled])', d.actPop); if (f) f.focus({ preventScroll: true }); }
   /* The ⋯ button in view: beside the toggle on a laptop, in the tab row on a phone. */
@@ -19882,8 +19920,8 @@ const UI = (() => {
   /* Put text in the box (/fact , /) with the cursor at its end. */
   function fillBox(text) {
     d.cmd.value = text;
-    autosize();
     syncSendLabel();
+    autosize();
     d.cmd.focus();
     try { d.cmd.setSelectionRange(text.length, text.length); } catch (e) { /* not a text box */ }
   }
@@ -22017,6 +22055,7 @@ const UI = (() => {
      can be stopped), Send again while the next line can be queued. */
   function syncSendLabel() {
     if (!d.send) return;
+    const was = d.send.textContent;
     const empty = !d.cmd.value.trim();
     const stop = canStop() && !(canQueue() && !empty);
     d.send.classList.toggle('stop', stop);
@@ -22027,11 +22066,13 @@ const UI = (() => {
       d.send.textContent = 'Stop';
       d.send.title = 'Stop this turn';
       setOff(d.send, !!Storage.readOnly);
-      return;
+    } else {
+      d.send.textContent = empty ? 'Wait' : 'Send';
+      d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : lineWaiting() ? QUEUE_FULL : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
+      setOff(d.send, !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty)));
     }
-    d.send.textContent = empty ? 'Wait' : 'Send';
-    d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : lineWaiting() ? QUEUE_FULL : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
-    setOff(d.send, !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty)));
+    // A new label is a new width for the box beside it (Wait, Send and Stop differ by a few px): what is in it is measured again, so no last line is cut off.
+    if (d.send.textContent !== was && d.cmd.value && d.cmd.getClientRects().length) autosize();
   }
   function sendOrStop() {
     if (d.send.getAttribute('aria-disabled') === 'true') { if (Storage.readOnly) toast(READ_ONLY_NOTICE); return; }
@@ -22056,7 +22097,7 @@ const UI = (() => {
   function restoreAction(text) {
     const now = d.cmd.value;
     if (!now.trim() || now === text) {
-      if (now !== text) { d.cmd.value = text; autosize(); syncSendLabel(); }
+      if (now !== text) { d.cmd.value = text; syncSendLabel(); autosize(); }
       return 'box';
     }
     const KEPT = KEPT_LINE;
@@ -22127,7 +22168,15 @@ const UI = (() => {
     d.ac.hidden = false;
     d.cmd.setAttribute('aria-expanded', 'true');
     if (ac.index >= 0) d.cmd.setAttribute('aria-activedescendant', 'ac-' + ac.index); else d.cmd.removeAttribute('aria-activedescendant');
-    // A phone on its side with the keyboard up: the list may take the story's whole strip above it (one line a command there), not half the window.
+    sizeAc();
+  }
+  /* The list's height: half the window (CSS); a phone on its side with the
+     keyboard up, the story's whole strip above it (one line a command
+     there), not half the window. Measured again whenever the window
+     changes (the keyboard comes up or goes down with the list open:
+     initViewport), not only on the next key. */
+  function sizeAc() {
+    if (!d.ac || d.ac.hidden) return;
     d.ac.style.maxHeight = '';
     if (compactComposer()) {
       const room = Math.floor(d.ac.getBoundingClientRect().bottom - Math.max(0, d.app.getBoundingClientRect().top) - 4);
@@ -22146,8 +22195,8 @@ const UI = (() => {
     if (!c) return;
     d.cmd.value = c.name + (c.args ? ' ' : '');
     hideAc();
-    autosize();
     syncSendLabel();
+    autosize();
     d.cmd.focus();
   }
   function hideAc() {
@@ -22229,6 +22278,7 @@ const UI = (() => {
     // A phone's box is narrow: a short placeholder that never wraps (the ⋯ in the tab row and the tip say how to reach commands).
     d.cmd.placeholder = say ? (phone ? 'What do you say?' : `What do you say to ${who}?`) : (phone ? 'What do you do?' : 'What do you do? (/ or ⋯ for commands)');
     d.cmd.setAttribute('aria-label', say ? `What you say to ${who}` : 'Your action');
+    placeSayTo();
   }
   /* Game.UI.setMode('do' | 'say') and Game.UI.setAddressee(id | 'everyone'):
      the same as pressing the toggle or a chip. */

@@ -2624,14 +2624,15 @@ s.test('wave 5, defect 5: a phone on its side with the keyboard up and a sentenc
     }
     assert.deepEqual(await overflowReport(page, 740), []);
     if (say) await shot(page, 'W5_5_land_kb_sentence');
-    // The / list: one line a command (44px rows), three of them whole, the list on screen.
+    // The / list: one line a command (44px rows; a description too long for the row takes a second line, wave 6), three of them whole, the list on screen.
     await page.fill('#cmd', '/');
     await page.waitForSelector('#ac:not([hidden])');
     const ac = await page.evaluate(() => {
       const list = document.getElementById('ac');
       const r = list.getBoundingClientRect();
       const rows = [...list.children].map(li => li.getBoundingClientRect());
-      return { top: Math.round(r.top), rows: rows.length, tall: rows.filter(b => b.height > 46).length, whole: rows.filter(b => b.top >= r.top - 1 && b.bottom <= r.bottom + 1).length };
+      const descLines = li => { const e = li.querySelector('.ac-desc'); return Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)); };
+      return { top: Math.round(r.top), rows: rows.length, tall: [...list.children].filter((li, i) => rows[i].height > 46 && descLines(li) < 2).length, whole: rows.filter(b => b.top >= r.top - 1 && b.bottom <= r.bottom + 1).length };
     });
     assert.ok(ac.top >= 0 && ac.tall === 0 && ac.whole >= 3, JSON.stringify(ac));
     if (say) await shot(page, 'W5_5_land_kb_slash');
@@ -2705,27 +2706,28 @@ s.test('wave 5, defect 8: in the ⋯ list\'s two columns (a phone on its side) U
   assert.equal(cols, 2);
   const seq = [];
   for (const k of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) { await page.keyboard.press(k); seq.push((await where()).act); }
-  // Down the first column (Look around, Sleep, Undo, Commands help), on to the head of the second (Wait until…, Recap, Spend), and round.
-  assert.deepEqual(seq, ['rest', 'undo', 'help', 'wait', 'recap', 'fact', 'look']);
+  // Down the first column (Look around, Wait until…, Sleep, Recap), on to the head of the second (Undo, Spend, Commands help), and round:
+  // the list's own order, as the columns are filled column by column (wave 6, item 5).
+  assert.deepEqual(seq, ['wait', 'rest', 'recap', 'undo', 'fact', 'help', 'look']);
   const a = await where();
   await page.keyboard.press('ArrowRight');
   const b = await where();
-  assert.deepEqual([b.act, b.y === a.y, b.x > a.x], ['wait', true, true], 'Right: across the row');
+  assert.deepEqual([b.act, b.y === a.y, b.x > a.x], ['undo', true, true], 'Right: across the row');
   await page.keyboard.press('ArrowRight');
-  assert.equal((await where()).act, 'wait', 'Right at the edge: stays');
+  assert.equal((await where()).act, 'undo', 'Right at the edge: stays');
   await page.keyboard.press('ArrowDown');
   const c = await where();
-  assert.deepEqual([c.act, c.x === b.x, c.y > b.y], ['recap', true, true], 'Down: the item below');
+  assert.deepEqual([c.act, c.x === b.x, c.y > b.y], ['fact', true, true], 'Down: the item below');
   await page.keyboard.press('ArrowLeft');
-  assert.equal((await where()).act, 'rest', 'Left: across the row');
+  assert.equal((await where()).act, 'wait', 'Left: across the row');
   await page.keyboard.press('ArrowUp');
   assert.equal((await where()).act, 'look');
   await page.keyboard.press('ArrowUp');
-  assert.equal((await where()).act, 'fact', 'Up from the top: the foot of the last column');
+  assert.equal((await where()).act, 'help', 'Up from the top: the foot of the last column');
   await page.keyboard.press('Home');
   assert.equal((await where()).act, 'look');
   await page.keyboard.press('End');
-  assert.equal((await where()).act, 'fact');
+  assert.equal((await where()).act, 'help');
   // An item that is off is passed over.
   await page.keyboard.press('Escape');
   await page.evaluate(() => { Game.state.player.storyPoints = 0; });
@@ -2790,6 +2792,336 @@ s.test('wave 5, copy: the box\'s placeholder before the first draw, the offline 
   assert.equal((await page.evaluate(() => document.getElementById('set-mock').parentElement.textContent)).trim(), 'Offline demo: canned replies, no API calls');
   await quickStart(page);
   assert.equal(await page.getAttribute('#cmd', 'placeholder'), 'What do you do? (/ or ⋯ for commands)', 'and as drawn on a laptop');
+});
+
+// ----- W6. Wave 6 (docs/notes/ui.md, "Wave 6") -----
+
+/* The busiest place at its busiest phase, everyone there known: Say shows the "To:" picker there even with the keyboard down. */
+const toBusyPlace = page => page.evaluate(() => {
+  let best = null;
+  for (const l of Game.state.locations) for (const ph of ['morning', 'afternoon', 'evening', 'night']) { const n = Game.State.npcsAt(l.id, ph).length; if (!l.closed && !l.away && (!best || n > best.n)) best = { loc: l.id, phase: ph, n }; }
+  while (Game.state.time.phase !== best.phase) Game.State.apply({ advanceTime: 'long' });
+  Game.State.apply({ playerLocationId: best.loc });
+  for (const n of Game.State.npcsAt(best.loc)) n.knownToPlayer = true;
+  Game.UI.renderGame();
+  return best;
+});
+/* The composer as drawn: the typing layout, the story's height, the box, Send and the picker in the window, the Say row's place and where the focus is. */
+const composerNow = page => page.evaluate(() => {
+  const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
+  const inView = b => !!b && b.top >= 0 && b.bottom <= innerHeight + 0.5 && b.left >= 0 && b.right <= innerWidth + 0.5;
+  return {
+    typing: document.getElementById('app').classList.contains('typing'),
+    story: Math.round(r('feed-scroll').height),
+    box: inView(r('cmd')), send: inView(r('send')), pick: inView(r('say-pick')),
+    row: document.getElementById('say-to').parentElement.className,
+    focus: window.__focusOf(),
+    inert: [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)
+  };
+});
+/* A phone on its side, and the same with the keyboard (or the picker wheel) up. */
+const LANDS = [[{ width: 740, height: 375 }, { width: 740, height: 200 }], [{ width: 568, height: 320 }, { width: 568, height: 170 }]];
+
+s.test('wave 6, item 1: a phone on its side, the Say picker tapped with the keyboard down (the picker wheel comes up): the typing layout comes on, the box, Send and 90px or more of story stay on screen; the wheel gone, the bars come back and the picker keeps the focus', async h => {
+  for (const motion of MOTIONS) {
+    for (const [LAND, KB] of LANDS) {
+      const page = await openMotion(h, LAND, motion);
+      await quickStart(page);
+      await focusHelper(page);
+      assert.ok((await toBusyPlace(page)).n > 4, 'a busy place');
+      await page.click('#mode-say');
+      assert.equal((await composerNow(page)).typing, false);
+      // Tapped: the picker has the focus, and the wheel takes the keyboard's place.
+      await page.focus('#say-pick');
+      await page.setViewportSize(KB);
+      await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+      // Longer than any look again after a blur (250 ms).
+      await page.waitForTimeout(400);
+      const m = await composerNow(page);
+      const tag = `${motion}, ${KB.width}x${KB.height}: ${JSON.stringify(m)}`;
+      assert.deepEqual([m.typing, m.box, m.send, m.pick, m.focus, m.inert], [true, true, true, true, '#say-pick', []], tag);
+      assert.ok(m.story >= 90, 'the story keeps its strip: ' + tag);
+      assert.deepEqual(await overflowReport(page, KB.width), [], tag);
+      if (motion === 'reduce') await shot(page, `W6_1_pick_from_kb_down_${KB.width}x${KB.height}`);
+      // A pick keeps the focus and the layout.
+      const other = await page.evaluate(() => [...document.querySelectorAll('#say-pick option')].map(o => o.value).find(v => v !== 'everyone'));
+      await page.selectOption('#say-pick', other);
+      await page.waitForTimeout(350);
+      const m2 = await composerNow(page);
+      assert.deepEqual([m2.typing, m2.focus, m2.box, m2.send], [true, '#say-pick', true, true], 'after a pick: ' + JSON.stringify(m2));
+      // The wheel gone (the window tall again): the bars come back, the Say row in its own row, the focus still on the picker.
+      await page.setViewportSize(LAND);
+      await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+      await page.waitForTimeout(300);
+      const m3 = await composerNow(page);
+      assert.deepEqual([m3.typing, m3.focus, m3.row, m3.inert], [false, '#say-pick', 'composer-inner', []], 'the wheel gone: ' + JSON.stringify(m3));
+      assert.deepEqual(await overflowReport(page, LAND.width), []);
+    }
+  }
+  // Upright, the picker tapped with the keyboard down leaves the layout as it is (there is room for the story).
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  await focusHelper(page);
+  await toBusyPlace(page);
+  await page.click('#mode-say');
+  await page.focus('#say-pick');
+  await page.setViewportSize({ width: 375, height: 420 });
+  await page.waitForTimeout(400);
+  const up = await composerNow(page);
+  assert.deepEqual([up.typing, up.focus, up.box, up.send], [false, '#say-pick', true, true], JSON.stringify(up));
+});
+
+s.test('wave 6, item 2: the /cheat description in the / list is whole (two lines at most) beside the command on a laptop and a phone on its side; a row whose description fits stays one line, 44px', async h => {
+  for (const vp of [LAPTOP, { width: 740, height: 375 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await page.focus('#cmd');
+    await page.keyboard.type('/');
+    await page.waitForSelector('#ac:not([hidden])');
+    const rows = await page.evaluate(() => [...document.querySelectorAll('#ac li')].map(li => {
+      const e = li.querySelector('.ac-desc');
+      const name = li.querySelector('.ac-name').getBoundingClientRect();
+      const r = e.getBoundingClientRect();
+      const lh = parseFloat(getComputedStyle(e).lineHeight);
+      return { cmd: li.dataset.cmd, cut: e.scrollWidth > e.clientWidth + 0.5 || e.scrollHeight > e.clientHeight + 0.5, lines: Math.round(r.height / lh), beside: r.left > name.right, h: Math.round(li.getBoundingClientRect().height) };
+    }));
+    const tag = `${vp.width}: ${JSON.stringify(rows.filter(x => x.cut || x.lines > 1 || x.h > 46))}`;
+    assert.ok(rows.length > 10, tag);
+    assert.deepEqual(rows.filter(x => x.cut).map(x => x.cmd), [], 'no description cut off: ' + tag);
+    assert.ok(rows.every(x => x.beside && x.lines <= 2), 'beside the command, two lines at most: ' + tag);
+    assert.ok(rows.every(x => x.lines === 2 || x.h <= 46), 'one line, one 44px row: ' + tag);
+    // Typed on to the one command: its description whole, to its last words.
+    await page.keyboard.type('che');
+    const cheat = await page.evaluate(() => {
+      const li = document.querySelector('#ac li[data-cmd="/cheat"]');
+      const e = li.querySelector('.ac-desc');
+      const list = document.getElementById('ac').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(e);
+      const rects = [...range.getClientRects()];
+      const last = rects[rects.length - 1];
+      const box = e.getBoundingClientRect();
+      return { text: e.textContent, cut: e.scrollWidth > e.clientWidth + 0.5 || e.scrollHeight > e.clientHeight + 0.5, endShown: !!last && last.bottom <= box.bottom + 0.5 && last.right <= box.right + 0.5, inList: box.bottom <= list.bottom && box.right <= list.right };
+    });
+    assert.match(cheat.text, /or set the clock$/);
+    assert.deepEqual([cheat.cut, cheat.endShown, cheat.inList], [false, true, true], `${vp.width}: ` + JSON.stringify(cheat));
+    await shot(page, `W6_2_cheat_desc_${vp.width}`, { clip: { x: 0, y: vp.height - 200, width: vp.width, height: 200 } });
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+  }
+  // Upright, the description stays on a line of its own under the command, as many lines as it needs.
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  await page.focus('#cmd');
+  await page.keyboard.type('/che');
+  await page.waitForSelector('#ac:not([hidden])');
+  const up = await page.evaluate(() => { const e = document.querySelector('#ac li[data-cmd="/cheat"] .ac-desc'); return { cut: e.scrollHeight > e.clientHeight + 0.5, below: e.getBoundingClientRect().top >= document.querySelector('#ac li[data-cmd="/cheat"] .ac-name').getBoundingClientRect().bottom - 1 }; });
+  assert.deepEqual(up, { cut: false, below: true });
+});
+
+s.test('wave 6, item 3: a save with a blank name is named as the field\'s default, "Tomas Reed, Day 1"', async h => {
+  const page = await open(h, LAPTOP);
+  await quickStart(page, { name: 'Tomas Reed' });
+  await page.evaluate(() => Game.UI.showScreen('saves'));
+  const day = await page.evaluate(() => Game.state.time.day);
+  const want = `Tomas Reed, Day ${day}`;
+  assert.equal(await page.inputValue('#save-name'), want, 'the field\'s default');
+  await page.fill('#save-name', '   ');
+  await page.click('#slot-1 [data-action="save"]');
+  assert.equal(await page.textContent('#slot-1 .slot-name'), want);
+  await shot(page, 'W6_3_slot_blank_name');
+  // And from the code (Storage.saveSlot with no name).
+  assert.equal(await page.evaluate(() => Game.Storage.saveSlot(2, '').name), want);
+  assert.equal(await page.evaluate(() => Game.Storage.saveSlot(3, null).name), want);
+});
+
+s.test('wave 6, item 4: a line pasted or handed back to the box shows whole: the box is sized after Wait turns into Send (no last word cut at 375 or 390, Do or Say, any length up to four lines)', async h => {
+  const TEXT = 'I ask Royce whether the wrecker needs a new fuel pump and who owns the trailer park by the river, and what it costs';
+  for (const vp of [PHONE, { width: 390, height: 844 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    for (const mode of ['do', 'say']) {
+      if (mode === 'say') await page.click('#mode-say');
+      await page.focus('#cmd');
+      const short = [];
+      for (let n = 20; n <= TEXT.length; n++) {
+        await page.fill('#cmd', '');
+        await page.fill('#cmd', TEXT.slice(0, n));
+        const r = await page.evaluate(() => { const ta = document.getElementById('cmd'); const lh = parseFloat(getComputedStyle(ta).lineHeight); return { cut: ta.scrollHeight > ta.clientHeight + 1 && ta.clientHeight < lh * 4, label: document.getElementById('send').textContent }; });
+        assert.equal(r.label, 'Send');
+        if (r.cut) short.push(n);
+      }
+      assert.deepEqual(short, [], `${vp.width}, ${mode}: lengths whose box is a line short`);
+    }
+    // The 47-character line the round-5 report found cut ("…needs a new fue"), pasted at once.
+    await page.fill('#cmd', '');
+    await page.evaluate(t => { const ta = document.getElementById('cmd'); ta.value = t; ta.dispatchEvent(new Event('input', { bubbles: true })); }, TEXT.slice(0, 47));
+    assert.ok(await page.evaluate(() => { const ta = document.getElementById('cmd'); return ta.scrollHeight <= ta.clientHeight + 1; }), `${vp.width}: 47 characters whole`);
+    // Handed back (a failed turn, the queued line's ×): into an empty box, Wait → Send, every line shown.
+    for (let n = 40; n <= 90; n += 2) {
+      await page.fill('#cmd', '');
+      const r = await page.evaluate(t => { Game.UI.restoreAction(t); const ta = document.getElementById('cmd'); return { cut: ta.scrollHeight > ta.clientHeight + 1, label: document.getElementById('send').textContent }; }, TEXT.slice(0, n));
+      assert.deepEqual(r, { cut: false, label: 'Send' }, `${vp.width}, handed back, ${n} characters`);
+    }
+    if (vp === PHONE) {
+      await page.fill('#cmd', '');
+      await page.fill('#cmd', TEXT.slice(0, 47));
+      await shot(page, 'W6_4_pasted_47_375', { clip: { x: 0, y: vp.height - 140, width: vp.width, height: 140 } });
+    }
+  }
+});
+
+s.test('wave 6, item 5: the ⋯ list\'s two columns (a phone on its side) are filled column by column, so the order drawn, the markup\'s order and the arrow keys\' order are one, in the list and in "Wait until…"', async h => {
+  for (const vp of [{ width: 740, height: 375 }, { width: 568, height: 320 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await focusHelper(page);
+    await page.evaluate(() => { Game.state.player.storyPoints = 2; });
+    await page.focus('#act-btn-m');
+    await page.keyboard.press('Enter');
+    for (const list of ['main', 'wait']) {
+      if (list === 'wait') { await page.focus('#act-pop [data-act="wait"]'); await page.keyboard.press('Enter'); await page.waitForTimeout(50); }
+      const m = await page.evaluate(() => {
+        const items = [...document.querySelectorAll('#act-pop [role="menuitem"]')].map(b => { const r = b.getBoundingClientRect(); return { act: b.dataset.act, x: Math.round(r.left), y: Math.round(r.top) }; });
+        // Read down the first column, then the second.
+        const read = items.slice().sort((p, q) => p.x - q.x || p.y - q.y).map(i => i.act);
+        const pop = document.getElementById('act-pop').getBoundingClientRect();
+        return { dom: items.map(i => i.act), read, cols: new Set(items.map(i => i.x)).size, rows: new Set(items.map(i => i.y)).size, n: items.length, inView: pop.top >= 0 && pop.bottom <= innerHeight };
+      });
+      const tag = `${vp.width}, ${list}: ${JSON.stringify(m)}`;
+      assert.equal(m.cols, 2, tag);
+      assert.equal(m.rows, Math.ceil(m.n / 2), 'the columns balanced: ' + tag);
+      assert.deepEqual(m.read, m.dom, 'read as written: ' + tag);
+      assert.ok(m.inView, tag);
+      if (list === 'main') assert.deepEqual(m.dom, ['look', 'wait', 'rest', 'recap', 'undo', 'fact', 'help'], tag);
+      // Down follows that order, round to the first again; Up goes back.
+      await page.keyboard.press('Home');
+      const down = [];
+      for (let i = 0; i < m.n; i++) { await page.keyboard.press('ArrowDown'); down.push(await page.evaluate(() => document.activeElement.dataset.act)); }
+      assert.deepEqual(down, m.dom.slice(1).concat(m.dom[0]), 'Down: ' + tag);
+      const back = [];
+      for (let i = 0; i < m.n; i++) { await page.keyboard.press('ArrowUp'); back.push(await page.evaluate(() => document.activeElement.dataset.act)); }
+      // From the first again (Down went round): Up goes to the last, and back up the list to the first.
+      assert.deepEqual(back, m.dom.slice().reverse(), 'Up: ' + tag);
+      if (vp.width === 740) await shot(page, `W6_5_two_columns_${list}`);
+    }
+    await page.keyboard.press('Escape');
+    assert.notEqual(await page.evaluate(() => window.__focusOf()), 'BODY');
+  }
+});
+
+s.test('wave 6, item 6: a phone on its side while typing, the focus order is the order drawn (Do, Say, ⋯, the picker, the box, Send): Shift+Tab from the box reaches the picker; upright again, the Say row is back above the input row', async h => {
+  const [LAND, KB] = LANDS[0];
+  const page = await open(h, LAND);
+  await quickStart(page);
+  await focusHelper(page);
+  await toBusyPlace(page);
+  await page.click('#mode-say');
+  await page.focus('#cmd');
+  await page.setViewportSize(KB);
+  await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+  const drawn = await page.evaluate(() => {
+    const els = ['mode-do', 'mode-say', 'act-btn', 'say-pick', 'cmd', 'send'].map(id => document.getElementById(id));
+    // In the markup, each before the next.
+    const inOrder = els.every((e, i) => i === 0 || !!(els[i - 1].compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING));
+    return { xs: els.map(e => Math.round(e.getBoundingClientRect().left)), inOrder };
+  });
+  assert.ok(drawn.xs.every((x, i) => i === 0 || x > drawn.xs[i - 1]), 'drawn left to right: ' + drawn.xs);
+  assert.ok(drawn.inOrder, 'the markup in the same order');
+  const back = [];
+  for (let i = 0; i < 4; i++) { await page.keyboard.press('Shift+Tab'); back.push(await page.evaluate(() => window.__focusOf())); }
+  assert.deepEqual(back, ['#say-pick', '#act-btn', '#mode-say', '#mode-do'], 'Shift+Tab from the box');
+  // The picker holds the typing layout (wave 5), so Tab goes on through it to the box and Send.
+  const on = [];
+  for (let i = 0; i < 5; i++) { await page.keyboard.press('Tab'); on.push(await page.evaluate(() => window.__focusOf())); }
+  assert.deepEqual(on, ['#mode-say', '#act-btn', '#say-pick', '#cmd', '#send'], 'Tab from Do');
+  assert.equal((await composerNow(page)).typing, true);
+  await page.focus('#cmd');
+  await shot(page, 'W6_6_typing_row_740x200');
+  // The keyboard down (the focus on the toggle): the Say row back above the status line and the input row, before Do in the markup.
+  await page.focus('#mode-say');
+  await page.setViewportSize(LAND);
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+  const after = await page.evaluate(() => ({ row: document.getElementById('say-to').parentElement.className, next: document.getElementById('say-to').nextElementSibling.id, focus: window.__focusOf(), above: document.getElementById('say-pick').getBoundingClientRect().bottom <= document.getElementById('cmd').getBoundingClientRect().top }));
+  assert.deepEqual(after, { row: 'composer-inner', next: 'turn-status', focus: '#mode-say', above: true });
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#say-pick', 'upright order: the picker, then Do');
+  assert.deepEqual(await overflowReport(page, LAND.width), []);
+  // The picker with the focus as the keyboard goes down: it goes back to its row, the focus kept on it.
+  await page.focus('#cmd');
+  await page.setViewportSize(KB);
+  await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+  await page.focus('#say-pick');
+  await page.setViewportSize(LAND);
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+  await page.waitForTimeout(300);
+  const m = await composerNow(page);
+  assert.deepEqual([m.row, m.focus, m.inert], ['composer-inner', '#say-pick', []], JSON.stringify(m));
+});
+
+s.test('wave 6, item 7: the / list is sized again when the keyboard comes up or goes down with it open, not only on the next key', async h => {
+  for (const [LAND, KB] of LANDS) {
+    const page = await open(h, LAND);
+    await quickStart(page);
+    await page.focus('#cmd');
+    await page.keyboard.type('/');
+    await page.waitForSelector('#ac:not([hidden])');
+    const m = () => page.evaluate(() => {
+      const list = document.getElementById('ac');
+      const r = list.getBoundingClientRect();
+      const rows = [...list.children].map(li => li.getBoundingClientRect());
+      return { h: Math.round(r.height), top: Math.round(r.top), inline: list.style.maxHeight, css: Math.round(Math.min(320, innerHeight * 0.5)), whole: rows.filter(b => b.top >= r.top - 1 && b.bottom <= r.bottom + 1).length };
+    });
+    const down = await m();
+    assert.ok(down.inline === '' && Math.abs(down.h - down.css) <= 2, `${LAND.width}, keyboard down: ` + JSON.stringify(down));
+    // The keyboard up, no key pressed: the story's strip above it, as after a key.
+    await page.setViewportSize(KB);
+    await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+    await page.waitForTimeout(150);
+    const up = await m();
+    await page.keyboard.type('l');
+    await page.keyboard.press('Backspace');
+    const keyed = await m();
+    assert.ok(up.top >= 0 && up.h > up.css, `${KB.width}x${KB.height}, keyboard up: more than half the window: ` + JSON.stringify(up));
+    assert.ok(Math.abs(up.h - keyed.h) <= 1, 'the same as after a key: ' + JSON.stringify([up, keyed]));
+    if (KB.width === 740) assert.ok(up.whole >= 3, 'three commands whole: ' + JSON.stringify(up));
+    if (KB.width === 740) await shot(page, 'W6_7_ac_kb_up_740x200');
+    // Down again: half the window (CSS), no height left over from the strip.
+    await page.setViewportSize(LAND);
+    await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+    await page.waitForTimeout(150);
+    const again = await m();
+    assert.ok(again.inline === '' && Math.abs(again.h - again.css) <= 2, `${LAND.width}, keyboard down again: ` + JSON.stringify(again));
+  }
+});
+
+s.test('wave 6, item 8: the phone\'s top bar never runs the money under Menu (320 wide, "$12345"): what does not fit beside the time goes on a line of its own, and Menu opens under the bar', async h => {
+  for (const vp of [{ width: 320, height: 640 }, PHONE, { width: 568, height: 320 }]) {
+    for (const gold of [140, 12345, 1234567]) {
+      const page = await open(h, vp);
+      await quickStart(page);
+      await page.evaluate(g => { Game.state.player.gold = g; Game.UI.renderGame(); }, gold);
+      const m = await page.evaluate(() => {
+        const R = q => document.querySelector(q).getBoundingClientRect();
+        const menu = R('#tb-menu'), gold = R('#tb-gold'), hp = R('.tb-hp'), time = R('.tb-time'), loc = R('#tb-loc'), bar = R('#screen-game .topbar');
+        const meet = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+        return { text: document.getElementById('tb-gold').textContent, clear: !meet(gold, menu) && gold.right <= menu.left, inBar: [gold, hp, time, loc].every(r => r.top >= bar.top && r.bottom <= bar.bottom && r.left >= 0), overlap: meet(gold, hp) || meet(hp, time) || meet(gold, time), locFirst: loc.bottom <= time.top + 1, bar: Math.round(bar.height) };
+      });
+      const tag = `${vp.width}, ${gold}: ${JSON.stringify(m)}`;
+      assert.match(m.text, /\$[\d,]+/, tag);
+      assert.deepEqual([m.clear, m.inBar, m.overlap, m.locFirst], [true, true, false, true], tag);
+      // Two lines where it all fits (375 with up to five figures, a phone on its side), else three.
+      if (vp.width >= 375 && gold < 1e6) assert.ok(m.bar <= 56, 'two lines: ' + tag);
+      assert.deepEqual(await overflowReport(page, vp.width), [], tag);
+      if (vp.width === 320 && gold === 12345) {
+        await shot(page, 'W6_8_topbar_320_12345', { clip: { x: 0, y: 0, width: 320, height: 90 } });
+        await page.click('#tb-menu');
+        const pop = await page.evaluate(() => ({ top: document.getElementById('menu-pop').getBoundingClientRect().top, bar: document.querySelector('#screen-game .topbar').getBoundingClientRect().bottom, focus: document.activeElement.dataset.menu }));
+        assert.ok(pop.top >= pop.bar - 1 && pop.top <= pop.bar + 8, 'Menu opens under the bar: ' + JSON.stringify(pop));
+        assert.equal(pop.focus, 'saves');
+      }
+    }
+  }
 });
 
 s.run();
