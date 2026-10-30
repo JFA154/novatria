@@ -429,9 +429,11 @@ stat goes above +3), or +2 max HP (up to 16) when that stat is already +3.
 A quiet line per thread says so: "Resolved: The bridge vote. +1 Charm." A
 loose end's thread gives the story point only, no stat or max HP. A thread
 settled by a town event you did not see is told, and earned, when you hear of
-it (see The council meeting); one the ending settles, after the ending's
-narration, and an ending that could not be told holds its Resolved lines
-until it is.
+it (see The council meeting): until then the Journal, the recap and the
+narrator still have it as you last knew it, open and with its old summary.
+One the ending settles changes, and is earned, after the ending's narration
+(a thread the ending tells you of joins the Journal then), and an ending that
+could not be told holds its Resolved lines, and the Journal, until it is.
 
 ## Time
 
@@ -572,8 +574,8 @@ are in the room (at 15 or more, seeing you in the back, he moves to table the
 bridge) and whether you paid Curtis Pruett. A member in the holding cell does
 not vote, and every outcome settles the police vote too: one that keeps the
 police settles that story (Disbanding the police) at the meeting. Its
-Resolved line and its gain come when you hear of the meeting: after the
-narration that tells it in front of you, or with the next morning's news.
+Resolved line, its gain and the Journal's change come when you hear of the
+meeting: after the narration that tells it in front of you, or with the next morning's news.
 
 **The ending.** On day 21, or as soon as the bridge story is decided (the old
 bridge closes, or the state orders a second inspection), one turn tells how
