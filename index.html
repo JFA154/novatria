@@ -14078,6 +14078,8 @@ const Api = (() => {
     critical_failure: r => `${capFirst(r.stat)} roll, critical failure: it goes badly wrong${r.complication ? `, and ${r.complication}` : ''}.`
   };
   const escMock = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // What a search looks for without naming a thing (wave 8, the final pass): no item is made of it ("Anything washed up").
+  const MOCK_VAGUE = /^(?:(?:any|some|no)thing|whatever|stuff|things|clues?|signs?|traces?|evidence|anyone|anybody|someone|somebody)\b/;
   const HOME_NOUNS = ['house', 'home', 'place', 'trailer', 'apartment', 'farm'];
   /* Where a walk goes, and where in the words it was named: { id, at, end }
      (offsets in `lower`), or null. Places are named by their place, never by
@@ -14341,7 +14343,9 @@ const Api = (() => {
     // "I look for some rope", "I look around for a crowbar", "I search the shelves for a flashlight" (wave 3).
     const seek = /\b(?:look|looks|search|searches|hunt|hunts|rummage|rummages|dig|digs)\b(?:\s+(?:around|through|in|inside|under|behind|on|the|a|an|his|her|my|their|some)\b[a-z' -]*?)?\s+for\s+(.+?)[\s.!?]*$/.exec(lower);
     const grab = /\b(?:pick|picks)\s+up\s+(.+?)[\s.!?]*$/.exec(lower);
-    const thing = (seek || grab) && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
+    // Wave 8 (the final pass): "for anything washed up", "for clues" names nothing to find: a search with no item.
+    const vague = !!seek && MOCK_VAGUE.test(seek[1].trim());
+    const thing = (seek || grab) && !vague && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
     const escRe = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Every thing lying here the words name ("the fishing rod and the tackle box": both; "the rod and reel": the one), longest names first.
     const named2 = thing ? (packet.itemsHere || []).filter(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : [];
@@ -14357,7 +14361,8 @@ const Api = (() => {
       || inv.filter(i => shared(i) > 0).sort((x, y) => shared(y) - shared(x) || errandThing(y) - errandThing(x))[0];
     const where = (packet.location && packet.location.type) || '';
     // A search for something not lying here rolls (the engine makes it only on a success; wave 3, playtest N12).
-    if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
+    if (vague) { out.actionType = 'search'; out.timeCost = 'short'; }
+    else if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
     else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
     else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
     // Watching the room ("I watch who comes and goes") is a look that takes a while, not a walk.
@@ -14388,7 +14393,8 @@ const Api = (() => {
     else if (has(/\b(ask|asks|asking)\b[^.!?]*\b(what|how much|whether|if|would|why|who|where|when)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
     else if (has(/\b(buy|buys|purchase|pay for)\b/) || (has(/\b(order|orders|drink|drinks|eat|eats)\b/) && Town.goodsFor(lower))) { out.actionType = 'buy'; out.targets = present.map(n => n.id); }
     else if (has(/\b(sell|sells|pawn|pawns|hock)\b/)) { out.actionType = 'sell'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
-    else if (has(/\b(give|gives|hand over|hands over|pay|pays|repay|pay back|pay off)\b/)) { out.actionType = 'give'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
+    // Wave 8 (the final pass): "I hand Jodie the letter", "I hand the letter to Jodie" give too (hand as the verb, not "my hand").
+    else if (has(/\b(give|gives|hand over|hands over|pay|pays|repay|pay back|pay off)\b/) || has(/(?:^\s*|\b(?:i|we|then|and|just|quietly|quickly|slowly|carefully|silently)\s+)hand(?:s|ed)?\s+\S/)) { out.actionType = 'give'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
     else if (has(/\b(talk|talks|ask|asks|say|says|tell|tells|greet|greets|chat|speak|apologi[sz]e|apologi[sz]es)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
     else if (has(/\b(try|tries|attempt|attempts)\b/)) {
       if (has(/\b(climb|force|lift|break|swim|push|pull|carry)\b/)) roll('might', 'normal');
@@ -14636,9 +14642,11 @@ const Api = (() => {
     if (said) out.push(...said.lines);
     // The comings and goings are told after what the action came to (wave 3, playtest D2: a knockdown or a card loss is never the line cut).
     const scenery = [];
+    // An arrival or a look names who is here, and who came in among them (wave 8, the final pass: after /skip the evening crowd was "here" and then "arrived").
+    const listsHere = !c.beat && (mode === 'arrival' || a.actionType === 'look');
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
-      const came = names(c.sceneChange.arrived);
+      const came = listsHere ? [] : names(c.sceneChange.arrived);
       if (came.length) {
         scenery.push(`${andList(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
         scenery.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
@@ -14657,8 +14665,11 @@ const Api = (() => {
       const l = s && c.location ? State.loc(c.location.id) : null;
       out.push(mode === 'arrival' ? `You arrive at ${loc}.` : `You take in ${loc}.`);
       if (l && l.description) out.push(l.description);
-      const names = (c.present || []).map(n => n.name);
-      out.push(names.length ? `${andList(names)} ${names.length > 1 ? 'are' : 'is'} here.` : 'Nobody here pays you any attention.');
+      const arrived = c.sceneChange && Array.isArray(c.sceneChange.arrived) ? c.sceneChange.arrived : [];
+      const names = (c.present || []).filter(n => !arrived.includes(n.id)).map(n => n.name);
+      const came = (c.present || []).filter(n => arrived.includes(n.id)).map(n => n.name);
+      const comeIn = came.length ? `${andList(came)} ${came.length > 1 ? 'come' : 'comes'} in` : '';
+      out.push(names.length ? `${andList(names)} ${names.length > 1 ? 'are' : 'is'} here${comeIn ? `, and ${comeIn}` : ''}.` : comeIn ? `${comeIn}.` : 'Nobody here pays you any attention.');
     } else if (said) {
       // The reply is already told, before the scene changed.
     } else if (a.actionType === 'move') {
@@ -14708,6 +14719,9 @@ const Api = (() => {
     } else if (a.actionType === 'take') {
       const it = s && (a.targets || []).filter(id => /^item_/.test(id)).map(id => State.entityById(id)).find(Boolean);
       if (it) out.push(`You pick up the ${lowerFirst(it.name)}.`);
+    } else if (a.actionType === 'search' && !c.roll && !(a.targets || []).length && !(c.created || []).length) {
+      // A search for nothing in particular (wave 8): it takes a while and turns up nothing to keep.
+      out.push(vary([`You look around ${loc} for a while and turn up nothing worth keeping.`, `You poke around ${loc} for a while; nothing turns up that you would carry off.`], key));
     }
     out.push(...scenery);
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
@@ -14733,8 +14747,12 @@ const Api = (() => {
     /* Never cut inside a sentence (wave 6, the round-5 playtest's D12: the
        wave-5 D8 fix still made "From the holding cell." and "Boyd Teague
        comes up on you from the side.", the blow lost): a due event is told
-       whole, or to its first sentence, or a later one is left out. */
-    while (words() > limit && due.length > 1) due.pop();
+       whole, or to its first sentence. Wave 8 (the final pass): never left
+       out, since the engine marks every one handed over as told (three at
+       dawn dropped the third, and the demo never named the blackmail's
+       price): the first goes to its first sentence too, and the narration
+       runs long rather than drop one. */
+    if (words() > limit) due = due.map(t => (/^.*?[.!?](?=\s|$)/.exec(t) || [t])[0]);
     return body.concat(due).join(' ');
   }
   /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
