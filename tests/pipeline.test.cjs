@@ -2367,6 +2367,37 @@ s.test('no rumour is offered on a turn that pushes a failed ask or repeats a gra
   assert.equal(r.granted, null, 'none on a repeated granted ask');
 });
 
+/* Direction change 16: the narrator hears what work is on offer where the
+   player stands, so the giver can bring it up or answer "you hiring?"; not on
+   the turn the player takes it (JOB says what was settled), and not for work
+   the player cannot take right now. */
+s.test('the narrator packet lists the work on offer here while its giver is present and the player could take it, and not on a work turn', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; });
+  const r = await page.evaluate(async () => {
+    const G = Game;
+    const job = G.data.JOBS.find(j => !j.stake && j.repeatable !== false);
+    const giver = G.State.npc(job.giverNpcId);
+    // Put the player at the job's place in a phase its giver is there with it on offer.
+    while (!job.phases.includes(G.state.time.phase)) G.State.apply({ advanceTime: 'long' });
+    G.State.apply({ playerLocationId: job.locationId });
+    if (!G.State.npcsAt(job.locationId).some(n => n.id === giver.id)) G.State.apply({ visits: [{ npcId: giver.id, locationId: job.locationId }] });
+    const line = () => G.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').find(l => l.startsWith('WORK ON OFFER HERE'));
+    const offered = line();
+    // Taking it: the turn's packet has JOB, not the offer.
+    G.Api.Mock.queue('parse', { actionType: 'work', targets: [job.id], needsRoll: false, timeCost: 'long', summary: 'Asks for work' });
+    const res = await G.Pipeline.submit('I ask ' + giver.name.split(' ')[0] + ' for work');
+    const packet = G.Api.Mock.calls.filter(c => c.method === 'narrate').pop().text;
+    return { offered, giver: giver.name, label: job.label, ok: res.ok, hadOffer: /^WORK ON OFFER HERE/m.test(packet), hadJob: /^JOB: /m.test(packet), after: line() || null };
+  });
+  assert.ok(r.offered && r.offered.includes(r.giver + ': ' + r.label + ' (pays about '), 'the offer names the giver, the work and the pay: ' + r.offered);
+  assert.ok(r.offered.includes('nothing is paid, won or lost until the player takes it'), r.offered);
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.hadOffer, r.hadJob], [false, true], 'the work turn carries JOB and no offer');
+  assert.equal(r.after, null, 'done today: no longer on offer to the narrator');
+});
+
 /* A lived-in town (docs/BUILD_PLAN.md, direction change 9). */
 s.test('a place out of town is never a destination: the parser\'s destination, a move to its other name, and a walk-and-do there are refused with a plain line, nothing spent, the input kept in the feed; the parser hears where the game never goes', async h => {
   const page = await h.open({ viewport: LAPTOP });

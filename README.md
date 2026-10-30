@@ -163,7 +163,10 @@ no roll and always pays a sum in the range. A quiet line says what you were
 paid ("You are paid $70 (cash $210).") and the Journal gets "A shift in the
 service bays at Pittman's for Dewayne Mangum: paid $70." The narrator is
 told what the work was and what it paid, and nothing else is paid, won or
-lost in the telling.
+lost in the telling. Before you take it, the narrator is told what is on
+offer where you stand while the person giving it is there, so they can
+bring it up or answer if you ask whether they are hiring; nothing is settled
+by talk alone.
 
 **The card game is a stake.** You need the low end, $40, to sit in. A win
 pays the way any work does, and a failure loses a sum in the range (the top

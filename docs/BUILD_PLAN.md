@@ -1680,6 +1680,13 @@ and named two men the fixed cast does not have.
   test (a template may carry `effects`, one grudge is a fight, and the
   jobs' shape), with README's "34-turn playtest" now 37.
 
+   Added at the merge: the narrator packet gets `WORK ON OFFER HERE` (the
+   giver's name, the work and the pay range, with the note that nothing is
+   paid, won or lost until the player takes it) whenever `Town.jobsOnOffer`
+   has work here that `Town.jobRefusal` would not refuse, and not on a work
+   turn (JOB says what was settled). Without it a giver asked "you hiring?"
+   answered from their wants alone. The pipeline suite covers it.
+
 ### 17. Code health: built from parts, dead tables gone
 
 (written by the package that implements it)

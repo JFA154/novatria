@@ -11755,6 +11755,12 @@ const Pipeline = (() => {
     if (s.flags.weather) lines.push(`WEATHER: ${s.flags.weather}`);
     const items = (l.items || []).map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
     if (items.length) lines.push(`ITEMS HERE: ${items.join(', ')}.`);
+    // Paid work here (direction change 16): the giver may bring it up or answer
+    // when asked. Nothing is settled until the player takes it (then JOB says so).
+    if (!ctx.job) {
+      const offers = Town.jobsOnOffer(l.id).filter(j => !Town.jobRefusal(j, l.id));
+      if (offers.length) lines.push(`WORK ON OFFER HERE (the one offering may bring it up if it fits, and answers if asked; nothing is paid, won or lost until the player takes it): ${offers.map(j => `${(State.npc(j.giverNpcId) || {}).name || j.giverNpcId}: ${j.label} (${j.stake ? 'win or lose' : 'pays'} about ${money(j.pay[0])}-${j.pay[1]})`).join('; ')}.`);
+    }
     const np = (ctx.notPresent || []).map(x => {
       if (x.reason === 'not_here') return `${x.label} (not here right now)`;
       if (x.reason === 'gone') return `${x.label} (${x.why || 'gone from town'})`;
