@@ -3,10 +3,13 @@
    index.html with inline CSS and plain scripts, nothing external but the one
    Google Fonts stylesheet, no module syntax, no globals but Game, and it runs
    from file:// with every other request blocked. The only network call in the
-   code is the Claude API endpoint.
+   code is the Claude API endpoint. The file is built from src/ and content/
+   (build.cjs) and must be exactly what they build.
    Run with: node tests/run.cjs constraints */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const assert = require('assert/strict');
 const { suite, quickStart, sendText, ROOT, GAME_PATH, GAME_URL } = require('./helpers.cjs');
 
@@ -34,6 +37,28 @@ s.test('index.html is one self-contained file: inline CSS and classic scripts, o
   assert.doesNotMatch(css, /@import|url\(\s*['"]?(https?:|\/\/)/i, 'no external CSS resources');
   assert.match(code, /'use strict'/);
   assert.ok(!fs.existsSync(path.join(ROOT, 'package.json')), 'no package.json');
+});
+
+/* Direction change 17: index.html is built from src/ and content/town.js by
+   build.cjs and committed. The committed file must be exactly what the parts
+   build, so a hand edit to index.html, or an edit to a part without a
+   rebuild, fails here. */
+s.test('index.html is the build of src/ and content/: node build.cjs --check passes, and catches a hand edit', async () => {
+  const BUILD = path.join(ROOT, 'build.cjs');
+  const ok = spawnSync(process.execPath, [BUILD, '--check'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stderr);
+  const html = fs.readFileSync(GAME_PATH, 'utf8');
+  const { BANNER } = require(BUILD);
+  assert.ok(html.includes('<script>\n' + BANNER + '\n(function () {'), 'the banner opens the page script');
+  assert.equal(html.split(BANNER).length, 2, 'one banner');
+  // A copy edited by hand (one character in the engine) is not the build.
+  const at = html.indexOf("const ENDPOINT = '");
+  assert.ok(at > 0);
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-build-')), 'index.html');
+  fs.writeFileSync(tmp, html.slice(0, at) + 'const  ' + html.slice(at + 'const '.length));
+  const bad = spawnSync(process.execPath, [BUILD, '--check', tmp], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /is not what src\/ and content\/ build \(first difference at line \d+\): run node build\.cjs/);
 });
 
 s.test('it runs from file:// with the network blocked: only the font is ever requested, and a turn plays', async h => {

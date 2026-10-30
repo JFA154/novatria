@@ -1143,22 +1143,25 @@ select.input { padding-right: 32px; }
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
 <script>
+// Built by build.cjs from src/ and content/town.js: edit those, not this file, then run node build.cjs (node build.cjs --check says whether this file is up to date).
 (function () {
 'use strict';
 
 /* ==========================================================================
    CONTENT: the town of Lockett's Ferry (present day) and the character-creation data
    (TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES,
-   FAVOUR_TEMPLATES), following docs/BUILD_PLAN.md "Shared data contract".
-   This block is meant to be edited by hand. After editing, run
-   node tests/validate-town.cjs: it reads the text between the BEGIN and END
-   CONTENT markers and checks every field and cross-reference.
+   FAVOUR_TEMPLATES, JOBS), following docs/BUILD_PLAN.md "Shared data contract".
+   The block between the BEGIN and END CONTENT markers is content/town.js,
+   meant to be edited by hand there. After editing, run node build.cjs, then
+   node tests/validate-town.cjs: it reads the text between the markers and
+   checks every field and cross-reference.
    ========================================================================== */
 // ===== BEGIN CONTENT =====
 // ===== Content: Lockett's Ferry (present day) =====
 // Authored town data for the one-town RPG, modern setting. Plain data only:
 // double-quoted strings, no functions, plain ASCII. Edit by hand, then
-// validate with:
+// build index.html and validate with:
+//   node build.cjs
 //   node tests/validate-town.cjs
 
 // ===== TOWN_DATA =====

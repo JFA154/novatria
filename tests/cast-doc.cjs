@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Writes docs/CAST.md, the readable roster of everyone in the town, from the
-// cast inlined in index.html (TOWN_DATA between the BEGIN/END CONTENT
-// markers, read in a Node vm sandbox like tests/validate-town.cjs does).
+// cast in index.html (TOWN_DATA between the BEGIN/END CONTENT markers, built
+// there from content/town.js by build.cjs, read in a Node vm sandbox like
+// tests/validate-town.cjs does; a page that is not the build is refused).
 // Usage: node tests/cast-doc.cjs          (rewrites docs/CAST.md)
 //        node tests/cast-doc.cjs --check  (exits 1 when docs/CAST.md is out of date)
 // tests/content.test.cjs runs the check, so the roster never drifts from the data.
@@ -20,6 +21,11 @@ const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const PRONOUNS = { he: 'he/him', she: 'she/her', they: 'they/them' };
 
 function load() {
+  // index.html is built from content/town.js (build.cjs): a stale page would give a stale roster.
+  if (!process.env.VALIDATE_FILE && !require('../build.cjs').isCurrent(FILE)) {
+    console.error('index.html is not the build of content/town.js and src/: run node build.cjs first');
+    process.exit(1);
+  }
   const html = fs.readFileSync(FILE, 'utf8');
   const src = html.slice(html.indexOf(BEGIN) + BEGIN.length, html.indexOf(END));
   return vm.runInNewContext(src + '\n;({ TOWN_DATA, LOOSE_ENDS })', {}, { filename: 'index.html#content', timeout: 5000 });
@@ -57,7 +63,7 @@ function render(D) {
   const out = [];
   out.push(`# The cast of ${T.name}`);
   out.push('');
-  out.push(`Everyone the story can mention: ${T.npcs.length} people, every one written by hand in \`TOWN_DATA\` in \`index.html\`, with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. ${here.length} live in town, with a home and a place in every phase of the day; ${away.length} live elsewhere and ${dead.length} are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).`);
+  out.push(`Everyone the story can mention: ${T.npcs.length} people, every one written by hand in \`TOWN_DATA\` in \`content/town.js\` (built into \`index.html\`), with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. ${here.length} live in town, with a home and a place in every phase of the day; ${away.length} live elsewhere and ${dead.length} are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).`);
   out.push('');
   out.push(`The town has ${T.locations.length} places. ${onMap.length} are on the map from the start; ${undiscovered.length} are homes the player finds when someone tells them about one (they then show on the map as "heard of" until visited); ${outOfTown.length} are out of town, talked about and never gone to.`);
   out.push('');

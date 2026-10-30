@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-size="M">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lockett&#39;s Ferry">
+<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4ecda" media="(prefers-color-scheme: light)">
+<title>One-Town Text RPG</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&amp;display=swap">
+<script>
+/* Pick theme and text size before first paint: the saved setting, else the OS
+   colour-scheme preference. Creates no globals. */
+(function () {
+  'use strict';
+  var theme = null, size = null;
+  try {
+    var saved = JSON.parse(window.localStorage.getItem('novatria.settings') || 'null');
+    if (saved) { theme = saved.theme; size = saved.textSize; }
+  } catch (e) { /* storage blocked: use defaults */ }
+  if (theme !== 'dark' && theme !== 'parchment') {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'parchment' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  if (size === 'S' || size === 'M' || size === 'L') document.documentElement.setAttribute('data-size', size);
+})();
+</script>
+<style>
+/* ===== Tokens ===== */
+:root {
+  --read-font: "Literata", Georgia, "Times New Roman", serif;
+  --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono-font: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --read-size: 18px;
+  --feed-w: 680px;
+  --panel-w: 320px;
+  --tap: 44px;
+  --radius: 8px;
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+:root, :root[data-theme="dark"] {
+  --bg: #17130f;
+  --surface: #1f1a15;
+  --surface-2: #2a241d;
+  --text: #ece4d5;
+  --muted: #a99e8b;
+  --faint: #7a705f;
+  --border: #3a3229;
+  --accent: #d2aa69;
+  --accent-ink: #1b150e;
+  --danger: #e2917a;
+  --focus: #e9c27f;
+  --shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, .45);
+  /* People: monogram fills (picked by NPC id) and the attitude scale, cold to warm. */
+  --person-1: #74493a;
+  --person-2: #57613d;
+  --person-3: #3e5969;
+  --person-4: #7a5f2d;
+  --person-5: #604459;
+  --person-6: #3d6057;
+  --person-ink: #f3eadb;
+  --att-cold: #8eaac0;
+  --att-cool: #9aa6ac;
+  --att-mild: #c99c76;
+  --att-warm: #e09a68;
+  /* Places: the town map (land, river, its banks, roads, and the ink for marks and labels). */
+  --map-land: #241e18;
+  --map-water: #2c3b3f;
+  --map-bank: #3d4c4b;
+  --map-road: #5e5243;
+  --map-ink: #ddd3c1;
+  color-scheme: dark;
+}
+:root[data-theme="parchment"] {
+  --bg: #f4ecda;
+  --surface: #ede3cc;
+  --surface-2: #e4d7bb;
+  --text: #2a2217;
+  --muted: #66583f;
+  --faint: #8f8068;
+  --border: #cdbd9b;
+  --accent: #87561a;
+  --accent-ink: #fbf6ea;
+  --danger: #a3402a;
+  --focus: #87561a;
+  --shadow: 0 12px 32px rgba(70, 45, 10, .18);
+  --scrim: rgba(60, 40, 10, .25);
+  --person-1: #dbb4a0;
+  --person-2: #c6c89e;
+  --person-3: #b3c5cd;
+  --person-4: #dfc48b;
+  --person-5: #d3b7c4;
+  --person-6: #aecabd;
+  --person-ink: #2e2519;
+  --att-cold: #46677f;
+  --att-cool: #556267;
+  --att-mild: #8b562c;
+  --att-warm: #a4531d;
+  --map-land: #e8dcc0;
+  --map-water: #b3c5c2;
+  --map-bank: #93aaa5;
+  --map-road: #c4a87c;
+  --map-ink: #3a2f21;
+  color-scheme: light;
+}
+:root[data-size="S"] { --read-size: 16px; }
+:root[data-size="M"] { --read-size: 18px; }
+:root[data-size="L"] { --read-size: 20px; }
+
+/* ===== Base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { line-height: 1.2; }
+p { margin: 0 0 .8em; }
+.muted { color: var(--muted); }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+#app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: var(--app-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Buttons and fields ===== */
+.btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  transition: background-color .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface); border-color: var(--border); }
+.btn.small { min-height: var(--tap); padding: 0 12px; font-size: 14px; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.wrap { max-width: 100%; padding: 10px 16px; line-height: 1.3; }
+.hint.note { color: var(--text); }
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 16px;
+}
+select.input { padding-right: 32px; }
+.input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.err { font-size: 14px; color: var(--danger); margin: 8px 0 0; min-height: 0; }
+.err:empty { display: none; }
+.check { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; }
+.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
+.field { margin: 0 0 20px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.group { border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 4px; margin: 0 0 20px; min-width: 0; }
+.group legend, .group-title { font-family: var(--read-font); font-size: 18px; padding: 0 6px; margin: 0 0 8px; font-weight: 600; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg label {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: var(--tap); padding: 0 14px;
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer; background: var(--surface);
+}
+.seg input { accent-color: var(--accent); margin: 0; }
+.effort-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.effort-grid label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ===== Screens ===== */
+.screen { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+.screen.active { display: flex; animation: fade-in .22s ease-out; }
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(24px + var(--sat)) calc(16px + var(--sar)) calc(32px + var(--sab)) calc(16px + var(--sal));
+}
+.page-inner { max-width: 680px; margin: 0 auto; }
+.page-head { margin-bottom: 20px; }
+.page-title { font-family: var(--read-font); font-size: 30px; font-weight: 600; margin: 0 0 6px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.screen-actions {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.screen-actions .spacer { flex: 1; }
+
+/* Title */
+.title-wrap { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
+.title-name { font-family: var(--read-font); font-size: clamp(38px, 10vw, 60px); font-weight: 600; margin: 0 0 14px; letter-spacing: .01em; overflow-wrap: anywhere; }
+.title-setting { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.6; color: var(--muted); max-width: 34em; }
+.menu-list { display: grid; gap: 10px; max-width: 320px; margin-top: 24px; }
+.menu-list .btn { justify-content: flex-start; }
+.menu-row { display: flex; gap: 10px; min-width: 0; }
+.menu-row #btn-continue { flex: 1 1 auto; min-width: 0; }
+.menu-row #btn-update { flex: 0 1 auto; }
+.title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+/* Who narrates: one or two muted sentences under the buttons (UI.renderTitle). */
+.title-mode { margin: 16px 0 0; max-width: 34em; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.title-foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+
+/* Character creation */
+.step { border-top: 1px solid var(--border); padding: 24px 0; }
+.step:first-child { border-top: 0; padding-top: 4px; }
+.step-title { font-family: var(--read-font); font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.step-sub { color: var(--muted); margin: 0 0 14px; }
+.step-count { color: var(--muted); font-size: 13px; margin: 0; }
+.choice-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.choice {
+  display: block; width: 100%; text-align: left;
+  padding: 12px 14px; min-height: var(--tap);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-family: var(--ui-font); font-size: 15px;
+}
+.choice:hover { border-color: var(--muted); }
+.choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
+.choice-title { display: block; font-weight: 600; margin-bottom: 4px; }
+.choice-sub { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.choice-meta { display: block; color: var(--faint); font-size: 12px; margin-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  min-height: var(--tap); padding: 8px 14px; border-radius: 22px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  cursor: pointer; text-align: left; font-size: 15px; max-width: 100%;
+}
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+.chip:disabled { opacity: .45; cursor: not-allowed; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
+.stat { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 2px; text-align: center; background: var(--surface); min-width: 0; }
+.stat-name { display: block; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); overflow-wrap: normal; white-space: nowrap; }
+.stat-val { display: block; font-family: var(--read-font); font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat.changed { border-color: var(--accent); }
+.move-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.le-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 0 0 10px; background: var(--surface); }
+.le-item.on { border-color: var(--accent); }
+.le-body { margin-top: 10px; display: grid; gap: 8px; }
+.summary h2 { font-family: var(--read-font); font-size: 26px; margin: 0 0 2px; }
+.summary h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.summary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 14px 0 0; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; overflow-wrap: anywhere; }
+.summary ul { margin: 0; padding-left: 18px; }
+.summary li { margin: 0 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+
+/* ===== Game screen ===== */
+#screen-game { position: relative; }
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: calc(4px + var(--sat)) calc(8px + var(--sar)) 4px calc(16px + var(--sal));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 14px;
+}
+.tb-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 18px; }
+.tb-time { color: var(--muted); white-space: nowrap; }
+.tb-loc { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-stat { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-stat b { color: var(--text); font-weight: 600; }
+.tb-actions { display: flex; gap: 2px; flex: none; }
+.tb-actions .btn { padding: 0 12px; font-size: 14px; }
+.btn[aria-pressed="true"] { background: var(--surface); border-color: var(--border); }
+
+.game-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.story { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.feed-area { flex: 1 1 auto; min-height: 0; position: relative; display: flex; }
+.feed-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.feed {
+  max-width: var(--feed-w);
+  margin: 0 auto;
+  padding: 24px calc(16px + var(--sar)) 24px calc(16px + var(--sal));
+  font-family: var(--read-font);
+  font-size: var(--read-size);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.f-item { animation: fade-in .35s ease-out; }
+.f-narr p { margin: 0 0 1em; }
+.f-narr.pending { min-height: 1.6em; }
+.f-narr.pending:empty::before { content: "\2026"; color: var(--faint); }
+.f-input {
+  position: relative;
+  margin: 1.5em 0 .6em;
+  padding-left: 1.1em;
+  font-style: italic;
+  font-size: .9em;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.f-input::before { content: "\203A"; position: absolute; left: 0; top: 0; font-style: normal; color: var(--faint); }
+.f-say .f-to { color: var(--faint); }
+.f-roll {
+  margin: 0 0 .75em;
+  font-family: var(--ui-font);
+  font-size: 13px;
+  letter-spacing: .02em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.f-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 2em 0 1.4em;
+  font-family: var(--ui-font); font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+.f-divider::before, .f-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.f-notice {
+  margin: .5em 0 1em;
+  padding: 6px 12px;
+  border-left: 2px solid var(--border);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  color: var(--muted);
+}
+.f-notice.error { border-left-color: var(--danger); color: var(--text); }
+.f-quiet {
+  margin: 0 0 .75em;
+  font-family: var(--ui-font);
+  font-size: 13px;
+  color: var(--muted);
+}
+.f-narr .f-tag {
+  margin: 0 0 .35em;
+  font-family: var(--ui-font);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.f-chronicle { color: var(--muted); font-size: .92em; border-left: 2px solid var(--border); padding-left: 12px; margin-bottom: 1.2em; }
+.f-chronicle p { margin: 0 0 .5em; }
+.new-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 18px;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  animation: fade-in .2s ease-out;
+}
+/* Who narrates (UI.renderNarratorBanner): a strip at the top of the story
+   column while the placeholder narrator runs or no key is set. It is in the
+   column's flow, so it pushes the feed down and never covers it or the
+   composer; the text lines up with the feed's. */
+.nbanner {
+  flex: none;
+  padding: 8px var(--sar) 8px var(--sal);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--ui-font);
+}
+.nbanner-inner { max-width: var(--feed-w); margin: 0 auto; padding: 0 8px 0 16px; display: flex; align-items: center; gap: 12px; }
+.nbanner-text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 16px; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.nbanner-text b { font-weight: 600; }
+.nbanner-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.nbanner-close { padding: 0; font-size: 24px; line-height: 1; color: var(--muted); }
+
+.composer {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: 8px calc(12px + var(--sar)) calc(8px + var(--sab)) calc(12px + var(--sal));
+}
+.composer-inner { max-width: var(--feed-w); margin: 0 auto; }
+.tabbar { display: none; gap: 2px; margin: 0 0 6px; }
+.tabbar button {
+  flex: 1 1 0; min-width: 0; min-height: var(--tap);
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted);
+  font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+}
+.tabbar button:hover { background: var(--surface); color: var(--text); }
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.cmd-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  resize: none;
+  min-height: var(--tap);
+  max-height: calc(4 * 1.45 * 17px + 22px);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--read-font);
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-y: hidden;
+}
+.cmd-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.send-btn { flex: none; }
+/* Do / Say toggle and the Say addressee chips */
+.mode-toggle {
+  flex: none; display: flex;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
+}
+.mode-btn {
+  min-height: var(--tap); min-width: var(--tap); padding: 0 12px;
+  border: 0; background: transparent; color: var(--muted);
+  font-family: var(--ui-font); font-size: 14px; cursor: pointer;
+}
+.mode-btn + .mode-btn { border-left: 1px solid var(--border); }
+.mode-btn:hover { color: var(--text); }
+.mode-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.say-to { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; min-width: 0; }
+.say-chip {
+  min-height: var(--tap); min-width: var(--tap); max-width: 100%; padding: 0 14px;
+  border: 1px solid var(--border); border-radius: 22px; background: var(--surface); color: var(--text);
+  font-family: var(--ui-font); font-size: 14px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.say-chip:hover { border-color: var(--muted); }
+.say-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+.ac {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
+  z-index: 30;
+  margin: 0; padding: 4px; list-style: none;
+  max-height: min(320px, calc(var(--app-h, 100dvh) * .5)); overflow-y: auto; /* stays on screen when the keyboard shrinks the app */
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-family: var(--ui-font);
+  animation: fade-in .12s ease-out;
+}
+.ac li { display: flex; align-items: baseline; gap: 10px; min-height: var(--tap); padding: 11px 10px; border-radius: 6px; cursor: pointer; }
+.ac li[aria-selected="true"], .ac li:hover { background: var(--surface-2); }
+.ac-name { font-family: var(--mono-font); font-size: 14px; white-space: nowrap; }
+.ac-args { color: var(--faint); font-family: var(--mono-font); font-size: 13px; white-space: nowrap; }
+.ac-desc { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+
+/* Side panel / mobile sheet */
+.panel {
+  flex: none;
+  width: var(--panel-w);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+.game-body.panel-collapsed .panel { display: none; }
+.panel-grip { display: none; }
+.panel-head { flex: none; display: flex; align-items: stretch; border-bottom: 1px solid var(--border); padding: 0 4px; }
+.panel-tabs { display: flex; flex: 1 1 auto; min-width: 0; }
+.panel-tabs button {
+  flex: 1 1 0; min-width: 0; min-height: var(--tap);
+  padding: 0 4px; border: 0; border-bottom: 2px solid transparent; background: none;
+  color: var(--muted); font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.panel-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.panel-close { display: none; font-size: 22px; line-height: 1; }
+.panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; font-size: 14px; overflow-wrap: anywhere; }
+.panel-body h2 { font-family: var(--read-font); font-size: 22px; margin: 0 0 2px; }
+.panel-body h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.panel-body ul { list-style: none; margin: 0; padding: 0; }
+.panel-body li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.panel-body li:last-child { border-bottom: 0; }
+.panel-body .stat-grid { margin-top: 14px; }
+.panel-body .empty { color: var(--muted); font-style: italic; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.thread-status { font-size: 12px; color: var(--muted); margin-left: 6px; }
+/* People: person cards. A card is a header button (monogram, name, role,
+   attitude meter, where last seen) and a panel it opens (look and notes). */
+.people-group + .people-group { margin-top: 24px; }
+.panel-body .people-group h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; }
+.people-count { color: var(--faint); font-weight: 400; letter-spacing: 0; }
+.people-list { margin: 0 -8px; }
+.pcard { position: relative; border-radius: 10px; }
+.pcard + .pcard::before {
+  content: ""; position: absolute; top: 0; left: 56px; right: 8px;
+  height: 1px; background: var(--border);
+}
+.pcard.open { background: var(--surface-2); }
+.pcard.open::before, .pcard.open + .pcard::before { opacity: 0; }
+@media (hover: hover) {
+  .pcard:not(.open):hover { background: var(--surface-2); }
+  .pcard:hover::before, .pcard:hover + .pcard::before { opacity: 0; }
+  .pcard-head:hover .pcard-chev { border-color: var(--muted); }
+}
+.pcard-head {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%; min-height: var(--tap); padding: 12px 8px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  font-family: var(--ui-font); font-size: 14px; text-align: left; cursor: pointer;
+}
+.pcard-head:focus-visible { outline-offset: -2px; }
+.mono {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--person-1); color: var(--person-ink);
+  font-size: 13px; font-weight: 600; letter-spacing: .04em; line-height: 1;
+  user-select: none;
+}
+.mono[data-hue="2"] { background: var(--person-2); }
+.mono[data-hue="3"] { background: var(--person-3); }
+.mono[data-hue="4"] { background: var(--person-4); }
+.mono[data-hue="5"] { background: var(--person-5); }
+.mono[data-hue="6"] { background: var(--person-6); }
+.pcard[data-status="dead"] .mono, .pcard[data-status="gone"] .mono { filter: grayscale(1); opacity: .55; }
+.pcard-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pcard-nameline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.pcard-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.pcard-pron { font-size: 12px; line-height: 1.3; color: var(--faint); white-space: nowrap; }
+.pcard.stranger .pcard-name { color: var(--muted); font-weight: 500; }
+.pcard-role { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.pcard:not(.open) .pcard-role { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.pcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 12px; line-height: 1.4; }
+.att { --tone: var(--muted); display: inline-flex; align-items: center; gap: 8px; color: var(--tone); white-space: nowrap; }
+.att[data-level="1"] { --tone: var(--att-cold); }
+.att[data-level="2"] { --tone: var(--att-cool); }
+.att[data-level="4"] { --tone: var(--att-mild); }
+.att[data-level="5"] { --tone: var(--att-warm); }
+.att[data-att="hostile"] .att-word, .att[data-att="loyal"] .att-word { font-weight: 600; }
+.att-meter { display: inline-flex; gap: 3px; }
+.att-meter i { width: 10px; height: 4px; border-radius: 2px; background: var(--border); }
+.att-meter i.on { background: var(--tone); }
+.pcard-where { color: var(--faint); min-width: 0; }
+.pcard-where .nowrap { white-space: nowrap; }
+.pcard-where.here { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.pcard-where.here::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.pcard-chev {
+  flex: none; width: 8px; height: 8px; margin: 8px 4px 0 0;
+  border: solid var(--faint); border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.pcard.open .pcard-chev { margin-top: 12px; transform: rotate(-135deg); }
+.pcard-more { padding: 0 16px 16px 56px; }
+.pcard-more.fade { animation: fade-in .22s ease-out; }
+.pcard-look { margin: 0; font-family: var(--read-font); font-style: italic; font-size: 15px; line-height: 1.55; color: var(--muted); }
+.pcard-notes-h { margin: 16px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-more > .pcard-notes-h:first-child { margin-top: 0; }
+.panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: 13px; line-height: 1.45; }
+.note-k { color: var(--muted); }
+.pcard-none { margin: 0; font-size: 13px; color: var(--faint); }
+.pcard-fix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.pcard-fix-k { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.pcard-chips .chip { padding: 6px 12px; font-size: 13px; }
+.pcard-edit { margin-left: auto; }
+/* A lived-in town: ages beside names, what the town knows about someone,
+   and a sheet for every place under the map. Facts stack (a small label,
+   then the text) so they read the same at 375 as in the laptop panel. */
+.char-age { font-weight: 400; color: var(--muted); }
+.char-blurb { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.pcard-age { font-size: 13px; line-height: 1.3; color: var(--muted); white-space: nowrap; }
+.pcard-where.away { color: var(--muted); }
+.pcard-facts, .plcard-facts { grid-template-columns: minmax(0, 1fr); gap: 0; margin: 12px 0 0; font-size: 13px; line-height: 1.5; }
+.pcard-facts dt, .plcard-facts dt { margin-top: 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-facts dt:first-child, .plcard-facts dt:first-child { margin-top: 0; }
+.pcard-facts dd, .plcard-facts dd { color: var(--text); }
+.place-list { margin: 0 -8px; }
+.plcard { position: relative; border-radius: 10px; }
+.plcard + .plcard::before { content: ""; position: absolute; top: 0; left: 8px; right: 8px; height: 1px; background: var(--border); }
+.plcard.open { background: var(--surface-2); }
+.plcard.open::before, .plcard.open + .plcard::before { opacity: 0; }
+@media (hover: hover) { .plcard:not(.open):hover { background: var(--surface-2); } }
+.plcard-head {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: var(--tap); padding: 10px 8px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  font-family: var(--ui-font); font-size: 14px; text-align: left; cursor: pointer;
+}
+.plcard-head:focus-visible { outline-offset: -2px; }
+.plcard-name { flex: 1 1 auto; min-width: 0; font-weight: 600; line-height: 1.35; }
+.plcard-type { flex: none; font-size: 12px; color: var(--faint); }
+.plcard .pcard-chev { margin-top: 0; }
+.plcard.open .pcard-chev { margin-top: 4px; transform: rotate(-135deg); }
+.plcard-more { padding: 0 12px 14px; }
+.plcard-desc { margin: 0; font-family: var(--read-font); font-size: 15px; line-height: 1.55; color: var(--muted); }
+.place-hint { margin: -4px 0 6px; font-size: 12px; color: var(--faint); }
+.cr-age-field { margin-top: 16px; max-width: 220px; }
+/* People: a card's editor (UI.editPerson), in place of the card's body:
+   the full width of the card, every control a tap tall, 16px fields. */
+.pcard.editing .pcard-more { padding: 4px 8px 16px; }
+.pedit { display: grid; gap: 16px; min-width: 0; }
+.pedit .field { margin: 0; min-width: 0; }
+.pedit .label { margin-bottom: 6px; }
+.pedit .hint { font-size: 12px; }
+.pedit textarea.input { display: block; resize: vertical; line-height: 1.4; }
+.pedit-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.pedit-att { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pedit-range { flex: 1 1 auto; min-width: 0; height: var(--tap); margin: 0; font-size: 16px; accent-color: var(--accent); background: transparent; }
+.pedit-att-word { flex: none; min-width: 6.5em; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pedit .seg { gap: 6px; }
+.pedit .seg label { padding: 0 12px; font-size: 14px; }
+.pedit-mems, .pedit-status { min-width: 0; margin: 0; padding: 0; border: 0; }
+.pedit-mems { display: grid; gap: 10px; }
+.pedit-mems > legend, .pedit-status > legend { padding: 0; }
+.pedit-mem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.pedit-mem textarea { grid-column: 1 / -1; }
+.pedit-mems .empty { margin: 0; font-size: 13px; }
+.pedit-add { justify-self: start; }
+.pedit-hidden { min-width: 0; padding: 0 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
+.pedit-hidden > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; }
+.pedit-hidden > summary::-webkit-details-marker { display: none; }
+.pedit-hidden > summary::before { content: ""; flex: none; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); }
+.pedit-hidden[open] > summary::before { transform: rotate(45deg); }
+.pedit-hidden[open] { padding-bottom: 12px; }
+.pedit-hidden > .hint { margin: 0 0 12px; }
+.pedit-hidden .field + .field { margin-top: 12px; }
+.pedit .err { margin: 0; }
+.pedit-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.pedit-actions .btn { flex: 1 1 120px; }
+/* Places: the town map, edge to edge at the top of the tab. Sizes inside the
+   SVG are viewBox units (UI.renderMap works out the label size). */
+.map { position: relative; margin: -16px -16px 0; background: var(--map-land); border-bottom: 1px solid var(--border); }
+.map-svg { display: block; width: 100%; height: auto; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.map-svg text { font-family: var(--ui-font); }
+.map-land { fill: var(--map-land); }
+.map-bank, .map-water, .map-road, .map-bridge-rail, .map-bridge-deck { fill: none; }
+.map-bank { stroke: var(--map-bank); }
+.map-water { stroke: var(--map-water); }
+.map-road { stroke: var(--map-road); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.map-bridge-rail { stroke: var(--map-ink); stroke-opacity: .5; stroke-width: 7; stroke-linecap: butt; }
+.map-bridge-deck { stroke: var(--map-road); stroke-width: 4; stroke-linecap: butt; }
+.map-label, .map-caption, .map-area, .map-more { paint-order: stroke; stroke: var(--map-land); stroke-width: 3.5px; stroke-linejoin: round; }
+.map-label { fill: var(--map-ink); }
+.map-caption { fill: var(--accent); font-weight: 600; }
+.map-area { fill: var(--muted); font-style: italic; }
+.map-river-label { fill: var(--muted); font-style: italic; letter-spacing: .14em; }
+.map-more { fill: var(--muted); }
+.map-mark { fill: var(--map-ink); }
+.map-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.map-hit { fill: transparent; }
+.map-place { cursor: pointer; outline: none; }
+.map-place[data-here="1"] { cursor: default; }
+.map-place[data-here="1"] .map-label { font-weight: 600; }
+.map-place[data-picked="1"] .map-mark { fill: var(--accent); }
+.map-place:focus-visible .map-hit { stroke: var(--focus); stroke-width: 1.5; }
+@media (hover: hover) { .map-place:not([data-here="1"]):hover .map-mark { fill: var(--accent); } }
+.map-place[data-closed="1"] .map-mark, .map-place[data-closed="1"] .map-label { opacity: .5; }
+/* Heard of (someone told the player about it; not visited yet): a dashed outline. */
+.map-place[data-heard="1"] .map-mark { fill: var(--map-land); stroke: var(--map-ink); stroke-width: 1.4; stroke-dasharray: 2.6 1.8; }
+.map-place[data-heard="1"][data-picked="1"] .map-mark { stroke: var(--accent); }
+@media (hover: hover) { .map-place[data-heard="1"]:hover .map-mark { fill: var(--map-land); stroke: var(--accent); } }
+.map-label.struck { text-decoration: line-through; }
+.map-strike { stroke: var(--map-ink); stroke-width: 1.4; stroke-linecap: round; }
+.map-mono circle { fill: var(--person-1); stroke: var(--map-land); stroke-width: 1.2; }
+.map-mono[data-hue="2"] circle { fill: var(--person-2); }
+.map-mono[data-hue="3"] circle { fill: var(--person-3); }
+.map-mono[data-hue="4"] circle { fill: var(--person-4); }
+.map-mono[data-hue="5"] circle { fill: var(--person-5); }
+.map-mono[data-hue="6"] circle { fill: var(--person-6); }
+.map-mono text { fill: var(--person-ink); font-weight: 600; letter-spacing: .02em; }
+/* The "Go to ...?" chip: placed under (or over) the tapped marker, then
+   kept inside the map by UI.placeChip. */
+.map-go {
+  position: absolute; z-index: 2;
+  transform: translate(var(--tx, -50%), var(--ty, 16px));
+  min-height: var(--tap); max-width: calc(100% - 16px); padding: 0 16px;
+  border: 1px solid var(--accent); border-radius: 22px;
+  background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
+  font-family: var(--ui-font); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer; animation: fade-in .15s ease-out;
+}
+.map-go[data-side="above"] { --ty: calc(-100% - 16px); }
+.map-go.placed { --tx: 0px; --ty: 0px; }
+.map-go:disabled { opacity: .45; cursor: not-allowed; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 18px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.map-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg { flex: none; display: inline-block; }
+.lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
+.lg-closed { width: 10px; height: 10px; border-radius: 1px; opacity: .55; background: linear-gradient(to top right, var(--map-ink) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-ink) calc(50% + 1.2px)); }
+.lg-person { width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); }
+.lg-heard { box-sizing: border-box; width: 10px; height: 10px; border-radius: 1px; border: 1.5px dashed var(--map-ink); }
+.dbg pre {
+  font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 0;
+  max-height: 260px; overflow: auto;
+}
+.scrim { display: none; }
+
+/* Menu popover (mobile top bar) */
+.popover {
+  position: absolute;
+  z-index: 45;
+  top: calc(52px + var(--sat));
+  right: calc(8px + var(--sar));
+  min-width: 200px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  animation: fade-in .15s ease-out;
+}
+.popover .btn { justify-content: flex-start; }
+
+/* Warnings and toasts */
+.banner {
+  flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(8px + var(--sat)) calc(12px + var(--sar)) 8px calc(16px + var(--sal));
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 14px;
+  z-index: 60;
+}
+.banner span { flex: 1; min-width: 0; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + var(--sab));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.toast.show { opacity: 1; }
+
+/* Save slots */
+.slot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.slot:first-child { border-top: 1px solid var(--border); }
+.slot-info { flex: 1 1 220px; min-width: 0; }
+.slot-name { font-weight: 600; display: block; overflow-wrap: anywhere; }
+.slot-meta { color: var(--muted); font-size: 13px; display: block; overflow-wrap: anywhere; }
+.slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot-note { color: var(--accent); font-size: 13px; display: block; }
+#slot-list { margin-bottom: 24px; }
+
+/* ===== Layout switches ===== */
+@media (min-width: 900px) {
+  .mobile-only { display: none !important; }
+}
+@media (max-width: 899px) {
+  .desktop-only { display: none !important; }
+  .two, .move-row { grid-template-columns: 1fr; }
+  .topbar { padding-left: calc(16px + var(--sal)); gap: 8px; }
+  .tb-main {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "loc loc loc" "time hp gold";
+    gap: 0 12px;
+    align-items: baseline;
+  }
+  .tb-loc { grid-area: loc; font-size: 15px; }
+  .tb-time { grid-area: time; font-size: 13px; }
+  .tb-hp { grid-area: hp; font-size: 13px; }
+  .tb-gold { grid-area: gold; font-size: 13px; }
+  .tabbar { display: flex; }
+  .game-body.panel-collapsed .panel { display: flex; }
+  .panel {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    width: auto;
+    border-left: 0;
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    background: var(--surface);
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform .26s ease, opacity .26s ease, visibility 0s linear .26s;
+  }
+  .game-body.sheet-open .panel {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    transition: transform .26s ease, opacity .26s ease;
+  }
+  .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 2px; }
+  .panel-close { display: inline-flex; }
+  .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: 15px; }
+  .mono { width: 40px; height: 40px; font-size: 14px; }
+  .pcard + .pcard::before { left: 60px; }
+  .pcard-more { padding-left: 60px; }
+  .map { margin: -16px calc(-16px - var(--sar)) 0 calc(-16px - var(--sal)); }
+  .create .step { display: none; border-top: 0; padding-top: 4px; }
+  .create .step.current { display: block; animation: fade-in .2s ease-out; }
+  .ac-desc { display: none; }
+  /* The banner's buttons sit in its top right corner and the text runs
+     round them (a float the width of the buttons, measured by
+     UI.fitNarratorBanner), so a phone gets three short lines, not five. */
+  .nbanner-inner { display: block; position: relative; }
+  .nbanner-text { display: flow-root; }
+  .nbanner-text::before { content: ""; float: right; width: var(--nb-actions, 136px); height: var(--tap); margin-left: 8px; }
+  .nbanner-actions { position: absolute; top: 0; right: 8px; }
+  .mode-btn { padding: 0 10px; }
+  .input-row { gap: 6px; }
+  .send-btn { padding: 0 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="banner" class="banner" role="alert" hidden>
+    <span id="banner-text"></span>
+    <button type="button" class="btn ghost small" id="banner-close">Dismiss</button>
+  </div>
+
+  <!-- ===== Title ===== -->
+  <section id="screen-title" class="screen active" aria-labelledby="title-name">
+    <div class="page">
+      <div class="page-inner title-wrap">
+        <p class="eyebrow">A one-town text RPG</p>
+        <h1 id="title-name" class="title-name">Novatria</h1>
+        <p id="title-setting" class="title-setting"></p>
+        <div class="menu-list">
+          <button type="button" class="btn primary" id="btn-new">New game</button>
+          <div class="menu-row">
+            <button type="button" class="btn" id="btn-continue">Continue</button>
+            <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
+          </div>
+          <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
+          <button type="button" class="btn" id="btn-load">Load</button>
+          <button type="button" class="btn" id="btn-settings">Settings</button>
+        </div>
+        <p class="title-mode" id="title-mode" hidden></p>
+        <div class="title-foot">
+          <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Character creation ===== -->
+  <section id="screen-create" class="screen create" aria-labelledby="create-title">
+    <div class="page" id="create-scroll">
+      <div class="page-inner">
+        <div id="create-form-view">
+          <header class="page-head">
+            <h1 class="page-title" id="create-title">Who are you?</h1>
+            <p class="step-count mobile-only" id="cr-count"></p>
+          </header>
+          <div id="create-steps"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn desktop-only" id="cr-cancel">Back to title</button>
+            <button type="button" class="btn mobile-only" id="cr-back">Back</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary mobile-only" id="cr-next">Next</button>
+            <button type="button" class="btn primary desktop-only" id="cr-review">Review character</button>
+          </div>
+        </div>
+        <div id="create-summary-view" hidden>
+          <header class="page-head">
+            <h1 class="page-title">Ready to begin</h1>
+            <p class="muted">This is who walks into town. Your loose ends are now people in it.</p>
+          </header>
+          <div id="summary-card" class="card summary"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn" id="cr-edit">Back to edit</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary" id="cr-begin">Begin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Game ===== -->
+  <section id="screen-game" class="screen" aria-label="Game">
+    <header class="topbar">
+      <div class="tb-main">
+        <span class="tb-time" id="tb-time"></span>
+        <span class="tb-loc" id="tb-loc"></span>
+        <span class="tb-stat tb-hp">HP <b id="tb-hp"></b></span>
+        <span class="tb-stat tb-gold"><b id="tb-gold"></b><span id="tb-gold-unit"> gold</span></span>
+      </div>
+      <div class="tb-actions">
+        <button type="button" class="btn ghost desktop-only" id="tb-save">Save</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-settings">Settings</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-panel" aria-pressed="true" aria-controls="panel">Panel</button>
+        <button type="button" class="btn ghost mobile-only" id="tb-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menu-pop">Menu</button>
+      </div>
+    </header>
+    <div class="popover" id="menu-pop" role="menu" hidden>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="saves">Save / Load</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="settings">Settings</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="title">Title screen</button>
+    </div>
+    <div class="game-body" id="game-body">
+      <div class="story">
+        <div class="nbanner" id="narrator-banner" role="status" hidden>
+          <div class="nbanner-inner" id="narrator-banner-inner">
+            <p class="nbanner-text" id="narrator-banner-text"></p>
+            <div class="nbanner-actions" id="narrator-banner-actions">
+              <button type="button" class="btn small nbanner-go" id="narrator-banner-go">Settings</button>
+              <button type="button" class="btn ghost small nbanner-close" id="narrator-banner-close" aria-label="Hide this until you next open the game" title="Hide this until you next open the game">&#215;</button>
+            </div>
+          </div>
+        </div>
+        <div class="feed-area">
+          <div class="feed-scroll" id="feed-scroll">
+            <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+          </div>
+          <button type="button" class="new-btn" id="new-btn" hidden>&#8595; New</button>
+        </div>
+        <div class="composer">
+          <div class="composer-inner">
+            <nav class="tabbar" aria-label="Open a panel">
+              <button type="button" data-open-tab="character">Character</button>
+              <button type="button" data-open-tab="people">People</button>
+              <button type="button" data-open-tab="journal">Journal</button>
+              <button type="button" data-open-tab="places">Places</button>
+            </nav>
+            <div class="say-to" id="say-to" role="group" aria-label="Say it to" hidden></div>
+            <div class="input-row">
+              <div class="mode-toggle" role="group" aria-label="Do or say">
+                <button type="button" class="mode-btn" id="mode-do" data-mode="do" aria-pressed="true">Do</button>
+                <button type="button" class="mode-btn" id="mode-say" data-mode="say" aria-pressed="false">Say</button>
+              </div>
+              <div class="input-wrap">
+                <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
+                <textarea id="cmd" class="cmd-input" rows="1" enterkeyhint="send" autocomplete="off" spellcheck="true"
+                  aria-label="Your action" aria-autocomplete="list" aria-controls="ac" aria-expanded="false"
+                  placeholder="What do you do? (/ for commands)"></textarea>
+              </div>
+              <button type="button" class="btn primary send-btn" id="send">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="panel" id="panel" aria-label="Side panel">
+        <div class="panel-grip" aria-hidden="true"></div>
+        <div class="panel-head">
+          <div class="panel-tabs" id="panel-tabs" role="tablist"></div>
+          <button type="button" class="btn ghost panel-close" id="panel-close" aria-label="Close panel">&#215;</button>
+        </div>
+        <div class="panel-body" id="panel-body" role="tabpanel"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== Settings ===== -->
+  <section id="screen-settings" class="screen" aria-labelledby="settings-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head"><h1 class="page-title" id="settings-title">Settings</h1></header>
+        <form id="settings-form" autocomplete="off" novalidate>
+          <fieldset class="group">
+            <legend>Claude API</legend>
+            <div class="field">
+              <label class="label" for="set-key">API key</label>
+              <input class="input" id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+              <label class="check"><input type="checkbox" id="set-remember"> Remember on this device</label>
+              <p class="hint">Unticked, the key is forgotten when this tab closes. It is never written into exported saves.</p>
+            </div>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="set-mock" aria-describedby="set-mock-hint"> Mock mode</label>
+              <p class="hint" id="set-mock-hint">On: the built-in placeholder narrator, no API calls, free. Off: Claude narrates with your key.</p>
+            </div>
+            <div class="field">
+              <div class="two">
+                <div>
+                  <label class="label" for="set-narrator-model">Narrator model</label>
+                  <input class="input" id="set-narrator-model" spellcheck="false" placeholder="claude-opus-5-5" aria-describedby="set-models-hint">
+                </div>
+                <div>
+                  <label class="label" for="set-parser-model">Parser model</label>
+                  <input class="input" id="set-parser-model" spellcheck="false" placeholder="claude-haiku-5-5" aria-describedby="set-models-hint">
+                </div>
+                <div>
+                  <label class="label" for="set-bookkeeper-model">Bookkeeper model</label>
+                  <input class="input" id="set-bookkeeper-model" spellcheck="false" placeholder="claude-sonnet-5-5" aria-describedby="set-models-hint">
+                </div>
+              </div>
+              <p class="hint" id="set-models-hint">Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-haiku-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).</p>
+            </div>
+            <div class="field">
+              <span class="label">Effort</span>
+              <div class="effort-grid">
+                <div><label for="set-effort-narrator">Narrator</label><select class="input" id="set-effort-narrator" data-effort="narrator"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-parser">Parser</label><select class="input" id="set-effort-parser" data-effort="parser"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-bookkeeper">Bookkeeper</label><select class="input" id="set-effort-bookkeeper" data-effort="bookkeeper"><option>low</option><option>medium</option><option>high</option></select></div>
+                <div><label for="set-effort-chronicle">Chronicle</label><select class="input" id="set-effort-chronicle" data-effort="chronicle"><option>low</option><option>medium</option><option>high</option></select></div>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Play</legend>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="set-rolls"> Show dice rolls in the story</label>
+              <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath</label>
+            </div>
+            <div class="field">
+              <span class="label">Narration style</span>
+              <div class="seg" role="radiogroup" aria-label="Narration style">
+                <label><input type="radio" name="set-style" value="casual"> Casual</label>
+                <label><input type="radio" name="set-style" value="literary"> Literary</label>
+              </div>
+              <p class="hint">Casual: plain and direct, like someone running the game at the table. Literary: tighter and more like a novel.</p>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Display</legend>
+            <div class="field">
+              <span class="label">Theme</span>
+              <div class="seg">
+                <label><input type="radio" name="set-theme" value="dark"> Dark</label>
+                <label><input type="radio" name="set-theme" value="parchment"> Parchment</label>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Text size</span>
+              <div class="seg">
+                <label><input type="radio" name="set-size" value="S"> Small</label>
+                <label><input type="radio" name="set-size" value="M"> Medium</label>
+                <label><input type="radio" name="set-size" value="L"> Large</label>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Game</legend>
+            <div class="field">
+              <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, fixes people the game made up so they match what the story says about them, brings in the town's full cast, written by hand, folding anyone the game made up into the person they were, and fills in the lived-in town: everyone's age and history, the dead and the people who live elsewhere, and the places people talk about. About four API calls (none in mock mode).</p>
+              <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
+              <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
+            </div>
+          </fieldset>
+        </form>
+        <div class="screen-actions">
+          <button type="button" class="btn" id="settings-quit" hidden>Quit to title</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="settings-done">Done</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Saves ===== -->
+  <section id="screen-saves" class="screen" aria-labelledby="saves-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head">
+          <h1 class="page-title" id="saves-title">Saved games</h1>
+          <p class="muted">One autosave after every turn, plus three named slots in this browser.</p>
+        </header>
+        <div class="field" id="save-name-field">
+          <label class="label" for="save-name">Name for a new save</label>
+          <input class="input" id="save-name" maxlength="40">
+        </div>
+        <div id="slot-list"></div>
+        <div class="group">
+          <h2 class="group-title">Move a game between devices</h2>
+          <p class="muted">Export writes a .json file with the game and its town. Your API key is never included.</p>
+          <div class="row-btns" style="margin-bottom:12px">
+            <button type="button" class="btn" id="btn-export">Export current game</button>
+            <button type="button" class="btn" id="btn-import">Import from file</button>
+            <input type="file" id="import-file" accept=".json,application/json" hidden>
+          </div>
+          <p class="err" id="saves-error" role="alert"></p>
+        </div>
+        <div class="screen-actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="saves-done">Back</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+<script>
+(function () {
+'use strict';
+
+/* ==========================================================================
+   CONTENT: the town of Lockett's Ferry (present day) and the character-creation data
+   (TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES,
+   FAVOUR_TEMPLATES, JOBS), following docs/BUILD_PLAN.md "Shared data contract".
+   The block between the BEGIN and END CONTENT markers is content/town.js,
+   meant to be edited by hand there. After editing, run node build.cjs, then
+   node tests/validate-town.cjs: it reads the text between the markers and
+   checks every field and cross-reference.
+   ========================================================================== */

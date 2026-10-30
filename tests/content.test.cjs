@@ -1,6 +1,7 @@
 'use strict';
-/* The town inlined in index.html between the BEGIN/END CONTENT markers: it
-   is the only town (no placeholder data left), it validates in the page and
+/* The town, written in content/town.js and built into index.html between the
+   BEGIN/END CONTENT markers by build.cjs: it is the only town (no
+   placeholder data left), it validates in the page and
    with tests/validate-town.cjs (which also catches a bad hand edit), and
    every background and loose end starts a playable game. Names and counts
    come from the data, so this suite survives a change of town. */
@@ -15,14 +16,17 @@ const s = suite('content');
 const BEGIN = '// ===== BEGIN CONTENT =====';
 const END = '// ===== END CONTENT =====';
 
-s.test('the inlined town is the only town, with no placeholder data and no content/ or content-modern/ staging folder', async h => {
+s.test('the town in content/town.js is the only town, built into index.html between the markers, with no placeholder data and no staging folder', async h => {
   const html = fs.readFileSync(GAME_PATH, 'utf8');
   assert.equal(html.split(BEGIN).length, 2, 'BEGIN marker once');
   assert.equal(html.split(END).length, 2, 'END marker once');
   const block = html.slice(html.indexOf(BEGIN), html.indexOf(END));
   for (const name of ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES', 'JOBS']) assert.match(block, new RegExp(`\\nconst ${name} = `), name);
   for (const gone of ['Tallow Ford', 'Hobb Tanner', 'Jory Pike', 'PLACEHOLDER', 'placeholder data']) assert.ok(!html.includes(gone), 'leftover: ' + gone);
-  for (const dir of ['content', 'content-modern']) assert.ok(!fs.existsSync(path.join(ROOT, dir)), dir + '/ was removed after inlining');
+  // Built from parts (build.cjs, direction change 17): the block is content/town.js byte for byte, and content/ holds nothing else.
+  assert.equal(block.slice(BEGIN.length + 1), fs.readFileSync(path.join(ROOT, 'content', 'town.js'), 'utf8'), 'the block between the markers is content/town.js');
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, 'content')), ['town.js'], 'content/ holds the town and nothing else');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'content-modern')), 'content-modern/ was removed after inlining');
   const page = await h.open();
   const info = await page.evaluate(() => {
     const T = Game.data.TOWN_DATA;

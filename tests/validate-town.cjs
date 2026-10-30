@@ -1,16 +1,20 @@
 #!/usr/bin/env node
-// Validates the town content inlined in index.html (the text between the
-// "BEGIN CONTENT" and "END CONTENT" markers) against the shared data contract
-// in docs/BUILD_PLAN.md, including its "Content notes" and "Setting change:
+// Validates the town content against the shared data contract in
+// docs/BUILD_PLAN.md, including its "Content notes" and "Setting change:
 // modern day" sections, and the content brief in SPEC.md sections 4, 5, 8, 9.
+// The content is written in content/town.js and built into index.html between
+// the "BEGIN CONTENT" and "END CONTENT" markers by build.cjs (direction change
+// 17). This reads the built index.html, the file the player gets, and refuses
+// to check one that is not the build of content/ and src/ (run node build.cjs
+// first), so there is one source of truth and a stale build cannot pass.
 // The block is evaluated in a Node vm sandbox (like a browser <script> with no
-// module system), so TOWN_DATA can be hand-edited in index.html and checked.
+// module system).
 // It also checks the narrator's example turns in index.html (EXAMPLE_TURNS_LITERARY
 // and EXAMPLE_TURNS_CASUAL, one set per narration style) against the shape
 // of the SPEC.md section 9 examples. Rules marked "Modern:" are the
 // present-day additions to the original content checks.
 // Usage: node tests/validate-town.cjs   (exits 1 and lists every problem found)
-//        VALIDATE_FILE=other.html node tests/validate-town.cjs
+//        VALIDATE_FILE=other.html node tests/validate-town.cjs   (checks that copy as it is, built or not)
 // tests/run.cjs runs it before the Playwright suites.
 'use strict';
 
@@ -134,6 +138,13 @@ try {
   src = html.slice(a + BEGIN.length, b).replace(/^\r?\n/, '');
 } catch (e) {
   fatal('file', 'cannot read ' + FILE + ': ' + e.message);
+}
+// The page is built from content/town.js and src/ (build.cjs): a page that is
+// not their build would be checked instead of what was edited.
+if (!process.env.VALIDATE_FILE) {
+  let current;
+  try { current = require('../build.cjs').isCurrent(FILE); } catch (e) { fatal('file', 'cannot build index.html from src/ and content/: ' + e.message); }
+  if (!current) fatal('file', 'index.html is not the build of content/town.js and src/: run node build.cjs, then this check');
 }
 
 // Content note 7: flags setFlag may never write. Read from the State module in

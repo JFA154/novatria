@@ -1,6 +1,6 @@
 # The cast of Lockett's Ferry
 
-Everyone the story can mention: 66 people, every one written by hand in `TOWN_DATA` in `index.html`, with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. 41 live in town, with a home and a place in every phase of the day; 17 live elsewhere and 8 are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).
+Everyone the story can mention: 66 people, every one written by hand in `TOWN_DATA` in `content/town.js` (built into `index.html`), with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. 41 live in town, with a home and a place in every phase of the day; 17 live elsewhere and 8 are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).
 
 The town has 38 places. 15 are on the map from the start; 8 are homes the player finds when someone tells them about one (they then show on the map as "heard of" until visited); 15 are out of town, talked about and never gone to.
 
