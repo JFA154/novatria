@@ -930,7 +930,7 @@ s.test('Api exposes the provider interface and builds requests per API_NOTES', a
   assert.equal(r.narr.model, 'claude-opus-5-5');
   assert.equal(r.narr.max_tokens, 3000);
   assert.equal(r.narr.stream, true);
-  assert.deepEqual(r.narr.system, [{ type: 'text', text: 'S', cache_control: { type: 'ephemeral' } }]);
+  assert.deepEqual(r.narr.system, [{ type: 'text', text: 'S', cache_control: { type: 'ephemeral', ttl: '1h' } }]); // cached for an hour (docs/notes/transport.md)
   assert.deepEqual(r.narr.output_config, { effort: 'medium' });
   assert.equal(r.book.model, 'claude-sonnet-5-5');
   assert.equal(r.book.max_tokens, 4000);

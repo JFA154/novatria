@@ -448,23 +448,24 @@ s.test('location, npc and clock seeds fire at the right moment, wait for notBefo
   assert.ok(told, 'and narrated');
 });
 
-s.test('after 10 turns a chronicle entry exists and the log is trimmed; STORY SO FAR is trimmed to 150 words; a failing chronicle never breaks a turn', async h => {
+// Changed by design (REVIEW 2.2, docs/notes/transport.md): the chronicle waits for 16 log entries and keeps the newest 6.
+s.test('once the log holds 16 entries a chronicle entry exists and the log is trimmed to the newest 6; STORY SO FAR is trimmed to 150 words; a failing chronicle never breaks a turn', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 10 });
   await fast(page);
-  for (let i = 1; i <= 9; i++) await sendText(page, i % 3 ? 'I look around' : '/wait ' + (await nextPhase(page)));
-  assert.equal(await page.evaluate(() => Game.state.chronicle.length), 0, 'nothing before turn 10');
-  assert.equal(await page.evaluate(() => Game.state.log.length), 10);
+  for (let i = 1; i <= 14; i++) await sendText(page, i % 3 ? 'I look around' : '/wait ' + (await nextPhase(page)));
+  assert.equal(await page.evaluate(() => Game.state.chronicle.length), 0, 'nothing before 16 entries');
+  assert.equal(await page.evaluate(() => Game.state.log.length), 15);
   await page.evaluate(() => Game.Api.Mock.clear());
   await sendText(page, 'I look around');
   const r = await page.evaluate(() => ({ turn: Game.state.meta.turn, chron: Game.state.chronicle, log: Game.state.log.map(e => e.turn), calls: Game.Api.Mock.calls.map(c => c.method) }));
-  assert.equal(r.turn, 10);
+  assert.equal(r.turn, 15);
   assert.equal(r.chron.length, 1);
   assert.equal(r.chron[0].fromTurn, 0);
   assert.equal(r.chron[0].toTurn, 9);
   assert.match(r.chron[0].summary, /^Turns 0 to 9/);
   assert.ok(r.chron[0].summary.split(/\s+/).length < 80, 'under 80 words');
-  assert.deepEqual(r.log, [10], 'the oldest 10 entries left the log');
+  assert.deepEqual(r.log, [10, 11, 12, 13, 14, 15], 'the oldest 10 entries left the log; the newest 6 stay');
   assert.deepEqual(r.calls.filter(c => c === 'chronicle'), ['chronicle']);
   await sendText(page, 'I look around');
   assert.equal(line(await lastPacket(page), 'STORY SO FAR'), r.chron[0].summary);
@@ -488,20 +489,20 @@ s.test('after 10 turns a chronicle entry exists and the log is trimmed; STORY SO
   await quickStart(p2, { seed: 11 });
   await fast(p2);
   await p2.evaluate(() => Game.Api.Mock.queue('chronicle', { error: { type: 'api_error', message: 'chronicle down' } }, { refusal: true }));
-  for (let i = 1; i <= 11; i++) {
+  for (let i = 1; i <= 16; i++) {
     await sendText(p2, 'I look around');
     assert.equal(await p2.evaluate(() => Game.state.meta.turn), i, 'turn ' + i + ' went through');
   }
   const f = await p2.evaluate(() => ({ chron: Game.state.chronicle.length, log: Game.state.log.length, dbg: Game.State.debugLog.filter(x => x.kind === 'chronicle').map(x => x.reason), errors: [...document.querySelectorAll('#feed .f-notice.error')].length }));
   assert.equal(f.chron, 0);
-  assert.equal(f.log, 12);
+  assert.equal(f.log, 17);
   assert.deepEqual(f.dbg.length, 2);
   assert.match(f.dbg[0], /chronicle down/);
   assert.equal(f.errors, 0, 'no error in the feed');
   await sendText(p2, 'I look around');
   const g = await p2.evaluate(() => ({ chron: Game.state.chronicle.map(c => [c.fromTurn, c.toTurn]), log: Game.state.log.map(e => e.turn) }));
-  assert.deepEqual(g.chron, [[0, 9]]);
-  assert.deepEqual(g.log, [10, 11, 12]);
+  assert.deepEqual(g.chron, [[0, 11]]);
+  assert.deepEqual(g.log, [12, 13, 14, 15, 16, 17]);
 });
 
 s.test('news spreads: an off-screen completion becomes a rumour that its source, a faction-mate or a gossip offers first', async h => {
@@ -672,7 +673,7 @@ s.test('weather is rolled each morning from the season table, never the same twi
   }
 });
 
-s.test('a 30-turn scripted run: clocks move and one completes with a visible change by day 8-10, insults plant a grudge, a loose end fires on its day, the chronicle starts at turn 10', async h => {
+s.test('a 30-turn scripted run: clocks move and one completes with a visible change by day 8-10, insults plant a grudge, a loose end fires on its day, the chronicle starts at turn 15 (16 log entries)', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 31337, kinds: ['debt', 'enemy', 'secret'] });
   await fast(page);
@@ -718,7 +719,7 @@ s.test('a 30-turn scripted run: clocks move and one completes with a visible cha
     }, [plan.fac, plan.debt.seedId, plan.target.id]);
     assert.ok(r.openGrudges <= 1, 'never two unfired grudges');
     if (r.fired && seen.firedDay === null) seen.firedDay = r.day;
-    if (r.turn === 10) seen.chronicleAt10 = { chronicle: r.chronicle, log: r.log };
+    if (r.turn === 15) seen.chronicleAt10 = { chronicle: r.chronicle, log: r.log };
     const prev = seen.progress.length ? seen.progress[seen.progress.length - 1] : [0, 0];
     seen.progress.push(r.clock);
     if (r.clock[0] !== prev[0]) {
@@ -763,7 +764,7 @@ s.test('a 30-turn scripted run: clocks move and one completes with a visible cha
   assert.ok(seen.completed.some(c => c.effects.some(op => ['closeLocation', 'npcStatus', 'npcMove', 'openThread'].includes(op)) && c.day <= 10), 'a visible change by day 10: ' + JSON.stringify(seen.completed));
   assert.equal(seen.grudgeAfterInsults, true, 'a grudge seed after repeated insults');
   assert.equal(seen.firedDay, plan.debt.day, 'the debt fired on its day');
-  assert.deepEqual(seen.chronicleAt10, { chronicle: 1, log: 1 }, 'a chronicle entry at turn 10, log trimmed');
+  assert.deepEqual(seen.chronicleAt10, { chronicle: 1, log: 6 }, 'a chronicle entry at turn 15, the newest 6 kept');
   assert.ok(await page.evaluate(() => Game.state.chronicle.length >= 2), 'and again by turn 30');
   assert.ok(await page.evaluate(() => Game.World.recent.length > 0), 'world events for the debug view');
 });

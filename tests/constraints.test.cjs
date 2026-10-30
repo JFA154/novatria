@@ -28,8 +28,11 @@ s.test('index.html is one self-contained file: inline CSS and classic scripts, o
   assert.doesNotMatch(code, /\bimport\s*\(/, 'no dynamic import()');
   assert.doesNotMatch(code, /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|new Worker)\b/, 'no other way out');
   const fetches = [...code.matchAll(/\bfetch\s*\(([^,)]*)/g)].map(m => m[1].trim());
-  assert.deepEqual(fetches, ['ENDPOINT'], 'one fetch, to the API endpoint');
+  // The API's messages endpoint, and its models list for Settings' "Check key" (Api.checkKey): nothing else.
+  assert.deepEqual(fetches.slice().sort(), ['ENDPOINT', 'MODELS_ENDPOINT'], 'fetch only reaches the API endpoints');
+  assert.equal(fetches.filter(f => f === 'MODELS_ENDPOINT').length, 1, 'the models list from one place only');
   assert.match(code, /const ENDPOINT = 'https:\/\/api\.anthropic\.com\/v1\/messages';/);
+  assert.match(code, /const MODELS_ENDPOINT = 'https:\/\/api\.anthropic\.com\/v1\/models';/);
   const css = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]).join('\n');
   assert.doesNotMatch(css, /@import|url\(\s*['"]?(https?:|\/\/)/i, 'no external CSS resources');
   assert.match(code, /'use strict'/);

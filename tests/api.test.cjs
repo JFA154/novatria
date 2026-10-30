@@ -159,7 +159,8 @@ s.test('requests carry the four headers and a body the current API accepts, with
   assert.equal(narrator.body.stream, true);
   const sys = await page.evaluate(() => ({ narrator: Game.Style.systemPrompt(), town: Game.Pipeline.townBlock(), cast: Game.Pipeline.castBlock(), parser: Game.Api.SYSTEM.parser, book: Game.Api.SYSTEM.bookkeeper }));
   // Three cached blocks: the style guide with its examples, the town (its history, recent events and places), then the town's cast.
-  assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
+  // Cached for an hour (docs/notes/transport.md): a cache miss after a few minutes away costs 25 reads.
+  assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
   // Cached text stays small: about 1.4 tokens a word, under 12,000 for the three blocks (README, "Costs").
@@ -272,7 +273,7 @@ s.test('401, 403, 404 and 400 are never retried; 401 points to the key, 400 show
   assert.match(dbg, /parser HTTP 401 req_parser_1: authentication_error/);
 });
 
-s.test('a refusal shows the notice and restores the input (narrator stream and JSON calls)', async h => {
+s.test('a refusal shows the notice and restores the input (narrator stream and the parser); a bookkeeper refusal keeps the narration and says so', async h => {
   const { page, queue } = await openReal(h);
   const before = await stateJson(page);
   queue('narrator', narrReply(['The ferryman '], { stop: 'refusal', details: { type: 'refusal', category: 'violence', explanation: 'no' } }));
@@ -283,14 +284,21 @@ s.test('a refusal shows the notice and restores the input (narrator stream and J
   assert.equal(await stateJson(page), before);
   assert.ok(!(await page.innerText('#feed')).includes('The ferryman'), 'partial text taken back out');
   await page.fill('#cmd', '');
-  for (const role of ['parser', 'bookkeeper']) {
-    queue(role, () => message('', { stop: 'refusal', details: { type: 'refusal', category: 'cyber', explanation: 'no' } }));
-    await sendText(page, 'I try another way');
-    assert.equal(await page.inputValue('#cmd'), 'I try another way', role);
-    assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), 'The narrator declined that one. Try it another way.');
-    assert.equal(await stateJson(page), before, role);
-    await page.fill('#cmd', '');
-  }
+  // The parser: its own words, the input kept, nothing changed.
+  queue('parser', () => message('', { stop: 'refusal', details: { type: 'refusal', category: 'cyber', explanation: 'no' } }));
+  await sendText(page, 'I try another way');
+  assert.equal(await page.inputValue('#cmd'), 'I try another way', 'parser');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), 'The parser declined that one. Try it another way.');
+  assert.equal(await stateJson(page), before, 'parser');
+  await page.fill('#cmd', '');
+  // The bookkeeper (changed by design, REVIEW R6): the paid narration stands, logged as not recorded, with a quiet line.
+  queue('bookkeeper', () => message('', { stop: 'refusal', details: { type: 'refusal', category: 'cyber', explanation: 'no' } }));
+  await sendText(page, 'I try another way');
+  assert.equal(await page.inputValue('#cmd'), '', 'bookkeeper: the turn went through');
+  const last = await page.evaluate(() => ({ log: Game.state.log[Game.state.log.length - 1], quiet: [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent) }));
+  assert.equal(last.log.input, 'I try another way');
+  assert.equal(last.log.changes, 'not recorded');
+  assert.ok(last.quiet.includes('The bookkeeper declined to record this turn, so the story stands but what changed was not recorded.'), last.quiet.join(' | '));
   assert.ok(await page.evaluate(() => Game.Api.responses.some(r => r.stopReason === 'refusal' && r.data && r.data.stop_details && r.data.stop_details.category === 'cyber')));
 });
 
@@ -319,7 +327,7 @@ s.test('usage totals and cost per model appear in the debug tab; the second narr
   const u = await page.evaluate(() => JSON.parse(JSON.stringify(Game.Api.usage)));
   // Per turn: parser + bookkeeper (Sonnet 5.5, 300 in / 80 out each) + narrator (Opus 5.5).
   const sonnet = 2 * (300 * 2 + 80 * 10) / 1e6;
-  const turn1 = sonnet + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
+  const turn1 = sonnet + (1000 * 4 + 50 * 20 + 700 * 4 * 2) / 1e6; // a 1-hour cache write is 2x input
   const turn2 = sonnet + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
   assert.equal(u.turn.calls, 3);
   assert.equal(u.turn.input, 1600);
@@ -406,10 +414,10 @@ s.test('Api.chronicle summarises log entries with the parser model in plain text
   assert.match(c.body.messages[0].content, /TURN 1 \(day 1, morning\)\nPLAYER: I ask the ferryman about the tide\nNARRATION: Rain needles the water\./);
 });
 
-s.test('an error event inside the stream is surfaced and the input kept', async h => {
+s.test('an error event inside the stream is surfaced and the input kept (after the one retry an overloaded stream gets)', async h => {
   const { page, queue } = await openReal(h);
   const before = await stateJson(page);
-  queue('narrator', narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }));
+  queue('narrator', narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }), narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }));
   await sendText(page, 'I ask the ferryman about the tide');
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the tide');
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /overloaded right now/);

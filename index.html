@@ -8311,15 +8311,41 @@ const Style = (() => {
    call() adds the usage to the turn and session totals.
    The real provider follows docs/API_NOTES.md exactly: structured outputs
    for JSON (never tools or tool_choice), SSE streaming for the narrator, no
-   temperature/top_p/top_k/thinking, retry once after 1.5 s on network
-   errors, 429, 500 and 529 and never on anything else. */
+   temperature/top_p/top_k/thinking.
+   Transport (docs/notes/transport.md): every request runs under an
+   AbortController with an idle timeout (TIMEOUTS: 45 s with no byte on a
+   stream, reset by every byte; 120 s for a JSON call), and abort() (the
+   Stop button, via Pipeline.abort) cancels whatever is in flight. A
+   transient failure is tried once more: HTTP 429/500/502/503/504/529, a
+   network error, a timeout, a stream that ends before message_stop or
+   carries an overloaded_error/api_error event, a body that is not JSON;
+   the wait is the retry-after header (at most 10 s) or 1.5 s. A reply cut
+   off by max_tokens is asked for once more with twice the limit, then
+   fails: a truncated reply is never returned as finished. The narrator's
+   max_tokens follows its effort (low 2000, medium 3000, high 6000). The
+   narrator's three system blocks are cached for an hour (ttl 1h), so a
+   cache write is priced at 2x input; prewarm() writes the cache in
+   parallel with the parser when the last narration was over 50 minutes
+   ago. Usage from every attempt is counted, a retried one too. */
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
+  const MODELS_ENDPOINT = 'https://api.anthropic.com/v1/models';
   const API_VERSION = '2026-10-21';
   const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, people: 6000 }; // thinking tokens count toward these
+  const NARRATOR_MAX_TOKENS = Object.freeze({ low: 2000, medium: 3000, high: 6000 }); // the narrator thinks more at a higher effort
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
-  const RETRY_STATUSES = [429, 500, 529];
+  const RETRY_AFTER_MAX_MS = 10000;
+  const RETRY_STATUSES = [429, 500, 502, 503, 504, 529];
+  /* Idle timeouts in ms: a stream gives up after this long with no byte (reset
+     by every byte), a JSON call after this long in all; key: Settings' key
+     check. Mutable for tests. */
+  const TIMEOUTS = { stream: 45000, json: 120000, key: 20000 };
+  const CACHE_CONTROL = Object.freeze({ type: 'ephemeral', ttl: '1h' });
+  const PREWARM_AFTER_MS = 50 * 60 * 1000;
+  /* What an HTTP header can carry: printable ASCII, no spaces. A key pasted
+     with a zero-width space or a line break fails this. */
+  const KEY_RE = /^[\x21-\x7e]+$/;
   const RESPONSES_MAX = 20;
   const PRICES = { // USD per million tokens
     'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
@@ -8466,24 +8492,100 @@ const Api = (() => {
     api_error: 'The API had an internal error. Try again in a moment.',
     overloaded_error: 'The API is overloaded right now. Try again in a moment.',
     network: 'Could not reach the API. Check your connection and try again.',
+    timeout: 'The API stopped answering, so the game gave up waiting. Try again.',
+    broken_stream: 'The connection dropped before the reply finished. Try again.',
+    aborted: 'Stopped.',
+    bad_key: 'The API key has a space or an invisible character in it (often from copying). Paste it again in Settings.',
     max_tokens: 'The reply was cut off before it finished. Try again.',
     bad_response: 'The API sent a reply the game could not read. Try again.',
     http: 'The API returned an unexpected error. Try again.'
   };
-  const STATUS_TYPES = { 400: 'invalid_request_error', 401: 'authentication_error', 403: 'permission_error', 404: 'not_found_error', 413: 'request_too_large', 429: 'rate_limit_error', 500: 'api_error', 529: 'overloaded_error' };
+  const STATUS_TYPES = { 400: 'invalid_request_error', 401: 'authentication_error', 403: 'permission_error', 404: 'not_found_error', 413: 'request_too_large', 429: 'rate_limit_error', 500: 'api_error', 502: 'api_error', 503: 'overloaded_error', 504: 'api_error', 529: 'overloaded_error' };
   function httpError(status, payload, requestId) {
     const e = isObj(payload) && isObj(payload.error) ? payload.error : {};
     const type = STATUS_TYPES[status] || (typeof e.type === 'string' && FRIENDLY[e.type] ? e.type : 'http');
     return new ApiError(type, FRIENDLY[type] || FRIENDLY.http, { status, requestId: requestId || null, detail: cleanText(e.message, 1000) || null, retryable: RETRY_STATUSES.includes(status) });
   }
+  /* retry-after: seconds, or an HTTP date; capped at RETRY_AFTER_MAX_MS. Null when absent or unreadable. */
+  function retryAfterMs(h) {
+    if (h === null || h === undefined || String(h).trim() === '') return null;
+    const secs = Number(String(h).trim());
+    let ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(String(h)) - Date.now();
+    if (!Number.isFinite(ms)) return null;
+    return clamp(Math.round(ms), 0, RETRY_AFTER_MAX_MS);
+  }
+  function validKey(key) { return typeof key === 'string' && KEY_RE.test(key); }
+
+  // ----- in flight: timeouts and Stop -----
+  /* watch(ms): an AbortController whose timer fires after ms of silence;
+     kick() restarts it (every byte of a stream), stop() clears it when the
+     call is over. abort() (Stop) aborts every watch in flight, wakes every
+     retry wait and rejects every pending call() with ApiError 'aborted'. */
+  const inflight = new Set();
+  const wakers = new Set();
+  let abortGen = 0;
+  function watch(ms) {
+    const ctl = new AbortController();
+    const w = { signal: ctl.signal, why: null, ms, timer: null };
+    w.kick = () => { clearTimeout(w.timer); if (!w.why) w.timer = setTimeout(() => { w.why = 'timeout'; ctl.abort(); }, ms); };
+    w.stop = () => { clearTimeout(w.timer); inflight.delete(w); };
+    w.abort = why => { if (!w.why) w.why = why; clearTimeout(w.timer); ctl.abort(); };
+    inflight.add(w);
+    w.kick();
+    return w;
+  }
+  function abortedError() { return new ApiError('aborted', FRIENDLY.aborted, { retryable: false }); }
+  function timeoutError(w) {
+    const secs = Math.round(w.ms / 1000);
+    return new ApiError('timeout', FRIENDLY.timeout, { retryable: true, detail: w.ms === TIMEOUTS.stream ? `timed out after ${secs} s with no data` : `timed out after ${secs} s` });
+  }
+  /* What a failed fetch or body read means: Stop, a timeout, or the network. */
+  function transportError(err, w) {
+    if (w && w.why === 'user') return abortedError();
+    if (w && w.why === 'timeout') return timeoutError(w);
+    if (err instanceof ApiError) return err;
+    return new ApiError('network', FRIENDLY.network, { retryable: true, detail: String((err && err.message) || err) });
+  }
+  /* A retry's wait; Stop cuts it short with ApiError 'aborted'. */
+  function pause(ms, gen) {
+    return new Promise((resolve, reject) => {
+      let t = null;
+      const done = () => { clearTimeout(t); wakers.delete(done); if (gen !== abortGen) reject(abortedError()); else resolve(); };
+      t = setTimeout(done, ms);
+      wakers.add(done);
+    });
+  }
+  function abort() {
+    abortGen += 1;
+    for (const w of Array.from(inflight)) w.abort('user');
+    for (const wake of Array.from(wakers)) wake();
+    return true;
+  }
 
   // ----- usage and the debug ring -----
-  function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0, priced: true, calls: 0 }; }
+  function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cacheWrite1h: 0, cost: 0, priced: true, calls: 0 }; }
   const usage = { turn: blankUsage(), session: blankUsage() };
   const responses = [];
+  /* Cache writes by TTL: usage.cache_creation.ephemeral_1h_input_tokens and
+     ephemeral_5m_input_tokens when the API breaks them down; otherwise the
+     old cache_creation_input_tokens, all of it 1-hour (every block this game
+     caches has ttl 1h). */
+  function cacheWrites(raw) {
+    const all = raw.cache_creation_input_tokens | 0;
+    const cc = isObj(raw.cache_creation) ? raw.cache_creation : null;
+    if (cc && (Number.isFinite(cc.ephemeral_1h_input_tokens) || Number.isFinite(cc.ephemeral_5m_input_tokens))) {
+      const h1 = cc.ephemeral_1h_input_tokens | 0;
+      const m5 = cc.ephemeral_5m_input_tokens | 0;
+      return { h1, m5, all: Math.max(all, h1 + m5) };
+    }
+    return { h1: all, m5: 0, all };
+  }
   function addRaw(total, raw) {
     if (!isObj(raw)) return total;
+    const before = cacheWrites(total);
     for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) total[k] = (total[k] | 0) + (raw[k] | 0);
+    const add = cacheWrites(raw);
+    total.cache_creation = { ephemeral_1h_input_tokens: before.h1 + add.h1, ephemeral_5m_input_tokens: before.m5 + add.m5 };
     return total;
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
@@ -8493,29 +8595,47 @@ const Api = (() => {
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
   }
+  /* The narrator's max_tokens by its effort (thinking counts toward it). */
+  function narratorMaxTokens() { return NARRATOR_MAX_TOKENS[roleEffort('narrator')] || MAX_TOKENS.narrator; }
   /* No temperature/top_p/top_k, no thinking, no tools or tool_choice, never a
-     trailing assistant message. JSON comes from output_config.format. */
+     trailing assistant message. JSON comes from output_config.format.
+     opts.messages replaces the one user message (the narrator's rewrite as
+     an edit: user packet, assistant draft, user note; it ends with user). */
   function requestBody(role, opts) {
     opts = opts || {};
-    const body = { model: roleModel(role), max_tokens: opts.maxTokens || MAX_TOKENS[role] || 1500, messages: [{ role: 'user', content: String(opts.user || '') }] };
-    // The narrator's system prompt is cached: the style block, then any further blocks (the cast), each its own cache breakpoint.
-    if (opts.system) body.system = opts.cache ? [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []).map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })) : opts.system;
+    const max = opts.maxTokens || (role === 'narrator' ? narratorMaxTokens() : MAX_TOKENS[role]) || 1500;
+    const messages = Array.isArray(opts.messages) && opts.messages.length ? opts.messages.map(m => ({ role: m.role, content: String(m.content || '') })) : [{ role: 'user', content: String(opts.user || '') }];
+    const body = { model: roleModel(role), max_tokens: max, messages };
+    // The narrator's system prompt is cached for an hour: the style block, then any further blocks (the town, the cast), each its own cache breakpoint.
+    if (opts.system) body.system = opts.cache ? [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []).map(text => ({ type: 'text', text, cache_control: Object.assign({}, CACHE_CONTROL) })) : opts.system;
     body.output_config = { effort: roleEffort(role) };
     if (opts.schema) body.output_config.format = { type: 'json_schema', schema: opts.schema };
     if (opts.stream) body.stream = true;
     return body;
   }
+  /* The price table by model id; a dated alias ("claude-opus-5-5-20261001") prices as its model. */
+  function priceOf(model) {
+    const m = String(model || '');
+    return PRICES[m] || PRICES[m.replace(/-20\d{2}[-\d]*$/, '')] || null;
+  }
+  /* USD for one call's usage: input, output and cache reads at the table's
+     rates; a 5-minute cache write at 1.25x input, a 1-hour one at 2x.
+     u.cacheWrite1h / u.cacheWrite5m split the writes; without them every
+     write (cacheCreation) is a 1-hour one. */
   function costOf(model, u) {
-    const p = PRICES[model];
+    const p = priceOf(model);
     if (!p) return null;
-    return (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheCreation * p.input * 1.25) / 1e6;
+    const m5 = u.cacheWrite5m | 0;
+    const h1 = u.cacheWrite1h !== undefined ? u.cacheWrite1h | 0 : Math.max(0, (u.cacheCreation | 0) - m5);
+    return (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + m5 * p.input * 1.25 + h1 * p.input * 2) / 1e6;
   }
   function record(model, raw) {
-    const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: raw.cache_creation_input_tokens | 0 };
+    const w = cacheWrites(raw);
+    const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: w.all, cacheWrite1h: w.h1, cacheWrite5m: w.m5 };
     const spent = u.input + u.output + u.cacheRead + u.cacheCreation > 0;
     const c = costOf(model, u);
     for (const b of [usage.turn, usage.session]) {
-      b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.calls += 1;
+      b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.cacheWrite1h = (b.cacheWrite1h | 0) + u.cacheWrite1h; b.calls += 1;
       if (c === null) { if (spent) b.priced = false; } else b.cost += c;
     }
   }
@@ -9109,76 +9229,99 @@ const Api = (() => {
   };
 
   // ----- real provider -----
-  /* POST with the four headers. One retry after 1.5 s for network errors and
-     HTTP 429, 500 and 529; none for anything else. Every attempt is logged
-     with its request-id. Resolves to the ok Response. */
-  async function post(role, body) {
+  /* One POST with the four headers under the watch w. Resolves to the ok
+     Response; anything else throws ApiError (retryable per RETRY_STATUSES,
+     with retryAfterMs from the retry-after header and the body for the
+     debug view). The caller logs and retries. */
+  async function send(role, body, w) {
     const key = Storage.getApiKey();
     if (!key) throw new ApiError('no_key', FRIENDLY.no_key, { retryable: false });
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      if (attempt > 1) await sleep(RETRY_DELAY_MS);
-      let res;
-      try {
-        res = await fetch(ENDPOINT, { method: 'POST', headers: headers(key), body: JSON.stringify(body) });
-      } catch (err) {
-        lastErr = new ApiError('network', FRIENDLY.network, { retryable: true, detail: String((err && err.message) || err) });
-        logCall(role, { attempt, error: lastErr, maxTokens: body.max_tokens });
-        continue;
-      }
-      const requestId = res.headers.get('request-id');
-      if (res.ok) return { res, requestId, attempt };
-      let raw = '';
-      let payload = null;
-      try { raw = await res.text(); payload = JSON.parse(raw); } catch (e) { /* not JSON */ }
-      lastErr = httpError(res.status, payload, requestId);
-      logCall(role, { attempt, status: res.status, requestId, error: lastErr, maxTokens: body.max_tokens, data: payload || raw.slice(0, 2000) });
-      if (!lastErr.retryable) break;
-    }
-    throw lastErr;
+    if (!validKey(key)) throw new ApiError('bad_key', FRIENDLY.bad_key, { retryable: false, detail: 'the key has a character outside printable ASCII (a space, a line break or an invisible character)' });
+    let res;
+    try {
+      res = await fetch(ENDPOINT, { method: 'POST', headers: headers(key), body: JSON.stringify(body), signal: w.signal });
+    } catch (err) { throw transportError(err, w); }
+    w.kick();
+    const requestId = res.headers.get('request-id');
+    if (res.ok) return { res, requestId };
+    let raw = '';
+    let payload = null;
+    try { raw = await res.text(); payload = JSON.parse(raw); } catch (e) { /* not JSON */ }
+    const err = httpError(res.status, payload, requestId);
+    err.retryAfterMs = retryAfterMs(res.headers.get('retry-after'));
+    err.logData = payload || raw.slice(0, 2000);
+    throw err;
+  }
+  /* After a failed try: log it, then either throw (not retryable, Stop, or
+     the one retry already spent) or wait (retry-after, else 1.5 s) and let
+     the caller try again. tries.transient counts the retries spent. */
+  async function failedTry(role, err, info, tries, gen) {
+    logCall(role, Object.assign({ error: err, data: err.logData }, info));
+    if (err.type === 'aborted' || gen !== abortGen) throw err.type === 'aborted' ? err : abortedError();
+    if (!err.retryable || tries.transient >= 1) throw err;
+    tries.transient += 1;
+    if (err.type !== 'bad_response' && err.type !== 'broken_stream') await pause(Number.isFinite(err.retryAfterMs) ? err.retryAfterMs : RETRY_DELAY_MS, gen);
+    else if (gen !== abortGen) throw abortedError();
   }
   function textOf(data) {
     const block = Array.isArray(data && data.content) ? data.content.find(b => b && b.type === 'text') : null;
     return block && typeof block.text === 'string' ? block.text : '';
   }
-  /* Parser, bookkeeper (structured outputs) and chronicle (plain text). A
-     JSON reply cut off by max_tokens is retried once with twice the limit. */
+  /* Parser, bookkeeper (structured outputs), chronicle (plain text) and the
+     Upgrade calls. One retry for a transient failure; a reply cut off by
+     max_tokens is asked for once more with twice the limit, then fails. */
   async function messageCall(role, opts) {
     const total = {};
+    const tries = { transient: 0, grown: false };
+    const gen = abortGen;
     let maxTokens = MAX_TOKENS[role];
     for (let attempt = 1; ; attempt++) {
       const body = requestBody(role, { system: opts.system, user: opts.user, schema: opts.schema, maxTokens });
       const fail = (type, extra) => new ApiError(type, FRIENDLY[type], Object.assign({ usage: total, model: body.model, retryable: false }, extra));
-      const { res, requestId } = await post(role, body);
+      const w = watch(TIMEOUTS.json);
+      let res = null;
+      let requestId = null;
       let data;
-      try { data = await res.json(); } catch (e) {
-        // A body that is not JSON (a cut-off transfer, a proxy page): once more, then give up.
-        const err = fail('bad_response', { requestId, detail: 'reply was not JSON' });
-        if (attempt === 1) { logCall(role, { attempt, status: res.status, requestId, error: err }); continue; }
-        throw err;
+      try {
+        ({ res, requestId } = await send(role, body, w));
+        try { data = await res.json(); } catch (e) {
+          // A body that is not JSON (a cut-off transfer, a proxy page): once more, then give up.
+          if (w.why) throw transportError(e, w);
+          throw fail('bad_response', { requestId, status: res.status, detail: 'reply was not JSON', retryable: true });
+        }
+      } catch (err) {
+        w.stop();
+        const e = transportError(err, w);
+        Object.assign(e, { usage: total, model: body.model, requestId: e.requestId || requestId });
+        await failedTry(role, e, { attempt, status: e.status || (res && res.status) || null, requestId: e.requestId, maxTokens }, tries, gen);
+        continue;
       }
+      w.stop();
       addRaw(total, data.usage);
       const text = textOf(data);
-      logCall(role, { status: res.status, requestId, stopReason: data.stop_reason, usage: data.usage, maxTokens, data: { text: text.slice(0, 4000), stop_details: data.stop_details || null } });
+      logCall(role, { attempt, status: res.status, requestId, stopReason: data.stop_reason, usage: data.usage, maxTokens, data: { text: text.slice(0, 4000), stop_details: data.stop_details || null } });
       if (data.stop_reason === 'refusal') return { result: null, refusal: refusalOf(data.stop_details), usage: total, model: body.model, logged: true };
-      if (opts.schema && data.stop_reason === 'max_tokens') {
-        if (attempt === 1) { maxTokens *= 2; continue; }
+      if (data.stop_reason === 'max_tokens') {
+        if (!tries.grown) { tries.grown = true; maxTokens *= 2; continue; }
         throw fail('max_tokens', { requestId });
       }
       if (!opts.schema) return { result: text.trim(), usage: total, model: body.model, logged: true };
       try { return { result: JSON.parse(text), usage: total, model: body.model, logged: true }; }
       catch (e) {
-        const err = fail('bad_response', { requestId, detail: 'reply did not match the schema' });
-        if (attempt === 1) { logCall(role, { attempt, status: res.status, requestId, error: err }); continue; }
-        throw err;
+        const err = fail('bad_response', { requestId, detail: 'reply did not match the schema', retryable: true });
+        await failedTry(role, err, { attempt, status: res.status, requestId, maxTokens }, tries, gen);
       }
     }
   }
   /* Server-sent events per docs/API_NOTES.md: text_delta is appended,
      thinking and signature deltas are ignored, stop_reason comes from
-     message_delta, usage from message_start plus message_delta. */
-  async function readStream(res, onDelta) {
-    const out = { text: '', stopReason: null, stopDetails: null, usage: {}, model: null, events: 0 };
+     message_delta, usage from message_start plus message_delta. Every chunk
+     kicks the watch w (the idle timeout). A stream must end with
+     message_stop: one that closes before it is broken (ApiError
+     broken_stream, retryable). An error event throws; overloaded_error and
+     api_error are retryable. */
+  async function readStream(res, onDelta, w) {
+    const out = { text: '', stopReason: null, stopDetails: null, usage: {}, model: null, events: 0, complete: false };
     const blocks = {};
     const handle = block => {
       let data = '';
@@ -9205,12 +9348,15 @@ const Api = (() => {
           if (isObj(ev.delta) && ev.delta.stop_details) out.stopDetails = ev.delta.stop_details;
           if (isObj(ev.usage)) for (const k of Object.keys(ev.usage)) if (typeof ev.usage[k] === 'number') out.usage[k] = ev.usage[k];
           break;
+        case 'message_stop':
+          out.complete = true;
+          break;
         case 'error': {
           const e = isObj(ev.error) ? ev.error : {};
           const type = FRIENDLY[e.type] ? e.type : 'api_error';
-          throw new ApiError(type, FRIENDLY[type], { detail: cleanText(e.message, 1000) || null, retryable: false, usage: out.usage, partial: out.text });
+          throw new ApiError(type, FRIENDLY[type], { detail: cleanText(e.message, 1000) || null, retryable: type === 'overloaded_error' || type === 'api_error', usage: out.usage, partial: out.text });
         }
-        default: break; // ping, content_block_stop, message_stop
+        default: break; // ping, content_block_stop
       }
     };
     const reader = res.body.getReader();
@@ -9219,6 +9365,7 @@ const Api = (() => {
     try {
       for (;;) {
         const { value, done } = await reader.read();
+        if (w && value && value.length) w.kick();
         if (value) buf += dec.decode(value, { stream: true });
         if (done) buf += dec.decode();
         let m;
@@ -9231,7 +9378,13 @@ const Api = (() => {
       }
     } catch (err) {
       try { reader.cancel(); } catch (e) { /* already closed */ }
-      throw err;
+      if (err instanceof ApiError) throw err;
+      const e = transportError(err, w);
+      if (!e.usage) e.usage = out.usage;
+      throw e;
+    }
+    if (!out.complete && out.stopReason !== 'refusal') {
+      throw new ApiError('broken_stream', FRIENDLY.broken_stream, { retryable: true, detail: `the stream ended before message_stop${out.stopReason ? ` (stop_reason ${out.stopReason})` : ''}`, usage: out.usage, partial: out.text });
     }
     return out;
   }
@@ -9242,6 +9395,20 @@ const Api = (() => {
       return `TURN ${e.turn}${when}\n${player}${e.roll && e.roll.line ? `\nROLL: ${e.roll.line}` : ''}\nNARRATION: ${e.narration || ''}`;
     }).join('\n\n');
   }
+  /* The narrator's three cached blocks for a packet: the style guide with
+     its examples, the town, the cast. */
+  function narratorBlocks(packet) {
+    return { system: packet.system || Style.systemPrompt(), blocks: [packet.town !== undefined ? packet.town : Pipeline.townBlock(), packet.cast || Pipeline.castBlock()] };
+  }
+  /* A rewrite is sent as an edit: the packet, the first draft as the
+     assistant's reply, then the note (the conversation ends with the user,
+     as the API requires). Null for a first draft. */
+  const EDIT_RULE = 'Change only what the note names; keep everything else in the draft as it is.';
+  function editMessages(packet) {
+    if (!isObj(packet) || typeof packet.draft !== 'string' || !packet.draft.trim() || typeof packet.note !== 'string') return null;
+    return [{ role: 'user', content: String(packet.base || packet.text || '') }, { role: 'assistant', content: packet.draft.trim() }, { role: 'user', content: `${packet.note}\n${EDIT_RULE}` }];
+  }
+  let lastNarratorAt = null; // when the narrator cache was last written or read (ms), for prewarm()
   const Real = {
     name: 'claude',
     parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
@@ -9251,55 +9418,143 @@ const Api = (() => {
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
     checkClock(packet) { return messageCall('clock', { system: SYSTEM.clock, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
     fixPeople(packet) { return messageCall('people', { system: SYSTEM.people, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
+    /* Streamed. A stream that breaks, times out or carries an overloaded or
+       internal error is asked for once more (the feed is cleared through
+       onDelta('', '') first); a reply cut off by max_tokens is asked for once
+       more with twice the limit, then fails, so a truncated narration is
+       never returned. Usage adds up over the tries. */
     async narrate(packet, onDelta) {
-      // Three cached system blocks: the style guide with its examples (byte-identical per style), the town (Pipeline.townBlock: its history, recent events and places; it never changes in play), then the cast (Pipeline.castBlock, the same until the cast changes).
-      const body = requestBody('narrator', { system: packet.system || Style.systemPrompt(), blocks: [packet.town !== undefined ? packet.town : Pipeline.townBlock(), packet.cast || Pipeline.castBlock()], user: packet.text, cache: true, stream: true });
-      // A stream cut off part-way (the phone locking, a dropped connection) is asked for once more before the turn fails.
+      const sys = narratorBlocks(packet);
+      const messages = editMessages(packet);
+      const total = {};
+      const tries = { transient: 0, grown: false };
+      const gen = abortGen;
+      let maxTokens = narratorMaxTokens();
+      const reset = () => { if (onDelta) onDelta('', ''); };
       for (let attempt = 1; ; attempt++) {
-        const { res, requestId } = await post('narrator', body);
+        const body = requestBody('narrator', { system: sys.system, blocks: sys.blocks, user: packet.text, messages, cache: true, stream: true, maxTokens });
+        const w = watch(TIMEOUTS.stream);
+        let res = null;
+        let requestId = null;
         let out;
         try {
+          ({ res, requestId } = await send('narrator', body, w));
           if (/json/i.test(res.headers.get('content-type') || '')) {
-            const data = await res.json();
-            out = { text: textOf(data), stopReason: data.stop_reason || null, stopDetails: data.stop_details || null, usage: data.usage || {}, model: data.model || null, events: 0 };
+            let data;
+            try { data = await res.json(); } catch (e) {
+              if (w.why) throw transportError(e, w);
+              throw new ApiError('bad_response', FRIENDLY.bad_response, { requestId, retryable: true, detail: `${String(e && e.message)}${tries.transient < 1 ? '; trying again' : ''}` });
+            }
+            out = { text: textOf(data), stopReason: data.stop_reason || null, stopDetails: data.stop_details || null, usage: data.usage || {}, model: data.model || null, events: 0, complete: true };
             if (onDelta && out.text) onDelta(out.text, out.text);
-          } else out = await readStream(res, onDelta);
+          } else out = await readStream(res, onDelta, w);
         } catch (err) {
-          if (err instanceof ApiError) { err.requestId = requestId; err.model = body.model; logCall('narrator', { attempt, status: res.status, requestId, error: err, usage: err.usage }); throw err; }
-          const e = new ApiError('bad_response', FRIENDLY.bad_response, { requestId, retryable: false, detail: `${String(err && err.message)}${attempt === 1 ? '; trying again' : ''}`, model: body.model });
-          logCall('narrator', { attempt, status: res.status, requestId, error: e });
-          if (attempt === 1) { if (onDelta) onDelta('', ''); continue; }
-          throw e;
+          w.stop();
+          const e = transportError(err, w);
+          if (isObj(e.usage) && e.usage !== total) addRaw(total, e.usage);
+          Object.assign(e, { usage: total, model: body.model, requestId: e.requestId || requestId });
+          if (e.retryable && tries.transient < 1) reset();
+          await failedTry('narrator', e, { attempt, status: e.status || (res && res.status) || null, requestId: e.requestId, maxTokens }, tries, gen);
+          continue;
         }
-        logCall('narrator', { attempt, status: res.status, requestId, stopReason: out.stopReason, usage: out.usage, maxTokens: body.max_tokens, data: { text: out.text.slice(0, 4000), events: out.events, stop_details: out.stopDetails } });
-        if (out.stopReason === 'refusal') return { result: { text: out.text, stopReason: 'refusal' }, refusal: refusalOf(out.stopDetails), usage: out.usage, model: body.model, logged: true };
-        return { result: { text: out.text.trim(), stopReason: out.stopReason || 'end_turn' }, usage: out.usage, model: body.model, logged: true };
+        w.stop();
+        addRaw(total, out.usage);
+        lastNarratorAt = Date.now();
+        logCall('narrator', { attempt, status: res.status, requestId, stopReason: out.stopReason, usage: out.usage, maxTokens, data: { text: out.text.slice(0, 4000), events: out.events, stop_details: out.stopDetails } });
+        if (out.stopReason === 'refusal') return { result: { text: out.text, stopReason: 'refusal' }, refusal: refusalOf(out.stopDetails), usage: total, model: body.model, logged: true };
+        if (out.stopReason === 'max_tokens') {
+          if (!tries.grown) { tries.grown = true; maxTokens *= 2; reset(); continue; }
+          throw new ApiError('max_tokens', FRIENDLY.max_tokens, { requestId, retryable: false, usage: total, model: body.model, partial: out.text });
+        }
+        return { result: { text: out.text.trim(), stopReason: out.stopReason || 'end_turn' }, usage: total, model: body.model, logged: true };
       }
     }
   };
+  /* The narrator's blocks are cached for an hour. When the last narration was
+     over PREWARM_AFTER_MS ago (the cache has gone or is about to), one
+     max_tokens 1 call with the same three blocks writes it while the parser
+     works, so the narration reads it; the write was due anyway. Fire and
+     forget: its usage is counted, a failure only logged. Real provider
+     only, and only when a narration has happened this session. packet is
+     the narrator's blocks, or a function that builds them (only when due). */
+  function prewarm(packet) {
+    if (provider() !== Real || !validKey(Storage.getApiKey()) || lastNarratorAt === null || Date.now() - lastNarratorAt <= PREWARM_AFTER_MS) return false;
+    const sys = narratorBlocks((typeof packet === 'function' ? packet() : packet) || {});
+    const body = requestBody('narrator', { system: sys.system, blocks: sys.blocks, user: 'Reply with one word: ready.', cache: true, maxTokens: 1 });
+    body.output_config.effort = 'low';
+    lastNarratorAt = Date.now();
+    (async () => {
+      const w = watch(TIMEOUTS.json);
+      let res = null;
+      try {
+        let requestId;
+        ({ res, requestId } = await send('narrator', body, w));
+        const data = await res.json();
+        w.stop();
+        if (isObj(data.usage)) record(body.model, data.usage);
+        logCall('prewarm', { status: res.status, requestId, stopReason: data.stop_reason, usage: data.usage, maxTokens: 1, data: { text: textOf(data).slice(0, 200) } });
+      } catch (err) {
+        w.stop();
+        const e = transportError(err, w);
+        remember({ role: 'prewarm', provider: 'claude', status: e.status || (res && res.status) || null, requestId: e.requestId || null, error: { type: e.type, message: e.detail || e.message }, data: null });
+      }
+    })();
+    return true;
+  }
+  /* Settings' "Check key": GET /v1/models with the key. Resolves to
+     { ok, status, message }; never throws. */
+  async function checkKey(k) {
+    const key = k === undefined ? Storage.getApiKey() : String(k || '').trim();
+    if (!key) return { ok: false, status: null, message: FRIENDLY.no_key };
+    if (!validKey(key)) return { ok: false, status: null, message: FRIENDLY.bad_key };
+    const w = watch(TIMEOUTS.key);
+    try {
+      const res = await fetch(MODELS_ENDPOINT, { method: 'GET', headers: headers(key), signal: w.signal });
+      if (res.ok) return { ok: true, status: res.status, message: 'The key works.' };
+      let payload = null;
+      try { payload = await res.json(); } catch (e) { /* not JSON */ }
+      const e = httpError(res.status, payload, res.headers.get('request-id'));
+      return { ok: false, status: res.status, message: e.message, detail: e.detail || null };
+    } catch (err) {
+      const e = transportError(err, w);
+      return { ok: false, status: null, message: e.message, detail: e.detail || null };
+    } finally { w.stop(); }
+  }
 
   function provider() { return Storage.settings().mockMode ? Mock : Real; }
   function isRefusal(x) { return !!(x && x.refused === true); }
+  /* Every call goes through here: usage is recorded, a refusal becomes
+     { refused, role, ... }, and Stop (abort) rejects it at once with
+     ApiError 'aborted', whichever provider is answering. */
   async function call(role, method, args) {
     const p = provider();
     let out;
+    let cancel = null;
+    const stopped = new Promise((resolve, reject) => { cancel = () => reject(abortedError()); wakers.add(cancel); });
+    stopped.catch(() => {});
     try {
-      out = await p[method].apply(p, args);
+      out = await Promise.race([p[method].apply(p, args), stopped]);
     } catch (err) {
-      if (err && err.usage) record(err.model || roleModel(role), err.usage);
+      if (err && err.usage && err.type !== 'aborted') record(err.model || roleModel(role), err.usage);
       throw err;
-    }
+    } finally { wakers.delete(cancel); }
     if (out && out.usage) record(out.model || roleModel(role), out.usage);
     if (!out.logged) remember({ role, provider: p.name, data: out.refusal ? { refusal: out.refusal } : out.result });
     if (out.refusal) return { refused: true, role, category: out.refusal.category, explanation: out.refusal.explanation };
     return out.result;
   }
   return {
-    ENDPOINT, API_VERSION, MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_STATUSES, SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
+    ENDPOINT, MODELS_ENDPOINT, API_VERSION, MAX_TOKENS, NARRATOR_MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_AFTER_MAX_MS, RETRY_STATUSES, TIMEOUTS, CACHE_CONTROL, PREWARM_AFTER_MS, KEY_RE,
+    SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
     ApiError, Mock, Real, usage, responses,
-    headers, requestBody, costOf, roleModel, roleEffort, isRefusal, readStream, chronicleText,
+    headers, requestBody, costOf, priceOf, roleModel, roleEffort, narratorMaxTokens, isRefusal, readStream, chronicleText, retryAfterMs, validKey, editMessages,
     providerName: () => provider().name,
     beginTurn() { usage.turn = blankUsage(); },
+    abort,
+    checkKey,
+    prewarm,
+    get lastNarratorAt() { return lastNarratorAt; },
+    set lastNarratorAt(v) { lastNarratorAt = Number.isFinite(v) ? v : null; },
     parse: packet => call('parser', 'parse', [packet]),
     narrate: (packet, onDelta) => call('narrator', 'narrate', [packet, onDelta]),
     bookkeep: packet => call('bookkeeper', 'bookkeep', [packet]),
@@ -9394,30 +9649,65 @@ const Api = (() => {
    (Mavis Toler, Dewayne's wife, becomes Mavis Mangum, keeping what she
    remembers and every turn that names her), keeps anyone nobody matches
    for the player to edit or remove, and is marked castFixed (fullCast).
-   It is deterministic: no call, in mock mode or with the API. */
+   It is deterministic: no call, in mock mode or with the API.
+
+   Version 8, "An arc" (rules for the calendar, town events, an ending,
+   obligations, news, bans): an older game's copy of the town gains the
+   calendar, the events and the epilogue, its rumours their tellers and
+   threads, its threads their rewards (only what it lacks: nothing it has,
+   a town of its own or an edited one, is overwritten); the state gains
+   the news, obligations, bans and fired-events lists and the instant
+   count; a loose end whose seed has not fired yet gets the obligation its
+   option now carries (one that already fired gets none: its moment is
+   past), and a grudge or favour seed not fired yet gets the effects of the
+   template it was written from. Deterministic: no call.
+
+   Each step stamps the rules version as it completes and has a snapshot
+   of its own (Pipeline.updateGame), so a failure at one step keeps the
+   steps before it. A save from a newer build than this one (newer) is
+   never updated. */
 const Upgrade = (() => {
   const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
-  const PER_PERSON = 6;
+  // A re-read never cuts what the rules allow: as many lines as a person may hold.
+  const PER_PERSON = State.MEMORY_MAX;
   const CHUNK = 40;
+  const SHORT_WORDS = 12;
   const NOTICES = {
     start: 'Updating this game to the latest rules...',
     refused: 'The model declined to re-read this game, so nothing was changed. You can keep playing it as it is.',
-    failed: 'Nothing was changed; the game is as it was.'
+    failed: 'Nothing was changed; the game is as it was.',
+    newer: 'This game was saved by a newer version of the game than this one, so it cannot be updated here. It plays as it is; open it in the newer version to keep everything it added.',
+    kept: titles => `The step${titles.length === 1 ? '' : 's'} before it (${titles.join(', ')}) ${titles.length === 1 ? 'was' : 'were'} kept:`,
+    refusedStep: title => `The model declined the step "${title}", so that step changed nothing.`,
+    failedStep: title => `The step "${title}" changed nothing.`
   };
   function isProtected(m) { return !!m && PROTECTED.some(re => re.test(String(m.text || ''))); }
   function behind(st) { return !!st && State.rulesVersion(st) < State.RULES_VERSION; }
+  function newer(st) { return !!st && State.rulesVersion(st) > State.RULES_VERSION; }
+  /* The steps this build knows (a step newer than State.RULES_VERSION waits
+     until the engine is at that version). */
+  function known() { return MIGRATIONS.filter(m => m.version <= State.RULES_VERSION); }
   function pending(st) {
+    if (newer(st)) return [];
     const v = State.rulesVersion(st);
-    const due = MIGRATIONS.filter(m => m.version > v);
-    return due.length ? due : MIGRATIONS.filter(m => m.rerun);
+    const due = known().filter(m => m.version > v);
+    return due.length ? due : known().filter(m => m.rerun);
   }
   function note(st, reason) { State.debugLog.push({ turn: st ? st.meta.turn : 0, kind: 'upgrade', reason }); }
   const open = n => (n.memories || []).filter(m => !isProtected(m));
+  /* A line that already follows the rules: short (SHORT_WORDS words, the
+     bookkeeper's limit) and no longer than a memory may be. */
+  function isShort(m) {
+    const t = String((m && m.text) || '').trim();
+    return t.length <= State.MEMORY_TEXT_MAX && t.split(/\s+/).filter(Boolean).length <= SHORT_WORDS;
+  }
 
   // ----- version 2: memories that matter -----
   /* Everyone with at least one memory the rewrite may touch, in groups of
-     about CHUNK memories (a person is never split). */
-  function candidates(st) { return st.npcs.filter(n => open(n).length > 0); }
+     about CHUNK memories (a person is never split). Someone whose lines are
+     all short already and within PER_PERSON is left alone: there is nothing
+     to rewrite and nothing the re-read may cut. */
+  function candidates(st) { return st.npcs.filter(n => open(n).length > 0 && !(open(n).every(isShort) && open(n).length <= PER_PERSON)); }
   function chunks(npcs) {
     const out = [];
     let cur = [];
@@ -9769,7 +10059,8 @@ const Upgrade = (() => {
       .filter(w => w.length >= 4 && !ROLE_STOP.has(w)).concat((n.tags || []).map(t => String(t).toLowerCase()));
   }
   function firstOf(n) { return String(State.firstName(n) || '').toLowerCase(); }
-  const sameRel = (a, b) => !!a && !!b && (a === b || genderWord(a, 'she') === genderWord(b, 'she'));
+  // The same relation either way round ("wife" and "husband" are one tie): Town's, once it shares it.
+  const sameRel = (a, b) => (typeof Town.sameRel === 'function' ? Town.sameRel(a, b) : !!a && !!b && (a === b || genderWord(a, 'she') === genderWord(b, 'she')));
   /* The cast member a made-up person was: the one who is that relation to
      the person their record names ("Dewayne's wife" is Mavis), else the one
      their name is (State.samePerson: "Mavis" and "Mavis Mangum"), else the
@@ -9948,15 +10239,99 @@ const Upgrade = (() => {
     return res;
   }
 
+  // ----- version 8: an arc -----
+  const ARC_TOWN_KEYS = Object.freeze(['calendar', 'events', 'epilogue']);
+  const ARC_FIELDS = Object.freeze({ rumours: ['tellerIds', 'threadId'], threads: ['reward'] });
+  /* Copies the fields a record lacks from the town data's record with the
+     same id. Returns how many records gained something. */
+  function fillFields(list, from, keys) {
+    if (!Array.isArray(list) || !Array.isArray(from)) return 0;
+    let k = 0;
+    for (const x of list) {
+      const src = isObj(x) ? from.find(y => isObj(y) && y.id === x.id) : null;
+      if (!src) continue;
+      let any = false;
+      for (const key of keys) if (x[key] === undefined && src[key] !== undefined) { x[key] = deepCopy(src[key]); any = true; }
+      if (any) k += 1;
+    }
+    return k;
+  }
+  /* The obligation a loose end's option carries (LOOSE_ENDS: an option
+     written as { text, obligation }, or the kind's own obligation). */
+  function looseEndObligation(le) {
+    const def = isObj(le) ? LOOSE_ENDS[le.kind] : null;
+    if (!def) return null;
+    const opts = Array.isArray(def.options) ? def.options : [];
+    const i = opts.findIndex(o => cleanText(typeof o === 'string' ? o : isObj(o) ? o.text : '', 200) === cleanText(le.text, 200));
+    const opt = i >= 0 ? opts[i] : null;
+    if (isObj(opt) && isObj(opt.obligation)) return opt.obligation;
+    if (i >= 0 && Array.isArray(def.obligations) && isObj(def.obligations[i])) return def.obligations[i];
+    return isObj(def.obligation) ? def.obligation : null;
+  }
+  function seedDay(st, sd) {
+    if (isObj(sd.trigger) && sd.trigger.type === 'day' && Number.isInteger(toInt(sd.trigger.value))) return toInt(sd.trigger.value);
+    return Number.isInteger(sd.notBeforeDay) ? sd.notBeforeDay : st.time.day + 1;
+  }
+  async function anArc(st) {
+    const res = { town: [], rumours: 0, threads: 0, obligations: 0, feelings: 0, defaults: [], calls: 0 };
+    const T = st.meta.townName === TOWN_DATA.name ? TOWN_DATA : null;
+    const town = State.town;
+    if (T && isObj(town)) {
+      for (const k of ARC_TOWN_KEYS) if (T[k] !== undefined && town[k] === undefined) { town[k] = deepCopy(T[k]); res.town.push(k); }
+      for (const k of Object.keys(ARC_FIELDS)) fillFields(town[k], T[k], ARC_FIELDS[k]);
+    }
+    if (T) {
+      res.rumours = fillFields(st.rumours, T.rumours, ARC_FIELDS.rumours);
+      res.threads = fillFields(st.threads, T.threads, ARC_FIELDS.threads);
+    }
+    // The lists the arc keeps, empty where the save has none.
+    const need = (obj, key, value, label) => { if (isObj(obj) && obj[key] === undefined) { obj[key] = value; res.defaults.push(label); } };
+    need(st, 'news', [], 'news');
+    need(st.player, 'obligations', [], 'obligations');
+    need(st, 'bans', [], 'bans');
+    need(st, 'eventsFired', [], 'events fired');
+    need(st.time, 'instants', 0, 'instants');
+    // A loose end still to come carries its obligation; one that already fired gets none.
+    for (const le of Array.isArray(st.player.looseEnds) ? st.player.looseEnds : []) {
+      const sd = le && le.seedId ? st.seeds.find(x => x.id === le.seedId) : null;
+      if (!sd || sd.fired || (Array.isArray(sd.effects) && sd.effects.length)) continue;
+      const ob = looseEndObligation(le);
+      if (!ob) continue;
+      const eff = typeof State.obligationEffect === 'function' ? State.obligationEffect(le, sd, ob)
+        : { op: 'addObligation', kind: ob.kind || le.kind, npcId: le.npcId, text: cleanText(ob.text || le.text, 200), amount: Number.isFinite(ob.amount) ? ob.amount : null, dueDay: seedDay(st, sd) + (toInt(ob.dueOffset) || 3), itemName: ob.itemName || null, onMiss: deepCopy(ob.onMiss || []), onMet: deepCopy(ob.onMet || []) };
+      if (!isObj(eff)) continue;
+      sd.effects = [eff];
+      res.obligations += 1;
+    }
+    // A grudge or favour still to come does what its template now does (matched by its words).
+    for (const sd of st.seeds) {
+      if (!sd || sd.fired || !isObj(sd.origin) || (sd.origin.kind !== 'grudge' && sd.origin.kind !== 'favour') || (Array.isArray(sd.effects) && sd.effects.length)) continue;
+      const list = sd.origin.kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES;
+      const n = st.npcs.find(x => x.id === sd.origin.npcId);
+      const t = (Array.isArray(list) ? list : []).find(x => isObj(x) && Array.isArray(x.effects) && x.effects.length && fillTemplate(x.effect, { npc: n ? n.name : '', player: st.player.name }) === sd.effect);
+      if (!t) continue;
+      sd.effects = deepCopy(t.effects);
+      res.feelings += 1;
+    }
+    const parts = [];
+    if (res.town.length) parts.push(`The town now has its ${res.town.map(k => ({ calendar: 'calendar', events: 'events', epilogue: 'ending' }[k] || k)).join(', ')}.`);
+    if (res.rumours || res.threads) parts.push(`${res.rumours} rumour${res.rumours === 1 ? '' : 's'} and ${res.threads} thread${res.threads === 1 ? '' : 's'} filled in.`);
+    if (res.obligations) parts.push(`${res.obligations} loose end${res.obligations === 1 ? '' : 's'} still to come now ${res.obligations === 1 ? 'carries an obligation' : 'carry obligations'}.`);
+    if (res.feelings) parts.push(`${res.feelings} grudge or favour${res.feelings === 1 ? '' : 's'} still to come now ${res.feelings === 1 ? 'has' : 'have'} real effects.`);
+    res.text = parts.length ? parts.join(' ') : 'The story already has its arc.';
+    return res;
+  }
+
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
     Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces }),
     Object.freeze({ version: 4, title: 'Clock follows the story', rerun: true, run: followStory }),
     Object.freeze({ version: 5, title: 'People match the story', rerun: true, run: matchStory }),
     Object.freeze({ version: 6, title: 'A full cast', rerun: true, run: fullCast }),
-    Object.freeze({ version: 7, title: 'A lived-in town', rerun: true, run: livedInTown })
+    Object.freeze({ version: 7, title: 'A lived-in town', rerun: true, run: livedInTown }),
+    Object.freeze({ version: 8, title: 'An arc', rerun: true, run: anArc })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, behind, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData, looseEndObligation };
 })();
 
 // ===== Module: Pipeline =====
@@ -9980,14 +10355,34 @@ const Upgrade = (() => {
    exact words. The parser hears MODE say, the action is forced social and
    aimed at the addressee (sayAction), nobody moves, the narrator gets
    PLAYER SAYS instead of ACTION, and the log entry keeps mode and addressee.
-   A Do turn carries { mode: 'do' }. */
+   A Do turn carries { mode: 'do' }.
+   Lifecycle (docs/notes/transport.md): setStatusListener(fn) hears each
+   stage (parse, narrate, rewrite, bookkeep, chronicle, idle); abort() is
+   the Stop button (the turn fails cleanly, the input goes back); once the
+   narration is in, acceptsQueue is true and submit() keeps one input to run
+   when the turn ends. A bookkeeper that fails keeps the narration: the
+   engine's own changes stand, the log entry says changes 'not recorded',
+   and the bookkeeper is asked once more in the background. The chronicle
+   runs after the turn is logged and saved. */
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
+    refusedBy: {
+      narrator: 'The narrator declined that one. Try it another way.',
+      parser: 'The parser declined that one. Try it another way.',
+      bookkeeper: 'The bookkeeper declined to record this turn, so the story stands but what changed was not recorded.'
+    },
     noReroll: 'Nothing to reroll: the last turn had no dice roll.',
     locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
-    dead: 'Your story has ended. Load a saved game or start a new one.'
+    dead: 'Your story has ended. Load a saved game or start a new one.',
+    aborted: 'Stopped. Your action was kept in the box.',
+    bookFailed: 'What changed this turn could not be recorded yet (the bookkeeper did not answer); the story stands. Trying once more in the background.',
+    bookLate: 'What changed on that turn is recorded now.',
+    unknownPlace: "You don't know where that is yet. Ask around.",
+    epilogueEnd: 'This is one ending. You can keep playing.'
   };
+  /* The status line above the input (ui), one per stage. */
+  const STATUS_TEXT = { parse: 'Reading your action…', narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Writing up the story so far…', idle: '' };
   const CONSEQUENCES = {
     might: { name: 'Wrenched shoulder', effect: '-1 might' },
     wits: { name: 'Rattled', effect: '-1 wits' },
@@ -9997,8 +10392,19 @@ const Pipeline = (() => {
   let busy = false;
   let lastTurn = null;
   let turnState = null; // the State.current a running turn or arrival started on
+  let acceptsQueue = false; // the narration is in; the bookkeeper or the chronicle is running
+  let queued = null; // { text, opts }: one input waiting for the turn to end
+  let pendingEpilogue = null; // { text }: an ending in the news, narrated when this turn ends
+  let statusFn = null;
+  const idleWaiters = [];
   /* Test and debug hook: force the next d20 (e.g. 20 for a critical). */
   const hooks = { nextD20: null };
+  function status(stage, message) {
+    if (typeof statusFn !== 'function') return;
+    try { statusFn({ stage, message: message === undefined ? (STATUS_TEXT[stage] || '') : message }); } catch (e) { console.error(e); }
+  }
+  /* Resolves when no turn is running (at once if none is). */
+  function whenIdle() { return busy ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve(); }
 
   // ----- small helpers -----
   function here() { return State.loc(State.current.player.locationId); }
@@ -10129,22 +10535,59 @@ const Pipeline = (() => {
     const w = m[1].toLowerCase();
     return { dawn: 'morning', noon: 'afternoon', midday: 'afternoon', dusk: 'evening', midnight: 'night', tonight: 'night' }[w] || w;
   }
+  /* The clock moves through State.apply({ advanceTime }). cost is a time
+     cost word, or { cost, toPhaseStart?, cause? } (rules version 8: the last
+     long of /wait and /skip lands at the start of its phase; a defeat's long
+     is not a night without sleep). An engine before rules version 8 gets the
+     word (it would refuse the object), and toPhaseStart is then done here. */
+  function advance(cost) {
+    if (!isObj(cost)) return State.apply({ advanceTime: cost });
+    let r = State.RULES_VERSION >= 8 ? State.apply({ advanceTime: cost }) : null;
+    if (!r || r.rejected.length || !r.time) r = State.apply({ advanceTime: cost.cost });
+    const t = State.current && State.current.time;
+    if (cost.toPhaseStart && r.time && t && (t.shorts | 0) !== 0) t.shorts = 0;
+    return r;
+  }
+  /* Town news (World writes state.news): public items the player has not
+     seen yet. An item marked epilogue is an ending; its turn runs when this
+     one is over. */
+  function newsList() {
+    const s = State.current;
+    const list = State.news;
+    return Array.isArray(list) ? list : s && Array.isArray(s.news) ? s.news : [];
+  }
+  function noteEnding() {
+    const end = newsList().find(n => isObj(n) && n.epilogue === true && !n.seen);
+    if (!end || pendingEpilogue) return;
+    end.seen = true;
+    pendingEpilogue = { text: cleanText(end.text, 1500), day: end.day };
+  }
+  /* A new morning: the news the player has not heard yet, as one quiet block. */
+  function overnightNews() {
+    const unseen = newsList().filter(n => isObj(n) && n.public !== false && !n.seen && n.epilogue !== true);
+    if (!unseen.length) return;
+    for (const n of unseen) n.seen = true;
+    const told = unseen.map(n => cleanText(n.text, 300)).filter(Boolean).slice(-6);
+    if (told.length) UI.feed.quiet(`Overnight in town: ${told.join(' ')}`);
+  }
   /* Time passes: State.apply advances the clock, then World.tick runs once
      for every phase that went by, in order (SPEC section 8). A short held at
      night (night holds until the player sleeps: State advanceTime) passes
-     no phase, so nothing ticks. */
+     no phase, so nothing ticks. A new morning brings the overnight news. */
   function passTime(cost, cause) {
     const s0 = State.current;
     const here = s0 ? s0.player.locationId : null;
     const wasHere = here ? State.npcsAt(here).map(n => n.id) : [];
-    const t = State.apply({ advanceTime: cost }).time;
+    const t = advance(cost).time;
     if (!t || !t.phasesPassed) return t || null;
     let cur = { day: t.from.day, phase: t.from.phase };
+    let morning = false;
     for (let i = 0; i < t.phasesPassed; i++) {
       const idx = PHASES.indexOf(cur.phase);
       const next = idx === PHASES.length - 1 ? { day: cur.day + 1, phase: PHASES[0] } : { day: cur.day, phase: PHASES[idx + 1] };
       const res = World.tick({ from: cur, to: next, phasesPassed: 1, step: i + 1, of: t.phasesPassed, cause: cause || 'turn' });
       for (const ev of (res && Array.isArray(res.events) ? res.events : [])) if (ev && typeof ev.notice === 'string') UI.feed.quiet(ev.notice);
+      if (next.phase === PHASES[0]) morning = true;
       cur = next;
     }
     // Who came and went where the player stands: the next narration shows it happening.
@@ -10153,6 +10596,10 @@ const Pipeline = (() => {
       const arrived = nowHere.filter(id => !wasHere.includes(id));
       const left = wasHere.filter(id => !nowHere.includes(id));
       if (arrived.length || left.length) State.apply({ sceneChange: { locationId: here, arrived, left, cause: cause || 'turn' } });
+    }
+    if (State.current === s0) {
+      if (morning) overnightNews();
+      noteEnding();
     }
     return t;
   }
@@ -10210,7 +10657,8 @@ const Pipeline = (() => {
   function normaliseParse(raw) {
     const r = isObj(raw) ? raw : {};
     const out = {
-      actionType: ACTION_TYPES.includes(r.actionType) ? r.actionType : 'other',
+      // gamble: the card game, resolved in code (gamble()); accepted whether or not the shared list has it yet.
+      actionType: ACTION_TYPES.includes(r.actionType) || r.actionType === 'gamble' ? r.actionType : 'other',
       summary: cleanText(r.summary, 200),
       targets: strArr(r.targets, 120),
       destinationId: typeof r.destinationId === 'string' && r.destinationId ? r.destinationId : null,
@@ -10406,12 +10854,16 @@ const Pipeline = (() => {
     const rel = n.created.relationToNpcId ? State.npc(n.created.relationToNpcId) : null;
     return (n.home && n.home.locationId === l.id) || n.created.locationId === l.id || (!!rel && HOUSEHOLD_RELATIONS.includes(n.created.relation) && State.homeOf(rel) === l);
   }
+  /* opts.defer (a turn, not a fact): a thing that would be made for an
+     action that rolls is only noted in out.deferred and its new: target
+     kept; createDeferred() makes it after the roll, and only if the roll
+     succeeded (a failed search finds nothing). */
   async function checkAndCreate(action, opts) {
     opts = opts || {};
     const s = State.current;
     const l = here();
     const presentIds = State.npcsAt(l.id).map(n => n.id);
-    const out = { targets: [], created: [], notPresent: [], links: [] };
+    const out = { targets: [], created: [], notPresent: [], links: [], deferred: [] };
     const unproven = action.declaresWorldFact && !opts.fact;
     const keep = id => { if (!out.targets.includes(id)) out.targets.push(id); };
     const existing = (id, ref) => {
@@ -10445,6 +10897,7 @@ const Pipeline = (() => {
       if (!verdict.plausible) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }); continue; }
       // Everyone who exists is in the cast: a person nobody in it answers to is simply not there.
       if (verdict.kind === 'npc') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', person: true, why: 'nobody like that lives in this town' }); continue; }
+      if (opts.defer && !opts.fact && verdict.kind === 'item' && action.needsRoll) { out.deferred.push({ raw, desc }); keep(raw); continue; }
       const made = await createEntity(verdict.kind, desc, { fact: !!opts.fact, homeId: linkedLoc, fromId: linkedLoc, input: opts.input });
       if (State.current !== s) throw Object.assign(new Error('another game was loaded'), { replaced: true });
       if (made.existing) { existing(made.existing, raw); continue; }
@@ -10462,6 +10915,30 @@ const Pipeline = (() => {
     if (action.destinationId === l.id) action.destinationId = null;
     if (action.usesItemId && !s.player.inventory.some(i => i.id === action.usesItemId)) action.usesItemId = null;
     return out;
+  }
+  /* After the roll: the things checkAndCreate held back exist if there was
+     no roll or it succeeded; otherwise they are not found (NOT PRESENT, and
+     the bookkeeper hears to record nothing for them). */
+  async function createDeferred(ctx) {
+    const list = Array.isArray(ctx.deferred) ? ctx.deferred : [];
+    ctx.deferred = [];
+    if (!list.length) return;
+    const a = ctx.action;
+    const found = !ctx.roll || ctx.roll.success;
+    const lost = [];
+    for (const d of list) {
+      const i = a.targets.indexOf(d.raw);
+      if (found) {
+        const made = await createEntity('item', d.desc, { fact: false });
+        ctx.created.push(made);
+        if (i >= 0) a.targets[i] = made.id; else a.targets.push(made.id);
+      } else {
+        if (i >= 0) a.targets.splice(i, 1);
+        ctx.notPresent.push({ ref: d.raw, label: labelFor(d.desc), reason: 'not_found', why: 'not found: the search turns up nothing like it' });
+        lost.push(labelFor(d.desc));
+      }
+    }
+    if (lost.length) (ctx.bookLines = ctx.bookLines || []).push(`NOT FOUND (the roll failed; it does not exist, record nothing about it): ${lost.join(', ')}`);
   }
 
   // ----- step 5: resolve -----
@@ -10496,15 +10973,98 @@ const Pipeline = (() => {
     if (tier === 'partial' && tierOf(d) !== 'partial') { for (let x = 19; x >= 2; x--) if (tierOf(x) === 'partial') { d = x; break; } }
     return d;
   }
+  /* The die for the next roll: a forced one (forceNextRoll, a cheat), or
+     after /undo or /reroll a draw shifted by a salt kept outside the save
+     (the restored state would hand back the very same die). */
+  function nextDie(rollOpts) {
+    let forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
+    hooks.nextD20 = null;
+    if (hooks.nextTier) { forced = dieFor(hooks.nextTier, rollOpts); hooks.nextTier = null; }
+    return forced;
+  }
+  /* The retry lock after a roll: Dice.lock (a set of failed keys, engine-world) when
+     there is one, else meta.lastRollKey through State.apply. exempt: a swing at
+     someone still standing here is never locked. */
+  function lockAfter(roll, key, exempt) {
+    const failed = typeof Dice.lockFor === 'function' ? !!Dice.lockFor(roll, key) : !roll.success;
+    if (typeof Dice.lock === 'function') { if (failed && !exempt) Dice.lock(key, roll); return; }
+    State.apply({ lastRollKey: failed && !exempt ? key : null });
+  }
+  function storyPointFor(ctx, roll) {
+    const s = State.current;
+    if (roll.tier === 'critical' && s.player.storyPoints < State.LIMITS.storyPoints) {
+      State.apply({ storyPointsDelta: 1 });
+      ctx.storyPoint = true;
+      UI.feed.quiet(`Natural 20: you earn a story point (${s.player.storyPoints} of ${State.LIMITS.storyPoints}).`);
+    }
+  }
+  /* Secrets reach the narrator (narratorPacket) only for the people in
+     ctx.revealSecretFor: someone a social roll just succeeded with, or anyone
+     aimed at whose attitude is 50 or more. */
+  function secretsFor(ctx) {
+    const a = ctx.action || {};
+    const present = ctx.presentIds || [];
+    const aimed = (a.targets || []).filter(id => present.includes(id));
+    const ids = new Set();
+    const social = isSay(ctx.speech) || Dice.SOCIAL_ACTIONS.includes(a.actionType);
+    if (ctx.roll && ctx.roll.success && social && aimed.length) ids.add(aimed[0]);
+    for (const id of aimed) { const n = State.npc(id); if (n && n.attitude >= 50) ids.add(id); }
+    if (ids.size) ctx.revealSecretFor = Array.from(ids);
+  }
+  function isPolice(n) { return !!n && (n.tags || []).includes('police'); }
+  /* A fight (CONTRACTS section 12): the player takes Dice.fightDamage(tier)
+     (1 on a partial, 1 to 3 on a failure, 3 on a fumble); a hit on someone
+     counts toward state.fight (one person, one scene) and the third puts
+     them down (World.knockDown: the due event is narrated this turn); an
+     attack with the police here, or in a police station, ends in the cell
+     after the narration (ctx.arrest, World.arrestPlayer). */
+  function fight(ctx, roll, npcTarget) {
+    const s = State.current;
+    const p = s.player;
+    if (npcTarget) ctx.attacked = npcTarget;
+    const dmg = typeof Dice.fightDamage === 'function' ? Math.max(0, toInt(Dice.fightDamage(roll.tier)) || 0)
+      : roll.tier === 'partial' ? 1 : roll.tier === 'failure' ? Rng.int(1, 3) : roll.tier === 'critical_failure' ? 3 : 0;
+    if (dmg > 0) {
+      State.apply({ hpDelta: -dmg });
+      ctx.damage = dmg;
+      ctx.defeated = p.hp <= 0;
+      UI.feed.quiet(`You take ${dmg} damage (HP ${p.hp}/${p.maxHp}).`);
+    }
+    if (npcTarget && roll.success) {
+      const t = s.time;
+      const f = isObj(s.fight) ? s.fight : null;
+      const same = !!f && f.npcId === npcTarget && f.day === t.day && f.phase === t.phase && f.locationId === p.locationId;
+      const hits = (same ? (f.hits | 0) : 0) + 1;
+      s.fight = { npcId: npcTarget, hits, day: t.day, phase: t.phase, locationId: p.locationId };
+      ctx.hits = { [npcTarget]: hits };
+      if (hits >= 3) {
+        if (typeof World.knockDown === 'function') { World.knockDown(npcTarget, { turn: s.meta.turn, locationId: p.locationId }); ctx.knockedDown = npcTarget; }
+        delete s.fight;
+      }
+    }
+    const l = here();
+    const cop = State.npcsAt(l.id).find(isPolice) || null;
+    if (cop || (PLACE_KINDS.watch || []).includes(l.type) || l.type === 'police') ctx.arrest = { npcId: cop ? cop.id : null, locationId: l.id };
+  }
   /* Returns { locked: true } when the identical failed roll is retried. An
      action without a roll leaves the lock alone here: runTurn lifts it once
-     the situation has changed (SPEC section 7). */
+     the situation has changed (SPEC section 7). An attack's difficulty is
+     the target's threat (Dice.threat) unless the parser named one above
+     normal, and a fight goes on: another swing at someone still here is
+     never locked. */
   function resolve(ctx) {
     const s = State.current;
     const a = ctx.action;
     if (!a.needsRoll) return {};
+    const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
+    const attack = a.actionType === 'attack';
+    if (attack && npcTarget && (!a.difficulty || a.difficulty === 'normal') && typeof Dice.threat === 'function') {
+      const d = Dice.threat(State.npc(npcTarget));
+      if (DIFFICULTIES.includes(d)) a.difficulty = d;
+    }
     const key = Dice.lockKey(a);
-    if (Dice.isLocked(key) && !ctx.reroll) {
+    const exempt = attack && !!npcTarget;
+    if (!exempt && Dice.isLocked(key) && !ctx.reroll) {
       // Pushing the same point in conversation again: no new roll (the dice
       // are not re-rolled), but the scene still answers, so the player sees
       // the person hold their ground instead of a system notice.
@@ -10515,30 +11075,88 @@ const Pipeline = (() => {
       }
       return { locked: true };
     }
-    const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
-    // After /undo or /reroll the restored state would hand back the very
-    // same die; a salt kept outside the save shifts the draw instead.
-    let forced = Number.isInteger(hooks.nextD20) ? hooks.nextD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
-    hooks.nextD20 = null;
-    if (hooks.nextTier) { forced = dieFor(hooks.nextTier, { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType }); hooks.nextTier = null; }
-    const roll = Dice.resolve({ stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, d20: forced });
+    const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType };
+    const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
     ctx.roll = roll;
-    State.apply({ lastRollKey: Dice.lockFor(roll, key) });
+    lockAfter(roll, key, exempt);
     UI.feed.roll(roll);
-    if (roll.tier === 'critical' && s.player.storyPoints < State.LIMITS.storyPoints) {
-      State.apply({ storyPointsDelta: 1 });
-      ctx.storyPoint = true;
-      UI.feed.quiet(`Natural 20: you earn a story point (${s.player.storyPoints} of ${State.LIMITS.storyPoints}).`);
-    }
-    // Fights (SPEC section 7): 1 to 3 damage on a failure, 3 on a critical failure.
-    if (a.actionType === 'attack' && (roll.tier === 'failure' || roll.tier === 'critical_failure')) {
-      const dmg = roll.tier === 'critical_failure' ? 3 : Rng.int(1, 3);
-      State.apply({ hpDelta: -dmg });
-      ctx.damage = dmg;
-      ctx.defeated = s.player.hp <= 0;
-      UI.feed.quiet(`You take ${dmg} damage (HP ${s.player.hp}/${s.player.maxHp}).`);
-    }
+    storyPointFor(ctx, roll);
+    if (attack) fight(ctx, roll, npcTarget);
     if (roll.tier === 'critical_failure') ctx.consequence = lastingConsequence(ctx);
+    return {};
+  }
+
+  // ----- the card game -----
+  /* REVIEW 3.8: a card game played in code where there is one (a place
+     whose record says so: cardGame, or "card game" in its details) and its
+     dealer is here (a person tagged bookie, or tagged dealer with cards in
+     their role). The stake comes from the words ($50, 50 bucks; else $20),
+     no more than the player has. Wits against normal, +2 with a deck
+     carried (the marked deck). Success wins the stake, a partial half of
+     it, a failure loses it; a fumble loses it and the dealer catches them
+     cheating: a weight-3 memory, banned from the place for three days, and
+     news. The money moves here; the narrator hears the result (OUTCOME) and
+     the bookkeeper that it is done (and its goldDelta is ignored). */
+  const GAMBLE_STAKE = 20;
+  function cardGameAt(l) {
+    if (!l) return false;
+    if (l.cardGame === true || (Array.isArray(l.tags) && l.tags.includes('cards'))) return true;
+    return /\b(card game|poker game|card table)\b/i.test(`${l.details || ''} ${l.description || ''}`);
+  }
+  function dealerOf(presentIds) {
+    const people = (presentIds || []).map(id => State.npc(id)).filter(Boolean);
+    return people.find(n => (n.tags || []).includes('bookie'))
+      || people.find(n => (n.tags || []).includes('dealer') && /\bcards?\b|card game|poker/i.test(n.role || '')) || null;
+  }
+  function stakeFrom(text, gold) {
+    const m = /\$\s*(\d[\d,]*)|\b(\d[\d,]*)\s*(?:dollars?|bucks?)\b/i.exec(String(text || ''));
+    const want = m ? parseInt((m[1] || m[2]).replace(/,/g, ''), 10) : GAMBLE_STAKE;
+    return clamp(Number.isFinite(want) && want > 0 ? want : GAMBLE_STAKE, 1, Math.max(1, gold | 0));
+  }
+  function gamble(ctx) {
+    const s = State.current;
+    const p = s.player;
+    const a = ctx.action;
+    const l = here();
+    const dealer = dealerOf(ctx.presentIds);
+    const nl = ctx.narratorLines = ctx.narratorLines || [];
+    const bl = ctx.bookLines = ctx.bookLines || [];
+    if (a.timeCost === 'instant') a.timeCost = 'short';
+    if (!cardGameAt(l) || !dealer || (p.gold | 0) < 1) {
+      Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
+      const why = !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
+      nl.push(`CARD GAME: no game: ${why}. No money changes hands.`);
+      bl.push(`CARD GAME: no game was played (${why}); record no goldDelta.`);
+      ctx.gamble = { played: false, why };
+      return {};
+    }
+    const stake = stakeFrom(ctx.input, p.gold);
+    const deck = p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name)) || null;
+    const mods = Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }).concat(deck ? [{ label: deck.name, value: 2 }] : []);
+    const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods };
+    const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
+    roll.complication = null;
+    Object.assign(a, { needsRoll: true, stat: 'wits', difficulty: 'normal', targets: [dealer.id].concat(a.targets.filter(t => t !== dealer.id)) });
+    ctx.roll = roll;
+    UI.feed.roll(roll);
+    storyPointFor(ctx, roll);
+    const caught = roll.tier === 'critical_failure';
+    const delta = roll.tier === 'critical' || roll.tier === 'success' ? stake : roll.tier === 'partial' ? Math.floor(stake / 2) : -stake;
+    if (delta) State.apply({ goldDelta: delta });
+    const place = String(l.name).replace(/^The /, 'the ');
+    const amount = money(Math.abs(delta));
+    const result = delta > 0 ? `wins ${amount}` : delta < 0 ? `loses ${amount}` : 'breaks even';
+    ctx.gamble = { played: true, stake, delta, tier: roll.tier, caught, dealerId: dealer.id, deck: deck ? deck.name : null };
+    const how = { critical: `the player has a great night at ${dealer.name}'s table and wins ${money(stake)}`, success: `the player beats ${dealer.name}'s table and wins ${money(stake)}`, partial: `a close game at ${dealer.name}'s table: the player comes out ${money(Math.floor(stake / 2))} ahead`, failure: `the player loses ${money(stake)} at ${dealer.name}'s table`, critical_failure: `the player loses ${money(stake)}, and ${dealer.name} catches them cheating${deck ? ` with the ${lowerFirst(deck.name)}` : ''}` }[roll.tier];
+    nl.push(`OUTCOME: the card game (the player put up ${money(stake)}): ${how}. The money has already changed hands (cash now ${money(p.gold)}).${caught ? ` ${dealer.name} throws the player out of ${place}, and they are not welcome back for three days.` : ''}`);
+    bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${result} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: the memory and the three-day ban are recorded already.` : ''}`);
+    if (caught) {
+      const r = State.apply({
+        newMemories: [{ npcId: dealer.id, text: `caught ${p.name} cheating at cards in ${place}`, weight: 3 }],
+        effects: [{ op: 'banFrom', locationId: l.id, days: 3, byNpcId: dealer.id }, { op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true }]
+      });
+      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    }
     return {};
   }
 
@@ -10762,40 +11380,84 @@ const Pipeline = (() => {
     lines.push(Style.lengthLine(ctx.mode === 'zoom' || ctx.mode === 'arrival'));
     return lines.join('\n');
   }
-  /* Steps 6 and 7: stream the narration into the feed, check it, regenerate
-     once with a note naming the problem, keep the second try either way. */
+  /* Lines the turn adds to the narrator's packet (the card game's OUTCOME):
+     after the COMPLICATION line. An epilogue turn says MODE: epilogue, with
+     the zoom length. Replacements are functions, so a "$20" stays as it is. */
+  function withTurnLines(text, ctx) {
+    let out = String(text || '');
+    if (ctx.mode === 'epilogue') {
+      const mode = 'MODE: epilogue (ZOOM length allowed). The DUE EVENT is how this part of the story ends in town: tell it as the scene, through what the player sees and hears, then stop.';
+      out = /^MODE: .*$/m.test(out) ? out.replace(/^MODE: .*$/m, () => mode) : `${out}\n${mode}`;
+      out = out.replace(/^LENGTH: .*$/m, () => Style.lengthLine(true).split('\n')[0]);
+    }
+    const lines = (Array.isArray(ctx.narratorLines) ? ctx.narratorLines : []).filter(Boolean);
+    if (!lines.length) return out;
+    const add = lines.join('\n');
+    if (/^COMPLICATION: .*$/m.test(out)) return out.replace(/^COMPLICATION: .*$/m, m => `${m}\n${add}`);
+    if (/^MODE: /m.test(out)) return out.replace(/^MODE: /m, m => `${add}\n${m}`);
+    return `${out}\n${add}`;
+  }
+  /* A reply cut off (stop_reason max_tokens) is never a narration. The real
+     provider already asked once more with twice the limit. */
+  function cutOff(res) {
+    if (res && res.stopReason === 'max_tokens') throw new Api.ApiError('max_tokens', Api.FRIENDLY.max_tokens, { retryable: false });
+  }
+  /* A style problem the prompts mark hard: false is only noted (debug); any
+     other (hard: true, or a check that does not mark them) is rewritten. */
+  function isHard(p) { return !!p && p.hard !== false; }
+  /* Steps 6 and 7: stream the narration into the feed, check it, and when
+     the check finds a hard problem rewrite it once as an edit (the packet,
+     the draft, the note). The draft stays on screen, dimmed
+     (UI.feed.rewriting), while the rewrite streams into a buffer; the
+     rewrite replaces it when it comes, and if it fails or is refused the
+     draft stands. Soft problems go to the debug view only. */
   async function narrate(ctx) {
-    const zoom = ctx.mode === 'zoom' || ctx.mode === 'arrival';
+    const zoom = ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue';
     const style = Style.current();
-    const text = narratorPacket(ctx);
+    const text = withTurnLines(narratorPacket(ctx), ctx);
     ctx.packet = text;
     const mock = Api.providerName() === 'mock';
     const node = UI.feed.beginNarration({ mock });
-    const once = async extra => {
-      UI.feed.stream(node, '');
-      const res = await Api.narrate({ text: extra ? `${text}\n${extra}` : text, system: Style.systemPrompt(style), town: townBlock(), cast: castBlock(), context: ctx }, (chunk, soFar) => UI.feed.stream(node, soFar));
-      return res;
-    };
+    const blocks = { system: Style.systemPrompt(style), town: townBlock(), cast: castBlock() };
     try {
-      let res = await once(null);
+      UI.feed.stream(node, '');
+      const res = await Api.narrate(Object.assign({ text, context: ctx }, blocks), (chunk, soFar) => UI.feed.stream(node, soFar));
       if (isRefusal(res)) { node.remove(); return { refusal: res }; }
+      cutOff(res);
       let narration = String((res && res.text) || '').trim();
+      if (!narration) throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.');
       const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
       let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
       ctx.style = [check];
-      if (!check.ok) {
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: check.problems });
-        const note = Style.regenerationNote(check.problems);
+      const problems = Array.isArray(check.problems) ? check.problems : [];
+      const hard = problems.filter(isHard);
+      const soft = problems.filter(p => !isHard(p));
+      if (soft.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: soft, soft: true, kept: !hard.length });
+      if (hard.length) {
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: hard });
+        const note = Style.regenerationNote(hard);
         ctx.regenerated = note;
-        res = await once(note);
-        if (isRefusal(res)) { node.remove(); return { refusal: res }; }
-        const second = String((res && res.text) || '').trim();
-        if (second) narration = second;
-        check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
-        ctx.style.push(check);
-        if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
+        status('rewrite');
+        const dim = typeof UI.feed.rewriting === 'function';
+        if (dim) UI.feed.rewriting(node, true);
+        else UI.feed.stream(node, '');
+        let second = null;
+        try {
+          const res2 = await Api.narrate(Object.assign({ text: `${text}\n${note}`, base: text, draft: narration, note, context: ctx }, blocks), dim ? null : (chunk, soFar) => UI.feed.stream(node, soFar));
+          if (isRefusal(res2)) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: 'the rewrite was refused; the first draft stands' });
+          else { cutOff(res2); second = String((res2 && res2.text) || '').trim() || null; }
+        } catch (err) {
+          if (err && err.type === 'aborted') throw err;
+          State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: `the rewrite failed (${(err && (err.type || err.message)) || err}); the first draft stands` });
+        }
+        if (dim) UI.feed.rewriting(node, false);
+        if (second) {
+          narration = second;
+          check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
+          ctx.style.push(check);
+          if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
+        } else ctx.rewriteFailed = true;
       }
-      if (!narration) throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.');
       UI.feed.endNarration(node, narration);
       return { narration, node, mock };
     } catch (err) {
@@ -10907,7 +11569,8 @@ const Pipeline = (() => {
       if (npc && outcome === 'captured') diff.newMemories = [{ npcId: npc.id, text: `Beat ${p.name} in a fight and dragged them to the cells`, weight: 3 }];
     }
     State.apply(diff);
-    if (outcome !== 'dead') passTime('long', 'defeat');
+    // One long, and not a night without sleep (REVIEW E14); runTurn charges nothing else for the action.
+    if (outcome !== 'dead') passTime({ cost: 'long', cause: 'defeat' }, 'defeat');
     const text = {
       rescued: () => `You black out. When you come to, ${npc.name} is kneeling beside you, and the fight is over.`,
       captured: () => (dest ? `You black out. You wake on the floor of a cell in ${dest.name.replace(/^The /, 'the ')}, aching all over.` : 'You black out and wake under guard, aching all over.'),
@@ -10919,22 +11582,22 @@ const Pipeline = (() => {
   }
 
   // ----- step 12: chronicle compression -----
-  /* Every 10 turns the oldest 10 log entries become one chronicle entry
-     (Api.chronicle: the parser model in plain text, or the mock's
-     deterministic summary) through State.apply({ chronicleEntry }), which
-     drops them from the log; the log keeps the rest. Due when the log holds
-     10 entries and 10 turns have passed since the last entry's toTurn, so a
-     turn that skips this step (/fact) or a failed call only puts it off to
-     the next turn. A refusal, an error or an empty reply never fails the
-     turn. The narrator's STORY SO FAR is the summaries joined, trimmed to
-     the last 150 words (narratorPacket). Returns the entry, or null. */
-  const CHRONICLE_EVERY = 10;
+  /* When the log holds CHRONICLE_AT entries, all but the newest
+     CHRONICLE_KEEP become one chronicle entry (Api.chronicle: the parser
+     model in plain text, or the mock's deterministic summary) through
+     State.apply({ chronicleEntry }), which drops them from the log. The
+     narrator's LAST 3 TURNS always has the newest turns to read (REVIEW
+     2.2: compressing every 10 turns left it one turn to read). Runs after
+     the turn is logged and saved (runTurn), so it never holds up the
+     player. A refusal, an error or an empty reply never fails anything: it
+     is tried again after the next turn. Returns the entry, or null. */
+  const CHRONICLE_AT = 16;
+  const CHRONICLE_KEEP = 6;
+  function chronicleDue(s) { return !!s && s.log.length >= CHRONICLE_AT; }
   async function compressIfDue() {
     const s = State.current;
-    if (!s) return null;
-    const last = s.chronicle[s.chronicle.length - 1];
-    if (s.log.length < CHRONICLE_EVERY || s.meta.turn - (last ? last.toTurn : 0) < CHRONICLE_EVERY) return null;
-    const entries = deepCopy(s.log.slice(0, CHRONICLE_EVERY));
+    if (!chronicleDue(s)) return null;
+    const entries = deepCopy(s.log.slice(0, s.log.length - CHRONICLE_KEEP));
     const skip = reason => { State.debugLog.push({ turn: s.meta.turn, kind: 'chronicle', reason }); return null; };
     let summary;
     try { summary = await Api.chronicle(entries); } catch (err) { return skip(`chronicle failed: ${(err && (err.detail || err.message)) || err}`); }
@@ -10967,7 +11630,25 @@ const Pipeline = (() => {
     UI.feed.notice(awayLine(l));
     return r;
   }
+  /* A place in town the player has not found yet (a home nobody has told
+     them about): its destination, or for a move a place among its targets.
+     Walking there by name spends nothing; they have to ask around. */
+  function unknownTarget(a) {
+    if (!a) return null;
+    const hidden = l => !!l && l.discovered === false && l.away !== true;
+    const d = a.destinationId ? State.loc(a.destinationId) : null;
+    if (hidden(d)) return d;
+    if (a.actionType === 'move') return (a.targets || []).map(id => State.loc(id)).find(hidden) || null;
+    return null;
+  }
+  function refuseUnknown(l, opts, ctx, snap, mark) {
+    const r = fail(snap, mark, null, { reason: 'unknown-place', placeId: l.id });
+    UI.feed.input(opts.input, ctx.speech);
+    UI.feed.notice(NOTICES.unknownPlace);
+    return r;
+  }
   function fail(snap, mark, notice, extra) {
+    pendingEpilogue = null;
     // Defensive: if another game was loaded mid-turn, do not restore over it or touch its feed.
     if (turnState && State.current !== turnState) return Object.assign({ ok: false }, extra, { reason: 'replaced' });
     State.restore(snap);
@@ -10976,115 +11657,230 @@ const Pipeline = (() => {
     if (notice) UI.feed.notice(notice.text, notice.kind);
     return Object.assign({ ok: false }, extra);
   }
-  /* opts: { input (shown and logged), mode: 'normal' | 'zoom' | 'arrival',
-     parse (text for the parser; default input), action (preset action or
-     fn(ctx) -> action: skips the parser), fact (statement: /fact),
+  function refusedText(role) { return NOTICES.refusedBy[role] || NOTICES.refused; }
+
+  // ----- steps 8 and 9: the bookkeeper's diff -----
+  /* The diff made safe for this turn: what the engine already did (fight
+     damage, the card game's money) is not recorded twice, a Say turn and a
+     walk the engine made keep the player where the engine put them, and a
+     place someone named is credited to whoever the player was talking to. */
+  function cleanDiff(ctx, diff) {
+    const s = State.current;
+    const clean = isObj(diff) ? Object.assign({}, diff) : {};
+    const reject = (path, reason) => State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path, reason });
+    if (ctx.damage && toInt(clean.hpDelta) < 0) { reject('hpDelta', 'ignored: the engine already applied fight damage'); delete clean.hpDelta; }
+    if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
+    if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
+    if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) { reject('playerLocationId', `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn`); delete clean.playerLocationId; }
+    // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
+    const by = speakerOf(ctx);
+    for (const k of ['placesRevealed', 'peopleRevealed']) {
+      if (Array.isArray(clean[k])) clean[k] = clean[k].map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
+    }
+    return clean;
+  }
+  /* Attitude bands for the feed: a known person who moves up a band warms
+     to the player, one who moves down won't forget it. */
+  const BAND_EDGES = [-60, -25, 25, 60];
+  function bandOf(a) { return BAND_EDGES.filter(e => a >= e).length; }
+  function attitudeLines(before) {
+    const s = State.current;
+    for (const n of s.npcs) {
+      if (!n.knownToPlayer || n.alive === false || !Object.prototype.hasOwnProperty.call(before, n.id)) continue;
+      const was = bandOf(before[n.id]);
+      const now = bandOf(n.attitude);
+      if (now > was) UI.feed.quiet(`${n.name} warms to you.`);
+      else if (now < was) UI.feed.quiet(`${n.name} won't forget that.`);
+    }
+  }
+  /* Apply the bookkeeper's diff as model output, with this turn's context
+     for State.apply (who was present, whether the roll succeeded, who was
+     attacked), then the quiet lines for what it added and the reputation
+     drift. Shared by the turn and the background retry. */
+  function applyBookkeeping(ctx, diff) {
+    const s = State.current;
+    const clean = cleanDiff(ctx, diff);
+    const before = World.attitudes();
+    const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
+    const wasHeard = !!(offered && offered.heard);
+    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null });
+    // Step 13 renders the map and the Places list from state; the feed says what was added.
+    ctx.revealed = (ctx.applied.revealed || []).slice();
+    for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
+    // A person the story named: a quiet line once they have a name (someone known only as "Dewayne's wife" is added silently).
+    ctx.people = (ctx.applied.people || []).slice();
+    for (const x of ctx.people) if (x.named) UI.feed.quiet(`Added to People: ${personTag(State.npc(x.id))}.`);
+    ctx.reputation = World.driftReputation(before);
+    attitudeLines(before);
+    // Someone other than its source told it: People lists it under the teller.
+    if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
+    return ctx.applied;
+  }
+  /* A bookkeeper that failed (not a refusal): asked once more in the
+     background. Its diff is applied when no turn is running, only if that
+     turn's log entry is still there and still 'not recorded' (not taken
+     back with /undo, not another game). */
+  function retryBookkeeper(s, turn, packet, ctx) {
+    (async () => {
+      let diff;
+      try { diff = await Api.bookkeep(packet); } catch (err) {
+        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry failed too (${(err && (err.type || err.message)) || err}); turn ${turn} stays not recorded` });
+        return;
+      }
+      if (isRefusal(diff)) { State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry was refused; turn ${turn} stays not recorded` }); return; }
+      while (busy) await whenIdle();
+      if (State.current !== s) return;
+      const entry = s.log.find(e => e.turn === turn);
+      if (!entry || entry.changes !== 'not recorded') return;
+      State.beginBatch();
+      try {
+        applyBookkeeping(ctx, diff);
+        delete entry.changes;
+        UI.feed.quiet(NOTICES.bookLate);
+        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry recorded turn ${turn}` });
+      } catch (err) { console.error(err); } finally { State.endBatch(); }
+    })();
+  }
+
+  // ----- what the turn earned -----
+  function progressMark(s) {
+    const p = s.player;
+    return { n: Array.isArray(p.progression) ? p.progression.length : 0, stats: Object.assign({}, p.stats), maxHp: p.maxHp };
+  }
+  /* A thread resolved for the first time gives a stat or max HP (State,
+     player.progression): one quiet line per thread, the gain on the last. */
+  function progressLines(s, before) {
+    const p = s.player;
+    const list = Array.isArray(p.progression) ? p.progression : [];
+    if (list.length <= before.n) return;
+    const gains = [];
+    for (const k of STATS) { const d = (p.stats[k] | 0) - (before.stats[k] | 0); if (d > 0) gains.push(`+${d} ${capFirst(k)}`); }
+    if (p.maxHp > before.maxHp) gains.push(`+${p.maxHp - before.maxHp} max HP`);
+    const fresh = list.slice(before.n);
+    fresh.forEach((x, i) => {
+      const t = x && x.threadId ? State.thread(x.threadId) : null;
+      const gain = i === fresh.length - 1 && gains.length ? ` ${gains.join(', ')}.` : '';
+      UI.feed.quiet(`Resolved: ${t ? t.title : 'a thread'}.${gain}`);
+    });
+  }
+
+  /* opts: { input (shown and logged), mode: 'normal' | 'zoom' | 'arrival' |
+     'epilogue', parse (text for the parser; default input), action (preset
+     action or fn(ctx) -> action: skips the parser), fact (statement: /fact),
      prepare (fn(ctx), runs after the snapshot: time skips), bookkeep (false
-     to skip steps 8-9), cause (for World.tick) } */
+     to skip steps 8-9 unless a due event is narrated), cause (for
+     World.tick), epilogue ({ text }: a narrator-only ending), afterCommit
+     (fn, after the turn is logged: /rest's recap) } */
   async function runTurn(opts) {
+    if (busy) return { ok: false, reason: 'busy', restoreInput: true };
     const s = State.current;
     busy = true;
+    acceptsQueue = false;
     UI.setBusy(true);
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat };
-    // Step 13: the autosave and the render run once, when this batch closes
-    // (finally below), after the whole turn or its rollback.
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [] };
+    // Step 13: the autosave and the render run when this batch closes: once
+    // the turn is logged (then the chronicle runs), or after a rollback.
     State.beginBatch();
+    let batchOpen = true;
+    let committed = false;
+    let later = null;
     turnState = s;
     const replaced = () => State.current !== s;
     try {
       State.apply({ beginTurn: true });
-      UI.feed.input(opts.input, ctx.speech);
+      if (opts.input || !opts.epilogue) UI.feed.input(opts.input, ctx.speech);
       const startTime = nowTime();
       const startLoc = s.player.locationId;
+      const earned = progressMark(s);
       if (opts.prepare) opts.prepare(ctx);
       if (!sameTime(startTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
-      // Step 3. Parse.
+      // Step 3. Parse (and warm the narrator's cache alongside it when it has gone cold).
       let action;
       if (opts.action) action = normaliseParse(typeof opts.action === 'function' ? opts.action(ctx) : opts.action);
       else {
+        status('parse');
+        if (!opts.fact) { try { Api.prewarm(() => ({ system: Style.systemPrompt(), town: townBlock(), cast: castBlock() })); } catch (e) { console.warn('[Pipeline] prewarm', e); } }
         const parsed = await Api.parse(parsePacket(opts.parse || opts.input, { mode: opts.fact ? 'fact' : 'action', speech: ctx.speech }));
         if (replaced()) return fail(snap, mark, null, {});
-        if (isRefusal(parsed)) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
+        if (isRefusal(parsed)) return fail(snap, mark, { text: refusedText('parser') }, { reason: 'refused', restoreInput: true });
         action = normaliseParse(parsed);
       }
       if (!action.summary) action.summary = cleanText(opts.parse || opts.input, 160);
       ctx.action = action;
       // Step 3c. Say mode: the player only spoke, to whoever they addressed.
       if (!opts.fact && isSay(ctx.speech)) sayAction(action, ctx.speech);
-      // A place out of town is never a destination: a plain line, nothing spent (before anything moves).
+      // A place out of town is never a destination, and a place not found yet cannot be walked to: a plain line, nothing spent.
       if (!opts.fact && awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
+      if (!opts.fact && unknownTarget(action)) return refuseUnknown(unknownTarget(action), opts, ctx, snap, mark);
       // Step 3b. A walk and then an action there: the engine moves the player first.
       if (!opts.fact) walkFirst(ctx);
-      // Step 4. Check and create.
-      Object.assign(ctx, await checkAndCreate(action, { fact: !!opts.fact, input: opts.parse || opts.input }));
+      // Step 4. Check and create (a thing looked for with a roll waits for the roll: createDeferred).
+      Object.assign(ctx, await checkAndCreate(action, { fact: !!opts.fact, input: opts.parse || opts.input, defer: true }));
       if (replaced()) return fail(snap, mark, null, {});
       if (opts.fact) return finishFact(ctx, opts, snap, mark);
       if (awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
+      if (unknownTarget(action)) return refuseUnknown(unknownTarget(action), opts, ctx, snap, mark);
       fleeExit(ctx);
       scene(ctx);
       // Something the action needs that the player does not carry: told to the narrator and the bookkeeper (NOT CARRIED).
       ctx.missing = missingThing(ctx);
-      // Step 5. Resolve.
-      if (resolve(ctx).locked) {
+      // Step 5. Resolve (the card game is played in code).
+      if ((action.actionType === 'gamble' ? gamble(ctx) : resolve(ctx)).locked) {
         const r = fail(snap, mark, null, { reason: 'retry-locked' });
         UI.feed.input(opts.input, ctx.speech);
         UI.feed.notice(NOTICES.locked);
         return r;
       }
+      await createDeferred(ctx);
+      if (replaced()) return fail(snap, mark, null, {});
+      secretsFor(ctx);
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
       const leaving = action.actionType === 'move' && !!action.destinationId && action.destinationId !== ctx.location.id;
-      ctx.due = World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving }) || [];
+      ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }]
+        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving }) || [];
       if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
-      ctx.rumour = pickRumour(ctx);
+      ctx.rumour = opts.epilogue ? null : pickRumour(ctx);
+      status('narrate');
       const told = await narrate(ctx);
       if (replaced()) return fail(snap, mark, null, {});
-      if (told.refusal) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
+      if (told.refusal) return fail(snap, mark, { text: refusedText('narrator') }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
       noteIntroductions(narration, ctx.location && ctx.location.id);
       noteMentioned(narration);
-      // Steps 8-9. Bookkeep, then apply the diff as model output.
-      if (opts.bookkeep !== false) {
-        const diff = await Api.bookkeep({ text: bookkeeperPacket(ctx), context: ctx });
+      // The narration is in: from here the next input can wait in the queue.
+      acceptsQueue = true;
+      // The comings and goings this narration showed are done now, before this turn's time records new ones.
+      if (s.pendingScene) State.apply({ sceneChangeDone: true });
+      // Steps 8-9. Bookkeep, then apply the diff as model output. A due event narrated on /look, /rest, /wait or /skip is bookkept too.
+      const book = !opts.epilogue && (opts.bookkeep !== false || ctx.due.length > 0);
+      let notRecorded = null;
+      if (book) {
+        status('bookkeep');
+        const packet = { text: [bookkeeperPacket(ctx)].concat(ctx.bookLines).join('\n'), context: ctx };
+        let diff = null;
+        try { diff = await Api.bookkeep(packet); } catch (err) {
+          if ((err && err.type === 'aborted') || replaced()) throw err;
+          notRecorded = { error: err, packet };
+        }
         if (replaced()) return fail(snap, mark, null, {});
-        if (isRefusal(diff)) return fail(snap, mark, { text: NOTICES.refused }, { reason: 'refused', restoreInput: true });
-        const clean = isObj(diff) ? Object.assign({}, diff) : {};
-        if (ctx.damage && toInt(clean.hpDelta) < 0) {
-          State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'hpDelta', reason: 'ignored: the engine already applied fight damage' });
-          delete clean.hpDelta;
-        }
-        if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) {
-          State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: in Say mode the player only spoke and stays where they are' });
-          delete clean.playerLocationId;
-        }
-        if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) {
-          State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn` });
-          delete clean.playerLocationId;
-        }
-        // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
-        const by = speakerOf(ctx);
-        for (const k of ['placesRevealed', 'peopleRevealed']) {
-          if (Array.isArray(clean[k])) clean[k] = clean[k].map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
-        }
-        const before = World.attitudes();
-        const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
-        const wasHeard = !!(offered && offered.heard);
-        ctx.applied = State.apply(clean, { source: 'model' });
-        // Step 13 renders the map and the Places list from state; the feed says what was added.
-        ctx.revealed = (ctx.applied.revealed || []).slice();
-        for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
-        // A person the story named: a quiet line once they have a name (someone known only as "Dewayne's wife" is added silently).
-        ctx.people = (ctx.applied.people || []).slice();
-        for (const x of ctx.people) if (x.named) UI.feed.quiet(`Added to People: ${personTag(State.npc(x.id))}.`);
-        ctx.reputation = World.driftReputation(before);
-        // Someone other than its source told it: People lists it under the teller.
-        if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
+        if (!notRecorded && isRefusal(diff)) notRecorded = { refused: true };
+        if (notRecorded) {
+          const why = notRecorded.refused ? 'refused' : `failed: ${(notRecorded.error && (notRecorded.error.type ? `${notRecorded.error.type}: ` : '') + (notRecorded.error.detail || notRecorded.error.message)) || notRecorded.error}`;
+          State.debugLog.push({ turn: s.meta.turn, kind: 'bookkeeper', reason: `the bookkeeper ${why}; the narration stands and the turn's changes were not recorded` });
+          UI.feed.quiet(notRecorded.refused ? refusedText('bookkeeper') : NOTICES.bookFailed);
+        } else applyBookkeeping(ctx, diff);
       }
       arriveIfLeftBehind(ctx);
+      // Caught cheating at cards: thrown out into the street.
+      if (ctx.gamble && ctx.gamble.caught && s.player.locationId === ctx.location.id) {
+        const out = here().exits.map(id => State.loc(id)).find(l => l && l.discovered && !l.closed && l.away !== true);
+        if (out) State.apply({ playerLocationId: out.id });
+      }
       // Defeat at 0 HP, from the fight or from the bookkeeper's hpDelta.
       if (s.player.hp <= 0 && !s.player.dead) {
         ctx.defeat = defeat(ctx);
@@ -11092,35 +11888,104 @@ const Pipeline = (() => {
         UI.feed.endNarration(told.node, narration);
         if (ctx.defeat.outcome === 'dead') UI.feed.notice(NOTICES.dead, 'error');
       }
-      // Step 10. Advance time; World.tick runs for every phase that passes.
-      if (!s.player.dead) passTime(action.timeCost, opts.cause || 'turn');
+      // Step 10. Advance time; World.tick runs for every phase that passes. A defeat
+      // already took its long (and the action's own time is not charged on top); an
+      // attack in front of the police ends with a night in the cell (World.arrestPlayer).
+      if (!s.player.dead && !ctx.defeat) {
+        if (ctx.arrest && typeof World.arrestPlayer === 'function') {
+          const t0 = JSON.stringify(s.time);
+          World.arrestPlayer({ npcId: ctx.arrest.npcId, locationId: ctx.arrest.locationId, turn: s.meta.turn });
+          if (State.current === s && JSON.stringify(s.time) === t0) passTime('rest', 'arrest');
+        } else passTime(action.timeCost, opts.cause || 'turn');
+      }
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
       if (ctx.due.length) World.dueNarrated(ctx.due);
-      if (s.pendingScene) State.apply({ sceneChangeDone: true });
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
       // action without a roll lifts it only once the situation has changed:
       // the action took time, time passed or the player moved. An instant
-      // look or chat in the same place leaves it on.
-      if (!ctx.roll && s.meta.lastRollKey && (action.timeCost !== 'instant' || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
+      // look or chat in the same place leaves it on. With the set of locks
+      // (Dice.clearLocks), a move or a new phase clears them.
+      if (typeof Dice.clearLocks === 'function') {
+        if (s.player.locationId !== startLoc || startTime.phase !== s.time.phase || startTime.day !== s.time.day) Dice.clearLocks();
+      } else if (!ctx.roll && s.meta.lastRollKey && (action.timeCost !== 'instant' || !sameTime(startTime, nowTime()) || s.player.locationId !== startLoc)) State.apply({ lastRollKey: null });
       if (!sameTime(narrTime, nowTime())) UI.feed.divider(s.time.day, s.time.phase);
-      // Step 12. Chronicle compression every 10 turns (never fails the turn).
-      try { await compressIfDue(); } catch (e) { console.warn('[Pipeline] compression failed', e); }
       if (replaced()) return fail(snap, mark, null, {});
       // Step 13. Log; the autosave and render follow when the batch closes.
       const said = isSay(ctx.speech) ? { mode: 'say', to: ctx.speech.to, toName: ctx.speech.toName, toLabel: ctx.speech.toLabel || null } : ctx.speech ? { mode: 'do' } : {};
-      State.apply({ logEntry: Object.assign({ input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock }, said) });
+      const entry = Object.assign({ input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock }, said);
+      if (notRecorded) entry.changes = 'not recorded';
+      State.apply({ logEntry: entry });
+      if (notRecorded) { const e = s.log[s.log.length - 1]; if (e && e.turn === s.meta.turn && e.changes !== 'not recorded') e.changes = 'not recorded'; }
+      progressLines(s, earned);
       lastTurn = { action, roll: ctx.roll, narration, style: ctx.style, ctx: deepCopy(Object.assign({}, ctx, { packet: undefined })), packet: ctx.packet };
-      return { ok: true, defeat: ctx.defeat ? ctx.defeat.outcome : undefined };
+      committed = true;
+      if (opts.afterCommit) { try { opts.afterCommit(ctx); } catch (e) { console.error(e); } }
+      if (opts.epilogue) UI.feed.quiet(NOTICES.epilogueEnd);
+      if (notRecorded && !notRecorded.refused) {
+        const turn = s.meta.turn;
+        const keep = deepCopy(Object.assign({}, ctx, { packet: undefined, applied: undefined }));
+        later = () => retryBookkeeper(s, turn, notRecorded.packet, keep);
+      }
+      // The turn is in: autosave and render now; the chronicle runs after, in a batch of its own.
+      State.endBatch();
+      batchOpen = false;
+      // Step 12. Chronicle compression (never fails the turn).
+      if (chronicleDue(s)) {
+        status('chronicle');
+        State.beginBatch();
+        batchOpen = true;
+        try { await compressIfDue(); } catch (e) { console.warn('[Pipeline] compression failed', e); }
+      }
+      return { ok: true, defeat: ctx.defeat ? ctx.defeat.outcome : undefined, notRecorded: notRecorded ? true : undefined };
     } catch (err) {
+      if (committed) { console.error(err); return { ok: true }; }
+      if (err && err.type === 'aborted') return fail(snap, mark, { text: NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
       console.error(err);
       return fail(snap, mark, { text: errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
     } finally {
       turnState = null;
-      State.endBatch(); // listeners see the finished turn, or the restored state after a failure
-      busy = false;
-      UI.setBusy(false);
+      if (batchOpen) State.endBatch(); // listeners see the finished turn, or the restored state after a failure
+      if (later) later();
+      settle();
     }
+  }
+  /* The end of a turn (or an arrival or an update): the composer is free,
+     then an ending that came up in the news is narrated, else the queued
+     input runs. */
+  function settle() {
+    busy = false;
+    acceptsQueue = false;
+    UI.setBusy(false);
+    const ending = pendingEpilogue;
+    pendingEpilogue = null;
+    if (ending && State.current && !State.muted) epilogue(ending);
+    else if (queued) {
+      const q = queued;
+      queued = null;
+      if (State.current && !State.muted) {
+        (q.pass ? pass() : submit(q.text, q.opts)).then(r => { if (r && r.restoreInput && q.text) restoreQueued(q.text); }, err => { console.error(err); if (q.text) restoreQueued(q.text); });
+      }
+    }
+    if (!busy) {
+      status('idle');
+      while (idleWaiters.length) { try { idleWaiters.shift()(); } catch (e) { console.error(e); } }
+    }
+  }
+  /* A queued input that failed goes back in the box (UI.restoreInput when
+     the UI has it), unless the player has typed something since. */
+  function restoreQueued(text) {
+    if (typeof UI.restoreInput === 'function') { UI.restoreInput(text); return; }
+    const box = typeof document !== 'undefined' ? document.getElementById('cmd') : null;
+    if (box && !box.value) { box.value = text; box.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  /* An ending (TOWN_DATA.epilogue, through the news): a narrator-only turn
+     in MODE epilogue with the ending as its due event, then a quiet line. */
+  function epilogue(item) {
+    return runTurn({
+      input: '', mode: 'epilogue', bookkeep: false, cause: 'epilogue', epilogue: item, speech: null,
+      action: () => ({ actionType: 'wait', summary: `${State.current.player.name} is there as this part of the story ends`, targets: [], needsRoll: false, timeCost: 'instant' })
+    });
   }
   function errorText(err) {
     const msg = err instanceof Api.ApiError ? err.message : `Something went wrong: ${(err && err.message) || err}.`;
@@ -11222,13 +12087,21 @@ const Pipeline = (() => {
     World.forget(State.current.meta.turn);
     hooks.diceSalt = (hooks.diceSalt || 0) + 1;
     UI.rebuildFeed();
-    return runTurn({ input, mode, speech, action: last.action, reroll: true, prepare: () => UI.feed.quiet('Rerolled.') });
+    // "/cheat success" says so; a plain /reroll says it rolled again.
+    const said = want === null ? 'Rerolled.' : `Cheat: ${Number.isInteger(want) ? want : String(want).toLowerCase()}`;
+    return runTurn({ input, mode, speech, action: last.action, reroll: true, prepare: () => UI.feed.quiet(said) });
   }
 
+  /* While the bookkeeper or the chronicle runs after a narration
+     (acceptsQueue), one input waits and runs when the turn ends:
+     { ok: true, queued: true }. Otherwise a running turn refuses it. */
   async function submit(rawText, opts) {
     const text = String(rawText || '').trim();
     if (!text) return { ok: false, reason: 'empty' };
-    if (busy) return { ok: false, reason: 'busy', restoreInput: true };
+    if (busy) {
+      if (acceptsQueue && !queued) { queued = { text, opts: opts ? Object.assign({}, opts) : null }; return { ok: true, queued: true }; }
+      return { ok: false, reason: 'busy', restoreInput: true };
+    }
     if (!State.current) return { ok: false, reason: 'no game' };
     // Step 2. Commands are handled in code (some of them run a turn below).
     if (text.startsWith('/')) return Commands.run(text);
@@ -11238,8 +12111,13 @@ const Pipeline = (() => {
     return runTurn({ input: text, mode: 'normal', speech: { mode: 'do' } });
   }
   /* A beat: the player says and does nothing and lets the scene come to them.
-     Costs a short (a few minutes); the people here act, speak or react. */
+     Costs a short (a few minutes); the people here act, speak or react.
+     Pressed while the bookkeeper runs, it waits in the queue like a line. */
   function pass() {
+    if (busy) {
+      if (acceptsQueue && !queued) { queued = { pass: true, text: '' }; return Promise.resolve({ ok: true, queued: true }); }
+      return Promise.resolve({ ok: false, reason: 'busy' });
+    }
     return runTurn({
       input: 'You wait and see.', mode: 'normal', beat: true, speech: { mode: 'do' },
       action: () => {
@@ -11249,6 +12127,9 @@ const Pipeline = (() => {
       }
     });
   }
+  /* /look, /rest, /wait and /skip have no bookkeeper of their own (bookkeep:
+     false), but one runs when a due event was narrated, so what it did is
+     recorded (runTurn). */
   function look() {
     return runTurn({ input: '/look', mode: 'zoom', bookkeep: false, action: () => ({ actionType: 'look', summary: `${State.current.player.name} takes in the whole scene`, targets: [], needsRoll: false, timeCost: 'instant' }) });
   }
@@ -11260,6 +12141,7 @@ const Pipeline = (() => {
     }
     return runTurn({ input: `/fact ${statement}`, parse: statement, fact: statement, mode: 'normal' });
   }
+  /* After a night's sleep the recap (where you are, what is open) follows the narration. */
   function rest() {
     return runTurn({
       input: '/rest', mode: 'normal', bookkeep: false, cause: 'rest',
@@ -11267,9 +12149,13 @@ const Pipeline = (() => {
         const t = passTime('rest', 'rest');
         ctx.timePassed = `the player slept until morning, day ${State.current.time.day}${t && t.healed ? `, and recovered ${t.healed} HP` : ''}`;
       },
+      afterCommit: () => printRecap(),
       action: () => ({ actionType: 'rest', summary: `${State.current.player.name} wakes after a night's sleep`, targets: [], needsRoll: false, timeCost: 'instant' })
     });
   }
+  /* The last long of a wait or a skip lands at the start of its phase
+     (REVIEW E5): the next short action does not tick the world again. */
+  const TO_PHASE_START = Object.freeze({ cost: 'long', toPhaseStart: true });
   function wait(arg) {
     const phase = phaseWord(arg);
     if (!phase) { UI.feed.notice('Wait until when? Try /wait evening (morning, afternoon, evening or night).'); return { ok: false, reason: 'usage', restoreInput: true }; }
@@ -11278,7 +12164,7 @@ const Pipeline = (() => {
       input: `/wait ${arg}`, mode: 'normal', bookkeep: false, cause: 'wait',
       prepare: ctx => {
         const n = phaseSteps(phase);
-        for (let i = 0; i < n; i++) passTime('long', 'wait');
+        for (let i = 0; i < n; i++) passTime(i === n - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'wait');
         ctx.timePassed = `the player waited where they are until ${phase}`;
       },
       action: () => ({ actionType: 'wait', summary: `${State.current.player.name} waits until ${phase}`, targets: [], needsRoll: false, timeCost: 'instant' })
@@ -11315,7 +12201,7 @@ const Pipeline = (() => {
       prepare: ctx => {
         const steps = g.phase ? phaseSteps(g.phase) : 0;
         if (!g.phase) passTime('short', 'skip');
-        for (let i = 0; i < steps; i++) passTime('long', 'skip');
+        for (let i = 0; i < steps; i++) passTime(i === steps - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'skip');
         if (g.location) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
         ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
@@ -11332,6 +12218,7 @@ const Pipeline = (() => {
     const s = State.current;
     if (!s || busy) return { ok: false };
     busy = true;
+    acceptsQueue = false;
     UI.setBusy(true);
     Api.beginTurn();
     const snap = JSON.stringify(s);
@@ -11349,6 +12236,7 @@ const Pipeline = (() => {
         scene(ctx);
         ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
         if (ctx.due.length) scene(ctx);
+        status('narrate');
         const told = await narrate(ctx);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
         if (told.refusal) notice = { text: NOTICES.refused };
@@ -11374,8 +12262,7 @@ const Pipeline = (() => {
     } finally {
       turnState = null;
       State.endBatch();
-      busy = false;
-      UI.setBusy(false);
+      settle();
     }
   }
   /* /cheat time <phase> [day] (also /cheat night, /cheat morning 2): the
@@ -11404,11 +12291,26 @@ const Pipeline = (() => {
      A refusal or an error restores the state exactly and the feed says why;
      the API's own words are in the debug view. Resolves to { ok, summaries,
      from, to, changed } or { ok: false, reason }. */
+  /* Each step is stamped (rulesVersion) as it completes and has a private
+     snapshot of its own, the game's copy of the town included, so a step
+     that fails or is refused is taken back alone: the steps before it stay
+     (their paid calls are not thrown away) and the feed says which were
+     kept. The whole update is still one /undo step. A save from a newer
+     build is never updated here. */
+  function townJson() { return State.town ? JSON.stringify(State.town) : null; }
+  function restoreTown(json) {
+    const t = State.town;
+    if (!t || json === null) return;
+    for (const k of Object.keys(t)) delete t[k];
+    Object.assign(t, JSON.parse(json));
+  }
   async function updateGame() {
     const s = State.current;
     if (!s || State.muted) return { ok: false, reason: 'no game' };
     if (busy) return { ok: false, reason: 'busy' };
+    if (typeof Upgrade.newer === 'function' && Upgrade.newer(s)) { UI.feed.notice(Upgrade.NOTICES.newer); return { ok: false, reason: 'newer' }; }
     busy = true;
+    acceptsQueue = false;
     UI.setBusy(true);
     Api.beginTurn();
     const from = State.rulesVersion(s);
@@ -11416,21 +12318,25 @@ const Pipeline = (() => {
     const clock0 = { day: s.time.day, phase: s.time.phase };
     UI.feed.notice(Upgrade.NOTICES.start);
     const snap = State.snapshot();
+    const town0 = townJson();
     State.beginBatch();
     turnState = s;
+    const summaries = [];
+    let step = null;
     try {
-      const summaries = [];
       for (const m of steps) {
+        step = { m, state: JSON.stringify(State.current), town: townJson() };
         const sum = await m.run(s, Api);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
         const r = State.apply({ rulesVersion: Math.max(m.version, State.rulesVersion(s)) });
         if (r.rejected.length) throw new Error(r.rejected[0].reason);
         summaries.push(Object.assign({ version: m.version, title: m.title }, sum));
+        step = null;
       }
       const to = State.rulesVersion(State.current);
       const text = summaries.map(x => x.text).join(' ');
       // Nothing changed (a re-read that kept every line): not worth an /undo step.
-      const changed = JSON.stringify(State.current) !== snap;
+      const changed = JSON.stringify(State.current) !== snap || townJson() !== town0;
       if (!changed) State.restore(snap);
       State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${to}: ${text}` });
       UI.feed.notice(text);
@@ -11440,32 +12346,107 @@ const Pipeline = (() => {
       return { ok: true, summaries, from, to, changed };
     } catch (err) {
       if (State.current !== s) return { ok: false, reason: 'replaced' };
-      State.restore(snap);
+      // Only the failed step is taken back; with nothing done before it, the whole update (and its /undo step) goes.
+      if (summaries.length && step) { State.restore(step.state); restoreTown(step.town); }
+      else { State.restore(snap); restoreTown(town0); }
+      const kept = summaries.length ? ` ${Upgrade.NOTICES.kept(summaries.map(x => x.title))} ${summaries.map(x => x.text).join(' ')}` : '';
+      if (summaries.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${State.rulesVersion(State.current)} (kept ${summaries.map(x => x.version).join(', ')}): ${summaries.map(x => x.text).join(' ')}` });
       if (err && err.refused) {
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `refused${err.refusal && err.refusal.category ? ` (${err.refusal.category})` : ''}` });
-        UI.feed.notice(Upgrade.NOTICES.refused);
-        return { ok: false, reason: 'refused' };
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `refused${err.refusal && err.refusal.category ? ` (${err.refusal.category})` : ''}${step ? ` at version ${step.m.version}` : ''}` });
+        UI.feed.notice(summaries.length ? `${Upgrade.NOTICES.refusedStep(step ? step.m.title : '')}${kept}` : Upgrade.NOTICES.refused);
+        return { ok: false, reason: 'refused', kept: summaries.map(x => x.version) };
       }
-      console.error(err);
-      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `failed: ${(err && (err.type ? `${err.type}: ` : '') + (err.detail || err.message)) || err}` });
+      if (!(err && err.type === 'aborted')) console.error(err);
+      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `failed: ${(err && (err.type ? `${err.type}: ` : '') + (err.detail || err.message)) || err}${step ? ` (at version ${step.m.version})` : ''}` });
       const msg = err instanceof Api.ApiError ? err.message : `Something went wrong: ${(err && err.message) || err}.`;
-      UI.feed.notice(`${msg} ${Upgrade.NOTICES.failed}`, 'error');
-      return { ok: false, reason: 'error', error: err && err.type };
+      UI.feed.notice(summaries.length ? `${msg} ${Upgrade.NOTICES.failedStep(step ? step.m.title : '')}${kept}` : `${msg} ${Upgrade.NOTICES.failed}`, 'error');
+      return { ok: false, reason: 'error', error: err && err.type, kept: summaries.map(x => x.version) };
     } finally {
       turnState = null;
       State.endBatch();
-      busy = false;
-      UI.setBusy(false);
+      settle();
     }
   }
+
+  // ----- /recap -----
+  /* Built from the state alone, no API call: where and when, who is here,
+     the open threads with the last thing known, open obligations with how
+     long is left, who is warm or cold and why (attitude and their latest
+     memory), the last rumours heard and the latest town news. /recap prints
+     it; /rest and Continue show it too (recapText). */
+  function placeName(l) { return l ? String(l.name).replace(/^The /, 'the ') : 'nowhere'; }
+  function tryCall(fn) { try { return fn(); } catch (e) { return null; } }
+  function obligationsOpen(s) {
+    const list = typeof State.obligations === 'function' ? tryCall(() => State.obligations('open')) : null;
+    const all = Array.isArray(list) ? list : (Array.isArray(s.player.obligations) ? s.player.obligations : []);
+    return all.filter(o => isObj(o) && (o.status === undefined || o.status === 'open'));
+  }
+  function obligationLine(o, day) {
+    const n = o.npcId ? State.npc(o.npcId) : null;
+    const who = n ? n.name : 'someone';
+    const what = o.kind === 'debt' ? `You owe ${who}${Number.isFinite(o.amount) ? ` ${money(o.amount)}` : ''}`
+      : `${capFirst(o.kind || 'promise')} for ${who}${o.text ? `: ${lowerFirst(cleanText(o.text, 120)).replace(/\.$/, '')}` : ''}`;
+    if (!Number.isInteger(o.dueDay)) return what;
+    const left = o.dueDay - day;
+    const when = left > 1 ? `${left} days` : left === 1 ? '1 day' : left === 0 ? 'today' : 'overdue';
+    return `${what} · due Day ${o.dueDay} (${when})`;
+  }
+  function recapText() {
+    const s = State.current;
+    if (!s) return '';
+    const p = s.player;
+    const t = s.time;
+    const l = State.loc(p.locationId);
+    const out = [];
+    const date = typeof State.dateLine === 'function' ? tryCall(() => State.dateLine(t.day)) : typeof State.weekday === 'function' ? tryCall(() => State.weekday(t.day)) : null;
+    out.push(`Day ${t.day}${date ? ` (${date})` : ''}, ${t.phase}, at ${placeName(l)}.`);
+    const present = State.npcsAt(p.locationId);
+    out.push(`Here: ${present.length ? present.map(n => (n.knownToPlayer ? n.name : npcLabel(n))).join(', ') : 'nobody'}.`);
+    const threads = s.threads.filter(x => x.status === 'open' && x.knownToPlayer);
+    out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${sentenceOne(cleanText(x.summary, 220)).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
+    const obls = obligationsOpen(s);
+    if (obls.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).join('; ')}.`);
+    const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here');
+    const why = n => {
+      const m = (n.memories || []).filter(x => !/^Loose end with /i.test(x.text)).slice(-1)[0] || (n.memories || []).slice(-1)[0];
+      return m ? `: "${cleanText(String(m.text).replace(/^Loose end with [^(]*\(([^)]*)\):\s*/i, 'loose end, $1: '), 90)}"` : '';
+    };
+    const warm = known.filter(n => n.attitude > 5).sort((a, b) => b.attitude - a.attitude).slice(0, 3);
+    const cold = known.filter(n => n.attitude < -5).sort((a, b) => a.attitude - b.attitude).slice(0, 3);
+    if (warm.length) out.push(`Warm to you: ${warm.map(n => `${n.name} (${State.attitudeWord(n.attitude)}${why(n)})`).join('; ')}.`);
+    if (cold.length) out.push(`Cold to you: ${cold.map(n => `${n.name} (${State.attitudeWord(n.attitude)}${why(n)})`).join('; ')}.`);
+    const heard = s.rumours.filter(r => r.heard);
+    const order = r => (Number.isInteger(r.heardTurn) ? r.heardTurn : -1);
+    const lastHeard = heard.map((r, i) => ({ r, i })).sort((a, b) => order(a.r) - order(b.r) || a.i - b.i).slice(-3).map(x => x.r);
+    if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cleanText(r.text, 140)}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
+    const news = newsList().filter(n => isObj(n) && n.public !== false && n.text).slice(-2);
+    if (news.length) out.push(`In town: ${news.map(n => `${Number.isInteger(n.day) ? `Day ${n.day}: ` : ''}${cleanText(n.text, 200)}`).join(' ')}`);
+    return out.join('\n');
+  }
+  function printRecap() {
+    const text = recapText();
+    if (!text) return null;
+    const node = UI.feed.notice(text, 'recap');
+    if (node && node.style) node.style.whiteSpace = 'pre-line';
+    return node;
+  }
   return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock,
-    submit, runTurn, look, zoom, skip, rest, wait, fact, arrival,
+    submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
-    noteMentioned, awayTarget, awayLine, carriedAs, carryingLine, notCarriedLine,
+    noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom,
+    recap: recapText, recapText, printRecap,
+    CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
     ACTION_TYPES, NOTICES, hooks,
     forceNextRoll(d20) { hooks.nextD20 = Number.isInteger(d20) ? clamp(d20, 1, 20) : null; },
+    setStatusListener(fn) { statusFn = typeof fn === 'function' ? fn : null; },
+    /* Stop: whatever the running turn is waiting on is cancelled; the turn
+       fails cleanly and the input goes back (NOTICES.aborted). */
+    abort() { if (!busy) return false; Api.abort(); return true; },
+    whenIdle,
     get busy() { return busy; },
+    get acceptsQueue() { return busy && acceptsQueue; },
+    get queued() { return queued ? queued.text : null; },
     get lastTurn() { return lastTurn; }
   };
 })();
@@ -13517,7 +14498,8 @@ const UI = (() => {
 // ===== Module: Commands =====
 /* SPEC.md section 12. Panel, save and debug commands are handled here in
    code; /look /zoom /skip /rest /wait /fact run a turn through the Pipeline
-   (the narrator for the first five, the parser for /fact). */
+   (the narrator for the first five, the parser for /fact). /recap prints
+   Pipeline.recap(), built from the game with no API call. */
 const Commands = (() => {
   const LIST = [
     { name: '/look', args: '', desc: 'Describe the whole scene', turn: true },
@@ -13530,6 +14512,7 @@ const Commands = (() => {
     { name: '/sheet', args: '', desc: 'Open the Character panel' },
     { name: '/people', args: '', desc: 'Open the People panel' },
     { name: '/journal', args: '', desc: 'Open the Journal panel' },
+    { name: '/recap', args: '', desc: 'Where you are, what is open, who matters' },
     { name: '/places', args: '', desc: 'Open the Places panel' },
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
@@ -13566,6 +14549,12 @@ const Commands = (() => {
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
       case '/pass': return Pipeline.pass();
       case '/reroll': return Pipeline.reroll(arg);
+      case '/recap': {
+        // Built from the game itself: no turn, no API call.
+        if (!State.current) return { ok: false, reason: 'no game' };
+        Pipeline.printRecap();
+        return { ok: true };
+      }
       case '/pronouns': {
         const m = /^(.*?)\s*(?:\bis\b|\bgoes by\b|:)?\s*(she|her|he|him|they|them)(?:\/\w+)?[\s.!]*$/i.exec(arg || '');
         if (!m || !m[1].trim()) return usage("Whose pronouns, and which? Try /pronouns Mavis she (she, he or they).");
