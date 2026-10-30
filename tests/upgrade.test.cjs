@@ -675,7 +675,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   const r = await page.evaluate(() => ({
     calls: Game.Api.Mock.calls.map(c => c.method), packet: Game.Api.Mock.calls.filter(c => c.method === 'checkClock').pop().text,
     feed: [...document.querySelectorAll('#feed .f-item')].slice(-3).map(n => n.textContent), bar: document.getElementById('tb-time').textContent,
-    narr: Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n')[0],
+    narr: Game.Pipeline.narratorPacket({ action: { summary: 'x' } }).split('\n').find(l => / · Location: /.test(l)),
     dbg: Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | '),
     saved: JSON.parse(localStorage.getItem('novatria.autosave')).state.time
   }));
@@ -685,7 +685,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
   assert.deepEqual(r.feed, ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in.', 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
-  assert.ok(r.narr.startsWith('DAY 1, NIGHT (late; the player has not slept) · Location: '), r.narr);
+  assert.ok(r.narr.startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
   assert.deepEqual(r.saved, st.time, 'autosaved');
   // Playing on: a short stays at night.

@@ -141,8 +141,9 @@ s.test('requests carry the four headers and a body the current API accepts, with
       assert.match(mi.description, /not in INVENTORY and not lying here \(a knife, a gun, a car, a key, a tool\), named plainly; else null\. usesItemId is for a listed item\./);
       assert.ok(r.body.output_config.format.schema.required.includes('missingItem'));
     }
-    // bookkeeper: the root, the seven array item objects (placesRevealed too; peopleRevealed is gone, the cast is fixed) and newSeeds[].trigger.
-    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 9 : 1, `${r.role}: nested objects spelled out`);
+    // bookkeeper: the root and the nine array item objects (placesRevealed, npcFates and memoriesSettled too; peopleRevealed is gone,
+    // the cast is fixed; newSeeds carries triggerType and triggerValue, no nested trigger).
+    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 10 : 1, `${r.role}: nested objects spelled out`);
     // The API compiles the schema to a grammar with a size limit, and record_changes sits right at it
     // (probed live: 46 properties pass, 47 are refused as "compiled grammar too large"). Adding a field
     // anywhere in it needs another field removed, or a live probe first.
@@ -151,7 +152,9 @@ s.test('requests carry the four headers and a body the current API accepts, with
       const count = node => { if (Array.isArray(node)) return node.forEach(count); if (node && typeof node === 'object') { if (node.type === 'object' && node.properties) props += Object.keys(node.properties).length; Object.values(node).forEach(count); } };
       count(r.body.output_config.format.schema);
       assert.ok(props <= 46, `record_changes has ${props} properties; the API's grammar limit is 46`);
-      assert.equal(props, 41, 'peopleRevealed and its four fields are out (46 before)');
+      // npcFates, memoriesSettled and obligationsSettled in (seven counted with their items); attitudeChanges' reason and newSeeds' cause
+      // and nested trigger out (four): 45. Not yet probed live.
+      assert.equal(props, 45, 'the three new fields, with the room made for them');
       assert.ok(!('peopleRevealed' in r.body.output_config.format.schema.properties));
     }
   }
@@ -162,19 +165,23 @@ s.test('requests carry the four headers and a body the current API accepts, with
   assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
-  // Cached text stays small: about 1.4 tokens a word, under 12,000 for the three blocks (README, "Costs").
+  // Cached text stays small: about 1.4 tokens a word, under 13,000 for the three blocks (README, "Costs"; 12,000 before the
+  // casual style's eight packet-format examples and the WHAT PEOPLE KNOW rules moved into the style block).
   const words = t => t.split(/\s+/).filter(Boolean).length;
-  assert.ok((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4 < 12000, 'cached blocks: ' + Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4) + ' tokens');
+  assert.ok((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4 < 13000, 'cached blocks: ' + Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4) + ' tokens');
   assert.equal(parser.body.system, sys.parser);
   assert.equal(book.body.system, sys.book);
   assert.match(parser.body.system, /^You convert a player's free-text action into structured data for a game engine\./);
   assert.match(parser.body.system, /The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else \(a knife to stab with, a gun, a car, a key, a tool\), name it in missingItem/);
-  assert.match(narrator.body.messages[0].content, /\nPLAYER: [^\n]+\nCARRYING: [^\n]+ \(nothing else: no weapon, tool, phone, keys, car or money beyond this\)\.\n/);
+  // The "nothing else" list leaves out what is carried (this background's socket set is a tool).
+  assert.match(narrator.body.messages[0].content, /\nPLAYER: [^\n]+\nCARRYING: [^\n]+ \(nothing else: no (?:[a-z]+, )*[a-z]+ or money beyond this\)\.\n/);
   assert.match(book.body.system, /^You record what changed in the game world after this turn\./);
   // Nothing volatile in the cached system prompt.
   const volatile = await page.evaluate(() => [Game.state.player.name, Game.state.meta.townName, 'DAY 1', Game.State.loc(Game.state.player.locationId).name].concat(Game.State.npcsAt(Game.state.player.locationId).map(n => n.name)));
   for (const v of volatile) assert.ok(!sys.narrator.includes(v), 'system prompt contains ' + v);
-  assert.ok(narrator.body.messages[0].content.startsWith(`DAY 1, MORNING (early) · Location: ${fx.startName}`));
+  // The story first, then the scene: the clock line has the weekday and date.
+  assert.ok(narrator.body.messages[0].content.startsWith('STORY SO FAR: '));
+  assert.ok(narrator.body.messages[0].content.includes(`\nDAY 1 (Thursday 8 October), MORNING (early) · Location: ${fx.startName}`));
   assert.match(parser.body.messages[0].content, /^PLAYER INPUT: I ask the ferryman about the tide\n/);
   assert.match(book.body.messages[0].content, /\nNARRATION: Rain needles the water\./);
   // A second turn: the narrator system block is byte-identical.
@@ -402,7 +409,7 @@ s.test('Api.chronicle summarises log entries with the parser model in plain text
   assert.equal(c.body.max_tokens, 2000);
   assert.ok(!c.body.stream && !c.body.output_config.format);
   assert.equal(c.body.system, await page.evaluate(() => Game.Api.SYSTEM.chronicle));
-  assert.match(c.body.system, /^Summarise these 10 turns in under 80 words/);
+  assert.match(c.body.system, /^Summarise these turns for the narrator's memory, under 100 words, past tense, full names\. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom\. Skip scenery and small talk\. End with 'Open:' and what is unresolved\./);
   assert.match(c.body.messages[0].content, /TURN 1 \(day 1, morning\)\nPLAYER: I ask the ferryman about the tide\nNARRATION: Rain needles the water\./);
 });
 

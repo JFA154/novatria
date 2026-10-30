@@ -785,7 +785,7 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
     styles: Game.Style.STYLES, current: Game.Style.current(), setting: Game.Storage.settings().narrationStyle,
     pLit: Game.Style.systemPrompt('literary'), pLit2: Game.Style.systemPrompt('literary'),
     pCas: Game.Style.systemPrompt('casual'), pCas2: Game.Style.systemPrompt('casual'), pDefault: Game.Style.systemPrompt(),
-    banned: Game.Style.BANNED,
+    banned: Game.Style.BANNED, goodTurn: Game.Style.GOOD_TURN,
     checks: {
       clean: Game.Style.check('The ferryman spits. "Two coppers," he says.'),
       banned: Game.Style.check('The air is thick with smoke.'),
@@ -802,8 +802,9 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
       curlyDialogue: Game.Style.check('“Act as if you live here,” she says.', { style: 'casual' })
     }
   }));
-  // Literary: SPEC section 9, word for word, and the modern three examples.
-  assert.equal(r.lit, block);
+  // Literary: SPEC section 9, word for word, then the WHAT A GOOD TURN DOES line both guides end with; and the modern three examples.
+  assert.equal(r.lit, block + '\n\n' + r.goodTurn);
+  assert.ok(r.goodTurn.startsWith('WHAT A GOOD TURN DOES: something moves.') && r.cas.endsWith('\n\n' + r.goodTurn));
   assert.deepEqual(r.exLit, MODERN_EXAMPLES);
   // Casual: the same sections, the same NEVER rules and banned list, a plain voice and more to avoid.
   const SECTION = /^(LENGTH|VOICE|DIALOGUE|NEVER|BANNED PHRASES|Also avoid):/;
@@ -824,16 +825,13 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
   const avoid = lineOf(r.cas, 'Also avoid:');
   for (const x of ['"like a ..."', '"as if ..."', 'stacked adjectives', 'poetic fragments', 'lists of three adjectives', 'rhetorical questions', 'starting with "As you"']) assert.ok(avoid.includes(x), 'casual also avoids ' + x);
   assert.notEqual(r.cas, r.lit);
-  // Casual examples: the same three scenes, plain, no simile, not the literary text.
-  assert.equal(r.exCas.length, 3);
-  r.exCas.forEach((t, i) => {
-    assert.equal(t.input, r.exLit[i].input);
-    assert.equal(t.context, r.exLit[i].context);
-    assert.notEqual(t.narration, r.exLit[i].narration);
+  // Casual examples: six to eight turns in the casual voice, their context written the way the packet writes it, plain, no simile, 60 words at most.
+  assert.ok(r.exCas.length >= 6 && r.exCas.length <= 8, r.exCas.length + ' casual examples');
+  r.exCas.forEach(t => {
+    assert.match(t.context, /^(PRESENT|ACTION|PLAYER SAYS \([^)]+\)):/, 'packet format: ' + t.input);
+    assert.ok(!r.exLit.some(x => x.narration === t.narration));
     assert.doesNotMatch(t.narration.replace(/"[^"]*"/g, ' '), /\b(like an?|as if)\b/i, 'no simile: ' + t.input);
-    const words = t.narration.split(/\s+/).length;
-    const want = r.exLit[i].narration.split(/\s+/).length;
-    assert.ok(Math.abs(words - want) <= 10, `about as long as the literary example (${words} vs ${want})`);
+    assert.ok(t.narration.split(/\s+/).length <= 60, 'at most 60 words: ' + t.input);
   });
   for (const t of r.exLit.concat(r.exCas)) assert.ok(!sec.includes(t.narration), 'not the SPEC original: ' + t.input);
   const town = await page.evaluate(() => [Game.data.TOWN_DATA.name].concat(Game.data.TOWN_DATA.npcs.flatMap(n => n.name.split(' ')), Game.data.TOWN_DATA.locations.map(l => l.name.replace(/^The /, ''))));
@@ -2046,7 +2044,7 @@ s.test('a save from before ages loads and plays as it is; State.load drops an ag
     return out;
   });
   assert.deepEqual(r.fresh, [], 'a new game: everyone has an age, a history and a presence');
-  assert.equal(r.player, 'PLAYER: Tester (veteran). Reputation: unknown. Conditions: none.', 'no age: the line as it was');
+  assert.ok(r.player.startsWith('PLAYER: Tester (veteran). Reputation: unknown. Conditions: none. Came here to: '), 'no age: the line as it was, then the goal and flaw: ' + r.player);
   assert.deepEqual(r.ages, [undefined, undefined, undefined, 51], 'ages of the wrong shape are dropped; a good one stays');
   assert.equal(r.history, false);
   assert.equal(r.turn.ok, true, 'and it plays');

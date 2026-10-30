@@ -463,7 +463,8 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   console.log(`          cost per ordinary turn at ${narrModel} + ${parseModel}: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${(usd(narrModel, narr.in, narr.out, narr.cached)).toFixed(4)}-$${(usd(narrModel, narr.in, narr.out + THINK, narr.cached)).toFixed(4)}; first narration of a session +$${first.toFixed(4)} to write the cache`);
   console.log(`          100 turns: about $${(turn(0) * 100).toFixed(2)}-$${(turn(THINK) * 100).toFixed(2)}`);
   assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
-  assert.ok(m.narrate.max < 8000 && m.bookkeep.max < 12000, 'packets stay small');
+  // The narrator's packet now carries the story (EARLIER, LOOSE ENDS, OPEN, TOWN NEWS, each person's traits and wants): under 12,000 characters (8,000 before).
+  assert.ok(m.narrate.max < 12000 && m.bookkeep.max < 12000, 'packets stay small');
   assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');
 });
 

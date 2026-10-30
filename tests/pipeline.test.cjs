@@ -63,13 +63,21 @@ s.test('a full turn runs parse, roll, narration, bookkeeping, time and autosave;
   assert.match(r.roll, /^Wits 15/);
   const packet = await lastPacket(page);
   const lines = packet.split('\n').map(l => l.split(':')[0]);
-  for (const label of ['DAY 1, MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
+  // The clock line carries the weekday and date (prompts, CONTRACTS section 1); the story comes first, the rules last.
+  for (const label of ['DAY 1 (Thursday 8 October), MORNING (early) · Location', 'PLAYER', 'PRESENT', 'ACTION', 'ROLL', 'COMPLICATION', 'DUE EVENT', 'STORY SO FAR', 'LAST 3 TURNS', 'MODE']) assert.ok(lines.includes(label), 'packet line ' + label);
+  assert.equal(lines[0], 'STORY SO FAR');
   // The player's age beside the name: the background's default when the form left it alone.
   assert.equal(r.age, r.bgAge);
   assert.ok(packet.includes(`PLAYER: Tester (${r.age}, ${r.bg.toLowerCase()}). Reputation: unknown. Conditions: none.`));
   assert.match(packet, /\nMODE: normal\nLENGTH: 2 to 4 sentences, under 90 words\. Stop at the first moment the player must respond\. Not everyone and everything listed needs a mention\.\nVARIETY: [^\n]+$/, 'MODE, then the LENGTH line last');
-  const hidden = await page.evaluate(() => [].concat(Game.state.npcs.map(n => n.secret), Game.state.npcs.map(n => n.goal), Game.state.seeds.map(sd => sd.effect)).filter(Boolean));
-  for (const x of hidden) assert.ok(!packet.includes(x), 'hidden field in packet: ' + x.slice(0, 40));
+  // Secrets and unfired seeds never reach the narrator (a secret only through ctx.revealSecretFor); a goal only as
+  // the wants of someone present, never anyone else's (the narrator now knows what people want: REVIEW 2.1).
+  const hidden = await page.evaluate(() => {
+    const here = Game.State.npcsAt(Game.state.player.locationId).map(n => n.id);
+    const low = x => String(x || '').toLowerCase().replace(/\.$/, '');
+    return [].concat(Game.state.npcs.map(n => low(n.secret)), Game.state.npcs.filter(n => !here.includes(n.id)).map(n => low(n.goal)), Game.state.seeds.filter(sd => !sd.fired).map(sd => low(sd.effect))).filter(x => x.length > 20);
+  });
+  for (const x of hidden) assert.ok(!packet.toLowerCase().includes(x), 'hidden field in packet: ' + x.slice(0, 40));
   // The tag survives a rebuild of the feed (reload).
   await page.reload();
   await page.waitForFunction(() => window.Game);
@@ -378,7 +386,7 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   const packet = await lastPacket(page);
   assert.match(packet, /\nMODE: arrival \(ZOOM length allowed\)\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.ok(packet.includes(`\nTIME PASSED: the player skipped ahead to ${t1.name}, night of day 1`));
-  assert.ok(packet.startsWith(`DAY 1, NIGHT (early; the player has not slept) · Location: ${t1.name}`));
+  assert.ok(packet.split('\n').find(l => / · Location: /.test(l)).startsWith(`DAY 1 (Thursday 8 October), NIGHT (early; the player has not slept) · Location: ${t1.name} — `), 'an arrival: the clock with the date, and the place in full');
   assert.equal(r.last.phase, 'night');
   assert.ok(r.last.narration.includes(`You arrive at ${the(t1.name)}`));
   assert.equal(r.divider, 'Day 1 · Night');
@@ -513,7 +521,8 @@ s.test('the style check regenerates once with a note naming the problem, and kee
   const r = await page.evaluate(() => ({ c: Game.Api.Mock.calls.filter(x => x.method === 'narrate'), last: Game.state.log[Game.state.log.length - 1].narration, feed: [...document.querySelectorAll('#feed .f-narr')].pop().innerText, dbg: Game.State.debugLog.filter(x => x.kind === 'style') }));
   assert.equal(r.c.length, 2);
   assert.ok(!/STYLE CHECK/.test(r.c[0].text));
-  assert.match(r.c[1].text, /\nSTYLE CHECK FAILED on your last attempt: banned phrase "the air is thick with"; contains "What do you do"\. Write it again without that\.$/);
+  // The hard problem leads; the soft one rides along (Style.regenerationNote).
+  assert.match(r.c[1].text, /\nSTYLE CHECK FAILED on your last attempt: contains "What do you do"\. Write it again without that\. If you can, also fix: banned phrase "the air is thick with"\.$/);
   assert.equal(r.c[0].text, r.c[1].text.split('\nSTYLE CHECK FAILED')[0], 'same packet plus the note');
   assert.equal(r.last, 'Smoke drifts across the road.');
   assert.ok(r.feed.includes('Smoke drifts across the road.') && !r.feed.includes('thick with'), 'the feed shows only the second try');
@@ -767,7 +776,7 @@ s.test('a walk then a talk ("I walk to X and talk to Y") moves the player first:
   const parse = await lastPacket(page, 'parse');
   assert.ok(line(parse, 'OTHER PLACES IN TOWN (one move reaches any)').includes(`${sc.loc.id} — ${sc.loc.name} (${sc.loc.type})`), 'the parser sees places with their type');
   const packet = await lastPacket(page);
-  assert.ok(packet.split('\n')[0].includes(` · Location: ${sc.loc.name} — `), 'the scene is the destination');
+  assert.ok(packet.split('\n').find(l => / · Location: /.test(l)).includes(` · Location: ${sc.loc.name} — `), 'the scene is the destination, in full after the walk');
   assert.equal(line(packet, 'MOVED'), `MOVED: from ${origin.name} to ${sc.loc.name}, just now. The action happens here; give the walk one clause at most.`);
   const present = line(packet, 'PRESENT');
   for (const id of sc.presentIds) {
@@ -839,7 +848,7 @@ s.test('a plain move arrives even when the bookkeeper leaves playerLocationId ou
   assert.equal(await where(), r.a.id, 'arrived without the bookkeeper');
   assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.action.actionType), 'move');
   assert.ok(line(await lastPacket(page), 'DESTINATION').startsWith(`DESTINATION: ${r.a.name} — `), 'still narrated as the walk, from the origin');
-  assert.ok((await lastPacket(page)).split('\n')[0].includes(` · Location: ${r.here.name} — `));
+  assert.ok((await lastPacket(page)).split('\n').find(l => / · Location: /.test(l)).includes(` · Location: ${r.here.name} — `));
   assert.deepEqual(await engineMoves(), [`the bookkeeper left the player at ${r.here.id} after a move; the engine moved them to ${r.a.id}`]);
   // The bookkeeper sets it back to where the move started: the same.
   await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { playerLocationId: id }), r.a.id);
@@ -1487,9 +1496,10 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   assert.equal(r.bar, 'Day 1 · Night');
   // The last chore was narrated late at night: the narrator, the bookkeeper and the parser are told.
   const narr = await lastPacket(page);
-  assert.ok(narr.startsWith('DAY 1, NIGHT (late; the player has not slept) · Location: '), narr.split('\n')[0]);
+  const clockOf = p => p.split('\n').find(l => / · Location: /.test(l)) || '';
+  assert.ok(clockOf(narr).startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), clockOf(narr));
   assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 1, NIGHT \(late; the player has not slept\)\. Any new seed must trigger on day 2 or later\./);
-  assert.match(await lastPacket(page, 'parse'), /\nTIME: day 1, night \(late\)\n/);
+  assert.match(await lastPacket(page, 'parse'), /\nTIME: day 1 \(Thursday 8 October\), night \(late\)\n/);
   const schema = await page.evaluate(() => Game.Api.SCHEMAS.parse_action.properties.timeCost.description);
   assert.equal(schema, 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.');
   // Hours pass: a long action reaches morning, the world ticks, and the next narration hears there was no sleep.
@@ -1500,11 +1510,11 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   assert.deepEqual(morning.ticks, ['2:morning']);
   assert.equal(morning.divider, 'Day 2 · Morning');
   await sendText(page, 'I sweep the floor');
-  assert.ok((await lastPacket(page)).startsWith('DAY 2, MORNING (early; no sleep last night) · Location: '));
+  assert.ok(clockOf(await lastPacket(page)).startsWith('DAY 2 (Friday 9 October), MORNING (early; no sleep last night) · Location: '));
   assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 2, MORNING \(early; no sleep last night\)\. /);
   // Sleeping clears it.
   await sendText(page, '/rest');
-  assert.ok((await lastPacket(page)).startsWith('DAY 3, MORNING (early) · Location: '));
+  assert.ok(clockOf(await lastPacket(page)).startsWith('DAY 3 (Saturday 10 October), MORNING (early) · Location: '));
   assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), '{"day":3,"phase":"morning","shorts":0}');
 });
 
@@ -2034,7 +2044,9 @@ s.test('the narrator packet says what people can know about the player: came to 
     return out;
   });
   assert.equal(r.after, r.present + 1, 'right after PRESENT');
-  assert.ok(r.d1.startsWith(`WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Each person knows about ${r.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${r.name} never met them, heard of them, or got a call, news or a warning about them before they came.`), r.d1);
+  // The rule itself (only their memories and what happened in front of them) now sits in the cached style block (Style.KNOWLEDGE).
+  assert.equal(r.d1, `WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Nobody here knew ${r.name} before.`);
+  assert.ok((await page.evaluate(() => Game.Style.systemPrompt())).includes('Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them'));
   assert.ok(r.d2.includes(' came to ' + r.town + ' yesterday (this is day 2) and'), r.d2);
   assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
 });
@@ -2151,7 +2163,9 @@ s.test('the player has only what they carry: "I stab X" with no knife tells the 
   const book = await lastPacket(page, 'bookkeep');
   const lines = narr.split('\n');
   const at = lines.findIndex(l => /^PLAYER: /.test(l));
-  assert.match(lines[at + 1], /^CARRYING: .+; .+ \(nothing else: no weapon, tool, phone, keys, car or money beyond this\)\.$/, 'CARRYING right after PLAYER');
+  // The "nothing else" list leaves out what they do carry (a socket set is a tool).
+  assert.match(lines[at + 1], /^CARRYING: .+; .+ \(nothing else: no (?:[a-z]+, )*[a-z]+ or money beyond this\)\.$/, 'CARRYING right after PLAYER');
+  assert.match(lines[at + 1], /\(nothing else: no weapon, /, 'no weapon: they carry none');
   assert.doesNotMatch(lines[at + 1], /knife/i);
   assert.ok(lines.includes('NOT CARRIED: a knife. The player has no knife and nothing like one; they cannot stab or cut anyone. Narrate what they can do without it (bare hands, bluff, or realising they have nothing), and nothing happens that needs it.'), narr);
   assert.match(book, /NOT CARRIED: a knife\. The player has no knife and nothing like one; they cannot stab or cut anyone\./);
