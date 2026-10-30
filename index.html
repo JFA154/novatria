@@ -461,8 +461,9 @@ select.input { padding-right: 32px; }
 .f-notice.recap { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
 .f-notice.recap::before { content: "Where things stand"; content: "Where things stand" / ""; display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-recap-k { font-weight: 600; }
-/* /help (and Commands help in the ⋯ list): the command list, one a line. */
-.f-notice.help { white-space: pre-line; color: var(--text); }
+/* /help (and Commands help in the ⋯ list): the command list, one a line, under its first line as a heading (as the recap's). */
+.f-notice.help { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
+.f-help-h { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-quiet {
   margin: 0 0 .75em;
   font-family: var(--ui-font);
@@ -900,9 +901,11 @@ select.input { padding-right: 32px; }
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 /* A queued line: "Next: “…”" in a 32px pill (a true pill) at the end of the
    line; its × is a 44px target that hangs 6px over the pill's top and
-   bottom, into the row's margins, so the line stays one line, 32px tall. */
-.turn-status.has-queued #turn-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 62%; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: 12px; color: var(--text); }
+   bottom, into the row's margins, so the line stays one line, 32px tall.
+   The stage text keeps its full width ("Updating the town…" at 375) and
+   the pill takes what is left, its line cut short (the title has it all). */
+.turn-status.has-queued #turn-status-text { flex: 0 0 auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 96px; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: 12px; color: var(--text); }
 .turn-status .queued[data-cancel="0"] { padding-right: 12px; }
 .queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
@@ -1109,6 +1112,23 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   /* The creation summary of errors: the step's own message is on screen, so this one is for screen readers. */
   #cr-errsum { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
   .act-pop { min-width: min(260px, calc(100vw - 24px)); left: auto; right: 0; }
+}
+/* A phone on its side (740x375; about 740x200 with the keyboard up). */
+@media (max-width: 899px) and (orientation: landscape) {
+  /* The ⋯ list in two columns, so all of it fits above the box (with the keyboard up it scrolls, the last items in reach). */
+  .act-pop { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: min(460px, calc(100vw - 24px)); }
+  .act-pop .act-h { grid-column: 1 / -1; }
+  /* Typing: the top bar steps aside too, and the Say row is the picker alone, in the input row (UI.compactComposer), so the story keeps its room. */
+  #app.typing #screen-game .topbar { display: none; }
+  #app.typing .composer-inner { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 4px; }
+  #app.typing .composer-inner > .input-row { display: contents; }
+  #app.typing .turn-status { flex: 1 0 100%; }
+  #app.typing .mode-toggle { order: 1; }
+  #app.typing #act-btn { order: 2; }
+  #app.typing .say-to { order: 3; flex: 0 1 auto; min-width: 0; max-width: 30vw; margin: 0; overflow: visible; }
+  #app.typing .say-to .say-pick { position: static; min-width: 9em; max-width: 100%; box-shadow: none; }
+  #app.typing .input-wrap { order: 4; flex: 1 1 0; min-width: 120px; }
+  #app.typing .send-btn { order: 5; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -18022,11 +18042,11 @@ const Storage = (() => {
   function fail(msg) { failed = true; UI.warn(msg); }
   function read(key, which) {
     try { return area(which).getItem(key); }
-    catch (e) { console.warn('[Storage] read failed', key, e); fail('This browser blocked access to its storage, so saves and settings may not load. You can still export your game from the Saves screen.'); return null; }
+    catch (e) { console.warn('[Storage] read failed', key, e); fail('This browser blocked access to its storage, so saves and settings may not load. You can still export your game from Save / Load.'); return null; }
   }
   function write(key, value, which) {
     try { area(which).setItem(key, value); return true; }
-    catch (e) { console.warn('[Storage] write failed', key, e); fail('Saving failed: this browser\'s storage is full or blocked. Export your game from the Saves screen so nothing is lost.'); return false; }
+    catch (e) { console.warn('[Storage] write failed', key, e); fail('Saving failed: this browser\'s storage is full or blocked. Export your game from Save / Load so nothing is lost.'); return false; }
   }
   function remove(key, which) {
     try { area(which).removeItem(key); return true; }
@@ -18218,7 +18238,9 @@ const Storage = (() => {
   function exportJson() { return serialise(envelope('Export')); }
   function exportFileName() {
     const st = State.current;
-    return `${slugify(st.meta.townName)}-${slugify(st.player.name)}-day${st.time.day}.json`.replace(/_/g, '-');
+    // "locketts-ferry-tomas-reed-day-1.json": an apostrophe is dropped, not made a break.
+    const slug = t => slugify(String(t || '').replace(/['’‘`]/g, ''));
+    return `${slug(st.meta.townName)}-${slug(st.player.name)}-day-${st.time.day}.json`.replace(/_/g, '-');
   }
   function download(text, name) {
     const blob = new Blob([text], { type: 'application/json' });
@@ -18295,6 +18317,8 @@ const UI = (() => {
   const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['places', 'Places']];
   const mq = window.matchMedia('(max-width: 899px)');
   const isMobile = () => mq.matches;
+  // A phone on its side: with the keyboard up the story has a strip about 200px tall, so the top bar steps aside too and Say is the picker in the input row (compactComposer).
+  const landMq = window.matchMedia('(orientation: landscape)');
   let screen = 'title';
   let returnTo = 'title';
   let tab = 'character';
@@ -18394,7 +18418,7 @@ const UI = (() => {
     // The offline demo bar and the second-tab bar
     d.demoBarClose.addEventListener('click', () => { demoBarHidden = true; renderDemoBar(); focusComposer(); });
     d.demoBarAct.addEventListener('click', () => {
-      if (Storage.getApiKey()) { Storage.saveSettings({ mockMode: false }); toast('Mock mode off: playing with Claude'); renderDemoBar(); renderTitleMode(); }
+      if (Storage.getApiKey()) { Storage.saveSettings({ mockMode: false }); toast(MOCK_OFF); renderDemoBar(); renderTitleMode(); }
       else openKeySettings();
     });
     // "Play here instead": the newer game the other tab saved is loaded here first, then this tab plays (App.playHere).
@@ -18412,17 +18436,21 @@ const UI = (() => {
     // Leaving the box closes the command list a moment later; coming straight back keeps it.
     // While the box has the focus on a phone (the keyboard is up), the tab bar steps aside.
     let blurHide = null;
-    let typingOff = null;
     d.cmd.addEventListener('blur', () => {
       clearTimeout(blurHide); blurHide = setTimeout(hideAc, 150);
       // A moment later, so a tap on a chip lands before the tab bar comes back.
-      clearTimeout(typingOff); typingOff = setTimeout(() => { typingOff = null; syncTyping(); }, 250);
+      syncTypingSoon();
     });
     d.cmd.addEventListener('focus', () => {
       clearTimeout(blurHide); blurHide = null;
       clearTimeout(typingOff); typingOff = null;
       syncTyping();
     });
+    // The box-side ⋯ and its list hold the typing layout while they have the focus (syncTyping); leaving them, it is looked at again.
+    d.actBtn.addEventListener('blur', syncTypingSoon);
+    d.actPop.addEventListener('focusout', syncTypingSoon);
+    // The Say picker of a phone on its side stays while it has the focus (a native list may be open over it); after, the row is drawn again.
+    d.sayTo.addEventListener('focusout', () => setTimeout(() => { if (screen === 'game') renderComposer(); }, 0));
     d.send.addEventListener('click', () => sendOrStop());
     // ⋯: beside the toggle on a laptop, at the end of the tab row on a phone (so the box keeps its width).
     for (const b of [d.actBtn, d.actBtnM]) b.addEventListener('click', e => { e.stopPropagation(); if (d.actPop.hidden) openActions(b); else closeActions(true); });
@@ -18441,7 +18469,17 @@ const UI = (() => {
     d.panelBody.addEventListener('focusin', () => { if (editing) requestAnimationFrame(keepFieldClear); });
     d.panelTabs.addEventListener('keydown', onTabKey);
     wireSwipe();
-    mq.addEventListener('change', () => { setMapExpanded(false); if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); });
+    mq.addEventListener('change', () => {
+      // What had the focus may be a control this layout does not show (Panel, the box-side ⋯, the tab row): its stand-in takes it first.
+      const lost = focusLostToLayout();
+      setMapExpanded(false); if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); syncTip(); syncTyping();
+      keepFocusThroughLayout(lost);
+    });
+    try { landMq.addEventListener('change', () => { syncTyping(); renderComposer(); }); } catch (e) { /* old browsers */ }
+    // Where the focus last was, so a layout change that hides it (the box-side ⋯, Panel) can hand it on, never to the page.
+    document.addEventListener('focusin', e => { lastFocus = e.target; });
+    // Left for nowhere while still on screen (a tap on the page): nothing to hand on.
+    document.addEventListener('focusout', e => { if (!e.relatedTarget && focusableNow(e.target)) lastFocus = null; });
     // An expanded map is sized to the window: drawn again when the window changes (a phone turned sideways).
     let mapResize = 0;
     // Turned or resized, it is drawn for the new view and centred on the player again (the old pan means nothing there).
@@ -18487,12 +18525,60 @@ const UI = (() => {
     return tallest.h - h > 120;
   }
   /* Typing on a phone (the box has the focus and the keyboard is up): the
-     tab bar and the demo bar step aside so the story keeps its room. */
+     tab bar and the demo bar step aside so the story keeps its room (on its
+     side the top bar too, and Say is the picker in the input row). The
+     box-side ⋯, shown only while typing, holds that layout while it or its
+     list has the focus: the list stays where it opened and the button is
+     never hidden from under the focus (Shift+Tab from the box, ⋯ then Look
+     around). Once the keyboard is down and the list closed, the focus (and
+     a turn's hold on it) goes first to the ⋯ in the tab row, then the
+     layout changes. */
+  let typingOff = null;
+  function syncTypingSoon() { clearTimeout(typingOff); typingOff = setTimeout(() => { typingOff = null; syncTyping(); }, 250); }
   function syncTyping() {
-    const on = !!d.cmd && document.activeElement === d.cmd && keyboardUp();
-    if (on === d.app.classList.contains('typing')) return;
-    d.app.classList.toggle('typing', on);
-    if (stick && screen === 'game') scrollToBottom();
+    if (!d.app || !d.cmd) return;
+    const a = document.activeElement;
+    const was = d.app.classList.contains('typing');
+    const kb = keyboardUp();
+    let on = a === d.cmd && kb;
+    let handTo = null;
+    if (!on && was && a && (a === d.actBtn || d.actPop.contains(a))) {
+      if (kb || !d.actPop.hidden) on = true;
+      else if (isMobile()) handTo = d.actBtnM;
+    }
+    if (on !== was) {
+      const compact = compactComposer();
+      d.app.classList.toggle('typing', on);
+      if (handTo) moveFocus(focusableNow(handTo) ? handTo : [d.send, d.cmd].find(focusableNow), a);
+      if (compact !== compactComposer()) renderComposer();
+      if (stick && screen === 'game') scrollToBottom();
+    }
+  }
+  /* A phone on its side with the keyboard up: the top bar steps aside and Say is the picker alone, beside the box (CSS: #app.typing in landscape). */
+  function compactComposer() { return isMobile() && landMq.matches && !!d.app && d.app.classList.contains('typing'); }
+  /* A layout change (across 900px) can hide what has the focus: the
+     laptop's Panel, Save, Settings and box-side ⋯, or the phone's Menu, tab
+     row and the sheet's ×. Its stand-in in the new layout takes it. */
+  let lastFocus = null;
+  function focusLostToLayout() {
+    const a = document.activeElement;
+    const was = a && a !== document.body ? a : lastFocus;
+    const game = document.getElementById('screen-game');
+    return was && was.isConnected && screen === 'game' && game && game.contains(was) ? was : null;
+  }
+  function keepFocusThroughLayout(was) {
+    if (screen !== 'game') return;
+    const a = document.activeElement;
+    // Whatever has the focus now and is on screen keeps it.
+    if (a && a !== document.body && focusableNow(a)) return;
+    const from = a && a !== document.body ? a : was;
+    if (!from) return;
+    const tabBtn = from.dataset && from.dataset.openTab ? document.getElementById('tab-' + from.dataset.openTab) : null;
+    const stand = new Map([[d.actBtn, d.actBtnM], [d.actBtnM, d.actBtn], [d.tbSave, d.tbMenu], [d.tbSettings, d.tbMenu], [d.tbPanel, d.tbMenu],
+      [d.tbMenu, d.tbPanel], [d.panelClose, document.getElementById('tab-' + tab)]]).get(from) || tabBtn;
+    // Else the composer's place for it (the box on a laptop, Send on a phone): never the page.
+    const to = [stand, isMobile() ? d.send : d.cmd, d.send].find(focusableNow);
+    if (to) moveFocus(to, from);
   }
   function initViewport() {
     const vv = window.visualViewport;
@@ -18551,7 +18637,7 @@ const UI = (() => {
     }
     d.toast.style.setProperty('--toast-bottom', bottom + 'px');
   }
-  const MOCK_OFF = 'Mock mode off: playing with Claude';
+  const MOCK_OFF = 'Offline demo off: playing with Claude.';
   /* The one check before anything that plays a turn or changes the game
      (Send, Wait, the ⋯ actions, the Undo link, Go there, the map's chip,
      Spend, a pronoun chip, Edit and Save on a person): not in a tab that is
@@ -18917,6 +19003,8 @@ const UI = (() => {
     d.actPop.hidden = true;
     for (const b of [d.actBtn, d.actBtnM]) b.setAttribute('aria-expanded', 'false');
     if (refocus || inside) { const to = [actOpener, actButton()].find(focusableNow); if (to) moveFocus(to, inside ? null : was); }
+    // Back on the box-side ⋯ with the keyboard down: the ⋯ in the tab row takes the focus before that one goes.
+    syncTyping();
   }
   /* Put text in the box (/fact , /) with the cursor at its end. */
   function fillBox(text) {
@@ -18981,11 +19069,12 @@ const UI = (() => {
     setInert(false);
     syncTabbar();
     // The focus goes back to what opened the sheet, else to its tab in the tab bar (a sheet opened from code), never the page.
-    // (Turned into a laptop with the sheet open, the panel stays on screen: what has the focus in it keeps it.)
+    // (Turned into a laptop with the sheet open, the panel stays on screen: what has the focus in it keeps it; the
+    // sheet's ×, which a laptop has not, gives it to the panel's tab.)
     const a = document.activeElement;
     const lost = !a || a === document.body || (isMobile() && d.panel.contains(a));
     if (was && silent !== true && screen === 'game' && lost) {
-      const to = [sheetOpener, $(`[data-open-tab="${tab}"]`)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
+      const to = [sheetOpener, $(`[data-open-tab="${tab}"]`), isMobile() ? null : document.getElementById('tab-' + tab)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
       if (to) moveFocus(to);
     }
     if (was) sheetOpener = null;
@@ -19094,7 +19183,8 @@ const UI = (() => {
     appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
     if (tab === 'places') placeChip($('.map', d.panelBody));
     if (tab === 'people') filterPeople();
-    if (scroll) d.panelBody.scrollTop = scroll;
+    // Always: a tab change opens the new tab at its top (0), a redraw of the same tab keeps its place.
+    d.panelBody.scrollTop = scroll;
     syncMapModal();
     if (!key) return;
     let again = null;
@@ -19152,7 +19242,7 @@ const UI = (() => {
     if (isHere) return el('span', { class: 'pcard-where here' }, 'Here now');
     const v = (s.seen || {})[n.id];
     const l = v && State.loc(v.locationId);
-    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${l.name}, `, el('span', { class: 'nowrap' }, `Day ${v.day} · ${capFirst(v.phase)}`)) : null;
+    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${placePhrase(l.name)}, `, el('span', { class: 'nowrap' }, `Day ${v.day} · ${capFirst(v.phase)}`)) : null;
   }
   function reEsc(x) { return String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   /* A memory in the player's words: "Tester insulted them" -> "you insulted
@@ -19766,13 +19856,22 @@ const UI = (() => {
     if (!t) return 'Place';
     return PLACE_TYPE_LABELS[t] || capFirst(t.replace(/[_-]+/g, ' '));
   }
+  /* A place that its type word would misname gets its own: the Bluff is a
+     pull-off on the highway, not the highway (the Bypass is). A typeLabel
+     on the place in the town's data wins over both. */
+  const PLACE_LABELS = { loc_bluff: 'Bluff' };
+  function placeLabel(l) {
+    if (!l) return 'Place';
+    if (typeof l.typeLabel === 'string' && l.typeLabel.trim()) return l.typeLabel.trim();
+    return PLACE_LABELS[l.id] || placeTypeLabel(l.type);
+  }
   /* " (closed)" for a place shut for good, " (closed today)" for one shut on today's weekday. */
   function closedTag(l) { return !closedNow(l) ? '' : l.closed === true ? ' (closed)' : ' (closed today)'; }
   /* The line under the name of the place here: its type, and shut for good, today, or on which days. */
   function placeStatusLine(l) {
     const days = closedDays(l);
     const shut = l.closed === true ? 'Closed' : closedNow(l) ? `Closed today${days.length ? ` (${joinList(days.map(x => x + 's'))})` : ''}` : closedOnLine(l);
-    return [placeTypeLabel(l.type), shut].filter(Boolean).join(' · ');
+    return [placeLabel(l), shut].filter(Boolean).join(' · ');
   }
   // ----- Places: label placement -----
   /* Two boxes ({ x, y, w, h }) overlap. */
@@ -19929,7 +20028,9 @@ const UI = (() => {
       if (more) kids.push(sv('text', { class: 'map-more', x: r1(cx - u.mono / 2 + 1), y: r1(cy + u.fs * 0.34) }, more));
     }
     const who = people.map(npcLabel);
-    const aria = [p.loc.name, here ? 'you are here' : null, heard ? 'heard of, not visited yet' : null, closed ? 'closed' : null, who.length ? 'with ' + who.join(', ') : null].filter(Boolean).join(', ');
+    // Shut for good or only today, as the exits and the chip say it ("closed today").
+    const shut = closed ? closedTag(p.loc).trim().replace(/^\(|\)$/g, '') : null;
+    const aria = [p.loc.name, here ? 'you are here' : null, heard ? 'heard of, not visited yet' : null, shut, who.length ? 'with ' + who.join(', ') : null].filter(Boolean).join(', ');
     const tap = e => { if (e) e.stopPropagation(); mapTap(p.id, false); };
     return sv('g', {
       class: 'map-place', role: 'button', tabindex: '0', 'aria-label': aria, 'aria-current': here ? 'location' : null, 'aria-disabled': here ? 'true' : null,
@@ -19965,23 +20066,42 @@ const UI = (() => {
     return { w, h, scale, vb: { x: r2((W - w / scale) / 2), y: r2((H - h / scale) / 2), w: r2(w / scale), h: r2(h / scale) } };
   }
   /* A line that ends on the town's frame (the river, a road off the map)
-     runs on past it, straight along its last stretch, by reach units: the
-     expanded map has land beyond the frame, and nothing stops dead there. */
+     runs on past it, straight along the tangent at its end, by reach units:
+     the expanded map has land beyond the frame, and nothing stops dead
+     there. One path, not a piece laid against it: the run-on starts the
+     path (its first move becomes a line to the same point) and ends it, so
+     no seam or kink shows where they meet. A path that does not start with
+     an absolute move, or that closes, gets separate pieces that overlap its
+     ends by 3 units, which hides the join as well. */
   function runOn(dPath, L, reach) {
     let p = null;
     let len = 0;
     try { p = sv('path', { d: dPath }); len = p.getTotalLength(); } catch (e) { return dPath; }
     if (!(len > 2) || !(reach > 0)) return dPath;
     const edge = q => q.x <= 0.5 || q.y <= 0.5 || q.x >= L.W - 0.5 || q.y >= L.H - 0.5;
-    const on = (a, b) => { const dx = a.x - b.x; const dy = a.y - b.y; const n = Math.hypot(dx, dy) || 1; return `M${r1(a.x + dx / n * reach)},${r1(a.y + dy / n * reach)} L${r1(a.x)},${r1(a.y)}`; };
-    const out = [dPath];
+    // The point reach units on from end a, away from b (a point just inside the line, so a-b is its tangent there).
+    const past = (a, b, by) => { const dx = a.x - b.x; const dy = a.y - b.y; const n = Math.hypot(dx, dy) || 1; return { x: a.x + dx / n * by, y: a.y + dy / n * by }; };
+    const xy = q => `${r1(q.x)},${r1(q.y)}`;
+    const d0 = String(dPath).trim();
+    const joinable = /^M\s*[-+.\d]/.test(d0) && !/[zZ]\s*$/.test(d0);
+    let head = '';
+    let tail = '';
     try {
       const a = p.getPointAtLength(0);
       const b = p.getPointAtLength(len);
-      if (edge(a)) out.unshift(on(a, p.getPointAtLength(Math.min(len, 2))));
-      if (edge(b)) out.push(on(b, p.getPointAtLength(Math.max(0, len - 2))));
+      const ta = p.getPointAtLength(Math.min(len, 0.25));
+      const tb = p.getPointAtLength(Math.max(0, len - 0.25));
+      if (joinable) {
+        // "M far L a" then the path with its first move as a line: one continuous stroke.
+        if (edge(a)) head = `M${xy(past(a, ta, reach))} L`;
+        if (edge(b)) tail = ` L${xy(past(b, tb, reach))}`;
+        return head ? head + d0.replace(/^M\s*/, '') + tail : d0 + tail;
+      }
+      // Overlapping pieces: each runs back 3 units inside the line, so no hairline shows at the join.
+      if (edge(a)) head = `M${xy(past(a, ta, reach))} L${xy(past(a, ta, -3))} `;
+      if (edge(b)) tail = ` M${xy(past(b, tb, -3))} L${xy(past(b, tb, reach))}`;
     } catch (e) { return dPath; }
-    return out.join(' ');
+    return head + d0 + tail;
   }
   function renderMap(s) {
     s = s || State.current;
@@ -20249,7 +20369,7 @@ const UI = (() => {
     return el('article', { class: 'plcard' + (open ? ' open' : '') + (l.away === true ? ' away' : ''), dataset: { loc: l.id } },
       el('button', { type: 'button', class: 'plcard-head', id: 'plhead-' + l.id, 'aria-expanded': String(open), 'aria-controls': id, onclick: () => togglePlace(l.id) },
         el('span', { class: 'plcard-name' }, `${l.name}${tag}`),
-        el('span', { class: 'plcard-type' }, placeTypeLabel(l.type)),
+        el('span', { class: 'plcard-type' }, placeLabel(l)),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'plcard-more', id, hidden: !open }, open ? [
         el('p', { class: 'plcard-desc' }, l.description),
@@ -20357,6 +20477,21 @@ const UI = (() => {
     return shown;
   }
   const SORTS = [['seen', 'Last seen'], ['attitude', 'Attitude'], ['name', 'Name']];
+  /* A condition's effect as the sheet says it, the way Grown says "+1
+     Wits": "-1 might" is "−1 Might", "-1 all" is "−1 to all". Anything
+     else reads as written. */
+  function effectText(effect) {
+    const t = String(effect == null ? '' : effect).trim();
+    const one = part => {
+      const m = /^([+\-−])\s*(\d+)\s+(all|everything|[a-z]+)$/i.exec(part.trim());
+      if (!m) return null;
+      const what = m[3].toLowerCase();
+      if (what !== 'all' && what !== 'everything' && !STATS.includes(what)) return null;
+      return `${m[1] === '+' ? '+' : '−'}${m[2]} ${STATS.includes(what) ? capFirst(what) : 'to all'}`;
+    };
+    const parts = t.split(/\s*,\s*/).map(one);
+    return t && parts.every(Boolean) ? parts.join(', ') : t;
+  }
   const PANELS = {
     character(s) {
       const p = s.player;
@@ -20369,7 +20504,7 @@ const UI = (() => {
       const condition = c => {
         const left = Number.isInteger(c.untilDay) ? c.untilDay - day : null;
         const when = left === null ? 'until you rest' : left > 1 ? `${left} days left` : left === 1 ? '1 day left' : 'ends today';
-        return `${c.name}${c.effect ? ' (' + c.effect + ')' : ''} · ${when}`;
+        return `${c.name}${c.effect ? ' (' + effectText(c.effect) + ')' : ''} · ${when}`;
       };
       return [
         // The age beside the name ("Tester · 34"), then the background and its blurb.
@@ -20654,6 +20789,15 @@ const UI = (() => {
         return [i ? '\n' : '', m ? [el('span', { class: 'f-recap-k' }, `${m[1]}:`), t.slice(m[1].length + 1)] : t];
       }));
   }
+  /* /help (and Commands help in the ⋯ list): its first line ("Commands")
+     is a heading, styled as the recap's; the rest is one command a line. */
+  function helpNode(text) {
+    const lines = String(text || '').split('\n');
+    const head = lines.length > 1 ? lines.shift().trim().replace(/:$/, '') : '';
+    return el('div', { class: 'f-item f-notice help' },
+      head ? el('span', { class: 'f-help-h' }, head) : null,
+      el('span', { class: 'f-notice-text' }, lines.join('\n')));
+  }
   /* A failed turn's notice ("… Your action was kept in the box."): Try
      again; and Open Settings when the key or a model is the trouble. */
   const KEPT_LINE = 'Your action was kept in the box.';
@@ -20753,6 +20897,7 @@ const UI = (() => {
     },
     notice(text, kind) {
       if (kind === 'recap') return feed.add(recapNode(text));
+      if (kind === 'help') return feed.add(helpNode(text));
       const t = String(text);
       // The text in its own span, so the buttons can follow it and "kept in the box" can be rewritten alone (restoreAction).
       return feed.add(el('p', { class: 'f-item f-notice' + (kind ? ' ' + kind : '') }, el('span', { class: 'f-notice-text' }, t), kind === 'error' ? noticeActs(t) : null));
@@ -20821,16 +20966,23 @@ const UI = (() => {
     b.style.top = Math.round(r.bottom - box.top + d.feedScroll.scrollTop + 9 - b.offsetHeight) + 'px';
   }
   /* After the first narration of a new game: three lines on how to play,
-     once per browser, until closed. */
+     once per browser, until closed. The third says where ⋯ and the panels
+     are in this layout, and is said again when the layout changes (a
+     tablet turned, a window narrowed past 900px). */
+  const TIP_WHERE = {
+    phone: 'Type / or press ⋯ (at the end of the tabs, or beside Do / Say while you type) for commands. The tabs above the box keep track of people, places and your journal.',
+    laptop: 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.'
+  };
+  function tipWhere() { return isMobile() ? TIP_WHERE.phone : TIP_WHERE.laptop; }
+  function syncTip() { const p = $('.f-tip .f-tip-where'); if (p && p.textContent !== tipWhere()) p.textContent = tipWhere(); }
   function showTip() {
     if (!d.feedAfter || Storage.settings().tipSeen || $('.f-tip')) return null;
     Storage.saveSettings({ tipSeen: true });
     tipTurns = 0;
-    const phone = isMobile();
     const tip = el('aside', { class: 'f-tip', 'aria-label': 'How to play' },
       el('p', null, el('strong', null, 'Do'), ' is what you do ("I ask for a beer"); ', el('strong', null, 'Say'), ' is your exact words, to whoever is picked.'),
       el('p', null, el('strong', null, 'Wait'), ' (the button, with the box empty) lets the people here make the next move.'),
-      el('p', null, phone ? 'Type / or press ⋯ (at the end of the tabs) for commands. The tabs above the box keep track of people, places and your journal.' : 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.'),
+      el('p', { class: 'f-tip-where' }, tipWhere()),
       el('button', { type: 'button', class: 'bar-x', 'aria-label': 'Close the tip', onclick: e => { const t = e.target.closest('.f-tip'); if (t) t.remove(); focusComposer(); } }, '×'));
     d.feedAfter.append(tip);
     afterAppend();
@@ -21167,7 +21319,9 @@ const UI = (() => {
     const present = syncAddressee();
     const say = composer.mode === 'say';
     const phone = isMobile();
-    const many = phone && present.length > SAY_PICK_OVER;
+    // On its side with the keyboard up the Say row is the picker alone, in the input row; a picker with the focus stays one until it is left.
+    const pickHasFocus = !!document.activeElement && document.activeElement.id === 'say-pick' && composer.rendered.startsWith('pick|');
+    const many = phone && (present.length > SAY_PICK_OVER || compactComposer() || pickHasFocus);
     d.modeDo.setAttribute('aria-pressed', String(!say));
     d.modeSay.setAttribute('aria-pressed', String(say));
     d.sayTo.hidden = !say;
@@ -21885,7 +22039,7 @@ const UI = (() => {
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
     MOCK_OFF, READ_ONLY_NOTICE, pendingNotes, showRecap, canAct, runAction, travel: confirmTravel, cancelQueued,
-    placeTypeLabel, placeUndo, expandedSize,
+    placeTypeLabel, placeLabel, placeUndo, expandedSize, effectText, compactComposer, runOn,
     attitudeLevel: a => ATTITUDE_LEVEL[State.attitudeWord(a)] || 3,
     get status() { return { stage: status.stage, queued: status.queued, text: d.turnStatus && !d.turnStatus.hidden ? d.turnStatusText.textContent : '' }; },
     get mapExpanded() { return mapExpanded; },

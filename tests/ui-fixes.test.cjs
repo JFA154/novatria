@@ -75,7 +75,8 @@ s.test('first launch: New game asks how to play; the demo goes straight to the f
   await page.fill('#mode-key-input', 'sk-ant-test-0123456789');
   await page.click('#mode-key-go');
   assert.ok(await page.isVisible('#create-form-view'), 'then the form');
-  assert.equal(await page.textContent('#toast'), 'Mock mode off: playing with Claude');
+  // Changed by design in wave 4: the demo's own name, as a sentence.
+  assert.equal(await page.textContent('#toast'), 'Offline demo off: playing with Claude.');
   assert.deepEqual(await page.evaluate(() => [Game.Storage.settings().mockMode, Game.Storage.settings().playChoice, Game.Storage.getApiKey()]), [false, 'claude', 'sk-ant-test-0123456789']);
   // The demo, in a fresh browser: chosen once, not asked again.
   const demo = await open(h, LAPTOP);
@@ -91,7 +92,7 @@ s.test('first launch: New game asks how to play; the demo goes straight to the f
   await demo.click('#btn-settings');
   assert.equal(await demo.evaluate(() => document.activeElement.id), 'settings-title');
   await demo.fill('#set-key', 'sk-ant-other-0123456789');
-  assert.equal(await demo.textContent('#toast'), 'Mock mode off: playing with Claude');
+  assert.equal(await demo.textContent('#toast'), 'Offline demo off: playing with Claude.');
   assert.equal(await demo.evaluate(() => Game.Storage.settings().mockMode), false);
   assert.equal(await demo.isChecked('#set-mock'), false);
 });
@@ -591,7 +592,8 @@ s.test('Character: a standing row per faction, Spend beside story points (fills 
   await page.evaluate(() => { Game.State.apply({ conditionsAdded: [{ name: 'Stiff', effect: '-1 might', untilDay: Game.state.time.day + 2 }] }); Game.UI.openPanel('character'); });
   const c = await page.evaluate(() => ({ reps: [...document.querySelectorAll('.rep-list li')].length, factions: Object.keys(Game.state.player.reputation).length, cond: document.querySelector('#panel-body').textContent }));
   assert.equal(c.reps, c.factions);
-  assert.match(c.cond, /Stiff \(-1 might\) · 2 days left/);
+  // Changed by design in wave 4: the effect said as the sheet says stats ("−1 Might").
+  assert.match(c.cond, /Stiff \(−1 Might\) · 2 days left/);
   await page.click('#sp-spend');
   assert.equal(await page.inputValue('#cmd'), '/fact ');
   await sendText(page, '/debug');
@@ -1736,8 +1738,9 @@ s.test('wave 3, defect 6 and N3: place types read as words (one map for the plac
     Game.UI.renderPanel();
     const here = Game.State.loc(Game.state.player.locationId);
     return {
-      line: document.querySelector('#panel-body > p.muted').textContent, hereLabel: Game.UI.placeTypeLabel(here.type),
-      rows: [...document.querySelectorAll('.plcard')].map(c => { const l = Game.State.loc(c.dataset.loc); return { type: l.type, shown: c.querySelector('.plcard-type').textContent, want: Game.UI.placeTypeLabel(l.type) }; })
+      line: document.querySelector('#panel-body > p.muted').textContent, hereLabel: Game.UI.placeLabel(here),
+      // Wave 4: placeLabel, the type's word unless the place has its own (the Bluff).
+      rows: [...document.querySelectorAll('.plcard')].map(c => { const l = Game.State.loc(c.dataset.loc); return { type: l.type, shown: c.querySelector('.plcard-type').textContent, want: Game.UI.placeLabel(l) }; })
     };
   });
   assert.ok(t.line.startsWith(t.hereLabel), t.line);
@@ -1956,7 +1959,8 @@ s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the en
   // The day they are about again (hurtUntilDay), the same day as the engine's note (changed by design at the wave-3 integration).
   assert.ok(r.meta.includes(`Hurt until Day ${r.day + 2}`), r.meta);
   if (/until day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until day ${r.day + 2}`), 'the same day as the engine\'s note: ' + r.note);
-  assert.equal(r.seen, `Last seen: ${r.bar}, Day ${r.day} · Evening`);
+  // Changed by design in wave 4: the place as said in a sentence ("the Low Water").
+  assert.equal(r.seen, `Last seen: ${r.bar.replace(/^The /, 'the ')}, Day ${r.day} · Evening`);
   assert.match(r.grown, /: \+1 Wits/);
   assert.equal(r.exitText, `${r.exName} (closed today)`);
   // Saves: the name and the slot's line in one form.
@@ -1990,6 +1994,411 @@ s.test('wave 3, copy: the stat move in two sentences', async h => {
   const from = Object.keys(bg.stats).find(k => bg.stats[k] > -1);
   await page.click(`.step-btn[data-for="${from}"][data-dir="down"]`);
   assert.equal(await page.textContent('.cr-pending'), `One point taken from ${from.charAt(0).toUpperCase() + from.slice(1)}. Press + on the stat that should get it.`);
+});
+
+// ----- W4. Wave 4 (docs/notes/ui.md, "Wave 4") -----
+
+s.test('wave 4, defect A: a tab change opens the new tab at its top (Places with its map in view); a redraw of the same tab keeps its place', async h => {
+  for (const vp of [LAPTOP, PHONE]) {
+    const phone = vp === PHONE;
+    const page = await open(h, vp);
+    await quickStart(page);
+    const tag = `${vp.width}: `;
+    // Everyone in town met, so People is longer than the panel.
+    await page.evaluate(() => Game.State.apply({ npcKnownToPlayer: Game.state.npcs.filter(n => n.alive !== false && Game.presenceOf(n) === 'here').map(n => n.id) }));
+    if (phone) { await page.click('[data-open-tab="people"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('people'));
+    // The People tab scrolled well down.
+    const down = await page.evaluate(() => { const b = document.getElementById('panel-body'); b.scrollTop = 600; return b.scrollTop; });
+    assert.ok(down > 100, tag + 'People scrolls: ' + down);
+    // Redrawn (a turn, a search), the same tab keeps its place.
+    assert.equal(await page.evaluate(() => { Game.UI.renderPanel(); return document.getElementById('panel-body').scrollTop; }), down, tag + 'a redraw of People keeps its scroll');
+    // A tab change, by its tab: Places opens at its top, the map in view.
+    await page.click('#tab-places');
+    const pl = await page.evaluate(() => { const b = document.getElementById('panel-body'); const m = document.querySelector('#panel-body .map').getBoundingClientRect(); return { top: b.scrollTop, mapTop: m.top >= b.getBoundingClientRect().top - 17 }; });
+    assert.deepEqual(pl, { top: 0, mapTop: true }, tag + 'Places opens at the top');
+    await shot(page, `W4_A_places_after_people_${vp.width}`);
+    // And back: People opens at its top too (its old place is not kept across a tab change).
+    await page.click('#tab-people');
+    assert.equal(await page.evaluate(() => document.getElementById('panel-body').scrollTop), 0, tag + 'People again at the top');
+    // A redraw of Places scrolled down keeps it.
+    await page.click('#tab-places');
+    const pd = await page.evaluate(() => { const b = document.getElementById('panel-body'); b.scrollTop = 250; const t = b.scrollTop; Game.UI.renderPanel(); return [t, b.scrollTop]; });
+    assert.ok(pd[0] > 0 && pd[1] === pd[0], tag + 'a redraw of Places keeps its scroll: ' + pd);
+  }
+});
+
+s.test('wave 4, defect B: the box-side ⋯ on a phone never drops the focus: Shift+Tab from the box keeps it there (and the typing layout), ⋯ then Look around within 250 ms holds it through the turn, and the keyboard going down hands it to the tab row\'s ⋯', async h => {
+  const page = await open(h, PHONE);
+  await page.evaluate(() => Game.Storage.saveSettings({ tipSeen: true }));
+  await quickStart(page);
+  await focusHelper(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 90; });
+  const typing = () => page.evaluate(() => document.getElementById('app').classList.contains('typing'));
+  const kbUp = async () => { await page.focus('#cmd'); await page.setViewportSize({ width: 375, height: 420 }); await page.waitForFunction(() => document.getElementById('app').classList.contains('typing')); };
+  await kbUp();
+  // Shift+Tab from the box: the ⋯ beside the toggle has it, and keeps it after the box's 250 ms.
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#act-btn');
+  await page.waitForTimeout(400);
+  assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn', true], 'still on the ⋯ beside the toggle, the layout as it was');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#cmd');
+  // ⋯ then Look around, quicker than 250 ms: the ⋯ holds the focus all through the turn, and after.
+  const r = await acrossTurn(page, async () => {
+    await page.click('#act-btn');
+    await page.click('#act-pop [data-act="look"]');
+  });
+  assert.ok(r.during.length && !r.during.includes('BODY'), 'during: ' + r.during);
+  assert.equal(r.after, '#act-btn', 'after: ' + r.after);
+  assert.deepEqual(r.inert, [], 'nothing inert left behind');
+  // The list opened from the box-side ⋯ stays where it opened (the layout does not change under it).
+  await page.click('#act-btn');
+  const at = () => page.evaluate(() => Math.round(document.getElementById('act-pop').getBoundingClientRect().top));
+  const top0 = await at();
+  await page.waitForTimeout(400);
+  assert.equal(await at(), top0, 'the open list does not jump');
+  await shot(page, 'W4_B_dots_list_kbup_375');
+  // The keyboard goes down with the list open: it keeps the focus; Escape gives it to a ⋯ in view (the tab row's), never the page.
+  await page.setViewportSize(PHONE);
+  await page.waitForTimeout(300);
+  assert.ok(await page.evaluate(() => document.getElementById('act-pop').contains(document.activeElement)), 'the list keeps the focus');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(350);
+  assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn-m', false]);
+  // On the box-side ⋯ when the keyboard goes down (no list): the tab row's ⋯ takes it, then the layout changes.
+  await kbUp();
+  await page.keyboard.press('Shift+Tab');
+  await page.setViewportSize(PHONE);
+  await page.waitForTimeout(350);
+  assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn-m', false]);
+  // A turn the box-side ⋯ started hands its hold over too: after it the focus is on a ⋯ in view.
+  await kbUp();
+  const r2 = await acrossTurn(page, async () => {
+    await page.click('#act-btn');
+    await page.click('#act-pop [data-act="look"]');
+    await page.setViewportSize(PHONE);
+  });
+  assert.ok(!r2.during.includes('BODY'), 'during: ' + r2.during);
+  assert.equal(r2.after, '#act-btn-m', 'after: ' + r2.after);
+  assert.deepEqual(r2.inert, [], 'nothing inert left behind');
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await shot(page, 'W4_B_after_turn_kbdown_375');
+});
+
+s.test('wave 4: a layout change across 900px never drops the focus: Panel, Menu and either ⋯ hand it to their stand-ins', async h => {
+  const page = await open(h, LAPTOP);
+  await quickStart(page);
+  await focusHelper(page);
+  const MID = { width: 800, height: 800 };
+  for (const [from, vpFrom, vpTo, to] of [['#tb-panel', LAPTOP, MID, '#tb-menu'], ['#act-btn', LAPTOP, MID, '#act-btn-m'], ['#act-btn-m', MID, LAPTOP, '#act-btn'], ['#tb-menu', MID, LAPTOP, '#tb-panel']]) {
+    await page.setViewportSize(vpFrom);
+    await page.waitForTimeout(150);
+    await page.focus(from);
+    await page.setViewportSize(vpTo);
+    await page.waitForTimeout(250);
+    assert.equal(await page.evaluate(() => window.__focusOf()), to, `${from} at ${vpFrom.width} → ${vpTo.width}`);
+  }
+  // The phone sheet's × (a laptop has none): the panel's tab. Something in the laptop's panel (a phone's sheet is shut): Send.
+  await page.setViewportSize(MID);
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(300);
+  await page.focus('#panel-close');
+  await page.setViewportSize(LAPTOP);
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-people', 'the sheet\'s × → the tab');
+  // The same when the browser has let go of the × before the layout reports (the sheet, closing, finds the focus nowhere).
+  await page.setViewportSize(MID);
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { document.getElementById('panel-close').focus(); document.activeElement.blur(); });
+  await page.setViewportSize(LAPTOP);
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-people', 'the sheet closing → the tab');
+  await page.focus('.pcard-head');
+  await page.setViewportSize(MID);
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#send', 'a card in the laptop panel → Send');
+  // The expanded map's Close map: the map closes, and the focus is never dropped.
+  await page.setViewportSize(LAPTOP);
+  await page.evaluate(() => Game.UI.openPanel('places'));
+  await page.click('.map-expand');
+  await page.focus('.map-close');
+  await page.setViewportSize(MID);
+  await page.waitForTimeout(250);
+  assert.notEqual(await page.evaluate(() => window.__focusOf()), 'BODY', 'Close map → somewhere on screen');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)), [], 'nothing inert left behind');
+});
+
+s.test('wave 4, defect C: the first-turn tip says where ⋯ and the panels are in this layout, and again after a resize across 900px', async h => {
+  const LAP = 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.';
+  const PH = 'Type / or press ⋯ (at the end of the tabs, or beside Do / Say while you type) for commands. The tabs above the box keep track of people, places and your journal.';
+  const tipNow = p => p.evaluate(() => { Game.Storage.saveSettings({ tipSeen: false }); for (const t of document.querySelectorAll('.f-tip')) t.remove(); Game.UI.showTip(); });
+  const where = p => p.evaluate(() => document.querySelector('.f-tip .f-tip-where').textContent);
+  const page = await open(h, { width: 1180, height: 820 });
+  await quickStart(page);
+  await tipNow(page);
+  assert.equal(await where(page), LAP);
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.waitForTimeout(250);
+  assert.equal(await where(page), PH, 'turned upright: the phone wording');
+  await shot(page, 'W4_C_tip_820x1180');
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await page.waitForTimeout(250);
+  assert.equal(await where(page), LAP, 'and back');
+  // Shown first on a phone, it has the phone wording.
+  const ph = await open(h, PHONE);
+  await quickStart(ph);
+  await tipNow(ph);
+  assert.equal(await where(ph), PH);
+});
+
+s.test('wave 4, defect D: with a line queued the stage text is shown whole at 320, 375 and 390 ("Updating the town…") and the pill takes the rest', async h => {
+  for (const vp of [{ width: 320, height: 640 }, PHONE, { width: 390, height: 844 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await fast(page);
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 2500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    await page.fill('#cmd', 'I look at the board out front');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
+    await page.fill('#cmd', 'I tell him I fixed fuel pumps for eleven years and can start today');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => !document.getElementById('queued-note').hidden);
+    const m = await page.evaluate(() => {
+      const t = document.getElementById('turn-status-text');
+      const q = document.getElementById('queued-note').getBoundingClientRect();
+      const tr = t.getBoundingClientRect();
+      return { text: t.textContent, cut: t.scrollWidth > t.clientWidth + 0.5, apart: tr.right <= q.left, pill: q.width, line: document.getElementById('turn-status').getBoundingClientRect().height, qt: document.getElementById('queued-text').textContent };
+    });
+    assert.equal(m.text, 'Updating the town…');
+    assert.equal(m.cut, false, `${vp.width}: the stage text is not cut`);
+    assert.ok(m.apart && m.pill >= 96, `${vp.width}: the pill after it (${m.pill}px)`);
+    assert.ok(m.line <= 34, `${vp.width}: one line (${m.line}px)`);
+    assert.match(m.qt, /^Next: “I tell him/);
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+    await shot(page, `W4_D_queued_${vp.width}`, { clip: { x: 0, y: vp.height - 160, width: vp.width, height: 160 } });
+    await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 15000 });
+  }
+});
+
+s.test('wave 4, defect E: a phone on its side with the keyboard up keeps room for the story (the top bar aside, Say as the picker beside the box), and the ⋯ list fits (two columns; with the keyboard up it scrolls to its last item)', async h => {
+  const LAND = { width: 740, height: 375 };
+  const KB = { width: 740, height: 200 };
+  for (const say of [false, true]) {
+    const page = await open(h, LAND);
+    await quickStart(page);
+    await focusHelper(page);
+    if (say) await page.click('#mode-say');
+    await page.focus('#cmd');
+    await page.setViewportSize(KB);
+    await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+    await page.waitForTimeout(100);
+    const m = await page.evaluate(() => {
+      const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
+      const pick = r('say-pick');
+      const box = r('cmd');
+      const small = [...document.querySelectorAll('.composer button, .composer select, .composer textarea')].filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')
+        .map(e => e.getBoundingClientRect()).filter(b => b.width < 43.5 || b.height < 43.5).length;
+      return { story: Math.round(r('feed-scroll').height), topbar: getComputedStyle(document.querySelector('#screen-game .topbar')).display, chips: document.querySelectorAll('#say-to .say-chip').length, pick: !!pick, row: pick ? Math.abs(pick.top + pick.height / 2 - (box.top + box.height / 2)) < 4 : null, box: Math.round(box.width), small, focus: window.__focusOf() };
+    });
+    const tag = say ? 'Say: ' : 'Do: ';
+    assert.equal(m.topbar, 'none', tag + 'the top bar steps aside');
+    assert.ok(m.story >= (say ? 90 : 120), tag + `the story keeps ${m.story}px`);
+    assert.equal(m.focus, '#cmd');
+    assert.equal(m.small, 0, tag + 'every control 44px or more');
+    assert.ok(m.box >= 150, tag + 'room to type: ' + m.box);
+    if (say) assert.deepEqual([m.chips, m.pick, m.row], [0, true, true], 'the Say row is the picker alone, in the input row');
+    assert.deepEqual(await overflowReport(page, 740), []);
+    await shot(page, `W4_E_land_kb_${say ? 'say' : 'do'}`);
+    if (say) {
+      // The box left and the keyboard down: the top bar back, and the focus where the player put it.
+      await page.focus('#mode-say');
+      await page.setViewportSize(LAND);
+      await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+      assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector('#screen-game .topbar')).display !== 'none'));
+      assert.equal(await page.evaluate(() => window.__focusOf()), '#mode-say');
+      continue;
+    }
+    // The ⋯ list with the keyboard up: on screen, and it scrolls to its last item.
+    await page.click('#act-btn');
+    const pop = await page.evaluate(() => {
+      const p = document.getElementById('act-pop');
+      const r = p.getBoundingClientRect();
+      const inView = r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+      p.scrollTop = p.scrollHeight;
+      const items = [...p.querySelectorAll('[role="menuitem"]')];
+      const l = items[items.length - 1].getBoundingClientRect();
+      return { inView, last: l.top >= r.top - 1 && l.bottom <= r.bottom + 1, cols: getComputedStyle(p).gridTemplateColumns.split(' ').length };
+    });
+    assert.deepEqual(pop, { inView: true, last: true, cols: 2 }, 'keyboard up: ' + JSON.stringify(pop));
+    await shot(page, 'W4_E_land_kb_dots');
+    // The keyboard down (the list took the focus): all of it in view at once.
+    await page.setViewportSize(LAND);
+    await page.waitForTimeout(250);
+    const all = await page.evaluate(() => {
+      const p = document.getElementById('act-pop');
+      const r = p.getBoundingClientRect();
+      return { inView: r.top >= 0 && r.bottom <= innerHeight, whole: p.scrollHeight <= p.clientHeight + 1, items: p.querySelectorAll('[role="menuitem"]').length };
+    });
+    assert.deepEqual(all, { inView: true, whole: true, items: 7 }, 'keyboard down: ' + JSON.stringify(all));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.equal(await page.evaluate(() => window.__focusOf()), '#act-btn-m');
+    // From the tab row (no keyboard): the whole list too.
+    await page.keyboard.press('Enter');
+    const tr = await page.evaluate(() => { const p = document.getElementById('act-pop'); const r = p.getBoundingClientRect(); return { inView: r.top >= 0 && r.bottom <= innerHeight, whole: p.scrollHeight <= p.clientHeight + 1 }; });
+    assert.deepEqual(tr, { inView: true, whole: true });
+    await shot(page, 'W4_E_land_dots_tabrow');
+    assert.deepEqual(await overflowReport(page, 740), []);
+  }
+});
+
+s.test('wave 4, defect F: the river and the roads that run on past the frame are one path each, straight on along the tangent (no seam, no kink)', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await page.evaluate(() => Game.UI.openPanel('places'));
+  await page.click('.map-expand');
+  const r = await page.evaluate(() => {
+    const m = Game.data.TOWN_DATA.map;
+    const L = Game.UI.mapLayout(Game.state);
+    const probe = d => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); return p; };
+    const moves = d => (d.match(/[Mm]/g) || []).length;
+    const unit = (a, b) => { const dx = b.x - a.x; const dy = b.y - a.y; const n = Math.hypot(dx, dy) || 1; return { x: dx / n, y: dy / n }; };
+    const edge = q => q.x <= 0.5 || q.y <= 0.5 || q.x >= L.W - 0.5 || q.y >= L.H - 0.5;
+    // At each end on the frame: the run-on's direction against the line's own tangent there (1 is straight on).
+    const check = (orig, ran) => {
+      const o = probe(orig);
+      const len = o.getTotalLength();
+      const r = probe(ran);
+      const rl = r.getTotalLength();
+      const out = [];
+      const a = o.getPointAtLength(0);
+      const b = o.getPointAtLength(len);
+      if (edge(a)) { const t = unit(a, o.getPointAtLength(0.5)); const e = unit(r.getPointAtLength(0), r.getPointAtLength(1)); out.push(t.x * e.x + t.y * e.y); }
+      if (edge(b)) { const t = unit(o.getPointAtLength(len - 0.5), b); const e = unit(r.getPointAtLength(rl - 1), r.getPointAtLength(rl)); out.push(t.x * e.x + t.y * e.y); }
+      return out;
+    };
+    const water = document.querySelector('.map.expanded .map-water').getAttribute('d');
+    const bank = document.querySelector('.map.expanded .map-bank').getAttribute('d');
+    const roads = [...document.querySelectorAll('.map.expanded .map-road.deco')].map(p => p.getAttribute('d'));
+    return {
+      absolute: /^\s*M/.test(m.river),
+      moves: [moves(water), moves(bank)].concat(roads.map(moves)),
+      ranOn: water !== m.river,
+      dots: check(m.river, water).concat(...(m.roads || []).map((d, i) => (roads[i] ? check(d, roads[i]) : [])))
+    };
+  });
+  assert.ok(r.ranOn, 'the river runs on in the expanded map');
+  if (r.absolute) assert.deepEqual([...new Set(r.moves)], [1], 'one continuous path each (no join to show): ' + r.moves);
+  assert.ok(r.dots.length >= 2 && r.dots.every(x => x > 0.9998), 'straight on along the tangent (within 1°): ' + r.dots.map(x => x.toFixed(6)));
+  await shot(page, 'W4_F_river_1280');
+  // A path that does not start with an absolute move gets separate pieces that overlap its ends by 3 units.
+  assert.equal(await page.evaluate(() => Game.UI.runOn('m0,50 l100,0', { W: 100, H: 100 }, 40)), 'M-40,50 L3,50 m0,50 l100,0 M97,50 L140,50');
+});
+
+s.test('wave 4, defects G and H: a map marker shut today says "closed today" (shut for good, "closed"); the Bluff reads "Bluff"; /help\'s first line is a heading', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const st = G.state;
+    const here = st.player.locationId;
+    const known = st.locations.filter(l => l.id !== here && l.discovered !== false && l.away !== true && !l.closed);
+    const [a, b] = known;
+    a.closedOn = [G.State.weekday(st.time.day)];
+    b.closed = true;
+    G.UI.openPanel('places');
+    const aria = id => document.querySelector(`.map-place[data-loc="${id}"]`).getAttribute('aria-label');
+    const out = { a: aria(a.id), aName: a.name, b: aria(b.id), bName: b.name };
+    delete a.closedOn;
+    delete b.closed;
+    const bluff = st.locations.find(l => l.id === 'loc_bluff');
+    const bypass = st.locations.find(l => l.type === 'highway' && l.id !== 'loc_bluff');
+    if (bluff) {
+      const was = bluff.discovered;
+      bluff.discovered = true;
+      G.UI.renderPanel();
+      const row = document.querySelector(`.place-list [data-loc="${bluff.id}"] .plcard-type`);
+      out.bluff = { label: G.UI.placeLabel(bluff), row: row ? row.textContent : 'Bluff' };
+      bluff.discovered = was;
+    }
+    if (bypass) out.bypass = G.UI.placeLabel(bypass);
+    out.own = G.UI.placeLabel({ id: 'x', type: 'gas', typeLabel: 'Filling station' });
+    return out;
+  });
+  assert.equal(r.a, `${r.aName}, closed today`);
+  assert.equal(r.b, `${r.bName}, closed`);
+  if (r.bluff) assert.deepEqual(r.bluff, { label: 'Bluff', row: 'Bluff' }, 'the Bluff is labelled "Bluff"');
+  if (r.bypass) assert.equal(r.bypass, 'Highway', 'the Bypass keeps Highway');
+  assert.equal(r.own, 'Filling station', 'a typeLabel in the data wins');
+  // /help: the first line is a heading (styled as the recap's), then one command a line.
+  await page.evaluate(contrastIn);
+  for (const theme of ['dark', 'parchment']) {
+    const help = await page.evaluate(t => {
+      Game.Storage.saveSettings({ theme: t });
+      Game.UI.applyDisplay();
+      Game.Commands.run('/help');
+      const n = [...document.querySelectorAll('#feed .f-notice.help')].pop();
+      n.scrollIntoView({ block: 'start' });
+      const head = n.querySelector('.f-help-h');
+      const cs = getComputedStyle(head);
+      return {
+        head: head.textContent, first: Game.Commands.helpText().split('\n')[0].trim().replace(/:$/, ''), display: cs.display, upper: cs.textTransform, weight: cs.fontWeight, size: cs.fontSize,
+        ratio: window.__cr(cs.color, getComputedStyle(document.body).backgroundColor), rest: n.querySelector('.f-notice-text').textContent.split('\n')[0], ws: getComputedStyle(n).whiteSpace
+      };
+    }, theme);
+    assert.equal(help.head, help.first);
+    assert.deepEqual([help.display, help.upper, help.weight, help.size, help.ws], ['block', 'uppercase', '600', '12px', 'pre-line']);
+    assert.ok(help.ratio >= 4.5, `${theme}: the heading 4.5:1 (${help.ratio.toFixed(2)})`);
+    assert.notEqual(help.rest, help.first, 'the heading is not said twice');
+    await shot(page, `W4_H_help_${theme}`);
+  }
+});
+
+s.test('wave 4, copy: Save / Load in the storage warnings, the demo-off toast, conditions said as the sheet says stats, and the export\'s file name', async h => {
+  const page = await open(h, LAPTOP);
+  await quickStart(page, { name: 'Tomas Reed' });
+  // A storage that refuses to write, then to read.
+  const warn = await page.evaluate(() => {
+    const proto = window.Storage.prototype;
+    const set = proto.setItem;
+    const get = proto.getItem;
+    const out = {};
+    proto.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); };
+    try { Game.Storage.saveSettings({ textSize: 'M' }); } finally { proto.setItem = set; }
+    out.write = document.getElementById('banner-text').textContent;
+    proto.getItem = function () { throw new DOMException('blocked', 'SecurityError'); };
+    try { Game.Storage.hasAutosave(); } finally { proto.getItem = get; }
+    out.read = document.getElementById('banner-text').textContent;
+    document.getElementById('banner').hidden = true;
+    return out;
+  });
+  assert.equal(warn.write, 'Saving failed: this browser\'s storage is full or blocked. Export your game from Save / Load so nothing is lost.');
+  assert.equal(warn.read, 'This browser blocked access to its storage, so saves and settings may not load. You can still export your game from Save / Load.');
+  assert.equal(await page.evaluate(() => Game.UI.MOCK_OFF), 'Offline demo off: playing with Claude.');
+  // Conditions: "(−1 Might)", "(−1 to all)", as Grown says "+1 Wits"; anything else as written.
+  const cond = await page.evaluate(() => {
+    const p = Game.state.player;
+    const was = p.conditions.slice();
+    p.conditions.push({ id: 'c1', name: 'Bruised ribs', effect: '-1 might', untilDay: Game.state.time.day + 2 }, { id: 'c2', name: 'Tired', effect: '-1 all', untilDay: null, untilRest: true }, { id: 'c3', name: 'Odd', effect: 'sees double' });
+    Game.UI.openPanel('character');
+    const t = [...document.querySelectorAll('#panel-body li')].map(li => li.textContent);
+    p.conditions = was;
+    Game.UI.renderPanel();
+    return t;
+  });
+  assert.ok(cond.some(t => t.startsWith('Bruised ribs (−1 Might) · ')), cond.join(' | '));
+  assert.ok(cond.includes('Tired (−1 to all) · until you rest'), cond.join(' | '));
+  assert.ok(cond.some(t => t.startsWith('Odd (sees double) · ')), 'anything else as written');
+  // The export's file name: an apostrophe is no break, and "day-N".
+  await page.evaluate(() => Game.UI.showScreen('saves'));
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export')]);
+  const want = await page.evaluate(() => {
+    const slug = t => String(t).toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return `${slug(Game.state.meta.townName)}-${slug(Game.state.player.name)}-day-${Game.state.time.day}.json`;
+  });
+  assert.equal(dl.suggestedFilename(), want);
+  assert.match(want, /-tomas-reed-day-\d+\.json$/);
 });
 
 s.run();

@@ -825,7 +825,8 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   assert.equal(seen.locationId, scene.id);
   a = await cardInfo(page, sc.a);
   assert.equal(a.group, 'known');
-  assert.equal(a.where, `Last seen: ${scene.name}, Day ${seen.day} · ${seen.phase.charAt(0).toUpperCase() + seen.phase.slice(1)}`);
+  // The place as said in a sentence ("the Low Water"; changed by design in wave 4).
+  assert.equal(a.where, `Last seen: ${scene.name.replace(/^The /, 'the ')}, Day ${seen.day} · ${seen.phase.charAt(0).toUpperCase() + seen.phase.slice(1)}`);
   assert.equal(a.expanded, 'true', 'still open after moving groups');
   const known = await page.evaluate(() => [...document.querySelectorAll('#panel-body [data-group="known"] .pcard')].map(c => ({ id: c.dataset.npc, turn: (Game.state.seen[c.dataset.npc] || { turn: -1 }).turn, where: !!c.querySelector('.pcard-where') })));
   for (let i = 1; i < known.length; i++) assert.ok(known[i - 1].turn >= known[i].turn, 'Known is ordered by the most recent sighting');

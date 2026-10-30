@@ -619,3 +619,87 @@ only with `UI_SHOTS` set.
   ⋯) and runs `Commands.run('/help')`; it no longer puts "/" in the box.
   The ⋯ test follows (changed by design) and still checks the "/" list's
   descriptions on two lines on a phone.
+
+## Wave 4 (the round-3 visual, mobile and accessibility QA)
+
+Region as before: CSS, HTML, Storage, UI, App. Defects A to H of the
+round-3 UI report, its three partly-fixed round-2 items and the UI rows of
+its copy table. Tests: 9 new ones in `tests/ui-fixes.test.cjs` ("wave 4,
+…"), each failing on the build before; screenshots only with `UI_SHOTS`.
+
+### Focus (defect B, and any layout change)
+- The box-side ⋯ (`#act-btn`, shown on a phone only while typing) holds the
+  typing layout while it or its list has the focus (`syncTyping`): Shift+Tab
+  from the box, or ⋯ then Look around inside the box's 250 ms, no longer
+  hides the button from under the focus, and the open list does not jump.
+  Leaving the ⋯ or its list looks again (`syncTypingSoon`, as the box's blur
+  does). With the keyboard down and the list closed, the focus goes first to
+  the tab row's ⋯ (`#act-btn-m`, carrying a turn's hold through `moveFocus`),
+  then the layout changes; `closeActions` checks this too.
+- A layout change across 900px hands the focus to a stand-in when the
+  control that had it is not in the new layout (`keepFocusThroughLayout`):
+  Panel, Save and Settings → Menu; Menu → Panel; one ⋯ → the other; the
+  sheet's × → the panel's tab; a tab-row button → its panel tab; anything
+  else (a card in the laptop panel, Close map) → Send on a phone, the box on
+  a laptop. `lastFocus` (focusin) covers a browser that has already dropped
+  the focus by the time the media query reports; `closeSheet`, finding the
+  focus nowhere as the sheet turns into the laptop panel, gives it to the
+  panel's tab.
+
+### Layout
+- A: `renderPanel` sets `scrollTop` every time: 0 on a tab change, the old
+  value on a redraw of the same tab (Places no longer opens scrolled away).
+- C: the tip's third line (`.f-tip-where`) is said per layout and said
+  again on a layout change (`syncTip`). Phone: "Type / or press ⋯ (at the
+  end of the tabs, or beside Do / Say while you type) for commands. The tabs
+  above the box keep track of people, places and your journal."
+- D: with a line queued the stage text keeps its width ("Updating the
+  town…" whole at 320, 375 and 390); the pill takes the rest (at least
+  96px) and cuts its own line short (its title has it all).
+- E: a phone on its side (`(max-width: 899px) and (orientation:
+  landscape)`): the ⋯ list is two columns (all seven items fit above the
+  box at 740x375; with the keyboard up, 740x200, it scrolls and the last
+  item is in reach). Typing there, the top bar steps aside too, and the Say
+  row is the picker alone, in the input row (`compactComposer`; the input
+  row is `display: contents` inside a wrapping flex row): the story keeps
+  137px in Do and in Say (was 84 / 34). A picker with the focus stays a
+  picker until it is left (a native list may be open over it).
+- F: `runOn` makes one path: "M far L" before the line (its first move a
+  line to the same point) and " L far" after it, along the tangent at each
+  end (measured 0.25 units in), so no seam or kink shows where the run-on
+  meets the river or a road. A path that does not start with an absolute
+  move, or closes, gets separate pieces that overlap its ends by 3 units.
+
+### Words
+- G: a map marker shut today is "…, closed today" (as the exits and the
+  chip say it); shut for good, "…, closed".
+- The Bluff reads "Bluff" (`placeLabel(l)`: a `typeLabel` on the place in
+  the town's data, else a per-place word, else the type's word); the Bypass
+  stays "Highway".
+- H: `/help`'s first line is a heading (`.f-help-h`, as the recap's: 12px,
+  600, uppercase, `--muted`, 4.5:1 in both themes; a trailing colon
+  dropped); the rest is one command a line. The engine's first line is
+  "Commands", then "Type / to pick one."
+- Copy: the storage warnings say "Save / Load" (not "the Saves screen");
+  the toast is "Offline demo off: playing with Claude."; a condition reads
+  "Bruised ribs (−1 Might)", "Tired (−1 to all)" (`effectText`, render only;
+  the data keeps "-1 might"); "Last seen: the Low Water, Day 1 · Morning";
+  an export is `locketts-ferry-tomas-reed-day-1.json`.
+
+### Tests changed by design
+- `tests/ui-fixes.test.cjs`: the demo-off toast (two places); "Last seen:
+  the …"; a condition "(−1 Might)"; the type-label test compares with
+  `placeLabel` (the Bluff).
+- `tests/shell.test.cjs`: "Last seen: the …".
+
+### README lines that change
+- How to play, step 2: "Mock mode off: playing with Claude" → "Offline demo
+  off: playing with Claude."
+- Do and Say: add that on a phone on its side, while you type, the top bar
+  steps aside and the Say row is the "To: …" picker beside the box.
+- Wait, ⋯ and Undo: on a phone on its side the ⋯ list is two columns.
+- Character tab (optional): conditions with what each does ("−1 Might").
+- Saves (optional): an export is named for the town, you and the day
+  (`locketts-ferry-tomas-reed-day-3.json`).
+- Commands table, `/help` (with the engine's change): "under a Commands
+  heading".
