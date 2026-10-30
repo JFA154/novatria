@@ -18,7 +18,7 @@ A cinderblock bar on Front Street with neon beer signs in the window, a pool tab
 Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster.
 
 - **Lyman Coker** (70, he/him), night bartender at the Low Water. Employee of Loretta Gaddis; friend of Curtis Pruett. Usually: home (morning, afternoon), the Low Water (evening, night). `npc_lyman`
-- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: Pittman's Gas and Service (morning, evening), Riverbend Trailer Park (afternoon), home (night). `npc_leon`
+- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: home (morning, night), Riverbend Trailer Park (afternoon), Pittman's Gas and Service (evening). `npc_leon`
 - **Curtis Pruett** (52, he/him), insurance man who runs the card game at the Low Water. Friend of Lyman Coker; husband of Lynette Pruett (lives elsewhere). Usually: home (morning), the Low Water (afternoon, evening, night). `npc_curtis`
 - **Boyd Teague** (50, he/him), stranger who has had Room 9 at the motor court a week. Usually: home (morning, evening, night), the Old Bridge (afternoon). `npc_boyd`
 

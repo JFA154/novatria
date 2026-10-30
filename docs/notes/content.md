@@ -27,8 +27,9 @@ reads it is other agents' work (checklist at the end).
   their own text puts there: Kaylee at the Water Tower at night, Nikki on the
   River Road in the morning, Elbert and Burl on the Front Street bench in the
   morning, Tammy at Amber's grave in the morning, Travis running radar at the
-  Bluff in the evening. Boyd keeps to his room in the mornings (he no longer
-  stands at Pittman's, a start place, when he may be the player's enemy).
+  Bluff in the evening. Boyd and Leon, the two people the enemy loose end
+  can be, keep to the motor court in the mornings (neither stands at
+  Pittman's, the gate start place, on the player's first morning).
 
 ### B. Facts that disagreed
 - Wiley died "three springs ago"; Ruth stays "three winters ago".
@@ -308,6 +309,11 @@ engine-state (State):
   trigger's value (the tackle box); `validateShape` must not refuse them.
 - [ ] `TABLES.items.goods[].kind`: drinks, food and services are not kept;
   "Night at the motel" is the lodging service.
+- [ ] `clockAdjust` on a faction whose clocks are all done, `takeItem` of
+  something not carried, and `addMemory` on someone who lives elsewhere
+  (Bernice, Dale: a missed promise is remembered by the person who asked)
+  should be quiet no-ops or accepted, not rejections: the playtest and
+  acceptance suites fail on any rejected diff.
 - [ ] Tags read by rules: `elderly`, `teen`, `tough`, `police` (and `armed`
   if wanted; nobody carries it yet).
 
@@ -319,7 +325,9 @@ engine-world (World, Town, Tables):
   Until it does, `tests/content.test.cjs` "the inlined town is the only
   town" and `tests/state.test.cjs` "effect ops ... one list" fail on
   `unknown op clockAdjust` and `unknown loc loc_old_bridge,loc_purvis_landing`.
-- [ ] `triggerMet` for a location trigger whose value is an array (any of).
+- [ ] `triggerMet` for a location trigger whose value is an array (any of),
+  and the same in `dueSeeds` (a place's event waits until the player is at
+  that place: any place in the array), `mergePlaces` and the debug list.
 - [ ] `requires`/`alt` on seeds and on `onComplete` (CONTRACTS section 3);
   seed `effects` applied on firing; `World.fillEffects` placeholders.
 - [ ] Grudge/favour templates: `effects` applied when the seed fires (filled),
@@ -361,6 +369,21 @@ transport:
 - [ ] Nothing new beyond CONTRACTS (news, epilogue turn). The council
   meeting's event fires at day 6 evening; a move to a place shut today is a
   shut door (`closedOn`).
+
+## Seams: what fails in this branch until the others land
+- `tests/content.test.cjs` "the inlined town is the only town" and
+  `tests/state.test.cjs` "town data passes validation" assert
+  `Town.validate(TOWN_DATA)` is empty: it reports `unknown op clockAdjust`
+  (engine-state's op) and `unknown loc loc_old_bridge,loc_purvis_landing`
+  (the tackle box's two places; engine-world's trigger check).
+- `tests/state.test.cjs` "effect ops ... in one list": `validate-town.cjs`
+  lists the 26 ops CONTRACTS section 2 names; `State.EFFECT_OPS` has 13.
+- `tests/playtest.test.cjs` "a 30+ turn scripted playtest": a clock
+  completion's `clockAdjust` is rejected by today's `State.apply`. With the
+  `clockAdjust` lines stripped locally, the playtest passes.
+- Not failing, but inert until the engine reads them: calendar, closedOn,
+  awayOn, requires/alt, seed effects, events, epilogue, hooks, obligations,
+  template effects and filters, tellerIds, goods kinds.
 
 ## Tests
 - `tests/validate-town.cjs`: checks every new field (calendar date and
