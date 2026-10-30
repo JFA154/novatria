@@ -155,8 +155,8 @@ bool, attacked: npcId|null })`:
   sleep (no `noSleep`, no Tired).
 - Instants: every 6 `instant` costs make a short (`time.instants`), reset at
   any phase change. An instant whose `cause` is `rest`, `wait`, `skip`,
-  `arrival` or `defeat` (the narration of time already passed) does not
-  count; a plain string counts.
+  `arrival`, `defeat`, `arrest` or `epilogue` (the narration of time already
+  passed) does not count; a plain string counts.
 - A new morning reached with `noSleep` adds `{ id: 'cond_tired', name:
   'Tired', effect: '-1 all', untilDay: null, untilRest: true }`; a rest
   removes it (and any `untilRest` condition).
@@ -300,3 +300,20 @@ Nothing happens without a hook.
 > what one turn can do: $500, 3 HP, two things, one plan, three days of a
 > condition, and nobody dies, is arrested or leaves without a roll that
 > succeeded.
+
+## Integration (after the six merges)
+
+- `RULES_VERSION` is 8: new games are stamped 8, older saves show "Update
+  this game" and run "An arc"; transport sends the `advanceTime` object form.
+- Obligation ids carry the full npc id (`obl_debt_npc_curtis`).
+- `addMemory` on the dead is a logged no-op; someone living elsewhere still
+  remembers (they can be reached by `reach`). `clockAdjust` on a faction with
+  no running clock was already a no-op.
+- `rumoursHeard` stamps `heardDay` (the Journal's Leads); the UI no longer
+  stamps it.
+- `normaliseSeed` takes a list of places or people as an engine seed's
+  `trigger.value` (1 to 8); a seed from the model still names one.
+- Background hooks: a number `dayOffset` (content's form) means "not before
+  day 1 + dayOffset" for a person or place trigger (0: from day 1, once the
+  player meets them); a day trigger is still never before tomorrow.
+- Engine keys `newsSeen: 'public'` and `eventsFired: [id]` (above).

@@ -286,3 +286,21 @@ Names this region calls that another agent provides (all guarded):
   completions with requires/alt and news; missed obligations; schedules;
   grudges and favours; town events and the epilogue; a new morning with
   weather, conditions and drift).
+
+## Integration (after the six merges)
+
+- `Tables.npc()` is deleted (no person maker; the cast is written by hand).
+  `TABLES.npc` keeps `firstNames` and `occupations` for the person matcher.
+- `ACTION_TYPES` includes `gamble` (the card game the Pipeline deals);
+  `Api.PARSE_TYPES` is the same list.
+- Town events may carry `attendees: [npcIds]`: when the event fires at the
+  current phase, those who are free, in town and not away or laid up today
+  get a visit to its place for that phase (the council's five seats and the
+  chief at the meeting). `World.fireEvents` records the id through State's
+  `eventsFired` engine key (`state.eventsFired`), so the flags fallback is
+  only for older builds.
+- `dueSeeds`: a due event from a seed with an npc trigger (a background's
+  hook) brings that person back to the player if they have moved on, like a
+  loose end's.
+- Attitude drift toward the town's starting attitude (not 0) and the favour
+  threshold (a memory of weight 2 or more) stand as designed.

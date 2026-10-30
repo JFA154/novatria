@@ -7704,14 +7704,14 @@ const State = (() => {
      kept only while above 0 like late and noSleep, so read it as
      time.instants | 0; back to 0 at any phase change; design #5). An
      instant whose cause is a command that is not an action (rest, wait,
-     skip, arrival, defeat: the narration of time already passed) does not
-     count. A rest heals 3 in a bed and
+     skip, arrival, defeat, arrest, epilogue: the narration of time already
+     passed) does not count. A rest heals 3 in a bed and
      1 sleeping rough, which also leaves the player Stiff (-1 might) for the
      day (restQuality; a paid night is used up); it ends Tired. A morning
      reached without sleep makes the player Tired (-1 all) until they rest.
      A new day lets bans, a player price and paid lodging run out
      (expireDaily). */
-  const NOT_ACTIONS = ['rest', 'wait', 'skip', 'arrival', 'defeat'];
+  const NOT_ACTIONS = ['rest', 'wait', 'skip', 'arrival', 'defeat', 'arrest', 'epilogue'];
   const TIRED = Object.freeze({ id: 'cond_tired', name: 'Tired', effect: '-1 all', untilDay: null, untilRest: true });
   const STIFF = Object.freeze({ id: 'cond_stiff', name: 'Stiff', effect: '-1 might' });
   function advanceTime(arg) {
@@ -14040,7 +14040,9 @@ const Pipeline = (() => {
     const s0 = State.current;
     const here = s0 ? s0.player.locationId : null;
     const wasHere = here ? State.npcsAt(here).map(n => n.id) : [];
-    const t = advance(cost).time;
+    // With its cause (rules 8): the narration of /rest, /wait, /skip, an arrival or a defeat is no instant action (State's pace).
+    const spec = cause && State.RULES_VERSION >= 8 ? (isObj(cost) ? Object.assign({ cause }, cost) : { cost, cause }) : cost;
+    const t = advance(spec).time;
     if (!t || !t.phasesPassed) return t || null;
     let cur = { day: t.from.day, phase: t.from.phase };
     let morning = false;

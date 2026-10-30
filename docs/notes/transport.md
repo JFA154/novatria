@@ -326,3 +326,29 @@ a cache write under 12¢).
 > bookkeeper failure keeps the narration. `/recap` built in code. Updates
 > stamp each step and keep the steps that worked. CI runs the suite on every
 > push.
+
+## Integration (after the six merges)
+
+- Only a hard style problem asks for a rewrite (`check.hard`), and the note
+  carries the soft ones too; one debug entry per attempt (soft-only: `soft:
+  true, kept: true`).
+- A place shut today (`State.isClosed`: `closedOn`) or barred to the player
+  (`State.isBanned`) is a shut door for a walk-then-act, a flight, the
+  engine's arrival after a move, being thrown out, and `/skip` ("You are not
+  welcome at X until day N.").
+- `moveWhen: 'after'`: the action happens here, then `walkOn` moves the
+  player after the bookkeeper (not when shut, down, or already moved); the
+  turn costs at least a short.
+- `/skip to X at <phase>` moves first and waits there, so an event at X
+  happens in front of the player.
+- "Overnight in town" runs at the end of step 11 (after the day's seeds
+  fire), once per morning, and marks what it told with `State.apply({
+  newsSeen: 'public' })`; an ending is picked up first (`noteEnding`).
+- The attitude quiet lines ("warms to you") are App's alone now (they came
+  twice).
+- `state.fight` is still written directly inside the turn's snapshot (no
+  op); it is undone with the turn.
+- `passTime(cost, cause)` sends `{ cost, cause }` at rules 8, so the
+  narration turn of `/rest`, `/wait`, `/skip`, an arrival, a defeat, an
+  arrest or an epilogue is not counted as an instant (State's
+  `NOT_ACTIONS`); an ordinary turn's cause is `turn` and counts.

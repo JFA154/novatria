@@ -299,3 +299,18 @@ household relation either way) 1. News: own 5, mate or gossip (tag
   examples in packet format; parser rubric with LAST TURN, moveWhen,
   aboutIds and gamble; bookkeeper rubric and three fields (45 properties,
   probe owed); rumours spread through tellers, gossips and households.
+
+## Integration (after the six merges)
+
+- `gamble` is in the engine's `ACTION_TYPES`; `Api.PARSE_TYPES` is a copy.
+- NOT PRESENT with reason `not_found`: "<thing> (looked for and not found:
+  the search turns up nothing like it, and the player does not get it)".
+- DESTINATION names why a place is shut: "(closed on Sundays: ...)", "(the
+  player is not welcome there until day N: ...)".
+- New line after MOVED: `THEN: once this is done the player walks on to
+  <place>...` for `moveWhen: 'after'`; the bookkeeper's ALREADY APPLIED says
+  the engine makes the walk.
+- The rewrite note is built from all the problems (hard ones lead, soft ones
+  "If you can, also fix").
+- The mock's Say reply answers in the person's own words before it passes on
+  a rumour (the rumour takes the greeting's place).

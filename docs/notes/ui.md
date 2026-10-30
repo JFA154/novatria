@@ -262,3 +262,13 @@ to the scratchpad `shots2/` folder (set `UI_SHOTS` to put them elsewhere).
   elsewhere.
 - No recorded live opening scene for the demo (§3.10's "ship one recorded
   live opening scene"): it needs a real narration, which is content.
+
+## Integration (after the six merges)
+
+- `heardDay` is stamped by State (`rumoursHeard`); App's `stampHeard` is gone.
+- Random character takes a family name from a short list in the creation
+  view (`PLAYER_SURNAMES`, never one anyone in town has): `TABLES.npc` has no
+  family names any more.
+- Debug: extra usage counters follow the cost, labelled ("1-hour cache
+  write N").
+- App's attitude band lines are the only ones (transport's copy is gone).

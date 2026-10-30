@@ -411,3 +411,17 @@ transport:
 - The state suite's "effect ops ... in one list" test compares
   `validate-town.cjs`'s `OPS` with `State.EFFECT_OPS`: it fails until
   engine-state's 13 ops land, then passes.
+
+## Integration (after the six merges)
+
+- Obligation ids are `obl_<kind>_<npc id>` with the full id, as content
+  assumed (`obl_debt_npc_curtis`); nothing in content changed for it.
+- Loose ends read `obligations[i]` (lined up with `options`), the kind's
+  `obligation` for words the player typed, and apply `onStart` when the loose
+  end is tied (the letter is in the pocket from the start).
+- `evt_council_meeting` gains `attendees` (Jolene, Royce, Lamar, Hollis,
+  Elbert, Chief Bell): they are at Town Hall that evening, so the meeting has
+  its people. `tests/validate-town.cjs` accepts the field (ids of people who
+  live in town, no repeats).
+- `GOAL_PRESETS` is on `Game.data`.
+- The validator no longer reads `TABLES.npc.familyNames` (gone).
