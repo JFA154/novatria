@@ -774,7 +774,8 @@ s.test('design: two nights running sleeping rough in a public place, the police 
   assert.equal(r.ROUGH, 2);
   assert.doesNotMatch(r.nights[0].due, /move along/, 'one night is nothing');
   assert.match(r.nights[1].due, /tells you to move along and find a real bed/);
-  assert.equal(r.nights[1].count, 0, 'the count starts again');
+  // Changed by design at the wave-5 integration: the count runs on past the chief, so a third night there costs the fine (tests/integration.test.cjs).
+  assert.equal(r.nights[1].count, 2, 'the count runs on');
   assert.ok(r.chief, 'the chief remembers');
   assert.equal(r.here, true, 'and is there in the morning');
 });

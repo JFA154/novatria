@@ -545,3 +545,19 @@ Q9, prose items and design notes. Tests: `tests/wave5-fixes.test.cjs`.
   not hold.
 - Prose: "Missed: … (due Day 7)."; `{place}` in an effect is the place as
   said inside a sentence ("after trouble at the Riverview Motor Court").
+
+## Integration (wave 5)
+
+- **Rough nights run on past the chief**: `sleptRough` no longer sets
+  `flags.roughNights` back to 0 when the chief comes; `roughAt` and
+  `roughDay` keep up too. So the second night running at the same public
+  place he tells the player to move along, and a third night running there
+  (or every night more, or the next time, by `flags.movedOn`) he writes the
+  `$25` fine: "… for the third morning running, still there after he told
+  you to find a real bed, and writes you a $25 fine …"; his memory says
+  "still sleeping rough at …, three nights running, after telling them to
+  find a real bed, and fined them". Before, the count started again after
+  the move-along, so a third night was free and the fine came on the
+  fourth. A bed, a night not slept, another place or the cell still start
+  it again. `tests/wave4-fixes.test.cjs` follows (changed by design: the
+  count is 2 after the move-along); `tests/integration.test.cjs` pins it.

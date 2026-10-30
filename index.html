@@ -12617,9 +12617,12 @@ const World = (() => {
      who lives there is the police (Loretta's Low Water is hers; Town Hall
      is the chief's station). On the second night the chief finds the
      player there in the morning and tells them to move along (a due event
-     that brings him, told in that narration, and a memory); the next time
-     (flags.movedOn) it costs a $25 fine, or what cash there is. Returns
-     the seed id, or null. */
+     that brings him, told in that narration, and a memory); a third night
+     running there, or the next time he finds them so (flags.movedOn), costs
+     a $25 fine, or what cash there is (the integration of wave 5: told to
+     move along and still there, the count runs on, and every night more is
+     fined). Returns the seed id, or
+     null. */
   const ROUGH_NIGHTS = 2;
   const ROUGH_FINE = 25;
   const isPoliceNpc = n => (n.tags || []).includes('police');
@@ -12637,20 +12640,28 @@ const World = (() => {
     const count = here ? (runOn ? was + 1 : 1) : 0;
     const chief = count >= ROUGH_NIGHTS ? chiefOf(s) : null;
     const fx = [];
-    if ((chief ? 0 : count) !== was) fx.push({ op: 'setFlag', key: 'roughNights', value: chief ? 0 : count });
-    if (here && !chief && fl.roughAt !== l.id) fx.push({ op: 'setFlag', key: 'roughAt', value: l.id });
-    if (here && !chief && fl.roughDay !== s.time.day) fx.push({ op: 'setFlag', key: 'roughDay', value: s.time.day });
+    // The count runs on past the chief (integration, wave 5): told to move along and there again the next night, the player is fined.
+    if (count !== was) fx.push({ op: 'setFlag', key: 'roughNights', value: count });
+    if (here && fl.roughAt !== l.id) fx.push({ op: 'setFlag', key: 'roughAt', value: l.id });
+    if (here && fl.roughDay !== s.time.day) fx.push({ op: 'setFlag', key: 'roughDay', value: s.time.day });
     if (fx.length) applyEffects(fx);
     if (!chief) return null;
     const times = (toInt(fl.movedOn) || 0) + 1;
     const place = placeIn(l);
     const fine = times >= 2 ? Math.min(ROUGH_FINE, Math.max(0, s.player.gold | 0)) : 0;
     const paid = fine === ROUGH_FINE ? `writes you a ${money(ROUGH_FINE)} fine for sleeping in public and takes it` : fine ? `writes you a ${money(ROUGH_FINE)} fine for sleeping in public and takes the ${money(fine)} you have toward it` : `writes you a ${money(ROUGH_FINE)} fine for sleeping in public, which you have nothing to pay`;
+    const nth = ['', '', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][count];
+    const nights = ['', '', 'two', 'three', 'four', 'five', 'six', 'seven'][count] || 'night after night';
+    const running = nth ? `for the ${nth} morning running` : 'yet another morning running';
+    const pro = chief.pronouns === 'she' ? 'she' : chief.pronouns === 'they' ? 'they' : 'he';
     applyEffects([{ op: 'setFlag', key: 'movedOn', value: times }].concat(fine ? [{ op: 'playerGold', delta: -fine }] : [], [{ op: 'addMemory', npcId: chief.id, weight: times >= 2 ? 3 : 2,
-      text: times >= 2 ? `found ${s.player.name} sleeping rough at ${place} two nights running again and fined them` : `found ${s.player.name} sleeping rough at ${place} two nights running and told them to move along` }]));
+      text: times < 2 ? `found ${s.player.name} sleeping rough at ${place} two nights running and told them to move along`
+        : count > ROUGH_NIGHTS ? `found ${s.player.name} still sleeping rough at ${place}, ${nights === 'night after night' ? nights : `${nights} nights running`}, after telling them to find a real bed, and fined them`
+          : `found ${s.player.name} sleeping rough at ${place} two nights running again and fined them` }]));
     note(`${chief.id} finds the player: ${count} nights running rough at ${l.id}${times >= 2 ? `, again: fined ${money(fine)}` : ''}`, { kind: 'rough' });
-    const text = times >= 2 ? `${chief.name} finds you asleep at ${place} for the second morning running, again, ${paid}, and tells you to find a real bed.`
-      : `${chief.name} finds you asleep at ${place} for the second morning running and tells you to move along and find a real bed somewhere.`;
+    const text = times < 2 ? `${chief.name} finds you asleep at ${place} for the second morning running and tells you to move along and find a real bed somewhere.`
+      : count > ROUGH_NIGHTS ? `${chief.name} finds you asleep at ${place} ${running}, still there after ${pro} told you to find a real bed, and ${paid}.`
+        : `${chief.name} finds you asleep at ${place} for the second morning running, again, ${paid}, and tells you to find a real bed.`;
     return dueNow({ key: `moved_on_d${s.time.day}`, text, npcId: chief.id, bring: true, locationId: l.id });
   }
   function arrestPlan() {

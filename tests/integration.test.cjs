@@ -14,6 +14,11 @@
    Wave 4: the Character tab's Grown line reads the entry's own gain, as the
    quiet line does; no module guards a function the file always has; one
    composer focus helper; a queued line that fails goes back without loss.
+   Wave 5: rough nights through the box (moved along, then fined the third
+   night running; the cell starts again); someone hurt said the same way by
+   the People card, the absent note and the narrator; the ending a /rest
+   brings told before its Resolved lines, its recap and the closing line,
+   and one /undo for all of it.
    Mock mode; ids come from Game.data and Game.state, never one town. */
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -512,6 +517,36 @@ s.test('wave 4: the third review\'s leftovers: a police place reads "Police stat
   assert.equal(r.hall, 'Town hall');
   assert.deepEqual(r.names.slice(0, 3), ['', '', '']);
   assert.match(r.names[3], /^HARD Earl,Hux$/);
+});
+
+s.test('wave 5: rough nights at Town Hall through the box: the second morning the chief tells the player to move along, a third night running costs the $25 fine; a night in the cell starts the count again', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const night = async () => {
+    await page.evaluate(() => { Game.State.apply({ setTime: { day: Game.state.time.day, phase: 'night', shorts: 0, late: false }, playerLocationId: 'loc_town_hall' }); Game.UI.renderGame(); });
+    const g0 = await page.evaluate(() => Game.state.player.gold);
+    await sendText(page, '/rest');
+    const pk = await lastPacket(page);
+    return { due: (/^DUE EVENT: .*$/m.exec(pk) || [''])[0], count: await page.evaluate(() => Game.state.flags.roughNights | 0), paid: g0 - await page.evaluate(() => Game.state.player.gold) };
+  };
+  const n1 = await night();
+  const n2 = await night();
+  const n3 = await night();
+  assert.equal(n1.count, 1);
+  assert.doesNotMatch(n1.due, /move along|fine/);
+  assert.match(n2.due, /second morning running and tells you to move along/, n2.due);
+  assert.equal(n2.paid, 0);
+  assert.equal(n2.count, 2, 'the count runs on past the chief');
+  assert.match(n3.due, /third morning running, still there after (?:he|she|they) told you to find a real bed, and writes you a \$25 fine/, n3.due);
+  assert.equal(n3.paid, 25);
+  const mem = await page.evaluate(() => Game.state.npcs.flatMap(n => (n.memories || []).map(m => m.text)).filter(t => /sleeping rough/.test(t)));
+  assert.ok(mem.some(t => /two nights running and told them to move along/.test(t)) && mem.some(t => /still sleeping rough at Town Hall, three nights running, after telling them to find a real bed, and fined them/.test(t)), mem.join(' | '));
+  // A night in the holding cell starts it again: the next night rough is the first.
+  await page.evaluate(() => { Game.State.apply({ playerLocationId: 'loc_front_street' }); Game.World.arrestPlayer({ told: true }); Game.State.apply({ setTime: { day: Game.state.time.day + 1, phase: 'morning', shorts: 0, late: false } }); });
+  const n4 = await night();
+  assert.equal(n4.count, 1);
+  assert.doesNotMatch(n4.due, /move along|fine/);
 });
 
 s.run();
