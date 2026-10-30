@@ -13168,7 +13168,9 @@ const Style = (() => {
     'Royal Crown', 'Sun Drop', 'Little Debbie', 'Western Union', 'Crimson Tide', 'Grand Ole Opry', 'Bass Pro', 'Bass Pro Shops', 'Tractor Supply', 'Red Wing',
     'Red Wings', 'Mossy Oak', 'Smith and Wesson', 'Smith & Wesson', 'Dairy Queen', 'Burger King', 'Taco Bell', 'Pizza Hut', 'Food Lion', 'Kentucky Fried Chicken',
     'Super Bowl', 'World Series', 'Monday Night Football', 'Mardi Gras', "Mother's Day", "Father's Day", "Valentine's Day", 'Holy Spirit', 'Holy Ghost',
-    'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security'];
+    'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security',
+    // Wave 8: brands named like a person, now that a first name and a surname before "is" are someone.
+    'Sam Adams', 'Samuel Adams', 'Johnnie Walker', 'Jose Cuervo', 'Captain Morgan', 'Earl Grey', 'Jimmy Dean', 'Betty Crocker', 'Ronald McDonald'];
   const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   // Words that open a sentence before a name without being part of it ("Ask Bobby", "Tell Earl").
@@ -13234,6 +13236,40 @@ const Style = (() => {
   const THING_AFTER = new RegExp(`^\\s+(?:(?:plays|played|is playing|was playing|comes|came|is|was|are|were) on ${ON_AIR}|(?:comes|came) on(?:\\s*[.,!;]|\\s+(?:loud|again|low|now|then|and|as|while|over))|(?:is|was|are|were) (?:cheap|expensive|on sale|sold out|out of stock|half off|playing on ${ON_AIR})|(?:costs?|cost) (?:\\$\\d|\\d|a (?:dollar|buck|quarter|nickel|dime)|(?:one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|thirty|forty|fifty|a hundred)\\b)|(?:tastes?|tasted|smells?|smelled) like|fizzes|crackles|blares)(?![a-z])`, 'i');
   // A work that "by" names the maker of (wave 6, the fifth review's bug 3): "something by Patsy Cline", "a song by"; anything else by a run is a person ("stand by Earl Hux", "a letter by Earl Hux").
   const WORKS = new Set('song songs something anything record records album albums tune tunes book books painting paintings number numbers track tracks single singles hit hits ballad ballads novel novels cover covers'.split(' '));
+  /* Wave 8 (the final pass): a first name and a surname the town does not
+     have, before what a person is or does ("Earl Hux is cheap, Royce
+     says.", "Earl Hux playing pool") or after seeing, hearing or meeting
+     them ("You watch Earl Hux"), are someone: hard, whatever THING_AFTER
+     or THING_VERBS say. The first name is one the tables, the pronoun
+     lists or GIVEN_NAMES know (so "Red Seal is cheap here." stays a brand);
+     never a place ("Lee County is"), a voice on the radio ("Patsy Cline is
+     on the jukebox") or what a sign says. */
+  const GIVEN_NAMES = ('Aaron Adam Al Alan Albert Alvin Andrew Andy Anthony Archie Arthur Barry Ben Benny Bert Billy Bo Bob Bobby Boyd Brad Bradley Brandon Brent Brett Brian Bruce Bryan Buddy ' +
+    'Byron Calvin Carl Carlos Cecil Charles Charlie Chester Chris Chuck Clarence Clayton Cletus Cliff Clifford Clint Clyde Cody Cole Colton Corey Craig Curtis Dale Dan Daniel Danny Darnell ' +
+    'Darrell Darren Darryl Daryl Dave David Dean Dennis Derek Dewey Dexter Don Donald Donnie Doug Douglas Duane Dwayne Dwight Earl Ed Eddie Edgar Edward Elmer Emmett Eric Ernest Ernie Eugene ' +
+    'Floyd Frank Frankie Fred Freddie Gene George Gerald Glen Glenn Gordon Greg Gregory Hank Harold Harvey Herbert Herman Homer Howard Hoyt Hubert Ira Jake Jamal James Jamie Jared Jason ' +
+    'Jeff Jeffrey Jerome Jerry Jesse Jim Jimmy Joe Joel Joey John Johnny Jon Jonathan Joseph Josh Joshua Juan Justin Keith Ken Kenneth Kenny Kevin Kirk Kyle Lamar Lance Larry Leon Leroy ' +
+    'Lester Lloyd Lonnie Louis Luke Luther Marcus Marvin Matt Matthew Maurice Melvin Merle Michael Mike Mitch Morris Nathan Neal Ned Nick Norman Odell Otis Pat Patrick Paul Pete Peter Phil ' +
+    'Philip Ralph Randall Randy Raymond Reggie Rex Richard Rick Ricky Rob Robert Rodney Roger Roland Ron Ronald Ronnie Roscoe Ross Roy Sam Scott Shane Shawn Sonny Stan Stanley Steve Steven ' +
+    'Stuart Ted Terry Thomas Tim Timothy Todd Tom Tommy Tony Travis Trent Troy Tyler Vernon Victor Virgil Wallace Walter Wendell Wesley Willard William Willie Woody Zack ' +
+    'Alice Amanda Amy Angela Angie Ann Anna Anne Annie Barbara Becky Bernice Bertha Beth Betty Beverly Bonnie Brenda Brittany Carla Carol Carolyn Carrie Cassie Catherine Cathy Charlene ' +
+    'Cheryl Christy Cindy Clara Connie Darlene Debbie Deborah Denise Diane Donna Doris Dorothy Dot Edna Eileen Elaine Ellen Emily Emma Erica Ethel Eunice Evelyn Flora Frances Gail ' +
+    'Geraldine Gladys Glenda Gloria Gwen Hattie Hazel Helen Ida Inez Irene Jackie Janet Janice Jeanette Jennifer Jenny Jessica Jill Joan Joann Jodie Josie Joyce Judy Julie Karen Kathy ' +
+    'Kelly Kristy Laura Laverne Leah Lena Linda Lisa Lois Loretta Lori Louise Lucille Lucy Lula Mabel Mae Marcy Margaret Maria Marie Marilyn Marlene Martha Mary Maxine Melba Melissa ' +
+    'Michelle Mildred Minnie Myrtle Nancy Naomi Nell Nellie Nora Norma Patty Paula Peggy Phyllis Rachel Rebecca Regina Renee Rita Roberta Rosa Ruth Sally Samantha Sandra Sara Sarah ' +
+    'Shannon Sharon Sheila Shelby Shirley Stacy Stephanie Sue Susan Sylvia Tammy Tanya Teresa Terri Thelma Tina Tonya Tracy Trudy Valerie Vera Vicki Viola Wilma Yvonne Zelda').split(' ');
+  let givenSet = null;
+  function givenName(w) {
+    if (!givenSet) givenSet = new Set(TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES));
+    return givenSet.has(w);
+  }
+  const PERSON_NEXT = new Set(('is was isn\'t wasn\'t says said sits sat sitting stands stood standing leans leaned leaning walks walked walking laughs laughed laughing ' +
+    'waits waited waiting looks looked looking nods nodded playing watches watched watching stares stared staring works worked working talks talked talking ' +
+    'drinks drank drinking smokes smoked smoking lives lived').split(' '));
+  const SEE_BEFORE = new Set('watch watches watched watching see sees saw seeing meet meets met meeting greet greets greeted greeting hear hears heard hearing spot spots spotted notice notices noticed'.split(' '));
+  const PLACE_TAIL = new Set(('county counties street st road rd avenue ave lane drive river creek lake bayou church chapel store shop hall school bridge park highway hwy bank court house ' +
+    'hospital station farm farms mill landing ferry motel hotel inn bar grill cafe diner market center college university city town parish').split(' '));
+  const ON_AIR_NEXT = new RegExp(`^\\s+(?:(?:is|was|are|were|comes|came|plays|played|sings|sang|playing|singing|is playing|was playing|is singing|was singing)\\s+)?(?:on|from|over|through) ${ON_AIR}(?![a-z])`, 'i');
   /* What a known name was, once it is blanked out of the text (wave 4): a
      person's first name, a surname (or "the Gentrys"), a whole name or
      another part of one, or anything else (a place, a faction, a brand). The
@@ -13413,11 +13449,15 @@ const Style = (() => {
       // What a thing does after it (wave 5, the round-4 playtest): "Red Seal is cheap here", "Conway Twitty plays on the radio".
       const thingNext = !speaks && THING_AFTER.test(s.slice(end));
       const owns = run.some(w => /('s|s')$/.test(w[0])) || (!!sur && /^('s|s')(?![A-Za-z])/.test(s.slice(end)));
+      // A first name and a surname (wave 8): a known person's first name before it, or a first name GIVEN_NAMES knows, and no place word last ("Lee County").
+      const tail = strip(run[run.length - 1][0]).toLowerCase();
+      const fullName = two && run.length <= 3 && (!!first || givenName(strip(run[0][0]))) && !PLACE_TAIL.has(tail) && !owns && !ON_AIR_NEXT.test(s.slice(end));
+      const doing = fullName && !!nx && PERSON_NEXT.has(nx[1].toLowerCase());
       let marked;
       if (starts) {
         // A sentence start is an ordinary word, unless a speech or gesture verb follows the name or it is two words or more (SENTENCE_STARTS such as "Ask" are COMMON: never in a run).
         if (!two && !speaks) { i = j; last = null; continue; }
-        marked = !thingNext;
+        marked = !thingNext || doing;
       } else {
         // The word just before (only spaces or a comma between; none when a known name is), and the word before that.
         const pm = /([A-Za-z][A-Za-z'-]*)([\s,]*)$/.exec(head);
@@ -13436,7 +13476,9 @@ const Style = (() => {
           const thing = told === false || thingNext || byMaker || (!!prev && (THING_BEFORE.has(prev) || THING_VERBS.has(prev) || /^\d/.test(prev)))
             || (plain && !!prev2 && THING_BEFORE.has(prev2) && !Town.isPersonWord(prev) && !MARK_TOLD.has(prev) && !PERSON_ADJ.has(prev));
           const listed = !!last && last.end <= start && /^\s*(?:,\s*)?(?:(?:and|or|nor|&)\s+)?$/.test(s.slice(last.end, start));
-          marked = titled || told === true || owns || speaks || prev === 'with' || (listed ? last.marked : !thing);
+          // Someone seen, met or heard, or someone being or doing what a person does (wave 8), unless a sign or the radio says the name.
+          const someone = told !== false && (doing || (fullName && !!prev && SEE_BEFORE.has(prev)));
+          marked = titled || told === true || owns || speaks || prev === 'with' || someone || (listed ? last.marked : !thing);
         } else marked = titled || told === true || owns || speaks;
       }
       for (const w of run) { const x = strip(w[0]); hits.set(x, hits.get(x) || marked); }
