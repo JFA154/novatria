@@ -137,7 +137,7 @@ s.test('the title screen shows the update line and button only when the autosave
   }
 });
 
-s.test('"Update this game" in mock mode: long memories become short ones, repeats merge on the earliest turn, at most 6 each; protected lines, everyone else and every other field untouched; stamped and autosaved', async h => {
+s.test('"Update this game" in mock mode: long memories become short ones, repeats merge on the earliest turn, at most State.MEMORY_MAX each; protected lines, everyone else and every other field untouched; stamped and autosaved', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const { ids, env } = await writeOldAutosave(page);
   const before = JSON.stringify(env.state);
@@ -156,22 +156,22 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
   const aOpen = a.filter(m => !/^(Loose end with|Fact \(a story point\):)/.test(m.text));
   assert.deepEqual(aOpen.map(m => [m.turn, m.weight]), [[3, 2], [7, 3], [11, 2]], 'A: merged on the earliest turn, weight 1 dropped: ' + JSON.stringify(a));
   assert.deepEqual(a.map(m => m.turn), [0, 3, 4, 7, 11], 'A: oldest first, protected lines in place');
-  // Person B: eight notable memories, capped at six (the heaviest, then the newest).
-  assert.deepEqual(b.map(m => m.turn), [6, 8, 10, 12, 14, 16], 'B capped at 6: ' + JSON.stringify(b));
+  // Person B: eight notable memories, all kept: the demo's rewrite keeps up to State.MEMORY_MAX (12), the real call's cap (wave 2; it kept six).
+  assert.deepEqual(b.map(m => m.turn), [2, 4, 6, 8, 10, 12, 14, 16], 'B under the cap: ' + JSON.stringify(b));
   // Person C: only the two that matter.
   assert.deepEqual(c.map(m => [m.turn, m.weight]), [[3, 2], [7, 3]]);
   for (const m of aOpen.concat(b, c)) {
     assert.ok(words(m.text) <= 12, 'short: ' + m.text);
     assert.ok(m.weight >= 2 && m.weight <= 3);
   }
-  assert.equal(b[0].text, 'punched me in the jaw outside the motel when I would not', 'the first twelve words');
+  assert.equal(b[2].text, 'punched me in the jaw outside the motel when I would not', 'the first twelve words');
   // Everyone else's memories and every other field byte for byte.
   for (const n of old.npcs) if (!ids.includes(n.id)) assert.deepEqual(mem(n.id), n.memories, n.id + ' untouched');
   assert.equal(rest(after), rest(before), 'nothing but memories and the rules version changed');
   assert.equal(st.meta.rulesVersion, 8, 'stamped');
   // The feed: the running notice, then the summary (version 2, then version 3, which finds nothing to add, then version 4: the first morning needs no check, then version 5: nobody the game made up is in the story, then version 6: this game already has the whole cast).
   const notices = await page.$$eval('#feed .f-notice', ns => ns.map(n => n.textContent));
-  assert.deepEqual(notices.slice(-2), ['Updating this game to the latest rules...', 'Rewrote memories for 3 people: 17 memories became 11. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.']);
+  assert.deepEqual(notices.slice(-2), ['Updating this game to the latest rules...', 'Rewrote memories for 3 people: 17 memories became 13. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.']);
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length), 1, 'one call');
   // Autosaved, and the game stays loaded.
   const saved = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).state, AUTOSAVE);
@@ -190,6 +190,13 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
   assert.equal(await stateJson(page), after);
+  // Past the cap the heaviest, then the newest, are kept.
+  const capped = await page.evaluate(async () => {
+    const mems = Array.from({ length: Game.State.MEMORY_MAX + 4 }, (_, i) => ({ n: i + 1, text: `remembers thing number ${i + 1}`, weight: i === 0 ? 3 : 2 }));
+    const res = await Game.Api.rewriteMemories({ people: [{ npcId: 'npc_x', memories: mems }] });
+    return { max: Game.State.MEMORY_MAX, from: res.people[0].memories.map(m => m.from[0]) };
+  });
+  assert.deepEqual(capped.from, [1].concat(Array.from({ length: capped.max - 1 }, (_, i) => i + 6)), 'capped at State.MEMORY_MAX: ' + JSON.stringify(capped));
 });
 
 s.test('a queued mock error, or a refusal, leaves the state exactly as it was and says so in the feed', async h => {
@@ -312,7 +319,7 @@ s.test('Saves screen: a slot under older rules says so and has an Update action 
   await waitIdle(page);
   const st = JSON.parse(await stateJson(page));
   assert.equal(st.meta.rulesVersion, 8);
-  assert.equal(st.npcs.find(n => n.id === ids[1]).memories.length, 6);
+  assert.equal(st.npcs.find(n => n.id === ids[1]).memories.length, 8, 'eight notable memories, under the cap');
   assert.equal(rest(st), rest(env.state));
   const slot = await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.slot.1')));
   assert.equal(slot.name, 'Old one', 'written back under its name');
@@ -347,7 +354,7 @@ s.test('more than about 40 memories go out in several calls, split by person; a 
   assert.equal(r.firstSame, true, 'missing from the reply: left as it was');
   assert.deepEqual(r.second, [{ turn: 12, text: 'helped me out once', weight: 2 }]);
   assert.ok(r.debug.some(x => /missing from the reply/.test(x)) && r.debug.some(x => /npc_nobody, who was not asked about/.test(x)), r.debug.join(' | '));
-  assert.equal(r.res.summaries[0].text, 'Rewrote memories for 5 people: 40 memories became 10.');
+  assert.equal(r.res.summaries[0].text, 'Rewrote memories for 5 people: 40 memories became 12.');
 });
 
 s.test('the real provider: one structured-output call on the parser model at the bookkeeper\'s effort, schema per API_NOTES, the memory rules word for word, and the reply applied', async h => {
