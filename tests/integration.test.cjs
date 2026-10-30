@@ -575,4 +575,27 @@ s.test('wave 5: someone hurt who would be away today has one flag on the People 
   assert.ok(present.includes(`hurt: laid up until Day ${r.until}`), present.slice(0, 400));
 });
 
+s.test('wave 5: a /rest that brings the ending, through the box: the night, the ending, its Resolved lines, the recap, then "This is one ending"; one /undo takes it all back, the feed too', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt'] });
+  await fast(page);
+  await page.evaluate(() => Game.State.apply({ effects: [{ op: 'setFlag', key: 'policeKept', value: true }, { op: 'threadUpdate', threadId: 'thr_bridge_vote', knownToPlayer: true }, { op: 'threadUpdate', threadId: 'thr_police_vote', knownToPlayer: true }], eventsFired: ['evt_council_meeting'] }));
+  await sendText(page, '/cheat time night 20');
+  const before = await page.evaluate(() => ({ time: JSON.stringify(Game.state.time), log: Game.state.log.length, prog: Game.state.player.progression.length }));
+  await page.evaluate(() => { for (const x of document.querySelectorAll('#feed > *')) x.dataset.i5 = '1'; });
+  await sendText(page, '/rest');
+  await page.waitForFunction(() => !Game.Pipeline.busy && Game.state.news.some(n => n.epilogue && n.seen));
+  const feed = await page.evaluate(() => [...document.querySelectorAll('#feed > *')].filter(x => x.dataset.i5 !== '1').map(x => {
+    const t = x.textContent;
+    return /^Resolved: /.test(t) ? 'RESOLVED' : /^This is one ending/.test(t) ? 'CLOSE' : /\brecap\b/.test(x.className) ? 'RECAP' : /f-narr/.test(x.className) ? 'NARR' : null;
+  }).filter(Boolean));
+  const shown = feed.join(' > ');
+  assert.equal(feed.filter(k => k === 'NARR').length, 2, 'the night and the ending: ' + shown);
+  assert.equal(feed.filter(k => k === 'RECAP').length, 1, shown);
+  assert.ok(feed.indexOf('RESOLVED') > feed.lastIndexOf('NARR') && feed.indexOf('RECAP') > feed.lastIndexOf('RESOLVED') && feed.indexOf('CLOSE') > feed.indexOf('RECAP') && feed.indexOf('CLOSE') === feed.length - 1, shown);
+  await sendText(page, '/undo');
+  const after = await page.evaluate(() => ({ time: JSON.stringify(Game.state.time), log: Game.state.log.length, prog: Game.state.player.progression.length, ending: Game.state.news.some(n => n.epilogue), closing: [...document.querySelectorAll('#feed .f-quiet')].some(n => /This is one ending/.test(n.textContent)) }));
+  assert.deepEqual(after, Object.assign({}, before, { ending: false, closing: false }));
+});
+
 s.run();
