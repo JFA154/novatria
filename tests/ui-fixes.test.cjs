@@ -22,6 +22,7 @@ const shot = async (page, name, opts) => {
 };
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
+const isObjNote = n => n !== null && typeof n === 'object' && typeof n.text === 'string';
 const visibleNow = (page, sel) => page.evaluate(q => {
   const el = document.querySelector(q);
   if (!el || el.closest('[hidden]')) return false;
@@ -364,7 +365,8 @@ s.test('quiet lines are kept with their turn: they survive a reload and go with 
   assert.ok(before.some(t => t.startsWith(`${who.name} goes by`)), before.join(' | '));
   assert.ok(before.includes('Clock set to Day 1 · Night.'));
   const notes = await page.evaluate(() => Game.state.log[Game.state.log.length - 1].notes);
-  assert.ok(Array.isArray(notes) && notes.includes('Clock set to Day 1 · Night.'), JSON.stringify(notes));
+  // Changed by design (wave 6 integration, playtest R7): a line printed under a later divider keeps its time ({ text, day, phase }); one at the entry's own time after its narration is plain text, as before.
+  assert.ok(Array.isArray(notes) && notes.some(n => isObjNote(n) && n.text === 'Clock set to Day 1 · Night.' && n.day === 1 && n.phase === 'night'), JSON.stringify(notes));
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await page.click('#btn-continue');
@@ -3122,6 +3124,77 @@ s.test('wave 6, item 8: the phone\'s top bar never runs the money under Menu (32
       }
     }
   }
+});
+
+// ----- I6. The wave-6 integration (docs/notes/*.md, "Wave 6": the engine's log entry times and the feed) -----
+
+/* The story's lines as the feed draws them (dividers, inputs, rolls,
+   narrations, quiet lines; not the notices, which are not kept). */
+const feedLines = page => page.evaluate(() => [...document.querySelectorAll('#feed > .f-divider, #feed > .f-input, #feed > .f-roll, #feed > .f-narr, #feed > .f-quiet')]
+  .map(x => `${x.className.split(' ').find(c => /^f-(divider|input|roll|narr|quiet)$/.test(c)).slice(2)}: ${x.textContent.replace(/\s+/g, ' ').trim()}`));
+
+s.test('integration (playtest R7): the feed after a reload (Continue) and after /undo is in the order it was played: a turn that runs into a new phase, a reroll, /wait, /rest\'s "Missed" and "Overnight in town", "won\'t forget that", "Clock set" and "Meanwhile in town"', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await fast(page);
+  const T = text => page.evaluate(async t => { await Game.Pipeline.submit(t, {}); await Game.Pipeline.whenIdle(); }, text);
+  // Someone here the player knows, at a neutral attitude: an insult in a turn that runs into the afternoon brings "won't forget that" under the new divider.
+  const who = await page.evaluate(() => {
+    const n = Game.State.npcsAt(Game.state.player.locationId)[0];
+    Game.State.apply({ npcKnownToPlayer: [n.id] });
+    Game.State.apply({ editPerson: { npcId: n.id, attitude: 0 } }, { source: 'player' });
+    return { id: n.id, name: n.name };
+  });
+  await page.evaluate(id => {
+    Game.Api.Mock.queue('parse', { actionType: 'other', summary: 'Works on the truck for hours', targets: [], needsRoll: false, timeCost: 'long' });
+    Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -20 }] });
+  }, who.id);
+  await T('I spend hours on the truck and tell them their coffee is terrible');
+  // A roll, then a reroll to a natural 20: "Cheat: crit" before the roll, the story point after it, both before the narration.
+  await page.evaluate(() => Game.Api.Mock.queue('parse', { actionType: 'other', summary: 'Climbs the fence', targets: [], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' }));
+  await T('I climb the fence');
+  await T('/cheat crit');
+  await T('/wait night');
+  // Nights until the debt's day has passed (a "Missed" line before the morning's narration) and the town has had news overnight.
+  for (let i = 0; i < 10; i++) {
+    await T('/rest');
+    const seen = await page.evaluate(() => { const q = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent); return q.some(t => /^Missed: /.test(t)) && q.some(t => /^Overnight in town: /.test(t)); });
+    if (seen) break;
+  }
+  const day = await page.evaluate(() => Game.state.time.day);
+  await T(`/cheat time evening ${day + 4}`);
+  await T('I look around');
+  const live = await feedLines(page);
+  const idx = re => live.findIndex(t => re.test(t));
+  const at = (re, from) => { const i = live.findIndex((t, k) => k > (from || -1) && re.test(t)); assert.ok(i >= 0, `${re} in the feed:\n${live.join('\n')}`); return i; };
+  // The live order the rebuild has to match (each piece as it is printed).
+  const insult = at(/^input: I spend hours on the truck/);
+  assert.match(live[insult + 1], /^narr: /);
+  assert.match(live[insult + 2], /^divider: Day 1 · .* · Afternoon$/);
+  assert.equal(live[insult + 3], `quiet: ${who.name} won't forget that.`);
+  const fence = live.lastIndexOf(live.find(t => /^input: I climb the fence/.test(t)) || '');
+  assert.deepEqual([live[fence + 1], /^roll: /.test(live[fence + 2]), /^quiet: Natural 20: you earn a story point/.test(live[fence + 3]), /^narr: /.test(live[fence + 4])], ['quiet: Cheat: crit', true, true, true], live.slice(fence, fence + 5).join('\n'));
+  const wait = at(/^input: \/wait night$/);
+  assert.deepEqual([/^divider: .* · Night$/.test(live[wait + 1]), /^narr: /.test(live[wait + 2])], [true, true], live.slice(wait, wait + 3).join('\n'));
+  const missed = at(/^quiet: Missed: /);
+  assert.match(live[missed - 1], /^divider: /, 'the morning\'s divider, then what the night missed');
+  assert.match(live[missed - 2], /^input: \/rest$/);
+  assert.match(live[missed + 1], /^narr: /, 'before the morning\'s narration');
+  assert.ok(idx(/^quiet: Overnight in town: /) > 0);
+  const clock = at(/^quiet: Clock set to Day \d+ · Evening\.$/);
+  assert.match(live[clock - 1], /^divider: Day \d+ · .* · Evening$/);
+  assert.ok(live.slice(clock).some(t => /^quiet: Meanwhile in town, Day \d+: /.test(t)), 'news of the days the clock passed');
+  assert.match(live[live.length - 2], /^input: I look around$/);
+  // Continue after a reload draws it all again in the same order.
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  await page.click('#btn-continue');
+  await fast(page);
+  assert.deepEqual(await feedLines(page), live, 'the same order after a reload');
+  // And after /undo of a turn played on top of it.
+  await T('I look around');
+  await T('/undo');
+  assert.deepEqual(await feedLines(page), live, 'the same order after /undo');
 });
 
 s.run();

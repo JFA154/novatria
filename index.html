@@ -7010,14 +7010,16 @@ const State = (() => {
      before), or (wave 6, the round-5 playtest's R7: the feed rebuilt after
      /undo or a reload in the order it was shown) { text, day?, phase? (the
      time shown when it was printed: a divider goes before it when that is
-     not the entry's), at?: 'before' (printed before the narration) or
-     'after' }. */
+     not the entry's), at?: 'before' (printed before the narration),
+     'start' (before the roll too: a reroll's "Cheat: success"; the
+     integration) or 'after' }. */
+  const NOTE_AT = ['start', 'before', 'after'];
   function logNote(x) {
     if (typeof x === 'string') return x.trim() ? x.slice(0, 2000) : null;
     if (!isObj(x) || typeof x.text !== 'string' || !x.text.trim()) return null;
     const n = { text: x.text.slice(0, 2000) };
     if (Number.isInteger(x.day) && x.day >= 1 && PHASES.includes(x.phase)) { n.day = x.day; n.phase = x.phase; }
-    if (x.at === 'before' || x.at === 'after') n.at = x.at;
+    if (NOTE_AT.includes(x.at)) n.at = x.at;
     return n;
   }
   function logNotes(v) { return (Array.isArray(v) ? v : []).map(logNote).filter(x => x !== null).slice(-LOG_NOTES_MAX); }
@@ -19507,6 +19509,12 @@ const UI = (() => {
      the feed takes its notes with it). */
   const pendingNotes = [];
   const pendingNodes = [];
+  /* Where in its turn a quiet line was printed (wave 6, the round-5
+     playtest's R7), so the feed rebuilt after /undo or a reload shows it
+     where it was: open, a turn's input is in the feed and the turn has not
+     ended (UI.setBusy(false)); roll and narr, its roll and its narration
+     have been shown. */
+  const turnMark = { open: false, roll: false, narr: false };
   /* The turn status line: the stage the Pipeline last reported (or the
      feed implied), whether the Pipeline reports stages itself, and whether
      a line is waiting in the Pipeline's queue. */
@@ -22003,7 +22011,15 @@ const UI = (() => {
   function rewritingLabel() { return el('p', { class: 'f-rewriting' }, 'Rewriting…'); }
   function narrationNode(text, mock) { const n = el('div', { class: 'f-item f-narr', dataset: mock ? { mock: '1' } : null }); fillParas(n, text); return n; }
   /* "Day 2 · Friday · Evening" (the weekday once the engine has a calendar). */
-  function dividerNode(day, phase) { return el('div', { class: 'f-item f-divider', role: 'separator' }, dayLabel(day, phase)); }
+  function dividerNode(day, phase) { return el('div', { class: 'f-item f-divider', role: 'separator', dataset: { day: String(day), phase } }, dayLabel(day, phase)); }
+  /* The time the feed shows now: its last divider's (a quiet line printed under it belongs to that time), else the clock's. */
+  function shownTime() {
+    for (let n = d.feed.lastElementChild; n; n = n.previousElementSibling) {
+      if (n.classList.contains('f-divider') && n.dataset.phase) return { day: toInt(n.dataset.day), phase: n.dataset.phase };
+    }
+    const t = State.current ? State.current.time : null;
+    return t ? { day: t.day, phase: t.phase } : null;
+  }
   function rollNode(r) { return el('p', { class: 'f-item f-roll' }, r.line); }
   /* A quiet line; the overnight news gets a little more weight than a dice line. */
   function quietNode(text) {
@@ -22106,10 +22122,11 @@ const UI = (() => {
   function liveOn() { streaming = 0; d.feed.setAttribute('aria-live', 'polite'); }
   const feed = {
     add(node) { d.feed.append(node); afterAppend(); return node; },
-    input(text, sp) { inferStage('parse'); return feed.add(inputNode(text, sp)); },
-    roll(r) { return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
-    narration(text, mock) { return feed.add(narrationNode(text, mock)); },
+    input(text, sp) { inferStage('parse'); Object.assign(turnMark, { open: true, roll: false, narr: false }); return feed.add(inputNode(text, sp)); },
+    roll(r) { if (r) turnMark.roll = true; return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
+    narration(text, mock) { turnMark.narr = true; return feed.add(narrationNode(text, mock)); },
     beginNarration(opts) {
+      turnMark.narr = true;
       const node = el('div', { class: 'f-item f-narr pending', 'aria-busy': 'true', 'aria-hidden': 'true', dataset: opts && opts.mock ? { mock: '1' } : null });
       fillParas(node, '');
       liveOff();
@@ -22148,10 +22165,17 @@ const UI = (() => {
     /* A quiet line that is always shown (damage, story points), unlike rolls.
        It is also kept (UI.pendingNotes) for the log entry of the turn that
        commits next, so it is there after a reload; outside a turn it goes
-       on the newest entry straight away. */
+       on the newest entry straight away. Kept with where it was printed
+       (wave 6, R7): the time the feed showed (shownTime), and at: 'start'
+       (in a turn, before its roll and narration: a reroll's "Cheat:
+       success", what a /wait's hours brought), 'before' (after the roll,
+       before the narration: damage, a natural 20) or 'after'; App's
+       attachNotes writes it against the entry it goes on. */
     quiet(text) {
+      const t = shownTime();
       const node = feed.add(quietNode(text));
-      pendingNotes.push(String(text));
+      const at = !turnMark.open || turnMark.narr ? 'after' : turnMark.roll ? 'before' : 'start';
+      pendingNotes.push(Object.assign({ text: String(text), at }, t ? { day: t.day, phase: t.phase } : {}));
       pendingNodes.push(node);
       if (!busy && !Pipeline.busy) Promise.resolve().then(() => { if (!busy && !Pipeline.busy) App.flushNotes(); });
       return node;
@@ -22241,18 +22265,38 @@ const UI = (() => {
     if (!s) return;
     const showRolls = Storage.settings().showRolls;
     for (const c of s.chronicle) d.feed.append(el('div', { class: 'f-chronicle' }, el('p', null, c.summary)));
-    let prev = null;
+    /* In the order it was shown (wave 6, the round-5 playtest's R7): the
+       divider of the time the input was given (from, else the entry's own)
+       when the feed does not show it already, the input, the entry's own
+       divider after it (a /wait, a /rest), its quiet lines printed before
+       its roll, the roll, those printed before the narration, the
+       narration, and the rest; a divider before any line whose time is not
+       the one shown (the new phase a turn ran into, a clock set). A plain
+       string note is the entry's time, after the narration. */
+    let shown = null;
+    const at = (day, phase) => {
+      const key = `${day}|${phase}`;
+      if (key !== shown) d.feed.append(dividerNode(day, phase));
+      shown = key;
+    };
+    const quietAt = (e, n) => {
+      if (Number.isInteger(n.day) && n.phase) at(n.day, n.phase); else at(e.day, e.phase);
+      d.feed.append(quietNode(n.text));
+    };
     for (const e of s.log) {
-      const key = `${e.day}|${e.phase}`;
-      if (key !== prev) d.feed.append(dividerNode(e.day, e.phase));
-      prev = key;
+      const notes = (Array.isArray(e.notes) ? e.notes : []).map(n => (typeof n === 'string' ? { text: n } : n)).filter(n => isObj(n) && typeof n.text === 'string' && n.text);
+      const where = k => notes.filter(n => (n.at === 'start' || n.at === 'before' ? n.at : 'after') === k);
+      if (isObj(e.from)) at(e.from.day, e.from.phase); else at(e.day, e.phase);
       if (e.input) d.feed.append(inputNode(e.input, e));
+      for (const n of where('start')) quietAt(e, n);
+      at(e.day, e.phase);
       if (e.roll && e.roll.line && showRolls) d.feed.append(rollNode(e.roll));
-      if (e.narration) d.feed.append(narrationNode(e.narration, e.mock === true));
+      for (const n of where('before')) quietAt(e, n);
+      if (e.narration) { at(e.day, e.phase); d.feed.append(narrationNode(e.narration, e.mock === true)); }
       // The quiet lines of that turn (added to the map, edited someone, damage), kept with it.
-      if (Array.isArray(e.notes)) for (const t of e.notes) if (typeof t === 'string' && t) d.feed.append(quietNode(t));
+      for (const n of where('after')) quietAt(e, n);
     }
-    if (prev !== `${s.time.day}|${s.time.phase}`) d.feed.append(dividerNode(s.time.day, s.time.phase));
+    at(s.time.day, s.time.phase);
     feedPlace = null;
     if (d.feedAfter) d.feedAfter.replaceChildren();
     markUndo();
@@ -22281,6 +22325,8 @@ const UI = (() => {
   function setBusy(b) {
     const was = busy;
     busy = !!b;
+    // The turn is over: a quiet line from now on comes after its narration (turnMark).
+    if (!busy) turnMark.open = false;
     // No aria-busy on the story's log: a screen reader honouring it could hold back or drop the finished narration (the
     // streaming node is aria-hidden until endNarration puts the text in, which is the one thing read out).
     d.btnNew.disabled = busy;
@@ -23499,12 +23545,25 @@ const App = (() => {
     try { return toInt(new URLSearchParams(window.location.search).get('seed')); } catch (e) { return null; }
   }
   /* Quiet lines (UI.pendingNotes) go on the newest log entry as notes, so
-     the feed shows them again after a reload or an undo. */
+     the feed shows them again after a reload or an undo, where they were
+     (wave 6, the round-5 playtest's R7): a line printed after the
+     narration at the entry's own time is plain text, as before; one
+     printed under a later divider keeps its day and phase, one printed
+     before the narration its at ('start' before the roll, when the entry
+     has one; else 'before'). */
+  function noteFor(e, n) {
+    if (!isObj(n)) return String(n);
+    const same = !Number.isInteger(n.day) || (n.day === e.day && n.phase === e.phase);
+    const at = n.at === 'start' ? (e.roll ? 'start' : 'before') : n.at === 'before' ? 'before' : 'after';
+    if (same && at === 'after') return n.text;
+    return Object.assign({ text: n.text }, same ? {} : { day: n.day, phase: n.phase }, at === 'after' ? {} : { at });
+  }
   function attachNotes(s) {
     const notes = UI.takeNotes();
     if (!notes.length || !s || State.muted || !s.log.length) return false;
+    const e = s.log[s.log.length - 1];
     // Through the engine (State logUpdate), like every other write; nothing to redraw (quiet: the feed already shows them).
-    return !State.apply({ logUpdate: { notes } }, { quiet: true }).rejected.length;
+    return !State.apply({ logUpdate: { notes: notes.map(n => noteFor(e, n)) } }, { quiet: true }).rejected.length;
   }
   /* Quiet lines written outside a turn (an edit, a pronoun): stored at once. */
   function flushNotes() {
