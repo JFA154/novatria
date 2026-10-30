@@ -19,6 +19,11 @@
    the People card, the absent note and the narrator; the ending a /rest
    brings told before its Resolved lines, its recap and the closing line,
    and one /undo for all of it.
+   Wave 6: a /cheat time jump to the ending tells the council's Resolved
+   line under the "Meanwhile in town" line that told the meeting (the
+   engine's held reward), so an /undo of the turn that then tells the
+   ending keeps it with its gain; the feed's order after a reload is in
+   tests/ui-fixes.test.cjs.
    Mock mode; ids come from Game.data and Game.state, never one town. */
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -596,6 +601,41 @@ s.test('wave 5: a /rest that brings the ending, through the box: the night, the 
   await sendText(page, '/undo');
   const after = await page.evaluate(() => ({ time: JSON.stringify(Game.state.time), log: Game.state.log.length, prog: Game.state.player.progression.length, ending: Game.state.news.some(n => n.epilogue), closing: [...document.querySelectorAll('#feed .f-quiet')].some(n => /This is one ending/.test(n.textContent)) }));
   assert.deepEqual(after, Object.assign({}, before, { ending: false, closing: false }));
+});
+
+s.test('wave 6: /cheat time to the ending past the council: the police vote\'s Resolved line comes under the "Meanwhile in town" line that told the meeting, not after the ending; one /undo of the turn that told the ending keeps that line and its gain', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, P = G.Pipeline, st = G.state;
+    S.apply({ threadUpdates: [{ threadId: 'thr_police_vote', knownToPlayer: true }] });
+    const title = S.thread('thr_police_vote').title;
+    const p0 = st.player.progression.length;
+    const quiet = () => [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent);
+    const settle = async () => { await P.whenIdle(); await new Promise(res => setTimeout(res, 150)); await P.whenIdle(); };
+    await P.submit('/cheat time morning 21');
+    const cheat = { lines: quiet(), status: S.thread('thr_police_vote').status, gained: st.player.progression.length - p0, ending: st.news.filter(n => n.epilogue).map(n => n.seen) };
+    M.queue('parse', { actionType: 'look', summary: 'Looks', targets: [], needsRoll: false, timeCost: 'instant' });
+    M.queue('bookkeep', {});
+    await P.submit('I look around');
+    await settle();
+    const told = { lines: quiet(), ending: G.state.news.filter(n => n.epilogue).map(n => n.seen) };
+    await P.submit('/undo');
+    await settle();
+    return { title, cheat, told, undone: { lines: quiet(), gained: G.state.player.progression.length - p0, ending: G.state.news.filter(n => n.epilogue).map(n => n.seen) } };
+  });
+  assert.equal(r.cheat.status, 'resolved', 'the council settled the police vote');
+  assert.deepEqual(r.cheat.ending, [false], 'the ending is still to be told');
+  const meeting = r.cheat.lines.findIndex(t => /^Meanwhile in town, Day \d+: .*council/i.test(t));
+  const res = r.cheat.lines.findIndex(t => t.startsWith(`Resolved: ${r.title}.`));
+  assert.ok(meeting >= 0 && res > meeting, 'the meeting\'s news, then its Resolved line, at the cheat: ' + r.cheat.lines.join(' | '));
+  assert.equal(r.cheat.gained, 1);
+  assert.deepEqual(r.told.ending, [true]);
+  assert.equal(r.told.lines.filter(t => t.startsWith(`Resolved: ${r.title}.`)).length, 1, 'told once: ' + r.told.lines.join(' | '));
+  assert.deepEqual(r.undone.ending, [false], 'the ending goes back with its turn');
+  assert.equal(r.undone.gained, 1, 'the gain the jump earned stays');
+  assert.equal(r.undone.lines.filter(t => t.startsWith(`Resolved: ${r.title}.`)).length, 1, 'and so does its line: ' + r.undone.lines.join(' | '));
 });
 
 s.run();

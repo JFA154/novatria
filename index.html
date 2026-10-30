@@ -18849,9 +18849,10 @@ const Pipeline = (() => {
     for (const x of lines) UI.feed.quiet(x.meanwhile ? `Meanwhile in town, Day ${x.day}: ${x.texts.join(' ')}` : x.text);
     for (const f of events) if (!f.here) State.apply({ newsSeen: { eventId: f.id } });
     noteEnding();
-    // A thread what the jump brought resolved (the council, the ending): its Resolved line now, or after the ending's narration when it brought one (wave 5, playtest Q12).
-    if (pendingEpilogue && unseenEnding()) holdForEnding(s, earned, null);
-    else progressLines(s, earned);
+    // A thread what the jump brought resolved (the council): its Resolved line now, under the "Meanwhile in town" line that told it (wave 6: what the
+    // ending itself resolves is held by the engine until its narration, which prints it). Never held for the ending here (the wave-6 integration,
+    // the fifth review's /cheat risk): one /undo of the turn that told the ending would lose the line of a gain the jump kept.
+    progressLines(s, earned);
     return { ok: true, time: deepCopy(State.current.time), events: events.map(f => f.id), seeds: fired.filter(f => f.seed).map(f => f.id) };
   }
   /* Bring the loaded game up to the current rules (Upgrade.pending: the
