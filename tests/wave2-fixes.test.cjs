@@ -330,6 +330,23 @@ s.test('bug 8 and B9: a town event is one news item, seen once the player watche
   assert.equal(late.due, 0, 'no scene for something that happened while the player was not looking');
 });
 
+s.test('a town event the player sleeps through where it happens is told as something that happened, not as the scene', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State;
+    const e = S.town.events[0];
+    S.apply({ setTime: { day: e.day, phase: 'afternoon' }, playerLocationId: e.locationId });
+    await G.Pipeline.submit('/rest');
+    const ev = G.state.dueEvents.find(x => x.eventId === e.id) || null;
+    const p = G.Api.Mock.calls.filter(c => c.method === 'narrate').pop().text;
+    return { scene: ev ? !!ev.scene : null, told: /^DUE EVENT: .*$/m.exec(p)[0] };
+  });
+  assert.ok(!/the scene: it happens here, now/.test(r.told), r.told);
+  assert.notEqual(r.scene, true);
+});
+
 s.test('B9: a clock completion that happens in front of the player is one news item, already seen', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
