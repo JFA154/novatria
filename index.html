@@ -8100,10 +8100,11 @@ const State = (() => {
       return parts.join('; ') || `${t.id} unchanged`;
     },
     /* { kind, npcId, text, amount?, dueDay? or dueOffset?, itemName?, onMiss?,
-       onMet?, id?, missText? (what the person owed does when it is missed:
-       the due event then; else a plain line), askerId? (an errand: who asked
-       for it, the one who comes looking when it is missed; npcId is who the
-       thing goes to) }: one open obligation per kind and person; dueOffset
+       onMet?, id?, missText? (what happens when it is missed: the due
+       event then; else a plain line), owedTo? (the person it is owed to
+       when that is not npcId: an errand's asker, the father a promise was
+       made to; askerId is accepted as the same) }: one open
+       obligation per kind and person; dueOffset
        counts from today (a loose end's seed carries it to the day it fires).
        The obligation's own person and the player fill any placeholders left
        in its text and effects. */
@@ -8140,7 +8141,9 @@ const State = (() => {
       const o = { id, kind: e.kind, npcId: n.id, text, amount, dueDay, itemName, status: 'open', onMiss, onMet, createdTurn: current.meta.turn, createdDay: day };
       const missText = cleanText(fillTemplate(e.missText, vars), 300);
       if (missText) o.missText = missText;
-      if (e.askerId !== undefined && e.askerId !== null) o.askerId = needNpc(e.askerId).id;
+      // The person owed when not the one it binds (content's owedTo; askerId the older name).
+      const owed = e.owedTo !== undefined && e.owedTo !== null && e.owedTo !== '' ? e.owedTo : e.askerId;
+      if (owed !== undefined && owed !== null && owed !== '') o.owedTo = needNpc(fillTemplate(owed, vars)).id;
       list.push(o);
       const line = `obligation ${id} (${e.kind} to ${n.id}${amount !== null ? `, ${money(amount)}` : ''}${dueDay !== null ? `, due day ${dueDay}` : ''})`;
       // An errand already done before it fell due (the letter handed over before its seed fired): met at once, its onMet once.
@@ -9990,6 +9993,8 @@ const State = (() => {
     for (const o of Array.isArray(p.obligations) ? p.obligations : []) {
       if (typeof o.id !== 'string' || !OBLIGATION_KINDS.includes(o.kind)) return 'player.obligations: an obligation without an id or a known kind';
       if (!npcIds.has(o.npcId)) return `${o.id}: npcId "${o.npcId}" is nobody in this game`;
+      for (const k of ['owedTo', 'askerId']) if (o[k] !== undefined && o[k] !== null && !npcIds.has(o[k])) return `${o.id}: ${k} "${o[k]}" is nobody in this game`;
+      if (o.missText !== undefined && o.missText !== null && typeof o.missText !== 'string') return `${o.id}: missText is not text`;
       if (!['open', 'met', 'missed'].includes(o.status)) return `${o.id}: status is not open, met or missed`;
       for (const k of ['dueDay', 'amount', 'paid']) if (o[k] !== undefined && o[k] !== null && !Number.isInteger(o[k])) return `${o.id}: ${k} is not a whole number`;
       for (const k of ['onMiss', 'onMet']) if (o[k] !== undefined && (!Array.isArray(o[k]) || o[k].some(e => !isObj(e)))) return `${o.id}: ${k} is not a list of effects`;
@@ -10911,9 +10916,13 @@ const Town = (() => {
       dueOffset: Number.isInteger(obl.dueOffset) ? obl.dueOffset : 3, itemName: obl.itemName ? fillTemplate(obl.itemName, ov) : null,
       onMiss: fillAll(Array.isArray(obl.onMiss) ? obl.onMiss : [], ov), onMet: fillAll(Array.isArray(obl.onMet) ? obl.onMet : [], ov)
     };
-    // What content may add (wave 2): the missed due event's words, and for an errand who asked for it.
+    // What content may add (wave 2): the missed due event's words, and the
+    // person owed when it is not the one it binds (owedTo: the woman who
+    // wrote the letter, not the daughter it is for; askerId is the older
+    // name for the same thing). "{npcId}" in it is the bound person.
     if (typeof obl.missText === 'string' && obl.missText.trim()) effect.missText = cleanText(fillTemplate(obl.missText, ov), 300);
-    if (typeof obl.askerId === 'string' && State.npc(obl.askerId)) effect.askerId = obl.askerId;
+    const owed = fillTemplate(typeof obl.owedTo === 'string' ? obl.owedTo : typeof obl.askerId === 'string' ? obl.askerId : '', ov);
+    if (owed && State.npc(owed)) effect.owedTo = owed;
     return { effect, onStart: fillAll(Array.isArray(obl.onStart) ? obl.onStart : [], ov).filter(isObj) };
   }
   function resolveLooseEnd(le) {
@@ -11370,10 +11379,22 @@ const World = (() => {
 
   // ----- c. obligations past their day -----
   /* State.tickObligations(day) settles every open obligation past its due
-     day as missed (its onMiss effects applied there) and returns them; each
-     becomes news (not public: the player's own business) and a due event,
-     with the person owed coming to the player as a loose end's does. */
+     day as missed (its onMiss effects applied there) and returns them. Each
+     is a quiet line for the player ("Missed: <the task>"), one news item
+     (not public: the player's own business; the obligation's own onMiss
+     addNews when it has one, else content's missText, else that line) and
+     a due event (missText, else a plain "comes looking" line). The person owed is owedTo (askerId, the
+     older name), else the person it binds; an errand without one has
+     nobody (the person the thing goes to may not know it exists). They
+     remember it, and come to the player only when free and in town; a
+     missText is told without them otherwise. */
   const MISSED_ABOUT = { debt: 'the money owed', blackmail: 'the money for keeping quiet', promise: 'the promise', errand: 'the errand', lodging: 'the room' };
+  function owedId(o) {
+    if (!o) return null;
+    const owed = o.owedTo || o.askerId;
+    if (owed) return owed;
+    return o.kind === 'errand' ? null : o.npcId;
+  }
   function missedObligations(day, events) {
     if (typeof State.tickObligations !== 'function') return [];
     let missed = [];
@@ -11383,21 +11404,26 @@ const World = (() => {
     for (const m of missed) {
       const id = isObj(m) ? m.id : m;
       const o = (isObj(m) ? m : null) || list.find(x => x.id === id) || null;
-      // Who was let down: an errand's asker (the person the thing goes to may not know it exists), else the person owed.
-      const whoId = o ? (o.kind === 'errand' ? o.askerId || null : o.npcId) : null;
+      const whoId = owedId(o);
       const n = whoId ? State.npc(whoId) : null;
       const what = cleanText(o ? o.text : String(id || ''), 300) || 'a promise';
+      const missText = o && typeof o.missText === 'string' ? cleanText(o.missText, 300) : '';
+      // The player's own line (the feed's quiet notice) names the task; the news is what happened.
       const line = `Missed: ${what.replace(/[.!]$/, '')}${o && Number.isInteger(o.dueDay) ? ` (due day ${o.dueDay})` : ''}.`;
-      pushNews(line, { public: false });
+      const ownNews = arr(o && o.onMiss).some(e => isObj(e) && e.op === 'addNews');
+      if (!ownNews) pushNews(missText || line, { public: false });
       if (n && n.alive !== false) {
         // They remember it (weight 3), unless the obligation's own onMiss already gave them a memory.
         const told = arr(o && o.onMiss).some(e => isObj(e) && e.op === 'addMemory' && e.npcId === n.id);
         if (!told) applyEffects([{ op: 'addMemory', npcId: n.id, text: `${st().player.name} let it go past due: ${lowerFirst(what).replace(/[.!]$/, '')}`, weight: 3 }]);
       }
-      // The due event: what content says they do (missText), else a plain line; only someone in town comes looking.
-      if (isFree(n) && presenceOf(n) === 'here') {
-        const text = o && o.missText ? o.missText : `${n.name} comes looking for ${st().player.name} about ${MISSED_ABOUT[o && o.kind] || 'what was promised'}, now past due.`;
+      // The due event: content's missText, else a plain line. Only someone free and in town comes looking.
+      const comes = isFree(n) && presenceOf(n) === 'here';
+      if (comes) {
+        const text = missText || `${n.name} comes looking for ${st().player.name} about ${MISSED_ABOUT[o && o.kind] || 'what was promised'}, now past due.`;
         dueNow({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null });
+      } else if (missText) {
+        dueNow({ key: `missed_${id}`, text: missText, obligationId: o ? o.id : null });
       }
       note(`obligation ${id} missed`, { kind: 'obligation', id });
       events.push({ kind: 'obligation', id, notice: line });
