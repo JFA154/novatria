@@ -13216,6 +13216,7 @@ const Api = (() => {
     if (!g.played) {
       if (/no money/.test(g.why || '')) return "You don't have a dollar to put up, so there is no game for you tonight.";
       if (/nobody is dealing/.test(g.why || '')) return 'Nobody is dealing right now, so there is no game to sit in on.';
+      if (/ is shut /.test(g.why || '')) return 'The place is shut today, so there is no game.';
       return 'There is no card game here.';
     }
     const dealer = g.dealerId ? State.npc(g.dealerId) : null;
@@ -13225,7 +13226,9 @@ const Api = (() => {
     const table = dealer ? (weekday === 'Friday' && dealer.id === 'npc_curtis' ? `${dealer.name}'s Friday game at the back table` : `${dealer.name}'s table`) : 'the table';
     const amount = money(Math.abs(g.delta | 0));
     const result = g.delta > 0 ? `you come out ${amount} ahead` : g.delta < 0 ? `you lose ${amount}` : 'you break even';
-    return `At ${table}, ${result}${g.caught && dealer ? `, and ${dealer.name} throws you out for cheating` : ''}.`;
+    // Caught with a marked deck: thrown out; a fumble without one: only accused, and out for the night.
+    const out = !dealer ? '' : g.caught ? `, and ${dealer.name} throws you out for cheating` : g.accused ? `, and ${dealer.name} says you were cheating and tells you to clear out for the night` : '';
+    return `At ${table}, ${result}${out}.`;
   }
   /* A good the words name, preferring one sold here and then the cheapest
      (Town.goodsFor's scoring): "a beer" at the bar is a bottle, not a case. */

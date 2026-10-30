@@ -891,7 +891,7 @@ s.test('cards: a fumble without a marked deck is only an accusation (cooler deal
       G.Pipeline.hooks.nextTier = 'fumble';
       await G.Pipeline.submit('I sit in at cards for $20');
       const ban = (st.bans || []).find(b => b.locationId === l.id);
-      return { drop: a0 - dealer.attitude, ban: ban ? ban.untilDay - st.time.day : null, mem: (dealer.memories || []).slice(-1)[0], caught: G.Pipeline.lastTurn.ctx.gamble };
+      return { drop: a0 - dealer.attitude, ban: ban ? ban.untilDay - st.time.day : null, mem: (dealer.memories || []).slice(-1)[0], caught: G.Pipeline.lastTurn.ctx.gamble, told: st.log[st.log.length - 1].narration };
     });
   };
   await page.close();
@@ -907,6 +907,9 @@ s.test('cards: a fumble without a marked deck is only an accusation (cooler deal
   assert.equal(marked.drop, 20);
   assert.ok(marked.ban >= 2, 'three days out');
   assert.equal(marked.mem.weight, 3);
+  // The demo tells which (integration: the mock read only caught).
+  assert.match(plain.told, /says you were cheating and tells you to clear out for the night/);
+  assert.match(marked.told, /throws you out for cheating/);
 });
 
 s.test('hurt: State.isHurt is true through the day before hurtUntilDay; they are about again on that day; the note names the last day laid up', async h => {
