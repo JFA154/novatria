@@ -548,6 +548,13 @@ function tellersOf(r) {
   return out;
 }
 
+// The days an aftermath seed the ending plants may wait for: from the
+// latest day the ending can come (epilogue.onDay) to the end of the month
+// after it, so the town keeps moving once the story has ended.
+const ENDING_DAYS = [21, 30];
+// allowDay: true for a starting seed (a day 3..15), false for a seed a clock
+// plants (npc or location only), 'ending' for one the epilogue plants (npc,
+// location, or a day in ENDING_DAYS).
 function checkTrigger(t, where, allowDay) {
   if (!checkKeys(t, ['type', 'value'], where)) return;
   if (TRIGGER_TYPES.indexOf(t.type) === -1) { err(where, 'trigger type "' + t.type + '" not one of ' + TRIGGER_TYPES.join('/')); return; }
@@ -555,7 +562,10 @@ function checkTrigger(t, where, allowDay) {
   if (!allowDay && t.type !== 'npc' && t.type !== 'location') {
     err(where, 'a seed planted by a clock must use an npc or location trigger (the day a clock finishes is unknown), found "' + t.type + '"');
   }
-  if (t.type === 'day') {
+  if (allowDay === 'ending' && t.type === 'clock') err(where, 'a seed the ending plants uses an npc, location or day trigger');
+  if (t.type === 'day' && allowDay === 'ending') {
+    if (!isInt(t.value) || t.value < ENDING_DAYS[0] || t.value > ENDING_DAYS[1]) err(where, 'a seed the ending plants waits for a day ' + ENDING_DAYS.join('..') + ' (after the latest ending), found ' + JSON.stringify(t.value));
+  } else if (t.type === 'day') {
     if (!isInt(t.value) || t.value < 3 || t.value > 15) err(where, 'day trigger value must be an integer 3..15, found ' + JSON.stringify(t.value));
   } else if (t.type === 'location') {
     // One place, or any of several (the tackle box under the bridge can be reached from the landing too).
@@ -582,9 +592,11 @@ function checkSeed(s, where, allowDay) {
   checkStr(s.effect, where + '.effect', { noPlaceholders: true, maxSentences: 2 });
   checkTrigger(s.trigger, where + '.trigger', allowDay);
   // Effects applied when it fires, and what holds it back (CONTRACTS section 3).
-  if (s.effects !== undefined) checkEffectList(s.effects, where + '.effects', { min: 1, max: 4 });
+  // An aftermath seed of the ending may settle a thread like the ending does.
+  const ending = allowDay === 'ending';
+  if (s.effects !== undefined) checkEffectList(s.effects, where + '.effects', { min: 1, max: 4, ending: ending });
   if (s.requires !== undefined) checkRequires(s.requires, where + '.requires');
-  if (s.alt !== undefined) checkAlt(s.alt, where + '.alt', 2, s.requires);
+  if (s.alt !== undefined) checkAlt(s.alt, where + '.alt', 2, s.requires, ending);
   if (s.fired !== false) err(where, 'fired must be false');
   if (s.hidden !== true) err(where, 'hidden must be true');
   if (typeof s.cause === 'string' && typeof s.effect === 'string' && !mentionsCast(s.cause + ' ' + s.effect, null)) {
@@ -713,11 +725,11 @@ function checkRequires(r, where) {
   }
 }
 // alt: what happens instead when requires does not hold.
-function checkAlt(a, where, maxSentences, requires) {
+function checkAlt(a, where, maxSentences, requires, ending) {
   if (!checkKeys(a, ['text'], where, ['effects'])) return;
   if (requires === undefined) err(where, 'an alt without requires never fires');
   checkText(a.text, where + '.text', { maxSentences: maxSentences, max: 400 });
-  if (a.effects !== undefined) checkEffectList(a.effects, where + '.effects', { max: 5 });
+  if (a.effects !== undefined) checkEffectList(a.effects, where + '.effects', { max: 5, ending: ending === true });
 }
 // when (CONTRACTS section 11): an event branch's or the epilogue's conditions.
 function checkWhen(w, where) {
@@ -750,7 +762,9 @@ function checkWhen(w, where) {
 }
 
 // opts.ph: placeholders allowed (loose ends, templates); opts.world: content
-// the world fires on its own (it never resolves a thread).
+// the world fires on its own (it never resolves a thread); opts.ending: the
+// epilogue and the seeds it plants, where the story ends: a thread the town
+// kept is resolved there (once, with its story point), one it lost failed.
 function checkEffect(e, where, opts) {
   opts = opts || {};
   const ph = opts.ph === true;
@@ -792,13 +806,13 @@ function checkEffect(e, where, opts) {
       if (!isThread(e.threadId)) err(where, 'threadId "' + e.threadId + '" is not a thread');
       if (THREAD_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + THREAD_STATUSES.join('/'));
       // Content note 3: the world never resolves a thread (that would hand out story points).
-      if (e.status === 'resolved') err(where, 'a clock may not resolve a thread (only the player earns a resolution)');
+      if (e.status === 'resolved' && !opts.ending) err(where, 'a clock may not resolve a thread (only the player earns a resolution)');
       break;
     case 'addRumour':
       checkRumour(e.rumour, where + '.rumour');
       break;
     case 'plantSeed':
-      checkSeed(e.seed, where + '.seed', false);
+      checkSeed(e.seed, where + '.seed', opts.ending ? 'ending' : false);
       break;
     case 'factionRelation':
       if (!isFac(e.a)) err(where, 'a "' + e.a + '" is not a faction');
@@ -859,7 +873,7 @@ function checkEffect(e, where, opts) {
       if (e.summary !== undefined) checkText(e.summary, where + '.summary', { ph, maxSentences: 3, max: 400 });
       if (e.status !== undefined) {
         if (THREAD_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + THREAD_STATUSES.join('/'));
-        if (e.status === 'resolved') err(where, 'the world may not resolve a thread (only the player earns a resolution)');
+        if (e.status === 'resolved' && !opts.ending) err(where, 'the world may not resolve a thread (only the player earns a resolution, or the ending settles it)');
       }
       if (e.knownToPlayer !== undefined && typeof e.knownToPlayer !== 'boolean') err(where + '.knownToPlayer', 'true or false');
       if (e.summary === undefined && e.status === undefined && e.knownToPlayer === undefined) err(where, 'changes nothing: give a summary, a status or knownToPlayer');
@@ -1429,11 +1443,30 @@ if (falseCount < 3 || trueCount < falseCount * 2) err('TOWN_DATA.rumours', 'need
 // Town events (CONTRACTS section 11): set pieces on a fixed day and phase,
 // in a place, with branches picked by the state of the town.
 const PHASE_SET = new Set(PHASES);
-function checkBranch(b, where, isDefault, sentencesMax, charsMax) {
+// The people a branch's text has acting: anyone named by full name or by a
+// name only they have, except as an owner ("Hollis Byrd's chair empty",
+// "Carter Sturdivant's torn-up note"): that is about them, not done by them.
+function actorsIn(text) {
+  const esc = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const named = npcs.filter((n) => n && typeof n.name === 'string').map((n) => ({ id: n.id, names: [n.name].concat(npcAliases(n)) }));
+  // Owners first: "Hollis Byrd's chair" is blanked whole, so "Hollis" in it is not a second mention.
+  let t = String(text || '');
+  for (const n of named) for (const a of n.names) t = t.replace(new RegExp('\\b' + esc(a) + '\'s\\b', 'g'), ' ');
+  return named.filter((n) => n.names.some((a) => new RegExp('\\b' + esc(a) + '\\b').test(t))).map((n) => n.id);
+}
+// opts.ending: the epilogue (it may settle threads and plant aftermath seeds);
+// opts.actorsFree: everyone the text has acting must be free in its when
+// (a council member in the holding cell does not vote).
+function checkBranch(b, where, isDefault, sentencesMax, charsMax, opts) {
+  opts = opts || {};
   if (!checkKeys(b, isDefault ? ['text', 'effects'] : ['when', 'text', 'effects'], where)) return;
   if (!isDefault) checkWhen(b.when, where + '.when');
   checkText(b.text, where + '.text', { maxSentences: sentencesMax, max: charsMax });
-  checkEffectList(b.effects, where + '.effects', { max: 8, world: true });
+  checkEffectList(b.effects, where + '.effects', { max: 8, world: true, ending: opts.ending === true });
+  if (opts.actorsFree && typeof b.text === 'string') {
+    const free = isObj(b.when) && Array.isArray(b.when.npcFree) ? b.when.npcFree : [];
+    actorsIn(b.text).forEach((id) => { if (free.indexOf(id) === -1) err(where + '.when.npcFree', 'the text has ' + id + ' acting: add them to npcFree (or write the branch for their empty chair)'); });
+  }
 }
 if (T.events !== undefined) {
   if (!Array.isArray(T.events)) err('TOWN_DATA.events', 'an array of events');
@@ -1455,23 +1488,43 @@ if (T.events !== undefined) {
     else if (locationById(ev.locationId).away === true || locationById(ev.locationId).discovered === false) err(where + '.locationId', 'a town place on the map, where the player can be');
     checkStr(ev.title, where + '.title', { noPlaceholders: true, maxSentences: 0 });
     if (!Array.isArray(ev.branches) || ev.branches.length < 2) err(where + '.branches', 'at least two branches besides the default');
-    else ev.branches.forEach((b, bi) => checkBranch(b, where + '.branches[' + bi + ']', false, 4, 700));
-    checkBranch(ev.default, where + '.default', true, 4, 700);
+    else ev.branches.forEach((b, bi) => checkBranch(b, where + '.branches[' + bi + ']', false, 4, 700, { actorsFree: true }));
+    // The default is what happens when no branch's people are all free: it names nobody acting.
+    checkBranch(ev.default, where + '.default', true, 4, 700, { actorsFree: true });
     // The news line the event leaves: every branch says something in public.
     [].concat(ev.branches || [], [ev.default]).forEach((b, bi) => {
       if (isObj(b) && Array.isArray(b.effects) && !b.effects.some((e) => e && e.op === 'addNews' && e.public === true)) err(where + (bi < (ev.branches || []).length ? '.branches[' + bi + ']' : '.default'), 'needs an addNews with public true (what the town hears)');
     });
   });
 }
-// The epilogue (CONTRACTS section 11): an ending told on a day, or sooner when the bridge story is decided.
+// The epilogue (CONTRACTS section 11): an ending told on a day, or sooner
+// when the bridge story is decided. A branch can come before onDay (a flag
+// fires it), so only the default says how long it has been. Every branch
+// settles at least one thread (resolved or failed) and plants two or three
+// aftermath seeds, so the town keeps moving once the story has ended.
+const SEEDS_AFTER = [2, 3];
+const HOW_LONG = /\b(weeks? (on|in|later|since)|three weeks|a month (on|later))\b/i;
 if (T.epilogue !== undefined) {
   const E = T.epilogue;
   if (checkKeys(E, ['onDay', 'orFlagsSet', 'branches', 'default'], 'TOWN_DATA.epilogue')) {
     if (!isInt(E.onDay) || E.onDay < 10 || E.onDay > 40) err('TOWN_DATA.epilogue.onDay', 'a day number, 10 to 40');
+    else if (E.onDay > ENDING_DAYS[0]) err('TOWN_DATA.epilogue.onDay', 'aftermath seeds wait for day ' + ENDING_DAYS[0] + ' or later: the ending must come by then');
     checkFlagList(E.orFlagsSet, 'TOWN_DATA.epilogue.orFlagsSet');
     if (!Array.isArray(E.branches) || E.branches.length < 3 || E.branches.length > 6) err('TOWN_DATA.epilogue.branches', '3 to 6 branches');
-    else E.branches.forEach((b, bi) => checkBranch(b, 'TOWN_DATA.epilogue.branches[' + bi + ']', false, 6, 900));
-    checkBranch(E.default, 'TOWN_DATA.epilogue.default', true, 6, 900);
+    else E.branches.forEach((b, bi) => {
+      const w = 'TOWN_DATA.epilogue.branches[' + bi + ']';
+      checkBranch(b, w, false, 6, 900, { ending: true });
+      if (!isObj(b)) return;
+      if (typeof b.text === 'string' && HOW_LONG.test(b.text)) err(w + '.text', 'says how long it has been ("' + HOW_LONG.exec(b.text)[0] + '"), but a flag can bring this ending before day ' + E.onDay);
+      const effs = Array.isArray(b.effects) ? b.effects : [];
+      if (!effs.some((e) => isObj(e) && (e.op === 'threadUpdate' || e.op === 'threadStatus') && (e.status === 'resolved' || e.status === 'failed'))) err(w + '.effects', 'an ending settles the story: set a thread resolved or failed');
+    });
+    checkBranch(E.default, 'TOWN_DATA.epilogue.default', true, 6, 900, { ending: true });
+    [].concat(Array.isArray(E.branches) ? E.branches : [], [E.default]).forEach((b, bi) => {
+      if (!isObj(b) || !Array.isArray(b.effects)) return;
+      const n = b.effects.filter((e) => isObj(e) && e.op === 'plantSeed').length;
+      if (n < SEEDS_AFTER[0] || n > SEEDS_AFTER[1]) err('TOWN_DATA.epilogue.' + (bi < (E.branches || []).length ? 'branches[' + bi + ']' : 'default') + '.effects', 'plant ' + SEEDS_AFTER.join(' or ') + ' aftermath seeds (what happens next), found ' + n);
+    });
   }
 }
 
@@ -1677,7 +1730,9 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
     if (checkKeys(le.seed, ['dayOffset', 'effect', 'trigger'], where + '.seed')) {
       checkDayOffset(le.seed.dayOffset, where + '.seed.dayOffset', 2, 15);
       checkStr(le.seed.effect, where + '.seed.effect', { maxSentences: 1 });
-      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}', '{player}']);
+      // Told to the player as it happens to them: the person by {npc}, the player as "you" (the narrator and the mock tell a due event in the second person).
+      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}']);
+      if (typeof le.seed.effect === 'string' && (/\{player\}/.test(le.seed.effect) || !/\byou(r)?\b/.test(le.seed.effect))) err(where + '.seed.effect', 'a loose end happens to the player: write it to "you", not {player}');
       if (['day', 'location', 'npc'].indexOf(le.seed.trigger) === -1) err(where + '.seed.trigger', 'must be "day", "location" or "npc"');
       // Content note 4: loose-end seeds use day triggers counted from day 1.
       else if (le.seed.trigger !== 'day') err(where + '.seed.trigger', 'loose-end seeds use "day"');
@@ -1698,8 +1753,19 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
 }
 // An obligation the loose end creates when its seed fires: what is owed, by
 // when (dueOffset days after the seed), and what missing or meeting it does.
+// missText: what happens when the day goes by, told as the due event (never
+// "came looking: <the task>"); owedTo: who it is owed to when that is not the
+// person it binds (an errand is owed to whoever asked, not to whoever the
+// thing is for, who may not know it exists).
 function checkObligation(ob, where) {
-  if (!checkKeys(ob, ['kind', 'dueOffset', 'text', 'onMiss', 'onMet'], where, ['amount', 'itemName', 'onStart'])) return;
+  if (!checkKeys(ob, ['kind', 'dueOffset', 'text', 'missText', 'onMiss', 'onMet'], where, ['amount', 'itemName', 'onStart', 'owedTo'])) return;
+  checkText(ob.missText, where + '.missText', { ph: true, max: 300, maxSentences: 2 });
+  if (typeof ob.missText === 'string' && /came looking:/i.test(ob.missText)) err(where + '.missText', 'say what happens, not "came looking: <the task>"');
+  if (ob.owedTo !== undefined && !npcRef(ob.owedTo, true)) err(where + '.owedTo', '"' + ob.owedTo + '" is not a person');
+  if (ob.kind === 'errand' && (ob.owedTo === undefined || ob.owedTo === '{npcId}')) err(where + '.owedTo', 'an errand is owed to whoever asked for it, not to the person the thing is for: name them');
+  // Whoever it is owed to remembers a miss: the person owed has a memory in onMiss.
+  const owed = ob.owedTo === undefined ? '{npcId}' : ob.owedTo;
+  if (Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && e.op === 'addMemory' && e.npcId === owed)) err(where + '.onMiss', 'the person it is owed to (' + owed + ') remembers the miss: give them an addMemory');
   if (['debt', 'blackmail', 'promise', 'errand'].indexOf(ob.kind) === -1) err(where + '.kind', 'debt, blackmail, promise or errand');
   if (ob.kind === 'debt' || ob.kind === 'blackmail') {
     if (!isInt(ob.amount) || ob.amount < 20 || ob.amount > 2000) err(where + '.amount', 'a ' + ob.kind + ' names its amount in dollars, 20 to 2000');

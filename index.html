@@ -3999,7 +3999,7 @@ const TOWN_DATA = {
             requires: { npcFree: ["npc_colt", "npc_marcus"] },
             effects: [
               { op: "npcStatus", npcId: "npc_colt", status: "arrested" },
-              { op: "setFlag", key: "coltArrested", value: true },
+              { op: "setFlag", key: "boatsPulledUp", value: true },
               { op: "factionRelation", a: "fac_police", b: "fac_nightrun", delta: -15 },
               { op: "clockAdjust", factionId: "fac_nightrun", delta: -2 },
               { op: "addRumour", rumour: {
@@ -4014,6 +4014,7 @@ const TOWN_DATA = {
               text: "Nikki Ballard catches Trent Haskins on the bridge approach at three in the morning with liquor cases under a tarp in the grain truck, and the Night Run pulls its boats up on the bank for a while.",
               effects: [
                 { op: "npcStatus", npcId: "npc_trent", status: "arrested" },
+                { op: "setFlag", key: "boatsPulledUp", value: true },
                 { op: "factionRelation", a: "fac_police", b: "fac_nightrun", delta: -15 },
                 { op: "clockAdjust", factionId: "fac_nightrun", delta: -2 },
                 { op: "addRumour", rumour: {
@@ -4285,7 +4286,8 @@ const TOWN_DATA = {
       effect: "Wade Purvis read Neal Haverty's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
       trigger: { type: "day", value: 3 },
       effects: [
-        { op: "addNews", text: "Wade Purvis read a lawyer's letter about the landing lease out loud at the Low Water and told Carter Sturdivant off in front of the whole bar.", factionId: "fac_nightrun", public: true }
+        { op: "addNews", text: "Wade Purvis read a lawyer's letter about the landing lease out loud at the Low Water and told Carter Sturdivant off in front of the whole bar.", factionId: "fac_nightrun", public: true },
+        { op: "clockAdjust", factionId: "fac_nightrun", delta: 1 }
       ],
       fired: false,
       hidden: true
@@ -4295,7 +4297,13 @@ const TOWN_DATA = {
       cause: "Wade Purvis has bought two hundred cartons and forty cases of liquor for the biggest run of the fall, and paid Travis Cagle to sit in the motel lot all night.",
       effect: "The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
       trigger: { type: "day", value: 4 },
-      requires: { npcFree: ["npc_marcus", "npc_wade"] },
+      requires: { npcFree: ["npc_marcus", "npc_wade", "npc_colt"], flagsUnset: ["boatsPulledUp"] },
+      effects: [
+        { op: "clockAdjust", factionId: "fac_nightrun", delta: 1 }
+      ],
+      alt: {
+        text: "Wade Purvis has two hundred cartons and forty cases of liquor stacked in the back of the bait shop for the biggest run of the fall, and the run has not gone; nobody at the landing will say when it will."
+      },
       fired: false,
       hidden: true
     },
@@ -4306,7 +4314,8 @@ const TOWN_DATA = {
       trigger: { type: "day", value: 4 },
       effects: [
         { op: "setFlag", key: "engineerNoShow", value: true },
-        { op: "addNews", text: "The engineer who wrote the bridge report will not come to Tuesday's council meeting after all.", public: true }
+        { op: "addNews", text: "The engineer who wrote the bridge report will not come to Tuesday's council meeting after all.", public: true },
+        { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 }
       ],
       fired: false,
       hidden: true
@@ -4333,7 +4342,7 @@ const TOWN_DATA = {
         { op: "addNews", text: "Brianna Tolliver nearly died on pills at Riverbend last night, and June Satterfield brought her back.", public: true }
       ],
       alt: {
-        text: "June Satterfield brought Brianna Tolliver back from an overdose last night and did not call it in; with Colt Purvis locked up, Tammy Lott is telling everyone at the Low Water that Trent Haskins is selling Colt's pills now.",
+        text: "June Satterfield brought Brianna Tolliver back from an overdose last night and did not call it in; with Colt Purvis locked up, Tammy Lott is telling everyone at the Low Water that Trent Haskins has been selling Colt's pills for him.",
         effects: [
           { op: "addNews", text: "Brianna Tolliver nearly died on pills at Riverbend last night, and Tammy Lott is blaming Trent Haskins for selling them.", public: true }
         ]
@@ -4397,6 +4406,15 @@ const TOWN_DATA = {
   // obligation a loose end made (CONTRACTS section 4). attendees: the people
   // who are at the place for that phase when it happens (the five council
   // seats and the chief whose department is on the agenda), if they are free.
+  // The five seats: Jolene (the mayor: downstream, end the police), Lamar
+  // (downstream, keep the police), Hollis (in town, end the police), Elbert
+  // (in town, keep the police) and Royce, the swing on both. Every branch
+  // that counts votes names who votes and needs them free (npcFree); the
+  // branch after it is the same outcome with Hollis Byrd's chair empty (he
+  // is the one the police clocks can lock up by Tuesday), and the default
+  // counts nobody. What the player can move: the report thrown out (the
+  // police clocks), Royce's feeling for the player (30: he tables it; 20: a
+  // Royce who sold his vote abstains), Curtis Pruett's card debt paid.
   events: [
     {
       id: "evt_council_meeting",
@@ -4407,8 +4425,8 @@ const TOWN_DATA = {
       attendees: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert", "npc_marcus"],
       branches: [
         {
-          when: { flagsSet: ["bridgeReportVoid"] },
-          text: "With the bridge report thrown out and the mayor in the holding cell downstairs, Royce Pittman chairs the meeting in her place. The council votes four to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
+          when: { flagsSet: ["bridgeReportVoid"], npcFree: ["npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "With the bridge report thrown out and the mayor's chair empty, Royce Pittman chairs the meeting in her place. The council votes four to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "bridgeVoteTabled", value: true },
@@ -4419,7 +4437,19 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { attitudeAtLeast: { npc_royce: 40 } },
+          when: { flagsSet: ["bridgeReportVoid"], npcFree: ["npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "With the bridge report thrown out and two chairs empty, the mayor's and Hollis Byrd's, Royce Pittman chairs the meeting. The council votes three to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With the bridge report thrown out, the council tabled the bridge site until the state's second inspection. The old bridge stays open for now." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council let the vote to end the police die without a second. Chief Bell's department stays." },
+            { op: "addNews", text: "At Tuesday's council meeting, with two seats empty, the bridge vote was tabled until a second inspection, and the vote to end the police died without a second.", public: true }
+          ]
+        },
+        {
+          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman, who has had somebody to talk it through with all week, stands up before the vote and moves to table the bridge site until the engineer answers questions in person, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns without looking at him.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4432,7 +4462,69 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceBought", "royceTurned"] },
+          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, who has had somebody to talk it through with all week, moves to table the bridge site until the engineer answers questions in person; with Hollis Byrd's chair empty it ties two to two, the downstream site ties the same way, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the bridge site tied two to two and went over to the next meeting. Carter Sturdivant still needs Royce Pittman's vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote tied two to two and went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, npcFree: ["npc_curtis", "npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Curtis Pruett, flush with the four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him now, goes back on whatever he promised about the bridge: he moves to table the site, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman moved to table the bridge site, and it carried three to two. Carter Sturdivant needs his vote again." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, npcFree: ["npc_curtis", "npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Curtis Pruett, flush with the four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him now, moves to table the bridge site; with Hollis Byrd's chair empty it ties two to two, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the bridge site tied two to two and went over to the next meeting. Carter Sturdivant still needs Royce Pittman's vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote tied two to two and went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts from the talks he has had this week, so he abstains on the bridge, and it ties two to two and goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman abstained, the bridge site tied two to two, and it went over to the next meeting. Carter Sturdivant paid for a vote he did not get." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "Royce Pittman abstained on the bridge at Tuesday's council meeting, so it tied two to two and was put off, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts to use it, so he abstains on the bridge, and with Hollis Byrd's chair empty the downstream site passes two to one over Elbert Gentry. On item four he votes with Elbert and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Royce Pittman abstaining and Hollis Byrd's seat empty, the council voted two to one for the downstream bridge site. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "With Royce Pittman abstaining, the council voted two to one on Tuesday for the downstream bridge site, and three to one to keep the police.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman, with Carter Sturdivant's torn-up note in one pocket and the photographs in the other, abstains on everything. The bridge vote ties two to two and is tabled to the next meeting, item four ties too, and the police stay for now.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4444,8 +4536,21 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceTurned"] },
-          text: "Royce Pittman, gray in the face, votes with Hollis Byrd and Elbert Gentry, and the council backs a new bridge in town, three to two, over the mayor and Lamar Haskins. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two, and Chief Bell walks out before the gavel comes down.",
+          when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, with Carter Sturdivant's torn-up note in one pocket and the photographs in the other, abstains on everything, and with Hollis Byrd's chair empty the downstream site passes two to one over Elbert Gentry. Item four fails one to two, and the police stay.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Royce Pittman abstaining and Hollis Byrd's seat empty, the council voted two to one for the downstream bridge site. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police failed one to two. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "With Royce Pittman abstaining, the council voted two to one on Tuesday for the downstream bridge site, and the vote to end the police failed one to two.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman, gray in the face, votes with Hollis Byrd and Elbert Gentry, and the council backs a new bridge in town, three to two, over the mayor and Lamar Haskins. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "councilBackedInTown", value: true },
@@ -4457,19 +4562,20 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, flagsUnset: ["royceBought"] },
-          text: "Curtis Pruett, flush with four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him, moves to table the bridge site; Hollis Byrd and Elbert Gentry carry it with him, three to two. Item four fails the same way, and the police stay.",
+          when: { flagsSet: ["royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, gray in the face, votes with Elbert Gentry for a new bridge in town, but with Hollis Byrd's chair empty it ties two to two and goes over to the next meeting. On item four he votes with the mayor to end the police, and that ties two to two and fails.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "bridgeVoteTabled", value: true },
             { op: "setFlag", key: "policeKept", value: true },
-            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman moved to table the bridge site, and it carried three to two. Carter Sturdivant needs his vote again." },
-            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
-            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the vote for a bridge in town tied two to two and went over to the next meeting. Royce Pittman has turned against the downstream site." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police tied two to two and failed. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "Both votes tied two to two at Tuesday's council meeting with Hollis Byrd's seat empty: the bridge went over to the next meeting, and the police stay.", public: true }
           ]
         },
         {
-          when: { flagsSet: ["royceBought"] },
+          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman votes with the mayor and Lamar Haskins, and the council backs the downstream bridge site three to two over Hollis Byrd and Elbert Gentry. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4482,7 +4588,20 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"] },
+          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman votes with the mayor and Lamar Haskins, and with Hollis Byrd's chair empty the council backs the downstream bridge site three to one over Elbert Gentry. On item four he votes with the mayor to end the police, but it ties two to two and fails.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "The council voted three to one for the downstream bridge site, with Royce Pittman the third vote. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police tied two to two and failed. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "The council voted three to one on Tuesday for the downstream bridge site; the vote to end the police tied two to two and failed.", public: true }
+          ]
+        },
+        {
+          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"], npcFree: ["npc_carter", "npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Carter Sturdivant spends the whole meeting at Royce Pittman's elbow, and Royce, very nearly his, asks for two more weeks; the bridge site is tabled three to two. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4493,17 +4612,54 @@ const TOWN_DATA = {
             { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
             { op: "addNews", text: "At Tuesday's council meeting Royce Pittman asked for two more weeks on the bridge, and the vote to end the police failed three to two.", public: true }
           ]
+        },
+        {
+          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"], npcFree: ["npc_carter", "npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Carter Sturdivant spends the whole meeting at Royce Pittman's elbow, and Royce, very nearly his, asks for two more weeks; with Hollis Byrd's chair empty the motion ties two to two, nothing else passes, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman asked for two more weeks, and with Hollis Byrd's seat empty the bridge site went over to the next meeting. Carter Sturdivant has nearly got him." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting Royce Pittman asked for two more weeks on the bridge, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman still will not say how he will vote, so he moves to table the bridge site to the next meeting, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns early.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and the bridge site was tabled three to two. Carter Sturdivant still needs his vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman still will not say how he will vote, and with Hollis Byrd's chair empty his motion to table ties two to two; nothing passes, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and with Hollis Byrd's seat empty the bridge site went over to the next meeting. Carter Sturdivant still needs his vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
         }
       ],
       default: {
-        text: "Royce Pittman still will not say how he will vote, so he moves to table the bridge site to the next meeting, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns early.",
+        text: "With empty chairs at the table and nobody sure of the count, the council puts the bridge site off to its next meeting, and item four goes over with it.",
         effects: [
           { op: "setFlag", key: "councilVoted", value: true },
           { op: "setFlag", key: "bridgeVoteTabled", value: true },
           { op: "setFlag", key: "policeKept", value: true },
-          { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and the bridge site was tabled three to two. Carter Sturdivant still needs his vote." },
-          { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
-          { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With seats empty, the council put the bridge site off to its next meeting. Nothing about the bridge is settled." },
+          { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote on ending the police went over to the next meeting. Chief Bell's department stays, for now." },
+          { op: "addNews", text: "With seats empty at Tuesday's council meeting, the bridge site and the vote on the police both went over to the next meeting.", public: true }
         ]
       }
     }
@@ -4511,41 +4667,265 @@ const TOWN_DATA = {
 
   // The ending (CONTRACTS section 11): told on day 21, or as soon as the
   // bridge story is decided (the barriers go up, or the state orders a
-  // second inspection). The first branch whose when holds; then the player
-  // can keep playing.
+  // second inspection), so a text never says how long it has been except
+  // the default, which only day 21 reaches. The first branch whose when
+  // holds; then the player can keep playing. Each ending settles the two
+  // vote threads (resolved when the town kept what the thread was about,
+  // failed when it lost it) and plants what happens next, so the town does
+  // not stand still afterwards: seeds planted here may wait for a day after
+  // the latest ending (21 to 30).
   epilogue: {
     onDay: 21,
     orFlagsSet: ["oldBridgeClosed", "secondInspectionOrdered"],
     branches: [
       {
-        when: { flagsSet: ["bridgeReportVoid"] },
-        text: "Three weeks on, the old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, Jolene Overstreet is waiting on a court date in Clayburn, and the Low Water's Saturday lot is full of dry-county tags again. Loretta Gaddis tells anybody who will listen that she always said the bridge was good for twenty more years, which is not true, but nobody argues with her.",
-        effects: []
+        when: { flagsSet: ["bridgeReportVoid", "policeKept"], flagsUnset: ["oldBridgeClosed"] },
+        text: "The old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, Jolene Overstreet has a court date in Clayburn, and the town police are still in Town Hall. The Low Water's Saturday lot is full of dry-county tags again, and Loretta Gaddis tells anybody who will listen that she always said the bridge was good for twenty more years, which is not true, but nobody argues with her.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "resolved", knownToPlayer: true, summary: "The state threw out the bought bridge report and is sending its own inspector in the spring. The old bridge stays open." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and the mayor who wanted them gone has a court date in Clayburn." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_inspectors",
+            cause: "The state has moved its own inspection of the old bridge up from the spring, and Carter Sturdivant knows what it will find.",
+            effect: "A state crew spends the day under the first span of the old bridge with flashlights and a camera, and Carter Sturdivant watches them from his truck at the top of the hill.",
+            trigger: { type: "day", value: 23 },
+            requires: { npcFree: ["npc_carter"] },
+            effects: [
+              { op: "addNews", text: "A state crew spent the day under the old bridge with flashlights, and Carter Sturdivant watched them from his truck.", public: true }
+            ],
+            alt: {
+              text: "A state crew spends the day under the first span of the old bridge with flashlights and a camera, and nobody from Sturdivant House comes down to watch."
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_bell_pills",
+            cause: "With his department safe, Marcus Bell means to go after whoever sells pills at Riverbend.",
+            effect: "Chief Bell, with his department safe and the mayor's case on its way to Clayburn, says the next thing on his list is whoever is selling pills at Riverbend, and he could use somebody who listens.",
+            trigger: { type: "location", value: "loc_town_hall" },
+            requires: { npcFree: ["npc_marcus"] },
+            effects: [
+              { op: "threadUpdate", threadId: "thr_riverbend_pills", knownToPlayer: true }
+            ],
+            alt: {
+              text: "Nikki Ballard, with the department safe for now, says the next thing on her list is whoever is selling pills at Riverbend, and she could use somebody who listens.",
+              effects: [
+                { op: "threadUpdate", threadId: "thr_riverbend_pills", knownToPlayer: true }
+              ]
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_carter_cash",
+            cause: "Carter Sturdivant has a note due in Calder and no bridge money coming to pay it.",
+            effect: "Carter Sturdivant, his note in Calder due and the state's inspector coming, asks to talk somewhere private and offers cash to anyone who will tell him what the police have on him.",
+            trigger: { type: "npc", value: "npc_carter" },
+            fired: false,
+            hidden: true
+          } }
+        ]
+      },
+      {
+        when: { flagsSet: ["bridgeReportVoid", "policeDissolutionPassed"], flagsUnset: ["oldBridgeClosed"] },
+        text: "The old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, and Jolene Overstreet has a court date in Clayburn, but the council's vote to end the town police still stands, and the department is done at the end of the month. At the Low Water they say the town saved its bridge and lost its police in the same month.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "resolved", knownToPlayer: true, summary: "The state threw out the bought bridge report and is sending its own inspector in the spring. The old bridge stays open." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_packing",
+            cause: "The town police are packing up Town Hall for the end of the month.",
+            effect: "The police office at Town Hall is half packed into boxes, and Glenda Gentry is carrying the old radio logs out to her car rather than see them thrown away.",
+            trigger: { type: "location", value: "loc_town_hall" },
+            requires: { npcFree: ["npc_glenda"] },
+            alt: {
+              text: "The police office at Town Hall is half packed into boxes for the end of the month, and nobody is answering the radio."
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_wade_plans",
+            cause: "Wade Purvis means to run the river the night the town police are gone.",
+            effect: "Wade Purvis, who has heard the town police are finished at the end of the month, is asking around the landing for somebody who knows the river to help plan the first run after they are gone.",
+            trigger: { type: "npc", value: "npc_wade" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_carter_report",
+            cause: "Carter Sturdivant wants to know who helped throw out his report.",
+            effect: "Carter Sturdivant, his note in Calder due and the state's inspector coming, asks to talk somewhere private and offers cash to anyone who will tell him who in town helped throw out his report.",
+            trigger: { type: "npc", value: "npc_carter" },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
         when: { flagsSet: ["oldBridgeClosed", "policeDissolutionPassed"] },
-        text: "The barriers are still up on the old bridge, and the town police were done at the end of October; a county deputy drives through twice a week and does not get out of the car. Carter Sturdivant has his downstream site on paper and a note in Calder he still cannot pay, and the Low Water's Saturday crowd is half what it was. The boats still go across at night, because nobody is left to watch them.",
-        effects: []
+        text: "The barriers are up on the old bridge, and the town police are finished at the end of the month; after that a county deputy is supposed to drive through twice a week. Carter Sturdivant has the closed bridge he paid for and a note in Calder he still cannot pay, and the Low Water's Saturday crowd is half what it was. The boats still go across at night, because soon nobody will be left to watch them.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_deputy",
+            cause: "The town police hand Lockett's Ferry over to the county sheriff on the last day of October.",
+            effect: "On the last day of October the town police hand their keys to the county, and a sheriff's deputy from Clayburn parks at Pittman's for ten minutes and drives off again.",
+            trigger: { type: "day", value: 24 },
+            effects: [
+              { op: "addNews", text: "The town police are finished; a county deputy from Clayburn is to drive through twice a week.", public: true }
+            ],
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_wade_river",
+            cause: "With the bridge shut and the police going, the river is the Night Run's only road.",
+            effect: "Wade Purvis says that with the bridge shut and the town police finished, the river is the only road left to the dry county, and he offers two hundred dollars a night to anyone who will run a boat across it.",
+            trigger: { type: "npc", value: "npc_wade" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_bar_for_sale",
+            cause: "Loretta Gaddis is losing the Low Water's Saturday trade to the bypass.",
+            effect: "Loretta Gaddis is adding up a week of thin receipts at the end of the bar, and asks whoever is on the next stool whether they know anybody who wants to buy a bar.",
+            trigger: { type: "location", value: "loc_low_water" },
+            requires: { npcFree: ["npc_loretta"] },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
-        when: { flagsSet: ["oldBridgeClosed"], obligationStatus: { obl_debt_npc_curtis: "missed" } },
-        text: "The barriers are still up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. The police hang on downstairs at Town Hall, Carter Sturdivant has his downstream site on paper, and at the Low Water Curtis Pruett still tells the story of the stranger who welshed on four hundred dollars, a little bigger every Friday.",
-        effects: []
+        when: { flagsSet: ["oldBridgeClosed"], obligationStatus: { obl_debt_npc_curtis: "missed" }, npcFree: ["npc_curtis"] },
+        text: "The barriers are up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. The police hang on downstairs at Town Hall, Carter Sturdivant has the closed bridge he paid for, and at the Low Water Curtis Pruett still tells the story of the stranger who welshed on four hundred dollars, a little bigger every Friday.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_curtis_square",
+            cause: "Curtis Pruett would rather have some of the four hundred than tell the story another Friday.",
+            effect: "Curtis Pruett lets it be known that he would call the old four hundred square for two hundred cash, and not a dollar less.",
+            trigger: { type: "npc", value: "npc_curtis" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_royce_sign",
+            cause: "Pittman's Gas and Service lives on the traffic the closed bridge took away.",
+            effect: "Royce Pittman has taped a hand-lettered sign in the window at Pittman's that says the station stays open, bridge or no bridge, and he is selling gas at a loss to the few cars still coming through.",
+            trigger: { type: "location", value: "loc_pittmans" },
+            requires: { npcFree: ["npc_royce"] },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
-        when: { flagsSet: ["oldBridgeClosed"], attitudeAtLeast: { npc_loretta: 40 } },
-        text: "The barriers are still up on the old bridge and the Low Water's Saturday lot is half empty, but Loretta Gaddis has kept the doors open through floods before and says she will keep them open through this. Carter Sturdivant has his downstream site on paper, the police are still in Town Hall for whatever that is worth, and there is a stool at the end of the bar Loretta keeps for somebody who stayed.",
-        effects: []
+        when: { flagsSet: ["oldBridgeClosed"], attitudeAtLeast: { npc_loretta: 40 }, npcFree: ["npc_loretta"] },
+        text: "The barriers are up on the old bridge and the Low Water's Saturday lot is half empty, but Loretta Gaddis has kept the doors open through floods before and says she will keep them open through this. Carter Sturdivant has the closed bridge he paid for, the police are still in Town Hall for whatever that is worth, and there is a stool at the end of the bar Loretta keeps for somebody who stayed.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_loretta_stool",
+            cause: "Loretta Gaddis has decided the stranger who stayed is one of hers.",
+            effect: "Loretta Gaddis sets a cold beer in front of the stool at the end of the bar before anybody asks, says it is on the house, and asks whether the stranger who stayed means to stay through the winter.",
+            trigger: { type: "location", value: "loc_low_water" },
+            requires: { npcFree: ["npc_loretta"] },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_hearing",
+            cause: "The state has called a public hearing in Clayburn about the closed bridge.",
+            effect: "A notice for a public hearing in Clayburn about the closed bridge goes up on the Town Hall door, and Royce Pittman tapes a copy in the window at Pittman's.",
+            trigger: { type: "day", value: 23 },
+            requires: { npcFree: ["npc_royce"] },
+            effects: [
+              { op: "addNews", text: "There is to be a public hearing in Clayburn about the closed bridge.", public: true }
+            ],
+            alt: {
+              text: "A notice for a public hearing in Clayburn about the closed bridge goes up on the Town Hall door.",
+              effects: [
+                { op: "addNews", text: "There is to be a public hearing in Clayburn about the closed bridge.", public: true }
+              ]
+            },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
         when: { flagsSet: ["oldBridgeClosed"] },
-        text: "The barriers are still up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. Carter Sturdivant has his downstream site on paper and a note in Calder he still cannot pay, the police are still in Town Hall for whatever that is worth, and Elbert Gentry sits on the Front Street bench telling anybody who stops that he saw the ferry go and now he has seen the bridge go too.",
-        effects: []
+        text: "The barriers are up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. Carter Sturdivant has the closed bridge he paid for and a note in Calder he still cannot pay, the police are still in Town Hall for whatever that is worth, and Elbert Gentry sits on the Front Street bench telling anybody who stops that he was born the year the ferry went and now he has seen the bridge go too.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_elbert_bench",
+            cause: "Elbert Gentry has outlived the ferry and now the bridge, and wants somebody to hear about it.",
+            effect: "Elbert Gentry, on the Front Street bench, says the town held on when the ferry stopped the year he was born, and asks whoever sits down beside him whether it will hold on now.",
+            trigger: { type: "npc", value: "npc_elbert" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_barriers",
+            cause: "The state means to keep the old bridge shut until the new one is built, and Carter Sturdivant means to be the first to speak at its hearing.",
+            effect: "A state crew comes back with a flatbed and chains the barriers on the old bridge together, and staples a notice to the guardrail about a public hearing in Clayburn.",
+            trigger: { type: "day", value: 23 },
+            effects: [
+              { op: "addNews", text: "A state crew chained the barriers on the old bridge together, and there is to be a public hearing in Clayburn.", public: true }
+            ],
+            fired: false,
+            hidden: true
+          } }
+        ]
       }
     ],
     default: {
       text: "Three weeks in, nothing is settled. The old bridge is still open and still posted at five tons, the state has not said when it will close it, and Carter Sturdivant drives up to Calder every week and comes back looking worse. At the Low Water the bridge, the boats and the police are still the only things anybody talks about.",
-      effects: []
+      effects: [
+        { op: "threadUpdate", threadId: "thr_bridge_vote", knownToPlayer: true, summary: "Three weeks on, the old bridge is still open and the state has not said when it will close it. Nothing about the bridge is settled." },
+        { op: "plantSeed", seed: {
+          id: "seed_after_police_word",
+          cause: "The council's vote on the police takes hold at the end of the month, one way or the other.",
+          effect: "The town police start packing up Town Hall for the end of the month, and nobody from the county has been out to look at the place yet.",
+          trigger: { type: "day", value: 22 },
+          requires: { flagsSet: ["policeDissolutionPassed"] },
+          effects: [
+            { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." }
+          ],
+          alt: {
+            text: "The town police are still in Town Hall with the council's vote behind them, and the night shift has started parking above the boat ramp again.",
+            effects: [
+              { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." }
+            ]
+          },
+          fired: false,
+          hidden: true
+        } },
+        { op: "plantSeed", seed: {
+          id: "seed_after_carter_worse",
+          cause: "Carter Sturdivant has a note due in Calder and the old bridge is still open.",
+          effect: "Carter Sturdivant, back from another trip to Calder and looking worse, asks to talk somewhere private and offers cash to anyone who can tell him what it would take to get the old bridge closed before his note comes due.",
+          trigger: { type: "npc", value: "npc_carter" },
+          fired: false,
+          hidden: true
+        } },
+        { op: "plantSeed", seed: {
+          id: "seed_after_wade_load",
+          cause: "Wade Purvis is tired of waiting on the council and the state.",
+          effect: "Wade Purvis, tired of waiting on the council, is asking around the landing for somebody to help him run a full load across while the bridge is still open.",
+          trigger: { type: "npc", value: "npc_wade" },
+          fired: false,
+          hidden: true
+        } }
+      ]
     }
   }
 };
@@ -4907,6 +5287,12 @@ const FLAWS = [
 // kind's own, for an option and for words the player wrote. onStart applies
 // when the loose end is tied at character creation (the letter an errand
 // delivers). Placeholders: {npcId}, {npc} (their name) and {playerName}.
+// An obligation (CONTRACTS section 4) may also carry missText, what happens
+// when its day goes by (the due event and its news, in place of "came
+// looking: <the task>"; placeholders as in its effects), and owedTo, the
+// person it is owed to when that is not the person it binds: the woman who
+// wrote the letter, not the daughter it is for, who does not know it exists.
+// Nobody who lives elsewhere comes looking; the person owed gets the memory.
 const LOOSE_ENDS = {
   debt: {
     label: "A debt",
@@ -4918,7 +5304,7 @@ const LOOSE_ENDS = {
     link: { tag: "lender", optionTags: ["lender", "collector", "bookie"] },
     seed: {
       dayOffset: [3, 4],
-      effect: "{npc} walks up to {player}, reads {player}'s name off a folded paper with a number written under it, and says the money is due in three days.",
+      effect: "{npc} walks up to you, reads your name off a folded paper with a number written under it, and says the money is due in three days.",
       trigger: "day"
     },
     obligation: {
@@ -4926,9 +5312,11 @@ const LOOSE_ENDS = {
       amount: 400,
       dueOffset: 3,
       text: "Pay {npc} the four hundred dollars you owe.",
+      missText: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.",
       onMiss: [
         { op: "takeItem", name: "Prepaid phone" },
         { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the four hundred go past due, so I took the phone as a start.", weight: 3 },
         { op: "addNews", text: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.", public: false }
       ],
       onMet: [
@@ -4942,6 +5330,7 @@ const LOOSE_ENDS = {
         amount: 600,
         dueOffset: 3,
         text: "Pay {npc} the six hundred dollars you owe.",
+        missText: "{npc} came looking for the six hundred dollars and took {playerName}'s phone as a down payment.",
         onMiss: [
           { op: "takeItem", name: "Prepaid phone" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
@@ -4958,10 +5347,12 @@ const LOOSE_ENDS = {
         amount: 300,
         dueOffset: 3,
         text: "Pay {npc} the three hundred dollars on the title-loan note.",
+        missText: "{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.",
         onMiss: [
           { op: "playerGold", delta: -150 },
           { op: "takeItem", name: "Prepaid phone" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+          { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the title-loan note go past due, so I took what cash there was and the phone.", weight: 3 },
           { op: "addNews", text: "{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.", public: false }
         ],
         onMet: [
@@ -4974,6 +5365,7 @@ const LOOSE_ENDS = {
         amount: 400,
         dueOffset: 3,
         text: "Pay {npc} the four hundred dollars from the card game.",
+        missText: "{npc} came looking for the four hundred dollars from the card game and went away without it, and now Loretta Gaddis won't serve {playerName} at the Low Water.",
         onMiss: [
           { op: "banFrom", locationId: "loc_low_water", days: 3, byNpcId: "{npcId}" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -20 },
@@ -4997,7 +5389,7 @@ const LOOSE_ENDS = {
     link: { tag: "enemy", optionTags: ["enemy", "parolee", "enemy"] },
     seed: {
       dayOffset: [4, 7],
-      effect: "{npc} steps in front of {player}, says {player}'s full name, first and last, slow, and says they have waited long enough and mean to settle it before the week is out.",
+      effect: "{npc} steps in front of you, says your full name, first and last, slow, and says the waiting is over and it gets settled before the week is out.",
       trigger: "day"
     }
   },
@@ -5011,7 +5403,7 @@ const LOOSE_ENDS = {
     link: { tag: "informant" },
     seed: {
       dayOffset: [3, 6],
-      effect: "{npc} catches {player} alone, repeats one true detail of {player}'s secret, and names a price for keeping it quiet: two hundred dollars, by the day after tomorrow.",
+      effect: "{npc} catches you alone, repeats one true detail of your secret, and names a price for keeping it quiet: two hundred dollars, by the day after tomorrow.",
       trigger: "day"
     },
     obligation: {
@@ -5019,10 +5411,12 @@ const LOOSE_ENDS = {
       amount: 200,
       dueOffset: 2,
       text: "Pay {npc} two hundred dollars to keep your secret quiet.",
+      missText: "{npc} did not get the two hundred dollars and has told Chief Bell what {playerName} is hiding, and comes by to say so.",
       onMiss: [
         { op: "addMemory", npcId: "npc_marcus", text: "{npc} told me what {playerName} is hiding.", weight: 2 },
         { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 },
         { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} would not pay, so I told Chief Bell what {playerName} is hiding.", weight: 3 },
         { op: "addNews", text: "{npc} has been telling people what {playerName} is hiding.", public: true }
       ],
       onMet: [
@@ -5040,7 +5434,7 @@ const LOOSE_ENDS = {
     link: { tag: "records", optionTags: ["bereaved", "secretary", "witness"] },
     seed: {
       dayOffset: [4, 8],
-      effect: "{npc} finds {player} alone and says, low, that they know something about what {player} came here to find out, but not here and not now.",
+      effect: "{npc} finds you alone and says, low, that there is something to tell about what you came here to find out, but not here and not now.",
       trigger: "day"
     }
   },
@@ -5054,15 +5448,17 @@ const LOOSE_ENDS = {
     link: { tag: "bartender", optionTags: ["runaway", "dealer", "runaway"] },
     seed: {
       dayOffset: [2, 4],
-      effect: "{npc} catches {player} looking a second too long, and asks, flat and careful, who sent {player} to Lockett's Ferry.",
+      effect: "{npc} catches you looking a second too long, and asks, flat and careful, who sent you to Lockett's Ferry.",
       trigger: "day"
     },
     obligation: {
       kind: "promise",
       dueOffset: 4,
       text: "Keep your word to {npc}.",
+      missText: "{npc} finds {playerName} and asks, flat, what happened to the promise {playerName} made.",
       onMiss: [
-        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 }
+        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} made me a promise and let the day go by.", weight: 2 }
       ],
       onMet: [
         { op: "attitudeDelta", npcId: "{npcId}", delta: 10 }
@@ -5074,6 +5470,8 @@ const LOOSE_ENDS = {
         dueOffset: 4,
         text: "Put the letter in {npc}'s hand.",
         itemName: "Letter for {npc}",
+        owedTo: "npc_bernice",
+        missText: "The letter for {npc} is still in {playerName}'s pocket, and the day {playerName} promised to put it in {npc}'s hand has come and gone.",
         onStart: [
           { op: "giveItem", name: "Letter for {npc}", notes: "Sealed, addressed in a careful hand, and not yours to open." }
         ],
@@ -5090,6 +5488,8 @@ const LOOSE_ENDS = {
         kind: "promise",
         dueOffset: 4,
         text: "Look in on {npc} for his father, the way you promised.",
+        owedTo: "npc_dale",
+        missText: "The day {playerName} promised Dale Purvis has come and gone without {playerName} looking in on {npc}.",
         onMiss: [
           { op: "addMemory", npcId: "npc_dale", text: "{playerName} promised to look in on my boy and never wrote.", weight: 2 }
         ],
@@ -5102,6 +5502,8 @@ const LOOSE_ENDS = {
         kind: "promise",
         dueOffset: 5,
         text: "Get {npc} to go home, the way you promised.",
+        owedTo: "npc_bernice",
+        missText: "The day {playerName} promised {npc}'s mother has come and gone, and {npc} is still in Lockett's Ferry.",
         onMiss: [
           { op: "addMemory", npcId: "npc_bernice", text: "{playerName} promised to bring my daughter home and has not.", weight: 2 }
         ],
@@ -5216,7 +5618,7 @@ const GRUDGE_TEMPLATES = [
     notForTags: ["priest", "secretary"]
   },
   {
-    effect: "{npc} tells anybody at Pittman's who will listen that {player} gives them the creeps, and the looks follow {player} around town for days.",
+    effect: "{npc} tells anybody at Pittman's who will listen that {player} is a creep, and the looks follow {player} around town for days.",
     dayOffset: [2, 4],
     effects: [
       { op: "reputationDelta", key: "town", delta: -5 }
@@ -5298,7 +5700,7 @@ const FAVOUR_TEMPLATES = [
     notForTags: ["teen"]
   },
   {
-    effect: "{npc} shows {player} a photo on their own phone of someone who has wronged {player}, taken somewhere that person should not have been.",
+    effect: "{npc} pulls out a phone and shows {player} a photo of someone who has wronged {player}, taken somewhere that person should not have been.",
     dayOffset: [3, 5],
     effects: [
       { op: "addNews", text: "{npc} showed {playerName} a photo worth remembering.", public: false }
@@ -5307,7 +5709,7 @@ const FAVOUR_TEMPLATES = [
     forTags: ["informant", "teen", "gossip", "clerk"]
   },
   {
-    effect: "{npc} tells the police {player} was with them all night, and makes it stick.",
+    effect: "{npc} gives {player} an alibi for the whole night and makes it stick with the police.",
     dayOffset: [2, 5],
     effects: [
       { op: "addMemory", npcId: "npc_marcus", text: "{npc} vouched for {playerName} and said they were together all night.", weight: 2 },
@@ -5335,7 +5737,7 @@ const FAVOUR_TEMPLATES = [
     notForTags: ["teen", "stranger"]
   },
   {
-    effect: "{npc} tells {player} something they saw that no grown-up in town has noticed, and swears it is true.",
+    effect: "{npc} tells {player} about something going on in town that no grown-up has noticed, and swears it is true.",
     dayOffset: [2, 4],
     effects: [
       { op: "addNews", text: "{npc} told {playerName} something no grown-up in town has noticed.", public: false }
@@ -11599,23 +12001,64 @@ const Style = (() => {
      "the Gentrys"), every place (name, map label, other names), the
      factions, the town and its map labels, the player, the calendar, NAME_ALLOW
      (titles, kin words used as names, faith, holidays, the services, brands,
-     states and a few cities) and every capitalised word in the narrator's
-     own packet (what the player typed, a due event, the news). Sentence
-     starts, "I" and words in capitals are never names. */
+     regional words, states and a few cities), BRAND_PHRASES (brands and
+     names of two or more words: "Mountain Dew", "Dr Pepper", "Ole Miss")
+     and every capitalised word in the narrator's own packet (what the player
+     typed, a due event, the news). Sentence starts, "I" and words in
+     capitals are never names.
+     Wave 2: an unknown word is a hard problem (worth a paid rewrite) only
+     when something marks it as a person or a place: a title or a kin word
+     before it ("Miss Earline", "his cousin Bo"), a place or person word
+     before it ("at Hux's", "in the Shack", "to Earl", "ask Bobby"), a
+     possessive ("Earl's truck"), a speech or gesture verb after it ("Earl
+     says", "Bo nods"), or another unknown capitalised word beside it ("Earl
+     Hux"). A lone one ("a Yoo-hoo", "spits Red Seal") is soft: noted, not
+     rewritten. Brand names that are also first names (Wendy, Winston,
+     Harley) stay out of NAME_ALLOW, so "Wendy says" is still caught. */
   const NAME_ALLOW = new Set(('Mr Mrs Ms Miss Mister Dr Doc Chief Pastor Preacher Reverend Deacon Brother Sister Mayor Officer Sheriff Deputy Judge Coach Captain Sergeant Sarge Major Colonel General Corporal Private Senator Governor President Councilman Councilwoman Trooper ' +
     "Mama Momma Mom Mommy Ma Daddy Dad Pa Pop Pops Granny Grandma Grandpa Granddad Granddaddy Nana Papa Aunt Auntie Uncle Cousin Sir Ma'am Honey Hon Sugar Darlin Darling Baby Babe Buddy Pal Boss Son Kid Sweetheart Sweetie Friend Mister " +
     'God Lord Jesus Christ Bible Scripture Heaven Amen Baptist Baptists Methodist Methodists Catholic Catholics Christian Christians Gospel Psalm Psalms Genesis Revelation Revelations School ' +
-    'Christmas Easter Thanksgiving Halloween Fourth Independence Labor Memorial Veterans New Year Eve ' +
+    'Pentecostal Pentecostals Lutheran Presbyterian Holy ' +
+    'Christmas Easter Thanksgiving Halloween Fourth Independence Labor Memorial Veterans New Year Eve Day ' +
     'Army Navy Marines Marine Corps Air Force National Guard Coast Civil War VA ' +
     'America American Americans English Spanish Mexican Mexicans Mexico Canada Canadian Yankee Yankees Southern Northern Confederate Union Vietnam Iraq Afghanistan Korea Kuwait Germany German France French ' +
     'Ford Chevy Chevrolet Dodge Toyota Honda Jeep Buick Coke Coca-Cola Pepsi Budweiser Coors Marlboro Walmart Styrofoam Velcro Facebook Google Internet Polaroid Folgers ' +
+    // Wave 2: brands and regional words a narrator reaches for (review item 7).
+    'Skoal Copenhagen Grizzly Bic Zippo Sprite Fanta Gatorade Doritos Fritos Cheetos Twinkie Twinkies Snickers Skittles Hershey Spam Velveeta Jell-O Kool-Aid Pop-Tarts ' +
+    'Kleenex Tylenol Advil Bayer Narcan Xanax Valium Percocet Percocets Lortab Lortabs Vicodin OxyContin Oxy Benadryl Sudafed Vaseline Crisco Tupperware Clorox Lysol Pampers ' +
+    'Marlboros Camels Newports Kools Busch Michelob Schlitz Pabst Smirnoff Bacardi Fireball Everclear ' +
+    'Wrangler Wranglers Carhartt Carhartts Dickies Levis Stetson Realtree Remington Winchester Browning Ruger Glock Mossberg Zebco Shimano Rapala Yeti Igloo ' +
+    'Evinrude Mercury Yamaha Suzuki Kawasaki Polaris Stihl Husqvarna Craftsman DeWalt Makita Kubota Silverado Tahoe Cadillac Pontiac Oldsmobile Mustang Camaro Corvette Bronco Peterbilt Kenworth Freightliner Harley-Davidson ' +
+    'Hardee McDonald Lowe Dillard Applebee Sonic Popeyes Krystal Kroger Walgreens Wal-Mart Winn-Dixie Amazon Netflix YouTube Android Samsung Motorola Verizon Greyhound Amtrak FedEx Visa Mastercard Powerball Lotto Bingo Yahtzee Monopoly Timex ' +
+    'Delta Ozarks Ozark Appalachia Dixie Cajun Cajuns Creole Mason Vienna Saints Titans Falcons Braves Cardinals Razorbacks Volunteers Vols Gators Bulldogs Rebels Longhorns Aggies Daytona Talladega Superdome Opry Graceland ' +
     'Alabama Alaska Arizona Arkansas California Colorado Connecticut Delaware Florida Georgia Hawaii Idaho Illinois Indiana Iowa Kansas Kentucky Louisiana Maine Maryland Massachusetts Michigan Minnesota Mississippi Missouri Montana Nebraska Nevada Ohio Oklahoma Oregon Pennsylvania Tennessee Texas Utah Vermont Virginia Washington Wisconsin Wyoming Carolina Dakota Jersey Hampshire York Rhode Island ' +
     'Memphis Nashville Atlanta Orleans Birmingham Houston Dallas Chicago Detroit Tulsa Biloxi Knoxville Chattanooga Louisville Little Rock Shreveport Baton Rouge Gulf ' +
     'Room Highway Route Interstate County State').split(/\s+/));
+  // Brands and regional names of more than one word: known as a whole, never word by word.
+  const BRAND_PHRASES = ['Mountain Dew', 'Dr Pepper', 'John Deere', 'Ole Miss', 'Piggly Wiggly', 'Dollar General', 'Family Dollar', 'Dollar Tree', 'Waffle House',
+    'Cracker Barrel', 'Maxwell House', "Jack Daniel's", 'Jack Daniels', 'Jim Beam', 'Wild Turkey', 'Old Crow', 'Evan Williams', 'Southern Comfort', 'Busch Light',
+    'Bud Light', 'Miller Lite', 'Miller High Life', 'Natural Light', 'Natty Light', 'Pabst Blue Ribbon', 'Red Man', 'Big Red', 'Moon Pie', 'Moon Pies', 'RC Cola',
+    'Royal Crown', 'Sun Drop', 'Little Debbie', 'Western Union', 'Crimson Tide', 'Grand Ole Opry', 'Bass Pro', 'Bass Pro Shops', 'Tractor Supply', 'Red Wing',
+    'Red Wings', 'Mossy Oak', 'Smith and Wesson', 'Smith & Wesson', 'Dairy Queen', 'Burger King', 'Taco Bell', 'Pizza Hut', 'Food Lion', 'Kentucky Fried Chicken',
+    'Super Bowl', 'World Series', 'Monday Night Football', 'Mardi Gras', "Mother's Day", "Father's Day", "Valentine's Day", 'Holy Spirit', 'Holy Ghost',
+    'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security'];
   const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   // Words that open a sentence before a name without being part of it ("Ask Bobby", "Tell Earl").
   const SENTENCE_STARTS = new Set('Ask Tell Try Go Get Come Let See Look Find Call Give Take Bring Send Leave Meet Thank Thanks Hey Hi Hello Well Yes Yeah No Nope Oh Maybe Sure Then Now So But And Or Just Only Even Tonight Today Tomorrow Here There This That When Where Why How What Who If Because Before After Since While Until Unless Like Said Says Asked Told'.split(' '));
+  /* What marks an unknown capitalised word as a person or a place (lower
+     case): a title or kin word just before it, a word that puts a place or a
+     person after it ("at", "to", "ask", "named"), or a speech or gesture
+     verb just after it. */
+  const MARK_BEFORE = new Set(('mr mrs ms miss mister dr doc chief pastor preacher reverend deacon brother sister mayor officer sheriff deputy judge coach captain sergeant sarge ' +
+    'major colonel general corporal private senator governor president councilman councilwoman trooper aunt auntie uncle cousin granny grandma grandpa nana papa ' +
+    'saint st wife husband son daughter boy girl friend buddy boss nephew niece grandson granddaughter mama daddy named called ' +
+    'at in to from into toward towards near inside outside for ask asks asked tell tells told thank meet meets met hand hands handed pay pays paid introduces hey hi hello howdy bye').split(/\s+/));
+  const MARK_AFTER = new Set(('says said asks asked tells told answers answered replies replied shouts shouted yells yelled calls whispers whispered mutters muttered ' +
+    'nods nodded shrugs shrugged laughs laughed grins grinned smiles smiled sighs sighed winks winked frowns frowned snorts snorted adds added agrees agreed waves waved').split(/\s+/));
+  // Ordinary words that open a sentence capitalised: never a name, and never the unknown word beside one ("The Shack" is one unknown word, not two).
+  const COMMON = new Set(Array.from(SENTENCE_STARTS).concat(('The A An His Her Their My Your Our Its These Those Some Every Each One Two Three Four Five Another Somebody Someone Nobody Everyone Everybody Anyone Anybody ' +
+    'He She It We They You Which All Both Most Many Few Nothing Something Everything Behind Outside Inside Across Over Under Past Through Down Up Out Back Off Later Soon Still Yet Again Not Never Always').split(/\s+/)));
   const escRe = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   /* Every name the game has, as written (longest first). opts.names adds more. */
   function nameList(s, extra) {
@@ -11628,6 +12071,7 @@ const Style = (() => {
       out.add(t.replace(/^The /, ''));
     };
     const words = x => String(x || '').split(/\s+/).forEach(w => add(w.replace(/'s$/, '')));
+    BRAND_PHRASES.forEach(add);
     if (s) {
       const town = s.meta && s.meta.townName;
       add(town);
@@ -11676,31 +12120,51 @@ const Style = (() => {
     for (const w of Array.isArray(o.allow) ? o.allow : []) single.add(w);
     return { res: nameCache.res, lower: nameCache.lower, single };
   }
-  function unknownNames(text, k) {
+  /* Every capitalised word the game does not know, once each, with marked:
+     true when something marks it as a person or a place (see NAME_ALLOW's
+     note), false when it stands alone. */
+  function nameHits(text, k) {
     if (!k) return [];
-    let s = String(text || '').replace(/[‘’]/g, "'").replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
+    // "Mr. Hux" and "Dr. Pepper" read as "Mr Hux" and "Dr Pepper".
+    let s = String(text || '').replace(/[‘’]/g, "'").replace(/\b(Mr|Mrs|Ms|Dr|St)\.(?=\s)/g, '$1');
     for (const re of k.res) s = s.replace(re, (m, pre) => pre + ' '.repeat(m.length - pre.length));
     const words = [...s.matchAll(/[A-Za-z][A-Za-z'-]*/g)];
     const strip = w => w.replace(/('s|s'|')$/, '');
-    const out = [];
+    const unknown = w => /^[A-Z][a-z]/.test(w) && !k.single.has(w) && !COMMON.has(w);
+    // The text between two words: only spaces means they belong together.
+    const gap = (a, b) => s.slice(a.index + a[0].length, b.index);
+    const hits = new Map();
     for (let i = 0; i < words.length; i++) {
       const w = strip(words[i][0]);
-      if (!/^[A-Z][a-z]/.test(w) || k.single.has(w)) continue;
+      if (!unknown(w)) continue;
       const head = s.slice(0, words[i].index);
       const before = head.replace(/["'“”(\s]+$/, '');
       // An opening quote starts a sentence too ('she says, "Now, listen"'); a closing one does not ('"Fine," Earl says').
       const opening = /(^|[\s(\[—–-])["“]\s*$/.test(head);
       const starts = opening || before === '' || /[.!?:;…—–]$/.test(before) || /\s-$/.test(before);
+      const nx = words[i + 1];
+      const next = nx && /^\s+$/.test(gap(words[i], nx)) ? strip(nx[0]) : null;
+      let marked;
       if (starts) {
         // A sentence start is an ordinary word, unless an unknown capitalised word follows it ("Earl Hux nods"; not "Ask Bobby").
-        const nx = words[i + 1];
-        const next = nx && /^\s+$/.test(s.slice(words[i].index + words[i][0].length, nx.index)) ? strip(nx[0]) : null;
-        if (!next || !/^[A-Z][a-z]/.test(next) || k.single.has(next) || SENTENCE_STARTS.has(w)) continue;
+        if (!next || !unknown(next) || SENTENCE_STARTS.has(w)) continue;
+        marked = true;
+      } else {
+        const pv = words[i - 1];
+        const tight = pv && /^[\s,]*$/.test(gap(pv, words[i]));
+        const prev = tight ? strip(pv[0]) : null;
+        // "at the Shack", "to the Delta": a place word two back, with "the" between.
+        const pv2 = prev && /^the$/i.test(prev) && words[i - 2] && /^\s+$/.test(gap(words[i - 2], pv)) ? words[i - 2][0].toLowerCase() : null;
+        const after = nx && /^\s+$/.test(gap(words[i], nx)) ? nx[0].toLowerCase() : null;
+        marked = !!(next && unknown(next)) || !!(prev && /^\s+$/.test(gap(pv, words[i])) && unknown(prev))
+          || !!(prev && MARK_BEFORE.has(prev.toLowerCase())) || !!(pv2 && MARK_BEFORE.has(pv2))
+          || /('s|s')$/.test(words[i][0]) || !!(after && MARK_AFTER.has(after));
       }
-      if (!out.includes(w)) out.push(w);
+      hits.set(w, hits.get(w) || marked);
     }
-    return out;
+    return Array.from(hits, ([word, m]) => ({ word, marked: m }));
   }
+  function unknownNames(text, k) { return nameHits(text, k).map(h => h.word); }
 
   // ----- spoken phrases said again -----
   /* Spoken lines only, as 4-word phrases. A phrase counts only with two
@@ -11779,8 +12243,12 @@ const Style = (() => {
       if (past) problems.push({ type: 'past', detail: `on day 1, someone speaks to the player of a past that never happened ("${past}")`, phrase: past, hard: true });
     }
     // The owner's first rule, in code: nobody and nowhere the town does not have.
-    const odd = unknownNames(t, k);
+    // Marked as a person or a place: hard. A lone capitalised word (a brand nobody listed): soft, noted and kept.
+    const hits = nameHits(t, k);
+    const odd = hits.filter(h => h.marked).map(h => h.word);
+    const lone = hits.filter(h => !h.marked).map(h => h.word);
     if (odd.length) problems.push({ type: 'name', detail: `names someone or somewhere that does not exist: ${odd.join(', ')}`, names: odd, hard: true });
+    if (lone.length) problems.push({ type: 'name', detail: `capitalises a word the town does not have (fine for a brand or a thing, not for a person or a place): ${lone.join(', ')}`, names: lone, hard: false });
     return { ok: problems.length === 0, hard: problems.some(p => p.hard), problems, words, style };
   }
   /* Names the problems and asks for a rewrite. The hard ones lead (they are
@@ -11812,7 +12280,7 @@ const Style = (() => {
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), notePacket };
+  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket };
 })();
 
 // ===== Module: Api =====
@@ -12250,28 +12718,106 @@ const Api = (() => {
     [/\bstable ?boys?\b/, 'stable boy'], [/\bbartenders?\b/, 'bartender'], [/\bwaitress(es)?\b/, 'waitress'], [/\bclerks?\b/, 'clerk'],
     [/\bmechanics?\b/, 'mechanic'], [/\bdeput(y|ies)\b/, 'deputy'], [/\bmy cousin\b/, 'my cousin']
   ];
+  // A roll with no complication (the card game's) says nothing about one, never "null".
   const MOCK_TIER = {
     critical: r => `${capFirst(r.stat)} roll, critical success: it works, and better than planned.`,
     success: r => `${capFirst(r.stat)} roll, success: it works.`,
-    partial: r => `${capFirst(r.stat)} roll, partial success: it works, but ${r.complication}.`,
-    failure: r => `${capFirst(r.stat)} roll, failure: it does not work, and ${r.complication}.`,
-    critical_failure: r => `${capFirst(r.stat)} roll, critical failure: it goes badly wrong, and ${r.complication}.`
+    partial: r => `${capFirst(r.stat)} roll, partial success: it works, but ${r.complication || 'not all the way'}.`,
+    failure: r => `${capFirst(r.stat)} roll, failure: it does not work${r.complication ? `, and ${r.complication}` : ''}.`,
+    critical_failure: r => `${capFirst(r.stat)} roll, critical failure: it goes badly wrong${r.complication ? `, and ${r.complication}` : ''}.`
   };
+  const escMock = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const HOME_NOUNS = ['house', 'home', 'place', 'trailer', 'apartment', 'farm'];
+  /* Where a walk goes, and where in the words it was named: { id, at, end }
+     (offsets in `lower`), or null. Places are named by their place, never by
+     the person in their name ("I walk to Pittman's" is the station, not
+     Royce Pittman): the longest of every name, map label and other name a
+     place in town goes by, found or not yet (a home nobody has told the
+     player about is still that home: the engine answers "You don't know
+     where that is yet. Ask around."); a business by its possessive
+     ("Pittman's", "Byrd's"); a home by the possessive of someone who lives
+     there ("Dewayne's house", "the Pittman place", "Dewayne's" at the end of
+     the words); else a kind of place ("the bar", "the pawn shop"). */
+  function mockPlace(lower, packet) {
+    const s = State.current;
+    const norm = x => String(x || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, '').trim();
+    const known = [].concat(packet.exits || [], packet.knownLocations || []);
+    // The places the packet lists (with the other names the game has for them), and the homes in town nobody has told the player about yet.
+    const knownIds = new Set(known.map(l => l.id));
+    const pool = known.map(l => (s && State.loc(l.id)) || l).filter((l, i, all) => all.findIndex(x => x.id === l.id) === i)
+      .concat(s ? s.locations.filter(l => l.away !== true && l.discovered === false && !knownIds.has(l.id)) : []);
+    const cands = [];
+    for (const l of pool) {
+      const point = s && State.loc(l.id) === l && typeof State.mapPointOf === 'function' ? State.mapPointOf(l) : null;
+      for (const k of [l.name, l.map && l.map.label, point && point.label].concat(Array.isArray(l.aka) ? l.aka : [])) {
+        const p = norm(k);
+        if (p.length >= 3) cands.push({ p, id: l.id });
+      }
+      const poss = /^([a-z]+'s)\s/.exec(norm(l.name));
+      if (poss) cands.push({ p: poss[1], id: l.id });
+    }
+    if (s) for (const n of s.npcs) {
+      const homeId = typeof n.home === 'string' ? n.home : isObj(n.home) ? n.home.locationId : n.homeLocationId;
+      const home = homeId ? State.loc(homeId) : null;
+      if (!home || home.away === true || !pool.includes(home)) continue;
+      const parts = norm(n.name).split(/\s+/).filter(w => w.length >= 3);
+      for (const w of parts) for (const h of HOME_NOUNS) cands.push({ p: `${w}'s ${h}`, id: home.id });
+      if (parts[0]) cands.push({ p: `${parts[0]}'s`, id: home.id, bare: true });
+    }
+    let best = null;
+    for (const c of cands) {
+      const m = new RegExp(`(^|[^a-z'])${escMock(c.p)}(?![a-z])`).exec(lower);
+      if (!m) continue;
+      const at = m.index + m[1].length;
+      const end = at + c.p.length;
+      // "Dewayne's" alone names his home only at the end of the words.
+      if (c.bare && !/^\s*([.,!?]|$)/.test(lower.slice(end))) continue;
+      if (!best || c.p.length > best.end - best.at) best = { id: c.id, at, end };
+    }
+    if (best) return best;
+    // A kind of place ("the bar"), among the places the player knows.
+    const hit = placeByPhrase(lower, known);
+    if (!hit) return null;
+    for (const [, re] of PLACE_PHRASES) {
+      const m = re.exec(lower);
+      if (m) return { id: hit.id, at: m.index, end: m.index + m[0].length };
+    }
+    return { id: hit.id, at: -1, end: -1 };
+  }
   function mockDestination(lower, packet) {
-    const cands = [].concat(packet.exits || [], packet.knownLocations || []);
-    for (const l of cands) {
-      const nm = String(l.name || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, '');
-      if (nm && lower.includes(nm)) return l.id;
-    }
-    // "I go to Dewayne's" for Dewayne's house: the possessive alone, at the end of a phrase.
-    for (const l of cands) {
-      const m = /^(.+'s) (house|home|place)$/.exec(String(l.name || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, ''));
-      if (m && new RegExp(`(^|[^a-z])${m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s*([.,!?]|$))`).test(lower.trim())) return l.id;
-    }
-    const hit = placeByPhrase(lower, cands);
+    const hit = mockPlace(lower, packet);
     return hit ? hit.id : null;
   }
-  const MOCK_GO = /\b(go|goes|walk|walks|head|heads|run|return|cross|enter|drive|drives|ride|make my way)\b/;
+  /* The words with the place a walk names blanked out (and an owner's
+     possessive just before it: "Hollis's pawn shop"), so nobody is looked for
+     because their name is in a place's. */
+  function withoutPlace(text, hit, offset) {
+    if (!hit || hit.at < 0) return text;
+    const at = Math.max(0, hit.at + (offset || 0));
+    const end = Math.max(at, hit.end + (offset || 0));
+    const head = text.slice(0, at).replace(/[A-Za-z]+['’]s\s+$/, m => ' '.repeat(m.length));
+    return head + ' '.repeat(end - at) + text.slice(end);
+  }
+  const MOCK_GO = /\b(go|goes|walk|walks|head|heads|run|return|cross|enter|drive|drives|ride|make my way|back to)\b/;
+  /* The names a person answers to in the mock's ear: the full name, then the
+     first name. Never the family name alone: "Dewayne Mangum" is Dewayne,
+     not Mavis Mangum too. */
+  const NAME_TITLES = /^(mr|mrs|ms|miss|dr|doc|mister)\.?$/i;
+  function personNames(n) {
+    const parts = String((n && n.name) || '').split(/\s+/).filter(w => w && !NAME_TITLES.test(w));
+    return parts.length ? [parts.join(' '), parts[0]] : [];
+  }
+  /* Named only by the family name ("Mangum owes me"), with no title before it
+     ("Mrs. Pittman" still counts): not this person. A role ("the mechanic")
+     still is. */
+  function surnameOnly(n, lower) {
+    const parts = String((n && n.name) || '').toLowerCase().split(/\s+/).filter(w => w && !NAME_TITLES.test(w));
+    if (parts.length < 2) return false;
+    const has = w => new RegExp(`(^|[^a-z])${escMock(w)}(?![a-z])`).test(lower);
+    const last = parts[parts.length - 1];
+    if (has(parts.join(' ')) || has(parts[0]) || !has(last)) return false;
+    return !new RegExp(`\\b(mr|mrs|ms|miss|mister|chief|officer|mayor|pastor|deputy|dr|doc|reverend|coach)\\.?\\s+${escMock(last)}(?![a-z])`).test(lower);
+  }
   /* Running off with no place named (Do mode): out through the first open exit. */
   const MOCK_FLEE = /\b(run|runs|get|gets|hurry|hurries|walk|walks)\s+away\b|\b(run|runs)\s+off\b|\b(flee|flees|bolt|bolts)\b/;
   /* Say mode: words that threaten or insult, and words that plead or bargain. */
@@ -12327,8 +12873,10 @@ const Api = (() => {
     if (sp && sp.mode === 'say') {
       out.timeCost = 'instant';
       out.targets = sp.to === 'everyone' ? presentList.map(n => n.id) : [sp.to];
+      // Nobody here to hear a plea: words said to an empty room, no roll.
+      const heard = out.targets.some(id => presentList.some(n => n.id === id));
       if (has(MOCK_THREAT)) out.actionType = 'intimidate';
-      else if (has(MOCK_PLEA)) { out.actionType = 'persuade'; roll('charm', 'normal'); }
+      else if (has(MOCK_PLEA) && heard) { out.actionType = 'persuade'; roll('charm', 'normal'); }
       else out.actionType = 'talk';
       return out;
     }
@@ -12354,11 +12902,17 @@ const Api = (() => {
         }
       }
     }
-    const all = people.filter(n => Town.mentions(lower, n));
-    // Someone in the cast the player has not met yet, named as a name ("I ask for Mavis"): capitalised as written, and not a surname that is part of a place's name.
+    /* The place a walk names, found first: the people in its name are not
+       looked for ("I walk to Pittman's" is the station, not Royce Pittman;
+       "I walk to Sturdivant House" does not ask for Vada). */
+    const placeHit = has(MOCK_GO) ? mockPlace(lower, packet) : null;
+    const lowerP = withoutPlace(lower, placeHit);
+    const inputP = withoutPlace(input.replace(/[’]/g, "'"), placeHit, -1);
+    const all = people.filter(n => Town.mentions(lowerP, n) && !surnameOnly(n, lowerP));
+    // Someone in the cast the player has not met yet, named as a name ("I ask for Mavis"): their full name or their first name as written, never their family name alone ("Dewayne Mangum" is not Mavis), and not a word of a place's name.
     const placeWords = new Set([].concat(packet.knownLocations || [], packet.exits || []).flatMap(l => String(l.name || '').split(/[^A-Za-z]+/)).concat(String(packet.townName || '').split(/[^A-Za-z]+/)).filter(Boolean));
-    const castNamed = (packet.cast || []).filter(n => !people.some(p => p.id === n.id) && String(n.name || '').split(/\s+/)
-      .some(w => w.length >= 3 && !placeWords.has(w) && new RegExp(`(^|[^A-Za-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`).test(input)));
+    const castNamed = (packet.cast || []).filter(n => !people.some(p => p.id === n.id) && personNames(n)
+      .some(w => w.length >= 3 && !placeWords.has(w) && new RegExp(`(^|[^A-Za-z])${escMock(w)}(?![a-z])`).test(inputP)));
     all.push(...castNamed);
     /* Asked or talked about, not acted on ("ask Loretta about Wade"): whoever
        or wherever is named only after "about" goes in aboutIds, never in
@@ -12380,7 +12934,7 @@ const Api = (() => {
        who is not here only to their name, or to a role nobody else in the
        lists answers to ("the cook"), so a shared word ("the owner") picks
        the person in front of the player. /fact links whatever it names. */
-    const byName = n => Town.nameMentions(lower, n);
+    const byName = n => Town.nameMentions(lowerP, n);
     const acting = all.filter(n => !about.includes(n.id));
     const roleOnly = acting.filter(n => !byName(n));
     const named = packet.mode === 'fact' ? all
@@ -12408,7 +12962,7 @@ const Api = (() => {
     // Talking with nobody named: whoever is in front of the player. Someone
     // named who is not here, or someone new, is the target instead.
     const target = () => (present.length ? [present[0].id] : (fresh.length || away.length) ? [] : (presentList[0] ? [presentList[0].id] : []));
-    const dest = has(MOCK_GO) ? mockDestination(lower, packet) : null;
+    const dest = placeHit ? placeHit.id : null;
     /* A thing, not a person: looking for one ("I look for some rope") may turn
        it up here (new:), and picking one up ("I pick up the rope") takes the
        item lying here by its id. */
@@ -12425,8 +12979,12 @@ const Api = (() => {
     if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; }
     else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
     else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
+    // Watching the room ("I watch who comes and goes") is a look that takes a while, not a walk.
+    else if (has(/^\s*(i\s+)?(watch|watches|observe|observes|keep an eye on|people-watch)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'short'; }
     else if (has(/\b(rest|sleep|nap)\b/)) { out.actionType = 'rest'; out.timeCost = 'rest'; }
     else if (has(/\bwait\b/)) { out.actionType = 'wait'; out.timeCost = 'long'; }
+    // Walking to where the player already is: a look around, not a walk that finds no way.
+    else if (dest && packet.location && dest === packet.location.id) { out.actionType = 'look'; out.timeCost = 'instant'; }
     else if (dest) { out.actionType = 'move'; out.destinationId = dest; out.timeCost = 'short'; }
     else if (has(MOCK_FLEE)) {
       const exit = (packet.exits || []).find(x => !x.closed);
@@ -12534,30 +13092,81 @@ const Api = (() => {
     return clause;
   }
   /* Say mode: the one spoken to answers first (with everyone, the first
-     person here), in their own words; anyone else here reacts. */
-  function mockReply(c) {
+     person here), in their own words; anyone else here reacts. room: the
+     lines the narration has left for it. The answer itself always fits (it
+     comes before anyone arriving or leaving); the greeting and the others'
+     reaction only when there is room. Returns { lines, core } (core: the
+     lines that must stay). */
+  function mockReply(c, room) {
     const s = State.current;
     const sp = c.speech;
     const a = c.action || {};
     const here = (c.present || []).map(p => State.npc(p.id)).filter(Boolean);
     const to = sp.to === 'everyone' ? here : here.filter(n => n.id === sp.to);
-    if (!to.length) return [here.length ? `${sp.toName || 'Whoever you meant'} is not here to hear it.` : 'Nobody is here to hear it.'];
+    if (!to.length) { const only = here.length ? `${sp.toName || 'Whoever you meant'} is not here to hear it.` : 'Nobody is here to hear it.'; return { lines: [only], core: [only] }; }
     const first = to[0];
     const key = `${(s && s.meta.turn) || 0}|${c.input || ''}|${first.id}`;
-    const lines = [sp.to === 'everyone'
+    const opener = sp.to === 'everyone'
       ? `${joinAnd(to.map(n => n.name))} ${to.length > 1 ? 'hear' : 'hears'} you, and ${first.name} answers first.`
-      : `${first.name} answers you first.`];
+      : `${first.name} answers you first.`;
     const told = c.rumour && c.rumour.npcId === first.id ? `${first.name} mentions something: "${c.rumour.text}"` : null;
-    if (a.actionType === 'intimidate') lines.push((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`);
-    else {
-      // The answer in their own words first; a rumour they pass on comes after it (and takes the greeting's place).
-      if (!told) lines.push(mockGreeting(first, key));
-      lines.push(mockSays(first, c, key));
-    }
-    if (told) lines.push(told);
+    const answer = a.actionType === 'intimidate'
+      ? ((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`)
+      : mockSays(first, c, key);
+    const core = [opener, answer].concat(told ? [told] : []);
+    const left = Number.isFinite(room) ? room : 4;
+    // The answer in their own words; a greeting before it only with room to spare (a rumour passed on takes its place).
+    const greet = a.actionType !== 'intimidate' && !told && left > core.length ? mockGreeting(first, key) : null;
+    const lines = greet ? [opener, greet].concat(core.slice(1)) : core.slice();
     const others = here.filter(n => !to.includes(n));
-    if (others.length) lines.push(`${joinAnd(others.map(n => n.name))} ${others.length > 1 ? vary(['look over', 'stop to listen'], key) : vary(['looks over', 'stops to listen'], key)}.`);
-    return lines;
+    if (others.length && left > lines.length) lines.push(`${joinAnd(others.map(n => n.name))} ${others.length > 1 ? vary(['look over', 'stop to listen'], key) : vary(['looks over', 'stops to listen'], key)}.`);
+    return { lines, core };
+  }
+  /* A due event written about the player by name ("Leon Varner walks up to
+     Tomas Reed, reads Tomas Reed's name...") told to them: "you", "your". */
+  function secondPerson(text) {
+    const s = State.current;
+    const name = s && s.player && String(s.player.name || '').trim();
+    let t = String(text || '');
+    if (!name) return t;
+    const names = [name].concat(name.split(/\s+/).length > 1 ? [name.split(/\s+/)[0]] : []);
+    for (const nm of names) {
+      const re = escMock(nm);
+      t = t.replace(new RegExp(`\\b${re}['’]s\\b`, 'g'), 'your').replace(new RegExp(`\\b${re}\\b`, 'g'), 'you');
+    }
+    // "you" as the subject takes the plain verb ("the way you stand", "you are"); after a preposition or a verb that takes a person, it is the object ("walks up to you", "watches you shuffle").
+    const VERB = { is: 'are', was: 'were', has: 'have', does: 'do', goes: 'go', "doesn't": "don't", "isn't": "aren't", "wasn't": "weren't", "hasn't": "haven't" };
+    t = t.replace(/\byou (is|was|has|does|doesn't|isn't|wasn't|hasn't)\b/g, (m, v) => `you ${VERB[v]}`);
+    t = t.replace(/(\b[a-z]+\s+)?\byou ([a-z]+s)\b/g, (m, before, v) => {
+      if (before && OBJECT_BEFORE.has(before.trim())) return m;
+      if (!PLAIN_VERB.test(v)) return m;
+      const plain = VERB[v] || v.replace(/(ch|sh|ss|x)es$/, '$1').replace(/ies$/, 'y').replace(/s$/, '');
+      return `${before || ''}you ${plain}`;
+    });
+    return t.replace(/(^|[.!?]\s+)you\b/g, (m, pre) => `${pre}You`).replace(/(^|[.!?]\s+)your\b/g, (m, pre) => `${pre}Your`);
+  }
+  // Words before "you" that make it the object, and the verbs secondPerson puts in the plain form after a subject "you".
+  const OBJECT_BEFORE = new Set(('to at with for from on in by about of toward towards behind beside near past into onto catches finds sees meets gives invites offers warns lets shows pays asks tells calls follows stops shoves beats hires thanks watches hands sells brings sends takes leaves helps owes').split(' '));
+  const PLAIN_VERB = /^(stands|sits|looks|seems|knows|wants|needs|comes|goes|keeps|says|owes|works|lives|stays|sleeps|walks|talks|means|gets|makes|takes|plays|pays|drinks|smokes|tells|asks|shuffles|carries|tries|watches|holds|hides|runs|sells|buys|waits|leaves|owns|thinks|came|gives|finds|reads|writes|hears|sees|turns)$/;
+  /* The card game as the engine dealt it (Pipeline.gamble: ctx.gamble):
+     no game and why, or what the player won or lost; Curtis Pruett's Friday
+     game at the back table when it is his and it is Friday. */
+  function mockGamble(c, key) {
+    const g = c.gamble;
+    if (!g) return vary(['You buy into the next hand.', 'You get dealt into the next hand.', 'Cards go round the table, and you are in.'], key);
+    if (!g.played) {
+      if (/no money/.test(g.why || '')) return "You don't have a dollar to put up, so there is no game for you tonight.";
+      if (/nobody is dealing/.test(g.why || '')) return 'Nobody is dealing right now, so there is no game to sit in on.';
+      return 'There is no card game here.';
+    }
+    const dealer = g.dealerId ? State.npc(g.dealerId) : null;
+    const day = State.current ? State.current.time.day : 0;
+    let weekday = '';
+    try { weekday = typeof State.weekday === 'function' ? State.weekday(day) : ''; } catch (e) { weekday = ''; }
+    const table = dealer ? (weekday === 'Friday' && dealer.id === 'npc_curtis' ? `${dealer.name}'s Friday game at the back table` : `${dealer.name}'s table`) : 'the table';
+    const amount = money(Math.abs(g.delta | 0));
+    const result = g.delta > 0 ? `you come out ${amount} ahead` : g.delta < 0 ? `you lose ${amount}` : 'you break even';
+    return `At ${table}, ${result}${g.caught && dealer ? `, and ${dealer.name} throws you out for cheating` : ''}.`;
   }
   /* A good the words name, preferring one sold here and then the cheapest
      (Town.goodsFor's scoring): "a beer" at the bar is a bottle, not a case. */
@@ -12631,6 +13240,13 @@ const Api = (() => {
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
+    // Due events (at most two) are always worked in, at the end, told to the player ("you", not their name).
+    // Due events (as many as the engine hands over), told to "you", are always worked in at the end.
+    let due = (c.due || []).map(d => sentence(secondPerson(d && d.text))).filter(Boolean);
+    // Say mode: the answer comes before anyone arriving or leaving, so it is never the line cut.
+    const lineBudget = Math.max(1, (mode === 'normal' ? (c.moved ? 4 : isSay(c.speech) ? 4 : 3) : 6) - due.length);
+    const said = isSay(c.speech) && !c.beat && mode !== 'arrival' ? mockReply(c, lineBudget - out.length) : null;
+    if (said) out.push(...said.lines);
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
       const came = names(c.sceneChange.arrived);
@@ -12654,11 +13270,16 @@ const Api = (() => {
       if (l && l.description) out.push(l.description);
       const names = (c.present || []).map(n => n.name);
       out.push(names.length ? `${joinAnd(names)} ${names.length > 1 ? 'are' : 'is'} here.` : 'Nobody here pays you any attention.');
-    } else if (isSay(c.speech)) {
-      out.push(...mockReply(c));
+    } else if (said) {
+      // The reply is already told, before the scene changed.
     } else if (a.actionType === 'move') {
       const d = c.destination;
-      out.push(d ? `You make your way to ${d.name.replace(/^The /, 'the ')}${d.closed ? ', but it is shut' : ''}.` : 'You look for the way there and do not find it.');
+      // Shut, and why: barred from it ("not welcome there until day N") is not the same as a door shut for the day.
+      const why = d && d.closed ? String(d.why || '') : '';
+      const ban = /not welcome there(?: until day (\d+))?/.exec(why);
+      const shutDay = /closed on (\w+)/.exec(why);
+      const shut = !d || !d.closed ? '' : ban ? `, but you are not welcome there${ban[1] ? ` until day ${ban[1]}` : ''}` : shutDay ? `, but it is shut on ${shutDay[1]}` : ', but it is shut';
+      out.push(d ? `You make your way to ${d.name.replace(/^The /, 'the ')}${shut}.` : 'You look for the way there and do not find it.');
       if (d && !d.closed) out.push(d.present && d.present.length ? `${joinAnd(d.present)} ${d.present.length > 1 ? 'are' : 'is'} there.` : 'Nobody there pays you any attention.');
     } else if (a.actionType === 'buy') {
       // The same reckoning as the mock bookkeeper: sold here, open, and affordable.
@@ -12670,7 +13291,7 @@ const Api = (() => {
       else if (price !== null && s.player.gold < price) out.push(`It's ${money(price)}, and you don't have that much on you.`);
       else out.push(vary(['The deal is done quickly.', 'Money changes hands, and that is that.'], key));
     } else if (a.actionType === 'gamble') {
-      out.push(vary(['You buy into the next hand.', 'You get dealt into the next hand.', 'Cards go round the table, and you are in.'], key));
+      out.push(mockGamble(c, key));
     } else if (target && a.actionType === 'attack') {
       const down = c.roll && c.roll.success && /\bknocks?\s+(?:\w+\s+){0,2}out\b/i.test(c.input || '');
       out.push(down ? `${target.name} goes down and stays down.` : `${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
@@ -12694,11 +13315,9 @@ const Api = (() => {
     }
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
     for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
-    // Due events (as many as the engine hands over) are always worked in, at the end.
-    let due = (c.due || []).map(d => sentence(d && d.text)).filter(Boolean);
     if (!out.length && !due.length) out.push(vary([`At ${loc}, nothing pushes back yet.`, `Nothing at ${loc} gets in your way.`, `${capFirst(loc)} carries on around you.`], key));
     if (out.length + due.length < 2) out.push(vary([`Around you, ${loc} goes on with its ${phase}.`, `Nobody at ${loc} pays you much mind.`, `It stays quiet at ${loc} for now.`], key));
-    let body = out.slice(0, Math.max(1, (mode === 'normal' ? (c.moved ? 4 : 3) : 6) - due.length));
+    let body = out.slice(0, lineBudget);
     /* Keep to the style check's limit (Style.WORD_LIMITS) like a real
        narrator would: a place's description shrinks to its first sentence
        and then goes, other scenery goes from the end, and only then are the
@@ -12706,12 +13325,14 @@ const Api = (() => {
     const limit = (mode === 'normal' ? Style.WORD_LIMITS.normal : Style.WORD_LIMITS.zoom) - 5;
     const words = () => wordCount(body.concat(due).join(' '));
     const desc = s && c.location ? (State.loc(c.location.id) || {}).description : null;
-    const keep = new Set(body.filter(x => /\broll[,:]/.test(x) || x === 'You go down hard.' || x.includes(' mentions something: ')));
+    const keep = new Set(body.filter(x => /\broll[,:]/.test(x) || x === 'You go down hard.' || x.includes(' mentions something: ') || (said && said.core.includes(x))));
     const at = desc ? body.indexOf(desc) : -1;
     if (words() > limit && at >= 0) body[at] = (/^.*?[.!?](\s|$)/.exec(desc) || [desc])[0].trim();
     if (words() > limit && at >= 0) body.splice(at, 1);
     for (let i = body.length - 1; i > 0 && words() > limit; i--) if (!keep.has(body[i])) body.splice(i, 1);
-    // The first due event (the engine puts the one that is the scene, or a person come for the player, first) stays whole.
+    // A due event shrinks to its first sentence (the council's count is in it), then to its first clause; the first one
+    // (the engine puts the scene, or a person come for the player, first) stays whole.
+    if (words() > limit) due = due.map((t, i) => (i === 0 ? t : (/^.*?[.!?](?=\s|$)/.exec(t) || [t])[0]));
     if (words() > limit) due = due.map((t, i) => (i === 0 ? t : sentence(t.split(/,\s+/)[0])));
     if (words() > limit) {
       const room = Math.max(4, Math.floor((limit - wordCount(body.join(' ')) - (due.length > 1 ? wordCount(due[0]) : 0)) / Math.max(1, due.length - 1)));
@@ -13046,12 +13667,26 @@ const Api = (() => {
       for (const t of s.threads || []) if (t.status === 'open' && t.knownToPlayer) open.push(lowerFirst(t.title));
       for (const o of openObligations(s)) open.push(`${cleanText(o.text, 60)}${Number.isInteger(o.dueDay) ? ` by day ${o.dueDay}` : ''}`);
     }
-    const tail = `Open: ${open.length ? open.slice(0, 4).join('; ') : 'nothing settled yet'}.`;
-    const did = listed.map(e => (isSay(e) ? `said "${cleanText(e.input, 50)}" to ${sayTo(e)}` : cleanText(e && e.input, 60))).filter(Boolean);
+    // Whole words only: a cut line ends at a word with "…", and a quote is never left open ("who sold Ambe").
+    const clip = (t, n) => {
+      const x = cleanText(t, 4000);
+      if (x.length <= n) return x;
+      const cut = x.slice(0, n + 1).replace(/\s+\S*$/, '').replace(/[\s,;:.]+$/, '');
+      return (cut || x.slice(0, n)) + '…';
+    };
+    const tail = `Open: ${open.length ? open.slice(0, 4).map(o => clip(o, 80)).join('; ') : 'nothing settled yet'}.`;
+    const did = listed.map(e => (isSay(e) ? `said "${clip(e.input, 50)}" to ${sayTo(e)}` : clip(e && e.input, 60))).filter(Boolean);
     const room = Math.max(4, 79 - wordCount(head) - wordCount(tail));
-    let body = (did.length ? did.join('; ') : 'nothing of note').split(/\s+/).slice(0, room).join(' ').replace(/[;,:]$/, '');
-    if (!/[.!?]$/.test(body)) body += '.';
-    return `${head} ${body} ${tail}`.split(/\s+/).slice(0, 79).join(' ');
+    // What fits, item by item: an item that does not fit whole is left out (the first one is clipped to fit).
+    const kept = [];
+    for (const d of did) {
+      if (wordCount(kept.concat(d).join('; ')) <= room) { kept.push(d); continue; }
+      if (!kept.length) kept.push(/"/.test(d) ? d.replace(/"([^"]*)"/, (m, q) => `"${q.split(/\s+/).slice(0, Math.max(1, room - 4)).join(' ').replace(/[,;:.…]+$/, '')}…"`) : d.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]+$/, '') + '…');
+      break;
+    }
+    let body = (kept.length ? kept.join('; ') : 'nothing of note').replace(/[;,:]$/, '');
+    if (!/[.!?…"]$/.test(body)) body += '.';
+    return `${head} ${body} ${tail}`;
   }
   const Mock = {
     name: 'mock',
