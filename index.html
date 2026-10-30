@@ -17149,6 +17149,8 @@ const Pipeline = (() => {
     // Their people, by name ("wife: Mavis Mangum"), so nobody gets a family the cast does not give them.
     const has = hasWords(n);
     if (has) parts.push(has);
+    // Hurt (integration, wave 5): the narrator hears it as the People card ("Hurt until Day N") and the absent note say it.
+    if (State.isHurt(n)) parts.push(`hurt: laid up until Day ${n.hurtUntilDay}`);
     if (n.look && !Number.isInteger(n.metTurn)) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
     else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');

@@ -549,4 +549,30 @@ s.test('wave 5: rough nights at Town Hall through the box: the second morning th
   assert.doesNotMatch(n4.due, /move along|fine/);
 });
 
+s.test('wave 5: someone hurt who would be away today has one flag on the People card, "Hurt until Day N", the day the absent note gives; the narrator hears "hurt: laid up until Day N" when they are present', async h => {
+  const page = await h.open({ viewport: { width: 375, height: 740 } });
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(() => {
+    const G = Game, S = G.State, st = G.state;
+    const n = st.npcs.find(x => x.status === 'free' && x.alive !== false && x.awayOn && Array.isArray(x.awayOn.days) && x.awayOn.days.includes(S.weekday(st.time.day)) && x.home);
+    S.apply({ npcKnownToPlayer: [n.id] });
+    S.apply({ npcFates: [{ npcId: n.id, status: 'hurt' }] }, { source: 'world', present: [n.id], rollSuccess: true });
+    G.UI.openPanel('people');
+    G.UI.togglePerson(n.id, true);
+    const flags = [...document.querySelectorAll(`.pcard[data-npc="${n.id}"] .pcard-flag`)].map(f => f.textContent);
+    G.UI.closeSheet(true);
+    S.apply({ playerLocationId: n.home.locationId });
+    G.Api.Mock.queue('parse', { actionType: 'look', summary: 'Looks', targets: [], needsRoll: false, timeCost: 'instant' });
+    G.Api.Mock.queue('bookkeep', {});
+    return { name: n.name, flags, note: S.absentNote(n), until: n.hurtUntilDay };
+  });
+  assert.deepEqual(r.flags, [`Hurt until Day ${r.until}`]);
+  assert.match(r.note, new RegExp(`^hurt and laid up at .+ until Day ${r.until}$`));
+  await sendText(page, 'I look around');
+  const present = (/^PRESENT: .*$/m.exec(await lastPacket(page)) || [''])[0];
+  assert.ok(present.includes(`${r.name} (`), 'laid up at home, so here: ' + present.slice(0, 200));
+  assert.ok(present.includes(`hurt: laid up until Day ${r.until}`), present.slice(0, 400));
+});
+
 s.run();

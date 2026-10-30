@@ -570,3 +570,12 @@ copy item. Tests: `tests/wave5-fixes.test.cjs`.
   it").
 - "until Day 9" for a barred walk (`prompts-fixes` follows, changed by
   design).
+
+## Integration (wave 5)
+
+- **Someone hurt, to the narrator**: `npcLine` adds "hurt: laid up until
+  Day N" (their `hurtUntilDay`) for anyone `State.isHurt`, in PRESENT and
+  DESTINATION, so a person laid up at home is not narrated up and about.
+  The People card ("Hurt until Day N", alone since the UI's wave 5) and
+  `State.absentNote` ("hurt and laid up at … until Day N") give the same
+  day. Pinned in `tests/integration.test.cjs`.
