@@ -30,10 +30,20 @@ function audit(label) {
   const fonts = [...document.querySelectorAll('input, textarea, select')].filter(vis).filter(el => !['checkbox', 'radio', 'file'].includes(el.type))
     .map(el => [el.id || el.className, parseFloat(getComputedStyle(el).fontSize)]).filter(x => x[1] < 16).map(x => `${x[0]} ${x[1]}px`);
   const wide = [];
+  // Inside a box that scrolls sideways on purpose (the Say row) and is itself on screen, content is scrolled, not too wide.
+  const scrolledInside = el => {
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ox = getComputedStyle(p).overflowX;
+      if (ox !== 'auto' && ox !== 'scroll') continue;
+      const pr = p.getBoundingClientRect();
+      if (pr.left >= -1 && pr.right <= W + 1) return true;
+    }
+    return false;
+  };
   for (const el of document.querySelectorAll('body *')) {
     if (!vis(el)) continue;
     const r = el.getBoundingClientRect();
-    if (r.right > W + 1 || r.left < -1) wide.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ').join('.')} [${Math.round(r.left)}, ${Math.round(r.right)}]`);
+    if ((r.right > W + 1 || r.left < -1) && !scrolledInside(el)) wide.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ').join('.')} [${Math.round(r.left)}, ${Math.round(r.right)}]`);
   }
   for (const el of document.querySelectorAll('.page, .feed-scroll, .panel-body, .ac, .popover')) if (vis(el) && el.scrollWidth > el.clientWidth + 1) wide.push('scrolls sideways: ' + (el.id || el.className));
   if (document.documentElement.scrollWidth > W) wide.push('document ' + document.documentElement.scrollWidth);
@@ -47,6 +57,11 @@ for (const size of SIZES) {
     const check = async label => { results.push(await page.evaluate(audit, label)); };
     await check('title');
     await page.click('#btn-new');
+    // First launch with no key: how to play comes first (the Claude choice opens the key field).
+    await check('creation: how to play');
+    await page.click('#choose-claude');
+    await check('creation: how to play, the key field');
+    await page.click('#choose-demo');
     await check('creation: name');
     await page.fill('#cr-name', 'Ilse');
     await page.click('#cr-next');
@@ -56,13 +71,12 @@ for (const size of SIZES) {
     await check('creation: background picked, with its age');
     await page.click('#cr-next');
     await check('creation: stats');
-    await page.selectOption('#cr-move-from', await page.evaluate(() => [...document.querySelectorAll('#cr-move-from option')].find(o => o.value && !o.disabled).value));
+    await page.click('.step-btn[data-dir="down"]:not([disabled]) >> nth=0');
     await check('creation: stats, moving a point');
+    await page.click('.step-btn[data-dir="up"]:not([disabled]) >> nth=0');
     await page.click('#cr-next');
-    await check('creation: goal');
+    await check('creation: goal and flaw');
     await page.fill('#cr-goal', 'Find my brother');
-    await page.click('#cr-next');
-    await check('creation: flaw');
     await page.click('.flaw-choice >> nth=0');
     await page.click('#cr-next');
     await check('creation: loose ends, none picked');
@@ -133,6 +147,8 @@ for (const size of SIZES) {
     });
     await page.click('[data-open-tab="people"]');
     await page.waitForTimeout(300);
+    // Elsewhere is folded away until opened.
+    await page.click('.people-group[data-group="elsewhere"] > summary');
     await page.click(`#phead-${far}`);
     await page.waitForTimeout(250);
     assert.ok(await page.isVisible(`.pcard[data-npc="${far}"] .pcard-facts`), 'the card shows where they live and their history');

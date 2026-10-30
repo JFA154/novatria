@@ -71,8 +71,9 @@ s.test('the map shows every discovered place with its label, rings the current p
   }
   const here = m.places.filter(p => p.ring);
   assert.deepEqual(here.map(p => p.id), [st.player.locationId], 'only the current place has the ring');
-  assert.ok(here[0].here && here[0].caption === 'You are here', 'and the caption');
-  assert.ok(m.places.filter(p => p.caption).length === 1);
+  // The ring and a bold label say where you are; no "You are here" caption under it (it pushed labels into each other).
+  assert.ok(here[0].here, 'marked as here');
+  assert.equal(m.places.filter(p => p.caption).length, 0, 'no caption');
   // Roads: each pair of connected discovered places once.
   const pairs = new Set();
   for (const l of discovered) for (const x of l.exits) if (discovered.some(o => o.id === x)) pairs.add([l.id, x].sort().join('|'));

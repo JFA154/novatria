@@ -10,6 +10,8 @@ const assert = require('assert/strict');
 const { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('upgrade');
+/* A feed divider without the weekday ("Day 2 · Friday · Evening" reads "Day 2 · Evening"), so these hold with or without the engine's calendar. */
+const noWeekday = t => String(t).replace(/ · (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?= · )/, '');
 const AUTOSAVE = 'novatria.autosave';
 const NOTE = 'This game was saved under older rules. You can keep playing, or update it.';
 
@@ -683,7 +685,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.match(r.packet, /^CLOCK NOW: day 2, morning \(early in the phase; 0 of 3 short actions gone\)\n/);
   assert.ok(r.packet.indexOf('TURN 10 (day 1, night)') < r.packet.indexOf('TURN 11 (day 2, morning)\nPLAYER: Go to the back bedroom and let him lead'), 'oldest first');
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
-  assert.deepEqual(r.feed, ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in.', 'Day 1 · Night']);
+  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in.', 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
   assert.ok(r.narr.startsWith('DAY 1, NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
@@ -797,7 +799,7 @@ s.test('version 4 against the real provider: one structured-output call on the p
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true });
   assert.equal(st.meta.rulesVersion, 7);
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent)), ['Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in.', 'Day 1 · Night']);
+  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to day 1, night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in.', 'Day 1 · Night']);
   assert.match(await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | ')), /clock: day 2, morning -> day 1, night \(He is taking his boots off for bed; nobody has slept yet\.\)/);
 });
 

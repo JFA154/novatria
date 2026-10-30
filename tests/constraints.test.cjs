@@ -33,6 +33,8 @@ s.test('index.html is one self-contained file: inline CSS and classic scripts, o
   assert.equal(fetches.filter(f => f === 'MODELS_ENDPOINT').length, 1, 'the models list from one place only');
   assert.match(code, /const ENDPOINT = 'https:\/\/api\.anthropic\.com\/v1\/messages';/);
   assert.match(code, /const MODELS_ENDPOINT = 'https:\/\/api\.anthropic\.com\/v1\/models';/);
+  // Every string reaches the page as text (el(), textContent), never as markup.
+  assert.doesNotMatch(html, /\b(innerHTML|outerHTML|insertAdjacentHTML)\b|document\.write(ln)?\s*\(/, 'no innerHTML, outerHTML, insertAdjacentHTML or document.write');
   const css = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]).join('\n');
   assert.doesNotMatch(css, /@import|url\(\s*['"]?(https?:|\/\/)/i, 'no external CSS resources');
   assert.match(code, /'use strict'/);
