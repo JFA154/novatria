@@ -202,7 +202,8 @@ today is marked "(closed today)", and one you are barred from says "You are
 banned until Day 9." (you are welcome again on Day 9); walking to either is a
 walk to a shut door, and the narrator is told why. A place shut for the day
 (the Low Water on a Sunday) holds only the people who live there and no card
-game, and a night there is rough.
+game, and a night there is rough unless a friend lives there or owns it (see
+Time).
 
 **Out of town.** Fifteen more places are written into the town because
 people talk about them: Clayburn, the county seat (the sheriff, the county
