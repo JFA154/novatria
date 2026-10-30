@@ -584,6 +584,10 @@ only with `UI_SHOTS` set.
 - `tests/shell.test.cjs`: memory notes and "Last seen" in the Day form;
   the Places panel lists every exit the player knows of (not the
   undiscovered homes).
+- `tests/pipeline.test.cjs` (one assertion, for N3): "moving between
+  locations" checks the exits the player knows of are listed, not every
+  exit id (the motor court's exit to the Haskins Farm is a home not found
+  yet).
 
 ### README lines that change
 - How to play, step 3: "Try the offline demo (placeholder text)" → "(canned
