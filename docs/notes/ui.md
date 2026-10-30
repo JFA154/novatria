@@ -463,3 +463,141 @@ colon.
   owed", with what is paid so far; "Settled late" once it is made good.
 - The expanded map scrolls a place reached with Tab into view (on a phone
   it pans sideways, and an SVG mark is not scrolled to on focus).
+
+## Wave 3 (the round-2 visual, mobile and accessibility QA)
+
+Region as before: CSS, HTML, Storage, UI, App. All eleven defects of the
+round-2 UI report, its three partly-fixed items, the UI rows of its copy
+table, the ⋯ trade-off, and two items from the round-2 playtest (N3, N15).
+Tests: 12 new ones in `tests/ui-fixes.test.cjs` ("wave 3, …"); screenshots
+only with `UI_SHOTS` set.
+
+### Focus that is never dropped (defects 1 and 2)
+- One rule for a turn started from a control other than the box (the ⋯
+  list, Wait until…, the Undo link, Go there, the map's "Go to" chip): the
+  control keeps the focus while the turn runs; if it has to go, the focus
+  moves first to what stands in for it: the ⋯ button (or Menu) when the
+  list closes, the place's marker when the chip goes, Expand map when the
+  expanded map closes, the sheet's opener (else its tab-bar button) when a
+  phone's sheet closes, the panel's tab when a redraw takes the control
+  away. When the turn ends the focus goes to the box on a laptop and back
+  to the opener, or the first stand-in still on screen, on a phone, but
+  only if it is still where the turn left it (`holdTurnFocus`,
+  `carryTurnFocus` / `moveFocus`, `releaseTurnFocus`).
+- No control is disabled in place while it has the focus: `setOff` marks
+  the focused one `aria-disabled` (dimmed, still focusable; its handler
+  refuses through `canAct`) and disables the rest. That covers Send / Wait /
+  Stop, Go there and the chip. Edit, Save and a pronoun chip that are on
+  when a turn starts hand the focus to their card's head (Save: to Cancel)
+  before they turn off, so `disabled` stays true for them.
+- The Undo link keeps the focus while the turn it started runs (it stays
+  where it is, marked off); when it has to go, the focus goes to the box (a
+  phone: Send) first.
+- Send and Wait put the focus back in the box after the turn only if it is
+  still on the box, the button or nowhere (`focusStillOnComposer`): typing
+  into the People search during a turn is never split with the box.
+- Also never left on the page: Dismiss on the banner (the screen's own
+  place: the box on a laptop's game), the demo bar's ×, the tip's ×, Play
+  here instead, a failed turn's Try again row removed by the next turn, a
+  Saves slot redrawn after Save here or Delete (the same button, else the
+  first in its row, else the heading), a dialog whose opener went meanwhile,
+  and Recap from the ⋯ list.
+
+### Banner and modals (defect 3)
+- The warning banner sits at z-index 30, under the phone sheet (40), the
+  expanded map (55) and a dialog (the top layer), and `syncBanner` makes it
+  inert while any of them is open (called from `setInert`,
+  `syncMapModal` and `ask`); closed, it is as it was. A phone no longer has
+  to Dismiss the banner to reach Close map or the sheet's ×.
+
+### The live region (defect 4)
+- `setBusy` no longer sets `aria-busy` on the story's `role=log`: the
+  streaming narration node is `aria-hidden` until `endNarration` puts the
+  finished text in, which is what is read out.
+- The Undo link is one button, `#undo-btn` in `#undo-row`, after the feed
+  and outside the live region, so it is not announced again with every
+  turn. `placeUndo` lays it over the newest input line's right edge (as
+  before: its bottom 9px under the line), again whenever the feed or its
+  scroller changes size (a `ResizeObserver`).
+
+### Layout and contrast (defects 5, 7, 8, 9, 10)
+- A queued line: the status text never wraps (one line, ellipsis); "Next:
+  “…”" is a 32px pill with a 16px radius; its × is a 44px target that hangs
+  6px over the pill into the row's margins, so the status line is 32px (was
+  48) and the × overlaps no other control.
+- The laptop's Panel toggle, pressed: a `--field` edge (3:1) and a 3px
+  `--accent` bar under the label, on `--surface-2`.
+- A read-only tab's box: `--surface-2`, `--muted` text and a dashed
+  `--field` edge, no opacity (text and placeholder 4.5:1 or more).
+- The expanded map (`expandedSize`) fills the view below its bar on both
+  axes: a phone covers it (upright it fills the height and pans sideways;
+  on its side it fills the width and pans up and down; 740x375 is 740 by
+  617, was 1184 by 987); a laptop fits the whole town (never smaller than
+  1.6 times the panel's map) and the viewBox grows to the window, with land
+  to the edges and the river and the roads that end on the town's frame
+  running on past it (`runOn`). After a resize or a turn of the phone it
+  is drawn for the new view and centred on the player again.
+- A person's dot on the map has a ring in `--map-ink` (3:1 or more on the
+  land in both themes); so does the legend's "Someone you know" swatch.
+  The phone sheet's grip is `--field` (3:1 on the sheet).
+
+### Smaller fixes
+- Defect 6: `placeTypeLabel(type)`, one map for the line under the place
+  here and each place's row: Gas station, Trailer park, Big house, Town
+  hall (the town's police sit in it), Pawn shop, Care home, Farmland, Boat
+  landing and so on; an id not listed reads as itself, spaced.
+- Defect 11: `App.editPerson` and `App.setPronouns` start with
+  `UI.canAct({ say: true })`: refused (one toast) in a read-only tab, while
+  a turn runs, or without a game on screen; reasons `read-only`, `busy`,
+  `no game`.
+- The ⋯ trade-off: on a phone with the keyboard up (the tab row hidden),
+  the ⋯ comes back beside the Do / Say toggle, as on a laptop (the box is
+  still about 160px wide at 375); closing its list gives the focus to a ⋯
+  in view.
+- N3: "Exits from here" lists only places the player knows of (a home
+  nobody has mentioned is no exit yet, as on the map).
+- N15: a hurt person's card says "Hurt until Day N", N the last day they
+  are hurt (`hurtUntilDay − 1`), the same day as the engine's "laid up …
+  until day N".
+- Partly fixed before: the newer-build note under Continue is one line at
+  375 ("Saved by a newer version; it may not play right here.", allowed past
+  the 320px button column); the banner after loading uses the same words
+  (still two lines on a phone, beside Dismiss; one on a laptop).
+- Copy (UI side of the table): "Banned you from the Low Water until Day 9";
+  "Last seen: …, Day 1 · Morning"; "Hurt until Day 4"; Leads "… told you,
+  Day 2"; "Up to Day N"; a memory note "…, Day 3"; a save's default name
+  "Tomas Reed, Day 3" and a slot's line "… · Day 2 · Morning · …";
+  creation step 2 "…, money, three things (one a prepaid phone), and …";
+  the review summary "Fix 4 things first: name; background and age; goal
+  and flaw; three loose ends."; "One point taken from Might. Press + on the
+  stat that should get it."; an exit or the chip "(closed today)" for a
+  place shut on the day, "(closed)" for one shut for good; Grown "+1 Wits";
+  the replace dialog "…and Saved games (Load) can bring it back."; a damaged
+  autosave "(Load → Restore previous)"; Check key "That key did not work:
+  the API did not accept it."; "4–5¢" kept together; the Re-read hint a
+  short list; the first-run card "(canned replies)".
+
+### Tests changed by design
+- `tests/ui-fixes.test.cjs`: the Undo link is `#undo-btn` (not in
+  `#feed`); "Hurt until Day N" (the last day hurt); Leads "Day 1"; Check
+  key's sentence; the newer-build banner text; the review summary's form.
+- `tests/shell.test.cjs`: memory notes and "Last seen" in the Day form;
+  the Places panel lists every exit the player knows of (not the
+  undiscovered homes).
+
+### README lines that change
+- How to play, step 3: "Try the offline demo (placeholder text)" → "(canned
+  replies)".
+- The map: "on a phone it fills the height and pans sideways, on a laptop it
+  fits the window" → fills the screen on both axes (a phone pans the other
+  way, a laptop shows the whole town with land to the edges) and centres on
+  you again when the phone turns.
+- Places tab: "Exits from here" lists only places you know of; types read
+  as words ("Gas station").
+- People: "Hurt, until day 5" → "Hurt until Day 4"; "Banned you from the
+  Low Water until day 9" → "until Day 9".
+- Journal: "(Loretta Gaddis told you, day 2)" → "Day 2".
+- Saves: the newer-build warning reads "Saved by a newer version; it may
+  not play right here."
+- ⋯: "on a phone at the end of the tab row" → add "(beside the Do / Say
+  toggle while you type)".
