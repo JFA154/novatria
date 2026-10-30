@@ -210,11 +210,11 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   assert.equal(await stateJson(page), lockedState, 'the identical retry changes nothing');
   assert.match(await page.textContent('#feed .f-notice:last-child'), /Change something first/);
 
-  // Turn 10 or so: the first chronicle entry.
-  while ((await time()).turn < 10) await turn('I look around', 'look-action');
+  // Turn 15 (16 log entries): the first chronicle entry; the newest 6 stay (changed by design, docs/notes/transport.md).
+  while ((await time()).turn < 15) await turn('I look around', 'look-action');
   const trimmed = () => page.evaluate(() => ({ chron: Game.state.chronicle.map(c => [c.fromTurn, c.toTurn]), log: Game.state.log.map(e => e.turn), turn: Game.state.meta.turn }));
   const c1 = await trimmed();
-  assert.deepEqual(c1.chron, [[0, 9]], 'a chronicle entry for turns 0-9 after turn 10');
+  assert.deepEqual(c1.chron, [[0, 9]], 'a chronicle entry for turns 0-9 after turn 15');
   assert.deepEqual(c1.log, Array.from({ length: c1.turn - 9 }, (_, i) => 10 + i), 'and those turns left the log');
 
   // ----- 4. a fight that costs HP -----
@@ -255,10 +255,10 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   const warm = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
   assert.ok(warm >= 60, 'warm enough for a favour: ' + warm);
 
-  // Turn 20 or so: the second chronicle entry.
-  while ((await time()).turn < 20) await turn('I look around', 'look-action');
+  // Turn 25: the second chronicle entry.
+  while ((await time()).turn < 25) await turn('I look around', 'look-action');
   const c2 = await trimmed();
-  assert.deepEqual(c2.chron, [[0, 9], [10, 19]], 'a second chronicle entry after turn 20');
+  assert.deepEqual(c2.chron, [[0, 9], [10, 19]], 'a second chronicle entry after turn 25');
   assert.ok(c2.log.every(t => t >= 20), 'the log keeps only turns after it');
 
   // The next phase change plants the favour seed.
@@ -436,7 +436,7 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
     const avg = (k) => { const v = window.__all.filter(x => x.m === k).map(x => x.n); return { n: v.length, avg: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0, max: Math.max(0, ...v) }; };
     return {
       parse: avg('parse'), narrate: avg('narrate'), bookkeep: avg('bookkeep'),
-      sys: { narrator: Game.Style.systemPrompt().length + Game.Pipeline.castBlock().length, style: Game.Style.systemPrompt().length, cast: Game.Pipeline.castBlock().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
+      sys: { narrator: Game.Style.systemPrompt().length + Game.Pipeline.townBlock().length + Game.Pipeline.castBlock().length, style: Game.Style.systemPrompt().length, town: Game.Pipeline.townBlock().length, cast: Game.Pipeline.castBlock().length, parser: Game.Api.SYSTEM.parser.length, bookkeeper: Game.Api.SYSTEM.bookkeeper.length, chronicle: Game.Api.SYSTEM.chronicle.length },
       schema: { parser: JSON.stringify(Game.Api.SCHEMAS.parse_action).length, bookkeeper: JSON.stringify(Game.Api.SCHEMAS.record_changes).length },
       chronicleInput: window.__chron || 0,
       prices: Game.Api.PRICES, models: [Game.Storage.settings().narratorModel, Game.Storage.settings().parserModel]
@@ -454,14 +454,19 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   const chron = { in: T(m.sys.chronicle + m.chronicleInput), out: OUT.chronicle };
   const usd = (model, inTok, outTok, cacheRead) => (inTok * P[model].input + outTok * P[model].output + (cacheRead || 0) * P[model].cacheRead) / 1e6;
   const turn = think => usd(parseModel, parser.in, parser.out + think) + usd(narrModel, narr.in, narr.out + think, narr.cached) + usd(parseModel, book.in, book.out + think) + usd(parseModel, chron.in, chron.out + think) / 10;
-  const first = usd(narrModel, narr.cached * 1.25, 0) - usd(narrModel, 0, 0, narr.cached);
+  // The three blocks are cached for an hour: a write is 2x input (docs/notes/transport.md).
+  const first = usd(narrModel, narr.cached * 2, 0) - usd(narrModel, 0, 0, narr.cached);
   console.log('        measured over ' + inputs.length + ' inputs (chars; tokens at 3.5 chars each):');
   console.log(`          parser: packet avg ${m.parse.avg} (max ${m.parse.max}) + system ${m.sys.parser} + schema ${m.schema.parser} = ~${parser.in} input tokens; ~${parser.out} output assumed`);
-  console.log(`          narrator: packet avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens + cached system ${m.sys.narrator} (style ${m.sys.style} + cast ${m.sys.cast}) = ~${narr.cached} tokens; ~${narr.out} output assumed`);
+  console.log(`          narrator: packet avg ${m.narrate.avg} (max ${m.narrate.max}) = ~${narr.in} input tokens + cached system ${m.sys.narrator} (style ${m.sys.style} + town ${m.sys.town} + cast ${m.sys.cast}) = ~${narr.cached} tokens; ~${narr.out} output assumed`);
   console.log(`          bookkeeper: packet avg ${m.bookkeep.avg} (max ${m.bookkeep.max}) + system ${m.sys.bookkeeper} + schema ${m.schema.bookkeeper} = ~${book.in} input tokens; ~${book.out} output assumed`);
   console.log(`          chronicle (every 10 turns): ~${chron.in} input, ~${chron.out} output`);
   console.log(`          cost per ordinary turn at ${narrModel} + ${parseModel}: $${turn(0).toFixed(4)} without thinking, $${turn(THINK).toFixed(4)} with ~${THINK} thinking tokens per call; narrator-only commands (/look /rest /wait /skip) about $${(usd(narrModel, narr.in, narr.out, narr.cached)).toFixed(4)}-$${(usd(narrModel, narr.in, narr.out + THINK, narr.cached)).toFixed(4)}; first narration of a session +$${first.toFixed(4)} to write the cache`);
   console.log(`          100 turns: about $${(turn(0) * 100).toFixed(2)}-$${(turn(THINK) * 100).toFixed(2)}`);
+  // A band, so a packet or a prompt that balloons fails here (REVIEW R10).
+  assert.ok(turn(0) > 0.01 && turn(0) < 0.06, 'a warm turn costs 1 to 6 cents: $' + turn(0).toFixed(4));
+  assert.ok(turn(THINK) < 0.08, 'with thinking, under 8 cents: $' + turn(THINK).toFixed(4));
+  assert.ok(first > 0 && first < 0.12, 'a cache write under 12 cents: $' + first.toFixed(4));
   assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
   assert.ok(m.narrate.max < 8000 && m.bookkeep.max < 12000, 'packets stay small');
   assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');

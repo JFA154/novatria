@@ -1,0 +1,31 @@
+# The whole test suite (node tests/run.cjs: the town content check, then
+# every tests/*.test.cjs in headless Chromium) on every push and pull request.
+# Playwright is installed outside the checkout and found through NODE_PATH:
+# the game is one file with no build and no package.json, and
+# tests/constraints.test.cjs checks that there is none.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright and Chromium (outside the checkout)
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p pw && cd pw
+          npm init -y > /dev/null
+          npm i playwright
+          npx playwright install --with-deps chromium
+      - name: Run the tests
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node tests/run.cjs

@@ -165,7 +165,7 @@ s.test('the cast is fixed: a new: person nobody in the cast answers to is NOT PR
   assert.ok(line.startsWith(`${c.wife.id} — ${c.wife.name} (${c.wife.age}, she/her; ${c.wife.role}; wife of ${c.husband.name}`), line);
   assert.match(line, /home: the Mangum House/);
   const body = await page.evaluate(n => Game.Api.requestBody('narrator', { system: n.style, blocks: [n.town, n.cast], user: 'x', cache: true, stream: true }).system, narr);
-  assert.deepEqual(body, [narr.style, narr.town, narr.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })));
+  assert.deepEqual(body, [narr.style, narr.town, narr.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })));
   // The bookkeeper cannot add a person: the cast is fixed.
   await page.evaluate(() => Game.Api.Mock.queue('bookkeep', { peopleRevealed: [{ name: 'Earl Toler', pronouns: 'he', relationToNpcId: '', who: 'brother' }] }));
   await sendText(page, 'I ask Loretta about her brother');
@@ -484,10 +484,11 @@ s.test('/fact spends a story point to make a statement true; it is refused with 
   assert.equal(await page.inputValue('#cmd'), '/fact the baker is my uncle');
 });
 
-s.test('a refusal shows the notice, restores the input and leaves state untouched (any role)', async h => {
+s.test('a refusal shows the notice (in the words of the role that declined), restores the input and leaves state untouched (the parser and the narrator; a bookkeeper refusal keeps the narration: transport-fixes)', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
-  for (const method of ['parse', 'narrate', 'bookkeep']) {
+  const said = { parse: 'The parser declined that one. Try it another way.', narrate: 'The narrator declined that one. Try it another way.' };
+  for (const method of ['parse', 'narrate']) {
     const before = await stateJson(page);
     const nodes = await page.evaluate(() => document.getElementById('feed').childElementCount);
     await page.evaluate(m => Game.Api.Mock.queue(m, { refusal: { category: 'test', explanation: 'no' } }), method);
@@ -495,7 +496,7 @@ s.test('a refusal shows the notice, restores the input and leaves state untouche
     await page.press('#cmd', 'Enter');
     await page.waitForFunction(() => !Game.Pipeline.busy);
     assert.equal(await page.inputValue('#cmd'), 'I do something the narrator will not write', method);
-    assert.equal(await lastNotice(page), 'The narrator declined that one. Try it another way.');
+    assert.equal(await lastNotice(page), said[method]);
     assert.equal(await stateJson(page), before, method + ': state untouched');
     assert.equal(await page.evaluate(() => document.getElementById('feed').childElementCount), nodes + 1, method + ': only the notice was added');
     assert.equal(await page.evaluate(() => Game.State.undoDepth()), 0);

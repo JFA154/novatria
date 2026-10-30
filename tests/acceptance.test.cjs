@@ -249,18 +249,19 @@ s.test('[5] A debt loose end from character creation → the lender confronts th
 });
 
 // 6
-s.test('[6] After 10 turns, a chronicle entry exists and the log has been trimmed.', async h => {
+// Changed by design (REVIEW 2.2, docs/notes/transport.md): the chronicle waits for 16 log entries and keeps the newest 6, so the narrator always has turns to read.
+s.test('[6] After 10 turns, a chronicle entry exists and the log has been trimmed (once the log holds 16 entries; the newest 6 stay).', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 10 });
   await fast(page);
-  for (let i = 1; i <= 9; i++) await sendText(page, i % 3 ? 'I look around' : `/wait ${await nextPhase(page)}`);
-  assert.deepEqual(await page.evaluate(() => [Game.state.chronicle.length, Game.state.log.length]), [0, 10], 'nothing yet after 9 turns');
+  for (let i = 1; i <= 14; i++) await sendText(page, i % 3 ? 'I look around' : `/wait ${await nextPhase(page)}`);
+  assert.deepEqual(await page.evaluate(() => [Game.state.chronicle.length, Game.state.log.length]), [0, 15], 'nothing yet with 15 entries');
   await sendText(page, 'I look around');
   const r = await page.evaluate(() => ({ turn: Game.state.meta.turn, chron: Game.state.chronicle, log: Game.state.log.map(e => e.turn) }));
-  assert.equal(r.turn, 10);
+  assert.equal(r.turn, 15);
   assert.deepEqual(r.chron.map(c => [c.fromTurn, c.toTurn]), [[0, 9]], 'one entry for turns 0-9');
   assert.ok(r.chron[0].summary.split(/\s+/).length < 80);
-  assert.deepEqual(r.log, [10], 'the ten summarised entries left the log');
+  assert.deepEqual(r.log, [10, 11, 12, 13, 14, 15], 'the ten summarised entries left the log; the newest six stay');
   await sendText(page, 'I look around');
   assert.equal(line(await lastPacket(page), 'STORY SO FAR'), r.chron[0].summary, 'the narrator gets the chronicle');
 });
