@@ -52,7 +52,7 @@ is refused ("a placeholder that was never filled in").
 | `addCondition` | `name`, `effect` (`"-1 might"`), `days` (0..30) | `untilDay = day + days` (active through that day) |
 | `banFrom` | `locationId`, `days` (0..60), `byNpcId?` | `state.bans` gets `{ locationId, untilDay: day + days, byNpcId? }`; a second ban there keeps the later day |
 | `playerPrice` | `factor` (>0, each step clamped 0.25..4), `days` (0..60) | `flags.playerPriceMultiplier` (multiplied in, 0.25..4) and `flags.playerPriceUntilDay` |
-| `addMemory` | `npcId`, `text`, `weight` (1..3) | the memory path; a memory with the same first five words merges into the older one |
+| `addMemory` | `npcId`, `text`, `weight` (1..3) | the memory path; a memory with the same first five words merges into the older one; a no-op for the dead (someone living elsewhere still remembers: they can be reached) |
 | `clockAdjust` | `factionId`, `delta` (-2, -1, 1, 2) | the running clock, clamped 0..segments, no completion check; a no-op when no clock runs |
 | `threadUpdate` | `threadId`, `summary?`, `status?`, `knownToPlayer?` | status through `setThreadStatus`; a resolved thread's status never moves (no-op) |
 | `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?` (0..60, from today), `itemName?`, `onMiss?`, `onMet?` (effect lists, 12 at most), `id?` (`obl_...`) | see Obligations |
@@ -72,9 +72,9 @@ block, so it never writes state directly).
 `state.player.obligations: [{ id, kind, npcId, text, amount, dueDay,
 itemName, status, onMiss, onMet, createdTurn, createdDay, settledDay?,
 settledTurn? }]`. Kinds: `debt, blackmail, promise, errand, lodging`. One
-open obligation per (kind, npcId); the id is `obl_<kind>_<npc id without
-npc_>` (`obl_debt_curtis_pruett`), with `_2`, `_3` for later ones, unless an
-`id` is given. `text`, `itemName`, `onMiss` and `onMet` have `{npc}`,
+open obligation per (kind, npcId); the id is `obl_<kind>_<npc id>` with the
+full id (`obl_debt_npc_curtis`, the form the council meeting and the epilogue
+read), with `_2`, `_3` for later ones, unless an `id` is given. `text`, `itemName`, `onMiss` and `onMet` have `{npc}`,
 `{npcId}`, `{player}`, `{playerName}` filled with the obligation's own
 person and the player.
 

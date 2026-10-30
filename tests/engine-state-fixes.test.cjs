@@ -184,19 +184,20 @@ s.test('obligations: one open per kind and person, dueOffset from today, met and
   assert.deepEqual(r.first.rejected, []);
   assert.match(r.first.applied[0], /^effects\[0\]: addObligation: obligation obl_debt_/);
   assert.match(r.second, /already open \(one open debt per person\)/);
-  assert.deepEqual(r.open, [{ id: `obl_debt_${r.slug}`, kind: 'debt', npcId: `npc_${r.slug}`, text: `You owe ${r.name} $400`, amount: 400, dueDay: r.day + 3, status: 'open',
+  // The id carries the whole npc id (obl_debt_npc_curtis), the form the town's events read.
+  assert.deepEqual(r.open, [{ id: `obl_debt_npc_${r.slug}`, kind: 'debt', npcId: `npc_${r.slug}`, text: `You owe ${r.name} $400`, amount: 400, dueDay: r.day + 3, status: 'open',
     onMiss: [{ op: 'attitudeDelta', npcId: `npc_${r.slug}`, delta: -20 }] }]);
   assert.match(r.bad[0], /kind must be debt, blackmail, promise, errand, lodging/);
   assert.match(r.bad[1], /unknown npc/);
   assert.match(r.bad[2], /status must be met or missed/);
   assert.match(r.bad[3], /unknown obligation/);
   assert.deepEqual(r.met, ['met', 10]);
-  assert.match(r.again, /no-op: obl_debt_\w+ is already met/);
+  assert.match(r.again, /no-op: obl_debt_npc_\w+ is already met/);
   assert.equal(r.afterAgain, 10, 'onMet ran once, onMiss never');
   assert.deepEqual(r.tickEarly, [], 'due today is not missed yet');
-  assert.deepEqual(r.tick, [`obl_debt_${r.slug}_2`]);
+  assert.deepEqual(r.tick, [`obl_debt_npc_${r.slug}_2`]);
   assert.deepEqual(r.tickAgain, []);
-  assert.deepEqual(r.missed, [`obl_debt_${r.slug}_2`, 'missed', -20]);
+  assert.deepEqual(r.missed, [`obl_debt_npc_${r.slug}_2`, 'missed', -20]);
   assert.deepEqual(r.byStatus, [2, 1, 1, 0]);
 });
 
@@ -253,11 +254,15 @@ s.test('obligations settle by play: money handed over in front of the creditor, 
 
 s.test('a loose end\'s obligation rides on its seed with placeholders filled, and is due dueOffset days after the day the seed fires', async h => {
   const page = await h.open();
-  await page.evaluate(() => {
+  const debtWords = await page.evaluate(() => {
     const D = Game.data;
-    D.LOOSE_ENDS.debt.options[0] = { text: D.LOOSE_ENDS.debt.options[0], obligation: { kind: 'debt', amount: 400, dueOffset: 3, text: 'You owe {npc} $400',
+    const words = D.LOOSE_ENDS.debt.options[0];
+    D.LOOSE_ENDS.debt.options[0] = { text: words, obligation: { kind: 'debt', amount: 400, dueOffset: 3, text: 'You owe {npc} $400',
       onMiss: [{ op: 'attitudeDelta', npcId: '{npcId}', delta: -15 }], onMet: [{ op: 'addMemory', npcId: '{npcId}', text: '{playerName} paid up in full', weight: 2 }] } };
+    // The kind's own obligation when the option has none (content's per-option list taken away for this).
+    delete D.LOOSE_ENDS.promise.obligations;
     D.LOOSE_ENDS.promise.obligation = { kind: 'errand', dueOffset: 2, text: 'Deliver the letter for {player}', itemName: 'Letter', onMiss: [], onMet: [] };
+    return words;
   });
   await quickStart(page, { kinds: ['debt', 'promise', 'enemy'] });
   const r = await page.evaluate(() => {
@@ -277,7 +282,7 @@ s.test('a loose end\'s obligation rides on its seed with placeholders filled, an
     out.obligation = S.obligations('open')[0];
     return out;
   });
-  assert.equal(r.debtText, "I owe a man in this town more money than I can pay.", 'an option written as { text, obligation } reads as its words');
+  assert.equal(r.debtText, debtWords, 'an option written as { text, obligation } reads as its words');
   assert.deepEqual(r.debtEffects, [{ op: 'addObligation', kind: 'debt', npcId: r.debtNpc, text: `You owe ${r.debtName} $400`, amount: 400, dueOffset: 3, itemName: null,
     onMiss: [{ op: 'attitudeDelta', npcId: r.debtNpc, delta: -15 }], onMet: [{ op: 'addMemory', npcId: r.debtNpc, text: 'Tester paid up in full', weight: 2 }] }]);
   assert.equal(r.promiseEffects[0].kind, 'errand', 'the kind\'s own obligation when the option has none');
@@ -781,6 +786,8 @@ s.test('/undo after an update restores the game\'s town copy too; snapshot still
 
 s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day 1 a Thursday without one); closedOn and awayOn follow the weekday; the season pick keeps a seed\'s world', async h => {
   const plain = await h.open();
+  // Without a calendar (the town now has one, so it is taken away here).
+  await plain.evaluate(() => { delete Game.data.TOWN_DATA.calendar; });
   await quickStart(plain);
   const a = await plain.evaluate(() => {
     const S = Game.State;
@@ -791,7 +798,7 @@ s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day
   assert.equal(a.season, true);
 
   const page = await h.open();
-  await page.evaluate(() => { Game.data.TOWN_DATA.calendar = { season: 'autumn', startDate: '2026-10-08' }; });
+  await page.evaluate(() => { delete Game.data.TOWN_DATA.calendar; Game.data.TOWN_DATA.calendar = { season: 'autumn', startDate: '2026-10-08' }; });
   await quickStart(page);
   const r = await page.evaluate(() => {
     const S = Game.State;
@@ -851,6 +858,8 @@ s.test('a background\'s hook is planted as a seed at creation (origin background
   assert.equal(r.tier, 'disliked');
   assert.deepEqual(r.journal, { turn: r.journal.turn, day: 1, phase: 'afternoon', text: 'Met the mechanic.' });
   const other = await h.open();
+  // Every background in the town has a hook now: take one away.
+  await other.evaluate(() => { delete Game.data.BACKGROUNDS[1].hook; });
   await quickStart(other, { bgIndex: 1 });
   assert.equal(await other.evaluate(() => Game.state.seeds.some(sd => /^seed_bg_/.test(sd.id))), false, 'no hook, no seed');
 });

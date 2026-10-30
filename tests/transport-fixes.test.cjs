@@ -851,7 +851,8 @@ s.test('Upgrade version 8 ("An arc"): the town copy gains what it lacks (never o
   assert.deepEqual(r.town.epilogue, { mine: true }, 'never overwrites what the game has');
   assert.equal(r.rumour, r.r0);
   assert.ok(r.reward);
-  assert.deepEqual(r.lists, [[], [], [], [], 0]);
+  // time.instants is kept only while above 0 (State advanceTime), so the step leaves it unset.
+  assert.deepEqual(r.lists, [[], [], [], [], undefined]);
   assert.equal(r.le.length, 1);
   assert.equal(r.le[0].op, 'addObligation');
   assert.equal(r.le[0].dueDay, r.dueDay);

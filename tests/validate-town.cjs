@@ -1847,7 +1847,6 @@ function checkExamples(W) {
   factions.forEach((f) => f && addName(f.name));
   if (isObj(TABLES) && isObj(TABLES.npc)) {
     (TABLES.npc.firstNames || []).forEach(addName);
-    (TABLES.npc.familyNames || []).forEach(addName);
   }
   const townText = [];
   (function walk(v) {

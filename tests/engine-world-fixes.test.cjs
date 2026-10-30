@@ -604,6 +604,8 @@ s.test('grudges: one per weight-3 memory, a template that fits the person, its e
     const T = G.data.GRUDGE_TEMPLATES;
     const fit = 2;
     T.forEach((t, i) => { if (i !== fit) t.notForTags = ['elderly']; });
+    // The town's own filters on the one that fits are taken away (content gives it forTags: bartender).
+    delete T[fit].forTags; delete T[fit].notForTags;
     T[fit].effects = [{ op: 'setFlag', key: 'tGrudgeRan', value: '{npcId}' }];
     T[fit].public = true;
     W.forceClockRoll(1);
