@@ -1493,6 +1493,25 @@ failed action when something had been typed meanwhile.
   the state suite's settings version is 3; the upgrade suite's labels say
   the bookkeeper model (the model asserted is the same, Sonnet).
 
+   **The parser back to Sonnet** (owner, 30 Oct 2026: "Put the parser back
+   to Sonnet. I want the best playthrough not the cheapest. But if haiku
+   makes sense somewhere where sonnet would be overpriced then haiku it
+   is."). The parser is not that place: it sets the difficulty of every
+   roll, and since a social success is binding (direction change on 28 Oct)
+   the difficulty is where all the doubt lives; a parser that calls a very
+   hard ask normal makes the world push back less than it should, and
+   nobody had checked Haiku on these packets live. Nowhere else in the
+   pipeline is Sonnet overpriced: the bookkeeper writes what people
+   remember, the chronicle is the narrator's long-term memory, and the
+   Upgrade calls are judgement too. So `Storage.DEFAULTS.parserModel` is
+   `claude-sonnet-5-5` again, the Parser and Bookkeeper fields stay (Haiku
+   is one edit away), and the settings version is 4: a v3 parser left at
+   Haiku follows Sonnet, a typed one is kept, and the v1 and v2 rules are
+   unchanged (a parser at its version's default takes both defaults, a typed
+   one is kept for both roles). The cost report measured the turn again
+   (README "What a turn costs"); the api, settings and shell suites assert
+   the new default and the v3-to-v4 rule.
+
 ### 16. Work and trouble: paid jobs and fights that come to the player
 
 The review the owner agreed with (finding 9): money and fights are thin.

@@ -35,7 +35,7 @@ Minimal body:
 | Role (Settings field) | Default | Notes |
 |---|---|---|
 | Narrator (Narrator model) | `claude-opus-5-5` | $4 / $20 per MTok in/out, cache read $0.20 |
-| Parser (Parser model) | `claude-haiku-5-5` | $0.10 / $0.50 per MTok (prompts under 100K), cache read $0.01 (0.1x). A short, fixed job that runs before anything is shown, so the fastest model |
+| Parser (Parser model) | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20. It sets the difficulty of every roll, so the owner wants the judgement; `claude-haiku-5-5` ($0.10 / $0.50, cache read $0.01) is the cheap, quick option and works for plain parses |
 | Bookkeeper, chronicle, every Upgrade call (Bookkeeper model) | `claude-sonnet-5-5` | $2 / $10 per MTok in/out, cache read $0.20 |
 
 Cache writes cost 1.25x the input rate (five-minute cache). Until 29 Oct 2026

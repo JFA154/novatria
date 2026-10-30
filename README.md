@@ -480,7 +480,7 @@ notice if you do it again. `/reroll` and `/cheat` ignore the rule.
 | API key, Remember on this device | Your Anthropic key; where it is kept (see above). |
 | Mock mode | On: the built-in placeholder narrator (and parser and bookkeeper), no API calls, free. Off: Claude narrates with your key. On by default. While it is on, or while there is no key, the game screen shows a strip saying so and the title screen a line under the buttons (see How to play, step 3). |
 | Narrator model | Writes the story (streamed). Default `claude-opus-5-5`, the current Opus. |
-| Parser model | Turns your text into an action, before anything is narrated. Default `claude-haiku-5-5`: a short, fixed job, so the fast, cheap model is the default (until 29 Oct 2026 this one field drove the bookkeeper and the chronicle too, at `claude-sonnet-5-5`). |
+| Parser model | Turns your text into an action, before anything is narrated: who you mean, whether to roll, and the difficulty, which is where all the doubt lives once a social success is binding. Default `claude-sonnet-5-5`, for the best play-through. `claude-haiku-5-5` is the cheap, quick option and works for plain parses; it was the default for one day (29 Oct 2026) and was put back. Until 29 Oct 2026 this one field drove the bookkeeper and the chronicle too. |
 | Bookkeeper model | Records what changed after each turn (the bookkeeper), writes the chronicle every 10 turns, and does the calls of **Re-read this game** and **Update this game**. Default `claude-sonnet-5-5`. Settings saved with the old single field move over by themselves: left at its old default, you get the two new defaults; a model you typed there is kept for both fields. |
 | Effort (narrator, parser, bookkeeper, chronicle) | `low` / `medium` / `high` per role, sent as `output_config.effort`. Defaults: narrator, bookkeeper and chronicle `medium`, parser `low`. Higher effort means more thinking tokens: slower and dearer. |
 | Show dice rolls | Shows the quiet roll line, e.g. `Wits 14 + 2 = 16 vs 15 · Success`. |
@@ -637,9 +637,9 @@ without it reads as 1). The steps that bring a game up to date are listed in
 ## What a turn costs
 
 The defaults are set for the best play-through, not the cheapest: Opus 5.5
-narrates, Haiku 5.5 parses, Sonnet 5.5 bookkeeps, with medium effort where
-judgement matters. At those settings an ordinary turn is about 2.2 to 2.6
-cents, so about $2.20 to $2.65 per 100 turns. The numbers below are the
+narrates, Sonnet 5.5 parses and bookkeeps, with medium effort where
+judgement matters. At those settings an ordinary turn is about 2.6 to 3.2
+cents, so about $2.60 to $3.20 per 100 turns. The numbers below are the
 playtest's cost report (`node tests/run.cjs playtest`), measured over the
 same 15 mixed inputs in mock mode on 30 Oct 2026 and priced at the rates in
 `docs/API_NOTES.md`, with cached blocks at the cache-read rate; the live API
@@ -648,26 +648,29 @@ live API"), so check the Debug tab's cache reads on your first real session.
 
 | Call | Model | Message (not cached) | Cached prefix | Per call |
 |---|---|---|---|---|
-| Parser | Haiku 5.5 | ~1,440 tokens (message about 2,900 characters, 3,450 at most, plus the 2,160-character schema) | ~3,390 tokens (its prompt and everyone in town) | $0.0002 |
+| Parser | Sonnet 5.5 | ~1,440 tokens (message about 2,900 characters, 3,450 at most, plus the 2,160-character schema) | ~3,390 tokens (its prompt and everyone in town) | $0.0045 |
 | Narrator | Opus 5.5 | ~2,420 tokens (about 8,500 characters, 12,200 at most) | ~13,700 tokens (the style guide, the town, the cast) | $0.0148 |
 | Bookkeeper | Sonnet 5.5 | ~2,140 tokens (about 2,900 characters plus the 4,580-character schema) | ~1,360 tokens (its prompt, everyone in town, the factions) | $0.0064 |
 
-- An ordinary turn is **$0.0217** without thinking and **$0.0264** with
-  about 150 thinking tokens a call: **100 turns is about $2.17 to $2.64**.
-  Before this round (Sonnet 5.5 parsing and bookkeeping with nothing of
-  theirs cached, and a narrator packet of three turns and no wants or
+- An ordinary turn is **$0.0259** without thinking and **$0.0321** with
+  about 150 thinking tokens a call: **100 turns is about $2.59 to $3.21**.
+  Before this round (the same models, nothing of the parser's or the
+  bookkeeper's cached, and a narrator packet of three turns and no wants or
   secrets) the same report gave $0.0284 to $0.0346, so about $2.84 to $3.46
-  per 100 turns.
+  per 100 turns: the packet grew, the caching paid for it. With Haiku 5.5 as
+  the parser (Settings: Parser model) the turn is $0.0217 to $0.0264, about
+  $2.17 to $2.64 per 100 turns; the parser sets the difficulty of every
+  roll, so the default pays for the judgement.
 - A narrator-only command (`/look`, `/rest`, `/wait`, `/skip`) is about
   $0.0148 to $0.0178. A narration that fails the style check is written a
   second time, which adds one narrator call.
 - The first call of a session (or the first after five idle minutes) writes
-  each cache instead of reading it: narrator +$0.0656, parser +$0.0004,
+  each cache instead of reading it: narrator +$0.0656, parser +$0.0078,
   bookkeeper +$0.0031. The cached blocks are built from the records only, so
   they stay the same from turn to turn until the cast itself changes (an
   edit, a merge, a death); meeting someone, moving or a change of attitude
   does not touch them. With the parser's and the bookkeeper's lists left
-  uncached in the message, the same turn would be $0.0245 to $0.0292.
+  uncached in the message, the same turn would be $0.0345 to $0.0407.
 - What the narrator's packet carries, and why it is bigger than it was:
   everyone in the scene with their traits, what they want and their secret
   (about 90 tokens a person, and one rule line of about 110), your goal,
@@ -683,11 +686,12 @@ live API"), so check the Debug tab's cache reads on your first real session.
 - The chronicle (bookkeeper model, every 10 turns) is estimated at about
   1,000 input and 110 output tokens. Higher effort or the Opus model costs
   more. The Debug tab shows the real token counts and cost for the turn and
-  the session, and per role and model (for example `parser claude-haiku-5-5`)
+  the session, and per role and model (for example `parser claude-sonnet-5-5`)
   with each role's cache reads.
 - The felt wait: once the narration has streamed in, the input takes your
-  next move while the bookkeeper finishes (a few seconds), and the parser in
-  front of the narration is Haiku, the fastest of the three.
+  next move while the bookkeeper finishes (a few seconds). The parser runs
+  in front of the narration at low effort, so it is the quickest of the
+  three calls even on Sonnet.
 
 A live measurement from before this round, for scale: on 28 Oct 2026, with
 the original cheap defaults (Sonnet 5.5 narrating, Haiku 5.5 parsing and
@@ -861,14 +865,13 @@ flag), so the world matches what the narration is told.
 
 And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 15):
 SPEC.md sections 6 and 13 give one parser model to the parser, the
-bookkeeper and the chronicle. Settings has a Parser model (the parser only;
-Haiku 5.5 by default, the model SPEC.md named) and a Bookkeeper model (the
-bookkeeper, the chronicle and the updates of older games; Sonnet 5.5),
-because the parser's short, fixed job runs before anything is shown and
-wants the fastest model, while what the bookkeeper records is worth the
-dearer one. The parser's and the bookkeeper's lists of people and places
-go in a cached system block rather than the message (section 13 caches
-only the narrator's style guide).
+bookkeeper and the chronicle, and name Haiku for it. Settings has a Parser
+model (the parser only) and a Bookkeeper model (the bookkeeper, the
+chronicle and the updates of older games), both Sonnet 5.5 by default: the
+parser sets the difficulty of every roll, a judgement call the owner would
+rather pay for, and Haiku stays one edit away. The parser's and the
+bookkeeper's lists of people and places go in a cached system block rather
+than the message (section 13 caches only the narrator's style guide).
 
 And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 16):
 SPEC.md section 10's `parse_action` lists eighteen action types; it has a
@@ -909,14 +912,14 @@ Dewayne's house went through **Update this game**. The parser model answered
 to day 1, night (late). Three short actions after that all stayed at night.
 The whole check took 10 calls and cost $0.088.
 
-Not re-verified live: faster, cheaper turns (29 Oct 2026; Haiku 5.5 as the
-parser, the Bookkeeper model setting, and the parser's and bookkeeper's cast
-lists sent as a cached system block). They were built in a session with no
+Not re-verified live: faster, cheaper turns (29 Oct 2026; the Bookkeeper
+model setting, and the parser's and bookkeeper's cast lists sent as a cached
+system block). They were built in a session with no
 API key and checked only against mock mode and the canned API responses in
 `tests/api.test.cjs`, which check the request shape (the system prompt as two
 text blocks with `cache_control` on the second) but not the API's answer to
 it. To check them live: turn mock mode off, play two turns, type `/debug`
-and look under **API (claude)**. The `parser claude-haiku-5-5` and
+and look under **API (claude)**. The `parser claude-sonnet-5-5` and
 `bookkeeper claude-sonnet-5-5` lines should show "cache write" above zero
 after the first turn and "cache read" above zero from the second parse and
 bookkeeping of the session on (within five minutes of each other). A 400

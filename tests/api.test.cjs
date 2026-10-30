@@ -121,8 +121,8 @@ s.test('requests carry the four headers and a body the current API accepts, with
     assert.equal(r.body.output_config.effort, { parser: 'low', narrator: 'medium', bookkeeper: 'medium', chronicle: 'medium' }[r.role], r.role + ' effort');
   }
   const [parser, narrator, book] = reqs;
-  // A model per role (direction change 15): Haiku parses, Opus narrates, Sonnet bookkeeps.
-  assert.equal(parser.body.model, 'claude-haiku-5-5');
+  // A model per role (direction change 15, the parser back to Sonnet on 30 Oct 2026): Sonnet parses, Opus narrates, Sonnet bookkeeps.
+  assert.equal(parser.body.model, 'claude-sonnet-5-5');
   assert.equal(parser.body.max_tokens, 2000);
   assert.equal(narrator.body.model, 'claude-opus-5-5');
   assert.equal(narrator.body.max_tokens, 3000);
@@ -345,11 +345,10 @@ s.test('usage totals and cost per model appear in the debug tab, per role too; t
   await sendText(page, 'I ask the ferryman about the tide');
   await sendText(page, 'I ask the ferryman about the fare');
   const u = await page.evaluate(() => JSON.parse(JSON.stringify(Game.Api.usage)));
-  // Per turn: parser (Haiku 5.5) + bookkeeper (Sonnet 5.5), 300 in / 80 out each, + narrator (Opus 5.5).
-  const haiku = (read, write) => (300 * 0.1 + 80 * 0.5 + read * 0.01 + write * 0.1 * 1.25) / 1e6;
+  // Per turn: parser and bookkeeper (both Sonnet 5.5), 300 in / 80 out each, + narrator (Opus 5.5).
   const sonnet = (read, write) => (300 * 2 + 80 * 10 + read * 0.2 + write * 2 * 1.25) / 1e6;
-  const turn1 = haiku(0, 1200) + sonnet(0, 900) + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
-  const turn2 = haiku(1200, 0) + sonnet(900, 0) + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
+  const turn1 = sonnet(0, 1200) + sonnet(0, 900) + (1000 * 4 + 50 * 20 + 700 * 4 * 1.25) / 1e6;
+  const turn2 = sonnet(1200, 0) + sonnet(900, 0) + (1000 * 4 + 50 * 20 + 700 * 0.2) / 1e6;
   assert.equal(u.turn.calls, 3);
   assert.equal(u.turn.input, 1600);
   assert.equal(u.turn.output, 210);
@@ -363,7 +362,7 @@ s.test('usage totals and cost per model appear in the debug tab, per role too; t
   assert.ok(dbg.includes(`turn: 3 calls, in 1600, out 210, cache read 2800, cache write 0, $${turn2.toFixed(4)}`), dbg);
   assert.ok(dbg.includes(`session: 6 calls, in 3200, out 420, cache read 2800, cache write 2800, $${(turn1 + turn2).toFixed(4)}`));
   // Per role and model, so each role's cache reads show.
-  assert.ok(dbg.includes(`  parser claude-haiku-5-5: 2 calls, in 600, out 160, cache read 1200, cache write 1200, $${(haiku(0, 1200) + haiku(1200, 0)).toFixed(4)}`), dbg);
+  assert.ok(dbg.includes(`  parser claude-sonnet-5-5: 2 calls, in 600, out 160, cache read 1200, cache write 1200, $${(sonnet(0, 1200) + sonnet(1200, 0)).toFixed(4)}`), dbg);
   assert.ok(dbg.includes(`  bookkeeper claude-sonnet-5-5: 2 calls, in 600, out 160, cache read 900, cache write 900, $${(sonnet(0, 900) + sonnet(900, 0)).toFixed(4)}`), dbg);
   assert.match(dbg, /\n {2}narrator claude-opus-5-5: 2 calls, in 2000, out 100, cache read 700, cache write 700, \$/);
   assert.match(dbg, /API \(claude\)/i);

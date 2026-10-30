@@ -1094,7 +1094,7 @@ s.test('the narrator system prompt follows the Narration style setting and is by
   assert.notEqual(r.sys[0], r.sys[2], 'the prompt switched with the setting');
   // A bad value reads as the default, casual; the settings version is untouched.
   const st = await page.evaluate(() => [Game.Storage.saveSettings({ narrationStyle: 'purple' }).narrationStyle, Game.Storage.settings().settingsVersion, Game.Style.current()]);
-  assert.deepEqual(st, ['casual', 3, 'casual']);
+  assert.deepEqual(st, ['casual', 4, 'casual']);
 });
 
 s.test('Api exposes the provider interface and builds requests per API_NOTES', async h => {

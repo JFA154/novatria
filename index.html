@@ -1038,14 +1038,14 @@ select.input { padding-right: 32px; }
                 </div>
                 <div>
                   <label class="label" for="set-parser-model">Parser model</label>
-                  <input class="input" id="set-parser-model" spellcheck="false" placeholder="claude-haiku-5-5" aria-describedby="set-models-hint">
+                  <input class="input" id="set-parser-model" spellcheck="false" placeholder="claude-sonnet-5-5" aria-describedby="set-models-hint">
                 </div>
                 <div>
                   <label class="label" for="set-bookkeeper-model">Bookkeeper model</label>
                   <input class="input" id="set-bookkeeper-model" spellcheck="false" placeholder="claude-sonnet-5-5" aria-describedby="set-models-hint">
                 </div>
               </div>
-              <p class="hint" id="set-models-hint">Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-haiku-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).</p>
+              <p class="hint" id="set-models-hint">Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-sonnet-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).</p>
             </div>
             <div class="field">
               <span class="label">Effort</span>
@@ -12597,27 +12597,31 @@ const Storage = (() => {
   const SLOTS = 3;
   const SAVE_KIND = 'novatria-save';
   /* Defaults chosen for the best play-through rather than the cheapest: the
-     current Opus writes the story, the current Haiku turns the player's
-     text into an action (a short, fixed job where speed matters: it runs
-     before anything is shown), the current Sonnet does the bookkeeping, the
-     chronicle and the Upgrade calls, and the roles that need judgement
-     think a little harder. settingsVersion lets init() upgrade settings
-     saved under earlier defaults while keeping anything the player typed in
-     themselves: v1 (Sonnet narrator, Haiku parser, all effort low) and v2
-     (one "parser model", Sonnet, for the parser, bookkeeper, chronicle and
-     Upgrade; v3 splits it into parserModel and bookkeeperModel). A parser
-     model saved at its version's default becomes the current pair; any
-     other model the player typed is kept for both roles. narrationStyle
+     current Opus writes the story, the current Sonnet turns the player's
+     text into an action (the parser sets the difficulty, and with a social
+     success binding that is where the doubt lives: a judgement call, so not
+     the cheap model), does the bookkeeping, the chronicle and the Upgrade
+     calls, and the roles that need judgement think a little harder.
+     settingsVersion lets init() upgrade settings saved under earlier
+     defaults while keeping anything the player typed in themselves: v1
+     (Sonnet narrator, Haiku parser, all effort low), v2 (one "parser
+     model", Sonnet, for the parser, bookkeeper, chronicle and Upgrade), v3
+     (the field split into parserModel, Haiku, and bookkeeperModel, Sonnet)
+     and v4 (the parser back to Sonnet: the owner wants the best
+     play-through). A parser model saved at its version's default becomes
+     the current default; any other model the player typed is kept (from v1
+     and v2, for both roles, since one field drove both). narrationStyle
      (casual or literary) and inputMode (the composer's Do / Say toggle,
      remembered per browser) are newer fields: a settings object without
      them gets the defaults, and the version is not involved. */
-  const SETTINGS_VERSION = 3;
+  const SETTINGS_VERSION = 4;
   const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
   const V2_DEFAULTS = { parserModel: 'claude-sonnet-5-5' };
+  const V3_DEFAULTS = { parserModel: 'claude-haiku-5-5' };
   const DEFAULTS = {
     settingsVersion: SETTINGS_VERSION,
     narratorModel: 'claude-opus-5-5',
-    parserModel: 'claude-haiku-5-5',
+    parserModel: 'claude-sonnet-5-5',
     bookkeeperModel: 'claude-sonnet-5-5',
     effort: { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' },
     showRolls: true,
@@ -12661,6 +12665,10 @@ const Storage = (() => {
     if (narr && !(legacy && narr === V1_DEFAULTS.narratorModel)) s.narratorModel = narr;
     if (version >= SETTINGS_VERSION) {
       if (pars) s.parserModel = pars;
+      if (book) s.bookkeeperModel = book;
+    } else if (version === 3) {
+      // v3 put Haiku in front of the parser for a day; a parser left at that default follows Sonnet, anything typed is kept.
+      if (pars && pars !== V3_DEFAULTS.parserModel) s.parserModel = pars;
       if (book) s.bookkeeperModel = book;
     } else if (pars && pars !== (legacy ? V1_DEFAULTS : V2_DEFAULTS).parserModel) {
       // One model for every role but the narrator, typed by the player: kept for both.

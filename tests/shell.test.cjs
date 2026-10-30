@@ -566,14 +566,14 @@ s.test('settings screen has every field with the documented defaults', async h =
   await page.click('#btn-settings');
   assert.equal(await page.inputValue('#set-narrator-model'), 'claude-opus-5-5');
   // A model per role (direction change 15): the parser model parses, the bookkeeper model does the rest.
-  assert.equal(await page.inputValue('#set-parser-model'), 'claude-haiku-5-5');
+  assert.equal(await page.inputValue('#set-parser-model'), 'claude-sonnet-5-5');
   assert.equal(await page.inputValue('#set-bookkeeper-model'), 'claude-sonnet-5-5');
   const models = await page.evaluate(() => ['narrator', 'parser', 'bookkeeper'].map(r => {
     const input = document.getElementById(`set-${r}-model`);
     return { label: document.querySelector(`label[for="set-${r}-model"]`).textContent, placeholder: input.placeholder, hint: document.getElementById(input.getAttribute('aria-describedby')).textContent, visible: input.offsetParent !== null };
   }));
-  assert.deepEqual(models.map(m => [m.label, m.placeholder, m.visible]), [['Narrator model', 'claude-opus-5-5', true], ['Parser model', 'claude-haiku-5-5', true], ['Bookkeeper model', 'claude-sonnet-5-5', true]]);
-  assert.equal(models[0].hint, 'Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-haiku-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).');
+  assert.deepEqual(models.map(m => [m.label, m.placeholder, m.visible]), [['Narrator model', 'claude-opus-5-5', true], ['Parser model', 'claude-sonnet-5-5', true], ['Bookkeeper model', 'claude-sonnet-5-5', true]]);
+  assert.equal(models[0].hint, 'Narrator: writes the story (default claude-opus-5-5). Parser: turns what you type into an action (default claude-sonnet-5-5). Bookkeeper: records what changed after each turn, writes the chronicle and updates older games (default claude-sonnet-5-5).');
   for (const role of ['narrator', 'parser', 'bookkeeper', 'chronicle']) {
     assert.equal(await page.inputValue(`#set-effort-${role}`), { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' }[role], role + ' effort');
     assert.deepEqual(await page.$$eval(`#set-effort-${role} option`, o => o.map(x => x.value)), ['low', 'medium', 'high']);
