@@ -419,3 +419,10 @@ Region: the Style module and the mock provider. Tests:
   the real call is given.
 - The two hooks that called the player "they" name the player instead, so
   `secondPerson` tells them as "you" ("asks where you served").
+- The mock reads what wave 2's engine decides before the narration: the
+  third hit's knockdown (`ctx.knockedDown`: "goes down hard and stays
+  down"), the arrest (`ctx.arrest.plan`, told to "you"), a card-game
+  accusation without a marked deck (`ctx.gamble.accused`: out for the
+  night) and a bar shut for the day ("The place is shut today, so there is
+  no game."). `tests/wave2-fixes.test.cjs` checks the first three in the
+  narration.
