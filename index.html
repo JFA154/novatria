@@ -18610,7 +18610,10 @@ const UI = (() => {
     setInert(false);
     syncTabbar();
     // The focus goes back to what opened the sheet, else to its tab in the tab bar (a sheet opened from code), never the page.
-    if (was && silent !== true && screen === 'game') {
+    // (Turned into a laptop with the sheet open, the panel stays on screen: what has the focus in it keeps it.)
+    const a = document.activeElement;
+    const lost = !a || a === document.body || (isMobile() && d.panel.contains(a));
+    if (was && silent !== true && screen === 'game' && lost) {
       const to = [sheetOpener, $(`[data-open-tab="${tab}"]`)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
       if (to) moveFocus(to);
     }
