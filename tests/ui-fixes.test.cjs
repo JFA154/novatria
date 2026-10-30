@@ -1973,7 +1973,8 @@ s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the en
   // Replacing an autosave that is in no slot asks, and says where to get it back.
   await page.evaluate(() => { Game.Storage.deleteSlot(1); Game.UI.showScreen('game'); Game.Storage.saveSettings({ playChoice: 'demo' }); window.__q = Game.App.newGame(); });
   if (await page.evaluate(() => document.getElementById('ask').open)) {
-    assert.match(await page.textContent('#ask-text'), /and Saved games \(Load\) can bring it back\.$/);
+    // Changed by design in wave 5: the screen as the Menu names it.
+    assert.match(await page.textContent('#ask-text'), /and Save \/ Load can bring it back\.$/);
     await page.click('#ask-no');
   }
   // The newer-build note: one line at 375.
@@ -2401,6 +2402,393 @@ s.test('wave 4, copy: Save / Load in the storage warnings, the demo-off toast, c
   });
   assert.equal(dl.suggestedFilename(), want);
   assert.match(want, /-tomas-reed-day-\d+\.json$/);
+});
+
+// ----- W5. Wave 5 (docs/notes/ui.md, "Wave 5") -----
+
+/* The motion the player set: each wave-5 focus test runs with the sheet's slide (no-preference) and without it. */
+const MOTIONS = ['no-preference', 'reduce'];
+const openMotion = (h, vp, motion) => open(h, vp, { contextOptions: { reducedMotion: motion } });
+const MID = { width: 800, height: 800 };
+/* Where the focus is now, and whether that is inside the side panel. */
+const focusNow = page => page.evaluate(() => ({ f: window.__focusOf(), inPanel: document.getElementById('panel').contains(document.activeElement) }));
+
+s.test('wave 5, defect 1: focus in the laptop\'s panel is handed on at once when the window narrows past 900px, also while the sheet slides shut (no reduced motion), and on the way back', async h => {
+  for (const motion of MOTIONS) {
+    for (const [sel, t, want] of [['#tab-places', 'places', 'button[openTab=places]'], ['.plcard-head', 'places', '#send'], ['.map-expand', 'places', '#send'], ['#sp-spend', 'character', '#send'], ['.pcard-head', 'people', '#send']]) {
+      const page = await openMotion(h, LAPTOP, motion);
+      await quickStart(page);
+      await focusHelper(page);
+      await page.evaluate(id => Game.UI.openPanel(id), t);
+      await page.focus(sel);
+      assert.ok((await focusNow(page)).inPanel, `${sel}: in the panel first`);
+      await page.setViewportSize(PHONE);
+      await page.waitForTimeout(30);
+      const now = await focusNow(page);
+      await page.waitForTimeout(470);
+      const later = await focusNow(page);
+      const tag = `${motion}, ${sel} at 1280 → 375`;
+      assert.deepEqual([now.f, now.inPanel], [want, false], tag + ': at once (the sheet still sliding)');
+      assert.deepEqual([later.f, later.inPanel], [want, false], tag + ': once the slide is over');
+      if (sel === '#tab-places') {
+        await shot(page, `W5_1_narrowed_${motion}`);
+        // And back out: the tab row's button hands it to the panel's tab again.
+        await page.setViewportSize(LAPTOP);
+        await page.waitForTimeout(450);
+        assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-places', tag + ', and back');
+      }
+    }
+    // A phone's sheet → a laptop (the card keeps it in the panel) → a phone again (the panel is the shut sheet): Send, never the page.
+    const page = await openMotion(h, PHONE, motion);
+    await quickStart(page);
+    await focusHelper(page);
+    await page.click('[data-open-tab="places"]');
+    await page.waitForTimeout(350);
+    await page.focus('.plcard-head');
+    await page.setViewportSize(LAPTOP);
+    await page.waitForTimeout(30);
+    assert.match((await focusNow(page)).f, /^#plhead-/, `${motion}: the card keeps it on a laptop`);
+    await page.waitForTimeout(450);
+    assert.match((await focusNow(page)).f, /^#plhead-/, `${motion}: and after`);
+    await page.setViewportSize(PHONE);
+    await page.waitForTimeout(30);
+    assert.deepEqual(await focusNow(page), { f: '#send', inPanel: false }, `${motion}: phone → laptop → phone, at once`);
+    await page.waitForTimeout(470);
+    assert.deepEqual(await focusNow(page), { f: '#send', inPanel: false }, `${motion}: phone → laptop → phone, after the slide`);
+    // Widening, with the slide: the tab row's button → the panel's tab; the sheet's × → the panel's tab; Send stays.
+    for (const [sel, want] of [['[data-open-tab="people"]', '#tab-people'], ['#panel-close', '#tab-people'], ['#send', '#send']]) {
+      await page.setViewportSize(MID);
+      await page.waitForTimeout(400);
+      if (sel === '#panel-close') { await page.click('[data-open-tab="people"]'); await page.waitForTimeout(350); }
+      await page.focus(sel);
+      await page.setViewportSize(LAPTOP);
+      await page.waitForTimeout(30);
+      assert.equal((await focusNow(page)).f, want, `${motion}: ${sel} at 800 → 1280, at once`);
+      await page.waitForTimeout(450);
+      assert.equal((await focusNow(page)).f, want, `${motion}: ${sel} at 800 → 1280, after`);
+    }
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)), [], 'nothing inert left behind');
+  }
+});
+
+s.test('wave 5, defect 2: the Say picker keeps the typing layout while it has the focus with the keyboard up (740x200): the box, Send and the story stay on screen', async h => {
+  const LAND = { width: 740, height: 375 };
+  const KB = { width: 740, height: 200 };
+  const page = await openMotion(h, LAND, 'no-preference');
+  await quickStart(page);
+  await focusHelper(page);
+  await page.click('#mode-say');
+  await page.focus('#cmd');
+  await page.setViewportSize(KB);
+  await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+  await page.focus('#say-pick');
+  // Longer than the box's 250 ms look again after its blur.
+  await page.waitForTimeout(450);
+  const layout = () => page.evaluate(() => {
+    const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
+    const inView = b => !!b && b.top >= 0 && b.bottom <= innerHeight + 0.5 && b.left >= 0 && b.right <= innerWidth + 0.5;
+    return {
+      typing: document.getElementById('app').classList.contains('typing'),
+      topbar: getComputedStyle(document.querySelector('#screen-game .topbar')).display,
+      tabrow: getComputedStyle(document.querySelector('.tabrow')).display,
+      story: Math.round(r('feed-scroll').height),
+      box: inView(r('cmd')), send: inView(r('send')), pick: inView(r('say-pick')),
+      focus: window.__focusOf()
+    };
+  });
+  const m = await layout();
+  assert.deepEqual([m.typing, m.topbar, m.tabrow, m.box, m.send, m.pick, m.focus], [true, 'none', 'none', true, true, true, '#say-pick'], JSON.stringify(m));
+  assert.ok(m.story >= 90, 'the story keeps its strip: ' + m.story);
+  await shot(page, 'W5_2_picker_focus_740x200');
+  // A pick: the focus stays on the picker, the layout too.
+  const other = await page.evaluate(() => { const o = [...document.querySelectorAll('#say-pick option')].find(x => x.value !== 'everyone'); return o ? o.value : null; });
+  if (other) {
+    await page.selectOption('#say-pick', other);
+    await page.waitForTimeout(350);
+    const m2 = await layout();
+    assert.deepEqual([m2.typing, m2.focus, m2.box, m2.send], [true, '#say-pick', true, true], JSON.stringify(m2));
+  }
+  // Back to the box: still typing; left for the toggle with the keyboard down: the bars come back.
+  await page.focus('#cmd');
+  await page.waitForTimeout(300);
+  assert.equal((await layout()).typing, true);
+  await page.focus('#mode-say');
+  await page.setViewportSize(LAND);
+  await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+  assert.equal(await page.evaluate(() => window.__focusOf()), '#mode-say');
+  assert.deepEqual(await overflowReport(page, 740), []);
+});
+
+s.test('wave 5, defect 3: the phone\'s Menu closes when the window widens past 900px, and its focus goes to the laptop\'s own button for the item, never the page', async h => {
+  for (const motion of MOTIONS) {
+    const page = await openMotion(h, PHONE, motion);
+    await quickStart(page);
+    await focusHelper(page);
+    for (const [item, want] of [['saves', '#tb-save'], ['settings', '#tb-settings'], ['actions', '#act-btn'], ['title', '#tb-panel']]) {
+      await page.setViewportSize(PHONE);
+      await page.waitForTimeout(150);
+      await page.focus('#tb-menu');
+      await page.keyboard.press('Enter');
+      assert.equal(await page.evaluate(() => document.getElementById('menu-pop').hidden), false);
+      await page.focus(`#menu-pop [data-menu="${item}"]`);
+      await page.setViewportSize(LAPTOP);
+      await page.waitForTimeout(300);
+      const r = await page.evaluate(() => ({ open: !document.getElementById('menu-pop').hidden, exp: document.getElementById('tb-menu').getAttribute('aria-expanded'), f: window.__focusOf() }));
+      assert.deepEqual(r, { open: false, exp: 'false', f: want }, `${motion}: ${item}`);
+      if (item === 'saves') await shot(page, `W5_3_menu_widened_${motion}`);
+      // Escape now does nothing to the focus.
+      await page.keyboard.press('Escape');
+      assert.equal(await page.evaluate(() => window.__focusOf()), want, `${motion}: ${item}, then Escape`);
+    }
+    // Open with the focus on Menu itself (no item): Panel.
+    await page.setViewportSize(PHONE);
+    await page.waitForTimeout(150);
+    await page.click('#tb-menu');
+    await page.focus('#tb-menu');
+    await page.setViewportSize(LAPTOP);
+    await page.waitForTimeout(300);
+    assert.deepEqual(await page.evaluate(() => [document.getElementById('menu-pop').hidden, window.__focusOf()]), [true, '#tb-panel']);
+  }
+});
+
+s.test('wave 5, defect 4: a third line typed while one waits stays in the box, the status line says "One line is already waiting. Press × to change it." (whole, at 320 and 375), and so does Send\'s title', async h => {
+  const FULL = 'One line is already waiting. Press × to change it.';
+  for (const vp of [{ width: 320, height: 640 }, PHONE, LAPTOP]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await fast(page);
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 3000)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    await page.fill('#cmd', 'I ask about work');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
+    // One line may wait: Send says so.
+    await page.fill('#cmd', 'I tell him about the fuel pumps');
+    assert.equal(await page.getAttribute('#send', 'title'), 'Send: it runs as soon as this turn is done');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => !document.getElementById('queued-note').hidden);
+    // A second may not: the title says why before it is pressed.
+    await page.fill('#cmd', 'And a third line');
+    assert.equal(await page.getAttribute('#send', 'title'), FULL);
+    assert.equal(await page.textContent('#send'), 'Send');
+    for (const how of ['Enter', 'click']) {
+      if (how === 'Enter') await page.press('#cmd', 'Enter'); else await page.click('#send');
+      const m = await page.evaluate(() => {
+        const st = document.getElementById('turn-status');
+        const t = document.getElementById('turn-status-text');
+        const r = st.getBoundingClientRect();
+        return { text: t.textContent, nudge: st.classList.contains('nudge'), cut: t.scrollWidth > t.clientWidth + 0.5 || t.scrollHeight > t.clientHeight + 0.5, inView: r.top >= 0 && r.bottom <= innerHeight, box: document.getElementById('cmd').value, queued: Game.Pipeline.queued, pill: !document.getElementById('queued-note').hidden };
+      });
+      assert.deepEqual(m, { text: FULL, nudge: true, cut: false, inView: true, box: 'And a third line', queued: 'I tell him about the fuel pumps', pill: true }, `${vp.width}, ${how}: ` + JSON.stringify(m));
+    }
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+    await shot(page, `W5_4_third_line_${vp.width}`, { clip: { x: 0, y: vp.height - 170, width: vp.width, height: 170 } });
+    // The queued line runs; the third is still in the box, and Send is Send again.
+    await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 20000 });
+    assert.equal(await page.inputValue('#cmd'), 'And a third line');
+    assert.equal(await page.getAttribute('#send', 'title'), 'Send');
+  }
+});
+
+s.test('wave 5, defect 5: a phone on its side with the keyboard up and a sentence typed keeps 90px or more of story (a narrower picker, the box three lines at most), and the / list shows three one-line commands', async h => {
+  const LAND = { width: 740, height: 375 };
+  const KB = { width: 740, height: 200 };
+  const SHORT = 'Anybody here hiring a mechanic who knows fuel pumps?';
+  const LONG = 'I lean on the counter and ask the man behind it whether anybody in this town is hiring a mechanic who knows fuel pumps and diesel engines, and I tell him I can start today, tonight if he likes, and that I will work the first week for nothing but a cot';
+  for (const say of [true, false]) {
+    const page = await open(h, LAND);
+    await quickStart(page);
+    if (say) await page.click('#mode-say');
+    await page.focus('#cmd');
+    await page.setViewportSize(KB);
+    await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+    const measure = () => page.evaluate(() => {
+      const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
+      const box = document.getElementById('cmd');
+      const lh = parseFloat(getComputedStyle(box).lineHeight);
+      const pick = r('say-pick');
+      const small = [...document.querySelectorAll('.composer button, .composer select, .composer textarea')].filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')
+        .map(e => e.getBoundingClientRect()).filter(b => b.width < 43.5 || b.height < 43.5).length;
+      return { story: Math.round(r('feed-scroll').height), lines: Math.round((box.clientHeight - 20) / lh), scrolls: box.scrollHeight > box.clientHeight + 1, pick: pick ? Math.round(pick.width) : null, vw: innerWidth, send: r('send').bottom <= innerHeight, small };
+    });
+    for (const text of [SHORT, LONG]) {
+      await page.fill('#cmd', text);
+      await page.waitForTimeout(80);
+      const m = await measure();
+      const tag = `${say ? 'Say' : 'Do'}, ${text.length} characters: ${JSON.stringify(m)}`;
+      assert.ok(m.story >= 90, tag);
+      assert.ok(m.lines <= 3, 'three lines at most: ' + tag);
+      assert.ok(m.send && m.small === 0, tag);
+      if (say) assert.ok(m.pick && m.pick <= Math.ceil(m.vw * 0.24) + 1, 'the picker narrow: ' + tag);
+      if (text === LONG) assert.ok(m.scrolls, 'longer than three lines scrolls inside the box: ' + tag);
+    }
+    assert.deepEqual(await overflowReport(page, 740), []);
+    if (say) await shot(page, 'W5_5_land_kb_sentence');
+    // The / list: one line a command (44px rows), three of them whole, the list on screen.
+    await page.fill('#cmd', '/');
+    await page.waitForSelector('#ac:not([hidden])');
+    const ac = await page.evaluate(() => {
+      const list = document.getElementById('ac');
+      const r = list.getBoundingClientRect();
+      const rows = [...list.children].map(li => li.getBoundingClientRect());
+      return { top: Math.round(r.top), rows: rows.length, tall: rows.filter(b => b.height > 46).length, whole: rows.filter(b => b.top >= r.top - 1 && b.bottom <= r.bottom + 1).length };
+    });
+    assert.ok(ac.top >= 0 && ac.tall === 0 && ac.whole >= 3, JSON.stringify(ac));
+    if (say) await shot(page, 'W5_5_land_kb_slash');
+    // Keyboard down: the box sized again for its four lines at most (the whole sentence shows, nothing scrolls under three).
+    await page.keyboard.press('Escape');
+    await page.fill('#cmd', LONG);
+    await page.focus('#mode-do');
+    await page.setViewportSize(LAND);
+    await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
+    await page.waitForTimeout(100);
+    assert.equal((await measure()).lines, 4, 'four lines with the keyboard down');
+  }
+});
+
+/* Someone in the People tab who is away for the day now (school): the town's own, else one made so. */
+const awayToday = page => page.evaluate(() => {
+  const s = Game.state;
+  const wd = Game.State.weekday(s.time.day);
+  let n = s.npcs.find(x => x.awayOn && (x.awayOn.days || []).includes(wd) && (x.awayOn.phases || []).includes(s.time.phase) && x.alive !== false && x.status === 'free');
+  if (!n) { n = s.npcs.find(x => x.alive !== false && x.status === 'free' && !x.awayOn); n.awayOn = { days: [wd], phases: ['morning', 'afternoon', 'evening', 'night'], where: 'at the county school in Clayburn' }; }
+  n.knownToPlayer = true;
+  s.seen = s.seen || {};
+  s.seen[n.id] = { turn: 0, locationId: s.player.locationId, day: s.time.day, phase: s.time.phase };
+  Game.UI.openPanel('people');
+  return n.id;
+});
+const flagsOf = (page, id) => page.evaluate(id => {
+  const card = document.querySelector(`.pcard[data-npc="${id}"]`);
+  const body = document.getElementById('panel-body').getBoundingClientRect();
+  return [...card.querySelectorAll('[data-flag]')].map(f => { const r = f.getBoundingClientRect(); return { text: f.textContent, soft: f.classList.contains('soft'), inside: r.left >= body.left - 0.5 && r.right <= body.right + 0.5, cut: f.scrollWidth > f.clientWidth + 0.5, lines: Math.round(r.height / parseFloat(getComputedStyle(f).lineHeight)) }; });
+}, id);
+
+s.test('wave 5, defect 6: a long grey note on a person card wraps inside the laptop\'s panel (never cut off)', async h => {
+  for (const vp of [LAPTOP, PHONE]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    const id = await awayToday(page);
+    // The note made long on purpose, as the town's longest.
+    await page.evaluate(id => { const n = Game.State.npc(id); n.awayOn.where = 'at the county school in Clayburn, then the band practice behind the gym'; Game.UI.renderPanel(); }, id);
+    await page.waitForTimeout(300);
+    const flags = await flagsOf(page, id);
+    const soft = flags.find(f => f.soft);
+    assert.ok(soft && /county school/i.test(soft.text), JSON.stringify(flags));
+    assert.ok(soft.inside && !soft.cut, `${vp.width}: inside the panel: ` + JSON.stringify(soft));
+    if (vp === LAPTOP) assert.ok(soft.lines >= 2, 'wrapped: ' + JSON.stringify(soft));
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+    if (vp === LAPTOP) await shot(page, 'W5_6_soft_note_wraps', { clip: { x: 960, y: 100, width: 320, height: 700 } });
+  }
+});
+
+s.test('wave 5, defect 7: someone hurt who would also be away for the day has one flag, "Hurt until Day N"', async h => {
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  const id = await awayToday(page);
+  assert.equal((await flagsOf(page, id)).length, 1, 'away only: one grey note');
+  const day = await page.evaluate(id => { const s = Game.state; Game.State.npc(id).hurtUntilDay = s.time.day + 3; Game.UI.renderPanel(); return s.time.day; }, id);
+  const flags = await flagsOf(page, id);
+  assert.deepEqual(flags.map(f => [f.text, f.soft]), [[`Hurt until Day ${day + 3}`, false]]);
+  await shot(page, 'W5_7_hurt_one_flag_375');
+});
+
+s.test('wave 5, defect 8: in the ⋯ list\'s two columns (a phone on its side) Up and Down stay in a column and Left and Right go across; in one column they follow the list', async h => {
+  const page = await open(h, { width: 740, height: 375 });
+  await quickStart(page);
+  await focusHelper(page);
+  await page.evaluate(() => { Game.state.player.storyPoints = 2; });
+  await page.focus('#act-btn-m');
+  await page.keyboard.press('Enter');
+  const where = () => page.evaluate(() => { const a = document.activeElement; const r = a.getBoundingClientRect(); return { act: a.dataset.act, x: Math.round(r.left), y: Math.round(r.top) }; });
+  const cols = await page.evaluate(() => getComputedStyle(document.getElementById('act-pop')).gridTemplateColumns.split(' ').length);
+  assert.equal(cols, 2);
+  const seq = [];
+  for (const k of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) { await page.keyboard.press(k); seq.push((await where()).act); }
+  // Down the first column (Look around, Sleep, Undo, Commands help), on to the head of the second (Wait until…, Recap, Spend), and round.
+  assert.deepEqual(seq, ['rest', 'undo', 'help', 'wait', 'recap', 'fact', 'look']);
+  const a = await where();
+  await page.keyboard.press('ArrowRight');
+  const b = await where();
+  assert.deepEqual([b.act, b.y === a.y, b.x > a.x], ['wait', true, true], 'Right: across the row');
+  await page.keyboard.press('ArrowRight');
+  assert.equal((await where()).act, 'wait', 'Right at the edge: stays');
+  await page.keyboard.press('ArrowDown');
+  const c = await where();
+  assert.deepEqual([c.act, c.x === b.x, c.y > b.y], ['recap', true, true], 'Down: the item below');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal((await where()).act, 'rest', 'Left: across the row');
+  await page.keyboard.press('ArrowUp');
+  assert.equal((await where()).act, 'look');
+  await page.keyboard.press('ArrowUp');
+  assert.equal((await where()).act, 'fact', 'Up from the top: the foot of the last column');
+  await page.keyboard.press('Home');
+  assert.equal((await where()).act, 'look');
+  await page.keyboard.press('End');
+  assert.equal((await where()).act, 'fact');
+  // An item that is off is passed over.
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { Game.state.player.storyPoints = 0; });
+  await page.focus('#act-btn-m');
+  await page.keyboard.press('Enter');
+  for (const k of ['ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) await page.keyboard.press(k);
+  assert.equal((await where()).act, 'look', 'six steps round six items');
+  await shot(page, 'W5_8_two_columns');
+  await page.keyboard.press('Escape');
+  // Upright, one column: Down follows the list, Left and Right do nothing.
+  await page.setViewportSize(PHONE);
+  await page.waitForTimeout(150);
+  await page.evaluate(() => { Game.state.player.storyPoints = 2; });
+  await page.focus('#act-btn-m');
+  await page.keyboard.press('Enter');
+  const one = [];
+  for (const k of ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown']) { await page.keyboard.press(k); one.push((await where()).act); }
+  assert.deepEqual(one, ['wait', 'rest', 'rest', 'recap']);
+});
+
+s.test('wave 5, defect 9: a sheet opened by code never takes the hidden heading (or anything hidden) as its opener: Escape and Go there give the focus to the tab row\'s button', async h => {
+  for (const motion of MOTIONS) {
+    const page = await openMotion(h, PHONE, motion);
+    await quickStart(page);
+    await focusHelper(page);
+    // The phone's game screen puts the focus on its heading, for screen readers.
+    assert.equal(await page.evaluate(() => window.__focusOf()), '#game-title');
+    await page.evaluate(() => Game.UI.openPanel('places'));
+    await page.waitForTimeout(350);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(350);
+    assert.equal(await page.evaluate(() => window.__focusOf()), 'button[openTab=places]', `${motion}: Escape`);
+    // Opened by code again from the heading, then Go there: the tab row's button holds the focus through the walk and after.
+    await page.evaluate(() => document.getElementById('game-title').focus());
+    const to = await page.evaluate(() => {
+      const s = Game.state;
+      const l = s.locations.find(x => x.discovered && x.id !== s.player.locationId && x.away !== true && !Game.State.isClosed(x));
+      Game.UI.openPanel('places');
+      Game.UI.togglePlace(l.id, true);
+      return l.id;
+    });
+    await page.waitForTimeout(350);
+    const r = await acrossTurn(page, () => page.click(`.plcard [data-go="${to}"]`));
+    assert.ok(!r.during.includes('#game-title') && !r.during.includes('BODY'), `${motion}, during: ` + r.during);
+    assert.equal(r.after, 'button[openTab=places]', `${motion}, after: ` + r.after);
+    assert.deepEqual(r.inert, [], 'nothing inert left behind');
+    // Nor a control that is hidden when the sheet opens (Menu, hidden for the moment): the tab row's button again.
+    await page.evaluate(() => { const m = document.getElementById('tb-menu'); m.focus(); m.style.visibility = 'hidden'; Game.UI.openPanel('journal'); m.style.visibility = ''; });
+    await page.waitForTimeout(350);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(350);
+    assert.equal(await page.evaluate(() => window.__focusOf()), 'button[openTab=journal]', `${motion}: from a hidden control`);
+  }
+});
+
+s.test('wave 5, copy: the box\'s placeholder before the first draw, the offline demo named once in Settings', async h => {
+  const html = fs.readFileSync(GAME_PATH, 'utf8');
+  assert.ok(html.includes('placeholder="What do you do? (/ or &#8943; for commands)"'), 'the markup placeholder names ⋯');
+  assert.ok(!html.includes('(/ for commands)'));
+  const page = await open(h, LAPTOP);
+  await page.click('#btn-settings');
+  assert.equal((await page.evaluate(() => document.getElementById('set-mock').parentElement.textContent)).trim(), 'Offline demo: canned replies, no API calls');
+  await quickStart(page);
+  assert.equal(await page.getAttribute('#cmd', 'placeholder'), 'What do you do? (/ or ⋯ for commands)', 'and as drawn on a laptop');
 });
 
 s.run();

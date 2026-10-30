@@ -909,6 +909,8 @@ select.input { padding-right: 32px; }
 .queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .turn-status.nudge { color: var(--text); }
+/* A nudge beside a queued line ("One line is already waiting. Press × to change it.") is said whole: it wraps beside the pill for its few seconds. */
+.turn-status.nudge.has-queued #turn-status-text { flex: 1 1 auto; max-width: none; white-space: normal; }
 .send-btn.stop { background: var(--surface-2); border-color: var(--danger); color: var(--text); }
 .send-btn.stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--danger); }
 /* The ⋯ actions button and its list. */
@@ -985,7 +987,9 @@ details.people-group > summary::-webkit-details-marker { display: none; }
 details.people-group > summary h3 { margin: 0; flex: 1; }
 details.people-group > summary::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: 8px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 details.people-group[open] > summary::after { transform: rotate(-135deg); }
-.pcard-flag { color: var(--danger); white-space: nowrap; }
+/* A flag takes a line of its own when it does not fit beside the meter, and wraps when it is longer than the card is wide
+   ("At the county school in Clayburn until evening" in the 320px laptop panel), never cut off. */
+.pcard-flag { color: var(--danger); min-width: 0; overflow-wrap: anywhere; }
 .pcard-flag.soft { color: var(--muted); }
 /* The editor: Save / Cancel stay in reach at the bottom of the panel. */
 /* The fields scroll clear of that bar (and a focused field is moved above it: UI.keepFieldClear). */
@@ -1117,6 +1121,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   /* The ⋯ list in two columns, so all of it fits above the box (with the keyboard up it scrolls, the last items in reach). */
   .act-pop { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: min(460px, calc(100vw - 24px)); }
   .act-pop .act-h { grid-column: 1 / -1; }
+  /* The command list: one line a command, as on a laptop (there is room across), so more of them show above the box (UI.renderAc lets it use the story's strip). */
+  .ac li { flex-wrap: nowrap; row-gap: 0; padding: 11px 10px; }
+  .ac-desc { flex: 0 1 auto; margin-left: auto; white-space: nowrap; font-size: 13px; line-height: inherit; }
   /* Typing: the top bar steps aside too, and the Say row is the picker alone, in the input row (UI.compactComposer), so the story keeps its room. */
   #app.typing #screen-game .topbar { display: none; }
   #app.typing .composer-inner { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 4px; }
@@ -1124,9 +1131,12 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   #app.typing .turn-status { flex: 1 0 100%; }
   #app.typing .mode-toggle { order: 1; }
   #app.typing #act-btn { order: 2; }
-  #app.typing .say-to { order: 3; flex: 0 1 auto; min-width: 0; max-width: 30vw; margin: 0; overflow: visible; }
-  #app.typing .say-to .say-pick { position: static; min-width: 9em; max-width: 100%; box-shadow: none; }
+  /* The picker narrow (its list names everyone in full), so the box beside it is wide enough that a sentence takes two lines, not three. */
+  #app.typing .say-to { order: 3; flex: 0 1 auto; min-width: 0; max-width: 24vw; margin: 0; overflow: visible; }
+  #app.typing .say-to .say-pick { position: static; min-width: 7.5em; max-width: 100%; padding-left: 12px; box-shadow: none; }
   #app.typing .input-wrap { order: 4; flex: 1 1 0; min-width: 120px; }
+  /* At most three lines of box (then it scrolls; UI.autosize), so the story keeps 90px or more whatever is typed. */
+  #app.typing .cmd-input { max-height: calc(3 * 1.45 * 16px + 22px); }
   #app.typing .send-btn { order: 5; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1313,7 +1323,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <div class="input-wrap">
                 <textarea id="cmd" class="cmd-input" rows="1" enterkeyhint="send" autocomplete="off" spellcheck="true"
                   aria-label="Your action" aria-autocomplete="list" aria-controls="ac" aria-expanded="false"
-                  placeholder="What do you do? (/ for commands)"></textarea>
+                  placeholder="What do you do? (/ or &#8943; for commands)"></textarea>
               </div>
               <button type="button" class="btn primary send-btn" id="send">Send</button>
             </div>
@@ -1363,7 +1373,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <details class="disclosure" id="set-advanced">
               <summary>Advanced</summary>
               <div class="field">
-                <label class="check"><input type="checkbox" id="set-mock"> Offline demo (mock mode): canned replies, no API calls</label>
+                <label class="check"><input type="checkbox" id="set-mock"> Offline demo: canned replies, no API calls</label>
               </div>
               <div class="field two">
                 <div>
@@ -18879,7 +18889,8 @@ const UI = (() => {
     d.actBtn.addEventListener('blur', syncTypingSoon);
     d.actPop.addEventListener('focusout', syncTypingSoon);
     // The Say picker of a phone on its side stays while it has the focus (a native list may be open over it); after, the row is drawn again.
-    d.sayTo.addEventListener('focusout', () => setTimeout(() => { if (screen === 'game') renderComposer(); }, 0));
+    // The picker holds the typing layout too (syncTyping), so leaving it, that is looked at again.
+    d.sayTo.addEventListener('focusout', () => { setTimeout(() => { if (screen === 'game') renderComposer(); }, 0); syncTypingSoon(); });
     d.send.addEventListener('click', () => sendOrStop());
     // ⋯: beside the toggle on a laptop, at the end of the tab row on a phone (so the box keeps its width).
     for (const b of [d.actBtn, d.actBtnM]) b.addEventListener('click', e => { e.stopPropagation(); if (d.actPop.hidden) openActions(b); else closeActions(true); });
@@ -18901,8 +18912,12 @@ const UI = (() => {
     mq.addEventListener('change', () => {
       // What had the focus may be a control this layout does not show (Panel, the box-side ⋯, the tab row): its stand-in takes it first.
       const lost = focusLostToLayout();
+      // The phone's Menu has no place on a laptop (its items are the top bar's own buttons there): it closes, its focus handed on below.
+      if (!isMobile()) closeMenu();
       setMapExpanded(false); if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); syncTip(); syncTyping();
       keepFocusThroughLayout(lost);
+      // Narrowed, the laptop's panel is the shut sheet, still drawn for its slide down (0.26s): looked at again once that is over.
+      afterSheetSlide(() => keepFocusThroughLayout(lost));
     });
     try { landMq.addEventListener('change', () => { syncTyping(); renderComposer(); }); } catch (e) { /* old browsers */ }
     // Where the focus last was, so a layout change that hides it (the box-side ⋯, Panel) can hand it on, never to the page.
@@ -18959,7 +18974,9 @@ const UI = (() => {
      never hidden from under the focus (Shift+Tab from the box, ⋯ then Look
      around). Once the keyboard is down and the list closed, the focus (and
      a turn's hold on it) goes first to the ⋯ in the tab row, then the
-     layout changes. */
+     layout changes. The Say picker ("To: …") holds it too while the
+     keyboard (or the picker wheel that takes its place on iOS) is up: the
+     box and Send stay on screen beside it, and the story keeps its strip. */
   let typingOff = null;
   function syncTypingSoon() { clearTimeout(typingOff); typingOff = setTimeout(() => { typingOff = null; syncTyping(); }, 250); }
   function syncTyping() {
@@ -18967,7 +18984,8 @@ const UI = (() => {
     const a = document.activeElement;
     const was = d.app.classList.contains('typing');
     const kb = keyboardUp();
-    let on = a === d.cmd && kb;
+    const onPick = was && !!a && a.id === 'say-pick' && d.sayTo.contains(a);
+    let on = (a === d.cmd || onPick) && kb;
     let handTo = null;
     if (!on && was && a && (a === d.actBtn || d.actPop.contains(a))) {
       if (kb || !d.actPop.hidden) on = true;
@@ -18977,15 +18995,19 @@ const UI = (() => {
       const compact = compactComposer();
       d.app.classList.toggle('typing', on);
       if (handTo) moveFocus(focusableNow(handTo) ? handTo : [d.send, d.cmd].find(focusableNow), a);
-      if (compact !== compactComposer()) renderComposer();
+      // On its side the box has three lines at most while typing, four otherwise (autosize).
+      if (compact !== compactComposer()) { renderComposer(); autosize(); }
       if (stick && screen === 'game') scrollToBottom();
     }
   }
   /* A phone on its side with the keyboard up: the top bar steps aside and Say is the picker alone, beside the box (CSS: #app.typing in landscape). */
   function compactComposer() { return isMobile() && landMq.matches && !!d.app && d.app.classList.contains('typing'); }
   /* A layout change (across 900px) can hide what has the focus: the
-     laptop's Panel, Save, Settings and box-side ⋯, or the phone's Menu, tab
-     row and the sheet's ×. Its stand-in in the new layout takes it. */
+     laptop's Panel, Save, Settings, box-side ⋯ and the whole side panel
+     (narrowed, it is the shut sheet), or the phone's Menu and its items, tab
+     row and the sheet's ×. Its stand-in in the new layout takes it. Run
+     again once the sheet's slide is over (afterSheetSlide): whatever has
+     the focus then and is on screen keeps it. */
   let lastFocus = null;
   function focusLostToLayout() {
     const a = document.activeElement;
@@ -18996,16 +19018,32 @@ const UI = (() => {
   function keepFocusThroughLayout(was) {
     if (screen !== 'game') return;
     const a = document.activeElement;
-    // Whatever has the focus now and is on screen keeps it.
+    // Whatever has the focus now and is on screen keeps it (not something in the shut sheet: focusableNow).
     if (a && a !== document.body && focusableNow(a)) return;
     const from = a && a !== document.body ? a : was;
     if (!from) return;
     const tabBtn = from.dataset && from.dataset.openTab ? document.getElementById('tab-' + from.dataset.openTab) : null;
     const stand = new Map([[d.actBtn, d.actBtnM], [d.actBtnM, d.actBtn], [d.tbSave, d.tbMenu], [d.tbSettings, d.tbMenu], [d.tbPanel, d.tbMenu],
       [d.tbMenu, d.tbPanel], [d.panelClose, document.getElementById('tab-' + tab)]]).get(from) || tabBtn;
+    // A Menu item: the laptop's own button for it (Save / Load, Settings, the box-side ⋯), else Panel, as for Menu itself.
+    const menuItem = d.menuPop.contains(from) ? ({ saves: d.tbSave, settings: d.tbSettings, actions: d.actBtn })[from.dataset.menu] || d.tbPanel : null;
+    // A tab of the laptop's panel: its button in the phone's tab row.
+    const rowBtn = from.dataset && from.dataset.tab && d.panelTabs.contains(from) ? $(`[data-open-tab="${from.dataset.tab}"]`) : null;
     // Else the composer's place for it (the box on a laptop, Send on a phone): never the page.
-    const to = [stand, isMobile() ? d.send : d.cmd, d.send].find(focusableNow);
+    const to = [menuItem, stand, rowBtn, isMobile() ? d.send : d.cmd, d.send].find(focusableNow);
     if (to) moveFocus(to, from);
+  }
+  /* fn once the phone sheet's slide is over (0.26s; at once under reduced motion), or after 400ms at most. */
+  function afterSheetSlide(fn) {
+    let timer = 0;
+    const done = e => {
+      if (e && (e.target !== d.panel || e.propertyName !== 'visibility')) return;
+      d.panel.removeEventListener('transitionend', done);
+      clearTimeout(timer);
+      fn();
+    };
+    d.panel.addEventListener('transitionend', done);
+    timer = setTimeout(done, 400);
   }
   function initViewport() {
     const vv = window.visualViewport;
@@ -19086,11 +19124,23 @@ const UI = (() => {
     return !why;
   }
   // ----- focus that is never dropped (wave 3) -----
-  /* Can take the focus now: on the page, shown, not inert, not off. */
+  /* Can take the focus now: on the page, shown, not inert, not off, and
+     not in the phone's sheet while it is shut (it stays drawn for its
+     0.26s slide down, then hides whatever is in it). */
   function focusableNow(node) {
     if (!node || !node.isConnected || node.disabled || !node.getClientRects().length) return false;
     if (node.closest('[inert], [hidden]')) return false;
+    if (inShutSheet(node)) return false;
     return getComputedStyle(node).visibility !== 'hidden';
+  }
+  function inShutSheet(node) { return isMobile() && !!d.panel && d.panel.contains(node) && !d.gameBody.classList.contains('sheet-open'); }
+  /* What may be the sheet's opener, which the focus goes back to when it
+     closes: a control on screen, in the page's tab order and outside the
+     panel. Never the game's visually hidden heading (the phone's game
+     screen focuses it, so a sheet opened by code would find it), never
+     something hidden or about to be. */
+  function openerOk(node) {
+    return !!node && node !== document.body && focusableNow(node) && node.tabIndex >= 0 && !node.closest('.visually-hidden') && !d.panel.contains(node);
   }
   /* Turn a control off without taking the focus from it: the one the
      player is on is marked aria-disabled (it stays focusable, dimmed, and
@@ -19347,23 +19397,37 @@ const UI = (() => {
     if (!d.menuPop || d.menuPop.hidden) return;
     d.menuPop.hidden = true;
     d.tbMenu.setAttribute('aria-expanded', 'false');
-    if (refocus) d.tbMenu.focus({ preventScroll: true });
+    // Back on Menu; a laptop has none (a window widened with it open): Panel stands in for it, never the page.
+    if (refocus) { const to = [d.tbMenu, d.tbPanel, d.cmd].find(focusableNow); if (to) moveFocus(to); }
   }
-  /* Up and down arrows (Home, End) move through a menu's items; Tab leaves it. */
+  /* Up and down arrows (Home, End) move through a menu's items; Tab leaves
+     it. In two columns (the ⋯ list on a phone on its side) Up and Down stay
+     in the column, on from the foot of one column to the head of the next,
+     and Left and Right go across to the item in the same row (or the
+     nearest one). */
   function wireMenuKeys(pop, close) {
     pop.addEventListener('keydown', e => {
+      if (e.key === 'Tab') { close(); return; }
+      const across = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+      if (!across && !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
       const items = $$('[role="menuitem"]', pop).filter(b => !b.hidden && !b.disabled);
-      const i = items.indexOf(document.activeElement);
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (!items.length) return;
-        const j = i < 0 ? 0 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-        items[j].focus();
-      } else if (e.key === 'Home' || e.key === 'End') {
-        e.preventDefault();
-        const it = e.key === 'Home' ? items[0] : items[items.length - 1];
-        if (it) it.focus();
-      } else if (e.key === 'Tab') close();
+      // Where each item is drawn: column by column, top to bottom, is the order Up and Down follow.
+      const at = new Map(items.map(b => { const r = b.getBoundingClientRect(); return [b, { x: Math.round(r.left), y: Math.round(r.top) }]; }));
+      const order = items.slice().sort((p, q) => at.get(p).x - at.get(q).x || at.get(p).y - at.get(q).y);
+      const cur = document.activeElement;
+      const i = order.indexOf(cur);
+      let to = null;
+      if (across) {
+        if (i < 0) return;
+        const cols = [...new Set(order.map(b => at.get(b).x))];
+        const col = cols[cols.indexOf(at.get(cur).x) + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (col === undefined) return; // one column, or the edge: nothing to go to
+        const y = at.get(cur).y;
+        to = order.filter(b => at.get(b).x === col).sort((p, q) => Math.abs(at.get(p).y - y) - Math.abs(at.get(q).y - y))[0];
+      } else if (e.key === 'Home' || e.key === 'End') to = e.key === 'Home' ? order[0] : order[order.length - 1];
+      else if (order.length) to = i < 0 ? order[0] : order[(i + (e.key === 'ArrowDown' ? 1 : -1) + order.length) % order.length];
+      e.preventDefault();
+      if (to) to.focus();
     });
   }
   // ----- the ⋯ actions list -----
@@ -19497,7 +19561,7 @@ const UI = (() => {
     const a = document.activeElement;
     const lost = !a || a === document.body || (isMobile() && d.panel.contains(a));
     if (was && silent !== true && screen === 'game' && lost) {
-      const to = [sheetOpener, $(`[data-open-tab="${tab}"]`), isMobile() ? null : document.getElementById('tab-' + tab)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
+      const to = [openerOk(sheetOpener) ? sheetOpener : null, $(`[data-open-tab="${tab}"]`), isMobile() ? null : document.getElementById('tab-' + tab)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
       if (to) moveFocus(to);
     }
     if (was) sheetOpener = null;
@@ -19507,7 +19571,8 @@ const UI = (() => {
     tab = id;
     renderPanel();
     if (isMobile()) {
-      if (!sheetOpener && document.activeElement && document.activeElement !== document.body) sheetOpener = document.activeElement;
+      // Opened from code: what has the focus is the opener only if it is a control in view (openerOk); else the tab row's button for the tab (closeSheet).
+      if (!sheetOpener && openerOk(document.activeElement)) sheetOpener = document.activeElement;
       openSheet();
     } else setCollapsed(false);
   }
@@ -19614,6 +19679,8 @@ const UI = (() => {
     try { again = $(key, d.panelBody); } catch (e) { again = null; }
     // The control is gone (a sort chip pressed, a card closed): the tab itself, never the page.
     if (!again || again.disabled || !again.getClientRects().length) again = document.getElementById('tab-' + tab);
+    // Drawn again in the phone's sheet while it slides shut: nothing there keeps the focus; the composer's place for it does.
+    if (again && inShutSheet(again)) again = [actButton(), d.send].find(focusableNow) || null;
     if (again) {
       // A turn's hold on the focus follows it (Go there gone after the walk: the tab holds it).
       moveFocus(again, active);
@@ -19744,7 +19811,8 @@ const UI = (() => {
     const hurt = State.isHurt(n);
     // "Until Day N" is the day it ends, for a hurt as for a ban: hurtUntilDay, the day they are about again, as the engine's note says it.
     if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt until Day ${Math.max(day + 1, n.hurtUntilDay)}`, hard: true });
-    if (isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
+    // Away for the day (school): not for someone hurt, who is laid up instead (the Hurt flag says it; the engine's note would say it twice).
+    if (!hurt && isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
       const note = State.absentNote(n) || '';
       out.push({ text: note ? capFirst(note) : `Away ${weekdayOf(day)}s${n.awayOn.where ? ' ' + n.awayOn.where : ''}`, hard: false });
     }
@@ -21439,7 +21507,8 @@ const UI = (() => {
     const lh = parseFloat(cs.lineHeight) || 24;
     const borders = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
     const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-    const max = lh * 4 + pad + borders;
+    // Four lines, then it scrolls; three on a phone on its side with the keyboard up, so the story keeps its strip (compactComposer).
+    const max = lh * (compactComposer() ? 3 : 4) + pad + borders;
     const want = ta.scrollHeight + borders;
     ta.style.height = Math.min(want, max) + 'px';
     ta.style.overflowY = want > max + 1 ? 'auto' : 'hidden';
@@ -21543,16 +21612,21 @@ const UI = (() => {
     (isMobile() ? d.send : d.cmd).focus({ preventScroll: true });
     return true;
   }
-  /* Enter while a turn runs (and nothing can be queued): the line stays in the box and the status line says why. */
-  function nudge() {
+  /* Enter while a turn runs (and nothing can be queued): the line stays in
+     the box and the status line says why. text: what it says instead
+     (QUEUE_FULL: a line typed while one already waits). */
+  function nudge(text) {
     if (!d.turnStatus || d.turnStatus.hidden) return;
     d.turnStatus.classList.add('nudge');
-    d.turnStatusText.textContent = 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.';
+    d.turnStatusText.textContent = text || 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.';
     clearTimeout(nudgeTimer);
     nudgeTimer = setTimeout(() => renderStatus(), 2600);
   }
   function turnRunning() { return busy || !!Pipeline.busy; }
   function canQueue() { return turnRunning() && Pipeline.acceptsQueue === true; }
+  /* A line (or a Wait) already waits in the Pipeline's queue, which keeps one: another stays in the box, and the status line and Send's title say why. */
+  function lineWaiting() { return canQueue() && (typeof Pipeline.queued === 'string' || status.queued); }
+  const QUEUE_FULL = 'One line is already waiting. Press × to change it.';
   // Stop also while the town is being updated (Pipeline.canStop: the narration stays), unless a line typed then is to be queued.
   function canStop() { return turnRunning() && Pipeline.canStop && !(canQueue() && d.cmd && d.cmd.value.trim()); }
   /* The button: Wait with nothing typed, Send, Stop while a turn runs (it
@@ -21572,7 +21646,7 @@ const UI = (() => {
       return;
     }
     d.send.textContent = empty ? 'Wait' : 'Send';
-    d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
+    d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : lineWaiting() ? QUEUE_FULL : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
     setOff(d.send, !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty)));
   }
   function sendOrStop() {
@@ -21626,6 +21700,8 @@ const UI = (() => {
       return;
     }
     if (turnRunning() && !canQueue()) { nudge(); return; }
+    // A third line while one waits: it stays in the box (the Pipeline keeps one), and the status line says so.
+    if (lineWaiting()) { nudge(QUEUE_FULL); return; }
     if (!canAct({ say: true, queue: true })) return;
     hideAc();
     d.cmd.value = '';
@@ -21635,7 +21711,7 @@ const UI = (() => {
     let res = null;
     try { res = await Pipeline.submit(text, { mode: composer.mode, to: composer.to }); } catch (e) { console.error(e); res = { restoreInput: true }; }
     if (res && res.queued) { status.queued = true; status.queuedText = text; renderStatus(); }
-    if (res && res.restoreInput) restoreAction(text);
+    if (res && res.restoreInput) { restoreAction(text); if (res.reason === 'busy' && lineWaiting()) nudge(QUEUE_FULL); }
     syncSendLabel();
     // A command that put the focus somewhere on purpose (/edit: the editor's name field) keeps it there.
     if (!isMobile() && screen === 'game' && !(res && res.keepFocus) && focusStillOnComposer()) d.cmd.focus({ preventScroll: true });
@@ -21667,6 +21743,12 @@ const UI = (() => {
     d.ac.hidden = false;
     d.cmd.setAttribute('aria-expanded', 'true');
     if (ac.index >= 0) d.cmd.setAttribute('aria-activedescendant', 'ac-' + ac.index); else d.cmd.removeAttribute('aria-activedescendant');
+    // A phone on its side with the keyboard up: the list may take the story's whole strip above it (one line a command there), not half the window.
+    d.ac.style.maxHeight = '';
+    if (compactComposer()) {
+      const room = Math.floor(d.ac.getBoundingClientRect().bottom - Math.max(0, d.app.getBoundingClientRect().top) - 4);
+      if (room > d.ac.clientHeight) d.ac.style.maxHeight = Math.min(320, room) + 'px';
+    }
   }
   function moveAc(step) {
     const n = ac.items.length;
@@ -22696,7 +22778,7 @@ const App = (() => {
   function askReplace(auto, what) {
     return UI.ask({
       title: 'Replace the autosave?',
-      text: `${UI.continueLine(auto)} is only in the autosave, not in a save slot. ${what} takes its place. A copy is kept as the previous autosave, and Saved games (Load) can bring it back.`,
+      text: `${UI.continueLine(auto)} is only in the autosave, not in a save slot. ${what} takes its place. A copy is kept as the previous autosave, and Save / Load can bring it back.`,
       yes: 'Go ahead',
       no: 'Keep it'
     });

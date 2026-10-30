@@ -732,3 +732,110 @@ its copy table. Tests: 9 new ones in `tests/ui-fixes.test.cjs` ("wave 4,
   styled as the heading; `placeLabel` reads an optional `typeLabel` the
   town's content does not use yet.
 - Tests: the "wave 4" tests in `tests/integration.test.cjs`.
+
+## Wave 5 (the round-4 visual, mobile and accessibility QA)
+
+Region as before: CSS, HTML, Storage, UI, App. Defects 1 to 9 of the
+round-4 UI report, its UI-side partly-fixed items (defects 2 and 5) and the
+UI rows of its copy table. Tests: 10 new ones in `tests/ui-fixes.test.cjs`
+("wave 5, …"), each failing on the build before; the focus tests run with
+`reducedMotion: 'no-preference'` as well as `'reduce'`; screenshots only
+with `UI_SHOTS`.
+
+### Focus (defects 1, 3, 8, 9)
+- 1: narrowed past 900px, the laptop's panel is the phone's shut sheet, which
+  stays drawn for its 0.26s slide down and only then hides
+  (`visibility` after the slide), so whatever had the focus in it looked
+  focusable for that time and was dropped after. `focusableNow` now says no
+  to anything in the panel while the sheet is shut (`inShutSheet`: a phone
+  layout without `sheet-open`), so the layout change hands it on at once: a
+  panel tab → its button in the tab row; a card, Expand map, Close map,
+  Spend → Send. `keepFocusThroughLayout` runs again once the slide is over
+  (`afterSheetSlide`: the panel's `visibility` transitionend, or 400ms at
+  most) and leaves alone whatever has the focus then. As `focusableNow` is
+  the one test, the turn's hold (`releaseTurnFocus`), `closeSheet`,
+  `closeActions` and `focusComposer` never pick something in a sheet that is
+  sliding shut either, and `renderPanel` drawing that sheet keeps nothing
+  there (the ⋯ in view, else Send). Phone → laptop → phone: the card keeps
+  the focus in the laptop's panel, then Send; the tab row's button → the
+  panel's tab and back.
+- 3: the phone's Menu closes when the window widens past 900px (the media
+  query's handler), and the focus on one of its items goes to the laptop's
+  own button for it: Save / Load → Save, Settings → Settings, Actions and
+  commands → the box-side ⋯, Title screen → Panel; on Menu itself → Panel
+  (as before). `closeMenu(true)` gives it to Menu, else Panel, else the box,
+  never to a Menu a laptop hides.
+- 8: the menus' arrow keys follow the layout as drawn (`wireMenuKeys`, by the
+  items' positions): in the ⋯ list's two columns (a phone on its side) Down
+  goes down the column and on from its foot to the head of the next (Up
+  back), Left and Right go across to the item in the same row, or the
+  nearest; Home and End are the first and last in that order. In one column
+  it is the list's order, as before; an item that is off is passed over.
+- 9: the sheet's opener (where the focus goes back when it closes) is only a
+  control on screen, in the tab order and outside the panel (`openerOk`):
+  never the game's visually hidden heading (which the phone's game screen
+  focuses, so a sheet opened by code found it), nor anything hidden. Else
+  the tab row's button for the tab: Escape, and Go there (through the walk
+  and after), give the focus to it.
+
+### Layout (defects 2, 4, 5, 6, 7)
+- 2: the Say picker (`#say-pick`) holds the typing layout as the box-side ⋯
+  does: `syncTyping` keeps `typing` while the picker has the focus and the
+  keyboard (or the iOS picker wheel in its place) is up; leaving it, the
+  layout is looked at again after 250ms (`syncTypingSoon` on the Say row's
+  focusout). At 740x200 the box and Send stay beside the picker and the story
+  keeps 137px (was 0, with the box and Send below the window); a pick keeps
+  the focus on the picker and the layout as it is.
+- 4: a third line while one waits (the Pipeline keeps one): Send's title is
+  "One line is already waiting. Press × to change it." as soon as one waits
+  (`lineWaiting`); pressed, or Enter, the line stays in the box (it is not
+  handed to the Pipeline) and the status line says the same for 2.6s,
+  wrapping beside the pill (`.turn-status.nudge.has-queued`) so it is read
+  whole at 320. A `busy` refusal that hands a line back says it too. Once
+  the queued line has run, Send's title is "Send" again.
+- 5: a phone on its side with the keyboard up: the picker beside the box is
+  narrower (at most 24vw, at least 7.5em; was 30vw and 9em), so the box is
+  about 300px at 740 and a sentence takes two lines, not three; the box
+  takes three lines at most there, then scrolls (`autosize`, and a CSS
+  max-height; four again once the keyboard is down), so the story keeps 90px
+  or more whatever is typed (115px with a 52-character sentence, 91px at
+  three lines; was 91px and 68px). The `/` list has one-line rows there
+  again (44px; they wrapped to 56px) and may use the story's strip above it
+  (`renderAc` sets its max-height from the room above, at most 320px): three
+  commands whole at 740x200 (was one and three quarters).
+- 6: the flags on a person card wrap (`.pcard-flag`: no `nowrap`,
+  `min-width: 0`): a long grey note ("At the county school in Clayburn until
+  evening") wraps inside the 320px laptop panel instead of running past it;
+  a short flag still takes a line of its own whole.
+- 7: someone hurt gets the Hurt flag alone: the away-for-the-day note (for
+  someone hurt, the engine's "hurt and laid up … until day N") is not added
+  beside it.
+
+### Words
+- The box's markup placeholder (before the first draw): "What do you do? (/
+  or ⋯ for commands)".
+- Settings → Advanced: "Offline demo: canned replies, no API calls".
+- "Replace the autosave?": "… and Save / Load can bring it back."
+- Send's title while a line waits: "One line is already waiting. Press × to
+  change it."
+- For the engine (not changed here): `State.absentNote`'s "until day N" →
+  "until Day N", and the offline demo's "not welcome there until day 9".
+
+### Tests changed by design
+- `tests/ui-fixes.test.cjs`, the wave-3 copy test: the replace-autosave
+  question ends "and Save / Load can bring it back."
+
+### README lines that change (the docs pass)
+- "the Saves screen" → "Save / Load": the `/save` and `/load` rows of the
+  commands table ("no name opens Save / Load"); Saves, export and import:
+  "Three named slots in Save / Load", "Save / Load lists it as 'Previous
+  autosave'", "Save / Load says when you last did"; Updating an older game:
+  "Save / Load marks each older slot".
+- How to play, step 5: after "runs as soon as the turn is done", add "A
+  third line typed while one waits stays in the box, and the line above
+  says 'One line is already waiting. Press × to change it.'"
+- Wait, ⋯ and Undo: "on a phone on its side the list is two columns" → add
+  "(the arrow keys go down a column and across a row)".
+- Do and Say (optional): on a phone on its side, while you type, the picker
+  is narrow and stays beside the box while it is open.
+- People (optional): someone hurt shows "Hurt until Day N" alone.
