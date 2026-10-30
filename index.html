@@ -3942,7 +3942,7 @@ const TOWN_DATA = {
             requires: { npcFree: ["npc_colt", "npc_marcus"] },
             effects: [
               { op: "npcStatus", npcId: "npc_colt", status: "arrested" },
-              { op: "setFlag", key: "coltArrested", value: true },
+              { op: "setFlag", key: "boatsPulledUp", value: true },
               { op: "factionRelation", a: "fac_police", b: "fac_nightrun", delta: -15 },
               { op: "clockAdjust", factionId: "fac_nightrun", delta: -2 },
               { op: "addRumour", rumour: {
@@ -3957,6 +3957,7 @@ const TOWN_DATA = {
               text: "Nikki Ballard catches Trent Haskins on the bridge approach at three in the morning with liquor cases under a tarp in the grain truck, and the Night Run pulls its boats up on the bank for a while.",
               effects: [
                 { op: "npcStatus", npcId: "npc_trent", status: "arrested" },
+                { op: "setFlag", key: "boatsPulledUp", value: true },
                 { op: "factionRelation", a: "fac_police", b: "fac_nightrun", delta: -15 },
                 { op: "clockAdjust", factionId: "fac_nightrun", delta: -2 },
                 { op: "addRumour", rumour: {
@@ -4228,7 +4229,8 @@ const TOWN_DATA = {
       effect: "Wade Purvis read Neal Haverty's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
       trigger: { type: "day", value: 3 },
       effects: [
-        { op: "addNews", text: "Wade Purvis read a lawyer's letter about the landing lease out loud at the Low Water and told Carter Sturdivant off in front of the whole bar.", factionId: "fac_nightrun", public: true }
+        { op: "addNews", text: "Wade Purvis read a lawyer's letter about the landing lease out loud at the Low Water and told Carter Sturdivant off in front of the whole bar.", factionId: "fac_nightrun", public: true },
+        { op: "clockAdjust", factionId: "fac_nightrun", delta: 1 }
       ],
       fired: false,
       hidden: true
@@ -4238,7 +4240,13 @@ const TOWN_DATA = {
       cause: "Wade Purvis has bought two hundred cartons and forty cases of liquor for the biggest run of the fall, and paid Travis Cagle to sit in the motel lot all night.",
       effect: "The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
       trigger: { type: "day", value: 4 },
-      requires: { npcFree: ["npc_marcus", "npc_wade"] },
+      requires: { npcFree: ["npc_marcus", "npc_wade", "npc_colt"], flagsUnset: ["boatsPulledUp"] },
+      effects: [
+        { op: "clockAdjust", factionId: "fac_nightrun", delta: 1 }
+      ],
+      alt: {
+        text: "Wade Purvis has two hundred cartons and forty cases of liquor stacked in the back of the bait shop for the biggest run of the fall, and the run has not gone; nobody at the landing will say when it will."
+      },
       fired: false,
       hidden: true
     },
@@ -4249,7 +4257,8 @@ const TOWN_DATA = {
       trigger: { type: "day", value: 4 },
       effects: [
         { op: "setFlag", key: "engineerNoShow", value: true },
-        { op: "addNews", text: "The engineer who wrote the bridge report will not come to Tuesday's council meeting after all.", public: true }
+        { op: "addNews", text: "The engineer who wrote the bridge report will not come to Tuesday's council meeting after all.", public: true },
+        { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 }
       ],
       fired: false,
       hidden: true
@@ -4276,7 +4285,7 @@ const TOWN_DATA = {
         { op: "addNews", text: "Brianna Tolliver nearly died on pills at Riverbend last night, and June Satterfield brought her back.", public: true }
       ],
       alt: {
-        text: "June Satterfield brought Brianna Tolliver back from an overdose last night and did not call it in; with Colt Purvis locked up, Tammy Lott is telling everyone at the Low Water that Trent Haskins is selling Colt's pills now.",
+        text: "June Satterfield brought Brianna Tolliver back from an overdose last night and did not call it in; with Colt Purvis locked up, Tammy Lott is telling everyone at the Low Water that Trent Haskins has been selling Colt's pills for him.",
         effects: [
           { op: "addNews", text: "Brianna Tolliver nearly died on pills at Riverbend last night, and Tammy Lott is blaming Trent Haskins for selling them.", public: true }
         ]
@@ -4340,7 +4349,49 @@ const TOWN_DATA = {
   // obligation a loose end made (CONTRACTS section 4). attendees: the people
   // who are at the place for that phase when it happens (the five council
   // seats and the chief whose department is on the agenda), if they are free.
+  // The five seats: Jolene (the mayor: downstream, end the police), Lamar
+  // (downstream, keep the police), Hollis (in town, end the police), Elbert
+  // (in town, keep the police) and Royce, the swing on both. Every branch
+  // that counts votes names who votes and needs them free (npcFree); the
+  // branch after it is the same outcome with Hollis Byrd's chair empty (he
+  // is the one the police clocks can lock up by Tuesday), and the default
+  // counts nobody. What the player can move: the report thrown out (the
+  // police clocks), Royce's feeling for the player (30: he tables it; 20: a
+  // Royce who sold his vote abstains), Curtis Pruett's card debt paid.
   events: [
+    // The first Friday: Curtis Pruett's card game at the back table of the
+    // Low Water (the poker hustler's hook names it), with Royce Pittman
+    // sitting in on money he owes.
+    {
+      id: "evt_friday_game",
+      day: 2,
+      phase: "evening",
+      locationId: "loc_low_water",
+      title: "The Friday game",
+      attendees: ["npc_curtis", "npc_royce"],
+      branches: [
+        {
+          when: { npcFree: ["npc_curtis", "npc_royce"] },
+          text: "Curtis Pruett opens his Friday night game at the back table of the Low Water: hundred-dollar buy-in, house rules, and every deck held up to the lamp before he deals. Royce Pittman sits in with money he does not have.",
+          effects: [
+            { op: "addNews", text: "Curtis Pruett's Friday night game ran at the back table of the Low Water until closing, and Royce Pittman sat in.", public: true }
+          ]
+        },
+        {
+          when: { npcFree: ["npc_curtis"] },
+          text: "Curtis Pruett opens his Friday night game at the back table of the Low Water: hundred-dollar buy-in, house rules, and every deck held up to the lamp before he deals.",
+          effects: [
+            { op: "addNews", text: "Curtis Pruett's Friday night game ran at the back table of the Low Water until closing.", public: true }
+          ]
+        }
+      ],
+      default: {
+        text: "The back table at the Low Water sits empty this Friday night, and the regulars who came for Curtis Pruett's game drink at the bar instead.",
+        effects: [
+          { op: "addNews", text: "There was no card game at the Low Water this Friday night.", public: true }
+        ]
+      }
+    },
     {
       id: "evt_council_meeting",
       day: 6,
@@ -4350,8 +4401,8 @@ const TOWN_DATA = {
       attendees: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert", "npc_marcus"],
       branches: [
         {
-          when: { flagsSet: ["bridgeReportVoid"] },
-          text: "With the bridge report thrown out and the mayor in the holding cell downstairs, Royce Pittman chairs the meeting in her place. The council votes four to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
+          when: { flagsSet: ["bridgeReportVoid"], npcFree: ["npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "With the bridge report thrown out and the mayor's chair empty, Royce Pittman chairs the meeting in her place. The council votes four to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "bridgeVoteTabled", value: true },
@@ -4362,7 +4413,19 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { attitudeAtLeast: { npc_royce: 40 } },
+          when: { flagsSet: ["bridgeReportVoid"], npcFree: ["npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "With the bridge report thrown out and two chairs empty, the mayor's and Hollis Byrd's, Royce Pittman chairs the meeting. The council votes three to nothing to table the bridge site until the state's second inspector reports, and item four, ending the police, dies without a second.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With the bridge report thrown out, the council tabled the bridge site until the state's second inspection. The old bridge stays open for now." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council let the vote to end the police die without a second. Chief Bell's department stays." },
+            { op: "addNews", text: "At Tuesday's council meeting, with two seats empty, the bridge vote was tabled until a second inspection, and the vote to end the police died without a second.", public: true }
+          ]
+        },
+        {
+          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman, who has had somebody to talk it through with all week, stands up before the vote and moves to table the bridge site until the engineer answers questions in person, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns without looking at him.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4375,7 +4438,69 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceBought", "royceTurned"] },
+          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, who has had somebody to talk it through with all week, moves to table the bridge site until the engineer answers questions in person; with Hollis Byrd's chair empty it ties two to two, the downstream site ties the same way, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the bridge site tied two to two and went over to the next meeting. Carter Sturdivant still needs Royce Pittman's vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote tied two to two and went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, npcFree: ["npc_curtis", "npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Curtis Pruett, flush with the four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him now, goes back on whatever he promised about the bridge: he moves to table the site, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman moved to table the bridge site, and it carried three to two. Carter Sturdivant needs his vote again." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, npcFree: ["npc_curtis", "npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Curtis Pruett, flush with the four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him now, moves to table the bridge site; with Hollis Byrd's chair empty it ties two to two, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the bridge site tied two to two and went over to the next meeting. Carter Sturdivant still needs Royce Pittman's vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote tied two to two and went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts from the talks he has had this week, so he abstains on the bridge, and it ties two to two and goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman abstained, the bridge site tied two to two, and it went over to the next meeting. Carter Sturdivant paid for a vote he did not get." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "Royce Pittman abstained on the bridge at Tuesday's council meeting, so it tied two to two and was put off, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts to use it, so he abstains on the bridge, and with Hollis Byrd's chair empty the downstream site passes two to one over Elbert Gentry. On item four he votes with Elbert and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Royce Pittman abstaining and Hollis Byrd's seat empty, the council voted two to one for the downstream bridge site. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "With Royce Pittman abstaining, the council voted two to one on Tuesday for the downstream bridge site, and three to one to keep the police.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman, with Carter Sturdivant's torn-up note in one pocket and the photographs in the other, abstains on everything. The bridge vote ties two to two and is tabled to the next meeting, item four ties too, and the police stay for now.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4387,8 +4512,21 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceTurned"] },
-          text: "Royce Pittman, gray in the face, votes with Hollis Byrd and Elbert Gentry, and the council backs a new bridge in town, three to two, over the mayor and Lamar Haskins. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two, and Chief Bell walks out before the gavel comes down.",
+          when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, with Carter Sturdivant's torn-up note in one pocket and the photographs in the other, abstains on everything, and with Hollis Byrd's chair empty the downstream site passes two to one over Elbert Gentry. Item four fails one to two, and the police stay.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Royce Pittman abstaining and Hollis Byrd's seat empty, the council voted two to one for the downstream bridge site. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police failed one to two. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "With Royce Pittman abstaining, the council voted two to one on Tuesday for the downstream bridge site, and the vote to end the police failed one to two.", public: true }
+          ]
+        },
+        {
+          when: { flagsSet: ["royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman, gray in the face, votes with Hollis Byrd and Elbert Gentry, and the council backs a new bridge in town, three to two, over the mayor and Lamar Haskins. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "councilBackedInTown", value: true },
@@ -4400,19 +4538,20 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { obligationStatus: { obl_debt_npc_curtis: "met" }, flagsUnset: ["royceBought"] },
-          text: "Curtis Pruett, flush with four hundred dollars he was paid this week, has told Royce Pittman his marker can wait, and Royce, with nobody squeezing him, moves to table the bridge site; Hollis Byrd and Elbert Gentry carry it with him, three to two. Item four fails the same way, and the police stay.",
+          when: { flagsSet: ["royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman, gray in the face, votes with Elbert Gentry for a new bridge in town, but with Hollis Byrd's chair empty it ties two to two and goes over to the next meeting. On item four he votes with the mayor to end the police, and that ties two to two and fails.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
             { op: "setFlag", key: "bridgeVoteTabled", value: true },
             { op: "setFlag", key: "policeKept", value: true },
-            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman moved to table the bridge site, and it carried three to two. Carter Sturdivant needs his vote again." },
-            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
-            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: -1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With Hollis Byrd's seat empty, the vote for a bridge in town tied two to two and went over to the next meeting. Royce Pittman has turned against the downstream site." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police tied two to two and failed. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "Both votes tied two to two at Tuesday's council meeting with Hollis Byrd's seat empty: the bridge went over to the next meeting, and the police stay.", public: true }
           ]
         },
         {
-          when: { flagsSet: ["royceBought"] },
+          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman votes with the mayor and Lamar Haskins, and the council backs the downstream bridge site three to two over Hollis Byrd and Elbert Gentry. On item four he votes with the mayor and Hollis to end the police department at the end of the month, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4425,7 +4564,20 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"] },
+          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman votes with the mayor and Lamar Haskins, and with Hollis Byrd's chair empty the council backs the downstream bridge site three to one over Elbert Gentry. On item four he votes with the mayor to end the police, but it ties two to two and fails.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "councilBackedDownstream", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "The council voted three to one for the downstream bridge site, with Royce Pittman the third vote. Now the state has to close the old bridge." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote to end the police tied two to two and failed. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "The council voted three to one on Tuesday for the downstream bridge site; the vote to end the police tied two to two and failed.", public: true }
+          ]
+        },
+        {
+          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"], npcFree: ["npc_carter", "npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Carter Sturdivant spends the whole meeting at Royce Pittman's elbow, and Royce, very nearly his, asks for two more weeks; the bridge site is tabled three to two. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4436,17 +4588,54 @@ const TOWN_DATA = {
             { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
             { op: "addNews", text: "At Tuesday's council meeting Royce Pittman asked for two more weeks on the bridge, and the vote to end the police failed three to two.", public: true }
           ]
+        },
+        {
+          when: { clockAtLeast: { fac_sturdivant: 4 }, flagsUnset: ["royceBought", "royceTurned"], npcFree: ["npc_carter", "npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Carter Sturdivant spends the whole meeting at Royce Pittman's elbow, and Royce, very nearly his, asks for two more weeks; with Hollis Byrd's chair empty the motion ties two to two, nothing else passes, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "clockAdjust", factionId: "fac_sturdivant", delta: 1 },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman asked for two more weeks, and with Hollis Byrd's seat empty the bridge site went over to the next meeting. Carter Sturdivant has nearly got him." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting Royce Pittman asked for two more weeks on the bridge, and the vote to end the police failed three to one.", public: true }
+          ]
+        },
+        {
+          when: { npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          text: "Royce Pittman still will not say how he will vote, so he moves to table the bridge site to the next meeting, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns early.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and the bridge site was tabled three to two. Carter Sturdivant still needs his vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          ]
+        },
+        {
+          when: { npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          text: "Royce Pittman still will not say how he will vote, and with Hollis Byrd's chair empty his motion to table ties two to two; nothing passes, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
+          effects: [
+            { op: "setFlag", key: "councilVoted", value: true },
+            { op: "setFlag", key: "bridgeVoteTabled", value: true },
+            { op: "setFlag", key: "policeKept", value: true },
+            { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and with Hollis Byrd's seat empty the bridge site went over to the next meeting. Carter Sturdivant still needs his vote." },
+            { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to one to keep the police. Chief Bell's department stays, for now." },
+            { op: "addNews", text: "At Tuesday's council meeting the bridge vote went over to the next meeting, and the vote to end the police failed three to one.", public: true }
+          ]
         }
       ],
       default: {
-        text: "Royce Pittman still will not say how he will vote, so he moves to table the bridge site to the next meeting, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns early.",
+        text: "With empty chairs at the table and nobody sure of the count, the council puts the bridge site off to its next meeting, and item four goes over with it.",
         effects: [
           { op: "setFlag", key: "councilVoted", value: true },
           { op: "setFlag", key: "bridgeVoteTabled", value: true },
           { op: "setFlag", key: "policeKept", value: true },
-          { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "Royce Pittman would not commit, and the bridge site was tabled three to two. Carter Sturdivant still needs his vote." },
-          { op: "threadUpdate", threadId: "thr_police_vote", summary: "The council voted three to two to keep the police. Chief Bell's department stays, for now." },
-          { op: "addNews", text: "At Tuesday's council meeting the bridge vote was tabled three to two, and the vote to end the police failed three to two.", public: true }
+          { op: "threadUpdate", threadId: "thr_bridge_vote", summary: "With seats empty, the council put the bridge site off to its next meeting. Nothing about the bridge is settled." },
+          { op: "threadUpdate", threadId: "thr_police_vote", summary: "The vote on ending the police went over to the next meeting. Chief Bell's department stays, for now." },
+          { op: "addNews", text: "With seats empty at Tuesday's council meeting, the bridge site and the vote on the police both went over to the next meeting.", public: true }
         ]
       }
     }
@@ -4454,41 +4643,265 @@ const TOWN_DATA = {
 
   // The ending (CONTRACTS section 11): told on day 21, or as soon as the
   // bridge story is decided (the barriers go up, or the state orders a
-  // second inspection). The first branch whose when holds; then the player
-  // can keep playing.
+  // second inspection), so a text never says how long it has been except
+  // the default, which only day 21 reaches. The first branch whose when
+  // holds; then the player can keep playing. Each ending settles the two
+  // vote threads (resolved when the town kept what the thread was about,
+  // failed when it lost it) and plants what happens next, so the town does
+  // not stand still afterwards: seeds planted here may wait for a day after
+  // the latest ending (21 to 30).
   epilogue: {
     onDay: 21,
     orFlagsSet: ["oldBridgeClosed", "secondInspectionOrdered"],
     branches: [
       {
-        when: { flagsSet: ["bridgeReportVoid"] },
-        text: "Three weeks on, the old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, Jolene Overstreet is waiting on a court date in Clayburn, and the Low Water's Saturday lot is full of dry-county tags again. Loretta Gaddis tells anybody who will listen that she always said the bridge was good for twenty more years, which is not true, but nobody argues with her.",
-        effects: []
+        when: { flagsSet: ["bridgeReportVoid", "policeKept"], flagsUnset: ["oldBridgeClosed"] },
+        text: "The old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, Jolene Overstreet has a court date in Clayburn, and the town police are still in Town Hall. The Low Water's Saturday lot is full of dry-county tags again, and Loretta Gaddis tells anybody who will listen that she always said the bridge was good for twenty more years, which is not true, but nobody argues with her.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "resolved", knownToPlayer: true, summary: "The state threw out the bought bridge report and is sending its own inspector in the spring. The old bridge stays open." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and the mayor who wanted them gone has a court date in Clayburn." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_inspectors",
+            cause: "The state has moved its own inspection of the old bridge up from the spring, and Carter Sturdivant knows what it will find.",
+            effect: "A state crew spends the day under the first span of the old bridge with flashlights and a camera, and Carter Sturdivant watches them from his truck at the top of the hill.",
+            trigger: { type: "day", value: 23 },
+            requires: { npcFree: ["npc_carter"] },
+            effects: [
+              { op: "addNews", text: "A state crew spent the day under the old bridge with flashlights, and Carter Sturdivant watched them from his truck.", public: true }
+            ],
+            alt: {
+              text: "A state crew spends the day under the first span of the old bridge with flashlights and a camera, and nobody from Sturdivant House comes down to watch."
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_bell_pills",
+            cause: "With his department safe, Marcus Bell means to go after whoever sells pills at Riverbend.",
+            effect: "Chief Bell, with his department safe and the mayor's case on its way to Clayburn, says the next thing on his list is whoever is selling pills at Riverbend, and he could use somebody who listens.",
+            trigger: { type: "location", value: "loc_town_hall" },
+            requires: { npcFree: ["npc_marcus"] },
+            effects: [
+              { op: "threadUpdate", threadId: "thr_riverbend_pills", knownToPlayer: true }
+            ],
+            alt: {
+              text: "Nikki Ballard, with the department safe for now, says the next thing on her list is whoever is selling pills at Riverbend, and she could use somebody who listens.",
+              effects: [
+                { op: "threadUpdate", threadId: "thr_riverbend_pills", knownToPlayer: true }
+              ]
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_carter_cash",
+            cause: "Carter Sturdivant has a note due in Calder and no bridge money coming to pay it.",
+            effect: "Carter Sturdivant, his note in Calder due and the state's inspector coming, asks to talk somewhere private and offers cash to anyone who will tell him what the police have on him.",
+            trigger: { type: "npc", value: "npc_carter" },
+            fired: false,
+            hidden: true
+          } }
+        ]
+      },
+      {
+        when: { flagsSet: ["bridgeReportVoid", "policeDissolutionPassed"], flagsUnset: ["oldBridgeClosed"] },
+        text: "The old bridge is still open and still rattling under every pickup. The state threw out the report Carter Sturdivant paid for and is sending its own inspector in the spring, and Jolene Overstreet has a court date in Clayburn, but the council's vote to end the town police still stands, and the department is done at the end of the month. At the Low Water they say the town saved its bridge and lost its police in the same month.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "resolved", knownToPlayer: true, summary: "The state threw out the bought bridge report and is sending its own inspector in the spring. The old bridge stays open." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_packing",
+            cause: "The town police are packing up Town Hall for the end of the month.",
+            effect: "The police office at Town Hall is half packed into boxes, and Glenda Gentry is carrying the old radio logs out to her car rather than see them thrown away.",
+            trigger: { type: "location", value: "loc_town_hall" },
+            requires: { npcFree: ["npc_glenda"] },
+            alt: {
+              text: "The police office at Town Hall is half packed into boxes for the end of the month, and nobody is answering the radio."
+            },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_wade_plans",
+            cause: "Wade Purvis means to run the river the night the town police are gone.",
+            effect: "Wade Purvis, who has heard the town police are finished at the end of the month, is asking around the landing for somebody who knows the river to help plan the first run after they are gone.",
+            trigger: { type: "npc", value: "npc_wade" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_carter_report",
+            cause: "Carter Sturdivant wants to know who helped throw out his report.",
+            effect: "Carter Sturdivant, his note in Calder due and the state's inspector coming, asks to talk somewhere private and offers cash to anyone who will tell him who in town helped throw out his report.",
+            trigger: { type: "npc", value: "npc_carter" },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
         when: { flagsSet: ["oldBridgeClosed", "policeDissolutionPassed"] },
-        text: "The barriers are still up on the old bridge, and the town police were done at the end of October; a county deputy drives through twice a week and does not get out of the car. Carter Sturdivant has his downstream site on paper and a note in Calder he still cannot pay, and the Low Water's Saturday crowd is half what it was. The boats still go across at night, because nobody is left to watch them.",
-        effects: []
+        text: "The barriers are up on the old bridge, and the town police are finished at the end of the month; after that a county deputy is supposed to drive through twice a week. Carter Sturdivant has the closed bridge he paid for and a note in Calder he still cannot pay, and the Low Water's Saturday crowd is half what it was. The boats still go across at night, because soon nobody will be left to watch them.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_deputy",
+            cause: "The town police hand Lockett's Ferry over to the county sheriff on the last day of October.",
+            effect: "On the last day of October the town police hand their keys to the county, and a sheriff's deputy from Clayburn parks at Pittman's for ten minutes and drives off again.",
+            trigger: { type: "day", value: 24 },
+            effects: [
+              { op: "addNews", text: "The town police are finished; a county deputy from Clayburn is to drive through twice a week.", public: true }
+            ],
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_wade_river",
+            cause: "With the bridge shut and the police going, the river is the Night Run's only road.",
+            effect: "Wade Purvis says that with the bridge shut and the town police finished, the river is the only road left to the dry county, and he offers two hundred dollars a night to anyone who will run a boat across it.",
+            trigger: { type: "npc", value: "npc_wade" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_bar_for_sale",
+            cause: "Loretta Gaddis is losing the Low Water's Saturday trade to the bypass.",
+            effect: "Loretta Gaddis is adding up a week of thin receipts at the end of the bar, and asks whoever is on the next stool whether they know anybody who wants to buy a bar.",
+            trigger: { type: "location", value: "loc_low_water" },
+            requires: { npcFree: ["npc_loretta"] },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
-        when: { flagsSet: ["oldBridgeClosed"], obligationStatus: { obl_debt_npc_curtis: "missed" } },
-        text: "The barriers are still up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. The police hang on downstairs at Town Hall, Carter Sturdivant has his downstream site on paper, and at the Low Water Curtis Pruett still tells the story of the stranger who welshed on four hundred dollars, a little bigger every Friday.",
-        effects: []
+        when: { flagsSet: ["oldBridgeClosed"], obligationStatus: { obl_debt_npc_curtis: "missed" }, npcFree: ["npc_curtis"] },
+        text: "The barriers are up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. The police hang on downstairs at Town Hall, Carter Sturdivant has the closed bridge he paid for, and at the Low Water Curtis Pruett still tells the story of the stranger who welshed on four hundred dollars, a little bigger every Friday.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_curtis_square",
+            cause: "Curtis Pruett would rather have some of the four hundred than tell the story another Friday.",
+            effect: "Curtis Pruett lets it be known that he would call the old four hundred square for two hundred cash, and not a dollar less.",
+            trigger: { type: "npc", value: "npc_curtis" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_royce_sign",
+            cause: "Pittman's Gas and Service lives on the traffic the closed bridge took away.",
+            effect: "Royce Pittman has taped a hand-lettered sign in the window at Pittman's that says the station stays open, bridge or no bridge, and he is selling gas at a loss to the few cars still coming through.",
+            trigger: { type: "location", value: "loc_pittmans" },
+            requires: { npcFree: ["npc_royce"] },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
-        when: { flagsSet: ["oldBridgeClosed"], attitudeAtLeast: { npc_loretta: 40 } },
-        text: "The barriers are still up on the old bridge and the Low Water's Saturday lot is half empty, but Loretta Gaddis has kept the doors open through floods before and says she will keep them open through this. Carter Sturdivant has his downstream site on paper, the police are still in Town Hall for whatever that is worth, and there is a stool at the end of the bar Loretta keeps for somebody who stayed.",
-        effects: []
+        when: { flagsSet: ["oldBridgeClosed"], attitudeAtLeast: { npc_loretta: 40 }, npcFree: ["npc_loretta"] },
+        text: "The barriers are up on the old bridge and the Low Water's Saturday lot is half empty, but Loretta Gaddis has kept the doors open through floods before and says she will keep them open through this. Carter Sturdivant has the closed bridge he paid for, the police are still in Town Hall for whatever that is worth, and there is a stool at the end of the bar Loretta keeps for somebody who stayed.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_loretta_stool",
+            cause: "Loretta Gaddis has decided the stranger who stayed is one of hers.",
+            effect: "Loretta Gaddis sets a cold beer in front of the stool at the end of the bar before anybody asks, says it is on the house, and asks whether the stranger who stayed means to stay through the winter.",
+            trigger: { type: "location", value: "loc_low_water" },
+            requires: { npcFree: ["npc_loretta"] },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_hearing",
+            cause: "The state has called a public hearing in Clayburn about the closed bridge.",
+            effect: "A notice for a public hearing in Clayburn about the closed bridge goes up on the Town Hall door, and Royce Pittman tapes a copy in the window at Pittman's.",
+            trigger: { type: "day", value: 23 },
+            requires: { npcFree: ["npc_royce"] },
+            effects: [
+              { op: "addNews", text: "There is to be a public hearing in Clayburn about the closed bridge.", public: true }
+            ],
+            alt: {
+              text: "A notice for a public hearing in Clayburn about the closed bridge goes up on the Town Hall door.",
+              effects: [
+                { op: "addNews", text: "There is to be a public hearing in Clayburn about the closed bridge.", public: true }
+              ]
+            },
+            fired: false,
+            hidden: true
+          } }
+        ]
       },
       {
         when: { flagsSet: ["oldBridgeClosed"] },
-        text: "The barriers are still up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. Carter Sturdivant has his downstream site on paper and a note in Calder he still cannot pay, the police are still in Town Hall for whatever that is worth, and Elbert Gentry sits on the Front Street bench telling anybody who stops that he saw the ferry go and now he has seen the bridge go too.",
-        effects: []
+        text: "The barriers are up on the old bridge, and every trip to the dry county is forty minutes round by the bypass. Carter Sturdivant has the closed bridge he paid for and a note in Calder he still cannot pay, the police are still in Town Hall for whatever that is worth, and Elbert Gentry sits on the Front Street bench telling anybody who stops that he was born the year the ferry went and now he has seen the bridge go too.",
+        effects: [
+          { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
+          { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." },
+          { op: "plantSeed", seed: {
+            id: "seed_after_elbert_bench",
+            cause: "Elbert Gentry has outlived the ferry and now the bridge, and wants somebody to hear about it.",
+            effect: "Elbert Gentry, on the Front Street bench, says the town held on when the ferry stopped the year he was born, and asks whoever sits down beside him whether it will hold on now.",
+            trigger: { type: "npc", value: "npc_elbert" },
+            fired: false,
+            hidden: true
+          } },
+          { op: "plantSeed", seed: {
+            id: "seed_after_barriers",
+            cause: "The state means to keep the old bridge shut until the new one is built, and Carter Sturdivant means to be the first to speak at its hearing.",
+            effect: "A state crew comes back with a flatbed and chains the barriers on the old bridge together, and staples a notice to the guardrail about a public hearing in Clayburn.",
+            trigger: { type: "day", value: 23 },
+            effects: [
+              { op: "addNews", text: "A state crew chained the barriers on the old bridge together, and there is to be a public hearing in Clayburn.", public: true }
+            ],
+            fired: false,
+            hidden: true
+          } }
+        ]
       }
     ],
     default: {
       text: "Three weeks in, nothing is settled. The old bridge is still open and still posted at five tons, the state has not said when it will close it, and Carter Sturdivant drives up to Calder every week and comes back looking worse. At the Low Water the bridge, the boats and the police are still the only things anybody talks about.",
-      effects: []
+      effects: [
+        { op: "threadUpdate", threadId: "thr_bridge_vote", knownToPlayer: true, summary: "Three weeks on, the old bridge is still open and the state has not said when it will close it. Nothing about the bridge is settled." },
+        { op: "plantSeed", seed: {
+          id: "seed_after_police_word",
+          cause: "The council's vote on the police takes hold at the end of the month, one way or the other.",
+          effect: "The town police start packing up Town Hall for the end of the month, and nobody from the county has been out to look at the place yet.",
+          trigger: { type: "day", value: 22 },
+          requires: { flagsSet: ["policeDissolutionPassed"] },
+          effects: [
+            { op: "threadUpdate", threadId: "thr_police_vote", status: "failed", knownToPlayer: true, summary: "The council's vote to end the town police stands, and the department is finished at the end of October." }
+          ],
+          alt: {
+            text: "The town police are still in Town Hall with the council's vote behind them, and the night shift has started parking above the boat ramp again.",
+            effects: [
+              { op: "threadUpdate", threadId: "thr_police_vote", status: "resolved", knownToPlayer: true, summary: "The council kept the town police, and Chief Bell's department hangs on at Town Hall." }
+            ]
+          },
+          fired: false,
+          hidden: true
+        } },
+        { op: "plantSeed", seed: {
+          id: "seed_after_carter_worse",
+          cause: "Carter Sturdivant has a note due in Calder and the old bridge is still open.",
+          effect: "Carter Sturdivant, back from another trip to Calder and looking worse, asks to talk somewhere private and offers cash to anyone who can tell him what it would take to get the old bridge closed before his note comes due.",
+          trigger: { type: "npc", value: "npc_carter" },
+          fired: false,
+          hidden: true
+        } },
+        { op: "plantSeed", seed: {
+          id: "seed_after_wade_load",
+          cause: "Wade Purvis is tired of waiting on the council and the state.",
+          effect: "Wade Purvis, tired of waiting on the council, is asking around the landing for somebody to help him run a full load across while the bridge is still open.",
+          trigger: { type: "npc", value: "npc_wade" },
+          fired: false,
+          hidden: true
+        } }
+      ]
     }
   }
 };
@@ -4850,6 +5263,12 @@ const FLAWS = [
 // kind's own, for an option and for words the player wrote. onStart applies
 // when the loose end is tied at character creation (the letter an errand
 // delivers). Placeholders: {npcId}, {npc} (their name) and {playerName}.
+// An obligation (CONTRACTS section 4) may also carry missText, what happens
+// when its day goes by (the due event and its news, in place of "came
+// looking: <the task>"; placeholders as in its effects), and owedTo, the
+// person it is owed to when that is not the person it binds: the woman who
+// wrote the letter, not the daughter it is for, who does not know it exists.
+// Nobody who lives elsewhere comes looking; the person owed gets the memory.
 const LOOSE_ENDS = {
   debt: {
     label: "A debt",
@@ -4869,9 +5288,11 @@ const LOOSE_ENDS = {
       amount: 400,
       dueOffset: 3,
       text: "Pay {npc} the four hundred dollars you owe.",
+      missText: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.",
       onMiss: [
         { op: "takeItem", name: "Prepaid phone" },
         { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the four hundred go past due, so I took the phone as a start.", weight: 3 },
         { op: "addNews", text: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.", public: false }
       ],
       onMet: [
@@ -4885,6 +5306,7 @@ const LOOSE_ENDS = {
         amount: 600,
         dueOffset: 3,
         text: "Pay {npc} the six hundred dollars you owe.",
+        missText: "{npc} came looking for the six hundred dollars and took {playerName}'s phone as a down payment.",
         onMiss: [
           { op: "takeItem", name: "Prepaid phone" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
@@ -4901,10 +5323,12 @@ const LOOSE_ENDS = {
         amount: 300,
         dueOffset: 3,
         text: "Pay {npc} the three hundred dollars on the title-loan note.",
+        missText: "{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.",
         onMiss: [
           { op: "playerGold", delta: -150 },
           { op: "takeItem", name: "Prepaid phone" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+          { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the title-loan note go past due, so I took what cash there was and the phone.", weight: 3 },
           { op: "addNews", text: "{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.", public: false }
         ],
         onMet: [
@@ -4917,6 +5341,7 @@ const LOOSE_ENDS = {
         amount: 400,
         dueOffset: 3,
         text: "Pay {npc} the four hundred dollars from the card game.",
+        missText: "{npc} came looking for the four hundred dollars from the card game and went away without it, and now Loretta Gaddis won't serve {playerName} at the Low Water.",
         onMiss: [
           { op: "banFrom", locationId: "loc_low_water", days: 3, byNpcId: "{npcId}" },
           { op: "attitudeDelta", npcId: "{npcId}", delta: -20 },
@@ -4940,7 +5365,7 @@ const LOOSE_ENDS = {
     link: { tag: "enemy", optionTags: ["enemy", "parolee", "enemy"] },
     seed: {
       dayOffset: [4, 7],
-      effect: "{npc} steps in front of {player}, says {player}'s full name, first and last, slow, and says they have waited long enough and mean to settle it before the week is out.",
+      effect: "{npc} steps in front of {player}, says {player}'s full name, first and last, slow, and says the waiting is over and it gets settled before the week is out.",
       trigger: "day"
     }
   },
@@ -4962,10 +5387,12 @@ const LOOSE_ENDS = {
       amount: 200,
       dueOffset: 2,
       text: "Pay {npc} two hundred dollars to keep your secret quiet.",
+      missText: "{npc} did not get the two hundred dollars and has told Chief Bell what {playerName} is hiding, and comes by to say so.",
       onMiss: [
         { op: "addMemory", npcId: "npc_marcus", text: "{npc} told me what {playerName} is hiding.", weight: 2 },
         { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 },
         { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} would not pay, so I told Chief Bell what {playerName} is hiding.", weight: 3 },
         { op: "addNews", text: "{npc} has been telling people what {playerName} is hiding.", public: true }
       ],
       onMet: [
@@ -4983,7 +5410,7 @@ const LOOSE_ENDS = {
     link: { tag: "records", optionTags: ["bereaved", "secretary", "witness"] },
     seed: {
       dayOffset: [4, 8],
-      effect: "{npc} finds {player} alone and says, low, that they know something about what {player} came here to find out, but not here and not now.",
+      effect: "{npc} finds {player} alone and says, low, that there is something to tell about what {player} came here to find out, but not here and not now.",
       trigger: "day"
     }
   },
@@ -5004,8 +5431,10 @@ const LOOSE_ENDS = {
       kind: "promise",
       dueOffset: 4,
       text: "Keep your word to {npc}.",
+      missText: "{npc} finds {playerName} and asks, flat, what happened to the promise {playerName} made.",
       onMiss: [
-        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 }
+        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
+        { op: "addMemory", npcId: "{npcId}", text: "{playerName} made me a promise and let the day go by.", weight: 2 }
       ],
       onMet: [
         { op: "attitudeDelta", npcId: "{npcId}", delta: 10 }
@@ -5017,6 +5446,8 @@ const LOOSE_ENDS = {
         dueOffset: 4,
         text: "Put the letter in {npc}'s hand.",
         itemName: "Letter for {npc}",
+        owedTo: "npc_bernice",
+        missText: "The letter for {npc} is still in {playerName}'s pocket, and the day {playerName} promised to put it in {npc}'s hand has come and gone.",
         onStart: [
           { op: "giveItem", name: "Letter for {npc}", notes: "Sealed, addressed in a careful hand, and not yours to open." }
         ],
@@ -5033,6 +5464,8 @@ const LOOSE_ENDS = {
         kind: "promise",
         dueOffset: 4,
         text: "Look in on {npc} for his father, the way you promised.",
+        owedTo: "npc_dale",
+        missText: "The day {playerName} promised Dale Purvis has come and gone without {playerName} looking in on {npc}.",
         onMiss: [
           { op: "addMemory", npcId: "npc_dale", text: "{playerName} promised to look in on my boy and never wrote.", weight: 2 }
         ],
@@ -5045,6 +5478,8 @@ const LOOSE_ENDS = {
         kind: "promise",
         dueOffset: 5,
         text: "Get {npc} to go home, the way you promised.",
+        owedTo: "npc_bernice",
+        missText: "The day {playerName} promised {npc}'s mother has come and gone, and {npc} is still in Lockett's Ferry.",
         onMiss: [
           { op: "addMemory", npcId: "npc_bernice", text: "{playerName} promised to bring my daughter home and has not.", weight: 2 }
         ],
@@ -5159,7 +5594,7 @@ const GRUDGE_TEMPLATES = [
     notForTags: ["priest", "secretary"]
   },
   {
-    effect: "{npc} tells anybody at Pittman's who will listen that {player} gives them the creeps, and the looks follow {player} around town for days.",
+    effect: "{npc} tells anybody at Pittman's who will listen that {player} is a creep, and the looks follow {player} around town for days.",
     dayOffset: [2, 4],
     effects: [
       { op: "reputationDelta", key: "town", delta: -5 }
@@ -5241,7 +5676,7 @@ const FAVOUR_TEMPLATES = [
     notForTags: ["teen"]
   },
   {
-    effect: "{npc} shows {player} a photo on their own phone of someone who has wronged {player}, taken somewhere that person should not have been.",
+    effect: "{npc} pulls out a phone and shows {player} a photo of someone who has wronged {player}, taken somewhere that person should not have been.",
     dayOffset: [3, 5],
     effects: [
       { op: "addNews", text: "{npc} showed {playerName} a photo worth remembering.", public: false }
@@ -5250,7 +5685,7 @@ const FAVOUR_TEMPLATES = [
     forTags: ["informant", "teen", "gossip", "clerk"]
   },
   {
-    effect: "{npc} tells the police {player} was with them all night, and makes it stick.",
+    effect: "{npc} gives {player} an alibi for the whole night and makes it stick with the police.",
     dayOffset: [2, 5],
     effects: [
       { op: "addMemory", npcId: "npc_marcus", text: "{npc} vouched for {playerName} and said they were together all night.", weight: 2 },
@@ -5278,7 +5713,7 @@ const FAVOUR_TEMPLATES = [
     notForTags: ["teen", "stranger"]
   },
   {
-    effect: "{npc} tells {player} something they saw that no grown-up in town has noticed, and swears it is true.",
+    effect: "{npc} tells {player} about something going on in town that no grown-up has noticed, and swears it is true.",
     dayOffset: [2, 4],
     effects: [
       { op: "addNews", text: "{npc} told {playerName} something no grown-up in town has noticed.", public: false }

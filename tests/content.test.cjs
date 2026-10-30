@@ -457,20 +457,33 @@ s.test('the clocks: staggered, each completion true in either order (requires an
   assert.doesNotMatch(N[1].onComplete.text, /boats cross every night/);
   const od = T.seeds.find(x => x.id === 'seed_overdose');
   assert.deepEqual(od.requires, { npcFree: ['npc_colt', 'npc_brianna'] });
-  assert.match(od.alt.text, /Trent Haskins is selling Colt's pills now/);
+  // Past tense: it holds with Trent in the cell too (the police's alt arrests him).
+  assert.match(od.alt.text, /Trent Haskins has been selling Colt's pills for him/);
   const eng = T.seeds.find(x => x.id === 'seed_engineer');
   assert.ok(eng.trigger.type === 'day' && eng.trigger.value <= 5, 'the engineer cancels before Tuesday\'s meeting');
   const box = T.seeds.find(x => x.id === 'seed_tackle_box');
   assert.deepEqual(box.trigger, { type: 'location', value: ['loc_old_bridge', 'loc_purvis_landing'] }, 'found from the landing too, after the bridge closes');
   assert.equal(box.notBeforeDay, 3);
   assert.deepEqual(T.threads.map(t => t.reward), ['charm', 'wits', 'stealth']);
+  // Wave 2: the race to Royce is closer. The lease letter (day 3) and the big run (day 4) push the
+  // Night Run's photographs on; the engineer's no-show (day 4) sets Carter's money back.
+  const seedOf = id => T.seeds.find(x => x.id === id);
+  const nudge = (list, fac) => (list || []).filter(e => e.op === 'clockAdjust' && e.factionId === fac).map(e => e.delta);
+  assert.deepEqual(nudge(seedOf('seed_lease_letter').effects, 'fac_nightrun'), [1]);
+  assert.deepEqual(nudge(seedOf('seed_big_run').effects, 'fac_nightrun'), [1]);
+  assert.deepEqual(nudge(seedOf('seed_engineer').effects, 'fac_sturdivant'), [-1]);
+  // The police catching a boat (either way) pulls the boats up, and the big run waits on that.
+  for (const list of [P[0].onComplete.effects, P[0].onComplete.alt.effects]) assert.ok(list.some(e => e.op === 'setFlag' && e.key === 'boatsPulledUp'), 'boatsPulledUp');
+  const run = seedOf('seed_big_run');
+  assert.deepEqual(run.requires, { npcFree: ['npc_marcus', 'npc_wade', 'npc_colt'], flagsUnset: ['boatsPulledUp'] });
+  assert.match(run.alt.text, /the run has not gone/);
 });
 
 s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the clocks, the bought report, Royce\'s regard for the player and Curtis\'s debt, with the police vote as item four; the epilogue comes on day 21 or when the bridge is decided', async () => {
   const D = content();
   const T = D.TOWN_DATA;
-  assert.equal(T.events.length, 1);
-  const ev = T.events[0];
+  assert.deepEqual(T.events.map(e => e.id), ['evt_friday_game', 'evt_council_meeting']);
+  const ev = T.events.find(e => e.id === 'evt_council_meeting');
   assert.deepEqual([ev.id, ev.day, ev.phase, ev.locationId], ['evt_council_meeting', 6, 'evening', 'loc_town_hall']);
   const whens = ev.branches.map(b => b.when);
   assert.ok(whens.some(w => (w.flagsSet || []).includes('bridgeReportVoid')), 'the report thrown out');
@@ -479,7 +492,7 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   assert.ok(whens.some(w => (w.flagsSet || []).includes('royceBought')) && whens.some(w => (w.flagsSet || []).includes('royceTurned')), 'Carter\'s money and the Night Run\'s photographs');
   assert.ok(whens.some(w => w.clockAtLeast && w.clockAtLeast.fac_sturdivant), 'how close Carter is');
   for (const b of ev.branches.concat([ev.default])) {
-    assert.match(b.text, /item four|police/, 'the police vote is on the same agenda');
+    assert.match(b.text, /item four|police|Item four/, 'the police vote is on the same agenda');
     assert.ok(b.effects.some(e => e.op === 'setFlag' && e.key === 'councilVoted'), 'the meeting happened');
     assert.ok(b.effects.some(e => e.op === 'addNews' && e.public === true), 'the town hears');
     assert.ok(b.effects.filter(e => e.op === 'threadUpdate').length === 2, 'both threads move on');
@@ -490,10 +503,12 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   assert.ok(E.branches.length >= 3 && E.branches.length <= 6);
   assert.ok(E.branches.some(b => b.when.obligationStatus) && E.branches.some(b => b.when.attitudeAtLeast), 'endings read obligations and attitudes too');
   // The validator refuses a branch that reads a flag nothing sets, and an op the engine does not have.
-  let r = validateEdited(h => once(h, 'when: { flagsSet: ["royceBought", "royceTurned"] },', 'when: { flagsSet: ["royceBought", "royceDanced"] },'));
+  const both = 'when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },';
+  let r = validateEdited(h => once(h, both, both.replace('"royceTurned"', '"royceDanced"')));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /reads the flag "royceDanced", which nothing in the content sets/);
-  r = validateEdited(h => once(h, '            { op: "setFlag", key: "councilBackedDownstream", value: true },', '            { op: "throwParty", key: "councilBackedDownstream", value: true },'));
+  // The default's first effect (ten spaces in: the branches' are twelve).
+  r = validateEdited(h => once(h, '\n          { op: "setFlag", key: "councilVoted", value: true },', '\n          { op: "throwParty", key: "councilVoted", value: true },'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /unknown op "throwParty"/);
 });
@@ -538,6 +553,227 @@ s.test('goods say what they are and name no place; TABLES.npc keeps only the lis
   const r = validateEdited(h => once(h, '{ name: "Shot of whiskey", price: 6, kind: "drink" }', '{ name: "Shot of whiskey at the Low Water", price: 6, kind: "drink" }'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /names a place \("low water"\)/);
+});
+
+// ----- Wave 2 (docs/notes/content.md, "Wave 2") -----
+
+/* The branch the council meeting would take now: its index (-1 for the
+   default) and the flags it would set. In the page, with World's own
+   conditions. */
+const meetingPick = page => page.evaluate(() => {
+  const ev = Game.data.TOWN_DATA.events.find(e => e.id === 'evt_council_meeting');
+  const i = ev.branches.findIndex(b => Game.World.conditionsMet(b.when));
+  const b = i >= 0 ? ev.branches[i] : ev.default;
+  return { i, text: b.text, flags: b.effects.filter(e => e.op === 'setFlag' && e.key !== 'councilVoted').map(e => e.key).sort().join('+') };
+});
+/* Set the meeting's levers: flags on or off, people free or arrested, Royce's attitude. */
+const levers = (page, o) => page.evaluate(o => {
+  const S = Game.State;
+  const effects = [];
+  for (const k of ['royceBought', 'royceTurned', 'bridgeReportVoid']) effects.push({ op: 'setFlag', key: k, value: (o.flags || []).includes(k) });
+  for (const id of ['npc_jolene', 'npc_royce', 'npc_lamar', 'npc_hollis', 'npc_elbert']) effects.push({ op: 'npcStatus', npcId: id, status: (o.jailed || []).includes(id) ? 'arrested' : 'free' });
+  effects.push({ op: 'attitudeDelta', npcId: 'npc_royce', delta: (o.royce === undefined ? 10 : o.royce) - S.npc('npc_royce').attitude });
+  const r = S.apply({ effects: effects.filter(e => e.op !== 'attitudeDelta' || e.delta) });
+  return r.rejected.map(x => x.reason);
+}, o);
+
+s.test('wave 2: the council meeting counts only members who are free (a councilman in the cell does not vote: his chair is empty and the count changes), and Royce\'s regard, the report, Curtis\'s debt and the clocks\' race decide it', async h => {
+  const D = content();
+  const ev = D.TOWN_DATA.events.find(e => e.id === 'evt_council_meeting');
+  const FIVE = ['npc_jolene', 'npc_royce', 'npc_lamar', 'npc_hollis', 'npc_elbert'];
+  const nameOf = id => npcOf(D, id).name;
+  // Every member the text has acting (not as an owner: "Hollis Byrd's chair") is free in its when.
+  for (const [i, b] of ev.branches.entries()) {
+    const free = b.when.npcFree || [];
+    const t = b.text.replace(/\b[A-Z][a-z]+ [A-Z][a-z]+'s\b/g, ' ');
+    for (const id of FIVE) {
+      const [first] = nameOf(id).split(' ');
+      if (new RegExp(`\\b${first}\\b`).test(t)) assert.ok(free.includes(id), `branch ${i + 1} has ${id} acting: ${b.text}`);
+    }
+  }
+  // Each outcome with all five there has a twin for Hollis Byrd's empty chair, right after it, with the count it makes.
+  const same = (a, b) => JSON.stringify(Object.assign({}, a, { npcFree: null })) === JSON.stringify(Object.assign({}, b, { npcFree: null }));
+  let twins = 0;
+  ev.branches.forEach((b, i) => {
+    const free = b.when.npcFree || [];
+    if (!FIVE.every(id => free.includes(id))) return;
+    const next = ev.branches[i + 1];
+    assert.ok(next && same(b.when, next.when) && !(next.when.npcFree || []).includes('npc_hollis'), `branch ${i + 1} has a Hollis-out twin`);
+    assert.match(next.text, /Hollis Byrd's chair empty/);
+    assert.match(next.text, /two to two|three to one|two to one|one to two/);
+    twins++;
+  });
+  assert.ok(twins >= 6, 'twins: ' + twins);
+  assert.doesNotMatch(ev.default.text, /Royce|Hollis|Elbert|Lamar|Jolene|mayor/, 'the default names nobody acting: ' + ev.default.text);
+  // The validator refuses a branch that has Hollis voting without him free.
+  const r = validateEdited(html => once(html, '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },', '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },'));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /the text has npc_hollis acting: add them to npcFree/);
+
+  // In the page: what each lever does.
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt', 'secret', 'promise'] });
+  const pick = async o => { assert.deepEqual(await levers(page, o), []); return meetingPick(page); };
+  const bought = await pick({ flags: ['royceBought'] });
+  assert.equal(bought.flags, 'councilBackedDownstream+policeDissolutionPassed', 'Carter\'s money alone: downstream, police ended');
+  assert.equal((await pick({ flags: ['royceBought'], royce: 20 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who has warmed to the player abstains: a tie');
+  assert.equal((await pick({ flags: ['royceBought', 'royceTurned'], royce: 30 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who trusts the player tables it, bought or not');
+  assert.equal((await pick({ flags: ['royceTurned'] })).flags, 'councilBackedInTown+policeDissolutionPassed', 'the photographs alone: in town');
+  const out = await pick({ flags: ['royceBought'], jailed: ['npc_hollis'] });
+  assert.equal(out.flags, 'councilBackedDownstream+policeKept', 'Hollis in the cell: downstream three to one, and the police vote ties');
+  assert.match(out.text, /Hollis Byrd's chair empty the council backs the downstream bridge site three to one/);
+  assert.doesNotMatch(out.text, /over Hollis Byrd/);
+  assert.equal((await pick({ flags: ['royceTurned'], jailed: ['npc_hollis'] })).flags, 'bridgeVoteTabled+policeKept', 'in town without Hollis ties two to two');
+  const voided = await pick({ flags: ['bridgeReportVoid'], jailed: ['npc_jolene', 'npc_hollis'] });
+  assert.equal(voided.flags, 'bridgeVoteTabled+policeKept');
+  assert.match(voided.text, /two chairs empty, the mayor's and Hollis Byrd's/);
+  assert.match(voided.text, /three to nothing/);
+  const short = await pick({ flags: ['royceBought'], jailed: ['npc_lamar'] });
+  assert.equal(short.i, -1, 'another seat empty: the default, which counts nobody');
+  // Curtis's card debt paid: Royce goes back on whatever he promised.
+  const curtis = await page.evaluate(() => {
+    const S = Game.State;
+    const r = S.apply({ effects: [{ op: 'addObligation', kind: 'debt', npcId: 'npc_curtis', text: 'Pay Curtis Pruett the four hundred dollars from the card game.', amount: 400, dueOffset: 3 }] });
+    const id = (S.current.player.obligations || []).find(o => o.npcId === 'npc_curtis').id;
+    const r2 = S.apply({ effects: [{ op: 'settleObligation', id, status: 'met' }] });
+    return { id, rejected: r.rejected.concat(r2.rejected).map(x => x.reason) };
+  });
+  assert.deepEqual(curtis, { id: 'obl_debt_npc_curtis', rejected: [] });
+  const paid = await pick({ flags: ['royceBought'] });
+  assert.equal(paid.flags, 'bridgeVoteTabled+policeKept');
+  assert.match(paid.text, /Curtis Pruett, flush with the four hundred dollars/);
+
+  // A live meeting: Hollis arrested in the afternoon, Carter's money in; the town hears the count without him.
+  await levers(page, { flags: ['royceBought'], jailed: ['npc_hollis'] });
+  const live = await page.evaluate(() => {
+    Game.State.apply({ setTime: { day: 6, phase: 'afternoon', shorts: 0 } });
+    Game.Pipeline.passTime('long', 'wait');
+    const st = Game.state;
+    return { voted: !!st.flags.councilVoted, news: st.news.filter(n => n.day === 6).map(n => n.text).join(' | ') };
+  });
+  assert.ok(live.voted, 'the meeting happened');
+  assert.match(live.news, /with Hollis Byrd's chair empty/);
+  assert.doesNotMatch(live.news, /over Hollis Byrd and Elbert Gentry/);
+});
+
+s.test('wave 2: the ending never says how long it has been when a flag brings it early, gives Jolene a court date wherever she is, settles the vote threads and plants what happens next, which happens', async h => {
+  const D = content();
+  const E = D.TOWN_DATA.epilogue;
+  for (const b of E.branches) {
+    assert.doesNotMatch(b.text, /weeks? (on|in|later)|three weeks/i, 'an ending a flag can bring early: ' + b.text.slice(0, 60));
+    assert.doesNotMatch(b.text, /were done at the end of October|waiting on a court date/, b.text.slice(0, 60));
+    const statuses = b.effects.filter(e => e.op === 'threadUpdate' && e.status).map(e => `${e.threadId}:${e.status}`);
+    assert.ok(statuses.some(x => /^thr_bridge_vote:/.test(x)) && statuses.some(x => /^thr_police_vote:/.test(x)), 'both votes settled: ' + statuses);
+    const seeds = b.effects.filter(e => e.op === 'plantSeed');
+    assert.ok(seeds.length >= 2 && seeds.length <= 3, 'aftermath seeds: ' + seeds.length);
+  }
+  assert.match(E.branches[0].text, /Jolene Overstreet has a court date in Clayburn/);
+  assert.match(E.default.text, /^Three weeks in/, 'only the default (day 21 alone brings it) counts the weeks');
+  // The validator refuses a time word in an early ending.
+  const r = validateEdited(html => once(html, 'text: "The barriers are up on the old bridge, and the town police are finished', 'text: "Three weeks on, the barriers are up on the old bridge, and the town police are finished'));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /says how long it has been \("Three weeks"\)/);
+
+  // Live: the bridge closes on day 18 with the police vote passed.
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt', 'secret', 'promise'] });
+  const live = await page.evaluate(() => {
+    const S = Game.State, W = Game.World;
+    S.apply({ setTime: { day: 18, phase: 'morning', shorts: 0 }, effects: [{ op: 'setFlag', key: 'councilVoted', value: true }, { op: 'setFlag', key: 'policeDissolutionPassed', value: true }, { op: 'setFlag', key: 'oldBridgeClosed', value: true }] });
+    W.fireEvents({ day: 18, phase: 'morning' });
+    const st = Game.state;
+    const th = id => { const t = S.thread(id); return `${t.status}/${t.knownToPlayer}`; };
+    const out = {
+      ending: (st.news.find(n => n.epilogue) || {}).text || '',
+      bridge: th('thr_bridge_vote'), police: th('thr_police_vote'),
+      planted: st.seeds.filter(x => /^seed_after_/.test(x.id)).map(x => x.id).sort()
+    };
+    // Six days on, the county takes over: the aftermath seed fires on its day.
+    S.apply({ setTime: { day: 24, phase: 'morning', shorts: 0 } });
+    W.fireSeeds({});
+    out.due = (st.dueEvents || []).map(e => e.text).join(' | ');
+    out.news = st.news.filter(n => n.day === 24).map(n => n.text).join(' | ');
+    return out;
+  });
+  assert.match(live.ending, /^The barriers are up on the old bridge, and the town police are finished at the end of the month/);
+  assert.equal(live.bridge, 'failed/true');
+  assert.equal(live.police, 'failed/true');
+  assert.deepEqual(live.planted, ['seed_after_bar_for_sale', 'seed_after_deputy', 'seed_after_wade_river']);
+  assert.match(live.due, /On the last day of October the town police hand their keys to the county/);
+  assert.match(live.news, /a county deputy from Clayburn/);
+
+  // Live: the report thrown out and the police kept: both threads resolved, and Chief Bell turns to the pills.
+  const page2 = await h.open();
+  await quickStart(page2, { kinds: ['debt', 'secret', 'promise'] });
+  const won = await page2.evaluate(() => {
+    const S = Game.State, W = Game.World;
+    const sp = Game.state.player.storyPoints;
+    S.apply({ setTime: { day: 15, phase: 'morning', shorts: 0 }, effects: [{ op: 'setFlag', key: 'councilVoted', value: true }, { op: 'setFlag', key: 'policeKept', value: true }, { op: 'setFlag', key: 'bridgeReportVoid', value: true }, { op: 'setFlag', key: 'secondInspectionOrdered', value: true }] });
+    W.fireEvents({ day: 15, phase: 'morning' });
+    const out = { bridge: S.thread('thr_bridge_vote').status, police: S.thread('thr_police_vote').status, points: Game.state.player.storyPoints - sp, pillsKnown: S.thread('thr_riverbend_pills').knownToPlayer };
+    S.apply({ playerLocationId: 'loc_town_hall' });
+    W.fireSeeds({});
+    out.due = (Game.state.dueEvents || []).map(e => e.text).join(' | ');
+    out.pillsAfter = S.thread('thr_riverbend_pills').knownToPlayer;
+    return out;
+  });
+  assert.equal(won.bridge, 'resolved');
+  assert.equal(won.police, 'resolved');
+  assert.ok(won.points >= 1, 'a settled ending pays a story point: ' + won.points);
+  assert.equal(won.pillsKnown, false);
+  assert.match(won.due, /says the next thing on (his|her) list is whoever is selling pills at Riverbend/);
+  assert.equal(won.pillsAfter, true);
+});
+
+s.test('wave 2: the big run waits on the boats; people in seeds and templates get their own pronouns or a name; a missed obligation says what happens and errands are owed to whoever asked; Curtis\'s Friday game', async h => {
+  const D = content();
+  // Nobody bound to a loose end is "they" in its seed (Tammy, Lorna, Leon, Nadine...).
+  for (const [k, le] of Object.entries(D.LOOSE_ENDS)) assert.doesNotMatch(le.seed.effect, /\b(they|their|them|themselves)\b/, k + ': ' + le.seed.effect);
+  const all = D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => t.effect).join('\n');
+  for (const gone of ['on their own phone', 'was with them all night', 'something they saw', 'gives them the creeps']) assert.ok(!all.includes(gone), gone);
+  // Every obligation says what happens when its day goes by, and an errand is owed to whoever asked.
+  const obls = [];
+  for (const le of Object.values(D.LOOSE_ENDS)) obls.push(...[le.obligation].concat(le.obligations || []).filter(Boolean));
+  assert.equal(obls.length, 9);
+  for (const o of obls) {
+    assert.ok(typeof o.missText === 'string' && o.missText.length > 20 && !/came looking:/.test(o.missText), JSON.stringify(o.missText));
+    const owed = o.owedTo || '{npcId}';
+    assert.ok(o.onMiss.some(e => e.op === 'addMemory' && e.npcId === owed), 'the person owed remembers: ' + o.text);
+  }
+  const letter = D.LOOSE_ENDS.promise.obligations[0];
+  assert.deepEqual([letter.kind, letter.owedTo], ['errand', 'npc_bernice']);
+  assert.match(letter.missText, /still in \{playerName\}'s pocket/);
+  assert.deepEqual(D.LOOSE_ENDS.promise.obligations.map(o => o.owedTo), ['npc_bernice', 'npc_dale', 'npc_bernice']);
+  const black = D.LOOSE_ENDS.secret.obligation;
+  assert.match(black.missText, /has told Chief Bell what \{playerName\} is hiding/);
+  assert.ok(black.onMiss.some(e => e.op === 'addMemory' && e.npcId === 'npc_marcus'), 'the chief knows');
+  assert.ok(D.LOOSE_ENDS.debt.obligations[1].onMiss.some(e => e.op === 'addMemory' && e.npcId === '{npcId}' && e.weight === 3), 'Leon remembers the title loan he collected');
+  let r = validateEdited(html => once(html, '        owedTo: "npc_bernice",\n        missText: "The letter for', '        missText: "The letter for'));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /an errand is owed to whoever asked for it/);
+  // Curtis Pruett's hook and the first Friday's game.
+  const hook = D.BACKGROUNDS.find(b => b.id === 'bg_poker_hustler').hook;
+  assert.equal(hook.npcId, 'npc_curtis');
+  assert.match(hook.text, /his Friday night game at the back table of the Low Water/);
+  const fri = D.TOWN_DATA.events.find(e => e.id === 'evt_friday_game');
+  assert.deepEqual([fri.day, fri.phase, fri.locationId, fri.attendees], [2, 'evening', 'loc_low_water', ['npc_curtis', 'npc_royce']]);
+  assert.match(fri.branches[0].text, /^Curtis Pruett opens his Friday night game at the back table of the Low Water/);
+
+  // Live: with the boats pulled up the big run does not go (its alt is told, and the Night Run gets no push).
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt', 'secret', 'promise'] });
+  const run = await page.evaluate(() => {
+    const S = Game.State, W = Game.World;
+    const filled = () => { const f = S.faction('fac_nightrun'); return f.clocks[f.activeClock].filled; };
+    S.apply({ setTime: { day: 4, phase: 'morning', shorts: 0 }, effects: [{ op: 'setFlag', key: 'boatsPulledUp', value: true }] });
+    const before = filled();
+    W.fireSeeds({});
+    return { due: (Game.state.dueEvents || []).filter(e => e.seedId === 'seed_big_run').map(e => e.text), delta: filled() - before };
+  });
+  assert.equal(run.due.length, 1);
+  assert.match(run.due[0], /the run has not gone/);
+  // The lease letter (day 3) still pushes the Night Run; the big run does not.
+  assert.ok(run.delta <= 1, 'the big run gave no push: ' + run.delta);
 });
 
 s.run();
