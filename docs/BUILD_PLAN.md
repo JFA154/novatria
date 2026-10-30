@@ -129,7 +129,8 @@ const TOWN_DATA = {
 `requires` and `alt` (on a seed or a clock's `onComplete`): `requires: {
 npcFree?: [npcIds], npcAt?: { npcId: locationId }, flagsSet?: [keys],
 flagsUnset?: [keys], obligationOpen?: [ids] }` (World also reads
-`obligationStatus`, `clockAtLeast` and `attitudeAtLeast` there), `alt: {
+`obligationStatus`, `clockAtLeast`, `attitudeAtLeast`, and since wave 5
+`attitudeBelow` and `threadOpen` there), `alt: {
 text, effects? }`. When it fires and `requires` does not hold, the `alt`
 text and effects are used instead; with no `alt` it fires as a logged no-op.
 `clockAtLeast` counts every segment the faction has filled across its
@@ -164,11 +165,14 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `threadUpdate` | `threadId`, `summary?`, `status?`, `knownToPlayer?` | status through `setThreadStatus`; a resolved thread never moves |
 | `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?`, `itemName?`, `onMiss?`, `onMet?`, `id?` | see Game state; one open per (kind, npcId) |
 | `settleObligation` | `id`, `status` (`met` / `missed`), `how?` | runs `onMet` / `onMiss` once; a no-op if already settled |
+| `obligationPaid` | `id`, `amount`, `take?` | credits money toward a debt or blackmail (at most what is still owed); `take: true` takes it from the player's cash first and credits what it took; paid in full it is met (wave 5) |
 | `addNews` | `text`, `factionId?`, `public?` (default true), `epilogue?` | pushes `{ day, phase, text, factionId, public, seen: false, epilogue? }`; keeps the newest 60 |
 
-`State.EFFECT_OPS` is the list (26), and `tests/validate-town.cjs` keeps the
-same list in `OPS`. Placeholders `{npcId}`, `{npc}`, `{playerName}` (also
-`{player}`, `{witnessId}`, `{witness}`, `{place}`) are filled by
+`State.EFFECT_OPS` is the list (28 with `placeItem` and `obligationPaid`),
+and `tests/validate-town.cjs` keeps the same list in `OPS`. Placeholders
+`{npcId}`, `{npc}`, `{playerName}` (also `{player}`, `{witnessId}`,
+`{witness}`, `{place}`, and an obligation's own `{obligationId}` in its
+`onMiss` and `onMet`) are filled by
 `World.fillEffects` before `State.apply`, which refuses an id that still
 starts with `{`. In content they appear only in loose ends and templates.
 
@@ -1049,3 +1053,39 @@ talking, I can direct it to one person or all."
      failed queued line go back through the UI (it was dropped when
      something new was typed). Left open: the live grammar probe and a
      recorded live opening scene.
+   - **Wave 5** (30 Oct 2026). The fourth code review (8 bugs, its risks
+     and dead code), the fourth playtest (Q1 to Q13, D6 to D9, its prose
+     items and design notes) and the fourth visual, mobile and
+     accessibility QA (defects 1 to 9) were fixed by two agents in parallel
+     (engine with content and the mock; UI), then a fifth integration pass.
+     Notes: each `docs/notes/*` file's "Wave 5" section; tests:
+     `tests/wave5-fixes.test.cjs`, the "wave 5" tests in
+     `tests/ui-fixes.test.cjs` and `tests/integration.test.cjs`. In Say
+     mode money to the one spoken to is a payment or a gift unless the line
+     buys; a failed ask blocks a settlement only with the one asked; a
+     name a person says ("Royce finally says Darnell") is an invented name,
+     past adverbs and a placed speaker, and titles, street abbreviations
+     and brands at a sentence start are not; memories carry the kind of turn, so a grudge answers by it;
+     weapons by maker and head; the sixth instant lands where its short
+     does; arrival events run that phase's clocks first; `/cheat time`
+     fires what it passed in order, each dated, and `/undo` forgets a
+     noted ending; a turn and the ending it brought are one `/undo`, told
+     as narration, Resolved lines, recap, "This is one ending."; the
+     divider before "Overnight in town"; a plan done while the player
+     sleeps is narrated; plans stop after the ending; an enemy loose end
+     comes back three to five days on; the repo man's seizure counts
+     toward the note (`obligationPaid`); the council's keeping the police
+     resolves that thread; Royce is bought or turned, never both; rough
+     nights count at the same public place, a third night running (or a
+     second time) costs a $25 fine, and the cell starts the count again;
+     a friend's couch only when they are there now or tonight. The UI hands the
+     focus on as the phone sheet slides shut, closes the phone Menu on
+     widening, keeps the typing layout for the Say picker, says "One line
+     is already waiting", gives a phone on its side more story, wraps
+     long person-card flags, shows a hurt person one flag, and follows the
+     two-column ⋯ list with the arrow keys. Integration let the rough-night
+     count run on past the chief (a third night was free), told the
+     narrator when someone present is hurt ("hurt: laid up until Day N",
+     as the People card and the absent note say it), and renamed "the
+     Saves screen" to Save / Load in the README. Left open: the live
+     grammar probe and a recorded live opening scene.
