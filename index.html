@@ -13355,8 +13355,10 @@ const Api = (() => {
     } else if (a.actionType === 'gamble') {
       out.push(mockGamble(c, key));
     } else if (target && a.actionType === 'attack') {
-      const down = c.roll && c.roll.success && /\bknocks?\s+(?:\w+\s+){0,2}out\b/i.test(c.input || '');
-      out.push(down ? `${target.name} goes down and stays down.` : `${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
+      // The engine's knockdown (the third clean hit: ctx.knockedDown) and arrest (ctx.arrest.plan) are told in this narration.
+      const down = c.knockedDown === target.id || (c.roll && c.roll.success && /\bknocks?\s+(?:\w+\s+){0,2}out\b/i.test(c.input || ''));
+      out.push(down ? `${target.name} goes down hard and stays down.` : `${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
+      if (c.arrest && c.arrest.plan && c.arrest.plan.text) out.push(sentence(secondPerson(c.arrest.plan.text)));
     } else if (target && a.actionType === 'intimidate') {
       out.push((target.attitude | 0) <= -25 ? `${target.name} has heard enough. "Get out of my sight."` : c.roll && c.roll.success ? `${target.name} backs off a step.` : `${target.name} goes still. "Say that again."`);
     } else if (target && (a.actionType === 'give' || a.actionType === 'sell')) {

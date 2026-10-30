@@ -262,13 +262,14 @@ s.test('bug 5 and B2: the third clean hit is told to the narrator (OUTCOME), the
       G.Pipeline.forceNextRoll(19);
       await G.Pipeline.submit('I punch them');
       const p = M.calls.filter(c => c.method === 'narrate').pop().text;
-      out.push({ phase: st.time.phase, fight: st.fight ? st.fight.hits : null, outcome: /^OUTCOME: .*goes down hard/m.test(p), present: (/^PRESENT: .*$/m.exec(p) || [''])[0].includes(n.name), hurt: S.isHurt(n) });
+      out.push({ phase: st.time.phase, fight: st.fight ? st.fight.hits : null, outcome: /^OUTCOME: .*goes down hard/m.test(p), present: (/^PRESENT: .*$/m.exec(p) || [''])[0].includes(n.name), hurt: S.isHurt(n), told: /goes down hard/.test(st.log[st.log.length - 1].narration) });
     }
     return out;
   }, sc.npcs[0].id);
   assert.notEqual(r.start, r[2].phase, 'the fight crossed a phase');
   assert.deepEqual(r.map(x => x.fight), [1, 2, null]);
   assert.deepEqual(r.map(x => x.outcome), [false, false, true], 'the knockdown is narrated on the third hit');
+  assert.deepEqual(r.map(x => x.told), [false, false, true], 'and the demo tells it then (integration: the mock read only "knocks out")');
   assert.equal(r[2].present, true, 'and the one knocked down is in the scene for it');
   assert.equal(r[2].hurt, true);
   await sendText(page, '/undo');
@@ -630,12 +631,14 @@ s.test('B7: a fight in front of the police: this turn\'s narration tells the arr
     M.queue('parse', { actionType: 'look', summary: 'Looks around', targets: [], needsRoll: false, timeCost: 'instant' });
     await G.Pipeline.submit('I look around');
     const p2 = M.calls.filter(c => c.method === 'narrate').pop().text;
-    return { arrest: /^ARREST: .*holding cell/m.test(p1), time: (/^TIME THIS TAKES: .*$/m.exec(p1) || [''])[0], phase: st.time.phase, day, again: /holding cell/.test((/^DUE EVENT: .*$/m.exec(p2) || [''])[0]) };
+    const told = st.log[st.log.length - 2].narration;
+    return { arrest: /^ARREST: .*holding cell/m.test(p1), time: (/^TIME THIS TAKES: .*$/m.exec(p1) || [''])[0], phase: st.time.phase, day, again: /holding cell/.test((/^DUE EVENT: .*$/m.exec(p2) || [''])[0]), told };
   });
   assert.equal(r.arrest, true);
   assert.match(r.time, /night in a cell; it will be morning/);
   assert.equal(r.phase, 'morning');
   assert.equal(r.again, false, 'told once');
+  assert.match(r.told, /puts you in the holding cell/, 'the demo tells the arrest in that turn too');
 });
 
 s.test('B8: a walk that crosses into the next phase shows who is there in that phase', async h => {
