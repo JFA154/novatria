@@ -7,6 +7,8 @@ const assert = require('assert/strict');
 const { suite, quickStart, stateJson, sendText, fixtures, findScene, place, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('pipeline');
+/* A feed divider without the weekday ("Day 2 · Friday · Evening" reads "Day 2 · Evening"), so these hold with or without the engine's calendar. */
+const noWeekday = t => String(t).replace(/ · (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?= · )/, '');
 
 const lastPacket = (page, method) => page.evaluate(m => { const c = Game.Api.Mock.calls.filter(x => x.method === m); return c.length ? c[c.length - 1].text : null; }, method || 'narrate');
 const calls = page => page.evaluate(() => Game.Api.Mock.calls.map(c => c.method));
@@ -381,7 +383,7 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   assert.ok(packet.startsWith(`DAY 1, NIGHT (early; the player has not slept) · Location: ${t1.name}`));
   assert.equal(r.last.phase, 'night');
   assert.ok(r.last.narration.includes(`You arrive at ${the(t1.name)}`));
-  assert.equal(r.divider, 'Day 1 · Night');
+  assert.equal(noWeekday(r.divider), 'Day 1 · Night');
   // A goal the game cannot place is refused with a hint, and the text kept.
   await sendText(page, '/skip somewhere nice');
   assert.match(await lastNotice(page), /Try \/skip to the docks at night/);
@@ -1483,7 +1485,7 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   }));
   assert.deepEqual(r.ticks, ['1:night'], 'the world ticked once, into the night, and not for the held shorts');
   assert.ok(!r.dividers.some(d => /Day 2/.test(d)), 'no new morning in the feed: ' + r.dividers.join(' | '));
-  assert.equal(r.dividers[r.dividers.length - 1], 'Day 1 · Night');
+  assert.equal(noWeekday(r.dividers[r.dividers.length - 1]), 'Day 1 · Night');
   assert.equal(r.bar, 'Day 1 · Night');
   // The last chore was narrated late at night: the narrator, the bookkeeper and the parser are told.
   const narr = await lastPacket(page);
@@ -1498,7 +1500,7 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   assert.equal(morning.cost, 'long');
   assert.deepEqual(morning.t, { day: 2, phase: 'morning', shorts: 0, noSleep: true });
   assert.deepEqual(morning.ticks, ['2:morning']);
-  assert.equal(morning.divider, 'Day 2 · Morning');
+  assert.equal(noWeekday(morning.divider), 'Day 2 · Morning');
   await sendText(page, 'I sweep the floor');
   assert.ok((await lastPacket(page)).startsWith('DAY 2, MORNING (early; no sleep last night) · Location: '));
   assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 2, MORNING \(early; no sleep last night\)\. /);
@@ -1528,7 +1530,7 @@ s.test('/cheat time night sets the clock (no tick, no narration), shows the divi
   assert.equal(r.log, JSON.parse(s0).log.length, 'nothing narrated');
   assert.equal(r.calls, 0, 'no API call');
   assert.equal(r.ticks, 0, 'no world tick');
-  assert.deepEqual(r.last.map(x => x[1]), ['Day 1 · Night', 'Clock set to day 1, night.']);
+  assert.deepEqual(r.last.map(x => noWeekday(x[1])), ['Day 1 · Night', 'Clock set to day 1, night.']);
   assert.match(r.last[0][0], /f-divider/);
   assert.match(r.last[1][0], /f-quiet/);
   assert.equal(r.bar, 'Day 1 · Night');
@@ -1553,7 +1555,7 @@ s.test('/cheat time night sets the clock (no tick, no narration), shows the divi
   // /undo takes each one back.
   await sendText(page, '/undo');
   assert.deepEqual(await page.evaluate(() => Game.state.time), { day: 1, phase: 'night', shorts: 0 });
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-divider')].pop().textContent), 'Day 1 · Night');
+  assert.equal(noWeekday(await page.evaluate(() => [...document.querySelectorAll('#feed .f-divider')].pop().textContent)), 'Day 1 · Night');
   await sendText(page, '/undo');
   assert.equal(await stateJson(page), s0, 'the clock as it was');
   assert.equal(await page.evaluate(() => document.getElementById('tb-time').textContent), 'Day 1 · Morning');
@@ -1934,6 +1936,8 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   await page.fill(f('name'), 'Mavis Toler');
   await page.selectOption(f('pronouns'), want);
   await page.fill(f('age'), '38');
+  // Look, voice and history are folded away until opened.
+  await page.click(`${card} .pedit-more > summary`);
   await page.fill(f('look'), 'A small, tired woman in a motel smock.');
   await page.fill(f('history'), 'She came down from Calder in the spring and took the night desk nobody else wanted.');
   await page.evaluate(sel => { const r = document.querySelector(sel); r.value = '40'; r.dispatchEvent(new Event('input', { bubbles: true })); }, f('attitude'));
@@ -2126,7 +2130,8 @@ s.test('the dead and the people who live elsewhere are never present: not schedu
   const card = id => page.evaluate(id => { const c = document.querySelector(`.pcard[data-npc="${id}"]`); return { name: c.querySelector('.pcard-name').textContent, age: c.querySelector('.pcard-age').textContent, pron: c.querySelector('.pcard-pron').textContent, where: c.querySelector('.pcard-where').textContent, att: !!c.querySelector('.att') }; }, id);
   assert.deepEqual(await card(x.dead.id), { name: x.dead.name, age: `· ${x.dead.age}`, pron: x.dead.pron, where: `Died ${x.dead.died}`, att: false });
   assert.deepEqual(await card(x.away.id), { name: x.away.name, age: `· ${x.away.age}`, pron: x.away.pron, where: `Lives elsewhere: ${x.away.where}`, att: false });
-  // Opened: their history and their people.
+  // Opened (Elsewhere is folded away until then): their history and their people.
+  await page.click('#panel-body .people-group[data-group="elsewhere"] > summary');
   await page.click(`#phead-${x.away.id}`);
   const facts = await page.evaluate(id => Object.fromEntries([...document.querySelectorAll(`.pcard[data-npc="${id}"] .pcard-facts dd`)].map(d => [d.dataset.fact, d.textContent])), x.away.id);
   assert.equal(facts.history, x.away.history);

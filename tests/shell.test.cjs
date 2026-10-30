@@ -164,7 +164,9 @@ s.test('theme follows prefers-color-scheme on first load; toggle switches and pe
 s.test('new game through character creation to the Begin card (laptop, one page)', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await page.click('#btn-new');
-  assert.equal(await page.locator('.step:visible').count(), 6, 'all six steps on one page');
+  // First launch with no key: how to play comes first.
+  await page.click('#choose-demo');
+  assert.equal(await page.locator('.step:visible').count(), 5, 'all five steps on one page (goal and flaw share one)');
   // Review with nothing filled shows errors and creates nothing.
   await page.click('#cr-review');
   assert.match(await page.textContent('#cr-step-name .err'), /name/i);
@@ -192,14 +194,16 @@ s.test('new game through character creation to the Begin card (laptop, one page)
   assert.equal(await page.inputValue('#cr-age'), '52', 'a typed age stays when the background changes');
   const from = Object.keys(bg.stats).find(k => bg.stats[k] > -1);
   const to = Object.keys(bg.stats).find(k => k !== from && bg.stats[k] < 3);
-  await page.selectOption('#cr-move-from', from);
-  await page.selectOption('#cr-move-to', to);
+  // The steppers: − on one stat, + on another.
+  await page.click(`.step-btn[data-for="${from}"][data-dir="down"]`);
+  await page.click(`.step-btn[data-for="${to}"][data-dir="up"]`);
   assert.equal(await page.textContent(`#cr-stat-grid [data-stat="${to}"]`), (bg.stats[to] + 1 > 0 ? '+' : bg.stats[to] + 1 < 0 ? '−' : '') + Math.abs(bg.stats[to] + 1));
   await page.fill('#cr-goal', 'Find out who burned my letters');
   await page.click('.flaw-choice[data-index="1"]');
   for (const k of ['debt', 'enemy', 'secret']) await page.click(`.le-toggle[data-kind="${k}"]`);
   assert.ok(await page.isDisabled('.le-toggle[data-kind="lost"]'), 'a fourth loose end cannot be picked');
-  await page.selectOption('.le-option[data-kind="enemy"]', '1');
+  // One line per loose end, filled by a suggestion chip or typed.
+  await page.click('.le-choice[data-kind="enemy"][data-index="1"]');
   await page.fill('.le-text[data-kind="secret"]', 'The harbour clerk knows my real name.');
   await page.click('#cr-review');
 
@@ -231,7 +235,7 @@ s.test('new game through character creation to the Begin card (laptop, one page)
     stats: Game.state.player.stats,
     autosave: Game.Storage.hasAutosave()
   }));
-  assert.equal(g.divider, 'Day 1 · Morning');
+  assert.match(g.divider, /^Day 1 · (\w+ · )?Morning$/, 'the weekday sits in the middle once the engine has a calendar');
   assert.equal(g.narr, 1);
   assert.equal(g.loc, g.start[g.arrival], 'arrives at the gate or the docks per background');
   assert.equal(g.stats[from], bg.stats[from] - 1);
@@ -242,19 +246,20 @@ s.test('new game through character creation to the Begin card (laptop, one page)
 s.test('mobile creation shows one step per screen, then Begin; the sheet opens and closes', async h => {
   const page = await h.open({ viewport: PHONE });
   await page.click('#btn-new');
+  await page.click('#choose-demo');
   const visibleSteps = () => page.locator('.step:visible').count();
   assert.equal(await visibleSteps(), 1);
-  assert.equal(await page.textContent('#cr-count'), 'Step 1 of 6');
+  assert.equal(await page.textContent('#cr-count'), 'Step 1 of 5');
   await page.click('#cr-next');
   assert.match(await page.textContent('#cr-step-name .err'), /name/i, 'cannot skip the name');
   await page.fill('#cr-name', 'Ilse');
   await page.click('#cr-next');
-  assert.equal(await page.textContent('#cr-count'), 'Step 2 of 6');
+  assert.equal(await page.textContent('#cr-count'), 'Step 2 of 5');
   await page.click('.bg-choice >> nth=1');
   await page.click('#cr-next');
   await page.click('#cr-next');
+  // Goal and flaw share a step.
   await page.fill('#cr-goal', 'Bring my brother home');
-  await page.click('#cr-next');
   await page.fill('#cr-flaw-custom', 'Cannot sit still');
   await page.click('#cr-next');
   assert.equal(await visibleSteps(), 1);
@@ -500,6 +505,8 @@ s.test('export is a JSON download without the API key; import restores the game'
   await page.fill('#set-key', KEY);
   await page.check('#set-remember');
   await page.click('#settings-done');
+  // A key typed in turns the offline demo off; this test plays offline, so it goes back on.
+  await page.evaluate(() => Game.Storage.saveSettings({ mockMode: true }));
   await quickStart(page);
   await sendText(page, 'I count my coins');
   const json = await page.evaluate(() => Game.Storage.exportJson());
@@ -576,6 +583,9 @@ s.test('settings screen has every field with the documented defaults', async h =
   assert.ok(await page.isChecked('input[name="set-size"][value="M"]'));
   assert.ok(await page.isChecked('input[name="set-style"][value="casual"]'), 'Narration style: casual by default');
   assert.ok(!(await page.isChecked('input[name="set-style"][value="literary"]')));
+  // The models and effort sit under Advanced, below the Quality presets (Standard is the defaults).
+  assert.ok(await page.isChecked('input[name="set-preset"][value="standard"]'));
+  await page.click('#set-advanced > summary');
   await page.selectOption('#set-effort-narrator', 'high');
   await page.fill('#set-parser-model', 'claude-opus-5-5');
   await page.press('#set-parser-model', 'Tab');

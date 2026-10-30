@@ -196,12 +196,22 @@ function overflowReport(page, width) {
     const de = document.documentElement;
     if (de.scrollWidth > w) out.push('documentElement.scrollWidth=' + de.scrollWidth);
     if (document.body.scrollWidth > w) out.push('body.scrollWidth=' + document.body.scrollWidth);
+    // Inside a box that scrolls sideways on purpose (the phone's Say row) and is itself on screen, content is scrolled, not overflowing.
+    const scrolledInside = el => {
+      for (let p = el.parentElement; p && p.id !== 'app'; p = p.parentElement) {
+        const ox = getComputedStyle(p).overflowX;
+        if (ox !== 'auto' && ox !== 'scroll') continue;
+        const pr = p.getBoundingClientRect();
+        if (pr.left >= -1 && pr.right <= w + 1) return true;
+      }
+      return false;
+    };
     for (const el of document.querySelectorAll('#app *')) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
-      if (r.right > w + 1 || r.left < -1) out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ').join('.') : ''} [${Math.round(r.left)}, ${Math.round(r.right)}]`);
+      if ((r.right > w + 1 || r.left < -1) && !scrolledInside(el)) out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ').join('.') : ''} [${Math.round(r.left)}, ${Math.round(r.right)}]`);
     }
     for (const el of document.querySelectorAll('.page, .feed-scroll, .panel-body')) {
       if (el.offsetParent && el.scrollWidth > el.clientWidth + 1) out.push(`horizontal scroll inside ${el.id || el.className}`);
