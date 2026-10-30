@@ -435,7 +435,8 @@ s.test('/rest sleeps until morning, heals 3 and ticks every phase; /wait waits i
   assert.equal(r.time.phase, 'morning');
   assert.deepEqual(r.ticks, ['1:afternoon:rest', '1:evening:rest', '1:night:rest', '2:morning:rest']);
   assert.deepEqual(await calls(page), ['narrate']);
-  assert.match(await lastPacket(page), /\nTIME PASSED: the player slept until morning, day 2, and recovered 1 HP/);
+  // Changed by design (wave 6, the round-5 playtest's R9): "Day 2", as everywhere else.
+  assert.match(await lastPacket(page), /\nTIME PASSED: the player slept until morning, Day 2, and recovered 1 HP/);
   assert.equal(r.last.day, 2);
   await page.evaluate(() => { window.__ticks = []; });
   const loc = await page.evaluate(() => Game.state.player.locationId);

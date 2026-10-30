@@ -579,3 +579,24 @@ copy item. Tests: `tests/wave5-fixes.test.cjs`.
   The People card ("Hurt until Day N", alone since the UI's wave 5) and
   `State.absentNote` ("hurt and laid up at … until Day N") give the same
   day. Pinned in `tests/integration.test.cjs`.
+
+## Wave 6
+
+The fifth review's bugs 3 and 4 (Style.nameHits). Tests:
+`tests/wave6-fixes.test.cjs`.
+
+- **What only a thing does** (review bug 3): `THING_AFTER` is wording a
+  person never fits: "plays on the radio" (the jukebox, the speakers), "is
+  on the jukebox", "comes on", "is cheap" (expensive, on sale, sold out),
+  "costs $4" (a number), "tastes like", "smells like", "fizzes", "blares".
+  "Earl Hux plays pool", "sells bait", "was playing cards", "tastes the
+  coffee", "costs the town money" are someone (hard).
+- **A maker after "by"** (review bug 3): only after a work (`WORKS`: song,
+  something, anything, record, album, tune, book, painting, number, track,
+  single, hit, ballad, novel, cover): "something by Patsy Cline" is soft;
+  "You stand by Earl Hux", "a letter by Earl Hux", "given to Royce by Earl
+  Hux" are hard. `PASSIVE` is gone (nothing reads it).
+- **What says it** (review bug 4): `SAYING_THINGS` gains it, this and that;
+  a side of a thing (`SIDE_WORDS`: front, back, side, cover, inside, top,
+  bottom ...) says it as a thing, and "X of Y" with X a side reads Y ("The
+  back of the card says Happy Birthday": the card).

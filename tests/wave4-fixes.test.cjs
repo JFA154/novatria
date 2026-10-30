@@ -746,7 +746,8 @@ s.test('design: /cheat time past the council meeting makes it happen at once, as
     const res = G.Commands.run(`/cheat time morning ${ev.day + 1}`);
     const quiets = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent);
     const news = st.news.filter(n => n.eventId === ev.id);
-    return { ok: res.ok, fired: (st.eventsFired || []).includes(ev.id), news: news.map(n => [n.day, n.phase, n.seen]), evDay: ev.day, evPhase: ev.phase, meanwhile: quiets.filter(q => /^Meanwhile in town: /.test(q)).length, recap: G.Pipeline.recapText() };
+    // Changed by design (wave 6, the round-5 playtest's R2): a "Meanwhile in town, Day N: …" line for each day the jump passed with news (the seeds too, in order); the meeting is told once, on its own day's line.
+    return { ok: res.ok, fired: (st.eventsFired || []).includes(ev.id), news: news.map(n => [n.day, n.phase, n.seen]), evDay: ev.day, evPhase: ev.phase, meanwhile: quiets.filter(q => q.startsWith(`Meanwhile in town, Day ${ev.day}: `) && news.some(n => q.includes(n.text))).length, recap: G.Pipeline.recapText() };
   });
   assert.equal(r.ok, true);
   assert.equal(r.fired, true);
