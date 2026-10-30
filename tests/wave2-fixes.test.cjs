@@ -745,30 +745,33 @@ s.test('B12 and B13: a save is checked for the types the engine reads (state and
 
 // ----- recap, gifts, Stop, a read-only tab, cards -----
 
-s.test('the recap (f, B20): a heading, each person "is cold to you: <why>" in plain words, text cut at a word with "…", and once the story has ended a short line instead of the same mornings', async h => {
+s.test('the recap (f, B20): one line each in the agreed words (no heading: the UI adds it); warm and cold people with one plain reason, a loose end as "your loose end"; text cut at a word with "…"; once the ending has happened, that line, and only it after a night\'s sleep', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: ['enemy'] });
   const r = await page.evaluate(() => {
     const G = Game, S = G.State, st = G.state;
     const le = st.player.looseEnds[0];
     const enemy = S.npc(le.npcId);
-    const friend = st.npcs.find(n => n.id !== enemy.id && n.alive !== false && n.status === 'free' && G.presenceOf(n) === 'here');
-    S.apply({ npcKnownToPlayer: [friend.id], effects: [{ op: 'attitudeDelta', npcId: friend.id, delta: 40 - friend.attitude }, { op: 'attitudeDelta', npcId: enemy.id, delta: -40 - enemy.attitude }], newMemories: [{ npcId: friend.id, text: 'bought me a beer', weight: 2 }] });
+    const friend = st.npcs.find(n => n.id !== enemy.id && n.alive !== false && n.status === 'free' && G.presenceOf(n) === 'here' && n.pronouns === 'he');
+    S.apply({ npcKnownToPlayer: [friend.id], effects: [{ op: 'attitudeDelta', npcId: friend.id, delta: 40 - friend.attitude }, { op: 'attitudeDelta', npcId: enemy.id, delta: -40 - enemy.attitude }], newMemories: [{ npcId: friend.id, text: `${st.player.name} fixed the fuel pump for me`, weight: 2 }] });
     S.apply({ effects: [{ op: 'addNews', text: 'The council met for a very long time on Tuesday and nobody in the room could say afterwards what exactly had been decided about the bridge or about the police department or about anything at all, and the mayor adjourned', public: true }] });
     const full = G.Pipeline.recapText();
-    S.apply({ effects: [{ op: 'addNews', text: 'Three weeks on, the bridge stands. Life goes on.', public: true, epilogue: true }] });
-    S.apply({ newsSeen: 'ending' });
-    return { full, brief: G.Pipeline.recapText({ brief: true }), enemy: enemy.name, friend: friend.name };
+    S.apply({ effects: [{ op: 'setFlag', key: 'epilogueShown', value: true }] });
+    return { full, after: G.Pipeline.recapText(), brief: G.Pipeline.recapText({ brief: true }), enemy: enemy.name, friend: friend.name, label: le.label };
   });
   const lines = r.full.split('\n');
-  assert.equal(lines[0], 'Where things stand');
-  assert.ok(lines.includes(`${r.friend} is warm to you: you bought them a beer.`), r.full);
-  assert.ok(lines.includes(`${r.enemy} is cold to you: they knew you before: an enemy.`), r.full);
+  assert.match(lines[0], /^Day \d+ \(\w+ \d+ \w+\), \w+, at .+\.$/);
+  assert.match(lines[1], /^Here: (.+, )*.+( and .+)?\.$/);
+  assert.match(lines[2], /^Open: /);
+  assert.ok(lines.includes(`Warm to you: ${r.friend} (warm, remembers you fixed the fuel pump for him).`), r.full);
+  assert.ok(lines.includes(`Cold to you: ${r.enemy} (cold, your loose end: ${r.label.toLowerCase()}).`), r.full);
+  assert.ok(!/Loose end with|"[^"]*me[^"]*"/.test(r.full), 'never a raw memory');
   assert.match(r.full, /In town: Day \d+: The council met .*…/);
-  assert.ok(!/ [a-z]{1,2}…/.test(r.full.split('In town:')[1]) || /\w…/.test(r.full), 'cut at a word');
-  const b = r.brief.split('\n');
-  assert.equal(b.length, 3, r.brief);
-  assert.match(b[2], /^The story has reached an ending \(day \d+\): Three weeks on, the bridge stands\. You can keep playing\.$/);
+  assert.ok(!r.full.includes('Where things stand'), 'the UI adds the heading');
+  const after = r.after.split('\n');
+  assert.equal(after[1], 'The story has reached an ending; you can keep playing.');
+  assert.match(after[2], /^Here: /, 'the full recap goes on after it');
+  assert.deepEqual(r.brief.split('\n'), [after[0], 'The story has reached an ending; you can keep playing.'], 'only that after a night\'s sleep');
 });
 
 s.test('gifts: a second gift to the same person the same day earns no warmth', async h => {
@@ -823,6 +826,29 @@ s.test('Stop while the town is being updated keeps the narration (changes not re
   assert.ok((await quiets(page)).some(q => /^Stopped while the town was being updated/.test(q)));
 });
 
+s.test('Pipeline.cancelQueued takes back the line waiting in the queue: it returns its text and the line never runs', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  await fast(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, M = G.Api.Mock;
+    const orig = M.bookkeep;
+    M.bookkeep = async function (packet) { await new Promise(res => setTimeout(res, 300)); return orig.call(M, packet); };
+    let got = null;
+    G.Pipeline.setStatusListener(ev => {
+      if (ev.stage === 'bookkeep' && got === null) { got = 'pending'; setTimeout(async () => { await G.Pipeline.submit('I look at the second thing'); got = { waiting: G.Pipeline.queued, back: G.Pipeline.cancelQueued(), after: G.Pipeline.queued, again: G.Pipeline.cancelQueued() }; }, 20); }
+    });
+    await G.Pipeline.submit('I look at the first thing');
+    await G.Pipeline.whenIdle();
+    await new Promise(res => setTimeout(res, 100));
+    G.Pipeline.setStatusListener(null);
+    M.bookkeep = orig;
+    return { got, inputs: G.state.log.map(e => e.input) };
+  });
+  assert.deepEqual(r.got, { waiting: 'I look at the second thing', back: 'I look at the second thing', after: null, again: null });
+  assert.ok(!r.inputs.includes('I look at the second thing'), 'never run');
+});
+
 s.test('a read-only tab plays nothing: a line, /look, /rest, Wait, /reroll and /cheat time are refused with a notice before anything is called', async h => {
   const page = await h.open();
   await quickStart(page);
@@ -835,13 +861,13 @@ s.test('a read-only tab plays nothing: a line, /look, /rest, Wait, /reroll and /
     const out = [];
     for (const x of ['I look around', '/look', '/rest', '/reroll', '/cheat time night', '/undo']) out.push((await G.Pipeline.submit(x)).reason);
     out.push((await G.Pipeline.pass()).reason);
-    return { reasons: out, turns: G.state.meta.turn - t0, calls: G.Api.Mock.calls.length };
+    return { reasons: out, turns: G.state.meta.turn - t0, calls: G.Api.Mock.calls.length, toast: document.getElementById('toast') ? document.getElementById('toast').textContent : (document.querySelector('.toast') || {}).textContent };
   });
   if (r.skipped) return;
-  assert.deepEqual(r.reasons, ['readonly', 'readonly', 'readonly', 'readonly', 'readonly', 'readonly', 'readonly']);
+  assert.deepEqual(r.reasons, ['read-only', 'read-only', 'read-only', 'read-only', 'read-only', 'read-only', 'read-only']);
   assert.equal(r.turns, 0);
   assert.equal(r.calls, 0);
-  assert.ok((await notices(page)).some(n => /open in another tab/.test(n)));
+  assert.match(String(r.toast), /another tab/, 'a toast says why');
 });
 
 s.test('cards: a fumble without a marked deck is only an accusation (cooler dealer, out for the night); with one it is caught (a heavier memory, colder, three days out)', async h => {

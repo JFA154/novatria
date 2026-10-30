@@ -14244,8 +14244,9 @@ const Pipeline = (() => {
     let ro = false;
     try { ro = typeof Storage !== 'undefined' && !!Storage.readOnly; } catch (e) { ro = false; }
     if (!ro) return null;
-    UI.feed.notice(NOTICES.readOnly);
-    return { ok: false, reason: 'readonly', restoreInput: true };
+    const text = typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : NOTICES.readOnly;
+    if (typeof UI.toast === 'function') UI.toast(text); else UI.feed.notice(text);
+    return { ok: false, reason: 'read-only', restoreInput: true };
   }
 
   // ----- small helpers -----
@@ -16504,7 +16505,7 @@ const Pipeline = (() => {
   async function arrival() {
     const s = State.current;
     if (!s || busy) return { ok: false };
-    if (readOnlyRefusal()) return { ok: false, reason: 'readonly' };
+    if (readOnlyRefusal()) return { ok: false, reason: 'read-only' };
     busy = true;
     acceptsQueue = false;
     UI.setBusy(true);
@@ -16686,64 +16687,69 @@ const Pipeline = (() => {
     const i = head.lastIndexOf(' ');
     return `${(i > n * 0.5 ? head.slice(0, i) : head).replace(/[\s,;:.—–-]+$/, '')}…`;
   }
-  /* A person's latest memory of the player, read plainly for the recap
-     ("they knew you before: a debt", "you bought them a beer", "they saw you
-     hit Royce Pittman"): memories are written from the person's side, the
-     player as them or by name, the person as me. */
+  /* Why someone is warm or cold, in a few plain words for the recap: for
+     someone tied to one of the player's loose ends "your loose end: a debt";
+     otherwise their newest memory of weight 2 or more after "remembers ",
+     the player's name read as "you" and the person's "me" as him, her or
+     them ("remembers you called him a liar", "remembers he saw you hit
+     Royce Pittman"); else nothing. Never the raw memory. */
   const PRESENT_VERB = { is: 'are', has: 'have', owes: 'owe', says: 'say', claims: 'claim', wants: 'want', knows: 'know', works: 'work', lives: 'live', does: 'do', goes: 'go', calls: 'call', keeps: 'keep', seems: 'seem', drinks: 'drink', plays: 'play' };
-  function plainMemory(m, p) {
-    const raw = cleanText(String((m && m.text) || ''), 300);
-    const loose = /^Loose end with [^(]*\(([^)]*)\)/i.exec(raw);
-    if (loose) return `they knew you before: ${loose[1]}`;
-    if (/^Fact \(a story point\):/i.test(raw)) return `a fact you made true: ${lowerFirst(raw.replace(/^Fact \(a story point\):\s*/i, ''))}`;
+  const PRONOUN_FORMS = { he: { subj: 'he', obj: 'him', pos: 'his', self: 'himself' }, she: { subj: 'she', obj: 'her', pos: 'her', self: 'herself' }, they: { subj: 'they', obj: 'them', pos: 'their', self: 'themselves' } };
+  function recapReason(n, p) {
+    const le = (p.looseEnds || []).find(x => x.npcId === n.id && (!x.threadId || !State.thread(x.threadId) || State.thread(x.threadId).status === 'open'));
+    if (le) return `your loose end: ${lowerFirst(le.label || le.kind || 'a loose end')}`;
+    const m = (n.memories || []).filter(x => (x.weight | 0) >= 2 && !State.protectedMemory(x)).slice(-1)[0];
+    if (!m) return '';
+    const pr = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
     const names = [p.name].concat(String(p.name || '').split(/\s+/).filter(w => w.length >= 3)).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    let t = raw.replace(/[.!]+$/, '');
+    let t = cleanText(String(m.text || ''), 300).replace(/[.!]+$/, '');
     for (const nm of names) t = t.replace(new RegExp(`\\b${nm}'s\\b`, 'g'), 'your').replace(new RegExp(`\\b${nm}\\b`, 'g'), 'you');
     const mine = /\b(me|my|myself|I)\b/.test(t);
-    const yours = /\b(you|your|them)\b/i.test(t);
-    const swap = x => x.replace(/\bmyself\b/g, 'themselves').replace(/\bme\b/g, 'them').replace(/\bmy\b/g, 'their').replace(/\bI\b/g, 'they');
-    if (/^you\b/i.test(t)) return swap(lowerFirst(t));
-    // The person did something to or about the player ("saw them hit the bartender", "locked you up").
-    if (yours && !mine) return `they ${lowerFirst(t).replace(/\bthem\b/g, 'you')}`;
-    // The player did something to the person ("bought me a beer", "owes me $40 by Friday").
-    if (mine && /^[a-z]/.test(t)) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return `you ${swap(w.join(' '))}`; }
-    return `they remember "${cutWords(raw, 90)}"`;
+    const swap = x => x.replace(/\bmyself\b/g, pr.self).replace(/\bme\b/g, pr.obj).replace(/\bmy\b/g, pr.pos).replace(/\bI\b/g, pr.subj);
+    if (/^you\b/i.test(t)) return cutWords(`remembers ${swap(lowerFirst(t))}`, 120);
+    // What the player did to them ("called me a liar", "owes me $40 by Friday").
+    if (mine && /^[a-z]/.test(t)) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return cutWords(`remembers you ${swap(w.join(' '))}`, 120); }
+    // What they did about the player ("saw them hit the bartender", "locked you up").
+    if (/^[a-z]/.test(t)) return cutWords(`remembers ${pr.subj} ${t.replace(/\bthem\b/g, 'you')}`, 120);
+    return cutWords(`remembers ${lowerFirst(swap(t))}`, 120);
   }
-  function attitudePhrase(n) { const w = State.attitudeWord(n.attitude); return w === 'wary' ? 'is wary of you' : `is ${w} to you`; }
-  /* The ending, once it has been told (its news seen), or null. */
-  function endingTold() { return newsList().find(n => isObj(n) && n.epilogue === true && n.seen) || null; }
-  const RECAP_HEAD = 'Where things stand';
-  /* opts.brief (the recap after a night's sleep): once the story has
-     reached its ending, only where and when and that line, not the same
-     list every morning. */
+  /* Whether the story's ending has happened (the epilogue fired). */
+  function endingFired() { return !!(State.current && State.current.flags && State.current.flags.epilogueShown); }
+  const ENDING_LINE = 'The story has reached an ending; you can keep playing.';
+  /* The recap, one line each (the UI adds the heading "Where things stand"
+     and bolds what comes before the first colon): where and when; once the
+     ending has happened, that line; Here and Open always; Owed, Warm to you,
+     Cold to you, Heard and In town when there is something. opts.brief (the
+     recap after a night's sleep): once the story has ended, only the first
+     two lines, not the same list every morning. */
   function recapText(opts) {
     const s = State.current;
     if (!s) return '';
     const p = s.player;
     const t = s.time;
     const l = State.loc(p.locationId);
-    const out = [RECAP_HEAD];
-    out.push(`Day ${t.day} (${State.dateLine(t.day)}), ${t.phase}, at ${placeName(l)}.`);
-    const end = endingTold();
-    if (end) out.push(`The story has reached an ending (day ${end.day}): ${cutWords(sentenceOne(end.text), 160)} You can keep playing.`);
-    if (end && opts && opts.brief) return out.join('\n');
+    const out = [`Day ${t.day} (${State.dateLine(t.day)}), ${t.phase}, at ${placeName(l)}.`];
+    if (endingFired()) {
+      out.push(ENDING_LINE);
+      if (opts && opts.brief) return out.join('\n');
+    }
     const present = State.npcsAt(p.locationId);
-    out.push(`Here: ${present.length ? present.map(n => (n.knownToPlayer ? n.name : npcLabel(n))).join(', ') : 'nobody'}.`);
+    out.push(`Here: ${present.length ? andList(present.map(n => (n.knownToPlayer ? n.name : npcLabel(n)))) : 'nobody'}.`);
     const threads = s.threads.filter(x => x.status === 'open' && x.knownToPlayer);
     out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${cutWords(sentenceOne(cleanText(x.summary, 400)), 220).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
     const obls = State.obligations('owed');
     if (obls.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).join('; ')}.`);
     const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here');
-    const latest = n => (n.memories || []).filter(x => !/^Loose end with /i.test(x.text)).slice(-1)[0] || (n.memories || []).slice(-1)[0] || null;
-    const line = n => { const m = latest(n); return `${n.name} ${attitudePhrase(n)}${m ? `: ${plainMemory(m, p)}` : ''}.`; };
+    const person = n => { const why = recapReason(n, p); return `${n.name} (${State.attitudeWord(n.attitude)}${why ? `, ${why}` : ''})`; };
     const warm = known.filter(n => n.attitude > 5).sort((a, b) => b.attitude - a.attitude).slice(0, 3);
     const cold = known.filter(n => n.attitude < -5).sort((a, b) => a.attitude - b.attitude).slice(0, 3);
-    for (const n of warm.concat(cold)) out.push(line(n));
+    if (warm.length) out.push(`Warm to you: ${warm.map(person).join(', ')}.`);
+    if (cold.length) out.push(`Cold to you: ${cold.map(person).join(', ')}.`);
     // The rumours heard last (by the day they were heard; the order heard within a day).
     const heard = s.rumours.filter(r => r.heard);
     const order = r => (Number.isInteger(r.heardDay) ? r.heardDay : -1);
     const lastHeard = heard.map((r, i) => ({ r, i })).sort((a, b) => order(a.r) - order(b.r) || a.i - b.i).slice(-3).map(x => x.r);
-    if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cutWords(r.text, 140)}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
+    if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cutWords(r.text, 140).replace(/[.]$/, '')}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
     const news = newsList().filter(n => isObj(n) && n.public !== false && n.text && n.epilogue !== true).slice(-2);
     if (news.length) out.push(`In town: ${news.map(n => `${Number.isInteger(n.day) ? `Day ${n.day}: ` : ''}${cutWords(n.text, 200)}`).join(' ')}`);
     return out.join('\n');
@@ -16782,6 +16788,9 @@ const Pipeline = (() => {
     get canStop() { return busy; },
     get acceptsQueue() { return busy && acceptsQueue; },
     get queued() { return queued ? queued.text : null; },
+    /* The line waiting in the queue taken back (the UI's "Next: ..." and its
+       x): it will not run. Returns its text, or null when nothing waits. */
+    cancelQueued() { if (!queued) return null; const q = queued; queued = null; return q.text || ''; },
     get lastTurn() { return lastTurn; }
   };
 })();
@@ -20216,7 +20225,7 @@ const Commands = (() => {
         return Pipeline.reroll(arg);
       }
       case '/undo': {
-        if (Storage.readOnly) { UI.feed.notice(Pipeline.NOTICES.readOnly); return { ok: false, reason: 'readonly', restoreInput: true }; }
+        if (Storage.readOnly) { UI.toast(typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : Pipeline.NOTICES.readOnly); return { ok: false, reason: 'read-only', restoreInput: true }; }
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
         World.forget(State.current.meta.turn);
         Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number

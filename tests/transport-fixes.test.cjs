@@ -542,8 +542,7 @@ s.test('a new morning shows the unseen town news once ("Overnight in town"); an 
   assert.equal(await page.evaluate(() => Game.state.news[0].seen), true);
   assert.equal(await page.evaluate(() => Game.state.news[1].seen), false, 'not public: not told');
   // /rest also shows the recap.
-  // Wave 2: the recap opens with its heading (the UI styles it).
-  assert.match(await lastNotice(page), /^Where things stand\nDay 2.*\nHere: /s);
+  assert.match(await lastNotice(page), /^Day 2.*\nHere: /s);
   // An ending.
   await page.evaluate(() => Game.state.news.push({ day: 2, phase: 'morning', text: 'Royce Pittman casts the deciding vote, and the new bridge goes downstream.', public: true, seen: false, epilogue: true }));
   const turn0 = await page.evaluate(() => Game.state.meta.turn);
@@ -593,15 +592,13 @@ s.test('/recap: where and when, who is here, open threads, what is owed with a c
   await sendText(page, '/recap');
   const text = await lastNotice(page);
   const lines = text.split('\n');
-  // Wave 2: a heading, then where and when.
-  assert.equal(lines[0], 'Where things stand');
-  assert.match(lines[1], /^Day 1( \([^)]*\))?, morning, at /);
-  assert.match(lines[2], /^Here: /);
+  assert.match(lines[0], /^Day 1( \([^)]*\))?, morning, at /);
+  assert.match(lines[1], /^Here: /);
   assert.ok(text.includes(`Open: ${setup.thread}`), text);
   assert.ok(text.includes(`Owed: You owe ${setup.c} $400 · due Day 3 (2 days)`), text);
-  // Wave 2: one line a person, the attitude in words and their latest memory read plainly (not the raw memory).
-  assert.ok(lines.includes(`${setup.w} is warm to you: you bought them a beer.`), text);
-  assert.ok(lines.includes(`${setup.c} is cold to you: you called them a liar.`), text);
+  // Wave 2 (the coordinator's wording): the attitude word, then one reason read plainly (never the raw memory in quotes).
+  assert.match(text, new RegExp(`\nWarm to you: (.+, )?${setup.w} \\(warm, remembers you bought (him|her|them) a beer\\)[,.]`));
+  assert.match(text, new RegExp(`\nCold to you: (.+, )?${setup.c} \\(cold, remembers you called (him|her|them) a liar\\)[,.]`));
   assert.ok(!/Loose end with/.test(text), 'a loose end reads as one, not as the raw memory');
   assert.ok(text.includes(`Heard: "${setup.rumour.slice(0, 40)}`), text);
   assert.ok(text.includes('In town: Day 1: The bait shop flooded.'), text);

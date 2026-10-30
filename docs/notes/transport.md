@@ -433,10 +433,7 @@ SEAMS "what remains", and the playtest's turn items. Tests:
 - **`/reroll` and `/cheat`** (review bug 10): the turn is replayed from the
   action as parsed (`lastTurn.parsed`), so a failed search can find the
   thing on a success.
-- **A read-only tab** (coordinator item e): `runTurn`, `submit` (a line),
-  `pass`, `reroll`, `setClock`, `arrival` and `/undo` refuse with
-  `{ ok: false, reason: 'readonly', restoreInput: true }` and a notice,
-  before any snapshot or call.
+- **A read-only tab** (coordinator item e): see "Queue and read-only" below.
 - Removed: the pre-rules-8 `advance()` fallback that wrote `time.shorts`,
   the direct `seen` writes, Pipeline's own calendar (`calendarDay`, its
   weekday and month lists: `State.weekday` / `State.dateLine`), the second
@@ -449,14 +446,40 @@ SEAMS "what remains", and the playtest's turn items. Tests:
 
 ### The recap (coordinator item f, playtest B20)
 
-`Pipeline.recapText(opts)` opens with the heading `Where things stand`, then
-the day and place, `Here:`, `Open:`, `Owed:` (open and missed-but-owed, with
-part payments), one line per warm or cold person ("Boyd Teague is cold to
-you: they knew you before: an enemy.", "Loretta Gaddis is warm to you: you
-bought them a beer."), `Heard:` (by the day heard) and `In town:`; long text
-is cut at a word with "…". Once the ending has been told it says "The story
-has reached an ending (day N): ... You can keep playing.", and the recap
-after `/rest` (`{ brief: true }`) is only that and where and when.
+`Pipeline.recapText(opts)`, one line each, in this order (the UI adds the
+heading "Where things stand" and bolds what comes before the first colon):
+
+```
+Day 2 (Friday 9 October), morning, at Pittman's Gas and Service.
+Here: Royce Pittman, Dewayne Mangum and Jodie Strayhorn.
+Open: A debt (I owe a man in this town six hundred dollars I don't have); An enemy (...).
+Owed: You owe Royce Pittman $400 · due Day 3 (2 days).
+Warm to you: Royce Pittman (friendly), Loretta Gaddis (warm, remembers you fixed the fuel pump).
+Cold to you: Boyd Teague (cold, your loose end: an enemy), Lyman Coker (wary, remembers you called him a liar).
+Heard: "The council meets Tuesday about the bridge" (Royce Pittman).
+In town: Day 2: The council voted to close the old bridge.
+```
+
+Here and Open always; the rest only when there is something. A warm or
+cold person's bracket is the attitude word and at most one reason: "your
+loose end: <its label>" for someone tied to one, else their newest memory of
+weight 2 or more after "remembers", read with the player as "you" and the
+person's "me" as him, her or them (never the raw memory, never "Loose end
+with ..."). Owed lists the open obligations and the missed ones still owed
+(with part payments). Long text is cut at a word with "…"; rumours are in the
+order heard (`heardDay`). Once the ending has happened (`flags.epilogueShown`)
+the first line is followed by "The story has reached an ending; you can keep
+playing.", and the recap after `/rest` (`{ brief: true }`) is only those two
+lines.
+
+### Queue and read-only (the UI's asks)
+
+- `Pipeline.cancelQueued()`: the line waiting in the queue is taken back (it
+  will not run); returns its text, or null when nothing waits.
+- A read-only tab: `runTurn`, `submit` (a line), `pass`, `reroll`,
+  `setClock`, `arrival` and `/undo` show `UI.toast(UI.READ_ONLY_NOTICE)` (a
+  notice of their own when the UI has none) and return `{ ok: false,
+  reason: 'read-only', restoreInput: true }` before any snapshot or call.
 
 ### Commands, Upgrade, Api
 
