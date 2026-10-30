@@ -168,7 +168,8 @@ s.test('[3] A failed lockpick → the failure is narrated, something changes, an
   assert.equal(r.t.roll.tier, 'failure');
   assert.match(r.roll, /· Failure$/, 'the roll line says so');
   assert.ok(r.t.narration.includes('failure') && r.t.narration.includes(r.t.roll.complication), 'the failure and its complication are narrated: ' + r.t.narration);
-  assert.ok(await page.evaluate(c => Game.data.TABLES.complications.includes(c), r.t.roll.complication), 'the complication comes from the table');
+  // The table's entries are objects now (engine-world): the text, with {witness} as someone present.
+  assert.ok(await page.evaluate(c => Game.data.TABLES.complications.some(x => new RegExp('^' + x.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\{witness\\}', '.+') + '$').test(c)), r.t.roll.complication), 'the complication comes from the table');
   assert.match(r.t.packet, new RegExp(`\\nCOMPLICATION: ${r.t.roll.complication.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
   // Something changed: the complication is part of the story, time moved, the attempt is on record and locked.
   assert.ok(r.st.meta.lastRollKey, 'the retry lock is set');

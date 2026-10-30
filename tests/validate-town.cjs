@@ -1097,6 +1097,29 @@ if (trueCount !== 7 || falseCount !== 3) err('TOWN_DATA.rumours', 'need exactly 
 // ---------------------------------------------------------------------------
 // 6. TABLES
 // ---------------------------------------------------------------------------
+// TABLES.complications is the engine's table (Dice.complication): objects
+// { text, tiers, kinds, needsPerson?, notDay1?, effects? }. A text that names
+// {witness} needs a person; an effect's placeholders are the engine's.
+const COMPLICATION_TIERS = ['partial', 'failure', 'both'];
+const COMPLICATION_KINDS = ['social', 'physical', 'stealth', 'any'];
+function checkComplications(list, where, count) {
+  if (!Array.isArray(list)) { err(where, 'expected an array'); return; }
+  if (list.length !== count) err(where, 'expected exactly ' + count + ' entries, found ' + list.length);
+  const seen = new Set();
+  list.forEach((c, i) => {
+    const w = where + '[' + i + ']';
+    if (!checkKeys(c, ['text', 'tiers', 'kinds'], w, ['needsPerson', 'notDay1', 'effects'])) return;
+    if (checkStr(c.text, w + '.text') && /[{}]/.test(c.text.replace(/\{witness\}/g, ''))) err(w, 'the only placeholder in a complication is {witness}');
+    if (typeof c.text === 'string') { if (seen.has(c.text.toLowerCase())) err(w, 'duplicate complication'); seen.add(c.text.toLowerCase()); }
+    if (!Array.isArray(c.tiers) || !c.tiers.length || !c.tiers.every(t => COMPLICATION_TIERS.includes(t))) err(w, 'tiers must be a list of ' + COMPLICATION_TIERS.join(', '));
+    if (!Array.isArray(c.kinds) || !c.kinds.length || !c.kinds.every(k => COMPLICATION_KINDS.includes(k))) err(w, 'kinds must be a list of ' + COMPLICATION_KINDS.join(', '));
+    for (const k of ['needsPerson', 'notDay1']) if (k in c && typeof c[k] !== 'boolean') err(w, k + ' must be true or false');
+    const witness = /\{witness(Id)?\}/.test(JSON.stringify(c.text) + JSON.stringify(c.effects || []));
+    if (witness && c.needsPerson !== true) err(w, 'names {witness} without needsPerson');
+    if ('effects' in c && (!Array.isArray(c.effects) || !c.effects.every(e => isObj(e) && isStr(e.op)))) err(w, 'effects must be a list of { op, ... }');
+  });
+}
+
 const TABLE_SPEC = {
   npc: { firstNames: 30, familyNames: 30, occupations: 30, traits: 30, wants: 20, speechQuirks: 20 },
   location: { types: 15, details: 20, problems: 15 },
@@ -1108,6 +1131,11 @@ let tableEntries = 0;
 if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
   for (const group of Object.keys(TABLE_SPEC)) {
     const spec = TABLE_SPEC[group];
+    if (group === 'complications') {
+      checkComplications(TABLES[group], 'TABLES.' + group, spec);
+      tableEntries += Array.isArray(TABLES[group]) ? TABLES[group].length : 0;
+      continue;
+    }
     if (typeof spec === 'number') {
       checkStrList(TABLES[group], 'TABLES.' + group, spec, { noPlaceholders: true });
       tableEntries += Array.isArray(TABLES[group]) ? TABLES[group].length : 0;
