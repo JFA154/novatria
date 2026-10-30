@@ -515,3 +515,11 @@ The third code review's bugs 2 and 3 and the invented-name middle ground
   spent.
 - Card game: "takes your deck and throws you out", and "You end up outside
   on Front Street."
+
+## Integration (wave 4)
+
+- `COMMON` gains the function words "Neither", "Either", "None",
+  "Whoever", "Whatever", "Whichever", "Wherever" and "Whenever": "Neither
+  says a word." and "Whoever calls, she answers." were a hard invented name
+  (a paid rewrite) since wave 3. "Silence answers." and "Bartender nods."
+  stay hard, as before.

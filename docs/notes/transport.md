@@ -676,3 +676,15 @@ and design notes. Tests: `tests/wave4-fixes.test.cjs`.
 - The OUTCOME of a card game caught cheating says "back on Day N".
 - Exported for the UI: `Pipeline.gainText` (a progression entry's gain as
   "+1 Charm" / "+2 max HP"), `outsideOf`, `shutHereLine`.
+
+## Integration (wave 4)
+
+- `restoreQueued` called `UI.restoreInput`, which never existed, so a
+  queued line whose turn failed was put back only into an empty box and
+  dropped when something new had been typed. It now calls
+  `UI.restoreAction` (the box, or a "Your action: …" notice; Try again
+  resends it).
+- The guards on UI functions are gone (`UI.READ_ONLY_NOTICE`, `UI.toast`,
+  `UI.feed.rewriting`, `Upgrade.newer`, `App.flushNotes`), and with them
+  `NOTICES.readOnly`, which nothing showed: the read-only toast is the
+  UI's. A rewrite always dims the first draft.

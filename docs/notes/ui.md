@@ -703,3 +703,32 @@ its copy table. Tests: 9 new ones in `tests/ui-fixes.test.cjs` ("wave 4,
   (`locketts-ferry-tomas-reed-day-3.json`).
 - Commands table, `/help` (with the engine's change): "under a Commands
   heading".
+
+## Integration (wave 4)
+
+- The Character tab's **Grown** line shows each progression entry's own
+  `gain` through `Pipeline.gainText`, as the quiet line does ("+2 max HP"
+  once the stat is capped; nothing after a loose end's thread title); an
+  entry saved before gains were kept reads the thread's reward as before.
+- No guard on a function the file always has: the `typeof State.x` /
+  `Pipeline.x` / `Api.x` checks and their "older engine" fallbacks are
+  gone (isHurt, absentNote, isClosed, isBanned, obligations, weekday,
+  rulesVersion, recapText, setStatusListener, cancelQueued, abort,
+  submit, checkKey). The Recap item is always listed; the queued line's ×
+  is always shown (its `hidden` markup and the `data-cancel="0"` rule went
+  with the guard).
+- `focusInput` is folded into `focusComposer(opts)`: Do, Say and a Say chip
+  call it with `{ stay: true }` (the box on a laptop; on a phone the focus
+  stays on the button pressed while it is there, else Send).
+- `restoreAction` syncs the Send label when it fills the box; the
+  Pipeline's `restoreQueued` uses it (transport.md).
+- A police-type place reads "Police station"; Town Hall is "Town hall" by
+  its id (`PLACE_LABELS`, as the Bluff). `ui-fixes`' type-label test
+  follows (changed by design).
+- The Re-read hint says "none in the offline demo", as the toast ("Offline
+  demo off: playing with Claude.") and the no-key notice ("… or try the
+  offline demo (Settings → Advanced).") name it.
+- Agreed with the engine: `/help`'s first line is "Commands" (no colon),
+  styled as the heading; `placeLabel` reads an optional `typeLabel` the
+  town's content does not use yet.
+- Tests: the "wave 4" tests in `tests/integration.test.cjs`.
