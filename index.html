@@ -10572,13 +10572,11 @@ const Town = (() => {
     'ink toner printer filter razor game propane gravy sauce paper model hand golf shopping ' +
     // Wave 4 (the third review's risk and bug 6): a radar gun, a tattoo gun, a butter knife, a putty knife.
     'radar tattoo butter putty palette plastic').split(/\s+/));
-  /* The word before the head word (at the end of thing, or at index at:
-     wave 4, the match itself, not the end of the name) makes it ordinary. */
-  function harmlessHead(thing, hit, at) {
-    const t = String(thing || '').toLowerCase();
-    const upTo = Number.isInteger(at) && at >= 0 ? t.slice(0, at) : null;
-    const words = (upTo === null ? t : upTo).split(/\s+/).filter(Boolean);
-    const n = upTo === null ? String(hit || '').toLowerCase().split(/\s+/).filter(Boolean).length : 0;
+  /* The word before the head word at the end of thing makes it ordinary
+     (weaponOf reads the head of a name, so its match is always there). */
+  function harmlessHead(thing, hit) {
+    const words = String(thing || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const n = String(hit || '').toLowerCase().split(/\s+/).filter(Boolean).length;
     const before = words.length > n ? words[words.length - n - 1] : null;
     return !!before && HARMLESS_BEFORE.has(before);
   }
@@ -12356,9 +12354,10 @@ const World = (() => {
     const s = st();
     if (!s) return null;
     const l = State.loc(s.player.locationId);
-    const count = quality === 'rough' && isPublicPlace(l) ? (toInt(s.flags.roughNights) || 0) + 1 : 0;
+    const was = toInt(s.flags.roughNights) || 0;
+    const count = quality === 'rough' && isPublicPlace(l) ? was + 1 : 0;
     const chief = count >= ROUGH_NIGHTS ? chiefOf(s) : null;
-    applyEffects([{ op: 'setFlag', key: 'roughNights', value: chief ? 0 : count }]);
+    if ((chief ? 0 : count) !== was) applyEffects([{ op: 'setFlag', key: 'roughNights', value: chief ? 0 : count }]);
     if (!chief) return null;
     const place = placeIn(l);
     applyEffects([{ op: 'addMemory', npcId: chief.id, text: `found ${s.player.name} sleeping rough at ${place} two nights running`, weight: 2 }]);
@@ -16301,7 +16300,7 @@ const Pipeline = (() => {
      (PAYING_WORDS) nor give something away (GIVING_WORDS): "Gimme one of
      those cold drinks" to a lone creditor pays nothing off and is no gift. */
   const PAYING_WORDS = /\b(owe|owed|owes|owing|debt|debts|paid|pay(?:ing)? (?:you|it|off|back|up|that|this|what)|settle|settling|square|squared|the money|your money|what i borrowed|toward|towards)\b/i;
-  const GIVING_WORDS = /\b(for you|yours|keep (?:it|this|the change)|tip|gift|present|take (?:it|this|these|that)|have (?:it|this)|on me|my treat|for your trouble|here(?:'s| is| you go))\b/i;
+  const GIVING_WORDS = /\b(for you|for your|this is for|brought you|got you|a little something|yours|keep (?:it|this|the change)|tip|gift|present|take (?:it|this|these|that)|have (?:it|this)|on me|my treat|for your trouble|here(?:'s| is| you go))\b/i;
   function boughtIn(a, ctx) {
     if (!a) return false;
     if (a.actionType === 'buy') return true;

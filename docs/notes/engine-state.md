@@ -458,3 +458,49 @@ Tests: `tests/wave3-fixes.test.cjs`.
   day 5), as a ban's "until day N" is the day the player is welcome again.
   This replaces the coordinator item (c) form above (the last day laid up);
   `wave2-fixes.test.cjs`' hurt test follows (changed by design).
+
+## Wave 4
+
+The third code review's bug 1 (State half) and its risks on the State side;
+the third playtest's R5 and R9 and its design notes. Tests:
+`tests/wave4-fixes.test.cjs`.
+
+- **A purchase in Say mode** (review bug 1): `apply` takes `opts.bought`
+  (transport passes the turn's purchase, read before Say mode turns the
+  action into talk). A purchase never pays a debt unless the bookkeeper
+  names it, and never raises the cap.
+- **A failed ask settles nothing with that person** (playtest design note):
+  `apply` takes `opts.rolled` (a roll was made); a model's
+  `obligationsSettled` for someone the turn's talk, persuade, deceive or
+  intimidate roll failed against (aimed at them, or they are alone with the
+  player) is refused ("No. Not happening." is no promise kept).
+- **Memories carry their day** (playtest R5): `remember` stamps `day`;
+  `checkMemories` (setMemories, editPerson) keeps a valid one. World's drift
+  reads it (engine-world.md, Wave 4).
+- **Visits**: one per person and phase (not one per person), so someone who
+  came for the player now can also be kept there for the phase the turn runs
+  into; `mergePeople` dedupes by person, day and phase.
+- **banFrom days 0** is tonight, as days 1 is (review risk): a ban that
+  never held was no ban.
+- **restQuality** (review risk): an owner who does not live at their place
+  gives a bed there only while they are there (`npcsAt`), so no friend's
+  couch in a shut pawn shop or gas station.
+- **ON_TIME_RE** starts at a word: "paid nearly all of it" is not "early".
+- **placeItem** (effect op, playtest R10): `{ name, notes?, locationId? }`
+  leaves a thing lying in a place (the player's by default) to be picked up;
+  `tests/validate-town.cjs` knows it.
+- **A loose end's thread** gives the story point only (playtest design
+  note: paying blackmail made the player tougher): its progression entry has
+  `gain: null`, no stat and no max HP. Every entry keeps its own `gain`
+  ("charm +1", "max HP +2", or null); the UI's Grown line can read it
+  (`Pipeline.gainText`).
+- **arcFill refreshes the plans** (playtest R9): each faction clock, matched
+  by its label, takes the town data's `onComplete` (text, effects, requires,
+  alt) and, while nothing is filled, its segments; `filled`, `done` and the
+  active clock stay, and the order is kept. An unfired seed matched by id
+  takes its `requires` and `alt`, and its `effects` when it has none. In the
+  game and in its town copy; `result.arc.plans` counts them, and Upgrade's
+  "An arc" says "N of the town's plans now check the story before they
+  happen." A re-read of a current game changes nothing.
+- Dead: the `typeof State.x === 'function'` guards in Api, Pipeline and
+  World (every function exists), the stale "beside DWELLING_TYPES" comment.
