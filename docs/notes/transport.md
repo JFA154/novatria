@@ -816,3 +816,14 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   is not).
 - D14: "I take the bus to Calder", a ride, a hitch somewhere is going there
   (`MOCK_GO`): out of town, refused with the engine's line.
+
+## Integration (wave 6)
+
+- `setClock` prints the Resolved lines a jump earned at once, under the
+  "Meanwhile in town" line whose news released them; it no longer holds
+  them for an ending the jump reached (`holdForEnding`). What the ending
+  itself resolves is held by the engine (`rewardHeld: 'ending'`) and told
+  after its narration as before. Held by the UI, the council's line was
+  lost when the turn that told the ending was taken back with `/undo`
+  (the gain stayed: the fifth review's /cheat risk, its p11). Test: the
+  "wave 6" test in `tests/integration.test.cjs`.

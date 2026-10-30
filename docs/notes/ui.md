@@ -938,3 +938,36 @@ before (f02f7a0) and passing now; the picker test runs with
   arrow keys follow that order, and go across a row)".
 - Saves (optional): after "or with `/save <name>`", add "A save with no name
   is named after you and the day ('Tomas Reed, Day 3')."
+
+## Integration (wave 6)
+
+- **The feed's order after a reload or `/undo`** (the round-5 playtest's
+  R7, the UI side of engine-state.md's "Wave 6"): `UI.feed.quiet` keeps
+  each line with the time the feed showed when it was printed (its last
+  divider: `shownTime`; dividers carry `data-day` and `data-phase`) and
+  where in its turn it came (`turnMark`: a turn's input shown, its roll,
+  its narration): `at: 'start'` (before the roll and the narration: a
+  reroll's "Cheat: crit", what a `/wait` or `/rest` brought), `'before'`
+  (after the roll: damage, a natural 20) or `'after'`. App's
+  `attachNotes` writes them against the entry they go on (`noteFor`): a
+  line at the entry's own time after its narration stays a plain string,
+  as before; `'start'` reads `'before'` when the entry has no roll.
+  `rebuildFeed` draws, per entry: the divider of `from` (else the entry's
+  time) when it is not the one shown, the input, the `'start'` lines, the
+  entry's own divider (a `/wait`, a `/rest`), the roll, the `'before'`
+  lines, the narration, the rest; a divider before any line whose time is
+  not the one shown. The feed after Continue and after `/undo` is now the
+  one played: a turn that runs into a new phase ("won't forget that"
+  under the new divider), `/wait`, `/rest` ("Missed: …" before the
+  morning's narration, "Overnight in town" after), "Clock set" and
+  "Meanwhile in town". A reroll rebuilds the feed before it plays, so
+  this also keeps the earlier turns as they were shown.
+- "Meanwhile in town, Day N: …" has the news style of "Overnight in
+  town" (`quietNode`), so the recap after it leaves out In town too.
+- The `/cheat` row with the engine's short description: one line (44px)
+  beside the command at 1280 and 740, two at 568, its own line upright;
+  `/help` shows the long form.
+- Tests: "integration (playtest R7)" in `tests/ui-fixes.test.cjs`; the
+  "quiet lines are kept with their turn" test there follows (changed by
+  design: "Clock set to Day 1 · Night." printed under the night's divider
+  is kept as `{ text, day, phase }`).

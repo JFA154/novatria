@@ -601,3 +601,10 @@ round-5 playtest's R1, R3, R6, R7 and R9. Tests:
   before the newer ones.
 - **The roll line** (playtest R9): one minus sign, "Might 1 − 2 = −1"
   (`Dice.formatLine`).
+
+## Integration (wave 6)
+
+- `logNote` also keeps `at: 'start'`: a line printed in a turn before its
+  roll (and its narration), so a reroll's "Cheat: crit" comes before the
+  roll line after a rebuild, and damage or a natural 20 (`'before'`)
+  after it (ui.md, "Integration (wave 6)").

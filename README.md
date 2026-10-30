@@ -90,8 +90,9 @@ row is one line that scrolls sideways; with more than four people here it is
 a single "To: Everyone ▾" picker instead, which lists everyone here. On a
 phone on its side, while you type, the top bar steps aside and the row is that
 picker alone, narrow, beside the box, so the story keeps its room; it stays
-that way while the picker is open, and the box takes three lines at most
-there, then scrolls.
+that way while the picker is open, and tapping the picker with the keyboard
+down brings it on too (on an iPhone the picker wheel takes the keyboard's
+place). The box takes three lines at most there, then scrolls.
 
 In the story, a Say line shows your words in quotes and who you said them to:
 `“Run.” — to Royce Pittman` or `“Anybody here hiring?” — to everyone`.
@@ -114,8 +115,8 @@ beside the Do / Say switch while you type, and Menu → Actions and commands)
 lists Look around, Wait until… (the other three phases), Sleep, Recap, Undo
 last turn, Spend a story point (it fills in `/fact ` for you to finish) and
 Commands help (the command list, as `/help` prints it); on a phone on its
-side the list is two columns (the arrow keys go down a column and across a
-row). The newest line you
+side the list is two columns, read down the first and then the second (the
+arrow keys follow that order, and go across a row). The newest line you
 typed carries a small **Undo** link too (outside the story's live region, so a
 screen reader does not announce it with every turn). A turn started from the
 list, the Undo link or a Go there button never drops the focus: it stays on
@@ -123,7 +124,10 @@ that control, or on what stands in for it (the ⋯ button once the list closes,
 the box once the Undo link goes), while the turn runs, and on a laptop the box
 has it after. Quiet lines in the story ("Added to the map", "Edited …",
 damage) are saved with their turn, so they survive a reload, and an undo takes
-them back with it.
+them back with it. After a reload or an undo the story is drawn in the order
+it was shown: a line printed under a new phase's divider ("won't forget
+that", "Clock set …", "Meanwhile in town …") stays under it, and one printed
+before the narration (damage, "Missed: …" after a night) stays before it.
 
 **You have only what you carry.** Every turn the narrator is told exactly what
 you carry and how much money you have, and that you have nothing else. When you
@@ -423,17 +427,22 @@ first time also makes you better: +1 to the stat the thread rewards (the
 bridge vote charm, the police vote wits, the pills at Riverbend stealth; no
 stat goes above +3), or +2 max HP (up to 16) when that stat is already +3.
 A quiet line per thread says so: "Resolved: The bridge vote. +1 Charm." A
-loose end's thread gives the story point only, no stat or max HP.
+loose end's thread gives the story point only, no stat or max HP. A thread
+settled by a town event you did not see is told, and earned, when you hear of
+it (see The council meeting); one the ending settles, after the ending's
+narration, and an ending that could not be told holds its Resolved lines
+until it is.
 
 ## Time
 
 A day has four phases: morning, afternoon, evening and night. The top bar
-shows the weekday, day and phase ("Fri · Day 2 · Evening"), and the story's
-dividers the same ("Day 2 · Friday · Evening"). A short action (minutes to
-half an hour: a walk across town, a search, a chore) takes a third of a
-phase, so three of them move the clock on. A long one (an hour or more) takes
-a whole phase. Talking and looking take only moments, but the clock follows
-talk too: every six of those instant actions make a short. (The narration of
+shows the weekday, day and phase ("Fri · Day 2 · Evening"; on a phone under
+the place, beside HP and your cash, which a very narrow phone puts on a third
+line), and the story's dividers the same ("Day 2 · Friday · Evening"). A
+short action (minutes to half an hour: a walk across town, a search, a chore)
+takes a third of a phase, so three of them move the clock on. A long one (an
+hour or more) takes a whole phase. Talking and looking take only moments, but
+the clock follows talk too: every six of those instant actions make a short. (The narration of
 `/rest`, `/wait`, `/skip`, an arrival, a defeat, an arrest or an ending does
 not count.) The town moves on at every change of phase.
 
@@ -467,8 +476,10 @@ Two nights running sleeping rough in the same public place (Town Hall, the
 church, Front Street; not a place someone lives, such as Loretta's Low
 Water), Chief Bell finds you the second morning and tells you to move along,
 and remembers it. A third night running there, or the next time he finds you
-like that, costs a $25 fine (or the cash you have). A bed, a night awake or a
-night in the holding cell starts the count again. A morning you
+like that, costs a $25 fine (or the cash you have, or nothing when you have
+none). A bed, a night awake or a night in the holding cell starts the count
+again, and once more than a week has gone by since he last found you he lets
+it go: the next time is a warning again. A morning you
 reach without sleeping leaves you Tired (-1 to everything) until you rest.
 Being knocked out until morning in a defeat is not a night without sleep.
 
@@ -498,21 +509,27 @@ The Journal, `/recap` and the narrator all know what you owe and when. A debt
 or the blackmail is settled once the person has had the whole amount from you,
 at once or over several turns (money spent buying something, even from them
 and in Say mode, pays nothing). In Say mode, money handed to the person you
-speak to pays what you owe them unless the line buys something ("Fifty now.
-The rest on Friday." pays $50); handing the letter to its addressee settles
+speak to pays what you owe them (else it is a gift) unless the line orders
+something sold ("I'll take a beer", "two beers, please") or what you get is
+something sold; words about the rest, what's left or what you owe
+always pay ("Here's fifty. Give me till Friday for the rest." pays $50), and
+"get yourself a beer" is a gift. Handing the letter to its addressee settles
 the errand; a promise is kept when the story shows you keeping it in front of
 them (a turn whose ask of them failed settles nothing with them).
 Settling a loose end's debt, blackmail, letter or promise, on time or late,
 closes that loose end (it leaves Open). Miss the
 day and it costs you, the next morning: the lender takes your phone, the repo
-man $150 of your cash (or what there is), counted toward the note, and the
-phone, the bookie gets you
+man $150 of your cash (or what there is), counted toward the note (which
+still counts as missed, even when that pays it off), and the phone, the
+bookie gets you
 barred from the Low Water for three days and tells the town you welshed, the
 blackmailer tells Chief Bell what you are hiding, and whoever asked the favour
-remembers you broke your word. A missed debt, blackmail or letter is still
-owed, and paying or handing it over late settles it late. The person owed
-comes looking if they live in town and are free (the letter's writer and Dale
-Purvis live elsewhere: the day going by is told without them).
+remembers you broke your word. The "Missed: …" line says what was taken
+("Leon Varner took $150 toward it and your Prepaid phone."). A missed debt,
+blackmail or letter is still owed, and paying or handing it over late settles
+it late. The person owed comes looking if they live in town and are free (the
+letter's writer and Dale Purvis live elsewhere: the day going by is told
+without them).
 
 **What comes due is told where you are.** A loose end's moment, a background's
 first lead, a missed day or a town event in front of you is told in the next
@@ -539,7 +556,8 @@ anything in the town it was given at the start. The three factions move at
 different speeds, and each step of a plan checks the town before it happens: if
 someone it needs is arrested, dead or gone, or the vote has already been taken,
 something else happens instead, and a step for one side sets the others back.
-Once the ending is told, their plans stop.
+Once the ending is told, the town's plans stop; people's own business (a
+loose end's follow-up, a grudge, a favour) still comes due.
 
 **The council meeting.** A flyer on the door at Pittman's and at the bait shop
 calls the town to the bridge vote, and from Monday (day 5) the agenda on the
@@ -553,7 +571,9 @@ whether the bridge report still stands, how Royce feels about you, whether you
 are in the room (at 15 or more, seeing you in the back, he moves to table the
 bridge) and whether you paid Curtis Pruett. A member in the holding cell does
 not vote, and every outcome settles the police vote too: one that keeps the
-police settles that story (Disbanding the police) at the meeting.
+police settles that story (Disbanding the police) at the meeting. Its
+Resolved line and its gain come when you hear of the meeting: after the
+narration that tells it in front of you, or with the next morning's news.
 
 **The ending.** On day 21, or as soon as the bridge story is decided (the old
 bridge closes, or the state orders a second inspection), one turn tells how
@@ -577,8 +597,10 @@ young or the police), a word to Chief Bell, a $50 police ticket; on the warm
 side, a day of cash work that pays $100, goods at cost, a meal and a couch (2
 HP), an alibi, a warning. A grudge answers in kind, by the turn its memory
 came from (an attack, a theft, or words): violence with a beating or the
-police, a theft with the police, talk or money, an insult with talk, a ban or
-money. What is done in public becomes news. One
+police (told of the assault), a theft with the police (told you were seen
+where things went missing), talk or money, an insult with talk, a ban or
+money. What someone did to you (a beating, a seizure, a night in the cell)
+starts no grudge of theirs. What is done in public becomes news. One
 feeling per offence: after one comes due, that person starts no other for a
 week, and a grudge that comes due leaves them less angry (they got even).
 Feelings with no fresh serious memory behind them for five days, and no open
@@ -603,10 +625,12 @@ narration: they are hurt and laid up at home for two days, they and everyone
 who saw it remember, and in a public place it is news. Fight with the police
 there, or at Town Hall, and that narration has you taken in: a night in the
 holding cell, a fine of up to $50, any weapon or ammunition you carry taken
-off you (by what the thing is: a grease gun, gun oil, a butter knife or copper
-wire, 18 gauge is not one; a .38, a 12-gauge, a Smith & Wesson or a box of 9mm
-is), and Chief Bell remembers. An attack, a plea or a theft at
-someone who is not here rolls nothing.
+off you (by what the thing is: a grease gun, gun oil, a butter knife, copper
+wire, 18 gauge or a can of Colt 45 is not one; a .38, a 12-gauge, a Smith &
+Wesson, a box of 9mm, .38 rounds or buckshot is), and Chief Bell remembers. An
+attack, a plea or picking the pocket of someone who is not here rolls
+nothing; stealing from their register or their things while they are away
+still rolls stealth.
 
 **Cards.** When Curtis Pruett is at the Low Water (afternoons, evenings and
 nights), there is a card game at the back table. Say you bet ("I put $50 in",
@@ -662,7 +686,7 @@ once more in the background.
 | `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."). `/cheat` alone lists these | Narrator, bookkeeper |
-| `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to Day 1 · Night." What the clock jumps past happens at once and in order, each as news of its own day: a town event elsewhere as "Meanwhile in town: …", one at your own place in front of you in the next narration, and what came due for you (a loose end's moment, say) in the narrations that follow. One `/undo` takes it back, with an ending it reached | None |
+| `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none), forward only ("The clock only goes forward: it is Day 3 · Morning now."). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to Day 4 · Night." What the clock jumps past happens at once and in order, each on its own day: a "Meanwhile in town, Day 3: …" line for each day with town news or an event elsewhere, and each morning's "Missed: …" (what fell due) and "Condition over: …"; a town event at your own place happens in front of you in the next narration, and what came due for you (a loose end's moment, say) in the narrations that follow, oldest first. One `/undo` takes it back, with an ending it reached | None |
 | `/pronouns <who> <she\|he\|they>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, look and voice turn with it (Dewayne's husband becomes Dewayne's wife) | None |
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens Save / Load) | None |
@@ -683,7 +707,8 @@ until no turn is running.
   there is an autosave, Continue is the first button and New game comes
   after it.
 - **Three named slots** in Save / Load (laptop: Save in the top bar; phone:
-  Menu → Save / Load), or with `/save <name>`.
+  Menu → Save / Load), or with `/save <name>`. A slot saved with its name
+  left blank is named after you and the day ("Tomas Reed, Day 3").
 - **Nothing is replaced without a copy.** Before the autosave is written with
   a different game, the old one is kept as the previous autosave: Save / Load
   lists it as "Previous autosave" with **Restore previous** (the two
@@ -945,8 +970,8 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 530 tests and takes about
-nine minutes.
+nothing else to install. The whole run is about 570 tests and takes about
+ten minutes.
 
 - `acceptance`: the twelve acceptance checks of SPEC.md section 14.
   `playtest`: a scripted 30+ turn game, the pacing reports, and the cost
@@ -959,7 +984,7 @@ nine minutes.
   `docs/CAST.md` up to date.
 - One suite per area of the review fixes: `engine-state-fixes`,
   `engine-world-fixes`, `prompts-fixes`, `transport-fixes` and `ui-fixes`,
-  `wave2-fixes` to `wave5-fixes` for the later rounds, and
+  `wave2-fixes` to `wave6-fixes` for the later rounds, and
   `integration` for the seams between them.
 - `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
   milestone suites.

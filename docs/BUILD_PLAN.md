@@ -160,12 +160,12 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `addCondition` | `name`, `effect` (`"-1 might"`), `days` (0..30) | `untilDay = day + days` |
 | `banFrom` | `locationId`, `days` (0..60), `byNpcId?` | `state.bans` gets `{ locationId, untilDay, byNpcId? }`; `State.isBanned` |
 | `playerPrice` | `factor`, `days` (0..60) | `flags.playerPriceMultiplier` (0.25..4) until `flags.playerPriceUntilDay`; `Tables.price` multiplies by it |
-| `addMemory` | `npcId`, `text`, `weight` (1..3) | the memory path; a no-op for the dead; someone living elsewhere still remembers |
+| `addMemory` | `npcId`, `text`, `weight` (1..3), `act?` (`"own"`) | the memory path; a no-op for the dead; someone living elsewhere still remembers; `act: "own"` (wave 6): what they did to the player, which starts no grudge |
 | `clockAdjust` | `factionId`, `delta` (-2, -1, 1, 2) | the running clock, clamped, no completion check; a no-op with no running clock |
 | `threadUpdate` | `threadId`, `summary?`, `status?`, `knownToPlayer?` | status through `setThreadStatus`; a resolved thread never moves |
 | `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?`, `itemName?`, `onMiss?`, `onMet?`, `id?` | see Game state; one open per (kind, npcId) |
 | `settleObligation` | `id`, `status` (`met` / `missed`), `how?` | runs `onMet` / `onMiss` once; a no-op if already settled |
-| `obligationPaid` | `id`, `amount`, `take?` | credits money toward a debt or blackmail (at most what is still owed); `take: true` takes it from the player's cash first and credits what it took; paid in full it is met (wave 5) |
+| `obligationPaid` | `id`, `amount`, `take?` | credits money toward a debt or blackmail (at most what is still owed); `take: true` takes it from the player's cash first and credits what it took; paid in full it is met (wave 5), except inside that obligation's own `onMiss`, where it only credits (wave 6) |
 | `addNews` | `text`, `factionId?`, `public?` (default true), `epilogue?` | pushes `{ day, phase, text, factionId, public, seen: false, epilogue? }`; keeps the newest 60 |
 
 `State.EFFECT_OPS` is the list (28 with `placeItem` and `obligationPaid`),
@@ -222,11 +222,12 @@ const LOOSE_ENDS = {               // keys: debt, enemy, secret, lost, promise
                                                // applied when the loose end is tied (the letter)
   }, ...
 };
-const GRUDGE_TEMPLATES = [{        // 13
+const GRUDGE_TEMPLATES = [{        // 14
   effect: "...{npc}...", dayOffset: [2, 5],
   effects: [ /* effect ops, applied when it fires */ ],
   public: false,                   // true: town news
-  forTags: [], notForTags: []      // optional: who can hold it (tags, plus elderly/teen/police from age and role)
+  forTags: [], notForTags: [],     // optional: who can hold it (tags, plus elderly/teen/police from age and role)
+  about: ["theft"]                 // optional (wave 6): the offences it answers (violence, theft, insult)
 }, ...];
 const FAVOUR_TEMPLATES = [ /* 12, the same shape */ ];
 const GOAL_PRESETS = [ "...", ... ];  // 6 goal suggestions, 140 characters at most; on Game.data
@@ -1089,3 +1090,41 @@ talking, I can direct it to one person or all."
      as the People card and the absent note say it), and renamed "the
      Saves screen" to Save / Load in the README. Left open: the live
      grammar probe and a recorded live opening scene.
+   - **Wave 6** (30 Oct 2026). The fifth code review (6 bugs, its risks
+     and dead code), the fifth playtest (R1 to R9, D10 to D14 and its
+     design notes) and the fifth visual, mobile and accessibility QA (8
+     items) were fixed by two agents in parallel (engine with content and
+     the mock; UI), then a sixth integration pass. Notes: each
+     `docs/notes/*` file's "Wave 6" section; tests:
+     `tests/wave6-fixes.test.cjs`, the "wave 6" tests in
+     `tests/ui-fixes.test.cjs` and `tests/integration.test.cjs`. In Say
+     mode money to the one spoken to pays what is owed them, else is a
+     gift, unless the parser read a buy, what is gained is a good
+     (`State.goodNamed`) or the line orders one ("I'll take a beer");
+     paying words (the rest, what's left, owe) always pay; a seizure in its
+     own `onMiss` credits the debt without meeting it, and the Missed line
+     says what was taken; a thread a town event resolves holds its reward
+     (`thread.rewardHeld`, saved) until its news is told, and the ending's
+     until its narration; what someone did to the player (`act: "own"`)
+     starts no grudge, and a grudge template answers only its `about`;
+     an invented person who plays pool or stands by someone is a hard
+     name, a sign's back that says something is not; Colt 45 in a can is
+     malt liquor, .38 rounds and buckshot are ammunition; only a pickpocket
+     of someone away rolls nothing; `/cheat time` goes forward only, with a
+     "Meanwhile in town, Day N" line a day and each morning's missed
+     obligations; a week clear and the chief warns again; a log entry
+     keeps the time its input was given (`from`) and its quiet lines their
+     time and place in the turn. The UI lets the Say picker bring the
+     typing layout on, wraps the `/` list's description to two lines,
+     names a blank save "…, Day 1", sizes the box after Send's label,
+     fills the two-column ⋯ list down the columns, puts the Say picker in
+     the focus order where it is drawn, sizes the `/` list on keyboard
+     changes and wraps the phone's top bar at 320. Integration drew the
+     feed after a reload or `/undo` in the order it was shown (the UI side
+     of R7: each quiet line kept with its time and whether the turn's roll
+     and narration had been shown, `at: 'start' | 'before' | 'after'`),
+     printed a `/cheat time` jump's Resolved lines under the "Meanwhile in
+     town" line that told them (held for the ending, an `/undo` of the turn
+     that told it lost them), and gave "Meanwhile in town, Day N" the
+     news style. Left open: the live grammar probe and a recorded live
+     opening scene.
