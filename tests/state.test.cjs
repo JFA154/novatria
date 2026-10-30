@@ -468,6 +468,125 @@ s.test('effect ops from the build plan all work through State.apply', async h =>
   if (r.relation) assert.deepEqual(r.relation, [-10, true]);
 });
 
+/* Direction change 14: seeds are events. An engine seed keeps effects,
+   checked when it is planted the way the town check reads clock effects, and
+   notBeforeTurn; the model's newSeeds keep neither. The two effect ops seeds
+   use, visit and placeItem, work through State.apply({ effects }). */
+s.test('seeds are events: an engine seed keeps its checked effects and notBeforeTurn, a bad op or id refuses it with the reason, the model\'s seeds keep neither; visit and placeItem through State.apply', async h => {
+  const page = await h.open();
+  await quickStart(page, { seed: 7, kinds: [] });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const st = G.state;
+    const P = ['morning', 'afternoon', 'evening', 'night'];
+    const here = st.player.locationId;
+    const listed = (l, id) => P.some(p => (l.npcIdsBySchedule[p] || []).includes(id));
+    const npc = st.npcs.find(n => n.status === 'free' && n.alive !== false && st.locations.some(l => listed(l, n.id)) && !listed(G.State.loc(here), n.id));
+    const open = st.locations.filter(l => !l.closed && l.away !== true && l.id !== here);
+    const loc = open[0];
+    const other = open.find(l => l.id !== loc.id && !listed(l, npc.id));
+    const away = st.locations.find(l => l.away === true);
+    const dead = st.npcs.find(n => n.alive === false);
+    const base = (id, extra) => Object.assign({ id, cause: 'test', effect: 'Something happens for the test.', trigger: { type: 'day', value: 3 }, fired: false, hidden: true }, extra);
+    const plant = seed => S.apply({ effects: [{ op: 'plantSeed', seed }] });
+    const reasons = res => res.rejected.map(x => x.reason);
+    const out = {};
+    const good = [{ op: 'visit', npcId: npc.id, locationId: loc.id }, { op: 'placeItem', locationId: loc.id, item: { name: 'test lantern', qty: 3, notes: 'Dented.' } }, { op: 'setFlag', key: 'testFlag', value: 'yes' }];
+    out.good = reasons(plant(base('seed_test_fx', { effects: good, notBeforeTurn: 4 })));
+    const kept = S.seed('seed_test_fx');
+    out.kept = { same: JSON.stringify(kept.effects) === JSON.stringify(good), notBeforeTurn: kept.notBeforeTurn };
+    good[0].npcId = 'npc_changed';
+    out.copied = S.seed('seed_test_fx').effects[0].npcId === npc.id;
+    out.plain = (() => { plant(base('seed_test_plain')); const sd = S.seed('seed_test_plain'); return ['effects', 'notBeforeTurn'].filter(k => k in sd); })();
+    out.badOp = reasons(plant(base('seed_test_badop', { effects: [{ op: 'setFlag', key: 'x', value: 1 }, { op: 'teleport', npcId: npc.id }] })));
+    out.badNpc = reasons(plant(base('seed_test_badnpc', { effects: [{ op: 'visit', npcId: 'npc_nobody', locationId: loc.id }] })));
+    out.badLoc = reasons(plant(base('seed_test_badloc', { effects: [{ op: 'placeItem', locationId: 'loc_nowhere', item: { name: 'x' } }] })));
+    out.badThread = reasons(plant(base('seed_test_badthread', { effects: [{ op: 'threadStatus', threadId: 'thr_nothing', status: 'failed' }] })));
+    out.awayVisit = reasons(plant(base('seed_test_away', { effects: [{ op: 'visit', npcId: npc.id, locationId: away.id }] })));
+    out.noName = reasons(plant(base('seed_test_noname', { effects: [{ op: 'placeItem', locationId: loc.id, item: {} }] })));
+    out.reserved = reasons(plant(base('seed_test_reserved', { effects: [{ op: 'setFlag', key: 'weather', value: 'x' }] })));
+    out.tooMany = reasons(plant(base('seed_test_many', { effects: Array.from({ length: S.SEED_EFFECTS_MAX + 1 }, (_, i) => ({ op: 'setFlag', key: 'f' + i, value: i })) })));
+    out.notList = reasons(plant(base('seed_test_notlist', { effects: { op: 'setFlag', key: 'x', value: 1 } })));
+    out.refusedPlanted = ['seed_test_badop', 'seed_test_badnpc', 'seed_test_badloc', 'seed_test_badthread', 'seed_test_away', 'seed_test_noname', 'seed_test_reserved', 'seed_test_many', 'seed_test_notlist'].filter(id => S.seed(id));
+    // A thread opened earlier in the same list counts.
+    out.threadLater = reasons(plant(base('seed_test_thread', { effects: [{ op: 'openThread', thread: { id: 'thr_test_fx', title: 'T' } }, { op: 'threadStatus', threadId: 'thr_test_fx', status: 'failed' }] })));
+    // The model's newSeeds: no effects and no notBeforeTurn, and the applied line says the effects were left out.
+    S.apply({ beginTurn: true });
+    const m = S.apply({ newSeeds: [{ id: 'seed_test_model', cause: 'c', effect: 'The model\'s seed.', trigger: { type: 'day', value: st.time.day + 2 }, effects: [{ op: 'setFlag', key: 'modelFlag', value: true }], notBeforeTurn: 9 }] }, { source: 'model' });
+    const ms = S.seed('seed_test_model');
+    out.model = { rejected: m.rejected, applied: m.applied.join(' | '), keys: ['effects', 'notBeforeTurn', 'origin'].filter(k => k in ms), flag: st.flags.modelFlag };
+    // visit: there for this day and phase only, out of their scheduled place.
+    const v = S.apply({ effects: [{ op: 'visit', npcId: npc.id, locationId: other.id }] });
+    out.visit = {
+      rejected: v.rejected, applied: v.applied.join(' | '), there: S.npcsAt(other.id).some(n => n.id === npc.id),
+      elsewhere: st.locations.filter(l => l.id !== other.id).some(l => S.npcsAt(l.id).some(n => n.id === npc.id)),
+      entry: st.visits.find(x => x.npcId === npc.id), now: { day: st.time.day, phase: st.time.phase }
+    };
+    S.apply({ advanceTime: 'long' });
+    out.visitNext = S.npcsAt(other.id).some(n => n.id === npc.id);
+    // placeItem: a scene item with its id from the name; the same thing again adds to the pile.
+    const p1 = S.apply({ effects: [{ op: 'placeItem', locationId: other.id, item: { name: 'test rope', qty: 2, notes: 'Frayed.' } }, { op: 'placeItem', locationId: other.id, item: { name: 'test rope' } }] });
+    out.place = { rejected: p1.rejected, items: S.loc(other.id).items.map(i => [i.id, i.name, i.qty, i.notes]) };
+    // No-ops (someone not free, a closed place) and refusals (out of town, no name, the model).
+    out.visitDead = S.apply({ effects: [{ op: 'visit', npcId: dead.id, locationId: other.id }] });
+    S.apply({ effects: [{ op: 'closeLocation', locationId: other.id }] });
+    out.visitClosed = S.apply({ effects: [{ op: 'visit', npcId: npc.id, locationId: other.id }] });
+    out.visitAway = reasons(S.apply({ effects: [{ op: 'visit', npcId: npc.id, locationId: away.id }] }));
+    // Someone in the player's scene is never taken out of it.
+    let withPlayer = G.State.npcsAt(here)[0];
+    if (!withPlayer) { S.apply({ visits: [{ npcId: npc.id, locationId: here }] }); withPlayer = npc; }
+    const elsewhere = open.find(l => l.id !== other.id && !G.State.npcsAt(l.id).some(n => n.id === withPlayer.id));
+    out.visitScene = S.apply({ effects: [{ op: 'visit', npcId: withPlayer.id, locationId: elsewhere.id }] });
+    out.stillHere = G.State.npcsAt(here).some(n => n.id === withPlayer.id);
+    out.placeAway = reasons(S.apply({ effects: [{ op: 'placeItem', locationId: away.id, item: { name: 'x' } }] }));
+    out.placeNoName = reasons(S.apply({ effects: [{ op: 'placeItem', locationId: here, item: { qty: 2 } }] }));
+    out.fromModel = reasons(S.apply({ effects: [{ op: 'visit', npcId: npc.id, locationId: here }] }, { source: 'model' }));
+    out.ops = S.EFFECT_OPS.slice();
+    return out;
+  });
+  assert.deepEqual(r.good, [], 'valid effects are planted');
+  assert.deepEqual(r.kept, { same: true, notBeforeTurn: 4 }, 'kept as given, with notBeforeTurn');
+  assert.equal(r.copied, true, 'a copy, not the caller\'s list');
+  assert.deepEqual(r.plain, [], 'a seed without them has neither field (older saves are unchanged)');
+  assert.deepEqual(r.badOp, ['effects[1]: unknown op "teleport"']);
+  assert.deepEqual(r.badNpc, ['effects[0]: unknown npc id "npc_nobody"']);
+  assert.deepEqual(r.badLoc, ['effects[0]: unknown location id "loc_nowhere"']);
+  assert.deepEqual(r.badThread, ['effects[0]: unknown thread id "thr_nothing"']);
+  assert.equal(r.awayVisit.length, 1);
+  assert.match(r.awayVisit[0], /^effects\[0\]: loc_\w+ is out of town$/);
+  assert.deepEqual(r.noName, ['effects[0]: placeItem needs an item with a name']);
+  assert.deepEqual(r.reserved, ['effects[0]: flag "weather" is reserved']);
+  assert.equal(r.tooMany.length, 1);
+  assert.match(r.tooMany[0], /at most \d+ effects/);
+  assert.deepEqual(r.notList, ['effects must be a list of effect ops']);
+  assert.deepEqual(r.refusedPlanted, [], 'a seed with a bad effect is not planted at all');
+  assert.deepEqual(r.threadLater, [], 'a thread opened earlier in the list counts');
+  assert.deepEqual(r.model.rejected, [], 'the model\'s seed is planted');
+  assert.deepEqual(r.model.keys, [], 'without effects, notBeforeTurn or origin');
+  assert.match(r.model.applied, /its effects were left out: the model plants none/);
+  assert.equal(r.model.flag, undefined);
+  assert.deepEqual(r.visit.rejected, []);
+  assert.equal(r.visit.there, true, 'visit: there now');
+  assert.equal(r.visit.elsewhere, false, 'and nowhere else');
+  assert.deepEqual([r.visit.entry.day, r.visit.entry.phase], [r.visit.now.day, r.visit.now.phase], 'for this day and phase');
+  assert.equal(r.visitNext, false, 'gone again the next phase');
+  assert.deepEqual(r.place.rejected, []);
+  assert.deepEqual(r.place.items, [['item_test_rope', 'test rope', 3, 'Frayed.']], 'placeItem: one pile, its id from the name');
+  assert.deepEqual(r.visitDead.rejected, []);
+  assert.match(r.visitDead.applied[0], /^effects\[0\]: visit: no-op: npc_\w+ is dead$/);
+  assert.deepEqual(r.visitClosed.rejected, []);
+  assert.match(r.visitClosed.applied[r.visitClosed.applied.length - 1], /no-op: loc_\w+ is closed$/);
+  assert.match(r.visitAway[0], /is out of town/);
+  assert.deepEqual(r.visitScene.rejected, []);
+  assert.match(r.visitScene.applied[0], /visit: no-op: npc_\w+ is with the player at loc_\w+$/);
+  assert.equal(r.stillHere, true, 'someone with the player stays in the scene');
+  assert.match(r.placeAway[0], /is out of town/);
+  assert.match(r.placeNoName[0], /item needs a name/);
+  assert.match(r.fromModel[0], /not allowed from the model/);
+  assert.ok(r.ops.includes('visit') && r.ops.includes('placeItem'), 'both are effect ops');
+});
+
 s.test('clock nudges move at most one segment per turn; story points cap at 3', async h => {
   const page = await h.open();
   await quickStart(page);
@@ -760,7 +879,7 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
     });
     assert.equal(r.length, 3);
     assert.equal(new Set(r.map(x => x.kind)).size, 3);
-    for (const le of r) {
+    for (const [i, le] of r.entries()) {
       // The cast is fixed: every loose end is someone written in the town data, by the option's tag, never someone made.
       assert.equal(le.created, false, `${le.kind}: nobody created`);
       assert.ok(le.inTown && !le.made, `${le.kind}: a cast member`);
@@ -769,6 +888,12 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
       assert.ok(le.known && le.memory && le.thread, le.kind);
       assert.equal(le.seed.hidden, true);
       assert.equal(le.seed.fired, false);
+      // Direction change 14: the first loose end picked is the hook on day 1, after the player's second turn; the others keep their windows.
+      if (i === 0) {
+        assert.deepEqual([le.seed.trigger, le.seed.notBeforeTurn], [{ type: 'day', value: 1 }, 2], `${kinds[0]}, picked first, fires on day 1 after turn 2`);
+        continue;
+      }
+      assert.equal(le.seed.notBeforeTurn, undefined, `${le.kind}: no turn to wait for`);
       if (le.seed.trigger.type === 'day') {
         assert.ok(le.seed.trigger.value >= Math.max(2, le.offset[0]) && le.seed.trigger.value <= Math.max(2, le.offset[1]), `${le.kind} day ${le.seed.trigger.value} in ${le.offset}`);
       } else assert.ok(le.seed.notBeforeDay >= 2);
@@ -1051,12 +1176,18 @@ s.test('effect ops, reserved flags and social actions each live in one list: Tow
     const effs = T.factions[0].clocks[0].onComplete.effects;
     effs.push({ op: 'frobnicate' });
     G.State.RESERVED_FLAGS.forEach(k => effs.push({ op: 'setFlag', key: k, value: 1 }));
-    return { ops: G.State.EFFECT_OPS.slice(), townOps: G.Town.EFFECT_OPS.slice(), flags: G.State.RESERVED_FLAGS.slice(), social: G.Dice.SOCIAL_ACTIONS.slice(), base, errs: G.Town.validate(T) };
+    // A seed's effects are checked the same way (direction change 14).
+    const sd = T.seeds[0];
+    sd.effects = (sd.effects || []).concat([{ op: 'frobnicate' }, { op: 'visit', npcId: 'npc_nobody', locationId: T.locations[0].id }, { op: 'placeItem', locationId: T.locations[0].id, item: {} }]);
+    return { ops: G.State.EFFECT_OPS.slice(), townOps: G.Town.EFFECT_OPS.slice(), flags: G.State.RESERVED_FLAGS.slice(), social: G.Dice.SOCIAL_ACTIONS.slice(), base, errs: G.Town.validate(T), seedId: sd.id };
   });
   assert.deepEqual(r.base, []);
   assert.deepEqual(r.townOps, r.ops, 'Town uses State.EFFECT_OPS');
-  assert.ok(r.ops.length >= 13 && r.ops.includes('setFlag') && r.ops.includes('reputationDelta'));
+  assert.ok(r.ops.length >= 15 && r.ops.includes('setFlag') && r.ops.includes('reputationDelta') && r.ops.includes('visit') && r.ops.includes('placeItem'));
   assert.ok(r.errs.some(e => /unknown op frobnicate/.test(e)));
+  assert.ok(r.errs.some(e => e.startsWith(`${r.seedId}.effects[`) && /unknown op frobnicate/.test(e)), 'a seed\'s unknown op');
+  assert.ok(r.errs.some(e => e.startsWith(`${r.seedId}.effects[`) && /unknown npc npc_nobody/.test(e)), 'a seed\'s unknown person');
+  assert.ok(r.errs.some(e => e.startsWith(`${r.seedId}.effects[`) && /placeItem needs an item with a name/.test(e)), 'a seed\'s nameless thing');
   for (const k of r.flags) assert.ok(r.errs.some(e => e.includes(`flag ${k} is reserved`)), 'reserved: ' + k);
   // tests/validate-town.cjs: its op table names exactly State's ops, and it reads the reserved flags from index.html.
   const src = fs.readFileSync(path.join(ROOT, 'tests', 'validate-town.cjs'), 'utf8');

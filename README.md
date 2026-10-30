@@ -212,6 +212,16 @@ histories but leaves out looks, goals and secrets, so it spoils nothing.
   trades in them; something lost to someone who keeps old records; a
   promise to a bartender. Nobody is tied to two loose ends
   while anyone else is free.
+- **Loose ends come to you, wherever you are.** Each one's person comes
+  looking for you on a day of their own: the debt on day 3 to 5, someone
+  looking for you on day 4 to 7, and so on. The first loose end you picked
+  does not wait: it comes on day 1, after your second turn, so the third
+  narration has that person in front of you (a creditor with a printout
+  of what you owe, say). They find you wherever you stand, so what they do
+  names no place: no booth, no motel desk, no bar. "Carter Sturdivant comes
+  straight up to Tomas without a hello, holds out a folded printout with
+  Tomas's name and the amount on it, and says the money is due in three
+  days."
 - **Homes to find.** The cast's eight homes start off the map and appear
   when someone tells you where a person lives (see Places and the map).
 
@@ -331,6 +341,25 @@ clock of six segments (the Debug tab shows them).
   standing with you, a quiet line in the story says so and the Journal gets
   the same text as "Around town: ...". Otherwise it happens off-screen, and
   you hear of it the way you hear anything else.
+- **Seeds are events.** The town has seven surprises of its own waiting,
+  from a night of smuggling on day 3 to a tackle box hidden under the
+  bridge, and more get planted as you play: by your loose ends, by grudges
+  and favours, by finished plans. When one comes due, the next narration
+  works it in, and the town changes to match what it says. "Chief Bell is
+  down at Purvis Landing photographing fresh trailer tracks, and Wade Purvis
+  is watching him from the bait shop": both are at the landing that phase
+  (and in the phase it is told in, if you slept first), so walking down
+  there finds them. "On a girder ledge under the first span ... is a tackle
+  box": it lies at the Old Bridge until you take it ("I pick up the tackle
+  box"). The agenda taped to the Town Hall door puts Chief Bell in front of
+  it. The others set a fact the game keeps (the police vote on the agenda,
+  the engineer backing out, Miss Vada's new will) or sour the land company
+  and the smugglers on each other. Someone a seed would move who is
+  arrested, gone or dead stays where they are, and so does anyone standing
+  with you (nobody vanishes from your scene); a loose end, grudge or
+  favour whose person can no longer act changes nothing at all; and a seed
+  the bookkeeper plants for something you did is told but moves nobody.
+  The Debug tab lists each seed with what it will change.
 - **Rumours spread.** A rumour starts with the person it comes from (the news
   of a finished plan also with the faction's own people). Every morning it
   moves one step: each person who is at the same place at the same time of
@@ -592,6 +621,12 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   uses the dice too), and the report now measures the packet at 8,168
   characters on average (11,455 at most), about 2,330 tokens: an ordinary
   turn $0.0318 to $0.0380, 100 turns about $3.18 to $3.80.
+- Since seeds are events (see The living world), no call and no packet
+  line is added either, but the first loose end now comes on day 1: the
+  report's game picks the debt first, so on the third of its 15 inputs the
+  creditor comes into the scene (one more person in PRESENT while they
+  stay, and one DUE EVENT). It measures the narrator packet at 8,339
+  characters on average (11,980 at most), about 2,380 tokens.
 - **Faster, cheaper turns** (29 Oct 2026). Three changes, measured by the
   playtest's cost report over the same 15 inputs in mock mode (the API was
   not called; see "Verified against the live API"):
@@ -652,7 +687,9 @@ node tests/validate-town.cjs
 ```
 
 It checks every field and cross-reference: ids, symmetric exits, schedules,
-clock effects and seed triggers, and for the cast: unique ids and names,
+clock effects, seed effects (a known op, ids that exist, a `visit` only by
+someone in town, a `placeItem` thing with a short lower-case name) and seed
+triggers, and for the cast: unique ids and names,
 pronouns that match the look, a real role, relations written on both sides
 with matching words ("husband" one way, "wife" the other), a home that
 exists, a place in every phase, and every home to find reachable from a
@@ -748,6 +785,19 @@ day the town's whole plot finished by about day 14 in every seeded run, with
 no help from the player. Section 8's "someone likely to know" a rumour is
 now whoever has heard it: rumours spread each morning between people who
 share a place (see The living world).
+
+And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 14):
+SPEC.md section 5's example plants a seed so the lender "come[s] to collect
+around day 3", and section 14's acceptance test 5 reads "A debt loose end
+from character creation → the lender confronts the player around day 3".
+The first loose end the player picks now comes on day 1, after the second
+turn, because nothing pulled on the player for the first two days; the
+other two keep their windows, so a debt picked second or third still comes
+around day 3 (acceptance test 5 picks it second and also checks the day-1
+visit of the first). Section 8's fired seed "becomes a due event for the
+next narration"; an engine seed may now also carry effects that change the
+town when it fires (someone at a place for that phase, a thing to find, a
+flag), so the world matches what the narration is told.
 
 And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 15):
 SPEC.md sections 6 and 13 give one parser model to the parser, the

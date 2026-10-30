@@ -403,7 +403,15 @@ factions.forEach((f, fi) => {
     effs.forEach((e, ei) => allEffects.push(['factions[' + fi + '](' + f.id + ').clocks[' + ci + '].effects[' + ei + ']', e]));
   });
 });
-for (const [where, e] of allEffects) {
+// Direction change 14: seeds carry effects too (the town's seeds, and seeds a
+// clock plants), checked like clock effects; the ids they create count as well.
+const seedEffects = []; // [where, effect]
+function collectSeedEffects(sd, where) {
+  if (isObj(sd) && Array.isArray(sd.effects)) sd.effects.forEach((e, ei) => seedEffects.push([where + '.effects[' + ei + ']', e]));
+}
+seeds.forEach((s, i) => collectSeedEffects(s, 'seeds[' + i + '](' + (s && s.id) + ')'));
+for (const [where, e] of allEffects) if (isObj(e) && e.op === 'plantSeed') collectSeedEffects(e.seed, where + '.seed');
+for (const [where, e] of allEffects.concat(seedEffects)) {
   if (!isObj(e)) continue;
   if (e.op === 'openThread' && isObj(e.thread)) registerId(e.thread.id, 'thread', where + '.thread', true);
   if (e.op === 'addRumour' && isObj(e.rumour)) registerId(e.rumour.id, 'rumour', where + '.rumour', true);
@@ -510,7 +518,12 @@ function checkTrigger(t, where, allowDay) {
 }
 
 function checkSeed(s, where, allowDay) {
-  if (!checkKeys(s, ['id', 'cause', 'effect', 'trigger', 'fired', 'hidden'], where)) return;
+  if (!checkKeys(s, ['id', 'cause', 'effect', 'trigger', 'fired', 'hidden'], where, ['effects'])) return;
+  // What the seed changes when it fires (World.fire runs them through State.apply): effect ops, checked like a clock's.
+  if (s.effects !== undefined) {
+    if (!Array.isArray(s.effects) || s.effects.length < 1 || s.effects.length > SEED_EFFECTS_MAX) err(where + '.effects', 'a seed\'s effects are a list of 1 to ' + SEED_EFFECTS_MAX + ' effect ops');
+    else s.effects.forEach((e, ei) => checkEffect(e, where + '.effects[' + ei + ']'));
+  }
   checkStr(s.cause, where + '.cause', { noPlaceholders: true, maxSentences: 2 });
   checkStr(s.effect, where + '.effect', { noPlaceholders: true, maxSentences: 2 });
   checkTrigger(s.trigger, where + '.trigger', allowDay);
@@ -534,8 +547,13 @@ const OPS = {
   plantSeed: ['seed'],
   factionRelation: ['a', 'b', 'delta'],
   setFlag: ['key', 'value'],
-  reputationDelta: ['key', 'delta']
+  reputationDelta: ['key', 'delta'],
+  visit: ['npcId', 'locationId'],
+  placeItem: ['locationId', 'item']
 };
+// At most this many effects on one seed (State.SEED_EFFECTS_MAX allows a few
+// more; the content keeps to four, as a clock does).
+const SEED_EFFECTS_MAX = 4;
 const opCounts = {};
 
 function checkDelta(v, where, max) {
@@ -603,6 +621,23 @@ function checkEffect(e, where) {
     case 'reputationDelta':
       if (e.key !== 'town' && !isFac(e.key)) err(where, 'key must be "town" or a faction id, found "' + e.key + '"');
       checkDelta(e.delta, where, 50);
+      break;
+    // Direction change 14: someone at a place for the phase the effect runs in.
+    case 'visit':
+      if (!isNpc(e.npcId)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      else if (presenceOf(npcById.get(e.npcId)) !== 'here') err(where, e.npcId + ' is ' + presenceOf(npcById.get(e.npcId)) + ' and never visits anywhere');
+      if (!isLoc(e.locationId)) err(where, 'locationId "' + e.locationId + '" is not a location');
+      else if (locById.get(e.locationId).away === true) err(where, e.locationId + ' is out of town');
+      break;
+    // A thing put in a place, to find and take: { name, qty?, notes? }.
+    case 'placeItem':
+      if (!isLoc(e.locationId)) err(where, 'locationId "' + e.locationId + '" is not a location');
+      else if (locById.get(e.locationId).away === true) err(where, e.locationId + ' is out of town');
+      if (checkKeys(e.item, ['name'], where + '.item', ['qty', 'notes'])) {
+        if (checkStr(e.item.name, where + '.item.name', { noPlaceholders: true }) && (e.item.name.length > 60 || /^[A-Z]/.test(e.item.name))) err(where + '.item.name', 'a short lower-case name (60 characters at most), as ITEMS HERE lists it');
+        if (e.item.qty !== undefined && !(isInt(e.item.qty) && e.item.qty >= 1 && e.item.qty <= 99)) err(where + '.item.qty', 'must be a whole number from 1 to 99');
+        if (e.item.notes !== undefined && checkStr(e.item.notes, where + '.item.notes', { noPlaceholders: true }) && e.item.notes.length > 120) err(where + '.item.notes', 'at most 120 characters');
+      }
       break;
   }
 }
@@ -1373,7 +1408,7 @@ console.log(
   npcs.length + ' npcs (' + herePeople.length + ' here, ' + npcs.filter((n) => presenceOf(n) === 'away').length + ' away, ' + npcs.filter((n) => presenceOf(n) === 'dead').length + ' dead; ' + connectedSecrets + ' linked secrets, ' + relationCount + ' relations, ' + familyChecks + ' family ages checked, ' + homePlaces.length + ' homes to find, ' + townPlaces.length + ' town places, ' + awayPlaces.length + ' out of town' + (offstage.length ? ', ' + offstage.length + ' offstage' : '') + '), ' +
   factions.length + ' factions (' + clockTotal + ' clocks, ' + effectTotal + ' effects), ' +
   threads.length + ' threads, ' +
-  seeds.length + ' seeds, ' +
+  seeds.length + ' seeds (' + seedEffects.length + ' effects), ' +
   rumours.length + ' rumours (' + trueCount + ' true / ' + falseCount + ' false), ' +
   tableEntries + ' table entries, ' +
   BACKGROUNDS.length + ' backgrounds, ' +

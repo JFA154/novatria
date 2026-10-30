@@ -219,11 +219,22 @@ s.test('[4] Insulting the same NPC three times → attitude drops, their greetin
 });
 
 // 5
+/* Direction change 14: the first loose end picked is the hook on day 1 (it
+   fires after the player's second turn and is told on the third), so the
+   debt is picked second here and keeps its window around day 3; the first
+   one's day-1 visit is checked on the way. */
 s.test('[5] A debt loose end from character creation → the lender confronts the player around day 3.', async h => {
   const page = await h.open({ viewport: LAPTOP });
-  await quickStart(page, { seed: 4242, kinds: ['debt', 'enemy', 'secret'] });
+  await quickStart(page, { seed: 4242, kinds: ['secret', 'debt', 'enemy'] });
   await fast(page);
   await page.evaluate(() => Game.World.forceClockRoll(1));
+  // The first loose end comes to the player on day 1, on the third turn.
+  const hook = await page.evaluate(() => { const x = Game.state.player.looseEnds[0]; const sd = Game.State.seed(x.seedId); return { kind: x.kind, name: Game.State.npc(x.npcId).name, effect: sd.effect, trigger: sd.trigger, notBeforeTurn: sd.notBeforeTurn }; });
+  assert.deepEqual([hook.kind, hook.trigger, hook.notBeforeTurn], ['secret', { type: 'day', value: 1 }, 2], 'the first loose end is due on day 1 after the second turn');
+  for (let i = 0; i < 3; i++) await sendText(page, 'I look around');
+  const day1 = await lastPacket(page);
+  assert.equal((await time(page)).day, 1);
+  assert.ok(line(day1, 'DUE EVENT').includes(hook.effect) && line(day1, 'PRESENT').includes(hook.name + ' ('), 'told on the third turn, with its person in the scene');
   const le = await page.evaluate(() => {
     const le = Game.state.player.looseEnds.find(x => x.kind === 'debt');
     const n = Game.State.npc(le.npcId);

@@ -11,7 +11,8 @@
    is settled, with no roll and nothing gained) that becomes a favour seed and fires;
    /rest, /skip, /look, /zoom, /fact and /undo; faction clocks left to run (one
    faction's dice forced to 6) until at least one completes; a chronicle entry
-   after turn 10 and a second after turn 20.
+   after turn 10 and a second after turn 20; the first loose end told on day
+   1, on the third turn, and a fired seed's thing left where it says.
    After every turn: no page errors (the harness), no rejected State.apply
    diffs, the log never over 30 entries, every narrator packet lists only the
    people present, carries each one's secret and goal once in their own line
@@ -208,6 +209,14 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
     }
   }
   assert.ok(visited.size >= 6, 'six places in all');
+  // The first loose end picked is the hook on day 1 (direction change 14): it fired after the second turn and was told on the third, its person in the scene.
+  const hook = await page.evaluate(() => {
+    const le = Game.state.player.looseEnds[0];
+    const sd = Game.State.seed(le.seedId);
+    const p = window.__packets.find(x => (x.text.split('\n').find(l => l.startsWith('DUE EVENT:')) || '').includes(sd.effect));
+    return { kind: le.kind, npcId: le.npcId, told: p ? { turn: p.turn, day1: /^DAY 1, /m.test(p.text), present: p.presentIds.includes(le.npcId) } : null };
+  });
+  assert.deepEqual(hook.told, { turn: 3, day1: true, present: true }, `the ${hook.kind} loose end reached the narrator on day 1, turn 3`);
 
   // ----- 3. a failed roll with a complication, and the refused retry -----
   await page.evaluate(() => Game.Pipeline.forceNextRoll(3));
@@ -348,11 +357,16 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
       known: st.npcs.filter(n => n.knownToPlayer).length, npcs: st.npcs.length,
       chronicle: st.chronicle.map(c => `${c.fromTurn}-${c.toTurn}`), log: st.log.length, journal: st.journal.length,
       priceMultiplier: st.flags.priceMultiplier, weather: st.flags.weather,
-      worldEvents: G.World.recent.filter(e => e.kind === 'complete').map(e => e.text)
+      worldEvents: G.World.recent.filter(e => e.kind === 'complete').map(e => e.text),
+      // What fired seeds left lying about (direction change 14: placeItem), and anything missing that nobody took.
+      placed: st.seeds.filter(sd => sd.fired && Array.isArray(sd.effects)).flatMap(sd => sd.effects.filter(e => e.op === 'placeItem').map(e => `${e.item.name} at ${G.State.loc(e.locationId).name}`)),
+      placedMissing: st.seeds.filter(sd => sd.fired && Array.isArray(sd.effects)).flatMap(sd => sd.effects.filter(e => e.op === 'placeItem' && !(G.State.loc(e.locationId).items || []).some(i => i.name === e.item.name) && !st.player.inventory.some(i => i.name === e.item.name)).map(e => e.item.name))
     };
   });
   for (const tag of ['look-action', 'talk', 'buy', 'move', 'failed-roll', 'skip', 'fight', 'insult', 'fact', 'persuade', 'wait', 'zoom', 'look', 'undo', 'rest']) assert.ok(covered.has(tag), 'covered: ' + tag);
   assert.ok(talked.size >= 3, 'talked to three people: ' + talked.size);
+  assert.ok(end.placed.length >= 1, 'a fired seed left something to find: ' + JSON.stringify(end.placed));
+  assert.deepEqual(end.placedMissing, [], 'and it is still there, or carried');
   assert.ok(end.turn >= 30, '30+ turns: ' + end.turn);
   if (process.env.PLAYTEST_TRANSCRIPT) {
     // PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs prints the whole feed.

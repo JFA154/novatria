@@ -234,11 +234,16 @@ s.test('schedules move NPCs between phases; arrested NPCs sit in the police stat
   if (mover.to) assert.ok(r.there.includes(mover.id), 'at their next place');
   await sendText(page, 'I look around');
   assert.ok(!line(await lastPacket(page), 'PRESENT').includes(mover.name + ' ('), 'not in the packet any more');
-  // Everyone everywhere is exactly where the schedule says for this phase.
-  assert.ok(await page.evaluate(() => Game.state.locations.every(l => {
-    const want = (l.npcIdsBySchedule[Game.state.time.phase] || []).filter(id => { const n = Game.State.npc(id); return n.alive !== false && n.status !== 'gone' && n.status !== 'dead'; });
-    return JSON.stringify(Game.State.npcsAt(l.id).map(n => n.id).sort()) === JSON.stringify(want.slice().sort());
-  })));
+  // Everyone everywhere is exactly where the schedule says for this phase, apart from anyone on a visit
+  // (the first loose end's person has come to the player by now: direction change 14).
+  assert.ok(await page.evaluate(() => {
+    const st = Game.state;
+    const visiting = (st.visits || []).filter(v => v.day === st.time.day && v.phase === st.time.phase).map(v => v.npcId);
+    return st.locations.every(l => {
+      const want = (l.npcIdsBySchedule[st.time.phase] || []).filter(id => { const n = Game.State.npc(id); return n.alive !== false && n.status !== 'gone' && n.status !== 'dead' && !visiting.includes(id); });
+      return JSON.stringify(Game.State.npcsAt(l.id).map(n => n.id).filter(id => !visiting.includes(id)).sort()) === JSON.stringify(want.slice().sort());
+    });
+  }));
   // Arrested: the police station in every phase, and a later move is a no-op.
   const r2 = await page.evaluate(() => {
     const G = Game;
@@ -264,7 +269,8 @@ s.test('schedules move NPCs between phases; arrested NPCs sit in the police stat
 
 s.test('a debt loose end brings its lender to the player on its day: the due event is in the packet and the narration, then consumed', async h => {
   const page = await h.open({ viewport: LAPTOP });
-  await quickStart(page, { seed: 4242, kinds: ['debt', 'enemy', 'secret'] });
+  // The debt is not picked first: the first loose end is the day-1 hook (its own test below), the others keep their windows.
+  await quickStart(page, { seed: 4242, kinds: ['enemy', 'debt', 'secret'] });
   await fast(page);
   await page.evaluate(() => Game.World.forceClockRoll(1)); // no clock completes and takes the lender away
   const le = await page.evaluate(() => {
@@ -386,7 +392,8 @@ s.test('a favour seed at attitude 60 or more, once the NPC remembers something t
 
 s.test('location, npc and clock seeds fire at the right moment, wait for notBeforeDay, are capped at two per narration and consumed after it', async h => {
   const page = await h.open({ viewport: LAPTOP });
-  await quickStart(page, { seed: 31 });
+  // No loose ends: the first one's day-1 hook would be due beside the test seeds (direction change 14).
+  await quickStart(page, { seed: 31, kinds: [] });
   await fast(page);
   const dest = await page.evaluate(() => {
     const here = Game.State.loc(Game.state.player.locationId);
@@ -458,6 +465,180 @@ s.test('location, npc and clock seeds fire at the right moment, wait for notBefo
     told = line(await lastPacket(page), 'DUE EVENT').includes('The test clock event happens.');
   }
   assert.ok(told, 'and narrated');
+});
+
+/* Direction change 14: seeds are events. A seed's effects run when it fires
+   live, right after its due event is queued, and not when it fires as a
+   no-op; visit puts someone at a place for that phase only; placeItem puts a
+   thing in a place to find and take; notBeforeTurn holds a seed back; an
+   effect refused when it fires goes to the debug log and the turn goes on. */
+s.test('a seed\'s effects run when it fires live, not on the no-op path: visit puts someone at a place for the phase only (and again for the phase its event is told in) but never takes anyone out of the player\'s scene, placeItem leaves a thing to take, notBeforeTurn holds it, a refused effect never fails the turn', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { seed: 31, kinds: [] });
+  await fast(page);
+  await page.evaluate(() => Game.World.forceClockRoll(1));
+  const f = await page.evaluate(() => {
+    const st = Game.state;
+    const P = ['morning', 'afternoon', 'evening', 'night'];
+    const here = st.player.locationId;
+    const open = st.locations.filter(l => !l.closed && l.away !== true && l.discovered !== false && l.id !== here);
+    const listed = (l, id) => P.some(p => (l.npcIdsBySchedule[p] || []).includes(id));
+    // Someone scheduled somewhere, and a place they never go; someone else to make a no-op of; a third place for the thing.
+    const who = st.npcs.find(n => n.status === 'free' && n.alive !== false && st.locations.some(l => listed(l, n.id)) && !listed(Game.State.loc(here), n.id) && !/\b(look|wait|rest)\b/i.test(n.name));
+    const to = open.find(l => !listed(l, who.id));
+    const gone = st.npcs.find(n => n.status === 'free' && n.alive !== false && n.id !== who.id && st.locations.some(l => listed(l, n.id)));
+    const shelf = open.find(l => l.id !== to.id);
+    return { who: { id: who.id, name: who.name }, to: { id: to.id, name: to.name }, gone: gone.id, shelf: { id: shelf.id, name: shelf.name }, turn: st.meta.turn };
+  });
+  const plant = seed => page.evaluate(seed => Game.State.apply({ effects: [{ op: 'plantSeed', seed: Object.assign({ cause: 'test', fired: false, hidden: true, trigger: { type: 'day', value: 1 } }, seed) }] }), seed);
+  let r = await plant({
+    id: 'seed_test_event', effect: `${f.who.name} turns up at ${f.to.name} for the test.`, notBeforeTurn: f.turn + 2,
+    effects: [
+      { op: 'visit', npcId: f.who.id, locationId: f.to.id },
+      { op: 'placeItem', locationId: f.shelf.id, item: { name: 'test crate', notes: 'Nailed shut.' } },
+      { op: 'setFlag', key: 'testSeedFired', value: true },
+      { op: 'npcMove', npcId: f.who.id, locationId: f.to.id, phases: ['teatime'] }
+    ]
+  });
+  assert.deepEqual(r.rejected, [], 'the ids are checked when it is planted, and they exist');
+  r = await plant({ id: 'seed_test_noop', effect: 'The test no-op happens.', origin: { kind: 'grudge', npcId: f.gone }, effects: [{ op: 'setFlag', key: 'testNoopFired', value: true }, { op: 'placeItem', locationId: f.shelf.id, item: { name: 'noop box' } }] });
+  assert.deepEqual(r.rejected, []);
+  await page.evaluate(id => Game.State.apply({ effects: [{ op: 'npcStatus', npcId: id, status: 'gone' }] }), f.gone);
+  const look = () => page.evaluate(f => {
+    const st = Game.state;
+    const sd = Game.State.seed('seed_test_event');
+    return {
+      turn: st.meta.turn, fired: sd.fired, due: st.dueEvents.some(e => e.seedId === sd.id),
+      at: Game.State.npcsAt(f.to.id).some(n => n.id === f.who.id), visit: (st.visits || []).find(v => v.npcId === f.who.id) || null,
+      items: (Game.State.loc(f.shelf.id).items || []).map(i => [i.id, i.name, i.qty, i.notes]), flag: st.flags.testSeedFired, time: { day: st.time.day, phase: st.time.phase },
+      noop: Game.State.seed('seed_test_noop').fired, noopFlag: st.flags.testNoopFired, noopDue: st.dueEvents.some(e => e.seedId === 'seed_test_noop'),
+      refused: Game.State.debugLog.filter(x => x.kind === 'rejected' && x.source === 'world' && /^effects\[/.test(x.path) && x.turn === st.meta.turn).map(x => `${x.path}: ${x.reason}`)
+    };
+  }, f);
+  await sendText(page, 'I look around');
+  let s1 = await look();
+  assert.equal(s1.turn, f.turn + 1);
+  assert.equal(s1.fired, false, 'notBeforeTurn holds it after the first turn, though its day has come');
+  assert.equal(s1.at || s1.flag === true || s1.items.length > 0, false, 'nothing has changed yet');
+  // The no-op path: its person is gone, so it fires as a no-op and changes nothing.
+  assert.deepEqual([s1.noop, s1.noopFlag, s1.noopDue], [true, undefined, false], 'a no-op seed runs no effects');
+  assert.ok(!s1.items.some(i => i[1] === 'noop box'));
+  await sendText(page, 'I look around');
+  const s2 = await look();
+  assert.equal(s2.fired, true, 'fires after the second turn');
+  assert.equal(s2.due, true, 'its event is due');
+  assert.equal(s2.at, true, `${f.who.name} is at ${f.to.name} now`);
+  assert.deepEqual(s2.visit, { npcId: f.who.id, locationId: f.to.id, day: s2.time.day, phase: s2.time.phase }, 'for this day and phase');
+  assert.deepEqual(s2.items, [['item_test_crate', 'test crate', 1, 'Nailed shut.']], 'the thing is there to find');
+  assert.equal(s2.flag, true);
+  assert.equal(s2.refused.length, 1, 'the bad npcMove went to the debug log: ' + JSON.stringify(s2.refused));
+  assert.match(s2.refused[0], /^effects\[3\]: phases must be/);
+  assert.ok(await page.evaluate(() => Game.World.recent.some(e => e.seedId === 'seed_test_event' && /3 effects, 1 rejected/.test(e.text))), 'the world events say what it did');
+  // Told in the phase it fired in: they are there when the narration says so.
+  await sendText(page, 'I look around');
+  assert.ok(line(await lastPacket(page), 'DUE EVENT').includes(`${f.who.name} turns up at ${f.to.name} for the test.`), 'told on the next turn');
+  // The visit lasts its phase only; the thing stays until someone takes it.
+  await onePhase(page);
+  const s3 = await look();
+  assert.notDeepEqual(s3.time, s2.time);
+  assert.equal(s3.at, false, `${f.who.name} is back on their schedule the next phase`);
+  assert.equal(s3.items.length, 1, 'still there');
+  // Told in a later phase than it fired in (a /wait passed first): its visit is made again for the phase it is told in.
+  await plant({ id: 'seed_test_later', effect: `${f.who.name} is at ${f.to.name} again for the test.`, effects: [{ op: 'visit', npcId: f.who.id, locationId: f.to.id }] });
+  await sendText(page, 'I look around');
+  assert.deepEqual(await page.evaluate(f => [Game.State.seed('seed_test_later').fired, Game.State.npcsAt(f.to.id).some(n => n.id === f.who.id)], f), [true, true], 'fired, and there this phase');
+  await onePhase(page);
+  assert.ok(line(await lastPacket(page), 'DUE EVENT').includes(`${f.who.name} is at ${f.to.name} again for the test.`), 'told after the phase passed');
+  assert.equal(await page.evaluate(f => Game.State.npcsAt(f.to.id).some(n => n.id === f.who.id), f), true, 'and there in the phase it is told in');
+  // Someone standing with the player is never taken out of the scene: their visit is a no-op.
+  const mate = await page.evaluate(() => (Game.State.npcsAt(Game.state.player.locationId)[0] || {}).id || null);
+  assert.ok(mate, 'someone is with the player');
+  await plant({ id: 'seed_test_scene', effect: 'The test scene event happens.', effects: [{ op: 'visit', npcId: mate, locationId: f.to.id }] });
+  await sendText(page, 'I look around');
+  assert.deepEqual(await page.evaluate(([id, to]) => [Game.State.seed('seed_test_scene').fired, Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id), Game.State.npcsAt(to).some(n => n.id === id)], [mate, f.to.id]), [true, true, false], 'fired, and they stay with the player');
+  await place(page, f.shelf.id);
+  await sendText(page, 'I pick up the test crate');
+  const took = await page.evaluate(id => ({ inv: Game.state.player.inventory.map(i => [i.id, i.qty]), left: (Game.State.loc(id).items || []).length, packet: Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop().text }), f.shelf.id);
+  assert.ok(took.packet.includes('ITEMS HERE: test crate.'), 'the narrator sees it lying there');
+  assert.deepEqual(took.inv.filter(i => i[0] === 'item_test_crate'), [['item_test_crate', 1]], 'and the player can take it');
+  assert.equal(took.left, 0);
+});
+
+/* Direction change 14: the town's own seeds carry effects where their text
+   says something changed. Fired one by one (the clock set to their day, or
+   the player put at their place), each visit puts its person at the place,
+   each placeItem leaves its thing there, each flag is set and each faction
+   relation moves; the event is still due for the narration. */
+s.test('the town\'s own seeds change the town when they fire: their people are where the text says, their things are there to take, their flags are set', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { seed: 31, kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const st = G.state;
+    const out = [];
+    const withFx = st.seeds.filter(sd => Array.isArray(sd.effects) && sd.effects.length);
+    for (const sd of withFx) {
+      const tr = sd.trigger;
+      if (tr.type === 'day' && st.time.day < tr.value) G.State.apply({ setTime: { day: tr.value, phase: st.time.phase } });
+      if (tr.type === 'location') G.State.apply({ playerLocationId: tr.value });
+      const rel = sd.effects.filter(e => e.op === 'factionRelation').map(e => (G.State.faction(e.a).relations || {})[e.b] || 0);
+      const fired = G.World.fireSeeds().map(x => x.id);
+      const problems = [];
+      if (!fired.includes(sd.id)) problems.push('did not fire');
+      if (!st.dueEvents.some(e => e.seedId === sd.id)) problems.push('not due');
+      let k = 0;
+      for (const e of sd.effects) {
+        if (e.op === 'visit' && !G.State.npcsAt(e.locationId).some(n => n.id === e.npcId)) problems.push(`${e.npcId} is not at ${e.locationId}`);
+        if (e.op === 'placeItem' && !(G.State.loc(e.locationId).items || []).some(i => i.name === e.item.name)) problems.push(`no ${e.item.name} at ${e.locationId}`);
+        if (e.op === 'setFlag' && st.flags[e.key] !== e.value) problems.push(`flag ${e.key}`);
+        if (e.op === 'factionRelation' && G.State.faction(e.a).relations[e.b] !== Math.max(-100, Math.min(100, rel[k++] + e.delta))) problems.push(`${e.a} and ${e.b}`);
+      }
+      out.push({ id: sd.id, ops: sd.effects.map(e => e.op), problems });
+    }
+    return out;
+  });
+  assert.ok(r.length >= 3, 'several town seeds carry effects: ' + r.map(x => x.id).join(', '));
+  for (const x of r) assert.deepEqual(x.problems, [], `${x.id} (${x.ops.join(', ')})`);
+  assert.ok(r.some(x => x.ops.includes('visit')) && r.some(x => x.ops.includes('placeItem')), 'someone is put somewhere and something is left somewhere');
+});
+
+/* Direction change 14: nothing pulled on the player for the first two days.
+   The first loose end picked fires on day 1 after the player's second turn,
+   is told on the third, and its person comes to wherever the player is; the
+   texts name no place, so they read right wherever that is. */
+s.test('the first loose end is the hook on day 1: it fires after the second turn, its person comes to the player and it is told on the third; no loose-end text names a place', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { seed: 4242, kinds: ['debt', 'enemy', 'secret'] });
+  await fast(page);
+  await page.evaluate(() => Game.World.forceClockRoll(1));
+  const le = await page.evaluate(() => Game.state.player.looseEnds.map(x => { const sd = Game.State.seed(x.seedId); return { kind: x.kind, seedId: sd.id, trigger: sd.trigger, notBeforeTurn: sd.notBeforeTurn, npcId: x.npcId, name: Game.State.npc(x.npcId).name, effect: sd.effect }; }));
+  assert.deepEqual([le[0].kind, le[0].trigger, le[0].notBeforeTurn], ['debt', { type: 'day', value: 1 }, 2], 'the first loose end picked');
+  for (const x of le.slice(1)) assert.ok(x.trigger.value >= 2 && x.notBeforeTurn === undefined, `${x.kind} keeps its window: day ${x.trigger.value}`);
+  // Somewhere the lender is not this morning, so they have to come.
+  const away = await page.evaluate(id => Game.state.locations.find(l => !l.closed && l.away !== true && l.discovered !== false && !Game.State.npcsAt(l.id).some(n => n.id === id)).id, le[0].npcId);
+  await place(page, away);
+  const fired = () => page.evaluate(ids => ids.map(id => Game.State.seed(id).fired), le.map(x => x.seedId));
+  await sendText(page, 'I look around');
+  assert.deepEqual(await fired(), [false, false, false], 'not after the first turn');
+  await sendText(page, 'I look around');
+  assert.deepEqual(await fired(), [true, false, false], 'after the second turn, the first loose end only');
+  assert.ok(await page.evaluate(id => Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id), le[0].npcId), 'the lender has come to the player');
+  await sendText(page, 'I look around');
+  const p = await lastPacket(page);
+  assert.equal((await time(page)).day, 1, 'still day 1');
+  assert.ok(line(p, 'DUE EVENT').includes(le[0].effect), 'told on the third turn');
+  assert.ok(line(p, 'PRESENT').includes(le[0].name + ' ('), 'with the lender in the scene');
+  assert.ok((await lastLog(page)).narration.includes(le[0].effect.slice(0, 40)), 'and narrated');
+  assert.equal(await page.evaluate(() => Game.state.player.locationId), away, 'the player never moved');
+  // Every loose-end text fits anywhere: it names no place in town (no name, map label or other name of one).
+  const named = await page.evaluate(() => {
+    const D = Game.data;
+    const words = D.TOWN_DATA.locations.flatMap(l => [l.name, l.name.replace(/^The /, ''), l.map && l.map.label].concat(l.aka || [])).filter(Boolean);
+    const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return Object.keys(D.LOOSE_ENDS).flatMap(k => words.filter(w => new RegExp(`\\b${esc(w)}\\b`, 'i').test(D.LOOSE_ENDS[k].seed.effect)).map(w => `${k}: ${w}`));
+  });
+  assert.deepEqual(named, [], 'no loose-end text names a place');
 });
 
 s.test('after 10 turns a chronicle entry exists and the log is trimmed; STORY SO FAR is trimmed to 150 words; a failing chronicle never breaks a turn', async h => {

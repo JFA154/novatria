@@ -3814,6 +3814,10 @@ const TOWN_DATA = {
       id: "seed_big_run",
       cause: "Wade Purvis has bought two hundred cartons and forty cases of liquor for the biggest run of the fall, and paid Travis Cagle to sit in the motel lot all night.",
       effect: "The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
+      effects: [
+        { op: "visit", npcId: "npc_marcus", locationId: "loc_purvis_landing" },
+        { op: "visit", npcId: "npc_wade", locationId: "loc_purvis_landing" }
+      ],
       trigger: { type: "day", value: 3 },
       fired: false,
       hidden: true
@@ -3822,6 +3826,9 @@ const TOWN_DATA = {
       id: "seed_lease_letter",
       cause: "Carter Sturdivant has had a lawyer in the city write to Wade Purvis that the Purvis Landing lease will not be renewed at the new year.",
       effect: "Wade Purvis read the lawyer's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
+      effects: [
+        { op: "factionRelation", a: "fac_sturdivant", b: "fac_nightrun", delta: -10 }
+      ],
       trigger: { type: "day", value: 4 },
       fired: false,
       hidden: true
@@ -3830,6 +3837,10 @@ const TOWN_DATA = {
       id: "seed_council_agenda",
       cause: "Jolene Overstreet has put the police budget on the next council agenda without telling Chief Bell.",
       effect: "A typed agenda taped to the Town Hall door lists the dissolution of the police department as item four, and Chief Bell has been seen standing in front of it with his notebook out.",
+      effects: [
+        { op: "setFlag", key: "policeVoteOnAgenda", value: true },
+        { op: "visit", npcId: "npc_marcus", locationId: "loc_town_hall" }
+      ],
       trigger: { type: "day", value: 6 },
       fired: false,
       hidden: true
@@ -3846,6 +3857,9 @@ const TOWN_DATA = {
       id: "seed_engineer",
       cause: "The consulting engineer who wrote the bridge report has been asked to answer questions at the council meeting, and Carter Sturdivant does not want him answering any.",
       effect: "The engineer canceled his appearance at the council meeting by email, and Dewayne Mangum told the counter at Pittman's that he towed that man's rental car out of a ditch on the morning of the inspection.",
+      effects: [
+        { op: "setFlag", key: "engineerWithdrew", value: true }
+      ],
       trigger: { type: "day", value: 9 },
       fired: false,
       hidden: true
@@ -3854,6 +3868,9 @@ const TOWN_DATA = {
       id: "seed_vada_doctor",
       cause: "Carter Sturdivant has asked a doctor in the city to find his mother unfit, so that he can sign the bottomland over to the state himself.",
       effect: "Carter brought a doctor up to Sturdivant House yesterday, and Vada Sturdivant threw them both out and drove herself to Riverside Baptist to ask Pastor Dees to witness a new will.",
+      effects: [
+        { op: "setFlag", key: "vadaNewWill", value: true }
+      ],
       trigger: { type: "day", value: 11 },
       fired: false,
       hidden: true
@@ -3862,6 +3879,9 @@ const TOWN_DATA = {
       id: "seed_tackle_box",
       cause: "Colt Purvis keeps his pills and his sales phone in a tackle box wedged on a girder under the first span of the old bridge, where his uncle never looks.",
       effect: "On a girder ledge under the first span, reachable from the riverbank, is a tackle box holding three pill bottles with a pharmacy label from across the river and a cheap prepaid phone full of texts from Riverbend numbers.",
+      effects: [
+        { op: "placeItem", locationId: "loc_old_bridge", item: { name: "tackle box", qty: 1, notes: "Three pill bottles with a pharmacy label from across the river and a prepaid phone full of texts." } }
+      ],
       trigger: { type: "location", value: "loc_old_bridge" },
       fired: false,
       hidden: true
@@ -4242,7 +4262,7 @@ const LOOSE_ENDS = {
     },
     seed: {
       dayOffset: [3, 5],
-      effect: "{npc} slides into the booth across from {player} uninvited, sets down a folded printout with {player}'s name on it, and says the money is due in three days.",
+      effect: "{npc} comes straight up to {player} without a hello, holds out a folded printout with {player}'s name and the amount on it, and says the money is due in three days.",
       trigger: "day"
     }
   },
@@ -4264,7 +4284,7 @@ const LOOSE_ENDS = {
     },
     seed: {
       dayOffset: [4, 7],
-      effect: "{npc} shows the night clerk at the Riverview Motor Court a photo of {player} and asks which room {player} has been sleeping in.",
+      effect: "{npc} turns up holding out a phone with a photo of {player} on it, asking anyone nearby whether they have seen this face, and goes still on finding {player} right there.",
       trigger: "day"
     }
   },
@@ -4286,7 +4306,7 @@ const LOOSE_ENDS = {
     },
     seed: {
       dayOffset: [3, 6],
-      effect: "{npc} catches {player} alone, repeats one true detail of {player}'s secret, and names a price in cash for keeping it quiet.",
+      effect: "{npc} draws {player} aside, says one true detail of {player}'s secret low enough that nobody else can hear, and names a price in cash for keeping it quiet.",
       trigger: "day"
     }
   },
@@ -4308,7 +4328,7 @@ const LOOSE_ENDS = {
     },
     seed: {
       dayOffset: [4, 8],
-      effect: "{npc} leaves word at the Low Water that an old record in town holds a name {player} will want to see, and asks {player} to come by after Wednesday supper.",
+      effect: "{npc} seeks {player} out to say that an old record in town holds a name {player} will want to see, and asks {player} to come by after Wednesday supper to look at it.",
       trigger: "day"
     }
   },
@@ -4330,7 +4350,7 @@ const LOOSE_ENDS = {
     },
     seed: {
       dayOffset: [2, 4],
-      effect: "{npc} hands {player} an envelope a trucker left behind the bar, unsigned, that says only: you gave your word, and the time to keep it is now.",
+      effect: "{npc} hands {player} an unsigned envelope, left by a trucker passing through, and the note inside says only: you gave your word, and the time to keep it is now.",
       trigger: "day"
     }
   }
@@ -5285,6 +5305,15 @@ const Tables = (() => {
    to it each morning (rumourSpread) and Pipeline.wouldKnow reads it. A save
    from before gets it at load (fillKnownBy). rumoursHeard lists the
    rumours it marks heard in result.heard.
+   Seeds are events (direction change 14): an engine seed (plantSeed, and
+   the town's own seeds) may carry effects, a list of effect ops checked when
+   it is planted (seedEffects: known op, its fields, ids that exist) and run
+   by World.fire when it fires live, and notBeforeTurn (it waits until that
+   turn; the first loose end's hook). The model's newSeeds keep neither: any
+   effects it sends are left out. Two effect ops serve them: visit ({ npcId,
+   locationId }: there for the current day and phase, as a visits entry;
+   never out of the scene the player is in) and placeItem ({ locationId,
+   item: { name, qty?, notes? } }: a scene item).
    Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?, heard? }. */
 const State = (() => {
   let current = null;
@@ -5475,19 +5504,66 @@ const State = (() => {
       }
       default: bad('trigger type must be day, location, npc or clock');
     }
+    // Engine seeds only: what the seed changes when it fires, checked before anything is planted.
+    const effects = !requireAhead && raw.effects !== undefined && raw.effects !== null ? seedEffects(raw.effects) : [];
     let id = typeof raw.id === 'string' && ID_RE.seed.test(raw.id) ? raw.id : `seed_t${current.meta.turn}`;
     id = uniqueId(id, x => !!seed(x));
     const out = { id, cause: cleanText(raw.cause, 300) || 'unrecorded', effect, trigger: { type: tr.type, value }, fired: false, hidden: raw.hidden !== false };
     let notBefore = toInt(raw.notBeforeDay);
     if (requireAhead && tr.type !== 'day') notBefore = Math.max(notBefore || 0, day + 1);
     if (notBefore) out.notBeforeDay = notBefore;
-    // Engine seeds only (never the bookkeeper's): who and what planted it.
-    if (!requireAhead && isObj(raw.origin) && SEED_ORIGINS.includes(raw.origin.kind)) {
-      out.origin = { kind: raw.origin.kind };
-      if (typeof raw.origin.npcId === 'string' && npc(raw.origin.npcId)) out.origin.npcId = raw.origin.npcId;
-      if (Number.isInteger(raw.origin.template)) out.origin.template = raw.origin.template;
+    // Engine seeds only (never the bookkeeper's): who and what planted it, the
+    // turn it waits for (the first loose end's hook on day 1) and its effects.
+    if (!requireAhead) {
+      if (isObj(raw.origin) && SEED_ORIGINS.includes(raw.origin.kind)) {
+        out.origin = { kind: raw.origin.kind };
+        if (typeof raw.origin.npcId === 'string' && npc(raw.origin.npcId)) out.origin.npcId = raw.origin.npcId;
+        if (Number.isInteger(raw.origin.template)) out.origin.template = raw.origin.template;
+      }
+      const notBeforeTurn = toInt(raw.notBeforeTurn);
+      if (notBeforeTurn !== null && notBeforeTurn >= 1) out.notBeforeTurn = notBeforeTurn;
+      if (effects.length) out.effects = effects;
     }
     return out;
+  }
+  /* A seed's effects (direction change 14): effect ops that World.fire runs
+     through EFFECTS when the seed fires live. Checked when the seed is
+     planted the way the town check reads clock effects: a known op, the
+     fields it needs and ids that exist (a thread an earlier effect in the
+     list opens counts), at most SEED_EFFECTS_MAX. One bad effect refuses the
+     whole seed, with its index in the reason. */
+  const SEED_EFFECTS_MAX = 6;
+  function seedEffects(list) {
+    if (!Array.isArray(list)) bad('effects must be a list of effect ops');
+    if (list.length > SEED_EFFECTS_MAX) bad(`a seed carries at most ${SEED_EFFECTS_MAX} effects`);
+    const opened = new Set();
+    return list.map((e, i) => {
+      try { checkEffect(e, opened); } catch (err) { if (err instanceof Reject) bad(`effects[${i}]: ${err.message}`); throw err; }
+      if (e.op === 'openThread') opened.add(e.thread.id);
+      return deepCopy(e);
+    });
+  }
+  function checkEffect(e, opened) {
+    if (!isObj(e) || typeof e.op !== 'string') bad('effect needs an op');
+    if (!Object.prototype.hasOwnProperty.call(EFFECTS, e.op)) bad(`unknown op "${e.op}"`);
+    const place = () => { const l = needLoc(e.locationId); if (l.away === true && (e.op === 'visit' || e.op === 'placeItem')) bad(`${l.id} is out of town`); };
+    switch (e.op) {
+      case 'closeLocation': case 'openLocation': place(); break;
+      case 'npcStatus': case 'attitudeDelta': needNpc(e.npcId); break;
+      case 'npcMove': case 'visit': needNpc(e.npcId); place(); break;
+      case 'placeItem':
+        place();
+        if (!isObj(e.item) || !cleanText(e.item.name, 60)) bad('placeItem needs an item with a name');
+        break;
+      case 'threadStatus': if (!(opened && opened.has(e.threadId))) needThread(e.threadId); break;
+      case 'openThread': if (!isObj(e.thread) || typeof e.thread.id !== 'string') bad('openThread needs a thread with an id'); break;
+      case 'addRumour': if (!isObj(e.rumour)) bad('addRumour needs a rumour'); break;
+      case 'plantSeed': if (!isObj(e.seed)) bad('plantSeed needs a seed'); break;
+      case 'factionRelation': needFaction(e.a); needFaction(e.b); break;
+      case 'reputationDelta': if (e.key !== 'town') needFaction(e.key); break;
+      case 'setFlag': if (RESERVED_FLAGS.includes(e.key)) bad(`flag "${e.key}" is reserved`); break;
+      default: break;
+    }
   }
   function addNpc(raw) {
     if (!isObj(raw)) bad('npc must be an object');
@@ -5562,6 +5638,15 @@ const State = (() => {
       l.items.push(o);
     }
     return `${name} at ${l.id}`;
+  }
+  /* Someone at a place for the current day and phase only (the visits op and
+     the visit effect; npcsAt reads it). A newer visit replaces an older one. */
+  function addVisit(n, l) {
+    const s = current;
+    if (!Array.isArray(s.visits)) s.visits = [];
+    s.visits = s.visits.filter(x => x.npcId !== n.id);
+    s.visits.push({ npcId: n.id, locationId: l.id, day: s.time.day, phase: s.time.phase });
+    return `${n.id} at ${l.id} for day ${s.time.day} ${s.time.phase}`;
   }
   function sceneItem(id) {
     const l = current && loc(current.player.locationId);
@@ -6200,6 +6285,32 @@ const State = (() => {
       const before = rep[e.key] || 0;
       rep[e.key] = clamp(before + d, -100, 100);
       return `reputation ${e.key} ${before} -> ${rep[e.key]}`;
+    },
+    /* Direction change 14 (a seed's effects): someone is at a place for the
+       current day and phase only (a visit, as when a loose end's person comes
+       to the player), whatever their schedule says. Like npcMove, someone in
+       the cells, gone or dead stays put, and nobody visits a closed place: a
+       no-op, not a rejection, since a clock may have got there first. Nor
+       is anyone taken out of the scene the player is in (they would vanish
+       mid-conversation, or mid-fight): someone with the player somewhere
+       else stays with them. */
+    visit(e) {
+      const n = needNpc(e.npcId);
+      const l = needLoc(e.locationId);
+      if (l.away === true) bad(`${l.id} is out of town`);
+      if (n.alive === false || n.status !== 'free') return `no-op: ${n.id} is ${n.alive === false ? 'dead' : n.status}`;
+      if (l.closed) return `no-op: ${l.id} is closed`;
+      const at = current.player.locationId;
+      if (l.id !== at && npcsAt(at).some(x => x.id === n.id)) return `no-op: ${n.id} is with the player at ${at}`;
+      return addVisit(n, l);
+    },
+    /* A thing put in a place (the scene items Pipeline step 4 makes): it lies
+       there, in ITEMS HERE, until itemsGained picks it up. */
+    placeItem(e) {
+      const l = needLoc(e.locationId);
+      if (l.away === true) bad(`${l.id} is out of town`);
+      const it = isObj(e.item) ? e.item : {};
+      return addSceneItem({ locationId: l.id, item: { name: it.name, qty: it.qty, notes: it.notes } });
     }
   };
   const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
@@ -6964,7 +7075,9 @@ const State = (() => {
       const sd = normaliseSeed(raw, true);
       s.seeds.push(sd);
       ledger.seeds += 1;
-      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})`;
+      // The model plants no effects (record_changes has no field for them); any it sends are left out.
+      const dropped = isObj(raw) && raw.effects !== undefined && raw.effects !== null ? '; its effects were left out: the model plants none' : '';
+      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})${dropped}`;
     });
     each('rumoursHeard', id => {
       const r = rumour(id) || bad(`unknown rumour id "${id}"`);
@@ -7175,10 +7288,7 @@ const State = (() => {
       if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status}`);
       if (l.away === true) bad(`${l.id} is out of town`);
       if (l.closed) bad(`${l.id} is closed`);
-      if (!Array.isArray(s.visits)) s.visits = [];
-      s.visits = s.visits.filter(x => x.npcId !== n.id);
-      s.visits.push({ npcId: n.id, locationId: l.id, day: s.time.day, phase: s.time.phase });
-      return `${n.id} at ${l.id} for day ${s.time.day} ${s.time.phase}`;
+      return addVisit(n, l);
     });
     one('chronicleEntry', c => {
       if (!isObj(c)) bad('must be an object');
@@ -7585,7 +7695,7 @@ const State = (() => {
     get current() { return current; },
     get town() { return town; },
     get muted() { return muted; },
-    RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
+    RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS, SEED_EFFECTS_MAX,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, fillKnownBy, firstKnowers, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
@@ -7879,13 +7989,16 @@ const Town = (() => {
     arr(t.threads).forEach(x => reg(x.id, 'thr'));
     arr(t.seeds).forEach(x => reg(x.id, 'seed'));
     arr(t.rumours).forEach(x => reg(x.id, 'rum'));
-    // ids that clock effects create later also count as known
+    // ids that clock effects and seed effects create later also count as known
     const effectsOf = f => arr(f.clocks).flatMap(c => (isObj(c.onComplete) ? arr(c.onComplete.effects) : []));
-    arr(t.factions).forEach(f => effectsOf(f).forEach(ef => {
+    const seedEffectsOf = sd => (isObj(sd) ? arr(sd.effects) : []);
+    const madeBy = ef => {
       if (ef && ef.op === 'openThread' && ef.thread) ids.add(ef.thread.id);
       if (ef && ef.op === 'addRumour' && ef.rumour) ids.add(ef.rumour.id);
-      if (ef && ef.op === 'plantSeed' && ef.seed) ids.add(ef.seed.id);
-    }));
+      if (ef && ef.op === 'plantSeed' && ef.seed) { ids.add(ef.seed.id); seedEffectsOf(ef.seed).forEach(madeBy); }
+    };
+    arr(t.factions).forEach(f => effectsOf(f).forEach(madeBy));
+    arr(t.seeds).forEach(sd => seedEffectsOf(sd).forEach(madeBy));
     const locById = new Map(arr(t.locations).map(l => [l.id, l]));
     const npcIds = new Set(arr(t.npcs).map(n => n.id));
     const facIds = new Set(arr(t.factions).map(f => f.id));
@@ -7940,28 +8053,38 @@ const Town = (() => {
       else if (tr.type === 'clock') { const m = /^(fac_[a-z0-9_]+):(\d+)$/.exec(String(tr.value)); if (!m) e(`${where}: bad clock trigger ${tr.value}`); else checkRef(where, 'fac', m[1]); }
       else e(`${where}: bad trigger type ${tr.type}`);
     };
+    /* One effect op, from a clock or a seed (direction change 14: seeds carry
+       effects too, checked the same way). */
+    const checkEffect = (w, ef) => {
+      if (!isObj(ef) || !EFFECT_OPS.includes(ef.op)) { e(`${w}: unknown op ${ef && ef.op}`); return; }
+      if (ef.locationId !== undefined) checkRef(w, 'loc', ef.locationId);
+      if (ef.npcId !== undefined) checkRef(w, 'npc', ef.npcId);
+      if (ef.threadId !== undefined) checkRef(w, 'thr', ef.threadId);
+      if (ef.op === 'factionRelation') { checkRef(w, 'fac', ef.a); checkRef(w, 'fac', ef.b); }
+      if (ef.op === 'reputationDelta' && ef.key !== 'town') checkRef(w, 'fac', ef.key);
+      if (ef.op === 'plantSeed' && ef.seed) { checkTrigger(w, ef.seed.trigger); checkSeedEffects(`${w}.seed`, ef.seed); }
+      if (ef.op === 'setFlag' && State.RESERVED_FLAGS.includes(ef.key)) e(`${w}: flag ${ef.key} is reserved`);
+      if ((ef.op === 'visit' || ef.op === 'placeItem') && locById.has(ef.locationId) && locById.get(ef.locationId).away === true) e(`${w}: ${ef.locationId} is out of town`);
+      if (ef.op === 'placeItem' && !(isObj(ef.item) && cleanText(ef.item.name, 60))) e(`${w}: placeItem needs an item with a name`);
+    };
+    const checkSeedEffects = (where, sd) => {
+      if (!isObj(sd) || sd.effects === undefined) return;
+      if (!Array.isArray(sd.effects)) { e(`${where}: effects must be an array`); return; }
+      if (sd.effects.length > State.SEED_EFFECTS_MAX) e(`${where}: at most ${State.SEED_EFFECTS_MAX} effects`);
+      sd.effects.forEach((ef, j) => checkEffect(`${where}.effects[${j}]`, ef));
+    };
     for (const f of arr(t.factions)) {
       if (!arr(f.clocks).length) e(`${f.id}: needs clocks`);
       arr(f.clocks).forEach((c, i) => {
         const where = `${f.id}.clocks[${i}]`;
         if (!Number.isInteger(c.segments) || c.segments < 1) e(`${where}: segments must be a positive integer`);
         if (!isObj(c.onComplete) || typeof c.onComplete.text !== 'string' || !Array.isArray(c.onComplete.effects)) { e(`${where}: onComplete needs text and effects`); return; }
-        c.onComplete.effects.forEach((ef, j) => {
-          const w = `${where}.effects[${j}]`;
-          if (!isObj(ef) || !EFFECT_OPS.includes(ef.op)) { e(`${w}: unknown op ${ef && ef.op}`); return; }
-          if (ef.locationId !== undefined) checkRef(w, 'loc', ef.locationId);
-          if (ef.npcId !== undefined) checkRef(w, 'npc', ef.npcId);
-          if (ef.threadId !== undefined) checkRef(w, 'thr', ef.threadId);
-          if (ef.op === 'factionRelation') { checkRef(w, 'fac', ef.a); checkRef(w, 'fac', ef.b); }
-          if (ef.op === 'reputationDelta' && ef.key !== 'town') checkRef(w, 'fac', ef.key);
-          if (ef.op === 'plantSeed' && ef.seed) checkTrigger(w, ef.seed.trigger);
-          if (ef.op === 'setFlag' && State.RESERVED_FLAGS.includes(ef.key)) e(`${w}: flag ${ef.key} is reserved`);
-        });
+        c.onComplete.effects.forEach((ef, j) => checkEffect(`${where}.effects[${j}]`, ef));
       });
       for (const r of Object.keys(f.relations || {})) if (!facIds.has(r)) e(`${f.id}: relation to unknown ${r}`);
     }
     for (const th of arr(t.threads)) for (const id of arr(th.linkedIds)) if (!ids.has(id)) e(`${th.id}: linked unknown ${id}`);
-    for (const sd of arr(t.seeds)) checkTrigger(sd.id, sd.trigger);
+    for (const sd of arr(t.seeds)) { checkTrigger(sd.id, sd.trigger); checkSeedEffects(sd.id, sd); }
     for (const r of arr(t.rumours)) if (r.sourceNpcId !== null && r.sourceNpcId !== undefined && !npcIds.has(r.sourceNpcId)) e(`${r.id}: unknown source ${r.sourceNpcId}`);
     return errs;
   }
@@ -7977,8 +8100,15 @@ const Town = (() => {
      hidden seed is planted. Their schedule already places them in town;
      when the seed fires they come to the player for that scene
      (World.fireSeeds). dayOffset [a, b] is read as day numbers counted from
-     day 1, so [3, 5] fires on day 3, 4 or 5 (never earlier than tomorrow). */
+     day 1, so [3, 5] fires on day 3, 4 or 5 (never earlier than tomorrow).
+     The first loose end the player picked is the hook on day 1 (direction
+     change 14: nothing pulled on the player for the first two days): its
+     seed fires today, once FIRST_HOOK_TURNS turns have been played
+     (notBeforeTurn 2 in a new game, so it fires after the player's second
+     turn and is due on the third). Its day is still rolled, so the seeded
+     stream is unchanged. The others keep their windows. */
   const LOOSE_END_ATTITUDE = { debt: -10, enemy: -40, secret: -5, lost: 10, promise: 5 };
+  const FIRST_HOOK_TURNS = 2;
   function firstScheduledLocation(npcId) {
     const s = State.current;
     for (const p of PHASES) for (const l of s.locations) if (((l.npcIdsBySchedule || {})[p] || []).includes(npcId)) return l.id;
@@ -8034,7 +8164,10 @@ const Town = (() => {
     const off = Array.isArray(sd.dayOffset) && sd.dayOffset.length ? sd.dayOffset : [3, 5];
     const lo = toInt(off[0]) || 3;
     const hi = toInt(off.length > 1 ? off[1] : off[0]) || lo;
-    const day = Math.max(s.time.day + 1, Rng.int(lo, hi));
+    // The day is rolled for the first loose end too, so the seeded stream (and every later roll) is what it was.
+    const rolled = Math.max(s.time.day + 1, Rng.int(lo, hi));
+    const first = (s.player.looseEnds || []).length === 0;
+    const day = first ? s.time.day : rolled;
     let trigger = { type: 'day', value: day };
     if (sd.trigger === 'npc') trigger = { type: 'npc', value: target.id };
     else if (sd.trigger === 'location') trigger = { type: 'location', value: firstScheduledLocation(target.id) || s.player.locationId };
@@ -8043,6 +8176,7 @@ const Town = (() => {
     const threadId = uniqueId('thr_le_' + le.kind, id => !!State.thread(id));
     const seedObj = { id: seedId, cause: `Loose end (${def.label}): ${text}`, effect: fillTemplate(sd.effect || '{npc} turns up.', vars), trigger, fired: false, hidden: true, origin: { kind: 'loose_end', npcId: target.id } };
     if (trigger.type !== 'day') seedObj.notBeforeDay = day;
+    if (first) seedObj.notBeforeTurn = s.meta.turn + FIRST_HOOK_TURNS;
     const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
     const r = State.apply({
       effects: [
@@ -8084,7 +8218,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, looseEndMemory, isLooseEndMemory, LOOSE_END_MEMORY_WEIGHT, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, looseEndMemory, isLooseEndMemory, LOOSE_END_MEMORY_WEIGHT, FIRST_HOOK_TURNS, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
 })();
 
 // ===== Module: World =====
@@ -8154,13 +8288,22 @@ const Town = (() => {
      fireSeeds(ctx), Pipeline step 11, fires every unfired seed whose trigger
      is met: day (today >= value), location (the player is there), npc (that
      NPC is with the player), clock ("fac_x:N": the running clock has N
-     filled); never before notBeforeDay. A fired seed is marked fired and
-     becomes a due event. A seed tied to an NPC (loose end, grudge, favour)
-     whose NPC is no longer free fires as a no-op. A loose-end NPC whose
-     seed fires comes to the player: a visit to where the player is.
+     filled); never before notBeforeDay, nor before notBeforeTurn (the first
+     loose end fires on day 1, after the player's second turn, so it is due
+     on the third). A fired seed is marked fired and becomes a due event. A
+     seed tied to an NPC (loose end, grudge, favour) whose NPC is no longer
+     free fires as a no-op. A loose-end NPC whose seed fires comes to the
+     player: a visit to where the player is. A seed that fires live then runs
+     its effects (direction change 14) through applyEffects, right after the
+     due event is queued, so the world matches its sentence: Chief Bell is at
+     the landing that phase (visit), the tackle box is under the bridge
+     (placeItem). An effect State.apply refuses goes to the debug log and
+     never fails the turn; the no-op path runs none.
      dueSeeds(ctx), step 6, hands at most MAX_DUE (2) due events to the
      narration, oldest first, and keeps a loose-end NPC's visit wherever the
-     player is now; the rest wait. An event from a location trigger is only
+     player is now, and a seed's own visit effects for the phase it is told
+     in (it is narrated as already true, perhaps after a night's rest); the
+     rest wait. An event from a location trigger is only
      told in that location, and not in a turn that walks out of it
      (ctx.leaving): the seed fires after the narration that brought the
      player there, so if they walk on at once it waits for their return.
@@ -8491,7 +8634,12 @@ const World = (() => {
       default: return false;
     }
   }
-  function ready(sd) { return !sd.fired && !(Number.isInteger(sd.notBeforeDay) && st().time.day < sd.notBeforeDay); }
+  function ready(sd) {
+    const s = st();
+    if (sd.fired) return false;
+    if (Number.isInteger(sd.notBeforeDay) && s.time.day < sd.notBeforeDay) return false;
+    return !(Number.isInteger(sd.notBeforeTurn) && s.meta.turn < sd.notBeforeTurn);
+  }
   function fire(sd) {
     const s = st();
     const npcId = seedNpcId(sd);
@@ -8507,7 +8655,10 @@ const World = (() => {
     }
     const r = State.apply(diff, W);
     if (r.rejected.some(x => x.path.startsWith('seedsFired'))) return false;
-    note(`${sd.id} fires (${sd.trigger.type} ${sd.trigger.value})${live ? '' : `, a no-op: ${n ? `${n.id} is ${n.alive === false ? 'dead' : n.status}` : 'its NPC is missing'}`}`, { kind: 'seed', seedId: sd.id });
+    // What the seed changes in the town, once its event is queued (a no-op seed changes nothing).
+    const fx = live && Array.isArray(sd.effects) && sd.effects.length ? applyEffects(sd.effects) : null;
+    const did = fx ? `; ${fx.applied.length} effect${fx.applied.length === 1 ? '' : 's'}${fx.rejected.length ? `, ${fx.rejected.length} rejected` : ''}` : '';
+    note(`${sd.id} fires (${sd.trigger.type} ${sd.trigger.value})${live ? did : `, a no-op: ${n ? `${n.id} is ${n.alive === false ? 'dead' : n.status}` : 'its NPC is missing'}`}`, { kind: 'seed', seedId: sd.id });
     return true;
   }
   function fireWhere(pred, ctx) {
@@ -8537,6 +8688,9 @@ const World = (() => {
       if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (sd.trigger.value !== here || (ctx && ctx.leaving))) continue;
       if (out.length >= MAX_DUE) continue;
       if (ev.bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
+      // Its visits hold for the phase it is told in too (a /rest can pass between firing and telling): the narration says it is so.
+      const stay = sd && Array.isArray(sd.effects) ? sd.effects.filter(e => isObj(e) && e.op === 'visit' && !State.npcsAt(e.locationId).some(x => x.id === e.npcId)) : [];
+      if (stay.length) applyEffects(stay);
       out.push({ seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null });
     }
     if (drop.length) {
@@ -13651,7 +13805,7 @@ const UI = (() => {
       const forced = forcedRolls ? `\nforced clock rolls: ${forcedRolls}` : '';
       const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
-      const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
+      const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.notBeforeTurn ? ' (not before turn ' + sd.notBeforeTurn + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}${Array.isArray(sd.effects) && sd.effects.length ? ' · then ' + sd.effects.map(e => e.op).join(', ') : ''}\n  ${sd.effect}`).join('\n');
       const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
       const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Array.isArray(r.knownBy) ? ` · known by ${r.knownBy.length}` : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
       const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');

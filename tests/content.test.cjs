@@ -70,6 +70,24 @@ s.test('validate-town.cjs passes on index.html and catches a hand-editing mistak
   const bad2 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
   assert.equal(bad2.status, 1);
   assert.match(bad2.stderr, /single-quoted/);
+  // A seed's effects are checked like a clock's (direction change 14): a mistyped op, or a person who does not exist.
+  const seedsAt = html.indexOf('\n  seeds: [', at);
+  const fx = /effects: \[\s*\{ op: "([a-zA-Z]+)"/.exec(html.slice(seedsAt));
+  assert.ok(seedsAt > at && fx, 'found a seed with effects');
+  const fxAt = seedsAt + fx.index;
+  const badOp = html.slice(0, fxAt) + fx[0].replace(`"${fx[1]}"`, '"teleport"') + html.slice(fxAt + fx[0].length);
+  fs.writeFileSync(tmp, badOp);
+  const bad3 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
+  assert.equal(bad3.status, 1);
+  assert.match(bad3.stderr, /seeds\[\d+\]\(seed_[a-z0-9_]+\)\.effects\[0\]: unknown op "teleport"/);
+  const who = /npcId: "(npc_[a-z0-9_]+)"/.exec(html.slice(seedsAt));
+  assert.ok(who, 'found a seed effect that names someone');
+  const whoAt = seedsAt + who.index;
+  const badWho = html.slice(0, whoAt) + who[0].replace(who[1], 'npc_nobody') + html.slice(whoAt + who[0].length);
+  fs.writeFileSync(tmp, badWho);
+  const bad4 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
+  assert.equal(bad4.status, 1);
+  assert.match(bad4.stderr, /seeds\[\d+\]\(seed_[a-z0-9_]+\)\.effects\[\d+\]: npcId "npc_nobody" is not an NPC/);
 });
 
 s.test('the cast: everyone written by hand with a home, relations both ways and a place every phase; docs/CAST.md matches it; a new game has them all, castFixed, and nobody is ever made', async h => {

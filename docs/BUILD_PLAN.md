@@ -92,9 +92,11 @@ const TOWN_DATA = {
   threads: [{ id, title, summary, status: "open", knownToPlayer: false, linkedIds: [] }],
   seeds: [{
     id, cause, effect,
+    effects: [ /* optional: effect ops, below, run when it fires live (direction change 14) */ ],
     trigger: { type: "day" | "location" | "npc" | "clock", value },
     //  day → integer day; location → "loc_..."; npc → "npc_..."; clock → "fac_x:3"
     fired: false, hidden: true
+    // engine-planted seeds may also carry notBeforeDay, notBeforeTurn and origin
   }],
   rumours: [{ id, text, true: true, sourceNpcId, heard: false }]
 };
@@ -117,6 +119,8 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `factionRelation` | `a`, `b`, `delta` | symmetric |
 | `setFlag` | `key`, `value` | `state.flags[key] = value` |
 | `reputationDelta` | `key` (`town` or a faction id), `delta` | clamped -100..100 |
+| `visit` | `npcId`, `locationId` | the NPC is at that place for the current day and phase only (a `visits` entry, as a loose end's person coming to the player); a no-op for someone not free, a closed place, or someone with the player somewhere else; refused out of town (direction change 14) |
+| `placeItem` | `locationId`, `item` (`{ name, qty?, notes? }`) | a thing lying in that place (a scene item, id `item_<name>`), in ITEMS HERE until `itemsGained` takes it; refused out of town (direction change 14) |
 
 ### TABLES
 
@@ -1107,7 +1111,165 @@ changes" held only after a failure, and a success cleared the lock.
 
 ### 14. Seeds are events: effects on seeds, loose ends that fit anywhere, a hook on day 1
 
-(written by the package that implements it)
+The review the owner agreed with (findings 3 and 7): seeds are sentences,
+not events, and nothing pulls on the player for the first two days. A fired
+`seed_big_run` told the narrator that Chief Bell was at Purvis Landing
+photographing tracks, but his schedule still had him at the Old Bridge, so
+walking to the landing found nobody; `seed_tackle_box` described a tackle box
+on a girder that was not a thing anyone could find or take. A loose end's
+person was brought to wherever the player stood, with text written for one
+place: in the playtest Carter "slides into the booth across from Tester" at
+the motor court, and the enemy showed a photo "to the night clerk at the
+Riverview" wherever the player was. The loose-end seeds fired on days 2 to 8
+and the arrival carried no hook. Root causes: `State.normaliseSeed` kept only
+the effect text, the trigger and the bookkeeping fields, and `World.fire`
+turned a seed into a due event and nothing else; the five
+`LOOSE_ENDS[kind].seed.effect` templates named a venue; `Town.resolveLooseEnd`
+gave every loose end a day from its window, never earlier than tomorrow.
+
+- **Seeds carry effects** (`State.normaliseSeed`, `seedEffects`,
+  `checkEffect`). An engine seed (the `plantSeed` effect, so a clock's seeds,
+  loose ends, grudges and favours) may carry `effects`, a list of effect ops,
+  checked when it is planted the way the town check reads clock effects: a
+  known op, the fields it needs and ids that exist (`locationId`, `npcId`,
+  `threadId` or a thread an earlier effect in the same list opens, the
+  factions of `factionRelation` and `reputationDelta`, no reserved flag, a
+  `placeItem` thing with a name, no `visit` or `placeItem` out of town), at
+  most `SEED_EFFECTS_MAX` (6). One bad effect refuses the whole seed, with its
+  index in the reason (`effects[1]: unknown op "teleport"`). A copy is
+  stored. The town's own seeds come into a new game through
+  `Town.instantiate` as they are written, checked by `tests/validate-town.cjs`
+  and `Town.validate`. The model's `newSeeds` keep no effects: no property
+  was added to `record_changes` (docs/API_NOTES.md: it sits near the
+  compiled-grammar limit), and any `effects` the model sends are left out,
+  with "its effects were left out: the model plants none" on the applied
+  line. `notBeforeTurn` and `origin` are engine-only too.
+- **They run when the seed fires** (`World.fire`). A seed that fires live
+  queues its due event as before and then runs its effects through
+  `applyEffects` (`State.apply`, source `world`). An effect refused at that
+  point (a thread a clock closed, a bad field the plant-time check does not
+  look at) goes to the debug log like any refused world change and never
+  fails the turn; the world events note "N effects, M rejected". The no-op
+  path (a loose end, grudge or favour whose person is no longer free) runs
+  none. `World.dueSeeds` also makes a seed's `visit` effects again for the
+  phase its event is told in, when the person is not there already, because
+  the narration says it is so and a `/rest` or `/wait` may pass between the
+  firing (step 11 of one turn) and the telling (step 6 of the next).
+- **Two new effect ops** (`EFFECTS` in State, so `EFFECT_OPS`, `Town.validate`
+  and the validator's op table follow). `visit { npcId, locationId }`: the
+  person is at that place for the current day and phase only, through the
+  same `visits` entry a loose end's person gets (`addVisit`, now shared with
+  the `visits` engine op). Like `npcMove` it is a no-op for someone arrested,
+  gone or dead, and for a closed place; it is also a no-op for someone who
+  is with the player somewhere else, so nobody vanishes from the scene the
+  player is in (the pipeline's fight test caught Chief Bell being taken from
+  a fight at Pittman's by the telling of `seed_big_run`); out of town it is
+  refused. `placeItem { locationId, item: { name, qty?, notes? } }`: a scene
+  item (`addSceneItem`, id `item_<name>`), in ITEMS HERE for the parser, the
+  narrator and the bookkeeper until `itemsGained` takes it; the same name
+  again adds to the pile; out of town it is refused. Both are in the
+  effect-ops table above.
+- **The town's seeds carry effects** where the text says the town changed.
+  `seed_big_run`: Chief Bell and Wade Purvis visit Purvis Landing.
+  `seed_tackle_box`: a "tackle box" at the Old Bridge (notes: the pill
+  bottles and the prepaid phone). `seed_council_agenda`: the flag
+  `policeVoteOnAgenda` and Chief Bell at Town Hall. `seed_lease_letter`: the
+  land company and the Night Run sour on each other (`factionRelation` -10;
+  the clock that pulls the lease does -20 more). `seed_engineer`: the flag
+  `engineerWithdrew`. `seed_vada_doctor`: the flag `vadaNewWill`. No prose
+  changed. Left without effects: `seed_overdose` (Tammy Lott "is telling
+  everyone at the Low Water", but the Low Water opens at eleven and she is
+  at home in the morning, when a day seed usually fires, and her story
+  already travels as `rum_colt_pills`), and the three seeds clocks plant
+  (`seed_vada_envelope`, `seed_hollis_deal`, `seed_travis_phone`): each
+  asks the player to take something, which happens only if they agree, and
+  an `npc` trigger fires wherever they meet, so there is no fixed place for
+  a `placeItem`. No seed adds a rumour: its due event already tells the
+  news, and a rumour would tell it a second time. The flags, like the
+  clocks' flags, are kept for the Debug tab and later rules; nothing reads
+  them yet.
+- **Loose ends fit anywhere.** The five templates name no place and no
+  furniture, since the person comes to wherever the player is, on any day:
+  the creditor "comes straight up to {player} without a hello, holds out a
+  folded printout with {player}'s name and the amount on it"; the enemy
+  "turns up holding out a phone with a photo of {player} on it, asking
+  anyone nearby whether they have seen this face, and goes still on finding
+  {player} right there"; the one with the secret "draws {player} aside" and
+  says a true detail "low enough that nobody else can hear"; the record
+  keeper "seeks {player} out" (no "leaves word at the Low Water"); the
+  bartender hands over "an unsigned envelope, left by a trucker passing
+  through" (no "behind the bar"). Still one sentence each, `{npc}` and
+  `{player}` in each, and `tests/mentions.cjs` passes.
+- **A hook on day 1** (`Town.resolveLooseEnd`, `World.ready`). The first
+  loose end the player picked (no loose end resolved yet when it runs) gets
+  `trigger { type: 'day', value: <today> }` and `notBeforeTurn: <turn> +
+  FIRST_HOOK_TURNS` (2): day 1 and turn 2 in a new game, so it fires at step
+  11 of the player's second turn and is due on the third, with its person
+  brought to wherever the player stands. The arrival is turn 0 and fires no
+  seeds. Its day is still rolled from the window, so the seeded stream, and
+  every person, weather and day drawn after it, is what it was. The other
+  loose ends keep their windows. `World.ready` holds a seed while
+  `meta.turn` is below `notBeforeTurn`, as it holds one before
+  `notBeforeDay`. Direction change 10 already put the player's goal and
+  loose ends in the arrival's ACTION and every packet, and lets the loose
+  end's person speak of the shared past on day 1, so the third narration
+  has the creditor knowing the debt.
+- **Debug tab**: a seed line adds "(not before turn N)" and "then visit,
+  placeItem, ..." (the ops it will run).
+- **Older saves.** Nothing to fill and no rules version: a seed without
+  `effects` or `notBeforeTurn` behaves as before. A save carries its own
+  copy of the town's seeds, so a game begun before this keeps sentence-only
+  town seeds and its loose ends' old texts and days.
+- **SPEC.md.** Section 5's example ("plants a seed that they come to collect
+  around day 3") and section 14's acceptance test 5 ("the lender confronts
+  the player around day 3"): the first loose end picked now comes on day 1;
+  a debt picked second or third still comes around day 3. Section 8 says a
+  fired seed becomes a due event; an engine seed may now also change the
+  town. Both are listed in README.md's deviations.
+- **Cost.** No call and no packet line is added. The cost report's 15 inputs
+  start with the debt picked first, so its person now comes into the scene
+  on the third input (one more PRESENT line while they stay, one DUE EVENT):
+  the narrator packet averages 8,339
+  characters (11,980 at most), about 2,380 tokens, where it was 8,168 (11,455
+  at most); an ordinary turn $0.0321 to $0.0382, 100 turns about $3.21 to
+  $3.82 (README.md, What a turn costs).
+- **Tests.** state: a seed planted with effects and `notBeforeTurn` keeps a
+  copy of both; a seed without has neither field; an unknown op, person,
+  place or thread, a `visit` out of town, a nameless thing, a reserved flag,
+  too many effects or a non-list refuse the whole seed with the reason; a
+  thread opened earlier in the list counts; the model's `newSeeds` keep no
+  effects, `notBeforeTurn` or origin and say so; `visit` through `State.apply`
+  (there this phase and nowhere else, gone the next, a no-op for the dead, a
+  closed place and someone with the player, refused out of town and from
+  the model); `placeItem` (one pile, its id from the name, refused out of
+  town and without a name); `Town.validate` finds a seed's unknown op,
+  unknown person and nameless thing. world: a seed with effects held by
+  `notBeforeTurn` after the first turn, fired after the second with its
+  visit (this day and phase), thing and flag, a refused `npcMove` in the
+  debug log while the rest applied, its event told in the same phase, the
+  visit gone the next phase, a later seed's visit made again when its event
+  is told after a `/wait`, someone with the player left in the scene, a
+  no-op seed (its person gone) that changes nothing, and the thing picked up
+  through a turn; the town's own seeds, fired one by one, put their people,
+  things, flags and faction relations where their text says; the first
+  loose end fires after the second turn, its person comes to the player and
+  it is told on the third, on day 1, the others keep their windows, and no
+  loose-end text names a place (any name, map label or other name of one).
+  content: `validate-town.cjs` refuses a seed effect with a mistyped op and
+  one naming a person who does not exist. The validator checks seed effects
+  like clock effects (1 to 4 a seed, the new ops' fields, a `visit` only by
+  someone in town, a short lower-case item name, qty 1 to 99, notes up to
+  120 characters) and registers the ids they create; its summary counts
+  them. playtest: the first loose end reaches the narrator on day 1, turn 3,
+  with its person present, and a fired seed's thing (the tackle box) is still
+  where it was left. Changed on purpose: state's loose-end test (the first
+  loose end is day 1 with `notBeforeTurn` 2, the rest in their windows);
+  world's debt test picks the debt second, the generic seed test starts with
+  no loose ends (the hook would be due beside its test seeds), and the
+  schedules test allows for someone on a visit; acceptance [5] picks the
+  debt second and keeps "around day 3", and first checks that the secret
+  picked first is told on day 1 on the third turn with its person present;
+  the effect-ops list test expects the two new ops.
 
 ### 15. Faster, cheaper turns
 
