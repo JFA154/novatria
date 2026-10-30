@@ -98,7 +98,10 @@ s.test('moving between locations updates the top bar and the Places panel', asyn
   await page.click('#tab-places');
   assert.equal(await page.textContent('#panel-body h2'), r.a.name);
   const places = await page.innerText('#panel-body');
-  for (const exit of r.a.exits) assert.ok(places.includes(exit), 'exit listed: ' + exit);
+  // Every exit the player knows of (a home nobody has told them about is no exit yet, as on the map: UI wave 3, N3).
+  const known = await page.evaluate(() => Game.State.loc(Game.state.player.locationId).exits.map(id => Game.State.loc(id)).filter(l => l.discovered).map(l => l.name));
+  assert.ok(known.length > 0 && known.every(x => r.a.exits.includes(x)));
+  for (const exit of known) assert.ok(places.includes(exit), 'exit listed: ' + exit);
   await sendText(page, `I head to ${r.b.name}`);
   assert.equal(await page.evaluate(() => Game.state.player.locationId), r.b.id);
   assert.equal(await page.textContent('#panel-body h2'), r.b.name);

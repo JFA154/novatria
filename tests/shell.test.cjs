@@ -339,7 +339,8 @@ s.test('panels show real state after Begin and never leak hidden fields', async 
   const places = await panelText('places');
   const here = st.locations.find(l => l.id === st.player.locationId);
   assert.ok(places.includes(here.name) && places.includes(here.description));
-  for (const id of here.exits) assert.ok(places.includes(st.locations.find(l => l.id === id).name));
+  // Every exit the player knows of (a home nobody has told them about is no exit yet, as on the map).
+  for (const id of here.exits) { const l = st.locations.find(x => x.id === id); if (l.discovered) assert.ok(places.includes(l.name), l.name); }
   for (const sd of st.seeds) assert.ok(!(ch + people + journal + places).includes(sd.effect), 'seed leaked');
 });
 
@@ -754,7 +755,7 @@ s.test('People: cards for the people met, with monogram, name, role and attitude
   assert.notEqual(label, npc(sc.c).name);
   assert.ok(!c.all.includes(npc(sc.c).name), 'the stranger\'s name is not shown');
   assert.equal(c.mono, initialsOf(label));
-  assert.ok(c.notes.includes('Remembers: you asked them for directions, day 1'), c.notes.join(' | '));
+  assert.ok(c.notes.includes('Remembers: you asked them for directions, Day 1'), c.notes.join(' | '));
   // The monogram colour comes from the id: the same person gets the same colour after a reload.
   await page.reload();
   await page.waitForFunction(() => window.Game && window.Game.App);
@@ -814,7 +815,7 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   assert.equal(a.expanded, 'true', 'still open after the turn');
   assert.ok(a.moreVisible && a.look === na.look);
   // The mock bookkeeper writes memories the way MEMORY_RULES asks: from their side ("insulted me").
-  assert.ok(a.notes.some(t => /^Remembers: insulted me, day \d+$/.test(t)), a.notes.join(' | '));
+  assert.ok(a.notes.some(t => /^Remembers: insulted me, Day \d+$/.test(t)), a.notes.join(' | '));
   assert.ok(!a.notes.some(t => /Loose end with/.test(t)));
   // Leave: a is now Known, last seen here; most recently seen first; someone never seen has no location line.
   const scene = await page.evaluate(a => { const l = Game.State.loc(Game.state.player.locationId); return { id: l.id, name: l.name, exit: l.exits.map(id => Game.State.loc(id)).find(x => !x.closed && !Game.State.npcsAt(x.id).some(n => n.id === a)) }; }, sc.a);
@@ -824,7 +825,7 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   assert.equal(seen.locationId, scene.id);
   a = await cardInfo(page, sc.a);
   assert.equal(a.group, 'known');
-  assert.equal(a.where, `Last seen: ${scene.name}, day ${seen.day} ${seen.phase}`);
+  assert.equal(a.where, `Last seen: ${scene.name}, Day ${seen.day} · ${seen.phase.charAt(0).toUpperCase() + seen.phase.slice(1)}`);
   assert.equal(a.expanded, 'true', 'still open after moving groups');
   const known = await page.evaluate(() => [...document.querySelectorAll('#panel-body [data-group="known"] .pcard')].map(c => ({ id: c.dataset.npc, turn: (Game.state.seen[c.dataset.npc] || { turn: -1 }).turn, where: !!c.querySelector('.pcard-where') })));
   for (let i = 1; i < known.length; i++) assert.ok(known[i - 1].turn >= known[i].turn, 'Known is ordered by the most recent sighting');

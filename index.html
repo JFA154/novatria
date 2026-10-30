@@ -215,6 +215,10 @@ select.input { padding-right: 32px; }
 /* Placeholders at 4.5:1 or more in both themes (the browser's grey is not). */
 ::placeholder { color: var(--faint); opacity: 1; }
 .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.reread-hint p { margin: 0; }
+.reread-hint ul { margin: 4px 0; padding-left: 1.2em; }
+.reread-hint li + li { margin-top: 2px; }
+.nowrap { white-space: nowrap; }
 .err { font-size: 14px; color: var(--danger); margin: 8px 0 0; min-height: 0; }
 .err:empty { display: none; }
 .check { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; }
@@ -296,6 +300,8 @@ select.input { padding-right: 32px; }
 .title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .continue-group { display: grid; gap: 10px; }
 .title-note.warn { color: var(--danger); }
+/* The newer-build note is one line at 375: it may run past the 320px button column, never past the page. */
+#title-newer-note { width: max-content; max-width: calc(100vw - 32px - var(--sal) - var(--sar)); }
 .title-foot { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
 
 /* Character creation */
@@ -385,7 +391,10 @@ select.input { padding-right: 32px; }
 .tb-stat b { color: var(--text); font-weight: 600; }
 .tb-actions { display: flex; gap: 2px; flex: none; }
 .tb-actions .btn { padding: 0 12px; font-size: 14px; }
-.btn[aria-pressed="true"] { background: var(--surface); border-color: var(--border); }
+/* A pressed toggle (the laptop's Panel): a 3:1 edge and an accent bar under the label, not just a fill. */
+.btn[aria-pressed="true"] { background: var(--surface-2); border-color: var(--field); box-shadow: inset 0 -3px 0 var(--accent); }
+/* Off while it keeps the focus (UI.setOff: a control the player is on is never disabled in place). */
+.btn[aria-disabled="true"], .map-go[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 
 .game-body { flex: 1 1 auto; min-height: 0; display: flex; }
 .story { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
@@ -782,7 +791,8 @@ select.input { padding-right: 32px; }
 @media (hover: hover) { .map-place[data-heard="1"]:hover .map-mark { fill: var(--map-land); stroke: var(--accent); } }
 .map-label.struck { text-decoration: line-through; }
 .map-strike { stroke: var(--map-ink); stroke-width: 1.4; stroke-linecap: round; }
-.map-mono circle { fill: var(--person-1); stroke: var(--map-land); stroke-width: 1.2; }
+/* A person's dot: a ring in the map's ink, so it stands 3:1 or more off the land in both themes (the fills are soft). */
+.map-mono circle { fill: var(--person-1); stroke: var(--map-ink); stroke-width: 1.3; }
 .map-mono[data-hue="2"] circle { fill: var(--person-2); }
 .map-mono[data-hue="3"] circle { fill: var(--person-3); }
 .map-mono[data-hue="4"] circle { fill: var(--person-4); }
@@ -808,7 +818,7 @@ select.input { padding-right: 32px; }
 .lg { flex: none; display: inline-block; }
 .lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
 .lg-closed { width: 10px; height: 10px; border-radius: 1px; background: linear-gradient(to top right, var(--map-dim) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-dim) calc(50% + 1.2px)); }
-.lg-person { width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); }
+.lg-person { box-sizing: border-box; width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); border: 1.5px solid var(--map-ink); }
 .lg-heard { box-sizing: border-box; width: 10px; height: 10px; border-radius: 1px; border: 1.5px dashed var(--map-ink); }
 .dbg pre {
   font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
@@ -845,7 +855,10 @@ select.input { padding-right: 32px; }
   border-bottom: 1px solid var(--danger);
   color: var(--text);
   font-size: 14px;
-  z-index: 60;
+  /* Under the modal views (the phone sheet, z 40; the expanded map, z 55; a
+     dialog, in the top layer), which also make it inert while they are open. */
+  position: relative;
+  z-index: 30;
 }
 .banner span { flex: 1; min-width: 0; }
 .toast {
@@ -883,10 +896,14 @@ select.input { padding-right: 32px; }
 .turn-status { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 6px; font-family: var(--ui-font); font-size: 13px; color: var(--muted); }
 .turn-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
-.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; min-width: 0; max-width: 60%; padding: 1px 0 1px 8px; border: 1px solid var(--field); border-radius: 10px; font-size: 12px; color: var(--text); }
-.turn-status .queued[data-cancel="0"] { padding-right: 8px; }
+/* A queued line: "Next: “…”" in a 32px pill (a true pill) at the end of the
+   line; its × is a 44px target that hangs 6px over the pill's top and
+   bottom, into the row's margins, so the line stays one line, 32px tall. */
+.turn-status.has-queued #turn-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 62%; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: 12px; color: var(--text); }
+.turn-status .queued[data-cancel="0"] { padding-right: 12px; }
 .queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queued-x { flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+.queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .turn-status.nudge { color: var(--text); }
 .send-btn.stop { background: var(--surface-2); border-color: var(--danger); color: var(--text); }
 .send-btn.stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--danger); }
@@ -908,16 +925,20 @@ select.input { padding-right: 32px; }
 .bar-note.warn { border-bottom-color: var(--danger); color: var(--text); }
 .bar-note .btn.small { min-height: var(--tap); }
 .bar-x { min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; border-radius: var(--radius); }
-.read-only .cmd-input { opacity: .6; }
+/* A read-only tab's box: a dashed edge and quieter colours, every one 4.5:1 (text) or 3:1 (edge); no transparency. */
+.read-only .cmd-input { background: var(--surface-2); color: var(--muted); border-style: dashed; }
 /* A narration being rewritten keeps its first draft, dimmed, under a label. */
 .f-narr.rewriting > p:not(.f-tag):not(.f-rewriting) { color: var(--muted); }
 .f-rewriting { margin: 0 0 .35em; font-family: var(--ui-font); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-/* Undo, a small link at the end of the newest input line (a sibling of the
-   line, laid over its right edge, so the line's own text stays as typed). */
+/* Undo, a small link at the end of the newest input line. It is not in the
+   story's live region (it would be read out again with every turn): it sits
+   after the feed and is laid over the line's right edge (UI.placeUndo), so
+   the line's own text stays as typed. */
 .f-input.has-undo { padding-right: 4.2em; }
-.f-undo-row { position: relative; height: 0; }
+.feed-scroll { position: relative; }
+.undo-row { position: absolute; top: 0; left: 0; width: 0; height: 0; }
 .f-undo {
-  position: absolute; right: 0; bottom: calc(.6em - 9px);
+  position: absolute; left: 0; top: 0;
   min-height: var(--tap); min-width: var(--tap); padding: 0 6px;
   border: 0; border-radius: var(--radius); background: none; color: var(--accent);
   font-family: var(--ui-font); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
@@ -1051,7 +1072,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
     visibility: visible;
     transition: transform .26s ease, opacity .26s ease;
   }
-  .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 2px; }
+  .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--field); margin: 8px auto 2px; }
   .panel-close { display: inline-flex; }
   .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: 15px; }
   .mono { width: 40px; height: 40px; font-size: 14px; }
@@ -1079,6 +1100,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .say-chip { max-width: 16em; }
   /* While typing (the keyboard is up) the tab row and the demo bar step aside. */
   #app.typing .tabrow, #app.typing .tabbar, #app.typing #demo-bar { display: none; }
+  /* ⋯ stays in reach while typing: with the tab row gone it comes back beside the toggle, as on a laptop. */
+  #app.typing #act-btn.desktop-only { display: inline-flex !important; }
   /* Five panel tabs (Debug on) fit without cutting a word. */
   .panel-tabs[data-count="5"] button { padding: 0 1px; font-size: 12px; letter-spacing: -.01em; }
   /* The creation summary of errors: the step's own message is on screen, so this one is for screen readers. */
@@ -1114,7 +1137,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             </div>
             <p class="title-note" id="continue-sub" hidden></p>
             <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
-            <p class="title-note warn" id="title-newer-note" hidden>Saved by a newer version of the game: it may not play right here.</p>
+            <p class="title-note warn" id="title-newer-note" hidden>Saved by a newer version; it may not play right here.</p>
           </div>
           <div class="title-broken" id="title-broken" role="alert" hidden>
             <p id="title-broken-text"></p>
@@ -1154,7 +1177,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <span class="choice-sub">Claude narrates every turn. You need an Anthropic API key; a turn costs a few cents.</span>
             </button>
             <button type="button" class="choice" id="choose-demo">
-              <span class="choice-title">Try the offline demo (placeholder text)</span>
+              <span class="choice-title">Try the offline demo (canned replies)</span>
               <span class="choice-sub">No key and no API calls. The replies are canned, so the story barely moves, but the controls, dice and town all work.</span>
             </button>
           </div>
@@ -1239,6 +1262,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         <div class="feed-area">
           <div class="feed-scroll" id="feed-scroll">
             <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <!-- Outside the live region, laid over the newest input line (UI.placeUndo). -->
+            <div class="undo-row" id="undo-row" hidden><button type="button" class="f-undo" id="undo-btn" title="Take back the last turn (/undo)" aria-label="Undo the last turn">Undo</button></div>
             <div class="feed-after" id="feed-after"></div>
           </div>
           <button type="button" class="new-btn" id="new-btn" hidden>&#8595; New</button>
@@ -1309,7 +1334,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <span class="label" id="preset-label">Quality</span>
               <div class="preset-grid" role="radiogroup" aria-labelledby="preset-label">
                 <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="thrifty"> Thrifty</span><span class="choice-sub">Sonnet writes, Haiku keeps the books, all at low effort. About 1¢ a turn.</span></label>
-                <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="standard"> Standard</span><span class="choice-sub">Opus writes, Sonnet keeps the books. About 4–5¢ a turn once warm.</span></label>
+                <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="standard"> Standard</span><span class="choice-sub">Opus writes, Sonnet keeps the books. About <span class="nowrap">4–5¢</span> a turn once warm.</span></label>
                 <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="best"> Best</span><span class="choice-sub">Opus and Sonnet at high effort. Slower, about twice Standard.</span></label>
               </div>
               <p class="hint" id="preset-custom" hidden>Custom: your own models or effort (under Advanced).</p>
@@ -1378,7 +1403,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, fixes people the game made up so they match what the story says about them, brings in the town's full cast, written by hand, folding anyone the game made up into the person they were, and fills in the lived-in town: everyone's age and history, the dead and the people who live elsewhere, and the places people talk about, and gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost. About four API calls (none in mock mode).</p>
+              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost.</li></ul><p>About four API calls (none in mock mode).</p></div>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -18313,7 +18338,7 @@ const UI = (() => {
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
-    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum'];
+    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -18326,7 +18351,8 @@ const UI = (() => {
     d.btnTheme.addEventListener('click', toggleTheme);
     d.titleModeAct.addEventListener('click', () => openKeySettings());
     d.btnBrokenDownload.addEventListener('click', () => { if (Storage.downloadAutosave()) toast('Downloaded the damaged autosave.'); });
-    d.bannerClose.addEventListener('click', () => { d.banner.hidden = true; });
+    // Dismissed, the banner takes the focus with it to the screen (the box on a laptop's game), never the page.
+    d.bannerClose.addEventListener('click', () => { const had = d.banner.contains(document.activeElement); d.banner.hidden = true; if (had) focusScreen(screen); });
     // Creation
     Create.wire();
     // Game top bar and menu
@@ -18356,16 +18382,19 @@ const UI = (() => {
       else if (d.gameBody.classList.contains('sheet-open')) closeSheet();
     });
     // The offline demo bar and the second-tab bar
-    d.demoBarClose.addEventListener('click', () => { demoBarHidden = true; renderDemoBar(); });
+    d.demoBarClose.addEventListener('click', () => { demoBarHidden = true; renderDemoBar(); focusComposer(); });
     d.demoBarAct.addEventListener('click', () => {
       if (Storage.getApiKey()) { Storage.saveSettings({ mockMode: false }); toast('Mock mode off: playing with Claude'); renderDemoBar(); renderTitleMode(); }
       else openKeySettings();
     });
     // "Play here instead": the newer game the other tab saved is loaded here first, then this tab plays (App.playHere).
-    d.tabBarTake.addEventListener('click', () => App.playHere());
+    d.tabBarTake.addEventListener('click', async () => { await App.playHere(); if (d.tabBar.hidden) focusComposer(); });
     // Feed
     d.feedScroll.addEventListener('scroll', () => { stick = nearBottom(); if (stick) d.newBtn.hidden = true; }, { passive: true });
     d.newBtn.addEventListener('click', scrollToBottom);
+    // Undo (outside the live region): laid over the newest input line again whenever the story's size changes.
+    d.undoBtn.addEventListener('click', () => runAction('/undo', d.undoBtn));
+    try { const ro = new ResizeObserver(() => placeUndo()); ro.observe(d.feed); ro.observe(d.feedScroll); } catch (e) { window.addEventListener('resize', () => placeUndo()); }
     // Composer
     d.cmd.addEventListener('input', () => { autosize(); updateAc(); syncSendLabel(); });
     syncSendLabel();
@@ -18405,7 +18434,8 @@ const UI = (() => {
     mq.addEventListener('change', () => { setMapExpanded(false); if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); });
     // An expanded map is sized to the window: drawn again when the window changes (a phone turned sideways).
     let mapResize = 0;
-    window.addEventListener('resize', () => { if (!mapExpanded || mapResize) return; mapResize = requestAnimationFrame(() => { mapResize = 0; if (mapExpanded) refreshMap(null); }); });
+    // Turned or resized, it is drawn for the new view and centred on the player again (the old pan means nothing there).
+    window.addEventListener('resize', () => { if (!mapExpanded || mapResize) return; mapResize = requestAnimationFrame(() => { mapResize = 0; if (mapExpanded) { refreshMap(null); panMapTo(State.current.player.locationId); } }); });
     // Settings and saves
     d.settingsForm.addEventListener('change', onSettingsChange);
     d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
@@ -18419,8 +18449,9 @@ const UI = (() => {
     d.btnImport.addEventListener('click', () => d.importFile.click());
     d.importFile.addEventListener('change', onImport);
     // The question dialog
-    d.askYes.addEventListener('click', () => d.ask.close('yes'));
-    d.askNo.addEventListener('click', () => d.ask.close('no'));
+    // syncBanner at once too: the dialog's close event comes a moment later.
+    d.askYes.addEventListener('click', () => { d.ask.close('yes'); syncBanner(); });
+    d.askNo.addEventListener('click', () => { d.ask.close('no'); syncBanner(); });
     try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyDisplay); } catch (e) { /* old browsers */ }
     // The Pipeline reports each stage of a turn (when it can).
     if (typeof Pipeline.setStatusListener === 'function') {
@@ -18531,6 +18562,63 @@ const UI = (() => {
     if (why && opts && opts.say) toast(why);
     return !why;
   }
+  // ----- focus that is never dropped (wave 3) -----
+  /* Can take the focus now: on the page, shown, not inert, not off. */
+  function focusableNow(node) {
+    if (!node || !node.isConnected || node.disabled || !node.getClientRects().length) return false;
+    if (node.closest('[inert], [hidden]')) return false;
+    return getComputedStyle(node).visibility !== 'hidden';
+  }
+  /* Turn a control off without taking the focus from it: the one the
+     player is on is marked aria-disabled (it stays focusable, dimmed, and
+     its handler refuses through canAct); any other is disabled. */
+  function setOff(btn, off) {
+    if (!btn) return;
+    if (off && document.activeElement === btn) { btn.disabled = false; btn.setAttribute('aria-disabled', 'true'); }
+    else { btn.disabled = !!off; btn.removeAttribute('aria-disabled'); }
+  }
+  /* A turn started from a control other than the box (the ⋯ list, the Undo
+     link, Go there, the map's chip): that control keeps the focus while the
+     turn runs, or, when it has to go, what stands in for it (the ⋯ button,
+     the sheet's opener, the place's marker, the panel's tab), never the
+     page. When the turn ends the focus goes to the box on a laptop and back
+     to the opener (or the first stand-in still there) on a phone, but only
+     if it is still where the turn left it: a field the player moved to
+     meanwhile keeps it. keep: the opener, then its stand-ins in order. */
+  let turnFocus = null;
+  function holdTurnFocus(opener) { turnFocus = { keep: opener ? [opener] : [] }; }
+  /* The focus moved on from something the turn holds (or from nowhere): what it moved to is held too. */
+  function carryTurnFocus(from, to) {
+    if (!turnFocus || !to || turnFocus.keep.includes(to)) return;
+    if (!from || from === document.body || turnFocus.keep.includes(from)) turnFocus.keep.push(to);
+  }
+  /* Move the focus, carrying the turn's hold with it. */
+  function moveFocus(to, from) {
+    if (!to) return false;
+    const was = from === undefined ? document.activeElement : from;
+    to.focus({ preventScroll: true });
+    if (document.activeElement === to) carryTurnFocus(was, to);
+    return document.activeElement === to;
+  }
+  function releaseTurnFocus() {
+    const tf = turnFocus;
+    turnFocus = null;
+    if (!tf || screen !== 'game') return;
+    const a = document.activeElement;
+    if (a && a !== document.body && !tf.keep.includes(a)) return;
+    if (!isMobile()) { if (focusableNow(d.cmd)) d.cmd.focus({ preventScroll: true }); return; }
+    const back = tf.keep.find(focusableNow) || [actButton(), d.send].find(focusableNow);
+    if (back && back !== a) back.focus({ preventScroll: true });
+  }
+  /* The warning banner sits under the modal views and takes no focus while
+     one is open (the phone sheet, the expanded map, a dialog); after, it is
+     as it was. */
+  function syncBanner() {
+    if (!d.banner) return;
+    const sheet = isMobile() && !!d.gameBody && d.gameBody.classList.contains('sheet-open');
+    const map = mapExpanded && !!d.panelBody && !!$('.map.expanded', d.panelBody);
+    d.banner.inert = sheet || map || !!(d.ask && d.ask.open);
+  }
   /* A question in a modal dialog (the page behind it takes no input):
      resolves true for the yes button, false for Cancel or Escape. The focus
      goes back where it was. */
@@ -18547,10 +18635,14 @@ const UI = (() => {
       dlg.returnValue = '';
       const was = document.activeElement;
       dlg.addEventListener('close', () => {
+        syncBanner();
         resolve(dlg.returnValue === 'yes');
         if (was && was.isConnected && typeof was.focus === 'function') was.focus({ preventScroll: true });
+        // What had the focus went while the question was open: the screen's own place for it, never the page.
+        if (!document.activeElement || document.activeElement === document.body) focusScreen(screen);
       }, { once: true });
       dlg.showModal();
+      syncBanner();
       // The safe answer takes the focus: Enter or Space never does the drastic thing by accident.
       d.askNo.focus();
     });
@@ -18643,7 +18735,7 @@ const UI = (() => {
     // A damaged autosave is explained, with a way to keep a copy.
     const broken = !!(raw && raw.broken);
     d.titleBroken.hidden = !broken;
-    if (broken) d.titleBrokenText.textContent = `The autosave in this browser could not be read. ${String(raw.error || 'The saved game is damaged.').replace(/([^.])$/, '$1.')} Download it to keep a copy. A new or loaded game sets it aside as the previous autosave (Load, Restore previous).`;
+    if (broken) d.titleBrokenText.textContent = `The autosave in this browser could not be read. ${String(raw.error || 'The saved game is damaged.').replace(/([^.])$/, '$1.')} Download it to keep a copy. A new or loaded game sets it aside as the previous autosave (Load → Restore previous).`;
     renderTitleMode();
   }
   /* The chip under the title's buttons: how the game is being played. */
@@ -18786,7 +18878,7 @@ const UI = (() => {
         if (a.sub) { e.stopPropagation(); renderActions(a.sub); focusFirstAction(); return; }
         if (a.fill) { closeActions(); fillBox(a.fill); return; }
         if (a.help) { closeActions(); fillBox('/'); updateAc(); return; }
-        if (a.id === 'recap' && !Commands.LIST.some(c => c.name === '/recap')) { closeActions(); showRecap(); return; }
+        if (a.id === 'recap' && !Commands.LIST.some(c => c.name === '/recap')) { closeActions(true); showRecap(); return; }
         runAction(a.cmd);
       }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!why) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && why) || (a.fill && whyFill) || null }));
     }
@@ -18805,11 +18897,16 @@ const UI = (() => {
     focusFirstAction();
     return true;
   }
+  /* Closed with the focus in it (or asked to), the focus goes back to what
+     opened it, or to the ⋯ button in view (a phone's box-side ⋯ goes when
+     the keyboard does). */
   function closeActions(refocus) {
     if (!d.actPop || d.actPop.hidden) return;
+    const inside = d.actPop.contains(document.activeElement);
+    const was = document.activeElement;
     d.actPop.hidden = true;
     for (const b of [d.actBtn, d.actBtnM]) b.setAttribute('aria-expanded', 'false');
-    if (refocus && actOpener && actOpener.isConnected) actOpener.focus({ preventScroll: true });
+    if (refocus || inside) { const to = [actOpener, actButton()].find(focusableNow); if (to) moveFocus(to, inside ? null : was); }
   }
   /* Put text in the box (/fact , /) with the cursor at its end. */
   function fillBox(text) {
@@ -18819,13 +18916,19 @@ const UI = (() => {
     d.cmd.focus();
     try { d.cmd.setSelectionRange(text.length, text.length); } catch (e) { /* not a text box */ }
   }
-  async function runAction(cmd) {
-    closeActions();
+  /* An action from the ⋯ list (or the Undo link, from: that link): the
+     list closes and gives the focus back to its opener, which holds it
+     while the turn runs; after, the box (laptop) or the opener (phone). */
+  async function runAction(cmd, from) {
+    closeActions(true);
     if (!canAct({ say: true })) return null;
-    if (isMobile()) closeSheet(true);
+    if (isMobile()) closeSheet();
+    const opener = from || document.activeElement;
+    holdTurnFocus(opener && opener !== document.body ? opener : null);
     let res = null;
     try { res = await Pipeline.submit(cmd, { mode: 'do', to: 'everyone' }); } catch (e) { console.error(e); }
     syncSendLabel();
+    releaseTurnFocus();
     return res;
   }
   /* Recap without a /recap command (and on Continue): the Pipeline's text, as the recap notice. */
@@ -18847,6 +18950,7 @@ const UI = (() => {
      opened it. */
   function setInert(on) {
     for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.tabBar]) if (node) node.inert = !!on;
+    syncBanner();
   }
   function syncTabbar() {
     const open = !!d.gameBody && d.gameBody.classList.contains('sheet-open');
@@ -18866,7 +18970,14 @@ const UI = (() => {
     d.panel.style.transition = '';
     setInert(false);
     syncTabbar();
-    if (was && silent !== true && sheetOpener && sheetOpener.isConnected && screen === 'game') sheetOpener.focus({ preventScroll: true });
+    // The focus goes back to what opened the sheet, else to its tab in the tab bar (a sheet opened from code), never the page.
+    // (Turned into a laptop with the sheet open, the panel stays on screen: what has the focus in it keeps it.)
+    const a = document.activeElement;
+    const lost = !a || a === document.body || (isMobile() && d.panel.contains(a));
+    if (was && silent !== true && screen === 'game' && lost) {
+      const to = [sheetOpener, $(`[data-open-tab="${tab}"]`)].find(focusableNow) || [actButton(), d.send].find(focusableNow);
+      if (to) moveFocus(to);
+    }
     if (was) sheetOpener = null;
   }
   function openPanel(id) {
@@ -18981,7 +19092,8 @@ const UI = (() => {
     // The control is gone (a sort chip pressed, a card closed): the tab itself, never the page.
     if (!again || again.disabled || !again.getClientRects().length) again = document.getElementById('tab-' + tab);
     if (again) {
-      again.focus({ preventScroll: true });
+      // A turn's hold on the focus follows it (Go there gone after the walk: the tab holds it).
+      moveFocus(again, active);
       if (caret && again.id === focusId) try { again.setSelectionRange(caret[0], caret[1]); } catch (e) { /* not a text field */ }
     }
   }
@@ -19030,7 +19142,7 @@ const UI = (() => {
     if (isHere) return el('span', { class: 'pcard-where here' }, 'Here now');
     const v = (s.seen || {})[n.id];
     const l = v && State.loc(v.locationId);
-    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${l.name}, `, el('span', { class: 'nowrap' }, `day ${v.day} ${v.phase}`)) : null;
+    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${l.name}, `, el('span', { class: 'nowrap' }, `Day ${v.day} · ${capFirst(v.phase)}`)) : null;
   }
   function reEsc(x) { return String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   /* A memory in the player's words: "Tester insulted them" -> "you insulted
@@ -19064,7 +19176,7 @@ const UI = (() => {
     for (const m of mems) {
       const [k, t] = plainMemory(s, m.text);
       const day = dayOf(m.turn);
-      notes.push([k, day ? `${t}, day ${day}` : t]);
+      notes.push([k, day ? `${t}, Day ${day}` : t]);
     }
     const loose = (s.player.looseEnds || []).filter(x => x.npcId === n.id);
     const looseThreads = loose.map(x => x.threadId);
@@ -19109,7 +19221,8 @@ const UI = (() => {
     let hurt = false;
     if (typeof State.isHurt === 'function') { try { hurt = !!State.isHurt(n); } catch (e) { hurt = false; } }
     else hurt = Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > day;
-    if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt, until day ${n.hurtUntilDay}`, hard: true });
+    // The last day they are hurt (hurtUntilDay is the day they are about again), as the engine's own note says it.
+    if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt until Day ${Math.max(day, n.hurtUntilDay - 1)}`, hard: true });
     if (isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
       let note = '';
       try { note = typeof State.absentNote === 'function' ? State.absentNote(n) || '' : ''; } catch (e) { note = ''; }
@@ -19118,7 +19231,7 @@ const UI = (() => {
     for (const b of (Array.isArray(s.bans) ? s.bans : [])) {
       if (!isObj(b) || b.byNpcId !== n.id || !(b.untilDay > day)) continue;
       const l = State.loc(b.locationId);
-      if (l) out.push({ text: `Banned you from ${l.name} until day ${b.untilDay}`, hard: true });
+      if (l) out.push({ text: `Banned you from ${placePhrase(l.name)} until Day ${b.untilDay}`, hard: true });
     }
     return out;
   }
@@ -19625,11 +19738,31 @@ const UI = (() => {
     const left = closedDays(l).filter(day => !new RegExp(`\\b${reEsc(day)}s?\\b`, 'i').test(hours));
     return [hours, left.length ? `Closed ${joinList(left.map(x => x + 's'))}` : ''].filter(Boolean).join(' · ');
   }
+  /* A place's type as a player would say it, for the place here and each
+     place's row (one map for both): the town's own type ids ('gas',
+     'trailerpark', 'bighouse') are not words. In a small town the police
+     sit in the town hall. An id not listed reads as itself, spaced. */
+  const PLACE_TYPE_LABELS = {
+    gas: 'Gas station', bar: 'Bar', tavern: 'Tavern', motel: 'Motel', church: 'Church', police: 'Town hall', watch: 'Watch house',
+    pawn: 'Pawn shop', trailerpark: 'Trailer park', trailer: 'Trailer', marina: 'Boat landing', docks: 'Docks', dock: 'Dock', landing: 'Landing',
+    bighouse: 'Big house', house: 'House', home: 'Home', apartment: 'Apartment', cabin: 'Cabin', farm: 'Farm', fields: 'Farmland', woods: 'Woods',
+    bridge: 'Bridge', street: 'Street', road: 'Road', highway: 'Highway', parking: 'Parking lot', cemetery: 'Cemetery', tower: 'Water tower',
+    office: 'Office', care: 'Care home', school: 'School', hospital: 'Hospital', clinic: 'Clinic', prison: 'Prison', mill: 'Mill',
+    town: 'Town', city: 'City', county: 'County', coast: 'Coast', slum: 'Slum', market: 'Market', shop: 'Shop', store: 'Store',
+    garage: 'Garage', diner: 'Diner', ramp: 'Boat ramp', riverbank: 'Riverbank', wharf: 'Wharf', pier: 'Pier'
+  };
+  function placeTypeLabel(type) {
+    const t = String(type || '').trim().toLowerCase();
+    if (!t) return 'Place';
+    return PLACE_TYPE_LABELS[t] || capFirst(t.replace(/[_-]+/g, ' '));
+  }
+  /* " (closed)" for a place shut for good, " (closed today)" for one shut on today's weekday. */
+  function closedTag(l) { return !closedNow(l) ? '' : l.closed === true ? ' (closed)' : ' (closed today)'; }
   /* The line under the name of the place here: its type, and shut for good, today, or on which days. */
   function placeStatusLine(l) {
     const days = closedDays(l);
     const shut = l.closed === true ? 'Closed' : closedNow(l) ? `Closed today${days.length ? ` (${joinList(days.map(x => x + 's'))})` : ''}` : closedOnLine(l);
-    return [capFirst(l.type), shut].filter(Boolean).join(' · ');
+    return [placeTypeLabel(l.type), shut].filter(Boolean).join(' · ');
   }
   // ----- Places: label placement -----
   /* Two boxes ({ x, y, w, h }) overlap. */
@@ -19801,16 +19934,44 @@ const UI = (() => {
      fills the height and pans sideways, on a laptop it fits the window
      (mapExpanded, memory only; Close map or Escape). */
   let mapExpanded = false;
-  /* The expanded map's size in CSS px (W by H viewBox units): a phone fills
-     the height below the bar, at least 1.6 times the sheet's width, and
-     pans; a laptop fits the window. */
-  const MAP_BAR = 56;
+  /* The expanded map's size (W by H viewBox units): it fills the view below
+     the bar on both axes, so the land, the river and the roads run to the
+     edges, and pans along whichever axis it is larger on. A phone covers
+     the view (upright it fills the height and pans sideways; on its side it
+     fills the width and pans up and down); a laptop fits the whole town in
+     the window (and is never smaller than 1.6 times the panel's map), with
+     land beyond it. w, h: the canvas in CSS px; scale: px per unit; vb:
+     the viewBox, the town's frame grown to the canvas and centred on it. */
+  const MAP_BAR = 57; // the bar (56) and its rule
   function expandedSize(W, H) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight - MAP_BAR;
-    if (isMobile()) { const w = Math.round(Math.max(1.6 * vw, vh * W / H)); return { w, h: Math.round(w * H / W) }; }
-    const w = Math.round(Math.min(vw - 48, (vh - 32) * W / H));
-    return { w, h: Math.round(w * H / W) };
+    const vw = Math.max(1, window.innerWidth);
+    const vh = Math.max(1, window.innerHeight - MAP_BAR);
+    const fit = Math.min(vw / W, vh / H);
+    const cover = Math.max(vw / W, vh / H);
+    const scale = isMobile() ? cover : Math.max(fit, 1.6 * 316 / W);
+    const w = Math.max(vw, Math.round(W * scale));
+    const h = Math.max(vh, Math.round(H * scale));
+    const r2 = n => Math.round(n * 100) / 100;
+    return { w, h, scale, vb: { x: r2((W - w / scale) / 2), y: r2((H - h / scale) / 2), w: r2(w / scale), h: r2(h / scale) } };
+  }
+  /* A line that ends on the town's frame (the river, a road off the map)
+     runs on past it, straight along its last stretch, by reach units: the
+     expanded map has land beyond the frame, and nothing stops dead there. */
+  function runOn(dPath, L, reach) {
+    let p = null;
+    let len = 0;
+    try { p = sv('path', { d: dPath }); len = p.getTotalLength(); } catch (e) { return dPath; }
+    if (!(len > 2) || !(reach > 0)) return dPath;
+    const edge = q => q.x <= 0.5 || q.y <= 0.5 || q.x >= L.W - 0.5 || q.y >= L.H - 0.5;
+    const on = (a, b) => { const dx = a.x - b.x; const dy = a.y - b.y; const n = Math.hypot(dx, dy) || 1; return `M${r1(a.x + dx / n * reach)},${r1(a.y + dy / n * reach)} L${r1(a.x)},${r1(a.y)}`; };
+    const out = [dPath];
+    try {
+      const a = p.getPointAtLength(0);
+      const b = p.getPointAtLength(len);
+      if (edge(a)) out.unshift(on(a, p.getPointAtLength(Math.min(len, 2))));
+      if (edge(b)) out.push(on(b, p.getPointAtLength(Math.max(0, len - 2))));
+    } catch (e) { return dPath; }
+    return out.join(' ');
   }
   function renderMap(s) {
     s = s || State.current;
@@ -19822,7 +19983,11 @@ const UI = (() => {
     // (the laptop panel is 319, a 375px phone's sheet 375) and taps hit 44px.
     // Expanded, the map is drawn larger: labels 14px on screen, so there is more room between them.
     const big = mapExpanded ? expandedSize(L.W, L.H) : null;
-    const k = L.W / (big ? big.w : 316);
+    const k = big ? 1 / big.scale : L.W / 316;
+    // The viewBox: the town's frame, grown to the canvas when expanded (lines that end on the frame run on).
+    const vb = big ? big.vb : { x: 0, y: 0, w: L.W, h: L.H };
+    const reach = big ? Math.max(-vb.x, -vb.y, 0) + 20 : 0;
+    const far = d => (reach > 20 ? runOn(d, L, reach) : d);
     const u = big ? { fs: r1(14 * k), lh: r1(16.8 * k), hit: Math.ceil(44 * k), mono: r1(17 * k) } : { fs: r1(11 * k), lh: r1(13.2 * k), hit: Math.ceil(44 * k), mono: r1(14 * k) };
     const people = mapPeople(s);
     placeLabels(L, people, u, s);
@@ -19832,15 +19997,15 @@ const UI = (() => {
       : null);
     const paths = v => (Array.isArray(v) ? v : []).filter(d => typeof d === 'string' && d.trim());
     const svg = sv('svg', {
-      class: 'map-svg', viewBox: `0 0 ${L.W} ${L.H}`, role: 'group', 'aria-label': `Map of ${s.meta.townName}`, 'font-size': u.fs,
+      class: 'map-svg', viewBox: `${vb.x} ${vb.y} ${vb.w} ${vb.h}`, role: 'group', 'aria-label': `Map of ${s.meta.townName}`, 'font-size': u.fs,
       onclick: () => { if (mapPick) setPick(null); }
     },
-    sv('rect', { class: 'map-land', x: 0, y: 0, width: L.W, height: L.H }),
+    sv('rect', { class: 'map-land', x: vb.x, y: vb.y, width: vb.w, height: vb.h }),
     L.river ? [
-      sv('path', { class: 'map-bank', d: L.river, 'stroke-width': rw + 5, 'aria-hidden': 'true' }),
-      sv('path', { class: 'map-water', d: L.river, 'stroke-width': rw, 'aria-hidden': 'true' })] : null,
+      sv('path', { class: 'map-bank', d: far(L.river), 'stroke-width': rw + 5, 'aria-hidden': 'true' }),
+      sv('path', { class: 'map-water', d: far(L.river), 'stroke-width': rw, 'aria-hidden': 'true' })] : null,
     sv('g', { class: 'map-roads', 'aria-hidden': 'true' },
-      paths(m.roads).map(d => sv('path', { class: 'map-road deco', d })),
+      paths(m.roads).map(d => sv('path', { class: 'map-road deco', d: far(d) })),
       L.roads.map(r => sv('path', { class: 'map-road', d: r.d, dataset: { road: r.key } }))),
     paths(m.bridges).map(d => sv('g', { class: 'map-bridge', 'aria-hidden': 'true' }, sv('path', { class: 'map-bridge-rail', d }), sv('path', { class: 'map-bridge-deck', d }))),
     sv('g', { 'aria-hidden': 'true' }, text('map-river-label', m.riverLabel), (Array.isArray(m.labels) ? m.labels : []).map(o => text('map-area', o))),
@@ -19848,11 +20013,11 @@ const UI = (() => {
     const pick = mapPick ? L.byId[mapPick] : null;
     const chip = pick ? el('button', {
       type: 'button', class: 'map-go', disabled: !!actBlock(),
-      dataset: { loc: pick.id, side: pick.y < L.H * 0.55 ? 'below' : 'above', fx: String(pick.x / L.W) },
-      style: `left:${r1(pick.x / L.W * 100)}%;top:${r1(pick.y / L.H * 100)}%`,
-      onclick: e => { e.stopPropagation(); confirmTravel(); },
+      dataset: { loc: pick.id, side: pick.y < L.H * 0.55 ? 'below' : 'above', fx: String((pick.x - vb.x) / vb.w) },
+      style: `left:${r1((pick.x - vb.x) / vb.w * 100)}%;top:${r1((pick.y - vb.y) / vb.h * 100)}%`,
+      onclick: e => { e.stopPropagation(); confirmTravel(null, e.currentTarget); },
       onkeydown: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPick(null, pick.id); } }
-    }, `Go to ${placePhrase(pick.loc.name)}${closedNow(pick.loc) ? ' (closed)' : ''}?`) : null;
+    }, `Go to ${placePhrase(pick.loc.name)}${closedTag(pick.loc)}?`) : null;
     const bar = mapExpanded ? el('div', { class: 'map-bar' },
       el('h2', { id: 'map-title' }, `Map of ${s.meta.townName}`),
       el('button', { type: 'button', class: 'btn small map-close', onclick: e => { e.stopPropagation(); setMapExpanded(false); } }, 'Close map')) : null;
@@ -19897,6 +20062,7 @@ const UI = (() => {
     const head = $('.panel-head', d.panel);
     if (head) head.inert = on;
     for (const kid of d.panelBody ? d.panelBody.children : []) if (!kid.classList.contains('map')) kid.inert = on;
+    syncBanner();
   }
   /* Expand map (and back): the close button takes the focus, and the map
      pans to the player (phone); closed, the focus goes back to Expand map. */
@@ -19905,10 +20071,11 @@ const UI = (() => {
     if (want === mapExpanded) return mapExpanded;
     mapExpanded = want;
     if (!d.panelBody || d.panelBody.dataset.tab !== 'places') { syncMapModal(); return mapExpanded; }
+    const was = document.activeElement;
     refreshMap(mapExpanded ? 'close' : null);
     syncMapModal();
     if (mapExpanded) panMapTo(State.current.player.locationId);
-    else { const f = $('.map-expand', d.panelBody); if (f) f.focus({ preventScroll: true }); }
+    else { const f = $('.map-expand', d.panelBody); if (f) moveFocus(f, was); }
     return mapExpanded;
   }
   /* Scroll the expanded map so a place sits in the middle of the view. */
@@ -19976,7 +20143,8 @@ const UI = (() => {
     let f = focus === 'chip' ? $('.map-go', fresh) : focus === 'close' ? $('.map-close', fresh) : focus ? $(`.map-place[data-loc="${CSS.escape(focus)}"]`, fresh) : null;
     if (!f && had) f = had.classList.contains('map-close') ? $('.map-close', fresh) : had.dataset.loc ? $(`.map-place[data-loc="${CSS.escape(had.dataset.loc)}"]`, fresh) : null;
     if (!f && had) f = mapExpanded ? $('.map-close', fresh) : $('.map-expand', d.panelBody);
-    if (f) f.focus({ preventScroll: true });
+    // The chip that started a walk gives the focus to its place's marker, which holds it for the turn.
+    if (f) moveFocus(f, had || document.activeElement);
     syncMapModal();
   }
   function setPick(id, focus) { mapPick = id; refreshMap(focus); }
@@ -19994,26 +20162,33 @@ const UI = (() => {
   /* The chip, or a "Go there" button (a place's sheet, an exit): the Do turn
      "I head to <place>." On a phone the sheet closes so the walk can be
      read. A failed turn leaves the line in the box, like a typed one. */
-  async function confirmTravel(id) {
+  /* from: the control pressed (Go there, the chip). It holds the focus
+     for the turn, or what stands in for it once it is gone (the place's
+     marker, Expand map, on a phone the sheet's opener as the sheet closes);
+     after, the box on a laptop, the opener (or its stand-in) on a phone. */
+  async function confirmTravel(id, from) {
     const s = State.current;
     const target = typeof id === 'string' ? id : mapPick;
     const l = target && State.loc(target);
     if (!s || !l || l.id === s.player.locationId || l.away === true) return null;
     if (!canAct({ say: true })) return null;
     const line = `I head to ${placePhrase(l.name)}.`;
+    const opener = from || document.activeElement;
+    holdTurnFocus(opener && opener !== document.body ? opener : null);
     if (mapPick) setPick(null);
     setMapExpanded(false);
-    if (isMobile()) closeSheet(true);
+    if (isMobile()) closeSheet();
     let res = null;
     try { res = await Pipeline.submit(line, { mode: 'do', to: 'everyone' }); } catch (e) { console.error(e); res = { restoreInput: true }; }
     if (res && res.restoreInput && !d.cmd.value) { d.cmd.value = line; autosize(); syncSendLabel(); }
+    releaseTurnFocus();
     return res;
   }
   /* A small "Go there" button (the exits, a place's sheet). */
   function goButton(s, l, cls) {
     if (!l || l.id === s.player.locationId || l.away === true) return null;
     const why = actBlock();
-    return el('button', { type: 'button', class: 'btn small ' + (cls || ''), dataset: { go: l.id }, disabled: !!why, title: why || null, 'aria-label': `Go to ${placePhrase(l.name)}`, onclick: () => confirmTravel(l.id) }, 'Go there');
+    return el('button', { type: 'button', class: 'btn small ' + (cls || ''), dataset: { go: l.id }, disabled: !!why, title: why || null, 'aria-label': `Go to ${placePhrase(l.name)}`, onclick: e => confirmTravel(l.id, e.currentTarget) }, 'Go there');
   }
   function kv(rows) { return el('dl', { class: 'kv' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', null, v)])); }
   // ----- Places: a sheet for every place -----
@@ -20046,7 +20221,7 @@ const UI = (() => {
   }
   function placeCard(s, l, here) {
     const open = openPlace === l.id;
-    const tag = l.away === true ? '' : `${l.id === here.id ? ' (here)' : ''}${heardOf(l) && l.id !== here.id ? ' (heard of)' : ''}${closedNow(l) ? (l.closed ? ' (closed)' : ' (closed today)') : ''}`;
+    const tag = l.away === true ? '' : `${l.id === here.id ? ' (here)' : ''}${heardOf(l) && l.id !== here.id ? ' (heard of)' : ''}${closedTag(l)}`;
     const id = 'plmore-' + l.id;
     const who = open ? placePeople(s, l) : null;
     const rows = [];
@@ -20064,7 +20239,7 @@ const UI = (() => {
     return el('article', { class: 'plcard' + (open ? ' open' : '') + (l.away === true ? ' away' : ''), dataset: { loc: l.id } },
       el('button', { type: 'button', class: 'plcard-head', id: 'plhead-' + l.id, 'aria-expanded': String(open), 'aria-controls': id, onclick: () => togglePlace(l.id) },
         el('span', { class: 'plcard-name' }, `${l.name}${tag}`),
-        el('span', { class: 'plcard-type' }, capFirst(l.type || 'place')),
+        el('span', { class: 'plcard-type' }, placeTypeLabel(l.type)),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'plcard-more', id, hidden: !open }, open ? [
         el('p', { class: 'plcard-desc' }, l.description),
@@ -20206,7 +20381,7 @@ const UI = (() => {
         el('h3', null, 'Flaw'), el('p', null, p.flaw || '—'),
         progress.length ? [el('h3', null, 'Grown'), list(progress, g => {
           const t = s.threads.find(x => x.id === g.threadId);
-          const what = t && STATS.includes(t.reward) ? `+1 ${t.reward}` : t && t.reward ? `+1 ${t.reward}` : '+2 max HP';
+          const what = t && STATS.includes(t.reward) ? `+1 ${capFirst(t.reward)}` : t && t.reward ? `+1 ${t.reward}` : '+2 max HP';
           return `${t ? t.title : 'A thread resolved'}: ${what}`;
         }, '')] : null,
         el('h3', null, 'Conditions'),
@@ -20276,7 +20451,7 @@ const UI = (() => {
         const known = Number.isInteger(c.toDay) ? c.toDay : Number.isInteger(c.day) ? c.day : at ? at.day : null;
         const d0 = known || lastDay;
         lastDay = d0;
-        story.push({ day: d0, ph: at && at.phase ? PH(at.phase) : -1, turn: c.toTurn | 0, i, when: known ? `Up to day ${known}` : `Turns ${c.fromTurn} to ${c.toTurn}`, text: c.summary, kind: 'chronicle' });
+        story.push({ day: d0, ph: at && at.phase ? PH(at.phase) : -1, turn: c.toTurn | 0, i, when: known ? `Up to Day ${known}` : `Turns ${c.fromTurn} to ${c.toTurn}`, text: c.summary, kind: 'chronicle' });
       });
       story.sort((a, b) => (b.day - a.day) || (b.ph - a.ph) || (b.turn - a.turn) || (b.i - a.i));
       const leads = s.rumours.filter(r => r.heard).map((r, i) => ({ r, i })).sort((a, b) => ((b.r.heardDay | 0) - (a.r.heardDay | 0)) || (b.i - a.i)).map(x => x.r);
@@ -20296,7 +20471,7 @@ const UI = (() => {
         sec('story', 'Story so far', ul(story, x => el('li', { dataset: { kind: x.kind } }, el('span', { class: 'jr-day' }, x.when), el('span', { class: 'jr-text' }, x.text)), 'Nothing has happened yet.')),
         sec('leads', 'Leads', ul(leads, r => {
           const who = tellerOf(s, r);
-          const when = Number.isInteger(r.heardDay) ? `day ${r.heardDay}` : '';
+          const when = Number.isInteger(r.heardDay) ? `Day ${r.heardDay}` : '';
           return el('li', { dataset: { rumour: r.id } }, el('span', { class: 'jr-text' }, r.text),
             who || when ? el('span', { class: 'jr-who' }, [who ? `${capFirst(who)} told you` : 'You heard it', when].filter(Boolean).join(', ')) : null);
         }, 'No rumours yet. People talk when they warm to you.')),
@@ -20327,7 +20502,8 @@ const UI = (() => {
     },
     places(s) {
       const here = State.loc(s.player.locationId);
-      const exits = here.exits.map(id => State.loc(id)).filter(Boolean);
+      // Only places the player knows of: a home nobody has told them about is no exit yet (as on the map).
+      const exits = here.exits.map(id => State.loc(id)).filter(l => l && l.discovered && l.away !== true);
       const known = s.locations.filter(l => l.discovered && l.away !== true);
       const away = s.locations.filter(l => l.away === true);
       const ban = bannedUntil(s, here);
@@ -20341,7 +20517,7 @@ const UI = (() => {
         el('p', null, here.description),
         el('h3', null, 'Exits from here'),
         exits.length ? el('ul', { class: 'exit-list' }, exits.map(l => el('li', { dataset: { exit: l.id } },
-          el('span', null, `${l.name}${heardOf(l) ? ' (heard of)' : ''}${closedNow(l) ? ' (closed)' : ''}`), goButton(s, l)))) : el('p', { class: 'empty' }, 'None.'),
+          el('span', null, `${l.name}${heardOf(l) ? ' (heard of)' : ''}${closedTag(l)}`), goButton(s, l)))) : el('p', { class: 'empty' }, 'None.'),
         el('h3', null, 'Places you know'),
         known.length ? el('div', { class: 'place-list', dataset: { list: 'known' } }, known.map(l => placeCard(s, l, here))) : el('p', { class: 'empty' }, 'None.'),
         away.length ? [el('h3', null, 'Out of town'),
@@ -20592,18 +20768,47 @@ const UI = (() => {
     },
     clear() { d.feed.replaceChildren(); prunePending(); liveOn(); }
   };
-  /* The small Undo link beside the newest line the player sent (not while a turn runs). */
+  /* The small Undo link for the newest line the player sent (not while a
+     turn runs). One button, #undo-btn, outside the story's live region (so
+     it is not read out again with every turn), laid over the line's right
+     edge (placeUndo). The player on it keeps it: while a turn runs it stays
+     where it is, marked off; when it has to go, the focus goes to the box
+     (a phone: Send, so no keyboard comes up) before it does. */
+  let undoLine = null;
   function markUndo() {
-    if (!d.feed) return;
-    for (const x of $$('.f-undo-row', d.feed)) x.remove();
+    if (!d.feed || !d.undoRow) return;
     for (const x of $$('.f-input.has-undo', d.feed)) x.classList.remove('has-undo');
     const s = State.current;
-    if (!s || State.muted || busy || Pipeline.busy || Storage.readOnly || (s.player && s.player.dead) || State.undoDepth() < 1) return;
     const inputs = $$('.f-input', d.feed);
-    const last = inputs[inputs.length - 1];
-    if (!last) return;
+    const last = inputs[inputs.length - 1] || null;
+    const ok = !!s && !State.muted && !busy && !Pipeline.busy && !Storage.readOnly && !(s.player && s.player.dead) && State.undoDepth() >= 1 && !!last;
+    const focused = document.activeElement === d.undoBtn;
+    if (!ok && focused && (busy || Pipeline.busy) && !Storage.readOnly && undoLine && undoLine.isConnected) {
+      undoLine.classList.add('has-undo');
+      d.undoBtn.setAttribute('aria-disabled', 'true');
+      placeUndo();
+      return;
+    }
+    d.undoBtn.removeAttribute('aria-disabled');
+    undoLine = ok ? last : null;
+    if (!ok) {
+      if (focused) { const to = [isMobile() ? d.send : d.cmd, d.send, d.cmd].find(focusableNow); if (to) moveFocus(to); }
+      d.undoRow.hidden = true;
+      return;
+    }
     last.classList.add('has-undo');
-    last.after(el('div', { class: 'f-undo-row' }, el('button', { type: 'button', class: 'f-undo', title: 'Take back the last turn (/undo)', 'aria-label': 'Undo the last turn', onclick: () => runAction('/undo') }, 'Undo')));
+    d.undoRow.hidden = false;
+    placeUndo();
+  }
+  /* Lay the Undo link over its line: its right edge on the line's, its
+     bottom 9px below the line's text (as when it sat in the line's row). */
+  function placeUndo() {
+    if (!d.undoRow || d.undoRow.hidden || !undoLine || !undoLine.isConnected) return;
+    const box = d.feedScroll.getBoundingClientRect();
+    const r = undoLine.getBoundingClientRect();
+    const b = d.undoBtn;
+    b.style.left = Math.round(r.right - box.left + d.feedScroll.scrollLeft - b.offsetWidth) + 'px';
+    b.style.top = Math.round(r.bottom - box.top + d.feedScroll.scrollTop + 9 - b.offsetHeight) + 'px';
   }
   /* After the first narration of a new game: three lines on how to play,
      once per browser, until closed. */
@@ -20616,7 +20821,7 @@ const UI = (() => {
       el('p', null, el('strong', null, 'Do'), ' is what you do ("I ask for a beer"); ', el('strong', null, 'Say'), ' is your exact words, to whoever is picked.'),
       el('p', null, el('strong', null, 'Wait'), ' (the button, with the box empty) lets the people here make the next move.'),
       el('p', null, phone ? 'Type / or press ⋯ (at the end of the tabs) for commands. The tabs above the box keep track of people, places and your journal.' : 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.'),
-      el('button', { type: 'button', class: 'bar-x', 'aria-label': 'Close the tip', onclick: e => { const t = e.target.closest('.f-tip'); if (t) t.remove(); focusInput(); } }, '×'));
+      el('button', { type: 'button', class: 'bar-x', 'aria-label': 'Close the tip', onclick: e => { const t = e.target.closest('.f-tip'); if (t) t.remove(); focusComposer(); } }, '×'));
     d.feedAfter.append(tip);
     afterAppend();
     return tip;
@@ -20670,7 +20875,8 @@ const UI = (() => {
   function setBusy(b) {
     const was = busy;
     busy = !!b;
-    d.feed.setAttribute('aria-busy', String(busy));
+    // No aria-busy on the story's log: a screen reader honouring it could hold back or drop the finished narration (the
+    // streaming node is aria-hidden until endNarration puts the text in, which is the one thing read out).
     d.btnNew.disabled = busy;
     d.btnLoad.disabled = busy;
     d.btnImport.disabled = busy;
@@ -20683,10 +20889,20 @@ const UI = (() => {
     if (busy && mapPick) setPick(null);
     if (busy) closeActions();
     // People: no edit starts or saves, and no pronoun changes, while a turn runs; Places: no Go there (UI.canAct, read only too).
+    // A control the player is on is never disabled in place: Go there and the chip (what starts a walk) keep the focus,
+    // marked off; Edit, Save and a pronoun chip hand it to their card's head (Save: to Cancel) first.
     const why = actBlock();
-    $$('.pcard-edit, .pedit-save, .pcard-pchip, [data-go], .map-go', d.panelBody).forEach(btn => { btn.disabled = !!why; if (why) btn.title = why; else btn.removeAttribute('title'); });
-    // A new turn: an older failed turn's Try again is out of date.
-    if (busy && !was) for (const x of $$('.f-notice-acts', d.feed)) x.remove();
+    $$('.pcard-edit, .pedit-save, .pcard-pchip, [data-go], .map-go', d.panelBody).forEach(btn => {
+      if (why && btn === document.activeElement && !btn.matches('[data-go], .map-go')) {
+        const card = btn.closest('.pcard');
+        const to = btn.classList.contains('pedit-save') ? $('.pedit-cancel', card || d.panelBody) : card ? $('.pcard-head', card) : null;
+        moveFocus(focusableNow(to) ? to : document.getElementById('tab-' + tab));
+      }
+      setOff(btn, !!why);
+      if (why) btn.title = why; else btn.removeAttribute('title');
+    });
+    // A new turn: an older failed turn's Try again is out of date (the focus, if it was on one, goes to the composer first).
+    if (busy && !was) for (const x of $$('.f-notice-acts', d.feed)) { if (x.contains(document.activeElement)) focusComposer(); x.remove(); }
     if (busy && !was) {
       if (!status.fromPipeline && status.stage === 'idle') setStage('busy');
     } else if (!busy && was) {
@@ -20729,6 +20945,7 @@ const UI = (() => {
     // The queued line is shown, not just a pill, with × to take it back (when the Pipeline can).
     const q = on && status.queued;
     d.queuedNote.hidden = !q;
+    d.turnStatus.classList.toggle('has-queued', q);
     if (q) {
       const held = typeof Pipeline.queued === 'string' ? Pipeline.queued : status.queuedText;
       d.queuedText.textContent = held ? `Next: “${held}”` : Pipeline.queued === '' ? 'Next: Wait' : 'Queued';
@@ -20775,19 +20992,28 @@ const UI = (() => {
     d.send.classList.toggle('stop', stop);
     d.send.classList.toggle('wait', !stop && empty);
     d.send.classList.toggle('primary', !stop && !empty);
+    // Off without dropping the focus: pressed (Wait, Send), the button keeps it through the turn (setOff).
     if (stop) {
       d.send.textContent = 'Stop';
       d.send.title = 'Stop this turn';
-      d.send.disabled = !!Storage.readOnly;
+      setOff(d.send, !!Storage.readOnly);
       return;
     }
     d.send.textContent = empty ? 'Wait' : 'Send';
     d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
-    d.send.disabled = !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty));
+    setOff(d.send, !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty)));
   }
   function sendOrStop() {
+    if (d.send.getAttribute('aria-disabled') === 'true') { if (Storage.readOnly) toast(READ_ONLY_NOTICE); return; }
     if (d.send.classList.contains('stop')) { stopTurn(); return; }
     send(true);
+  }
+  /* After a turn sent from the box or the button: the focus goes back to the
+     box on a laptop only if it is still on the box, the button or nowhere
+     (a field the player moved to meanwhile, the People search, keeps it). */
+  function focusStillOnComposer() {
+    const a = document.activeElement;
+    return !a || a === document.body || a === d.cmd || a === d.send;
   }
   function stopTurn() {
     if (typeof Pipeline.abort !== 'function') return false;
@@ -20825,7 +21051,7 @@ const UI = (() => {
       lastSent = { pass: true };
       try { await Pipeline.pass(); } catch (e) { console.error(e); }
       syncSendLabel();
-      if (!isMobile()) d.cmd.focus({ preventScroll: true });
+      if (!isMobile() && screen === 'game' && focusStillOnComposer()) d.cmd.focus({ preventScroll: true });
       return;
     }
     if (turnRunning() && !canQueue()) { nudge(); return; }
@@ -20841,7 +21067,7 @@ const UI = (() => {
     if (res && res.restoreInput) restoreAction(text);
     syncSendLabel();
     // A command that put the focus somewhere on purpose (/edit: the editor's name field) keeps it there.
-    if (!isMobile() && screen === 'game' && !(res && res.keepFocus)) d.cmd.focus({ preventScroll: true });
+    if (!isMobile() && screen === 'game' && !(res && res.keepFocus) && focusStillOnComposer()) d.cmd.focus({ preventScroll: true });
   }
   function onKey(e) {
     if (!d.ac.hidden && ac.items.length) {
@@ -20896,6 +21122,12 @@ const UI = (() => {
 
   // ----- Do / Say -----
   function focusInput() { if (!isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true }); }
+  /* The composer's place for the focus when what had it goes: the box on a laptop, Send on a phone (no keyboard pops up). */
+  function focusComposer() {
+    if (screen !== 'game') return;
+    const to = [isMobile() ? d.send : d.cmd, d.send, d.cmd].find(focusableNow);
+    if (to) moveFocus(to);
+  }
   function presentNow() { const s = State.current; return s && !State.muted ? State.npcsAt(s.player.locationId) : []; }
   /* Say mode's addressee: the one the player picked, while they stay in the
      same place and that person is still here; otherwise the default (the
@@ -21070,7 +21302,9 @@ const UI = (() => {
     const ok = r === true || (isObj(r) && r.ok === true);
     // The reason as the API gives it, without sending the player to Settings: they are there.
     const why = (isObj(r) ? String(r.message || r.reason || '') : '').replace(/\s*(?:Check|Paste) (?:the|your|it) (?:key|again)[^.]*\bin Settings\./gi, '').replace(/\s*Add yours in Settings[^.]*\./gi, '').trim();
-    keyStatus(ok ? 'The key works.' : `The key did not work${why ? ': ' + why.replace(/\.$/, '') : ''}.`, ok);
+    // "That key did not work: the API did not accept it." (the reason in the sentence, not a second capital).
+    const said = /^The API key was not accepted\b/i.test(why) ? 'the API did not accept it' : lowerFirst(why.replace(/\.$/, ''));
+    keyStatus(ok ? 'The key works.' : `That key did not work${said ? ': ' + said : ''}.`, ok);
     return isObj(r) ? r : { ok };
   }
 
@@ -21078,7 +21312,7 @@ const UI = (() => {
   function slotMeta(env) {
     const s = env.summary || {};
     const when = env.savedAt ? new Date(env.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
-    return `${s.player || '?'} · Day ${s.day} ${capFirst(s.phase || '')} · ${s.location || ''}${when ? ' · ' + when : ''}`;
+    return `${s.player || '?'} · Day ${s.day}${s.phase ? ' · ' + capFirst(s.phase) : ''} · ${s.location || ''}${when ? ' · ' + when : ''}`;
   }
   /* A save made under older rules (Upgrade): it loads and plays as it is; Update brings it up to date. */
   const saveBehind = env => !!env && !env.broken && Upgrade.behind(env.state);
@@ -21104,7 +21338,7 @@ const UI = (() => {
     const inGame = App.inGame() && State.current && !State.muted;
     d.savesError.textContent = '';
     d.saveNameField.hidden = !inGame;
-    if (inGame && !d.saveName.value) d.saveName.value = `${State.current.player.name}, day ${State.current.time.day}`;
+    if (inGame && !d.saveName.value) d.saveName.value = `${State.current.player.name}, Day ${State.current.time.day}`;
     d.btnExport.disabled = !inGame;
     d.btnImport.disabled = busy;
     renderLastExport();
@@ -21136,7 +21370,16 @@ const UI = (() => {
         del
       ], 'slot-' + n));
     });
+    // A slot's button that had the focus keeps it through the redraw (Save here becomes Overwrite); one that is gone
+    // (Delete on an emptied slot) gives it to the first button in its row, else the screen's heading.
+    const had = d.slotList.contains(document.activeElement) ? document.activeElement : null;
+    const at = had ? [had.closest('.slot') && had.closest('.slot').id, had.dataset.action] : null;
     d.slotList.replaceChildren(...rows);
+    if (at && at[0]) {
+      const row = document.getElementById(at[0]);
+      const to = row ? [$(`[data-action="${at[1]}"]`, row)].concat($$('button', row)).find(focusableNow) : null;
+      (to || d.savesTitle).focus({ preventScroll: true });
+    }
   }
   async function onImport() {
     const file = d.importFile.files && d.importFile.files[0];
@@ -21158,7 +21401,7 @@ const UI = (() => {
   const Create = (() => {
     const STEPS = [
       { id: 'name', title: 'Name', sub: 'What people in town will call you.' },
-      { id: 'background', title: 'Background and age', sub: 'Sets your starting stats, money, two items, and whether you arrive by road or river. Your age starts at what the background suggests.' },
+      { id: 'background', title: 'Background and age', sub: 'Sets your starting stats, money, three things (one a prepaid phone), and whether you arrive by road or river. Your age starts at what the background suggests.' },
       { id: 'stats', title: 'Stats', sub: 'You can move one point: take it from one stat with −, give it to another with +. Stats run from −1 to +3.' },
       { id: 'goal', title: 'Goal and flaw', sub: 'Why you came to this town, in one line, and the habit that gets you into trouble.' },
       { id: 'loose', title: 'Three loose ends', sub: 'Pick three. Each becomes a real person in town, with consequences.' }
@@ -21384,7 +21627,7 @@ const UI = (() => {
         step = firstBad;
         updateSteps();
         // One message, not one per step: what to fix, then the focus on the first thing to fix.
-        d.crErrsum.textContent = bad.length === 1 ? `Fix this first: ${$('.err', sections[STEPS[firstBad].id]).textContent}` : `Fix ${bad.length} things first: ${joinList(bad.map(i => STEPS[i].title))}.`;
+        d.crErrsum.textContent = bad.length === 1 ? `Fix this first: ${$('.err', sections[STEPS[firstBad].id]).textContent}` : `Fix ${bad.length} things first: ${bad.map(i => lowerFirst(STEPS[i].title)).join('; ')}.`;
         sections[STEPS[firstBad].id].scrollIntoView({ block: 'start' });
         const f = firstBadField(STEPS[firstBad].id);
         if (f) f.focus({ preventScroll: true }); else focusStepHead(STEPS[firstBad].id);
@@ -21556,7 +21799,7 @@ const UI = (() => {
         const b = bg();
         if (!b) return el('p', { class: 'muted' }, 'Pick a background first. It sets your starting stats.');
         const shown = shownStats();
-        const pending = draft.moveFrom && !draft.moveTo ? `One point taken from ${capFirst(draft.moveFrom)}: press + on the stat to give it to.`
+        const pending = draft.moveFrom && !draft.moveTo ? `One point taken from ${capFirst(draft.moveFrom)}. Press + on the stat that should get it.`
           : draft.moveTo && !draft.moveFrom ? `One point for ${capFirst(draft.moveTo)}: press − on the stat to take it from.`
             : draft.moveFrom && draft.moveTo ? `Moved a point from ${capFirst(draft.moveFrom)} to ${capFirst(draft.moveTo)}.` : '';
         const tiles = STATS.map(k => {
@@ -21632,6 +21875,7 @@ const UI = (() => {
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
     MOCK_OFF, READ_ONLY_NOTICE, pendingNotes, showRecap, canAct, runAction, travel: confirmTravel, cancelQueued,
+    placeTypeLabel, placeUndo, expandedSize,
     attitudeLevel: a => ATTITUDE_LEVEL[State.attitudeWord(a)] || 3,
     get status() { return { stage: status.stage, queued: status.queued, text: d.turnStatus && !d.turnStatus.hidden ? d.turnStatusText.textContent : '' }; },
     get mapExpanded() { return mapExpanded; },
@@ -21811,7 +22055,7 @@ const App = (() => {
      the one just loaded, so these entry points refuse until it is over (the
      UI disables their controls meanwhile). */
   const BUSY_NOTICE = 'Wait for the current turn to finish.';
-  const NEWER_NOTICE = 'Saved by a newer version of the game, so it may not play right here.';
+  const NEWER_NOTICE = 'Saved by a newer version; it may not play right here.';
   function turnRunning() {
     if (!Pipeline.busy) return false;
     UI.toast(BUSY_NOTICE);
@@ -21876,7 +22120,7 @@ const App = (() => {
   function askReplace(auto, what) {
     return UI.ask({
       title: 'Replace the autosave?',
-      text: `${UI.continueLine(auto)} is only in the autosave, not in a save slot. ${what} takes its place. A copy is kept as the previous autosave, and the Saves screen can bring it back.`,
+      text: `${UI.continueLine(auto)} is only in the autosave, not in a save slot. ${what} takes its place. A copy is kept as the previous autosave, and Saved games (Load) can bring it back.`,
       yes: 'Go ahead',
       no: 'Keep it'
     });
@@ -22057,7 +22301,11 @@ const App = (() => {
   /* The player sets someone's pronouns (a card's chips, /pronouns): through
      the engine, which turns a gendered relation and role with them. A quiet
      line in the story; no turn, no undo step. */
+  /* Why UI.canAct said no, as a reason code. */
+  function refusal() { return Storage.readOnly ? 'read-only' : Pipeline.busy ? 'busy' : 'no game'; }
   function setPronouns(npcId, pronouns) {
+    // The one guard (UI.canAct): never in a read-only tab, without a game on screen, or while a turn runs.
+    if (!UI.canAct({ say: true })) return { ok: false, reason: refusal() };
     const n = State.current && State.npc(npcId);
     if (!n) return { ok: false, reason: 'missing' };
     const p = validPronouns(String(pronouns || '').toLowerCase().replace(/\/.*$/, ''));
@@ -22077,7 +22325,8 @@ const App = (() => {
      and the feed gives the engine's reason. No turn and no API call.
      Returns { ok, fields } or { ok: false, reason, why }. */
   function editPerson(npcId, fields) {
-    if (turnRunning()) return { ok: false, reason: 'busy', why: BUSY_NOTICE.replace(/\.$/, '') };
+    // The one guard (UI.canAct): never in a read-only tab, without a game on screen, or while a turn runs.
+    if (!UI.canAct({ say: true })) { const reason = refusal(); return { ok: false, reason, why: reason === 'read-only' ? 'this tab is read-only' : reason === 'busy' ? BUSY_NOTICE.replace(/\.$/, '') : 'there is no game in progress' }; }
     const n = State.current && !State.muted ? State.npc(npcId) : null;
     if (!n) return { ok: false, reason: 'missing' };
     const was = n.name;

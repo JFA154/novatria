@@ -458,7 +458,7 @@ s.test('Journal: Story so far (news by day, chronicle), Leads (who told you, whe
   assert.match(j.story, /Day 1 · .*Morning.*The council set the bridge vote for Tuesday\./);
   assert.ok(!j.story.includes('A secret nobody heard'), 'only news the player has had');
   assert.ok(j.leads.includes(x.rumour.text));
-  assert.ok(j.leads.includes('told you') && j.leads.includes('day 1'), j.leads);
+  assert.ok(j.leads.includes('told you') && j.leads.includes('Day 1'), j.leads);
   const debt = j.owe.find(o => o.text.includes('$400'));
   assert.ok(debt && /You owe .* \$400due Day 3 \(2 days\)/.test(debt.text), JSON.stringify(j.owe));
   assert.ok(j.owe.find(o => o.text.includes('Carry the letter')).done, 'a met obligation is struck through');
@@ -486,7 +486,8 @@ s.test('People: a search box that stays put, sorting, Elsewhere and Gone folded 
   });
   const groups = await page.evaluate(() => [...document.querySelectorAll('#panel-body .people-group')].map(g => ({ key: g.dataset.group, folded: g.tagName === 'DETAILS' && !g.open })));
   for (const k of ['elsewhere', 'gone']) { const g = groups.find(x => x.key === k); if (g) assert.equal(g.folded, true, k + ' folded'); }
-  assert.match(await page.textContent(`.pcard[data-npc="${pick.hurt.id}"] .pcard-meta`), new RegExp(`Hurt, until day ${pick.hurt.until}`));
+  // The last day they are hurt, as the engine's note says it (hurtUntilDay is the day they are about again).
+  assert.match(await page.textContent(`.pcard[data-npc="${pick.hurt.id}"] .pcard-meta`), new RegExp(`Hurt until Day ${pick.hurt.until - 1}`));
   // Search: by name.
   await page.fill('#people-search', pick.first.name.split(' ')[0]);
   const shown = await page.evaluate(() => [...document.querySelectorAll('#panel-body .pcard')].filter(c => !c.hidden && !c.closest('[hidden]')).map(c => c.dataset.npc));
@@ -627,7 +628,7 @@ s.test('Settings: Quality presets set the models and effort (the raw fields unde
   await page.evaluate(() => { if (typeof Game.Api.checkKey !== 'function') Game.Api.checkKey = async () => ({ ok: true }); });
   await page.fill('#set-key', 'sk-ant-test-0123456789');
   await page.click('#set-check-key');
-  await page.waitForFunction(() => /The key (works|did not work)/.test(document.getElementById('key-status').textContent));
+  await page.waitForFunction(() => /The key works|key did not work/.test(document.getElementById('key-status').textContent));
   await shot(page, 'D01_settings_1280', { fullPage: true });
 });
 
@@ -783,10 +784,11 @@ s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around ru
   await page.click('#act-pop [data-act="look"]');
   await page.waitForFunction(() => !Game.Pipeline.busy);
   assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].input), '/look');
-  // Undo: a small link on the newest input line; it takes the turn back.
-  assert.equal(await page.locator('#feed .f-undo').count(), 1);
+  // Undo: a small link on the newest input line (outside the story's live region); it takes the turn back.
+  assert.ok(await page.isVisible('#undo-btn'));
+  assert.equal(await page.locator('#feed .f-undo').count(), 0, 'not in the live region');
   const turnBefore = await page.evaluate(() => Game.state.meta.turn);
-  await page.click('#feed .f-undo');
+  await page.click('#undo-btn');
   await page.waitForFunction(t => Game.state.meta.turn < t, turnBefore);
   assert.ok(await page.evaluate(() => Game.state.meta.turn) >= t0);
   // The phone menu has the actions too.
@@ -891,7 +893,7 @@ s.test('wave 2, D1 and B11: a read-only tab plays nothing (⋯, the Undo link, G
   const turnB = await b.evaluate(() => Game.state.meta.turn);
   assert.equal(turnB, turnA + 2);
   // Nothing that plays a turn is offered.
-  assert.equal(await a.locator('#feed .f-undo').count(), 0, 'no Undo link');
+  assert.ok(await a.isHidden('#undo-btn'), 'no Undo link');
   assert.equal(await a.evaluate(() => Game.UI.canAct()), false, 'the one guard says no');
   await a.click('#act-btn');
   for (const k of ['look', 'rest', 'undo']) assert.equal(await a.isDisabled(`#act-pop [data-act="${k}"]`), true, k + ' is off');
@@ -1014,7 +1016,7 @@ s.test('wave 2, D4: the focus is never dropped to the page: Back to edit, a Peop
   await page.click('#cr-review');
   const r = await page.evaluate(() => ({ focus: document.activeElement.id, sum: document.getElementById('cr-errsum').textContent, alerts: [...document.querySelectorAll('#create-steps [role="alert"]')].length, invalid: document.getElementById('cr-name').getAttribute('aria-invalid') }));
   assert.equal(r.focus, 'cr-name', 'the first field to fix has the focus');
-  assert.match(r.sum, /^Fix \d things first: Name, /);
+  assert.match(r.sum, /^Fix \d things first: name; background and age; /);
   assert.equal(r.alerts, 0, 'one summary is read out, not one alert per step');
   assert.equal(r.invalid, 'true');
   await shot(page, 'W04_review_errors_1280');
@@ -1319,7 +1321,7 @@ s.test('wave 2, D14: a queued line is shown (and can be taken back when the Pipe
   await page.fill('#set-key', 'sk-ant-wrong-0123456789');
   await page.click('#set-check-key');
   await page.waitForFunction(() => /did not work|works|cannot check/.test(document.getElementById('key-status').textContent));
-  if (stubbed) assert.equal(await page.textContent('#key-status'), 'The key did not work: The API key was not accepted.');
+  if (stubbed) assert.equal(await page.textContent('#key-status'), 'That key did not work: the API did not accept it.');
   // The title: a damaged autosave, then one from a newer build.
   const t = await open(h);
   await t.evaluate(() => { localStorage.setItem('novatria.autosave', '{ not json'); Game.UI.renderTitle(); });
@@ -1330,7 +1332,7 @@ s.test('wave 2, D14: a queued line is shown (and can be taken back when the Pipe
     assert.ok(await t.isVisible('#title-newer-note'), 'a one-line note under Continue');
     assert.match(await t.getAttribute('#btn-continue', 'aria-describedby'), /title-newer-note/);
     await t.click('#btn-continue');
-    assert.equal(await t.textContent('#banner-text'), 'Saved by a newer version of the game, so it may not play right here.');
+    assert.equal(await t.textContent('#banner-text'), 'Saved by a newer version; it may not play right here.');
   }
 });
 
@@ -1417,7 +1419,7 @@ s.test('wave 2, the docs check and B10: "Hurt" until the day after, as the engin
     return { today, tomorrow: flag(), engine: typeof Game.State.isHurt === 'function' };
   });
   if (!hurt.engine) assert.ok(!/Hurt/.test(hurt.today), 'not hurt on the last day: ' + hurt.today);
-  assert.match(hurt.tomorrow, /Hurt, until day/);
+  assert.match(hurt.tomorrow, /Hurt until Day \d+/);
   assert.match(await page.textContent('#set-reread-hint'), /gives the game its arc/);
   // Journal: a note keeps its own day and phase after the log is compressed.
   const j = await page.evaluate(() => {
@@ -1441,6 +1443,544 @@ s.test('wave 2, the docs check and B10: "Hurt" until the day after, as the engin
   });
   assert.equal(j.note, `Day ${j.day} · ${await page.evaluate(d => (typeof Game.State.weekday === 'function' ? Game.State.weekday(d) + ' · ' : ''), j.day)}${j.phase.charAt(0).toUpperCase() + j.phase.slice(1)}`, 'the stored day and phase');
   assert.deepEqual(j.story, ['Day three news.', 'Second days.', 'Day one news.', 'First days.']);
+});
+
+// ----- W3. Wave 3 (docs/notes/ui.md, "Wave 3") -----
+
+/* In the page: what has the focus: '#id', else tag.class with the data that names it; 'BODY' when nothing does. */
+function FOCUS_OF() {
+  const a = document.activeElement;
+  if (!a || a === document.body || a === document.documentElement) return 'BODY';
+  if (a.id) return '#' + a.id;
+  const k = ['loc', 'go', 'openTab', 'act'].filter(x => a.dataset && a.dataset[x] !== undefined).map(x => `[${x}=${a.dataset[x]}]`).join('');
+  return `${a.tagName.toLowerCase()}${a.classList && a.classList[0] ? '.' + a.classList[0] : ''}${k}`;
+}
+/* Start something that runs a turn (fn presses the keys), then read where
+   the focus is all the while the turn runs, and once it is over (and what
+   is left inert). */
+async function acrossTurn(page, fn) {
+  await fn();
+  const during = [];
+  const t0 = Date.now();
+  let started = false;
+  for (;;) {
+    const r = await page.evaluate(() => ({ busy: !!Game.Pipeline.busy, f: window.__focusOf() }));
+    if (r.busy) { started = true; if (!during.includes(r.f)) during.push(r.f); } else if (started || Date.now() - t0 > 1500) break;
+    await page.waitForTimeout(15);
+  }
+  await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
+  await page.waitForTimeout(120);
+  return { during, after: await page.evaluate(() => window.__focusOf()), inert: await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)) };
+}
+const focusHelper = page => page.evaluate(`window.__focusOf = ${FOCUS_OF.toString()}`);
+
+s.test('wave 3, defect 1: a turn started from the ⋯ list, Wait until…, the Undo link, Go there or the map\'s chip never drops the focus: the control (or its stand-in) holds it while the turn runs, then the box on a laptop and the opener on a phone', async h => {
+  for (const vp of [LAPTOP, PHONE]) {
+    const phone = vp === PHONE;
+    const page = await open(h, vp);
+    await page.evaluate(() => Game.Storage.saveSettings({ tipSeen: true }));
+    await quickStart(page);
+    await focusHelper(page);
+    await page.evaluate(() => { Game.Api.Mock.delay = 90; });
+    const dots = phone ? '#act-btn-m' : '#act-btn';
+    const box = phone ? dots : '#cmd';
+    const tag = `${vp.width}: `;
+    // The ⋯ list, by keyboard: Look around.
+    let r = await acrossTurn(page, async () => {
+      await page.focus(dots);
+      await page.keyboard.press('Enter');
+      assert.equal(await page.evaluate(() => document.activeElement.dataset.act), 'look');
+      await page.keyboard.press('Enter');
+    });
+    assert.ok(r.during.length && r.during.every(f => f === dots), tag + '⋯ holds it during Look around: ' + r.during);
+    assert.equal(r.after, box, tag + 'after Look around');
+    assert.deepEqual(r.inert, [], 'nothing inert left behind');
+    // Wait until… → the first phase.
+    r = await acrossTurn(page, async () => {
+      await page.focus(dots);
+      await page.keyboard.press('Enter');
+      await page.keyboard.press('ArrowDown');
+      assert.equal(await page.evaluate(() => document.activeElement.dataset.act), 'wait');
+      await page.keyboard.press('Enter');
+      assert.match(await page.evaluate(() => document.activeElement.dataset.act), /^wait-/);
+      await page.keyboard.press('Enter');
+    });
+    assert.ok(r.during.length && r.during.every(f => f === dots), tag + '⋯ holds it during Wait until: ' + r.during);
+    assert.equal(r.after, box, tag + 'after Wait until');
+    // The Undo link: it keeps the focus while it is still there, else the box (a phone: Send).
+    assert.ok(await page.isVisible('#undo-btn'));
+    r = await acrossTurn(page, async () => { await page.focus('#undo-btn'); await page.keyboard.press('Enter'); });
+    assert.ok(!r.during.includes('BODY'), tag + 'Undo during: ' + r.during);
+    if (phone) assert.ok(['#undo-btn', '#send'].includes(r.after), tag + 'after Undo: ' + r.after);
+    else assert.equal(r.after, '#cmd', tag + 'after Undo');
+    // Go there on an exit.
+    const openPlaces = async () => {
+      if (phone) { await page.click('[data-open-tab="places"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('places'));
+    };
+    await openPlaces();
+    const go = await page.evaluate(() => document.querySelector('.exit-list [data-go]').dataset.go);
+    r = await acrossTurn(page, async () => { await page.focus(`.exit-list [data-go="${go}"]`); await page.keyboard.press('Enter'); });
+    assert.equal(await page.evaluate(() => Game.state.player.locationId), go, 'the walk happened');
+    assert.ok(r.during.length && !r.during.includes('BODY'), tag + 'Go there during: ' + r.during);
+    if (phone) {
+      assert.deepEqual(r.during, ['button[openTab=places]'], 'the sheet closes and its opener holds the focus');
+      assert.equal(r.after, 'button[openTab=places]', 'and keeps it after');
+    } else {
+      assert.match(r.during[0], /\[go=/, 'Go there itself holds it first (marked off, not disabled)');
+      assert.equal(r.after, '#cmd');
+    }
+    assert.deepEqual(r.inert, [], 'nothing inert left behind');
+    // The map's chip, by keyboard.
+    await openPlaces();
+    const target = await page.evaluate(() => document.querySelector('.map-place[data-here="0"]').dataset.loc);
+    r = await acrossTurn(page, async () => {
+      await page.focus(`.map-place[data-loc="${target}"]`);
+      await page.keyboard.press('Enter');
+      assert.match(await page.evaluate(() => document.activeElement.className), /map-go/);
+      await page.keyboard.press('Enter');
+    });
+    assert.equal(await page.evaluate(() => Game.state.player.locationId), target);
+    assert.ok(r.during.length && !r.during.includes('BODY'), tag + 'chip during: ' + r.during);
+    assert.equal(r.after, phone ? 'button[openTab=places]' : '#cmd', tag + 'after the chip');
+    assert.deepEqual(r.inert, [], 'nothing inert left behind');
+    // The Wait button on a phone: it holds the focus (off, not disabled) through the turn.
+    if (phone) {
+      r = await acrossTurn(page, async () => { await page.focus('#send'); await page.keyboard.press('Enter'); });
+      assert.ok(r.during.length && r.during.every(f => f === '#send'), 'Wait holds it: ' + r.during);
+      assert.equal(r.after, '#send');
+    }
+  }
+});
+
+s.test('wave 3, defect 2: the end of a turn never takes the focus from a field the player moved to (the People search keeps it and what is typed); it comes back to the box only from the box, Send or Wait', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 150; Game.UI.openPanel('people'); });
+  // Send from the box, then the search while the turn runs.
+  await page.fill('#cmd', 'I look around');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.Pipeline.busy);
+  await page.click('#people-search');
+  await page.keyboard.type('Ro');
+  await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
+  await page.waitForTimeout(100);
+  await page.keyboard.type('y');
+  assert.deepEqual(await page.evaluate(() => [document.activeElement.id, document.getElementById('people-search').value, document.getElementById('cmd').value]), ['people-search', 'Roy', ''], 'nothing split between the search and the box');
+  await shot(page, 'W3_02_focus_kept_after_turn_1280');
+  // Wait (the button), then the search.
+  await page.fill('#people-search', '');
+  await page.focus('#send');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => Game.Pipeline.busy);
+  await page.click('#people-search');
+  await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'people-search', 'Wait does not take it back either');
+  // Left on the button or the box, the box has it after the turn.
+  await page.focus('#send');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'from Wait: the box');
+  await sendText(page, 'I look at the counter');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'from the box: the box');
+});
+
+s.test('wave 3, defect 3: the expanded map, the phone sheet and a dialog sit above the warning banner, which is inert while one is open and as it was after', async h => {
+  const atBanner = page => page.evaluate(() => {
+    const b = document.getElementById('banner');
+    const r = b.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { inert: b.inert, inBanner: b.contains(top), hidden: b.hidden };
+  });
+  for (const vp of [PHONE, LAPTOP]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await focusHelper(page);
+    await page.evaluate(() => Game.UI.warn('Your browser would not save the game. Export it from Save / Load to keep it.'));
+    assert.deepEqual(await atBanner(page), { inert: false, inBanner: true, hidden: false });
+    if (vp === PHONE) {
+      await page.click('[data-open-tab="people"]');
+      await page.waitForTimeout(300);
+      assert.deepEqual(await atBanner(page), { inert: true, inBanner: false, hidden: false }, 'the sheet covers the banner, which takes no focus');
+      await shot(page, 'W3_03_sheet_over_banner_375');
+      await page.keyboard.press('Escape');
+      assert.deepEqual(await atBanner(page), { inert: false, inBanner: true, hidden: false }, 'back after the sheet');
+      await page.click('[data-open-tab="places"]');
+      await page.waitForTimeout(300);
+    } else await page.evaluate(() => Game.UI.openPanel('places'));
+    await page.click('.map-expand');
+    assert.deepEqual(await atBanner(page), { inert: true, inBanner: false, hidden: false }, `${vp.width}: the expanded map covers the banner`);
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+    assert.ok(await page.evaluate(() => !document.getElementById('banner').contains(document.activeElement)), 'Tab never reaches Dismiss');
+    await shot(page, `W3_03_map_over_banner_${vp.width}`);
+    await page.click('.map-close');
+    if (vp === PHONE) {
+      assert.equal((await atBanner(page)).inert, true, 'the sheet is still open, so still inert');
+      await page.click('#panel-close');
+    }
+    assert.deepEqual(await atBanner(page), { inert: false, inBanner: true, hidden: false }, `${vp.width}: back after the map`);
+    // A dialog (UI.ask).
+    await page.evaluate(() => { window.__asked = Game.UI.ask({ title: 'A question', text: 'Go ahead?' }); });
+    assert.equal((await atBanner(page)).inert, true, 'inert under a dialog');
+    await page.click('#ask-no');
+    assert.equal((await atBanner(page)).inert, false, 'and back after it');
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)), [], 'nothing inert left behind');
+    // Dismiss gives the focus to the screen, not the page.
+    await page.focus('#banner-close');
+    await page.keyboard.press('Enter');
+    assert.notEqual(await page.evaluate(() => window.__focusOf()), 'BODY');
+  }
+});
+
+s.test('wave 3, defect 4: the story\'s log is never aria-busy, and the Undo link is outside the live region, laid over the newest input line (also after a resize)', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await page.evaluate(() => {
+    Game.Api.Mock.delay = 80;
+    const f = document.getElementById('feed');
+    window.__busyAttr = [];
+    window.__undoAdds = 0;
+    new MutationObserver(list => {
+      for (const m of list) {
+        if (m.type === 'attributes' && m.attributeName === 'aria-busy' && m.target === f) window.__busyAttr.push(f.getAttribute('aria-busy'));
+        for (const n of m.addedNodes || []) if (n.nodeType === 1 && (n.matches('.f-undo, .f-undo-row') || n.querySelector('.f-undo'))) window.__undoAdds++;
+      }
+    }).observe(f, { attributes: true, childList: true, subtree: true });
+  });
+  await page.fill('#cmd', 'I look around');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.Pipeline.busy);
+  assert.equal(await page.getAttribute('#feed', 'aria-busy'), null, 'not busy while the turn runs');
+  await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
+  await sendText(page, 'I look at the pumps');
+  const r = await page.evaluate(() => ({ busy: window.__busyAttr, adds: window.__undoAdds, attr: document.getElementById('feed').getAttribute('aria-busy') }));
+  assert.deepEqual(r, { busy: [], adds: 0, attr: null }, 'no aria-busy, and no Undo added to the log');
+  const where = () => page.evaluate(() => {
+    const b = document.getElementById('undo-btn');
+    const lines = document.querySelectorAll('#feed .f-input');
+    const line = lines[lines.length - 1].getBoundingClientRect();
+    const u = b.getBoundingClientRect();
+    return { live: !!b.closest('[aria-live], [role="log"]'), right: Math.round(u.right - line.right), overlap: u.top < line.bottom && u.bottom > line.top, has: lines[lines.length - 1].classList.contains('has-undo'), visible: !document.getElementById('undo-row').hidden };
+  });
+  const want = { live: false, right: 0, overlap: true, has: true, visible: true };
+  assert.deepEqual(await where(), want);
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.waitForTimeout(150);
+  assert.deepEqual(await where(), want, 'it follows its line after a resize');
+  await page.setViewportSize(PHONE);
+  await page.waitForTimeout(150);
+  assert.deepEqual(await where(), want, 'and on a phone');
+  await shot(page, 'W3_04_undo_link_375');
+});
+
+s.test('wave 3, defect 5: a queued line at 375 and 390 is one 32px pill with a 44px ×; the status text stays on one line and the line 32px tall', async h => {
+  for (const vp of [PHONE, { width: 390, height: 844 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await fast(page);
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 2500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    await page.fill('#cmd', 'I look at the board out front');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
+    await page.fill('#cmd', 'I tell him I fixed fuel pumps for eleven years and can start today');
+    await page.press('#cmd', 'Enter');
+    await page.waitForFunction(() => !document.getElementById('queued-note').hidden);
+    const m = await page.evaluate(() => {
+      const r = id => document.getElementById(id).getBoundingClientRect();
+      const x = document.getElementById('queued-cancel');
+      const xr = x.getBoundingClientRect();
+      const others = [...document.querySelectorAll('.tabrow button, #send, #cmd, .mode-btn')].filter(n => n.getClientRects().length).map(n => n.getBoundingClientRect());
+      const meets = others.filter(b => xr.left < b.right - 1 && b.left < xr.right - 1 && xr.top < b.bottom - 1 && b.top < xr.bottom - 1).length;
+      return { line: r('turn-status').height, pill: r('queued-note').height, textLines: document.getElementById('turn-status-text').getClientRects().length, xShown: !x.hidden, xw: xr.width, xh: xr.height, meets, radius: getComputedStyle(document.getElementById('queued-note')).borderTopLeftRadius };
+    });
+    assert.ok(m.line <= 34, `${vp.width}: the status line is ${m.line}px`);
+    assert.ok(m.pill <= 32, `${vp.width}: the pill is ${m.pill}px`);
+    assert.equal(m.textLines, 1, 'the status text is one line');
+    assert.equal(m.radius, '16px', 'a true pill');
+    if (m.xShown) {
+      assert.ok(m.xw >= 44 && m.xh >= 44, `× is a 44px target (${m.xw}x${m.xh})`);
+      assert.equal(m.meets, 0, '× overlaps no other control');
+    }
+    assert.deepEqual(await overflowReport(page, vp.width), [], 'nothing sticks out');
+    await shot(page, `W3_05_queued_${vp.width}`, { clip: { x: 0, y: vp.height - 180, width: vp.width, height: 180 } });
+    await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 15000 });
+  }
+});
+
+s.test('wave 3, defect 6 and N3: place types read as words (one map for the place here and each row), and the exits list only places the player knows of', async h => {
+  const page = await open(h, { width: 390, height: 844 });
+  await quickStart(page);
+  await page.click('[data-open-tab="places"]');
+  await page.waitForTimeout(300);
+  // N3: a home nobody has told the player about is not an exit yet (as on the map).
+  const ex = await page.evaluate(() => {
+    const here = Game.State.loc(Game.state.player.locationId);
+    const listed = [...document.querySelectorAll('.exit-list [data-exit]')].map(li => li.dataset.exit);
+    return { listed, known: here.exits.filter(id => Game.State.loc(id).discovered && Game.State.loc(id).away !== true), hidden: here.exits.filter(id => !Game.State.loc(id).discovered) };
+  });
+  assert.deepEqual(ex.listed, ex.known);
+  assert.ok(ex.hidden.length > 0, 'the start has exits to homes not found yet');
+  assert.ok(!ex.hidden.some(id => ex.listed.includes(id)));
+  // Every place known: the type labels.
+  const t = await page.evaluate(() => {
+    for (const l of Game.state.locations) l.discovered = true;
+    Game.UI.renderPanel();
+    const here = Game.State.loc(Game.state.player.locationId);
+    return {
+      line: document.querySelector('#panel-body > p.muted').textContent, hereLabel: Game.UI.placeTypeLabel(here.type),
+      rows: [...document.querySelectorAll('.plcard')].map(c => { const l = Game.State.loc(c.dataset.loc); return { type: l.type, shown: c.querySelector('.plcard-type').textContent, want: Game.UI.placeTypeLabel(l.type) }; })
+    };
+  });
+  assert.ok(t.line.startsWith(t.hereLabel), t.line);
+  for (const r of t.rows) assert.equal(r.shown, r.want, r.type);
+  const want = { gas: 'Gas station', trailerpark: 'Trailer park', bighouse: 'Big house', police: 'Town hall', pawn: 'Pawn shop', care: 'Care home', fields: 'Farmland', marina: 'Boat landing' };
+  for (const [k, v] of Object.entries(want)) assert.equal(await page.evaluate(x => Game.UI.placeTypeLabel(x), k), v, k);
+  assert.equal(t.line.split(' · ')[0], 'Gas station', 'the place a game starts at');
+  await page.evaluate(() => { Game.Storage.saveSettings({ theme: 'parchment' }); Game.UI.applyDisplay(); const b = document.getElementById('panel-body'); b.scrollTop = document.querySelector('.exit-list').getBoundingClientRect().top - b.getBoundingClientRect().top + b.scrollTop - 40; });
+  await shot(page, 'W3_06_places_types_390_parchment');
+});
+
+s.test('wave 3, defects 7, 8 and 10: the Panel toggle\'s pressed state, the read-only box and the map\'s person dots stand out (3:1 edges, 4.5:1 text) in both themes', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await page.evaluate(contrastIn);
+  await page.evaluate(() => {
+    const st = Game.state;
+    Game.State.apply({ npcKnownToPlayer: Game.State.npcsAt(st.player.locationId).map(n => n.id) });
+    Game.UI.openPanel('places');
+  });
+  for (const theme of ['dark', 'parchment']) {
+    const r = await page.evaluate(th => {
+      Game.Storage.saveSettings({ theme: th });
+      Game.UI.applyDisplay();
+      Game.UI.setCollapsed(false, true);
+      const cs = (q, pseudo) => getComputedStyle(document.querySelector(q), pseudo || null);
+      const tb = cs('#tb-panel');
+      const bar = cs('.topbar').backgroundColor;
+      const shadow = /rgba?\([^)]*\)|#[0-9a-f]{3,8}/i.exec(tb.boxShadow);
+      const dot = document.querySelector('.map-mono circle');
+      const land = cs('.map-land').fill;
+      const surface = cs('#panel').backgroundColor;
+      const out = {
+        pressed: document.getElementById('tb-panel').getAttribute('aria-pressed'),
+        toggleEdge: window.__cr(tb.borderTopColor, bar),
+        toggleBar: shadow ? window.__cr(shadow[0], tb.backgroundColor) : 0,
+        dotRing: dot ? window.__cr(getComputedStyle(dot).stroke, land) : null,
+        legendRing: window.__cr(cs('.lg-person').borderTopColor, surface)
+      };
+      // A read-only tab's box.
+      Game.Storage.setReadOnly(true);
+      const box = cs('#cmd');
+      const behind = cs('#screen-game .composer').backgroundColor;
+      out.roText = window.__cr(box.color, box.backgroundColor);
+      out.roPlaceholder = window.__cr(cs('#cmd', '::placeholder').color, box.backgroundColor);
+      out.roEdge = window.__cr(box.borderTopColor, behind);
+      out.roOpacity = box.opacity;
+      Game.Storage.setReadOnly(false);
+      return out;
+    }, theme);
+    assert.equal(r.pressed, 'true');
+    assert.ok(r.toggleEdge >= 3, `${theme}: Panel's pressed edge ${r.toggleEdge.toFixed(2)}`);
+    assert.ok(r.toggleBar >= 3, `${theme}: Panel's accent bar ${r.toggleBar.toFixed(2)}`);
+    assert.ok(r.dotRing !== null && r.dotRing >= 3, `${theme}: a person's dot on the map ${r.dotRing}`);
+    assert.ok(r.legendRing >= 3, `${theme}: the legend's dot ${r.legendRing.toFixed(2)}`);
+    assert.ok(r.roText >= 4.5, `${theme}: read-only text ${r.roText.toFixed(2)}`);
+    assert.ok(r.roPlaceholder >= 4.5, `${theme}: read-only placeholder ${r.roPlaceholder.toFixed(2)}`);
+    assert.ok(r.roEdge >= 3, `${theme}: read-only edge ${r.roEdge.toFixed(2)}`);
+    assert.equal(r.roOpacity, '1', 'a colour, not transparency');
+  }
+  // The phone sheet's grip (it says the sheet can be swiped down): 3:1 on the sheet.
+  await page.setViewportSize(PHONE);
+  for (const theme of ['dark', 'parchment']) {
+    const grip = await page.evaluate(th => { Game.Storage.saveSettings({ theme: th }); Game.UI.applyDisplay(); return window.__cr(getComputedStyle(document.querySelector('.panel-grip')).backgroundColor, getComputedStyle(document.getElementById('panel')).backgroundColor); }, theme);
+    assert.ok(grip >= 3, `${theme}: the sheet's grip ${grip.toFixed(2)}`);
+  }
+});
+
+s.test('wave 3, defect 9: the expanded map fills the view on both axes (the river and the roads run on to the edges), pans where it is larger, and is centred on the player again after the phone turns', async h => {
+  const measure = page => page.evaluate(() => {
+    const map = document.querySelector('.map.expanded');
+    const pan = map.querySelector('.map-pan');
+    const svg = map.querySelector('.map-svg');
+    const vb = svg.viewBox.baseVal;
+    const W = Game.UI.mapLayout(Game.state).W;
+    const sr = svg.getBoundingClientRect();
+    const pr = pan.getBoundingClientRect();
+    const water = map.querySelector('.map-water');
+    const wb = water ? water.getBBox() : null;
+    const me = map.querySelector('.map-place[data-here="1"] .map-mark').getBoundingClientRect();
+    const land = map.querySelector('.map-land').getBBox();
+    return {
+      coverW: sr.width >= pan.clientWidth - 1, coverH: sr.height >= pan.clientHeight - 1,
+      fitsW: pan.scrollWidth <= pan.clientWidth + 1, fitsH: pan.scrollHeight <= pan.clientHeight + 1,
+      aspect: Math.abs(sr.width / sr.height - vb.width / vb.height) < 0.01,
+      land: land.x <= vb.x + 0.01 && land.width >= vb.width - 0.01 && land.y <= vb.y + 0.01 && land.height >= vb.height - 0.01,
+      riverOn: !wb || vb.x >= 0 || (wb.x < 0 && wb.x + wb.width > W),
+      meVisible: me.left >= pr.left && me.right <= pr.right && me.top >= pr.top && me.bottom <= pr.bottom
+    };
+  });
+  const lap = await open(h);
+  await quickStart(lap);
+  await lap.evaluate(() => Game.UI.openPanel('places'));
+  await lap.click('.map-expand');
+  assert.deepEqual(await measure(lap), { coverW: true, coverH: true, fitsW: true, fitsH: true, aspect: true, land: true, riverOn: true, meVisible: true }, 'a laptop: the whole town, land to the edges');
+  assert.ok(await lap.evaluate(() => document.querySelector('.map.expanded .map-svg').viewBox.baseVal.x < 0), 'the frame grew sideways');
+  await shot(lap, 'W3_09_map_expanded_1280');
+  const ph = await open(h, PHONE);
+  await quickStart(ph);
+  await ph.click('[data-open-tab="places"]');
+  await ph.waitForTimeout(300);
+  await ph.click('.map-expand');
+  const b = await measure(ph);
+  assert.deepEqual([b.coverW, b.coverH, b.fitsW, b.fitsH, b.aspect, b.land, b.meVisible], [true, true, false, true, true, true, true], 'upright: fills the height, pans sideways, opens on the player');
+  // Turned on its side, it fills the width and pans up and down, with the player in view again.
+  await ph.evaluate(() => { const p = document.querySelector('.map.expanded .map-pan'); p.scrollLeft = 0; p.scrollTop = 0; });
+  await ph.setViewportSize({ width: 740, height: 375 });
+  await ph.waitForTimeout(250);
+  const c = await measure(ph);
+  assert.deepEqual([c.coverW, c.coverH, c.fitsW, c.aspect, c.land, c.meVisible], [true, true, true, true, true, true], 'on its side: covers the view, centred on the player');
+  assert.ok(await ph.evaluate(() => { const p = document.querySelector('.map.expanded .map-pan'); return p.scrollHeight <= 740 && p.scrollWidth <= 741; }), 'never drawn at 1184px wide');
+  await shot(ph, 'W3_09_map_rotated_740x375');
+  await ph.setViewportSize(PHONE);
+  await ph.waitForTimeout(250);
+  assert.equal((await measure(ph)).meVisible, true, 'and back upright');
+});
+
+s.test('wave 3, defect 11: App.editPerson and App.setPronouns refuse in a read-only tab (UI.canAct), say so once, and change nothing', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await page.evaluate(() => {
+    window.__toasts = 0;
+    new MutationObserver(m => { window.__toasts += m.filter(x => x.type === 'childList').length ? 1 : 0; }).observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true });
+  });
+  const r = await page.evaluate(async () => {
+    const n = Game.State.npcsAt(Game.state.player.locationId)[0];
+    const other = n.pronouns === 'she' ? 'he' : 'she';
+    const before = JSON.stringify(Game.state);
+    Game.Storage.setReadOnly(true);
+    window.__toasts = 0;
+    const p = Game.App.setPronouns(n.id, other);
+    await new Promise(res => setTimeout(res, 30));
+    const t1 = window.__toasts;
+    window.__toasts = 0;
+    const e = Game.App.editPerson(n.id, { attitude: 80 });
+    await new Promise(res => setTimeout(res, 30));
+    const t2 = window.__toasts;
+    const same = JSON.stringify(Game.state) === before;
+    Game.Storage.setReadOnly(false);
+    return { p: p.reason, e: e.reason, t1, t2, same, ok: Game.App.setPronouns(n.id, other).ok };
+  });
+  assert.deepEqual(r, { p: 'read-only', e: 'read-only', t1: 1, t2: 1, same: true, ok: true });
+});
+
+s.test('wave 3, the ⋯ trade-off: on a phone with the keyboard up the tab row steps aside but ⋯ stays in reach beside the toggle', async h => {
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  await focusHelper(page);
+  await page.focus('#cmd');
+  await page.setViewportSize({ width: 375, height: 420 });
+  await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
+  const m = await page.evaluate(() => {
+    const b = document.getElementById('act-btn').getBoundingClientRect();
+    return { w: b.width, h: b.height, onScreen: b.bottom <= window.innerHeight && b.right <= 375, tabrow: getComputedStyle(document.querySelector('.tabrow')).display, box: document.getElementById('cmd').getBoundingClientRect().width };
+  });
+  assert.ok(m.w >= 44 && m.h >= 44 && m.onScreen, JSON.stringify(m));
+  assert.equal(m.tabrow, 'none');
+  assert.ok(m.box >= 150, 'the box keeps room to type: ' + m.box);
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await shot(page, 'W3_10_dots_while_typing_375x420');
+  await page.click('#act-btn');
+  assert.ok(await page.isVisible('#act-pop'));
+  assert.ok(await page.evaluate(() => document.getElementById('act-pop').contains(document.activeElement)), 'the list takes the focus');
+  await page.keyboard.press('Escape');
+  assert.notEqual(await page.evaluate(() => window.__focusOf()), 'BODY', 'closed, the focus goes to a ⋯ in view');
+});
+
+s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the engine says it (N15), and the newer-build note on one line at 375', async h => {
+  const page = await open(h, PHONE);
+  // The title, the first-run choice, Settings.
+  assert.equal(await page.textContent('#choose-demo .choice-title'), 'Try the offline demo (canned replies)');
+  assert.equal(await page.textContent('.preset-grid .nowrap'), '4–5¢');
+  assert.ok(await page.evaluate(() => document.querySelectorAll('#set-reread-hint li').length >= 5), 'the Re-read hint is a short list');
+  await page.evaluate(() => { localStorage.setItem('novatria.autosave', '{ not json'); Game.UI.renderTitle(); });
+  assert.match(await page.textContent('#title-broken-text'), /\(Load → Restore previous\)\.$/);
+  await page.evaluate(() => localStorage.removeItem('novatria.autosave'));
+  assert.match(await page.evaluate(() => Game.UI.Create.STEPS.find(x => x.id === 'background').sub), /money, three things \(one a prepaid phone\), and whether/);
+  // In a game: the People card, Grown, an exit closed today.
+  await quickStart(page, { name: 'Tomas Reed' });
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const st = G.state;
+    const day = st.time.day;
+    const here = G.State.npcsAt(st.player.locationId);
+    const n = here[0];
+    G.State.apply({ npcKnownToPlayer: here.map(x => x.id) });
+    const bar = st.locations.find(l => l.type === 'bar') || st.locations.find(l => l.id !== st.player.locationId);
+    st.bans = (st.bans || []).concat([{ locationId: bar.id, byNpcId: n.id, untilDay: day + 3 }]);
+    n.hurtUntilDay = day + 2;
+    G.UI.openPanel('people');
+    G.UI.togglePerson(n.id, true);
+    const meta = document.querySelector(`.pcard[data-npc="${n.id}"] .pcard-meta`).textContent;
+    const note = typeof G.State.absentNote === 'function' ? G.State.absentNote(n) : '';
+    delete n.hurtUntilDay;
+    st.bans = st.bans.filter(b => b.byNpcId !== n.id);
+    const away = st.npcs.find(x => x.alive !== false && G.presenceOf(x) === 'here' && !here.includes(x));
+    G.State.apply({ npcKnownToPlayer: [away.id] });
+    st.seen[away.id] = { locationId: bar.id, day, phase: 'evening', turn: 0 };
+    G.UI.renderPanel();
+    const seen = document.querySelector(`.pcard[data-npc="${away.id}"] .pcard-where`).textContent;
+    const t = st.threads[0];
+    const was = [t.reward, st.player.progression];
+    t.reward = 'wits';
+    st.player.progression = [{ threadId: t.id }];
+    G.UI.openPanel('character');
+    const grown = document.getElementById('panel-body').textContent;
+    [t.reward, st.player.progression] = was;
+    const ex = G.State.loc(st.player.locationId).exits.map(id => G.State.loc(id)).find(l => l.discovered && !l.closed && l.away !== true);
+    ex.closedOn = [G.State.weekday(day)];
+    G.UI.openPanel('places');
+    const exitText = document.querySelector(`.exit-list [data-exit="${ex.id}"] span`).textContent;
+    delete ex.closedOn;
+    return { meta, note, day, bar: bar.name, seen, grown, exitText, exName: ex.name };
+  });
+  assert.ok(r.meta.includes(`Banned you from ${r.bar.replace(/^The /, 'the ')} until Day ${r.day + 3}`), r.meta);
+  assert.ok(r.meta.includes(`Hurt until Day ${r.day + 1}`), r.meta);
+  if (/until day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until day ${r.day + 1}`), 'the same last day as the engine\'s note: ' + r.note);
+  assert.equal(r.seen, `Last seen: ${r.bar}, Day ${r.day} · Evening`);
+  assert.match(r.grown, /: \+1 Wits/);
+  assert.equal(r.exitText, `${r.exName} (closed today)`);
+  // Saves: the name and the slot's line in one form.
+  await page.evaluate(() => Game.UI.showScreen('saves'));
+  assert.equal(await page.inputValue('#save-name'), `Tomas Reed, Day ${r.day}`);
+  await page.click('#slot-1 [data-action="save"]');
+  assert.match(await page.textContent('#slot-1 .slot-meta'), /^Tomas Reed · Day \d+ · (Morning|Afternoon|Evening|Night) · /);
+  // Replacing an autosave that is in no slot asks, and says where to get it back.
+  await page.evaluate(() => { Game.Storage.deleteSlot(1); Game.UI.showScreen('game'); Game.Storage.saveSettings({ playChoice: 'demo' }); window.__q = Game.App.newGame(); });
+  if (await page.evaluate(() => document.getElementById('ask').open)) {
+    assert.match(await page.textContent('#ask-text'), /and Saved games \(Load\) can bring it back\.$/);
+    await page.click('#ask-no');
+  }
+  // The newer-build note: one line at 375.
+  await page.evaluate(() => { const env = JSON.parse(localStorage.getItem('novatria.autosave')); env.state.meta.rulesVersion = Game.State.RULES_VERSION + 1; localStorage.setItem('novatria.autosave', JSON.stringify(env)); Game.App.quitToTitle(); });
+  if (await page.evaluate(() => Game.App.newerRules(JSON.parse(localStorage.getItem('novatria.autosave')).state))) {
+    const note = await page.evaluate(() => { const n = document.getElementById('title-newer-note'); return { text: n.textContent, h: n.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(n).lineHeight) || 20 }; });
+    assert.equal(note.text, 'Saved by a newer version; it may not play right here.');
+    assert.ok(note.h < note.lh * 1.5, `one line at 375 (${note.h}px)`);
+    await shot(page, 'W3_11_newer_note_375');
+  }
+});
+
+s.test('wave 3, copy: the stat move in two sentences', async h => {
+  const page = await open(h, LAPTOP);
+  await page.evaluate(() => Game.Storage.saveSettings({ playChoice: 'demo' }));
+  await page.click('#btn-new');
+  const bg = await page.evaluate(() => Game.data.BACKGROUNDS[0]);
+  await page.fill('#cr-name', 'Ilse');
+  await page.click(`.bg-choice[data-id="${bg.id}"]`);
+  const from = Object.keys(bg.stats).find(k => bg.stats[k] > -1);
+  await page.click(`.step-btn[data-for="${from}"][data-dir="down"]`);
+  assert.equal(await page.textContent('.cr-pending'), `One point taken from ${from.charAt(0).toUpperCase() + from.slice(1)}. Press + on the stat that should get it.`);
 });
 
 s.run();
