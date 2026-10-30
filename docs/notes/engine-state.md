@@ -317,3 +317,78 @@ Nothing happens without a hook.
   day 1 + dayOffset" for a person or place trigger (0: from day 1, once the
   player meets them); a day trigger is still never before tomorrow.
 - Engine keys `newsSeen: 'public'` and `eventsFired: [id]` (above).
+
+## Wave 2
+
+Review bugs 2 and 3, the review's risks and constraint list, and the
+playtest's B12, B13, B14, B18 on the State side. Tests:
+`tests/wave2-fixes.test.cjs`.
+
+- **Every write through `State.apply`.** New engine keys (`ENGINE_KEYS`):
+  - `fight: { npcId, hits (0..3), day, phase, locationId, turn } | null`:
+    the fight in progress (the Pipeline's; saved, so `/undo` takes a hit
+    back).
+  - `logUpdate: { turn?, changes?: 'not recorded' | null, notes?: [text] }`:
+    a logged turn changed afterwards (the newest entry when `turn` is left
+    out): a late bookkeeper retry clears `changes`; the turn's quiet lines go
+    on it as `notes` (at most 24 kept). App's `attachNotes` uses it.
+  - `giftGiven: npcId`: `meta.gifts = { day, ids }`, today's gifts.
+  - `arcFill: { town, seeds?: [{ seedId, effects }] }`: Upgrade version 8 (the
+    town copy's calendar, events and epilogue, rumours' `tellerIds`/`threadId`
+    and threads' `reward` in the copy and in the game, the arc's empty lists,
+    effects for an unfired seed with none). Fills only what is missing;
+    `result.arc` counts it.
+  - `logEntry` keeps `changes: 'not recorded'` and `notes`.
+  - `apply(diff, { quiet: true })` does not call the listeners (the notes on
+    a log entry need no redraw). A change a listener makes while the
+    listeners run is part of that notification (no second round).
+- **Debts paid over time** (review bug 2). An obligation keeps `paid` (set
+  only once something is paid). A model diff's payment goes toward an open
+  (or missed, still owed) debt or blackmail whose person is present when the
+  bookkeeper names it in `obligationsSettled`, or the action was aimed at
+  that person (`opts.targets`, new; transport passes the action's targets),
+  or nobody else is here. Money spent in front of the creditor on anything
+  else pays nothing. Such a payment may move up to what is still owed in one
+  turn (the usual cap is $500). It is met once `paid` covers `amount` (in one
+  turn or several); `obligationsSettled` for a debt not yet covered is
+  refused with what was paid so far.
+- **A missed obligation can still be made good** (playtest B18). The status
+  stays `'missed'` (content, the validator and the UI read met/missed), but
+  `State.obligations('owed')` lists the open ones plus the missed ones still
+  owed (a debt or blackmail not paid in full, an errand whose thing is still
+  carried). Paying (or handing the thing over) later meets it: status
+  `'met'`, `late: true`, and its `onMet` runs then.
+- `addObligation` takes `missText` (the missed due event's words, filled)
+  and `askerId` (an errand: who asked; the one who comes looking). An errand
+  whose thing is no longer carried and whose person already remembers
+  getting it (a memory with its head word: "letter") is met as it is made.
+- `memoriesSettled` from the model needs the person present, and never
+  drops a protected memory (`State.PROTECTED_MEMORIES`: a loose end's, a
+  story point's fact; `State.protectedMemory(m)`; Upgrade uses the same).
+- News: `addNews` takes `eventId` and `seen: true` (it happened in front of
+  the player); `newsSeen` also takes `'ending'` (the epilogue's turn was
+  narrated) and `{ eventId }` (the player watched that town event).
+- `dueAdd` keeps `scene: true`, `eventId` and `obligationId` (a due event
+  about an obligation is dropped untold once it is met).
+- **Hurt** (coordinator item c): `n.hurtUntilDay` is the day they are about
+  again. `State.isHurt(n, day?)` is true on every day before it (whatever
+  their status); `laidUp` is hurt and free. `absentNote` reads "hurt and laid
+  up at X until day N" with N the last day laid up (hurtUntilDay - 1). The UI
+  card should use `State.isHurt` and show `hurtUntilDay - 1`.
+- **A place closed today** (playtest B14): `npcsAt` holds only the people
+  who live there and anyone sent there by a visit; `restQuality()` is
+  `'rough'` there unless a resident friend (25+) lives there.
+- **Saves** (playtest B12, B13): `validateShape(st, town?)` also checks
+  every field the engine reads has its type (`typeProblem`): the player's
+  gold, hp, maxHp, story points and stats are numbers (a number written as
+  text, "140", passes and `load` reads it as the number: `coerceNumbers`);
+  a place's exits and each phase's schedule are lists of ids, `closed` a
+  boolean, `closedOn` a list; a person's memories a list of `{ text,
+  weight }`, tags a list, home a place record; clocks numbers; a seed's
+  trigger a record and effects a list; an obligation's id, kind, status,
+  whole-number dueDay/amount/paid and a person who exists. The town copy
+  (`townTypeProblem`): its lists are lists of records with ids, a place's
+  exits and schedules lists, an event's day a number and its branches and
+  attendees lists, the epilogue, calendar and map records. Storage's
+  `parseEnvelope` now passes the town it carries.
+- `State.NOT_ACTIONS` is exported (the Pipeline's TIME THIS TAKES reads it).

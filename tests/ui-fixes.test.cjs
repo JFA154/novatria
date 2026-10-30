@@ -6,7 +6,7 @@
    Settings (presets, Check key, cost), storage safety (the previous
    autosave, asking first, another tab, a damaged or newer save, the CSP)
    and accessibility (focus, the modal sheet, tabs, contrast).
-   Mock mode throughout. Screenshots go to SHOTS for a look by eye.
+   Mock mode throughout. Screenshots go to $UI_SHOTS for a look by eye (none without it).
    Run with: node tests/run.cjs ui-fixes */
 const fs = require('fs');
 const path = require('path');
@@ -14,10 +14,10 @@ const assert = require('assert/strict');
 const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('ui-fixes');
-const os = require('os');
-// Screenshots for a look by eye: a temp folder unless UI_SHOTS says where.
-const SHOTS = process.env.UI_SHOTS || path.join(os.tmpdir(), 'novatria-ui-shots');
+// Screenshots only when UI_SHOTS names a folder for them (never a session's own path, and nothing written in CI).
+const SHOTS = process.env.UI_SHOTS || null;
 const shot = async (page, name, opts) => {
+  if (!SHOTS) return;
   try { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot(Object.assign({ path: path.join(SHOTS, name + '.png') }, opts || {})); } catch (e) { /* screenshots are for looking at, not for passing */ }
 };
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));

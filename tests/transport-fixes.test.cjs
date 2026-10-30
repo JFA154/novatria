@@ -596,10 +596,9 @@ s.test('/recap: where and when, who is here, open threads, what is owed with a c
   assert.match(lines[1], /^Here: /);
   assert.ok(text.includes(`Open: ${setup.thread}`), text);
   assert.ok(text.includes(`Owed: You owe ${setup.c} $400 · due Day 3 (2 days)`), text);
-  assert.match(text, /\nWarm to you: /);
-  assert.ok(text.includes(`${setup.w} (warm: "bought me a beer")`), text);
-  assert.match(text, /\nCold to you: /);
-  assert.ok(text.includes(`${setup.c} (cold: "called me a liar")`), text);
+  // Wave 2 (the coordinator's wording): the attitude word, then one reason read plainly (never the raw memory in quotes).
+  assert.match(text, new RegExp(`\nWarm to you: (.+, )?${setup.w} \\(warm, remembers you bought (him|her|them) a beer\\)[,.]`));
+  assert.match(text, new RegExp(`\nCold to you: (.+, )?${setup.c} \\(cold, remembers you called (him|her|them) a liar\\)[,.]`));
   assert.ok(!/Loose end with/.test(text), 'a loose end reads as one, not as the raw memory');
   assert.ok(text.includes(`Heard: "${setup.rumour.slice(0, 40)}`), text);
   assert.ok(text.includes('In town: Day 1: The bait shop flooded.'), text);

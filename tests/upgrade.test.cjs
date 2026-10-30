@@ -402,7 +402,8 @@ s.test('the real provider: one structured-output call on the parser model at the
   const sys = await page.evaluate(() => ({ memories: Game.Api.SYSTEM.memories, book: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES }));
   assert.equal(body.system, sys.memories);
   assert.ok(sys.book.endsWith(sys.rules) && sys.memories.includes(sys.rules), 'the bookkeeper\'s memory rules, word for word');
-  assert.match(sys.memories, /At most 6 per person/);
+  // Wave 2: the prompt's cap is the re-read's own (Upgrade.PER_PERSON = State.MEMORY_MAX, 12), not the old 6.
+  assert.ok(sys.memories.includes(`At most ${await page.evaluate(() => Game.Upgrade.PER_PERSON)} per person`), 'the prompt names the cap the re-read keeps');
   const user = body.messages[0].content;
   assert.match(user, /^PLAYER: Tester\nTURN NOW: 20\n\nPERSON /);
   assert.ok(user.includes(`1. [turn 3, weight 2] ${A[0].text}`) && user.includes(`5. [turn 11, weight 2] ${A[4].text}`), user);

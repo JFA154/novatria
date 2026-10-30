@@ -114,7 +114,9 @@ function packetProblems() {
   const last3 = get('LAST 3 TURNS');
   if (last3 !== 'none' && last3.split(' | ').length > 3) bad.push('more than 3 turns of log');
   const due = get('DUE EVENT');
-  if (due !== 'none' && due.split(' / ').length > 2) bad.push('more than 2 due events');
+  // Wave 2 (playtest B6): three a turn (World.MAX_DUE); a narration of time passing (/rest, /wait, /skip) tells every one that is waiting.
+  const quietTurn = !!ctx && /^\/(rest|wait|skip)\b/.test(ctx.input || '');
+  if (due !== 'none' && !quietTurn && due.split(' / ').length > G.World.MAX_DUE) bad.push(`more than ${G.World.MAX_DUE} due events`);
   for (const sd of st.seeds) if (due.includes(sd.effect) && !sd.fired) bad.push('due but unfired ' + sd.id);
   return bad;
 }
@@ -381,7 +383,7 @@ s.test('a favour seed at attitude 60 or more, once the NPC remembers something t
   assert.equal((await feelings(page, a.id, 'grudge')).length, 0);
 });
 
-s.test('location, npc and clock seeds fire at the right moment, wait for notBeforeDay, are capped at two per narration and consumed after it', async h => {
+s.test('location, npc and clock seeds fire at the right moment, wait for notBeforeDay, are capped at three per narration (World.MAX_DUE, wave 2) and consumed after it', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 31 });
   await fast(page);
@@ -396,19 +398,19 @@ s.test('location, npc and clock seeds fire at the right moment, wait for notBefo
     const r = Game.State.apply({ effects: seeds.map(seed => ({ op: 'plantSeed', seed: Object.assign({ cause: 'test', fired: false, hidden: true }, seed) })) });
     if (r.rejected.length) throw new Error(JSON.stringify(r.rejected));
   }, seeds);
-  await plant(page, [1, 2, 3].map(i => ({ id: `seed_test_loc_${i}`, effect: `Test location event number ${i} happens here.`, trigger: { type: 'location', value: dest.id } })));
+  await plant(page, [1, 2, 3, 4].map(i => ({ id: `seed_test_loc_${i}`, effect: `Test location event number ${i} happens here.`, trigger: { type: 'location', value: dest.id } })));
   await sendText(page, 'I look around');
   assert.equal(await page.evaluate(() => Game.state.seeds.filter(s => s.id.startsWith('seed_test_loc') && s.fired).length), 0, 'not fired away from the place');
   await sendText(page, `I walk to ${dest.name}`);
   assert.equal(await page.evaluate(() => Game.state.player.locationId), dest.id);
-  assert.deepEqual(await page.evaluate(() => Game.state.dueEvents.map(e => e.seedId)), ['seed_test_loc_1', 'seed_test_loc_2', 'seed_test_loc_3'], 'all three fired on arrival');
+  assert.deepEqual(await page.evaluate(() => Game.state.dueEvents.map(e => e.seedId)), ['seed_test_loc_1', 'seed_test_loc_2', 'seed_test_loc_3', 'seed_test_loc_4'], 'all four fired on arrival');
   await sendText(page, 'I look around');
   const DUE_NOTE = ' (already true; work it into the scene naturally, not as an announcement)';
-  assert.equal(line(await lastPacket(page), 'DUE EVENT'), 'Test location event number 1 happens here. / Test location event number 2 happens here.' + DUE_NOTE, 'two per narration');
-  assert.ok((await lastLog(page)).narration.includes('Test location event number 2 happens here.'));
-  assert.deepEqual(await page.evaluate(() => Game.state.dueEvents.map(e => e.seedId)), ['seed_test_loc_3'], 'the third waits');
+  assert.equal(line(await lastPacket(page), 'DUE EVENT'), 'Test location event number 1 happens here. / Test location event number 2 happens here. / Test location event number 3 happens here.' + DUE_NOTE, 'three per narration');
+  assert.ok((await lastLog(page)).narration.includes('Test location event number 1 happens here.'));
+  assert.deepEqual(await page.evaluate(() => Game.state.dueEvents.map(e => e.seedId)), ['seed_test_loc_4'], 'the fourth waits');
   await sendText(page, 'I look around');
-  assert.equal(line(await lastPacket(page), 'DUE EVENT'), 'Test location event number 3 happens here.' + DUE_NOTE);
+  assert.equal(line(await lastPacket(page), 'DUE EVENT'), 'Test location event number 4 happens here.' + DUE_NOTE);
   await sendText(page, 'I look around');
   assert.equal(line(await lastPacket(page), 'DUE EVENT'), 'none', 'all consumed');
 

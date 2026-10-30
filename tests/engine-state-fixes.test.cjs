@@ -488,11 +488,12 @@ s.test('metTurn only for people present, and a faction member\'s first meeting m
     // The engine's own memories are never merged.
     S.apply({ newMemories: [{ npcId: n.id, text: 'Fact (a story point): the gate key is under the mat', weight: 3 }, { npcId: n.id, text: 'Fact (a story point): the boat is stolen', weight: 3 }] });
     out.facts = n.memories.filter(m => /^Fact/.test(m.text)).length;
-    // memoriesSettled: matched by words, any case.
-    const settled = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'INSULTED ME in front' }] }, { source: 'model' });
+    // memoriesSettled: matched by words, any case, with the person here (wave 2: never someone who is not in the scene).
+    out.away = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'INSULTED ME in front' }] }, { source: 'model' }).rejected[0].reason;
+    const settled = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'INSULTED ME in front' }] }, { source: 'model', present: [n.id] });
     out.settled = [settled.rejected.length, n.memories.some(m => /insulted/.test(m.text))];
-    out.noMatch = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'saved my dog from the river' }] }, { source: 'model' }).rejected[0].reason;
-    out.short = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'me' }] }, { source: 'model' }).rejected[0].reason;
+    out.noMatch = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'saved my dog from the river' }] }, { source: 'model', present: [n.id] }).rejected[0].reason;
+    out.short = S.apply({ memoriesSettled: [{ npcId: n.id, text: 'me' }] }, { source: 'model', present: [n.id] }).rejected[0].reason;
     return out;
   });
   assert.deepEqual(r.known, [true, true, 0], 'known, not met: no look dropped, no reputation yet');
@@ -501,6 +502,7 @@ s.test('metTurn only for people present, and a faction member\'s first meeting m
   assert.deepEqual(r.merged, ['Tester insulted me in front of my wife|2']);
   assert.match(r.mergeLine, /merged with "Tester insulted me in front of the whole bar"/);
   assert.equal(r.facts, 2);
+  assert.match(r.away, /is not here/, 'someone not in the scene settles nothing');
   assert.deepEqual(r.settled, [0, false]);
   assert.match(r.noMatch, /has no memory like/);
   assert.match(r.short, /at least 6 characters/);

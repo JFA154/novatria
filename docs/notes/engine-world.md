@@ -304,3 +304,55 @@ Names this region calls that another agent provides (all guarded):
   loose end's.
 - Attitude drift toward the town's starting attitude (not 0) and the favour
   threshold (a memory of weight 2 or more) stand as designed.
+
+## Wave 2
+
+Review bugs 5, 6, 8 (World side) and the playtest's B5, B6, B7, B9 and B18
+(World and Town side). Tests: `tests/wave2-fixes.test.cjs`.
+
+- `Tables.price` multiplies by `State.priceFactor()`; `Tables.playerFactor`
+  (a second copy of it) is gone.
+- `Dice.successes` / `Dice.diminishing` and `roll.complicationEffects` are
+  now used by the Pipeline (see transport.md, Wave 2).
+- **One loose-end obligation builder**: `Town.obligationFor(le, target?)`
+  returns `{ effect, onStart }` (the `addObligation` effect with `dueOffset`,
+  every placeholder filled, plus content's optional `missText` and
+  `askerId`). `Town.resolveLooseEnd` and Upgrade version 8 both use it
+  (Upgrade's own copy and the `State.obligationEffect` it asked for are not
+  needed).
+- **Plausibility** (playtest B5): outside a fact bought with a story point,
+  a gun or ammunition is only where guns are kept (pawn, police, a farm or a
+  home), explosives nowhere, a boat only by the river, a car or truck where
+  one is parked (most places, not inside a flat or a trailer). A thing's head
+  phrase ends at "and" ("a rifle and shells" is a rifle; the Pipeline splits
+  "X and a Y" into two things); an item in the scene also matches by its own
+  head phrase ("rod" finds "Rod and reel").
+- **Town events** (review bug 8, playtest B9): one news item per event (the
+  branch's own `addNews` when it has one, else its text), carrying the
+  event's id; the due event at the player's place carries it too and
+  `dueNarrated` marks that news seen, so "Overnight in town" never tells
+  what the player watched. An event the clock jumped past (a `setTime`, a
+  save loaded late) still happens but as news only, dated its own day and
+  phase: no scene, nobody gathered.
+- **Clock completions**: one news item (the completion's own `addNews` when
+  it has one), already seen when it happened in front of the player (its
+  quiet line tells it).
+- **Due events** (playtest B6, SEAMS "told late"): `World.MAX_DUE` is 3;
+  `dueSeeds({ max })` takes more (the Pipeline passes `Infinity` for a
+  narration of time passing). Each comes out with its `firedDay`, `scene`
+  and `eventId`, the scene first, then someone come for the player, then the
+  rest. A due event about an obligation (`obligationId`: a loose end's seed
+  that made it, a missed one's "comes looking") is dropped once that is met.
+  `fire()` runs a seed's effects before adding its due event, so the event
+  can name the obligation they made.
+- **Missed obligations** (playtest B18): the person let down is the one owed,
+  or for an errand its `askerId` (the person the thing goes to never comes
+  looking: they may not know it exists). They get a weight-3 memory (unless
+  the obligation's `onMiss` already gives them one) and, when they are in
+  town, a due event: content's `missText`, else "<Name> comes looking for
+  <player> about the money owed, now past due.".
+- **Fights**: `World.arrestPlan()` says what an arrest would be without
+  doing it (the Pipeline tells it in the fight's narration);
+  `World.arrestPlayer({ told: true })` then plants no due event.
+  `knockDown`'s news is marked seen (the player was there). Place names in
+  these sentences read "the Low Water" (`placeIn`).

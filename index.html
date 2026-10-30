@@ -6280,25 +6280,13 @@ const Tables = (() => {
     const g = r.pick(TABLES.items.goods);
     return { id: 'item_' + slugify(g.name), name: g.name, qty: 1, notes: '', price: price(g.name) };
   }
-  /* A listed price with the town's multiplier (flags.priceMultiplier) and
-     the player's own (the playerPrice op:
-     flags.playerPriceMultiplier, a factor or { factor, untilDay }, with
-     flags.playerPriceUntilDay; it no longer counts after its day). */
-  function playerFactor(s) {
-    const f = s && s.flags ? s.flags : {};
-    const pm = f.playerPriceMultiplier;
-    const factor = typeof pm === 'number' ? pm : isObj(pm) ? Number(pm.factor) : NaN;
-    const until = isObj(pm) && Number.isInteger(pm.untilDay) ? pm.untilDay : Number.isInteger(f.playerPriceUntilDay) ? f.playerPriceUntilDay : null;
-    if (!Number.isFinite(factor) || factor <= 0) return 1;
-    if (until !== null && s.time && s.time.day > until) return 1;
-    return factor;
-  }
+  /* A listed price times State.priceFactor(): the town's multiplier
+     (flags.priceMultiplier) and the player's own while it lasts (the
+     playerPrice op). */
   function price(name) {
     const g = TABLES.items.goods.find(x => x.name.toLowerCase() === String(name).toLowerCase());
     if (!g) return null;
-    const s = State.current;
-    const m = ((s && s.flags.priceMultiplier) || 1) * playerFactor(s);
-    return Math.max(1, Math.round(g.price * m));
+    return Math.max(1, Math.round(g.price * State.priceFactor()));
   }
   /* One TABLES.complications entry, picked with no regard to the action
      (Dice.complication picks one that fits). */
@@ -6466,6 +6454,8 @@ const State = (() => {
   const undo = [];
   const UNDO_MAX = 20;
   const LOG_MAX = 30;
+  const LOG_NOTES_MAX = 24; // quiet lines kept on one log entry (logEntry / logUpdate notes)
+  function logNotes(v) { return (Array.isArray(v) ? v : []).filter(x => typeof x === 'string' && x.trim()).map(x => x.slice(0, 2000)).slice(-LOG_NOTES_MAX); }
   const MEMORY_MAX = 12; // per person; the oldest, lightest go first (State.apply newMemories)
   const MEMORY_TEXT_MAX = 120;
   const MEMORY_STALE_TURNS = 30; // weight-1 memories older than this are forgotten when a new one arrives
@@ -6507,7 +6497,13 @@ const State = (() => {
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
-    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired'];
+    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
+    'fight', 'logUpdate', 'arcFill', 'giftGiven'];
+  /* A person's memories no bookkeeper may settle away (memoriesSettled) and
+     no re-read may change (Upgrade): the loose end the player came with and
+     a fact bought with a story point. */
+  const PROTECTED_MEMORIES = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
+  function protectedMemory(m) { return !!m && PROTECTED_MEMORIES.some(re => re.test(String(m.text || ''))); }
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background']);
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -7392,9 +7388,21 @@ const State = (() => {
   }
   function obligation(id) { return current ? find(obligationList(), id) : null; }
   /* The obligations, all or those with one status (open, met, missed). */
+  /* The obligations, all or those with one status (open, met, missed), or
+     'owed': the open ones and the missed ones that can still be made good
+     (wave 2: a missed debt or blackmail not paid in full, an errand whose
+     thing is still carried; paying or handing it over late meets it, and
+     its onMet runs then). */
+  function stillOwed(o) {
+    if (o.status !== 'missed') return false;
+    if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0) return (o.paid | 0) < o.amount;
+    if (o.kind === 'errand' && o.itemName) return !!findHeld(o.itemName);
+    return false;
+  }
   function obligations(status) {
     if (!current) return [];
     const list = obligationList();
+    if (status === 'owed') return list.filter(o => o.status === 'open' || stillOwed(o));
     return typeof status === 'string' ? list.filter(o => o.status === status) : list.slice();
   }
   /* The morning tick (World.tick calls it each new day): every open
@@ -7425,11 +7433,23 @@ const State = (() => {
     if (isObj(v)) { const o = {}; for (const k of Object.keys(v)) o[k] = fillDeep(v[k], vars); return o; }
     return v;
   }
+  /* Whether an errand's thing already reached its person: they remember
+     getting it (a memory with the thing's head word: "letter" for "Letter
+     for Jodie Strayhorn"). */
+  function errandDone(n, itemName) {
+    const head = String(itemName || '').toLowerCase().replace(/^(a|an|the)\s+/, '').split(/\s+(?:for|from|to|of)\s+/)[0].trim();
+    if (head.length < 3) return false;
+    const re = new RegExp(`\\b${head.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i');
+    return (Array.isArray(n.memories) ? n.memories : []).some(m => !protectedMemory(m) && re.test(String(m.text || '')));
+  }
   /* An obligation met or missed: its onMet or onMiss effects run once, as
      part of the apply that settled it (their own lines and refusals). */
   function settle(o, status, how) {
-    if (o.status !== 'open') return `no-op: ${o.id} is already ${o.status}`;
+    // A missed one still owed can be met late, once (late: true; its onMet runs then).
+    const late = o.status === 'missed' && status === 'met' && stillOwed(o);
+    if (o.status !== 'open' && !late) return `no-op: ${o.id} is already ${o.status}`;
     o.status = status;
+    if (late) o.late = true;
     o.settledDay = current.time.day;
     o.settledTurn = current.meta.turn;
     if (applyCtx) (applyCtx.result.settled = applyCtx.result.settled || []).push({ id: o.id, status });
@@ -7678,10 +7698,13 @@ const State = (() => {
       return parts.join('; ') || `${t.id} unchanged`;
     },
     /* { kind, npcId, text, amount?, dueDay? or dueOffset?, itemName?, onMiss?,
-       onMet?, id? }: one open obligation per kind and person; dueOffset counts
-       from today (a loose end's seed carries it to the day it fires). The
-       obligation's own person and the player fill any placeholders left in
-       its text and effects. */
+       onMet?, id?, missText? (what the person owed does when it is missed:
+       the due event then; else a plain line), askerId? (an errand: who asked
+       for it, the one who comes looking when it is missed; npcId is who the
+       thing goes to) }: one open obligation per kind and person; dueOffset
+       counts from today (a loose end's seed carries it to the day it fires).
+       The obligation's own person and the player fill any placeholders left
+       in its text and effects. */
     addObligation(e) {
       if (!OBLIGATION_KINDS.includes(e.kind)) bad(`kind must be ${OBLIGATION_KINDS.join(', ')}`);
       const n = needNpc(e.npcId);
@@ -7711,9 +7734,16 @@ const State = (() => {
       const onMet = effectList(fillDeep(e.onMet, vars), 'onMet');
       const base = typeof e.id === 'string' && /^obl_[a-z0-9_]+$/.test(e.id) ? e.id : `obl_${e.kind}_${n.id}`;
       const id = uniqueId(base, x => list.some(o => o.id === x));
-      list.push({ id, kind: e.kind, npcId: n.id, text, amount, dueDay, itemName: cleanText(fillTemplate(e.itemName, vars), 60) || null,
-        status: 'open', onMiss, onMet, createdTurn: current.meta.turn, createdDay: day });
-      return `obligation ${id} (${e.kind} to ${n.id}${amount !== null ? `, ${money(amount)}` : ''}${dueDay !== null ? `, due day ${dueDay}` : ''})`;
+      const itemName = cleanText(fillTemplate(e.itemName, vars), 60) || null;
+      const o = { id, kind: e.kind, npcId: n.id, text, amount, dueDay, itemName, status: 'open', onMiss, onMet, createdTurn: current.meta.turn, createdDay: day };
+      const missText = cleanText(fillTemplate(e.missText, vars), 300);
+      if (missText) o.missText = missText;
+      if (e.askerId !== undefined && e.askerId !== null) o.askerId = needNpc(e.askerId).id;
+      list.push(o);
+      const line = `obligation ${id} (${e.kind} to ${n.id}${amount !== null ? `, ${money(amount)}` : ''}${dueDay !== null ? `, due day ${dueDay}` : ''})`;
+      // An errand already done before it fell due (the letter handed over before its seed fired): met at once, its onMet once.
+      if (o.kind === 'errand' && itemName && !findHeld(itemName) && errandDone(n, itemName)) return `${line}; ${settle(o, 'met', `${itemName} was already handed over`)}`;
+      return line;
     },
     /* { id, status: 'met' | 'missed' }: its onMet or onMiss effects, once. */
     settleObligation(e) {
@@ -7721,17 +7751,21 @@ const State = (() => {
       const o = obligation(e.id) || bad(`unknown obligation "${e.id}"`);
       return settle(o, e.status, cleanText(e.how, 80));
     },
-    /* { text, factionId?, public? (default true), epilogue?, day?, phase? }:
-       town news (state.news, the newest LIMITS.news kept). day and phase
-       default to now (a tick may name the phase it ran for). */
+    /* { text, factionId?, public? (default true), epilogue?, day?, phase?,
+       eventId? (the town event that made it: newsSeen { eventId } marks it
+       seen once the player has watched it happen), seen? (true: it happened
+       in front of the player, so the morning's news does not tell it
+       again) }: town news (state.news, the newest LIMITS.news kept). day
+       and phase default to now (a tick may name the phase it ran for). */
     addNews(e) {
       const text = cleanText(e.text, 400);
       if (!text) bad('news needs text');
       const factionId = e.factionId !== undefined && e.factionId !== null ? needFaction(e.factionId).id : null;
       const t = current.time;
       const day = Number.isInteger(e.day) && e.day >= 1 && e.day <= t.day ? e.day : t.day;
-      const item = { day, phase: PHASES.includes(e.phase) ? e.phase : t.phase, text, factionId, public: e.public !== false, seen: false };
+      const item = { day, phase: PHASES.includes(e.phase) ? e.phase : t.phase, text, factionId, public: e.public !== false, seen: e.seen === true };
       if (e.epilogue === true) item.epilogue = true;
+      if (typeof e.eventId === 'string' && /^[a-z0-9_.-]{1,60}$/i.test(e.eventId)) item.eventId = e.eventId;
       if (!Array.isArray(current.news)) current.news = [];
       current.news.push(item);
       if (current.news.length > LIMITS.news) current.news.splice(0, current.news.length - LIMITS.news);
@@ -7846,6 +7880,8 @@ const State = (() => {
     const l = loc(current.player.locationId);
     const type = l ? String(l.type || '').toLowerCase() : '';
     if (!l || !(LODGING_TYPES.includes(type) || DWELLING_TYPES.includes(type))) return 'rough';
+    // A place shut today is no bed for anyone who does not live there (playtest B14).
+    if (isClosed(l) && !current.npcs.some(n => isObj(n.home) && n.home.locationId === l.id && n.attitude >= 25 && n.alive !== false)) return 'rough';
     const paid = current.flags.lodgingPaidUntilDay;
     if (LODGING_TYPES.includes(type) && Number.isInteger(paid) && paid >= current.time.day) return 'bed';
     const host = current.npcs.some(n => n.alive !== false && n.status === 'free' && isObj(n.home) && n.home.locationId === l.id && n.attitude >= 25);
@@ -7934,8 +7970,12 @@ const State = (() => {
     const phases = Array.isArray(a.phases) ? a.phases : PHASES;
     return days.includes(weekday(day)) && phases.includes(phase || current.time.phase);
   }
-  /* Hurt (npcFates, World.knockDown): laid up at home until hurtUntilDay. */
-  function laidUp(n, day) { return !!n && n.status === 'free' && Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > dayOf(day); }
+  /* Hurt (npcFates, World.knockDown): n.hurtUntilDay is the day they are
+     about again. isHurt: hurt on that day (every day before hurtUntilDay;
+     the last day hurt is hurtUntilDay - 1), whatever their status; laidUp:
+     hurt and free, so at home in every phase (npcsAt). */
+  function isHurt(n, day) { return !!n && Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > dayOf(day); }
+  function laidUp(n, day) { return !!n && n.status === 'free' && isHurt(n, day); }
   /* Why someone is not about, in a few words: the dead and the far away
      (absentNote), then "hurt and laid up at the Mangum House until day 5",
      "at the county school in Clayburn until evening"; '' when they are about. */
@@ -7946,7 +7986,7 @@ const State = (() => {
     const ph = PHASES.includes(phase) ? phase : current.time.phase;
     if (laidUp(n, day)) {
       const h = isObj(n.home) ? loc(n.home.locationId) : null;
-      return `hurt and laid up ${h ? `at ${h.name.replace(/^The /, 'the ')}` : 'at home'} until day ${n.hurtUntilDay}`;
+      return `hurt and laid up ${h ? `at ${h.name.replace(/^The /, 'the ')}` : 'at home'} until day ${n.hurtUntilDay - 1}`;
     }
     if (awayNow(n, ph, day)) {
       const phases = Array.isArray(n.awayOn.phases) ? n.awayOn.phases : PHASES;
@@ -8483,7 +8523,7 @@ const State = (() => {
     const outer = applyCtx;
     applyCtx = { no, result };
     try { applyDiff(diff, opts, source, result, run, no); } finally { applyCtx = outer; }
-    return finish(result, source);
+    return finish(result, source, !!(opts && opts.quiet));
   }
   function applyDiff(diff, opts, source, result, run, no) {
     syncLedger();
@@ -8494,6 +8534,8 @@ const State = (() => {
     const present = opts && Array.isArray(opts.present) ? opts.present.filter(x => typeof x === 'string') : null;
     const rollSuccess = opts ? opts.rollSuccess : undefined;
     const attacked = opts && typeof opts.attacked === 'string' && opts.attacked ? opts.attacked : null;
+    // Whom the action was aimed at (transport passes the action's targets with a bookkeeper's diff).
+    const targets = opts && Array.isArray(opts.targets) ? opts.targets.filter(x => typeof x === 'string') : [];
     const model = source === 'model';
     let goldRefused = false; // an unaffordable payment: what it bought is refused too (review E3)
     let paid = 0; // money the player handed over this diff (settles a debt by play)
@@ -8503,6 +8545,19 @@ const State = (() => {
       if (!allowed.includes(k)) no(k, ENGINE_KEYS.includes(k) ? 'not allowed from the model' : 'unknown field');
     }
     const val = k => (allowed.includes(k) && diff[k] !== undefined && diff[k] !== null ? diff[k] : undefined);
+    /* What a payment in this diff goes toward (wave 2): an open debt or
+       blackmail with an amount, its person present, and either the
+       bookkeeper names it in obligationsSettled or the money plainly went to
+       them (the action was aimed at them, or nobody else is here). Money
+       spent in front of a creditor on anything else (a beer at their bar)
+       pays nothing off. Such a payment may move up to what is still owed in
+       one turn (the bookkeeper's usual cap is LIMITS.modelGoldPerTurn), and
+       what is paid is kept on the obligation (paid), turn after turn, until
+       it covers the amount. */
+    const named = Array.isArray(val('obligationsSettled')) ? val('obligationsSettled') : [];
+    const payees = model && present ? obligations('owed').filter(o => (o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0
+      && present.includes(o.npcId) && (named.includes(o.id) || targets.includes(o.npcId) || present.length === 1)) : [];
+    const owedNow = payees.reduce((sum, o) => sum + Math.max(0, o.amount - (o.paid | 0)), 0);
     const each = (k, fn) => {
       const list = val(k);
       if (list === undefined) return;
@@ -8558,9 +8613,10 @@ const State = (() => {
       if (d0 === null) bad('must be an integer');
       if (d0 === 0) return null;
       let d = d0;
-      // A bookkeeper moves at most LIMITS.modelGoldPerTurn either way in a turn.
+      // A bookkeeper moves at most LIMITS.modelGoldPerTurn either way in a turn; a payment toward an open debt, up to what is still owed.
       if (model) {
-        d = clamp(ledger.gold + d0, -LIMITS.modelGoldPerTurn, LIMITS.modelGoldPerTurn) - ledger.gold;
+        const most = Math.max(LIMITS.modelGoldPerTurn, owedNow);
+        d = clamp(ledger.gold + d0, -most, LIMITS.modelGoldPerTurn) - ledger.gold;
         if (d === 0) bad(`money already moved ${money(LIMITS.modelGoldPerTurn)} this turn`);
       }
       if (p.gold + d < 0) { goldRefused = true; bad(`cannot afford ${money(-d)} (have ${money(p.gold)})`); }
@@ -8751,45 +8807,60 @@ const State = (() => {
       if (f.status !== 'hurt') return EFFECTS.npcStatus({ npcId: n.id, status: f.status });
       n.hurtUntilDay = Math.max(Number.isInteger(n.hurtUntilDay) ? n.hurtUntilDay : 0, s.time.day + 2);
       s.visits = (s.visits || []).filter(v => v.npcId !== n.id);
-      return `${n.id} hurt: laid up at home until day ${n.hurtUntilDay}`;
+      return `${n.id} hurt: laid up at home through day ${n.hurtUntilDay - 1}, about again on day ${n.hurtUntilDay}`;
     });
     /* A memory this turn resolved: the first of the person's memories whose
-       words hold the given words (or are held in them), any case, goes. */
+       words hold the given words (or are held in them), any case. From the
+       model the person must be here; a loose end's memory and a story
+       point's fact are never settled away (PROTECTED_MEMORIES). */
     each('memoriesSettled', m => {
       if (!isObj(m)) bad('must be an object');
       const n = needNpc(m.npcId);
+      if (model && !(present && present.includes(n.id))) bad(`${n.id} is not here`);
       const want = cleanText(m.text, 200).toLowerCase();
       if (want.length < 6) bad('text must be at least 6 characters');
       const list = Array.isArray(n.memories) ? n.memories : [];
-      const i = list.findIndex(x => { const t = String(x.text || '').toLowerCase(); return t.includes(want) || (t.length >= 6 && want.includes(t)); });
-      if (i < 0) bad(`${n.id} has no memory like "${m.text}"`);
+      const i = list.findIndex(x => { if (protectedMemory(x)) return false; const t = String(x.text || '').toLowerCase(); return t.includes(want) || (t.length >= 6 && want.includes(t)); });
+      if (i < 0) bad(`${n.id} has no memory like "${m.text}"${list.some(protectedMemory) ? ' (a loose end or a fact is never settled away)' : ''}`);
       const gone = list.splice(i, 1)[0];
       return `${n.id} let go of "${gone.text}"`;
     });
-    /* Settling by play (model diffs, with who was present): money handed
-       over in front of a creditor that covers a debt (or blackmail) meets
-       it; the errand's thing given up in front of the person who wanted it
-       meets the errand. */
+    /* Settling by play (model diffs, with who was present). Money: what this
+       diff handed over goes to the payees above in order, kept as paid on
+       each; one is met when paid covers its amount (over one turn or
+       several). An errand: its thing given up in front of the person who
+       wanted it meets it. */
     if (model && present) {
-      for (const o of obligations('open')) {
-        if (!present.includes(o.npcId)) continue;
-        if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0 && paid >= o.amount) {
-          paid -= o.amount;
-          run(`settled.${o.id}`, () => settle(o, 'met', `paid ${money(o.amount)}`));
-        } else if (o.kind === 'errand' && o.itemName && lostNames.some(nm => sameThing(nm, o.itemName))) {
-          run(`settled.${o.id}`, () => settle(o, 'met', `handed over ${o.itemName}`));
+      for (const o of payees) {
+        if ((o.status !== 'open' && !stillOwed(o)) || paid <= 0) continue;
+        const give = Math.min(paid, o.amount - (o.paid | 0));
+        if (give <= 0) continue;
+        paid -= give;
+        o.paid = (o.paid | 0) + give;
+        if (o.paid >= o.amount) {
+          // Paid in full: met (a missed one late; stillOwed is false once paid, so it is settled here directly).
+          const wasMissed = o.status === 'missed';
+          if (wasMissed) o.status = 'open';
+          run(`settled.${o.id}`, () => { const line = settle(o, 'met', `paid ${money(o.amount)}${o.paid > give ? ` in all (${money(give)} this time)` : ''}${wasMissed ? ', late' : ''}`); if (wasMissed) o.late = true; return line; });
+        } else run(`paid.${o.id}`, () => `${money(give)} paid toward ${o.id}: ${money(o.paid)} of ${money(o.amount)}`);
+      }
+      for (const o of obligations()) {
+        if ((o.status === 'open' || o.status === 'missed') && o.kind === 'errand' && o.itemName && present.includes(o.npcId) && lostNames.some(nm => sameThing(nm, o.itemName))) {
+          const wasMissed = o.status === 'missed';
+          if (wasMissed) o.status = 'open';
+          run(`settled.${o.id}`, () => { const line = settle(o, 'met', `handed over ${o.itemName}${wasMissed ? ', late' : ''}`); if (wasMissed) o.late = true; return line; });
         }
       }
     }
     /* Obligations the story settled. From the model: the person present; a
-       debt with an amount is met only by paying it (above), an errand only
-       once its thing is no longer carried. */
+       debt with an amount is met only once what was paid toward it covers
+       it (above), an errand only once its thing is no longer carried. */
     each('obligationsSettled', id => {
       const o = obligation(id) || bad(`unknown obligation "${id}"`);
-      if (o.status !== 'open') return null;
+      if (o.status !== 'open' && !stillOwed(o)) return null;
       if (model) {
         if (!present || !present.includes(o.npcId)) bad(`${o.npcId} is not here`);
-        if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0) bad(`${o.id} is met by paying ${money(o.amount)}`);
+        if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0 && (o.paid | 0) < o.amount) bad(`${o.id} is met by paying ${money(o.amount)} (${money(o.paid | 0)} paid so far)`);
         if (o.kind === 'errand' && o.itemName && findHeld(o.itemName)) bad(`${o.itemName} is still carried`);
       }
       return settle(o, 'met', 'in the story');
@@ -8840,15 +8911,44 @@ const State = (() => {
       const out = expireNow(v);
       return out.length ? out.join('; ') : null;
     });
-    // The news the player has been shown (transport, each new morning): true marks every item seen.
-    /* true: every news item seen; 'public': the public ones that are not an
-       ending (what the morning's "Overnight in town" block told). */
+    /* The news the player has been shown. true: every item; 'public': the
+       public ones that are not an ending (what the morning's "Overnight in
+       town" block told); 'ending': the endings (their epilogue turn was
+       narrated); { eventId }: what a town event made, once the player saw
+       it happen (its due event narrated). */
     one('newsSeen', v => {
-      if (v !== true && v !== 'public') bad('must be true or "public"');
-      const unseen = (Array.isArray(s.news) ? s.news : []).filter(x => !x.seen && (v === true || (x.public !== false && x.epilogue !== true)));
+      const ev = isObj(v) && typeof v.eventId === 'string' && v.eventId ? v.eventId : null;
+      if (v !== true && v !== 'public' && v !== 'ending' && !ev) bad('must be true, "public", "ending" or { eventId }');
+      const pick = x => (v === true ? true : v === 'public' ? x.public !== false && x.epilogue !== true : v === 'ending' ? x.epilogue === true : x.eventId === ev);
+      const unseen = (Array.isArray(s.news) ? s.news : []).filter(x => !x.seen && pick(x));
       unseen.forEach(x => { x.seen = true; });
       return unseen.length ? `${unseen.length} news seen` : null;
     });
+    /* A gift handed to someone (Pipeline): meta.gifts = { day, ids } holds
+       today's, so a second gift to the same person that day earns no warmth. */
+    one('giftGiven', id => {
+      const n = needNpc(id);
+      const g = isObj(s.meta.gifts) && s.meta.gifts.day === s.time.day && Array.isArray(s.meta.gifts.ids) ? s.meta.gifts : { day: s.time.day, ids: [] };
+      s.meta.gifts = { day: g.day, ids: g.ids.concat(n.id).slice(-20) };
+      return `gift to ${n.id} (${s.meta.gifts.ids.filter(x => x === n.id).length} today)`;
+    });
+    /* The fight in progress (Pipeline: three clean hits on one person in one
+       scene put them down): { npcId, hits, day, phase, locationId }, or null
+       when it is over. Saved, so /undo takes a hit back with its turn. */
+    if (Object.prototype.hasOwnProperty.call(diff, 'fight') && allowed.includes('fight')) {
+      run('fight', () => {
+        const f = diff.fight;
+        if (f === null) { if (s.fight === undefined) return null; delete s.fight; return 'fight over'; }
+        if (!isObj(f)) bad('must be an object or null');
+        const n = needNpc(f.npcId);
+        const hits = toInt(f.hits);
+        if (hits === null || hits < 0 || hits > 3) bad('hits must be 0 to 3');
+        if (!Number.isInteger(f.day) || !PHASES.includes(f.phase)) bad('needs day and phase');
+        const l = needLoc(f.locationId);
+        s.fight = { npcId: n.id, hits, day: f.day, phase: f.phase, locationId: l.id, turn: Number.isInteger(f.turn) ? f.turn : s.meta.turn };
+        return `fight with ${n.id}: ${hits} hit${hits === 1 ? '' : 's'}`;
+      });
+    }
     /* A town event (TOWN_DATA.events) or the epilogue told (World.fireEvents):
        its id goes in state.eventsFired, once (CONTRACTS section 11). */
     each('eventsFired', id => {
@@ -8920,6 +9020,11 @@ const State = (() => {
       const ev = { seedId: sd.id, text: cleanText(e.text, 400) || sd.effect, firedTurn: s.meta.turn, firedDay: s.time.day };
       if (e.npcId !== undefined && e.npcId !== null) ev.npcId = needNpc(e.npcId).id;
       if (e.bring === true && ev.npcId) ev.bring = true;
+      // A town event at the player's place is the scene itself; its news is seen once it is narrated.
+      if (e.scene === true) ev.scene = true;
+      if (typeof e.eventId === 'string' && /^[a-z0-9_.-]{1,60}$/i.test(e.eventId)) ev.eventId = e.eventId;
+      // The obligation it is about: once that is met the event is dropped untold (a debt confrontation after the debt was paid).
+      if (typeof e.obligationId === 'string' && obligation(e.obligationId)) ev.obligationId = e.obligationId;
       s.dueEvents.push(ev);
       return `${sd.id} due`;
     });
@@ -8997,6 +9102,10 @@ const State = (() => {
         narration: typeof e.narration === 'string' ? e.narration.trim().slice(0, 6000) : ''
       };
       if (e.mock === true) entry.mock = true;
+      // The bookkeeper failed (the narration stands); logUpdate clears it when a late retry records the turn.
+      if (e.changes === 'not recorded') entry.changes = 'not recorded';
+      const notes = logNotes(e.notes);
+      if (notes.length) entry.notes = notes;
       /* How the input was meant (the composer's Do / Say): mode 'do' or
          'say'; a Say entry also names who it was said to (to: an npc id or
          'everyone', toName: their name then). input is then the exact
@@ -9014,6 +9123,74 @@ const State = (() => {
       if (s.log.length > LOG_MAX) s.log.splice(0, s.log.length - LOG_MAX);
       noteSeen(s, entry);
       return `log turn ${entry.turn}`;
+    });
+    /* A logged turn changed afterwards: { turn? (default the newest entry),
+       changes?: 'not recorded' | null (a late bookkeeper retry recorded it),
+       notes?: [text] (quiet lines for it, which the feed shows again after
+       a reload; the newest LOG_NOTES_MAX kept) }. */
+    one('logUpdate', v => {
+      if (!isObj(v)) bad('must be an object');
+      const e = v.turn === undefined || v.turn === null ? s.log[s.log.length - 1] : s.log.find(x => x.turn === toInt(v.turn));
+      if (!e) bad(v.turn === undefined || v.turn === null ? 'the log is empty' : `no log entry for turn ${v.turn}`);
+      const parts = [];
+      if (v.changes === null && e.changes !== undefined) { delete e.changes; parts.push('changes recorded'); }
+      else if (v.changes === 'not recorded' && e.changes !== 'not recorded') { e.changes = 'not recorded'; parts.push('changes not recorded'); }
+      else if (v.changes !== undefined && v.changes !== null && v.changes !== 'not recorded') bad('changes must be "not recorded" or null');
+      const notes = logNotes(v.notes);
+      if (notes.length) { e.notes = (Array.isArray(e.notes) ? e.notes : []).concat(notes).slice(-LOG_NOTES_MAX); parts.push(`${notes.length} note${notes.length === 1 ? '' : 's'}`); }
+      return parts.length ? `log turn ${e.turn}: ${parts.join(', ')}` : null;
+    });
+    /* Upgrade version 8 ("An arc"): { town (the town data), seeds?: [{ seedId,
+       effects }] }. The game's town copy gains the calendar, events and
+       epilogue it lacks; rumours (tellerIds, threadId) and threads (reward),
+       in the copy and in the game, gain the fields they lack from the town
+       data's record with the same id; the arc's lists (news, bans,
+       eventsFired, player.obligations) are made where missing; an unfired
+       seed with no effects of its own gets the effects given (a loose end's
+       obligation, a grudge's template). Nothing the game has is overwritten.
+       result.arc counts what was filled. */
+    one('arcFill', v => {
+      if (!isObj(v)) bad('must be an object');
+      const T = isObj(v.town) ? v.town : null;
+      const out = { town: [], rumours: 0, threads: 0, defaults: [], seeds: 0 };
+      const fill = (list, from, keys) => {
+        if (!Array.isArray(list) || !Array.isArray(from)) return 0;
+        let k = 0;
+        for (const x of list) {
+          const src = isObj(x) ? from.find(y => isObj(y) && y.id === x.id) : null;
+          if (!src) continue;
+          let any = false;
+          for (const key of keys) if (x[key] === undefined && src[key] !== undefined) { x[key] = deepCopy(src[key]); any = true; }
+          if (any) k += 1;
+        }
+        return k;
+      };
+      if (T && isObj(town) && town !== T) {
+        for (const k of ['calendar', 'events', 'epilogue']) if (T[k] !== undefined && town[k] === undefined) { town[k] = deepCopy(T[k]); out.town.push(k); }
+        fill(town.rumours, T.rumours, ['tellerIds', 'threadId']);
+        fill(town.threads, T.threads, ['reward']);
+      }
+      if (T) {
+        out.rumours = fill(s.rumours, T.rumours, ['tellerIds', 'threadId']);
+        out.threads = fill(s.threads, T.threads, ['reward']);
+      }
+      const need = (obj, key, label) => { if (isObj(obj) && obj[key] === undefined) { obj[key] = []; out.defaults.push(label); } };
+      need(s, 'news', 'news');
+      need(s.player, 'obligations', 'obligations');
+      need(s, 'bans', 'bans');
+      need(s, 'eventsFired', 'events fired');
+      for (const x of Array.isArray(v.seeds) ? v.seeds : []) {
+        const sd = isObj(x) ? seed(x.seedId) : null;
+        if (!sd || sd.fired || (Array.isArray(sd.effects) && sd.effects.length)) continue;
+        let list = [];
+        try { list = effectList(x.effects, `seed ${sd.id}`); } catch (err) { if (!(err instanceof Reject)) throw err; no(`arcFill.seeds.${sd.id}`, err.message); continue; }
+        if (!list.length) continue;
+        sd.effects = list;
+        out.seeds += 1;
+      }
+      result.arc = out;
+      if (!out.town.length && !out.rumours && !out.threads && !out.defaults.length && !out.seeds) return null;
+      return `an arc: town ${out.town.join(', ') || 'unchanged'}; ${out.rumours} rumours, ${out.threads} threads filled; lists ${out.defaults.join(', ') || 'kept'}; ${out.seeds} seeds given effects`;
     });
     one('defeat', d => {
       if (!isObj(d) || !DEFEAT_OUTCOMES.includes(d.outcome)) bad('outcome must be ' + DEFEAT_OUTCOMES.join(', '));
@@ -9148,24 +9325,32 @@ const State = (() => {
     return Number.isInteger(v) && v >= 1 ? v : 1;
   }
 
-  function finish(result, source) {
+  /* quiet (opts.quiet): a change nothing on screen needs to redraw for (the quiet lines put on their log entry): the listeners are not called. */
+  function finish(result, source, quiet) {
     const turn = current ? current.meta.turn : 0;
     for (const r of result.rejected) {
       pushDebug({ turn, kind: 'rejected', source, path: r.path, reason: r.reason });
       console.debug('[State.apply] rejected', r.path, '-', r.reason);
     }
     for (const a of result.applied) pushDebug({ turn, kind: 'applied', source, text: a });
-    if (result.applied.length) notify();
+    if (result.applied.length && !quiet) notify();
     return result;
   }
   function pushDebug(entry) {
     debugLog.push(entry);
     if (debugLog.length > DEBUG_MAX) debugLog.splice(0, debugLog.length - DEBUG_MAX);
   }
+  /* A change a listener makes while the listeners run (App puts the turn's
+     quiet lines on its log entry through logUpdate, then saves and draws)
+     is part of this notification: the listeners run once, in order, and
+     the ones after see it. */
+  let notifying = false;
   function notify() {
     if (muted || !current) return;
     if (batchDepth > 0) { dirty = true; return; }
-    for (const fn of listeners) { try { fn(current); } catch (e) { console.error(e); } }
+    if (notifying) return;
+    notifying = true;
+    try { for (const fn of listeners) { try { fn(current); } catch (e) { console.error(e); } } } finally { notifying = false; }
   }
   /* Batching: the Pipeline wraps each turn in beginBatch()/endBatch() so the
      listeners (autosave, render) hear about it once, when the outermost batch
@@ -9348,15 +9533,110 @@ const State = (() => {
     }
     if (st.eventsFired !== undefined && (!Array.isArray(st.eventsFired) || st.eventsFired.some(x => typeof x !== 'string'))) return 'eventsFired is not a list of ids';
     if (!st.locations.some(l => l.id === st.player.locationId)) return 'player location unknown';
+    const typed = typeProblem(st);
+    if (typed) return typed;
     return longString(st, [], 0, path => {
       const k = path[path.length - 1];
       if (path[0] === 'log' && k === 'narration') return SHAPE_MAX.narration;
       return k === 'history' ? SHAPE_MAX.history : SHAPE_MAX.text;
     });
   }
+  /* Every field the engine reads has the type it reads it as (playtest B12,
+     B13): lists are lists, records are records, numbers are finite numbers
+     (a number written as text, "140", is read as the number at load:
+     coerceNumbers), ids name something that exists. The first problem, or
+     null. */
+  const NUMERIC = /^\s*-?\d+(\.\d+)?\s*$/;
+  function numberLike(v) { return (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && NUMERIC.test(v)); }
+  function typeProblem(st) {
+    const p = st.player;
+    for (const k of ['gold', 'hp', 'maxHp', 'storyPoints']) if (p[k] !== undefined && !numberLike(p[k])) return `player.${k} is not a number`;
+    if (!numberLike(p.gold) || !numberLike(p.hp) || !numberLike(p.maxHp)) return 'player.gold, hp or maxHp missing';
+    for (const k of STATS) if (p.stats[k] !== undefined && !numberLike(p.stats[k])) return `player.stats.${k} is not a number`;
+    if (typeof p.name !== 'string' || !p.name.trim()) return 'player.name missing';
+    if (st.time.shorts !== undefined && !numberLike(st.time.shorts)) return 'time.shorts is not a number';
+    const npcIds = new Set(st.npcs.map(n => n.id));
+    const idList = (v, known) => Array.isArray(v) && v.every(x => typeof x === 'string' && (!known || known.has(x)));
+    for (const l of st.locations) {
+      if (!idList(l.exits)) return `${l.id}: exits is not a list of places`;
+      if (l.npcIdsBySchedule !== undefined) {
+        if (!isObj(l.npcIdsBySchedule)) return `${l.id}: npcIdsBySchedule is not a record`;
+        for (const ph of Object.keys(l.npcIdsBySchedule)) if (!idList(l.npcIdsBySchedule[ph])) return `${l.id}: the ${ph} schedule is not a list of people`;
+      }
+      if (l.closed !== undefined && typeof l.closed !== 'boolean') return `${l.id}: closed is not true or false`;
+      if (l.closedOn !== undefined && !idList(l.closedOn)) return `${l.id}: closedOn is not a list of days`;
+    }
+    for (const n of st.npcs) {
+      if (n.attitude !== undefined && !numberLike(n.attitude)) return `${n.id}: attitude is not a number`;
+      if (n.memories !== undefined && (!Array.isArray(n.memories) || n.memories.some(m => !isObj(m) || typeof m.text !== 'string' || (m.weight !== undefined && !numberLike(m.weight))))) return `${n.id}: memories is not a list of memories`;
+      if (n.tags !== undefined && !idList(n.tags)) return `${n.id}: tags is not a list of words`;
+      if (n.relations !== undefined && (!Array.isArray(n.relations) || n.relations.some(r => !isObj(r) || typeof r.npcId !== 'string'))) return `${n.id}: relations is not a list of ties`;
+      if (n.home !== undefined && n.home !== null && (!isObj(n.home) || typeof n.home.locationId !== 'string')) return `${n.id}: home is not a place`;
+      if (n.status !== undefined && typeof n.status !== 'string') return `${n.id}: status is not a word`;
+      if (n.hurtUntilDay !== undefined && !Number.isInteger(n.hurtUntilDay)) return `${n.id}: hurtUntilDay is not a day`;
+    }
+    for (const f of st.factions) {
+      if (f.clocks !== undefined && (!Array.isArray(f.clocks) || f.clocks.some(c => !isObj(c) || !numberLike(c.segments) || !numberLike(c.filled)))) return `${f.id}: clocks is not a list of clocks`;
+      if (f.activeClock !== undefined && !Number.isInteger(f.activeClock)) return `${f.id}: activeClock is not a number`;
+    }
+    for (const t of st.threads) if (t.linkedIds !== undefined && !idList(t.linkedIds)) return `${t.id}: linkedIds is not a list of ids`;
+    for (const sd of st.seeds) {
+      if (sd.trigger !== undefined && !isObj(sd.trigger)) return `${sd.id}: trigger is not a record`;
+      if (sd.effects !== undefined && (!Array.isArray(sd.effects) || sd.effects.some(e => !isObj(e)))) return `${sd.id}: effects is not a list of effects`;
+    }
+    for (const r of st.rumours) if (typeof r.text !== 'string') return `${r.id}: the rumour has no text`;
+    for (const o of Array.isArray(p.obligations) ? p.obligations : []) {
+      if (typeof o.id !== 'string' || !OBLIGATION_KINDS.includes(o.kind)) return 'player.obligations: an obligation without an id or a known kind';
+      if (!npcIds.has(o.npcId)) return `${o.id}: npcId "${o.npcId}" is nobody in this game`;
+      if (!['open', 'met', 'missed'].includes(o.status)) return `${o.id}: status is not open, met or missed`;
+      for (const k of ['dueDay', 'amount', 'paid']) if (o[k] !== undefined && o[k] !== null && !Number.isInteger(o[k])) return `${o.id}: ${k} is not a whole number`;
+      for (const k of ['onMiss', 'onMet']) if (o[k] !== undefined && (!Array.isArray(o[k]) || o[k].some(e => !isObj(e)))) return `${o.id}: ${k} is not a list of effects`;
+    }
+    for (const e of Array.isArray(st.dueEvents) ? st.dueEvents : []) if (typeof e.seedId !== 'string' || typeof e.text !== 'string') return 'dueEvents: an event without a seed or text';
+    for (const v of Array.isArray(st.visits) ? st.visits : []) if (typeof v.npcId !== 'string' || typeof v.locationId !== 'string') return 'visits: a visit by nobody or to nowhere';
+    for (const n of Array.isArray(st.news) ? st.news : []) if (typeof n.text !== 'string') return 'news: an item without text';
+    for (const c of p.conditions || []) if (typeof c.name !== 'string') return 'player.conditions: a condition without a name';
+    for (const e of st.log) if (!isObj(e)) return 'log: an entry that is not a record';
+    return null;
+  }
+  /* Numbers written as text ("140") read as numbers, once a save has passed
+     typeProblem (load). */
+  function coerceNumbers(s) {
+    const num = (o, k) => { if (o && typeof o[k] === 'string' && NUMERIC.test(o[k])) o[k] = Number(o[k]); };
+    for (const k of ['gold', 'hp', 'maxHp', 'storyPoints']) num(s.player, k);
+    for (const k of STATS) num(s.player.stats, k);
+    num(s.time, 'shorts');
+    for (const n of s.npcs) { num(n, 'attitude'); for (const m of n.memories || []) num(m, 'weight'); }
+    for (const f of s.factions) for (const c of f.clocks || []) { num(c, 'segments'); num(c, 'filled'); }
+  }
+  /* The town copy a save carries is read the same way: its people and
+     places records with ids (and the places' exits and schedules lists),
+     its events records with an id, a day and their branches lists. */
+  function townTypeProblem(t) {
+    for (const k of ['npcs', 'locations', 'factions', 'threads', 'seeds', 'rumours', 'events']) {
+      if (t[k] === undefined) continue;
+      if (!Array.isArray(t[k])) return `the town's ${k} is not a list`;
+      for (let i = 0; i < t[k].length; i++) if (!isObj(t[k][i]) || typeof t[k][i].id !== 'string' || !t[k][i].id) return `the town's ${k}[${i}] is not a record with an id`;
+    }
+    for (const l of t.locations || []) {
+      if (l.exits !== undefined && (!Array.isArray(l.exits) || l.exits.some(x => typeof x !== 'string'))) return `the town's ${l.id}: exits is not a list`;
+      if (l.npcIdsBySchedule !== undefined && (!isObj(l.npcIdsBySchedule) || Object.values(l.npcIdsBySchedule).some(v => !Array.isArray(v)))) return `the town's ${l.id}: npcIdsBySchedule is not a record of lists`;
+    }
+    for (const n of t.npcs || []) if (n.relations !== undefined && !Array.isArray(n.relations)) return `the town's ${n.id}: relations is not a list`;
+    for (const e of t.events || []) {
+      if (!Number.isInteger(e.day)) return `the town's event ${e.id}: day is not a day number`;
+      if (e.branches !== undefined && (!Array.isArray(e.branches) || e.branches.some(b => !isObj(b)))) return `the town's event ${e.id}: branches is not a list`;
+      if (e.attendees !== undefined && (!Array.isArray(e.attendees) || e.attendees.some(x => typeof x !== 'string'))) return `the town's event ${e.id}: attendees is not a list of people`;
+    }
+    for (const k of ['epilogue', 'calendar', 'map']) if (t[k] !== undefined && t[k] !== null && !isObj(t[k])) return `the town's ${k} is not a record`;
+    if (isObj(t.epilogue) && t.epilogue.branches !== undefined && !Array.isArray(t.epilogue.branches)) return "the town's epilogue: branches is not a list";
+    return null;
+  }
   function townProblem(t) {
     if (!isObj(t)) return 'the town is not an object';
     for (const k of ['locations', 'npcs']) if (t[k] !== undefined && !Array.isArray(t[k])) return `the town's ${k} is not a list`;
+    const typed = townTypeProblem(t);
+    if (typed) return typed;
     return longString(t, ['town'], 0, path => {
       const k = path[path.length - 1];
       if (path.length === 2 && (k === 'history' || k === 'setting')) return SHAPE_MAX.townText;
@@ -9375,6 +9655,7 @@ const State = (() => {
     const errs = validateShape(st, townData);
     if (errs.length) throw new Error(errs.join('; '));
     const s = deepCopy(st);
+    coerceNumbers(s);
     // Fill fields older saves may lack (no-ops for current saves).
     s.flags = Object.assign({ priceMultiplier: 1, weather: '', season: 'spring' }, s.flags);
     s.time.shorts = s.time.shorts | 0;
@@ -9476,7 +9757,9 @@ const State = (() => {
       const i = ids.indexOf(v.npcId);
       if (v.locationId === l.id) { if (i < 0) ids.push(v.npcId); } else if (i >= 0) ids.splice(i, 1);
     }
-    const out = ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead' && !laidUp(n, day) && !awayNow(n, ph, day));
+    let out = ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead' && !laidUp(n, day) && !awayNow(n, ph, day));
+    // A place shut today holds only the people who live there, and anyone sent there on purpose (a visit): no customers (playtest B14).
+    if (isClosed(l, day)) out = out.filter(n => (isObj(n.home) && n.home.locationId === l.id) || visits.some(v => v.npcId === n.id && v.locationId === l.id));
     for (const n of current.npcs) if (laidUp(n, day) && n.alive !== false && isObj(n.home) && n.home.locationId === l.id && !out.includes(n)) out.push(n);
     return out;
   }
@@ -9507,9 +9790,9 @@ const State = (() => {
     // Town news (CONTRACTS section 5): the live array, oldest first.
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
-    SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS,
+    SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS, NOT_ACTIONS,
     season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, expireDaily,
-    absentNote: absentFor, awayNow, laidUp,
+    absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
@@ -9613,6 +9896,20 @@ const Town = (() => {
     const esc = list.filter(Boolean).map(w => String(w).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length);
     return new RegExp("(^|[^a-z'-])(" + esc.join('|') + ")('s)?$", 'i');
   }
+  /* Things that are not lying about just anywhere (playtest B5): a gun or
+     its ammunition only where guns are kept or sold (a pawn shop, the police,
+     a farm or a home: somebody's deer rifle); explosives nowhere a stranger
+     could pick them up; a vehicle only where one is parked. A gas station
+     does not stock pistols. Not for a fact bought with a story point. */
+  const RESTRICTED = [
+    { words: ['gun', 'guns', 'pistol', 'pistols', 'handgun', 'handguns', 'rifle', 'rifles', 'shotgun', 'shotguns', 'revolver', 'revolvers', 'deer rifle', 'hunting rifle', 'assault rifle', 'machine gun', 'ammo', 'ammunition', 'shells', 'shotgun shells', 'bullets', 'cartridges', 'rounds'],
+      where: ['pawn', 'police', 'watch', 'farm', 'house', 'home', 'bighouse', 'trailer', 'cabin', 'gunshop', 'armory'], what: 'guns and ammunition are kept' },
+    { words: ['grenade', 'grenades', 'dynamite', 'stick of dynamite', 'explosive', 'explosives', 'bomb', 'bombs', 'pipe bomb', 'c4', 'tnt', 'rocket launcher', 'rocket launchers', 'landmine', 'landmines', 'detonator'],
+      where: [], what: 'explosives are kept' },
+    { words: ['boat', 'boats', 'johnboat', 'jet ski', 'skiff', 'canoe'], where: ['marina', 'bridge', 'fields', 'farm', 'mill', 'woods'], what: 'a boat is kept (the river)' },
+    { words: ['car', 'cars', 'truck', 'trucks', 'pickup', 'pickup truck', 'van', 'motorcycle', 'motorbike', 'tractor', 'bus', 'four-wheeler', 'atv', 'semi'],
+      where: ['road', 'highway', 'street', 'marina', 'farm', 'gas', 'motel', 'garage', 'trailerpark', 'bridge', 'fields', 'mill', 'house', 'bighouse', 'parking', 'bar', 'tavern', 'church', 'pawn', 'police', 'office', 'school', 'hospital', 'clinic', 'care', 'town', 'market', 'diner', 'store'], what: 'one is parked' }
+  ].map(r => Object.assign(r, { re: tailRe(r.words) }));
   const IMPLAUSIBLE_RE = tailRe(IMPLAUSIBLE);
   const MODERN_ONLY_RE = tailRe(MODERN_ONLY);
   const FANTASY_ONLY_RE = tailRe(FANTASY_ONLY);
@@ -9709,6 +10006,13 @@ const Town = (() => {
     const head = headPhrase(d, 'npc') || plainName(d);
     const hit = blockHit(IMPLAUSIBLE_RE, head) || blockHit(modern ? FANTASY_ONLY_RE : MODERN_ONLY_RE, head);
     if (hit) return { plausible: false, kind, reason: `"${hit}" does not exist in this town` };
+    if (kind === 'item' && !(opts && opts.fact)) {
+      const thing = headPhrase(d, 'item') || head;
+      for (const r of RESTRICTED) {
+        const h = blockHit(r.re, thing);
+        if (h && !r.where.includes(String(locationType || '').toLowerCase())) return { plausible: false, kind, reason: `no ${h} here: this is not a place where ${r.what}` };
+      }
+    }
     const cap = State.LIMITS && Number.isInteger(State.LIMITS.revealedPlaces) ? State.LIMITS.revealedPlaces : 12;
     if (kind === 'location' && placesMade() >= cap) return { plausible: false, kind, reason: `no more new places in this game (${cap} made already)` };
     return { plausible: true, kind, reason: locationType ? `ordinary enough for a ${locationType}` : 'ordinary enough' };
@@ -9729,7 +10033,8 @@ const Town = (() => {
     while (words.length && LEAD_WORDS.has(words[0])) words.shift();
     const out = [];
     for (const w of words) {
-      if (out.length && BREAK_WORDS.has(w) && !(kind === 'item' && (w === 'of' || w === 'and'))) break;
+      // A thing keeps "of" (a coil of rope); "and" ends it (a rifle and shells is a rifle; Pipeline splits "X and a Y" into two things).
+      if (out.length && BREAK_WORDS.has(w) && !(kind === 'item' && w === 'of')) break;
       if (out.length && /ing$/.test(w) && kind !== 'item') break;
       out.push(w);
       if (out.length >= 4) break;
@@ -9820,7 +10125,7 @@ const Town = (() => {
     const itemWant = plainName(headPhrase(desc, 'item'));
     const here2 = State.loc(here);
     const items = s.player.inventory.concat((here2 && here2.items) || []);
-    const it = items.find(i => plainName(i.name) === itemWant);
+    const it = items.find(i => plainName(i.name) === itemWant) || items.find(i => plainName(headPhrase(i.name, 'item')) === itemWant);
     if (it) return { kind: 'item', id: it.id };
     return null;
   }
@@ -10180,6 +10485,35 @@ const Town = (() => {
   }
   /* An option is its words, or { text, obligation? } (content may write either). */
   function optionText(o) { return cleanText(typeof o === 'string' ? o : isObj(o) ? (o.text || o.label || '') : '', 200); }
+  /* The obligation a loose end carries, as the addObligation effect its seed
+     runs when it fires (dueOffset days from that day) and the onStart
+     effects that happen as it is tied (the letter an errand delivers), with
+     every placeholder filled for the person it is tied to and the player.
+     le: { kind, text, npcId? }; target: that person's record (else le.npcId).
+     The one builder: a new game (resolveLooseEnd) and Upgrade version 8 use
+     it. Returns { effect, onStart } or null. */
+  function obligationFor(le, target) {
+    const s = State.current;
+    const def = le && LOOSE_ENDS[le.kind];
+    const n = target || (le ? State.npc(le.npcId) : null);
+    if (!s || !def || !n) return null;
+    const text = cleanText(le.text, 200) || optionText((def.options || [])[0]);
+    const at = (def.options || []).findIndex(o => optionText(o) === text);
+    const obl = looseEndObligation(def, at);
+    if (!obl) return null;
+    const ov = { npc: n.name, npcId: n.id, player: s.player.name, playerName: s.player.name, text };
+    const kinds = State.OBLIGATION_KINDS || [];
+    const effect = {
+      op: 'addObligation', kind: kinds.includes(obl.kind) ? obl.kind : (LOOSE_END_OBLIGATION[le.kind] || 'promise'), npcId: n.id,
+      text: cleanText(fillTemplate(obl.text || text, ov), 200), amount: Number.isInteger(obl.amount) ? obl.amount : null,
+      dueOffset: Number.isInteger(obl.dueOffset) ? obl.dueOffset : 3, itemName: obl.itemName ? fillTemplate(obl.itemName, ov) : null,
+      onMiss: fillAll(Array.isArray(obl.onMiss) ? obl.onMiss : [], ov), onMet: fillAll(Array.isArray(obl.onMet) ? obl.onMet : [], ov)
+    };
+    // What content may add (wave 2): the missed due event's words, and for an errand who asked for it.
+    if (typeof obl.missText === 'string' && obl.missText.trim()) effect.missText = cleanText(fillTemplate(obl.missText, ov), 300);
+    if (typeof obl.askerId === 'string' && State.npc(obl.askerId)) effect.askerId = obl.askerId;
+    return { effect, onStart: fillAll(Array.isArray(obl.onStart) ? obl.onStart : [], ov).filter(isObj) };
+  }
   function resolveLooseEnd(le) {
     const s = State.current;
     const def = le && LOOSE_ENDS[le.kind];
@@ -10216,19 +10550,9 @@ const Town = (() => {
        reads dueOffset against the day it runs). Placeholders are filled now:
        the person and the player are known. Its onStart effects happen now,
        as the loose end is tied (the letter the player carries). */
-    const obl = looseEndObligation(def, at);
-    let onStart = [];
-    if (obl) {
-      const ov = { npc: target.name, npcId: target.id, player: s.player.name, playerName: s.player.name, text };
-      const kinds = State.OBLIGATION_KINDS || [];
-      seedObj.effects = [{
-        op: 'addObligation', kind: kinds.includes(obl.kind) ? obl.kind : (LOOSE_END_OBLIGATION[le.kind] || 'promise'), npcId: target.id,
-        text: cleanText(fillTemplate(obl.text || text, ov), 200), amount: Number.isInteger(obl.amount) ? obl.amount : null,
-        dueOffset: Number.isInteger(obl.dueOffset) ? obl.dueOffset : 3, itemName: obl.itemName ? fillTemplate(obl.itemName, ov) : null,
-        onMiss: fillAll(Array.isArray(obl.onMiss) ? obl.onMiss : [], ov), onMet: fillAll(Array.isArray(obl.onMet) ? obl.onMet : [], ov)
-      }];
-      onStart = fillAll(Array.isArray(obl.onStart) ? obl.onStart : [], ov).filter(isObj);
-    }
+    const ob = obligationFor({ kind: le.kind, text }, target);
+    const onStart = ob ? ob.onStart : [];
+    if (ob) seedObj.effects = [ob.effect];
     const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
     const r = State.apply({
       effects: [
@@ -10271,7 +10595,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade };
 })();
 
 // ===== Module: World =====
@@ -10369,7 +10693,7 @@ const Town = (() => {
    there too, kind 'news'), and forget(turn) drops those of turns taken
    back by /undo or a failed turn. */
 const World = (() => {
-  const MAX_DUE = 2;
+  const MAX_DUE = 3;
   const GRUDGE_AT = -60;
   const FAVOUR_AT = 60;
   const REP_DIVISOR = 5;
@@ -10454,7 +10778,8 @@ const World = (() => {
     });
   }
   /* Town news: State's addNews op does the push;
-     it is noted in recent either way. opts: { factionId, public, epilogue }. */
+     it is noted in recent either way. opts: { factionId, public, epilogue,
+     eventId?, seen? (it happened in front of the player), day?, phase? }. */
   function pushNews(text, opts) {
     const t = cleanText(text, 400);
     if (!t) return false;
@@ -10463,6 +10788,10 @@ const World = (() => {
     if (!hasOp('addNews')) return false;
     const op = { op: 'addNews', text: t, factionId: o.factionId || null, public: o.public === true };
     if (o.epilogue) op.epilogue = true;
+    if (o.eventId) op.eventId = o.eventId;
+    if (o.seen === true) op.seen = true;
+    if (Number.isInteger(o.day)) op.day = o.day;
+    if (PHASES.includes(o.phase)) op.phase = o.phase;
     return !State.apply({ effects: [op] }, W).rejected.length;
   }
   function isFree(n) { return !!n && n.alive !== false && n.status === 'free'; }
@@ -10540,6 +10869,8 @@ const World = (() => {
     const ev = { seedId: id, text };
     if (n) ev.npcId = n.id;
     if (opts.scene) ev.scene = true;
+    if (opts.eventId) ev.eventId = opts.eventId;
+    if (opts.obligationId) ev.obligationId = opts.obligationId;
     const diff = { seedsFired: [id], dueAdd: [ev] };
     if (n && opts.bring && isFree(n)) { ev.bring = true; diff.visits = [{ npcId: n.id, locationId: s.player.locationId }]; }
     State.apply(diff, W);
@@ -10612,10 +10943,12 @@ const World = (() => {
       if (isObj(e) && e.op === 'addRumour' && isObj(e.rumour) && !e.rumour.factionId) effects[i] = Object.assign({}, e, { rumour: Object.assign({}, e.rumour, { factionId: f.id }) });
     }
     const where = { locationId: s.player.locationId, presentIds: State.npcsAt(s.player.locationId, phase).map(n => n.id) };
-    const res = applyEffects(effects);
-    State.apply({ clockNext: [f.id] }, W);
-    if (text) pushNews(text, { factionId: f.id, public: true });
     const seen = noticeable(effects, where);
+    // One news item for it (its own addNews when it has one), seen already when it happened in front of the player (the quiet line below tells it).
+    const own = effects.some(e => isObj(e) && e.op === 'addNews');
+    const res = applyEffects(seen ? effects.map(e => (isObj(e) && e.op === 'addNews' ? Object.assign({}, e, { seen: true }) : e)) : effects);
+    State.apply({ clockNext: [f.id] }, W);
+    if (text && !own) pushNews(text, { factionId: f.id, public: true, seen: seen && !!text });
     const next = activeClock(f);
     const how = met ? '' : alt ? ' (its requirements did not hold: the alternative)' : ' (its requirements did not hold: nothing happens)';
     note(`${f.id} completes "${c.label}"${how} ${seen ? 'where the player can see it' : 'off-screen'}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}; ${next ? `next clock "${next.label}"` : 'no clocks left'}`, { kind: 'complete', factionId: f.id, clock: idx });
@@ -10638,6 +10971,7 @@ const World = (() => {
      day as missed (its onMiss effects applied there) and returns them; each
      becomes news (not public: the player's own business) and a due event,
      with the person owed coming to the player as a loose end's does. */
+  const MISSED_ABOUT = { debt: 'the money owed', blackmail: 'the money for keeping quiet', promise: 'the promise', errand: 'the errand', lodging: 'the room' };
   function missedObligations(day, events) {
     if (typeof State.tickObligations !== 'function') return [];
     let missed = [];
@@ -10647,11 +10981,22 @@ const World = (() => {
     for (const m of missed) {
       const id = isObj(m) ? m.id : m;
       const o = (isObj(m) ? m : null) || list.find(x => x.id === id) || null;
-      const n = o && o.npcId ? State.npc(o.npcId) : null;
+      // Who was let down: an errand's asker (the person the thing goes to may not know it exists), else the person owed.
+      const whoId = o ? (o.kind === 'errand' ? o.askerId || null : o.npcId) : null;
+      const n = whoId ? State.npc(whoId) : null;
       const what = cleanText(o ? o.text : String(id || ''), 300) || 'a promise';
       const line = `Missed: ${what.replace(/[.!]$/, '')}${o && Number.isInteger(o.dueDay) ? ` (due day ${o.dueDay})` : ''}.`;
       pushNews(line, { public: false });
-      if (isFree(n)) dueNow({ key: `missed_${id}`, text: `${n.name} came looking: ${what}`, npcId: n.id, bring: true });
+      if (n && n.alive !== false) {
+        // They remember it (weight 3), unless the obligation's own onMiss already gave them a memory.
+        const told = arr(o && o.onMiss).some(e => isObj(e) && e.op === 'addMemory' && e.npcId === n.id);
+        if (!told) applyEffects([{ op: 'addMemory', npcId: n.id, text: `${st().player.name} let it go past due: ${lowerFirst(what).replace(/[.!]$/, '')}`, weight: 3 }]);
+      }
+      // The due event: what content says they do (missText), else a plain line; only someone in town comes looking.
+      if (isFree(n) && presenceOf(n) === 'here') {
+        const text = o && o.missText ? o.missText : `${n.name} comes looking for ${st().player.name} about ${MISSED_ABOUT[o && o.kind] || 'what was promised'}, now past due.`;
+        dueNow({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null });
+      }
       note(`obligation ${id} missed`, { kind: 'obligation', id });
       events.push({ kind: 'obligation', id, notice: line });
       out.push(id);
@@ -10803,6 +11148,15 @@ const World = (() => {
     for (let i = 0; i < brs.length; i++) if (isObj(brs[i]) && conditionsMet(brs[i].when)) return { branch: brs[i], index: i };
     return { branch: isObj(ev.default) ? ev.default : { text: '', effects: [] }, index: -1 };
   }
+  /* A town event fires on the tick of its own day and phase. The news it
+     makes is told once: the branch's own addNews when it has one (content
+     writes the news in its own words), else its text; either carries the
+     event's id, so once the player has watched it happen (its due event
+     narrated: dueNarrated) the morning's "Overnight in town" leaves it out.
+     An event the clock jumped past (/cheat time, a save loaded late) still
+     happens, but as something that happened while the player was not
+     looking: no scene, no one gathered, its news dated its own day and
+     phase. */
   function fireEvents(at, events) {
     const s = st();
     if (!s) return [];
@@ -10811,22 +11165,27 @@ const World = (() => {
     const fired = [];
     for (const ev of arr(t.events)) {
       if (!isObj(ev) || typeof ev.id !== 'string' || !ev.id || eventDone(ev.id) || !reached(ev.day, ev.phase, now)) continue;
+      const late = now.day > ev.day || (now.day === ev.day && PHASES.indexOf(now.phase) > PHASES.indexOf(PHASES.includes(ev.phase) ? ev.phase : PHASES[0]));
       const { branch, index } = pickBranch(ev);
       markEvent(ev.id);
       // The people it brings together are there for that phase (a visit), if they are free and in town today.
-      if (ev.locationId && now.day === s.time.day && now.phase === s.time.phase) {
+      if (!late && ev.locationId && now.day === s.time.day && now.phase === s.time.phase) {
         const come = arr(ev.attendees).map(id => State.npc(id)).filter(n => isFree(n) && presenceOf(n) === 'here'
           && !(typeof State.awayNow === 'function' && State.awayNow(n)) && !(typeof State.laidUp === 'function' && State.laidUp(n)));
         if (come.length) State.apply({ visits: come.map(n => ({ npcId: n.id, locationId: ev.locationId })) }, W);
       }
       const text = cleanText(branch.text, 600);
-      const res = applyEffects(fillEffects(branch.effects, { locationId: ev.locationId }));
-      if (text) pushNews(text, { public: true });
-      const here = ev.locationId && s.player.locationId === ev.locationId;
-      if (text && here) dueNow({ key: `event_${ev.id}`, text, locationId: ev.locationId, scene: true });
-      note(`event ${ev.id} (${index >= 0 ? `branch ${index + 1}` : 'default'})${here ? ' with the player there' : ''}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}`, { kind: 'event', eventId: ev.id });
-      if (events) events.push({ kind: 'event', id: ev.id, branch: index, here: !!here });
-      fired.push({ id: ev.id, branch: index, here: !!here });
+      const when = late ? { day: ev.day, phase: PHASES.includes(ev.phase) ? ev.phase : PHASES[0] } : {};
+      const own = arr(branch.effects).map(e => (isObj(e) && e.op === 'addNews' ? Object.assign({ eventId: ev.id }, when, e) : e));
+      const res = applyEffects(fillEffects(own, { locationId: ev.locationId }));
+      if (text && !own.some(e => isObj(e) && e.op === 'addNews')) pushNews(text, Object.assign({ public: true, eventId: ev.id }, when));
+      const here = !late && ev.locationId && s.player.locationId === ev.locationId;
+      // The scene itself only when this tick is now (not a phase slept or waited through on the way to a later one).
+      const live = now.day === s.time.day && now.phase === s.time.phase;
+      if (text && here) dueNow({ key: `event_${ev.id}`, text, locationId: ev.locationId, scene: live, eventId: ev.id });
+      note(`event ${ev.id} (${index >= 0 ? `branch ${index + 1}` : 'default'})${here ? ' with the player there' : ''}${late ? `, late: the clock passed day ${ev.day} ${ev.phase} without a tick there, so it is news only` : ''}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}`, { kind: 'event', eventId: ev.id });
+      if (events) events.push({ kind: 'event', id: ev.id, branch: index, here: !!here, late });
+      fired.push({ id: ev.id, branch: index, here: !!here, late });
     }
     const ep = t.epilogue;
     if (isObj(ep) && !s.flags.epilogueShown && ((Number.isInteger(ep.onDay) && now.day >= ep.onDay) || arr(ep.orFlagsSet).some(k => !!s.flags[k]))) {
@@ -10947,19 +11306,26 @@ const World = (() => {
     const met = live && conditionsMet(sd.requires);
     const alt = live && !met && isObj(sd.alt) ? sd.alt : null;
     const text = met ? sd.effect : alt ? cleanText(alt.text, 400) : '';
-    const diff = { seedsFired: [sd.id] };
-    if (text) {
-      const ev = { seedId: sd.id, text };
-      if (n) ev.npcId = n.id;
-      // A loose end's NPC comes to the player, for that scene.
-      if (n && looseEndOf(sd.id)) { ev.bring = true; diff.visits = [{ npcId: n.id, locationId: s.player.locationId }]; }
-      diff.dueAdd = [ev];
-    }
-    const r = State.apply(diff, W);
+    const r = State.apply({ seedsFired: [sd.id] }, W);
     if (r.rejected.some(x => x.path.startsWith('seedsFired'))) return false;
+    // Its effects first, so the due event can name the obligation they made (dropped untold once that is met).
+    let obligationId = null;
     if (met || alt) {
       const own = met ? (Array.isArray(sd.effects) ? sd.effects : tpl && Array.isArray(tpl.effects) ? tpl.effects : []) : arr(alt.effects);
-      if (own.length) applyEffects(fillEffects(own, { npc: n }));
+      const filled = own.length ? fillEffects(own, { npc: n }) : [];
+      if (filled.length) applyEffects(filled);
+      const ob = filled.find(e => isObj(e) && e.op === 'addObligation');
+      const made = ob ? obligations().filter(o => o.kind === ob.kind && o.npcId === ob.npcId && o.createdTurn === s.meta.turn).pop() : null;
+      if (made) obligationId = made.id;
+    }
+    if (text) {
+      const ev = { seedId: sd.id, text };
+      const diff = { dueAdd: [ev] };
+      if (n) ev.npcId = n.id;
+      if (obligationId) ev.obligationId = obligationId;
+      // A loose end's NPC comes to the player, for that scene.
+      if (n && looseEndOf(sd.id)) { ev.bring = true; diff.visits = [{ npcId: n.id, locationId: s.player.locationId }]; }
+      State.apply(diff, W);
     }
     if (met && n && (kind === 'grudge' || kind === 'favour')) {
       if (kind === 'grudge') applyEffects([{ op: 'attitudeDelta', npcId: n.id, delta: GOT_EVEN }]);
@@ -10982,35 +11348,53 @@ const World = (() => {
     return fired;
   }
   function fireSeeds(ctx) { return fireWhere(() => true, ctx); }
+  /* The due events to narrate now: at most MAX_DUE (ctx.max: more for a
+     narration of time passing, /rest, /wait, /skip, so what a string of
+     nights brought is told on time). Each keeps its day (firedDay), its
+     scene flag and its town event. */
   function dueSeeds(ctx) {
     const s = st();
     if (!s || !Array.isArray(s.dueEvents) || !s.dueEvents.length) return [];
     const here = (ctx && ctx.locationId) || s.player.locationId;
+    const cap = ctx && (ctx.max === Infinity || (Number.isInteger(ctx.max) && ctx.max > 0)) ? ctx.max : MAX_DUE;
     const out = [];
     const drop = [];
     for (const ev of s.dueEvents.slice()) {
       const n = ev.npcId ? State.npc(ev.npcId) : null;
       if (ev.npcId && !isFree(n)) { drop.push(ev.seedId); continue; } // they can no longer act on it
+      // About an obligation that has been met since (paid before the confrontation was told): nothing left to confront.
+      if (ev.obligationId && obligations().some(o => o.id === ev.obligationId && o.status === 'met')) { drop.push(ev.seedId); continue; }
       // A place's event is told in that place: if the player has moved on, it waits for them to come back.
       const sd = State.seed(ev.seedId);
       if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (!anyOf(sd.trigger.value, v => v === here) || (ctx && ctx.leaving))) continue;
-      if (out.length >= MAX_DUE) continue;
+      if (out.length >= cap) continue;
       // A loose end's person comes to the player; so does the person a seed fired on meeting (an npc trigger: a background's hook), if they have moved on since.
       const bring = n && (ev.bring || (sd && isObj(sd.trigger) && sd.trigger.type === 'npc'));
       if (bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
-      out.push({ seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null });
+      const item = { seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null };
+      if (Number.isInteger(ev.firedDay)) item.firedDay = ev.firedDay;
+      if (ev.scene === true) item.scene = true;
+      if (ev.eventId) item.eventId = ev.eventId;
+      out.push(item);
     }
+    // The scene first (a town event here), then someone come for the player, then the rest: the narration leads with what is in front of them.
+    const rank = e => (e.scene ? 0 : e.npcId ? 1 : 2);
+    out.sort((a, b) => rank(a) - rank(b));
     if (drop.length) {
       State.apply({ dueDone: drop }, W);
-      drop.forEach(id => note(`${id} dropped: its NPC can no longer act on it`, { kind: 'seed', seedId: id }));
+      drop.forEach(id => note(`${id} dropped: its NPC can no longer act on it, or what it was about is settled`, { kind: 'seed', seedId: id }));
     }
     return out;
   }
+  /* The due events just narrated are done; a town event the player watched
+     happen has its news seen (the morning does not tell it again). */
   function dueNarrated(events) {
     const s = st();
     if (!s || !Array.isArray(events) || !events.length) return;
     const ids = events.map(e => e && e.seedId).filter(id => (s.dueEvents || []).some(x => x.seedId === id));
+    const evs = events.map(e => (isObj(e) && e.seedId && ids.includes(e.seedId) ? e.eventId || ((s.dueEvents || []).find(x => x.seedId === e.seedId) || {}).eventId : null)).filter(Boolean);
     if (ids.length) State.apply({ dueDone: ids }, W);
+    for (const id of Array.from(new Set(evs))) State.apply({ newsSeen: { eventId: id } }, W);
   }
 
   // ----- fights (the pipeline decides when to call these) -----
@@ -11024,7 +11408,7 @@ const World = (() => {
     const n = s ? State.npc(npcId) : null;
     if (!n) return null;
     const l = State.loc(s.player.locationId);
-    const place = l ? l.name : 'town';
+    const place = placeIn(l);
     const witnesses = State.npcsAt(s.player.locationId).map(x => x.id).filter(id => id !== n.id);
     let hurt = false;
     if (Array.isArray(State.RECORD_KEYS) && State.RECORD_KEYS.includes('npcFates')) {
@@ -11035,7 +11419,8 @@ const World = (() => {
       newMemories: [{ npcId: n.id, text: `knocked me down in a fight at ${place}`, weight: 3 }]
         .concat(witnesses.map(id => ({ npcId: id, text: `saw ${s.player.name} knock ${n.name} down at ${place}`, weight: 3 })))
     }, W);
-    if (isPublicPlace(l)) pushNews(`${s.player.name} knocked ${n.name} down in a fight at ${place}.`, { public: true });
+    // Town talk, but the player was there: the morning's news does not tell them their own fight.
+    if (isPublicPlace(l)) pushNews(`${s.player.name} knocked ${n.name} down in a fight at ${place}.`, { public: true, seen: true });
     note(`${n.id} knocked down${hurt ? ', hurt for two days' : ''}; ${witnesses.length} saw it`, { kind: 'fight', npcId: n.id });
     return { text: `${n.name} goes down hard and does not get back up.`, npcId: n.id, hurt, witnesses };
   }
@@ -11045,24 +11430,40 @@ const World = (() => {
      there tells it. Time to the next morning is the pipeline's to pass
      (timeCost 'rest', so the world ticks through the night). Returns
      { text, seedId, locationId, fine, chiefId, timeCost }, or null. */
-  function arrestPlayer() {
+  /* A place's name inside a sentence: "the Low Water", not "The Low Water". */
+  function placeIn(l) { return l ? String(l.name).replace(/^The /, 'the ') : 'town'; }
+  /* What an arrest would be, without doing it (the pipeline tells it in the
+     narration of the fight that caused it): { text, cellId, chiefId, fine }. */
+  function arrestPlan() {
     const s = st();
     if (!s) return null;
     const police = n => (n.tags || []).includes('police') || /\b(police|officer)\b/i.test(String(n.role || ''));
     const cell = s.locations.find(l => l.type === 'police' && !l.closed) || s.locations.find(l => l.type === 'watch' && !l.closed) || State.loc('loc_town_hall');
     const chief = s.npcs.find(n => isFree(n) && police(n) && ((n.tags || []).includes('chief') || /\bchief\b/i.test(String(n.role || '')))) || s.npcs.find(n => isFree(n) && police(n)) || null;
     const from = State.loc(s.player.locationId);
-    const place = from ? from.name : 'town';
+    const place = placeIn(from);
     const fine = Math.min(FINE, Math.max(0, s.player.gold | 0));
+    const who = chief ? chief.name : 'The police';
+    const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${placeIn(cell)}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.`;
+    return { text, cellId: cell ? cell.id : null, chiefId: chief ? chief.id : null, fine, place };
+  }
+  /* opts.told: the narration of the fight already told the arrest (the
+     pipeline's ARREST line), so no due event tells it again. */
+  function arrestPlayer(opts) {
+    const s = st();
+    if (!s) return null;
+    const plan = arrestPlan();
+    const cell = plan.cellId ? State.loc(plan.cellId) : null;
+    const chief = plan.chiefId ? State.npc(plan.chiefId) : null;
+    const fine = plan.fine;
     const diff = {};
     if (cell && cell.id !== s.player.locationId) diff.playerLocationId = cell.id;
     if (fine > 0) diff.goldDelta = -fine;
-    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${place}`, weight: 3 }];
+    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}`, weight: 3 }];
     State.apply(diff, W);
-    const who = chief ? chief.name : 'The police';
-    const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${cell.name}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.`;
-    const seedId = dueNow({ key: `arrest_d${s.time.day}`, text, npcId: chief ? chief.id : null, bring: !!chief, locationId: cell ? cell.id : null });
-    note(`arrested: ${cell ? cell.id : 'no cell'}, fine ${fine}`, { kind: 'fight' });
+    const text = plan.text;
+    const seedId = opts && opts.told ? null : dueNow({ key: `arrest_d${s.time.day}`, text, npcId: chief ? chief.id : null, bring: !!chief, locationId: cell ? cell.id : null });
+    note(`arrested: ${cell ? cell.id : 'no cell'}, fine ${fine}${opts && opts.told ? ' (told in the narration of the fight)' : ''}`, { kind: 'fight' });
     return { text, seedId, locationId: cell ? cell.id : null, fine, chiefId: chief ? chief.id : null, timeCost: 'rest' };
   }
 
@@ -11114,7 +11515,7 @@ const World = (() => {
 
   return {
     MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, FEELING_COOLDOWN, GOT_EVEN, DRIFT_PER_DAY, DRIFT_QUIET_DAYS, FINE, CLOCK_ODDS, hooks, recent,
-    tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, fillEffects, conditionsMet, clockProgress, fireEvents, eventsFired,
+    tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, fillEffects, conditionsMet, clockProgress, fireEvents, eventsFired, arrestPlan,
     knockDown, arrestPlayer, feelingMark, oddsOf,
     attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
     forceClockRoll, forceAttitude
@@ -11518,7 +11919,7 @@ const Api = (() => {
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
-    memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
+    memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most " + State.MEMORY_MAX + " per person, the ones that matter most to them. A line that already follows these rules (short and plain, from their point of view) stays as it is. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these turns for the narrator's memory, under 100 words, past tense, full names. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom. Skip scenery and small talk. End with 'Open:' and what is unresolved. Begin with the day or days the turns cover, like 'Day 2:' or 'Days 2-3:'."
   };
 
@@ -11626,7 +12027,7 @@ const Api = (() => {
           from: list(INT, 'The numbers of the listed memories this line comes from: one, or several when it merges them'),
           text: { type: 'string', description: "Under twelve words, from this person's point of view, only for something they would hold against the player or thank them for; no scene detail." },
           weight: { type: 'integer', enum: [1, 2, 3], description: '1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help)' }
-        }), 'At most 6, oldest first; empty when nothing is worth keeping')
+        }), `At most ${State.MEMORY_MAX}, oldest first; empty when nothing is worth keeping`)
       }), 'Every person listed, in the order given')
     })
   };
@@ -12293,8 +12694,8 @@ const Api = (() => {
     }
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
     for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
-    // Due events (at most two) are always worked in, at the end.
-    let due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
+    // Due events (as many as the engine hands over) are always worked in, at the end.
+    let due = (c.due || []).map(d => sentence(d && d.text)).filter(Boolean);
     if (!out.length && !due.length) out.push(vary([`At ${loc}, nothing pushes back yet.`, `Nothing at ${loc} gets in your way.`, `${capFirst(loc)} carries on around you.`], key));
     if (out.length + due.length < 2) out.push(vary([`Around you, ${loc} goes on with its ${phase}.`, `Nobody at ${loc} pays you much mind.`, `It stays quiet at ${loc} for now.`], key));
     let body = out.slice(0, Math.max(1, (mode === 'normal' ? (c.moved ? 4 : 3) : 6) - due.length));
@@ -12310,10 +12711,11 @@ const Api = (() => {
     if (words() > limit && at >= 0) body[at] = (/^.*?[.!?](\s|$)/.exec(desc) || [desc])[0].trim();
     if (words() > limit && at >= 0) body.splice(at, 1);
     for (let i = body.length - 1; i > 0 && words() > limit; i--) if (!keep.has(body[i])) body.splice(i, 1);
-    if (words() > limit) due = due.map(t => sentence(t.split(/,\s+/)[0]));
+    // The first due event (the engine puts the one that is the scene, or a person come for the player, first) stays whole.
+    if (words() > limit) due = due.map((t, i) => (i === 0 ? t : sentence(t.split(/,\s+/)[0])));
     if (words() > limit) {
-      const room = Math.max(4, Math.floor((limit - wordCount(body.join(' '))) / Math.max(1, due.length)));
-      due = due.map(t => (wordCount(t) > room ? t.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]$/, '') + '.' : t));
+      const room = Math.max(4, Math.floor((limit - wordCount(body.join(' ')) - (due.length > 1 ? wordCount(due[0]) : 0)) / Math.max(1, due.length - 1)));
+      due = due.map((t, i) => (wordCount(t) > room && (i > 0 || due.length === 1) ? t.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]$/, '') + '.' : t));
     }
     return body.concat(due).join(' ');
   }
@@ -13173,7 +13575,7 @@ const Api = (() => {
    steps before it. A save from a newer build than this one (newer) is
    never updated. */
 const Upgrade = (() => {
-  const PROTECTED = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
+  const PROTECTED = State.PROTECTED_MEMORIES;
   // A re-read never cuts what the rules allow: as many lines as a person may hold.
   const PER_PERSON = State.MEMORY_MAX;
   const CHUNK = 40;
@@ -13187,7 +13589,7 @@ const Upgrade = (() => {
     refusedStep: title => `The model declined the step "${title}", so that step changed nothing.`,
     failedStep: title => `The step "${title}" changed nothing.`
   };
-  function isProtected(m) { return !!m && PROTECTED.some(re => re.test(String(m.text || ''))); }
+  const isProtected = State.protectedMemory;
   function behind(st) { return !!st && State.rulesVersion(st) < State.RULES_VERSION; }
   function newer(st) { return !!st && State.rulesVersion(st) > State.RULES_VERSION; }
   /* The steps this build knows (a step newer than State.RULES_VERSION waits
@@ -13746,75 +14148,29 @@ const Upgrade = (() => {
   }
 
   // ----- version 8: an arc -----
-  const ARC_TOWN_KEYS = Object.freeze(['calendar', 'events', 'epilogue']);
-  const ARC_FIELDS = Object.freeze({ rumours: ['tellerIds', 'threadId'], threads: ['reward'] });
-  /* Copies the fields a record lacks from the town data's record with the
-     same id. Returns how many records gained something. */
-  function fillFields(list, from, keys) {
-    if (!Array.isArray(list) || !Array.isArray(from)) return 0;
-    let k = 0;
-    for (const x of list) {
-      const src = isObj(x) ? from.find(y => isObj(y) && y.id === x.id) : null;
-      if (!src) continue;
-      let any = false;
-      for (const key of keys) if (x[key] === undefined && src[key] !== undefined) { x[key] = deepCopy(src[key]); any = true; }
-      if (any) k += 1;
-    }
-    return k;
-  }
-  /* The obligation a loose end's option carries (LOOSE_ENDS: an option
-     written as { text, obligation }, or the kind's own obligation). */
-  function looseEndObligation(le) {
-    const def = isObj(le) ? LOOSE_ENDS[le.kind] : null;
-    if (!def) return null;
-    const opts = Array.isArray(def.options) ? def.options : [];
-    const i = opts.findIndex(o => cleanText(typeof o === 'string' ? o : isObj(o) ? o.text : '', 200) === cleanText(le.text, 200));
-    const opt = i >= 0 ? opts[i] : null;
-    if (isObj(opt) && isObj(opt.obligation)) return opt.obligation;
-    if (i >= 0 && Array.isArray(def.obligations) && isObj(def.obligations[i])) return def.obligations[i];
-    return isObj(def.obligation) ? def.obligation : null;
-  }
   function seedDay(st, sd) {
     if (isObj(sd.trigger) && sd.trigger.type === 'day' && Number.isInteger(toInt(sd.trigger.value))) return toInt(sd.trigger.value);
     return Number.isInteger(sd.notBeforeDay) ? sd.notBeforeDay : st.time.day + 1;
   }
+  /* Everything is written through State.apply: arcFill (the town copy, the
+     rumours' and threads' fields, the lists, the seeds' effects) and the
+     loose ends' onStart effects. */
   async function anArc(st) {
     const res = { town: [], rumours: 0, threads: 0, obligations: 0, feelings: 0, defaults: [], calls: 0 };
     const T = st.meta.townName === TOWN_DATA.name ? TOWN_DATA : null;
-    const town = State.town;
-    if (T && isObj(town)) {
-      for (const k of ARC_TOWN_KEYS) if (T[k] !== undefined && town[k] === undefined) { town[k] = deepCopy(T[k]); res.town.push(k); }
-      for (const k of Object.keys(ARC_FIELDS)) fillFields(town[k], T[k], ARC_FIELDS[k]);
-    }
-    if (T) {
-      res.rumours = fillFields(st.rumours, T.rumours, ARC_FIELDS.rumours);
-      res.threads = fillFields(st.threads, T.threads, ARC_FIELDS.threads);
-    }
-    // The lists the arc keeps, empty where the save has none.
-    const need = (obj, key, value, label) => { if (isObj(obj) && obj[key] === undefined) { obj[key] = value; res.defaults.push(label); } };
-    need(st, 'news', [], 'news');
-    need(st.player, 'obligations', [], 'obligations');
-    need(st, 'bans', [], 'bans');
-    need(st, 'eventsFired', [], 'events fired');
-    // time.instants is kept only while above 0 (State advanceTime): nothing to fill.
-    // A loose end still to come carries its obligation; one that already fired gets none.
+    const seeds = [];
+    const starts = [];
+    // A loose end still to come carries its obligation (Town.obligationFor, the builder a new game uses), due that many days after the day its seed was planned for; one that already fired gets none.
     for (const le of Array.isArray(st.player.looseEnds) ? st.player.looseEnds : []) {
       const sd = le && le.seedId ? st.seeds.find(x => x.id === le.seedId) : null;
       if (!sd || sd.fired || (Array.isArray(sd.effects) && sd.effects.length)) continue;
-      const ob = looseEndObligation(le);
+      const ob = Town.obligationFor(le);
       if (!ob) continue;
-      const eff = typeof State.obligationEffect === 'function' ? State.obligationEffect(le, sd, ob)
-        : { op: 'addObligation', kind: ob.kind || le.kind, npcId: le.npcId, text: cleanText(ob.text || le.text, 200), amount: Number.isFinite(ob.amount) ? ob.amount : null, dueDay: seedDay(st, sd) + (toInt(ob.dueOffset) || 3), itemName: ob.itemName || null, onMiss: deepCopy(ob.onMiss || []), onMet: deepCopy(ob.onMet || []) };
-      if (!isObj(eff)) continue;
-      sd.effects = [eff];
-      res.obligations += 1;
+      const eff = Object.assign({}, ob.effect, { dueDay: seedDay(st, sd) + ob.effect.dueOffset });
+      delete eff.dueOffset;
+      seeds.push({ seedId: sd.id, effects: [eff], obligation: true });
       // What tying it gives the player now (the letter), unless they already carry it.
-      const start = (Array.isArray(ob.onStart) ? World.fillEffects(ob.onStart, { npc: le.npcId }) : []).filter(e => isObj(e)
-        && !(e.op === 'giveItem' && st.player.inventory.some(i => String(i.name).toLowerCase() === String(e.name || '').toLowerCase())));
-      if (start.length) {
-        const r = State.apply({ effects: start });
-        if (r.rejected.length) note(st, 'an arc: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
-      }
+      starts.push(...ob.onStart.filter(e => !(e.op === 'giveItem' && st.player.inventory.some(i => String(i.name).toLowerCase() === String(e.name || '').toLowerCase()))));
     }
     // A grudge or favour still to come does what its template now does (matched by its words).
     for (const sd of st.seeds) {
@@ -13822,9 +14178,20 @@ const Upgrade = (() => {
       const list = sd.origin.kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES;
       const n = st.npcs.find(x => x.id === sd.origin.npcId);
       const t = (Array.isArray(list) ? list : []).find(x => isObj(x) && Array.isArray(x.effects) && x.effects.length && fillTemplate(x.effect, { npc: n ? n.name : '', player: st.player.name }) === sd.effect);
-      if (!t) continue;
-      sd.effects = deepCopy(t.effects);
-      res.feelings += 1;
+      if (t) seeds.push({ seedId: sd.id, effects: deepCopy(t.effects) });
+    }
+    const r = State.apply({ arcFill: { town: T, seeds: seeds.map(x => ({ seedId: x.seedId, effects: x.effects })) } });
+    if (r.rejected.length) note(st, 'an arc: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+    const arc = r.arc || { town: [], rumours: 0, threads: 0, defaults: [], seeds: 0 };
+    Object.assign(res, { town: arc.town, rumours: arc.rumours, threads: arc.threads, defaults: arc.defaults });
+    for (const x of seeds) {
+      const sd = st.seeds.find(y => y.id === x.seedId);
+      if (!sd || JSON.stringify(sd.effects) !== JSON.stringify(x.effects)) continue;
+      if (x.obligation) res.obligations += 1; else res.feelings += 1;
+    }
+    if (starts.length) {
+      const r2 = State.apply({ effects: starts });
+      if (r2.rejected.length) note(st, 'an arc: ' + r2.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
     }
     const parts = [];
     if (res.town.length) parts.push(`The town now has its ${res.town.map(k => ({ calendar: 'calendar', events: 'events', epilogue: 'ending' }[k] || k)).join(', ')}.`);
@@ -13844,7 +14211,7 @@ const Upgrade = (() => {
     Object.freeze({ version: 7, title: 'A lived-in town', rerun: true, run: livedInTown }),
     Object.freeze({ version: 8, title: 'An arc', rerun: true, run: anArc })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData, looseEndObligation };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData };
 })();
 
 // ===== Module: Pipeline =====
@@ -13859,7 +14226,8 @@ const Upgrade = (() => {
      was talking to and gets a quiet "Added to the map" line;
      arriveIfLeftBehind completes a plain move the bookkeeper left out
      10 advance time, World.tick per phase  11 World.fireSeeds (due events
-     for the next narration)  12 compressIfDue (chronicle every 10 turns)
+     for the next narration)  12 compressIfDue (a chronicle entry once the
+     log holds CHRONICLE_AT entries, keeping the newest CHRONICLE_KEEP)
      13 log, autosave, render
    Any error or refusal restores the snapshot, takes the turn's lines back
    out of the feed and puts the player's text back in the box.
@@ -13891,8 +14259,12 @@ const Pipeline = (() => {
     aborted: 'Stopped. Your action was kept in the box.',
     bookFailed: 'What changed this turn could not be recorded yet (the bookkeeper did not answer); the story stands. Trying once more in the background.',
     bookLate: 'What changed on that turn is recorded now.',
+    bookStopped: 'Stopped while the town was being updated: the story stands, but what changed this turn was not recorded.',
     unknownPlace: "You don't know where that is yet. Ask around.",
-    epilogueEnd: 'This is one ending. You can keep playing.'
+    epilogueEnd: 'This is one ending. You can keep playing.',
+    endingStopped: 'Stopped. The ending will be told after your next turn.',
+    endingLater: why => `The ending could not be told just now${why ? ` (${why})` : ''}. It will be told after your next turn.`,
+    readOnly: 'This game is open in another tab, so this tab is read-only: nothing here is played or saved. Play it in the other tab.'
   };
   /* The status line above the input (ui), one per stage. */
   const STATUS_TEXT = { parse: 'Reading your action…', narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Writing up the story so far…', idle: '' };
@@ -13908,6 +14280,9 @@ const Pipeline = (() => {
   let acceptsQueue = false; // the narration is in; the bookkeeper or the chronicle is running
   let queued = null; // { text, opts }: one input waiting for the turn to end
   let pendingEpilogue = null; // { text }: an ending in the news, narrated when this turn ends
+  let holdEnding = false; // the ending's own turn just failed: it waits for the end of the next turn
+  // A narration of time passing (/rest, /wait, /skip, no bookkeeper of its own) tells every due event that is waiting (World.dueSeeds max).
+  const DUE_QUIET = Infinity;
   let morningNews = false; // a new morning came this turn: its news is told once the seeds have fired (runTurn step 11)
   let statusFn = null;
   const idleWaiters = [];
@@ -13919,6 +14294,17 @@ const Pipeline = (() => {
   }
   /* Resolves when no turn is running (at once if none is). */
   function whenIdle() { return busy ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve(); }
+  /* A tab that lost the game to another tab (Storage.readOnly) plays
+     nothing: no snapshot, no call, nothing saved. Returns the refusal, or
+     null when this tab may play. */
+  function readOnlyRefusal() {
+    let ro = false;
+    try { ro = typeof Storage !== 'undefined' && !!Storage.readOnly; } catch (e) { ro = false; }
+    if (!ro) return null;
+    const text = typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : NOTICES.readOnly;
+    if (typeof UI.toast === 'function') UI.toast(text); else UI.feed.notice(text);
+    return { ok: false, reason: 'read-only', restoreInput: true };
+  }
 
   // ----- small helpers -----
   function here() { return State.loc(State.current.player.locationId); }
@@ -14053,30 +14439,21 @@ const Pipeline = (() => {
     return { dawn: 'morning', noon: 'afternoon', midday: 'afternoon', dusk: 'evening', midnight: 'night', tonight: 'night' }[w] || w;
   }
   /* The clock moves through State.apply({ advanceTime }). cost is a time
-     cost word, or { cost, toPhaseStart?, cause? } (rules version 8: the last
-     long of /wait and /skip lands at the start of its phase; a defeat's long
-     is not a night without sleep). An engine before rules version 8 gets the
-     word (it would refuse the object), and toPhaseStart is then done here. */
-  function advance(cost) {
-    if (!isObj(cost)) return State.apply({ advanceTime: cost });
-    let r = State.RULES_VERSION >= 8 ? State.apply({ advanceTime: cost }) : null;
-    if (!r || r.rejected.length || !r.time) r = State.apply({ advanceTime: cost.cost });
-    const t = State.current && State.current.time;
-    if (cost.toPhaseStart && r.time && t && (t.shorts | 0) !== 0) t.shorts = 0;
-    return r;
-  }
-  /* Town news (World writes state.news): public items the player has not
-     seen yet. An item marked epilogue is an ending; its turn runs when this
-     one is over. */
-  function newsList() {
-    const s = State.current;
-    const list = State.news;
-    return Array.isArray(list) ? list : s && Array.isArray(s.news) ? s.news : [];
-  }
+     cost word, or { cost, toPhaseStart?, cause? } (the last long of /wait
+     and /skip lands at the start of its phase; a defeat's long is not a
+     night without sleep). */
+  function advance(cost) { return State.apply({ advanceTime: cost }); }
+  /* Town news (World writes state.news through State.apply addNews). */
+  function newsList() { return State.news; }
+  /* An ending (TOWN_DATA.epilogue) in the news that has not been told: its
+     narrator-only turn runs when this turn is over (settle). It is marked
+     seen only when that turn commits (newsSeen 'ending'); an ending whose
+     narration fails or is stopped stays unseen and is told at the end of
+     the next turn. */
+  function unseenEnding() { return newsList().find(n => isObj(n) && n.epilogue === true && !n.seen) || null; }
   function noteEnding() {
-    const end = newsList().find(n => isObj(n) && n.epilogue === true && !n.seen);
+    const end = unseenEnding();
     if (!end || pendingEpilogue) return;
-    end.seen = true;
     pendingEpilogue = { text: cleanText(end.text, 1500), day: end.day };
   }
   /* A new morning: the news the player has not heard yet, as one quiet
@@ -14087,7 +14464,7 @@ const Pipeline = (() => {
     if (!unseen.length) return;
     const told = unseen.map(n => cleanText(n.text, 300)).filter(Boolean).slice(-6);
     if (told.length) UI.feed.quiet(`Overnight in town: ${told.join(' ')}`);
-    if (State.apply({ newsSeen: 'public' }).rejected.length) for (const n of unseen) n.seen = true;
+    State.apply({ newsSeen: 'public' });
   }
   /* Time passes: State.apply advances the clock, then World.tick runs once
      for every phase that went by, in order (SPEC section 8). A short held at
@@ -14097,8 +14474,8 @@ const Pipeline = (() => {
     const s0 = State.current;
     const here = s0 ? s0.player.locationId : null;
     const wasHere = here ? State.npcsAt(here).map(n => n.id) : [];
-    // With its cause (rules 8): the narration of /rest, /wait, /skip, an arrival or a defeat is no instant action (State's pace).
-    const spec = cause && State.RULES_VERSION >= 8 ? (isObj(cost) ? Object.assign({ cause }, cost) : { cost, cause }) : cost;
+    // With its cause: the narration of /rest, /wait, /skip, an arrival or a defeat is no instant action (State's pace).
+    const spec = cause ? (isObj(cost) ? Object.assign({ cause }, cost) : { cost, cause }) : cost;
     const t = advance(spec).time;
     if (!t || !t.phasesPassed) return t || null;
     let cur = { day: t.from.day, phase: t.from.phase };
@@ -14462,6 +14839,11 @@ const Pipeline = (() => {
       if (opts.fact && /^(npc|loc)_/.test(id)) out.links.push({ kind: id.startsWith('npc_') ? 'npc' : 'location', id, name: e.name });
       keep(id);
     };
+    // "a rifle and a box of shells": two things, each judged on its own (playtest B5).
+    action.targets = action.targets.flatMap(raw => {
+      const m = /^new:(.+?)\s+and\s+((?:a|an|the|some|my|his|her|their|two|three|four|another|a few|a pair of)\s+.+)$/i.exec(String(raw));
+      return m ? [`new:${m[1]}`, `new:${m[2]}`] : [raw];
+    });
     const linkedLoc = action.targets.find(t => t.startsWith('loc_') && State.loc(t));
     for (const raw of action.targets) {
       let desc;
@@ -14476,8 +14858,10 @@ const Pipeline = (() => {
       const match = Town.matchExisting(desc, { locationId: l.id });
       if (match) { existing(match.id, raw); continue; }
       if (unproven) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'unproven' }); continue; }
-      const verdict = Town.plausible(desc, l.type);
+      const verdict = Town.plausible(desc, l.type, { fact: !!opts.fact });
       if (!verdict.plausible) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }); continue; }
+      // A take picks up what is lying here (ITEMS HERE, matched above): it never makes a thing out of nothing (playtest B5, REVIEW E1).
+      if (action.actionType === 'take' && !opts.fact && verdict.kind === 'item') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'nothing_here', why: 'nothing like that is here to take' }); continue; }
       // Everyone who exists is in the cast: a person nobody in it answers to is simply not there.
       if (verdict.kind === 'npc') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', person: true, why: 'nobody like that lives in this town' }); continue; }
       if (opts.defer && !opts.fact && verdict.kind === 'item' && action.needsRoll) { out.deferred.push({ raw, desc }); keep(raw); continue; }
@@ -14565,13 +14949,38 @@ const Pipeline = (() => {
     if (hooks.nextTier) { forced = dieFor(hooks.nextTier, rollOpts); hooks.nextTier = null; }
     return forced;
   }
-  /* The retry lock after a roll: Dice.lock (a set of failed keys, engine-world) when
-     there is one, else meta.lastRollKey through State.apply. exempt: a swing at
-     someone still standing here is never locked. */
+  /* The retry lock after a roll (Dice.lockFor, stored through State.apply):
+     the locks still in force here, plus this key when the roll failed, or
+     '+key' when a social ask worked (that locks nothing; Dice.successes
+     counts it, for diminishing returns). exempt: a swing at someone still
+     standing here adds nothing. */
   function lockAfter(roll, key, exempt) {
-    const failed = typeof Dice.lockFor === 'function' ? !!Dice.lockFor(roll, key) : !roll.success;
-    if (typeof Dice.lock === 'function') { if (failed && !exempt) Dice.lock(key, roll); return; }
-    State.apply({ lastRollKey: failed && !exempt ? key : null });
+    State.apply({ lastRollKey: Dice.lockFor(roll, exempt ? null : key) });
+  }
+  /* Gifts (playtest: money bought feelings, +5 a gift all day): the first
+     gift to someone in a day may warm them; another to the same person that
+     day earns no attitude at all (ctx.diminish with factor 0). */
+  function giftCheck(ctx) {
+    const a = ctx.action;
+    if (!a || a.actionType !== 'give') return;
+    const to = (a.targets || []).find(t => /^npc_/.test(t) && (ctx.presentIds || []).includes(t));
+    if (!to) return;
+    const s = State.current;
+    const g = s.meta.gifts;
+    const times = isObj(g) && g.day === s.time.day && Array.isArray(g.ids) ? g.ids.filter(x => x === to).length : 0;
+    if (times > 0) ctx.diminish = { npcId: to, times, factor: 0, gift: true };
+    State.apply({ giftGiven: to });
+  }
+  /* What a complication does (Dice: a lost HP, a cooler witness, a memory, a
+     rumour, a police report), applied with the roll; the bookkeeper is told
+     it is done. */
+  function complicationEffects(ctx, roll) {
+    const list = Array.isArray(roll.complicationEffects) ? roll.complicationEffects.filter(isObj) : [];
+    if (!list.length) return;
+    const r = State.apply({ effects: list });
+    const done = r.applied.map(x => x.replace(/^effects\[\d+\]: /, ''));
+    State.debugLog.push({ turn: State.current.meta.turn, kind: 'complication', text: roll.complication, applied: done, rejected: r.rejected });
+    if (done.length) ctx.complicationDone = done;
   }
   function storyPointFor(ctx, roll) {
     const s = State.current;
@@ -14613,21 +15022,37 @@ const Pipeline = (() => {
       ctx.defeated = p.hp <= 0;
       UI.feed.quiet(`You take ${dmg} damage (HP ${p.hp}/${p.maxHp}).`);
     }
-    if (npcTarget && roll.success) {
+    if (npcTarget) {
       const t = s.time;
       const f = isObj(s.fight) ? s.fight : null;
-      const same = !!f && f.npcId === npcTarget && f.day === t.day && f.phase === t.phase && f.locationId === p.locationId;
-      const hits = (same ? (f.hits | 0) : 0) + 1;
-      s.fight = { npcId: npcTarget, hits, day: t.day, phase: t.phase, locationId: p.locationId };
+      // One fight: the same person, the same place, attack after attack (turn after turn; a phase may roll over in the middle of it). A turn of anything else, a move or another target starts a new one.
+      const same = !!f && f.npcId === npcTarget && f.locationId === p.locationId && f.turn === s.meta.turn - 1;
+      const hits = (same ? (f.hits | 0) : 0) + (roll.success ? 1 : 0);
       ctx.hits = { [npcTarget]: hits };
-      if (hits >= 3) {
-        if (typeof World.knockDown === 'function') { World.knockDown(npcTarget, { turn: s.meta.turn, locationId: p.locationId }); ctx.knockedDown = npcTarget; }
-        delete s.fight;
-      }
+      if (roll.success && hits >= 3) {
+        // They go down in this narration: told to the narrator (OUTCOME) and kept in the scene for it, though from now on they are laid up at home.
+        const down = World.knockDown(npcTarget, { turn: s.meta.turn, locationId: p.locationId });
+        if (down) {
+          ctx.knockedDown = down.npcId;
+          ctx.stillHere = (ctx.stillHere || []).concat(down.npcId);
+          ctx.narratorLines.push(`OUTCOME: ${down.text} That is the third clean hit; the fight is over for them.`);
+          ctx.bookLines.push(`KNOCKED DOWN BY THE ENGINE (already applied: hurt and laid up at home for two days, the memories, the news; record no npcFates for ${down.npcId}): ${down.text}`);
+        }
+        State.apply({ fight: null });
+      } else State.apply({ fight: { npcId: npcTarget, hits, day: t.day, phase: t.phase, locationId: p.locationId, turn: s.meta.turn } });
     }
     const l = here();
     const cop = State.npcsAt(l.id).find(isPolice) || null;
-    if (cop || (PLACE_KINDS.watch || []).includes(l.type) || l.type === 'police') ctx.arrest = { npcId: cop ? cop.id : null, locationId: l.id };
+    if (cop || (PLACE_KINDS.watch || []).includes(l.type) || l.type === 'police') {
+      ctx.arrest = { npcId: cop ? cop.id : null, locationId: l.id };
+      // Decided now, so this narration tells it (the night in the cell passes after it): once, not again next turn. A player beaten senseless here is the defeat's to tell.
+      const plan = !ctx.defeated && typeof World.arrestPlan === 'function' ? World.arrestPlan() : null;
+      if (plan) {
+        ctx.arrest.plan = plan;
+        ctx.narratorLines.push(`ARREST: ${plan.text} Narrate the fight being broken up and ${p.name} being taken in; the night in the cell passes after this narration.`);
+        ctx.bookLines.push(`ARRESTED BY THE ENGINE (already applied after this turn: the cell, the fine, the chief's memory; record no playerLocationId and no goldDelta for them): ${plan.text}`);
+      }
+    }
   }
   /* Returns { locked: true } when the identical failed roll is retried. An
      action without a roll leaves the lock alone here: runTurn lifts it once
@@ -14641,6 +15066,17 @@ const Pipeline = (() => {
     if (!a.needsRoll) return {};
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
     const attack = a.actionType === 'attack';
+    /* Nobody to swing at or to ask (playtest B4, B17): a fight or an ask
+       aimed only at people who are not here (NOT PRESENT says so), or an
+       ask with nobody here at all to hear it, has no roll: no damage, no
+       complication, no lock, no story point. */
+    const social = Dice.SOCIAL_ACTIONS.includes(a.actionType) || isSay(ctx.speech);
+    const aimedAtPeople = a.targets.some(t => /^npc_/.test(t)) || (ctx.notPresent || []).some(x => x.reason === 'not_here' || x.reason === 'gone' || x.person);
+    if ((attack || social) && !npcTarget && (aimedAtPeople || (social && !ctx.presentIds.length))) {
+      ctx.noRoll = attack ? 'the one the player means to fight is not here' : 'nobody here to hear it';
+      Object.assign(a, { needsRoll: false });
+      return {};
+    }
     if (attack && npcTarget && (!a.difficulty || a.difficulty === 'normal') && typeof Dice.threat === 'function') {
       const d = Dice.threat(State.npc(npcTarget));
       if (DIFFICULTIES.includes(d)) a.difficulty = d;
@@ -14658,11 +15094,19 @@ const Pipeline = (() => {
       }
       return { locked: true };
     }
-    const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType };
+    const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, presentIds: ctx.presentIds.slice() };
+    // How often this very ask (family and person) already worked here this phase: the next success earns less (Dice.diminishing).
+    const before = key ? Dice.successes(key) : 0;
     const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
     ctx.roll = roll;
     lockAfter(roll, key, exempt);
+    if (roll.success && before > 0 && npcTarget && Dice.SOCIAL_FAMILIES.includes(Dice.family(a.actionType))) {
+      ctx.diminish = { npcId: npcTarget, times: before, factor: Dice.diminishing(before) };
+      const n = State.npc(npcTarget);
+      ctx.narratorLines.push(`ASKED BEFORE: ${n ? n.name : 'they'} already went along with this same ask ${before === 1 ? 'once' : `${before} times`} this ${s.time.phase}. It works again, but it wears thinner: less warmth, a look, a shorter answer.`);
+    }
     UI.feed.roll(roll);
+    complicationEffects(ctx, roll);
     storyPointFor(ctx, roll);
     if (attack) fight(ctx, roll, npcTarget);
     if (roll.tier === 'critical_failure') ctx.consequence = lastingConsequence(ctx);
@@ -14705,16 +15149,18 @@ const Pipeline = (() => {
     const nl = ctx.narratorLines = ctx.narratorLines || [];
     const bl = ctx.bookLines = ctx.bookLines || [];
     if (a.timeCost === 'instant') a.timeCost = 'short';
-    if (!cardGameAt(l) || !dealer || (p.gold | 0) < 1) {
+    const shut = isShut(l);
+    if (shut || !cardGameAt(l) || !dealer || (p.gold | 0) < 1) {
       Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
-      const why = !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
+      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game tonight` : !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
       nl.push(`CARD GAME: no game: ${why}. No money changes hands.`);
       bl.push(`CARD GAME: no game was played (${why}); record no goldDelta.`);
       ctx.gamble = { played: false, why };
       return {};
     }
     const stake = stakeFrom(ctx.input, p.gold);
-    const deck = p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name)) || null;
+    // A marked deck helps (+2), and is what gets a player caught; a plain deck is only cards.
+    const deck = p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name) && /\bmarked\b/i.test(`${i.name} ${i.notes || ''}`)) || null;
     const mods = Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }).concat(deck ? [{ label: deck.name, value: 2 }] : []);
     const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods };
     const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
@@ -14723,20 +15169,24 @@ const Pipeline = (() => {
     ctx.roll = roll;
     UI.feed.roll(roll);
     storyPointFor(ctx, roll);
-    const caught = roll.tier === 'critical_failure';
+    // A fumble: with a marked deck on them, caught cheating; without one, only accused (a cooler dealer and a night out of the place).
+    const caught = roll.tier === 'critical_failure' && !!deck;
+    const accused = roll.tier === 'critical_failure' && !deck;
     const delta = roll.tier === 'critical' || roll.tier === 'success' ? stake : roll.tier === 'partial' ? Math.floor(stake / 2) : -stake;
     if (delta) State.apply({ goldDelta: delta });
     const place = String(l.name).replace(/^The /, 'the ');
     const amount = money(Math.abs(delta));
     const result = delta > 0 ? `wins ${amount}` : delta < 0 ? `loses ${amount}` : 'breaks even';
-    ctx.gamble = { played: true, stake, delta, tier: roll.tier, caught, dealerId: dealer.id, deck: deck ? deck.name : null };
-    const how = { critical: `the player has a great night at ${dealer.name}'s table and wins ${money(stake)}`, success: `the player beats ${dealer.name}'s table and wins ${money(stake)}`, partial: `a close game at ${dealer.name}'s table: the player comes out ${money(Math.floor(stake / 2))} ahead`, failure: `the player loses ${money(stake)} at ${dealer.name}'s table`, critical_failure: `the player loses ${money(stake)}, and ${dealer.name} catches them cheating${deck ? ` with the ${lowerFirst(deck.name)}` : ''}` }[roll.tier];
-    nl.push(`OUTCOME: the card game (the player put up ${money(stake)}): ${how}. The money has already changed hands (cash now ${money(p.gold)}).${caught ? ` ${dealer.name} throws the player out of ${place}, and they are not welcome back for three days.` : ''}`);
-    bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${result} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: the memory and the three-day ban are recorded already.` : ''}`);
-    if (caught) {
+    ctx.gamble = { played: true, stake, delta, tier: roll.tier, caught, accused, dealerId: dealer.id, deck: deck ? deck.name : null };
+    const how = { critical: `the player has a great night at ${dealer.name}'s table and wins ${money(stake)}`, success: `the player beats ${dealer.name}'s table and wins ${money(stake)}`, partial: `a close game at ${dealer.name}'s table: the player comes out ${money(Math.floor(stake / 2))} ahead`, failure: `the player loses ${money(stake)} at ${dealer.name}'s table`, critical_failure: caught ? `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${lowerFirst(deck.name)}` : `the player loses ${money(stake)} on a run of luck so bad that ${dealer.name} accuses them of cheating, though he finds nothing on them` }[roll.tier];
+    const out = caught ? ` ${dealer.name} throws the player out of ${place}, and they are not welcome back for three days.` : accused ? ` ${dealer.name} tells the player to clear out of ${place} for the night.` : '';
+    nl.push(`OUTCOME: the card game (the player put up ${money(stake)}): ${how}. The money has already changed hands (cash now ${money(p.gold)}).${out}`);
+    bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${result} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: his memory, his attitude and the three-day ban are recorded already.` : accused ? ` ${dealer.name} accused them of cheating: his memory, his attitude and the ban for the night are recorded already.` : ''}`);
+    if (caught || accused) {
       const r = State.apply({
-        newMemories: [{ npcId: dealer.id, text: `caught ${p.name} cheating at cards in ${place}`, weight: 3 }],
-        effects: [{ op: 'banFrom', locationId: l.id, days: 3, byNpcId: dealer.id }, { op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true }]
+        newMemories: [{ npcId: dealer.id, text: caught ? `caught ${p.name} cheating at cards in ${place}` : `thinks ${p.name} was cheating at cards in ${place}`, weight: caught ? 3 : 2 }],
+        effects: [{ op: 'attitudeDelta', npcId: dealer.id, delta: caught ? -20 : -10 }, { op: 'banFrom', locationId: l.id, days: caught ? 3 : 1, byNpcId: dealer.id }]
+          .concat(caught ? [{ op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true, seen: true }] : [])
       });
       if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     }
@@ -14782,7 +15232,8 @@ const Pipeline = (() => {
     const s = State.current;
     if (!s || typeof narration !== 'string' || !narration) return [];
     const ids = [];
-    for (const n of State.npcsAt(locationId || s.player.locationId)) {
+    const here = State.npcsAt(locationId || s.player.locationId);
+    for (const n of here) {
       if (n.knownToPlayer || n.alive === false || n.unnamed) continue;
       // A surname that is also part of a place name ('Pittman's Gas and Service') proves nothing on its own.
       const placeNames = s.locations.map(x => String(x.name || '').toLowerCase());
@@ -14790,40 +15241,34 @@ const Pipeline = (() => {
       if (!names.length) continue;
       if (new RegExp('(^|[^A-Za-z])(?:' + names.join('|') + ')(?![A-Za-z])').test(narration)) ids.push(n.id);
     }
-    if (ids.length) State.apply({ npcKnownToPlayer: ids });
+    // Introduced in front of the player: met (metTurn), so the narrator stops describing their look (playtest B19).
+    if (ids.length) State.apply({ npcKnownToPlayer: ids }, { present: here.map(n => n.id) });
     return ids;
   }
 
   // ----- step 6: the narrator's packet -----
   function andList(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
-  /* The calendar (CONTRACTS section 1): State.weekday and State.dateLine
-     when the engine has them, else worked out here from the town's calendar
-     (day 1 is Thursday 8 October 2026 when a town has none). */
-  const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  function calendarDay(day) {
-    const t = State.town;
-    const cal = (t && isObj(t.calendar) && t.calendar) || (State.current && State.current.meta.townName === TOWN_DATA.name && isObj(TOWN_DATA.calendar) ? TOWN_DATA.calendar : null);
-    const start = cal && /^\d{4}-\d{2}-\d{2}$/.test(cal.startDate) ? cal.startDate : '2026-10-08';
-    const d = new Date(`${start}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + (Number.isInteger(day) ? day : 1) - 1);
-    return { weekday: WEEKDAY_NAMES[d.getUTCDay()], text: `${WEEKDAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}` };
-  }
-  function engineSays(fn, day) {
-    if (typeof fn !== 'function') return null;
-    try { const v = fn(day); return typeof v === 'string' && v ? v : null; } catch (e) { return null; }
-  }
-  function weekdayOf(day) { return engineSays(State.weekday, day) || calendarDay(day).weekday; }
-  function dateText(day) { return engineSays(State.dateLine, day) || calendarDay(day).text; }
+  /* The calendar (CONTRACTS section 1) is State's: State.weekday, State.dateLine. */
+  function weekdayOf(day) { return State.weekday(day); }
+  function dateText(day) { return State.dateLine(day); }
   /* "DAY 2 (Friday 9 October), EVENING (late)": State.clockLine with the date. */
   function clockText(t) { return State.clockLine(t).replace(/^DAY (\d+)/, (m, d) => `${m} (${dateText(parseInt(d, 10))})`); }
   /* TIME THIS TAKES, from the action's time cost and the clock now (time
      passes after the narration): how long, and where in the day it will be. */
   function timeTakes(ctx) {
     const a = ctx.action || {};
-    const cost = TIME_COSTS.includes(a.timeCost) ? a.timeCost : 'instant';
+    let cost = TIME_COSTS.includes(a.timeCost) ? a.timeCost : 'instant';
     const t = State.current.time;
-    if (cost === 'instant') return 'a moment, no time passes';
+    let lead = 'a few minutes';
+    // An arrest (decided before this narration): the night in the cell follows it.
+    if (ctx.arrest) return `the fight is broken up and the player spends the night in a cell; it will be morning (day ${t.day + 1}, ${weekdayOf(t.day + 1)}) when this is done`;
+    if (cost === 'instant') {
+      // Every LIMITS.instantsPerShort instant actions make a short (State advanceTime; the narration of /rest, /wait, /skip and the like never counts): the one that tips it takes a few minutes.
+      const counts = !State.NOT_ACTIONS.includes(ctx.cause || 'turn');
+      if (!counts || (t.instants | 0) + 1 < State.LIMITS.instantsPerShort) return 'a moment, no time passes';
+      cost = 'short';
+      lead = 'a moment, but the talk has added up to a few minutes';
+    }
     const i = PHASES.indexOf(t.phase);
     const next = i === PHASES.length - 1 ? { day: t.day + 1, phase: PHASES[0] } : { day: t.day, phase: PHASES[i + 1] };
     const nextText = `${next.phase}${next.day !== t.day ? ` (day ${next.day}, ${weekdayOf(next.day)})` : ''}`;
@@ -14831,37 +15276,29 @@ const Pipeline = (() => {
     if (cost === 'long') return `an hour or more; it will be ${nextText} when this is done`;
     const shorts = (t.shorts | 0) + 1;
     // Night holds until the player sleeps (State advanceTime): a short there stays late at night.
-    if (shorts < SHORTS_PER_PHASE) return `a few minutes; it will still be ${t.phase} (${State.phasePart({ phase: t.phase, shorts })})`;
-    if (t.phase === 'night') return 'a few minutes; it will still be night (late)';
-    return `a few minutes; it will be ${nextText} when this is done`;
+    if (shorts < SHORTS_PER_PHASE) return `${lead}; it will still be ${t.phase} (${State.phasePart({ phase: t.phase, shorts })})`;
+    if (t.phase === 'night') return `${lead}; it will still be night (late)`;
+    return `${lead}; it will be ${nextText} when this is done`;
   }
-  /* The town's news (CONTRACTS section 5): State.news once the engine keeps
-     it, the public items only. */
-  function newsItems(s) {
-    let list = null;
-    try { list = typeof State.news === 'function' ? State.news() : State.news; } catch (e) { list = null; }
-    if (!Array.isArray(list)) list = Array.isArray(s.news) ? s.news : [];
-    return list.filter(x => isObj(x) && typeof x.text === 'string' && x.text.trim() && x.public !== false);
+  /* The town's news (CONTRACTS section 5): the public items. */
+  function newsItems() {
+    return newsList().filter(x => isObj(x) && typeof x.text === 'string' && x.text.trim() && x.public !== false);
   }
   /* "TOWN NEWS: Day 5: ...; Day 6: ...": the last five public items, oldest first. */
-  function newsLine(s) {
-    const items = newsItems(s).slice(-5);
+  function newsLine() {
+    const items = newsItems().slice(-5);
     return items.length ? `TOWN NEWS: ${items.map(x => `${Number.isInteger(x.day) ? `Day ${x.day}` : 'Lately'}: ${cleanText(x.text, 300).replace(/[.]$/, '')}`).join('; ')}` : null;
   }
-  /* The open obligations (CONTRACTS section 4): State.obligations once the
-     engine keeps them, else the player's list read directly. */
-  function obligationsOpen(s) {
-    let list = null;
-    try { if (typeof State.obligations === 'function') list = State.obligations('open'); } catch (e) { list = null; }
-    if (!Array.isArray(list)) list = (Array.isArray(s.player.obligations) ? s.player.obligations : []).filter(o => isObj(o) && o.status === 'open');
-    return list.filter(o => isObj(o));
-  }
+  /* What is still owed on a debt paid in part (State keeps paid). */
+  function paidPart(o) { return Number.isInteger(o.amount) && (o.paid | 0) > 0 && o.paid < o.amount ? `${money(o.paid)} paid, ${money(o.amount - o.paid)} still owed` : ''; }
   function obligationText(o, s) {
     const n = o.npcId ? State.npc(o.npcId) : null;
     const text = cleanText(o.text, 160).replace(/[.]$/, '') || `${o.kind || 'a promise'} to ${n ? n.name : 'someone'}`;
-    const amount = Number.isInteger(o.amount) && !text.includes(money(o.amount)) ? ` (${money(o.amount)})` : '';
+    const part = paidPart(o);
+    const amount = part ? ` (${part})` : Number.isInteger(o.amount) && !text.includes(money(o.amount)) ? ` (${money(o.amount)})` : '';
     const d = o.dueDay;
-    const due = Number.isInteger(d) ? `, due day ${d} (${weekdayOf(d)}${d === s.time.day ? ', today' : d === s.time.day + 1 ? ', tomorrow' : d < s.time.day ? ', overdue' : `, in ${d - s.time.day} days`})` : '';
+    const due = o.status === 'missed' ? `, missed: it was due day ${d} and is still owed (paying it now still counts, late)`
+      : Number.isInteger(d) ? `, due day ${d} (${weekdayOf(d)}${d === s.time.day ? ', today' : d === s.time.day + 1 ? ', tomorrow' : d < s.time.day ? ', overdue' : `, in ${d - s.time.day} days`})` : '';
     return `${text}${amount}${due}`;
   }
   /* One clause of a thread's summary: its first sentence, at most 25 words. */
@@ -14876,7 +15313,7 @@ const Pipeline = (() => {
   function openLine(s) {
     const loose = new Set((s.player.looseEnds || []).map(le => le.threadId).filter(Boolean));
     const items = (s.threads || []).filter(t => t.status === 'open' && t.knownToPlayer && !loose.has(t.id)).map(t => `${t.title}: ${firstClause(t.summary)}`);
-    for (const o of obligationsOpen(s)) items.push(obligationText(o, s));
+    for (const o of State.obligations('owed')) items.push(obligationText(o, s));
     return items.length ? `OPEN: ${items.join('; ')}` : null;
   }
   /* LOOSE ENDS: who the player's past ties them to, written from that
@@ -14899,13 +15336,24 @@ const Pipeline = (() => {
       return !!n && (!t || t.status === 'open');
     });
   }
+  /* Where a loose end's obligation stands, for LOOSE ENDS: paid, missed
+     and still owed, or paid in part. */
+  const LOOSE_OBLIGATION = { debt: 'debt', secret: 'blackmail', promise: 'promise', lost: 'errand' };
+  function looseState(le) {
+    const o = State.obligations().filter(x => x.npcId === le.npcId && x.kind === LOOSE_OBLIGATION[le.kind]).pop();
+    if (!o) return '';
+    if (o.status === 'met') return `; settled on day ${o.settledDay}${o.late ? ', late' : ''}`;
+    if (o.status === 'missed') return `; it went past due on day ${o.dueDay}${State.obligations('owed').includes(o) ? ' and is still owed' : ''}`;
+    if ((o.paid | 0) > 0 && Number.isInteger(o.amount)) return `; ${money(o.paid)} of ${money(o.amount)} paid so far`;
+    return '';
+  }
   function looseEndsLine(s, presentIds) {
     const p = s.player;
     const parts = openLooseEnds(s).map(le => {
       const n = State.npc(le.npcId);
       const side = (LOOSE_SIDE[le.kind] || ((npc, pl) => `${npc} is tied to ${pl}'s past`))(n.name, p.name);
       const where = presentIds.includes(n.id) ? 'here now' : presenceOf(n) === 'dead' ? 'dead' : 'not here';
-      return `${side} (${where}; ${p.name}'s own words: "${cleanText(le.text, 200)}")`;
+      return `${side} (${where}${looseState(le)}; ${p.name}'s own words: "${cleanText(le.text, 200)}")`;
     });
     return parts.length ? `LOOSE ENDS: ${parts.join(' | ')}` : null;
   }
@@ -15004,10 +15452,29 @@ const Pipeline = (() => {
   }
   /* Fills the scene part of the turn context (shared by the narrator packet,
      the bookkeeper packet and the mock provider). */
+  /* The phase a walk that takes this time cost lands in: a long passes one;
+     a short the last of its phase rolls into the next (not at night, which
+     holds until the player sleeps); an instant stays. */
+  function arrivalPhase(cost) {
+    const t = State.current.time;
+    const next = PHASES[(PHASES.indexOf(t.phase) + 1) % PHASES.length];
+    if (cost === 'long') return next;
+    if (cost === 'short' && t.phase !== 'night' && (t.shorts | 0) + 1 >= SHORTS_PER_PHASE) return next;
+    return t.phase;
+  }
+  /* Who is in the scene: everyone here now, and anyone the turn keeps in it
+     for this narration (ctx.stillHere: someone knocked down this turn, laid
+     up at home from now on, is still on the floor in this scene). */
+  function presentNow(ctx) {
+    const l = here();
+    const present = State.npcsAt(l.id);
+    for (const id of (ctx && ctx.stillHere) || []) { const n = State.npc(id); if (n && !present.includes(n)) present.push(n); }
+    return present;
+  }
   function scene(ctx) {
     const s = State.current;
     const l = here();
-    const present = State.npcsAt(l.id);
+    const present = presentNow(ctx);
     ctx.location = { id: l.id, name: l.name, type: l.type, closed: !!l.closed || (typeof State.isClosed === 'function' && !!State.isClosed(l)) };
     ctx.locationName = l.name;
     ctx.present = present.map(n => ({ id: n.id, name: n.name, role: n.role, attitude: n.attitude }));
@@ -15015,7 +15482,8 @@ const Pipeline = (() => {
     ctx.time = nowTime();
     const a = ctx.action;
     const d = a && a.actionType === 'move' && a.destinationId ? State.loc(a.destinationId) : null;
-    ctx.destination = d ? { id: d.id, name: d.name, closed: isShut(d), why: shutReason(d) || null, present: State.npcsAt(d.id).map(n => n.name) } : null;
+    // Who is there when the player gets there: the phase the walk lands in (REVIEW E8, playtest B8).
+    ctx.destination = d ? { id: d.id, name: d.name, closed: isShut(d), why: shutReason(d) || null, phase: arrivalPhase(a.timeCost), present: State.npcsAt(d.id, arrivalPhase(a.timeCost)).map(n => n.name) } : null;
     ctx.turn = s.meta.turn;
     return ctx;
   }
@@ -15081,14 +15549,14 @@ const Pipeline = (() => {
     const a = ctx.action || {};
     const roll = ctx.roll;
     const reveal = Array.isArray(ctx.revealSecretFor) ? ctx.revealSecretFor : [];
-    const presentNpcs = State.npcsAt(l.id);
+    const presentNpcs = presentNow(ctx);
     const presentIds = presentNpcs.map(n => n.id);
     const present = presentNpcs.map(n => npcLine(n, turn, false, { secret: reveal.includes(n.id) }));
     const conds = p.conditions.map(c => c.name.toLowerCase()).join(', ') || 'none';
     // One line each (an arrival's two paragraphs too), so every packet label starts a line.
     const flat = t => String(t || '').replace(/\s*\n+\s*/g, ' ');
     const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${flat(e.input)}"` : flat(e.input)) + ' ' : ''}${flat(e.narration)}`).join(' | ');
-    const long = ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue';
+    const long = roomy(ctx);
     const full = ctx.mode === 'arrival' || ctx.mode === 'epilogue' || !!ctx.moved || a.actionType === 'look' || a.actionType === 'move';
     const lines = [];
     // The story so far, oldest first.
@@ -15121,13 +15589,14 @@ const Pipeline = (() => {
       `PRESENT: ${present.join('; ') || 'nobody'}.`,
       knowledgeLine(s)
     );
-    for (const line of [looseEndsLine(s, presentIds), openLine(s), newsLine(s)]) if (line) lines.push(line);
+    for (const line of [looseEndsLine(s, presentIds), openLine(s), newsLine()]) if (line) lines.push(line);
     // This turn.
     const np = (ctx.notPresent || []).map(x => {
       if (x.reason === 'not_here') return `${x.label} (not here right now)`;
       if (x.reason === 'gone') return `${x.label} (${x.why || 'gone from town'})`;
       if (x.reason === 'unproven') return `${x.label} (the player claims this, but it is not true in this world; nobody like that is here)`;
       if (x.reason === 'not_found') return `${x.label} (looked for and not found: the search turns up nothing like it, and the player does not get it)`;
+      if (x.reason === 'nothing_here') return `${x.label} (nothing like that is here to take: only what ITEMS HERE lists can be picked up, and the player does not get it)`;
       return `${x.label} (does not exist in this town; it is simply not there)`;
     });
     if (np.length) lines.push(`NOT PRESENT: ${np.join('; ')}.`);
@@ -15135,7 +15604,7 @@ const Pipeline = (() => {
     if (made.length) lines.push(`NEW IN THE SCENE: ${made.join('; ')}.`);
     if (ctx.destination) {
       const d = State.loc(ctx.destination.id);
-      const there = State.npcsAt(d.id).map(n => npcLine(n, turn, true));
+      const there = State.npcsAt(d.id, ctx.destination.phase || s.time.phase).map(n => npcLine(n, turn, true));
       const shut = shutReason(d);
       lines.push(`DESTINATION: ${d.name} — ${d.description}${shut ? ` (${shut}: the player cannot go in)` : ''} Present there: ${there.join('; ') || 'nobody'}.`);
     }
@@ -15168,9 +15637,14 @@ const Pipeline = (() => {
     if (roll && roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push(`OUTCOME: the ask succeeded. ${roll.tier === 'critical' ? 'It works, and then some.' : roll.tier === 'partial' ? 'It works, but at the cost named in COMPLICATION.' : 'It works.'} The person goes along with what the player asked, at least in part, whatever they said before; do not narrate a refusal or a watered-down substitute. If it seems out of character, the difficulty already allowed for that: the dice decided.`);
     if (ctx.damage) lines.push(`DAMAGE: the player takes ${ctx.damage} damage.`);
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
-    // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
-    const due = (ctx.due || []).map(d => d.text).join(' / ');
-    lines.push(`DUE EVENT: ${due ? `${due} (already true; work it into the scene naturally, not as an announcement)` : 'none'}`);
+    // SPEC step 11: work due events in naturally. A town event at the player's place is the scene itself (scene); one from an
+    // earlier day says so, so a "due in three days" it carries is read against OPEN's dates, which are as of now.
+    const dueText = d => `${d.text}${Number.isInteger(d.firedDay) && d.firedDay < s.time.day && ctx.mode !== 'epilogue' ? ` (this came up on day ${d.firedDay}; any days it counts are from then, and OPEN has them as of today)` : ''}`;
+    const isScene = d => d.scene === true && ctx.mode !== 'epilogue';
+    const dueScene = (ctx.due || []).filter(isScene).map(d => `${dueText(d)} (the scene: it happens here, now, in front of the player; make it the heart of this narration)`);
+    const dueRest = (ctx.due || []).filter(d => !isScene(d)).map(dueText);
+    const due = dueScene.concat(dueRest.length ? [`${dueRest.join(' / ')} (already true; work it into the scene naturally, not as an announcement)`] : []);
+    lines.push(`DUE EVENT: ${due.length ? due.join(' / ') : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}`);
     // The rules, last: the mode, then the length the style check enforces.
@@ -15214,8 +15688,10 @@ const Pipeline = (() => {
      (UI.feed.rewriting), while the rewrite streams into a buffer; the
      rewrite replaces it when it comes, and if it fails or is refused the
      draft stands. Soft problems go to the debug view only. */
+  /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
+  function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
   async function narrate(ctx) {
-    const zoom = ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue';
+    const zoom = roomy(ctx);
     const style = Style.current();
     const text = withTurnLines(narratorPacket(ctx), ctx);
     ctx.packet = text;
@@ -15291,6 +15767,7 @@ const Pipeline = (() => {
     const engine = [];
     if (ctx.damage) engine.push(`fight damage: the player lost ${ctx.damage} HP`);
     if (ctx.consequence) engine.push(ctx.consequence);
+    if (ctx.complicationDone) engine.push(`the complication's effects: ${ctx.complicationDone.join('; ')}`);
     if (ctx.storyPoint) engine.push('a story point for the natural 20');
     for (const c of ctx.created || []) engine.push(`created ${c.id} (${c.kind}: ${c.name})`);
     if (ctx.moved) engine.push(`the walk from ${ctx.moved.fromId} to ${ctx.moved.toId} (the player is at ${ctx.moved.toId} now)`);
@@ -15311,7 +15788,7 @@ const Pipeline = (() => {
     if (ctx.missing) lines.push(`${notCarriedLine(ctx.missing)} Record no use of it, no item used or lost, and nothing that needed it.`);
     if (ctx.pressed) lines.push('SAME ASK AGAIN: this repeats an ask that already failed; grant nothing new; a small attitude drop (-5 to -10) for the person pushed is reasonable; no move.');
     if (ctx.beat) lines.push('BEAT: the player did and said nothing; record only what the others did.');
-    const missing = (ctx.notPresent || []).filter(x => x.reason === 'does_not_exist' || x.reason === 'unproven').map(x => x.label);
+    const missing = (ctx.notPresent || []).filter(x => x.reason === 'does_not_exist' || x.reason === 'unproven' || x.reason === 'nothing_here').map(x => x.label);
     if (missing.length) lines.push(`DOES NOT EXIST (record nothing about it): ${missing.join(', ')}`);
     if (ctx.rumour) lines.push(`RUMOUR OFFERED: ${ctx.rumour.id} by ${ctx.rumour.npcId}: "${ctx.rumour.text}" (list it in rumoursHeard only if the narration shows it being told)`);
     lines.push(`NARRATION: ${ctx.narration || ''}`);
@@ -15331,9 +15808,9 @@ const Pipeline = (() => {
     // A faction's running clock is what a nudge moves: its aim and how far along it is.
     lines.push(`FACTIONS: ${s.factions.map(f => { const c = World.activeClock(f); return `${f.id} — ${f.name}${c ? `; clock "${c.label}" ${c.filled}/${c.segments}` : '; no clock running'}`; }).join('; ')}`);
     lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'}): ${firstClause(t.summary)}`).join('; ') || 'none'}`);
-    const owed = obligationsOpen(s);
-    if (owed.length) lines.push(`OPEN OBLIGATIONS (obligationsSettled takes these ids): ${owed.map(o => `${o.id} — ${obligationText(o, s)}${o.npcId ? ` [${o.npcId}]` : ''}`).join('; ')}`);
-    const news = newsLine(s);
+    const owed = State.obligations('owed');
+    if (owed.length) lines.push(`OPEN OBLIGATIONS (obligationsSettled takes these ids; money handed over toward one is counted on it, a part payment too): ${owed.map(o => `${o.id} — ${obligationText(o, s)}${o.npcId ? ` [${o.npcId}]` : ''}`).join('; ')}`);
+    const news = newsLine();
     if (news) lines.push(news);
     return lines.join('\n');
   }
@@ -15493,6 +15970,16 @@ const Pipeline = (() => {
     if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
     if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
     if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) { reject('playerLocationId', `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn`); delete clean.playerLocationId; }
+    // The same ask worked here before this phase (Dice.diminishing): a warmer attitude counts for less each time.
+    const dim = ctx.diminish;
+    if (dim && Array.isArray(clean.attitudeChanges)) {
+      clean.attitudeChanges = clean.attitudeChanges.map(c => {
+        if (!isObj(c) || c.npcId !== dim.npcId || !(toInt(c.delta) > 0)) return c;
+        const d = Math.round(toInt(c.delta) * dim.factor);
+        reject('attitudeChanges', `${c.npcId} ${plusMinus(toInt(c.delta))} held to ${plusMinus(d)}: ${dim.gift ? `another gift to them today (${dim.times} before)` : `the same ask already worked ${dim.times} time${dim.times === 1 ? '' : 's'} here this phase`}`);
+        return d > 0 ? Object.assign({}, c, { delta: d }) : null;
+      }).filter(c => c !== null);
+    }
     // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
     const by = speakerOf(ctx);
     for (const k of ['placesRevealed', 'peopleRevealed']) {
@@ -15510,7 +15997,8 @@ const Pipeline = (() => {
     const before = World.attitudes();
     const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
     const wasHeard = !!(offered && offered.heard);
-    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null });
+    const targets = ((ctx.action && ctx.action.targets) || []).filter(id => typeof id === 'string' && id.startsWith('npc_'));
+    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null, targets });
     // Step 13 renders the map and the Places list from state; the feed says what was added.
     ctx.revealed = (ctx.applied.revealed || []).slice();
     for (const id of ctx.revealed) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
@@ -15523,10 +16011,14 @@ const Pipeline = (() => {
     if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
     return ctx.applied;
   }
-  /* A bookkeeper that failed (not a refusal): asked once more in the
-     background. Its diff is applied when no turn is running, only if that
-     turn's log entry is still there and still 'not recorded' (not taken
-     back with /undo, not another game). */
+  /* A bookkeeper that failed (not a refusal, not a Stop): asked once more in
+     the background. Its diff is applied when no turn is running, and only
+     while that turn's log entry is still the newest and still 'not
+     recorded' (not taken back with /undo, not another game, and no later
+     turn has been played on top of it: a diff read against an older scene
+     would undo what came after, so then the turn stays not recorded). A
+     late diff never moves the player (the engine already made any walk the
+     turn narrated). The quiet line goes on that entry. */
   function retryBookkeeper(s, turn, packet, ctx) {
     (async () => {
       let diff;
@@ -15539,10 +16031,19 @@ const Pipeline = (() => {
       if (State.current !== s) return;
       const entry = s.log.find(e => e.turn === turn);
       if (!entry || entry.changes !== 'not recorded') return;
+      if (s.log[s.log.length - 1] !== entry || s.meta.turn !== turn) {
+        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry came back after a later turn; turn ${turn} stays not recorded` });
+        return;
+      }
+      const late = isObj(diff) ? Object.assign({}, diff) : {};
+      if (late.playerLocationId) {
+        State.debugLog.push({ turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: a late bookkeeper never moves the player' });
+        delete late.playerLocationId;
+      }
       State.beginBatch();
       try {
-        applyBookkeeping(ctx, diff);
-        delete entry.changes;
+        applyBookkeeping(ctx, late);
+        State.apply({ logUpdate: { turn, changes: null } });
         UI.feed.quiet(NOTICES.bookLate);
         State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry recorded turn ${turn}` });
       } catch (err) { console.error(err); } finally { State.endBatch(); }
@@ -15580,6 +16081,8 @@ const Pipeline = (() => {
      (fn, after the turn is logged: /rest's recap) } */
   async function runTurn(opts) {
     if (busy) return { ok: false, reason: 'busy', restoreInput: true };
+    const ro = readOnlyRefusal();
+    if (ro) return ro;
     const s = State.current;
     busy = true;
     acceptsQueue = false;
@@ -15587,7 +16090,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [] };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [] };
     // Step 13: the autosave and the render run when this batch closes: once
     // the turn is logged (then the chronicle runs), or after a rollback.
     State.beginBatch();
@@ -15617,6 +16120,8 @@ const Pipeline = (() => {
         action = normaliseParse(parsed);
       }
       if (!action.summary) action.summary = cleanText(opts.parse || opts.input, 160);
+      // The action as parsed, before the steps below change it (a walk, a thing made or not found): /reroll replays this.
+      const parsedAction = deepCopy(action);
       ctx.action = action;
       // Step 3c. Say mode: the player only spoke, to whoever they addressed.
       if (!opts.fact && isSay(ctx.speech)) sayAction(action, ctx.speech);
@@ -15644,18 +16149,24 @@ const Pipeline = (() => {
       }
       await createDeferred(ctx);
       if (replaced()) return fail(snap, mark, null, {});
+      giftCheck(ctx);
       secretsFor(ctx);
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
       const leaving = action.actionType === 'move' && !!action.destinationId && action.destinationId !== ctx.location.id;
+      // A narration of time passing (/rest, /wait, /skip) tells more of what came due meanwhile, so a string of nights does not leave events to be told days late.
+      const quiet = opts.bookkeep === false;
+      // A walk to an open place: what is due is told where the player arrives, and whoever comes for them meets them there (playtest B6).
+      const dest = leaving && ctx.destination && !ctx.destination.closed ? ctx.destination : null;
       ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }]
-        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving }) || [];
+        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined }) || [];
+      if (dest && ctx.due.length) ctx.destination.present = State.npcsAt(dest.id, dest.phase).map(n => n.name);
       if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
       ctx.rumour = opts.epilogue ? null : pickRumour(ctx);
       status('narrate');
       const told = await narrate(ctx);
       if (replaced()) return fail(snap, mark, null, {});
-      if (told.refusal) return fail(snap, mark, { text: refusedText('narrator') }, { reason: 'refused', restoreInput: true });
+      if (told.refusal) return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater('the narrator declined it') : refusedText('narrator') }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
       noteIntroductions(narration, ctx.location && ctx.location.id);
@@ -15672,21 +16183,22 @@ const Pipeline = (() => {
         const packet = { text: [bookkeeperPacket(ctx)].concat(ctx.bookLines).join('\n'), context: ctx };
         let diff = null;
         try { diff = await Api.bookkeep(packet); } catch (err) {
-          if ((err && err.type === 'aborted') || replaced()) throw err;
-          notRecorded = { error: err, packet };
+          if (replaced()) throw err;
+          // Stop while the town is being updated: the narration the player read stands; this turn's changes are not recorded and not retried.
+          notRecorded = err && err.type === 'aborted' ? { stopped: true } : { error: err, packet };
         }
         if (replaced()) return fail(snap, mark, null, {});
         if (!notRecorded && isRefusal(diff)) notRecorded = { refused: true };
         if (notRecorded) {
-          const why = notRecorded.refused ? 'refused' : `failed: ${(notRecorded.error && (notRecorded.error.type ? `${notRecorded.error.type}: ` : '') + (notRecorded.error.detail || notRecorded.error.message)) || notRecorded.error}`;
+          const why = notRecorded.stopped ? 'was stopped' : notRecorded.refused ? 'refused' : `failed: ${(notRecorded.error && (notRecorded.error.type ? `${notRecorded.error.type}: ` : '') + (notRecorded.error.detail || notRecorded.error.message)) || notRecorded.error}`;
           State.debugLog.push({ turn: s.meta.turn, kind: 'bookkeeper', reason: `the bookkeeper ${why}; the narration stands and the turn's changes were not recorded` });
-          UI.feed.quiet(notRecorded.refused ? refusedText('bookkeeper') : NOTICES.bookFailed);
+          UI.feed.quiet(notRecorded.stopped ? NOTICES.bookStopped : notRecorded.refused ? refusedText('bookkeeper') : NOTICES.bookFailed);
         } else applyBookkeeping(ctx, diff);
       }
       arriveIfLeftBehind(ctx);
       walkOn(ctx);
-      // Caught cheating at cards: thrown out into the street.
-      if (ctx.gamble && ctx.gamble.caught && s.player.locationId === ctx.location.id) {
+      // Caught (or accused of) cheating at cards: put out into the street.
+      if (ctx.gamble && (ctx.gamble.caught || ctx.gamble.accused) && s.player.locationId === ctx.location.id) {
         const out = here().exits.map(id => State.loc(id)).find(l => l && l.discovered && !isShut(l) && l.away !== true);
         if (out) State.apply({ playerLocationId: out.id });
       }
@@ -15703,7 +16215,8 @@ const Pipeline = (() => {
       if (!s.player.dead && !ctx.defeat) {
         if (ctx.arrest && typeof World.arrestPlayer === 'function') {
           const t0 = JSON.stringify(s.time);
-          World.arrestPlayer({ npcId: ctx.arrest.npcId, locationId: ctx.arrest.locationId, turn: s.meta.turn });
+          // Told in this narration (ARREST): no due event for the next one.
+          World.arrestPlayer({ npcId: ctx.arrest.npcId, locationId: ctx.arrest.locationId, turn: s.meta.turn, told: !!ctx.arrest.plan });
           if (State.current === s && JSON.stringify(s.time) === t0) passTime('rest', 'arrest');
         } else passTime(action.timeCost, opts.cause || 'turn');
       }
@@ -15726,13 +16239,14 @@ const Pipeline = (() => {
       const entry = Object.assign({ input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock }, said);
       if (notRecorded) entry.changes = 'not recorded';
       State.apply({ logEntry: entry });
-      if (notRecorded) { const e = s.log[s.log.length - 1]; if (e && e.turn === s.meta.turn && e.changes !== 'not recorded') e.changes = 'not recorded'; }
+      // The ending has been told: its news is seen now, not before (a failed or stopped ending is told after the next turn).
+      if (opts.epilogue) State.apply({ newsSeen: 'ending' });
       progressLines(s, earned);
-      lastTurn = { action, roll: ctx.roll, narration, style: ctx.style, ctx: deepCopy(Object.assign({}, ctx, { packet: undefined })), packet: ctx.packet };
+      lastTurn = { action, parsed: parsedAction, roll: ctx.roll, narration, style: ctx.style, ctx: deepCopy(Object.assign({}, ctx, { packet: undefined })), packet: ctx.packet };
       committed = true;
       if (opts.afterCommit) { try { opts.afterCommit(ctx); } catch (e) { console.error(e); } }
       if (opts.epilogue) UI.feed.quiet(NOTICES.epilogueEnd);
-      if (notRecorded && !notRecorded.refused) {
+      if (notRecorded && !notRecorded.refused && !notRecorded.stopped) {
         const turn = s.meta.turn;
         const keep = deepCopy(Object.assign({}, ctx, { packet: undefined, applied: undefined }));
         later = () => retryBookkeeper(s, turn, notRecorded.packet, keep);
@@ -15750,13 +16264,15 @@ const Pipeline = (() => {
       return { ok: true, defeat: ctx.defeat ? ctx.defeat.outcome : undefined, notRecorded: notRecorded ? true : undefined };
     } catch (err) {
       if (committed) { console.error(err); return { ok: true }; }
-      if (err && err.type === 'aborted') return fail(snap, mark, { text: NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
+      if (err && err.type === 'aborted') return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingStopped : NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
       console.error(err);
-      return fail(snap, mark, { text: errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
+      return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater(err instanceof Api.ApiError ? cleanText(err.message, 160).replace(/[.]$/, '') : '') : errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
     } finally {
       turnState = null;
       if (batchOpen) State.endBatch(); // listeners see the finished turn, or the restored state after a failure
       if (later) later();
+      // An ending that could not be told waits for the end of the next turn (not this settle, or it would be tried again at once).
+      if (opts.epilogue && !committed) holdEnding = true;
       settle();
     }
   }
@@ -15767,8 +16283,11 @@ const Pipeline = (() => {
     busy = false;
     acceptsQueue = false;
     UI.setBusy(false);
-    const ending = pendingEpilogue;
+    let ending = pendingEpilogue;
     pendingEpilogue = null;
+    // An ending still untold (its own turn failed or was stopped last time, or this turn passed no phase): told now.
+    if (!ending && !holdEnding && State.current && !State.muted) { const end = unseenEnding(); if (end) ending = { text: cleanText(end.text, 1500), day: end.day }; }
+    holdEnding = false;
     if (ending && State.current && !State.muted) epilogue(ending);
     else if (queued) {
       const q = queued;
@@ -15875,6 +16394,8 @@ const Pipeline = (() => {
     return TIER_ALIASES[w] ? w : null;
   }
   async function reroll(arg) {
+    const ro = readOnlyRefusal();
+    if (ro) return ro;
     const want = wantedOutcome(arg);
     if (String(arg || '').trim() && want === null) { UI.feed.notice('Say which outcome: success, partial, fail, crit, fumble, or a number from 1 to 20.'); return { ok: false, reason: 'usage', restoreInput: true }; }
     const s = State.current;
@@ -15899,7 +16420,8 @@ const Pipeline = (() => {
     UI.rebuildFeed();
     // "/cheat success" says so; a plain /reroll says it rolled again.
     const said = want === null ? 'Rerolled.' : `Cheat: ${Number.isInteger(want) ? want : String(want).toLowerCase()}`;
-    return runTurn({ input, mode, speech, action: last.action, reroll: true, prepare: () => UI.feed.quiet(said) });
+    // The action as it was parsed: the turn's own steps (a walk, a thing looked for) run again from the restored state.
+    return runTurn({ input, mode, speech, action: deepCopy(last.parsed || last.action), reroll: true, prepare: () => UI.feed.quiet(said) });
   }
 
   /* While the bookkeeper or the chronicle runs after a narration
@@ -15913,8 +16435,10 @@ const Pipeline = (() => {
       return { ok: false, reason: 'busy', restoreInput: true };
     }
     if (!State.current) return { ok: false, reason: 'no game' };
-    // Step 2. Commands are handled in code (some of them run a turn below).
+    // Step 2. Commands are handled in code (some of them run a turn below; each of those refuses in a read-only tab itself).
     if (text.startsWith('/')) return Commands.run(text);
+    const ro = readOnlyRefusal();
+    if (ro) return ro;
     if (State.current.player.dead) { UI.feed.notice(NOTICES.dead); return { ok: false, reason: 'dead' }; }
     const speech = speechFor(text, opts);
     if (isSay(speech)) return runTurn({ input: speech.words, mode: 'normal', speech: { mode: 'say', to: speech.to, toName: speech.toName, toLabel: speech.toLabel || null } });
@@ -15924,6 +16448,8 @@ const Pipeline = (() => {
      Costs a short (a few minutes); the people here act, speak or react.
      Pressed while the bookkeeper runs, it waits in the queue like a line. */
   function pass() {
+    const ro = readOnlyRefusal();
+    if (ro) return Promise.resolve(ro);
     if (busy) {
       if (acceptsQueue && !queued) { queued = { pass: true, text: '' }; return Promise.resolve({ ok: true, queued: true }); }
       return Promise.resolve({ ok: false, reason: 'busy' });
@@ -15957,9 +16483,11 @@ const Pipeline = (() => {
       input: '/rest', mode: 'normal', bookkeep: false, cause: 'rest',
       prepare: ctx => {
         const t = passTime('rest', 'rest');
-        ctx.timePassed = `the player slept until morning, day ${State.current.time.day}${t && t.healed ? `, and recovered ${t.healed} HP` : ''}`;
+        // A place shut today (they slept where they should not be): the morning says so (playtest B14).
+        const shut = isShut(here());
+        ctx.timePassed = `the player slept until morning, day ${State.current.time.day}${t && t.healed ? `, and recovered ${t.healed} HP` : ''}${t && t.quality === 'rough' ? ', sleeping rough' : ''}${shut ? `; ${placeName(here())} is shut today (${shut}), and nobody who does not live here is about` : ''}`;
       },
-      afterCommit: () => printRecap(),
+      afterCommit: () => printRecap({ brief: true }),
       action: () => ({ actionType: 'rest', summary: `${State.current.player.name} wakes after a night's sleep`, targets: [], needsRoll: false, timeCost: 'instant' })
     });
   }
@@ -16000,22 +16528,26 @@ const Pipeline = (() => {
       UI.feed.notice('Skip to where, or when? Try /skip to the docks at night.');
       return { ok: false, reason: 'usage', restoreInput: true };
     }
-    if (g.location && g.location.closed) { UI.feed.notice(`${g.location.name} is closed.`); return { ok: false, reason: 'closed', restoreInput: true }; }
-    const barred = g.location && typeof State.isBanned === 'function' ? State.isBanned(g.location.id) : null;
-    if (barred) { UI.feed.notice(`You are not welcome at ${g.location.name} until day ${barred.untilDay}.`); return { ok: false, reason: 'banned', restoreInput: true }; }
     if (!g.location && g.phase === s.time.phase) { UI.feed.notice(`It is already ${g.phase}.`); return { ok: false, reason: 'same-phase' }; }
     if (g.location && g.location.id === s.player.locationId && (!g.phase || g.phase === s.time.phase)) {
-      UI.feed.notice(`You are already at ${g.location.name}.`);
+      UI.feed.notice(`You are already at ${placeName(g.location)}.`);
       return { ok: false, reason: 'already-there' };
     }
+    // The day the player gets there (a phase past night is tomorrow): a place shut that day (closed, closed on that weekday, or barred to them) is a shut door, as for a walk (shutReason).
+    const steps = g.phase ? phaseSteps(g.phase) : 0;
+    const arrivalDay = s.time.day + (g.phase && PHASES.indexOf(s.time.phase) + steps >= PHASES.length ? 1 : 0);
+    const shutThen = g.location && g.location.id !== s.player.locationId ? shutReason(g.location, arrivalDay) : null;
+    if (shutThen) { const ban = State.isBanned(g.location.id, arrivalDay); UI.feed.notice(ban ? `You are not welcome at ${placeName(g.location)} until day ${ban.untilDay}.` : `${capFirst(placeName(g.location))} is shut then (${shutThen}).`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
+    // Open then but shut now (the night before it opens): wait first and walk over when it opens.
+    const waitFirst = !!(g.location && g.location.id !== s.player.locationId && isShut(g.location));
     return runTurn({
       input: `/skip ${goal}`, mode: 'arrival', bookkeep: false, cause: 'skip',
       prepare: ctx => {
         // The player goes there and waits there, so a town event at that place (the council meeting) happens in front of them.
-        const steps = g.phase ? phaseSteps(g.phase) : 0;
-        if (g.location) State.apply({ playerLocationId: g.location.id });
+        if (g.location && !waitFirst) State.apply({ playerLocationId: g.location.id });
         if (!g.phase) passTime('short', 'skip');
         for (let i = 0; i < steps; i++) passTime(i === steps - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'skip');
+        if (g.location && waitFirst) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
         ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
       },
@@ -16030,6 +16562,7 @@ const Pipeline = (() => {
   async function arrival() {
     const s = State.current;
     if (!s || busy) return { ok: false };
+    if (readOnlyRefusal()) return { ok: false, reason: 'read-only' };
     busy = true;
     acceptsQueue = false;
     UI.setBusy(true);
@@ -16084,6 +16617,8 @@ const Pipeline = (() => {
      and no narration; the feed shows the new day and phase and a quiet
      line. One /undo step (nothing is kept when the clock is already there). */
   function setClock(phase, dayArg) {
+    const ro = readOnlyRefusal();
+    if (ro) return ro;
     const s = State.current;
     if (!PHASES.includes(phase)) { UI.feed.notice('Set the clock to which phase? Try /cheat time night (morning, afternoon, evening or night), or /cheat morning 2 for a day too.'); return { ok: false, reason: 'usage', restoreInput: true }; }
     const day = dayArg === undefined || dayArg === null ? s.time.day : dayArg;
@@ -16189,55 +16724,95 @@ const Pipeline = (() => {
      it; /rest and Continue show it too (recapText). */
   function placeName(l) { return l ? String(l.name).replace(/^The /, 'the ') : 'nowhere'; }
   function tryCall(fn) { try { return fn(); } catch (e) { return null; } }
-  function obligationsOpen(s) {
-    const list = typeof State.obligations === 'function' ? tryCall(() => State.obligations('open')) : null;
-    const all = Array.isArray(list) ? list : (Array.isArray(s.player.obligations) ? s.player.obligations : []);
-    return all.filter(o => isObj(o) && (o.status === undefined || o.status === 'open'));
-  }
   function obligationLine(o, day) {
     const n = o.npcId ? State.npc(o.npcId) : null;
     const who = n ? n.name : 'someone';
-    const what = o.kind === 'debt' ? `You owe ${who}${Number.isFinite(o.amount) ? ` ${money(o.amount)}` : ''}`
-      : `${capFirst(o.kind || 'promise')} for ${who}${o.text ? `: ${lowerFirst(cleanText(o.text, 120)).replace(/\.$/, '')}` : ''}`;
+    const owed = Number.isFinite(o.amount) ? o.amount - (o.paid | 0) : null;
+    const what = o.kind === 'debt' ? `You owe ${who}${owed !== null ? ` ${money(owed)}${o.paid > 0 ? ` (${money(o.paid)} of ${money(o.amount)} paid)` : ''}` : ''}`
+      : `${capFirst(o.kind || 'promise')} for ${who}${o.text ? `: ${lowerFirst(cutWords(o.text, 120)).replace(/\.$/, '')}` : ''}`;
+    if (o.status === 'missed') return `${what} · missed on day ${o.dueDay}, still owed`;
     if (!Number.isInteger(o.dueDay)) return what;
     const left = o.dueDay - day;
     const when = left > 1 ? `${left} days` : left === 1 ? '1 day' : left === 0 ? 'today' : 'overdue';
     return `${what} · due Day ${o.dueDay} (${when})`;
   }
-  function recapText() {
+  /* Text cut to n characters at a word boundary, with "…" when it was cut (playtest B20). */
+  function cutWords(text, n) {
+    const t = cleanText(String(text || ''), 4000);
+    if (t.length <= n) return t;
+    const head = t.slice(0, n);
+    const i = head.lastIndexOf(' ');
+    return `${(i > n * 0.5 ? head.slice(0, i) : head).replace(/[\s,;:.—–-]+$/, '')}…`;
+  }
+  /* Why someone is warm or cold, in a few plain words for the recap: for
+     someone tied to one of the player's loose ends "your loose end: a debt";
+     otherwise their newest memory of weight 2 or more after "remembers ",
+     the player's name read as "you" and the person's "me" as him, her or
+     them ("remembers you called him a liar", "remembers he saw you hit
+     Royce Pittman"); else nothing. Never the raw memory. */
+  const PRESENT_VERB = { is: 'are', has: 'have', owes: 'owe', says: 'say', claims: 'claim', wants: 'want', knows: 'know', works: 'work', lives: 'live', does: 'do', goes: 'go', calls: 'call', keeps: 'keep', seems: 'seem', drinks: 'drink', plays: 'play' };
+  const PRONOUN_FORMS = { he: { subj: 'he', obj: 'him', pos: 'his', self: 'himself' }, she: { subj: 'she', obj: 'her', pos: 'her', self: 'herself' }, they: { subj: 'they', obj: 'them', pos: 'their', self: 'themselves' } };
+  function recapReason(n, p) {
+    const le = (p.looseEnds || []).find(x => x.npcId === n.id && (!x.threadId || !State.thread(x.threadId) || State.thread(x.threadId).status === 'open'));
+    if (le) return `your loose end: ${lowerFirst(le.label || le.kind || 'a loose end')}`;
+    const m = (n.memories || []).filter(x => (x.weight | 0) >= 2 && !State.protectedMemory(x)).slice(-1)[0];
+    if (!m) return '';
+    const pr = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
+    const names = [p.name].concat(String(p.name || '').split(/\s+/).filter(w => w.length >= 3)).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    let t = cleanText(String(m.text || ''), 300).replace(/[.!]+$/, '');
+    for (const nm of names) t = t.replace(new RegExp(`\\b${nm}'s\\b`, 'g'), 'your').replace(new RegExp(`\\b${nm}\\b`, 'g'), 'you');
+    const mine = /\b(me|my|myself|I)\b/.test(t);
+    const swap = x => x.replace(/\bmyself\b/g, pr.self).replace(/\bme\b/g, pr.obj).replace(/\bmy\b/g, pr.pos).replace(/\bI\b/g, pr.subj);
+    if (/^you\b/i.test(t)) return cutWords(`remembers ${swap(lowerFirst(t))}`, 120);
+    // What the player did to them ("called me a liar", "owes me $40 by Friday").
+    if (mine && /^[a-z]/.test(t)) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return cutWords(`remembers you ${swap(w.join(' '))}`, 120); }
+    // What they did about the player ("saw them hit the bartender", "locked you up").
+    if (/^[a-z]/.test(t)) return cutWords(`remembers ${pr.subj} ${t.replace(/\bthem\b/g, 'you')}`, 120);
+    return cutWords(`remembers ${lowerFirst(swap(t))}`, 120);
+  }
+  /* Whether the story's ending has happened (the epilogue fired). */
+  function endingFired() { return !!(State.current && State.current.flags && State.current.flags.epilogueShown); }
+  const ENDING_LINE = 'The story has reached an ending; you can keep playing.';
+  /* The recap, one line each (the UI adds the heading "Where things stand"
+     and bolds what comes before the first colon): where and when; once the
+     ending has happened, that line; Here and Open always; Owed, Warm to you,
+     Cold to you, Heard and In town when there is something. opts.brief (the
+     recap after a night's sleep): once the story has ended, only the first
+     two lines, not the same list every morning. */
+  function recapText(opts) {
     const s = State.current;
     if (!s) return '';
     const p = s.player;
     const t = s.time;
     const l = State.loc(p.locationId);
-    const out = [];
-    const date = typeof State.dateLine === 'function' ? tryCall(() => State.dateLine(t.day)) : typeof State.weekday === 'function' ? tryCall(() => State.weekday(t.day)) : null;
-    out.push(`Day ${t.day}${date ? ` (${date})` : ''}, ${t.phase}, at ${placeName(l)}.`);
+    const out = [`Day ${t.day} (${State.dateLine(t.day)}), ${t.phase}, at ${placeName(l)}.`];
+    if (endingFired()) {
+      out.push(ENDING_LINE);
+      if (opts && opts.brief) return out.join('\n');
+    }
     const present = State.npcsAt(p.locationId);
-    out.push(`Here: ${present.length ? present.map(n => (n.knownToPlayer ? n.name : npcLabel(n))).join(', ') : 'nobody'}.`);
+    out.push(`Here: ${present.length ? andList(present.map(n => (n.knownToPlayer ? n.name : npcLabel(n)))) : 'nobody'}.`);
     const threads = s.threads.filter(x => x.status === 'open' && x.knownToPlayer);
-    out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${sentenceOne(cleanText(x.summary, 220)).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
-    const obls = obligationsOpen(s);
+    out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${cutWords(sentenceOne(cleanText(x.summary, 400)), 220).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
+    const obls = State.obligations('owed');
     if (obls.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).join('; ')}.`);
     const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here');
-    const why = n => {
-      const m = (n.memories || []).filter(x => !/^Loose end with /i.test(x.text)).slice(-1)[0] || (n.memories || []).slice(-1)[0];
-      return m ? `: "${cleanText(String(m.text).replace(/^Loose end with [^(]*\(([^)]*)\):\s*/i, 'loose end, $1: '), 90)}"` : '';
-    };
+    const person = n => { const why = recapReason(n, p); return `${n.name} (${State.attitudeWord(n.attitude)}${why ? `, ${why}` : ''})`; };
     const warm = known.filter(n => n.attitude > 5).sort((a, b) => b.attitude - a.attitude).slice(0, 3);
     const cold = known.filter(n => n.attitude < -5).sort((a, b) => a.attitude - b.attitude).slice(0, 3);
-    if (warm.length) out.push(`Warm to you: ${warm.map(n => `${n.name} (${State.attitudeWord(n.attitude)}${why(n)})`).join('; ')}.`);
-    if (cold.length) out.push(`Cold to you: ${cold.map(n => `${n.name} (${State.attitudeWord(n.attitude)}${why(n)})`).join('; ')}.`);
+    if (warm.length) out.push(`Warm to you: ${warm.map(person).join(', ')}.`);
+    if (cold.length) out.push(`Cold to you: ${cold.map(person).join(', ')}.`);
+    // The rumours heard last (by the day they were heard; the order heard within a day).
     const heard = s.rumours.filter(r => r.heard);
-    const order = r => (Number.isInteger(r.heardTurn) ? r.heardTurn : -1);
+    const order = r => (Number.isInteger(r.heardDay) ? r.heardDay : -1);
     const lastHeard = heard.map((r, i) => ({ r, i })).sort((a, b) => order(a.r) - order(b.r) || a.i - b.i).slice(-3).map(x => x.r);
-    if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cleanText(r.text, 140)}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
-    const news = newsList().filter(n => isObj(n) && n.public !== false && n.text).slice(-2);
-    if (news.length) out.push(`In town: ${news.map(n => `${Number.isInteger(n.day) ? `Day ${n.day}: ` : ''}${cleanText(n.text, 200)}`).join(' ')}`);
+    if (lastHeard.length) out.push(`Heard: ${lastHeard.map(r => { const n = State.npc(r.heardFrom || r.sourceNpcId); return `"${cutWords(r.text, 140).replace(/[.]$/, '')}"${n ? ` (${n.name})` : ''}`; }).join('; ')}.`);
+    const news = newsList().filter(n => isObj(n) && n.public !== false && n.text && n.epilogue !== true).slice(-2);
+    if (news.length) out.push(`In town: ${news.map(n => `${Number.isInteger(n.day) ? `Day ${n.day}: ` : ''}${cutWords(n.text, 200)}`).join(' ')}`);
     return out.join('\n');
   }
-  function printRecap() {
-    const text = recapText();
+  function printRecap(opts) {
+    const text = recapText(opts);
     if (!text) return null;
     const node = UI.feed.notice(text, 'recap');
     if (node && node.style) node.style.whiteSpace = 'pre-line';
@@ -16256,11 +16831,23 @@ const Pipeline = (() => {
     setStatusListener(fn) { statusFn = typeof fn === 'function' ? fn : null; },
     /* Stop: whatever the running turn is waiting on is cancelled; the turn
        fails cleanly and the input goes back (NOTICES.aborted). */
-    abort() { if (!busy) return false; Api.abort(); return true; },
+    abort() {
+      if (!busy) return false;
+      if (acceptsQueue && queued) { const q = queued; queued = null; if (q.text) restoreQueued(q.text); }
+      Api.abort();
+      return true;
+    },
     whenIdle,
     get busy() { return busy; },
+    /* Stop does something now: in any stage of a running turn. While the
+       town is being updated after the narration, Stop keeps the narration
+       (changes not recorded) and puts a queued line back in the box. */
+    get canStop() { return busy; },
     get acceptsQueue() { return busy && acceptsQueue; },
     get queued() { return queued ? queued.text : null; },
+    /* The line waiting in the queue taken back (the UI's "Next: ..." and its
+       x): it will not run. Returns its text, or null when nothing waits. */
+    cancelQueued() { if (!queued) return null; const q = queued; queued = null; return q.text || ''; },
     get lastTurn() { return lastTurn; }
   };
 })();
@@ -16440,9 +17027,9 @@ const Storage = (() => {
   }
   /* State.validateShape's answer as a list of problems: today a list; a
      deeper check may answer { ok, reason } or a string. */
-  function shapeProblems(st) {
+  function shapeProblems(st, town) {
     let v;
-    try { v = State.validateShape(st); } catch (e) { return [e.message || 'it could not be checked']; }
+    try { v = State.validateShape(st, town); } catch (e) { return [e.message || 'it could not be checked']; }
     if (Array.isArray(v)) return v.map(String);
     if (typeof v === 'string') return v ? [v] : [];
     if (isObj(v) && v.ok === false) return [String(v.reason || (Array.isArray(v.errors) ? v.errors.join('; ') : 'it is not the right shape'))];
@@ -16457,7 +17044,7 @@ const Storage = (() => {
     if (!isObj(env)) throw new Error(`${it} is not a saved game.`);
     if (env.kind !== SAVE_KIND && isObj(env.meta) && isObj(env.player)) env = { kind: SAVE_KIND, saveVersion: 1, name: 'Imported', state: env, town: null };
     if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error(`${it} is not a saved game.`);
-    const errs = shapeProblems(env.state);
+    const errs = shapeProblems(env.state, isObj(env.town) ? env.town : undefined);
     if (errs.length) throw new Error(`${what ? it : 'That save'} is damaged: ${errs.join('; ')}`);
     delete env.apiKey;
     delete env.settings;
@@ -16473,7 +17060,8 @@ const Storage = (() => {
       let old = null;
       try { old = JSON.parse(raw); } catch (e) { old = null; }
       const oldId = old && isObj(old.state) ? gameId(old.state) : null;
-      if (oldId !== id) {
+      // Only a readable autosave of another game is kept: an unreadable one never replaces a good previous copy.
+      if (oldId && oldId !== id) {
         try { area().setItem(KEYS.prev, raw); }
         catch (e) { console.warn('[Storage] could not keep the previous autosave', e); }
       }
@@ -18465,11 +19053,8 @@ const UI = (() => {
     return n ? (n.knownToPlayer || hasMet(s, n) ? n.name : npcLabel(n)) : '';
   }
   /* Town news the player has had (public, and not still waiting for the morning). */
-  function newsOf(s) {
-    let list = null;
-    if (State.news !== undefined) { try { list = typeof State.news === 'function' ? State.news() : State.news; } catch (e) { list = null; } }
-    if (!Array.isArray(list)) list = Array.isArray(s.news) ? s.news : [];
-    return list.filter(x => isObj(x) && typeof x.text === 'string' && x.public !== false && x.seen !== false);
+  function newsOf() {
+    return State.news.filter(x => isObj(x) && typeof x.text === 'string' && x.public !== false && x.seen !== false);
   }
   /* Open someone's card from elsewhere (the Journal's threads). */
   function showPerson(id) {
@@ -19097,12 +19682,10 @@ const UI = (() => {
   }
   function turnRunning() { return busy || !!Pipeline.busy; }
   function canQueue() { return turnRunning() && Pipeline.acceptsQueue === true && typeof Pipeline.submit === 'function'; }
-  /* A running turn can be stopped when the Pipeline can abort and says it
-     can now (Pipeline.canStop; an engine without it: any time). */
-  function canStop() { return turnRunning() && typeof Pipeline.abort === 'function' && (Pipeline.canStop === undefined || !!Pipeline.canStop); }
-  /* The button: Wait with nothing typed (a plain button: it is a paid turn
-     too), Send, Stop while a turn runs and can be stopped, Send again while
-     a typed line can be queued. */
+  // Stop also while the town is being updated (Pipeline.canStop: the narration stays), unless a line typed then is to be queued.
+  function canStop() { return turnRunning() && typeof Pipeline.abort === 'function' && (Pipeline.canStop === undefined ? !canQueue() : !!Pipeline.canStop && !(canQueue() && d.cmd && d.cmd.value.trim())); }
+  /* The button: Wait with nothing typed, Send, Stop while a turn runs (it
+     can be stopped), Send again while the next line can be queued. */
   function syncSendLabel() {
     if (!d.send) return;
     const empty = !d.cmd.value.trim();
@@ -20008,8 +20591,8 @@ const Commands = (() => {
     { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
     { name: '/pronouns', args: '<who> she', desc: 'Set someone\'s pronouns (she, he or they)' },
     { name: '/edit', args: '<who>', desc: 'Edit someone on the People tab' },
-    { name: '/save', args: '<name>', desc: 'Save to a named slot' },
-    { name: '/load', args: '', desc: 'Open saved games' },
+    { name: '/save', args: '[name]', desc: 'Save to a named slot (no name: open saved games)' },
+    { name: '/load', args: '[name]', desc: 'Load a named save (no name: open saved games)' },
     { name: '/debug', args: '', desc: 'Toggle the debug view' }
   ];
   const PANEL_FOR = { '/sheet': 'character', '/people': 'people', '/journal': 'journal', '/places': 'places' };
@@ -20081,6 +20664,7 @@ const Commands = (() => {
         return Pipeline.reroll(arg);
       }
       case '/undo': {
+        if (Storage.readOnly) { UI.toast(typeof UI.READ_ONLY_NOTICE === 'string' && UI.READ_ONLY_NOTICE ? UI.READ_ONLY_NOTICE : Pipeline.NOTICES.readOnly); return { ok: false, reason: 'read-only', restoreInput: true }; }
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
         World.forget(State.current.meta.turn);
         Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
@@ -20143,11 +20727,9 @@ const App = (() => {
      the feed shows them again after a reload or an undo. */
   function attachNotes(s) {
     const notes = UI.takeNotes();
-    if (!notes.length || !s || State.muted) return false;
-    const e = s.log[s.log.length - 1];
-    if (!e) return false;
-    e.notes = (Array.isArray(e.notes) ? e.notes : []).concat(notes).slice(-24);
-    return true;
+    if (!notes.length || !s || State.muted || !s.log.length) return false;
+    // Through the engine (State logUpdate), like every other write; nothing to redraw (quiet: the feed already shows them).
+    return !State.apply({ logUpdate: { notes } }, { quiet: true }).rejected.length;
   }
   /* Quiet lines written outside a turn (an edit, a pronoun): stored at once. */
   function flushNotes() {
