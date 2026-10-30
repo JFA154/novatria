@@ -636,126 +636,64 @@ without it reads as 1). The steps that bring a game up to date are listed in
 
 ## What a turn costs
 
-The defaults are set for the best play-through, not the cheapest: Opus 5.5 narrates, Haiku 5.5 parses, Sonnet 5.5 bookkeeps, with medium effort where judgement matters. At those settings a turn is roughly 2 to 2.6 cents, so about $2.10 to $2.60 per 100 turns (the playtest's estimate; see "Faster, cheaper turns" below). The measured figures below were taken with the original cheap defaults (Sonnet 5.5 narrator, Haiku 5.5 parser, all effort low), which you can set in Settings if you want them back.
+The defaults are set for the best play-through, not the cheapest: Opus 5.5
+narrates, Haiku 5.5 parses, Sonnet 5.5 bookkeeps, with medium effort where
+judgement matters. At those settings an ordinary turn is about 2.2 to 2.6
+cents, so about $2.20 to $2.65 per 100 turns. The numbers below are the
+playtest's cost report (`node tests/run.cjs playtest`), measured over the
+same 15 mixed inputs in mock mode on 30 Oct 2026 and priced at the rates in
+`docs/API_NOTES.md`, with cached blocks at the cache-read rate; the live API
+was last called on 29 Oct 2026, before this round (see "Verified against the
+live API"), so check the Debug tab's cache reads on your first real session.
 
-Measured against the live API on 28 Oct 2026, in a 4-turn run (the arrival
-plus three turns) at the default models and effort `low` for every role. The
-prices are those in `docs/API_NOTES.md`: Sonnet 5.5 at $2 / $10 per million
-input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
+| Call | Model | Message (not cached) | Cached prefix | Per call |
+|---|---|---|---|---|
+| Parser | Haiku 5.5 | ~1,440 tokens (message about 2,900 characters, 3,450 at most, plus the 2,160-character schema) | ~3,390 tokens (its prompt and everyone in town) | $0.0002 |
+| Narrator | Opus 5.5 | ~2,420 tokens (about 8,500 characters, 12,200 at most) | ~13,700 tokens (the style guide, the town, the cast) | $0.0148 |
+| Bookkeeper | Sonnet 5.5 | ~2,140 tokens (about 2,900 characters plus the 4,580-character schema) | ~1,360 tokens (its prompt, everyone in town, the factions) | $0.0064 |
 
-| Call | Input (measured) | Output (measured) |
-|---|---|---|
-| Parser | ~1,800 tokens | ~125 |
-| Narrator | ~900 to 1,200 tokens of packet + ~830 cached system tokens | 160 to 510 |
-| Bookkeeper | ~3,300 tokens | 180 to 340 |
-
-- The whole run (arrival plus three turns) cost **$0.0297**: about
-  **$0.0075 per turn**, so **100 turns is roughly $0.75**. Most of that is
-  the narrator.
-- The prompt cache was read on every narration after the first. The first
-  narration of a session pays a little extra to write it, and the cache lasts
-  about five minutes between turns.
-- `/look`, `/rest`, `/wait` and `/skip` call only the narrator. A narration
-  that fails the style check is written a second time, which adds one
-  narrator call. Since the narrator packet ends with an explicit LENGTH
-  line, six live turns on 28 Oct 2026 (talks, walk-and-talks, a persuade
-  roll and a plain move) gave first drafts of 70 to 89 words, all within the
-  90-word limit, so none was rewritten ($0.0301 for the six turns).
-- Since the lived-in town (rules version 7), every narration carries three
-  cached system blocks: the style guide (about 650 tokens), the town (its
-  history, recent events and places, about 2,600) and the cast (everyone
-  here with their history, then the dead and the people elsewhere, about
-  8,200): about 11,500 tokens in all by the tests' estimate of 1.4 tokens a
-  word (they fail over 12,000). That is written to the cache once a session
-  (about 6 cents with Opus 5.5) and then read at $0.20 per million, about a
-  quarter of a cent a narration. The parser and bookkeeper packets listed
-  the people not met yet, one short line each (about 1,100 and 700 tokens,
-  not cached): roughly 0.4 cents a turn on Sonnet 5.5. Since 29 Oct 2026
-  those lists are cached too (see "Faster, cheaper turns" below). Nobody is
-  ever made in play, so there is no call for it.
-- Since 30 Oct 2026 the narrator's packet (not cached) also carries the
-  traits, goal and secret of everyone in the scene (about 90 tokens a
-  person, and one rule line of about 110), your goal, flaw and open threads
-  (about 190 tokens with three loose ends), and every turn of the scene you
-  are in instead of the last three (up to twelve turns and about 700
-  words, so up to about 1,000 tokens in a long scene). The cached blocks
-  are unchanged. The playtest's cost report, over the same 15 mixed inputs
-  in mock mode, measures the packet at 8,202 characters on average (11,455
-  at most), about 2,340 tokens, where it was 5,189 (7,559 at most), about
-  1,480. Priced at Opus 5.5 and Sonnet 5.5 that puts an ordinary turn at
-  $0.0319 to $0.0380 (it was $0.0284 to $0.0346) and 100 turns at about
-  $3.19 to $3.80 (was $2.84 to $3.46). Mock narrations are short; real ones
-  make a long scene cost a little more, up to the 700-word cap.
-- Since the town talks (see The living world), no call and no packet line
-  is added: the one RUMOUR line a turn was already there and the journal's
-  news is written by the game. The same 15 inputs meet a slightly
-  different town (the clocks roll half as often and the morning spread
-  uses the dice too), and the report now measures the packet at 8,168
-  characters on average (11,455 at most), about 2,330 tokens: an ordinary
-  turn $0.0318 to $0.0380, 100 turns about $3.18 to $3.80.
-- Since seeds are events (see The living world), no call and no packet
-  line is added either, but the first loose end now comes on day 1: the
-  report's game picks the debt first, so on the third of its 15 inputs the
-  creditor comes into the scene (one more person in PRESENT while they
-  stay, and one DUE EVENT). It measures the narrator packet at 8,339
-  characters on average (11,980 at most), about 2,380 tokens.
-- **Faster, cheaper turns** (29 Oct 2026). Three changes, measured by the
-  playtest's cost report over the same 15 inputs in mock mode (the API was
-  not called; see "Verified against the live API"):
-  - Haiku 5.5 parses ($0.10 / $0.50 per million tokens, cache read $0.01)
-    and Sonnet 5.5 keeps the bookkeeper and the chronicle (Settings: Parser
-    model, Bookkeeper model).
-  - The lists that do not change from turn to turn left the parser's and
-    the bookkeeper's messages for a cached system block after their prompt,
-    each read at the cache rate once the session's first call has written
-    it. The parser's block (everyone in town with pronouns, job and ties,
-    the dead and the people elsewhere, the places out of town: 9,739
-    characters) and its prompt (1,939) are about 3,340 tokens; its message
-    fell from 10,980 characters on average (11,236 at most) to 2,785 (3,293).
-    The bookkeeper's block (everyone in town and the factions: 3,580) and
-    its prompt (1,195) are about 1,360 tokens; its message fell from 5,462
-    (5,713) to 2,895 (3,314). Both prefixes are over the 512-token minimum
-    for caching. The structured-output schemas (2,150 and 4,575 characters)
-    are still priced at the full input rate.
-  - The report now also counts the narrator's town block, which it had left
-    out: the narrator's cached blocks are about 13,670 tokens at the
-    report's 3.5 characters a token (style 2,598 characters, town 10,588,
-    cast 34,668).
-
-  Per call without thinking: parser $0.0002, narrator $0.0145, bookkeeper
-  $0.0063. An ordinary turn is $0.0213 without thinking and $0.0261 with
-  about 150 thinking tokens a call (it was $0.0318 to $0.0380 with Sonnet
-  parsing and nothing cached for the parser and bookkeeper); the same turn
-  at the new models with the lists still uncached in the messages would be
-  $0.0241 to $0.0288. 100 turns: about $2.13 to $2.61. A narrator-only
-  command (`/look`, `/rest`, `/wait`, `/skip`) is about $0.0145 to $0.0175.
-  The first call of a session (or the first after five idle minutes) writes
+- An ordinary turn is **$0.0217** without thinking and **$0.0264** with
+  about 150 thinking tokens a call: **100 turns is about $2.17 to $2.64**.
+  Before this round (Sonnet 5.5 parsing and bookkeeping with nothing of
+  theirs cached, and a narrator packet of three turns and no wants or
+  secrets) the same report gave $0.0284 to $0.0346, so about $2.84 to $3.46
+  per 100 turns.
+- A narrator-only command (`/look`, `/rest`, `/wait`, `/skip`) is about
+  $0.0148 to $0.0178. A narration that fails the style check is written a
+  second time, which adds one narrator call.
+- The first call of a session (or the first after five idle minutes) writes
   each cache instead of reading it: narrator +$0.0656, parser +$0.0004,
-  bookkeeper +$0.0031.
-  The cast blocks stay the same from turn to turn until the cast itself
-  changes (an edit, a merge, a death), so they are read from the cache
-  every turn of a session; meeting someone, moving or a change of attitude
-  does not touch them.
-- Since work and trouble (see Work), the parser's message carries a WORK ON
-  OFFER HERE line where work is on offer (about 45 tokens a job) and its
-  prompt one sentence about it, and `work` is in the parser's action list.
-  Over the same 15 inputs (the game starts at Pittman's, where Dewayne hires in the
-  morning) the report measures the parser's message at 2,887 characters on
-  average (3,447 at most), where it was 2,799 (3,293), its prompt at 2,139
-  (1,939) and its schema at 2,157 (2,150): about 1,440 tokens at the input
-  rate and 3,390 cached. An ordinary turn is unchanged at the report's
-  precision: $0.0216 without thinking, $0.0263 with, 100 turns $2.16 to
-  $2.63. A turn of work adds the JOB line to the narrator's packet (about
-  95 tokens) and a note to the bookkeeper's (about 40), and a fight that
-  comes to you the ATTACKED line (about 65); no call is added.
+  bookkeeper +$0.0031. The cached blocks are built from the records only, so
+  they stay the same from turn to turn until the cast itself changes (an
+  edit, a merge, a death); meeting someone, moving or a change of attitude
+  does not touch them. With the parser's and the bookkeeper's lists left
+  uncached in the message, the same turn would be $0.0245 to $0.0292.
+- What the narrator's packet carries, and why it is bigger than it was:
+  everyone in the scene with their traits, what they want and their secret
+  (about 90 tokens a person, and one rule line of about 110), your goal,
+  flaw and open threads (about 190 tokens with three loose ends), every turn
+  of the scene you are in instead of the last three (up to twelve turns and
+  about 700 words, so up to about 1,000 tokens in a long scene), the work on
+  offer where you stand (about 45 tokens a job), and on the turn it happens a
+  JOB line (about 95 tokens) or an ATTACKED line (about 65). Mock narrations
+  are short; real ones make a long scene cost a little more, up to the
+  700-word cap. Rumours, journal news, seeds with effects and the clocks add
+  no call and no line beyond the one RUMOUR and DUE EVENT lines that were
+  already there.
+- The chronicle (bookkeeper model, every 10 turns) is estimated at about
+  1,000 input and 110 output tokens. Higher effort or the Opus model costs
+  more. The Debug tab shows the real token counts and cost for the turn and
+  the session, and per role and model (for example `parser claude-haiku-5-5`)
+  with each role's cache reads.
 - The felt wait: once the narration has streamed in, the input takes your
-  next move while the bookkeeper finishes (a few seconds), and the parser
-  in front of the narration is Haiku, the fastest of the three.
-- The chronicle (bookkeeper model, every 10 turns) was not part of the run;
-  it is estimated at about 1,000 input and 110 output tokens. Higher effort
-  or the Opus model costs more. The Debug tab shows the real token counts
-  and cost for the turn and the session, and per role and model (for
-  example `parser claude-haiku-5-5`) with each role's cache reads.
+  next move while the bookkeeper finishes (a few seconds), and the parser in
+  front of the narration is Haiku, the fastest of the three.
+
+A live measurement from before this round, for scale: on 28 Oct 2026, with
+the original cheap defaults (Sonnet 5.5 narrating, Haiku 5.5 parsing and
+bookkeeping, all effort low, a narrator packet of about 1,000 tokens and 830
+cached), an arrival plus three turns cost $0.0297, about $0.0075 a turn.
+Those settings can be set again in Settings if you want them back.
 
 ## Editing the town
 
