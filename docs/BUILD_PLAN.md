@@ -1128,6 +1128,27 @@ talking, I can direct it to one person or all."
      that told it lost them), and gave "Meanwhile in town, Day N" the
      news style. Left open: the live grammar probe and a recorded live
      opening scene.
+   - **Wave 7** (30 Oct 2026). The one engine item the fifth QA left (the
+     Journal showed a thread settled by a town event the player had not
+     seen) was fixed by one agent, beside wave 8. Notes: the "Wave 7"
+     section of `docs/notes/engine-state.md`; tests:
+     `tests/wave7-fixes.test.cjs`. A change to a thread the player knows,
+     made while applying an unseen town event or the ending, no longer
+     touches its shown `status`, `summary` or `knownToPlayer`: the new
+     values wait in `thread.pending` (an ordered list, one entry per news,
+     saved and undone with the state) next to `rewardHeld`, and
+     `releaseRewards` shows them when `newsSeen` tells that news and pays
+     the held reward only once nothing is still held, so the Journal row,
+     the recap's Open line, the narrator's OPEN line and the Resolved line
+     change in the same step. A meeting the player walks into settles its
+     thread in that turn. Engine decisions (a resolved thread never moves,
+     `looseEndThreads`, World's `threadOpen`, the drift's `tied`) read the
+     real value through `State.threadNow`; everything shown reads the
+     shown fields. A bookkeeper change that is not held is compared with
+     what the player is shown, so repeating "open" moves nothing held and
+     a different status wins. Left open: a wave-6 save whose thread already
+     shows an unseen result keeps showing it, having nothing to migrate
+     from.
    - **Wave 8** (30 Oct 2026). The last items of the final verification
      pass (six in the code, two in the README) were fixed by one agent,
      beside the Journal hold fixed in parallel. Notes: the "Wave 8" sections
