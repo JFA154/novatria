@@ -534,7 +534,21 @@ const OPS = {
   plantSeed: ['seed'],
   factionRelation: ['a', 'b', 'delta'],
   setFlag: ['key', 'value'],
-  reputationDelta: ['key', 'delta']
+  reputationDelta: ['key', 'delta'],
+  // CONTRACTS section 2 (State.EFFECT_OPS, engine-state wave 1): the names and their required fields; the content owns the checks.
+  playerGold: ['delta'],
+  playerHp: ['delta'],
+  giveItem: ['name'],
+  takeItem: ['name'],
+  addCondition: ['name', 'effect', 'days'],
+  banFrom: ['locationId', 'days'],
+  playerPrice: ['factor', 'days'],
+  addMemory: ['npcId', 'text', 'weight'],
+  clockAdjust: ['factionId', 'delta'],
+  threadUpdate: ['threadId'],
+  addObligation: ['kind', 'npcId', 'text'],
+  settleObligation: ['id', 'status'],
+  addNews: ['text']
 };
 const opCounts = {};
 

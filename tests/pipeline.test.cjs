@@ -322,10 +322,12 @@ s.test('/look describes the whole scene in zoom mode with no roll, no parse, no 
   await quickStart(page);
   await page.evaluate(() => Game.Api.Mock.clear());
   const here = await page.evaluate(() => Game.State.loc(Game.state.player.locationId));
-  const t0 = await page.evaluate(() => JSON.stringify(Game.state.time));
+  // Changed by design (engine-state wave 1): a look is an instant action, and six of them make a short (time.instants), so only the instants move.
+  const clock = () => page.evaluate(() => { const t = Object.assign({}, Game.state.time); delete t.instants; return JSON.stringify(t); });
+  const t0 = await clock();
   await sendText(page, '/look');
   assert.deepEqual(await calls(page), ['narrate']);
-  assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), t0);
+  assert.equal(await clock(), t0);
   const packet = await lastPacket(page);
   assert.match(packet, /\nMODE: ZOOM\nLENGTH: up to 6 sentences, under 150 words\. Stop at the first moment the player must respond\.\nVARIETY: [^\n]+$/);
   assert.match(packet, /\nROLL: none\n/);
@@ -388,10 +390,11 @@ s.test('/skip advances time a phase at a time, ticking the world each phase, the
   assert.equal(await page.inputValue('#cmd'), '/skip somewhere nice');
   await page.fill('#cmd', '');
   // A skip that names the phase it already is arrives in that phase: no time passes.
-  const night0 = await page.evaluate(() => JSON.stringify(Game.state.time));
+  // time.instants aside (engine-state wave 1: the narration turn is an instant until transport passes its cause).
+  const night0 = await page.evaluate(() => { const t = Object.assign({}, Game.state.time); delete t.instants; return JSON.stringify(t); });
   await page.evaluate(() => { window.__ticks = []; });
   await sendText(page, `/skip to ${t2.name} at night`);
-  assert.deepEqual(await page.evaluate(() => [Game.state.player.locationId, JSON.stringify(Game.state.time), window.__ticks.length]), [t2.id, night0, 0]);
+  assert.deepEqual(await page.evaluate(() => { const t = Object.assign({}, Game.state.time); delete t.instants; return [Game.state.player.locationId, JSON.stringify(t), window.__ticks.length]; }), [t2.id, night0, 0]);
   await sendText(page, `/skip to ${t1.name} at night`);
   // Skipping across midnight ticks into the next day.
   await page.evaluate(() => { window.__ticks = []; });
@@ -413,12 +416,13 @@ s.test('/rest sleeps until morning, heals 3 and ticks every phase; /wait waits i
   await page.evaluate(() => { Game.State.apply({ hpDelta: -6 }); window.__ticks = []; const orig = Game.World.tick; Game.World.tick = info => { window.__ticks.push(info); return orig(info); }; Game.Api.Mock.clear(); });
   await sendText(page, '/rest');
   const r = await page.evaluate(() => ({ hp: Game.state.player.hp, time: Game.state.time, ticks: window.__ticks.map(t => `${t.to.day}:${t.to.phase}:${t.cause}`), last: Game.state.log[Game.state.log.length - 1] }));
-  assert.equal(r.hp, 7);
+  // Changed by design (engine-state wave 1): sleeping rough (the arrival place is no bed) heals 1, not 3.
+  assert.equal(r.hp, 5);
   assert.equal(r.time.day, 2);
   assert.equal(r.time.phase, 'morning');
   assert.deepEqual(r.ticks, ['1:afternoon:rest', '1:evening:rest', '1:night:rest', '2:morning:rest']);
   assert.deepEqual(await calls(page), ['narrate']);
-  assert.match(await lastPacket(page), /\nTIME PASSED: the player slept until morning, day 2, and recovered 3 HP/);
+  assert.match(await lastPacket(page), /\nTIME PASSED: the player slept until morning, day 2, and recovered 1 HP/);
   assert.equal(r.last.day, 2);
   await page.evaluate(() => { window.__ticks = []; });
   const loc = await page.evaluate(() => Game.state.player.locationId);
@@ -613,7 +617,8 @@ s.test('insults lower attitude, leave a memory and turn the greeting cold; persu
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
   assert.equal(n.attitude, x.attitude - 45);
-  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3, 3]);
+  // Changed by design (engine-state wave 1): the same words again merge into one memory (the heavier weight).
+  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
   await sendText(page, `I talk to ${x.name}`);
   assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`));
   await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
@@ -1505,7 +1510,8 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   // Sleeping clears it.
   await sendText(page, '/rest');
   assert.ok((await lastPacket(page)).startsWith('DAY 3, MORNING (early) · Location: '));
-  assert.equal(await page.evaluate(() => JSON.stringify(Game.state.time)), '{"day":3,"phase":"morning","shorts":0}');
+  // time.instants aside (engine-state wave 1: the wake-up narration is an instant until transport passes its cause).
+  assert.equal(await page.evaluate(() => { const t = Object.assign({}, Game.state.time); delete t.instants; return JSON.stringify(t); }), '{"day":3,"phase":"morning","shorts":0}');
 });
 
 s.test('/cheat time night sets the clock (no tick, no narration), shows the divider and a quiet line, and /undo restores it; /cheat morning 2 sets the day too', async h => {

@@ -5075,7 +5075,35 @@ const Tables = (() => {
    out of town (away) is never a playerLocationId or a visit. editPerson
    also takes age (a whole number 0 to 120, null to clear) and history
    (text, at most 400).
-   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn? }. */
+   Wave 1 of the review fixes (docs/notes/engine-state.md has the list):
+   apply(diff, { source: 'model', present: [npcIds], rollSuccess, attacked })
+   holds a bookkeeper's diff to what the turn could do: gold +/-500 and HP
+   +/-3 a turn (HP never from above 0 to 0 unless attacked and the roll
+   failed), at most 2 items carried in, items refused when their payment was
+   refused, one seed, conditions of 3 days at most; npcFates (present
+   people, one a turn; dead, arrested and gone only after a successful roll;
+   hurt lays them up at home for two days), memoriesSettled (a memory
+   matched by its words and dropped) and obligationsSettled; metTurn only
+   for people present. A model's memory that starts with the same five
+   words as one already held merges into it. Clock nudges are held to one
+   segment per faction per day and phase (meta.nudges). New effect ops
+   (EFFECT_OPS): playerGold, playerHp, giveItem, takeItem, addCondition,
+   banFrom (state.bans), playerPrice (flags.playerPriceMultiplier until
+   flags.playerPriceUntilDay), addMemory, clockAdjust, threadUpdate,
+   addObligation and settleObligation (player.obligations), addNews
+   (state.news, 60 kept); an id that is still a "{placeholder}" is refused.
+   Engine keys: expireDaily (a day number: bans, a price and paid lodging
+   that ran out go) and newsSeen (true: every news item seen). Threads
+   award a story point and a step of progression (player.progression) only
+   the first time they are resolved (resolvedOnce), and an effect never
+   moves a resolved thread. The clock: advanceTime takes a cost or
+   { cost, toPhaseStart, cause }; six instant actions make a short
+   (time.instants); a morning reached without sleep adds Tired, a rough
+   rest heals 1 and adds Stiff (restQuality). The calendar (season,
+   weekday, dateLine, isClosed) and who is away (awayOn) or laid up
+   (hurtUntilDay) are read helpers below.
+   Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?,
+   progressed?: [{ threadId, gain }], settled?: [{ id, status }] }. */
 const State = (() => {
   let current = null;
   let town = null;
@@ -5115,19 +5143,40 @@ const State = (() => {
   let dirty = false;
 
   const RECORD_KEYS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'conditionsAdded',
-    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry'];
+    'playerLocationId', 'npcKnownToPlayer', 'threadUpdates', 'clockNudges', 'newSeeds', 'rumoursHeard', 'placesRevealed', 'peopleRevealed', 'journalEntry',
+    'npcFates', 'memoriesSettled', 'obligationsSettled'];
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
-    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn'];
+    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
-  const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
+  const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background']);
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
-  const LIMITS = { attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12, peoplePerTurn: 1, revealedPeople: 12 };
+  /* Per-turn and per-game limits. The model* ones hold a bookkeeper's diff
+     (source 'model') to what one turn can do; the engine is not held to them. */
+  const LIMITS = {
+    attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12, peoplePerTurn: 1, revealedPeople: 12,
+    modelGoldPerTurn: 500, modelHpPerTurn: 3, modelItemsPerTurn: 2, modelSeedsPerTurn: 1, modelConditionDays: 3, fatesPerTurn: 1,
+    effectHp: 3, statCap: 3, maxHpCap: 16, instantsPerShort: 6, news: 60, effectList: 12
+  };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
-  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season']);
+  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season', 'playerPriceMultiplier', 'playerPriceUntilDay', 'lodgingPaidUntilDay']);
+  // What someone owes or is owed (player.obligations; CONTRACTS section 4).
+  const OBLIGATION_KINDS = Object.freeze(['debt', 'blackmail', 'promise', 'errand', 'lodging']);
+  // What a bookkeeper's npcFates can do to someone present (CONTRACTS section 10).
+  const NPC_FATES = Object.freeze(['arrested', 'gone', 'dead', 'hurt']);
+  // The calendar (CONTRACTS section 1): day 1 is a Thursday unless the town's calendar says otherwise.
+  const WEEKDAYS = Object.freeze(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DEFAULT_FIRST_WEEKDAY = 4;
+  // Goods that are used up where they are bought (TABLES.items.goods kind), never carried.
+  const SERVICE_KINDS = ['service', 'drink', 'food'];
+  // A night's lodging bought by name ("Night at the motel", "Room at the Riverview").
+  const LODGING_RE = /^(?:a\s+)?(?:night|nights|room)\s+(?:at|in)\b/i;
+  // Where a paid night or a friendly host gives a real bed (restQuality), beside DWELLING_TYPES.
+  const LODGING_TYPES = ['motel', 'inn', 'hotel'];
 
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0 }; }
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0 }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -5206,7 +5255,10 @@ const State = (() => {
     if (!THREAD_STATUSES.includes(status)) bad('thread status must be open, resolved or failed');
     const linked = Array.isArray(t.linkedIds) ? t.linkedIds : [];
     for (const id of linked) if (!entityById(id)) bad(`unknown linked id "${id}"`);
-    return { id: t.id, title, summary: cleanText(t.summary, 400), status, knownToPlayer: t.knownToPlayer === true, linkedIds: linked.slice() };
+    const out = { id: t.id, title, summary: cleanText(t.summary, 400), status, knownToPlayer: t.knownToPlayer === true, linkedIds: linked.slice() };
+    // The stat its first resolution raises (setThreadStatus); without one it is max HP.
+    if (STATS.includes(t.reward)) out.reward = t.reward;
+    return out;
   }
   function normaliseRumour(r) {
     if (!isObj(r)) bad('rumour must be an object');
@@ -5219,7 +5271,21 @@ const State = (() => {
     // one a faction's clock added also carries that faction (its members know it).
     const out = { id: r.id, text, true: r.true !== false, sourceNpcId: r.sourceNpcId || null, heard: r.heard === true, addedTurn: current.meta.turn, addedDay: current.time.day };
     if (typeof r.factionId === 'string' && faction(r.factionId)) out.factionId = r.factionId;
+    // Hearing it makes its thread known (rumoursHeard).
+    if (typeof r.threadId === 'string' && thread(r.threadId)) out.threadId = r.threadId;
     return out;
+  }
+  /* A list of effect ops kept to run later (a seed's effects, its alt, an
+     obligation's onMet and onMiss): objects with a known op, at most
+     LIMITS.effectList, copied. Placeholders are checked when they run. */
+  function effectList(list, where) {
+    if (list === undefined || list === null) return [];
+    if (!Array.isArray(list)) bad(`${where} must be a list of effects`);
+    if (list.length > LIMITS.effectList) bad(`${where}: at most ${LIMITS.effectList} effects`);
+    return list.map((e, i) => {
+      if (!isObj(e) || !EFFECT_OPS.includes(e.op)) bad(`${where}[${i}]: unknown op "${isObj(e) ? e.op : e}"`);
+      return deepCopy(e);
+    });
   }
   function normaliseSeed(raw, requireAhead) {
     if (!isObj(raw)) bad('seed must be an object');
@@ -5258,6 +5324,20 @@ const State = (() => {
       out.origin = { kind: raw.origin.kind };
       if (typeof raw.origin.npcId === 'string' && npc(raw.origin.npcId)) out.origin.npcId = raw.origin.npcId;
       if (Number.isInteger(raw.origin.template)) out.origin.template = raw.origin.template;
+    }
+    /* Engine seeds may carry effects applied when they fire, what must hold
+       then (requires) and what happens instead (alt): CONTRACTS section 3,
+       fired by World. Never the bookkeeper's. */
+    if (!requireAhead) {
+      const effects = effectList(raw.effects, 'effects');
+      if (effects.length) out.effects = effects;
+      if (isObj(raw.requires)) out.requires = deepCopy(raw.requires);
+      if (isObj(raw.alt)) {
+        const alt = { text: cleanText(raw.alt.text, 400) };
+        const altEffects = effectList(raw.alt.effects, 'alt.effects');
+        if (altEffects.length) alt.effects = altEffects;
+        out.alt = alt;
+      }
     }
     return out;
   }
@@ -5820,18 +5900,198 @@ const State = (() => {
     }
     return filled;
   }
+  /* A thread's status. Only its first resolution (resolvedOnce) earns a
+     story point, and, when the player knows the thread, a step of
+     progression (progress); flipping it back and forth earns nothing more. */
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
     if (t.status === status) return `${t.id} already ${status}`;
     const was = t.status;
+    // A thread resolved in a save from before resolvedOnce has been resolved once already.
+    if (was === 'resolved') t.resolvedOnce = true;
     t.status = status;
     let extra = '';
-    if (status === 'resolved' && was !== 'resolved') {
+    if (status === 'resolved' && t.resolvedOnce !== true) {
+      t.resolvedOnce = true;
       const p = current.player;
       if (p.storyPoints < LIMITS.storyPoints) { p.storyPoints += 1; extra = ' (+1 story point)'; }
+      if (t.knownToPlayer === true) extra += progress(t);
     }
     return `${t.id} ${was} -> ${status}${extra}`;
   }
+  /* Progression (CONTRACTS section 9): +1 to the stat the thread names as
+     its reward (at most LIMITS.statCap), else +2 max HP (at most
+     LIMITS.maxHpCap, and HP with it). Recorded in player.progression. */
+  function progress(t) {
+    const p = current.player;
+    if (!Array.isArray(p.progression)) p.progression = [];
+    const stat = STATS.includes(t.reward) ? t.reward : null;
+    let gain = null;
+    if (stat && (p.stats[stat] | 0) < LIMITS.statCap) { p.stats[stat] = (p.stats[stat] | 0) + 1; gain = `${stat} +1`; }
+    else if (p.maxHp < LIMITS.maxHpCap) {
+      const add = Math.min(2, LIMITS.maxHpCap - p.maxHp);
+      p.maxHp += add;
+      p.hp = clamp(p.hp + add, 0, p.maxHp);
+      gain = `max HP +${add}`;
+    }
+    p.progression.push({ turn: current.meta.turn, day: current.time.day, threadId: t.id, gain });
+    // The apply's result lists it too (transport's quiet line).
+    if (applyCtx) (applyCtx.result.progressed = applyCtx.result.progressed || []).push({ threadId: t.id, gain });
+    return gain ? ` (${gain})` : '';
+  }
+  // ----- memories -----
+  /* The first five words of a memory, for telling near-identical ones apart. */
+  function memoryKey(text) {
+    return String(text || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 5).join(' ');
+  }
+  /* A memory for a person (newMemories, the addMemory op). opts.model: the
+     bookkeeper's (one per person per turn: a heavier one replaces a lighter
+     one from the same turn, a lighter one is dropped). opts.merge: a memory
+     that starts with the same five words as one already held merges into it
+     (the newer words, the heavier weight, this turn) instead of piling up.
+     Small things fade: weight-1 memories older than MEMORY_STALE_TURNS go
+     when something new arrives; past MEMORY_MAX the lightest go first. */
+  function remember(n, text, w, opts) {
+    const s = current;
+    const model = !!(opts && opts.model);
+    if (!Array.isArray(n.memories)) n.memories = [];
+    if (model) {
+      const sameTurn = n.memories.findIndex(x => x.turn === s.meta.turn && x.model);
+      if (sameTurn >= 0) {
+        if (n.memories[sameTurn].weight >= w) bad(`${n.id} already has a memory this turn (one per person per turn)`);
+        n.memories.splice(sameTurn, 1);
+      }
+    }
+    n.memories = n.memories.filter(x => x.weight > 1 || s.meta.turn - x.turn <= MEMORY_STALE_TURNS);
+    let merged = null;
+    if (opts && opts.merge) {
+      const key = memoryKey(text);
+      const i = key ? n.memories.findIndex(x => memoryKey(x.text) === key) : -1;
+      if (i >= 0) { merged = n.memories.splice(i, 1)[0]; w = Math.max(w, merged.weight | 0); }
+    }
+    n.memories.push(Object.assign({ turn: s.meta.turn, text, weight: w }, model ? { model: true } : {}));
+    while (n.memories.length > MEMORY_MAX) {
+      const minW = Math.min(...n.memories.map(x => x.weight));
+      n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
+    }
+    return `${n.id} remembers "${text}" (weight ${w})` + (merged ? ` (merged with "${merged.text}")` : '');
+  }
+  // ----- the player's things and conditions -----
+  /* Into the inventory by id (stacking, at most 99). */
+  function carry(id, name, qty, notes) {
+    const p = current.player;
+    const held = p.inventory.find(i => i.id === id);
+    if (held) held.qty = Math.min(99, held.qty + qty);
+    else p.inventory.push({ id, name, qty, notes });
+  }
+  /* A condition on the player, replacing one with the same id. untilDay
+     null lasts until the next rest (untilRest). */
+  function putCondition(c) {
+    const p = current.player;
+    const cond = Object.assign({ id: c.id || 'cond_' + slugify(c.name) }, c);
+    const i = p.conditions.findIndex(x => x.id === cond.id);
+    if (i >= 0) p.conditions[i] = cond; else p.conditions.push(cond);
+    return `condition ${cond.id}` + (Number.isInteger(cond.untilDay) ? ` until day ${cond.untilDay}` : ' until the next rest');
+  }
+  /* The goods table's entry a bought thing's name means, or null: the same
+     words, or one name the start of the other ("Shot of whiskey" and "Shot
+     of whiskey at the Low Water"). */
+  function goodsEntry(name) {
+    const goods = TABLES.items && Array.isArray(TABLES.items.goods) ? TABLES.items.goods : [];
+    const norm = v => String(v || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(a|an|the|some) /, '');
+    const want = norm(name);
+    if (!want) return null;
+    return goods.find(g => isObj(g) && norm(g.name) === want)
+      || goods.find(g => isObj(g) && norm(g.name) && (want.startsWith(norm(g.name) + ' ') || norm(g.name).startsWith(want + ' '))) || null;
+  }
+  /* What a bought thing is: { kind, lodging } when it is used up where it
+     is bought (a service, a drink, food; CONTRACTS section 7), else null.
+     A night or a room "at" somewhere is lodging even when the table has no
+     entry for it. */
+  function serviceOf(name) {
+    const g = goodsEntry(name);
+    if (g && SERVICE_KINDS.includes(g.kind)) return { kind: g.kind, lodging: g.kind === 'service' && (g.lodging === true || LODGING_RE.test(g.name)) };
+    if (!g && LODGING_RE.test(String(name || ''))) return { kind: 'service', lodging: true };
+    return null;
+  }
+  // ----- obligations (CONTRACTS section 4) -----
+  function obligationList() {
+    const p = current.player;
+    if (!Array.isArray(p.obligations)) p.obligations = [];
+    return p.obligations;
+  }
+  function obligation(id) { return current ? find(obligationList(), id) : null; }
+  /* The obligations, all or those with one status (open, met, missed). */
+  function obligations(status) {
+    if (!current) return [];
+    const list = obligationList();
+    return typeof status === 'string' ? list.filter(o => o.status === status) : list.slice();
+  }
+  /* The morning tick (World.tick calls it each new day): every open
+     obligation whose dueDay is before day is missed (settleObligation, so
+     its onMiss runs once). Returns the ids missed. */
+  function tickObligations(day) {
+    if (!current) return [];
+    const d = Number.isInteger(day) ? day : current.time.day;
+    const due = obligations('open').filter(o => Number.isInteger(o.dueDay) && o.dueDay < d);
+    if (!due.length) return [];
+    apply({ effects: due.map(o => ({ op: 'settleObligation', id: o.id, status: 'missed' })) }, { source: 'world' });
+    return due.filter(o => o.status === 'missed').map(o => o.id);
+  }
+  /* Bans, the player's own prices and paid lodging that ran out before day
+     (advanceTime does this at each new morning; idempotent). Returns what
+     ran out, in words. */
+  function expireDaily(day) {
+    if (!current) return [];
+    const d = Number.isInteger(day) ? day : current.time.day;
+    const r = apply({ expireDaily: d }, { source: 'world' });
+    const line = r.applied.find(x => x.startsWith('expireDaily'));
+    return line ? line.replace(/^expireDaily: /, '').split('; ') : [];
+  }
+  /* Fill {npc}, {npcId}, {player} and {playerName} in every string of a value. */
+  function fillDeep(v, vars) {
+    if (typeof v === 'string') return fillTemplate(v, vars);
+    if (Array.isArray(v)) return v.map(x => fillDeep(x, vars));
+    if (isObj(v)) { const o = {}; for (const k of Object.keys(v)) o[k] = fillDeep(v[k], vars); return o; }
+    return v;
+  }
+  /* An obligation met or missed: its onMet or onMiss effects run once, as
+     part of the apply that settled it (their own lines and refusals). */
+  function settle(o, status, how) {
+    if (o.status !== 'open') return `no-op: ${o.id} is already ${o.status}`;
+    o.status = status;
+    o.settledDay = current.time.day;
+    o.settledTurn = current.meta.turn;
+    if (applyCtx) (applyCtx.result.settled = applyCtx.result.settled || []).push({ id: o.id, status });
+    const done = runNested(status === 'met' ? o.onMet : o.onMiss, `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`);
+    return `${o.id} ${status}${how ? ` (${how})` : ''}${done.length ? `; ${done.join('; ')}` : ''}`;
+  }
+  // ----- effects that run inside an apply -----
+  /* The apply in progress, so effects run later in it (an obligation's
+     onMet and onMiss) report their refusals in its result. */
+  let applyCtx = null;
+  // Fields that hold an id: one still reading "{npcId}" was never filled in (World.fillEffects).
+  const ID_FIELDS = ['npcId', 'locationId', 'factionId', 'threadId', 'byNpcId', 'rumourId', 'seedId', 'id', 'key', 'a', 'b'];
+  function runEffect(e) {
+    if (!isObj(e) || typeof e.op !== 'string') bad('effect needs an op');
+    const h = Object.prototype.hasOwnProperty.call(EFFECTS, e.op) ? EFFECTS[e.op] : null;
+    if (!h) bad(`unknown op "${e.op}"`);
+    for (const k of ID_FIELDS) if (typeof e[k] === 'string' && e[k].trim().startsWith('{')) bad(`${k} "${e[k]}" is a placeholder that was never filled in`);
+    return `${e.op}: ${h(e)}`;
+  }
+  function runNested(list, label) {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach((e, i) => {
+      try { out.push(runEffect(e)); } catch (err) {
+        if (!(err instanceof Reject)) console.error(err);
+        const reason = err instanceof Reject ? err.message : 'internal error: ' + err.message;
+        if (applyCtx) applyCtx.no(`${label}[${i}]`, reason);
+      }
+    });
+    return out;
+  }
+  /* A clock's active clock, or null. */
+  function runningClock(f) { return f && f.activeClock >= 0 && Array.isArray(f.clocks) ? (f.clocks[f.activeClock] || null) : null; }
   function findHeld(ref) {
     const inv = current.player.inventory;
     if (typeof ref !== 'string' || !ref.trim()) return null;
@@ -5859,7 +6119,9 @@ const State = (() => {
       // already gone or dead stays that way (a no-op, not a rejection).
       if (n.status === 'gone' || n.status === 'dead' || n.alive === false) return `no-op: ${n.id} is already ${n.alive === false ? 'dead' : n.status}`;
       n.status = e.status;
-      if (e.status === 'dead') n.alive = false;
+      // The dead are on no schedule and make no visit (review E14).
+      if (e.status !== 'free') current.visits = (current.visits || []).filter(v => v.npcId !== n.id);
+      if (e.status === 'dead') { n.alive = false; removeFromSchedules(n.id); }
       else if (e.status === 'arrested') jail(n);
       else if (e.status === 'gone') removeFromSchedules(n.id);
       else restoreSchedule(n);
@@ -5891,7 +6153,12 @@ const State = (() => {
       return `price multiplier ${before} -> ${current.flags.priceMultiplier}`;
     },
     openThread(e) { const t = normaliseThread(e.thread); current.threads.push(t); return `thread ${t.id} opened`; },
-    threadStatus(e) { return setThreadStatus(needThread(e.threadId), e.status); },
+    threadStatus(e) {
+      const t = needThread(e.threadId);
+      // A clock or an effect never moves a resolved thread (review E4).
+      if (t.status === 'resolved' && e.status !== 'resolved' && THREAD_STATUSES.includes(e.status)) return `no-op: ${t.id} is resolved`;
+      return setThreadStatus(t, e.status);
+    },
     addRumour(e) { const r = normaliseRumour(e.rumour); current.rumours.push(r); return `rumour ${r.id} added`; },
     plantSeed(e) { const s = normaliseSeed(e.seed, false); current.seeds.push(s); return `seed ${s.id} planted (${s.trigger.type} ${s.trigger.value})`; },
     factionRelation(e) {
@@ -5924,6 +6191,176 @@ const State = (() => {
       const before = rep[e.key] || 0;
       rep[e.key] = clamp(before + d, -100, 100);
       return `reputation ${e.key} ${before} -> ${rep[e.key]}`;
+    },
+    // ----- CONTRACTS section 2: ops that touch the player and the town's memory -----
+    /* Money in or out; more taken than the player has takes what there is. */
+    playerGold(e) {
+      const d = toInt(e.delta);
+      if (d === null) bad('delta must be an integer');
+      const p = current.player;
+      const before = p.gold;
+      p.gold = clamp(before + d, 0, 1000000);
+      return `gold ${before} -> ${p.gold}` + (before + d < 0 ? ' (took what there was)' : '');
+    },
+    /* -3..+3 HP; never below 1 unless allowDefeat (a beating is not a defeat). */
+    playerHp(e) {
+      const raw = toInt(e.delta);
+      if (raw === null) bad('delta must be an integer');
+      const d = clamp(raw, -LIMITS.effectHp, LIMITS.effectHp);
+      const p = current.player;
+      const before = p.hp;
+      const floor = e.allowDefeat === true ? 0 : Math.min(1, before);
+      p.hp = clamp(before + d, floor, p.maxHp);
+      return `hp ${before} -> ${p.hp}` + (p.hp !== before + raw ? ' (clamped)' : '');
+    },
+    giveItem(e) {
+      const name = cleanText(e.name, 60);
+      if (!name) bad('item needs a name');
+      const qty = clamp(toInt(e.qty) || 1, 1, 99);
+      const held = findHeld(name);
+      carry(held ? held.id : 'item_' + slugify(name), held ? held.name : name, qty, cleanText(e.notes, 120));
+      return `gained ${held ? held.name : name} x${qty}`;
+    },
+    /* By name (any case) or id; nothing happens when it is not carried. */
+    takeItem(e) {
+      const ref = cleanText(typeof e.name === 'string' ? e.name : e.id, 60);
+      if (!ref) bad('item needs a name');
+      const held = findHeld(ref);
+      if (!held) return `no-op: not carrying ${ref}`;
+      const qty = Math.min(held.qty, clamp(toInt(e.qty) || 1, 1, 99));
+      held.qty -= qty;
+      if (held.qty <= 0) current.player.inventory.splice(current.player.inventory.indexOf(held), 1);
+      return `lost ${held.name} x${qty}`;
+    },
+    /* { name, effect: "-1 might", days }: until day + days. */
+    addCondition(e) {
+      const name = cleanText(e.name, 60);
+      if (!name) bad('condition needs a name');
+      const days = toInt(e.days);
+      if (days === null || days < 0 || days > 30) bad('days must be a whole number from 0 to 30');
+      return putCondition({ name, effect: cleanText(e.effect, 80), untilDay: current.time.day + days });
+    },
+    /* Not welcome at a place until day + days (state.bans; isBanned). A
+       second ban there keeps the later day. */
+    banFrom(e) {
+      const l = needLoc(e.locationId);
+      const days = toInt(e.days);
+      if (days === null || days < 0 || days > 60) bad('days must be a whole number from 0 to 60');
+      const by = e.byNpcId !== undefined && e.byNpcId !== null ? needNpc(e.byNpcId).id : null;
+      if (!Array.isArray(current.bans)) current.bans = [];
+      const untilDay = current.time.day + days;
+      let b = current.bans.find(x => x.locationId === l.id);
+      if (b) b.untilDay = Math.max(b.untilDay, untilDay);
+      else current.bans.push(b = { locationId: l.id, untilDay });
+      if (by) b.byNpcId = by;
+      return `banned from ${l.id} until day ${b.untilDay}` + (by ? ` (${by})` : '');
+    },
+    /* The player's own prices (a grudge at the register): multiplied in, at
+       0.25 to 4, until day + days; the morning after, they are gone. */
+    playerPrice(e) {
+      const f = Number(e.factor);
+      if (!Number.isFinite(f) || f <= 0) bad('factor must be a positive number');
+      const days = toInt(e.days);
+      if (days === null || days < 0 || days > 60) bad('days must be a whole number from 0 to 60');
+      const fl = current.flags;
+      const day = current.time.day;
+      const active = Number.isFinite(fl.playerPriceMultiplier) && !(Number.isInteger(fl.playerPriceUntilDay) && fl.playerPriceUntilDay < day);
+      const before = active ? fl.playerPriceMultiplier : 1;
+      fl.playerPriceMultiplier = Math.round(clamp(before * clamp(f, 0.25, 4), 0.25, 4) * 100) / 100;
+      fl.playerPriceUntilDay = Math.max(active && Number.isInteger(fl.playerPriceUntilDay) ? fl.playerPriceUntilDay : 0, day + days);
+      return `player prices ${before} -> ${fl.playerPriceMultiplier} until day ${fl.playerPriceUntilDay}`;
+    },
+    /* A memory through the same path as newMemories (a near-identical one merges). */
+    addMemory(e) {
+      const n = needNpc(e.npcId);
+      const text = cleanText(e.text, 400);
+      if (!text) bad('memory needs text');
+      return remember(n, text, clamp(toInt(e.weight) || 1, 1, 3), { merge: true });
+    },
+    /* A faction's running clock moved 1 or 2 either way, within 0..segments;
+       completion is the tick's to find. No running clock: nothing happens. */
+    clockAdjust(e) {
+      const f = needFaction(e.factionId);
+      const d = toInt(e.delta);
+      if (![-2, -1, 1, 2].includes(d)) bad('delta must be -2, -1, 1 or 2');
+      const c = runningClock(f);
+      if (!c) return `no-op: ${f.id} has no running clock`;
+      const before = c.filled;
+      c.filled = clamp(before + d, 0, c.segments);
+      return `${f.id} "${c.label}" ${before} -> ${c.filled}/${c.segments}`;
+    },
+    /* { threadId, summary?, status?, knownToPlayer? }; a resolved thread's status never moves. */
+    threadUpdate(e) {
+      const t = needThread(e.threadId);
+      const parts = [];
+      if (e.status !== undefined && e.status !== null) {
+        if (!THREAD_STATUSES.includes(e.status)) bad('status must be open, resolved or failed');
+        parts.push(t.status === 'resolved' && e.status !== 'resolved' ? `no-op: ${t.id} is resolved` : setThreadStatus(t, e.status));
+      }
+      if (typeof e.knownToPlayer === 'boolean' && e.knownToPlayer !== t.knownToPlayer) { t.knownToPlayer = e.knownToPlayer; parts.push(`${t.id} known ${e.knownToPlayer}`); }
+      const summary = cleanText(e.summary, 400);
+      if (summary && summary !== t.summary) { t.summary = summary; parts.push(`${t.id} summary updated`); }
+      return parts.join('; ') || `${t.id} unchanged`;
+    },
+    /* { kind, npcId, text, amount?, dueDay? or dueOffset?, itemName?, onMiss?,
+       onMet?, id? }: one open obligation per kind and person; dueOffset counts
+       from today (a loose end's seed carries it to the day it fires). The
+       obligation's own person and the player fill any placeholders left in
+       its text and effects. */
+    addObligation(e) {
+      if (!OBLIGATION_KINDS.includes(e.kind)) bad(`kind must be ${OBLIGATION_KINDS.join(', ')}`);
+      const n = needNpc(e.npcId);
+      const list = obligationList();
+      const open = list.find(o => o.status === 'open' && o.kind === e.kind && o.npcId === n.id);
+      if (open) bad(`${open.id} is already open (one open ${e.kind} per person)`);
+      const vars = { npc: n.name, npcId: n.id, player: current.player.name, playerName: current.player.name };
+      const text = cleanText(fillTemplate(e.text, vars), 200);
+      if (!text) bad('obligation needs text');
+      let amount = null;
+      if (e.amount !== undefined && e.amount !== null) {
+        amount = toInt(e.amount);
+        if (amount === null || amount < 0 || amount > 1000000) bad('amount must be a whole number, 0 or more');
+      }
+      const day = current.time.day;
+      let dueDay = null;
+      if (e.dueDay !== undefined && e.dueDay !== null) {
+        dueDay = toInt(e.dueDay);
+        if (dueDay === null) bad('dueDay must be a day number');
+        dueDay = Math.max(dueDay, day);
+      } else if (e.dueOffset !== undefined && e.dueOffset !== null) {
+        const off = toInt(e.dueOffset);
+        if (off === null || off < 0 || off > 60) bad('dueOffset must be a whole number from 0 to 60');
+        dueDay = day + off;
+      }
+      const onMiss = effectList(fillDeep(e.onMiss, vars), 'onMiss');
+      const onMet = effectList(fillDeep(e.onMet, vars), 'onMet');
+      const base = typeof e.id === 'string' && /^obl_[a-z0-9_]+$/.test(e.id) ? e.id : `obl_${e.kind}_${n.id.replace(/^npc_/, '')}`;
+      const id = uniqueId(base, x => list.some(o => o.id === x));
+      list.push({ id, kind: e.kind, npcId: n.id, text, amount, dueDay, itemName: cleanText(fillTemplate(e.itemName, vars), 60) || null,
+        status: 'open', onMiss, onMet, createdTurn: current.meta.turn, createdDay: day });
+      return `obligation ${id} (${e.kind} to ${n.id}${amount !== null ? `, ${money(amount)}` : ''}${dueDay !== null ? `, due day ${dueDay}` : ''})`;
+    },
+    /* { id, status: 'met' | 'missed' }: its onMet or onMiss effects, once. */
+    settleObligation(e) {
+      if (e.status !== 'met' && e.status !== 'missed') bad('status must be met or missed');
+      const o = obligation(e.id) || bad(`unknown obligation "${e.id}"`);
+      return settle(o, e.status, cleanText(e.how, 80));
+    },
+    /* { text, factionId?, public? (default true), epilogue?, day?, phase? }:
+       town news (state.news, the newest LIMITS.news kept). day and phase
+       default to now (a tick may name the phase it ran for). */
+    addNews(e) {
+      const text = cleanText(e.text, 400);
+      if (!text) bad('news needs text');
+      const factionId = e.factionId !== undefined && e.factionId !== null ? needFaction(e.factionId).id : null;
+      const t = current.time;
+      const day = Number.isInteger(e.day) && e.day >= 1 && e.day <= t.day ? e.day : t.day;
+      const item = { day, phase: PHASES.includes(e.phase) ? e.phase : t.phase, text, factionId, public: e.public !== false, seen: false };
+      if (e.epilogue === true) item.epilogue = true;
+      if (!Array.isArray(current.news)) current.news = [];
+      current.news.push(item);
+      if (current.news.length > LIMITS.news) current.news.splice(0, current.news.length - LIMITS.news);
+      return `news day ${item.day} ${item.phase}: "${text.length > 60 ? text.slice(0, 57) + '...' : text}"`;
     }
   };
   const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
@@ -5940,16 +6377,46 @@ const State = (() => {
      defeat. A new day starts early (shorts 0); reached by anything but a
      rest it sets time.noSleep (no sleep last night), which a rest clears.
      Any phase change clears time.late. Both flags are kept only while
-     true, so a clock that never used them keeps its old shape. */
-  function advanceTime(cost) {
+     true, so a clock that never used them keeps its old shape.
+     The argument is a cost or { cost, toPhaseStart?, cause? }.
+     toPhaseStart: a phase that passes lands at its start (shorts 0; /wait
+     and /skip, review E5). cause 'defeat' with a long is not a night
+     without sleep (the player was out cold). Talk takes no time, but every
+     LIMITS.instantsPerShort instant actions make a short (time.instants,
+     kept only while above 0 like late and noSleep, so read it as
+     time.instants | 0; back to 0 at any phase change; design #5). An
+     instant whose cause is a command that is not an action (rest, wait,
+     skip, arrival, defeat: the narration of time already passed) does not
+     count. A rest heals 3 in a bed and
+     1 sleeping rough, which also leaves the player Stiff (-1 might) for the
+     day (restQuality; a paid night is used up); it ends Tired. A morning
+     reached without sleep makes the player Tired (-1 all) until they rest.
+     A new day lets bans, a player price and paid lodging run out
+     (expireDaily). */
+  const NOT_ACTIONS = ['rest', 'wait', 'skip', 'arrival', 'defeat'];
+  const TIRED = Object.freeze({ id: 'cond_tired', name: 'Tired', effect: '-1 all', untilDay: null, untilRest: true });
+  const STIFF = Object.freeze({ id: 'cond_stiff', name: 'Stiff', effect: '-1 might' });
+  function advanceTime(arg) {
+    const spec = isObj(arg) ? arg : { cost: arg };
+    const cost = spec.cost;
     if (!TIME_COSTS.includes(cost)) bad('time cost must be instant, short, long or rest');
+    if (spec.toPhaseStart !== undefined && typeof spec.toPhaseStart !== 'boolean') bad('toPhaseStart must be true or false');
+    const cause = typeof spec.cause === 'string' ? cleanText(spec.cause, 20) : null;
+    const slept = cost === 'rest' || (cost === 'long' && cause === 'defeat');
     const t = current.time;
+    const p = current.player;
     if (!PHASES.includes(t.phase)) t.phase = 'morning';
     const from = { day: t.day, phase: t.phase };
     let steps = 0;
     let healed = 0;
     let held = false;
-    if (cost === 'short') {
+    let quality = null;
+    let short = cost === 'short';
+    if (cost === 'instant' && !NOT_ACTIONS.includes(cause)) {
+      t.instants = (t.instants | 0) + 1;
+      if (t.instants >= LIMITS.instantsPerShort) { delete t.instants; short = true; }
+    }
+    if (short) {
       t.shorts = (t.shorts | 0) + 1;
       if (t.shorts >= SHORTS_PER_PHASE) {
         if (t.phase === 'night') { t.shorts = SHORTS_PER_PHASE - 1; t.late = true; held = true; }
@@ -5958,25 +6425,160 @@ const State = (() => {
     } else if (cost === 'long') {
       steps = 1;
     } else if (cost === 'rest') {
+      quality = restQuality();
+      // A night paid for is used by sleeping in it (where it was bought: a motel).
+      const here = loc(p.locationId);
+      if (quality === 'bed' && here && LODGING_TYPES.includes(String(here.type || '').toLowerCase())) delete current.flags.lodgingPaidUntilDay;
       steps = PHASES.length - PHASES.indexOf(t.phase);
       t.shorts = 0;
-      const p = current.player;
       const before = p.hp;
-      p.hp = clamp(p.hp + 3, 0, p.maxHp);
+      p.hp = clamp(p.hp + (quality === 'bed' ? 3 : 1), 0, p.maxHp);
       healed = p.hp - before;
       delete t.noSleep;
+      p.conditions = p.conditions.filter(c => !(isObj(c) && (c.untilRest === true || c.id === TIRED.id)));
     }
+    let newDay = false;
     for (let i = 0; i < steps; i++) {
       const idx = PHASES.indexOf(t.phase);
       if (idx === PHASES.length - 1) {
-        t.phase = PHASES[0]; t.day += 1; t.shorts = 0;
-        if (cost !== 'rest') t.noSleep = true;
+        t.phase = PHASES[0]; t.day += 1; t.shorts = 0; newDay = true;
+        if (slept) delete t.noSleep; else t.noSleep = true;
       } else t.phase = PHASES[idx + 1];
     }
-    if (steps) delete t.late;
+    if (steps) {
+      delete t.late;
+      delete t.instants;
+      if (spec.toPhaseStart === true) t.shorts = 0;
+    }
+    if (quality === 'rough') putCondition(Object.assign({}, STIFF, { untilDay: t.day }));
+    if (newDay && t.noSleep === true) putCondition(Object.assign({}, TIRED));
+    if (newDay) expireNow(t.day);
     // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene).
     if (steps && Array.isArray(current.visits)) current.visits = current.visits.filter(v => v.day === t.day && v.phase === t.phase);
-    return { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed, held };
+    const out = { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed, held };
+    if (quality) out.quality = quality;
+    if (cause) out.cause = cause;
+    if (cost === 'instant') out.instants = t.instants | 0;
+    if (cost === 'instant' && short) out.instantShort = true;
+    return out;
+  }
+  /* 'bed' or 'rough': a bed at a motel (LODGING_TYPES) with a night paid for
+     (flags.lodgingPaidUntilDay today or later), or at a motel or a home
+     (DWELLING_TYPES) where someone living there has attitude 25 or more;
+     anywhere else is rough (CONTRACTS section 7). */
+  function restQuality() {
+    if (!current) return 'rough';
+    const l = loc(current.player.locationId);
+    const type = l ? String(l.type || '').toLowerCase() : '';
+    if (!l || !(LODGING_TYPES.includes(type) || DWELLING_TYPES.includes(type))) return 'rough';
+    const paid = current.flags.lodgingPaidUntilDay;
+    if (LODGING_TYPES.includes(type) && Number.isInteger(paid) && paid >= current.time.day) return 'bed';
+    const host = current.npcs.some(n => n.alive !== false && n.status === 'free' && isObj(n.home) && n.home.locationId === l.id && n.attitude >= 25);
+    return host ? 'bed' : 'rough';
+  }
+  /* What runs out with a new day (the morning tick; advanceTime calls it, and
+     State.expireDaily(day) does the same through apply): bans that ended
+     before today, the player's own prices, a paid night not slept in. */
+  function expireNow(day) {
+    const out = [];
+    const fl = current.flags;
+    if (Number.isInteger(fl.playerPriceUntilDay) && fl.playerPriceUntilDay < day) {
+      delete fl.playerPriceMultiplier; delete fl.playerPriceUntilDay; out.push('prices are back to normal');
+    }
+    if (Number.isInteger(fl.lodgingPaidUntilDay) && fl.lodgingPaidUntilDay < day) { delete fl.lodgingPaidUntilDay; out.push('the paid night is over'); }
+    if (Array.isArray(current.bans)) {
+      const ended = current.bans.filter(b => !(Number.isInteger(b.untilDay) && b.untilDay >= day));
+      if (ended.length) { current.bans = current.bans.filter(b => !ended.includes(b)); out.push(`no longer banned from ${ended.map(b => b.locationId).join(', ')}`); }
+    }
+    return out;
+  }
+  /* The ban on a place that holds today ({ locationId, untilDay, byNpcId? }),
+     or null. */
+  function isBanned(where, day) {
+    if (!current || !Array.isArray(current.bans)) return null;
+    const id = isObj(where) ? where.id : where;
+    const d = Number.isInteger(day) ? day : current.time.day;
+    return current.bans.find(b => b.locationId === id && Number.isInteger(b.untilDay) && b.untilDay >= d) || null;
+  }
+  /* What prices are multiplied by: the town's (flags.priceMultiplier) times
+     the player's own while it lasts (Tables.price). */
+  function priceFactor() {
+    if (!current) return 1;
+    const fl = current.flags || {};
+    const town = Number.isFinite(fl.priceMultiplier) && fl.priceMultiplier > 0 ? fl.priceMultiplier : 1;
+    const own = Number.isFinite(fl.playerPriceMultiplier) && fl.playerPriceMultiplier > 0
+      && !(Number.isInteger(fl.playerPriceUntilDay) && fl.playerPriceUntilDay < current.time.day) ? fl.playerPriceMultiplier : 1;
+    return Math.round(town * own * 100) / 100;
+  }
+  // ----- the calendar (CONTRACTS section 1) -----
+  /* The town's calendar ({ season, startDate: "YYYY-MM-DD" }): this game's
+     town copy, else nothing (an older save keeps its own season flag). */
+  function calendar() { return town && isObj(town.calendar) ? town.calendar : null; }
+  function startDate() {
+    const c = calendar();
+    const m = c && typeof c.startDate === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(c.startDate) : null;
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  function dayOf(day) { return Number.isInteger(day) ? day : current ? current.time.day : 1; }
+  /* The season: the calendar's, else the town's season, else the game's flag. */
+  function season() {
+    const c = calendar();
+    if (c && SEASONS.includes(c.season)) return c.season;
+    if (town && SEASONS.includes(town.season)) return town.season;
+    return current && SEASONS.includes(current.flags.season) ? current.flags.season : 'spring';
+  }
+  /* 'Sunday' to 'Saturday' for a day (today when left out): from the
+     calendar's start date, else day 1 is a Thursday. */
+  function weekday(day) {
+    const d = dayOf(day);
+    const start = startDate();
+    if (start !== null) return WEEKDAYS[new Date(start + (d - 1) * 86400000).getUTCDay()];
+    return WEEKDAYS[(((DEFAULT_FIRST_WEEKDAY + d - 1) % 7) + 7) % 7];
+  }
+  /* "Thursday 8 October" (the weekday alone without a start date). */
+  function dateLine(day) {
+    const d = dayOf(day);
+    const start = startDate();
+    if (start === null) return weekday(d);
+    const dt = new Date(start + (d - 1) * 86400000);
+    return `${WEEKDAYS[dt.getUTCDay()]} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`;
+  }
+  /* Shut: closed by the story, or closed on this weekday (closedOn). */
+  function isClosed(where, day) {
+    const l = isObj(where) ? where : loc(where);
+    if (!l) return false;
+    return l.closed === true || (Array.isArray(l.closedOn) && l.closedOn.includes(weekday(day)));
+  }
+  // ----- who is away for the day, or laid up -----
+  /* Away on a schedule (awayOn { days, phases, where }: school days) on that
+     day and phase; days or phases left out mean every one. */
+  function awayNow(n, phase, day) {
+    const a = n && n.awayOn;
+    if (!isObj(a) || !current) return false;
+    const days = Array.isArray(a.days) ? a.days : WEEKDAYS;
+    const phases = Array.isArray(a.phases) ? a.phases : PHASES;
+    return days.includes(weekday(day)) && phases.includes(phase || current.time.phase);
+  }
+  /* Hurt (npcFates, World.knockDown): laid up at home until hurtUntilDay. */
+  function laidUp(n, day) { return !!n && n.status === 'free' && Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > dayOf(day); }
+  /* Why someone is not about, in a few words: the dead and the far away
+     (absentNote), then "hurt and laid up at the Mangum House until day 5",
+     "at the county school in Clayburn until evening"; '' when they are about. */
+  function absentFor(n, phase, day) {
+    if (!n) return '';
+    const base = absentNote(n);
+    if (base || !current) return base;
+    const ph = PHASES.includes(phase) ? phase : current.time.phase;
+    if (laidUp(n, day)) {
+      const h = isObj(n.home) ? loc(n.home.locationId) : null;
+      return `hurt and laid up ${h ? `at ${h.name.replace(/^The /, 'the ')}` : 'at home'} until day ${n.hurtUntilDay}`;
+    }
+    if (awayNow(n, ph, day)) {
+      const phases = Array.isArray(n.awayOn.phases) ? n.awayOn.phases : PHASES;
+      const next = PHASES.slice(PHASES.indexOf(ph) + 1).find(x => !phases.includes(x));
+      return `${cleanText(n.awayOn.where, 120) || 'away for the day'} until ${next || 'tomorrow'}`;
+    }
+    return '';
   }
   /* Where in its phase the clock is: early, mid or late (shorts 0, 1, 2 or
      more; the late-night flag is late too). */
@@ -6503,9 +7105,24 @@ const State = (() => {
     };
     if (!current) { no('', 'no game in progress'); return finish(result, source); }
     if (!isObj(diff)) { no('', 'diff must be an object'); return finish(result, source); }
+    const outer = applyCtx;
+    applyCtx = { no, result };
+    try { applyDiff(diff, opts, source, result, run, no); } finally { applyCtx = outer; }
+    return finish(result, source);
+  }
+  function applyDiff(diff, opts, source, result, run, no) {
     syncLedger();
     const s = current;
     const p = s.player;
+    /* What the turn was (transport passes it with a bookkeeper's diff): who
+       was present, whether the roll succeeded, whom the player attacked. */
+    const present = opts && Array.isArray(opts.present) ? opts.present.filter(x => typeof x === 'string') : null;
+    const rollSuccess = opts ? opts.rollSuccess : undefined;
+    const attacked = opts && typeof opts.attacked === 'string' && opts.attacked ? opts.attacked : null;
+    const model = source === 'model';
+    let goldRefused = false; // an unaffordable payment: what it bought is refused too (review E3)
+    let paid = 0; // money the player handed over this diff (settles a debt by play)
+    const lostNames = []; // things the player gave up this diff (settles an errand by play)
     const allowed = source === 'model' ? RECORD_KEYS : RECORD_KEYS.concat(ENGINE_KEYS);
     for (const k of Object.keys(diff)) {
       if (!allowed.includes(k)) no(k, ENGINE_KEYS.includes(k) ? 'not allowed from the model' : 'unknown field');
@@ -6556,42 +7173,46 @@ const State = (() => {
     each('newMemories', m => {
       if (!isObj(m)) bad('must be an object');
       const n = needNpc(m.npcId);
-      const text = source === 'model' ? shortMemory(m.text) : cleanText(m.text, 400);
+      const text = model ? shortMemory(m.text) : cleanText(m.text, 400);
       if (!text) bad('memory needs text');
-      const w = clamp(toInt(m.weight) || 1, 1, 3);
-      // The model gets one memory per person per turn: a heavier one replaces a lighter one from the same turn, a lighter one is dropped.
-      if (source === 'model') {
-        const sameTurn = n.memories.findIndex(x => x.turn === s.meta.turn && x.model);
-        if (sameTurn >= 0) {
-          if (n.memories[sameTurn].weight >= w) bad(`${n.id} already has a memory this turn (one per person per turn)`);
-          n.memories.splice(sameTurn, 1);
-        }
-      }
-      // Small things fade: weight-1 memories older than MEMORY_STALE_TURNS go when something new arrives.
-      n.memories = n.memories.filter(x => x.weight > 1 || s.meta.turn - x.turn <= MEMORY_STALE_TURNS);
-      n.memories.push(Object.assign({ turn: s.meta.turn, text, weight: w }, source === 'model' ? { model: true } : {}));
-      while (n.memories.length > MEMORY_MAX) {
-        const minW = Math.min(...n.memories.map(x => x.weight));
-        n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
-      }
-      return `${n.id} remembers "${text}" (weight ${w})`;
+      // The model's: one per person per turn, and one that says what an older one says merges into it.
+      return remember(n, text, clamp(toInt(m.weight) || 1, 1, 3), { model, merge: model });
     });
     one('goldDelta', v => {
-      const d = toInt(v);
-      if (d === null) bad('must be an integer');
-      if (d === 0) return null;
-      if (p.gold + d < 0) bad(`cannot afford ${money(-d)} (have ${money(p.gold)})`);
+      const d0 = toInt(v);
+      if (d0 === null) bad('must be an integer');
+      if (d0 === 0) return null;
+      let d = d0;
+      // A bookkeeper moves at most LIMITS.modelGoldPerTurn either way in a turn.
+      if (model) {
+        d = clamp(ledger.gold + d0, -LIMITS.modelGoldPerTurn, LIMITS.modelGoldPerTurn) - ledger.gold;
+        if (d === 0) bad(`money already moved ${money(LIMITS.modelGoldPerTurn)} this turn`);
+      }
+      if (p.gold + d < 0) { goldRefused = true; bad(`cannot afford ${money(-d)} (have ${money(p.gold)})`); }
       const before = p.gold;
       p.gold = Math.min(p.gold + d, 1000000);
-      return `gold ${before} -> ${p.gold}`;
+      if (model) ledger.gold += d;
+      if (d < 0) paid += -d;
+      return `gold ${before} -> ${p.gold}` + (d !== d0 ? ` (${plusMinus(d0)} held to ${plusMinus(d)})` : '');
     });
     one('hpDelta', v => {
-      const d = toInt(v);
-      if (d === null) bad('must be an integer');
-      if (d === 0) return null;
+      const d0 = toInt(v);
+      if (d0 === null) bad('must be an integer');
+      if (d0 === 0) return null;
+      let d = d0;
+      // A bookkeeper moves HP at most LIMITS.modelHpPerTurn either way in a turn (review E2).
+      if (model) {
+        d = clamp(ledger.hp + d0, -LIMITS.modelHpPerTurn, LIMITS.modelHpPerTurn) - ledger.hp;
+        if (d === 0) bad(`hp already moved ${LIMITS.modelHpPerTurn} this turn`);
+      }
       const before = p.hp;
-      p.hp = clamp(p.hp + d, 0, p.maxHp);
-      return `hp ${before} -> ${p.hp}` + (p.hp !== before + d ? ' (clamped)' : '');
+      let after = clamp(p.hp + d, 0, p.maxHp);
+      // Only a fight the player lost (attacked, the roll failed) takes the last HP.
+      let held = false;
+      if (model && before > 0 && after === 0 && !(attacked && rollSuccess === false)) { after = 1; held = true; }
+      p.hp = after;
+      if (model) ledger.hp += d;
+      return `hp ${before} -> ${p.hp}` + (p.hp !== before + d0 ? ' (clamped)' : '') + (held ? ' (no fight was lost: held at 1)' : '');
     });
     each('itemsGained', it => {
       let id = null;
@@ -6610,10 +7231,19 @@ const State = (() => {
         notes = cleanText(it.notes, 120);
       } else bad('item must be a name, an item id or an object');
       if (!id || !name) bad('item needs a name');
-      const held = p.inventory.find(i => i.id === id);
-      if (held) held.qty = Math.min(99, held.qty + qty);
-      else p.inventory.push({ id, name, qty, notes });
+      // Bought with money the player did not have: not theirs either (review E3).
+      if (goldRefused) bad(`not paid for: ${name}`);
       const fromScene = !!sceneItem(id);
+      // A drink, a meal or a service is used where it is bought, never carried; a night's lodging is paid for (review E15).
+      const service = fromScene ? null : serviceOf(name);
+      if (service) {
+        if (!service.lodging) return `${name}: ${service.kind}, had here (not carried)`;
+        s.flags.lodgingPaidUntilDay = s.time.day + 1;
+        return `${name}: lodging paid through day ${s.flags.lodgingPaidUntilDay} (not carried)`;
+      }
+      if (model && ledger.items >= LIMITS.modelItemsPerTurn) bad(`at most ${LIMITS.modelItemsPerTurn} things gained a turn`);
+      carry(id, name, qty, notes);
+      if (model) ledger.items += 1;
       if (fromScene) takeFromScene(id, qty);
       return `gained ${name} x${qty}` + (fromScene ? ' (picked up here)' : '');
     });
@@ -6625,6 +7255,7 @@ const State = (() => {
       if (qty > held.qty) bad(`only holding ${held.qty} of ${held.name}`);
       held.qty -= qty;
       if (held.qty <= 0) p.inventory.splice(p.inventory.indexOf(held), 1);
+      lostNames.push(held.name);
       return `lost ${held.name} x${qty}`;
     });
     each('conditionsAdded', c => {
@@ -6633,7 +7264,8 @@ const State = (() => {
       if (!name) bad('condition needs a name');
       const id = typeof c.id === 'string' && ID_RE.cond.test(c.id) ? c.id : 'cond_' + slugify(name);
       const day = s.time.day;
-      const until = clamp(toInt(c.untilDay) === null ? day + 1 : toInt(c.untilDay), day, day + 30);
+      // A bookkeeper's condition lasts LIMITS.modelConditionDays at most.
+      const until = clamp(toInt(c.untilDay) === null ? day + 1 : toInt(c.untilDay), day, day + (model ? LIMITS.modelConditionDays : 30));
       const cond = { id, name, effect: cleanText(c.effect, 80), untilDay: until };
       const i = p.conditions.findIndex(x => x.id === id);
       if (i >= 0) p.conditions[i] = cond; else p.conditions.push(cond);
@@ -6645,6 +7277,9 @@ const State = (() => {
       // A place out of town is talked about, never gone to: the story stays in town.
       if (l.away === true) bad(`${l.id} is out of town; the game never goes there`);
       if (l.closed) bad(`${l.id} is closed`);
+      // The bookkeeper cannot walk the player into a place shut today or one they are banned from.
+      if (model && isClosed(l)) bad(`${l.id} is closed on ${weekday()}s`);
+      if (model && isBanned(l.id)) bad(`${l.id} has banned the player until day ${isBanned(l.id).untilDay}`);
       const from = p.locationId;
       p.locationId = l.id;
       l.discovered = true;
@@ -6652,7 +7287,21 @@ const State = (() => {
       if (isObj(l.revealed) && !l.revealed.visited) l.revealed.visited = true;
       return `${from} -> ${l.id}`;
     });
-    each('npcKnownToPlayer', id => { const n = needNpc(id); if (n.knownToPlayer) return null; n.knownToPlayer = true; return `${n.id} known`; });
+    /* Known to the player; met (metTurn, the narrator stops describing
+       their look) only when they were present. The first meeting shifts a
+       faction member's attitude by the player's standing with their people
+       (reputation / 5, once: repApplied). Without a present list, a model's
+       first mention stands in for the meeting. */
+    each('npcKnownToPlayer', id => {
+      const n = needNpc(id);
+      const parts = [];
+      const firstKnown = !n.knownToPlayer;
+      if (firstKnown) { n.knownToPlayer = true; parts.push(`${n.id} known`); }
+      const met = !!present && present.includes(n.id) && !Number.isInteger(n.metTurn);
+      if (met) { n.metTurn = s.meta.turn; parts.push(`${n.id} met`); }
+      if (met || (firstKnown && model && !present)) parts.push(...meetingRep(n));
+      return parts.join('; ') || null;
+    });
     each('threadUpdates', u => {
       if (!isObj(u)) bad('must be an object');
       const t = needThread(u.threadId || u.id);
@@ -6664,23 +7313,29 @@ const State = (() => {
       if (summary) { t.summary = summary; parts.push(`${t.id} summary updated`); }
       return parts.join('; ') || null;
     });
+    /* One segment per faction per day and phase (meta.nudges, saved, so
+       /undo takes a nudge back with its turn): a talky phase of many turns
+       nudges no more than one long one. */
     each('clockNudges', c => {
       if (!isObj(c)) bad('must be an object');
       const f = needFaction(c.factionId);
       const d = toInt(c.delta);
       if (d !== 1 && d !== -1) bad('delta must be 1 or -1');
-      const clock = f.activeClock >= 0 && Array.isArray(f.clocks) ? f.clocks[f.activeClock] : null;
+      const clock = runningClock(f);
       if (!clock) bad(`${f.id} has no running clock`);
-      const used = ledger.clocks[f.id] || 0;
+      const at = `${s.time.day}:${s.time.phase}`;
+      if (!isObj(s.meta.nudges) || s.meta.nudges.at !== at || !isObj(s.meta.nudges.used)) s.meta.nudges = { at, used: {} };
+      const used = s.meta.nudges.used[f.id] || 0;
       const allowedDelta = clamp(used + d, -LIMITS.clockPerTurn, LIMITS.clockPerTurn) - used;
-      if (allowedDelta === 0) bad(`${f.id} clock already moved this turn`);
+      if (allowedDelta === 0) bad(`${f.id} clock already moved this ${s.time.phase}`);
       const before = clock.filled;
       clock.filled = clamp(before + allowedDelta, 0, clock.segments);
-      ledger.clocks[f.id] = used + allowedDelta;
+      s.meta.nudges.used[f.id] = used + allowedDelta;
       return `${f.id} "${clock.label}" ${before} -> ${clock.filled}/${clock.segments}`;
     });
     each('newSeeds', raw => {
-      if (ledger.seeds >= LIMITS.seedsPerTurn) bad(`seed limit reached (${LIMITS.seedsPerTurn} per turn)`);
+      const cap = model ? LIMITS.modelSeedsPerTurn : LIMITS.seedsPerTurn;
+      if (ledger.seeds >= cap) bad(`seed limit reached (${cap} per turn)`);
       const sd = normaliseSeed(raw, true);
       s.seeds.push(sd);
       ledger.seeds += 1;
@@ -6690,23 +7345,82 @@ const State = (() => {
       const r = rumour(id) || bad(`unknown rumour id "${id}"`);
       if (r.heard) return null;
       r.heard = true;
+      // A rumour about a thread makes the thread known (design #6).
+      const t = typeof r.threadId === 'string' ? thread(r.threadId) : null;
+      if (t && !t.knownToPlayer) { t.knownToPlayer = true; return `${r.id} heard; ${t.id} known`; }
       return `${r.id} heard`;
     });
     one('journalEntry', v => {
       if (typeof v !== 'string') bad('must be a string');
       const text = cleanText(v, 300);
       if (!text) return null;
-      s.journal.push({ turn: s.meta.turn, text });
+      s.journal.push({ turn: s.meta.turn, day: s.time.day, phase: s.time.phase, text });
       return `journal "${text}"`;
+    });
+    /* What happened to someone present (CONTRACTS section 10). From the
+       model: someone in present, one a turn, and dead, arrested or gone only
+       after a successful roll. hurt lays them up at home (hurtUntilDay, two
+       days; npcsAt) with their status unchanged. */
+    each('npcFates', f => {
+      if (!isObj(f)) bad('must be an object');
+      const n = needNpc(f.npcId);
+      if (!NPC_FATES.includes(f.status)) bad(`status must be ${NPC_FATES.join(', ')}`);
+      if (model) {
+        if (ledger.fates >= LIMITS.fatesPerTurn) bad(`at most ${LIMITS.fatesPerTurn} fate a turn`);
+        if (!present || !present.includes(n.id)) bad(`${n.id} is not here`);
+        if (f.status !== 'hurt' && rollSuccess !== true) bad(`${f.status} needs a successful roll this turn`);
+      }
+      if (n.alive === false || n.status === 'dead' || n.status === 'gone') return `no-op: ${n.id} is already ${n.alive === false ? 'dead' : n.status}`;
+      if (model) ledger.fates += 1;
+      if (f.status !== 'hurt') return EFFECTS.npcStatus({ npcId: n.id, status: f.status });
+      n.hurtUntilDay = Math.max(Number.isInteger(n.hurtUntilDay) ? n.hurtUntilDay : 0, s.time.day + 2);
+      s.visits = (s.visits || []).filter(v => v.npcId !== n.id);
+      return `${n.id} hurt: laid up at home until day ${n.hurtUntilDay}`;
+    });
+    /* A memory this turn resolved: the first of the person's memories whose
+       words hold the given words (or are held in them), any case, goes. */
+    each('memoriesSettled', m => {
+      if (!isObj(m)) bad('must be an object');
+      const n = needNpc(m.npcId);
+      const want = cleanText(m.text, 200).toLowerCase();
+      if (want.length < 6) bad('text must be at least 6 characters');
+      const list = Array.isArray(n.memories) ? n.memories : [];
+      const i = list.findIndex(x => { const t = String(x.text || '').toLowerCase(); return t.includes(want) || (t.length >= 6 && want.includes(t)); });
+      if (i < 0) bad(`${n.id} has no memory like "${m.text}"`);
+      const gone = list.splice(i, 1)[0];
+      return `${n.id} let go of "${gone.text}"`;
+    });
+    /* Settling by play (model diffs, with who was present): money handed
+       over in front of a creditor that covers a debt (or blackmail) meets
+       it; the errand's thing given up in front of the person who wanted it
+       meets the errand. */
+    if (model && present) {
+      for (const o of obligations('open')) {
+        if (!present.includes(o.npcId)) continue;
+        if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0 && paid >= o.amount) {
+          paid -= o.amount;
+          run(`settled.${o.id}`, () => settle(o, 'met', `paid ${money(o.amount)}`));
+        } else if (o.kind === 'errand' && o.itemName && lostNames.some(nm => sameThing(nm, o.itemName))) {
+          run(`settled.${o.id}`, () => settle(o, 'met', `handed over ${o.itemName}`));
+        }
+      }
+    }
+    /* Obligations the story settled. From the model: the person present; a
+       debt with an amount is met only by paying it (above), an errand only
+       once its thing is no longer carried. */
+    each('obligationsSettled', id => {
+      const o = obligation(id) || bad(`unknown obligation "${id}"`);
+      if (o.status !== 'open') return null;
+      if (model) {
+        if (!present || !present.includes(o.npcId)) bad(`${o.npcId} is not here`);
+        if ((o.kind === 'debt' || o.kind === 'blackmail') && Number.isInteger(o.amount) && o.amount > 0) bad(`${o.id} is met by paying ${money(o.amount)}`);
+        if (o.kind === 'errand' && o.itemName && findHeld(o.itemName)) bad(`${o.itemName} is still carried`);
+      }
+      return settle(o, 'met', 'in the story');
     });
 
     // 3. Effect ops
-    each('effects', e => {
-      if (!isObj(e) || typeof e.op !== 'string') bad('effect needs an op');
-      const h = Object.prototype.hasOwnProperty.call(EFFECTS, e.op) ? EFFECTS[e.op] : null;
-      if (!h) bad(`unknown op "${e.op}"`);
-      return `${e.op}: ${h(e)}`;
-    });
+    each('effects', runEffect);
 
     // 4. Engine bookkeeping
     each('conditionsRemoved', id => {
@@ -6741,7 +7455,21 @@ const State = (() => {
     one('advanceTime', v => {
       const info = advanceTime(v);
       result.time = info;
-      return `${v}: day ${info.to.day} ${info.to.phase}` + (info.healed ? ` (+${info.healed} hp)` : '') + (info.held ? ' (late: night holds until the player sleeps)' : '');
+      return `${info.cost}: day ${info.to.day} ${info.to.phase}` + (info.healed ? ` (+${info.healed} hp)` : '') + (info.quality ? ` (${info.quality})` : '')
+        + (info.instantShort ? ' (talk adds up: a short)' : '') + (info.held ? ' (late: night holds until the player sleeps)' : '');
+    });
+    // What runs out with a new day (advanceTime does it too): a day number.
+    one('expireDaily', v => {
+      if (!Number.isInteger(v)) bad('must be a day number');
+      const out = expireNow(v);
+      return out.length ? out.join('; ') : null;
+    });
+    // The news the player has been shown (transport, each new morning): true marks every item seen.
+    one('newsSeen', v => {
+      if (v !== true) bad('must be true');
+      const unseen = (Array.isArray(s.news) ? s.news : []).filter(x => !x.seen);
+      unseen.forEach(x => { x.seen = true; });
+      return unseen.length ? `${unseen.length} news seen` : null;
     });
     /* The clock set outright (/cheat time, Upgrade version 4). No phase
        passes, so nothing ticks, and the no-sleep note goes. late needs
@@ -6763,6 +7491,7 @@ const State = (() => {
       t.shorts = shorts;
       if (late) t.late = true; else delete t.late;
       delete t.noSleep;
+      delete t.instants;
       const after = clockWords(t);
       return before === after ? null : `clock ${before} -> ${after}`;
     });
@@ -6997,8 +7726,24 @@ const State = (() => {
       s.meta.rulesVersion = v;
       return `rules version ${before} -> ${v}`;
     });
-
-    return finish(result, source);
+  }
+  /* Two names for the same thing: the same words, or one inside the other. */
+  function sameThing(a, b) {
+    const x = String(a || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const y = String(b || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return !!x && !!y && (x === y || ` ${x} `.includes(` ${y} `) || ` ${y} `.includes(` ${x} `));
+  }
+  /* A faction member's first meeting with the player: their attitude moves
+     by the player's reputation with their people / 5, once (repApplied). */
+  function meetingRep(n) {
+    if (n.repApplied === true || !n.factionId) return [];
+    n.repApplied = true;
+    const rep = (current.player.reputation || {})[n.factionId] | 0;
+    const d = Math.round(rep / 5);
+    if (!d) return [];
+    const before = n.attitude;
+    n.attitude = clamp(before + d, -100, 100);
+    return [`${n.id} attitude ${before} -> ${n.attitude} (what their people think of the player)`];
   }
   /* A model's memory line, made short: no "Remembers:" label or full stop,
      at most MEMORY_TEXT_MAX characters, cut at a word (the bookkeeper's
@@ -7097,7 +7842,7 @@ const State = (() => {
         goal: cleanText(character.goal, 160), flaw: cleanText(character.flaw, 160),
         stats, hp: 10, maxHp: 10, gold: bg.gold | 0,
         inventory: (bg.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty || 1, notes: i.notes || '' })),
-        conditions: [], reputation, storyPoints: 2, locationId: startId, looseEnds: []
+        conditions: [], reputation, storyPoints: 2, locationId: startId, looseEnds: [], obligations: [], progression: []
       },
       locations: t.locations,
       npcs: t.npcs,
@@ -7110,45 +7855,144 @@ const State = (() => {
       journal: [],
       dueEvents: [],
       visits: [],
-      seen: {}
+      seen: {},
+      news: [],
+      bans: [],
+      eventsFired: []
     };
     current = st;
     town = deepCopy(townData);
     muted = opts.pending === true;
     undo.length = 0;
     ledger = freshLedger(-1);
-    // Season and weather come from the seeded stream, so a seed reproduces a game.
-    st.flags.season = Rng.pick(SEASONS);
+    /* The season is the calendar's (review E13). The old random pick still
+       draws from the seeded stream, so a seed gives the same world as
+       before; it is the season only for a town with no calendar. Weather
+       comes from the stream too. */
+    const drawn = Rng.pick(SEASONS);
+    st.flags.season = calendar() || (town && SEASONS.includes(town.season)) ? season() : drawn;
     st.flags.weather = Tables.weather(st.flags.season);
     for (const le of character.looseEnds || []) Town.resolveLooseEnd(le);
+    plantHook(bg);
     notify();
     return st;
   }
+  /* A background's hook (BACKGROUNDS[].hook: { effect, dayOffset?, trigger?,
+     npcId?, locationId?, effects?, requires?, alt?, cause? }), planted as a
+     hidden seed at creation (origin 'background'). dayOffset [a, b] reads as
+     loose ends read it: day numbers counted from day 1, never before
+     tomorrow. trigger 'day' (the default), 'npc' (npcId) or 'location'
+     (locationId), or a { type, value } trigger. {player} and {npc} are
+     filled in. Nothing happens for a background without one. */
+  function plantHook(bg) {
+    const hk = bg && isObj(bg.hook) ? bg.hook : null;
+    if (!hk) return null;
+    const who = typeof hk.npcId === 'string' ? npc(hk.npcId) : null;
+    const vars = { player: current.player.name, playerName: current.player.name };
+    if (who) Object.assign(vars, { npc: who.name, npcId: who.id });
+    const effect = cleanText(fillTemplate(hk.effect || hk.text || '', vars), 400);
+    if (!effect) return null;
+    const off = Array.isArray(hk.dayOffset) && hk.dayOffset.length ? hk.dayOffset : Number.isInteger(hk.dayOffset) ? [hk.dayOffset] : [2, 4];
+    const lo = clamp(toInt(off[0]) || 2, 1, 60);
+    const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 60);
+    const day = Math.max(current.time.day + 1, Rng.int(lo, hi));
+    let trigger = { type: 'day', value: day };
+    if (isObj(hk.trigger) && typeof hk.trigger.type === 'string') trigger = deepCopy(hk.trigger);
+    else if (hk.trigger === 'npc' && who) trigger = { type: 'npc', value: who.id };
+    else if (hk.trigger === 'location' && typeof hk.locationId === 'string' && loc(hk.locationId)) trigger = { type: 'location', value: hk.locationId };
+    const sd = { id: 'seed_bg_' + slugify(String(bg.id).replace(/^bg_/, '')), cause: cleanText(hk.cause, 300) || `Background (${bg.name})`, effect, trigger, fired: false, hidden: true, origin: { kind: 'background' } };
+    if (who) sd.origin.npcId = who.id;
+    if (trigger.type !== 'day') sd.notBeforeDay = day;
+    if (Array.isArray(hk.effects)) sd.effects = fillDeep(hk.effects, vars);
+    if (isObj(hk.requires)) sd.requires = deepCopy(hk.requires);
+    if (isObj(hk.alt)) sd.alt = fillDeep(hk.alt, vars);
+    const r = apply({ effects: [{ op: 'plantSeed', seed: sd }] });
+    if (r.rejected.length) console.warn('[State] background hook not planted', r.rejected);
+    return r.rejected.length ? null : sd.id;
+  }
   function commit() { muted = false; notify(); }
   function clear() { current = null; town = null; muted = false; undo.length = 0; }
-  function validateShape(st) {
-    const errs = [];
-    if (!isObj(st)) return ['state is not an object'];
-    if (st.version !== 1) errs.push('unsupported state version');
-    if (!isObj(st.meta) || !Number.isFinite(st.meta.seed)) errs.push('meta.seed missing');
-    if (!isObj(st.time) || !PHASES.includes(st.time.phase) || !Number.isInteger(st.time.day)) errs.push('time missing');
-    if (!isObj(st.player) || !isObj(st.player.stats)) errs.push('player missing');
-    for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours', 'log', 'chronicle', 'journal']) {
-      if (!Array.isArray(st[k])) errs.push(`${k} missing`);
-    }
-    if (!errs.length && !st.locations.some(l => l.id === st.player.locationId)) errs.push('player location unknown');
-    return errs;
+  /* A save's shape, checked deep before anything loads it (review R3, R4):
+     returns [] or a list holding the first problem. Every person, place,
+     faction, thread, seed and rumour is an object with a string id (people,
+     places and factions a name too), every carried thing an object with an
+     id and a name, and no string is longer than the game ever writes one: a
+     history 400, a log narration 6,000, anything else 4,000. With town data,
+     its history and setting may be 8,000. */
+  const SHAPE_MAX = Object.freeze({ text: 4000, history: 400, narration: 6000, townText: 8000 });
+  function longString(v, path, depth, capOf) {
+    if (typeof v === 'string') { const cap = capOf(path); return v.length > cap ? `${path.join('.') || 'text'} is longer than ${cap} characters` : null; }
+    if (depth > 40) return `${path.join('.')} is nested too deep`;
+    if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) { const e = longString(v[i], path.concat(String(i)), depth + 1, capOf); if (e) return e; } return null; }
+    if (isObj(v)) { for (const k of Object.keys(v)) { const e = longString(v[k], path.concat(k), depth + 1, capOf); if (e) return e; } }
+    return null;
   }
+  function shapeProblem(st) {
+    if (!isObj(st)) return 'state is not an object';
+    if (st.version !== 1) return 'unsupported state version';
+    if (!isObj(st.meta) || !Number.isFinite(st.meta.seed)) return 'meta.seed missing';
+    if (!isObj(st.time) || !PHASES.includes(st.time.phase) || !Number.isInteger(st.time.day)) return 'time missing';
+    if (!isObj(st.player) || !isObj(st.player.stats)) return 'player missing';
+    for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours', 'log', 'chronicle', 'journal']) {
+      if (!Array.isArray(st[k])) return `${k} missing`;
+    }
+    const named = { npcs: 'person', locations: 'place', factions: 'faction' };
+    for (const k of ['npcs', 'locations', 'factions', 'threads', 'seeds', 'rumours']) {
+      for (let i = 0; i < st[k].length; i++) {
+        const x = st[k][i];
+        if (!isObj(x) || typeof x.id !== 'string' || !x.id) return `${k}[${i}] is not a record with an id`;
+        if (named[k] && typeof x.name !== 'string') return `${k}[${i}] (${x.id}) has no name`;
+      }
+    }
+    for (const l of st.locations) if (l.items !== undefined && (!Array.isArray(l.items) || l.items.some(i => !isObj(i) || typeof i.id !== 'string' || typeof i.name !== 'string'))) return `${l.id}: the things there are not a list of items`;
+    const inv = st.player.inventory;
+    if (!Array.isArray(inv)) return 'player.inventory is not a list';
+    for (let i = 0; i < inv.length; i++) if (!isObj(inv[i]) || typeof inv[i].id !== 'string' || typeof inv[i].name !== 'string') return `player.inventory[${i}] is not an item with an id and a name`;
+    if (st.player.conditions !== undefined && (!Array.isArray(st.player.conditions) || st.player.conditions.some(c => !isObj(c)))) return 'player.conditions is not a list of conditions';
+    for (const [k, v] of [['player.obligations', st.player.obligations], ['player.looseEnds', st.player.looseEnds], ['news', st.news], ['bans', st.bans], ['dueEvents', st.dueEvents], ['visits', st.visits]]) {
+      if (v !== undefined && (!Array.isArray(v) || v.some(x => !isObj(x)))) return `${k} is not a list of records`;
+    }
+    if (st.eventsFired !== undefined && (!Array.isArray(st.eventsFired) || st.eventsFired.some(x => typeof x !== 'string'))) return 'eventsFired is not a list of ids';
+    if (!st.locations.some(l => l.id === st.player.locationId)) return 'player location unknown';
+    return longString(st, [], 0, path => {
+      const k = path[path.length - 1];
+      if (path[0] === 'log' && k === 'narration') return SHAPE_MAX.narration;
+      return k === 'history' ? SHAPE_MAX.history : SHAPE_MAX.text;
+    });
+  }
+  function townProblem(t) {
+    if (!isObj(t)) return 'the town is not an object';
+    for (const k of ['locations', 'npcs']) if (t[k] !== undefined && !Array.isArray(t[k])) return `the town's ${k} is not a list`;
+    return longString(t, ['town'], 0, path => {
+      const k = path[path.length - 1];
+      if (path.length === 2 && (k === 'history' || k === 'setting')) return SHAPE_MAX.townText;
+      return k === 'history' ? SHAPE_MAX.history : SHAPE_MAX.text;
+    });
+  }
+  function validateShape(st, townData) {
+    const problem = shapeProblem(st) || (townData !== undefined && townData !== null ? townProblem(townData) : null);
+    return problem ? [problem] : [];
+  }
+  /* Load a save (its state and its own copy of the town). Returns
+     { state, rulesVersion, newer }: newer when the save was made by a later
+     build than this one (meta.rulesVersion above RULES_VERSION): it loads,
+     and the UI can say so. */
   function load(st, townData) {
-    const errs = validateShape(st);
+    const errs = validateShape(st, townData);
     if (errs.length) throw new Error(errs.join('; '));
     const s = deepCopy(st);
     // Fill fields older saves may lack (no-ops for current saves).
     s.flags = Object.assign({ priceMultiplier: 1, weather: '', season: 'spring' }, s.flags);
     s.time.shorts = s.time.shorts | 0;
+    // time.instants is kept only while above 0 (advanceTime); anything else reads as 0.
+    if (!(Number.isInteger(s.time.instants) && s.time.instants > 0)) delete s.time.instants;
     if (!Number.isInteger(s.meta.rngCalls)) s.meta.rngCalls = 0;
     if (s.meta.lastRollKey === undefined) s.meta.lastRollKey = null;
     if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
+    if (!Array.isArray(s.player.obligations)) s.player.obligations = [];
+    if (!Array.isArray(s.news)) s.news = [];
+    if (!Array.isArray(s.bans)) s.bans = [];
+    if (!Array.isArray(s.eventsFired)) s.eventsFired = [];
     // An age that is not a whole number from AGE_MIN to AGE_MAX is dropped; a save without one gets it from Upgrade version 7.
     if (s.player.age !== undefined && !(Number.isInteger(s.player.age) && s.player.age >= AGE_MIN && s.player.age <= AGE_MAX)) delete s.player.age;
     // A person's age or history that is not the right shape is dropped the same way (version 7 fills them from the town).
@@ -7162,29 +8006,45 @@ const State = (() => {
     if (!isObj(s.seen)) s.seen = {};
     // Pronouns, once, for people saved before records carried them.
     fillPronouns(s, townData || TOWN_DATA);
+    // The dead are on no schedule (review E14: a clock that killed someone used to leave them there).
+    for (const n of s.npcs) {
+      if (!isObj(n) || !(n.alive === false || n.status === 'dead')) continue;
+      for (const l of s.locations) for (const ph of PHASES) { const sch = l.npcIdsBySchedule; if (isObj(sch) && Array.isArray(sch[ph]) && sch[ph].includes(n.id)) sch[ph] = sch[ph].filter(x => x !== n.id); }
+    }
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
     undo.length = 0;
     ledger = freshLedger(-1);
     notify();
-    return current;
+    const rv = rulesVersion(s);
+    return { state: current, rulesVersion: rv, newer: rv > RULES_VERSION };
   }
+  /* A snapshot holds the game and the game's copy of the town (an update
+     changes the town copy too; review R8), and returns the game's JSON, as
+     before, for callers that compare it with State.current. A town copy the
+     same as the last snapshot's shares its string. */
   function snapshot() {
     if (!current) return null;
-    const snap = JSON.stringify(current);
-    undo.push(snap);
+    const json = JSON.stringify(current);
+    let t = town ? JSON.stringify(town) : null;
+    const last = undo[undo.length - 1];
+    if (last && last.town === t) t = last.town;
+    undo.push({ json, town: t });
     if (undo.length > UNDO_MAX) undo.splice(0, undo.length - UNDO_MAX);
-    return snap;
+    return json;
   }
   /* restore() pops the newest snapshot; restore(snap) restores a given one
-     (and drops it from the stack if it is the newest). */
+     (and drops it from the stack if it is the newest). The town copy comes
+     back with it when the stack holds it. */
   function restore(snap) {
-    let json = snap;
-    if (json === undefined) json = undo.pop();
-    else if (undo[undo.length - 1] === json) undo.pop();
-    if (!json) return false;
-    current = JSON.parse(json);
+    let entry = null;
+    if (snap === undefined) entry = undo.pop() || null;
+    else if (undo.length && undo[undo.length - 1].json === snap) entry = undo.pop();
+    else entry = undo.slice().reverse().find(e => e.json === snap) || (typeof snap === 'string' && snap ? { json: snap } : null);
+    if (!entry || !entry.json) return false;
+    current = JSON.parse(entry.json);
+    if (entry.town !== undefined) town = entry.town === null ? null : JSON.parse(entry.town);
     ledger = freshLedger(-1);
     notify();
     return true;
@@ -7206,19 +8066,25 @@ const State = (() => {
   // ----- read helpers -----
   /* Who is at a place in a phase: the schedule, except that a visit (an NPC
      who came to the player, World.dueSeeds) puts someone in one place for the
-     current day and phase only, and takes them out of their scheduled one. */
+     current day and phase only, and takes them out of their scheduled one.
+     Today's calendar holds too: someone away for the day (awayOn: school)
+     is nowhere in those phases, and someone hurt (hurtUntilDay) is at
+     home, every phase, until they mend. */
   function npcsAt(locId, phase) {
     if (!current) return [];
     const l = loc(locId);
     if (!l) return [];
     const ph = phase || current.time.phase;
+    const day = current.time.day;
     const ids = ((l.npcIdsBySchedule && l.npcIdsBySchedule[ph]) || []).slice();
-    const visits = (current.visits || []).filter(v => v.day === current.time.day && v.phase === ph);
+    const visits = (current.visits || []).filter(v => v.day === day && v.phase === ph);
     for (const v of visits) {
       const i = ids.indexOf(v.npcId);
       if (v.locationId === l.id) { if (i < 0) ids.push(v.npcId); } else if (i >= 0) ids.splice(i, 1);
     }
-    return ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead');
+    const out = ids.map(npc).filter(n => n && n.alive && n.status !== 'gone' && n.status !== 'dead' && !laidUp(n, day) && !awayNow(n, ph, day));
+    for (const n of current.npcs) if (laidUp(n, day) && n.alive !== false && isObj(n.home) && n.home.locationId === l.id && !out.includes(n)) out.push(n);
+    return out;
   }
   function reputationTier(key) {
     if (!current) return 'unknown';
@@ -7226,7 +8092,7 @@ const State = (() => {
     if (v >= 50) return 'respected';
     if (v >= 20) return 'known';
     if (v <= -50) return 'despised';
-    if (v <= -20) return 'feared';
+    if (v <= -20) return 'disliked';
     if (Math.abs(v) >= 5) return 'noticed';
     return 'unknown';
   }
@@ -7244,7 +8110,12 @@ const State = (() => {
     get current() { return current; },
     get town() { return town; },
     get muted() { return muted; },
+    // Town news (CONTRACTS section 5): the live array, oldest first.
+    get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
+    SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS,
+    season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, expireDaily,
+    absentNote: absentFor, awayNow, laidUp,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
@@ -7643,14 +8514,35 @@ const Town = (() => {
     for (const p of PHASES) for (const l of s.locations) if (((l.npcIdsBySchedule || {})[p] || []).includes(npcId)) return l.id;
     return null;
   }
+  /* The obligation a loose end's option carries (CONTRACTS section 4:
+     obligation { kind, amount?, dueOffset, text, itemName?, onMiss, onMet }):
+     an option written as { text, obligation }, else the kind's
+     obligations[i] or its one obligation. Words the player wrote themselves
+     take the first option's. */
+  const LOOSE_END_OBLIGATION = { debt: 'debt', secret: 'blackmail', promise: 'promise', lost: 'errand' };
+  function looseEndObligation(def, at) {
+    const i = at >= 0 ? at : 0;
+    const o = Array.isArray(def.options) ? def.options[i] : null;
+    if (isObj(o) && isObj(o.obligation)) return o.obligation;
+    if (Array.isArray(def.obligations) && isObj(def.obligations[i])) return def.obligations[i];
+    return isObj(def.obligation) ? def.obligation : null;
+  }
+  function fillAll(v, vars) {
+    if (typeof v === 'string') return fillTemplate(v, vars);
+    if (Array.isArray(v)) return v.map(x => fillAll(x, vars));
+    if (isObj(v)) { const o = {}; for (const k of Object.keys(v)) o[k] = fillAll(v[k], vars); return o; }
+    return v;
+  }
+  /* An option is its words, or { text, obligation? } (content may write either). */
+  function optionText(o) { return cleanText(typeof o === 'string' ? o : isObj(o) ? (o.text || o.label || '') : '', 200); }
   function resolveLooseEnd(le) {
     const s = State.current;
     const def = le && LOOSE_ENDS[le.kind];
     if (!def) throw new Error('unknown loose end: ' + (le && le.kind));
-    const text = cleanText(le.text, 200) || def.options[0];
+    const text = cleanText(le.text, 200) || optionText((def.options || [])[0]);
     const used = new Set((s.player.looseEnds || []).map(x => x.npcId));
     const link = isObj(def.link) ? def.link : {};
-    const at = (def.options || []).findIndex(o => cleanText(o, 200) === text);
+    const at = (def.options || []).findIndex(o => optionText(o) === text);
     const tags = [Array.isArray(link.optionTags) && at >= 0 ? link.optionTags[at] : null, link.tag].filter(Boolean);
     const free = s.npcs.filter(n => n.alive !== false && n.status === 'free' && !n.unnamed);
     const tagged = tag => free.filter(n => Array.isArray(n.tags) && n.tags.includes(tag));
@@ -7674,6 +8566,21 @@ const Town = (() => {
     const threadId = uniqueId('thr_le_' + le.kind, id => !!State.thread(id));
     const seedObj = { id: seedId, cause: `Loose end (${def.label}): ${text}`, effect: fillTemplate(sd.effect || '{npc} turns up.', vars), trigger, fired: false, hidden: true, origin: { kind: 'loose_end', npcId: target.id } };
     if (trigger.type !== 'day') seedObj.notBeforeDay = day;
+    /* The option's obligation rides on the seed and is made when it fires
+       (World), due dueOffset days after that day (State's addObligation
+       reads dueOffset against the day it runs). Placeholders are filled now:
+       the person and the player are known. */
+    const obl = looseEndObligation(def, at);
+    if (obl) {
+      const ov = { npc: target.name, npcId: target.id, player: s.player.name, playerName: s.player.name, text };
+      const kinds = State.OBLIGATION_KINDS || [];
+      seedObj.effects = [{
+        op: 'addObligation', kind: kinds.includes(obl.kind) ? obl.kind : (LOOSE_END_OBLIGATION[le.kind] || 'promise'), npcId: target.id,
+        text: cleanText(fillTemplate(obl.text || text, ov), 200), amount: Number.isInteger(obl.amount) ? obl.amount : null,
+        dueOffset: Number.isInteger(obl.dueOffset) ? obl.dueOffset : 3, itemName: obl.itemName ? fillTemplate(obl.itemName, ov) : null,
+        onMiss: fillAll(Array.isArray(obl.onMiss) ? obl.onMiss : [], ov), onMet: fillAll(Array.isArray(obl.onMet) ? obl.onMet : [], ov)
+      }];
+    }
     const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
     const r = State.apply({
       effects: [
