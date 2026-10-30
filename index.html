@@ -19495,7 +19495,21 @@ const UI = (() => {
       class: 'map' + (mapExpanded ? ' expanded' : ''), dataset: { pick: mapPick || '' },
       role: mapExpanded ? 'dialog' : null, 'aria-labelledby': mapExpanded ? 'map-title' : null, 'aria-modal': mapExpanded ? 'true' : null,
       onkeydown: mapExpanded ? trapMapFocus : null
-    }, bar, el('div', { class: 'map-pan' }, canvas));
+    }, bar, el('div', { class: 'map-pan', onfocusin: mapExpanded ? keepFocusInView : null }, canvas));
+  }
+  /* The expanded map pans: a place reached with Tab is scrolled into view
+     (an SVG mark is not scrolled to by the browser on focus). */
+  function keepFocusInView(e) {
+    const pan = e.currentTarget;
+    const t = e.target && e.target.closest ? e.target.closest('.map-place') : null;
+    if (!pan || !t) return;
+    const pr = pan.getBoundingClientRect();
+    const r = t.getBoundingClientRect();
+    const pad = 24;
+    if (r.left < pr.left + pad) pan.scrollLeft -= pr.left + pad - r.left;
+    else if (r.right > pr.right - pad) pan.scrollLeft += r.right - (pr.right - pad);
+    if (r.top < pr.top + pad) pan.scrollTop -= pr.top + pad - r.top;
+    else if (r.bottom > pr.bottom - pad) pan.scrollTop += r.bottom - (pr.bottom - pad);
   }
   /* The expanded map is modal: Tab and Shift+Tab go round inside it. */
   function trapMapFocus(e) {
