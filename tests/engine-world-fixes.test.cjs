@@ -575,7 +575,7 @@ s.test('a missed obligation at the morning tick: news (not public) and the perso
     const res = G.World.tick({ to: { day: t.day, phase: 'evening' } });
     const notYet = asked;
     const res2 = G.World.tick({ to: { day: t.day + 1, phase: 'morning' } });
-    const due = st.dueEvents.find(e => e.npcId === n.id && /came looking/.test(e.text));
+    const due = st.dueEvents.find(e => e.npcId === n.id && /comes looking/.test(e.text));
     const visit = (st.visits || []).some(v => v.npcId === n.id && v.locationId === st.player.locationId);
     S.tickObligations = orig.tick;
     S.obligations = orig.list;
@@ -583,7 +583,8 @@ s.test('a missed obligation at the morning tick: news (not public) and the perso
   });
   assert.equal(r.notYet, null, 'only on a new morning');
   assert.equal(typeof r.asked, 'number');
-  assert.equal(r.due, `${r.name} came looking: You owe ${r.name} $400`);
+  // Wave 2 (playtest B18): the due event says what happens in plain words (content's missText when it has one), never the task text.
+  assert.equal(r.due, `${r.name} comes looking for Tester about the money owed, now past due.`);
   assert.equal(r.bring, true);
   assert.equal(r.visit, true, 'they come to the player');
   assert.equal(r.notice.length, 1);

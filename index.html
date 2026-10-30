@@ -8466,7 +8466,7 @@ const State = (() => {
     const outer = applyCtx;
     applyCtx = { no, result };
     try { applyDiff(diff, opts, source, result, run, no); } finally { applyCtx = outer; }
-    return finish(result, source);
+    return finish(result, source, !!(opts && opts.quiet));
   }
   function applyDiff(diff, opts, source, result, run, no) {
     syncLedger();
@@ -9268,14 +9268,15 @@ const State = (() => {
     return Number.isInteger(v) && v >= 1 ? v : 1;
   }
 
-  function finish(result, source) {
+  /* quiet (opts.quiet): a change nothing on screen needs to redraw for (the quiet lines put on their log entry): the listeners are not called. */
+  function finish(result, source, quiet) {
     const turn = current ? current.meta.turn : 0;
     for (const r of result.rejected) {
       pushDebug({ turn, kind: 'rejected', source, path: r.path, reason: r.reason });
       console.debug('[State.apply] rejected', r.path, '-', r.reason);
     }
     for (const a of result.applied) pushDebug({ turn, kind: 'applied', source, text: a });
-    if (result.applied.length) notify();
+    if (result.applied.length && !quiet) notify();
     return result;
   }
   function pushDebug(entry) {
@@ -9848,8 +9849,9 @@ const Town = (() => {
       where: ['pawn', 'police', 'watch', 'farm', 'house', 'home', 'bighouse', 'trailer', 'cabin', 'gunshop', 'armory'], what: 'guns and ammunition are kept' },
     { words: ['grenade', 'grenades', 'dynamite', 'stick of dynamite', 'explosive', 'explosives', 'bomb', 'bombs', 'pipe bomb', 'c4', 'tnt', 'rocket launcher', 'rocket launchers', 'landmine', 'landmines', 'detonator'],
       where: [], what: 'explosives are kept' },
-    { words: ['car', 'cars', 'truck', 'trucks', 'pickup', 'pickup truck', 'van', 'motorcycle', 'motorbike', 'tractor', 'bus', 'boat', 'johnboat', 'jet ski', 'four-wheeler', 'atv', 'semi'],
-      where: ['road', 'highway', 'street', 'marina', 'farm', 'gas', 'motel', 'garage', 'trailerpark', 'bridge', 'fields', 'mill', 'house', 'bighouse', 'parking'], what: 'one is parked' }
+    { words: ['boat', 'boats', 'johnboat', 'jet ski', 'skiff', 'canoe'], where: ['marina', 'bridge', 'fields', 'farm', 'mill', 'woods'], what: 'a boat is kept (the river)' },
+    { words: ['car', 'cars', 'truck', 'trucks', 'pickup', 'pickup truck', 'van', 'motorcycle', 'motorbike', 'tractor', 'bus', 'four-wheeler', 'atv', 'semi'],
+      where: ['road', 'highway', 'street', 'marina', 'farm', 'gas', 'motel', 'garage', 'trailerpark', 'bridge', 'fields', 'mill', 'house', 'bighouse', 'parking', 'bar', 'tavern', 'church', 'pawn', 'police', 'office', 'school', 'hospital', 'clinic', 'care', 'town', 'market', 'diner', 'store'], what: 'one is parked' }
   ].map(r => Object.assign(r, { re: tailRe(r.words) }));
   const IMPLAUSIBLE_RE = tailRe(IMPLAUSIBLE);
   const MODERN_ONLY_RE = tailRe(MODERN_ONLY);
@@ -10884,10 +10886,12 @@ const World = (() => {
       if (isObj(e) && e.op === 'addRumour' && isObj(e.rumour) && !e.rumour.factionId) effects[i] = Object.assign({}, e, { rumour: Object.assign({}, e.rumour, { factionId: f.id }) });
     }
     const where = { locationId: s.player.locationId, presentIds: State.npcsAt(s.player.locationId, phase).map(n => n.id) };
-    const res = applyEffects(effects);
-    State.apply({ clockNext: [f.id] }, W);
-    if (text) pushNews(text, { factionId: f.id, public: true });
     const seen = noticeable(effects, where);
+    // One news item for it (its own addNews when it has one), seen already when it happened in front of the player (the quiet line below tells it).
+    const own = effects.some(e => isObj(e) && e.op === 'addNews');
+    const res = applyEffects(seen ? effects.map(e => (isObj(e) && e.op === 'addNews' ? Object.assign({}, e, { seen: true }) : e)) : effects);
+    State.apply({ clockNext: [f.id] }, W);
+    if (text && !own) pushNews(text, { factionId: f.id, public: true, seen: seen && !!text });
     const next = activeClock(f);
     const how = met ? '' : alt ? ' (its requirements did not hold: the alternative)' : ' (its requirements did not hold: nothing happens)';
     note(`${f.id} completes "${c.label}"${how} ${seen ? 'where the player can see it' : 'off-screen'}${res.rejected.length ? ` (${res.rejected.length} effects rejected)` : ''}; ${next ? `next clock "${next.label}"` : 'no clocks left'}`, { kind: 'complete', factionId: f.id, clock: idx });
@@ -11314,6 +11318,9 @@ const World = (() => {
       if (ev.eventId) item.eventId = ev.eventId;
       out.push(item);
     }
+    // The scene first (a town event here), then someone come for the player, then the rest: the narration leads with what is in front of them.
+    const rank = e => (e.scene ? 0 : e.npcId ? 1 : 2);
+    out.sort((a, b) => rank(a) - rank(b));
     if (drop.length) {
       State.apply({ dueDone: drop }, W);
       drop.forEach(id => note(`${id} dropped: its NPC can no longer act on it, or what it was about is settled`, { kind: 'seed', seedId: id }));
@@ -12645,10 +12652,11 @@ const Api = (() => {
     if (words() > limit && at >= 0) body[at] = (/^.*?[.!?](\s|$)/.exec(desc) || [desc])[0].trim();
     if (words() > limit && at >= 0) body.splice(at, 1);
     for (let i = body.length - 1; i > 0 && words() > limit; i--) if (!keep.has(body[i])) body.splice(i, 1);
-    if (words() > limit) due = due.map(t => sentence(t.split(/,\s+/)[0]));
+    // The first due event (the engine puts the one that is the scene, or a person come for the player, first) stays whole.
+    if (words() > limit) due = due.map((t, i) => (i === 0 ? t : sentence(t.split(/,\s+/)[0])));
     if (words() > limit) {
-      const room = Math.max(4, Math.floor((limit - wordCount(body.join(' '))) / Math.max(1, due.length)));
-      due = due.map(t => (wordCount(t) > room ? t.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]$/, '') + '.' : t));
+      const room = Math.max(4, Math.floor((limit - wordCount(body.join(' ')) - (due.length > 1 ? wordCount(due[0]) : 0)) / Math.max(1, due.length - 1)));
+      due = due.map((t, i) => (wordCount(t) > room && (i > 0 || due.length === 1) ? t.split(/\s+/).slice(0, room).join(' ').replace(/[,;:.]$/, '') + '.' : t));
     }
     return body.concat(due).join(' ');
   }
@@ -15540,8 +15548,8 @@ const Pipeline = (() => {
       const shut = shutReason(d);
       lines.push(`DESTINATION: ${d.name} — ${d.description}${shut ? ` (${shut}: the player cannot go in)` : ''} Present there: ${there.join('; ') || 'nobody'}.`);
     }
-    if (ctx.moved) lines.push(`MOVED: from ${ctx.moved.fromName} to ${ctx.moved.toName}, just now. The action happens here; give the walk one clause at most.`);
-    if (ctx.walkAfter) lines.push(`THEN: once this is done the player walks on to ${ctx.walkAfter.toName}${ctx.walkAfter.shut ? ` and finds it shut (${ctx.walkAfter.shut})` : ''}. The action happens here; end as they set off, one clause at most.`);
+    if (ctx.moved) lines.push(`MOVED: from ${placeName({ name: ctx.moved.fromName })} to ${placeName({ name: ctx.moved.toName })}, just now. The action happens here; give the walk one clause at most.`);
+    if (ctx.walkAfter) lines.push(`THEN: once this is done the player walks on to ${placeName({ name: ctx.walkAfter.toName })}${ctx.walkAfter.shut ? ` and finds it shut (${ctx.walkAfter.shut})` : ''}. The action happens here; end as they set off, one clause at most.`);
     // Talked about, not in the scene: never brought in for being named.
     const about = (Array.isArray(a.aboutIds) ? a.aboutIds : []).map(id => State.entityById(id)).filter(Boolean).filter(e => !presentIds.includes(e.id));
     if (about.length) lines.push(`ASKED ABOUT: ${about.map(e => e.name).join('; ')} (talked about, not in the scene)`);
@@ -15620,8 +15628,8 @@ const Pipeline = (() => {
      (UI.feed.rewriting), while the rewrite streams into a buffer; the
      rewrite replaces it when it comes, and if it fails or is refused the
      draft stands. Soft problems go to the debug view only. */
-  /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration with more than two due events to tell. */
-  function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > 2; }
+  /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
+  function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
   async function narrate(ctx) {
     const zoom = roomy(ctx);
     const style = Style.current();
@@ -16462,14 +16470,14 @@ const Pipeline = (() => {
     }
     if (!g.location && g.phase === s.time.phase) { UI.feed.notice(`It is already ${g.phase}.`); return { ok: false, reason: 'same-phase' }; }
     if (g.location && g.location.id === s.player.locationId && (!g.phase || g.phase === s.time.phase)) {
-      UI.feed.notice(`You are already at ${g.location.name}.`);
+      UI.feed.notice(`You are already at ${placeName(g.location)}.`);
       return { ok: false, reason: 'already-there' };
     }
     // The day the player gets there (a phase past night is tomorrow): a place shut that day (closed, closed on that weekday, or barred to them) is a shut door, as for a walk (shutReason).
     const steps = g.phase ? phaseSteps(g.phase) : 0;
     const arrivalDay = s.time.day + (g.phase && PHASES.indexOf(s.time.phase) + steps >= PHASES.length ? 1 : 0);
     const shutThen = g.location && g.location.id !== s.player.locationId ? shutReason(g.location, arrivalDay) : null;
-    if (shutThen) { UI.feed.notice(`${g.location.name} is shut to you then: ${shutThen}.`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
+    if (shutThen) { const ban = State.isBanned(g.location.id, arrivalDay); UI.feed.notice(ban ? `You are not welcome at ${placeName(g.location)} until day ${ban.untilDay}.` : `${capFirst(placeName(g.location))} is shut then (${shutThen}).`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
     // Open then but shut now (the night before it opens): wait first and walk over when it opens.
     const waitFirst = !!(g.location && g.location.id !== s.player.locationId && isShut(g.location));
     return runTurn({
@@ -16481,9 +16489,9 @@ const Pipeline = (() => {
         for (let i = 0; i < steps; i++) passTime(i === steps - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'skip');
         if (g.location && waitFirst) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
-        ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
+        ctx.timePassed = `the player skipped ahead to ${placeName(here())}, ${st.time.phase} of day ${st.time.day}`;
       },
-      action: () => ({ actionType: 'move', summary: `${State.current.player.name} arrives at ${here().name}`, targets: [], needsRoll: false, timeCost: 'instant' })
+      action: () => ({ actionType: 'move', summary: `${State.current.player.name} arrives at ${placeName(here())}`, targets: [], needsRoll: false, timeCost: 'instant' })
     });
   }
   /* The first narration of a game (MODE arrival), used when mock mode is off
@@ -20270,8 +20278,8 @@ const App = (() => {
   function attachNotes(s) {
     const notes = UI.takeNotes();
     if (!notes.length || !s || State.muted || !s.log.length) return false;
-    // Through the engine (State logUpdate), like every other write.
-    return !State.apply({ logUpdate: { notes } }).rejected.length;
+    // Through the engine (State logUpdate), like every other write; nothing to redraw (quiet: the feed already shows them).
+    return !State.apply({ logUpdate: { notes } }, { quiet: true }).rejected.length;
   }
   /* Quiet lines written outside a turn (an edit, a pronoun): stored at once. */
   function flushNotes() {
