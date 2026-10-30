@@ -12,7 +12,9 @@
    /rest, /skip, /look, /zoom, /fact and /undo; faction clocks left to run (one
    faction's dice forced to 6) until at least one completes; a chronicle entry
    after turn 10 and a second after turn 20; the first loose end told on day
-   1, on the third turn, and a fired seed's thing left where it says.
+   1, on the third turn, and a fired seed's thing left where it says; and a
+   paid job taken where it is offered, paid, journalled and an hour or more
+   of the day gone (direction change 16).
    After every turn: no page errors (the harness), no rejected State.apply
    diffs, the log never over 30 entries, every narrator packet lists only the
    people present, carries each one's secret and goal once in their own line
@@ -334,6 +336,30 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   assert.ok(await page.evaluate(id => Game.State.seed(id).fired, favourSeed.id), 'the favour seed fired');
   assert.ok(favourTold, 'and reached the narrator as a due event');
 
+  // ----- 9. paid work: a job on offer, asked for, paid, journalled, the rest of the phase gone -----
+  const gig = await page.evaluate(() => {
+    const G = Game;
+    // Plain work (a roll, no stake) at a place the player knows that is open, its giver free.
+    const j = G.data.JOBS.find(x => x.stat && !x.stake && x.repeatable && !x.onSuccess && !x.onFailure && G.State.loc(x.locationId).discovered && !G.State.loc(x.locationId).closed && G.State.npc(x.giverNpcId).status === 'free');
+    const g = G.State.npc(j.giverNpcId);
+    return { id: j.id, label: j.label, pay: j.pay, loc: j.locationId, locName: G.State.loc(j.locationId).name, phase: j.phases[0], giver: g.id, first: g.name.split(' ')[0], giverName: g.name };
+  });
+  assert.ok(gig && gig.id, 'a job to take');
+  await turn(`/skip to ${gig.locName} in the ${gig.phase}`, 'skip');
+  // Someone with the player from a seed's visit can keep the giver elsewhere this phase: they come over.
+  await page.evaluate(([id, loc]) => { if (!Game.State.npcsAt(loc).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: loc }] }); }, [gig.giver, gig.loc]);
+  const beforeWork = await page.evaluate(() => ({ gold: Game.state.player.gold, phase: Game.state.time.phase, day: Game.state.time.day }));
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(15));
+  await turn(`I ask ${gig.first} for work`, 'work');
+  const worked = await page.evaluate(() => ({ t: Game.Pipeline.lastTurn, gold: Game.state.player.gold, phase: Game.state.time.phase, journal: Game.state.journal[Game.state.journal.length - 1].text }));
+  assert.equal(worked.t.action.actionType, 'work', 'asking for work takes the job on offer');
+  const pay = worked.gold - beforeWork.gold;
+  assert.ok(pay >= gig.pay[0] && pay <= gig.pay[1], `paid in the range: ${pay}`);
+  assert.notEqual(worked.phase, beforeWork.phase, 'the rest of the phase went on it');
+  assert.equal(worked.journal, `${gig.label.charAt(0).toUpperCase() + gig.label.slice(1)} for ${gig.giverName}: paid $${pay}.`);
+  assert.ok(worked.t.packet.includes(`\nJOB: ${gig.label}, for ${gig.giverName} (`), 'the narrator heard what the work was');
+  assert.ok((await last()).log.narration.includes(`paid $${pay}`), 'and the story says what it paid');
+
   // ----- the run as a whole -----
   const end = await page.evaluate(() => {
     const G = Game;
@@ -356,6 +382,7 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
       rumoursHeard: st.rumours.filter(r => r.heard).length, rumours: st.rumours.length,
       known: st.npcs.filter(n => n.knownToPlayer).length, npcs: st.npcs.length,
       chronicle: st.chronicle.map(c => `${c.fromTurn}-${c.toTurn}`), log: st.log.length, journal: st.journal.length,
+      work: Object.keys(st.work || {}).map(k => `${k} day ${st.work[k].day} (${st.work[k].outcome})`),
       priceMultiplier: st.flags.priceMultiplier, weather: st.flags.weather,
       worldEvents: G.World.recent.filter(e => e.kind === 'complete').map(e => e.text),
       // What fired seeds left lying about (direction change 14: placeItem), and anything missing that nobody took.
@@ -363,7 +390,7 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
       placedMissing: st.seeds.filter(sd => sd.fired && Array.isArray(sd.effects)).flatMap(sd => sd.effects.filter(e => e.op === 'placeItem' && !(G.State.loc(e.locationId).items || []).some(i => i.name === e.item.name) && !st.player.inventory.some(i => i.name === e.item.name)).map(e => e.item.name))
     };
   });
-  for (const tag of ['look-action', 'talk', 'buy', 'move', 'failed-roll', 'skip', 'fight', 'insult', 'fact', 'persuade', 'wait', 'zoom', 'look', 'undo', 'rest']) assert.ok(covered.has(tag), 'covered: ' + tag);
+  for (const tag of ['look-action', 'talk', 'buy', 'move', 'failed-roll', 'skip', 'fight', 'insult', 'fact', 'persuade', 'wait', 'zoom', 'look', 'undo', 'rest', 'work']) assert.ok(covered.has(tag), 'covered: ' + tag);
   assert.ok(talked.size >= 3, 'talked to three people: ' + talked.size);
   assert.ok(end.placed.length >= 1, 'a fired seed left something to find: ' + JSON.stringify(end.placed));
   assert.deepEqual(end.placedMissing, [], 'and it is still there, or carried');
@@ -592,6 +619,12 @@ s.test('mock parser: verbs are not roles, moves only name the absent by name, ta
     out.talkUnique = await P('I talk to the cook', [here], [cook, own1]);
     out.talkHereRole = await P('I talk to the owner', [own1, here], [own2]);
     out.bartender = await P('I ask the bartender for a beer', [here], [own2]);
+    // Work on offer here (direction change 16): taking or asking for it is work with the job's id; asking what work there is, or persuading, is not.
+    const jobs = [{ id: 'job_mill_shift', label: 'a shift at the mill', giverNpcId: head.id, giverName: head.name, pay: [50, 60] }, { id: 'job_card_table', label: 'a seat at the card table', giverNpcId: here.id, giverName: here.name, pay: [20, 80], stake: true }];
+    const W = input => G.Api.Mock.parse({ input, present: [head, here], knownNpcs: [], exits: [], knownLocations: [], jobs }).then(x => x.result);
+    out.work = await Promise.all(['I ask Zed for work', 'Deal me in at the card table', 'I work a shift', 'Hire me', 'I take the job'].map(W));
+    out.notWork = await Promise.all(['I ask Zed what work there is in town', 'I persuade Zed to give me a shift'].map(W));
+    out.noJobs = await P('I ask Zed for work', [head], []);
     return out;
   });
   assert.deepEqual(r.verb, [false, false, false, true, true, true], 'a role word after a subject is a verb');
@@ -606,6 +639,9 @@ s.test('mock parser: verbs are not roles, moves only name the absent by name, ta
   assert.deepEqual(r.talkUnique.targets, ['npc_ada_vole'], 'a role only one absent person has');
   assert.deepEqual(r.talkHereRole.targets, ['npc_bo_wick'], 'the one here wins');
   assert.deepEqual(r.bartender.targets, ['npc_cy_lark'], '"bartender" finds the owner and bartender');
+  assert.deepEqual(r.work.map(x => [x.actionType, x.targets.join(), x.timeCost]), [['work', 'job_mill_shift', 'long'], ['work', 'job_card_table', 'long'], ['work', 'job_mill_shift', 'long'], ['work', 'job_mill_shift', 'long'], ['work', 'job_mill_shift', 'long']], 'work on offer, by its giver or its words, else the first');
+  assert.deepEqual(r.notWork.map(x => x.actionType), ['talk', 'persuade'], 'asking about work, or persuading, is not taking it');
+  assert.equal(r.noJobs.actionType, 'talk', 'with nothing on offer, asking for work is talk');
 });
 
 s.run();

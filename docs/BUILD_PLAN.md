@@ -11,7 +11,7 @@ organised and the shared data contract).
   disk must work (`file://`), so no module scripts and no fetches of local files.
 - Script organised into clearly delimited sections, one per module, in this
   order: `TOWN_DATA`, `TABLES`, `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`,
-  `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `STYLE_GUIDE`, `EXAMPLE_TURNS`,
+  `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `JOBS` (direction change 16), `STYLE_GUIDE`, `EXAMPLE_TURNS`,
   then modules `Rng`, `Dice`, `Tables`, `State`, `Town`, `World`, `Style`,
   `Api`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`. Each module starts
   with a banner comment: `// ===== Module: State =====`.
@@ -121,6 +121,7 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `reputationDelta` | `key` (`town` or a faction id), `delta` | clamped -100..100 |
 | `visit` | `npcId`, `locationId` | the NPC is at that place for the current day and phase only (a `visits` entry, as a loose end's person coming to the player); a no-op for someone not free, a closed place, or someone with the player somewhere else; refused out of town (direction change 14) |
 | `placeItem` | `locationId`, `item` (`{ name, qty?, notes? }`) | a thing lying in that place (a scene item, id `item_<name>`), in ITEMS HERE until `itemsGained` takes it; refused out of town (direction change 14) |
+| `fight` | `npcId`, `reason?` | that person comes at the player: it waits in `state.fights` and is fought on the next narrated turn, or, on a seed, the turn the seed's due event is told; the person is brought to the player for the phase and the player defends (might, normal; 1 to 3 damage on a failure, 3 on a critical failure); a no-op for someone not free or with a fight already waiting (direction change 16) |
 
 ### TABLES
 
@@ -154,8 +155,34 @@ const LOOSE_ENDS = {               // keys: debt, enemy, secret, lost, promise
     seed: { dayOffset: [3, 5], effect: "...{npc}..." , trigger: "day" }
   }, ...
 };
-const GRUDGE_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5] }, ... ];  // 6+
-const FAVOUR_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5] }, ... ];  // 6+
+const GRUDGE_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5], effects? }, ... ];  // 6+
+const FAVOUR_TEMPLATES = [ { effect: "...{npc}...", dayOffset: [2, 5], effects? }, ... ];  // 6+
+// effects (direction change 16): fight, visit or attitudeDelta ops for the seed,
+// npcId "{npc}" standing for the person whose grudge or favour it is.
+```
+
+### Jobs
+
+Paid work (direction change 16), after `FAVOUR_TEMPLATES`, checked by
+`tests/validate-town.cjs`:
+
+```js
+const JOBS = [{                    // 6 to 8
+  id: "job_...", label,            // label: a lower-case phrase ("a shift in the service bays at Pittman's")
+  locationId: "loc_...",           // in town
+  giverNpcId: "npc_...",           // here, and at locationId in every phase listed
+  phases: ["morning", ...],        // when it is offered
+  pay: [lo, hi],                   // whole dollars, 5..400
+  stat: "might" | ... | null,      // null: no roll, always paid in the range
+  difficulty: "normal" | ... | null,
+  timeCost: "long",                // or "short"
+  factionId: "fac_..." | null,
+  repeatable: true | false,        // false: done once for good
+  cooldownDays: 1,                 // 1..14: not on offer to the player again until day + this
+  blurb,                           // one sentence: what the work is (the narrator's JOB line)
+  stake?: true,                    // the pay range is won or lost (the card game); needs a stat
+  onSuccess?: [ /* effect ops */ ], onFailure?: [ /* effect ops */ ]   // 1 to 4 each
+}];
 ```
 
 ### Game state
@@ -1432,7 +1459,226 @@ failed action when something had been typed meanwhile.
 
 ### 16. Work and trouble: paid jobs and fights that come to the player
 
-(written by the package that implements it)
+The review the owner agreed with (finding 9): money and fights are thin.
+There is nothing to spend cash on and no way to earn it, yet the debt loose
+end demands it; fights are one roll each and nobody ever starts one; a few
+paid jobs (a shift at Pittman's, a night on a johnboat) would give the
+economy and the factions a way in. Root causes: the only source of money
+was a favour seed's sentence ("a day of cash work that pays a hundred
+dollars"), told and never paid; an `attack` was the only way into a fight
+(`Pipeline.resolve`), so a grudge that "pays two men to catch {player}
+alone after dark ... and give them a beating" was narrated, cost nothing
+and named two men the fixed cast does not have.
+
+- **Jobs are content** (`JOBS`, after `FAVOUR_TEMPLATES`, exported with
+  the rest and on `Game.data`; the shape is under "Jobs" above). Seven: a
+  shift in the service bays at Pittman's for Dewayne (might, normal,
+  $60-80), a shift at the bait shop for Lorna (might, easy, $40-55), a night
+  on a johnboat for Wade (stealth, hard, $150-250, the Night Run, every
+  three days: on success reputation +5 with the Night Run and the flag
+  `ranWithNightRun`, which the police clocks may read later; on failure
+  reputation -5 and the rumour `rum_johnboat_stranger`, from Travis Cagle,
+  so the police know), a day's hauling at the Haskins farm for Lamar
+  (might, normal, $50-70, once only; on success Lamar +10), turning over
+  rooms at the motor court for Mavis (no roll, $30-45, out of the till), a
+  seat at the card game at the Low Water with Curtis (charm, normal, a
+  stake of $40-120) and a day in the back room at Byrd's for Hollis (wits,
+  normal, $40-60). Each giver is scheduled at the place in every phase the
+  work is offered. `tests/validate-town.cjs` checks it all (the keys, ids,
+  a lower-case label, a one-sentence blurb, the giver here and scheduled,
+  the pay range, a stat with a difficulty or neither, the time, the
+  faction, repeatable, a cooldown of 1 to 14 days, a stake only with a
+  stat, effects checked like a seed's, whose ids count), `tests/mentions.cjs`
+  scans the text, and the summary counts the jobs.
+- **What is on offer** (`Town`): `jobs()`, `job(id)`, `jobsAt(locationId,
+  phase?)` (a place's jobs, in a phase), `jobsOnOffer(locationId)` (the
+  place open, the phase right, the giver free and there now: schedule or
+  visit), `workDone(jobId)` (state.work), `jobStatus(job)` ('done for
+  today', 'again from day N', 'done') and `jobRefusal(job, locationId)`:
+  one plain line, or null, for nobody hiring here, another place's job, a
+  closed place, a giver dead, in a cell or gone, the wrong phase ("The
+  mechanic hires for a shift in the service bays at Pittman's in the
+  morning and afternoon, not in the evening."), the giver not here right
+  now, a giver at attitude -25 or below (`JOB_COLD`: "will not take you on
+  (cold)"; a decision of ours, so a beaten man does not hire his
+  attacker), work done for good, a cooldown ("You already did ... today.
+  There is more tomorrow."), and a stake with less cash than its low end.
+  The giver is named by `npcLabel`, as everywhere for someone not met.
+- **The parser** (`Pipeline.parsePacket`, `workLine`). The packet gains
+  `jobs` (for the mock) and, when anything is on offer here, the message a
+  last line `WORK ON OFFER HERE: job_service_bays — a shift in the service
+  bays at Pittman's (for Dewayne Mangum; pays about $60-80; takes the rest
+  of the phase)` (a stake reads "with Curtis Pruett; win or lose about
+  $40-120"). The line goes in the message, not `parserBlock` (it changes
+  with the place and the phase; the cached block stays byte-identical). It
+  is listed whether or not the player has done it today, so asking again
+  gets the plain refusal rather than a guess. `SYSTEM.parser` gains one
+  short sentence ("WORK ON OFFER HERE, when the message has it, is paid
+  work here: if the player takes it or asks for it, actionType is work and
+  targets holds its job id; the engine sets the roll, the pay and the
+  time."), and Say mode's MODE line adds "or work when the words take or
+  ask for the WORK ON OFFER HERE" when there is any. `ACTION_TYPES` gains
+  `work`, an enum value of `parse_action` (no property is added to either
+  schema; `record_changes` is untouched). `sayAction` leaves `work` and its
+  time alone ("Deal me in." in Say mode is taking the seat), and a job id
+  among the targets of anything but work is dropped before step 4 (asking
+  about the work is not taking it, and a job is nobody to look for).
+- **The mock parser** (`MOCK_WORK`): in Do mode, with work on offer, "work
+  a/the/for", "take the job", "a shift", "a job", "hire me", "deal me in",
+  "for work" and "any work" are work, aimed at the job whose giver or label
+  the words name, else the first. Asking what work there is, or persuading
+  someone, stays talk or persuade; with nothing on offer it is what it was.
+  A walk and then work ("I head to the landing and ask for a job") cannot
+  see the destination's jobs: it is work with no job id, and the engine
+  finds the job there. Say mode is unchanged (its tests say "hire me" as a
+  plea).
+- **Taking it** (`runTurn`). After `walkFirst`, a work action goes through
+  `takeWork`: the job is its id in targets, else the job here of someone it
+  is aimed at, else the first on offer here (a `/reroll` replays an action
+  whose only target is already the giver); a refusal ends the turn with the
+  line, the snapshot restored and nothing spent, the walk included, as
+  `refuseAway` does (`refuseWork`). Otherwise the action becomes the job's:
+  its stat and difficulty (or no roll), its `timeCost`, the giver as its
+  only target, no missing item. The roll goes through `resolve`, so the
+  retry lock and `/reroll` and `/cheat` treat it like any roll; the
+  cooldown makes the lock moot in practice (a key holds for one phase, a
+  job for a day). Right after `resolve`, `settleWork`: a critical pays the
+  top of the range, a success a sum in it (`Rng.int`), a partial the low
+  end, a failure nothing; no stat, a sum in it; a stake is won the same way
+  and lost on a failure (a sum in the range, the top on a critical
+  failure), never more than the player has. The money goes in as the
+  engine's `goldDelta`, then the job's `onSuccess` (success, partial,
+  critical, or no roll) or `onFailure` through `State.apply({ effects })`,
+  then `workDone` and the journal line through `journalNews` with `kind:
+  'work'` ("A shift in the service bays at Pittman's for Dewayne Mangum:
+  paid $70.", "... with Curtis Pruett: lost $55."), and a quiet feed line
+  ("You are paid $70 (cash $210)."). The time passes at step 10 as the
+  action's own. A critical failure can still bring a lasting consequence,
+  as any roll's does.
+- **The packets.** The narrator gets, right after ROLL, `JOB: <label>, for
+  <giver> (<blurb>): it goes fine; paid $70. The work takes the rest of the
+  <phase>: tell it in a sentence or two and end on the money; nothing else
+  is paid, won or lost.` (one wording per outcome and for a stake). The
+  bookkeeper gets, under ALREADY APPLIED BY THE ENGINE, `the job, <label>
+  for <giver id> (<outcome>): the pay, goldDelta +70, and its time; record
+  no goldDelta this turn`, and `runTurn` drops any `goldDelta` it sends on a
+  work turn (debug: "ignored: the engine already settled the job (+70)").
+  The mock narrator says "You put in <label> for <giver>: paid $70."; the
+  mock bookkeeper introduces the giver.
+- **State.** `state.work` ({ jobId: { day, turn, times, outcome } }) is
+  written only by the new engine-only op `workDone` ({ jobId, outcome }).
+  `journalNews` takes `kind: 'work'`: such a line may repeat on another
+  turn (the same shift on another day), never twice in a turn; news still
+  never repeats.
+- **Fights that come to the player.** A new effect op, `fight` ({ npcId,
+  reason? }; in `EFFECTS`, so `EFFECT_OPS`, `Town.validate` and the
+  validator's op table follow; `checkEffect` checks the person when a seed
+  is planted). It rolls nothing: it leaves `{ id, npcId, reason?, seedId?,
+  day, turn }` in `state.fights`, a no-op for someone not free or not in
+  town, or with a fight already waiting. `World.fire` hands a seed's fight
+  its seed id, so it waits for the telling. At step 6, after
+  `World.dueSeeds`, `Pipeline.comeAt` fights the first one ready: a seed's
+  fight on the turn that seed's due event is told (it waits while the event
+  waits, and is dropped when the event went without it), any other on the
+  next narrated turn; anyone no longer free drops theirs (engine-only
+  `fightDone`). The person is brought to the player for the phase (a
+  `visits` entry) and the scene re-read; the player defends with
+  `Dice.resolve`: might, normal, +2 with a knife or a gun on them
+  (`carriedAs`, the bonus `usesItemId` gives an attack), a natural 20
+  earning a story point; a failure costs 1 to 3 HP and a critical failure
+  3, added to `ctx.damage` with `ctx.defeated`, so DAMAGE, DEFEAT, the
+  bookkeeper's hpDelta guard and `defeat` work as for a lost attack. It
+  never touches the retry lock. `defeat` names as the foe someone who came
+  at the player and hurt them, else the person the action was aimed at. A
+  critical failure brings no lasting consequence on top of its 3 damage.
+  The narrator gets `ATTACKED: <name> comes at the player (<reason>); the
+  player did not start it and defends. <roll line with complication>.
+  <what it means>` before DAMAGE; the bookkeeper "<id> came at the player,
+  who defended (<roll line>)"; the mock narrator "<name> comes at you;
+  might roll, failure: you get the worst of it." Test hook:
+  `Pipeline.hooks.fightD20` forces the defending die once (else the
+  `/undo` salt applies, as for any roll).
+- **The grudge that comes to blows.** The template "{npc} pays two men to
+  catch {player} alone after dark behind the Low Water and give them a
+  beating as a warning." is now "{npc} has had enough of {player} and comes
+  straight at them with both fists, done talking." with `effects: [{ op:
+  "fight", npcId: "{npc}" }]`: nobody made up, and no venue, since the fight
+  finds the player wherever they are. A grudge or favour template may carry
+  `effects` (fight, visit or attitudeDelta, `npcId` "{npc}"; checked by the
+  validator against someone in town); `World.plantFeeling` copies them onto
+  the seed with "{npc}" as that person and gives a fight its reason, the
+  memory behind the grudge (`a grudge: "insulted me twice"`). Cheap edit,
+  as B2 suggested: the favour "leaves word for {player} at the Low Water
+  about a day of cash work" now "tracks {player} down to pass on word of a
+  day of cash work", since it reaches the player wherever they are.
+- **UI.** A place's sheet (Places tab) has a "Work here" row (`workText`:
+  "A shift in the service bays at Pittman's (for Dewayne Mangum, morning
+  and afternoon)", the giver by `npcLabel` until met, "; done for today" or
+  "; again from day N" or "; done" once worked). `/jobs` (`Commands`, after
+  `/places` in the list and the autocomplete) prints the work at every
+  place the player knows, by place, with the phase it is now; no turn. The
+  Debug tab lists waiting fights under Due events and the work done under
+  Meta. The Character tab is unchanged.
+- **Older saves.** Nothing to fill and no rules version: a save without
+  `work` or `fights` reads as none, and `JOBS`, like the templates, is read
+  from the page, not the save, so an older game has work at once. A grudge
+  seed planted before keeps its old sentence and no effects.
+- **SPEC.md.** Section 10's `parse_action` enum gains a nineteenth type,
+  `work`; section 7's fights can now come to the player. Both are listed in
+  README.md's deviations.
+- **Cost.** No call is added. The parser's message carries WORK ON OFFER
+  HERE where work is on offer (about 45 tokens a job), its prompt one
+  sentence and its schema one enum value: over the cost report's 15 inputs its
+  message averages 2,887 characters (3,447 at most; it was 2,799 and 3,293),
+  its prompt 2,139 (1,939), its schema 2,157 (2,150). An ordinary turn is
+  unchanged at the report's precision ($0.0216 to $0.0263). A turn of work
+  adds the JOB line (about 95 tokens) and a bookkeeper note (about 40); a
+  fight the ATTACKED line (about 65).
+- **Not covered.** `/reroll` and `/cheat` redo the player's own roll; a
+  fight that came to them is fought again with the replayed turn (with a
+  fresh die) only when the turn had a roll of its own, since a turn whose
+  only roll was the defence logs no roll to redo. The narrator is not told
+  about work before it is taken (no WORK line in its packet; the brief kept
+  it out), so a giver asked "you hiring?" in conversation answers from
+  their own wants; taking it is what the parser hears. The flag
+  `ranWithNightRun` is kept, like the clocks' flags, for later rules;
+  nothing reads it yet.
+- **Tests.** content: JOBS in the block, and `validate-town.cjs` refuses a
+  job given to someone who is not at its place when it is offered. state:
+  the fight op (waiting in `state.fights` with its reason, once a person,
+  a seed's id kept, a no-op for the dead and the far away, an unknown
+  person refused), `fightDone`, `workDone` (the record and its count) and
+  the three new keys refused from the model, a seed planted with a fight and
+  one naming nobody refused whole, the job's journal line written again on
+  another turn but not twice in one while news never repeats, and Town's
+  `jobsAt`, `jobsOnOffer` and `jobRefusal` (the cooldown from `workDone`).
+  pipeline: a job on offer in the parser's message (and out of its phases
+  none; the Say mode clause), taking it in mock mode pays in its range,
+  takes the rest of the phase, writes the journal line, tells the narrator
+  (JOB after ROLL) and the bookkeeper, ignores the bookkeeper's own
+  `goldDelta`, introduces the giver and locks like any roll; refusals spend
+  nothing (out of its phases, nobody hiring, another place's, its giver
+  elsewhere, its giver cold, done today, done for good, after a once-only
+  job's `onSuccess` ran); the stake lost in Say mode within its range and
+  too little cash refused, work with no roll paid in its range, a botched
+  job paid nothing and `/cheat success` replaying it paid; a fight effect
+  waits, then brings its person and costs 1 to 3 HP on a failed defence
+  (with the knife's +2), costs nothing on a held one, is dropped for
+  someone arrested, and at 1 HP a natural 1 costs 3 and defeats the player,
+  the attacker named as the foe. world: the grudge template with the fight
+  is planted with "{npc}" and its reason filled in, fires on its day and
+  leaves the fight waiting (no ATTACKED in that narration), and the turn
+  its event is told the person comes at the player, is in the scene and the
+  failed defence hurts. map: a place's sheet lists its work (the giver by
+  label, then by name once met, "done for today"), none where there is
+  none, nothing overflows at 375 wide, and `/jobs` lists it with no turn.
+  playtest: the script ends by taking a job where it is offered (paid in
+  its range, the phase gone, the journal line, the JOB line, the story says
+  the pay), the run is 37 turns, and the mock parser test checks the work
+  phrases and the ones that stay talk or persuade. Changed on purpose:
+  shell's command list (`/jobs` after `/places`); state's content shape
+  test (a template may carry `effects`, one grudge is a fight, and the
+  jobs' shape), with README's "34-turn playtest" now 37.
 
 ### 17. Code health: built from parts, dead tables gone
 

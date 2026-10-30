@@ -2,7 +2,7 @@
 // Every name the town's content mentions must be a record (docs/BUILD_PLAN.md,
 // direction change 9: "everything mentioned exists"). This scans every string
 // in the content block of index.html (TOWN_DATA, BACKGROUNDS, FLAWS,
-// LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES; read in a Node vm sandbox
+// LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS; read in a Node vm sandbox
 // like tests/validate-town.cjs) and lists:
 //   - capitalised names (a capitalised word that does not start a sentence,
 //     or two or more in a row anywhere) that are not a person, a place, a
@@ -42,7 +42,7 @@ function load(file) {
   const BEGIN = '// ===== BEGIN CONTENT =====';
   const END = '// ===== END CONTENT =====';
   const src = html.slice(html.indexOf(BEGIN) + BEGIN.length, html.indexOf(END));
-  return vm.runInNewContext(src + '\n;({ TOWN_DATA, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES })', {}, { filename: 'index.html#content', timeout: 5000 });
+  return vm.runInNewContext(src + '\n;({ TOWN_DATA, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS })', {}, { filename: 'index.html#content', timeout: 5000 });
 }
 
 function strings(data) {

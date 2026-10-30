@@ -20,7 +20,7 @@ s.test('the inlined town is the only town, with no placeholder data and no conte
   assert.equal(html.split(BEGIN).length, 2, 'BEGIN marker once');
   assert.equal(html.split(END).length, 2, 'END marker once');
   const block = html.slice(html.indexOf(BEGIN), html.indexOf(END));
-  for (const name of ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES']) assert.match(block, new RegExp(`\\nconst ${name} = `), name);
+  for (const name of ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES', 'JOBS']) assert.match(block, new RegExp(`\\nconst ${name} = `), name);
   for (const gone of ['Tallow Ford', 'Hobb Tanner', 'Jory Pike', 'PLACEHOLDER', 'placeholder data']) assert.ok(!html.includes(gone), 'leftover: ' + gone);
   for (const dir of ['content', 'content-modern']) assert.ok(!fs.existsSync(path.join(ROOT, dir)), dir + '/ was removed after inlining');
   const page = await h.open();
@@ -88,6 +88,22 @@ s.test('validate-town.cjs passes on index.html and catches a hand-editing mistak
   const bad4 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
   assert.equal(bad4.status, 1);
   assert.match(bad4.stderr, /seeds\[\d+\]\(seed_[a-z0-9_]+\)\.effects\[\d+\]: npcId "npc_nobody" is not an NPC/);
+  // A job (direction change 16) given to someone who is not at its place when it is offered: nobody could ever take it.
+  const job = await page.evaluate(() => {
+    const D = Game.data;
+    const j = D.JOBS[0];
+    const l = D.TOWN_DATA.locations.find(x => x.id === j.locationId);
+    const other = D.TOWN_DATA.npcs.find(n => (n.presence || 'here') === 'here' && !j.phases.some(p => (l.npcIdsBySchedule[p] || []).includes(n.id)));
+    return { id: j.id, giver: j.giverNpcId, other: other.id, loc: j.locationId, phase: j.phases[0] };
+  });
+  const jobsAt = html.indexOf('\nconst JOBS = [', at);
+  const giverAt = html.indexOf(`giverNpcId: "${job.giver}"`, jobsAt);
+  assert.ok(jobsAt > at && giverAt > jobsAt, 'found the first job\'s giver');
+  const badJob = html.slice(0, giverAt) + `giverNpcId: "${job.other}"` + html.slice(giverAt + `giverNpcId: "${job.giver}"`.length);
+  fs.writeFileSync(tmp, badJob);
+  const bad5 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
+  assert.equal(bad5.status, 1);
+  assert.ok(bad5.stderr.includes(`JOBS[0](${job.id}).phases: ${job.other} is not at ${job.loc} in the ${job.phase}`), bad5.stderr);
 });
 
 s.test('the cast: everyone written by hand with a home, relations both ways and a place every phase; docs/CAST.md matches it; a new game has them all, castFixed, and nobody is ever made', async h => {

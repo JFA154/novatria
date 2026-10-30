@@ -395,7 +395,8 @@ s.test('typing "/" lists every command from SPEC section 12; arrows and Enter co
   await page.keyboard.type('/');
   await page.waitForSelector('#ac:not([hidden])');
   const names = await page.$$eval('#ac li .ac-name', els => els.map(e => e.textContent));
-  assert.deepEqual(names, ['/look', '/zoom', '/skip', '/pass', '/rest', '/wait', '/fact', '/sheet', '/people', '/journal', '/places', '/undo', '/reroll', '/cheat', '/pronouns', '/edit', '/save', '/load', '/debug']);
+  // /jobs (direction change 16) lists the paid work the player knows of.
+  assert.deepEqual(names, ['/look', '/zoom', '/skip', '/pass', '/rest', '/wait', '/fact', '/sheet', '/people', '/journal', '/places', '/jobs', '/undo', '/reroll', '/cheat', '/pronouns', '/edit', '/save', '/load', '/debug']);
   await page.keyboard.type('pe');
   assert.deepEqual(await page.$$eval('#ac li .ac-name', els => els.map(e => e.textContent)), ['/people']);
   await page.keyboard.press('ArrowDown');

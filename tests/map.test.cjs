@@ -489,4 +489,44 @@ s.test('a place someone told you about is drawn at its stored point with a dashe
   assert.equal(await page.textContent('.map-go'), `Go to ${await page.evaluate(id => Game.State.loc(id).name.replace(/^The /, 'the '), id)}?`);
 });
 
+s.test('a place\'s sheet lists its work (direction change 16): what, for whom (by name once met) and when, marked once done; a place with none has no such row; /jobs lists the work at the places known; 375 wide nothing overflows', async h => {
+  for (const viewport of [LAPTOP, PHONE]) {
+    const page = await h.open({ viewport });
+    await quickStart(page);
+    await fast(page);
+    const w = await page.evaluate(() => {
+      const G = Game;
+      const J = G.data.JOBS;
+      // A known place with two jobs if there is one, else with one; and a known place with none.
+      const known = G.state.locations.filter(l => l.discovered && !l.away);
+      const many = known.find(l => J.filter(j => j.locationId === l.id).length > 1) || known.find(l => J.some(j => j.locationId === l.id));
+      const none = known.find(l => !J.some(j => j.locationId === l.id));
+      const phases = p => (p.length < 3 ? p.join(' and ') : `${p.slice(0, -1).join(', ')} and ${p[p.length - 1]}`);
+      const rowOf = j => `${j.label.charAt(0).toUpperCase() + j.label.slice(1)} (${j.stake ? 'with' : 'for'} ${G.npcLabel(G.State.npc(j.giverNpcId))}, ${phases(j.phases)})`;
+      return { many: many.id, manyName: many.name, none: none.id, rows: J.filter(j => j.locationId === many.id).map(rowOf), jobs: J.filter(j => j.locationId === many.id).map(j => ({ id: j.id, giver: j.giverNpcId, phase: j.phases[0], label: j.label, stake: !!j.stake })) };
+    });
+    await openPlaces(page);
+    const read = id => page.evaluate(i => { const dd = document.querySelector(`.plcard[data-loc="${i}"] dd[data-fact="work-here"]`); return dd ? dd.textContent : null; }, id);
+    await page.evaluate(id => Game.UI.togglePlace(id, true), w.many);
+    assert.equal(await read(w.many), w.rows.join('; '), 'the work here, by label for a stranger');
+    await page.evaluate(id => Game.UI.togglePlace(id, true), w.none);
+    assert.equal(await read(w.none), null, 'no row where there is no work');
+    if (viewport === PHONE) assert.deepEqual(await overflowReport(page, PHONE.width), [], 'nothing overflows at 375');
+    // Worked today, by someone now met: the giver by name and "done for today".
+    const j = w.jobs.find(x => !x.stake);
+    await page.evaluate(([id, giver]) => { Game.State.apply({ workDone: { jobId: id, outcome: 'success' }, npcKnownToPlayer: [giver] }); }, [j.id, j.giver]);
+    await page.evaluate(id => Game.UI.togglePlace(id, true), w.many);
+    const name = await page.evaluate(id => Game.State.npc(id).name, j.giver);
+    assert.ok((await read(w.many)).includes(`${j.label.charAt(0).toUpperCase() + j.label.slice(1)} (for ${name}, `) && (await read(w.many)).includes('; done for today)'), await read(w.many));
+    if (viewport === LAPTOP) {
+      await page.focus('#cmd');
+      await sendText(page, '/jobs');
+      const notice = await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent);
+      assert.ok(notice.startsWith(`Work you know of (ask for it there; it is ${await page.evaluate(() => Game.state.time.phase)} now). `), notice);
+      assert.ok(notice.includes(`${w.manyName}: `) && notice.includes('done for today'), notice);
+      assert.equal(await page.evaluate(() => Game.state.meta.turn), 0, '/jobs spends no turn');
+    }
+  }
+});
+
 s.run();

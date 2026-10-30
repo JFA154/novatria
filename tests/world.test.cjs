@@ -363,6 +363,60 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   assert.equal(await page.evaluate(id => Game.State.seed(id).fired, g[0].id), true);
 });
 
+s.test('a grudge that comes to blows (direction change 16): its seed carries a fight for the person who holds it; the fight waits when the seed fires and is fought the turn its event is told, with that person brought to the player', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { seed: 99, kinds: ['lost', 'promise', 'secret'] });
+  await fast(page);
+  await page.evaluate(() => Game.World.forceClockRoll(1));
+  const sc = await findScene(page, { minAtt: -15, maxAtt: 20, watchy: false });
+  const x = await page.evaluate(ids => Game.state.npcs.find(n => ids.includes(n.id) && !Game.state.player.looseEnds.some(le => le.npcId === n.id)), sc.npcs.map(n => n.id));
+  assert.ok(x, 'someone to fall out with');
+  // The fight template is the one left: every other grudge template this person has "used" already (fired seeds of theirs).
+  const fightAt = await page.evaluate(id => {
+    const G = Game;
+    const at = G.data.GRUDGE_TEMPLATES.findIndex(t => (t.effects || []).some(e => e.op === 'fight'));
+    const used = G.data.GRUDGE_TEMPLATES.map((_, i) => i).filter(i => i !== at);
+    G.State.apply({ effects: used.map(i => ({ op: 'plantSeed', seed: { id: `seed_used_${i}`, cause: 'test', effect: 'Used up.', trigger: { type: 'day', value: 99 }, origin: { kind: 'grudge', npcId: id, template: i } } })) });
+    G.State.apply({ seedsFired: used.map(i => `seed_used_${i}`) });
+    G.State.apply({ newMemories: [{ npcId: id, text: 'spat on my boots', weight: 3 }] });
+    G.World.forceAttitude(id, -60);
+    return at;
+  }, x.id);
+  assert.ok(fightAt >= 0, 'a grudge template with a fight');
+  await onePhase(page);
+  const g = (await feelings(page, x.id, 'grudge')).find(sd => !sd.fired);
+  assert.ok(g, 'the grudge is planted');
+  assert.equal(g.origin.template, fightAt);
+  const tpl = await page.evaluate(([i, name]) => Game.data.GRUDGE_TEMPLATES[i].effect.replace(/\{npc\}/g, name).replace(/\{player\}/g, 'Tester'), [fightAt, x.name]);
+  assert.equal(g.effect, tpl);
+  assert.deepEqual(g.effects, [{ op: 'fight', npcId: x.id, reason: 'a grudge: "spat on my boots"' }], '{npc} filled in, and why');
+  // Days pass until it fires: the fight then waits for the telling.
+  let fired = false;
+  for (let i = 0; i < 8 && !fired; i++) {
+    await sendText(page, (await time(page)).day < g.trigger.value ? '/rest' : 'I look around');
+    fired = await page.evaluate(id => Game.State.seed(id).fired, g.id);
+  }
+  assert.ok(fired, 'the grudge fired on its day');
+  const waiting = await page.evaluate(() => ({ fights: JSON.parse(JSON.stringify(Game.state.fights || [])), packet: Game.Pipeline.lastTurn.packet }));
+  assert.deepEqual(waiting.fights.map(f => [f.npcId, f.seedId, f.reason]), [[x.id, g.id, 'a grudge: "spat on my boots"']], 'waiting, not fought at the firing');
+  assert.equal(line(waiting.packet, 'ATTACKED'), '', 'nothing in the narration that fired it');
+  // The turn its event is told: the fight, with them in the scene.
+  let told = null;
+  for (let i = 0; i < 4 && !told; i++) {
+    const hp = await page.evaluate(() => Game.state.player.hp);
+    await page.evaluate(() => { Game.Pipeline.hooks.fightD20 = 2; });
+    await sendText(page, 'I look around');
+    const r = await page.evaluate(id => ({ packet: Game.Pipeline.lastTurn.packet, hp: Game.state.player.hp, fights: Game.state.fights, here: Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id) }), x.id);
+    if (line(r.packet, 'DUE EVENT').includes(g.effect)) told = Object.assign(r, { hp0: hp });
+    else assert.equal(line(r.packet, 'ATTACKED'), '', 'no fight before its event is told');
+  }
+  assert.ok(told, 'the grudge was told');
+  assert.ok(line(told.packet, 'ATTACKED').startsWith(`${x.name} comes at the player (a grudge: "spat on my boots"); the player did not start it and defends.`), line(told.packet, 'ATTACKED'));
+  assert.ok(told.hp < told.hp0 && told.hp >= told.hp0 - 3, `the failed defence hurt: ${told.hp0} -> ${told.hp}`);
+  assert.ok(told.here && line(told.packet, 'PRESENT').includes(`${x.name} (`), 'brought to the player');
+  assert.deepEqual(told.fights, [], 'fought once');
+});
+
 s.test('a favour seed at attitude 60 or more, once the NPC remembers something the player did; not at 59, not unearned', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 5 });

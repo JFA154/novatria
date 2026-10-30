@@ -22,10 +22,10 @@ const vm = require('vm');
 const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(__dirname, '..', 'index.html');
 const BEGIN = '// ===== BEGIN CONTENT =====';
 const END = '// ===== END CONTENT =====';
-const EXPORT_NAMES = ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES'];
+const EXPORT_NAMES = ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES', 'JOBS'];
 // Optional: the guard the block carried as a stand-alone file. Harmless in the
 // browser; if present it must be the last line and is ignored by the checks.
-const END_BLOCK = "if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES }; }";
+const END_BLOCK = "if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS }; }";
 
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
@@ -301,7 +301,7 @@ if (goldKeys !== goldKeyUses) err('syntax', '"gold" used in code other than as t
 
 // ---------------------------------------------------------------------------
 // 2. Load check: evaluate the block in a fresh vm context, like a browser
-//    <script> (no module, no require), and collect the seven constants.
+//    <script> (no module, no require), and collect the eight constants.
 // ---------------------------------------------------------------------------
 try {
   new vm.Script(src, { filename: 'index.html#content' });
@@ -323,7 +323,7 @@ for (const n of EXPORT_NAMES) {
 }
 if (problems.length) report();
 
-const { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES } = data;
+const { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS } = data;
 if (!isObj(TOWN_DATA)) fatal('TOWN_DATA', 'is not an object');
 
 // No functions anywhere, banned phrases in every string.
@@ -549,8 +549,11 @@ const OPS = {
   setFlag: ['key', 'value'],
   reputationDelta: ['key', 'delta'],
   visit: ['npcId', 'locationId'],
-  placeItem: ['locationId', 'item']
+  placeItem: ['locationId', 'item'],
+  fight: ['npcId']
 };
+// Optional fields of an op (fight's reason: why they come at the player).
+const OPTIONAL_OP_FIELDS = { fight: ['reason'] };
 // At most this many effects on one seed (State.SEED_EFFECTS_MAX allows a few
 // more; the content keeps to four, as a clock does).
 const SEED_EFFECTS_MAX = 4;
@@ -564,7 +567,7 @@ function checkEffect(e, where) {
   if (!isObj(e)) { err(where, 'effect must be an object'); return; }
   if (!OPS[e.op]) { err(where, 'unknown op "' + e.op + '"'); return; }
   opCounts[e.op] = (opCounts[e.op] || 0) + 1;
-  checkKeys(e, ['op'].concat(OPS[e.op]), where);
+  checkKeys(e, ['op'].concat(OPS[e.op]), where, OPTIONAL_OP_FIELDS[e.op]);
   switch (e.op) {
     case 'closeLocation':
     case 'openLocation':
@@ -638,6 +641,12 @@ function checkEffect(e, where) {
         if (e.item.qty !== undefined && !(isInt(e.item.qty) && e.item.qty >= 1 && e.item.qty <= 99)) err(where + '.item.qty', 'must be a whole number from 1 to 99');
         if (e.item.notes !== undefined && checkStr(e.item.notes, where + '.item.notes', { noPlaceholders: true }) && e.item.notes.length > 120) err(where + '.item.notes', 'at most 120 characters');
       }
+      break;
+    // Direction change 16: someone comes at the player (a fight the player did not start), resolved the turn it is told.
+    case 'fight':
+      if (!isNpc(e.npcId)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      else if (presenceOf(npcById.get(e.npcId)) !== 'here') err(where, e.npcId + ' is ' + presenceOf(npcById.get(e.npcId)) + ' and never comes at anyone');
+      if (e.reason !== undefined) checkStr(e.reason, where + '.reason', { noPlaceholders: true });
       break;
   }
 }
@@ -1273,20 +1282,92 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
   }
 }
 
+/* A grudge or favour template may carry effects for its seed (direction
+   change 16): effect ops checked like a seed's, where npcId "{npc}" is the
+   person whose grudge or favour it is (World.plantFeeling fills it in). Only
+   ops that make sense for someone who may be anyone in town: a fight, a
+   visit, an attitude change. */
+const TEMPLATE_OPS = ['fight', 'visit', 'attitudeDelta'];
+const someoneHere = npcs.find((n) => isObj(n) && presenceOf(n) === 'here');
 function checkTemplates(list, name) {
   if (!Array.isArray(list) || list.length < 6) { err(name, 'needs at least 6 templates'); return; }
   const seen = new Set();
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
-    if (!checkKeys(t, ['effect', 'dayOffset'], where)) return;
+    if (!checkKeys(t, ['effect', 'dayOffset'], where, ['effects'])) return;
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });
     checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}']);
     checkDayOffset(t.dayOffset, where + '.dayOffset', 2, 5);
     if (typeof t.effect === 'string') { if (seen.has(t.effect)) err(where, 'duplicate template'); seen.add(t.effect); }
+    if (t.effects !== undefined) {
+      if (!Array.isArray(t.effects) || t.effects.length < 1 || t.effects.length > SEED_EFFECTS_MAX) { err(where + '.effects', 'a template\'s effects are a list of 1 to ' + SEED_EFFECTS_MAX + ' effect ops'); return; }
+      t.effects.forEach((e, ei) => {
+        const w = where + '.effects[' + ei + ']';
+        if (!isObj(e) || TEMPLATE_OPS.indexOf(e.op) === -1) { err(w, 'a template effect is one of ' + TEMPLATE_OPS.join(', ')); return; }
+        if (e.npcId !== '{npc}') { err(w, 'npcId must be "{npc}", the person the grudge or favour belongs to'); return; }
+        checkEffect(Object.assign({}, e, { npcId: someoneHere && someoneHere.id }), w);
+      });
+    }
   });
 }
 checkTemplates(GRUDGE_TEMPLATES, 'GRUDGE_TEMPLATES');
 checkTemplates(FAVOUR_TEMPLATES, 'FAVOUR_TEMPLATES');
+
+// ---------------------------------------------------------------------------
+// 7b. JOBS (direction change 16): paid work at a place, for someone who is
+//     there in every phase it is offered. The engine pays it, passes the
+//     time and runs onSuccess or onFailure (effect ops, checked like a
+//     seed's); a stake job (the card game) can lose its pay range instead.
+// ---------------------------------------------------------------------------
+const JOB_ID = /^job_[a-z0-9_]+$/;
+const JOB_STATS = ['might', 'wits', 'charm', 'stealth'];
+const JOB_DIFFICULTIES = ['easy', 'normal', 'hard', 'very_hard'];
+const JOB_TIME_COSTS = ['short', 'long'];
+const PAY_MIN = 5;
+const PAY_MAX = 400;
+const JOB_EFFECTS_MAX = 4;
+const jobIds = new Set();
+if (!Array.isArray(JOBS) || JOBS.length < 6 || JOBS.length > 8) err('JOBS', 'expected 6 to 8 jobs');
+(Array.isArray(JOBS) ? JOBS : []).forEach((j, i) => {
+  const where = 'JOBS[' + i + '](' + (j && j.id) + ')';
+  if (!checkKeys(j, ['id', 'label', 'locationId', 'giverNpcId', 'phases', 'pay', 'stat', 'difficulty', 'timeCost', 'factionId', 'repeatable', 'cooldownDays', 'blurb'], where, ['onSuccess', 'onFailure', 'stake'])) return;
+  if (typeof j.id !== 'string' || !JOB_ID.test(j.id)) err(where, 'id must look like job_name');
+  else if (jobIds.has(j.id) || ids.has(j.id)) err(where, 'duplicate id "' + j.id + '"');
+  else jobIds.add(j.id);
+  // The label follows "WORK ON OFFER HERE: job_x — " and "Work here: ": a lower-case phrase, no full stop.
+  if (checkStr(j.label, where + '.label', { noPlaceholders: true }) && (/^[A-Z]/.test(j.label) || /[.!?]$/.test(j.label) || j.label.length > 60)) err(where + '.label', 'a short lower-case phrase with no full stop (60 characters at most)');
+  checkStr(j.blurb, where + '.blurb', { noPlaceholders: true, sentences: 1 });
+  if (typeof j.blurb === 'string' && j.blurb.length > 200) err(where + '.blurb', 'at most 200 characters');
+  const l = isLoc(j.locationId) ? locById.get(j.locationId) : null;
+  if (!l) err(where, 'locationId "' + j.locationId + '" is not a location');
+  else if (l.away === true) err(where, j.locationId + ' is out of town');
+  const giver = isNpc(j.giverNpcId) ? npcById.get(j.giverNpcId) : null;
+  if (!giver) err(where, 'giverNpcId "' + j.giverNpcId + '" is not an NPC');
+  else if (presenceOf(giver) !== 'here') err(where, j.giverNpcId + ' is ' + presenceOf(giver) + ' and gives no work');
+  if (!Array.isArray(j.phases) || !j.phases.length || new Set(j.phases).size !== j.phases.length || j.phases.some((p) => PHASES.indexOf(p) === -1)) err(where + '.phases', 'a list of different phases (' + PHASES.join(', ') + ')');
+  else if (l && giver) {
+    // The giver is at the place in every phase the work is offered, or nobody could ever take it.
+    for (const p of j.phases) if (!((l.npcIdsBySchedule || {})[p] || []).includes(giver.id)) err(where + '.phases', giver.id + ' is not at ' + l.id + ' in the ' + p);
+  }
+  if (!Array.isArray(j.pay) || j.pay.length !== 2 || !isInt(j.pay[0]) || !isInt(j.pay[1]) || j.pay[0] < PAY_MIN || j.pay[1] > PAY_MAX || j.pay[0] > j.pay[1]) err(where + '.pay', 'pay must be [low, high] whole dollars, ' + PAY_MIN + ' <= low <= high <= ' + PAY_MAX);
+  if (j.stat === null) { if (j.difficulty !== null) err(where + '.difficulty', 'null when there is no roll (stat null)'); }
+  else if (JOB_STATS.indexOf(j.stat) === -1) err(where + '.stat', 'one of ' + JOB_STATS.join(', ') + ', or null for work with no roll');
+  else if (JOB_DIFFICULTIES.indexOf(j.difficulty) === -1) err(where + '.difficulty', 'one of ' + JOB_DIFFICULTIES.join(', '));
+  if (JOB_TIME_COSTS.indexOf(j.timeCost) === -1) err(where + '.timeCost', 'one of ' + JOB_TIME_COSTS.join(', '));
+  if (j.factionId !== null && !isFac(j.factionId)) err(where + '.factionId', 'a faction id or null');
+  if (typeof j.repeatable !== 'boolean') err(where + '.repeatable', 'must be true or false');
+  if (!isInt(j.cooldownDays) || j.cooldownDays < 1 || j.cooldownDays > 14) err(where + '.cooldownDays', 'a whole number of days, 1 to 14');
+  // A stake (the card game): the pay range is won or lost, so there must be a roll to decide it.
+  if (j.stake !== undefined && (j.stake !== true || j.stat === null)) err(where + '.stake', 'true, on work with a roll (a stat)');
+  for (const k of ['onSuccess', 'onFailure']) {
+    if (j[k] === undefined) continue;
+    if (!Array.isArray(j[k]) || j[k].length < 1 || j[k].length > JOB_EFFECTS_MAX) { err(where + '.' + k, 'a list of 1 to ' + JOB_EFFECTS_MAX + ' effect ops'); continue; }
+    j[k].forEach((e, ei) => {
+      if (isObj(e) && e.op === 'addRumour' && isObj(e.rumour)) registerId(e.rumour.id, 'rumour', where + '.' + k + '[' + ei + '].rumour', true);
+      checkEffect(e, where + '.' + k + '[' + ei + ']');
+    });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 8. Modern: EXAMPLE_TURNS_LITERARY and EXAMPLE_TURNS_CASUAL in index.html, the
@@ -1416,5 +1497,6 @@ console.log(
   Object.keys(LOOSE_ENDS).length + ' loose ends, ' +
   GRUDGE_TEMPLATES.length + ' grudges, ' +
   FAVOUR_TEMPLATES.length + ' favours, ' +
+  JOBS.length + ' jobs, ' +
   allStrings.length + ' strings scanned'
 );

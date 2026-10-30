@@ -138,6 +138,73 @@ costs nothing and says so plainly: "Clayburn is out of town (twenty-six
 miles north up the state highway, about forty minutes by car). The story
 stays in Lockett's Ferry: you can talk about it, but you can't go there."
 
+## Work
+
+Cash has a use and a way in. Seven people in town pay for a few hours'
+work, each at their own place and time of day:
+
+| Work | Where, for whom | When | Pay | Roll |
+|---|---|---|---|---|
+| A shift in the service bays | Pittman's, Dewayne Mangum | morning, afternoon | $60 to $80 | might, normal |
+| A shift at the bait shop | Purvis Landing, Lorna Purvis | morning, afternoon | $40 to $55 | might, easy |
+| A night on a johnboat | Purvis Landing, Wade Purvis | night | $150 to $250 | stealth, hard |
+| A day's hauling | the Haskins farm, Lamar Haskins | morning | $50 to $70, once only | might, normal |
+| Turning over rooms | the motor court, Mavis Mangum | evening | $30 to $45 | none |
+| A seat at the card game | the Low Water, Curtis Pruett | evening, night | win or lose $40 to $120 | charm, normal |
+| A day in the back room | Byrd's Pawn, Hollis Byrd | morning, afternoon | $40 to $60 | wits, normal |
+
+**Taking it.** Be there when the person who gives it is, and ask: "I ask
+Dewayne for a shift", "I look for work", "Hire me", or in Say mode "Deal me
+in." The game rolls if the work has a roll, pays you in cash, and the work
+takes the rest of the phase. A success pays a sum in the range, a natural 20 the
+top of it, a partial the low end and a failure nothing (a natural 1 can
+also leave a lasting consequence, as any roll can). Turning over rooms has
+no roll and always pays a sum in the range. A quiet line says what you were
+paid ("You are paid $70 (cash $210).") and the Journal gets "A shift in the
+service bays at Pittman's for Dewayne Mangum: paid $70." The narrator is
+told what the work was and what it paid, and nothing else is paid, won or
+lost in the telling.
+
+**The card game is a stake.** You need the low end, $40, to sit in. A win
+pays the way any work does, and a failure loses a sum in the range (the top
+of it on a natural 1), never more than you have. The flaw "Can't pass a
+scratch-off ticket or a card game without buying in" is written for it.
+
+**Once a day.** Work you have done is not on offer to you again until the
+next day (the night on a johnboat: three days), and the farm's day of
+hauling is one job, done once. When you cannot take the work, a plain line
+says why and nothing is spent: the wrong time of day ("The mechanic hires
+for a shift in the service bays at Pittman's in the morning and afternoon,
+not in the evening."), its giver somewhere else, arrested or gone, someone
+cold to you (attitude -25 or worse) who will not take you on, work done
+today, too little cash to sit in, or nobody hiring where you are ("Nobody
+at the Old Bridge is hiring right now. The Places tab shows the work in
+town (or type /jobs).").
+
+**Some work changes things.** A good night on the johnboat raises your
+standing with the Night Run; a bad one lowers it, and Travis Cagle saw a
+johnboat with no lights hung up below the bridge with a stranger in it, a
+rumour that spreads like any other. A good day on the farm warms Lamar
+Haskins to you.
+
+**Where to look.** A place's sheet on the Places tab lists "Work here: A
+shift in the service bays at Pittman's (for Dewayne Mangum, morning and
+afternoon)", the giver by their label until you meet them, with "done for
+today" once you have. `/jobs` lists the work at every place you know (the
+Haskins farm is a home to find, so its work shows once someone has told you
+where it is).
+
+**Trouble that comes to you.** Someone with a grudge can now come at you
+themselves. One of the eight grudges is a fight: "Royce Pittman has had
+enough of Tomas and comes straight at them with both fists, done talking."
+When it comes due, on the turn it is told, that person is brought to
+wherever you are and you defend: a might roll at normal difficulty, +2
+with a knife or a gun on you. A failure costs 1 to 3 HP (3 on a natural 1)
+and at 0 HP you are defeated as in any fight, with them as the one who did
+it; a success and they get nowhere. The narrator is told who came at you,
+why (the grudge's memory: "a grudge: "insulted me twice""), and how your
+defence went. The quiet roll line shows it like any roll.
+
 ## The cast
 
 Everyone who can appear in Lockett's Ferry is written by hand: 41 people in
@@ -380,7 +447,7 @@ clock of six segments (the Debug tab shows them).
   already granted (see Dice): nothing is gained on those. Once you
   have heard it, it stops spreading, the Journal gets "Around town: <what
   you heard> (from <who told you>)." on that turn, and the teller's People
-  card lists it under "Told you". In the 34-turn playtest you hear three of
+  card lists it under "Told you". In the 37-turn playtest you hear three of
   them (it was one before rumours spread).
 
 ## Dice
@@ -433,6 +500,7 @@ When time passes while you stay put, anyone who arrives at or leaves your place 
 | `/wait <phase>` | Wait where you are until morning, afternoon, evening or night | Narrator |
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
+| `/jobs` | List the paid work at the places you know: what, for whom, when, and whether you have done it today (see Work) | None |
 | `/undo` | Take back the last turn exactly (up to 20 turns) | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule (see Dice). The same action replays with a fresh die | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome. With no roll to redo, it arms your next roll instead. `/cheat` alone lists these | Narrator, bookkeeper |
@@ -664,6 +732,18 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
   changes (an edit, a merge, a death), so they are read from the cache
   every turn of a session; meeting someone, moving or a change of attitude
   does not touch them.
+- Since work and trouble (see Work), the parser's message carries a WORK ON
+  OFFER HERE line where work is on offer (about 45 tokens a job) and its
+  prompt one sentence about it, and `work` is in the parser's action list.
+  Over the same 15 inputs (the game starts at Pittman's, where Dewayne hires in the
+  morning) the report measures the parser's message at 2,887 characters on
+  average (3,447 at most), where it was 2,799 (3,293), its prompt at 2,139
+  (1,939) and its schema at 2,157 (2,150): about 1,440 tokens at the input
+  rate and 3,390 cached. An ordinary turn is unchanged at the report's
+  precision: $0.0216 without thinking, $0.0263 with, 100 turns $2.16 to
+  $2.63. A turn of work adds the JOB line to the narrator's packet (about
+  95 tokens) and a note to the bookkeeper's (about 40), and a fight that
+  comes to you the ATTACKED line (about 65); no call is added.
 - The felt wait: once the narration has streamed in, the input takes your
   next move while the bookkeeper finishes (a few seconds), and the parser
   in front of the narration is Haiku, the fastest of the three.
@@ -678,8 +758,9 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
 The whole town lives in `index.html` between the markers
 `// ===== BEGIN CONTENT =====` and `// ===== END CONTENT =====`: `TOWN_DATA`
 (places, people, factions and their clocks, threads, seeds, rumours), `TABLES`
-(random tables), `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES` and
-`FAVOUR_TEMPLATES`. It is plain data with double-quoted strings. The shape is
+(random tables), `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`,
+`FAVOUR_TEMPLATES` and `JOBS` (the paid work; see Work). It is plain data
+with double-quoted strings. The shape is
 in `docs/BUILD_PLAN.md` under "Shared data contract". After editing, run:
 
 ```
@@ -698,7 +779,10 @@ years older, grandparents at least 32, spouses within 20 years, siblings
 within 25), histories of two or three sentences, the dead (when they died,
 never scheduled) and the people elsewhere (where, how to reach them), places
 out of town (no exits, no map, never discovered), every place's details,
-hours and history, and runs `tests/mentions.cjs`, so a name or a place the
+hours and history, the jobs (6 to 8, each giver at the job's place in
+every phase it is offered, a pay range, a roll or none, a cooldown, and
+effects checked like a seed's), a grudge or favour template's effects
+(`{npc}` for its person), and runs `tests/mentions.cjs`, so a name or a place the
 content mentions with no record fails. It lists every problem it finds and
 exits 1. After
 changing the cast, regenerate the roster:
@@ -809,6 +893,13 @@ wants the fastest model, while what the bookkeeper records is worth the
 dearer one. The parser's and the bookkeeper's lists of people and places
 go in a cached system block rather than the message (section 13 caches
 only the narrator's style guide).
+
+And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 16):
+SPEC.md section 10's `parse_action` lists eighteen action types; it has a
+nineteenth, `work` (taking paid work on offer, `JOBS`), and the parser's
+message a WORK ON OFFER HERE line. Section 7's fights are still a roll at a
+time, but they no longer start only with the player: the `fight` effect
+(one of the grudges) brings someone to the player, who defends with might.
 
 ## Verified against the live API on 28 Oct 2026
 

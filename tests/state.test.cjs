@@ -810,7 +810,12 @@ s.test('town data passes validation and every content constant has the contract 
       flaws: D.FLAWS.every(f => typeof f === 'string' && f.length > 0),
       loose: keys(D.LOOSE_ENDS),
       looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length), memory: keys(le.memory).filter(k => k !== 'options').join() === 'text' && (!le.memory.options || le.memory.options.length === le.options.length) })),
-      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => keys(t).join() === 'dayOffset,effect' && t.effect.includes('{npc}'))
+      // A template may carry effects for its seed, "{npc}" being the person it belongs to (direction change 16: the beating is a fight).
+      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => keys(t).filter(k => k !== 'effects').join() === 'dayOffset,effect' && t.effect.includes('{npc}') && (t.effects === undefined || (Array.isArray(t.effects) && t.effects.every(e => e.npcId === '{npc}')))),
+      fightTemplates: D.GRUDGE_TEMPLATES.filter(t => (t.effects || []).some(e => e.op === 'fight')).length,
+      // Paid work (direction change 16).
+      jobs: D.JOBS.map(j => ({ k: keys(j).filter(x => !['onSuccess', 'onFailure', 'stake'].includes(x)), pay: j.pay[0] <= j.pay[1], here: (D.TOWN_DATA.locations.find(l => l.id === j.locationId) || { npcIdsBySchedule: {} }), phases: j.phases, giver: j.giverNpcId }))
+        .map(x => ({ k: x.k, pay: x.pay, scheduled: x.phases.every(p => (x.here.npcIdsBySchedule[p] || []).includes(x.giver)) }))
     };
   });
   assert.deepEqual(r.errors, []);
@@ -851,6 +856,12 @@ s.test('town data passes validation and every content constant has the contract 
     assert.ok(le.memory, 'memory: text, and one line per option when options is given');
   }
   assert.ok(r.templates.every(Boolean));
+  assert.equal(r.fightTemplates, 1, 'one grudge comes at the player in a fight');
+  assert.ok(r.jobs.length >= 6 && r.jobs.length <= 8, 'six to eight jobs');
+  for (const j of r.jobs) {
+    assert.deepEqual(j.k, ['blurb', 'cooldownDays', 'difficulty', 'factionId', 'giverNpcId', 'id', 'label', 'locationId', 'pay', 'phases', 'repeatable', 'stat', 'timeCost']);
+    assert.ok(j.pay && j.scheduled, 'a pay range, and the giver at the place in every phase');
+  }
 });
 
 s.test('character creation turns every loose end into an NPC, a memory, a thread and a hidden seed', async h => {
@@ -2377,6 +2388,95 @@ s.test('rumours carry knownBy (source first; a faction\'s news its free members;
   assert.equal(r.emptyRefused, 1);
   assert.equal(r.heard1.length, 1);
   assert.equal(r.heard2, null, 'nothing reported for a rumour already heard');
+});
+
+s.test('work and trouble (direction change 16): the fight op waits in state.fights, once a person, its seed kept, a no-op for someone not free; fightDone, workDone and the job\'s journal line; all engine-only; Town\'s work helpers', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const G = Game;
+    const S = G.State;
+    const st = G.state;
+    const reasons = res => res.rejected.map(x => x.reason);
+    const town = st.npcs.filter(n => n.status === 'free' && (n.presence || 'here') === 'here');
+    const a = town[0];
+    const b = town[1];
+    const dead = st.npcs.find(n => n.presence === 'dead');
+    const away = st.npcs.find(n => n.presence === 'away');
+    const out = {};
+    out.first = S.apply({ effects: [{ op: 'fight', npcId: a.id, reason: 'a grudge over a lie' }] }).applied;
+    out.twice = S.apply({ effects: [{ op: 'fight', npcId: a.id }] }).applied;
+    const sd = st.seeds.find(x => !x.fired);
+    out.seeded = S.apply({ effects: [{ op: 'fight', npcId: b.id, seedId: sd.id }] }).applied;
+    out.badSeed = S.apply({ effects: [{ op: 'fight', npcId: dead.id, seedId: 'seed_nothing' }] }).applied;
+    out.awayNoop = S.apply({ effects: [{ op: 'fight', npcId: away.id }] }).applied;
+    out.unknown = reasons(S.apply({ effects: [{ op: 'fight', npcId: 'npc_nobody' }] }));
+    out.fights = JSON.parse(JSON.stringify(st.fights));
+    out.fromModel = reasons(S.apply({ effects: [{ op: 'fight', npcId: a.id }], fightDone: [st.fights[0].id], workDone: { jobId: 'job_x' } }, { source: 'model' }));
+    out.done = S.apply({ fightDone: [st.fights[0].id] }).applied;
+    out.notWaiting = reasons(S.apply({ fightDone: ['fight_nobody'] }));
+    out.left = st.fights.map(f => f.npcId);
+    // A seed planted with a fight effect keeps it; one naming nobody is refused whole.
+    out.plant = reasons(S.apply({ effects: [{ op: 'plantSeed', seed: { id: 'seed_test_fight', cause: 'test', effect: 'Someone comes at the player.', trigger: { type: 'day', value: 5 }, effects: [{ op: 'fight', npcId: a.id, reason: 'test' }] } }] }));
+    out.planted = S.seed('seed_test_fight').effects;
+    out.plantBad = reasons(S.apply({ effects: [{ op: 'plantSeed', seed: { id: 'seed_test_fight2', cause: 'test', effect: 'Nobody comes.', trigger: { type: 'day', value: 5 }, effects: [{ op: 'fight', npcId: 'npc_nobody' }] } }] }));
+    // Work done, and the job's journal line: written again on another turn, never twice in one; news never twice.
+    const turn = st.meta.turn;
+    out.work1 = S.apply({ workDone: { jobId: 'job_service_bays', outcome: 'success' } }).applied;
+    out.work2 = S.apply({ workDone: { jobId: 'job_service_bays' } }).applied;
+    out.badJob = reasons(S.apply({ workDone: { jobId: 'shift' } }));
+    out.record = JSON.parse(JSON.stringify(st.work));
+    const line = { text: 'A shift for someone: paid $70.', kind: 'work' };
+    S.apply({ journalNews: [line, line] });
+    S.apply({ beginTurn: true });
+    S.apply({ journalNews: [line, { text: 'Around town: test news.' }] });
+    S.apply({ journalNews: [{ text: 'Around town: test news.' }] });
+    out.journal = st.journal.filter(j => j.kind).map(j => [j.turn - turn, j.kind, j.text]);
+    // Town's helpers: a job here, on offer while its giver is here in its phase; a refusal names why not.
+    const J = G.data.JOBS.find(j => j.stat && !j.stake && j.repeatable);
+    while (st.time.phase !== J.phases[0]) S.apply({ advanceTime: 'long' });
+    S.apply({ playerLocationId: J.locationId });
+    out.at = G.Town.jobsAt(J.locationId).map(j => j.id);
+    out.atOther = G.Town.jobsAt(J.locationId, ['morning', 'afternoon', 'evening', 'night'].find(p => !J.phases.includes(p))).map(j => j.id);
+    out.offer = G.Town.jobsOnOffer(J.locationId).map(j => j.id);
+    out.refuse = G.Town.jobRefusal(J, J.locationId);
+    // The record written above (the same job, today) is the cooldown; without it nothing stops the job.
+    delete st.work.job_service_bays;
+    out.refuseAfter = G.Town.jobRefusal(J, J.locationId);
+    out.jobId = J.id;
+    out.label = J.label;
+    return out;
+  });
+  assert.equal(r.first.length, 1);
+  assert.match(r.first[0], /^effects\[0\]: fight: npc_\w+ will come at the player on the next turn$/);
+  assert.match(r.twice[0], /no-op: npc_\w+ already has a fight waiting/);
+  assert.match(r.seeded[0], /will come at the player when seed_\w+ is told$/);
+  assert.match(r.badSeed[0], /no-op: npc_\w+ is dead/);
+  assert.match(r.awayNoop[0], /no-op: npc_\w+ is gone/);
+  assert.deepEqual(r.unknown, ['unknown npc id "npc_nobody"']);
+  assert.equal(r.fights.length, 2);
+  assert.deepEqual(Object.keys(r.fights[0]).sort(), ['day', 'id', 'npcId', 'reason', 'turn']);
+  assert.equal(r.fights[0].reason, 'a grudge over a lie');
+  assert.ok(r.fights[1].seedId && !r.fights[1].reason, 'a seed\'s fight keeps the seed');
+  assert.deepEqual(r.fromModel, ['not allowed from the model', 'not allowed from the model', 'not allowed from the model']);
+  assert.equal(r.done.length, 1);
+  assert.deepEqual(r.notWaiting, ['no fight "fight_nobody" is waiting']);
+  assert.equal(r.left.length, 1);
+  assert.deepEqual(r.plant, []);
+  assert.equal(r.planted.length, 1);
+  assert.equal(r.planted[0].op, 'fight');
+  assert.deepEqual(r.plantBad, ['effects[0]: unknown npc id "npc_nobody"']);
+  assert.deepEqual(r.work1, ['workDone: job_service_bays worked on day 1 (success)']);
+  assert.deepEqual(r.work2, ['workDone: job_service_bays worked on day 1 (done)']);
+  assert.deepEqual(r.badJob, ['needs a jobId']);
+  assert.deepEqual(Object.keys(r.record), ['job_service_bays']);
+  assert.equal(r.record.job_service_bays.times, 2);
+  assert.deepEqual(r.journal, [[0, 'work', 'A shift for someone: paid $70.'], [1, 'work', 'A shift for someone: paid $70.'], [1, 'news', 'Around town: test news.']]);
+  assert.ok(r.at.includes(r.jobId));
+  assert.ok(!r.atOther.includes(r.jobId), 'not out of its phases');
+  assert.deepEqual(r.offer.includes(r.jobId), true, 'on offer with its giver here in its phase');
+  if (r.jobId === 'job_service_bays') assert.equal(r.refuse, `You already did ${r.label} today. There is more tomorrow.`, 'workDone is the cooldown');
+  assert.equal(r.refuseAfter, null, 'nothing else stops it');
 });
 
 s.run();

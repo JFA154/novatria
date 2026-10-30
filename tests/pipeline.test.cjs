@@ -2805,4 +2805,245 @@ s.test('THIS SCENE is capped (12 turns, about 700 words, the oldest left out, an
   assert.equal(e.sceneFrom, e.turn);
 });
 
+/* ----- Work and trouble (direction change 16) ----- */
+/* A job from Game.data.JOBS by kind (plain: a roll, repeatable, no stake;
+   stake: the card game; once: not repeatable; free: no roll), with the
+   player put at its place in its first phase. */
+async function toJob(page, kind) {
+  const j = await page.evaluate(k => {
+    const pick = { plain: x => x.stat && !x.stake && x.repeatable, stake: x => x.stake, once: x => x.repeatable === false, free: x => !x.stat }[k];
+    const x = Game.data.JOBS.find(pick);
+    const g = Game.State.npc(x.giverNpcId);
+    return { id: x.id, label: x.label, loc: x.locationId, phase: x.phases[0], phases: x.phases, pay: x.pay, stat: x.stat, giver: g.id, giverName: g.name, first: g.name.split(' ')[0], onSuccess: x.onSuccess || [], onFailure: x.onFailure || [] };
+  }, kind);
+  await place(page, j.loc, j.phase);
+  return j;
+}
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+const NEXT_PHASE = { morning: 'afternoon', afternoon: 'evening', evening: 'night', night: 'morning' };
+/* The parse the real parser would give for taking a job (the mock's own ear needs the job on offer here). */
+const queueWork = (page, jobId) => page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'work', targets: id ? [id] : [], needsRoll: false, stat: null, difficulty: null, timeCost: 'long' }), jobId);
+const workInfo = page => page.evaluate(() => {
+  const st = Game.state;
+  const t = Game.Pipeline.lastTurn;
+  const book = Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop();
+  return {
+    gold: st.player.gold, day: st.time.day, phase: st.time.phase, work: st.work || null, journal: st.journal[st.journal.length - 1],
+    action: t.action, roll: t.roll, job: t.ctx.job || null, packet: t.packet, book: book ? book.text : '',
+    ignored: Game.State.debugLog.filter(x => x.kind === 'rejected' && x.path === 'goldDelta' && x.turn === st.meta.turn).map(x => x.reason)
+  };
+});
+const packetLine = (packet, label) => (String(packet || '').split('\n').find(l => l.startsWith(label + ':')) || null);
+
+s.test('work: a job on offer is in the parser\'s message; taking it pays in its range, takes the rest of the phase, writes the journal line and tells the narrator and the bookkeeper, whose own pay is ignored', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const j = await toJob(page, 'plain');
+  const parse = await page.evaluate(() => Game.Pipeline.parsePacket('I look for work', { speech: { mode: 'do' } }).text);
+  assert.equal(packetLine(parse, 'WORK ON OFFER HERE'), `WORK ON OFFER HERE: ${j.id} — ${j.label} (for ${j.giverName}; pays about $${j.pay[0]}-${j.pay[1]}; takes the rest of the phase)`);
+  assert.ok(await page.evaluate(() => Game.Api.SYSTEM.parser.includes('WORK ON OFFER HERE, when the message has it, is paid work here: if the player takes it or asks for it, actionType is work and targets holds its job id')), 'the parser is told what to do with it');
+  const say = await page.evaluate(id => Game.Pipeline.parsePacket('Need a hand today?', { speech: { mode: 'say', to: id, toName: 'x' } }).text, j.giver);
+  assert.ok(say.includes('actionType must be talk, persuade, deceive or intimidate, or work when the words take or ask for the WORK ON OFFER HERE: choose by what the words do'), 'Say mode may take the work too');
+  // Out of its phases nothing is on offer, and the line is left out.
+  const off = await page.evaluate(([loc, ph]) => { const p = ['morning', 'afternoon', 'evening', 'night'].find(x => !ph.includes(x)); while (Game.state.time.phase !== p) Game.State.apply({ advanceTime: 'long' }); const t = Game.Pipeline.parsePacket('I look for work', { speech: { mode: 'do' } }).text; return t; }, [j.loc, j.phases]);
+  assert.ok(!off.includes('WORK ON OFFER HERE'), 'no line with nothing on offer');
+  await place(page, j.loc, j.phase);
+  const before = await page.evaluate(() => ({ gold: Game.state.player.gold, day: Game.state.time.day, phase: Game.state.time.phase, turn: Game.state.meta.turn }));
+  await page.evaluate(() => { Game.Api.Mock.queue('bookkeep', { goldDelta: 500 }); Game.Pipeline.forceNextRoll(15); });
+  await sendText(page, `I ask ${j.first} for work`);
+  const r = await workInfo(page);
+  assert.equal(r.action.actionType, 'work', 'the mock parser hears work on offer');
+  assert.deepEqual(r.action.targets, [j.giver], 'aimed at the giver');
+  assert.equal(r.action.timeCost, 'long');
+  assert.deepEqual([r.roll.stat, r.roll.tier], [j.stat, 'success'], 'rolled through resolve on the job\'s stat');
+  const paid = r.gold - before.gold;
+  assert.ok(paid >= j.pay[0] && paid <= j.pay[1], `paid in the range: ${paid}`);
+  assert.deepEqual([r.day, r.phase], [before.day, NEXT_PHASE[before.phase]], 'the rest of the phase');
+  assert.deepEqual(r.journal, { turn: before.turn + 1, day: before.day, text: `${cap(j.label)} for ${j.giverName}: paid $${paid}.`, kind: 'work' });
+  assert.deepEqual(r.work, { [j.id]: { day: before.day, turn: before.turn + 1, times: 1, outcome: 'success' } });
+  const job = packetLine(r.packet, 'JOB');
+  assert.ok(job && job.startsWith(`JOB: ${j.label}, for ${j.giverName} (`) && job.includes(`): it goes fine; paid $${paid}. The work takes the rest of the ${before.phase}: tell it in a sentence or two and end on the money; nothing else is paid, won or lost.`), job);
+  assert.ok(r.packet.indexOf('\nROLL: ') < r.packet.indexOf('\nJOB: '), 'right after the roll');
+  assert.ok(r.book.includes(`ALREADY APPLIED BY THE ENGINE (do not record again): the job, ${j.label} for ${j.giver} (success): the pay, goldDelta +${paid}, and its time; record no goldDelta this turn`), r.book);
+  assert.deepEqual(r.ignored, [`ignored: the engine already settled the job (+${paid})`], 'the bookkeeper\'s goldDelta is not paid twice');
+  assert.equal(await lastQuiet(page), `You are paid $${paid} (cash $${r.gold}).`);
+  assert.ok((await lastLog(page)).narration.includes(`You put in ${j.label} for ${j.giverName}: paid $${paid}.`), 'the mock narration tells it');
+  assert.ok(await page.evaluate(id => Game.State.npc(id).knownToPlayer, j.giver), 'the giver is met');
+  assert.ok(await page.evaluate(() => Game.state.meta.lastRollKey && Game.state.meta.lastRollKey.startsWith('work|')), 'the roll locks like any roll');
+});
+
+s.test('work: a job that cannot be taken now is refused with a plain line and nothing spent (out of its phase, nobody hiring, its giver away or cold, done today, done for good, another place\'s)', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const j = await toJob(page, 'plain');
+  const label = page.evaluate(id => Game.npcLabel(Game.State.npc(id)), j.giver);
+  const refused = async (text, jobId) => {
+    const before = await stateJson(page);
+    await page.evaluate(() => Game.Api.Mock.clear());
+    await queueWork(page, jobId);
+    await sendText(page, text);
+    assert.equal(await stateJson(page), before, `nothing spent: ${text}`);
+    assert.deepEqual(await calls(page), ['parse'], 'no narration, no bookkeeping');
+    return lastNotice(page);
+  };
+  // Out of its phases: the giver hires at another time.
+  const off = ['morning', 'afternoon', 'evening', 'night'].find(p => !j.phases.includes(p));
+  await place(page, null, off);
+  const who = await label;
+  const phases = j.phases.length === 1 ? j.phases[0] : j.phases.slice(0, -1).join(', ') + ' and ' + j.phases[j.phases.length - 1];
+  assert.equal(await refused('I ask for a shift', j.id), `${cap(who)} hires for ${j.label} in the ${phases}, not in the ${off}.`);
+  // A place with no work at all: the notice points at the Places tab and /jobs.
+  const none = await page.evaluate(() => { const l = Game.state.locations.find(x => x.discovered && !x.away && !x.closed && !Game.Town.jobsAt(x.id).length); return { id: l.id, name: l.name }; });
+  await place(page, none.id);
+  assert.equal(await refused('I look for work', null), `Nobody at ${the(none.name)} is hiring right now. The Places tab shows the work in town (or type /jobs).`);
+  // Another place's job.
+  const there = await page.evaluate(id => Game.State.loc(Game.Town.job(id).locationId).name, j.id);
+  assert.equal(await refused('I work a shift', j.id), `${cap(j.label)} is at ${the(there)}, not here.`);
+  // In its phase, but the giver is somewhere else for now (a visit).
+  await place(page, j.loc, j.phase);
+  await page.evaluate(([id, loc]) => { const other = Game.state.locations.find(l => l.discovered && !l.away && !l.closed && l.id !== loc); Game.State.apply({ visits: [{ npcId: id, locationId: other.id }] }); }, [j.giver, j.loc]);
+  const poss = await page.evaluate(id => ({ he: 'his', she: 'hers' })[Game.State.npc(id).pronouns] || 'theirs', j.giver);
+  assert.equal(await refused('I ask for a shift', j.id), `${cap(who)} is not here right now, and ${j.label} is ${poss} to give.`);
+  await page.evaluate(([id, loc]) => Game.State.apply({ visits: [{ npcId: id, locationId: loc }] }), [j.giver, j.loc]);
+  // A giver who has turned cold on the player will not take them on.
+  const att = await page.evaluate(id => Game.State.npc(id).attitude, j.giver);
+  await page.evaluate(id => Game.World.forceAttitude(id, -30), j.giver);
+  assert.equal(await refused('I ask for a shift', j.id), `${cap(who)} will not take you on (cold).`);
+  await page.evaluate(([id, a]) => Game.World.forceAttitude(id, a), [j.giver, att]);
+  // Done today: the cooldown holds until tomorrow.
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(15));
+  await sendText(page, 'I work a shift');
+  assert.equal((await workInfo(page)).job.outcome, 'success');
+  if (!j.phases.includes(await page.evaluate(() => Game.state.time.phase))) await place(page, null, j.phases.find(p => p !== j.phase) || j.phase);
+  await page.evaluate(([id, loc]) => { if (!Game.State.npcsAt(loc).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: loc }] }); }, [j.giver, j.loc]);
+  assert.equal(await refused('I work another shift', j.id), `You already did ${j.label} today. There is more tomorrow.`);
+  // Done for good: work that is not repeatable is refused for the rest of the game.
+  const once = await toJob(page, 'once');
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(15));
+  await queueWork(page, once.id);
+  await sendText(page, 'I work the day');
+  const done = await workInfo(page);
+  assert.equal(done.job.id, once.id);
+  for (const e of once.onSuccess.filter(x => x.op === 'attitudeDelta')) assert.ok(await page.evaluate(([id, n]) => Game.State.npc(id).attitude >= n, [e.npcId, e.delta]), 'its onSuccess effect ran');
+  await sendText(page, '/rest');
+  await place(page, once.loc, once.phase);
+  assert.equal(await refused('I work the day again', once.id), `You already did ${once.label}; it was one job, and it is done.`);
+});
+
+s.test('work: the stake is won or lost at the table, in Say mode too; too little cash to sit in is refused; work with no roll pays in its range; /cheat replays a botched job', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  const j = await toJob(page, 'stake');
+  // Too little cash to sit in.
+  await page.evaluate(lo => Game.State.apply({ goldDelta: lo - 1 - Game.state.player.gold }), j.pay[0]);
+  const broke = await stateJson(page);
+  await queueWork(page, j.id);
+  await sendText(page, 'Deal me in');
+  assert.equal(await stateJson(page), broke);
+  assert.equal(await lastNotice(page), `You need at least $${j.pay[0]} to sit in (you have $${j.pay[0] - 1}).`);
+  // In Say mode, words that take the seat stay work; a failure loses money in the range, never more than the player has.
+  await page.evaluate(() => Game.State.apply({ goldDelta: 300 - Game.state.player.gold }));
+  await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); Game.Pipeline.forceNextRoll(3); }, j.giver);
+  await queueWork(page, j.id);
+  await sendText(page, 'Deal me in.');
+  const lost = await workInfo(page);
+  assert.equal(lost.action.actionType, 'work', 'Say mode keeps work');
+  assert.equal(lost.action.timeCost, 'long', 'and the job\'s time');
+  assert.equal(lost.roll.tier, 'failure');
+  const loss = 300 - lost.gold;
+  assert.ok(loss >= j.pay[0] && loss <= j.pay[1], `lost in the range: ${loss}`);
+  assert.equal(lost.journal.text, `${cap(j.label)} with ${j.giverName}: lost $${loss}.`);
+  assert.ok(packetLine(lost.packet, 'JOB').includes(`: the cards go against the player; lost $${loss}.`), packetLine(lost.packet, 'JOB'));
+  assert.ok(lost.packet.includes(`\nPLAYER SAYS (to ${j.giverName}): "Deal me in."\n`), 'the narrator still hears the words');
+  assert.equal(await lastQuiet(page), `You lose $${loss} at the table (cash $${lost.gold}).`);
+  await page.evaluate(() => Game.UI.setMode('do'));
+  // Work with no roll: done, paid in the range.
+  const free = await toJob(page, 'free');
+  const g0 = await page.evaluate(() => Game.state.player.gold);
+  await queueWork(page, free.id);
+  await sendText(page, 'I take the work');
+  const f = await workInfo(page);
+  assert.equal(f.roll, null, 'no roll');
+  assert.equal(f.job.outcome, 'done');
+  assert.ok(f.gold - g0 >= free.pay[0] && f.gold - g0 <= free.pay[1], 'paid in the range');
+  assert.ok(packetLine(f.packet, 'JOB').includes(`: it gets done; paid $${f.gold - g0}.`));
+  // A botched job (a natural 1) pays nothing; /cheat success replays it with a success, paid.
+  await sendText(page, '/rest');
+  const p = await toJob(page, 'plain');
+  const g1 = await page.evaluate(() => Game.state.player.gold);
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
+  await queueWork(page, p.id);
+  await sendText(page, 'I work a shift');
+  const botched = await workInfo(page);
+  assert.deepEqual([botched.roll.tier, botched.gold, botched.job.paid], ['critical_failure', g1, 0]);
+  assert.ok(packetLine(botched.packet, 'JOB').includes(': it goes badly wrong (the complication); paid nothing.'));
+  assert.equal(botched.journal.text, `${cap(p.label)} for ${p.giverName}: paid nothing.`);
+  await sendText(page, '/cheat success');
+  const again = await workInfo(page);
+  assert.equal(again.roll.tier, 'success', 'the same job, rolled again');
+  assert.ok(again.gold - g1 >= p.pay[0] && again.gold - g1 <= p.pay[1], 'and paid');
+  assert.deepEqual(again.work[p.id].times, 1, 'the botched turn was taken back with its record');
+});
+
+s.test('trouble: a fight effect brings its person to the player on the next turn; a failed defence costs 1 to 3 HP (3 on a natural 1) and can defeat them, a held one costs nothing; someone no longer free drops theirs', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.World.forceClockRoll(1); });
+  // Someone free who is somewhere else right now.
+  const x = await page.evaluate(() => {
+    const st = Game.state;
+    const here = Game.State.npcsAt(st.player.locationId).map(n => n.id);
+    const watchy = n => (n.tags || []).some(t => t === 'watch' || t === 'police');
+    const n = st.npcs.find(m => m.status === 'free' && m.alive !== false && (m.presence || 'here') === 'here' && !here.includes(m.id) && !watchy(m) && !st.player.looseEnds.some(le => le.npcId === m.id));
+    return { id: n.id, name: n.name };
+  });
+  const queued = await page.evaluate(id => Game.State.apply({ effects: [{ op: 'fight', npcId: id, reason: 'a score to settle' }] }), x.id);
+  assert.deepEqual(queued.applied, [`effects[0]: fight: ${x.id} will come at the player on the next turn`]);
+  assert.equal(await page.evaluate(() => Game.state.player.hp), 10, 'nothing happens when it is made');
+  const hp0 = await page.evaluate(() => Game.state.player.hp);
+  await page.evaluate(() => { Game.Pipeline.hooks.fightD20 = 2; });
+  await sendText(page, 'I look around');
+  let r = await page.evaluate(id => ({ hp: Game.state.player.hp, fights: Game.state.fights, here: Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id), packet: Game.Pipeline.lastTurn.packet, book: Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop().text, attacked: Game.Pipeline.lastTurn.ctx.attacked }), x.id);
+  assert.ok(r.hp < hp0 && r.hp >= hp0 - 3, `1 to 3 HP: ${hp0} -> ${r.hp}`);
+  assert.deepEqual(r.fights, [], 'resolved once');
+  assert.ok(r.here, 'brought to the player for the phase');
+  const att = packetLine(r.packet, 'ATTACKED');
+  assert.ok(att && att.startsWith(`ATTACKED: ${x.name} comes at the player (a score to settle); the player did not start it and defends. Might 2 `) && att.includes(' vs 12 · Failure · Complication: ') && att.endsWith(`${x.name} gets the better of the player (DAMAGE).`), att);
+  assert.equal(packetLine(r.packet, 'DAMAGE'), `DAMAGE: the player takes ${hp0 - r.hp} damage.`);
+  assert.ok(packetLine(r.packet, 'PRESENT').includes(`${x.name} (`), 'and in the scene');
+  assert.ok(r.book.includes(`${x.id} came at the player, who defended (Might 2 `) && r.book.includes(`fight damage: the player lost ${hp0 - r.hp} HP`), 'the bookkeeper hears it is done');
+  // With a knife on them the defence counts it (+2), as an attack with it would.
+  assert.ok(att.includes('Might 2 + 4 = 6'), 'might 2 and the folding knife: ' + att);
+  // A held defence costs nothing.
+  await page.evaluate(id => { Game.State.apply({ effects: [{ op: 'fight', npcId: id }] }); Game.Pipeline.hooks.fightD20 = 18; }, x.id);
+  const hp1 = await page.evaluate(() => Game.state.player.hp);
+  await sendText(page, 'I look around');
+  r = await page.evaluate(() => ({ hp: Game.state.player.hp, packet: Game.Pipeline.lastTurn.packet }));
+  assert.equal(r.hp, hp1);
+  assert.ok(packetLine(r.packet, 'ATTACKED').endsWith(`The player holds their own: ${x.name} gets nowhere and backs off.`));
+  assert.equal(packetLine(r.packet, 'DAMAGE'), null);
+  // Someone arrested before they come drops theirs.
+  await page.evaluate(id => { Game.State.apply({ effects: [{ op: 'fight', npcId: id }] }); Game.State.apply({ effects: [{ op: 'npcStatus', npcId: id, status: 'arrested' }] }); }, x.id);
+  await sendText(page, 'I look around');
+  r = await page.evaluate(() => ({ fights: Game.state.fights, packet: Game.Pipeline.lastTurn.packet }));
+  assert.deepEqual(r.fights, []);
+  assert.equal(packetLine(r.packet, 'ATTACKED'), null);
+  // A natural 1 at 1 HP: 3 damage and a defeat, which the attacker caused.
+  await page.evaluate(id => Game.State.apply({ effects: [{ op: 'npcStatus', npcId: id, status: 'free' }] }), x.id);
+  await calm(page);
+  await hurtTo(page, 1);
+  await page.evaluate(id => { Game.State.apply({ effects: [{ op: 'fight', npcId: id, reason: 'one more time' }] }); Game.Pipeline.hooks.fightD20 = 1; }, x.id);
+  await calm(page);
+  await sendText(page, 'I look around');
+  r = await page.evaluate(() => ({ packet: Game.Pipeline.lastTurn.packet, defeat: Game.Pipeline.lastTurn.ctx.defeat, damage: Game.Pipeline.lastTurn.ctx.damage, narration: Game.state.log[Game.state.log.length - 1].narration }));
+  assert.equal(r.damage, 3, 'a natural 1 costs 3');
+  assert.ok(packetLine(r.packet, 'ATTACKED').endsWith(`${x.name} beats the player badly (DAMAGE).`));
+  assert.ok(r.packet.includes('\nDEFEAT: the player is beaten senseless.'), 'defeated');
+  assert.ok(r.defeat && r.narration.includes(r.defeat.text), 'the defeat is told');
+  if (['robbed', 'captured'].includes(r.defeat.outcome)) assert.equal(r.defeat.npcId, x.id, 'by the one who came at them');
+});
+
 s.run();

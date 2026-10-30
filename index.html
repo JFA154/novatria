@@ -4363,7 +4363,7 @@ const GRUDGE_TEMPLATES = [
   { effect: "{npc} pays a couple of kids from Riverbend to slash the tires on whatever {player} has been riding in and leave a note under the wiper.", dayOffset: [2, 4] },
   { effect: "{npc} tells the counter at Pittman's that {player} is a thief, and every register in town starts charging {player} more and watching their hands.", dayOffset: [2, 3] },
   { effect: "{npc} gets {player}'s name added to the list by the register of people the Low Water will not serve.", dayOffset: [2, 3] },
-  { effect: "{npc} pays two men to catch {player} alone after dark behind the Low Water and give them a beating as a warning.", dayOffset: [3, 5] },
+  { effect: "{npc} has had enough of {player} and comes straight at them with both fists, done talking.", dayOffset: [3, 5], effects: [{ op: "fight", npcId: "{npc}" }] },
   { effect: "{npc} finds out where {player} is sleeping and has their things gone through while they are out.", dayOffset: [3, 5] },
   { effect: "{npc} tells the Night Run that {player} has been talking to the police, and nobody at the ramp will look at {player} after that.", dayOffset: [2, 5] }
 ];
@@ -4373,14 +4373,63 @@ const FAVOUR_TEMPLATES = [
   { effect: "{npc} drives up to the water tower for signal and texts {player} that the police have been asking about them, and which officer.", dayOffset: [2, 3] },
   { effect: "{npc} sells {player} what they need at cost and tells them to keep quiet about the price.", dayOffset: [2, 4] },
   { effect: "{npc} gives {player} the real name and phone number of someone who can help with what {player} came here to do.", dayOffset: [3, 5] },
-  { effect: "{npc} leaves word for {player} at the Low Water about a day of cash work that pays a hundred dollars and asks no questions.", dayOffset: [2, 4] },
+  { effect: "{npc} tracks {player} down to pass on word of a day of cash work that pays a hundred dollars and asks no questions.", dayOffset: [2, 4] },
   { effect: "{npc} shows {player} a photo on their phone of someone who has wronged {player}, taken somewhere that person should not have been.", dayOffset: [3, 5] },
   { effect: "{npc} tells the police {player} was with them all night, and makes it stick.", dayOffset: [2, 5] },
   { effect: "{npc} warns {player} quietly not to be at the ramp after dark tonight, and will not say why.", dayOffset: [2, 4] },
   { effect: "{npc} gives {player} a hot meal and a couch for the night and will not take a dollar for it.", dayOffset: [2, 3] }
 ];
 
-if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES }; }
+// ===== JOBS =====
+// Paid work (docs/BUILD_PLAN.md, direction change 16): the giver is at the place in every phase listed.
+const JOBS = [
+  {
+    id: "job_service_bays", label: "a shift in the service bays at Pittman's", locationId: "loc_pittmans", giverNpcId: "npc_dewayne",
+    phases: ["morning", "afternoon"], pay: [60, 80], stat: "might", difficulty: "normal", timeCost: "long", factionId: null, repeatable: true, cooldownDays: 1,
+    blurb: "Tires, oil changes and whatever farm truck limps in, in the bay next to Dewayne's, paid in cash out of the register at closing."
+  },
+  {
+    id: "job_bait_shop", label: "a shift at the bait shop", locationId: "loc_purvis_landing", giverNpcId: "npc_lorna",
+    phases: ["morning", "afternoon"], pay: [40, 55], stat: "might", difficulty: "easy", timeCost: "long", factionId: null, repeatable: true, cooldownDays: 1,
+    blurb: "Unloading the minnow truck, hosing out the coolers and pumping gas for bass boats while Lorna works the register."
+  },
+  {
+    id: "job_night_run", label: "a night on a johnboat", locationId: "loc_purvis_landing", giverNpcId: "npc_wade",
+    phases: ["night"], pay: [150, 250], stat: "stealth", difficulty: "hard", timeCost: "long", factionId: "fac_nightrun", repeatable: true, cooldownDays: 3,
+    blurb: "Running cartons and cases across the river with no lights for Wade, keeping low past the bridge, cash when the boat is back on the trailer.",
+    onSuccess: [
+      { op: "reputationDelta", key: "fac_nightrun", delta: 5 },
+      { op: "setFlag", key: "ranWithNightRun", value: true }
+    ],
+    onFailure: [
+      { op: "reputationDelta", key: "fac_nightrun", delta: -5 },
+      { op: "addRumour", rumour: { id: "rum_johnboat_stranger", text: "Travis Cagle saw a johnboat with no lights hung up on the bar below the bridge after midnight, and the one poling it off was nobody from Wade Purvis's regular crew.", true: true, sourceNpcId: "npc_travis", heard: false } }
+    ]
+  },
+  {
+    id: "job_haskins_hay", label: "a day's hauling at the Haskins farm", locationId: "loc_haskins_farm", giverNpcId: "npc_lamar",
+    phases: ["morning"], pay: [50, 70], stat: "might", difficulty: "normal", timeCost: "long", factionId: null, repeatable: false, cooldownDays: 1,
+    blurb: "Getting the last of the hay off the low field and into the barn before the weather turns, with Lamar on the tractor and Trent driving the truck.",
+    onSuccess: [{ op: "attitudeDelta", npcId: "npc_lamar", delta: 10 }]
+  },
+  {
+    id: "job_motel_rooms", label: "turning over rooms at the motor court", locationId: "loc_motor_court", giverNpcId: "npc_mavis",
+    phases: ["evening"], pay: [30, 45], stat: null, difficulty: null, timeCost: "long", factionId: null, repeatable: true, cooldownDays: 1,
+    blurb: "Stripping beds and scrubbing the rooms that checked out late, paid by Mavis out of the till with nothing written down."
+  },
+  {
+    id: "job_card_game", label: "a seat at the card game at the Low Water", locationId: "loc_low_water", giverNpcId: "npc_curtis",
+    phases: ["evening", "night"], pay: [40, 120], stat: "charm", difficulty: "normal", timeCost: "long", factionId: null, repeatable: true, cooldownDays: 1, stake: true,
+    blurb: "Five-card draw at the back table under the lamp, Curtis dealing and taking his cut; what is won or lost comes out of the player's own pocket."
+  },
+  {
+    id: "job_pawn_back_room", label: "a day in the back room at Byrd's", locationId: "loc_byrds_pawn", giverNpcId: "npc_hollis",
+    phases: ["morning", "afternoon"], pay: [40, 60], stat: "wits", difficulty: "normal", timeCost: "long", factionId: null, repeatable: true, cooldownDays: 1,
+    blurb: "Tagging and shelving a back room of pawned tools and guns for Hollis, who says to leave the boxes by the alley door alone."
+  }
+];
+
+if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS }; }
 // ===== END CONTENT =====
 
 /* Two narration styles (Settings, "Narration style"; casual is the default).
@@ -4473,7 +4522,8 @@ const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const STATS = ['might', 'wits', 'charm', 'stealth'];
 const TIME_COSTS = ['instant', 'short', 'long', 'rest'];
 const SHORTS_PER_PHASE = 3; // SPEC section 7: three shorts make a phase
-const ACTION_TYPES = ['move', 'talk', 'look', 'search', 'take', 'use', 'give', 'buy', 'sell', 'persuade', 'deceive', 'intimidate', 'sneak', 'steal', 'attack', 'rest', 'wait', 'other'];
+// 'work': taking paid work on offer here (JOBS; direction change 16). An enum value of parse_action, not a record_changes property.
+const ACTION_TYPES = ['move', 'talk', 'look', 'search', 'take', 'use', 'give', 'buy', 'sell', 'persuade', 'deceive', 'intimidate', 'sneak', 'steal', 'attack', 'rest', 'wait', 'work', 'other'];
 const DIFFICULTIES = ['easy', 'normal', 'hard', 'very_hard'];
 const THREAD_STATUSES = ['open', 'resolved', 'failed'];
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
@@ -5314,6 +5364,15 @@ const Tables = (() => {
    locationId }: there for the current day and phase, as a visits entry;
    never out of the scene the player is in) and placeItem ({ locationId,
    item: { name, qty?, notes? } }: a scene item).
+   Work and trouble (direction change 16): the fight effect op ({ npcId,
+   reason?, seedId? }: someone will come at the player; it waits in
+   state.fights, [{ id, npcId, reason?, seedId?, day, turn }], for
+   Pipeline to resolve, and is a no-op for someone not free or already
+   waiting) and two engine-only ops: fightDone ([id]: a waiting fight
+   resolved or dropped) and workDone ({ jobId, outcome }: state.work[jobId]
+   = { day, turn, times, outcome }, the cooldown Town.jobRefusal reads).
+   journalNews takes kind 'work' for a job's line, which may repeat on
+   another turn.
    Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?, heard? }. */
 const State = (() => {
   let current = null;
@@ -5358,6 +5417,7 @@ const State = (() => {
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'lastRoll', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'rumourSpread', 'journalNews', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
+    'workDone', 'fightDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = ['grudge', 'favour', 'loose_end', 'clock', 'town'];
@@ -5562,6 +5622,7 @@ const State = (() => {
       case 'factionRelation': needFaction(e.a); needFaction(e.b); break;
       case 'reputationDelta': if (e.key !== 'town') needFaction(e.key); break;
       case 'setFlag': if (RESERVED_FLAGS.includes(e.key)) bad(`flag "${e.key}" is reserved`); break;
+      case 'fight': needNpc(e.npcId); break;
       default: break;
     }
   }
@@ -6311,6 +6372,26 @@ const State = (() => {
       if (l.away === true) bad(`${l.id} is out of town`);
       const it = isObj(e.item) ? e.item : {};
       return addSceneItem({ locationId: l.id, item: { name: it.name, qty: it.qty, notes: it.notes } });
+    },
+    /* Direction change 16: someone comes at the player, a fight the player
+       did not start. Nothing is rolled here: the fight waits in
+       state.fights ({ id, npcId, reason?, seedId?, day, turn }) and
+       Pipeline resolves it on the next narrated turn, or, for a seed's
+       fight (World.fire passes seedId), on the turn that seed's due event
+       is told, so the beating happens when the player meets it, not at the
+       tick. A no-op for someone not free or not in town, and for someone
+       who already has a fight waiting. */
+    fight(e) {
+      const n = needNpc(e.npcId);
+      if (n.alive === false || n.status !== 'free' || presenceOf(n) !== 'here') return `no-op: ${n.id} is ${n.alive === false ? 'dead' : n.status}`;
+      if (!Array.isArray(current.fights)) current.fights = [];
+      if (current.fights.some(f => f.npcId === n.id)) return `no-op: ${n.id} already has a fight waiting`;
+      const f = { id: uniqueId(`fight_${n.id.slice(4)}`, id => current.fights.some(x => x.id === id)), npcId: n.id, day: current.time.day, turn: current.meta.turn };
+      const reason = cleanText(e.reason, 160);
+      if (reason) f.reason = reason;
+      if (typeof e.seedId === 'string' && seed(e.seedId)) f.seedId = e.seedId;
+      current.fights.push(f);
+      return `${n.id} will come at the player${f.seedId ? ` when ${f.seedId} is told` : ' on the next turn'}`;
     }
   };
   const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
@@ -7271,15 +7352,38 @@ const State = (() => {
     /* A line the engine writes in the journal (news the player heard or saw
        happen: "Around town: ..."), dated: the day given (World passes the
        day of the tick it happened in, which a long rest may have left
-       behind), else today. The same text is never written twice. */
+       behind), else today. The same text is never written twice. kind
+       'work' (direction change 16: a job's line, "A shift ... for Dewayne
+       Mangum: paid $70.") may say the same thing again on another turn,
+       since the same shift can be worked again another day. */
     each('journalNews', v => {
       const text = cleanText(isObj(v) ? v.text : v, 500);
       if (!text) bad('needs text');
       const d = isObj(v) ? toInt(v.day) : null;
       const day = d !== null && d >= 1 && d <= s.time.day ? d : s.time.day;
-      if (s.journal.some(j => j.text === text)) return null;
-      s.journal.push({ turn: s.meta.turn, day, text, kind: 'news' });
+      const kind = isObj(v) && v.kind === 'work' ? 'work' : 'news';
+      if (s.journal.some(j => j.text === text && (kind === 'news' || j.turn === s.meta.turn))) return null;
+      s.journal.push({ turn: s.meta.turn, day, text, kind });
       return `journal "${text}"`;
+    });
+    /* Work done (direction change 16): a job's record in state.work, keyed by
+       job id ({ day, turn, times, outcome }), which Town.jobRefusal reads
+       for the cooldown and for work done once and for all. */
+    one('workDone', v => {
+      if (!isObj(v) || typeof v.jobId !== 'string' || !/^job_[a-z0-9_]+$/.test(v.jobId)) bad('needs a jobId');
+      if (!isObj(s.work)) s.work = {};
+      const was = isObj(s.work[v.jobId]) ? s.work[v.jobId] : null;
+      const outcome = cleanText(v.outcome, 30) || 'done';
+      s.work[v.jobId] = { day: s.time.day, turn: s.meta.turn, times: (was && Number.isInteger(was.times) ? was.times : 0) + 1, outcome };
+      return `${v.jobId} worked on day ${s.time.day} (${outcome})`;
+    });
+    /* A waiting fight resolved or dropped (Pipeline.comeAt). */
+    each('fightDone', id => {
+      const list = Array.isArray(s.fights) ? s.fights : [];
+      const i = list.findIndex(f => f.id === id);
+      if (i < 0) bad(`no fight "${id}" is waiting`);
+      list.splice(i, 1);
+      return `${id} done`;
     });
     each('visits', v => {
       if (!isObj(v)) bad('must be an object');
@@ -7967,6 +8071,62 @@ const Town = (() => {
     return best;
   }
 
+  // ----- work (direction change 16) -----
+  /* Paid work is content (JOBS): a job is offered at its place, in its
+     phases, by its giver, who is scheduled there then (tests/validate-town.cjs
+     checks it). jobsAt(locationId, phase?) lists a place's jobs (in that
+     phase); jobsOnOffer(locationId) the ones that can be asked for right now:
+     the place open, the phase right and the giver free and there.
+     jobRefusal(job, locationId) says, in one plain line, why a job cannot be
+     taken now (nothing is spent): not here, the wrong time, its giver away or
+     cold to the player, done today (cooldownDays) or done for good (a job
+     that is not repeatable), or, for a stake, too little cash to sit in; null
+     when it can. workDone(jobId) is the job's record in state.work. */
+  function jobs() { return typeof JOBS !== 'undefined' && Array.isArray(JOBS) ? JOBS : []; }
+  function job(id) { return typeof id === 'string' ? (jobs().find(j => j.id === id) || null) : null; }
+  function jobsAt(locationId, phase) { return jobs().filter(j => j.locationId === locationId && (!phase || j.phases.includes(phase))); }
+  function jobsOnOffer(locationId) {
+    const s = State.current;
+    const l = s ? State.loc(locationId) : null;
+    if (!l || l.closed || l.away === true) return [];
+    const here = State.npcsAt(l.id).map(n => n.id);
+    return jobsAt(l.id, s.time.phase).filter(j => here.includes(j.giverNpcId));
+  }
+  function workDone(jobId) { const w = State.current && State.current.work; return isObj(w) && isObj(w[jobId]) ? w[jobId] : null; }
+  const phaseList = ph => (ph.length < 3 ? ph.join(' and ') : `${ph.slice(0, -1).join(', ')} and ${ph[ph.length - 1]}`);
+  const JOB_COLD = -25; // a giver at this attitude or below will not take the player on
+  function jobRefusal(j, locationId) {
+    const s = State.current;
+    const l = State.loc(locationId);
+    const place = l ? String(l.name).replace(/^The /, 'the ') : 'here';
+    if (!j) return `Nobody at ${place} is hiring right now. The Places tab shows the work in town (or type /jobs).`;
+    const what = capFirst(j.label);
+    const at = State.loc(j.locationId);
+    if (!at || j.locationId !== locationId) return `${what} is at ${at ? String(at.name).replace(/^The /, 'the ') : 'another place'}, not here.`;
+    if (at.closed) return `${capFirst(place)} is closed.`;
+    const n = State.npc(j.giverNpcId);
+    const who = npcLabel(n);
+    if (!n || n.alive === false || n.status !== 'free') return `${what} was ${who}'s to give, and ${n && n.alive === false ? `${who} is dead` : n && n.status === 'arrested' ? `${who} is in a cell` : `${who} is gone`}.`;
+    if (!j.phases.includes(s.time.phase)) return `${capFirst(who)} hires for ${j.label} in the ${phaseList(j.phases)}, not in the ${s.time.phase}.`;
+    if (!State.npcsAt(l.id).some(x => x.id === n.id)) return `${capFirst(who)} is not here right now, and ${j.label} is ${({ he: 'his', she: 'hers' })[n.pronouns] || 'theirs'} to give.`;
+    if ((n.attitude | 0) <= JOB_COLD) return `${capFirst(who)} will not take you on (${State.attitudeWord(n.attitude)}).`;
+    const done = workDone(j.id);
+    if (done && j.repeatable === false) return `You already did ${j.label}; it was one job, and it is done.`;
+    const back = done ? done.day + Math.max(1, toInt(j.cooldownDays) || 1) : 0;
+    if (done && s.time.day < back) return `You already did ${j.label} ${done.day === s.time.day ? 'today' : `on day ${done.day}`}. There is more ${back === s.time.day + 1 ? 'tomorrow' : `from day ${back}`}.`;
+    if (j.stake && s.player.gold < j.pay[0]) return `You need at least ${money(j.pay[0])} to sit in (you have ${money(s.player.gold)}).`;
+    return null;
+  }
+  /* How the player stands with a job, for the Places sheet and /jobs: '' (it can be taken again), 'done for today', 'again from day N' or 'done' (once only). */
+  function jobStatus(j) {
+    const s = State.current;
+    const done = s ? workDone(j.id) : null;
+    if (!done) return '';
+    if (j.repeatable === false) return 'done';
+    const back = done.day + Math.max(1, toInt(j.cooldownDays) || 1);
+    return s.time.day >= back ? '' : back === s.time.day + 1 ? 'done for today' : `again from day ${back}`;
+  }
+
   // ----- TOWN_DATA validation (in-browser twin of tests/validate-town.cjs, lighter) -----
   // The ops and reserved flags are State's own, so the two can never disagree.
   const EFFECT_OPS = State.EFFECT_OPS;
@@ -8218,7 +8378,8 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, looseEndMemory, isLooseEndMemory, LOOSE_END_MEMORY_WEIGHT, FIRST_HOOK_TURNS, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, looseEndMemory, isLooseEndMemory, LOOSE_END_MEMORY_WEIGHT, FIRST_HOOK_TURNS, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor,
+    jobs, job, jobsAt, jobsOnOffer, jobRefusal, jobStatus, workDone, phaseList, JOB_COLD };
 })();
 
 // ===== Module: World =====
@@ -8260,7 +8421,10 @@ const Town = (() => {
         with a memory of weight 2 or more (so a favour is earned by something
         the player did, never inherited from the town data) plants a favour
         seed from FAVOUR_TEMPLATES. Day trigger: today plus the template's
-        dayOffset (2 to 5 days), with {npc} and {player} filled in. At most
+        dayOffset (2 to 5 days), with {npc} and {player} filled in, and the
+        template's effects with "{npc}" as this NPC (direction change 16:
+        the beating is a fight, which fire() hands its seed id so it waits
+        for the telling; its reason is the memory behind it). At most
         one unfired grudge or favour seed per NPC: nothing is planted for an
         NPC while one is waiting.
      e. News spreads (each morning, in f). Every rumour the player has not
@@ -8519,6 +8683,15 @@ const World = (() => {
       hidden: true,
       origin: { kind, npcId: n.id, template: i }
     };
+    // The template's effects (direction change 16: the beating is a fight), "{npc}" being this person; a fight says why.
+    if (Array.isArray(t.effects) && t.effects.length) {
+      seed.effects = t.effects.map(e => {
+        const o = deepCopy(e);
+        if (o.npcId === '{npc}') o.npcId = n.id;
+        if (o.op === 'fight' && !o.reason) o.reason = `a ${kind}: "${cleanText(memory.text, 100)}"`;
+        return o;
+      });
+    }
     const r = applyEffects([{ op: 'plantSeed', seed }]);
     if (r.rejected.length) return null;
     note(`${n.id} plants a ${kind} seed (${seed.id}, day ${seed.trigger.value})`, { kind, npcId: n.id, seedId: seed.id });
@@ -8656,7 +8829,8 @@ const World = (() => {
     const r = State.apply(diff, W);
     if (r.rejected.some(x => x.path.startsWith('seedsFired'))) return false;
     // What the seed changes in the town, once its event is queued (a no-op seed changes nothing).
-    const fx = live && Array.isArray(sd.effects) && sd.effects.length ? applyEffects(sd.effects) : null;
+    // A fight waits for the telling of this seed's event (direction change 16), so it carries the seed's id.
+    const fx = live && Array.isArray(sd.effects) && sd.effects.length ? applyEffects(sd.effects.map(e => (isObj(e) && e.op === 'fight' ? Object.assign({}, e, { seedId: sd.id }) : e))) : null;
     const did = fx ? `; ${fx.applied.length} effect${fx.applied.length === 1 ? '' : 's'}${fx.rejected.length ? `, ${fx.rejected.length} rejected` : ''}` : '';
     note(`${sd.id} fires (${sd.trigger.type} ${sd.trigger.value})${live ? did : `, a no-op: ${n ? `${n.id} is ${n.alive === false ? 'dead' : n.status}` : 'its NPC is missing'}`}`, { kind: 'seed', seedId: sd.id });
     return true;
@@ -8962,7 +9136,7 @@ const Api = (() => {
   const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
   const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists: EVERYONE IN TOWN, after these instructions, has the whole cast (the message says who is here and whom the player knows), and NOT IN TOWN the dead and the people who live elsewhere; a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists: EVERYONE IN TOWN, after these instructions, has the whole cast (the message says who is here and whom the player knows), and NOT IN TOWN the dead and the people who live elsewhere; a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item. WORK ON OFFER HERE, when the message has it, is paid work here: if the player takes it or asks for it, actionType is work and targets holds its job id; the engine sets the roll, the pay and the time.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
@@ -9247,6 +9421,13 @@ const Api = (() => {
     }
     return null;
   }
+  /* Taking or asking for paid work (direction change 16): "I work a shift",
+     "I ask Dewayne for work", "hire me", "deal me in". Only in Do mode and
+     only with work on offer here (packet.jobs); a walk and then work there
+     ("I head to the landing and ask for a job") cannot see the place's jobs,
+     so it is work with no job id and the engine finds the job there. Asking
+     what work there is, or persuading someone, stays talk. */
+  const MOCK_WORK = /\b(work (?:a|an|the|for)\b|working for|take (?:a|the) (?:shift|job|work)\b|(?:a|the|that) (?:shift|job)\b|hire me|deal me in|for work|any work)/;
   /* The mock parser's ear for a thing an action needs (MOCK_NEEDS), checked against the inventory by name (Pipeline.carriedAs). */
   const MOCK_NEEDS = [[/\b(stab|stabs|stabbing|knife|blade)\b/, 'knife'], [/\b(shoot|shoots|shooting|gun|pistol|rifle)\b/, 'gun'], [/\b(drive|drives|driving)\b/, 'car']];
   function carriedAs(name, thing) { return Pipeline.carriedAs(name, thing); }
@@ -9285,10 +9466,17 @@ const Api = (() => {
        left to the plain move below. */
     if (packet.mode !== 'fact' && !packet.inner) {
       const c = mockCompound(input, packet);
-      const inner = c ? mockParse(Object.assign({}, packet, { input: 'I ' + c.rest, inner: true, present: [], knownNpcs: people, itemsHere: [] })) : null;
+      const inner = c ? mockParse(Object.assign({}, packet, { input: 'I ' + c.rest, inner: true, present: [], knownNpcs: people, itemsHere: [], jobs: [] })) : null;
       if (inner && inner.actionType !== 'move') {
         return Object.assign(inner, { summary: out.summary, destinationId: c.dest, timeCost: inner.timeCost === 'instant' ? 'short' : inner.timeCost });
       }
+    }
+    // Work on offer here, taken or asked for: the job whose giver or label the words name, else the first.
+    const jobs = Array.isArray(packet.jobs) ? packet.jobs : [];
+    if (packet.mode !== 'fact' && (jobs.length || packet.inner) && has(MOCK_WORK) && !has(/\b(persuade|persuades|convince|convinces)\b/)) {
+      const score = j => String(j.label).toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4 && lower.includes(w)).length + (j.giverName && lower.includes(j.giverName.split(/\s+/)[0].toLowerCase()) ? 2 : 0);
+      const pick = jobs.slice().sort((x, y) => score(y) - score(x))[0];
+      return Object.assign(out, { actionType: 'work', targets: pick ? [pick.id] : [], timeCost: 'long' });
     }
     const all = people.filter(n => Town.mentions(lower, n));
     // Someone in the cast the player has not met yet, named as a name ("I ask for Mavis"): capitalised as written, and not a surname that is part of a place's name.
@@ -9408,6 +9596,9 @@ const Api = (() => {
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
     if (c.granted) out.push(`${c.granted.name || 'They'} already said yes.`);
+    // Work (direction change 16): what it was and the money; a fight that came to the player and how it went.
+    if (c.job) out.push(mockJob(c.job));
+    if (c.attacked) out.push(mockAttacked(c.attacked));
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
       if (c.sceneChange.arrived.length) out.push(`${joinAnd(names(c.sceneChange.arrived))} ${c.sceneChange.arrived.length > 1 ? 'arrive' : 'arrives'}.`);
@@ -9458,7 +9649,7 @@ const Api = (() => {
     const limit = (mode === 'normal' ? Style.WORD_LIMITS.normal : Style.WORD_LIMITS.zoom) - 5;
     const words = () => wordCount(body.concat(due).join(' '));
     const desc = s && c.location ? (State.loc(c.location.id) || {}).description : null;
-    const keep = new Set(body.filter(x => /\broll[,:]/.test(x) || x === 'You go down hard.' || x.includes(' mentions something: ')));
+    const keep = new Set(body.filter(x => /\broll[,:]/.test(x) || x === 'You go down hard.' || x.includes(' mentions something: ') || (c.job && x === mockJob(c.job)) || (c.attacked && x === mockAttacked(c.attacked))));
     const at = desc ? body.indexOf(desc) : -1;
     if (words() > limit && at >= 0) body[at] = (/^.*?[.!?](\s|$)/.exec(desc) || [desc])[0].trim();
     if (words() > limit && at >= 0) body.splice(at, 1);
@@ -9471,6 +9662,14 @@ const Api = (() => {
     return body.concat(due).join(' ');
   }
   function joinAnd(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
+  function mockJob(j) {
+    const m = money(Math.abs(j.paid));
+    return `You put in ${j.label} ${j.stake ? 'with' : 'for'} ${j.giverName}: ${j.paid > 0 ? `${j.stake ? 'you win' : 'paid'} ${m}` : j.paid < 0 ? `you lose ${m}` : 'nothing paid'}.`;
+  }
+  function mockAttacked(x) {
+    const ok = x.roll && x.roll.success;
+    return `${x.name} comes at you${x.roll ? `; might roll, ${x.roll.label.toLowerCase()}` : ''}: ${ok ? 'you hold your own' : 'you get the worst of it'}.`;
+  }
   /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
      line to its first twelve words, merge lines that come out the same (from
      lists them all), and keep at most six per person (the heaviest, then the
@@ -9626,7 +9825,7 @@ const Api = (() => {
     const presentIds = c.presentIds || State.npcsAt(s.player.locationId).map(n => n.id);
     const npcs = (a.targets || []).map(id => State.npc(id)).filter(n => n && presentIds.includes(n.id));
     const first = npcs[0];
-    if (first && ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give', 'attack'].includes(a.actionType)) {
+    if (first && ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give', 'attack', 'work'].includes(a.actionType)) {
       out.npcKnownToPlayer = npcs.filter(n => !n.knownToPlayer).map(n => n.id);
     }
     if (first && /\b(insult|insults|mock|mocks|sneer|curse)/.test(input)) {
@@ -10629,7 +10828,15 @@ const Upgrade = (() => {
    exact words. The parser hears MODE say, the action is forced social and
    aimed at the addressee (sayAction), nobody moves, the narrator gets
    PLAYER SAYS instead of ACTION, and the log entry keeps mode and addressee.
-   A Do turn carries { mode: 'do' }. */
+   A Do turn carries { mode: 'do' }.
+   Work and trouble (direction change 16): a work action takes a job on
+   offer here (takeWork, after the walk and before step 4; a job that
+   cannot be taken now is refused with a plain line and nothing spent),
+   rolls through resolve like any action, and is settled right after it
+   (settleWork: the pay, the job's effects, the journal line, the
+   cooldown); the narrator gets JOB and the bookkeeper the settled pay. At
+   step 6, after the due events, a fight someone brings to the player is
+   fought (comeAt: ATTACKED, the damage and defeat of a lost attack). */
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
@@ -10648,7 +10855,7 @@ const Pipeline = (() => {
   let lastTurn = null;
   let turnState = null; // the State.current a running turn or arrival started on
   /* Test and debug hook: force the next d20 (e.g. 20 for a critical). */
-  const hooks = { nextD20: null };
+  const hooks = { nextD20: null, fightD20: null };
 
   // ----- small helpers -----
   function here() { return State.loc(State.current.player.locationId); }
@@ -10937,7 +11144,9 @@ const Pipeline = (() => {
       inventory: p.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       // People the player knows, and people the story named whom they have only heard of.
       knownNpcs: s.npcs.filter(n => (n.knownToPlayer || heardOf(n)) && n.alive !== false).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, heard: heardOf(n) })),
-      knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed }))
+      knownLocations: s.locations.filter(x => x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
+      // Paid work that can be asked for here and now (direction change 16): the giver is here and it is the right time.
+      jobs: mode === 'fact' ? [] : Town.jobsOnOffer(l.id).map(j => ({ id: j.id, label: j.label, giverNpcId: j.giverNpcId, giverName: (State.npc(j.giverNpcId) || {}).name || '', pay: j.pay.slice(), stake: !!j.stake }))
     };
     // Everyone else who exists (the cast is fixed): a person the player names or describes is one of these ids.
     // These three lists are for the mock parser; the real parser reads them in the cached block (parserBlock).
@@ -10953,7 +11162,7 @@ const Pipeline = (() => {
     if (mode === 'fact') modeLine = 'MODE: fact. The player is spending a story point to make this statement true in the world. Put the ids of existing people, places and things it refers to in targets, and new:<short description> for anyone or anything it adds. Set declaresWorldFact to true, needsRoll to false and timeCost to instant.';
     else if (isSay(sp)) {
       const all = sp.to === 'everyone';
-      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
+      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate${packet.jobs.length ? ', or work when the words take or ask for the WORK ON OFFER HERE' : ''}: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
     packet.text = [
       isSay(sp) ? `PLAYER INPUT: "${input}"` : `PLAYER INPUT: ${input}`,
@@ -10968,10 +11177,18 @@ const Pipeline = (() => {
       `OTHER KNOWN NPCS (not here): ${packet.knownNpcs.filter(n => !presentIds.includes(n.id)).map(n => `${who(n)}${n.heard ? ' (heard of, not met)' : ''}`).join('; ') || 'none'}`,
       // Every discovered place, by type too ("the bar"): one move reaches any of them.
       `OTHER PLACES IN TOWN (one move reaches any): ${ids(packet.knownLocations.filter(x => x.id !== l.id))}`
-    ].join('\n');
+    ].concat(packet.jobs.length ? [`WORK ON OFFER HERE: ${packet.jobs.map(workLine).join('; ')}`] : []).join('\n');
     // Everyone else in town, the dead and the far away, and the places out of town: the cached block, not the message.
     packet.block = parserBlock();
     return packet;
+  }
+
+  /* One job on offer, for the parser: "job_service_bays — a shift in the
+     service bays at Pittman's (for Dewayne Mangum; pays about $60-80; takes
+     the rest of the phase)". A stake is won or lost at the table. */
+  function workLine(j) {
+    const pay = `${money(j.pay[0])}-${j.pay[1]}`;
+    return `${j.id} — ${j.label} (${j.stake ? `with ${j.giverName}; win or lose about ${pay}` : `for ${j.giverName}; pays about ${pay}`}; takes the rest of the phase)`;
   }
 
   // ----- step 3b: a walk, then an action there -----
@@ -11010,9 +11227,11 @@ const Pipeline = (() => {
     const s = State.current;
     const presentIds = State.npcsAt(s.player.locationId).map(n => n.id);
     const fixed = [];
-    if (!SAY_TYPES.includes(a.actionType)) { fixed.push(`actionType ${a.actionType} became talk`); a.actionType = 'talk'; }
+    // Words that take the work on offer here ("Deal me in") stay work (direction change 16): the job sets its own time.
+    const work = a.actionType === 'work';
+    if (!SAY_TYPES.includes(a.actionType) && !work) { fixed.push(`actionType ${a.actionType} became talk`); a.actionType = 'talk'; }
     if (a.destinationId) { fixed.push(`destinationId ${a.destinationId} dropped`); a.destinationId = null; }
-    if (a.timeCost === 'long' || a.timeCost === 'rest') { fixed.push(`timeCost ${a.timeCost} became short`); a.timeCost = 'short'; }
+    if (!work && (a.timeCost === 'long' || a.timeCost === 'rest')) { fixed.push(`timeCost ${a.timeCost} became short`); a.timeCost = 'short'; }
     const want = sp.to === 'everyone' ? presentIds : presentIds.filter(id => id === sp.to);
     const missing = want.filter(id => !a.targets.includes(id));
     if (missing.length) fixed.push(`added the addressee ${missing.join(', ')}`);
@@ -11567,11 +11786,13 @@ const Pipeline = (() => {
     }
     if (ctx.missing) lines.push(notCarriedLine(ctx.missing));
     lines.push(`ROLL: ${roll ? roll.line : 'none'}`);
+    if (ctx.job) lines.push(jobLine(ctx.job, s.time.phase));
     if (ctx.pressed) lines.push(`SAME ASK AGAIN: the player already tried this and it failed${ctx.pressed.line ? ` (${ctx.pressed.line})` : ''}; there is no new roll and the answer does not change. Show them holding their position and reacting to being pushed (shorter, cooler or amused). Nothing new is granted.`);
     if (ctx.granted) lines.push(`ALREADY GRANTED: the player asked this before and ${ctx.granted.name || 'the people here'} agreed${ctx.granted.line ? ` (${ctx.granted.line})` : ''}; there is no new roll and nothing more is gained. Show them noting it is already settled (a shrug, "I said yes", mild impatience) and move the scene on; grant nothing further.`);
     lines.push(`COMPLICATION: ${[roll && roll.complication, ctx.consequence].filter(Boolean).join('; ') || 'none'}`);
     if (roll && !roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push('OUTCOME: the ask failed. The person does not give the player what they asked for, in any form; the complication is on top of the refusal, not instead of it.');
     if (roll && roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push(`OUTCOME: the ask succeeded. ${roll.tier === 'critical' ? 'It works, and then some.' : roll.tier === 'partial' ? 'It works, but at the cost named in COMPLICATION.' : 'It works.'} The person goes along with what the player asked, at least in part, whatever they said before; do not narrate a refusal or a watered-down substitute. If it seems out of character, the difficulty already allowed for that: the dice decided.`);
+    if (ctx.attacked) lines.push(attackedLine(ctx.attacked));
     if (ctx.damage) lines.push(`DAMAGE: the player takes ${ctx.damage} damage.`);
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
     // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
@@ -11649,6 +11870,8 @@ const Pipeline = (() => {
     const presentIds = ctx.presentIds || [];
     const npcRow = n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; attitude ${n.attitude})${n.unnamed ? ' (no name yet)' : ''}`;
     const engine = [];
+    if (ctx.job) engine.push(`the job, ${ctx.job.label} ${ctx.job.stake ? 'with' : 'for'} ${ctx.job.giverId} (${ctx.job.outcome}): ${ctx.job.paid ? `${ctx.job.paid > 0 ? 'the pay' : 'the loss'}, goldDelta ${plusMinus(ctx.job.paid)}` : 'no pay'}, and its time; record no goldDelta this turn`);
+    if (ctx.attacked) engine.push(`${ctx.attacked.npcId} came at the player, who defended (${ctx.attacked.roll.line})`);
     if (ctx.damage) engine.push(`fight damage: the player lost ${ctx.damage} HP`);
     if (ctx.consequence) engine.push(ctx.consequence);
     if (ctx.storyPoint) engine.push('a story point for the natural 20');
@@ -11717,7 +11940,9 @@ const Pipeline = (() => {
     const p = s.player;
     const l = here();
     const present = State.npcsAt(l.id);
-    const foe = ((ctx.action && ctx.action.targets) || []).map(id => State.npc(id)).find(n => n && present.includes(n)) || null;
+    // Who did it: someone who came at the player and hurt them (a fight effect), else the person the action was aimed at.
+    const attacker = ctx.attacked && ctx.attacked.damage ? present.find(n => n.id === ctx.attacked.npcId) : null;
+    const foe = attacker || ((ctx.action && ctx.action.targets) || []).map(id => State.npc(id)).find(n => n && present.includes(n)) || null;
     const watchy = n => !!n && ((n.tags || []).some(t => t === 'watch' || t === 'police') || /\b(watch|police|deputy|sheriff|officer|constable|trooper|cop)/i.test(n.role));
     let outcome;
     let npc = null;
@@ -11750,6 +11975,141 @@ const Pipeline = (() => {
       dead: () => 'You go down and do not get up. Your story ends here.'
     }[outcome]();
     return { outcome, npcId: npc ? npc.id : null, text };
+  }
+
+  // ----- work (direction change 16) -----
+  /* A work action takes a job, found before anything is spent: its id in
+     targets (the parser's, from WORK ON OFFER HERE), else the job here of
+     someone the action is aimed at, else the first one on offer here (a
+     /reroll replays an action whose only target is already the giver).
+     Town.jobRefusal says why it cannot be taken now, and runTurn refuses the
+     turn with that line, like a trip out of town. Otherwise the action
+     becomes the job's: its roll (stat and difficulty, or none), its time,
+     and its giver as the only target. Returns { job } or { refuse }. */
+  function takeWork(ctx) {
+    const s = State.current;
+    const a = ctx.action;
+    const at = s.player.locationId;
+    const offer = Town.jobsOnOffer(at);
+    const mine = Town.jobsAt(at);
+    const j = a.targets.map(t => Town.job(t)).find(Boolean)
+      || offer.find(x => a.targets.includes(x.giverNpcId)) || mine.find(x => a.targets.includes(x.giverNpcId))
+      || offer[0] || mine[0] || null;
+    const why = Town.jobRefusal(j, at);
+    if (why) return { refuse: why };
+    Object.assign(a, { targets: [j.giverNpcId], needsRoll: !!j.stat, stat: j.stat || null, difficulty: j.stat ? j.difficulty : null, timeCost: j.timeCost, missingItem: null, declaresWorldFact: false });
+    return { job: j };
+  }
+  function refuseWork(text, opts, ctx, snap, mark) {
+    const r = fail(snap, mark, null, { reason: 'work' });
+    UI.feed.input(opts.input, ctx.speech);
+    UI.feed.notice(text);
+    return r;
+  }
+  /* The work is done (step 5, after its roll went through resolve, so the
+     retry lock and /reroll treat it like any roll). Pay goes in as the
+     engine's goldDelta: a critical earns the top of the pay range, a success
+     a sum in it (Rng), a partial the low end, a failure nothing; with no
+     stat it is a sum in the range. A stake (the card game) is won the same
+     way and lost on a failure (a sum in the range; the top on a critical
+     failure), never more than the player has. Then the job's onSuccess or
+     onFailure effects, the journal line ("A shift ... for Dewayne Mangum:
+     paid $70.") and state.work, which keeps it from being taken again too
+     soon. The time is the action's own and passes at step 10. Returns what
+     the narrator (JOB) and the bookkeeper are told. */
+  function settleWork(ctx, j) {
+    const s = State.current;
+    const p = s.player;
+    const outcome = j.stat ? (ctx.roll ? ctx.roll.tier : 'failure') : 'done';
+    const good = outcome === 'done' || Dice.isSuccess(outcome);
+    const lo = j.pay[0];
+    const hi = j.pay[1];
+    let delta = 0;
+    if (outcome === 'critical') delta = hi;
+    else if (outcome === 'success' || outcome === 'done') delta = Rng.int(lo, hi);
+    else if (outcome === 'partial') delta = lo;
+    else if (j.stake && ctx.roll) delta = -Math.min(p.gold, outcome === 'critical_failure' ? hi : Rng.int(lo, hi));
+    if (delta) State.apply({ goldDelta: delta });
+    const fx = (good ? j.onSuccess : j.onFailure) || [];
+    const done = fx.length ? State.apply({ effects: fx }) : null;
+    const giver = State.npc(j.giverNpcId);
+    const cash = delta > 0 ? `${j.stake ? 'won' : 'paid'} ${money(delta)}` : delta < 0 ? `lost ${money(-delta)}` : 'paid nothing';
+    State.apply({ workDone: { jobId: j.id, outcome }, journalNews: [{ text: `${capFirst(j.label)} ${j.stake ? 'with' : 'for'} ${giver.name}: ${cash}.`, kind: 'work' }] });
+    UI.feed.quiet(delta > 0 ? `You ${j.stake ? 'win' : 'are paid'} ${money(delta)} (${moneyLabel().toLowerCase()} ${money(p.gold)}).` : delta < 0 ? `You lose ${money(-delta)} at the table (${moneyLabel().toLowerCase()} ${money(p.gold)}).` : 'Nothing is paid.');
+    return { id: j.id, label: j.label, giverId: giver.id, giverName: giver.name, blurb: j.blurb, outcome, paid: delta, stake: !!j.stake, effects: done ? done.applied.length : 0 };
+  }
+  /* The JOB line: what the work was, how it went and the money, already settled. */
+  function jobLine(job, phase) {
+    const m = money(Math.abs(job.paid));
+    const how = job.stake
+      ? { critical: `the cards run the player's way all night; won ${m}`, success: `the cards run the player's way; won ${m}`, partial: `the player comes out a little ahead; won ${m}`,
+        failure: `the cards go against the player; lost ${m}`, critical_failure: `the player loses badly; lost ${m}` }[job.outcome]
+      : { done: `it gets done; paid ${m}`, critical: `it goes better than anyone expected; paid ${m}, the top rate`, success: `it goes fine; paid ${m}`,
+        partial: `it gets done, but not well (the complication); paid ${m}, the low end`, failure: 'it goes wrong (the complication); paid nothing', critical_failure: 'it goes badly wrong (the complication); paid nothing' }[job.outcome];
+    return `JOB: ${job.label}, ${job.stake ? 'with' : 'for'} ${job.giverName} (${noStop(job.blurb)}): ${how}. The work takes the rest of the ${phase}: tell it in a sentence or two and end on the money; nothing else is paid, won or lost.`;
+  }
+
+  // ----- fights the player did not start (direction change 16) -----
+  /* A fight effect leaves someone waiting to come at the player
+     (state.fights). Each narrated turn, after the due events are picked,
+     the first fight that is ready is resolved: a seed's fight on the turn
+     its due event is told (it waits while the event waits, and goes when
+     the event went without it), any other fight on the next turn. Someone
+     no longer free or in town drops theirs. The attacker is brought to the
+     player for the phase (a visit), and the player defends: a might roll at
+     normal difficulty, +2 with a knife or a gun on them (as usesItemId does
+     for an attack); a failure costs 1 to 3 HP and a critical failure 3,
+     through ctx.damage and ctx.defeated like a lost attack, and a natural
+     20 earns a story point like any roll. It never touches the retry lock.
+     Returns what the narrator (ATTACKED) and the bookkeeper are told, or
+     null. Test hook: hooks.fightD20 forces the defending die once. */
+  function comeAt(ctx) {
+    const s = State.current;
+    const list = Array.isArray(s.fights) ? s.fights : [];
+    if (!list.length) return null;
+    const told = (ctx.due || []).map(d => d.seedId);
+    const drop = [];
+    let f = null;
+    for (const x of list) {
+      const n = State.npc(x.npcId);
+      if (!n || n.alive === false || n.status !== 'free' || presenceOf(n) !== 'here') { drop.push(x.id); continue; }
+      if (x.seedId && !told.includes(x.seedId)) { if (!(s.dueEvents || []).some(e => e.seedId === x.seedId)) drop.push(x.id); continue; }
+      if (!f) f = x;
+    }
+    if (drop.length) State.apply({ fightDone: drop });
+    if (!f) return null;
+    const n = State.npc(f.npcId);
+    const at = s.player.locationId;
+    State.apply({ fightDone: [f.id] });
+    if (!State.npcsAt(at).some(x => x.id === n.id) && State.apply({ visits: [{ npcId: n.id, locationId: at }] }).rejected.length) return null;
+    const weapon = s.player.inventory.find(i => i.qty > 0 && (carriedAs(i.name, 'knife') || carriedAs(i.name, 'gun')));
+    let forced = Number.isInteger(hooks.fightD20) ? hooks.fightD20 : (hooks.diceSalt ? ((Rng.d(20) - 1 + hooks.diceSalt * 7) % 20) + 1 : undefined);
+    hooks.fightD20 = null;
+    const roll = Dice.resolve({ stat: 'might', difficulty: 'normal', usesItemId: weapon ? weapon.id : undefined, npcId: n.id, actionType: 'attack', d20: forced });
+    UI.feed.roll(roll);
+    if (roll.tier === 'critical' && s.player.storyPoints < State.LIMITS.storyPoints) {
+      State.apply({ storyPointsDelta: 1 });
+      ctx.storyPoint = true;
+      UI.feed.quiet(`Natural 20: you earn a story point (${s.player.storyPoints} of ${State.LIMITS.storyPoints}).`);
+    }
+    let dmg = 0;
+    if (roll.tier === 'failure' || roll.tier === 'critical_failure') {
+      dmg = roll.tier === 'critical_failure' ? 3 : Rng.int(1, 3);
+      State.apply({ hpDelta: -dmg });
+      ctx.damage = (ctx.damage || 0) + dmg;
+      ctx.defeated = s.player.hp <= 0;
+      UI.feed.quiet(`You take ${dmg} damage (HP ${s.player.hp}/${s.player.maxHp}).`);
+    }
+    return { npcId: n.id, name: n.name, reason: f.reason || null, seedId: f.seedId || null, roll, damage: dmg };
+  }
+  /* The ATTACKED line: who comes at the player, why, the defending roll and what it means. */
+  function attackedLine(x) {
+    const r = x.roll;
+    const how = r.tier === 'critical' ? `The player gets the better of ${x.name}, who is driven off.`
+      : r.tier === 'success' ? `The player holds their own: ${x.name} gets nowhere and backs off.`
+      : r.tier === 'partial' ? `The player holds ${x.name} off, at the cost in that complication.`
+      : r.tier === 'failure' ? `${x.name} gets the better of the player (DAMAGE).` : `${x.name} beats the player badly (DAMAGE).`;
+    return `ATTACKED: ${x.name} comes at the player${x.reason ? ` (${x.reason})` : ''}; the player did not start it and defends. ${r.packetLine}. ${how}`;
   }
 
   // ----- step 12: chronicle compression -----
@@ -11852,6 +12212,13 @@ const Pipeline = (() => {
       if (!opts.fact && awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
       // Step 3b. A walk and then an action there: the engine moves the player first.
       if (!opts.fact) walkFirst(ctx);
+      // Work (direction change 16): the job it takes, or a plain line why not, before anything is spent (the walk too).
+      let job = null;
+      if (!opts.fact && action.actionType === 'work') {
+        const w = takeWork(ctx);
+        if (w.refuse) return refuseWork(w.refuse, opts, ctx, snap, mark);
+        job = w.job;
+      } else action.targets = action.targets.filter(t => !Town.job(t)); // asking about a job is not taking it, and a job is nobody to look for
       // Step 4. Check and create.
       Object.assign(ctx, await checkAndCreate(action, { fact: !!opts.fact, input: opts.parse || opts.input }));
       if (replaced()) return fail(snap, mark, null, {});
@@ -11868,11 +12235,15 @@ const Pipeline = (() => {
         UI.feed.notice(NOTICES.locked);
         return r;
       }
+      // The work is done: paid, its effects, its journal line and its cooldown (the time passes at step 10).
+      if (job) ctx.job = settleWork(ctx, job);
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
       const leaving = action.actionType === 'move' && !!action.destinationId && action.destinationId !== ctx.location.id;
       ctx.due = World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving }) || [];
-      if (ctx.due.length) scene(ctx); // a due event may have brought someone into the scene
+      // Someone comes at the player (a fight effect): the turn its seed's event is told, or the turn after it was made.
+      ctx.attacked = comeAt(ctx);
+      if (ctx.due.length || ctx.attacked) scene(ctx); // a due event or a fight may have brought someone into the scene
       ctx.rumour = pickRumour(ctx);
       const told = await narrate(ctx);
       if (replaced()) return fail(snap, mark, null, {});
@@ -11893,6 +12264,11 @@ const Pipeline = (() => {
         if (ctx.damage && toInt(clean.hpDelta) < 0) {
           State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'hpDelta', reason: 'ignored: the engine already applied fight damage' });
           delete clean.hpDelta;
+        }
+        // The job's money is the engine's (direction change 16): the bookkeeper was told it is settled.
+        if (ctx.job && toInt(clean.goldDelta)) {
+          State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'goldDelta', reason: `ignored: the engine already settled the job (${plusMinus(ctx.job.paid)})` });
+          delete clean.goldDelta;
         }
         if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) {
           State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: in Say mode the player only spoke and stays where they are' });
@@ -13680,6 +14056,9 @@ const UI = (() => {
       if (who.lives.length) rows.push([l.away === true ? 'Lives there' : 'Lives here', joinList(who.lives)]);
       if (who.works.length) rows.push(['Works or regulars', joinList(who.works)]);
       if (who.buried.length) rows.push(['Buried here', joinList(who.buried)]);
+      // Paid work at this place (direction change 16): what, for whom (by name once met) and when.
+      const work = l.away === true ? [] : Town.jobsAt(l.id);
+      if (work.length) rows.push(['Work here', work.map(workText).join('; ')]);
       if (l.away !== true) rows.push(['Here now', who.now.length ? joinList(who.now) : 'Nobody right now']);
     }
     return el('article', { class: 'plcard' + (open ? ' open' : '') + (l.away === true ? ' away' : ''), dataset: { loc: l.id } },
@@ -13691,6 +14070,11 @@ const UI = (() => {
         el('p', { class: 'plcard-desc' }, l.description),
         rows.length ? el('dl', { class: 'kv plcard-facts' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', { dataset: { fact: k.toLowerCase().replace(/[^a-z]+/g, '-') } }, v)])) : null
       ] : null));
+  }
+  /* "A shift in the service bays at Pittman's (for Dewayne Mangum, morning and afternoon)", and "done for today" once worked. */
+  function workText(j) {
+    const done = Town.jobStatus(j);
+    return `${capFirst(j.label)} (${j.stake ? 'with' : 'for'} ${npcLabel(State.npc(j.giverNpcId))}, ${Town.phaseList(j.phases)}${done ? `; ${done}` : ''})`;
   }
   /* Open one place's sheet (or close it). Game.UI.togglePlace(id, open?). */
   function togglePlace(id, want) {
@@ -13805,6 +14189,8 @@ const UI = (() => {
       const forced = forcedRolls ? `\nforced clock rolls: ${forcedRolls}` : '';
       const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
+      const fights = (s.fights || []).map(f => `fight waiting: ${f.npcId} comes at the player${f.seedId ? ` when ${f.seedId} is told` : ' next turn'}${f.reason ? ` (${f.reason})` : ''}`).join('\n');
+      const work = Object.keys(isObj(s.work) ? s.work : {}).map(k => `${k} day ${s.work[k].day} (${s.work[k].outcome}, ${s.work[k].times}x)`).join(', ');
       const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.notBeforeTurn ? ' (not before turn ' + sd.notBeforeTurn + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}${Array.isArray(sd.effects) && sd.effects.length ? ' · then ' + sd.effects.map(e => e.op).join(', ') : ''}\n  ${sd.effect}`).join('\n');
       const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
       const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Array.isArray(r.knownBy) ? ` · known by ${r.knownBy.length}` : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
@@ -13818,9 +14204,9 @@ const UI = (() => {
       const u = Api.usage;
       const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
       return el('div', { class: 'dbg' },
-        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}${s.time.late ? ' (late night)' : ''}${s.time.noSleep ? ' · no sleep last night' : ''} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}${s.time.late ? ' (late night)' : ''}${s.time.noSleep ? ' · no sleep last night' : ''} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nwork done ${work || '-'}\nundo depth ${State.undoDepth()}`),
         el('h3', null, 'Faction clocks'), pre((clocks || '-') + forced),
-        el('h3', null, 'Due events'), pre([due, visits].filter(Boolean).join('\n') || 'none'),
+        el('h3', null, 'Due events'), pre([due, visits, fights].filter(Boolean).join('\n') || 'none'),
         el('h3', null, 'Seeds'), pre(seeds || '-'),
         el('h3', null, 'World events'), pre(events || 'none yet'),
         el('h3', null, 'NPCs (hidden)'), pre(npcs || '-'),
@@ -14491,7 +14877,7 @@ const UI = (() => {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, setBusy, feed, Create, scrollToBottom,
     narratorState, renderNarratorBanner, openKeySettings, NARRATOR_NOTES,
-    setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout,
+    setMode, setAddressee, renderComposer, togglePerson, togglePlace, workText, renderMap, mapLayout,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     get openPerson() { return openPerson; },
     get openPlace() { return openPlace; },
@@ -14524,6 +14910,7 @@ const Commands = (() => {
     { name: '/people', args: '', desc: 'Open the People panel' },
     { name: '/journal', args: '', desc: 'Open the Journal panel' },
     { name: '/places', args: '', desc: 'Open the Places panel' },
+    { name: '/jobs', args: '', desc: 'List the paid work you know of' },
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     { name: '/cheat', args: '[outcome]', desc: 'Cheat: redo the last roll as success, partial, fail, crit, fumble or 1-20', turn: true },
@@ -14558,6 +14945,14 @@ const Commands = (() => {
       case '/wait': return Pipeline.wait(arg);
       case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
       case '/pass': return Pipeline.pass();
+      case '/jobs': {
+        // Paid work at the places the player knows (direction change 16): no turn, nothing spent.
+        const places = State.current.locations.filter(l => l.discovered && l.away !== true && Town.jobsAt(l.id).length);
+        if (!places.length) { UI.feed.notice('You do not know of any paid work in town yet.'); return { ok: true }; }
+        const at = l => `${l.name}${l.closed ? ' (closed)' : ''}: ${Town.jobsAt(l.id).map(j => lowerFirst(UI.workText(j))).join('; ')}.`;
+        UI.feed.notice(`Work you know of (ask for it there; it is ${State.current.time.phase} now). ${places.map(at).join(' ')}`);
+        return { ok: true };
+      }
       case '/reroll': return Pipeline.reroll(arg);
       case '/pronouns': {
         const m = /^(.*?)\s*(?:\bis\b|\bgoes by\b|:)?\s*(she|her|he|him|they|them)(?:\/\w+)?[\s.!]*$/i.exec(arg || '');
@@ -14787,7 +15182,7 @@ window.Game = Object.freeze({
   Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
-  data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })
+  data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, JOBS, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })
 });
 
 try {
