@@ -2747,6 +2747,8 @@ const TOWN_DATA = {
 };
 
 // ===== TABLES =====
+// npc: first names nobody in town has, and jobs, that mark a description as a
+// person ("Dakota", "a welder"), who is then someone in the cast or nobody.
 const TABLES = {
   npc: {
     firstNames: [
@@ -2754,64 +2756,10 @@ const TABLES = {
       "Gary", "Heather", "Jamal", "Jesse", "Keisha", "Kenny", "Lacey", "Lonnie", "Opal", "Misty",
       "Odell", "Patsy", "Randy", "Rhonda", "Shawn", "Terrell", "Trina", "Vernon", "Wanda", "Wesley"
     ],
-    familyNames: [
-      "Akins", "Bounds", "Boyette", "Cooley", "Crump", "Dukes", "Ezell", "Faulk", "Gandy", "Hux",
-      "Ivey", "Jernigan", "Kimbrough", "Ladner", "Mabry", "McRae", "Moak", "Nettles", "Pace", "Raybon",
-      "Sandifer", "Shows", "Spikes", "Sumrall", "Toler", "Tubb", "Varnado", "Walley", "Whitfield", "Yarbrough"
-    ],
     occupations: [
       "long-haul trucker", "dollar store manager", "home health aide", "catfish farmer", "logger", "school bus driver", "lineman for the power co-op", "prison guard", "welder", "roofer",
       "crop duster", "hairdresser", "rural mail carrier", "deer processor", "bait shop clerk", "tow truck driver", "substitute teacher", "pharmacy tech", "oil change tech", "line cook",
       "part-time preacher", "barge deckhand", "game warden", "insurance agent", "feed store clerk", "nursing home aide", "used car salesman", "septic tank pumper", "church secretary", "night stocker"
-    ],
-    traits: [
-      "suspicious", "chatty", "greedy", "churchgoing", "lazy", "nosy", "honest to a fault", "hot-tempered", "shy", "braggy",
-      "kind", "bitter", "cheerful", "superstitious", "tight with money", "brave", "nervous", "proud", "sly", "gullible",
-      "blunt", "patient", "vain", "loyal", "jealous", "careless", "worn out", "flirty", "stubborn", "always on the hustle"
-    ],
-    wants: [
-      "to make the truck payment before the repo man comes back",
-      "a ride to the hospital in the city",
-      "news of a son who went to work offshore and stopped calling",
-      "to get their name off a warrant in the next county",
-      "to sell the family land before the bridge closes",
-      "to keep the bridge open no matter what it costs",
-      "a few hundred dollars by Friday",
-      "to get custody of their kids back",
-      "to quit pills for good this time",
-      "to leave town and never come back",
-      "a buyer for a ring they should not have",
-      "to be left alone",
-      "a boat motor that starts on the first pull",
-      "to find out who their wife is texting",
-      "work that pays in cash",
-      "their dog back from whoever took it",
-      "a place to stay that is not a car",
-      "to be taken seriously for once",
-      "someone to carry a package across the river",
-      "to win the bass tournament in the spring"
-    ],
-    speechQuirks: [
-      "says 'I tell you what' before every opinion",
-      "calls everyone 'baby' or 'sugar'",
-      "answers questions with questions",
-      "checks their phone between sentences though it never has signal",
-      "never finishes a sentence",
-      "talks to their dog as much as to you",
-      "quotes scripture, mostly wrong",
-      "says 'no offense' right before the offense",
-      "gets your name wrong every time",
-      "talks like a TV lawyer when nervous",
-      "uses fishing words for everything",
-      "laughs nervously after every sentence",
-      "lowers their voice for no reason",
-      "quotes their late mama",
-      "ends sentences with 'you know it'",
-      "spits tobacco before saying anything important",
-      "talks too loud from years around engines",
-      "pauses a long time before answering",
-      "uses long words, some of them wrong",
-      "apologizes before disagreeing"
     ]
   },
   location: {

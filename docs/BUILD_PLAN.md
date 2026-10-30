@@ -6,15 +6,22 @@ organised and the shared data contract).
 
 ## Deliverable and hard constraints
 
-- One file: `index.html` at the repo root. Inline CSS and vanilla JavaScript.
-  No build step, no framework, no bundler, no backend. Opening the file from
-  disk must work (`file://`), so no module scripts and no fetches of local files.
+- One built file: `index.html` at the repo root, assembled from parts by
+  `build.cjs` (plain node, no dependencies) and committed (direction change
+  17). Inline CSS and vanilla JavaScript. Playing needs no build step, no
+  framework, no bundler, no backend: the committed file is what the player
+  opens. Opening the file from disk must work (`file://`), so no module
+  scripts and no fetches of local files. `node build.cjs --check` exits 1
+  when the committed file is not what the parts build, and the constraints
+  suite runs it.
 - Script organised into clearly delimited sections, one per module, in this
   order: `TOWN_DATA`, `TABLES`, `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`,
-  `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `JOBS` (direction change 16), `STYLE_GUIDE`, `EXAMPLE_TURNS`,
-  then modules `Rng`, `Dice`, `Tables`, `State`, `Town`, `World`, `Style`,
-  `Api`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`. Each module starts
-  with a banner comment: `// ===== Module: State =====`.
+  `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `JOBS` (direction change 16) (all
+  in `content/town.js`), `STYLE_GUIDE`, `EXAMPLE_TURNS`, the helpers, then
+  modules `Rng`, `Dice`, `Tables`, `State`, `Town`, `World`, `Style`, `Api`,
+  `Upgrade`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`, each in its own
+  file in `src/`. Each module starts with a banner comment:
+  `// ===== Module: State =====`.
 - Expose every module on `window.Game` (`Game.State`, `Game.Dice`, ...) so
   Playwright tests can drive the engine with `page.evaluate`. Also expose
   `Game.state` (the live state object, read-only by convention) and
@@ -28,15 +35,43 @@ organised and the shared data contract).
 ## Repository layout
 
 ```
-index.html          the game
-SPEC.md             the design spec (do not edit)
-docs/API_NOTES.md   Claude API wire format (do not edit)
-docs/BUILD_PLAN.md  this file
-content/            staging area for authored data; deleted once inlined
-tests/              Playwright scripts, CommonJS (.cjs), run with plain node
-tests/run.cjs       runs every tests/*.test.cjs file, exits non-zero on failure
-README.md           how to play, how to put in the key, how to run tests
+index.html              the game: built by build.cjs, committed, never edited by hand
+build.cjs               joins the parts into index.html; --check exits 1 when it is stale
+src/head.html           the document head, the CSS, the body markup, the start of the page script
+content/town.js         the town and the character-creation data (between the content markers)
+src/10-style-guides.js  the narrator's style guides and example turns
+src/15-helpers.js       constants and helpers shared by every module
+src/20-rng.js           Rng
+src/25-dice.js          Dice
+src/30-tables.js        Tables
+src/35-state.js         State
+src/40-town.js          Town
+src/45-world.js         World
+src/50-style.js         Style
+src/55-api.js           Api (the real provider and the mock)
+src/60-upgrade.js       Upgrade
+src/65-pipeline.js      Pipeline
+src/70-storage.js       Storage
+src/75-ui.js            UI
+src/80-commands.js      Commands
+src/85-app.js           App
+src/90-game.js          window.Game and the boot
+src/tail.html           the end of the page script and of the document
+SPEC.md                 the design spec (do not edit)
+docs/API_NOTES.md       Claude API wire format (do not edit)
+docs/BUILD_PLAN.md      this file
+docs/CAST.md            the cast roster, written by tests/cast-doc.cjs
+tests/                  Playwright scripts, CommonJS (.cjs), run with plain node
+tests/run.cjs           runs the town check and every tests/*.test.cjs file, exits non-zero on failure
+README.md               how to play, how to put in the key, how to edit the town, how to run tests
 ```
+
+The engine parts are joined in the order of their numbers (a new module is
+a new `NN-name.js`); the build adds only the two content markers and a
+one-line banner at the top of the page script. The tests and the town tools
+(`tests/validate-town.cjs`, `tests/mentions.cjs`, `tests/cast-doc.cjs`) read
+the built `index.html`; the town check and the roster refuse a page that is
+not the build, so `content/town.js` is the one place the content is written.
 
 Tests use the Playwright that is preinstalled in this sandbox:
 `const { chromium } = require('playwright'); const browser = await chromium.launch();`
@@ -127,7 +162,8 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 
 ```js
 const TABLES = {
-  npc: { firstNames: [30], familyNames: [30], occupations: [30], traits: [30], wants: [20], speechQuirks: [20] },
+  npc: { firstNames: [30], occupations: [30] },  // read by Town to tell a person in a `new:` description
+                                                 // ("Dakota", "a welder"); nobody is made from them
   location: { types: [15], details: [20], problems: [15] },
   items: { goods: [40 of { name, price }], trinkets: [20] },
   complications: [20],
@@ -236,7 +272,7 @@ checked, per SPEC.md section 10 "Validation in State.apply()".
 |---|---|
 | `Rng` | mulberry32 seeded by `meta.seed`; `Rng.int(a,b)`, `Rng.pick(arr)`, `Rng.d(n)`; advances a counter stored in `meta.rngCalls` so a loaded save continues deterministically |
 | `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complication selection, the retry lock (`meta.lastRollKey`, and `meta.lastRoll`: what the roll was and the asks granted in the scene) |
-| `Tables` | create NPC / minor location / item / complication / weather from `TABLES` via `Rng` |
+| `Tables` | a minor location, a listed price, a complication, the weather from `TABLES` via `Rng` (the NPC and item rolls went in direction change 17) |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()` |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type |
 | `World` | world tick (clocks, schedules, grudges, favours, news), seed firing, `applyEffects` |
@@ -1689,4 +1725,125 @@ and named two men the fixed cast does not have.
 
 ### 17. Code health: built from parts, dead tables gone
 
-(written by the package that implements it)
+The review the owner agreed with (its last section, "Code health"): the one
+file holds about 185 KB of content and 590 KB of engine in a dozen modules,
+and it works, but editing a 15,000-line file is the main cost of every
+change, and the content the README invites the owner to edit by hand sits in
+the middle of it; the `Tables` person generator and its tables, and the
+fantasy plausibility vocabulary, predate the fixed cast. Keep the
+single-file rule, build the file from a `src/` and `content/` pair with a
+small node script, and drop the NPC tables. The `Upgrade` module stays,
+untouched: the owner's own saves may not be updated yet. Nothing the player
+sees or the models are sent changes; the whole suite, unchanged in meaning,
+is the proof.
+
+- **Built from parts.** `index.html` is still the one self-contained file
+  the player opens, committed built, so GitHub Pages and `file://` serve it
+  as before, but it is assembled by `build.cjs` at the repo root (plain
+  node, no dependencies) from `src/head.html` (the doctype, head, CSS, body
+  markup, the opening of the page script and the content comment; 58 KB),
+  `content/town.js` (everything between the content markers, the
+  `module.exports` guard line included; 189 KB), seventeen engine parts in
+  the file's own order (`src/10-style-guides.js`, `15-helpers.js`,
+  `20-rng.js`, `25-dice.js`, `30-tables.js`, `35-state.js`, `40-town.js`,
+  `45-world.js`, `50-style.js`, `55-api.js`, `60-upgrade.js`,
+  `65-pipeline.js`, `70-storage.js`, `75-ui.js`, `80-commands.js`,
+  `85-app.js`, and `90-game.js`, which holds `window.Game` and the boot;
+  673 KB in all) and `src/tail.html` (the end of the page script's function,
+  of the script and of the document). The numbers step by five so all
+  seventeen sort in two digits, in a directory listing and in the build
+  alike (steps of ten would need three digits after the ninth part); the
+  build joins every `src/NN-name.js` in the order of its number, so a new
+  module is a new file. The parts are joined byte for byte: the build adds
+  only the two marker lines (with a blank line after the end marker) and a
+  one-line banner after the page script's `<script>` tag ("Built by
+  build.cjs from src/ and content/town.js: edit those, not this file, then
+  run node build.cjs ..."). A part saved without a final newline gets one,
+  so it cannot run into the next, and a marker inside `content/town.js` is
+  refused. `node build.cjs` writes the file; `node build.cjs --check [file]`
+  exits 1 and names the first line that differs when `index.html` (or the
+  file named) is not the build, the pattern of `tests/cast-doc.cjs
+  --check`. Its exports (`build`, `isCurrent`, `engineParts`, the markers,
+  the banner) serve the tools and the tests.
+- **One source of truth.** The content is written only in
+  `content/town.js`. The tools keep reading the built `index.html`, the file
+  the player gets: `tests/validate-town.cjs` reads more than the content (the
+  engine's `RESERVED_FLAGS` and relation lists, the narrator's example
+  turns), it runs `tests/mentions.cjs` on what it loaded, and every
+  Playwright suite opens the page. `validate-town.cjs` and `cast-doc.cjs`
+  refuse a page that is not the build of the parts ("run node build.cjs"),
+  so a check after an edit and before a build fails instead of passing the
+  old text; with `VALIDATE_FILE` set (the content suite's hand-edit tests)
+  they check that copy as it is. The two comments that said to edit the
+  block in `index.html` (the content banner at the end of `src/head.html`
+  and the header of `content/town.js`) now say to edit `content/town.js`
+  and build, and `docs/CAST.md`'s first line says where the cast is written.
+- **Dead code out**, each removal proved by grep over the whole built file
+  and the tests (the `Upgrade` module and the mock provider count as
+  reachable; nothing reaches `Tables` by a computed name: its only
+  references are the module, the `Game` export and the `complication`,
+  `weather`, `price` and `location` calls):
+  - `Tables.npc`, the person generator, and its helper `fits`: called
+    nowhere in the page; only `tests/state.test.cjs` called
+    `Game.Tables.npc`. Nobody has been made in play since direction change
+    8, and `Pipeline.createEntity` throws for a person.
+  - `Tables.item` (a rolled good or trinket): called nowhere in the page;
+    only the same state test called it.
+  - `TABLES.npc.familyNames`, `traits`, `wants` and `speechQuirks` (100
+    strings): read only by `Tables.npc`.
+  - `PRONOUN_OBJECT` (helpers): read only by the generator's look line.
+  - `State.canUndo`: read nowhere, in the page or the tests (the page uses
+    `undoDepth`).
+  The page is 5,014 bytes smaller (924,871 to 919,857). The built file
+  differs from the one before this package only in these removals, the new
+  comment above `TABLES`, the banner and the two comments on where to edit.
+- **Kept, and why.** `TABLES.npc.firstNames` and `occupations` are live:
+  `Town.properName` reads the first names (a bare "Dakota", "Jesse" or
+  "Opal", three of them that `NAME_PRONOUNS` lacks, reads as a person, so
+  `new:Dakota` is someone nobody in town answers to rather than a thing to
+  create) and `Town.personWords` reads the occupations ("a welder", "a
+  logger" are people, so nobody, not an item put in the bar). They stay in
+  `TABLES.npc`, words unchanged, under a comment saying what they are for.
+  `Town.plausible`'s vocabulary stays whole: `FANTASY_ONLY` is what refuses
+  a sword or a knight in the present-day town, `MODERN_ONLY` judges a game
+  whose saved town has no currency (`isModern()`; an older low-fantasy save
+  still loads with its own copy of its town), `IMPLAUSIBLE` holds the dragon
+  (acceptance test [1]) with the rest of the generic list, and the fantasy
+  words in `PERSON_WORDS` make "a wizard" a person. Removing any of them
+  changes a verdict, and the pipeline suite's "modern vocabulary" test and
+  the state suite's plausibility test assert those verdicts (a knight
+  refused in a modern town and accepted in a fantasy one, a pickup the
+  other way round, a wizard a person). `TABLES.items.trinkets` is read by
+  `State.knownItemName`, `Tables.location` and `Tables.price` by step 4 of
+  the turn, and `CREATED_BY`'s `'tables'` and `Upgrade.MADE_BY` describe
+  people an older game's tables made.
+- **Older saves.** Nothing stored changes and there is no rules version; a
+  save carries no table.
+- **SPEC.md.** Section 2 asks for one self-contained file with no build
+  step, section 4 for `TOWN_DATA` near the top of that file, edited by hand.
+  The player still gets one self-contained file that needs no build, but it
+  is built from parts and the town is edited in `content/town.js`. Listed in
+  README.md's deviations.
+- **Docs.** README "Editing the town" (the parts; edit `content/town.js`,
+  run `node build.cjs`, then the validators; the engine the same way),
+  "Running the tests" (the build check), "How to play", "The cast" and
+  "Updating an older game" (where things now live), and the deviation; in
+  this file "Deliverable and hard constraints" (one built file, assembled
+  from parts by `build.cjs`, committed), "Repository layout", the `TABLES`
+  contract and the `Tables` row of "Module responsibilities".
+- **Tests.** constraints: a new test runs `node build.cjs --check` (it
+  passes), finds the banner once at the top of the page script, and has a
+  copy with one character changed in the engine refused with its first
+  differing line. content: the layout assertion wants `content/town.js`,
+  byte for byte the block between the markers, and nothing else in
+  `content/` (it wanted no `content/` folder), and still no
+  `content-modern/`. Removed with what they checked: the state suite's
+  checks of `Tables.npc` (one seed, one person; its fields; pronouns from the
+  noun, the role or the first name) and of `Tables.item` (the "Tables build"
+  test keeps the place, the complication and the weather; the pronoun test
+  keeps the town's people, `inferPronouns`, `addNpcs` and the load), and its
+  content shape test's `TABLES.npc` keys (now `firstNames`, `occupations`);
+  `validate-town.cjs`'s counts of the four lists, its family-name clash
+  check and the family names in its example-turn name check. Every other
+  test is unchanged and passes: 256 in all (254 before, and the build
+  check).

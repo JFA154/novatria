@@ -2579,7 +2579,6 @@ const State = (() => {
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, fillKnownBy, firstKnowers, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, beginBatch, endBatch,
-    canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
     onChange(fn) { listeners.push(fn); },
     debugLog,

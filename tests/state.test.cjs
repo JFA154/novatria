@@ -834,7 +834,7 @@ s.test('town data passes validation and every content constant has the contract 
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
   for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc, ['effects', 'text']); }
   assert.deepEqual(r.tables.top, ['complications', 'items', 'location', 'npc', 'weather']);
-  assert.deepEqual(r.tables.npc, ['familyNames', 'firstNames', 'occupations', 'speechQuirks', 'traits', 'wants']);
+  assert.deepEqual(r.tables.npc, ['firstNames', 'occupations']);
   assert.deepEqual(r.tables.location, ['details', 'problems', 'types']);
   assert.deepEqual(r.tables.items, ['goods', 'trinkets']);
   assert.deepEqual(r.tables.weather, ['autumn', 'spring', 'summer', 'winter']);
@@ -926,28 +926,16 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
   assert.match(errs.unknown, /background/);
 });
 
-s.test('Tables build complete entities from the seeded stream', async h => {
+s.test('Tables build places, complications and weather from the seeded stream', async h => {
   const page = await h.open();
   const r = await page.evaluate(() => {
     const G = Game;
-    const n1 = G.Tables.npc({}, G.Rng.create(5));
-    const n2 = G.Tables.npc({}, G.Rng.create(5));
     const l = G.Tables.location({ fromId: 'loc_x' }, G.Rng.create(5));
-    const it = G.Tables.item('goods', G.Rng.create(5));
-    const tr = G.Tables.item('trinket', G.Rng.create(5));
-    return { n1, n2, l, it, tr, comp: G.data.TABLES.complications.includes(G.Tables.complication(G.Rng.create(1))), weather: G.Tables.weather('winter', G.Rng.create(1)) };
+    return { l, comp: G.data.TABLES.complications.includes(G.Tables.complication(G.Rng.create(1))), weather: G.Tables.weather('winter', G.Rng.create(1)) };
   });
-  assert.deepEqual(r.n1, r.n2);
-  assert.deepEqual(Object.keys(r.n1).sort(), ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'role', 'secret', 'status', 'tags', 'voice']);
-  assert.ok(['he', 'she', 'they'].includes(r.n1.pronouns), 'pronouns: ' + r.n1.pronouns);
-  assert.match(r.n1.id, /^npc_[a-z0-9_]+$/);
-  assert.equal(r.n1.personality.length, 2);
   assert.match(r.l.id, /^loc_[a-z0-9_]+$/);
   assert.deepEqual(r.l.exits, ['loc_x']);
   assert.ok(r.l.description.length > 10);
-  assert.match(r.it.id, /^item_/);
-  assert.ok(r.it.price > 0);
-  assert.match(r.tr.id, /^item_/);
   assert.ok(r.comp);
   assert.ok(r.weather.length > 0);
 });
@@ -1411,7 +1399,7 @@ s.test('a model diff may carry placesRevealed (validated like the rest); an unkn
 
 /* People match the story (rules version 5): pronouns on every person, and
    people the story names becoming real (peopleRevealed). */
-s.test('pronouns: every town person has them, matching their look; the tables, loose ends and addNpcs give everyone one; a save without them gets them at load', async h => {
+s.test('pronouns: every town person has them, matching their look; loose ends and addNpcs give everyone one; a save without them gets them at load', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: ['debt', 'enemy', 'secret'] });
   const r = await page.evaluate(() => {
@@ -1419,10 +1407,6 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
     const T = G.data.TOWN_DATA;
     const st = G.state;
     const infer = ['A woman in a red coat', "Dewayne's wife", 'her husband', 'his wife', 'the night clerk', 'A man with a bitter look about them.', 'mother of two', 'an old guy', 'she said so'].map(G.inferPronouns);
-    // The tables: someone known to be she gets a first name that fits and a look in her words; a name or a role decides when nothing else does.
-    const women = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ noun: 'woman' }, G.Rng.create(i + 1)));
-    const men = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ role: 'husband of the cook' }, G.Rng.create(i + 1)));
-    const anyone = Array.from({ length: 30 }, (_, i) => G.Tables.npc({}, G.Rng.create(i + 1)));
     G.State.apply({ addNpcs: [
       { id: 'npc_test_a', name: 'Test A', role: 'cook', look: 'A tall woman in an apron.' },
       { id: 'npc_test_b', name: 'Earl Test', role: 'cook', look: 'Tall, in an apron.' },
@@ -1441,9 +1425,7 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
     return {
       town: T.npcs.map(n => ({ id: n.id, pronouns: n.pronouns, look: n.look })), inState: st.npcs.map(n => [n.id, n.pronouns, n.look]),
       looseIds: st.player.looseEnds.filter(le => le.created).map(le => le.npcId),
-      infer, women: women.map(n => [n.pronouns, n.name, n.look, G.namePronouns(n.name)]), men: men.map(n => [n.pronouns, G.namePronouns(n.name)]),
-      anyone: anyone.map(n => [n.pronouns, G.namePronouns(n.name), n.look]),
-      added, bad, loaded, label: [G.pronounLabel('she'), G.pronounLabel('he'), G.pronounLabel('they'), G.pronounLabel(undefined)]
+      infer, added, bad, loaded, label: [G.pronounLabel('she'), G.pronounLabel('he'), G.pronounLabel('they'), G.pronounLabel(undefined)]
     };
   });
   for (const n of r.town) {
@@ -1454,16 +1436,6 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
   for (const n of r.town) assert.equal(r.inState.find(x => x[0] === n.id)[1], n.pronouns, 'a new game carries the town pronouns: ' + n.id);
   assert.deepEqual(r.looseIds, [], 'a loose end makes nobody: it is someone in the cast, with the cast\'s pronouns');
   assert.deepEqual(r.infer, ['she', 'she', 'he', 'she', 'they', 'he', 'she', 'he', 'she']);
-  for (const [p, name, look, byName] of r.women) {
-    assert.equal(p, 'she');
-    assert.notEqual(byName, 'he', 'a first name that fits: ' + name);
-    assert.match(look, /^A woman with an? .+ look about her\.$/, look);
-  }
-  for (const [p, byName] of r.men) { assert.equal(p, 'he'); assert.notEqual(byName, 'she'); }
-  for (const [p, byName, look] of r.anyone) {
-    assert.equal(p, byName || 'they', 'nothing else said: the name decides');
-    assert.ok(look.endsWith(`look about ${{ he: 'him', she: 'her', they: 'them' }[p]}.`), look);
-  }
   assert.deepEqual(r.added, ['she', 'he', 'they', 'she'], 'addNpcs: the pronouns given, else the look, else the first name, else they');
   assert.match(r.bad[0], /pronouns must be he, she or they/);
   for (const n of r.town) assert.equal(r.loaded.find(x => x[0] === n.id)[1], n.pronouns, 'loaded: the town pronouns for ' + n.id);

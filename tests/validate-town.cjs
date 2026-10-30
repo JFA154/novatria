@@ -1049,7 +1049,6 @@ const firstNames = npcs.filter((n) => n && typeof n.name === 'string').map((n) =
   return parts.length > 2 ? parts[1] : parts[0]; // skip a title such as "Pastor" or "Miss"
 });
 firstNames.forEach((f) => { if (seenFirst.has(f)) err('TOWN_DATA.npcs', 'two NPCs share the first name "' + f + '"'); seenFirst.add(f); });
-const castFamilyNames = new Set(npcs.filter((n) => n && typeof n.name === 'string').map((n) => n.name.split(/\s+/).slice(-1)[0]));
 for (const t of REQUIRED_TAGS) if (!tagSet.has(t)) err('TOWN_DATA.npcs', 'no NPC has the required tag "' + t + '"');
 if (connectedSecrets < Math.ceil(npcs.length / 2)) err('TOWN_DATA.npcs', 'only ' + connectedSecrets + ' secrets mention another NPC or a faction; need at least half');
 
@@ -1139,7 +1138,7 @@ if (trueCount !== 7 || falseCount !== 3) err('TOWN_DATA.rumours', 'need exactly 
 // 6. TABLES
 // ---------------------------------------------------------------------------
 const TABLE_SPEC = {
-  npc: { firstNames: 30, familyNames: 30, occupations: 30, traits: 30, wants: 20, speechQuirks: 20 },
+  npc: { firstNames: 30, occupations: 30 },
   location: { types: 15, details: 20, problems: 15 },
   items: { goods: 40, trinkets: 20 },
   complications: 20,
@@ -1177,9 +1176,6 @@ if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
     }
     if (group === 'npc' && Array.isArray(TABLES.npc.firstNames)) {
       TABLES.npc.firstNames.forEach((f) => { if (seenFirst.has(f)) err('TABLES.npc.firstNames', '"' + f + '" is already a cast first name'); });
-    }
-    if (group === 'npc' && Array.isArray(TABLES.npc.familyNames)) {
-      TABLES.npc.familyNames.forEach((f) => { if (castFamilyNames.has(f)) err('TABLES.npc.familyNames', '"' + f + '" is already a cast family name'); });
     }
   }
 }
@@ -1429,10 +1425,7 @@ function checkExamples(W) {
   npcs.forEach((n) => n && addName(n.name));
   locations.forEach((l) => l && addName(l.name));
   factions.forEach((f) => f && addName(f.name));
-  if (isObj(TABLES) && isObj(TABLES.npc)) {
-    (TABLES.npc.firstNames || []).forEach(addName);
-    (TABLES.npc.familyNames || []).forEach(addName);
-  }
+  if (isObj(TABLES) && isObj(TABLES.npc)) (TABLES.npc.firstNames || []).forEach(addName);
   const townText = [];
   (function walk(v) {
     if (typeof v === 'string') townText.push(v);

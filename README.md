@@ -14,7 +14,8 @@ news spreads.
 
 1. Open `index.html` in a browser. It is one self-contained file, so it works
    straight from disk (`file://`) or from any static host. No build step, no
-   server.
+   server (the file is built from `src/` and `content/` when the game is
+   changed, and committed built; see Editing the town).
 2. **Settings → API key**: paste an Anthropic API key from
    [console.anthropic.com](https://console.anthropic.com). The browser calls
    `https://api.anthropic.com/v1/messages` directly with your key. Nothing goes
@@ -211,7 +212,7 @@ defence went. The quiet roll line shows it like any roll.
 ## The cast
 
 Everyone who can appear in Lockett's Ferry is written by hand: 41 people in
-`TOWN_DATA` in `index.html`, in households (the Mangums, the Pittmans, the
+`TOWN_DATA` in `content/town.js` (built into `index.html`), in households (the Mangums, the Pittmans, the
 Deeses at the parsonage, the Overstreets, the Gentrys, the Haskins farm, the
 Lotts' trailer, the Sturdivant house, the motor court's long-stay rooms) and
 the regulars, staff and loose-end people around them: a dispatcher, a
@@ -631,7 +632,7 @@ the old kind: long play-by-play accounts of whole scenes.
 
 Behind the scenes a save carries `state.meta.rulesVersion` (7 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
-`Upgrade.MIGRATIONS` in `index.html`.
+`Upgrade.MIGRATIONS` (`src/60-upgrade.js`).
 
 ## What a turn costs
 
@@ -758,19 +759,43 @@ input / output tokens ($0.20 cache read), Haiku 5.5 at $0.10 / $0.50.
 
 ## Editing the town
 
-The whole town lives in `index.html` between the markers
-`// ===== BEGIN CONTENT =====` and `// ===== END CONTENT =====`: `TOWN_DATA`
-(places, people, factions and their clocks, threads, seeds, rumours), `TABLES`
-(random tables), `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`,
-`FAVOUR_TEMPLATES` and `JOBS` (the paid work; see Work). It is plain data
-with double-quoted strings. The shape is
-in `docs/BUILD_PLAN.md` under "Shared data contract". After editing, run:
+The game is one file, `index.html`, but nobody edits that file by hand: it
+is built from parts by `build.cjs` (plain node, no dependencies), and the
+built file is committed, so playing still needs nothing but the file.
 
 ```
+src/head.html            the document head, the CSS, the body markup, the start of the page script
+content/town.js          the town and the character-creation data
+src/10-style-guides.js   the narrator's two style guides and their example turns
+src/15-helpers.js        constants and helpers every module uses
+src/20-rng.js to         one file per module: Rng, Dice, Tables, State, Town, World,
+  src/85-app.js          Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App
+src/90-game.js           the one global (window.Game) and the boot
+src/tail.html            the end of the page script and of the document
+```
+
+The engine files are joined in the order of their numbers (`docs/BUILD_PLAN.md`,
+"Repository layout", lists them all), so a new module is a new numbered file.
+
+The whole town lives in `content/town.js` (in `index.html` it sits between
+the markers `// ===== BEGIN CONTENT =====` and `// ===== END CONTENT =====`):
+`TOWN_DATA` (places, people, factions and their clocks, threads, seeds,
+rumours), `TABLES` (goods and their prices, trinkets, complications, the
+weather, what a minor place made in play looks like, and first names and
+jobs that mark someone the player asks for as a person), `BACKGROUNDS`,
+`FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES` and `JOBS`
+(the paid work; see Work). It is plain data with double-quoted strings. The
+shape is in `docs/BUILD_PLAN.md` under "Shared data contract". After
+editing, build the page and check it:
+
+```
+node build.cjs                  # writes index.html from src/ and content/
 node tests/validate-town.cjs
 ```
 
-It checks every field and cross-reference: ids, symmetric exits, schedules,
+The check reads the built `index.html`, the file the player gets, and
+refuses one that is not the build of the parts ("run node build.cjs"), so a
+forgotten build cannot pass. It checks every field and cross-reference: ids, symmetric exits, schedules,
 clock effects, seed effects (a known op, ids that exist, a `visit` only by
 someone in town, a `placeItem` thing with a short lower-case name) and seed
 triggers, and for the cast: unique ids and names,
@@ -797,6 +822,12 @@ node tests/cast-doc.cjs --check   # exits 1 when docs/CAST.md is out of date (th
 
 A game already in progress keeps the town it started with.
 
+The engine is edited the same way: change the module's file in `src/`,
+then run `node build.cjs`. `node build.cjs --check` exits 1 and names the
+first line that differs when `index.html` is not what the parts build (a
+hand edit to `index.html`, or a part changed without a rebuild); the
+constraints suite runs it.
+
 ## Running the tests
 
 ```
@@ -806,8 +837,10 @@ TEST_FILTER='\[4\]' node tests/acceptance.test.cjs     # tests whose title match
 PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playtest's story
 ```
 
-The tests drive the game in headless Chromium with Playwright, in mock mode,
-from `file://`, with the network blocked. Playwright is preinstalled in the
+The tests drive the built `index.html` in headless Chromium with
+Playwright, in mock mode, from `file://`, with the network blocked. Run
+`node build.cjs` after changing anything in `src/` or `content/`: the town
+check and the constraints suite fail on a stale build. Playwright is preinstalled in the
 build environment. Elsewhere, run `npm i playwright` and
 `npx playwright install chromium` in this folder first. There is no
 `package.json` and nothing else to install.
@@ -818,7 +851,9 @@ build environment. Elsewhere, run `npm i playwright` and
   timing), the cost estimate, and the mock parser rules.
 - `tests/mobile.test.cjs`: 375x740 and 390x844 checks for tap targets, input
   size, overflow and safe areas, the narrator strip included.
-- `tests/constraints.test.cjs`: the single-file rules.
+- `tests/constraints.test.cjs`: the single-file rules, and that `index.html`
+  is the build of `src/` and `content/` (`node build.cjs --check`, which
+  catches a hand edit).
 - `tests/upgrade.test.cjs`: updating an older game (rules version, the
   Update buttons, the memory rewrite, the places re-read, the clock check,
   people matching the story and the full cast, in mock mode and against
@@ -903,6 +938,15 @@ nineteenth, `work` (taking paid work on offer, `JOBS`), and the parser's
 message a WORK ON OFFER HERE line. Section 7's fights are still a roll at a
 time, but they no longer start only with the player: the `fight` effect
 (one of the grudges) brings someone to the player, who defends with might.
+
+And from `docs/BUILD_PLAN.md` ("Direction changes, second round", 17):
+SPEC.md section 2 asks for one self-contained `index.html` with no build
+step, and section 4 for `TOWN_DATA` near the top of that file so the owner
+can edit it by hand. The player still gets one self-contained file that
+needs no build to play, but the file is now built from parts (`src/` and
+`content/town.js`) by `build.cjs` and committed built: the town is edited
+by hand in `content/town.js`, then `node build.cjs` puts it into the page.
+Editing a 15,000-line file was the main cost of every change.
 
 ## Verified against the live API on 28 Oct 2026
 

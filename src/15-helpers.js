@@ -19,7 +19,6 @@ const REVEALED_KINDS = ['home', 'business', 'spot', 'other'];
    story names). The packets and the People card show the label. */
 const PRONOUNS = ['he', 'she', 'they'];
 const PRONOUN_LABELS = { he: 'he/him', she: 'she/her', they: 'they/them' };
-const PRONOUN_OBJECT = { he: 'him', she: 'her', they: 'them' };
 /* People someone in the story names (State.apply peopleRevealed, proposed by
    the bookkeeper's record_changes): what kind of person, and how a person
    came to be in the game (npc.created.by; town people have no created,
