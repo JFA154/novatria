@@ -1730,7 +1730,9 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
     if (checkKeys(le.seed, ['dayOffset', 'effect', 'trigger'], where + '.seed')) {
       checkDayOffset(le.seed.dayOffset, where + '.seed.dayOffset', 2, 15);
       checkStr(le.seed.effect, where + '.seed.effect', { maxSentences: 1 });
-      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}', '{player}']);
+      // Told to the player as it happens to them: the person by {npc}, the player as "you" (the narrator and the mock tell a due event in the second person).
+      checkPlaceholders(le.seed.effect, where + '.seed.effect', ['{npc}']);
+      if (typeof le.seed.effect === 'string' && (/\{player\}/.test(le.seed.effect) || !/\byou(r)?\b/.test(le.seed.effect))) err(where + '.seed.effect', 'a loose end happens to the player: write it to "you", not {player}');
       if (['day', 'location', 'npc'].indexOf(le.seed.trigger) === -1) err(where + '.seed.trigger', 'must be "day", "location" or "npc"');
       // Content note 4: loose-end seeds use day triggers counted from day 1.
       else if (le.seed.trigger !== 'day') err(where + '.seed.trigger', 'loose-end seeds use "day"');

@@ -563,4 +563,155 @@ s.test('rumours spread: a teller knows a starting rumour; after day 2 a gossip a
   assert.equal(r.plainDay3, 0);
 });
 
+// ----- Wave 2 (docs/notes/prompts.md, "Wave 2") -----
+
+s.test('wave 2, Style.check: brands and regional words are not invented names; a lone unknown capitalised word is soft (noted, never a paid rewrite) unless something marks it as a person or a place', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const S = Game.Style;
+    const names = t => S.check(t, { packet: '', style: 'casual' }).problems.filter(p => p.type === 'name').map(p => (p.hard ? 'HARD ' : 'soft ') + p.names.join(','));
+    const review = ['Royce sets a Mountain Dew on the counter.', 'Loretta pours you a Dr Pepper.', 'Loretta grabs a Dr. Pepper.', 'Royce pushes back his John Deere cap.', 'Wade spits Skoal into a cup.',
+      'Dewayne flicks a Bic lighter.', 'Kaylee drinks a Sprite.', 'He came up from the Delta.', 'Loretta keeps tips in a Mason jar.', 'The Saints lost again.', 'Royce talks about the Ole Miss game.'];
+    return {
+      review: review.map(t => [t, names(t)]),
+      lone: names('Royce hands you a Yoo-hoo from the cooler.'),
+      startLone: names('The Shack is closed on Sundays.'),
+      pair: names('Royce opens a Coke Zero.'),
+      invented: names('Earl Hux leans on the counter. "Ask Bobby," he says.'),
+      title: names('Miss Earline waves from the porch.'),
+      kin: names('Royce mentions his cousin Darnell.'),
+      place: names('Down at the Shack they serve catfish.'),
+      possessive: names('You could try Earl\'s place.'),
+      speech: names('Loretta says Bobby nods at you.'),
+      vocative: names('"Hey, Bobby," Royce says.'),
+      firm: names('Royce works for Tri-State Gas now.'),
+      softOnly: S.check('Royce hands you a Yoo-hoo from the cooler.', { packet: '' }),
+      phrases: S.BRAND_PHRASES.includes('Mountain Dew') && S.NAME_ALLOW.has('Skoal') && !S.NAME_ALLOW.has('Wendy')
+    };
+  });
+  for (const [t, p] of r.review) assert.deepEqual(p, [], t);
+  assert.deepEqual(r.lone, ['soft Yoo-hoo'], 'a brand nobody listed: soft');
+  assert.deepEqual(r.startLone, ['soft Shack'], '"The X" at a sentence start: one word, soft');
+  assert.deepEqual(r.pair, ['soft Zero'], 'a known brand beside an unknown word: soft');
+  assert.deepEqual(r.invented, ['HARD Earl,Hux,Bobby'], 'two unknown words together, and a name after "Ask"');
+  for (const k of ['title', 'kin', 'place', 'possessive', 'speech', 'vocative', 'firm']) assert.match(String(r[k]), /^HARD /, k + ': ' + r[k]);
+  assert.equal(r.softOnly.hard, false, 'no paid rewrite for a lone brand');
+  assert.equal(r.softOnly.ok, false, 'but it is noted');
+  assert.match(r.softOnly.problems[0].detail, /capitalises a word the town does not have \(fine for a brand or a thing, not for a person or a place\): Yoo-hoo/);
+  assert.ok(r.phrases, 'brands and phrases are listed; a brand that is also a first name is not');
+});
+
+s.test('wave 2, mock parser: a walk names a place, never the person in its name; an undiscovered home is asked about, not walked to; walking where you are is a look; watching is not a walk; /fact never takes a family name alone', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['debt', 'secret', 'promise'] });
+  await fast(page);
+  const parse = (text, opts) => page.evaluate(async ([text, opts]) => {
+    const fact = opts && opts.fact;
+    const pk = Game.Pipeline.parsePacket(text, fact ? { mode: 'fact' } : { speech: { mode: 'do' } });
+    const r = (await Game.Api.Mock.parse(pk)).result;
+    return { a: r.actionType, d: r.destinationId, t: r.targets, tc: r.timeCost };
+  }, [text, opts || null]);
+  await place(page, 'loc_low_water');
+  assert.deepEqual(await parse("I walk to Pittman's"), { a: 'move', d: 'loc_pittmans', t: [], tc: 'short' }, 'the station, not Royce Pittman');
+  assert.deepEqual(await parse("back to Pittman's"), { a: 'move', d: 'loc_pittmans', t: [], tc: 'short' });
+  assert.deepEqual(await parse('I go to Riverbend'), { a: 'move', d: 'loc_riverbend', t: [], tc: 'short' }, 'a place by its other name');
+  assert.deepEqual(await parse("I walk over to Hollis's pawn shop"), { a: 'move', d: 'loc_byrds_pawn', t: [], tc: 'short' }, 'nobody looked for in an owner\'s possessive');
+  assert.deepEqual(await parse('I walk to Sturdivant House'), { a: 'move', d: 'loc_sturdivant_house', t: [], tc: 'short' }, 'Vada is not asked for');
+  // Homes nobody has told the player about: the move names the home, and the engine says to ask around.
+  assert.equal((await parse('I walk to the Pittman Place')).d, 'loc_pittman_place');
+  assert.equal((await parse("I walk to Dewayne's house")).d, 'loc_mangum_house');
+  assert.equal((await parse("I go to Royce's place")).d, 'loc_pittman_place');
+  assert.equal((await parse("I walk to Tammy's trailer")).d, 'loc_lott_trailer');
+  assert.deepEqual(await parse('I walk to the Low Water'), { a: 'look', d: null, t: [], tc: 'instant' }, 'already here: a look');
+  assert.deepEqual(await parse('I watch who comes and goes'), { a: 'look', d: null, t: [], tc: 'short' }, 'watching is a look that takes a while');
+  assert.deepEqual((await parse('Dewayne Mangum owes me fifty dollars', { fact: true })).t, ['npc_dewayne'], 'not Mavis Mangum too');
+  const r = await page.evaluate(async () => {
+    const before = Game.state.meta.turn;
+    const at = Game.state.player.locationId;
+    await Game.Pipeline.submit("I walk to Dewayne's house", { mode: 'do' });
+    const notices = [...document.querySelectorAll('#feed .f-notice')].map(n => n.textContent);
+    return { notice: notices[notices.length - 1] || '', turn: Game.state.meta.turn - before, still: Game.state.player.locationId === at };
+  });
+  assert.match(r.notice, /You don't know where that is yet\. Ask around\./);
+  assert.deepEqual([r.turn, r.still], [0, true], 'nothing spent, nobody moved');
+  // A real walk to the station: no "Royce Pittman is not here" on the way.
+  await sendText(page, "I walk to Pittman's");
+  const walk = await page.evaluate(() => ({ at: Game.state.player.locationId, text: Game.state.log[Game.state.log.length - 1].narration }));
+  assert.equal(walk.at, 'loc_pittmans');
+  assert.doesNotMatch(walk.text, /is not here/);
+  await sendText(page, "I walk to Pittman's");
+  const stay = await page.evaluate(() => Game.state.log[Game.state.log.length - 1].narration);
+  assert.match(stay, /^You take in Pittman's Gas and Service\./, 'walking to where you are: a look');
+  assert.doesNotMatch(stay, /do not find it/);
+});
+
+s.test('wave 2, mock narration: no "null" on a card game, no game without a dollar, a barred door is a ban, the answer survives arrivals and a roll, due events told to "you", and the chronicle never cuts a quote mid-word', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page, { kinds: ['debt', 'secret', 'promise'], bgIndex: 5 });
+  await fast(page);
+  const last = () => page.evaluate(() => Game.state.log[Game.state.log.length - 1].narration);
+  await place(page, 'loc_low_water', 'evening');
+  // Partial and failed hands: the tier line never says "null".
+  for (const d of [11, 3]) {
+    await page.evaluate(d => Game.Pipeline.forceNextRoll(d), d);
+    await sendText(page, 'I bet $20 at cards');
+    const t = await last();
+    assert.doesNotMatch(t, /\bnull\b/, t);
+    assert.match(t, /At Curtis Pruett's (Friday game at the back table|table), you (come out \$\d+ ahead|lose \$\d+|break even)/, t);
+  }
+  // No money: no game.
+  await page.evaluate(() => Game.State.apply({ goldDelta: -Game.state.player.gold }));
+  await sendText(page, 'I bet $20 at cards');
+  const broke = await last();
+  assert.match(broke, /You don't have a dollar to put up, so there is no game for you tonight\./, broke);
+  assert.doesNotMatch(broke, /you are in|dealt into/);
+  // Barred from a place: not "shut".
+  await place(page, 'loc_pittmans');
+  await page.evaluate(() => Game.State.apply({ effects: [{ op: 'banFrom', locationId: 'loc_low_water', days: 3, byNpcId: 'npc_curtis' }] }));
+  await sendText(page, 'I walk to the Low Water');
+  const barred = await last();
+  assert.match(barred, /You make your way to the Low Water, but you are not welcome there until day \d+\./, barred);
+  // Say: someone arrives and the plea rolls, and the answer is still told, before the arrival.
+  const who = await page.evaluate(() => {
+    const st = Game.state;
+    const S = Game.State;
+    const open = l => !l.away && l.discovered !== false && !l.closed && !(typeof S.isBanned === 'function' && S.isBanned(l.id)) && !(typeof S.isClosed === 'function' && S.isClosed(l));
+    const spot = st.locations.find(l => open(l) && S.npcsAt(l.id).length);
+    S.apply({ playerLocationId: spot.id });
+    const here = S.npcsAt(st.player.locationId)[0];
+    const away = st.npcs.find(n => Game.presenceOf(n) === 'here' && n.status === 'free' && !Game.State.npcsAt(st.player.locationId).includes(n));
+    Game.State.apply({ visits: [{ npcId: away.id, locationId: st.player.locationId }], sceneChange: { locationId: st.player.locationId, arrived: [away.id], left: [], cause: 'turn' } });
+    return { id: here.id, name: here.name, came: away.name };
+  });
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(15));
+  const said = await page.evaluate(async id => { await Game.Pipeline.submit('Please, help me out here.', { mode: 'say', to: id }); return Game.state.log[Game.state.log.length - 1].narration; }, who.id);
+  assert.match(said, /roll, /, said);
+  assert.ok(said.includes(`${who.name} answers you first.`) && said.includes(`${who.name} says, "`), said);
+  assert.ok(said.indexOf(`${who.name} says, "`) < (said.indexOf(`${who.came} arrive`) >>> 0), 'the answer before the arrival: ' + said);
+  // A due event written about the player by name is told to them.
+  await page.evaluate(() => {
+    const name = Game.state.player.name;
+    Game.State.apply({ effects: [{ op: 'plantSeed', seed: { id: 'seed_test_you', cause: 'A test.', effect: `Royce Pittman walks up to ${name}, reads ${name}'s name off a folded paper, and says ${name} is welcome back any time.`, trigger: { type: 'day', value: 1 }, fired: false, hidden: true } }] });
+    Game.World.fireSeeds({});
+  });
+  await sendText(page, 'I wait a minute');
+  const due = await last();
+  assert.match(due, /walks up to you, reads your name off a folded paper, and says you are welcome back any time\./, due);
+  // The chronicle: quotes end on a whole word, and nothing is cut inside them.
+  const chron = await page.evaluate(async () => {
+    const input = 'Do you know who sold Amber Lott the pills that killed her last August, out at Riverbend, and why nobody did a thing?';
+    const entries = Array.from({ length: 6 }, (_, i) => ({ turn: i + 1, day: 2, phase: 'evening', input, mode: 'say', to: 'npc_loretta', toName: 'Loretta Gaddis', narration: 'x' }));
+    return { input, text: (await Game.Api.Mock.chronicle(entries)).result };
+  });
+  const quotes = chron.text.match(/"[^"]*"/g) || [];
+  assert.ok(quotes.length >= 1, chron.text);
+  for (const q of quotes) {
+    const inner = q.slice(1, -1).replace(/…$/, '');
+    assert.ok(chron.input.startsWith(inner), q);
+    assert.match(chron.input.slice(inner.length), /^([\s,.?!]|$)/, 'cut at a word: ' + q);
+  }
+  assert.equal((chron.text.match(/"/g) || []).length % 2, 0, 'no quote left open');
+});
+
 s.run();

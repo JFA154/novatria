@@ -314,3 +314,101 @@ household relation either way) 1. News: own 5, mate or gossip (tag
   "If you can, also fix").
 - The mock's Say reply answers in the person's own words before it passes on
   a rumour (the rumour takes the greeting's place).
+
+## Wave 2 (the QA playtest and the second review)
+
+Region: the Style module and the mock provider. Tests:
+`tests/prompts-fixes.test.cjs` (three new tests).
+
+### Style: brands are not invented people (review item 7)
+
+- `NAME_ALLOW` gains the brands and regional words a narrator reaches for
+  (Skoal, Copenhagen, Bic, Zippo, Sprite, Gatorade, Narcan, Wranglers,
+  Carhartt, Evinrude, Kubota, Hardee's, Sonic, Kroger, Delta, Ozarks, Dixie,
+  Mason, Saints, Razorbacks, Talladega, Opry ...), and `BRAND_PHRASES` the
+  ones of two or more words, known only whole ("Mountain Dew", "Dr Pepper",
+  "John Deere", "Ole Miss", "Piggly Wiggly", "Dollar General", "Jack
+  Daniel's", "Moon Pie", "Crimson Tide", "Bass Pro" ...). "Dr. Pepper"
+  reads as "Dr Pepper". Brands that are also first names (Wendy, Winston,
+  Harley) stay out, so "Wendy says" is still caught.
+- `Style.nameHits(text)` (exported, like `unknownNames`) gives every unknown
+  capitalised word with `marked`: true when something marks it as a person
+  or a place, else false. Marks: a title or kin word before it ("Miss
+  Earline", "his cousin Darnell"), a place or person word before it, with
+  or without "the" ("at the Shack", "to Earl", "ask Bobby", "hey, Bobby"), a
+  possessive ("Earl's place"), a speech or gesture verb after it ("Bobby
+  nods", "Hux says"), or another unknown capitalised word beside it ("Earl
+  Hux", "Tri-State Gas"). A sentence start is still an ordinary word unless
+  an unknown capitalised word follows it; ordinary sentence openers ("The",
+  "His", "Somebody") never count as the unknown word beside one, so "The
+  Shack is closed" is one lone word.
+- `Style.check`: marked words are the hard "names someone or somewhere that
+  does not exist" (a rewrite); lone ones a soft "capitalises a word the
+  town does not have (fine for a brand or a thing, not for a person or a
+  place)" (logged, kept). The rewrite note's NAME_FIX rides only on a hard
+  one.
+
+### Mock parser (demo only)
+
+- Walks name places, never the people in their names. `mockPlace` finds the
+  longest of every name, map label and other name of a place in town,
+  found or not (a home nobody has told the player about is still that
+  home), a business by its possessive ("Pittman's", "Byrd's"), a home by
+  the possessive of someone who lives there ("Dewayne's house", "Royce's
+  place", "Dewayne's" at the end of the words), else a kind of place; the
+  words of the place it found (and an owner's possessive before them:
+  "Hollis's pawn shop") are blanked before anyone is looked for. So "I walk
+  to Pittman's" goes to the station (not "Royce Pittman is not here"), "I
+  walk to Sturdivant House" does not ask for Vada, and "I walk to Dewayne's
+  house" parses as a move to the undiscovered Mangum House, which the
+  engine answers with "You don't know where that is yet. Ask around."
+  (nothing spent). "back to" is a walk.
+- Walking to where the player already is: a look (instant), not "You look
+  for the way there and do not find it".
+- "I watch who comes and goes" (watch, observe, keep an eye on): a look that
+  takes a short, never a move.
+- Names: a person is named by their full name or their first name, never by
+  the family name alone (`personNames`, `surnameOnly`; a title before it,
+  "Mrs. Pittman", still counts): `/fact Dewayne Mangum owes me fifty
+  dollars` links Dewayne only, not Mavis Mangum.
+- Say mode with nobody to hear a plea: talk, no Charm roll (the parser half
+  of B17; the engine's `resolve` still rolls a social action with no target
+  present).
+
+### Mock narration (demo only)
+
+- `MOCK_TIER`: a roll without a complication (the card game's) says "it
+  works, but not all the way" or "it does not work", never "null" (B16).
+- The card game as the engine dealt it (`ctx.gamble`): no game and why ("You
+  don't have a dollar to put up, so there is no game for you tonight.",
+  nobody dealing, no game here), or "At Curtis Pruett's table, you lose
+  $20." (on a Friday with Curtis dealing, "his Friday game at the back
+  table"), and the cheating throw-out.
+- A walk to a place the player is barred from: "but you are not welcome
+  there until day N" (from `destination.why`); a place shut for the day:
+  "but it is shut on Sundays".
+- Say mode: the answer (who answers first and what they say, and a rumour
+  passed on) comes before anyone arriving or leaving and is never the line
+  cut; the greeting and the others' reaction only when there is room; four
+  lines in Say mode (three otherwise) less the due events.
+- Due events are told to the player: `secondPerson` turns the player's name
+  into "you" and "your" ("walks up to you, reads your name"), puts a
+  subject "you" with the plain verb ("the way you stand", "you are") and
+  leaves an object alone ("watches you shuffle").
+- A due event too long for the limit shrinks to its first sentence (the
+  council's count is in it) before its first clause.
+- The chronicle cuts at a whole word with "…" and keeps whole items: a
+  quote is never cut mid-word or left open (no more "who sold Ambe" in
+  STORY SO FAR).
+
+### Needs from others
+
+- Two tests outside the prompts region compare a due event's text with the
+  mock narration word for word (`acceptance.test.cjs` [5], `world.test.cjs`
+  "the debt loose end ... is in the narration"). Content wrote the loose-end
+  seeds in the second person ("{npc} walks up to you, reads your name"), so
+  those stay verbatim; a due event written with the player's name (a
+  background hook, a template, an engine line) is now told as "you" by the
+  mock.
+- B17's engine half: `Pipeline.resolve` rolls no social action whose target
+  is not present.

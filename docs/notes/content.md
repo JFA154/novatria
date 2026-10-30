@@ -425,3 +425,164 @@ transport:
   live in town, no repeats).
 - `GOAL_PRESETS` is on `Game.data`.
 - The validator no longer reads `TABLES.npc.familyNames` (gone).
+
+## Wave 2 (the QA playtest and the second review)
+
+Items: B9 and B18 (content halves), §3.3 and §3.4, the ending's threads and
+aftermath, the council's weighting, pronouns in seed texts, Curtis's Friday
+game. All data in the content block, checked by `tests/validate-town.cjs`,
+tested in `tests/content.test.cjs` (three new tests, two changed).
+
+### The council meeting counts who is free (B9)
+
+- The five seats and how each votes: Jolene (downstream, end the police),
+  Lamar (downstream, keep the police), Hollis (in town, end the police),
+  Elbert (in town, keep the police), Royce the swing on both.
+- Every branch that counts votes names its voters in `when.npcFree`; the
+  branch right after each "all five" branch is the same outcome with
+  Hollis Byrd's chair empty (he is the one the police clocks can put in the
+  cell by Tuesday: 10% of passive games), with the count that makes:
+  bought alone passes downstream three to one but the police vote ties and
+  fails; the photographs alone tie two to two and go over; both abstentions
+  pass downstream two to one. The report-void branches chair the meeting
+  with "the mayor's chair empty" (four to nothing, or three to nothing with
+  Hollis's chair empty too). The default names nobody: "With empty chairs at
+  the table and nobody sure of the count", tabled, police kept. Carter and
+  Curtis are in `npcFree` of the branches that have them acting.
+- The validator refuses an event branch whose text has someone acting (a
+  full name or a name only they have, not an owner's possessive like
+  "Hollis Byrd's chair") who is not in its `npcFree`.
+
+### What decides it (the weighting)
+
+Order (first match): the report thrown out; Royce's attitude to the player
+at least 30 (he tables it, bought or turned); Curtis's card debt paid (he
+lets Royce's marker ride and Royce goes back on whatever he promised); a
+bought Royce at least 20 (he abstains: a tie); both bought and turned
+(abstains on everything); turned (in town, police ended); bought
+(downstream, police ended); Carter close (`clockAtLeast` 4: two more weeks);
+undecided. Each with its Hollis-out twin.
+
+The race to Royce is closer: the lease letter (day 3) and the big run when
+it goes (day 4) push the Night Run's photographs on (`clockAdjust +1`), and
+the engineer's no-show (day 4) sets Carter's money back (`-1`). Simulated
+over 80 passive games (seeds fired each phase, as turns fire them):
+downstream with the police ended 31% (was 70% over 40 games in the QA
+run), downstream with the police kept 15% (Hollis out), in town 19%,
+tabled 35%. With Royce at 20 no game ends downstream with the police ended;
+at 30 all 40 table it; with Curtis paid all 20 table it.
+
+Attendance is not yet a lever: the engine's conditions have no "the player
+is here" (see the engine needs below).
+
+### The ending (§3.3)
+
+- Only the default (which only day 21 reaches) says how long it has been
+  ("Three weeks in"); the branches a flag can bring early say nothing of
+  weeks, and the police "are finished at the end of the month" (the ending
+  comes by October 28). Jolene "has a court date in Clayburn" (true in the
+  cell or out of it). "The barriers are up" (not "still up": the ending can
+  come the tick they go up). "Carter Sturdivant has the closed bridge he
+  paid for" (not "his downstream site", which the council may not have
+  given him).
+- Branches: report void and police kept; report void and police ended;
+  closed and police ended; closed and Curtis's debt missed (Curtis free);
+  closed and Loretta at 40 (Loretta free); closed. Each sets
+  `thr_bridge_vote` and `thr_police_vote` resolved (the town kept it) or
+  failed (it lost it), with `knownToPlayer: true` and a summary. The
+  default leaves the bridge open and settles the police by a seed the next
+  day (`requires` the dissolution flag: failed; `alt`: resolved).
+- Each plants two or three aftermath seeds, so the town keeps moving: a
+  state crew under the bridge (day 23), Chief Bell turning to the pills at
+  Town Hall (Nikki if he is gone; makes the pills thread known), Carter
+  offering cash, the police office half packed, Wade planning the first run
+  without police, the deputy from Clayburn on the last day of October (day
+  24), Loretta asking who wants to buy a bar, Curtis calling the four
+  hundred square for two hundred, Royce's sign at Pittman's, Loretta's
+  stool, a public hearing in Clayburn, Elbert on the bench, the barriers
+  chained.
+- The validator: an epilogue branch may resolve a thread (only the ending:
+  clocks, seeds and events still may not); it must set a thread resolved or
+  failed, plant two or three seeds, and not say how long it has been; seeds
+  the ending plants may wait for a day from 21 to 30 (`ENDING_DAYS`), and
+  the ending must come by day 21.
+
+### The big run waits on the boats (§3.4)
+
+- "Catch a boat at the ramp" sets `boatsPulledUp` in both its outcomes (it
+  replaces `coltArrested` in the main one: nothing read it, Colt's arrest is
+  his status, and a completion holds five effects).
+- `seed_big_run` requires Chief Bell, Wade and Colt free and
+  `boatsPulledUp` unset; its alt: the cartons stacked in the bait shop and
+  the run not gone.
+- `seed_overdose`'s alt says Trent "has been selling Colt's pills for him"
+  (true with Trent in the cell too).
+
+### Obligations say what happens when they are missed (B18)
+
+- Every loose-end obligation has `missText`: the due event when its day
+  goes by, in place of "<name> came looking: <the task>". Debts: the
+  creditor came and took the phone, the cash, or the Low Water's door;
+  blackmail: the blackmailer has told Chief Bell and comes by to say so;
+  the letter: it is still in the pocket; the promises: the day came and
+  went.
+- `owedTo`: the person owed when it is not the person the loose end binds:
+  the letter and the daughter brought home are owed to Bernice Ogletree,
+  the look-in to Dale Purvis (both live elsewhere, so nobody comes looking).
+  The validator requires it on an errand.
+- The person owed remembers a miss: every `onMiss` has an `addMemory` for
+  them (new: the $400 default debt, the title loan Leon collected, the
+  blackmailer, the default promise).
+
+### Pronouns, "you", and the Friday game
+
+- Loose-end seeds no longer call the person "they": the enemy says "the
+  waiting is over", the lost-one lead says "there is something to tell".
+  Templates: a phone pulled out (not "their own phone"), an alibi for the
+  whole night (not "with them"), something going on in town (not "something
+  they saw"), "is a creep" (not "gives them the creeps").
+- The five loose-end seeds are told to the player: "{npc} walks up to you,
+  reads your name off a folded paper" (no `{player}`), so the due event
+  reads the same in the packet and the narration. The validator requires
+  "you" and refuses `{player}` there. Hooks and templates keep `{player}`
+  (the mock tells them as "you", see prompts.md).
+- Curtis's hook already named "his Friday night game at the back table of
+  the Low Water"; the mock deals the game there on a Friday ("At Curtis
+  Pruett's Friday game at the back table, ..."). A town event for the first
+  Friday was tried and left out: it adds a bookkept scene to a narrator-only
+  turn, which `tests/playtest.test.cjs`'s cost measure ("one bookkeeping
+  call per parsed turn") refuses, and town news every Friday is noise.
+
+### Engine needs (other agents)
+
+1. Attendance. `World.conditionsMet` (and `Town.validate`'s `checkWhen`)
+   gain `playerAt: "<locationId>"`: true when `State.current.player.
+   locationId === playerAt` when the condition is read (for an event, the
+   tick that fires it). For the council meeting it must be the player's
+   place at the start of that evening: a move that crosses into the evening
+   moves the player before `World.tick` fires the event. Content will then
+   add, before the bought branches, `{ playerAt: "loc_town_hall",
+   attitudeAtLeast: { npc_royce: 15 }, npcFree: [...] }` (Royce sees a
+   friendly face in the room) and its Hollis-out twin; the validator's
+   `checkWhen` adds the key.
+2. `missText` and `owedTo`. `Town.resolveLooseEnd` copies both into the
+   `addObligation` effect (`missText` filled like `text`; `owedTo` filled,
+   so "{npcId}" becomes the bound id; absent means the bound person).
+   `State` `addObligation` keeps them (`missText` cleaned to 300
+   characters; `owedTo` an npc id), and `validateShape`/import accept them.
+   `World.missedObligations`: the news line and the due event are
+   `o.missText` when set (else today's "came looking" line); the person
+   brought to the player is `owedTo`'s, only if free and living in town
+   (`presence` "here"); otherwise the due event is told with nobody
+   brought. `Upgrade`'s obligation copy (`anArc`) copies both too.
+3. The epilogue's `threadUpdate ... status: "resolved"` pays a story point
+   and the thread's reward (if known): content assumes that is wanted at the
+   ending. After the ending, the recap should say the story has reached an
+   ending rather than repeating.
+4. `TABLES.complications`: "{witness} recognizes you from somewhere"
+   contradicts the knowledge rule (nobody knew the player before day 1):
+   reword as "{witness} sees it, and will know your face from now on" or
+   drop it (the review's risk; the table is the engine's to change).
+5. B9's engine half: one news item per event (the branch text and its
+   `addNews` both land today), and news told in front of the player is not
+   told again overnight.

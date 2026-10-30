@@ -482,7 +482,7 @@ s.test('the clocks: staggered, each completion true in either order (requires an
 s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the clocks, the bought report, Royce\'s regard for the player and Curtis\'s debt, with the police vote as item four; the epilogue comes on day 21 or when the bridge is decided', async () => {
   const D = content();
   const T = D.TOWN_DATA;
-  assert.deepEqual(T.events.map(e => e.id), ['evt_friday_game', 'evt_council_meeting']);
+  assert.deepEqual(T.events.map(e => e.id), ['evt_council_meeting']);
   const ev = T.events.find(e => e.id === 'evt_council_meeting');
   assert.deepEqual([ev.id, ev.day, ev.phase, ev.locationId], ['evt_council_meeting', 6, 'evening', 'loc_town_hall']);
   const whens = ev.branches.map(b => b.when);
@@ -725,10 +725,16 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
   assert.equal(won.pillsAfter, true);
 });
 
-s.test('wave 2: the big run waits on the boats; people in seeds and templates get their own pronouns or a name; a missed obligation says what happens and errands are owed to whoever asked; Curtis\'s Friday game', async h => {
+s.test('wave 2: the big run waits on the boats; people in seeds and templates get their own pronouns or a name; a missed obligation says what happens and errands are owed to whoever asked; loose ends are told to "you"; Curtis\'s hook names his Friday game', async h => {
   const D = content();
   // Nobody bound to a loose end is "they" in its seed (Tammy, Lorna, Leon, Nadine...).
   for (const [k, le] of Object.entries(D.LOOSE_ENDS)) assert.doesNotMatch(le.seed.effect, /\b(they|their|them|themselves)\b/, k + ': ' + le.seed.effect);
+  // A loose end happens to the player: told to "you" (the due event reaches the narration as written).
+  for (const [k, le] of Object.entries(D.LOOSE_ENDS)) assert.ok(/\byou(r)?\b/.test(le.seed.effect) && !le.seed.effect.includes('{player}'), k + ': ' + le.seed.effect);
+  assert.equal(D.LOOSE_ENDS.debt.seed.effect, '{npc} walks up to you, reads your name off a folded paper with a number written under it, and says the money is due in three days.');
+  const tpl = validateEdited(html => once(html, 'effect: "{npc} finds you alone and says, low,', 'effect: "{npc} finds {player} alone and says, low,'));
+  assert.equal(tpl.status, 1);
+  assert.match(tpl.stderr, /a loose end happens to the player: write it to "you", not \{player\}/);
   const all = D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => t.effect).join('\n');
   for (const gone of ['on their own phone', 'was with them all night', 'something they saw', 'gives them the creeps']) assert.ok(!all.includes(gone), gone);
   // Every obligation says what happens when its day goes by, and an errand is owed to whoever asked.
@@ -751,13 +757,10 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   let r = validateEdited(html => once(html, '        owedTo: "npc_bernice",\n        missText: "The letter for', '        missText: "The letter for'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /an errand is owed to whoever asked for it/);
-  // Curtis Pruett's hook and the first Friday's game.
+  // Curtis Pruett's hook names his Friday night game at the back table (the mock deals it there on a Friday).
   const hook = D.BACKGROUNDS.find(b => b.id === 'bg_poker_hustler').hook;
   assert.equal(hook.npcId, 'npc_curtis');
   assert.match(hook.text, /his Friday night game at the back table of the Low Water/);
-  const fri = D.TOWN_DATA.events.find(e => e.id === 'evt_friday_game');
-  assert.deepEqual([fri.day, fri.phase, fri.locationId, fri.attendees], [2, 'evening', 'loc_low_water', ['npc_curtis', 'npc_royce']]);
-  assert.match(fri.branches[0].text, /^Curtis Pruett opens his Friday night game at the back table of the Low Water/);
 
   // Live: with the boats pulled up the big run does not go (its alt is told, and the Night Run gets no push).
   const page = await h.open();

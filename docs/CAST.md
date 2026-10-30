@@ -173,7 +173,7 @@ A man named Lockett ran a flatboat ferry across the Lusk here in the 1820s, and 
 * August 2026: Amber Lott died of an overdose at Riverbend at nineteen; her funeral filled Riverside Baptist.
 * September 2026: The council set its vote on the bridge site for its meeting on Tuesday, October 13.
 
-Day 1 is Thursday 8 October 2026, in the autumn. The town council: Royce Pittman, Jolene Overstreet, Hollis Byrd, Elbert Gentry, Lamar Haskins. On day 2, in the evening, at the Low Water: the Friday game. On day 6, in the evening, at Town Hall: the council meeting. The story's ending is told on day 21, or as soon as the bridge question is settled; then play goes on.
+Day 1 is Thursday 8 October 2026, in the autumn. The town council: Royce Pittman, Jolene Overstreet, Hollis Byrd, Elbert Gentry, Lamar Haskins. On day 6, in the evening, at Town Hall: the council meeting. The story's ending is told on day 21, or as soon as the bridge question is settled; then play goes on.
 
 ## Places
 
