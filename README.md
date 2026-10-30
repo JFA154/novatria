@@ -575,7 +575,8 @@ bridge) and whether you paid Curtis Pruett. A member in the holding cell does
 not vote, and every outcome settles the police vote too: one that keeps the
 police settles that story (Disbanding the police) at the meeting. Its
 Resolved line, its gain and the Journal's change come when you hear of the
-meeting: after the narration that tells it in front of you, or with the next morning's news.
+meeting: after the narration that tells it in front of you, or with the next
+morning's news.
 
 **The ending.** On day 21, or as soon as the bridge story is decided (the old
 bridge closes, or the state orders a second inspection), one turn tells how
