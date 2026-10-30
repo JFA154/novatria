@@ -10,7 +10,10 @@
 //     on the short ALLOW list below;
 //   - "the <place>" phrases for kinds of place (PLACE_NOUNS: the bluff, the
 //     county seat, the paper mill) that no place's name, map label or aka
-//     answers to.
+//     answers to;
+//   - phrases that put a person with no record in town (NOBODY: "two other
+//     boys", "pays two men", "the farmers", "a boy at Riverbend"): name a
+//     cast member instead, or let the person act alone.
 // The narrator's example turns are not scanned: they are from a different
 // town on purpose (content note 8), and tests/validate-town.cjs checks they
 // use no name from this one. Signs written in capitals are not names.
@@ -34,22 +37,38 @@ const PLACE_NOUNS = ['bluff', 'highway', 'bypass', 'bottomland', 'school', 'ceme
   'county seat', 'courthouse', "sheriff's office", 'garage', 'mill', 'interchange', 'water tower', 'penitentiary', 'prison', 'nursing home',
   'county home', 'coast', 'city', 'dry county', 'treatment program', 'treatment center', 'university', 'college', 'river road', 'street',
   'station', 'factory', 'plant', 'gin', 'diner', 'cafe', 'warehouse', 'airport', 'depot', 'marina', 'motel', 'jail'];
+// People the cast does not have: a crowd or a stranger in town who would
+// have to be made up (REVIEW section 4). A role names a recorded person, so
+// roles are not checked against this list.
+const NOBODY = [
+  /\b(two|three) other (boys|girls|men|women|kids|guys)\b/i,
+  /\ba couple of (kids|boys|men|guys)\b/i,
+  /\b(pays|hires|sends|gets) (two|three|some|a couple of) (men|boys|kids|guys)\b/i,
+  /\bthe (farmers|teenagers|old men|bass fishermen)\b/i,
+  /\bthe (sheriff's )?deputies (park|sit|run|come)\b/i,
+  /\bmen working timber\b/i,
+  /\ba (boy|girl|man|woman|kid) at Riverbend\b/i,
+  /\bthe night clerk\b/i,
+  /\bthe city doctor\b|\ba doctor in the city\b/i,
+  /\bthe consulting engineer Carter\b/i,
+  /\ba trucker left\b/i
+];
 // Fields that hold ids or codes, not prose.
-const SKIP_KEYS = new Set(['id', 'type', 'tags', 'pronouns', 'presence', 'status', 'op', 'key', 'anchor', 'arrival', 'relation', 'trigger', 'river', 'roads', 'bridges']);
+const SKIP_KEYS = new Set(['id', 'type', 'tags', 'pronouns', 'presence', 'status', 'op', 'key', 'anchor', 'arrival', 'relation', 'trigger', 'river', 'roads', 'bridges', 'flagsSet', 'flagsUnset', 'orFlagsSet', 'phases', 'kind']);
 
 function load(file) {
   const html = fs.readFileSync(file, 'utf8');
   const BEGIN = '// ===== BEGIN CONTENT =====';
   const END = '// ===== END CONTENT =====';
   const src = html.slice(html.indexOf(BEGIN) + BEGIN.length, html.indexOf(END));
-  return vm.runInNewContext(src + '\n;({ TOWN_DATA, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES })', {}, { filename: 'index.html#content', timeout: 5000 });
+  return vm.runInNewContext(src + '\n;({ TOWN_DATA, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS: typeof GOAL_PRESETS === "undefined" ? [] : GOAL_PRESETS })', {}, { filename: 'index.html#content', timeout: 5000 });
 }
 
 function strings(data) {
   const out = [];
   (function walk(v, where, key) {
     if (SKIP_KEYS.has(key) || /Id$|Ids$/.test(key || '')) return;
-    if (typeof v === 'string') { out.push([where, v]); return; }
+    if (typeof v === 'string') { out.push([where, v, key]); return; }
     if (Array.isArray(v)) { v.forEach((x, i) => walk(x, where + '[' + i + ']', key)); return; }
     if (v && typeof v === 'object') for (const k of Object.keys(v)) walk(v[k], where + '.' + k, k);
   })(data, 'content', null);
@@ -95,10 +114,11 @@ function unrecorded(data) {
   const found = [];
   const nameRe = K.names.map(n => new RegExp("(^|[^A-Za-z])" + esc(n) + "(?=('s|s'|')?(?![A-Za-z]))", 'g'));
   const nounRe = new RegExp("\\bthe\\s+((?:[a-z][a-z'-]*\\s+){0,3}?)(" + PLACE_NOUNS.map(esc).join('|') + ")(?![a-z])", 'gi');
-  for (const [where, raw] of strings(data)) {
+  for (const [where, raw, key] of strings(data)) {
     if (/^[a-z_]+$/.test(raw)) continue; // a code word
+    if (key !== 'role') for (const re of NOBODY) { const m = re.exec(raw); if (m) found.push({ where, kind: 'person', text: m[0], in: raw.slice(Math.max(0, m.index - 30), m.index + 50) }); }
     // A title's full stop does not end a sentence ("Mr. Sturdivant").
-    let s = raw.replace(/\{(npc|player)\}/g, 'someone').replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
+    let s = raw.replace(/\{(npc|player|playerName|npcId)\}/g, 'someone').replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
     for (const re of nameRe) s = s.replace(re, (m, pre) => pre + ' '.repeat(m.length - pre.length));
     const words = [...s.matchAll(/[A-Za-z][A-Za-z'-]*/g)];
     for (let i = 0; i < words.length; i++) {
@@ -121,7 +141,7 @@ function unrecorded(data) {
   return found;
 }
 
-module.exports = { unrecorded, known, load, ALLOW, CALENDAR, PLACE_NOUNS };
+module.exports = { unrecorded, known, load, ALLOW, CALENDAR, PLACE_NOUNS, NOBODY };
 
 if (require.main === module) {
   const file = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(__dirname, '..', 'index.html');

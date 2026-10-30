@@ -22,12 +22,22 @@ const vm = require('vm');
 const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(__dirname, '..', 'index.html');
 const BEGIN = '// ===== BEGIN CONTENT =====';
 const END = '// ===== END CONTENT =====';
-const EXPORT_NAMES = ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES'];
+const EXPORT_NAMES = ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES', 'GOAL_PRESETS'];
 // Optional: the guard the block carried as a stand-alone file. Harmless in the
 // browser; if present it must be the last line and is ignored by the checks.
-const END_BLOCK = "if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES }; }";
+const END_BLOCK = "if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS }; }";
 
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
+// The calendar (CONTRACTS section 1): weekday names for closedOn and awayOn.
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+const STATS = ['might', 'wits', 'charm', 'stealth'];
+// Goods and services (CONTRACTS section 7): what buying one does.
+const GOOD_KINDS = ['good', 'service', 'drink', 'food'];
+// Obligations (CONTRACTS section 4).
+const OBLIGATION_KINDS = ['debt', 'blackmail', 'promise', 'errand', 'lodging'];
+const OBLIGATION_STATUSES = ['met', 'missed'];
+const OBLIGATION_ID = /^obl_(debt|blackmail|promise|errand|lodging)_(npc_[a-z0-9_]+)$/;
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
 const THREAD_STATUSES = ['open', 'resolved', 'failed'];
 const TRIGGER_TYPES = ['day', 'location', 'npc', 'clock'];
@@ -46,7 +56,7 @@ const CASH_MIN = 20;
 const CASH_MAX = 400;
 const PREFIX = {
   location: 'loc_', npc: 'npc_', faction: 'fac_', thread: 'thr_', seed: 'seed_',
-  rumour: 'rum_', item: 'item_', background: 'bg_'
+  rumour: 'rum_', item: 'item_', background: 'bg_', event: 'evt_'
 };
 const SLUG = /^[a-z]+_[a-z0-9_]+$/;
 
@@ -395,14 +405,38 @@ threads.forEach((t, i) => registerId(t && t.id, 'thread', 'threads[' + i + ']'))
 seeds.forEach((s, i) => registerId(s && s.id, 'seed', 'seeds[' + i + ']'));
 rumours.forEach((r, i) => registerId(r && r.id, 'rumour', 'rumours[' + i + ']'));
 
+const events = Array.isArray(T.events) ? T.events : [];
+events.forEach((ev, i) => registerId(ev && ev.id, 'event', 'events[' + i + ']'));
+
+// Every effect list the town data holds, so ids made by effects (a rumour, a
+// seed, a thread) are known everywhere: clock completions and their
+// alternatives (CONTRACTS section 3), starting seeds' effects and
+// alternatives, the town events' branches (section 11) and the epilogue.
 const allEffects = []; // [where, effect]
+const pushEffects = (list, where) => { if (Array.isArray(list)) list.forEach((e, ei) => allEffects.push([where + '[' + ei + ']', e])); };
 factions.forEach((f, fi) => {
   if (!f || !Array.isArray(f.clocks)) return;
   f.clocks.forEach((c, ci) => {
-    const effs = c && c.onComplete && Array.isArray(c.onComplete.effects) ? c.onComplete.effects : [];
-    effs.forEach((e, ei) => allEffects.push(['factions[' + fi + '](' + f.id + ').clocks[' + ci + '].effects[' + ei + ']', e]));
+    const oc = c && isObj(c.onComplete) ? c.onComplete : {};
+    const cw = 'factions[' + fi + '](' + f.id + ').clocks[' + ci + ']';
+    pushEffects(oc.effects, cw + '.effects');
+    if (isObj(oc.alt)) pushEffects(oc.alt.effects, cw + '.alt.effects');
   });
 });
+seeds.forEach((s, si) => {
+  if (!isObj(s)) return;
+  pushEffects(s.effects, 'seeds[' + si + '](' + s.id + ').effects');
+  if (isObj(s.alt)) pushEffects(s.alt.effects, 'seeds[' + si + '](' + s.id + ').alt.effects');
+});
+events.forEach((ev, i) => {
+  if (!isObj(ev)) return;
+  (Array.isArray(ev.branches) ? ev.branches : []).forEach((b, bi) => { if (isObj(b)) pushEffects(b.effects, 'events[' + i + '](' + ev.id + ').branches[' + bi + '].effects'); });
+  if (isObj(ev.default)) pushEffects(ev.default.effects, 'events[' + i + '](' + ev.id + ').default.effects');
+});
+if (isObj(T.epilogue)) {
+  (Array.isArray(T.epilogue.branches) ? T.epilogue.branches : []).forEach((b, bi) => { if (isObj(b)) pushEffects(b.effects, 'epilogue.branches[' + bi + '].effects'); });
+  if (isObj(T.epilogue.default)) pushEffects(T.epilogue.default.effects, 'epilogue.default.effects');
+}
 for (const [where, e] of allEffects) {
   if (!isObj(e)) continue;
   if (e.op === 'openThread' && isObj(e.thread)) registerId(e.thread.id, 'thread', where + '.thread', true);
@@ -415,6 +449,7 @@ for (const [where, e] of allEffects) {
   (Array.isArray(b.items) ? b.items : []).forEach((it, ii) => registerId(it && it.id, 'item', 'BACKGROUNDS[' + bi + '].items[' + ii + ']'));
 });
 
+function locationById(id) { return locations.find((l) => isObj(l) && l.id === id) || {}; }
 const kindOf = (id) => (ids.has(id) ? ids.get(id).kind : null);
 const isLoc = (id) => kindOf(id) === 'location';
 const isNpc = (id) => kindOf(id) === 'npc';
@@ -464,7 +499,9 @@ for (const f of factions) {
 // 4. Shared validators for threads, rumours, seeds, triggers, effects.
 // ---------------------------------------------------------------------------
 function checkThread(t, where, expectStatus) {
-  if (!checkKeys(t, ['id', 'title', 'summary', 'status', 'knownToPlayer', 'linkedIds'], where)) return;
+  if (!checkKeys(t, ['id', 'title', 'summary', 'status', 'knownToPlayer', 'linkedIds'], where, ['reward'])) return;
+  // What resolving it teaches the player (CONTRACTS section 9): +1 to this stat.
+  if (t.reward !== undefined && STATS.indexOf(t.reward) === -1) err(where + '.reward', 'must be one of ' + STATS.join(', ') + ', found ' + JSON.stringify(t.reward));
   checkStr(t.title, where + '.title', { noPlaceholders: true });
   checkStr(t.summary, where + '.summary', { noPlaceholders: true, maxSentences: 3 });
   if (t.status !== expectStatus) err(where, 'status must be "' + expectStatus + '"');
@@ -477,12 +514,38 @@ function checkThread(t, where, expectStatus) {
   });
 }
 
+// A rumour may name the thread it bears on (threadId), the faction whose
+// people know it (factionId) and the other people who can tell it (tellerIds:
+// people in town besides the source).
 function checkRumour(r, where) {
-  if (!checkKeys(r, ['id', 'text', 'true', 'sourceNpcId', 'heard'], where)) return;
+  if (!checkKeys(r, ['id', 'text', 'true', 'sourceNpcId', 'heard'], where, ['threadId', 'tellerIds', 'factionId'])) return;
   checkStr(r.text, where + '.text', { noPlaceholders: true, maxSentences: 2 });
   if (typeof r['true'] !== 'boolean') err(where, '"true" must be a boolean');
   if (!isNpc(r.sourceNpcId)) err(where, 'sourceNpcId "' + r.sourceNpcId + '" is not an NPC');
   if (r.heard !== false) err(where, 'heard must be false');
+  if (r.threadId !== undefined && !isThread(r.threadId)) err(where + '.threadId', '"' + r.threadId + '" is not a thread');
+  if (r.factionId !== undefined && !isFac(r.factionId)) err(where + '.factionId', '"' + r.factionId + '" is not a faction');
+  if (r.tellerIds !== undefined) {
+    if (!Array.isArray(r.tellerIds) || !r.tellerIds.length) err(where + '.tellerIds', 'a non-empty array of NPC ids');
+    else {
+      if (new Set(r.tellerIds).size !== r.tellerIds.length) err(where + '.tellerIds', 'duplicate id');
+      r.tellerIds.forEach((id, i) => {
+        if (!isNpc(id)) err(where + '.tellerIds[' + i + ']', '"' + id + '" is not an NPC');
+        else if (id === r.sourceNpcId) err(where + '.tellerIds[' + i + ']', 'the source tells it already; list the others');
+        else if ((npcById.get(id).presence || 'here') !== 'here') err(where + '.tellerIds[' + i + ']', id + ' is not in town to tell it');
+      });
+    }
+  }
+}
+// Who can pass a rumour on: its source, the people in its faction (or the
+// source's), and its tellerIds.
+function tellersOf(r) {
+  const out = new Set([r.sourceNpcId]);
+  (Array.isArray(r.tellerIds) ? r.tellerIds : []).forEach((id) => out.add(id));
+  const src = npcById.get(r.sourceNpcId);
+  const fac = r.factionId || (src && src.factionId);
+  if (fac) npcs.forEach((n) => { if (n && n.factionId === fac && (n.presence || 'here') === 'here') out.add(n.id); });
+  return out;
 }
 
 function checkTrigger(t, where, allowDay) {
@@ -495,7 +558,10 @@ function checkTrigger(t, where, allowDay) {
   if (t.type === 'day') {
     if (!isInt(t.value) || t.value < 3 || t.value > 15) err(where, 'day trigger value must be an integer 3..15, found ' + JSON.stringify(t.value));
   } else if (t.type === 'location') {
-    if (!isLoc(t.value)) err(where, 'location trigger "' + t.value + '" is not a location');
+    // One place, or any of several (the tackle box under the bridge can be reached from the landing too).
+    const list = Array.isArray(t.value) ? t.value : [t.value];
+    if (!list.length) err(where, 'location trigger needs a place');
+    list.forEach((v) => { if (!isLoc(v)) err(where, 'location trigger "' + v + '" is not a location'); else if (locationById(v).away === true) err(where, 'location trigger "' + v + '" is out of town: the player never goes there'); });
   } else if (t.type === 'npc') {
     if (!isNpc(t.value)) err(where, 'npc trigger "' + t.value + '" is not an NPC');
   } else if (t.type === 'clock') {
@@ -504,16 +570,21 @@ function checkTrigger(t, where, allowDay) {
     else {
       if (!isFac(m[1])) err(where, 'clock trigger faction "' + m[1] + '" does not exist');
       const n = Number(m[2]);
-      if (n < 1 || n > 6) err(where, 'clock trigger segment must be 1..6');
+      const most = Math.max.apply(null, (facById.get(m[1]) && Array.isArray(facById.get(m[1]).clocks) ? facById.get(m[1]).clocks : []).map((c) => (c && isInt(c.segments) ? c.segments : 6)).concat([1]));
+      if (n < 1 || n > most) err(where, 'clock trigger segment must be 1..' + most);
     }
   }
 }
 
 function checkSeed(s, where, allowDay) {
-  if (!checkKeys(s, ['id', 'cause', 'effect', 'trigger', 'fired', 'hidden'], where)) return;
+  if (!checkKeys(s, ['id', 'cause', 'effect', 'trigger', 'fired', 'hidden'], where, ['requires', 'alt', 'effects'])) return;
   checkStr(s.cause, where + '.cause', { noPlaceholders: true, maxSentences: 2 });
   checkStr(s.effect, where + '.effect', { noPlaceholders: true, maxSentences: 2 });
   checkTrigger(s.trigger, where + '.trigger', allowDay);
+  // Effects applied when it fires, and what holds it back (CONTRACTS section 3).
+  if (s.effects !== undefined) checkEffectList(s.effects, where + '.effects', { min: 1, max: 4 });
+  if (s.requires !== undefined) checkRequires(s.requires, where + '.requires');
+  if (s.alt !== undefined) checkAlt(s.alt, where + '.alt', 2, s.requires);
   if (s.fired !== false) err(where, 'fired must be false');
   if (s.hidden !== true) err(where, 'hidden must be true');
   if (typeof s.cause === 'string' && typeof s.effect === 'string' && !mentionsCast(s.cause + ' ' + s.effect, null)) {
@@ -534,19 +605,159 @@ const OPS = {
   plantSeed: ['seed'],
   factionRelation: ['a', 'b', 'delta'],
   setFlag: ['key', 'value'],
-  reputationDelta: ['key', 'delta']
+  reputationDelta: ['key', 'delta'],
+  // CONTRACTS section 2: the ops engine-state adds to State.EFFECTS.
+  playerGold: ['delta'],
+  playerHp: ['delta'],
+  giveItem: ['name'],
+  takeItem: ['name'],
+  addCondition: ['name', 'effect', 'days'],
+  banFrom: ['locationId', 'days'],
+  playerPrice: ['factor', 'days'],
+  addMemory: ['npcId', 'text', 'weight'],
+  clockAdjust: ['factionId', 'delta'],
+  threadUpdate: ['threadId'],
+  addObligation: ['kind', 'npcId', 'text'],
+  settleObligation: ['id', 'status'],
+  addNews: ['text']
+};
+// The fields an op may carry besides its required ones.
+const OPS_OPTIONAL = {
+  playerHp: ['allowDefeat'],
+  giveItem: ['notes'],
+  banFrom: ['byNpcId'],
+  threadUpdate: ['summary', 'status', 'knownToPlayer'],
+  addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
+  addNews: ['factionId', 'public']
 };
 const opCounts = {};
+// Flags the content sets (setFlag) and the flags its conditions read
+// (requires, an event's when, the epilogue): a flag read is a flag set.
+const flagsWritten = new Set();
+const flagsRead = []; // [where, key]
+// Placeholders (CONTRACTS section 2), only in the loose ends' obligations and
+// the grudge and favour templates: "{npcId}" for an id, "{npc}" and
+// "{playerName}" inside text. The engine fills them before State.apply.
+const PH_TEXT = ['{npc}', '{playerName}'];
+function npcRef(v, ph) { return isNpc(v) || (ph === true && v === '{npcId}'); }
+function checkText(s, where, opts) {
+  opts = opts || {};
+  if (!checkStr(s, where, { maxSentences: opts.maxSentences })) return;
+  if (opts.max && s.length > opts.max) err(where, 'at most ' + opts.max + ' characters, found ' + s.length);
+  const found = s.match(/\{[^}]*\}/g) || [];
+  if (found.length && !opts.ph) err(where, 'placeholders are only allowed in the loose ends and the grudge and favour templates');
+  found.forEach((p) => { if (PH_TEXT.indexOf(p) === -1) err(where, 'unknown placeholder ' + p + ' (use ' + PH_TEXT.join(', ') + ')'); });
+  if (/[{}]/.test(s.replace(/\{[^}]*\}/g, ''))) err(where, 'stray brace');
+}
+// A condition effect in the form "-1 might" or "+1 charm, -1 wits" (CONTRACTS section 8).
+const CONDITION_EFFECT = /^[+-][1-3] (might|wits|charm|stealth|all)(, [+-][1-3] (might|wits|charm|stealth|all))*$/;
 
 function checkDelta(v, where, max) {
   if (!isInt(v) || v === 0 || Math.abs(v) > max) err(where, 'delta must be a non-zero integer within +/-' + max + ', found ' + JSON.stringify(v));
 }
 
-function checkEffect(e, where) {
+function checkEffectList(list, where, opts) {
+  opts = opts || {};
+  if (!Array.isArray(list)) { err(where, 'must be an array of effect ops'); return; }
+  if (opts.min !== undefined && list.length < opts.min) err(where, 'needs at least ' + opts.min + ' effect op(s)');
+  if (opts.max !== undefined && list.length > opts.max) err(where, 'at most ' + opts.max + ' effect ops');
+  list.forEach((e, i) => checkEffect(e, where + '[' + i + ']', opts));
+}
+
+// An obligation id (obl_<kind>_<npc id>) the loose ends can make: some
+// option of that kind binds, by its tag, to someone who is that person.
+function obligationPossible(id) {
+  const m = OBLIGATION_ID.exec(id || '');
+  if (!m) return false;
+  const kind = m[1];
+  const n = npcById.get(m[2]);
+  if (!n || !Array.isArray(n.tags)) return false;
+  for (const key of Object.keys(isObj(LOOSE_ENDS) ? LOOSE_ENDS : {})) {
+    const le = LOOSE_ENDS[key];
+    if (!isObj(le) || !isObj(le.link)) continue;
+    const opts = Array.isArray(le.options) ? le.options : [];
+    for (let i = 0; i < opts.length; i++) {
+      const ob = (Array.isArray(le.obligations) && isObj(le.obligations[i])) ? le.obligations[i] : le.obligation;
+      if (!isObj(ob) || ob.kind !== kind) continue;
+      const tag = (Array.isArray(le.link.optionTags) && le.link.optionTags[i]) || le.link.tag;
+      if (n.tags.indexOf(tag) !== -1 || n.tags.indexOf(le.link.tag) !== -1) return true;
+    }
+  }
+  return false;
+}
+function checkFlagList(list, where) {
+  if (!Array.isArray(list) || !list.length) { err(where, 'a non-empty array of flag names'); return; }
+  list.forEach((k, i) => {
+    if (typeof k !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(k)) err(where + '[' + i + ']', 'a flag name');
+    else flagsRead.push([where + '[' + i + ']', k]);
+  });
+}
+function checkNpcList(list, where) {
+  if (!Array.isArray(list) || !list.length) { err(where, 'a non-empty array of NPC ids'); return; }
+  list.forEach((id, i) => { if (!isNpc(id)) err(where + '[' + i + ']', '"' + id + '" is not an NPC'); });
+}
+// requires (CONTRACTS section 3): what must hold when a seed or a clock fires.
+function checkRequires(r, where) {
+  if (!checkKeys(r, [], where, ['npcFree', 'npcAt', 'flagsSet', 'flagsUnset', 'obligationOpen'])) return;
+  if (!Object.keys(r).length) err(where, 'empty: say what must hold, or leave requires out');
+  if (r.npcFree !== undefined) checkNpcList(r.npcFree, where + '.npcFree');
+  if (r.npcAt !== undefined) {
+    if (!isObj(r.npcAt) || !Object.keys(r.npcAt).length) err(where + '.npcAt', 'an object { npcId: locationId }');
+    else for (const k of Object.keys(r.npcAt)) { if (!isNpc(k)) err(where + '.npcAt', '"' + k + '" is not an NPC'); if (!isLoc(r.npcAt[k])) err(where + '.npcAt.' + k, '"' + r.npcAt[k] + '" is not a location'); }
+  }
+  if (r.flagsSet !== undefined) checkFlagList(r.flagsSet, where + '.flagsSet');
+  if (r.flagsUnset !== undefined) checkFlagList(r.flagsUnset, where + '.flagsUnset');
+  if (r.obligationOpen !== undefined) {
+    if (!Array.isArray(r.obligationOpen) || !r.obligationOpen.length) err(where + '.obligationOpen', 'a non-empty array of obligation ids');
+    else r.obligationOpen.forEach((id, i) => { if (!obligationPossible(id)) err(where + '.obligationOpen[' + i + ']', '"' + id + '" is no obligation a loose end can make'); });
+  }
+}
+// alt: what happens instead when requires does not hold.
+function checkAlt(a, where, maxSentences, requires) {
+  if (!checkKeys(a, ['text'], where, ['effects'])) return;
+  if (requires === undefined) err(where, 'an alt without requires never fires');
+  checkText(a.text, where + '.text', { maxSentences: maxSentences, max: 400 });
+  if (a.effects !== undefined) checkEffectList(a.effects, where + '.effects', { max: 5 });
+}
+// when (CONTRACTS section 11): an event branch's or the epilogue's conditions.
+function checkWhen(w, where) {
+  if (!checkKeys(w, [], where, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'obligationStatus'])) return;
+  if (!Object.keys(w).length) err(where, 'empty: a branch with no condition is the default');
+  if (w.flagsSet !== undefined) checkFlagList(w.flagsSet, where + '.flagsSet');
+  if (w.flagsUnset !== undefined) checkFlagList(w.flagsUnset, where + '.flagsUnset');
+  if (w.npcFree !== undefined) checkNpcList(w.npcFree, where + '.npcFree');
+  if (w.clockAtLeast !== undefined) {
+    if (!isObj(w.clockAtLeast) || !Object.keys(w.clockAtLeast).length) err(where + '.clockAtLeast', 'an object { factionId: segments }');
+    else for (const k of Object.keys(w.clockAtLeast)) {
+      if (!isFac(k)) err(where + '.clockAtLeast', '"' + k + '" is not a faction');
+      if (!isInt(w.clockAtLeast[k]) || w.clockAtLeast[k] < 1) err(where + '.clockAtLeast.' + k, 'a whole number of segments, 1 or more');
+    }
+  }
+  if (w.attitudeAtLeast !== undefined) {
+    if (!isObj(w.attitudeAtLeast) || !Object.keys(w.attitudeAtLeast).length) err(where + '.attitudeAtLeast', 'an object { npcId: attitude }');
+    else for (const k of Object.keys(w.attitudeAtLeast)) {
+      if (!isNpc(k)) err(where + '.attitudeAtLeast', '"' + k + '" is not an NPC');
+      if (!isInt(w.attitudeAtLeast[k]) || w.attitudeAtLeast[k] < -100 || w.attitudeAtLeast[k] > 100) err(where + '.attitudeAtLeast.' + k, 'an attitude, -100 to 100');
+    }
+  }
+  if (w.obligationStatus !== undefined) {
+    if (!isObj(w.obligationStatus) || !Object.keys(w.obligationStatus).length) err(where + '.obligationStatus', 'an object { obligationId: "met" | "missed" }');
+    else for (const k of Object.keys(w.obligationStatus)) {
+      if (!obligationPossible(k)) err(where + '.obligationStatus', '"' + k + '" is no obligation a loose end can make (obl_<kind>_<npc id>)');
+      if (OBLIGATION_STATUSES.indexOf(w.obligationStatus[k]) === -1) err(where + '.obligationStatus.' + k, 'must be met or missed');
+    }
+  }
+}
+
+// opts.ph: placeholders allowed (loose ends, templates); opts.world: content
+// the world fires on its own (it never resolves a thread).
+function checkEffect(e, where, opts) {
+  opts = opts || {};
+  const ph = opts.ph === true;
   if (!isObj(e)) { err(where, 'effect must be an object'); return; }
   if (!OPS[e.op]) { err(where, 'unknown op "' + e.op + '"'); return; }
   opCounts[e.op] = (opCounts[e.op] || 0) + 1;
-  checkKeys(e, ['op'].concat(OPS[e.op]), where);
+  checkKeys(e, ['op'].concat(OPS[e.op]), where, OPS_OPTIONAL[e.op]);
   switch (e.op) {
     case 'closeLocation':
     case 'openLocation':
@@ -568,7 +779,7 @@ function checkEffect(e, where) {
       }
       break;
     case 'attitudeDelta':
-      if (!isNpc(e.npcId)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
       checkDelta(e.delta, where, 50);
       break;
     case 'priceMultiplier':
@@ -598,11 +809,74 @@ function checkEffect(e, where) {
     case 'setFlag':
       if (typeof e.key !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(e.key)) err(where, 'key must be an identifier-like string');
       else if (RESERVED_FLAGS.indexOf(e.key) !== -1) err(where, 'flag "' + e.key + '" is engine-owned; use the matching op');
+      else flagsWritten.add(e.key);
       if (['boolean', 'number', 'string'].indexOf(typeof e.value) === -1) err(where, 'value must be a boolean, number or string');
       break;
     case 'reputationDelta':
       if (e.key !== 'town' && !isFac(e.key)) err(where, 'key must be "town" or a faction id, found "' + e.key + '"');
       checkDelta(e.delta, where, 50);
+      break;
+    case 'playerGold':
+      checkDelta(e.delta, where, 500);
+      break;
+    case 'playerHp':
+      checkDelta(e.delta, where, 3);
+      if (e.allowDefeat !== undefined && typeof e.allowDefeat !== 'boolean') err(where + '.allowDefeat', 'true or false');
+      break;
+    case 'giveItem':
+      checkText(e.name, where + '.name', { ph, max: 60, maxSentences: 0 });
+      if (e.notes !== undefined) checkText(e.notes, where + '.notes', { ph, max: 200, maxSentences: 2 });
+      break;
+    case 'takeItem':
+      checkText(e.name, where + '.name', { ph, max: 60, maxSentences: 0 });
+      break;
+    case 'addCondition':
+      checkText(e.name, where + '.name', { max: 40, maxSentences: 0 });
+      if (typeof e.effect !== 'string' || !CONDITION_EFFECT.test(e.effect)) err(where + '.effect', 'in the form "-1 might" or "+1 charm, -1 wits", found ' + JSON.stringify(e.effect));
+      if (!isInt(e.days) || e.days < 1 || e.days > 7) err(where + '.days', 'a whole number of days, 1 to 7');
+      break;
+    case 'banFrom':
+      if (!isLoc(e.locationId)) err(where, 'locationId "' + e.locationId + '" is not a location');
+      else if (locationById(e.locationId).away === true) err(where, 'locationId "' + e.locationId + '" is out of town');
+      if (!isInt(e.days) || e.days < 1 || e.days > 7) err(where + '.days', 'a whole number of days, 1 to 7');
+      if (e.byNpcId !== undefined && !npcRef(e.byNpcId, ph)) err(where + '.byNpcId', '"' + e.byNpcId + '" is not an NPC');
+      break;
+    case 'playerPrice':
+      if (typeof e.factor !== 'number' || !(e.factor >= 0.5 && e.factor <= 2) || e.factor === 1) err(where, 'factor must be a number in 0.5..2 and not 1');
+      if (!isInt(e.days) || e.days < 1 || e.days > 10) err(where + '.days', 'a whole number of days, 1 to 10');
+      break;
+    case 'addMemory':
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 2 });
+      if ([1, 2, 3].indexOf(e.weight) === -1) err(where + '.weight', 'must be 1, 2 or 3');
+      break;
+    case 'clockAdjust':
+      if (!isFac(e.factionId)) err(where, 'factionId "' + e.factionId + '" is not a faction');
+      checkDelta(e.delta, where, 2);
+      break;
+    case 'threadUpdate':
+      if (!isThread(e.threadId)) err(where, 'threadId "' + e.threadId + '" is not a thread');
+      if (e.summary !== undefined) checkText(e.summary, where + '.summary', { ph, maxSentences: 3, max: 400 });
+      if (e.status !== undefined) {
+        if (THREAD_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + THREAD_STATUSES.join('/'));
+        if (e.status === 'resolved') err(where, 'the world may not resolve a thread (only the player earns a resolution)');
+      }
+      if (e.knownToPlayer !== undefined && typeof e.knownToPlayer !== 'boolean') err(where + '.knownToPlayer', 'true or false');
+      if (e.summary === undefined && e.status === undefined && e.knownToPlayer === undefined) err(where, 'changes nothing: give a summary, a status or knownToPlayer');
+      break;
+    case 'addObligation':
+      if (OBLIGATION_KINDS.indexOf(e.kind) === -1) err(where + '.kind', 'one of ' + OBLIGATION_KINDS.join(', '));
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 1 });
+      break;
+    case 'settleObligation':
+      if (!OBLIGATION_ID.test(String(e.id))) err(where + '.id', 'an obligation id obl_<kind>_<npc id>');
+      if (OBLIGATION_STATUSES.indexOf(e.status) === -1) err(where + '.status', 'met or missed');
+      break;
+    case 'addNews':
+      checkText(e.text, where + '.text', { ph, max: 300, maxSentences: 2 });
+      if (e.factionId !== undefined && !isFac(e.factionId)) err(where + '.factionId', '"' + e.factionId + '" is not a faction');
+      if (e.public !== undefined && typeof e.public !== 'boolean') err(where + '.public', 'true or false');
       break;
   }
 }
@@ -610,7 +884,7 @@ function checkEffect(e, where) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue']);
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
 else {
@@ -650,6 +924,19 @@ if (T.history !== undefined || T.recent !== undefined) {
     });
   }
 }
+// The calendar (CONTRACTS section 1): the season and the date of day 1, in the present year.
+if (T.calendar !== undefined && checkKeys(T.calendar, ['season', 'startDate'], 'TOWN_DATA.calendar')) {
+  if (SEASONS.indexOf(T.calendar.season) === -1) err('TOWN_DATA.calendar.season', 'one of ' + SEASONS.join(', '));
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(T.calendar.startDate));
+  const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  if (!m || !d || d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) err('TOWN_DATA.calendar.startDate', 'a real date as YYYY-MM-DD, found ' + JSON.stringify(T.calendar.startDate));
+  else if (YEAR !== null && +m[1] !== YEAR) err('TOWN_DATA.calendar.startDate', 'day 1 falls in the present year ' + YEAR);
+  else {
+    const month = d.getUTCMonth();
+    const season = month >= 2 && month <= 4 ? 'spring' : month >= 5 && month <= 7 ? 'summer' : month >= 8 && month <= 10 ? 'autumn' : 'winter';
+    if (season !== T.calendar.season) err('TOWN_DATA.calendar.season', T.calendar.startDate + ' is ' + season + ', not ' + T.calendar.season);
+  }
+}
 if (checkKeys(T.startLocationIds, ['gate', 'docks'], 'TOWN_DATA.startLocationIds')) {
   if (!isLoc(T.startLocationIds.gate)) err('TOWN_DATA.startLocationIds.gate', '"' + T.startLocationIds.gate + '" is not a location');
   if (!isLoc(T.startLocationIds.docks)) err('TOWN_DATA.startLocationIds.docks', '"' + T.startLocationIds.docks + '" is not a location');
@@ -682,8 +969,22 @@ const typesSeen = {};
 const npcPhaseSlots = new Map(); // npcId -> { phase: [locIds] }
 locations.forEach((l, i) => {
   const where = 'locations[' + i + '](' + (l && l.id) + ')';
-  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'details', 'hours', 'history', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where, ['map', 'aka', 'away', 'distance'])) return;
+  if (!checkKeys(l, ['id', 'name', 'type', 'description', 'details', 'hours', 'history', 'exits', 'npcIdsBySchedule', 'discovered', 'closed'], where, ['map', 'aka', 'away', 'distance', 'closedOn'])) return;
   checkStr(l.name, where + '.name', { noPlaceholders: true });
+  // Weekdays it is shut (CONTRACTS section 1), and the hours must say so.
+  if (l.closedOn !== undefined) {
+    if (!Array.isArray(l.closedOn) || !l.closedOn.length || l.closedOn.length > 6) err(where + '.closedOn', 'one to six weekday names');
+    else {
+      if (new Set(l.closedOn).size !== l.closedOn.length) err(where + '.closedOn', 'duplicate day');
+      l.closedOn.forEach((d) => {
+        if (WEEKDAYS.indexOf(d) === -1) err(where + '.closedOn', '"' + d + '" is not a weekday name (' + WEEKDAYS.join(', ') + ')');
+        else if (typeof l.hours === 'string' && l.hours.indexOf(d) === -1 && !/Monday to Saturday/.test(l.hours)) err(where + '.closedOn', 'the hours do not say it is shut on ' + d);
+      });
+    }
+    if (l.away === true) err(where + '.closedOn', 'a place out of town is never gone to; leave closedOn out');
+  } else if (typeof l.hours === 'string' && l.away !== true && /\bclosed (on )?(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)s?\b|\bMonday to (Friday|Saturday)\b/.test(l.hours)) {
+    err(where + '.closedOn', 'the hours name days it is shut (' + l.hours + '); list them in closedOn');
+  }
   // What you notice there, when it is open, and how it came to be.
   checkStr(l.details, where + '.details', { noPlaceholders: true, maxSentences: 3 });
   if (typeof l.details === 'string' && l.details.length > 400) err(where + '.details', 'at most 400 characters');
@@ -743,6 +1044,11 @@ locations.forEach((l, i) => {
   }
 });
 for (const t of REQUIRED_LOCATION_TYPES) if (!typesSeen[t]) err('TOWN_DATA.locations', 'no location of type "' + t + '"');
+// A lived-in town: every public place on the map has somebody there at some
+// time of day (REVIEW section 4 found five that were empty in every phase).
+townPlaces.forEach((l) => {
+  if (isObj(l.npcIdsBySchedule) && !PHASES.some((p) => Array.isArray(l.npcIdsBySchedule[p]) && l.npcIdsBySchedule[p].length)) err('locations(' + l.id + ')', 'a public place nobody is ever at: schedule someone whose story puts them there');
+});
 // Modern: arrested NPCs are moved to the one location of type "police".
 if (typesSeen.police !== 1) err('TOWN_DATA.locations', 'need exactly one "police" location (arrested NPCs are moved there), found ' + (typesSeen.police || 0));
 // Connectivity from the gate.
@@ -842,7 +1148,19 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried'])) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn'])) return;
+  // Out of town on some days (CONTRACTS section 1): school days for the teacher and the students.
+  if (n.awayOn !== undefined) {
+    const a = n.awayOn;
+    if (checkKeys(a, ['days', 'phases', 'where'], where + '.awayOn')) {
+      if (!Array.isArray(a.days) || !a.days.length || a.days.some((d) => WEEKDAYS.indexOf(d) === -1)) err(where + '.awayOn.days', 'weekday names (' + WEEKDAYS.join(', ') + ')');
+      else if (new Set(a.days).size !== a.days.length) err(where + '.awayOn.days', 'duplicate day');
+      if (!Array.isArray(a.phases) || !a.phases.length || a.phases.length > 3 || a.phases.some((p) => PHASES.indexOf(p) === -1)) err(where + '.awayOn.phases', 'one to three phases; they are home some part of every day');
+      checkStr(a.where, where + '.awayOn.where', { noPlaceholders: true, maxSentences: 0 });
+      if (typeof a.where === 'string' && !/^(at|in|on|up|out|across|over|with|away)\b/.test(a.where)) err(where + '.awayOn.where', 'a place phrase that follows the name ("at the county school in Clayburn")');
+    }
+    if ((n.presence || 'here') !== 'here') err(where + '.awayOn', 'only someone in town is sometimes away');
+  }
   const pres = n.presence;
   if (PRESENCES.indexOf(pres) === -1) err(where + '.presence', 'must be here, away or dead, found ' + JSON.stringify(pres));
   // Age: a whole number (the dead: their age at death), and what the look says.
@@ -917,6 +1235,11 @@ npcs.forEach((n, i) => {
   }
   if (n.alive !== true) err(where, 'alive must be true');
   if (n.status !== 'free') err(where, 'status must be "free"');
+  // School days (CONTRACTS section 1): the teacher and the students are in Clayburn on weekday mornings and afternoons.
+  if (Array.isArray(n.tags) && (n.tags.indexOf('teacher') !== -1 || n.tags.indexOf('teen') !== -1)) {
+    const a = n.awayOn;
+    if (!isObj(a) || !Array.isArray(a.days) || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].some((d) => a.days.indexOf(d) === -1)) err(where + '.awayOn', 'a teacher or a student is at school on weekdays: give them awayOn');
+  }
   if (isLoc(n.home) && locById.get(n.home).away === true) err(where + '.home', 'someone in town lives in town, not at ' + n.home);
   const phasesPresent = PHASES.filter((p) => slots[p] && slots[p].length);
   if (phasesPresent.length !== PHASES.length) err(where, 'is somewhere in ' + phasesPresent.length + ' of 4 phases; everyone needs a place in every phase (missing ' + PHASES.filter((p) => phasesPresent.indexOf(p) === -1).join(', ') + ')');
@@ -994,7 +1317,6 @@ const firstNames = npcs.filter((n) => n && typeof n.name === 'string').map((n) =
   return parts.length > 2 ? parts[1] : parts[0]; // skip a title such as "Pastor" or "Miss"
 });
 firstNames.forEach((f) => { if (seenFirst.has(f)) err('TOWN_DATA.npcs', 'two NPCs share the first name "' + f + '"'); seenFirst.add(f); });
-const castFamilyNames = new Set(npcs.filter((n) => n && typeof n.name === 'string').map((n) => n.name.split(/\s+/).slice(-1)[0]));
 for (const t of REQUIRED_TAGS) if (!tagSet.has(t)) err('TOWN_DATA.npcs', 'no NPC has the required tag "' + t + '"');
 if (connectedSecrets < Math.ceil(npcs.length / 2)) err('TOWN_DATA.npcs', 'only ' + connectedSecrets + ' secrets mention another NPC or a faction; need at least half');
 
@@ -1003,6 +1325,7 @@ if (factions.length !== 3) err('TOWN_DATA.factions', 'expected exactly 3 faction
 let clockTotal = 0;
 let negativePairs = 0;
 let failedThreads = 0;
+const segmentCounts = [];
 factions.forEach((f, i) => {
   const where = 'factions[' + i + '](' + (f && f.id) + ')';
   if (!checkKeys(f, ['id', 'name', 'goal', 'methods', 'clocks', 'activeClock', 'relations'], where)) return;
@@ -1016,19 +1339,31 @@ factions.forEach((f, i) => {
     clockTotal++;
     if (!checkKeys(c, ['label', 'segments', 'filled', 'onComplete'], cw)) return;
     checkStr(c.label, cw + '.label', { noPlaceholders: true });
-    if (c.segments !== 6) err(cw, 'segments must be 6');
+    // Staggered factions (REVIEW section 3.4): 4 to 10 segments, the same within a faction.
+    if (!isInt(c.segments) || c.segments < 4 || c.segments > 10) err(cw, 'segments must be a whole number from 4 to 10');
+    else if (ci > 0 && f.clocks[0] && c.segments !== f.clocks[0].segments) err(cw, 'a faction\'s clocks share one segment count (' + f.clocks[0].segments + ')');
+    if (ci === 0 && isInt(c.segments)) segmentCounts.push(c.segments);
     if (c.filled !== 0) err(cw, 'filled must be 0');
-    if (!checkKeys(c.onComplete, ['text', 'effects'], cw + '.onComplete')) return;
+    if (!checkKeys(c.onComplete, ['text', 'effects'], cw + '.onComplete', ['requires', 'alt'])) return;
     checkStr(c.onComplete.text, cw + '.onComplete.text', { sentences: 1, noPlaceholders: true });
     const effs = c.onComplete.effects;
-    if (!Array.isArray(effs) || effs.length < 2 || effs.length > 4) err(cw + '.onComplete.effects', 'needs 2 to 4 effect ops');
-    else {
-      effs.forEach((e, ei) => checkEffect(e, cw + '.onComplete.effects[' + ei + ']'));
-      if (new Set(effs.map((e) => e && e.op)).size < 2) err(cw + '.onComplete.effects', 'use at least 2 different ops so the town visibly changes');
+    const checkCompletion = (list, w) => {
+      if (!Array.isArray(list) || list.length < 2 || list.length > 5) { err(w, 'needs 2 to 5 effect ops'); return; }
+      list.forEach((e, ei) => checkEffect(e, w + '[' + ei + ']', { world: true }));
+      if (new Set(list.map((e) => e && e.op)).size < 2) err(w, 'use at least 2 different ops so the town visibly changes');
       // Content note 2: every clock completion adds its own rumour, exactly one.
-      const rumourOps = effs.filter((e) => e && e.op === 'addRumour').length;
-      if (rumourOps !== 1) err(cw + '.onComplete.effects', 'needs exactly one addRumour describing the completion, found ' + rumourOps);
-      failedThreads += effs.filter((e) => e && e.op === 'threadStatus' && e.status === 'failed').length;
+      const rumourOps = list.filter((e) => e && e.op === 'addRumour').length;
+      if (rumourOps !== 1) err(w, 'needs exactly one addRumour describing the completion, found ' + rumourOps);
+      failedThreads += list.filter((e) => e && e.op === 'threadStatus' && e.status === 'failed').length;
+      // A faction never sets its own clock back from its own completion: the next clock starts at 0 anyway.
+      list.forEach((e, ei) => { if (e && e.op === 'clockAdjust' && e.factionId === f.id) err(w + '[' + ei + ']', 'a completion adjusts another faction\'s clock, not its own'); });
+    };
+    checkCompletion(effs, cw + '.onComplete.effects');
+    // What must hold when it completes, and what happens instead (CONTRACTS section 3).
+    if (c.onComplete.requires !== undefined) checkRequires(c.onComplete.requires, cw + '.onComplete.requires');
+    if (c.onComplete.alt !== undefined) {
+      checkAlt(c.onComplete.alt, cw + '.onComplete.alt', 1, c.onComplete.requires);
+      if (isObj(c.onComplete.alt)) checkCompletion(c.onComplete.alt.effects, cw + '.onComplete.alt.effects');
     }
   });
   if (!isObj(f.relations)) err(where, 'relations must be an object');
@@ -1046,8 +1381,10 @@ factions.forEach((f, i) => {
   }
 });
 if (factions.length === 3 && negativePairs < 2) err('TOWN_DATA.factions', 'relations should be mostly negative (at least 2 of 3 pairs)');
-// Content note 3: at most one clock sets a thread to failed.
-if (failedThreads > 1) err('TOWN_DATA.factions', 'at most one clock may set a thread to failed, found ' + failedThreads);
+// Content note 3: at most one clock sets a thread to failed (its alternative may too).
+if (failedThreads > 2) err('TOWN_DATA.factions', 'at most one clock may set a thread to failed, found ' + failedThreads);
+// Staggered: the factions do not all run the same clock length, so completions do not bunch.
+if (segmentCounts.length === factions.length && new Set(segmentCounts).size < 2) err('TOWN_DATA.factions', 'stagger the factions: give at least two of them different segment counts (all are ' + segmentCounts[0] + ')');
 
 // Threads
 if (threads.length < 2 || threads.length > 3) err('TOWN_DATA.threads', 'expected 2 or 3 threads, found ' + threads.length);
@@ -1055,23 +1392,79 @@ threads.forEach((t, i) => checkThread(t, 'threads[' + i + '](' + (t && t.id) + '
 
 // Seeds
 if (seeds.length < 5 || seeds.length > 8) err('TOWN_DATA.seeds', 'expected 5 to 8 seeds, found ' + seeds.length);
-seeds.forEach((s, i) => checkSeed(s, 'seeds[' + i + '](' + (s && s.id) + ')', true));
+seeds.forEach((s, i) => {
+  const where = 'seeds[' + i + '](' + (s && s.id) + ')';
+  // notBeforeDay: a starting seed that waits (the engine's own field for loose-end seeds).
+  const copy = isObj(s) ? Object.assign({}, s) : s;
+  if (isObj(copy) && copy.notBeforeDay !== undefined) {
+    if (!isInt(copy.notBeforeDay) || copy.notBeforeDay < 2 || copy.notBeforeDay > 15) err(where + '.notBeforeDay', 'a day number, 2 to 15');
+    delete copy.notBeforeDay;
+  }
+  checkSeed(copy, where, true);
+});
 const nonDaySeeds = seeds.filter((s) => s && s.trigger && s.trigger.type !== 'day').length;
 if (nonDaySeeds > 1) err('TOWN_DATA.seeds', 'at most one starting seed may use a non-day trigger, found ' + nonDaySeeds);
 seeds.forEach((s, i) => {
   if (s && s.trigger && s.trigger.type === 'clock') err('seeds[' + i + '](' + s.id + ')', 'starting seeds use a day trigger, or one location/npc trigger');
-  // A location seed on a start location would fire on arrival, before the player has done anything.
-  if (s && s.trigger && s.trigger.type === 'location' && T.startLocationIds && (s.trigger.value === T.startLocationIds.gate || s.trigger.value === T.startLocationIds.docks)) {
-    err('seeds[' + i + '](' + s.id + ')', 'location trigger on a start location would fire on arrival');
+  // A location seed on a start location would fire on arrival, before the player has done anything, unless it waits.
+  const at = s && s.trigger && s.trigger.type === 'location' ? [].concat(s.trigger.value) : [];
+  if (T.startLocationIds && at.some((v) => v === T.startLocationIds.gate || v === T.startLocationIds.docks) && !(isInt(s.notBeforeDay) && s.notBeforeDay >= 2)) {
+    err('seeds[' + i + '](' + s.id + ')', 'location trigger on a start location would fire on arrival (give it notBeforeDay)');
   }
 });
 
-// Rumours
-if (rumours.length !== 10) err('TOWN_DATA.rumours', 'expected exactly 10 rumours, found ' + rumours.length);
-rumours.forEach((r, i) => checkRumour(r, 'rumours[' + i + '](' + (r && r.id) + ')'));
+// Rumours: the town's talk at the start, true and false, each with at least
+// two people who can pass it on (REVIEW section 4: a rumour one person can
+// tell barely spreads).
+if (rumours.length < 10 || rumours.length > 20) err('TOWN_DATA.rumours', 'expected 10 to 20 rumours, found ' + rumours.length);
+rumours.forEach((r, i) => {
+  const where = 'rumours[' + i + '](' + (r && r.id) + ')';
+  checkRumour(r, where);
+  if (isObj(r) && isNpc(r.sourceNpcId) && tellersOf(r).size < 2) err(where, 'only ' + r.sourceNpcId + ' can tell it: give it a factionId or tellerIds');
+});
 const trueCount = rumours.filter((r) => r && r['true'] === true).length;
 const falseCount = rumours.filter((r) => r && r['true'] === false).length;
-if (trueCount !== 7 || falseCount !== 3) err('TOWN_DATA.rumours', 'need exactly 7 true and 3 false, found ' + trueCount + ' / ' + falseCount);
+if (falseCount < 3 || trueCount < falseCount * 2) err('TOWN_DATA.rumours', 'need at least 3 false and twice as many true, found ' + trueCount + ' / ' + falseCount);
+
+// Town events (CONTRACTS section 11): set pieces on a fixed day and phase,
+// in a place, with branches picked by the state of the town.
+const PHASE_SET = new Set(PHASES);
+function checkBranch(b, where, isDefault, sentencesMax, charsMax) {
+  if (!checkKeys(b, isDefault ? ['text', 'effects'] : ['when', 'text', 'effects'], where)) return;
+  if (!isDefault) checkWhen(b.when, where + '.when');
+  checkText(b.text, where + '.text', { maxSentences: sentencesMax, max: charsMax });
+  checkEffectList(b.effects, where + '.effects', { max: 8, world: true });
+}
+if (T.events !== undefined) {
+  if (!Array.isArray(T.events)) err('TOWN_DATA.events', 'an array of events');
+  else T.events.forEach((ev, i) => {
+    const where = 'events[' + i + '](' + (ev && ev.id) + ')';
+    if (!checkKeys(ev, ['id', 'day', 'phase', 'locationId', 'title', 'branches', 'default'], where)) return;
+    if (!isInt(ev.day) || ev.day < 2 || ev.day > 30) err(where + '.day', 'a day number, 2 to 30');
+    if (!PHASE_SET.has(ev.phase)) err(where + '.phase', 'one of ' + PHASES.join(', '));
+    if (!isLoc(ev.locationId)) err(where + '.locationId', '"' + ev.locationId + '" is not a location');
+    else if (locationById(ev.locationId).away === true || locationById(ev.locationId).discovered === false) err(where + '.locationId', 'a town place on the map, where the player can be');
+    checkStr(ev.title, where + '.title', { noPlaceholders: true, maxSentences: 0 });
+    if (!Array.isArray(ev.branches) || ev.branches.length < 2) err(where + '.branches', 'at least two branches besides the default');
+    else ev.branches.forEach((b, bi) => checkBranch(b, where + '.branches[' + bi + ']', false, 4, 700));
+    checkBranch(ev.default, where + '.default', true, 4, 700);
+    // The news line the event leaves: every branch says something in public.
+    [].concat(ev.branches || [], [ev.default]).forEach((b, bi) => {
+      if (isObj(b) && Array.isArray(b.effects) && !b.effects.some((e) => e && e.op === 'addNews' && e.public === true)) err(where + (bi < (ev.branches || []).length ? '.branches[' + bi + ']' : '.default'), 'needs an addNews with public true (what the town hears)');
+    });
+  });
+}
+// The epilogue (CONTRACTS section 11): an ending told on a day, or sooner when the bridge story is decided.
+if (T.epilogue !== undefined) {
+  const E = T.epilogue;
+  if (checkKeys(E, ['onDay', 'orFlagsSet', 'branches', 'default'], 'TOWN_DATA.epilogue')) {
+    if (!isInt(E.onDay) || E.onDay < 10 || E.onDay > 40) err('TOWN_DATA.epilogue.onDay', 'a day number, 10 to 40');
+    checkFlagList(E.orFlagsSet, 'TOWN_DATA.epilogue.orFlagsSet');
+    if (!Array.isArray(E.branches) || E.branches.length < 3 || E.branches.length > 6) err('TOWN_DATA.epilogue.branches', '3 to 6 branches');
+    else E.branches.forEach((b, bi) => checkBranch(b, 'TOWN_DATA.epilogue.branches[' + bi + ']', false, 6, 900));
+    checkBranch(E.default, 'TOWN_DATA.epilogue.default', true, 6, 900);
+  }
+}
 
 // No placeholders anywhere in TOWN_DATA.
 (function walk(v, where) {
@@ -1083,8 +1476,12 @@ if (trueCount !== 7 || falseCount !== 3) err('TOWN_DATA.rumours', 'need exactly 
 // ---------------------------------------------------------------------------
 // 6. TABLES
 // ---------------------------------------------------------------------------
+// TABLES.npc keeps only the lists something still reads: firstNames (the
+// person matcher's first-name check) and occupations (its job words). The
+// family names, traits, wants and speech quirks that Tables.npc() rolled for
+// made-up people went with the fixed cast.
 const TABLE_SPEC = {
-  npc: { firstNames: 30, familyNames: 30, occupations: 30, traits: 30, wants: 20, speechQuirks: 20 },
+  npc: { firstNames: 30, occupations: 30 },
   location: { types: 15, details: 20, problems: 15 },
   items: { goods: 40, trinkets: 20 },
   complications: 20,
@@ -1108,10 +1505,26 @@ if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
         if (!Array.isArray(list)) { err(where, 'expected an array'); continue; }
         if (list.length !== spec[key]) err(where, 'expected exactly ' + spec[key] + ' entries, found ' + list.length);
         const seen = new Set();
+        // A good's name names no place (the place you buy it is where you are), and its kind says what buying it does.
+        const placeNames = [];
+        locations.forEach((l) => {
+          if (!isObj(l)) return;
+          [l.name, l.map && l.map.label].concat(Array.isArray(l.aka) ? l.aka : []).forEach((k) => {
+            if (typeof k !== 'string') return;
+            const bare = k.replace(/^the /i, '');
+            if (/[A-Z]/.test(bare)) placeNames.push(bare.toLowerCase());
+          });
+        });
         list.forEach((g, gi) => {
           const gw = where + '[' + gi + ']';
-          if (!checkKeys(g, ['name', 'price'], gw)) return;
+          if (!checkKeys(g, ['name', 'price', 'kind'], gw)) return;
           checkStr(g.name, gw + '.name', { noPlaceholders: true });
+          if (GOOD_KINDS.indexOf(g.kind) === -1) err(gw + '.kind', 'one of ' + GOOD_KINDS.join(', ') + ', found ' + JSON.stringify(g.kind));
+          if (typeof g.name === 'string') {
+            const low = g.name.toLowerCase();
+            const hit = placeNames.find((p) => new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(low));
+            if (hit) err(gw + '.name', 'names a place ("' + hit + '"); a good is bought wherever the player is');
+          }
           // Modern: whole dollars, small-town prices.
           if (typeof g.price !== 'number' || !isInt(g.price) || g.price < PRICE_MIN || g.price > PRICE_MAX) err(gw, 'price must be an integer number of dollars, ' + PRICE_MIN + '..' + PRICE_MAX + ', found ' + JSON.stringify(g.price));
           if (typeof g.name === 'string') { if (seen.has(g.name.toLowerCase())) err(gw, 'duplicate good "' + g.name + '"'); seen.add(g.name.toLowerCase()); }
@@ -1123,9 +1536,6 @@ if (checkKeys(TABLES, Object.keys(TABLE_SPEC), 'TABLES')) {
     if (group === 'npc' && Array.isArray(TABLES.npc.firstNames)) {
       TABLES.npc.firstNames.forEach((f) => { if (seenFirst.has(f)) err('TABLES.npc.firstNames', '"' + f + '" is already a cast first name'); });
     }
-    if (group === 'npc' && Array.isArray(TABLES.npc.familyNames)) {
-      TABLES.npc.familyNames.forEach((f) => { if (castFamilyNames.has(f)) err('TABLES.npc.familyNames', '"' + f + '" is already a cast family name'); });
-    }
   }
 }
 
@@ -1136,7 +1546,24 @@ if (!Array.isArray(BACKGROUNDS) || BACKGROUNDS.length !== 6) err('BACKGROUNDS', 
 const arrivals = new Set();
 (Array.isArray(BACKGROUNDS) ? BACKGROUNDS : []).forEach((b, i) => {
   const where = 'BACKGROUNDS[' + i + '](' + (b && b.id) + ')';
-  if (!checkKeys(b, ['id', 'name', 'blurb', 'age', 'stats', 'gold', 'items', 'arrival'], where)) return;
+  if (!checkKeys(b, ['id', 'name', 'blurb', 'age', 'stats', 'gold', 'items', 'arrival'], where, ['hook'])) return;
+  // A first lead for this background (REVIEW section 4): someone in the cast
+  // with work or a question for exactly this kind of stranger.
+  if (b.hook !== undefined && checkKeys(b.hook, ['npcId', 'text', 'dayOffset', 'trigger'], where + '.hook')) {
+    const hk = b.hook;
+    if (!isNpc(hk.npcId)) err(where + '.hook.npcId', '"' + hk.npcId + '" is not an NPC');
+    else if ((npcById.get(hk.npcId).presence || 'here') !== 'here') err(where + '.hook.npcId', hk.npcId + ' does not live in town');
+    checkStr(hk.text, where + '.hook.text', { maxSentences: 1 });
+    checkPlaceholders(hk.text, where + '.hook.text', ['{player}']);
+    if (hk.dayOffset !== 0 && hk.dayOffset !== 1) err(where + '.hook.dayOffset', '0 or 1');
+    if (checkKeys(hk.trigger, ['type', 'value'], where + '.hook.trigger')) {
+      const tr = hk.trigger;
+      if (tr.type === 'npc') { if (!isNpc(tr.value)) err(where + '.hook.trigger.value', '"' + tr.value + '" is not an NPC'); else if (tr.value !== hk.npcId) err(where + '.hook.trigger.value', 'an npc hook fires when the player meets its own person, ' + hk.npcId); }
+      else if (tr.type === 'location') { if (!isLoc(tr.value) || locationById(tr.value).away === true) err(where + '.hook.trigger.value', '"' + tr.value + '" is not a town place'); }
+      else if (tr.type === 'day') { if (!isInt(tr.value) || tr.value < 1 || tr.value > 7) err(where + '.hook.trigger.value', 'a day number, 1 to 7'); }
+      else err(where + '.hook.trigger.type', 'npc, location or day');
+    }
+  }
   // The age the character creation form starts at for this background (16 to 90).
   if (!isInt(b.age) || b.age < 16 || b.age > 90) err(where + '.age', 'a whole number of years, 16 to 90');
   checkStr(b.name, where + '.name', { noPlaceholders: true });
@@ -1152,8 +1579,10 @@ const arrivals = new Set();
   }
   // Modern: starting cash in dollars (the field keeps the name "gold").
   if (!isInt(b.gold) || b.gold < CASH_MIN || b.gold > CASH_MAX) err(where + '.gold', 'starting cash must be an integer ' + CASH_MIN + '..' + CASH_MAX + ' dollars');
-  if (!Array.isArray(b.items) || b.items.length !== 2) err(where + '.items', 'needs exactly 2 items');
-  else b.items.forEach((it, ii) => {
+  // Two things from the background and a cheap prepaid phone (one bar by the water tower), so the people who live elsewhere can be reached.
+  if (!Array.isArray(b.items) || b.items.length !== 3) err(where + '.items', 'needs exactly 3 items: two of the background\'s own and a prepaid phone');
+  else if (!b.items.some((it) => isObj(it) && it.name === 'Prepaid phone')) err(where + '.items', 'every background carries a "Prepaid phone"');
+  if (Array.isArray(b.items)) b.items.forEach((it, ii) => {
     const iw = where + '.items[' + ii + ']';
     if (!checkKeys(it, ['id', 'name', 'qty', 'notes'], iw)) return;
     checkStr(it.name, iw + '.name', { noPlaceholders: true });
@@ -1190,7 +1619,7 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
   for (const key of LOOSE_END_KEYS) {
     const le = LOOSE_ENDS[key];
     const where = 'LOOSE_ENDS.' + key;
-    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where)) continue;
+    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where, ['obligation', 'obligations'])) continue;
     checkStr(le.label, where + '.label', { noPlaceholders: true });
     checkStrList(le.options, where + '.options', 3, { noPlaceholders: true, maxSentences: 1 });
     (Array.isArray(le.options) ? le.options : []).forEach((o, oi) => {
@@ -1215,24 +1644,110 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
       if (['day', 'location', 'npc'].indexOf(le.seed.trigger) === -1) err(where + '.seed.trigger', 'must be "day", "location" or "npc"');
       // Content note 4: loose-end seeds use day triggers counted from day 1.
       else if (le.seed.trigger !== 'day') err(where + '.seed.trigger', 'loose-end seeds use "day"');
+      // The NPC comes to the player when the seed fires (World.fireSeeds), wherever that is: no setting assumed.
+      if (typeof le.seed.effect === 'string' && /\b(booth|across the bar|behind the bar|at the counter|the night clerk)\b/i.test(le.seed.effect)) err(where + '.seed.effect', 'assumes a setting; the person comes to the player wherever they are');
     }
+    // What the loose end binds the player to (CONTRACTS section 4): the
+    // kind's default (obligation) and one per preset option (obligations,
+    // lined up with options like link.optionTags; null where an option binds
+    // to nothing).
+    if (le.obligation !== undefined) checkObligation(le.obligation, where + '.obligation');
+    if (le.obligations !== undefined) {
+      if (!Array.isArray(le.obligations) || le.obligations.length !== (le.options || []).length) err(where + '.obligations', 'one per option (null for none)');
+      else le.obligations.forEach((ob, oi) => { if (ob !== null) checkObligation(ob, where + '.obligations[' + oi + ']'); });
+    }
+    if (['debt', 'secret', 'promise'].indexOf(key) !== -1 && le.obligation === undefined && !(Array.isArray(le.obligations) && le.obligations.every(isObj))) err(where, 'a ' + key + ' binds the player to something: give it an obligation');
   }
 }
+// An obligation the loose end creates when its seed fires: what is owed, by
+// when (dueOffset days after the seed), and what missing or meeting it does.
+function checkObligation(ob, where) {
+  if (!checkKeys(ob, ['kind', 'dueOffset', 'text', 'onMiss', 'onMet'], where, ['amount', 'itemName', 'onStart'])) return;
+  if (['debt', 'blackmail', 'promise', 'errand'].indexOf(ob.kind) === -1) err(where + '.kind', 'debt, blackmail, promise or errand');
+  if (ob.kind === 'debt' || ob.kind === 'blackmail') {
+    if (!isInt(ob.amount) || ob.amount < 20 || ob.amount > 2000) err(where + '.amount', 'a ' + ob.kind + ' names its amount in dollars, 20 to 2000');
+  } else if (ob.amount !== undefined && ob.amount !== null) err(where + '.amount', 'only a debt or blackmail has an amount');
+  if (!isInt(ob.dueOffset) || ob.dueOffset < 1 || ob.dueOffset > 7) err(where + '.dueOffset', 'days after the seed fires, 1 to 7');
+  checkText(ob.text, where + '.text', { ph: true, max: 160, maxSentences: 1 });
+  if (ob.kind === 'errand') {
+    checkText(ob.itemName, where + '.itemName', { ph: true, max: 60, maxSentences: 0 });
+    // The thing to deliver comes with the loose end, at character creation.
+    if (!Array.isArray(ob.onStart) || !ob.onStart.some((e) => isObj(e) && e.op === 'giveItem' && e.name === ob.itemName)) err(where + '.onStart', 'an errand gives the player the thing to deliver: a giveItem named "' + ob.itemName + '"');
+  } else if (ob.itemName !== undefined) err(where + '.itemName', 'only an errand has an item to deliver');
+  if (ob.onStart !== undefined) checkEffectList(ob.onStart, where + '.onStart', { ph: true, min: 1, max: 2 });
+  checkEffectList(ob.onMiss, where + '.onMiss', { ph: true, min: 1, max: 5 });
+  checkEffectList(ob.onMet, where + '.onMet', { ph: true, max: 4 });
+  // A missed debt or blackmail bites: money, a thing, health, a door or a price, not just a feeling.
+  const BITES = ['playerGold', 'playerHp', 'takeItem', 'banFrom', 'playerPrice', 'addCondition', 'addMemory'];
+  if ((ob.kind === 'debt' || ob.kind === 'blackmail') && Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && BITES.indexOf(e.op) !== -1)) err(where + '.onMiss', 'a missed ' + ob.kind + ' costs the player something (' + BITES.join(', ') + ')');
+}
 
+// Grudges and favours (CONTRACTS sections 2 and 3): the text the narrator
+// gets, the effects that make it bite when it fires, whether the town hears
+// of it (public), and who can hold it (forTags: someone with one of these
+// tags; notForTags: nobody with one). Never the player's phone or vehicle.
+const PLAYER_GEAR = /\btexts? \{player\}|\bcalls? \{player\}|\{player\}'s (phone|car|truck|ride|tires?)\b|whatever \{player\} (has been )?(riding|driving)/i;
+const tagCarriers = (tag) => npcs.filter((n) => n && (n.presence || 'here') === 'here' && Array.isArray(n.tags) && n.tags.indexOf(tag) !== -1);
+function holders(t) {
+  return npcs.filter((n) => n && (n.presence || 'here') === 'here' && Array.isArray(n.tags) &&
+    (!Array.isArray(t.forTags) || t.forTags.some((g) => n.tags.indexOf(g) !== -1)) &&
+    (!Array.isArray(t.notForTags) || !t.notForTags.some((g) => n.tags.indexOf(g) !== -1)));
+}
 function checkTemplates(list, name) {
-  if (!Array.isArray(list) || list.length < 6) { err(name, 'needs at least 6 templates'); return; }
+  if (!Array.isArray(list) || list.length < 8) { err(name, 'needs at least 8 templates'); return; }
   const seen = new Set();
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
-    if (!checkKeys(t, ['effect', 'dayOffset'], where)) return;
+    if (!checkKeys(t, ['effect', 'dayOffset', 'effects', 'public'], where, ['forTags', 'notForTags'])) return;
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });
     checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}']);
+    if (typeof t.effect === 'string' && PLAYER_GEAR.test(t.effect)) err(where + '.effect', 'assumes the player has a phone or a vehicle');
     checkDayOffset(t.dayOffset, where + '.dayOffset', 2, 5);
     if (typeof t.effect === 'string') { if (seen.has(t.effect)) err(where, 'duplicate template'); seen.add(t.effect); }
+    checkEffectList(t.effects, where + '.effects', { ph: true, min: 1, max: 4 });
+    if (typeof t.public !== 'boolean') err(where + '.public', 'true when the town hears of it, else false');
+    for (const k of ['forTags', 'notForTags']) {
+      if (t[k] === undefined) continue;
+      if (!Array.isArray(t[k]) || !t[k].length) { err(where + '.' + k, 'a non-empty array of tags'); continue; }
+      t[k].forEach((g) => { if (!tagCarriers(g).length) err(where + '.' + k, 'nobody in town carries the tag "' + g + '"'); });
+    }
+    const who = holders(t);
+    if (!who.length) err(where, 'nobody in town can hold it (forTags/notForTags leave no one)');
+    // The old, the young and the law do not beat anyone (the law uses its own methods).
+    if (Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'playerHp' && e.delta < 0)) {
+      const wrong = who.filter((n) => ['elderly', 'teen', 'police'].some((g) => n.tags.indexOf(g) !== -1));
+      if (wrong.length) err(where, 'a beating, but ' + wrong.map((n) => n.id).join(', ') + ' could hold it (exclude elderly, teen and police)');
+    }
+  });
+  // Everyone in town has at least one they can hold.
+  npcs.filter((n) => n && (n.presence || 'here') === 'here').forEach((n) => {
+    if (!list.some((t) => isObj(t) && holders(t).indexOf(n) !== -1)) err(name, n.id + ' can hold none of them');
   });
 }
 checkTemplates(GRUDGE_TEMPLATES, 'GRUDGE_TEMPLATES');
 checkTemplates(FAVOUR_TEMPLATES, 'FAVOUR_TEMPLATES');
+
+// Goal presets for character creation (the UI offers them as suggestions):
+// four to six one-line goals tied to the town's threads.
+if (!Array.isArray(data.GOAL_PRESETS) || data.GOAL_PRESETS.length < 4 || data.GOAL_PRESETS.length > 6) err('GOAL_PRESETS', 'four to six one-line goals');
+else checkStrList(data.GOAL_PRESETS, 'GOAL_PRESETS', undefined, { noPlaceholders: true, maxSentences: 1 });
+(Array.isArray(data.GOAL_PRESETS) ? data.GOAL_PRESETS : []).forEach((g, i) => { if (typeof g === 'string' && g.length > 140) err('GOAL_PRESETS[' + i + ']', 'at most 140 characters (the creation form\'s limit)'); });
+
+// Text the narrator is handed to tell (a seed, a completion and its alt, an
+// event, the epilogue, a hook, a template, a loose end's seed) has no simile
+// outside quotes: the casual style's check would send it back.
+const SIMILE = /\b(like an?|as if)\b/i;
+(function scan(v, where, key) {
+  if (typeof v === 'string') {
+    if (['effect', 'text'].indexOf(key) !== -1 && SIMILE.test(v.replace(/"[^"]*"/g, ' '))) err(where, 'a simile ("' + SIMILE.exec(v)[0] + '") in text the narrator tells; say it plainly');
+    return;
+  }
+  if (Array.isArray(v)) v.forEach((x, i) => scan(x, where + '[' + i + ']', key));
+  else if (isObj(v)) for (const k of Object.keys(v)) scan(v[k], where + '.' + k, k);
+})({ factions: T.factions, seeds: T.seeds, events: T.events, epilogue: T.epilogue, hooks: (Array.isArray(BACKGROUNDS) ? BACKGROUNDS : []).map((b) => b && b.hook), LOOSE_ENDS: LOOSE_ENDS, GRUDGE_TEMPLATES: GRUDGE_TEMPLATES, FAVOUR_TEMPLATES: FAVOUR_TEMPLATES }, 'narrated', null);
+
+// Every flag a condition reads is one some effect sets.
+for (const [where, k] of flagsRead) if (!flagsWritten.has(k)) err(where, 'reads the flag "' + k + '", which nothing in the content sets');
 
 // ---------------------------------------------------------------------------
 // 8. Modern: EXAMPLE_TURNS_LITERARY and EXAMPLE_TURNS_CASUAL in index.html, the
@@ -1340,7 +1855,10 @@ checkExamples('EXAMPLE_TURNS_CASUAL');
 // ---------------------------------------------------------------------------
 const MENTIONS = require('./mentions.cjs');
 const unrecordedMentions = MENTIONS.unrecorded(data);
-for (const x of unrecordedMentions) err(x.where, (x.kind === 'name' ? 'the name "' : 'the place "') + x.text + '" matches no person, place or faction (tests/mentions.cjs): add a record, an aka, or reword');
+for (const x of unrecordedMentions) {
+  if (x.kind === 'person') err(x.where, '"' + x.text + '" puts someone in the story who is not in the cast (tests/mentions.cjs): name a cast member, or let the person act alone');
+  else err(x.where, (x.kind === 'name' ? 'the name "' : 'the place "') + x.text + '" matches no person, place or faction (tests/mentions.cjs): add a record, an aka, or reword');
+}
 
 // ---------------------------------------------------------------------------
 // 10. Report

@@ -1170,13 +1170,15 @@ async function writeV6Save(page) {
   await quickStart(page, { kinds: ['debt'] });
   const out = await page.evaluate(key => {
     const T = Game.data.TOWN_DATA;
-    const PH = ['morning', 'afternoon', 'evening', 'night'];
     const LP = ['age', 'presence', 'history', 'where', 'reach', 'died', 'buried'];
     const LL = ['away', 'distance', 'details', 'hours', 'history', 'aka'];
     const env = Game.Storage.envelope('Autosave');
     const st = env.state;
     const absent = st.npcs.filter(n => Game.presenceOf(n) !== 'here').map(n => n.id);
-    const newPlaces = T.locations.filter(l => PH.every(p => !l.npcIdsBySchedule[p].length)).map(l => l.id);
+    // The places version 7 brought: everything out of town, and the street, the cemetery, the tower, the bluff and the road
+    // (by type: since the content pass people are scheduled there, so "nobody scheduled" no longer finds them).
+    const V7_TYPES = ['street', 'cemetery', 'tower', 'highway', 'road'];
+    const newPlaces = T.locations.filter(l => l.away || V7_TYPES.includes(l.type)).map(l => l.id);
     const strip = (o, keys) => { for (const k of keys) delete o[k]; return o; };
     st.npcs = st.npcs.filter(n => !absent.includes(n.id)).map(n => strip(Object.assign(n, { relations: n.relations.filter(r => !absent.includes(r.npcId)) }), LP));
     st.locations = st.locations.filter(l => !newPlaces.includes(l.id)).map(l => strip(Object.assign(l, { exits: l.exits.filter(x => !newPlaces.includes(x)) }), LL));

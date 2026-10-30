@@ -618,7 +618,8 @@ s.test('town data passes validation and every content constant has the contract 
       flaws: D.FLAWS.every(f => typeof f === 'string' && f.length > 0),
       loose: keys(D.LOOSE_ENDS),
       looseShape: Object.values(D.LOOSE_ENDS).map(le => ({ k: keys(le), seed: keys(le.seed), link: keys(le.link).filter(k => k !== 'optionTags').join() === 'tag' && (!le.link.optionTags || le.link.optionTags.length === le.options.length) })),
-      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => keys(t).join() === 'dayOffset,effect' && t.effect.includes('{npc}'))
+      // Grudges and favours carry their effects, whether the town hears (public) and who can hold them (CONTRACTS sections 2 and 3).
+      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => ['dayOffset', 'effect', 'effects', 'public'].every(k => keys(t).includes(k)) && keys(t).every(k => ['dayOffset', 'effect', 'effects', 'public', 'forTags', 'notForTags'].includes(k)) && t.effect.includes('{npc}'))
     };
   });
   assert.deepEqual(r.errors, []);
@@ -627,33 +628,40 @@ s.test('town data passes validation and every content constant has the contract 
   assert.ok(r.haunted.some(e => e === `${r.deadId}: is dead but scheduled in town`), r.haunted.join(' | '));
   // map is optional on the town and on each location (docs/BUILD_PLAN.md, "Map"); offstage on the town. A lived-in town (direction change 9):
   // the town's year, history and recent events; every place's details, hours and history, other names (aka), and away and distance out of town.
-  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance'].includes(k);
+  // The calendar, the town events and the epilogue (CONTRACTS sections 1 and 11); weekdays a place is shut (closedOn).
+  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance', 'calendar', 'events', 'epilogue', 'closedOn'].includes(k);
   assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'history', 'locations', 'name', 'npcs', 'recent', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads', 'year']);
   for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'details', 'discovered', 'exits', 'history', 'hours', 'id', 'name', 'npcIdsBySchedule', 'type']);
   // The cast (docs/BUILD_PLAN.md, direction changes 8 and 9): an age, a presence, a history, relations and a home on everyone;
   // where they are and how to reach them for someone away, when they died (and where they lie) for the dead.
-  const extra = ['where', 'reach', 'died', 'buried'];
+  // awayOn: the school-day absences (CONTRACTS section 1).
+  const extra = ['where', 'reach', 'died', 'buried', 'awayOn'];
   for (const k of r.npcKeys) assert.deepEqual(k.filter(x => !extra.includes(x)), ['age', 'alive', 'attitude', 'factionId', 'goal', 'history', 'home', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'presence', 'pronouns', 'relations', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
-  for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc, ['effects', 'text']); }
+  // A completion may say what must hold and what happens instead (requires, alt: CONTRACTS section 3).
+  for (const [c, oc] of r.clockKeys) { assert.deepEqual(c, ['filled', 'label', 'onComplete', 'segments']); assert.deepEqual(oc.filter(k => !['requires', 'alt'].includes(k)), ['effects', 'text']); }
   assert.deepEqual(r.tables.top, ['complications', 'items', 'location', 'npc', 'weather']);
-  assert.deepEqual(r.tables.npc, ['familyNames', 'firstNames', 'occupations', 'speechQuirks', 'traits', 'wants']);
+  // The word lists only Tables.npc() read went with the fixed cast; the first names and jobs the person matcher reads stay.
+  assert.deepEqual(r.tables.npc, ['firstNames', 'occupations']);
   assert.deepEqual(r.tables.location, ['details', 'problems', 'types']);
   assert.deepEqual(r.tables.items, ['goods', 'trinkets']);
   assert.deepEqual(r.tables.weather, ['autumn', 'spring', 'summer', 'winter']);
-  for (const g of r.tables.goods) assert.deepEqual(g, ['name', 'price']);
+  // Goods say what buying them does (CONTRACTS section 7).
+  for (const g of r.tables.goods) assert.deepEqual(g, ['kind', 'name', 'price']);
   for (const b of r.bg) {
-    assert.deepEqual(b.k, ['age', 'arrival', 'blurb', 'gold', 'id', 'items', 'name', 'stats']);
+    // A first lead (hook); two things of the background's own and a prepaid phone.
+    assert.deepEqual(b.k.filter(k => k !== 'hook'), ['age', 'arrival', 'blurb', 'gold', 'id', 'items', 'name', 'stats']);
     assert.equal(b.total, 3);
     assert.ok(b.range);
-    assert.equal(b.items, 2);
+    assert.equal(b.items, 3);
     assert.ok(['gate', 'docks'].includes(b.arrival));
   }
   assert.ok(r.bg.some(b => b.arrival === 'gate') && r.bg.some(b => b.arrival === 'docks'));
   assert.ok(r.flaws);
   assert.deepEqual(r.loose, ['debt', 'enemy', 'lost', 'promise', 'secret']);
   for (const le of r.looseShape) {
-    assert.deepEqual(le.k, ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
+    // What the loose end binds the player to (obligation, obligations: CONTRACTS section 4).
+    assert.deepEqual(le.k.filter(k => !['obligation', 'obligations'].includes(k)), ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
     assert.deepEqual(le.seed, ['dayOffset', 'effect', 'trigger']);
     assert.ok(le.link);
   }
@@ -716,22 +724,18 @@ s.test('character creation turns every loose end into an NPC, a memory, a thread
   assert.match(errs.unknown, /background/);
 });
 
+// Tables.npc() is gone from this test: the cast is fixed, nothing in the game
+// calls it, and its word lists (family names, traits, wants, speech quirks)
+// were removed from TABLES.npc (docs/notes/content.md).
 s.test('Tables build complete entities from the seeded stream', async h => {
   const page = await h.open();
   const r = await page.evaluate(() => {
     const G = Game;
-    const n1 = G.Tables.npc({}, G.Rng.create(5));
-    const n2 = G.Tables.npc({}, G.Rng.create(5));
     const l = G.Tables.location({ fromId: 'loc_x' }, G.Rng.create(5));
     const it = G.Tables.item('goods', G.Rng.create(5));
     const tr = G.Tables.item('trinket', G.Rng.create(5));
-    return { n1, n2, l, it, tr, comp: G.data.TABLES.complications.includes(G.Tables.complication(G.Rng.create(1))), weather: G.Tables.weather('winter', G.Rng.create(1)) };
+    return { l, it, tr, comp: G.data.TABLES.complications.includes(G.Tables.complication(G.Rng.create(1))), weather: G.Tables.weather('winter', G.Rng.create(1)) };
   });
-  assert.deepEqual(r.n1, r.n2);
-  assert.deepEqual(Object.keys(r.n1).sort(), ['alive', 'attitude', 'factionId', 'goal', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'pronouns', 'role', 'secret', 'status', 'tags', 'voice']);
-  assert.ok(['he', 'she', 'they'].includes(r.n1.pronouns), 'pronouns: ' + r.n1.pronouns);
-  assert.match(r.n1.id, /^npc_[a-z0-9_]+$/);
-  assert.equal(r.n1.personality.length, 2);
   assert.match(r.l.id, /^loc_[a-z0-9_]+$/);
   assert.deepEqual(r.l.exits, ['loc_x']);
   assert.ok(r.l.description.length > 10);
@@ -1203,10 +1207,7 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
     const T = G.data.TOWN_DATA;
     const st = G.state;
     const infer = ['A woman in a red coat', "Dewayne's wife", 'her husband', 'his wife', 'the night clerk', 'A man with a bitter look about them.', 'mother of two', 'an old guy', 'she said so'].map(G.inferPronouns);
-    // The tables: someone known to be she gets a first name that fits and a look in her words; a name or a role decides when nothing else does.
-    const women = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ noun: 'woman' }, G.Rng.create(i + 1)));
-    const men = Array.from({ length: 30 }, (_, i) => G.Tables.npc({ role: 'husband of the cook' }, G.Rng.create(i + 1)));
-    const anyone = Array.from({ length: 30 }, (_, i) => G.Tables.npc({}, G.Rng.create(i + 1)));
+    // (Tables.npc() is no longer exercised here: the cast is fixed and its word lists are gone; see docs/notes/content.md.)
     G.State.apply({ addNpcs: [
       { id: 'npc_test_a', name: 'Test A', role: 'cook', look: 'A tall woman in an apron.' },
       { id: 'npc_test_b', name: 'Earl Test', role: 'cook', look: 'Tall, in an apron.' },
@@ -1225,8 +1226,7 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
     return {
       town: T.npcs.map(n => ({ id: n.id, pronouns: n.pronouns, look: n.look })), inState: st.npcs.map(n => [n.id, n.pronouns, n.look]),
       looseIds: st.player.looseEnds.filter(le => le.created).map(le => le.npcId),
-      infer, women: women.map(n => [n.pronouns, n.name, n.look, G.namePronouns(n.name)]), men: men.map(n => [n.pronouns, G.namePronouns(n.name)]),
-      anyone: anyone.map(n => [n.pronouns, G.namePronouns(n.name), n.look]),
+      infer,
       added, bad, loaded, label: [G.pronounLabel('she'), G.pronounLabel('he'), G.pronounLabel('they'), G.pronounLabel(undefined)]
     };
   });
@@ -1238,16 +1238,6 @@ s.test('pronouns: every town person has them, matching their look; the tables, l
   for (const n of r.town) assert.equal(r.inState.find(x => x[0] === n.id)[1], n.pronouns, 'a new game carries the town pronouns: ' + n.id);
   assert.deepEqual(r.looseIds, [], 'a loose end makes nobody: it is someone in the cast, with the cast\'s pronouns');
   assert.deepEqual(r.infer, ['she', 'she', 'he', 'she', 'they', 'he', 'she', 'he', 'she']);
-  for (const [p, name, look, byName] of r.women) {
-    assert.equal(p, 'she');
-    assert.notEqual(byName, 'he', 'a first name that fits: ' + name);
-    assert.match(look, /^A woman with an? .+ look about her\.$/, look);
-  }
-  for (const [p, byName] of r.men) { assert.equal(p, 'he'); assert.notEqual(byName, 'she'); }
-  for (const [p, byName, look] of r.anyone) {
-    assert.equal(p, byName || 'they', 'nothing else said: the name decides');
-    assert.ok(look.endsWith(`look about ${{ he: 'him', she: 'her', they: 'them' }[p]}.`), look);
-  }
   assert.deepEqual(r.added, ['she', 'he', 'they', 'she'], 'addNpcs: the pronouns given, else the look, else the first name, else they');
   assert.match(r.bad[0], /pronouns must be he, she or they/);
   for (const n of r.town) assert.equal(r.loaded.find(x => x[0] === n.id)[1], n.pronouns, 'loaded: the town pronouns for ' + n.id);

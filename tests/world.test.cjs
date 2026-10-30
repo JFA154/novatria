@@ -190,7 +190,7 @@ s.test('faction clocks advance over several days; a completed clock changes the 
       else if (before.npcs.find(x => x.id === target.hit.npcId).status !== 'gone') assert.equal(await page.evaluate(id => Game.State.npc(id).status, target.hit.npcId), target.hit.status);
       if (target.nextLabel) {
         await sendText(page, '/debug');
-        assert.ok((await page.innerText('#panel-body')).includes(`0/6 "${target.nextLabel}"`), 'debug shows the next clock running');
+        assert.ok(new RegExp(`0/\\d+ "${target.nextLabel}"`).test(await page.innerText('#panel-body')), 'debug shows the next clock running (any clock length: the factions are staggered)');
       }
     }
   }
