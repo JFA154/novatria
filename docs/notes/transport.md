@@ -519,3 +519,84 @@ lines.
 - Checked at the seams: a walk or `/skip` into the evening moves the player
   before `World.tick` fires the council meeting, so `playerAt` holds; a
   `/rest` through it does not count as being there.
+
+## Wave 3
+
+The second code review's bugs 6, 7 (card game), 8 and its risks on the turn
+side, the coordinator's recap and command items, and the second playtest's
+turn items. Tests: `tests/wave3-fixes.test.cjs`.
+
+### Turns
+
+- **Narrator-only turns fire what is due first** (playtest N4): `/look`,
+  `/rest`, `/wait` and `/skip` call `World.fireSeeds` before the due events
+  are collected, so the morning's visitor is in that narration; a person a
+  due event brought is taken out of the scene change's "left" (and not told
+  again as an arrival: `squareScene`). Such a narration is bookkept (as any
+  narrator-only turn that tells a due event), so `tests/playtest.test.cjs`'s
+  cost measure allows one bookkeeping call per narrator-only command
+  (changed by design).
+- **One scene change, start to end** (N9): `passTime` measures against the
+  untold scene's `before`, so a `/wait` across three phases tells who came
+  and went from its start to its end.
+- **A walk's end** (review bug 2): `ctx.destination` has the `day` it lands
+  on; DESTINATION, the due events and their brought people are for that
+  phase and day.
+- **Introductions** (N5, N6): on a walk, the people where it lands are the
+  ones the narration introduces; someone already known (a loose end's
+  person) is met (`metTurn`) once the narration names them in front of the
+  player or the player speaks to them in Say mode.
+- TIME THIS TAKES (review bug 6): a player beaten senseless hears "the
+  narration stops there, and the engine decides what comes after"; the
+  night in the cell only with an arrest that will happen (`ctx.arrest.plan`).
+- An arrest's turn tells no other due event; they wait for the next
+  narration. The bookkeeper hears the weapons taken are recorded.
+- **Searches** (N12): a search for a `new:` thing always rolls (Wits, normal,
+  unless the parser set one); with no roll nothing is made.
+- **Fights** (D5): the target's `Dice.threat` sets the difficulty of an
+  attack on someone here, whatever the parser said.
+- **Cards**: no complication is rolled (`complication: null`); an
+  accusation is a one-day ban (tonight; welcome again tomorrow), caught
+  cheating three days with today (`CAUGHT_BAN_DAYS`), and OUTCOME says when
+  they are welcome back; a place shut today says why in words, and "today"
+  before the evening (N8; `/rest` the same). The ACTION line names the stake
+  the engine plays ("Deal me in" is $20).
+- `/skip` to the place the player is in, at a later phase, is a wait there
+  (no "You arrive").
+- **Resolved lines** (N11): one per thread, each with its own gain from
+  `player.progression` ("+1 Charm", "+2 max HP").
+- **Gifts** (review risk, the playtest's design note): `giftCheck` only
+  notes who a gift would go to (any action aimed at someone here but a buy,
+  a sale, a bet, a theft or an attack, so Say mode too); `giftIn` decides
+  from the bookkeeper's diff (money or a thing handed over, not toward what
+  is owed them); `giftGiven` is recorded only after the diff applied the
+  money or the thing.
+- **The late bookkeeper** (review risk): `retryBookkeeper` finds its game by
+  `createdAt` and seed and its entry by turn, input and narration (a failed
+  later turn restores the state as a new object); every drop is noted in the
+  debug log.
+- Removed: the fallbacks for `Dice.clearLocks`, `World.arrestPlan`,
+  `World.arrestPlayer`, `Dice.fightDamage` and `Dice.threat` (all exist).
+
+### The recap
+
+- Reasons (review bug 8, N10, coordinator 1): the verb after the player's
+  name agrees ("you are", "you have", "you were"), the person's "I think" is
+  "he thinks", a name keeps its capital, and the reason fits its side (Warm
+  only a kindness, Cold only a grievance: `memorySense`; a loose end either
+  side).
+- Warm and Cold list only people the player has dealt with (met, a loose
+  end's person, or someone remembering something of them).
+- Owed: "missed Day 7, still owed" (the Journal's form;
+  `wave2-fixes.test.cjs` follows, changed by design). Here: a serial comma
+  when a label has "and". In town: the latest two by day.
+- The ending line only once the ending's news is seen (its narration
+  committed); a game with no ending news item reads `flags.epilogueShown`.
+
+### Commands
+
+- `/skip <where or when>`, `/pronouns <who> <she|he|they>`.
+- `/help` (and `/commands`, an alias not in the list) prints the command
+  list as a notice (`Commands.helpText()`, kind `help`, one line each);
+  `shell.test.cjs`'s list gains `/help` (changed by design). The UI's
+  "Commands help" may call `Commands.run('/help')`.

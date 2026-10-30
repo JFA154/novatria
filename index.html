@@ -12088,7 +12088,7 @@ const World = (() => {
     const fine = Math.min(FINE, Math.max(0, s.player.gold | 0));
     const who = chief ? chief.name : 'The police';
     const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || ''))).map(i => i.name);
-    const taken = weapons.length ? ` ${chief ? (chief.pronouns === 'she' ? 'She' : chief.pronouns === 'they' ? 'They' : 'He') : 'They'} take${chief && chief.pronouns !== 'they' ? 's' : ''} ${weapons.map(w => lowerFirst(w)).join(' and ')} off ${s.player.name}.` : '';
+    const taken = weapons.length ? ` ${chief ? (chief.pronouns === 'she' ? 'She' : chief.pronouns === 'they' ? 'They' : 'He') : 'They'} take${chief && chief.pronouns !== 'they' ? 's' : ''} ${weapons.map(w => `the ${lowerFirst(w)}`).join(' and ')} off ${s.player.name}.` : '';
     const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${placeIn(cell)}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.${taken}`;
     return { text, cellId: cell ? cell.id : null, chiefId: chief ? chief.id : null, fine, place, weapons };
   }
@@ -12107,7 +12107,7 @@ const World = (() => {
     // Weapons go with the arrest (wave 3): taken off the player, and the chief remembers taking them.
     const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || '')));
     if (weapons.length) diff.itemsLost = weapons.map(i => ({ id: i.id, qty: i.qty || 1 }));
-    const took = weapons.length ? `, and took ${weapons.map(i => lowerFirst(i.name)).join(' and ')} off them` : '';
+    const took = weapons.length ? `, and took ${weapons.map(i => `the ${lowerFirst(i.name)}`).join(' and ')} off them` : '';
     if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}${took}`, weight: 3 }];
     State.apply(diff, W);
     const text = plan.text;
@@ -13269,8 +13269,7 @@ const Api = (() => {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
-      // The engine plays the stake the player named (else its own; the summary follows it).
-      out.summary = st ? `bets $${parseInt(st[1] || st[2], 10)} at cards` : 'sits in at cards';
+      out.summary = `bets $${st ? parseInt(st[1] || st[2], 10) : 10} at cards`;
       out.timeCost = 'short';
       out.targets = target();
     }

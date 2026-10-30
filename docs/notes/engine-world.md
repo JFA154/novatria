@@ -373,3 +373,44 @@ Review bugs 5, 6, 8 (World side) and the playtest's B5, B6, B7, B9 and B18
   tick.
 - `TABLES.complications`: the witness line no longer says the player was
   known before.
+
+## Wave 3
+
+The second code review's bugs 2, 5, 10 and its risks on the World, Town and
+Dice side, its dead code, and the second playtest's engine items. Tests:
+`tests/wave3-fixes.test.cjs`.
+
+- **Brought at the end of a walk** (review bug 2): `World.dueSeeds({ phase,
+  day })` brings a person for the phase the walk lands in, so DESTINATION
+  names them and they are still there after the walk's time has passed.
+- **Sorted, then capped** (review risk): the scene first, then someone come
+  for the player, then the rest, and only then `MAX_DUE`; a person is
+  brought only for an event that is told.
+- **A seed told as a due event** has its own `addNews` marked seen (the
+  playtest's "seed news told twice"): the narration tells it, "Overnight in
+  town" does not.
+- **Plausibility** (review bug 5): a word right before the head word that
+  makes it something ordinary (`HARMLESS_BEFORE`: grease, staple, nail,
+  caulk, water, squirt, peanut, taco, pecan, ink, toner, gravy, hand ...) lifts
+  the gun, ammunition, boat and vehicle rules: a grease gun, peanut shells,
+  ink cartridges, a gravy boat, a hand truck.
+- **A possessive names a place** (review bug 10): `Town.matchExisting`
+  checks `possessivePlace` before people: "Pittman's"/"Byrd's" alone is the
+  business whose name starts so; "Royce's house" (place, home, trailer,
+  apartment, farm) that person's home; "Hollis's pawn shop" or "Loretta's
+  bar" a place of that name or kind tied to them (their name in it, they work
+  or live there); "Pittman's gas" the business it starts. "Royce's truck"
+  and "Dewayne's wife" are still not places.
+- **Arrests** (the playtest's design note): `arrestPlan` lists the weapons
+  the player carries (`WEAPON_RE`: guns, knives, shells and the like) and its
+  text says the chief takes them; `arrestPlayer` takes them (`itemsLost`)
+  and the chief's memory says so.
+- **Grudges in kind** (design note): `plantFeeling` prefers templates that
+  answer the memory: violence a beating or the police, a theft the police or
+  talk, an insult talk (`memoryKind`, `grudgeKind`); any fitting template
+  when none answers.
+- **Dice**: `resolve({ complication: null | false })` rolls none (the card
+  game); `roll.complicationWitness` and `Dice.lock` are gone (no reader, no
+  caller; `engine-world-fixes.test.cjs` sets the same lock through `lockFor`,
+  changed by design); a lock key never holds ";" (the separator of
+  `meta.lastRollKey`).

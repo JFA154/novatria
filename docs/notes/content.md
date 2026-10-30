@@ -610,3 +610,23 @@ is here" (see the engine needs below).
   branch's own news (the engine tells an event once, by its addNews, not by
   its text as well); the validator test also refuses a `playerAt` that is
   no place.
+
+## Wave 3
+
+The second playtest's N13, N14, N16 and Nadine's hook. Checked by
+`tests/validate-town.cjs` and `tests/mentions.cjs`; tested in
+`tests/wave3-fixes.test.cjs`.
+
+- `seed_after_packing`: "Glenda Pryor" (was "Glenda Gentry", nobody).
+  `tests/mentions.cjs` now refuses a "First Last" pair of one person's first
+  name and another's family name that is nobody's name (`PAIR_ALLOW`: Mavis
+  Crocker, Jodie Ogletree, names used on purpose); the validator reports it.
+- The hustler's hook invites `{player}` (was "them"), so the mock tells it
+  as "you".
+- The Shayla Rawls grudge says the player's story about where they came from
+  does not add up (no "they say they are").
+- Nadine's hook asks the player to come by the Parsonage for supper on
+  Wednesday evening (she is there then; nothing happens at the church).
+- The debt `onMet` memories still say "in full and on time"; the engine
+  rewrites them as late when the debt is paid after it was missed
+  (engine-state.md, Wave 3).

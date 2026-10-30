@@ -481,7 +481,9 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
   // The narrator's packet now carries the story (EARLIER, LOOSE ENDS, OPEN, TOWN NEWS, each person's traits and wants): under 12,000 characters (8,000 before).
   assert.ok(m.narrate.max < 12000 && m.bookkeep.max < 12000, 'packets stay small');
-  assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');
+  // Changed by design in wave 3 (the second playtest's N4): a narrator-only command (/look /rest /wait) that tells a
+  // due event fired by the time it passed is bookkept too, so it may add one call; every parsed turn still has one.
+  assert.ok(m.bookkeep.n >= m.parse.n && m.bookkeep.n - m.parse.n <= 3, `one bookkeeping call per parsed turn, and at most one per narrator-only command (${m.parse.n} parsed, ${m.bookkeep.n} bookkept)`);
 });
 
 /* Mock tidy-ups (milestone 5), on synthetic people so they hold for any town:

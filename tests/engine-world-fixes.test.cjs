@@ -115,8 +115,8 @@ s.test('the retry lock: keyed on the action\'s family and target, not the stat; 
     const afterPhase = [D.isLocked(D.lockKey({ actionType: 'persuade', stat: 'charm', targets: [who] })), st.time.phase !== snapPhase];
     const cleared = D.clearLocks({ phase: true });
     const lock = st.meta.lastRollKey;
-    // Dice.lock and a move.
-    D.lock(k.pick);
+    // A lock set outright, and a move. (Changed in wave 3: Dice.lock had no caller in the game and is gone; the same lock goes through lockFor.)
+    S.apply({ lastRollKey: D.lockFor({ tier: 'failure' }, k.pick) });
     const lockedOutright = !!st.meta.lastRollKey;
     const other = S.loc(st.player.locationId).exits.find(x => !S.loc(x).closed);
     S.apply({ playerLocationId: other });

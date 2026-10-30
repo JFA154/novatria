@@ -114,13 +114,14 @@ s.test('the morning\'s news: a seed that fires at dawn is told that morning, onc
     S.apply({ effects: [{ op: 'addNews', text: 'A private word passed between two people.', public: false }] });
   });
   await sendText(page, '/rest');
-  const q = (await quiets(page)).filter(t => /^Overnight in town/.test(t));
-  assert.equal(q.length, 1);
-  assert.match(q[0], /The ferry bell rang at dawn/);
+  // Changed by design in wave 3 (the second playtest: seed news told twice, and N4): a seed that fires at dawn is
+  // told in that /rest narration as its due event, so its own news is seen and "Overnight in town" does not repeat it.
+  assert.match(await lastPacket(page), /\nDUE EVENT: The ferry bell rings at dawn\./);
+  assert.equal((await quiets(page)).filter(t => /ferry bell rang/.test(t)).length, 0, 'not told again as overnight news');
   const r = await page.evaluate(() => Game.State.news.map(n => [n.public, n.seen]));
   assert.deepEqual(r, [[false, false], [true, true]]);
   await sendText(page, '/rest');
-  assert.equal((await quiets(page)).filter(t => /ferry bell rang/.test(t)).length, 1, 'told once');
+  assert.equal((await quiets(page)).filter(t => /ferry bell rang/.test(t)).length, 0, 'told once, by the narration');
 });
 
 s.test('a place shut today (closedOn) or barred to the player (banFrom) is a shut door for a walk and a walk-then-act; "do this, then go there" acts here and walks on', async h => {

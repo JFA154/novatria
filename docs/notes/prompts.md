@@ -426,3 +426,40 @@ Region: the Style module and the mock provider. Tests:
   night) and a bar shut for the day ("The place is shut today, so there is
   no game."). `tests/wave2-fixes.test.cjs` checks the first three in the
   narration.
+
+## Wave 3
+
+Review bug 4 (Style) and the second playtest's demo items. Tests:
+`tests/wave3-fixes.test.cjs`.
+
+### Style.nameHits
+
+- Unknown capitalised words side by side are one name; what marks one marks
+  them all ("Earl Hux nods", "at Earl Hux's").
+- At a sentence start a lone word is a name when a speech or gesture verb
+  follows it ("Darnell says the bridge is out", "Bobby waves you over"), or
+  when it is two words or more ("Earl Hux leans on the counter").
+- Within a sentence two unknown words together are not a mark of their own
+  ("He dips Red Seal", "The radio plays Conway Twitty": soft); a title or
+  kin word, a place word, a possessive or a speech verb marks them.
+- "says", "said", "mention(s/ed)" right before a word mark it ("She says
+  Darnell owes her money"); two back they do not ("says the Feds").
+
+### The mock (demo only)
+
+- Searches: "I search the shelves for a flashlight" is a search; a search
+  for a thing not lying here rolls Wits.
+- Picking up: every thing lying here the words name ("the fishing rod and
+  the tackle box"), a longer name over one inside it ("Rod and reel").
+- A given thing: the full name, else the one sharing the most words with the
+  line, and on a tie the thing an errand is owed ("the letter to Jodie" is
+  the Letter for Jodie Strayhorn, not the Reference letter).
+- A walk to a place out of town is parsed as one; the engine refuses it.
+- Attacks are parsed at normal (the engine sets the target's threat).
+- The narration tells what the action came to (a knockdown, a card loss)
+  before anyone arriving or leaving, so the line budget never cuts it.
+- Money toward a debt is a payment: no "gave me" memory or warmth; paid in
+  full, "paid me back" only when the obligation's `onMet` has no memory for
+  them. The mock bookkeeper meets a loose end's person talked to who is
+  known but not yet met.
+- `freshNews` reads `State.news` (its function fallback was dead).

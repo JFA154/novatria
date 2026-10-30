@@ -400,3 +400,53 @@ playtest's B12, B13, B14, B18 on the State side. Tests:
   `owedTo` or `askerId` that names nobody and a `missText` that is not text.
 - The mock's memory rewrite keeps `State.MEMORY_MAX` (it kept six);
   `tests/upgrade.test.cjs` follows (changed by design).
+
+## Wave 3
+
+The second code review's bugs 1, 3, 7 (State half), 9 and its risks on the
+State side; the second playtest's N1, N2, N7 and the README row on beds.
+Tests: `tests/wave3-fixes.test.cjs`.
+
+- **A purchase is not a payment** (review bug 1, playtest N1). `apply` takes
+  `opts.actionType` (transport passes the action's). Money in a model diff
+  goes toward a debt or blackmail only when the bookkeeper names it in
+  `obligationsSettled`, or it went to the creditor (aimed at them, or nobody
+  else here) and bought nothing: not a `buy`, and no `itemsGained` (a cold
+  drink from Hollis alone at his counter is the price of the drink). Only a
+  payment raises the $500 cap to what is still owed.
+- **Paid late** (review bug 3): `settle(o, 'met', how, lateNow)` runs the
+  obligation's `onMet` with any memory that says "on time" (or "early",
+  "before it was due") rewritten to ", but late" ("paid the six hundred in
+  full, but late"). The settle-by-play paths pass `lateNow` instead of
+  flipping the status to open first.
+- **A loose end settled** (playtest N7): an obligation met (on time or late)
+  resolves the open thread of the player's loose end with the same person
+  and kind (debt: debt; secret: blackmail; promise: promise or errand; lost:
+  errand) through `setThreadStatus` (`resolvedOnce`, the story point and the
+  progression apply). Open no longer lists it.
+- **Bans end before their day** (review bug 7, playtest N2): `isBanned` holds
+  while `day < untilDay`, `expireDaily` drops a ban on its `untilDay`, so
+  "until day N" means welcome again on day N and `banFrom { days: N }` is N
+  days with today. A ban saved by an older build ends a day earlier than it
+  did. The People card's "Banned you from ... until day N" and the Places
+  sheet read the same (two one-character UI edits: `> day`).
+- **Numbers written as text** (review bug 9): `typeProblem` also checks
+  `meta.turn`, `meta.rngCalls`, an item's `qty` and `price` (carried or lying
+  in a place), a ban's `untilDay` and a condition's `untilDay`; `coerceNumbers`
+  converts them (and an age) at load.
+- **mergePeople** (review risk): every reference moves: obligations (person,
+  `owedTo`, the ids in `onMiss`/`onMet`), bans, the fight, today's gifts,
+  seeds' effects, `alt` and `requires`, an npc trigger's value list, other
+  people's relations and rumours' tellers; the pending scene's `before` too.
+  A save merged after an obligation exists still loads.
+- `visits` (engine) takes `{ day, phase }` for the phase a walk lands in (this
+  phase or later today, or the morning after a night); `npcsAt(loc, phase,
+  day)` takes the day. The phase-change filter keeps such a visit.
+- `sceneChange` keeps `before` (who was here when the untold stretch began);
+  passTime measures every later step against it.
+- `restQuality`: a bed anywhere someone who lives there or owns the place
+  (their role says "owner" and names it: Loretta and the Low Water) is free
+  and at attitude 25 or more; a place shut today has only that bed; a paid
+  motel night as before.
+- `addNews` keeps an ending's text to 1,500 characters and cuts other news
+  at a word with "…" (`clipWords`, a helper beside `cleanText`).

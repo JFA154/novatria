@@ -284,9 +284,13 @@ s.test('a debt loose end brings its lender to the player on its day: the due eve
   const fired = await page.evaluate(id => ({ day: Game.state.time.day, seed: Game.State.seed(id), due: Game.state.dueEvents.find(e => e.seedId === id) }), le.seedId);
   assert.equal(fired.day, le.day);
   assert.equal(fired.seed.fired, true, 'fired on its day');
-  assert.ok(fired.due && fired.due.firedDay === le.day && fired.due.npcId === le.npcId && fired.due.bring === true, JSON.stringify(fired.due));
-  // The next narrations carry it (at most two due events each), with the lender in the scene.
+  // Changed by design in wave 3 (the second playtest's N4): a narration of time passing fires what is due before it
+  // is told, so the /rest that brings the day tells the lender's due event, with the lender in the scene; else it
+  // waits, brought, for the next narration.
   let hit = null;
+  const restPacket = await lastPacket(page);
+  if (line(restPacket, 'DUE EVENT').includes(le.effect)) hit = { packet: restPacket, log: await lastLog(page) };
+  else assert.ok(fired.due && fired.due.firedDay === le.day && fired.due.npcId === le.npcId && fired.due.bring === true, JSON.stringify(fired.due));
   for (let i = 0; i < 3 && !hit; i++) {
     await sendText(page, '/look');
     const packet = await lastPacket(page);
