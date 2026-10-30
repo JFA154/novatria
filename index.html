@@ -11209,7 +11209,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead };
 })();
 
 // ===== Module: World =====
@@ -12103,6 +12103,12 @@ const World = (() => {
   function placeIn(l) { return l ? String(l.name).replace(/^The /, 'the ') : 'town'; }
   // What the police take off someone they lock up (World.arrestPlayer).
   const WEAPON_RE = /\b(guns?|pistols?|rifles?|shotguns?|revolvers?|handguns?|knife|knives|switchblades?|machetes?|ammo|ammunition|shells|bullets|cartridges|brass knuckles|blackjack)\b/i;
+  // A weapon the police take, unless the word before it makes it ordinary, as Town.plausible reads it (a grease gun, peanut shells, ink cartridges).
+  function isWeapon(item) {
+    const name = isObj(item) ? String(item.name || '') : '';
+    const m = WEAPON_RE.exec(name);
+    return !!m && !Town.harmlessHead(name, m[0]);
+  }
   /* What an arrest would be, without doing it (the pipeline tells it in the
      narration of the fight that caused it): { text, cellId, chiefId, fine,
      weapons: the names of what will be taken }. */
@@ -12116,7 +12122,7 @@ const World = (() => {
     const place = placeIn(from);
     const fine = Math.min(FINE, Math.max(0, s.player.gold | 0));
     const who = chief ? chief.name : 'The police';
-    const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || ''))).map(i => i.name);
+    const weapons = s.player.inventory.filter(isWeapon).map(i => i.name);
     const taken = weapons.length ? ` ${chief ? (chief.pronouns === 'she' ? 'She' : chief.pronouns === 'they' ? 'They' : 'He') : 'They'} take${chief && chief.pronouns !== 'they' ? 's' : ''} ${weapons.map(w => `the ${lowerFirst(w)}`).join(' and ')} off ${s.player.name}.` : '';
     const text = `${who} puts ${s.player.name} in the holding cell${cell ? ` at ${placeIn(cell)}` : ''} for the night over the fight at ${place}${fine ? `, with a ${money(fine)} fine` : ''}.${taken}`;
     return { text, cellId: cell ? cell.id : null, chiefId: chief ? chief.id : null, fine, place, weapons };
@@ -12134,7 +12140,7 @@ const World = (() => {
     if (cell && cell.id !== s.player.locationId) diff.playerLocationId = cell.id;
     if (fine > 0) diff.goldDelta = -fine;
     // Weapons go with the arrest (wave 3): taken off the player, and the chief remembers taking them.
-    const weapons = s.player.inventory.filter(i => isObj(i) && WEAPON_RE.test(String(i.name || '')));
+    const weapons = s.player.inventory.filter(isWeapon);
     if (weapons.length) diff.itemsLost = weapons.map(i => ({ id: i.id, qty: i.qty || 1 }));
     const took = weapons.length ? `, and took ${weapons.map(i => `the ${lowerFirst(i.name)}`).join(' and ')} off them` : '';
     if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}${took}`, weight: 3 }];

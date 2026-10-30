@@ -766,7 +766,7 @@ s.test('design: the recap lists under Warm and Cold only people the player has d
   assert.deepEqual([r.due, r.seen], [true, true]);
 });
 
-s.test('design: an arrest takes the player\'s weapons (the chief remembers taking them) and no other due event is told in that turn', async h => {
+s.test('design: an arrest takes the player\'s weapons (the chief remembers taking them; a grease gun is no weapon) and no other due event is told in that turn', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const r = await page.evaluate(async () => {
@@ -782,7 +782,7 @@ s.test('design: an arrest takes the player\'s weapons (the chief remembers takin
       }
       if (!found) S.apply({ advanceTime: 'long' });
     }
-    S.apply({ playerLocationId: found.l.id, effects: [{ op: 'giveItem', name: 'Shotgun' }, { op: 'giveItem', name: 'Coil of rope' }] });
+    S.apply({ playerLocationId: found.l.id, effects: [{ op: 'giveItem', name: 'Shotgun' }, { op: 'giveItem', name: 'Coil of rope' }, { op: 'giveItem', name: 'Grease gun' }] });
     S.apply({ effects: [{ op: 'plantSeed', seed: { id: 'seed_t_offer', effect: 'A man offers you a job.', trigger: { type: 'day', value: st.time.day + 9 } } }] });
     S.apply({ dueAdd: [{ seedId: 'seed_t_offer', text: 'A man offers you a job.' }] });
     M.queue('parse', { actionType: 'attack', summary: 'Swings at them', targets: [found.other.id], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'short' });
@@ -794,6 +794,8 @@ s.test('design: an arrest takes the player\'s weapons (the chief remembers takin
     return { inv: st.player.inventory.map(i => i.name), arrest: (/^ARREST: .*$/m.exec(pk) || [''])[0], offer: /A man offers you a job/.test(pk), waiting: st.dueEvents.some(e => e.seedId === 'seed_t_offer'), mem: chief && chief.memories.slice(-1)[0].text };
   });
   assert.ok(!r.inv.includes('Shotgun') && r.inv.includes('Coil of rope'), r.inv.join(', '));
+  // The word before makes it ordinary, as for plausibility (integration): a grease gun is no weapon to take.
+  assert.ok(r.inv.includes('Grease gun') && !/grease gun/i.test(r.arrest), r.inv.join(', ') + ' | ' + r.arrest);
   assert.match(r.arrest, /takes? .*the shotgun.* off/i);
   assert.match(r.mem, /took .*the shotgun.* off them/);
   assert.equal(r.offer, false, 'no other due event in the arrest\'s narration');
