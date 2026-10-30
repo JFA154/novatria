@@ -534,11 +534,17 @@ s.test('the style check regenerates once with a note naming the problem, and kee
   assert.equal(r.last, 'Smoke drifts across the road.');
   assert.ok(r.feed.includes('Smoke drifts across the road.') && !r.feed.includes('thick with'), 'the feed shows only the second try');
   assert.equal(r.dbg.length, 1);
-  // A second failure is kept anyway (and logged).
-  await page.evaluate(() => Game.Api.Mock.queue('narrate', 'As you wait, a sense of dread.', 'As you wait, nothing.'));
+  // A second failure is kept anyway (and logged). Only a hard problem asks for a rewrite (an opening "As you" or a banned phrase is soft).
+  await page.evaluate(() => Game.Api.Mock.queue('narrate', 'You wait by the door. What do you do?', 'The door stays shut. What do you do?'));
   await sendText(page, 'I wait a moment by the door');
-  assert.equal((await lastLog(page)).narration, 'As you wait, nothing.');
+  assert.equal((await lastLog(page)).narration, 'The door stays shut. What do you do?');
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(x => x.kind === 'style' && x.kept)));
+  // Soft problems alone: no rewrite, the draft stands, and the debug view notes them.
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'As you wait, a sense of dread.', 'unused'); });
+  await sendText(page, 'I wait a moment longer');
+  assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate').length), 1, 'no rewrite for soft problems');
+  assert.equal((await lastLog(page)).narration, 'As you wait, a sense of dread.');
+  assert.deepEqual(await page.evaluate(() => { const d = Game.State.debugLog.filter(x => x.kind === 'style').pop(); return [d.soft, d.kept, d.problems.map(p => p.type).sort()]; }), [true, true, ['banned', 'opening']]);
 });
 
 s.test('the opening scene introduces present NPCs in a sentence', async h => {
@@ -1285,17 +1291,25 @@ s.test('Say lines keep their mode and addressee through /undo, a save slot and t
   assert.ok(old.some(x => x.text === 'You still fix trucks?'));
 });
 
-s.test('casual style: a simile outside dialogue counts toward the one regeneration; literary keeps it', async h => {
+s.test('casual style: a simile outside dialogue is a soft problem: noted, and fixed only alongside a hard one; literary keeps it', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
+  // A simile alone is soft (Style.check marks it hard: false): no rewrite, the draft stands, the debug view notes it.
   await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.delay = 0; Game.Api.Mock.queue('narrate', 'The clerk grins like a man who just won the lottery.', 'The clerk grins.'); });
   await sendText(page, 'I look down the road');
   let c = await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate'));
+  assert.equal(c.length, 1, 'no rewrite for a simile alone');
+  assert.equal((await lastLog(page)).narration, 'The clerk grins like a man who just won the lottery.');
+  assert.ok(await page.evaluate(() => Game.State.debugLog.some(x => x.kind === 'style' && x.soft && x.problems.some(p => p.type === 'simile'))));
+  // With a hard problem the rewrite happens, and the note asks for the simile too ("If you can, also fix").
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'The clerk grins like a man who just won the lottery. What do you do?', 'The clerk grins.'); });
+  await sendText(page, 'I look down the road again');
+  c = await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate'));
   assert.equal(c.length, 2, 'regenerated once');
-  assert.match(c[1].text, /\nSTYLE CHECK FAILED on your last attempt: a simile \("like a"\)\. Write it again without that\. Say it plainly, with no comparisons\.$/);
+  assert.match(c[1].text, /\nSTYLE CHECK FAILED on your last attempt: contains "What do you do"\. Write it again without that\. If you can, also fix: a simile \("like a"\)\.$/);
   assert.equal((await lastLog(page)).narration, 'The clerk grins.');
   // A simile on the second try is kept (regenerate once, never fail the turn).
-  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'He looks at you as if you owe him.', 'He looks at you like a hawk.'); });
+  await page.evaluate(() => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'He looks at you as if you owe him. What do you do?', 'He looks at you like a hawk.'); });
   await sendText(page, 'I wait a moment by the door');
   assert.equal((await lastLog(page)).narration, 'He looks at you like a hawk.');
   // Dialogue is not checked; literary style does not check similes at all.
@@ -1303,7 +1317,7 @@ s.test('casual style: a simile outside dialogue counts toward the one regenerati
   await sendText(page, 'I look at the clerk');
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate').length), 1);
   await page.evaluate(() => { Game.Storage.saveSettings({ narrationStyle: 'literary' }); Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', 'The clerk grins like a man who just won the lottery.'); });
-  await sendText(page, 'I look down the road again');
+  await sendText(page, 'I look down the road once more');
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(x => x.method === 'narrate').length), 1, 'literary: no regeneration');
   assert.equal((await lastLog(page)).narration, 'The clerk grins like a man who just won the lottery.');
 });

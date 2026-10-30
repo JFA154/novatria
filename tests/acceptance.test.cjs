@@ -76,20 +76,32 @@ async function twentyTurns(page) {
   return out;
 }
 
-/* Style.check flags each crafted narration with exactly its problem; then,
-   through a real turn, a queued bad narration followed by a good one is
-   regenerated once (the second packet is the first plus a note naming the
-   problem) and the good one is what the log and the feed show; finally a bad
-   one followed by another bad one keeps the second, with both failures in
-   the debug log. */
+/* Style.check flags each crafted narration with exactly its problem, hard
+   or soft as the case says; then, through a real turn, a queued bad
+   narration with a hard problem followed by a good one is regenerated once
+   (the second packet is the first plus a note naming the problem) and the
+   good one is what the log and the feed show, while one with only a soft
+   problem is kept as it is (no rewrite) and noted in the debug log; finally
+   a hard one followed by another hard one keeps the second, with both
+   failures in the debug log. */
 async function proveStyleCheck(page, bad, good) {
   const checks = await page.evaluate(list => list.map(t => Game.Style.check(t)), bad.map(b => b.text));
-  bad.forEach((b, i) => { assert.equal(checks[i].ok, false, b.type); assert.deepEqual(checks[i].problems.map(p => p.type), [b.type], b.type); });
+  bad.forEach((b, i) => {
+    assert.equal(checks[i].ok, false, b.type);
+    assert.deepEqual(checks[i].problems.map(p => p.type), [b.type], b.type);
+    assert.equal(checks[i].hard, !!b.hard, b.type + (b.hard ? ' is hard' : ' is soft'));
+  });
   assert.equal((await page.evaluate(t => Game.Style.check(t), good)).ok, true, 'the good narration passes');
   for (const b of bad) {
     await page.evaluate(([x, y]) => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', x, y); }, [b.text, good]);
     await sendText(page, 'I wait a minute where I am');
-    const r = await page.evaluate(() => ({ c: Game.Api.Mock.calls.filter(x => x.method === 'narrate').map(x => x.text), last: Game.state.log[Game.state.log.length - 1].narration, feed: [...document.querySelectorAll('#feed .f-narr')].pop().innerText }));
+    const r = await page.evaluate(() => ({ c: Game.Api.Mock.calls.filter(x => x.method === 'narrate').map(x => x.text), last: Game.state.log[Game.state.log.length - 1].narration, feed: [...document.querySelectorAll('#feed .f-narr')].pop().innerText, dbg: Game.State.debugLog.filter(x => x.kind === 'style').pop() }));
+    if (!b.hard) {
+      assert.equal(r.c.length, 1, b.type + ': a soft problem is not rewritten');
+      assert.equal(r.last, b.text, b.type + ': the draft stands');
+      assert.deepEqual([r.dbg.soft, r.dbg.kept, r.dbg.problems.map(p => p.type)], [true, true, [b.type]], b.type + ': noted in the debug log');
+      continue;
+    }
     assert.equal(r.c.length, 2, b.type + ': regenerated once');
     assert.ok(!/STYLE CHECK FAILED/.test(r.c[0]));
     assert.match(r.c[1], b.note, b.type + ': the note names the problem');
@@ -97,8 +109,9 @@ async function proveStyleCheck(page, bad, good) {
     assert.equal(r.last, good, b.type + ': the second try is used');
     assert.ok(r.feed.includes(good) && !r.feed.includes(b.text.slice(-24)), b.type + ': the feed shows only the second try');
   }
-  const second = bad[bad.length - 1].text;
-  await page.evaluate(([x, y]) => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', x, y); }, [bad[0].text, second]);
+  const hard = bad.filter(b => b.hard);
+  const second = hard[hard.length - 1].text;
+  await page.evaluate(([x, y]) => { Game.Api.Mock.clear(); Game.Api.Mock.queue('narrate', x, y); }, [hard[0].text, second]);
   await sendText(page, 'I wait a little longer');
   const kept = await page.evaluate(() => ({ n: Game.Api.Mock.calls.filter(x => x.method === 'narrate').length, last: Game.state.log[Game.state.log.length - 1].narration, dbg: Game.State.debugLog.filter(x => x.kind === 'style').slice(-2) }));
   assert.equal(kept.n, 2, 'no third attempt');
@@ -291,11 +304,14 @@ s.test('[7] Normal narration never exceeds 90 words and never contains "What do 
   console.log(`        ${runs.length} narrated turns; normal mode ${normal.length}, longest ${Math.max(...normal)} words; ${runs.filter(r => line(r.packet, 'DUE EVENT') !== 'none').length} with due events`);
 
   // Style.check itself on crafted bad narrations, and the regenerate-once path through a real turn.
+  // Hard problems are rewritten (far over the length, "What do you do"); soft ones (a banned phrase, an opening "As you", a few words over) are noted.
   const long95 = Array.from({ length: 95 }, (_, i) => (i % 15 === 14 ? 'gate.' : 'mud')).join(' ');
+  const long110 = Array.from({ length: 110 }, (_, i) => (i % 15 === 14 ? 'gate.' : 'mud')).join(' ');
   await proveStyleCheck(page, [
     { text: 'The air is thick with diesel and river mud.', type: 'banned', note: /banned phrase "the air is thick with"/ },
     { text: long95, type: 'length', note: /95 words, limit 90/ },
-    { text: 'The pumps tick in the heat. What do you do?', type: 'question', note: /contains "What do you do"/ },
+    { text: long110, type: 'length', hard: true, note: /110 words, limit 90/ },
+    { text: 'The pumps tick in the heat. What do you do?', type: 'question', hard: true, note: /contains "What do you do"/ },
     { text: 'As you step inside, the radio goes quiet.', type: 'opening', note: /starts with "As you"/ }
   ], 'Rain ticks on the canopy. Somebody laughs inside the station and stops.');
   assert.equal((await page.evaluate(t => Game.Style.check(t, { zoom: true }), long95)).ok, true, '95 words is fine in zoom');
@@ -332,15 +348,15 @@ s.test('[8] The narrator never describes what the player character says or feels
   const sys = await page.evaluate(() => Game.Style.systemPrompt());
   assert.ok(sys.includes('- Act, speak, think or feel for the player character beyond what they typed.'));
   assert.ok(sys.includes('Never tell the player how to feel.'));
-  // Narrations that speak or feel for the player and trip a code-side check are regenerated once.
+  // Narrations that speak or feel for the player and trip a code-side check: a hard problem is regenerated once, a soft one noted.
   const who = (await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId).map(n => n.name)))[0] || names[0];
-  const ramble = ('You feel tired and you think about the road and you wonder whether ' + who + ' believes you, and you decide to say nothing. ').repeat(4).trim();
-  assert.ok(ramble.split(/\s+/).length > 90);
+  const ramble = ('You feel tired and you think about the road and you wonder whether ' + who + ' believes you, and you decide to say nothing. ').repeat(6).trim();
+  assert.ok(ramble.split(/\s+/).length > 105, 'far over the limit: a hard problem');
   const good = `${who} looks up. "Took you long enough."`;
   await proveStyleCheck(page, [
     { text: `${who} looks up. You feel a sense of dread.`, type: 'banned', note: /banned phrase "a sense of"/ },
-    { text: ramble, type: 'length', note: /\d+ words, limit 90/ },
-    { text: `You decide to wait for ${who} to finish. What do you do?`, type: 'question', note: /contains "What do you do"/ },
+    { text: ramble, type: 'length', hard: true, note: /\d+ words, limit 90/ },
+    { text: `You decide to wait for ${who} to finish. What do you do?`, type: 'question', hard: true, note: /contains "What do you do"/ },
     { text: `As you tell ${who} you can pay by Friday, the radio goes quiet.`, type: 'opening', note: /starts with "As you"/ }
   ], good);
   for (const re of [SPEAKS, FEELS, MOOD]) assert.doesNotMatch(good, re);

@@ -12054,12 +12054,14 @@ const Api = (() => {
     const lines = [sp.to === 'everyone'
       ? `${joinAnd(to.map(n => n.name))} ${to.length > 1 ? 'hear' : 'hears'} you, and ${first.name} answers first.`
       : `${first.name} answers you first.`];
-    if (c.rumour && c.rumour.npcId === first.id) lines.push(`${first.name} mentions something: "${c.rumour.text}"`);
+    const told = c.rumour && c.rumour.npcId === first.id ? `${first.name} mentions something: "${c.rumour.text}"` : null;
     if (a.actionType === 'intimidate') lines.push((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`);
     else {
-      lines.push(mockGreeting(first, key));
+      // The answer in their own words first; a rumour they pass on comes after it (and takes the greeting's place).
+      if (!told) lines.push(mockGreeting(first, key));
       lines.push(mockSays(first, c, key));
     }
+    if (told) lines.push(told);
     const others = here.filter(n => !to.includes(n));
     if (others.length) lines.push(`${joinAnd(others.map(n => n.name))} ${others.length > 1 ? vary(['look over', 'stop to listen'], key) : vary(['looks over', 'stops to listen'], key)}.`);
     return lines;
@@ -15134,9 +15136,10 @@ const Pipeline = (() => {
       const problems = Array.isArray(check.problems) ? check.problems : [];
       const hard = problems.filter(isHard);
       const soft = problems.filter(p => !isHard(p));
-      if (soft.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: soft, soft: true, kept: !hard.length });
+      // One debug entry per attempt: soft problems alone are only noted (the draft is kept).
+      if (soft.length && !hard.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: soft, soft: true, kept: true });
       if (hard.length) {
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: hard });
+        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems });
         // The hard problems lead the note; the soft ones ride along ("If you can, also fix").
         const note = Style.regenerationNote(problems);
         ctx.regenerated = note;
@@ -18409,10 +18412,11 @@ const UI = (() => {
       const rejects = State.debugLog.filter(x => x.kind === 'rejected' || x.kind === 'style').slice(-15).map(x => x.kind === 'style' ? `turn ${x.turn} style (try ${x.attempt || 1}${x.kept ? ', kept' : ''}): ${x.problems.map(p => p.detail).join('; ')}` : `turn ${x.turn} ${x.source} ${x.path}: ${x.reason}`).join('\n');
       const apiErrors = State.debugLog.filter(x => x.kind === 'api' || x.kind === 'chronicle' || x.kind === 'upgrade').slice(-8).map(x => x.kind === 'chronicle' || x.kind === 'upgrade' ? `turn ${x.turn} ${x.kind === 'upgrade' ? 'update' : 'chronicle'}: ${x.reason}` : `turn ${x.turn} ${x.role}${x.status ? ' HTTP ' + x.status : ''}${x.requestId ? ' ' + x.requestId : ''}: ${x.reason}`).join('\n');
       const u = Api.usage;
-      // Any other counters the transport keeps (1-hour cache writes and the like) are listed by name.
+      // Any other counters the transport keeps (1-hour cache writes and the like) follow the cost, by name.
       const KNOWN_U = ['calls', 'input', 'output', 'cacheRead', 'cacheCreation', 'cost', 'priced'];
-      const extraU = b => Object.keys(b).filter(k => !KNOWN_U.includes(k) && typeof b[k] === 'number').map(k => `, ${k} ${b[k]}`).join('');
-      const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${extraU(b)}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}`;
+      const LABEL_U = { cacheWrite1h: '1-hour cache write' };
+      const extraU = b => { const x = Object.keys(b).filter(k => !KNOWN_U.includes(k) && typeof b[k] === 'number').map(k => `${LABEL_U[k] || k} ${b[k]}`); return x.length ? ` (${x.join(', ')})` : ''; };
+      const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}${extraU(b)}`;
       const ttl = (() => { try { const b = Api.requestBody ? Api.requestBody('narrator', { system: 'x', cache: true }) : null; const cc = b && Array.isArray(b.system) && b.system[0] && b.system[0].cache_control; return cc ? JSON.stringify(cc) : 'unknown'; } catch (e) { return 'unknown'; } })();
       const news = newsOf(Object.assign({}, s, { news: Array.isArray(s.news) ? s.news : [] }));
       const allNews = (Array.isArray(s.news) ? s.news : []).map(n => `day ${n.day} ${n.phase || ''}${n.public === false ? ' (private)' : ''}${n.seen ? ' (seen)' : ''}${n.factionId ? ' · ' + n.factionId : ''}${n.epilogue ? ' · epilogue' : ''}: ${n.text}`).join('\n');

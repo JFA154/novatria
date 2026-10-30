@@ -123,6 +123,8 @@ s.test('faction clocks advance over several days; a completed clock changes the 
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 2024 });
   await fast(page);
+  // The town's dated events (the council meeting on day 6 moves clocks too) are not what this test is about.
+  await page.evaluate(() => { if (Game.State.town) Game.State.town.events = []; });
   const start = await clocks(page);
   assert.ok(start.every(c => c.active === 0 && c.filled === 0), 'every faction starts on its first clock');
   // From the data: the first clock whose completion closes a place or takes someone away.
@@ -153,6 +155,8 @@ s.test('faction clocks advance over several days; a completed clock changes the 
 
   // Force the dice: only that faction fills, one segment a phase.
   await page.evaluate(id => { Game.World.forceClockRoll(1); Game.World.forceClockRoll(6, id); }, target.factionId);
+  // The others hold still, except where a completion sets them back or on (a clockAdjust in its effects).
+  const held = natural.filter(c => c.id !== target.factionId).map(c => Object.assign({}, c));
   let done = false;
   for (let step = 0; step < 40 && !done; step++) {
     const nxt = await nextPhase(page);
@@ -180,7 +184,11 @@ s.test('faction clocks advance over several days; a completed clock changes the 
     assert.deepEqual(await page.evaluate(checkEffects, { effects: plan.effects, before }), [], 'every effect changed the town');
     const quiet = await quietLines(page);
     const others = (await clocks(page)).filter(c => c.id !== target.factionId);
-    assert.deepEqual(others.map(c => [c.active, c.filled]), natural.filter(c => c.id !== target.factionId).map(c => [c.active, c.filled]), 'the other factions were held still');
+    for (const e of plan.effects.filter(x => x.op === 'clockAdjust')) {
+      const c = held.find(x => x.id === e.factionId);
+      if (c && c.active >= 0) c.filled = Math.max(0, Math.min(c.segments, c.filled + e.delta));
+    }
+    assert.deepEqual(others.map(c => [c.active, c.filled]), held.map(c => [c.active, c.filled]), 'the other factions were held still but for the completion\'s own clockAdjust');
     const noticed = quiet.some(q => q.startsWith(plan.text.slice(0, 120)));
     if (isTarget && plan.inView) assert.ok(noticed, 'a completion in view gets a quiet notice');
     if (!isTarget) assert.ok(!noticed, 'an off-screen completion is silent');
@@ -222,9 +230,9 @@ s.test('schedules move NPCs between phases; arrested NPCs sit in the police stat
   if (mover.to) assert.ok(r.there.includes(mover.id), 'at their next place');
   await sendText(page, 'I look around');
   assert.ok(!line(await lastPacket(page), 'PRESENT').includes(mover.name + ' ('), 'not in the packet any more');
-  // Everyone everywhere is exactly where the schedule says for this phase.
+  // Everyone everywhere is exactly where the schedule says for this phase (but for anyone away today: the school day).
   assert.ok(await page.evaluate(() => Game.state.locations.every(l => {
-    const want = (l.npcIdsBySchedule[Game.state.time.phase] || []).filter(id => { const n = Game.State.npc(id); return n.alive !== false && n.status !== 'gone' && n.status !== 'dead'; });
+    const want = (l.npcIdsBySchedule[Game.state.time.phase] || []).filter(id => { const n = Game.State.npc(id); return n.alive !== false && n.status !== 'gone' && n.status !== 'dead' && !(typeof Game.State.awayNow === 'function' && Game.State.awayNow(n)); });
     return JSON.stringify(Game.State.npcsAt(l.id).map(n => n.id).sort()) === JSON.stringify(want.slice().sort());
   })));
   // Arrested: the police station in every phase, and a later move is a no-op.

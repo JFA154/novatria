@@ -336,7 +336,8 @@ s.test('a bookkeeper that fails keeps the narration: the engine\'s changes stand
 s.test('the status listener hears each stage; Stop ends the turn cleanly with the input back; a line sent while the bookkeeper runs waits and then runs', async h => {
   const { page, reqs, queue } = await openReal(h);
   await page.evaluate(() => { window.__stages = []; Game.Pipeline.setStatusListener(e => window.__stages.push(e.stage)); });
-  queue('narrator', narrReply(['The air is thick with fog. ']), narrReply());
+  // A hard style problem ("What do you do") is what asks for the rewrite stage; a soft one is only noted.
+  queue('narrator', narrReply(['Fog sits on the water. What do you do? ']), narrReply());
   await sendText(page, 'I ask the ferryman about the tide');
   assert.deepEqual(await page.evaluate(() => window.__stages), ['parse', 'narrate', 'rewrite', 'bookkeep', 'idle']);
   // Stop while the narrator hangs.
