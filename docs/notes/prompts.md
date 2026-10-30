@@ -600,3 +600,55 @@ The fifth review's bugs 3 and 4 (Style.nameHits). Tests:
   a side of a thing (`SIDE_WORDS`: front, back, side, cover, inside, top,
   bottom ...) says it as a thing, and "X of Y" with X a side reads Y ("The
   back of the card says Happy Birthday": the card).
+
+## Wave 8 (30 Oct 2026)
+
+The final verification pass's items for the people, the name check and the
+mock. Tests: `tests/wave8-fixes.test.cjs`.
+
+- **Ties follow /pronouns**: `State.tiesOf` turns each relation word to the
+  pronouns of the one it names (`kinWord`: wife and husband, daughter and
+  son, mother and father, sister and brother, girlfriend and boyfriend,
+  widow and widower, niece and nephew, aunt and uncle, granddaughter and
+  grandson; for they `THEY_WORDS`: spouse, child, parent, sibling, partner,
+  and so on). So after `/pronouns Mavis he` the narrator's cast block reads
+  "husband of Dewayne Mangum, son of the late Inez Crocker", Dewayne's
+  PRESENT line and People card "husband: Mavis Mangum", Inez's "son: Mavis
+  Mangum", and the card's role line "Dewayne's husband"; Dewayne himself
+  stays "husband of Mavis Mangum". The town's records keep what was
+  written. The neutral family words rank and read as family
+  (`familyWord`).
+- **A first name and a surname are someone** (`Style.nameHits`): two or
+  three unknown capitalised words whose first is a first name the tables,
+  the pronoun lists or `GIVEN_NAMES` know (or a known person's), with no
+  place word last (`PLACE_TAIL`: "Lee County") and no radio after it
+  (`ON_AIR_NEXT`), are hard before what a person is or does
+  (`PERSON_NEXT`: is, was, says, sitting, standing, leaning, playing,
+  waiting, nods ...) or after `SEE_BEFORE` (watch, see, meet, greet, hear,
+  spot, notice), whatever `THING_AFTER` or `THING_VERBS` say: "Earl Hux is
+  cheap, Royce says.", "You watch Earl Hux playing pool." What a sign says
+  is still soft ("The note says Darnell Hux is coming."), and so are "Red
+  Seal is cheap here.", "Merle Haggard is on the jukebox.", "Hank Williams
+  is playing on the radio." `BRAND_PHRASES` gains brands named like people
+  (Sam Adams, Johnnie Walker, Jose Cuervo, Captain Morgan, Earl Grey,
+  Jimmy Dean, Betty Crocker, Ronald McDonald). Every example in the
+  README's name-check paragraph reads as documented.
+- **The mock**: "I hand Jodie the letter", "I hand the letter to Jodie"
+  and "Hand Jodie the letter." are a give (not "I raise my hand"); a search
+  for something it does not name (`MOCK_VAGUE`: anything, something,
+  nothing, whatever, stuff, things, clues, signs, traces, evidence,
+  anyone) makes no item ("Anything washed up") and is narrated as a search
+  that turns up nothing worth keeping; an arrival or a look names who was
+  there ("is here") and who came in during the wait ("comes in") once each,
+  with no "arrive" line after it (after `/skip`); and the due events are
+  told, as many as a turn holds (`World.MAX_DUE`), briefly if need be (three
+  at dawn dropped the third while it was marked done, and the demo never
+  named the blackmail's price): the first to its first sentence, then the
+  line that says how the time passed goes, then the longest loses its
+  middle clauses (`mockBrief`: "walks up to you, reads your name off a
+  folded paper, and says the money is due" -> "walks up to you and says the
+  money is due"). One that still does not fit (a dawn after many nights can
+  bring six) waits: the mock names it in `ctx.dueUntold`, and
+  `Pipeline.toldDue` leaves it out of `World.dueNarrated`, so it is not
+  marked done and the next narration tells it. Nothing marked done goes
+  untold. The real narrator is handed the same events and marks them all.

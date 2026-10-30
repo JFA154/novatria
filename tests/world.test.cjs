@@ -71,17 +71,19 @@ function checkEffects({ effects, before }) {
   }
   return out;
 }
-/* In the page: ids a bystander would see an effect list touch (the World's rule). */
+/* In the page: ids a bystander would see an effect list touch (the World's rule).
+   Wave 8: a thread's links count only for a plan with no place or person of its own. */
 function seenIds(effects) {
   const ids = [];
+  const linked = [];
   for (const e of effects) {
-    if (!['closeLocation', 'openLocation', 'npcStatus', 'npcMove', 'openThread', 'threadStatus'].includes(e.op)) continue;
+    if (!['closeLocation', 'openLocation', 'npcStatus', 'npcMove', 'openThread', 'threadStatus', 'banFrom'].includes(e.op)) continue;
     if (e.locationId) ids.push(e.locationId);
     if (e.npcId) ids.push(e.npcId);
     const t = e.op === 'openThread' ? e.thread : e.op === 'threadStatus' ? Game.State.thread(e.threadId) : null;
-    if (t && Array.isArray(t.linkedIds)) ids.push(...t.linkedIds);
+    if (t && Array.isArray(t.linkedIds)) linked.push(...t.linkedIds);
   }
-  return ids;
+  return ids.length ? ids : linked;
 }
 /* In the page: what the last narrator packet must never carry (SPEC rule 1,
    section 10 and 13). Returns problems. */

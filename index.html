@@ -6101,6 +6101,29 @@ function genderWord(word, pronouns, pairs) {
 function genderPhrase(text, pronouns, pairs) {
   return String(text || '').replace(/[A-Za-z][a-z-]*/g, w => { const g = genderWord(w, pronouns, pairs); return g === w.toLowerCase() ? w : (/^[A-Z]/.test(w) ? capFirst(g) : g); });
 }
+/* Wave 8 (the final pass): the word for someone who goes by they, for each
+   pair of GENDERED_WORDS ("spouse of Dewayne Mangum", "child: Mavis"). */
+const THEY_WORDS = { wife: 'spouse', husband: 'spouse', girlfriend: 'partner', boyfriend: 'partner', fiancee: 'fiance', fiance: 'fiance', daughter: 'child', son: 'child',
+  stepdaughter: 'stepchild', stepson: 'stepchild', sister: 'sibling', brother: 'sibling', stepsister: 'stepsibling', stepbrother: 'stepsibling', mother: 'parent', father: 'parent',
+  mom: 'parent', dad: 'parent', momma: 'parent', daddy: 'parent', mama: 'parent', papa: 'parent', stepmother: 'stepparent', stepfather: 'stepparent', grandmother: 'grandparent',
+  grandfather: 'grandparent', grandma: 'grandparent', grandpa: 'grandparent', granddaughter: 'grandchild', grandson: 'grandchild', aunt: "parent's sibling", uncle: "parent's sibling",
+  niece: "sibling's child", nephew: "sibling's child", 'mother-in-law': 'parent-in-law', 'father-in-law': 'parent-in-law', 'sister-in-law': 'sibling-in-law',
+  'brother-in-law': 'sibling-in-law', 'daughter-in-law': 'child-in-law', 'son-in-law': 'child-in-law', widow: 'widowed spouse', widower: 'widowed spouse', 'ex-wife': 'ex-spouse',
+  'ex-husband': 'ex-spouse', girl: 'child', boy: 'child', woman: 'person', man: 'person', lady: 'person', gentleman: 'person', landlady: 'landlord', landlord: 'landlord',
+  waitress: 'server', waiter: 'server', actress: 'actor', actor: 'actor' };
+/* The family words THEY_WORDS gives (a tie ranks and reads as family with them). */
+const THEY_FAMILY = ['spouse', 'partner', 'fiance', 'child', 'stepchild', 'sibling', 'stepsibling', 'parent', 'stepparent', 'grandparent', 'grandchild', "parent's sibling", "sibling's child",
+  'parent-in-law', 'sibling-in-law', 'child-in-law', 'widowed spouse', 'ex-spouse'];
+function familyWord(w) { return FAMILY_RELATIONS.includes(w) || THEY_FAMILY.includes(w); }
+/* A relation word in the form the pronouns of the person it names take
+   (wave 8, the final pass: a tie follows /pronouns): "wife" for she,
+   "husband" for he, "spouse" for they; any other word as it is. */
+function kinWord(relation, pronouns) {
+  const r = String(relation || '');
+  if (!r || !PRONOUNS.includes(pronouns)) return r;
+  if (pronouns !== 'they') return genderPhrase(r, pronouns);
+  return r.replace(/[A-Za-z][a-z-]*/g, w => { const g = THEY_WORDS[w.toLowerCase()]; return g ? (/^[A-Z]/.test(w) ? capFirst(g) : g) : w; });
+}
 /* Words that say what a person is (not who they are to someone: kin words
    in a look are about someone else), for turning a look with new pronouns. */
 const LOOK_WORDS = [['woman', 'man'], ['women', 'men'], ['girl', 'boy'], ['lady', 'gentleman'], ['gal', 'guy'], ['landlady', 'landlord'], ['waitress', 'waiter'], ['actress', 'actor'],
@@ -7620,20 +7643,27 @@ const State = (() => {
      something ({ id, relation }: Dewayne has his wife Mavis), and isTo,
      what this person is to someone ({ id, relation }: Mavis is Dewayne's
      wife). Only people still in the game, each other person once a side,
-     in the order written. */
+     in the order written. Wave 8 (the final pass): a gendered word follows
+     the pronouns of the one it names (kinWord), so after /pronouns Mavis he
+     she is "husband of Dewayne Mangum, son of the late Inez Crocker" and
+     Dewayne has "husband: Mavis Mangum"; the records keep what was written. */
   function tiesOf(n) {
     const has = [];
     const isTo = [];
     if (!n || !current) return { has, isTo };
-    const add = (list, id, relation) => { if (typeof id === 'string' && id !== n.id && npc(id) && !list.some(x => x.id === id)) list.push({ id, relation: relation || null }); };
-    for (const r of Array.isArray(n.relations) ? n.relations : []) if (isObj(r)) add(has, r.npcId, r.relation);
+    const add = (list, id, relation, named) => {
+      if (typeof id !== 'string' || id === n.id || list.some(x => x.id === id)) return;
+      const m = npc(id);
+      if (m) list.push({ id, relation: relation ? kinWord(relation, (named === 'self' ? n : m).pronouns) : null });
+    };
+    for (const r of Array.isArray(n.relations) ? n.relations : []) if (isObj(r)) add(has, r.npcId, r.relation, 'other');
     const c = isObj(n.created) ? n.created : null;
-    if (c && c.relationToNpcId) add(isTo, c.relationToNpcId, c.relation);
+    if (c && c.relationToNpcId) add(isTo, c.relationToNpcId, c.relation, 'self');
     for (const m of current.npcs) {
       if (m === n) continue;
-      for (const r of Array.isArray(m.relations) ? m.relations : []) if (isObj(r) && r.npcId === n.id) add(isTo, m.id, r.relation);
+      for (const r of Array.isArray(m.relations) ? m.relations : []) if (isObj(r) && r.npcId === n.id) add(isTo, m.id, r.relation, 'self');
       const mc = isObj(m.created) ? m.created : null;
-      if (mc && mc.relationToNpcId === n.id) add(has, m.id, mc.relation);
+      if (mc && mc.relationToNpcId === n.id) add(has, m.id, mc.relation, 'other');
     }
     return { has, isTo };
   }
@@ -7653,7 +7683,7 @@ const State = (() => {
     for (const p of ['here', 'away', 'dead']) {
       if (pick) break;
       const g = isTo.filter(x => presenceOf(npc(x.id)) === p);
-      pick = g.find(x => HOUSEHOLD_RELATIONS.includes(x.relation)) || g.find(x => FAMILY_RELATIONS.includes(x.relation)) || null;
+      pick = g.find(x => HOUSEHOLD_RELATIONS.includes(x.relation)) || g.find(x => familyWord(x.relation)) || null;
     }
     const t = pick ? npc(pick.id) : null;
     if (!t) return '';
@@ -8242,10 +8272,21 @@ const State = (() => {
     // Its own onMiss is running (wave 6): money it credits toward it (obligationPaid) never meets it.
     if (status === 'missed') missing.add(o.id);
     let done;
-    try { done = runNested(status === 'met' ? (late ? lateEffects(o.onMet) : o.onMet) : o.onMiss, `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`); } finally { if (status === 'missed') missing.delete(o.id); }
+    try { done = runNested(status === 'met' ? (late ? lateEffects(o.onMet) : o.onMet) : missNews(o), `${o.id}.${status === 'met' ? 'onMet' : 'onMiss'}`); } finally { if (status === 'missed') missing.delete(o.id); }
     // A loose end's obligation met (on time or late) settles the loose end: its thread is resolved (wave 3, playtest N7).
     if (status === 'met') for (const t of looseEndThreads(o)) done.push(setThreadStatus(t, 'resolved'));
     return `${o.id} ${status}${how ? ` (${how})` : ''}${done.length ? `; ${done.join('; ')}` : ''}`;
+  }
+  /* Wave 8 (the final pass): the news of a missed obligation that its
+     missText tells the player (World's due event, its eventId
+     missedEventId) is the same news: its onMiss addNews carries that
+     eventId, so the morning's "Overnight in town" leaves it out while the
+     due event waits and it is seen once that is told (World.dueNarrated:
+     newsSeen { eventId }). It stays in the ledger for everyone else. */
+  function missedEventId(o) { return `missed_${String(o && o.id || '')}`.slice(0, 60); }
+  function missNews(o) {
+    if (!Array.isArray(o.onMiss) || typeof o.missText !== 'string' || !o.missText.trim()) return o.onMiss;
+    return o.onMiss.map(e => (isObj(e) && e.op === 'addNews' && e.eventId === undefined ? Object.assign({}, e, { eventId: missedEventId(o) }) : e));
   }
   /* The open threads of the player's loose ends an obligation settles: the
      same person, and the kind of obligation that loose end makes (a debt a
@@ -10833,7 +10874,7 @@ const State = (() => {
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
     SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS, NOT_ACTIONS,
-    season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, expireDaily, goodNamed, goodSource,
+    season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, missedEventId, expireDaily, goodNamed, goodSource,
     absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory, newsWaits, MEMORY_ACTS,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
@@ -12145,18 +12186,27 @@ const World = (() => {
   /* Could the player see it happen? Effects on the player always; else only
      effects that change a place or a person, and only if they name the
      place the player stands in or someone standing there with them
-     (presence taken before the effects). */
+     (presence taken before the effects). Wave 8 (the final pass): what
+     reaches the player wherever they are (WIDE_OPS: the town's prices,
+     their own) is no sign of where it happens; and a plan with a place or
+     a person of its own (the barriers on the old bridge) is seen only
+     there, not wherever someone its thread links to stands (Royce at the
+     Low Water): the links count only for a plan with neither. Else it is
+     news (the morning's "Overnight in town", a "Meanwhile in town" line). */
+  const WIDE_OPS = ['priceMultiplier', 'playerPrice'];
   function noticeable(effects, where) {
     const ids = new Set();
+    const linked = new Set();
     for (const e of effects) {
-      if (!isObj(e)) continue;
+      if (!isObj(e) || WIDE_OPS.includes(e.op)) continue;
       if (PLAYER_OPS.includes(e.op)) return true;
       if (!SEEN_OPS.includes(e.op)) continue;
       if (e.locationId) ids.add(e.locationId);
       if (e.npcId) ids.add(e.npcId);
       const t = e.op === 'openThread' ? e.thread : e.op === 'threadStatus' ? State.thread(e.threadId) : null;
-      if (isObj(t) && Array.isArray(t.linkedIds)) t.linkedIds.forEach(x => ids.add(x));
+      if (isObj(t) && Array.isArray(t.linkedIds)) t.linkedIds.forEach(x => linked.add(x));
     }
+    if (!ids.size) linked.forEach(x => ids.add(x));
     return ids.has(where.locationId) || where.presentIds.some(id => ids.has(id));
   }
   function fallbackRumour(f, idx, text) {
@@ -12273,12 +12323,14 @@ const World = (() => {
         if (!told) applyEffects([{ op: 'addMemory', npcId: n.id, text: `${st().player.name} let it go past due: ${lowerFirst(what).replace(/[.!]$/, '')}`, weight: 3 }]);
       }
       // The due event: content's missText, else a plain line. Only someone free and in town comes looking.
+      // A missText tells its onMiss news too (wave 8, the final pass): that news (State.missedEventId) is seen once the due event is told, so "Overnight in town" does not tell it again.
+      const sameNews = missText && ownNews && o ? { eventId: State.missedEventId(o) } : {};
       const comes = isFree(n) && presenceOf(n) === 'here';
       if (comes) {
         const text = missText || `${n.name} comes looking for ${st().player.name} about ${MISSED_ABOUT[o && o.kind] || 'what was promised'}, now past due.`;
-        dueNow({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null });
+        dueNow(Object.assign({ key: `missed_${id}`, text, npcId: n.id, bring: true, obligationId: o ? o.id : null }, sameNews));
       } else if (missText) {
-        dueNow({ key: `missed_${id}`, text: missText, obligationId: o ? o.id : null });
+        dueNow(Object.assign({ key: `missed_${id}`, text: missText, obligationId: o ? o.id : null }, sameNews));
       }
       note(`obligation ${id} missed`, { kind: 'obligation', id });
       events.push({ kind: 'obligation', id, notice: line });
@@ -12549,7 +12601,8 @@ const World = (() => {
      order with the events ("Meanwhile in town"), not as a due event told
      after them; the player's own come as due events in day order. Returns
      what fired, in order: [{ id, seed?: true, day, text? (a town seed's
-     news), here?, late?, notice? (a morning's quiet line) }]. */
+     news), here?, late?, notice? (a morning's quiet line), prog (wave 8:
+     the length of player.progression once it had fired) }]. */
   const OWN_SEEDS = ['loose_end', 'grudge', 'favour', 'background'];
   function townSeed(sd) { return !seedNpcId(sd) && !OWN_SEEDS.includes(sd.origin && sd.origin.kind); }
   function morningChores(day, fired) {
@@ -12578,13 +12631,18 @@ const World = (() => {
     for (const ev of arr((State.town || {}).events)) if (isObj(ev) && typeof ev.id === 'string' && !eventDone(ev.id) && reached(ev.day, ev.phase, now)) order.push({ day: ev.day, phase: PHASES.includes(ev.phase) ? ev.phase : PHASES[0], ev, rank: 2 });
     order.sort((a, b) => a.day - b.day || PHASES.indexOf(a.phase) - PHASES.indexOf(b.phase) || a.rank - b.rank);
     const fired = [];
+    // What each step earned as it fired (wave 8, the final pass): prog, the length of player.progression after it, so setClock prints a Resolved line under its own day.
+    const earned = () => (Array.isArray(s.player.progression) ? s.player.progression.length : 0);
     for (const x of order) {
-      if (x.morning) { morningChores(x.day, fired); continue; }
-      if (x.ev) { fireEvent(x.ev, now, null, fired); continue; }
-      if (x.sd.fired) continue;
-      const town = townSeed(x.sd);
-      const told = fire(x.sd, { day: x.day, phase: x.phase, news: town });
-      if (told) fired.push(Object.assign({ id: x.sd.id, seed: true, day: x.day }, typeof told === 'string' ? { text: told } : {}));
+      const k = fired.length;
+      if (x.morning) morningChores(x.day, fired);
+      else if (x.ev) fireEvent(x.ev, now, null, fired);
+      else if (!x.sd.fired) {
+        const town = townSeed(x.sd);
+        const told = fire(x.sd, { day: x.day, phase: x.phase, news: town });
+        if (told) fired.push(Object.assign({ id: x.sd.id, seed: true, day: x.day }, typeof told === 'string' ? { text: told } : {}));
+      }
+      for (let i = k; i < fired.length; i++) fired[i].prog = earned();
     }
     fireEpilogue(now, null, fired);
     return fired;
@@ -13260,7 +13318,9 @@ const Style = (() => {
     'Royal Crown', 'Sun Drop', 'Little Debbie', 'Western Union', 'Crimson Tide', 'Grand Ole Opry', 'Bass Pro', 'Bass Pro Shops', 'Tractor Supply', 'Red Wing',
     'Red Wings', 'Mossy Oak', 'Smith and Wesson', 'Smith & Wesson', 'Dairy Queen', 'Burger King', 'Taco Bell', 'Pizza Hut', 'Food Lion', 'Kentucky Fried Chicken',
     'Super Bowl', 'World Series', 'Monday Night Football', 'Mardi Gras', "Mother's Day", "Father's Day", "Valentine's Day", 'Holy Spirit', 'Holy Ghost',
-    'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security'];
+    'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security',
+    // Wave 8: brands named like a person, now that a first name and a surname before "is" are someone.
+    'Sam Adams', 'Samuel Adams', 'Johnnie Walker', 'Jose Cuervo', 'Captain Morgan', 'Earl Grey', 'Jimmy Dean', 'Betty Crocker', 'Ronald McDonald'];
   const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   // Words that open a sentence before a name without being part of it ("Ask Bobby", "Tell Earl").
@@ -13326,6 +13386,40 @@ const Style = (() => {
   const THING_AFTER = new RegExp(`^\\s+(?:(?:plays|played|is playing|was playing|comes|came|is|was|are|were) on ${ON_AIR}|(?:comes|came) on(?:\\s*[.,!;]|\\s+(?:loud|again|low|now|then|and|as|while|over))|(?:is|was|are|were) (?:cheap|expensive|on sale|sold out|out of stock|half off|playing on ${ON_AIR})|(?:costs?|cost) (?:\\$\\d|\\d|a (?:dollar|buck|quarter|nickel|dime)|(?:one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty|thirty|forty|fifty|a hundred)\\b)|(?:tastes?|tasted|smells?|smelled) like|fizzes|crackles|blares)(?![a-z])`, 'i');
   // A work that "by" names the maker of (wave 6, the fifth review's bug 3): "something by Patsy Cline", "a song by"; anything else by a run is a person ("stand by Earl Hux", "a letter by Earl Hux").
   const WORKS = new Set('song songs something anything record records album albums tune tunes book books painting paintings number numbers track tracks single singles hit hits ballad ballads novel novels cover covers'.split(' '));
+  /* Wave 8 (the final pass): a first name and a surname the town does not
+     have, before what a person is or does ("Earl Hux is cheap, Royce
+     says.", "Earl Hux playing pool") or after seeing, hearing or meeting
+     them ("You watch Earl Hux"), are someone: hard, whatever THING_AFTER
+     or THING_VERBS say. The first name is one the tables, the pronoun
+     lists or GIVEN_NAMES know (so "Red Seal is cheap here." stays a brand);
+     never a place ("Lee County is"), a voice on the radio ("Patsy Cline is
+     on the jukebox") or what a sign says. */
+  const GIVEN_NAMES = ('Aaron Adam Al Alan Albert Alvin Andrew Andy Anthony Archie Arthur Barry Ben Benny Bert Billy Bo Bob Bobby Boyd Brad Bradley Brandon Brent Brett Brian Bruce Bryan Buddy ' +
+    'Byron Calvin Carl Carlos Cecil Charles Charlie Chester Chris Chuck Clarence Clayton Cletus Cliff Clifford Clint Clyde Cody Cole Colton Corey Craig Curtis Dale Dan Daniel Danny Darnell ' +
+    'Darrell Darren Darryl Daryl Dave David Dean Dennis Derek Dewey Dexter Don Donald Donnie Doug Douglas Duane Dwayne Dwight Earl Ed Eddie Edgar Edward Elmer Emmett Eric Ernest Ernie Eugene ' +
+    'Floyd Frank Frankie Fred Freddie Gene George Gerald Glen Glenn Gordon Greg Gregory Hank Harold Harvey Herbert Herman Homer Howard Hoyt Hubert Ira Jake Jamal James Jamie Jared Jason ' +
+    'Jeff Jeffrey Jerome Jerry Jesse Jim Jimmy Joe Joel Joey John Johnny Jon Jonathan Joseph Josh Joshua Juan Justin Keith Ken Kenneth Kenny Kevin Kirk Kyle Lamar Lance Larry Leon Leroy ' +
+    'Lester Lloyd Lonnie Louis Luke Luther Marcus Marvin Matt Matthew Maurice Melvin Merle Michael Mike Mitch Morris Nathan Neal Ned Nick Norman Odell Otis Pat Patrick Paul Pete Peter Phil ' +
+    'Philip Ralph Randall Randy Raymond Reggie Rex Richard Rick Ricky Rob Robert Rodney Roger Roland Ron Ronald Ronnie Roscoe Ross Roy Sam Scott Shane Shawn Sonny Stan Stanley Steve Steven ' +
+    'Stuart Ted Terry Thomas Tim Timothy Todd Tom Tommy Tony Travis Trent Troy Tyler Vernon Victor Virgil Wallace Walter Wendell Wesley Willard William Willie Woody Zack ' +
+    'Alice Amanda Amy Angela Angie Ann Anna Anne Annie Barbara Becky Bernice Bertha Beth Betty Beverly Bonnie Brenda Brittany Carla Carol Carolyn Carrie Cassie Catherine Cathy Charlene ' +
+    'Cheryl Christy Cindy Clara Connie Darlene Debbie Deborah Denise Diane Donna Doris Dorothy Dot Edna Eileen Elaine Ellen Emily Emma Erica Ethel Eunice Evelyn Flora Frances Gail ' +
+    'Geraldine Gladys Glenda Gloria Gwen Hattie Hazel Helen Ida Inez Irene Jackie Janet Janice Jeanette Jennifer Jenny Jessica Jill Joan Joann Jodie Josie Joyce Judy Julie Karen Kathy ' +
+    'Kelly Kristy Laura Laverne Leah Lena Linda Lisa Lois Loretta Lori Louise Lucille Lucy Lula Mabel Mae Marcy Margaret Maria Marie Marilyn Marlene Martha Mary Maxine Melba Melissa ' +
+    'Michelle Mildred Minnie Myrtle Nancy Naomi Nell Nellie Nora Norma Patty Paula Peggy Phyllis Rachel Rebecca Regina Renee Rita Roberta Rosa Ruth Sally Samantha Sandra Sara Sarah ' +
+    'Shannon Sharon Sheila Shelby Shirley Stacy Stephanie Sue Susan Sylvia Tammy Tanya Teresa Terri Thelma Tina Tonya Tracy Trudy Valerie Vera Vicki Viola Wilma Yvonne Zelda').split(' ');
+  let givenSet = null;
+  function givenName(w) {
+    if (!givenSet) givenSet = new Set(TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES));
+    return givenSet.has(w);
+  }
+  const PERSON_NEXT = new Set(('is was isn\'t wasn\'t says said sits sat sitting stands stood standing leans leaned leaning walks walked walking laughs laughed laughing ' +
+    'waits waited waiting looks looked looking nods nodded playing watches watched watching stares stared staring works worked working talks talked talking ' +
+    'drinks drank drinking smokes smoked smoking lives lived').split(' '));
+  const SEE_BEFORE = new Set('watch watches watched watching see sees saw seeing meet meets met meeting greet greets greeted greeting hear hears heard hearing spot spots spotted notice notices noticed'.split(' '));
+  const PLACE_TAIL = new Set(('county counties street st road rd avenue ave lane drive river creek lake bayou church chapel store shop hall school bridge park highway hwy bank court house ' +
+    'hospital station farm farms mill landing ferry motel hotel inn bar grill cafe diner market center college university city town parish').split(' '));
+  const ON_AIR_NEXT = new RegExp(`^\\s+(?:(?:is|was|are|were|comes|came|plays|played|sings|sang|playing|singing|is playing|was playing|is singing|was singing)\\s+)?(?:on|from|over|through) ${ON_AIR}(?![a-z])`, 'i');
   /* What a known name was, once it is blanked out of the text (wave 4): a
      person's first name, a surname (or "the Gentrys"), a whole name or
      another part of one, or anything else (a place, a faction, a brand). The
@@ -13505,11 +13599,15 @@ const Style = (() => {
       // What a thing does after it (wave 5, the round-4 playtest): "Red Seal is cheap here", "Conway Twitty plays on the radio".
       const thingNext = !speaks && THING_AFTER.test(s.slice(end));
       const owns = run.some(w => /('s|s')$/.test(w[0])) || (!!sur && /^('s|s')(?![A-Za-z])/.test(s.slice(end)));
+      // A first name and a surname (wave 8): a known person's first name before it, or a first name GIVEN_NAMES knows, and no place word last ("Lee County").
+      const tail = strip(run[run.length - 1][0]).toLowerCase();
+      const fullName = two && run.length <= 3 && (!!first || givenName(strip(run[0][0]))) && !PLACE_TAIL.has(tail) && !owns && !ON_AIR_NEXT.test(s.slice(end));
+      const doing = fullName && !!nx && PERSON_NEXT.has(nx[1].toLowerCase());
       let marked;
       if (starts) {
         // A sentence start is an ordinary word, unless a speech or gesture verb follows the name or it is two words or more (SENTENCE_STARTS such as "Ask" are COMMON: never in a run).
         if (!two && !speaks) { i = j; last = null; continue; }
-        marked = !thingNext;
+        marked = !thingNext || doing;
       } else {
         // The word just before (only spaces or a comma between; none when a known name is), and the word before that.
         const pm = /([A-Za-z][A-Za-z'-]*)([\s,]*)$/.exec(head);
@@ -13528,7 +13626,9 @@ const Style = (() => {
           const thing = told === false || thingNext || byMaker || (!!prev && (THING_BEFORE.has(prev) || THING_VERBS.has(prev) || /^\d/.test(prev)))
             || (plain && !!prev2 && THING_BEFORE.has(prev2) && !Town.isPersonWord(prev) && !MARK_TOLD.has(prev) && !PERSON_ADJ.has(prev));
           const listed = !!last && last.end <= start && /^\s*(?:,\s*)?(?:(?:and|or|nor|&)\s+)?$/.test(s.slice(last.end, start));
-          marked = titled || told === true || owns || speaks || prev === 'with' || (listed ? last.marked : !thing);
+          // Someone seen, met or heard, or someone being or doing what a person does (wave 8), unless a sign or the radio says the name.
+          const someone = told !== false && (doing || (fullName && !!prev && SEE_BEFORE.has(prev)));
+          marked = titled || told === true || owns || speaks || prev === 'with' || someone || (listed ? last.marked : !thing);
         } else marked = titled || told === true || owns || speaks;
       }
       for (const w of run) { const x = strip(w[0]); hits.set(x, hits.get(x) || marked); }
@@ -14100,6 +14200,8 @@ const Api = (() => {
     critical_failure: r => `${capFirst(r.stat)} roll, critical failure: it goes badly wrong${r.complication ? `, and ${r.complication}` : ''}.`
   };
   const escMock = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // What a search looks for without naming a thing (wave 8, the final pass): no item is made of it ("Anything washed up").
+  const MOCK_VAGUE = /^(?:(?:any|some|no)thing|whatever|stuff|things|clues?|signs?|traces?|evidence|anyone|anybody|someone|somebody)\b/;
   const HOME_NOUNS = ['house', 'home', 'place', 'trailer', 'apartment', 'farm'];
   /* Where a walk goes, and where in the words it was named: { id, at, end }
      (offsets in `lower`), or null. Places are named by their place, never by
@@ -14363,7 +14465,9 @@ const Api = (() => {
     // "I look for some rope", "I look around for a crowbar", "I search the shelves for a flashlight" (wave 3).
     const seek = /\b(?:look|looks|search|searches|hunt|hunts|rummage|rummages|dig|digs)\b(?:\s+(?:around|through|in|inside|under|behind|on|the|a|an|his|her|my|their|some)\b[a-z' -]*?)?\s+for\s+(.+?)[\s.!?]*$/.exec(lower);
     const grab = /\b(?:pick|picks)\s+up\s+(.+?)[\s.!?]*$/.exec(lower);
-    const thing = (seek || grab) && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
+    // Wave 8 (the final pass): "for anything washed up", "for clues" names nothing to find: a search with no item.
+    const vague = !!seek && MOCK_VAGUE.test(seek[1].trim());
+    const thing = (seek || grab) && !vague && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
     const escRe = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Every thing lying here the words name ("the fishing rod and the tackle box": both; "the rod and reel": the one), longest names first.
     const named2 = thing ? (packet.itemsHere || []).filter(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : [];
@@ -14379,7 +14483,8 @@ const Api = (() => {
       || inv.filter(i => shared(i) > 0).sort((x, y) => shared(y) - shared(x) || errandThing(y) - errandThing(x))[0];
     const where = (packet.location && packet.location.type) || '';
     // A search for something not lying here rolls (the engine makes it only on a success; wave 3, playtest N12).
-    if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
+    if (vague) { out.actionType = 'search'; out.timeCost = 'short'; }
+    else if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
     else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
     else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
     // Watching the room ("I watch who comes and goes") is a look that takes a while, not a walk.
@@ -14410,7 +14515,8 @@ const Api = (() => {
     else if (has(/\b(ask|asks|asking)\b[^.!?]*\b(what|how much|whether|if|would|why|who|where|when)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
     else if (has(/\b(buy|buys|purchase|pay for)\b/) || (has(/\b(order|orders|drink|drinks|eat|eats)\b/) && Town.goodsFor(lower))) { out.actionType = 'buy'; out.targets = present.map(n => n.id); }
     else if (has(/\b(sell|sells|pawn|pawns|hock)\b/)) { out.actionType = 'sell'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
-    else if (has(/\b(give|gives|hand over|hands over|pay|pays|repay|pay back|pay off)\b/)) { out.actionType = 'give'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
+    // Wave 8 (the final pass): "I hand Jodie the letter", "I hand the letter to Jodie" give too (hand as the verb, not "my hand").
+    else if (has(/\b(give|gives|hand over|hands over|pay|pays|repay|pay back|pay off)\b/) || has(/(?:^\s*|\b(?:i|we|then|and|just|quietly|quickly|slowly|carefully|silently)\s+)hand(?:s|ed)?\s+\S/)) { out.actionType = 'give'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
     else if (has(/\b(talk|talks|ask|asks|say|says|tell|tells|greet|greets|chat|speak|apologi[sz]e|apologi[sz]es)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
     else if (has(/\b(try|tries|attempt|attempts)\b/)) {
       if (has(/\b(climb|force|lift|break|swim|push|pull|carry)\b/)) roll('might', 'normal');
@@ -14649,18 +14755,20 @@ const Api = (() => {
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
-    // Due events (at most two) are always worked in, at the end, told to the player ("you", not their name).
-    // Due events (as many as the engine hands over), told to "you", are always worked in at the end.
-    let due = (c.due || []).map(d => sentence(secondPerson(d && d.text))).filter(Boolean);
+    // Due events, told to the player ("you", not their name), are worked in at the end: every one that fits, the rest waiting (ctx.dueUntold, below).
+    const dueFrom = (c.due || []).filter(d => sentence(secondPerson(d && d.text)));
+    let due = dueFrom.map(d => sentence(secondPerson(d.text)));
     // Say mode: the answer comes before anyone arriving or leaving, so it is never the line cut.
     const lineBudget = Math.max(1, (mode === 'normal' ? (c.moved ? 4 : isSay(c.speech) ? 4 : 3) : 6) - due.length);
     const said = isSay(c.speech) && !c.beat && mode !== 'arrival' ? mockReply(c, lineBudget - out.length) : null;
     if (said) out.push(...said.lines);
     // The comings and goings are told after what the action came to (wave 3, playtest D2: a knockdown or a card loss is never the line cut).
     const scenery = [];
+    // An arrival or a look names who is here, and who came in among them (wave 8, the final pass: after /skip the evening crowd was "here" and then "arrived").
+    const listsHere = !c.beat && (mode === 'arrival' || a.actionType === 'look');
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
-      const came = names(c.sceneChange.arrived);
+      const came = listsHere ? [] : names(c.sceneChange.arrived);
       if (came.length) {
         scenery.push(`${andList(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
         scenery.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
@@ -14679,8 +14787,11 @@ const Api = (() => {
       const l = s && c.location ? State.loc(c.location.id) : null;
       out.push(mode === 'arrival' ? `You arrive at ${loc}.` : `You take in ${loc}.`);
       if (l && l.description) out.push(l.description);
-      const names = (c.present || []).map(n => n.name);
-      out.push(names.length ? `${andList(names)} ${names.length > 1 ? 'are' : 'is'} here.` : 'Nobody here pays you any attention.');
+      const arrived = c.sceneChange && Array.isArray(c.sceneChange.arrived) ? c.sceneChange.arrived : [];
+      const names = (c.present || []).filter(n => !arrived.includes(n.id)).map(n => n.name);
+      const came = (c.present || []).filter(n => arrived.includes(n.id)).map(n => n.name);
+      const comeIn = came.length ? `${andList(came)} ${came.length > 1 ? 'come' : 'comes'} in` : '';
+      out.push(names.length ? `${andList(names)} ${names.length > 1 ? 'are' : 'is'} here${comeIn ? `, and ${comeIn}` : ''}.` : comeIn ? `${comeIn}.` : 'Nobody here pays you any attention.');
     } else if (said) {
       // The reply is already told, before the scene changed.
     } else if (a.actionType === 'move') {
@@ -14730,6 +14841,9 @@ const Api = (() => {
     } else if (a.actionType === 'take') {
       const it = s && (a.targets || []).filter(id => /^item_/.test(id)).map(id => State.entityById(id)).find(Boolean);
       if (it) out.push(`You pick up the ${lowerFirst(it.name)}.`);
+    } else if (a.actionType === 'search' && !c.roll && !(a.targets || []).length && !(c.created || []).length) {
+      // A search for nothing in particular (wave 8): it takes a while and turns up nothing to keep.
+      out.push(vary([`You look around ${loc} for a while and turn up nothing worth keeping.`, `You poke around ${loc} for a while; nothing turns up that you would carry off.`], key));
     }
     out.push(...scenery);
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
@@ -14755,9 +14869,41 @@ const Api = (() => {
     /* Never cut inside a sentence (wave 6, the round-5 playtest's D12: the
        wave-5 D8 fix still made "From the holding cell." and "Boyd Teague
        comes up on you from the side.", the blow lost): a due event is told
-       whole, or to its first sentence, or a later one is left out. */
-    while (words() > limit && due.length > 1) due.pop();
+       whole, or to its first sentence. Wave 8 (the final pass): as many as
+       a turn holds (World.MAX_DUE) are told, briefly if need be, before any
+       waits (three at dawn dropped the third while the engine marked it
+       done, and the demo never named the blackmail's price): the first to
+       its first sentence too, then the line that says how the time passed
+       (the feed's divider has the day; the due events say what it brought),
+       then the longest without its middle clauses (mockBrief: the subject,
+       the first verb and the last clause stay), one at a time. One that
+       does not fit waits, and is not marked done: ctx.dueUntold names it,
+       and Pipeline hands it to the next narration (a dawn after many nights
+       can bring six). */
+    if (words() > limit) due[0] = (/^.*?[.!?](?=\s|$)/.exec(due[0]) || [due[0]])[0];
+    const untold = [];
+    const wait = () => { due.pop(); untold.unshift(dueFrom[due.length].seedId); };
+    while (words() > limit && due.length > World.MAX_DUE) wait();
+    const passed = c.timePassed && mode !== 'arrival' ? sentence(c.timePassed.replace(/^the player\b/i, 'you').replace(/\bthey are\b/g, 'you are')) : null;
+    if (words() > limit && due.length && passed && body[0] === passed && !keep.has(body[0])) body.splice(0, 1);
+    while (words() > limit) {
+      const longest = due.map((t, i) => i).filter(i => mockBrief(due[i]) !== due[i]).sort((x, y) => wordCount(due[y]) - wordCount(due[x]) || y - x)[0];
+      if (longest === undefined) break;
+      due[longest] = mockBrief(due[longest]);
+    }
+    while (words() > limit && due.length > 1) wait();
+    if (isObj(c)) c.dueUntold = untold.filter(Boolean);
     return body.concat(due).join(' ');
+  }
+  /* A due event's sentence without its middle (wave 8): "walks up to you,
+     reads your name off a folded paper, and says the money is due" ->
+     "walks up to you and says the money is due"; "told Carter, in front of
+     the whole bar, that ..." -> "told Carter that ...". Never a fragment:
+     the subject, the first verb and the last clause stay. */
+  function mockBrief(t) {
+    return String(t || '')
+      .replace(/^([^,"“]+), [^,"“]+, and (?=[a-z])/, '$1 and ')
+      .replace(/, (?:in front of|in|at|on|with|from|for|by|after|before|under|over|near|behind|across|without|like) [^,"“]*,(?= )/, '');
   }
   /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
      line to its first twelve words, merge lines that come out the same (from
@@ -16064,7 +16210,7 @@ const Upgrade = (() => {
     return role ? `${n.name} (${role})` : n.name;
   }
   function tieTag(n) {
-    const t = State.tiesOf(n).isTo.find(x => FAMILY_RELATIONS.includes(x.relation));
+    const t = State.tiesOf(n).isTo.find(x => familyWord(x.relation));
     return t ? State.relationPhrase(State.npc(t.id), t.relation) : '';
   }
   /* Version 6, "A full cast": every person is written by hand and the game
@@ -16388,7 +16534,7 @@ const Pipeline = (() => {
      Royce Pittman" (what they are to others), and "wife: Mavis Mangum, boss:
      Royce Pittman" (who their people are), from State.tiesOf. */
   /* Family first (a household relation, then any other), then work and the rest, each kept in the order written. */
-  function tieRank(x) { return HOUSEHOLD_RELATIONS.includes(x.relation) ? 0 : FAMILY_RELATIONS.includes(x.relation) ? 1 : 2; }
+  function tieRank(x) { return HOUSEHOLD_RELATIONS.includes(x.relation) ? 0 : familyWord(x.relation) ? 1 : 2; }
   function byRank(list) { return list.map((x, i) => ({ x, i })).sort((a, b) => tieRank(a.x) - tieRank(b.x) || a.i - b.i).map(o => o.x); }
   /* A name in someone's ties, marked so a late wife is never taken for a
      living one: "the late Ruth Haskins", "Dale Purvis [lives elsewhere]". */
@@ -17921,6 +18067,13 @@ const Pipeline = (() => {
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
   function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
+  /* The due events the narration told (wave 8, the final pass): all of
+     them, but for those the offline demo had no room for (ctx.dueUntold,
+     set by the mock), which stay due for the next narration. */
+  function toldDue(ctx) {
+    const later = Array.isArray(ctx.dueUntold) ? ctx.dueUntold : [];
+    return later.length ? ctx.due.filter(d => !(d && later.includes(d.seedId))) : ctx.due;
+  }
   async function narrate(ctx) {
     const zoom = roomy(ctx);
     const style = Style.current();
@@ -18048,7 +18201,7 @@ const Pipeline = (() => {
      (else the first part of the role). */
   function personTag(n) {
     if (!n) return '';
-    const rel = isObj(n.created) && n.created.relationToNpcId ? State.relationPhrase(State.npc(n.created.relationToNpcId), n.created.relation) : '';
+    const rel = isObj(n.created) && n.created.relationToNpcId ? State.relationPhrase(State.npc(n.created.relationToNpcId), kinWord(n.created.relation, n.pronouns)) : '';
     const role = rel || String(n.role || '').split(',')[0].trim();
     return role && role !== 'townsfolk' ? `${n.name} (${role})` : n.name;
   }
@@ -18334,11 +18487,11 @@ const Pipeline = (() => {
     if (p.maxHp > before.maxHp) gains.push(`+${p.maxHp - before.maxHp} max HP`);
     const fresh = list.slice(before.n);
     const own = fresh.every(x => isObj(x) && Object.prototype.hasOwnProperty.call(x, 'gain'));
-    fresh.forEach((x, i) => {
-      const t = x && x.threadId ? State.thread(x.threadId) : null;
-      const g = own ? gainText(x.gain) : i === fresh.length - 1 ? gains.join(', ') : '';
-      UI.feed.quiet(`Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`);
-    });
+    fresh.forEach((x, i) => UI.feed.quiet(resolvedText(x, own ? gainText(x.gain) : i === fresh.length - 1 ? gains.join(', ') : '')));
+  }
+  function resolvedText(x, g) {
+    const t = x && x.threadId ? State.thread(x.threadId) : null;
+    return `Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`;
   }
 
   /* opts: { input (shown and logged), mode: 'normal' | 'zoom' | 'arrival' |
@@ -18503,7 +18656,7 @@ const Pipeline = (() => {
         } else passTime(action.timeCost, opts.cause || 'turn', ctx.shown);
       }
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
-      if (ctx.due.length) for (const id of (World.dueNarrated(ctx.due) || {}).revealed || []) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
+      if (ctx.due.length) for (const id of (World.dueNarrated(toldDue(ctx)) || {}).revealed || []) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       // Retry lock (SPEC section 7): a roll set or cleared it in resolve().
       // The locks hold for a place and a phase: a move or a new phase
@@ -18905,7 +19058,7 @@ const Pipeline = (() => {
         const told = await narrate(ctx);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
         if (told.refusal) notice = { text: NOTICES.refused };
-        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); if (s.pendingScene) State.apply({ sceneChangeDone: true }); }
+        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(toldDue(ctx)); if (s.pendingScene) State.apply({ sceneChangeDone: true }); }
       } catch (err) {
         console.error(err);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
@@ -18968,13 +19121,35 @@ const Pipeline = (() => {
       else if (f.seed) { if (f.text) meanwhile(f.day, cleanText(f.text, 300)); }
       else if (!f.here) for (const n of State.news.filter(x => isObj(x) && x.public !== false && !x.seen && x.eventId === f.id)) meanwhile(n.day, cleanText(n.text, 300));
     }
-    for (const x of lines) UI.feed.quiet(x.meanwhile ? `Meanwhile in town, Day ${x.day}: ${x.texts.join(' ')}` : x.text);
-    for (const f of events) if (!f.here) State.apply({ newsSeen: { eventId: f.id } });
-    noteEnding();
     // A thread what the jump brought resolved (the council): its Resolved line now, under the "Meanwhile in town" line that told it (wave 6: what the
     // ending itself resolves is held by the engine until its narration, which prints it). Never held for the ending here (the wave-6 integration,
     // the fifth review's /cheat risk): one /undo of the turn that told the ending would lose the line of a gain the jump kept.
-    progressLines(s, earned);
+    // Wave 8 (the final pass): under its own day's lines, not after the last day's. The day of each: what a step earned as it fired (catchUp's
+    // prog), and an event's held reward (rewardHeld), released by its news now, its event's day.
+    const prog = () => (Array.isArray(State.current.player.progression) ? State.current.player.progression : []);
+    const dayOf = new Map();
+    let k = earned.n;
+    for (const f of fired) for (; Number.isInteger(f.prog) && k < f.prog; k++) dayOf.set(k, f.day);
+    const heldDay = new Map();
+    for (const f of events) if (!f.here) for (const t of State.current.threads) if (isObj(t) && t.rewardHeld === f.id) heldDay.set(t.id, f.day);
+    const n0 = prog().length;
+    for (const f of events) if (!f.here) State.apply({ newsSeen: { eventId: f.id } });
+    noteEnding();
+    prog().forEach((x, i) => { if (i >= n0 && isObj(x) && heldDay.has(x.threadId)) dayOf.set(i, heldDay.get(x.threadId)); });
+    const fresh = prog().map((x, i) => ({ x, i })).slice(earned.n);
+    const shown = new Set();
+    const resolved = d => {
+      for (const r of fresh) {
+        if (shown.has(r.i) || (d !== null && dayOf.get(r.i) !== d)) continue;
+        shown.add(r.i);
+        UI.feed.quiet(resolvedText(r.x, isObj(r.x) ? gainText(r.x.gain) : ''));
+      }
+    };
+    lines.forEach((x, i) => {
+      UI.feed.quiet(x.meanwhile ? `Meanwhile in town, Day ${x.day}: ${x.texts.join(' ')}` : x.text);
+      if (!lines[i + 1] || lines[i + 1].day !== x.day) resolved(x.day);
+    });
+    resolved(null);
     return { ok: true, time: deepCopy(State.current.time), events: events.map(f => f.id), seeds: fired.filter(f => f.seed).map(f => f.id) };
   }
   /* Bring the loaded game up to the current rules (Upgrade.pending: the
@@ -23969,7 +24144,7 @@ const App = (() => {
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, presenceOf, absentNote, ageText,
+  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })
