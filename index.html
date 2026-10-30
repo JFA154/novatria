@@ -4337,7 +4337,9 @@ const TOWN_DATA = {
   // day 6, in the evening at Town Hall. The first branch whose when holds is
   // what happens; its news is public. clockAtLeast counts the segments a
   // faction has filled in all its clocks so far. obl_<kind>_<npc id> is the
-  // obligation a loose end made (CONTRACTS section 4).
+  // obligation a loose end made (CONTRACTS section 4). attendees: the people
+  // who are at the place for that phase when it happens (the five council
+  // seats and the chief whose department is on the agenda), if they are free.
   events: [
     {
       id: "evt_council_meeting",
@@ -4345,6 +4347,7 @@ const TOWN_DATA = {
       phase: "evening",
       locationId: "loc_town_hall",
       title: "The council meeting",
+      attendees: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert", "npc_marcus"],
       branches: [
         {
           when: { flagsSet: ["bridgeReportVoid"] },
@@ -6447,7 +6450,7 @@ const State = (() => {
   const ENGINE_KEYS = ['addLocations', 'addNpcs', 'addItems', 'effects', 'conditionsRemoved', 'storyPointsDelta', 'lastRollKey', 'beginTurn',
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
-    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen'];
+    'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired'];
   // Where an engine-planted seed came from (World reads it for grudges and favours).
   const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background']);
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
@@ -6599,8 +6602,19 @@ const State = (() => {
         if (value === null) bad('a day trigger needs a day number');
         if (requireAhead && value < day + 1) bad(`trigger must be at least 1 day ahead (today is day ${day}, trigger is day ${value})`);
         break;
-      case 'location': needLoc(value); break;
-      case 'npc': needNpc(value); break;
+      case 'location':
+      case 'npc': {
+        // An engine seed may name several ("any of these places", CONTRACTS section 3); the model's names one.
+        const need = tr.type === 'location' ? needLoc : needNpc;
+        if (Array.isArray(value)) {
+          if (requireAhead) bad(`a ${tr.type} trigger names one ${tr.type === 'location' ? 'place' : 'person'}`);
+          const list = value.filter((x, i) => value.indexOf(x) === i);
+          if (!list.length || list.length > 8) bad(`a ${tr.type} trigger names 1 to 8`);
+          list.forEach(need);
+          value = list.length === 1 ? list[0] : list;
+        } else need(value);
+        break;
+      }
       case 'clock': {
         const m = /^(fac_[a-z0-9_]+):(\d+)$/.exec(String(value));
         if (!m) bad('a clock trigger value must look like fac_name:3');
@@ -8770,11 +8784,22 @@ const State = (() => {
       return out.length ? out.join('; ') : null;
     });
     // The news the player has been shown (transport, each new morning): true marks every item seen.
+    /* true: every news item seen; 'public': the public ones that are not an
+       ending (what the morning's "Overnight in town" block told). */
     one('newsSeen', v => {
-      if (v !== true) bad('must be true');
-      const unseen = (Array.isArray(s.news) ? s.news : []).filter(x => !x.seen);
+      if (v !== true && v !== 'public') bad('must be true or "public"');
+      const unseen = (Array.isArray(s.news) ? s.news : []).filter(x => !x.seen && (v === true || (x.public !== false && x.epilogue !== true)));
       unseen.forEach(x => { x.seen = true; });
       return unseen.length ? `${unseen.length} news seen` : null;
+    });
+    /* A town event (TOWN_DATA.events) or the epilogue told (World.fireEvents):
+       its id goes in state.eventsFired, once (CONTRACTS section 11). */
+    each('eventsFired', id => {
+      if (typeof id !== 'string' || !/^[a-z0-9_.-]{1,60}$/i.test(id)) bad('must be an event id');
+      if (!Array.isArray(s.eventsFired)) s.eventsFired = [];
+      if (s.eventsFired.includes(id)) return null;
+      s.eventsFired.push(id);
+      return `event ${id} fired`;
     });
     /* The clock set outright (/cheat time, Upgrade version 4). No phase
        passes, so nothing ticks, and the no-sleep note goes. late needs
@@ -10042,6 +10067,8 @@ const Town = (() => {
       if (!Number.isInteger(ev.day) || ev.day < 1) e(`${ev.id}: day must be a whole number, 1 or more`);
       if (ev.phase !== undefined && !PHASES.includes(ev.phase)) e(`${ev.id}: bad phase ${ev.phase}`);
       if (ev.locationId !== undefined && ev.locationId !== null) checkRef(ev.id, 'loc', ev.locationId);
+      if (ev.attendees !== undefined && !Array.isArray(ev.attendees)) e(`${ev.id}: attendees must be a list of npc ids`);
+      for (const id of arr(ev.attendees)) checkRef(ev.id, 'npc', id);
       checkBranches(ev.id, ev);
     });
     if (t.epilogue !== undefined && t.epilogue !== null) {
@@ -10729,6 +10756,12 @@ const World = (() => {
       if (!isObj(ev) || typeof ev.id !== 'string' || !ev.id || eventDone(ev.id) || !reached(ev.day, ev.phase, now)) continue;
       const { branch, index } = pickBranch(ev);
       markEvent(ev.id);
+      // The people it brings together are there for that phase (a visit), if they are free and in town today.
+      if (ev.locationId && now.day === s.time.day && now.phase === s.time.phase) {
+        const come = arr(ev.attendees).map(id => State.npc(id)).filter(n => isFree(n) && presenceOf(n) === 'here'
+          && !(typeof State.awayNow === 'function' && State.awayNow(n)) && !(typeof State.laidUp === 'function' && State.laidUp(n)));
+        if (come.length) State.apply({ visits: come.map(n => ({ npcId: n.id, locationId: ev.locationId })) }, W);
+      }
       const text = cleanText(branch.text, 600);
       const res = applyEffects(fillEffects(branch.effects, { locationId: ev.locationId }));
       if (text) pushNews(text, { public: true });
@@ -10905,7 +10938,9 @@ const World = (() => {
       const sd = State.seed(ev.seedId);
       if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (!anyOf(sd.trigger.value, v => v === here) || (ctx && ctx.leaving))) continue;
       if (out.length >= MAX_DUE) continue;
-      if (ev.bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
+      // A loose end's person comes to the player; so does the person a seed fired on meeting (an npc trigger: a background's hook), if they have moved on since.
+      const bring = n && (ev.bring || (sd && isObj(sd.trigger) && sd.trigger.type === 'npc'));
+      if (bring && !State.npcsAt(here).some(x => x.id === n.id)) State.apply({ visits: [{ npcId: n.id, locationId: here }] }, W);
       out.push({ seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null });
     }
     if (drop.length) {
@@ -13816,6 +13851,7 @@ const Pipeline = (() => {
   let acceptsQueue = false; // the narration is in; the bookkeeper or the chronicle is running
   let queued = null; // { text, opts }: one input waiting for the turn to end
   let pendingEpilogue = null; // { text }: an ending in the news, narrated when this turn ends
+  let morningNews = false; // a new morning came this turn: its news is told once the seeds have fired (runTurn step 11)
   let statusFn = null;
   const idleWaiters = [];
   /* Test and debug hook: force the next d20 (e.g. 20 for a critical). */
@@ -13986,13 +14022,15 @@ const Pipeline = (() => {
     end.seen = true;
     pendingEpilogue = { text: cleanText(end.text, 1500), day: end.day };
   }
-  /* A new morning: the news the player has not heard yet, as one quiet block. */
+  /* A new morning: the news the player has not heard yet, as one quiet
+     block, then those items are marked seen through the engine (newsSeen
+     'public'; an ending is noteEnding's, a private item is never told). */
   function overnightNews() {
     const unseen = newsList().filter(n => isObj(n) && n.public !== false && !n.seen && n.epilogue !== true);
     if (!unseen.length) return;
-    for (const n of unseen) n.seen = true;
     const told = unseen.map(n => cleanText(n.text, 300)).filter(Boolean).slice(-6);
     if (told.length) UI.feed.quiet(`Overnight in town: ${told.join(' ')}`);
+    if (State.apply({ newsSeen: 'public' }).rejected.length) for (const n of unseen) n.seen = true;
   }
   /* Time passes: State.apply advances the clock, then World.tick runs once
      for every phase that went by, in order (SPEC section 8). A short held at
@@ -14022,8 +14060,10 @@ const Pipeline = (() => {
       if (arrived.length || left.length) State.apply({ sceneChange: { locationId: here, arrived, left, cause: cause || 'turn' } });
     }
     if (State.current === s0) {
-      if (morning) overnightNews();
       noteEnding();
+      // The morning's news is told at the end of the turn's step 11, so what the
+      // dawn brings (a seed that fires on that day) is in it too, not a day late.
+      if (morning) { if (turnState === s0) morningNews = true; else overnightNews(); }
     }
     return t;
   }
@@ -15370,6 +15410,7 @@ const Pipeline = (() => {
   }
   function fail(snap, mark, notice, extra) {
     pendingEpilogue = null;
+    morningNews = false;
     // Defensive: if another game was loaded mid-turn, do not restore over it or touch its feed.
     if (turnState && State.current !== turnState) return Object.assign({ ok: false }, extra, { reason: 'replaced' });
     State.restore(snap);
@@ -15400,20 +15441,6 @@ const Pipeline = (() => {
     }
     return clean;
   }
-  /* Attitude bands for the feed: a known person who moves up a band warms
-     to the player, one who moves down won't forget it. */
-  const BAND_EDGES = [-60, -25, 25, 60];
-  function bandOf(a) { return BAND_EDGES.filter(e => a >= e).length; }
-  function attitudeLines(before) {
-    const s = State.current;
-    for (const n of s.npcs) {
-      if (!n.knownToPlayer || n.alive === false || !Object.prototype.hasOwnProperty.call(before, n.id)) continue;
-      const was = bandOf(before[n.id]);
-      const now = bandOf(n.attitude);
-      if (now > was) UI.feed.quiet(`${n.name} warms to you.`);
-      else if (now < was) UI.feed.quiet(`${n.name} won't forget that.`);
-    }
-  }
   /* Apply the bookkeeper's diff as model output, with this turn's context
      for State.apply (who was present, whether the roll succeeded, who was
      attacked), then the quiet lines for what it added and the reputation
@@ -15432,7 +15459,7 @@ const Pipeline = (() => {
     ctx.people = (ctx.applied.people || []).slice();
     for (const x of ctx.people) if (x.named) UI.feed.quiet(`Added to People: ${personTag(State.npc(x.id))}.`);
     ctx.reputation = World.driftReputation(before);
-    attitudeLines(before);
+    // "<Name> warms to you." and the like: App's State listener writes them once the turn is in (one place, any cause).
     // Someone other than its source told it: People lists it under the teller.
     if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
     return ctx.applied;
@@ -15509,6 +15536,7 @@ const Pipeline = (() => {
     let committed = false;
     let later = null;
     turnState = s;
+    morningNews = false;
     const replaced = () => State.current !== s;
     try {
       State.apply({ beginTurn: true });
@@ -15623,6 +15651,7 @@ const Pipeline = (() => {
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
       if (ctx.due.length) World.dueNarrated(ctx.due);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
+      if (morningNews) { morningNews = false; overnightNews(); }
       // Retry lock (SPEC section 7): a roll set or cleared it in resolve(). An
       // action without a roll lifts it only once the situation has changed:
       // the action took time, time passed or the player moved. An instant
@@ -15923,10 +15952,11 @@ const Pipeline = (() => {
     return runTurn({
       input: `/skip ${goal}`, mode: 'arrival', bookkeep: false, cause: 'skip',
       prepare: ctx => {
+        // The player goes there and waits there, so a town event at that place (the council meeting) happens in front of them.
         const steps = g.phase ? phaseSteps(g.phase) : 0;
+        if (g.location) State.apply({ playerLocationId: g.location.id });
         if (!g.phase) passTime('short', 'skip');
         for (let i = 0; i < steps; i++) passTime(i === steps - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'skip');
-        if (g.location) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
         ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
       },

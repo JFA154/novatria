@@ -63,9 +63,12 @@ Existing ops changed: `npcStatus` dead now takes them off every schedule
 and cancels their visit (review E14); `threadStatus` on a resolved thread
 is a no-op.
 
-New engine keys (`ENGINE_KEYS`): `expireDaily: <day>` and `newsSeen: true`
-(marks every news item seen: for transport's morning "Overnight in town"
-block, so it never writes state directly).
+New engine keys (`ENGINE_KEYS`): `expireDaily: <day>`, `newsSeen: true`
+(marks every news item seen) or `newsSeen: 'public'` (only the public items
+that are not an ending: what transport's morning "Overnight in town" block
+told, so it never writes state directly), and `eventsFired: [id]` (a town
+event or the epilogue told, kept once in `state.eventsFired`; World's
+`fireEvents` writes it, the Debug tab lists it).
 
 ## Obligations (CONTRACTS section 4)
 
@@ -259,7 +262,7 @@ Nothing happens without a hook.
   cost, cause } })` so the narration of `/rest`, `/wait`, `/skip` and the
   arrival does not count as an instant; `/wait` and `/skip` longs with
   `toPhaseStart: true` (review E5); defeat with `{ cost: 'long', cause:
-  'defeat' }`. Mark news seen with `State.apply({ newsSeen: true })`. A
+  'defeat' }`. Mark news seen with `State.apply({ newsSeen: 'public' })` (integration: done). A
   progression quiet line can read `result.progressed`.
 - **engine-world**: `World.tick` should call `State.tickObligations(to.day)`
   on each new morning (expiry already runs inside `advanceTime`; calling

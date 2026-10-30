@@ -1439,7 +1439,16 @@ if (T.events !== undefined) {
   if (!Array.isArray(T.events)) err('TOWN_DATA.events', 'an array of events');
   else T.events.forEach((ev, i) => {
     const where = 'events[' + i + '](' + (ev && ev.id) + ')';
-    if (!checkKeys(ev, ['id', 'day', 'phase', 'locationId', 'title', 'branches', 'default'], where)) return;
+    if (!checkKeys(ev, ['id', 'day', 'phase', 'locationId', 'title', 'branches', 'default'], where, ['attendees'])) return;
+    // attendees: the people who are at the place for that phase when it happens (World brings them, if free).
+    if (ev.attendees !== undefined) {
+      if (!Array.isArray(ev.attendees) || !ev.attendees.length) err(where + '.attendees', 'a non-empty list of npc ids');
+      else ev.attendees.forEach((id, k) => {
+        if (!isNpc(id)) err(where + '.attendees[' + k + ']', '"' + id + '" is not a person');
+        else if (npcById.get(id).presence && npcById.get(id).presence !== 'here') err(where + '.attendees[' + k + ']', '"' + id + '" does not live in town');
+        if (ev.attendees.indexOf(id) !== k) err(where + '.attendees[' + k + ']', 'listed twice');
+      });
+    }
     if (!isInt(ev.day) || ev.day < 2 || ev.day > 30) err(where + '.day', 'a day number, 2 to 30');
     if (!PHASE_SET.has(ev.phase)) err(where + '.phase', 'one of ' + PHASES.join(', '));
     if (!isLoc(ev.locationId)) err(where + '.locationId', '"' + ev.locationId + '" is not a location');
