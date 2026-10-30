@@ -1745,8 +1745,10 @@ s.test('wave 3, defect 6 and N3: place types read as words (one map for the plac
   });
   assert.ok(t.line.startsWith(t.hereLabel), t.line);
   for (const r of t.rows) assert.equal(r.shown, r.want, r.type);
-  const want = { gas: 'Gas station', trailerpark: 'Trailer park', bighouse: 'Big house', police: 'Town hall', pawn: 'Pawn shop', care: 'Care home', fields: 'Farmland', marina: 'Boat landing' };
+  // Integration (wave 4, the third review's risk): a police place is a police station, except Town Hall, which is labelled by its id.
+  const want = { gas: 'Gas station', trailerpark: 'Trailer park', bighouse: 'Big house', police: 'Police station', pawn: 'Pawn shop', care: 'Care home', fields: 'Farmland', marina: 'Boat landing' };
   for (const [k, v] of Object.entries(want)) assert.equal(await page.evaluate(x => Game.UI.placeTypeLabel(x), k), v, k);
+  assert.equal(await page.evaluate(() => Game.UI.placeLabel(Game.State.loc('loc_town_hall'))), 'Town hall');
   assert.equal(t.line.split(' · ')[0], 'Gas station', 'the place a game starts at');
   await page.evaluate(() => { Game.Storage.saveSettings({ theme: 'parchment' }); Game.UI.applyDisplay(); const b = document.getElementById('panel-body'); b.scrollTop = document.querySelector('.exit-list').getBoundingClientRect().top - b.getBoundingClientRect().top + b.scrollTop - 40; });
   await shot(page, 'W3_06_places_types_390_parchment');

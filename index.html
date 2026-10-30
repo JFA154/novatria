@@ -12618,7 +12618,8 @@ const Style = (() => {
   const COMMON = new Set(Array.from(SENTENCE_STARTS).concat(('The A An His Her Their My Your Our Its These Those Some Every Each One Two Three Four Five Another Somebody Someone Nobody Everyone Everybody Anyone Anybody ' +
     'He She It We They You Which All Both Most Many Few Nothing Something Everything Behind Outside Inside Across Over Under Past Through Down Up Out Back Off Later Soon Still Yet Again Not Never Always ' +
     'Okay Ok Alright Fine Good Right Sorry Please Listen Finally Suddenly Slowly Quietly Quickly Meanwhile Instead Eventually Afterward Afterwards Somehow Once Twice Nearby Beside Besides Upstairs Downstairs ' +
-    'Anyway Otherwise Sometimes Usually Probably Perhaps Apparently Clearly Honestly Seriously Really Actually Gently Carefully Silently Briefly Immediately Instantly Outdoors Indoors Overhead Hmm Huh Uh Um Wow Whoa').split(/\s+/)));
+    'Anyway Otherwise Sometimes Usually Probably Perhaps Apparently Clearly Honestly Seriously Really Actually Gently Carefully Silently Briefly Immediately Instantly Outdoors Indoors Overhead Hmm Huh Uh Um Wow Whoa ' +
+    'Neither Either None Whoever Whatever Whichever Wherever Whenever').split(/\s+/)));
   /* Wave 4 (the third review): within a sentence, two unknown capitalised
      words together are a name (worth a rewrite) unless what comes before
      them makes them a thing: a word that puts a thing after it (THING_BEFORE:
@@ -20253,10 +20254,10 @@ const UI = (() => {
   }
   /* A place's type as a player would say it, for the place here and each
      place's row (one map for both): the town's own type ids ('gas',
-     'trailerpark', 'bighouse') are not words. In a small town the police
-     sit in the town hall. An id not listed reads as itself, spaced. */
+     'trailerpark', 'bighouse') are not words. An id not listed reads as
+     itself, spaced. */
   const PLACE_TYPE_LABELS = {
-    gas: 'Gas station', bar: 'Bar', tavern: 'Tavern', motel: 'Motel', church: 'Church', police: 'Town hall', watch: 'Watch house',
+    gas: 'Gas station', bar: 'Bar', tavern: 'Tavern', motel: 'Motel', church: 'Church', police: 'Police station', watch: 'Watch house',
     pawn: 'Pawn shop', trailerpark: 'Trailer park', trailer: 'Trailer', marina: 'Boat landing', docks: 'Docks', dock: 'Dock', landing: 'Landing',
     bighouse: 'Big house', house: 'House', home: 'Home', apartment: 'Apartment', cabin: 'Cabin', farm: 'Farm', fields: 'Farmland', woods: 'Woods',
     bridge: 'Bridge', street: 'Street', road: 'Road', highway: 'Highway', parking: 'Parking lot', cemetery: 'Cemetery', tower: 'Water tower',
@@ -20270,9 +20271,11 @@ const UI = (() => {
     return PLACE_TYPE_LABELS[t] || capFirst(t.replace(/[_-]+/g, ' '));
   }
   /* A place that its type word would misname gets its own: the Bluff is a
-     pull-off on the highway, not the highway (the Bypass is). A typeLabel
-     on the place in the town's data wins over both. */
-  const PLACE_LABELS = { loc_bluff: 'Bluff' };
+     pull-off on the highway, not the highway (the Bypass is); in a small
+     town the police sit in Town Hall, which is no police station (another
+     police place is). A typeLabel on the place in the town's data wins over
+     both. */
+  const PLACE_LABELS = { loc_bluff: 'Bluff', loc_town_hall: 'Town hall' };
   function placeLabel(l) {
     if (!l) return 'Place';
     if (typeof l.typeLabel === 'string' && l.typeLabel.trim()) return l.typeLabel.trim();

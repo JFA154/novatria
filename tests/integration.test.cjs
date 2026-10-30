@@ -500,4 +500,18 @@ s.test('wave 4: a queued line shows its × always; one that fails while somethin
   assert.ok(notices.some(t => t.includes('Your action: “I wave at the mechanic”')), notices.join(' | '));
 });
 
+s.test('wave 4: the third review\'s leftovers: a police place reads "Police station" and Town Hall "Town hall"; a function word at a sentence\'s start ("Neither says a word.", "Whoever calls, she answers.") is no invented name, while "You notice Earl Hux at the bar." still is', async h => {
+  const page = await h.open();
+  await quickStart(page);
+  const r = await page.evaluate(() => ({
+    police: Game.UI.placeLabel({ id: 'loc_x', type: 'police' }),
+    hall: Game.UI.placeLabel(Game.State.loc('loc_town_hall')),
+    names: ['Neither says a word.', 'Whoever calls, she answers.', 'None of them looks up.', 'You notice Earl Hux at the bar.'].map(t => Game.Style.check(t, { packet: '', style: 'casual' }).problems.filter(p => p.type === 'name').map(p => (p.hard ? 'HARD ' : 'soft ') + p.names.join(',')).join(' | '))
+  }));
+  assert.equal(r.police, 'Police station');
+  assert.equal(r.hall, 'Town hall');
+  assert.deepEqual(r.names.slice(0, 3), ['', '', '']);
+  assert.match(r.names[3], /^HARD Earl,Hux$/);
+});
+
 s.run();
