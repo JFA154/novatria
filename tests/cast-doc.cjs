@@ -44,6 +44,14 @@ function render(D) {
   const isTo = n => T.npcs.flatMap(m => (m.relations || []).filter(r => r.npcId === n.id).map(r => `${r.relation} of ${m.name}${mark(m)}`));
   const head = n => `**${n.name}** (${Number.isInteger(n.age) ? `${n.age}, ` : ''}${PRONOUNS[n.pronouns] || n.pronouns}), ${n.role}.`;
   const tieLine = n => { const t = isTo(n); return t.length ? `${t.join('; ').replace(/^./, c => c.toUpperCase())}.` : ''; };
+  // School days and the like (awayOn): "weekdays (morning, afternoon) at the county school in Clayburn".
+  const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const awayLine = n => {
+    const a = n.awayOn;
+    if (!a || !Array.isArray(a.days)) return '';
+    const days = WEEKDAYS.every(d => a.days.includes(d)) && a.days.length === 5 ? 'weekdays' : a.days.join(', ');
+    return `Away ${days} (${(a.phases || []).join(', ')}) ${a.where}.`;
+  };
   const here = T.npcs.filter(n => presence(n) === 'here');
   const away = T.npcs.filter(n => presence(n) === 'away');
   const dead = T.npcs.filter(n => presence(n) === 'dead');
@@ -77,6 +85,8 @@ function render(D) {
       if (t) bits.push(t);
       if (f) bits.push(`${f}.`);
       bits.push(`Usually: ${where(n)}.`);
+      const aw = awayLine(n);
+      if (aw) bits.push(aw);
       out.push(`- ${bits.join(' ')} \`${n.id}\``);
     }
   }
@@ -127,6 +137,20 @@ function render(D) {
       out.push('');
       for (const r of T.recent) out.push(`* ${r.when}: ${r.what}`);
     }
+    // The calendar, the council and the set pieces (no outcomes: this roster spoils nothing).
+    const council = here.filter(n => (n.tags || []).includes('council'));
+    const extra = [];
+    if (T.calendar && T.calendar.startDate) {
+      const [y, m, d] = T.calendar.startDate.split('-').map(Number);
+      const day1 = new Date(Date.UTC(y, m - 1, d));
+      const wd = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day1.getUTCDay()];
+      const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1];
+      extra.push(`Day 1 is ${wd} ${d} ${month} ${y}, in the ${T.calendar.season}.`);
+    }
+    if (council.length) extra.push(`The town council: ${council.map(n => n.name).join(', ')}.`);
+    for (const ev of T.events || []) extra.push(`On day ${ev.day}, in the ${ev.phase}, at ${place(ev.locationId)}: ${ev.title.replace(/^The /, 'the ')}.`);
+    if (T.epilogue && Number.isInteger(T.epilogue.onDay)) extra.push(`The story's ending is told on day ${T.epilogue.onDay}, or as soon as the bridge question is settled; then play goes on.`);
+    if (extra.length) { out.push(''); out.push(extra.join(' ')); }
   }
   out.push('');
   out.push('## Places');
@@ -138,6 +162,8 @@ function render(D) {
     const bits = [`**${l.name}** (${l.type}; ${kind}).`];
     if (l.history) bits.push(l.history);
     if (l.hours) bits.push(`Hours: ${l.hours}.`);
+    const shut = (Array.isArray(l.closedOn) ? l.closedOn : []).filter(d => !String(l.hours || '').includes(d));
+    if (shut.length) bits.push(`Shut on ${shut.join(' and ')}s.`);
     out.push(`- ${bits.join(' ')} \`${l.id}\``);
   }
   const L = D.LOOSE_ENDS || {};
@@ -151,6 +177,13 @@ function render(D) {
     const tags = Array.from(new Set([link.tag].concat(link.optionTags || []).filter(Boolean)));
     const who = tags.map(t => `${t}: ${here.filter(n => (n.tags || []).includes(t)).map(n => n.name).join(', ') || 'nobody'}`);
     out.push(`- **${L[k].label}** (${who.join('; ')})`);
+    // Each preset option and who it binds to; what it binds the player to (obligations).
+    (L[k].options || []).forEach((o, i) => {
+      const tag = (link.optionTags && link.optionTags[i]) || link.tag;
+      const ob = (Array.isArray(L[k].obligations) && L[k].obligations[i]) || L[k].obligation || null;
+      const owes = ob ? `; ${ob.kind}${Number.isInteger(ob.amount) ? ` of $${ob.amount}` : ''}, due ${ob.dueOffset} days after it comes up` : '';
+      out.push(`  - "${o}" (${tag}${owes})`);
+    });
   }
   out.push('');
   return out.join('\n');

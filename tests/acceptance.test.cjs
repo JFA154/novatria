@@ -513,12 +513,13 @@ s.test('[12] In debug view, faction clocks visibly advance over several in-game 
   await fast(page);
   const glance = async () => {
     const text = await page.innerText('#panel-body');
-    return text.split('\n').filter(l => /^fac_\w+ [■□]{6} \d\/6 \(\d of \d\)$|^fac_\w+ done$/.test(l.trim())).map(l => l.trim());
+    // Any clock length: the factions are staggered (5, 6 and 8 segments; docs/notes/content.md).
+    return text.split('\n').filter(l => /^fac_\w+ [■□]+ \d+\/\d+ \(\d of \d\)$|^fac_\w+ done$/.test(l.trim())).map(l => l.trim());
   };
   await sendText(page, '/debug');
   const day1 = await glance();
   assert.equal(day1.length, await page.evaluate(() => Game.state.factions.length), 'one clock line per faction');
-  assert.ok(day1.every(l => / □{6} 0\/6 \(1 of /.test(l)), 'all start empty: ' + day1.join(' | '));
+  assert.ok(day1.every(l => / □+ 0\/\d+ \(1 of /.test(l)), 'all start empty: ' + day1.join(' | '));
   // Natural d6 rolls (5 or 6 fills a segment) over three days and nights.
   for (let i = 0; i < 3; i++) await sendText(page, '/rest');
   const day4 = await glance();
@@ -546,7 +547,7 @@ s.test('[12] In debug view, faction clocks visibly advance over several in-game 
   if (!(await page.evaluate(() => Game.UI.debug))) await sendText(page, '/debug');
   const dbg = await page.innerText('#panel-body');
   assert.ok(dbg.includes(`${target.factionId} completes "${target.label}"`), 'World events records the completion');
-  if (target.next) assert.ok(dbg.includes(`0/6 "${target.next}"`), 'and the next clock is running');
+  if (target.next) assert.ok(new RegExp(`0/\\d+ "${target.next}"`).test(dbg), 'and the next clock is running');
   if (target.effect.npcId) assert.match(dbg, new RegExp(`\\[${target.effect.npcId}\\] ${target.effect.status}`), 'the NPC list shows it');
   // Outside the debug view the town shows it too.
   if (target.effect.op === 'closeLocation') {
