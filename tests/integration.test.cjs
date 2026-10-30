@@ -276,6 +276,31 @@ s.test('wave 2: a missed obligation owed to someone in town brings them with con
   assert.ok(r.visits.includes(r.b) && r.visits.includes(r.a));
 });
 
+s.test('wave 2: the Journal keeps a missed debt that is still owed with the open ones (what is paid so far, not struck through), and marks it settled late once paid', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(() => {
+    const G = Game, S = G.State, st = G.state;
+    const n = st.npcs.find(x => x.alive !== false && x.status === 'free' && (x.presence || 'here') === 'here');
+    S.apply({ effects: [{ op: 'playerGold', delta: 1000 }, { op: 'addObligation', kind: 'debt', npcId: n.id, text: 'Pay {npc} the four hundred dollars.', amount: 400, dueOffset: 0 }] });
+    const o = st.player.obligations[0];
+    S.apply({ setTime: { day: st.time.day, phase: 'night' } });
+    G.Pipeline.passTime('long');
+    S.apply({ beginTurn: true });
+    S.apply({ goldDelta: -150 }, { source: 'model', present: [n.id] });
+    const row = () => { G.UI.openPanel('journal'); const li = document.querySelector(`#panel-body [data-section="owe"] [data-obligation="${o.id}"]`); return { text: li.textContent, done: li.classList.contains('jr-done') }; };
+    const missed = row();
+    S.apply({ beginTurn: true });
+    S.apply({ goldDelta: -250 }, { source: 'model', present: [n.id] });
+    return { status: o.status, late: o.late, missed, paid: row() };
+  });
+  assert.equal(r.missed.done, false, 'still owed, not struck through');
+  assert.match(r.missed.text, /missed Day \d+, still owed · \$150 of \$400 paid/);
+  assert.deepEqual([r.status, r.late], ['met', true]);
+  assert.deepEqual([r.paid.done, /Settled late$/.test(r.paid.text)], [true, true], r.paid.text);
+});
+
 s.test('wave 2: playerAt: the council meeting with the player in the room and Royce warm to them is the attendance branch (a walk into the evening, /skip, /wait there); slept through or elsewhere it is not; the validators know the key', async h => {
   const page = await h.open();
   const branch = await page.evaluate(() => {

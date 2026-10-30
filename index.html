@@ -19918,8 +19918,12 @@ const UI = (() => {
       const ORDER = { open: 0, resolved: 1, failed: 2 };
       threads.sort((a, b) => (ORDER[a.status] | 0) - (ORDER[b.status] | 0));
       const obl = obligationsOf(s);
-      const open = obl.filter(o => o.status === 'open' || !o.status).sort((a, b) => (a.dueDay || 1e9) - (b.dueDay || 1e9));
-      const done = obl.filter(o => o.status === 'met' || o.status === 'missed');
+      // A missed obligation that can still be made good (State.obligations('owed')) stays with the open ones, not struck through.
+      let owedIds = new Set();
+      if (typeof State.obligations === 'function') { try { owedIds = new Set((State.obligations('owed') || []).map(o => o && o.id)); } catch (e) { owedIds = new Set(); } }
+      const stillOwed = o => o.status === 'missed' && owedIds.has(o.id);
+      const open = obl.filter(o => o.status === 'open' || !o.status || stillOwed(o)).sort((a, b) => (a.dueDay || 1e9) - (b.dueDay || 1e9));
+      const done = obl.filter(o => (o.status === 'met' || o.status === 'missed') && !stillOwed(o));
       const sec = (key, title, body) => el('section', { class: 'jr-sec', dataset: { section: key }, 'aria-label': title }, el('h3', null, title), body);
       const ul = (items, fmt, empty) => (items.length ? el('ul', { class: 'jr-list' }, items.map(fmt)) : el('p', { class: 'empty' }, empty));
       return [
@@ -19938,12 +19942,15 @@ const UI = (() => {
             met.length ? el('span', { class: 'jr-people' }, met.map(n => el('button', { type: 'button', class: 'chip', dataset: { npc: n.id }, onclick: () => showPerson(n.id) }, n.knownToPlayer ? n.name : npcLabel(n)))) : null);
         }, 'Nothing yet.')),
         sec('owe', 'You owe / are owed', ul(open.concat(done), o => {
-          const doneNow = o.status === 'met' || o.status === 'missed';
-          const late = !doneNow && Number.isInteger(o.dueDay) && o.dueDay < day;
+          const owedLate = stillOwed(o);
+          const doneNow = !owedLate && (o.status === 'met' || o.status === 'missed');
+          const late = owedLate || (!doneNow && Number.isInteger(o.dueDay) && o.dueDay < day);
+          const paid = !doneNow && Number.isInteger(o.amount) && o.amount > 0 && (o.paid | 0) > 0 ? ` · ${money(o.paid)} of ${money(o.amount)} paid` : '';
           return el('li', { class: doneNow ? 'jr-done' : null, dataset: { obligation: o.id || '', status: o.status || 'open' } },
             el('span', { class: 'jr-text' }, obligationText(o)),
-            doneNow ? el('span', { class: 'jr-who' }, o.status === 'met' ? 'Settled' : 'Missed')
-              : Number.isInteger(o.dueDay) ? el('span', { class: 'jr-due' + (late ? ' late' : '') }, `due Day ${o.dueDay} (${dueIn(o.dueDay, day)})`) : null);
+            doneNow ? el('span', { class: 'jr-who' }, o.status === 'met' ? (o.late ? 'Settled late' : 'Settled') : 'Missed')
+              : owedLate ? el('span', { class: 'jr-due late' }, `missed Day ${o.dueDay}, still owed${paid}`)
+              : Number.isInteger(o.dueDay) ? el('span', { class: 'jr-due' + (late ? ' late' : '') }, `due Day ${o.dueDay} (${dueIn(o.dueDay, day)})${paid}`) : null);
         }, 'Nothing owed either way.')),
         sec('notes', 'Notes', ul(s.journal.slice().reverse(), j => {
           // The day and phase stored with the entry; the log only for entries written before it kept them.
