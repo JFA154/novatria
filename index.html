@@ -5330,16 +5330,24 @@ if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKG
 // ===== END CONTENT =====
 
 /* Two narration styles (Settings, "Narration style"; casual is the default).
-   STYLE_GUIDE_LITERARY: SPEC.md section 9, word for word.
+   STYLE_GUIDE_LITERARY: SPEC.md section 9, word for word, then the WHAT A
+   GOOD TURN DOES line both guides end with (GOOD_TURN).
    STYLE_GUIDE_CASUAL: the owner's plainer voice (docs/BUILD_PLAN.md,
    "Direction changes"): the same sections, the same NEVER rules and the same
-   banned list, with a plain, table-talk VOICE and more to avoid.
+   banned list, with a plain, table-talk VOICE and more to avoid, then the
+   same WHAT A GOOD TURN DOES line.
    EXAMPLE_TURNS_LITERARY: the SPEC's three example turns rewritten for the
-   present day, with the same shape and length. EXAMPLE_TURNS_CASUAL: the same
-   three scenes in the plain register. Their people and places are from a
-   different town (none exists in the content above). The narrator's cached
-   system prompt is built from one guide and its examples by
-   Style.systemPrompt(). */
+   present day, with the same shape and length. EXAMPLE_TURNS_CASUAL: eight
+   turns in the owner's casual voice whose context is written the way the
+   narrator packet writes it (PRESENT, PLAYER SAYS, ACTION, ROLL, OUTCOME,
+   COMPLICATION, NOT CARRIED, SINCE THE LAST TURN, DUE EVENT): Say to one
+   person and to everyone, a success that gives something concrete, a
+   failure whose complication changes things, an arrival, a thing the player
+   does not carry, two people reacting, a due event worked in, and a refusal
+   with a plain reason. Their people and places are from a different town
+   (none exists in the content above). The narrator's cached system prompt is
+   built from one guide and its examples by Style.systemPrompt(). */
+const GOOD_TURN = 'WHAT A GOOD TURN DOES: something moves. Someone wants something and says it, or gives one concrete thing (a name, a place, a time, a price) or a plain reason they won\'t. Something can be refused, but not everything is. End on what the player has to answer.';
 const STYLE_GUIDE_LITERARY = `You narrate a text RPG. Write like a sharp, economical novelist, not like an AI.
 
 LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first moment the player must respond.
@@ -5357,7 +5365,9 @@ NEVER:
 - End with a summary of the mood.
 
 BANNED PHRASES: "the air is thick with", "a testament to", "little did you know", "somewhere in the distance", "you can't help but", "a sense of", "palpable", "tapestry", "whispers of", "the weight of", "sends shivers", "unbeknownst", "in the grand scheme", "it's worth noting", "echoes through", "hangs in the air", "a mix of", "as if on cue", "time seems to slow", "eyes glinting with".
-Also avoid: lists of three adjectives, rhetorical questions, and starting with "As you".`;
+Also avoid: lists of three adjectives, rhetorical questions, and starting with "As you".
+
+${GOOD_TURN}`;
 
 const STYLE_GUIDE_CASUAL = `You narrate a text RPG. Keep it casual: plain talk, not a novel, and not like an AI.
 
@@ -5376,7 +5386,9 @@ NEVER:
 - End with a summary of the mood.
 
 BANNED PHRASES: "the air is thick with", "a testament to", "little did you know", "somewhere in the distance", "you can't help but", "a sense of", "palpable", "tapestry", "whispers of", "the weight of", "sends shivers", "unbeknownst", "in the grand scheme", "it's worth noting", "echoes through", "hangs in the air", "a mix of", "as if on cue", "time seems to slow", "eyes glinting with".
-Also avoid: similes ("like a ...", "as if ..."), stacked adjectives, poetic fragments, lists of three adjectives, rhetorical questions, and starting with "As you".`;
+Also avoid: similes ("like a ...", "as if ..."), stacked adjectives, poetic fragments, lists of three adjectives, rhetorical questions, and starting with "As you".
+
+${GOOD_TURN}`;
 
 const EXAMPLE_TURNS_LITERARY = [
   {
@@ -5398,19 +5410,44 @@ const EXAMPLE_TURNS_LITERARY = [
 
 const EXAMPLE_TURNS_CASUAL = [
   {
-    input: "I walk into the bar.",
-    context: "Seed due: Charlene wants her $400.",
-    narration: "Charlene's at the bar, and she sees you come in. She doesn't get up. \"There you are,\" she says. \"Sit down. You owe me four hundred, and I want it today.\""
+    input: "\"I'll have your money by the weekend.\" (said to Charlene Voight)",
+    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; voice (a habit, not every line): dry, never raises her voice; wants (never say this outright; it steers what they push for and dodge): her four hundred back before the bank calls her note; attitude -20 (wary); remembers: owes me four hundred)\nPLAYER SAYS (to Charlene Voight): \"I'll have your money by the weekend.\"\nROLL: none.",
+    narration: "Charlene doesn't look up from the register. \"Uh huh.\" She writes 400 on a strip of receipt paper, then a time, and slides it over. \"Noon on the weekend. After that I quit asking nice.\""
+  },
+  {
+    input: "\"Anybody here need a hand with anything?\" (said to everyone)",
+    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; attitude 0 (neutral)); Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 5 (neutral))\nPLAYER SAYS (to everyone present): \"Anybody here need a hand with anything?\"\nROLL: none.",
+    narration: "Dot keeps wiping the same table. Hutch looks you over from the end of the bar. \"Can you lift a motor? Ninety pounds, out of a boat and into my truck. Twenty bucks.\" Dot snorts. \"Get the twenty first. He pays in beer.\""
+  },
+  {
+    input: "I try to get Ellis to tell me where Charlene keeps the bar's cash overnight.",
+    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; attitude 5 (neutral))\nACTION: presses Ellis to say where Charlene keeps the bar's cash overnight\nROLL: Charm 15 vs 12 · Success\nOUTCOME: the ask succeeded. It works.",
+    narration: "Ellis glances at the door and drops his voice. \"Bank bag, under the ice machine, till she drives it to the bank at nine.\" He shakes his head at himself. \"You didn't get that from me.\""
   },
   {
     input: "I try to pick the lock on the insurance office door.",
-    context: "Stealth 9 vs 15 · Failure · Complication: someone filmed it on their phone.",
-    narration: "The pick slips and the lock doesn't budge. Across the street, a kid on a bike has his phone out. He's been filming you the whole time."
+    context: "ACTION: picks the lock on the insurance office door\nROLL: Stealth 9 vs 15 · Failure\nCOMPLICATION: it breaks.",
+    narration: "The pick snaps off inside the lock. Now the door won't open with a key either, and the broken end is sticking out where anyone can see it. Down the block, the lights are still on in the feed store."
   },
   {
-    input: "I ask the mechanic if he's heard anything about the bootleggers.",
-    context: "Mechanic: gruff, short sentences, attitude −10.",
-    narration: "He keeps working on the engine. \"Heard some things. Not telling you.\" He wipes his hands and looks at you. \"You buying something?\""
+    input: "I wait at the counter.",
+    context: "PRESENT: Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 10 (friendly)); Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary))\nSINCE THE LAST TURN (time moved on to evening): arrived here: Charlene Voight. The player has not acted in between.\nACTION: waits at the counter\nROLL: none.",
+    narration: "The bell over the door goes and Charlene Voight walks in with a bank bag under her arm. She sees you and stops. Hutch suddenly has something to do in the back. \"Well,\" Charlene says. \"Saves me a trip.\""
+  },
+  {
+    input: "I pull my gun on Ellis.",
+    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; attitude 5 (neutral))\nACTION: draws a gun on Ellis\nNOT CARRIED: a gun. The player has no gun and nothing like one; they cannot shoot anyone.\nROLL: none.",
+    narration: "Your hand goes to your belt and finds nothing there. Ellis sees that too. He backs behind the counter and picks up the phone. \"Out,\" he says. \"Or I call this in.\""
+  },
+  {
+    input: "I order a coffee.",
+    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; attitude 15 (friendly))\nACTION: orders a coffee\nROLL: none\nDUE EVENT: Hutch Bledsoe left word that the johnboat the player asked about is for sale, three hundred cash (already true; work it into the scene naturally, not as an announcement).",
+    narration: "Dot pours it and pushes the sugar over. \"Hutch came by asking for you. Says if you still want that johnboat, it's three hundred cash, and he won't hold it past tomorrow.\" She tops off your cup. \"It's a good boat.\""
+  },
+  {
+    input: "I ask Charlene for another week.",
+    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary); remembers: owes me four hundred)\nACTION: asks Charlene for another week to pay\nROLL: Charm 8 vs 15 · Failure\nCOMPLICATION: someone who matters takes it personally\nOUTCOME: the ask failed.",
+    narration: "\"No.\" Charlene sets the glass down hard. \"The bank doesn't give me another week, so I don't give you one.\" She raises her voice so the whole room hears it. \"Four hundred, noon on the weekend, or don't come back in here.\""
   }
 ];
 
@@ -11017,12 +11054,19 @@ const World = (() => {
 })();
 
 // ===== Module: Style =====
-/* Banned-phrase and length checks (SPEC.md section 9) and the narrator's
-   cached system prompt, in one of two styles (Settings.narrationStyle:
-   casual, the default, or literary). Pipeline step 7 regenerates once with
-   regenerationNote() when check() fails, and keeps the second try. */
+/* Banned-phrase, length, simile, repeat, invented-past and invented-name
+   checks (SPEC.md section 9 and the owner's rules) and the narrator's cached
+   system prompt, in one of two styles (Settings.narrationStyle: casual, the
+   default, or literary). Every problem is hard or soft (check().hard says
+   whether any is hard): Pipeline step 7 rewrites once with
+   regenerationNote() for a hard problem and logs the soft ones. */
 const Style = (() => {
   const EXAMPLES_INTRO = 'EXAMPLES (from a different town; none of these people or places exist in this game):';
+  /* The rule half of the packet's WHAT PEOPLE KNOW line. It never changes, so
+     it sits in the cached style block (between the guide and the examples,
+     byte-identical per style); the packet keeps only when the player came to
+     town and who knew them before (Pipeline.knowledgeLine). */
+  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS.';
   const STYLES = {
     casual: { guide: STYLE_GUIDE_CASUAL, examples: EXAMPLE_TURNS_CASUAL },
     literary: { guide: STYLE_GUIDE_LITERARY, examples: EXAMPLE_TURNS_LITERARY }
@@ -11035,9 +11079,18 @@ const Style = (() => {
     return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
   })();
   const WORD_LIMITS = { normal: 90, zoom: 150 };
+  /* A problem is hard (worth a second paid narration) or soft (logged only):
+     hard is a narration more than HARD_OVER words over its limit, a past
+     invented on day 1, "What do you do" outside dialogue, or a name nobody in
+     the town has. Everything else (a banned phrase, a simile, "As you", a
+     repeated spoken phrase, a few words over) is soft. */
+  const HARD_OVER = 15;
   /* Casual only: a simile outside dialogue ("like a", "like an", "as if").
-     Quoted speech is left out, so "I'd like a beer," she says passes. */
-  const SIMILE = /\b(like an?|as if)\b/i;
+     Quoted speech is left out, so "I'd like a beer," she says passes, and so
+     is "like a" after looks, sounds, seems, feels, something, about or
+     would: "looks like a cop", "something like a hundred bucks". */
+  const SIMILE = /\b(like an?|as if)\b/gi;
+  const NOT_SIMILE = /(?:\b(?:looks?|looked|looking|sounds?|sounded|seems?|seemed|feels?|felt|something|about|would)|'d)\s+$/i;
   const prompts = {};
   function pick(style) { return NAMES.includes(style) ? style : DEFAULT; }
   /* The style in Settings now (an unknown value reads as casual). */
@@ -11048,36 +11101,166 @@ const Style = (() => {
   }
   /* Byte-identical every call for a given style so it caches
      (docs/API_NOTES.md): nothing volatile goes in here, only that style's
-     guide and its example turns. Caches are per style and per model, so
-     switching the style starts the cache cold once. */
+     guide, the WHAT PEOPLE KNOW rules and its example turns. Caches are per
+     style and per model, so switching the style starts the cache cold once. */
   function systemPrompt(style) {
     const k = pick(style === undefined ? current() : style);
     if (prompts[k] === undefined) {
       const ex = STYLES[k].examples.map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
-      prompts[k] = `${STYLES[k].guide}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
+      prompts[k] = `${STYLES[k].guide}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
     }
     return prompts[k];
   }
   function unquoted(t) { return t.replace(/"[^"]*"|“[^”]*”?/g, ' '); }
-  /* Spoken lines only, as 4-word phrases; a phrase of nothing but filler words
-     does not count. Used to catch a person's verbal habit turning up again. */
+  function simileIn(outside) {
+    SIMILE.lastIndex = 0;
+    for (let m = SIMILE.exec(outside); m; m = SIMILE.exec(outside)) {
+      const w = m[1].toLowerCase();
+      if (w !== 'as if' && NOT_SIMILE.test(outside.slice(Math.max(0, m.index - 24), m.index))) continue;
+      SIMILE.lastIndex = 0;
+      return w;
+    }
+    return null;
+  }
+
+  // ----- the names a narration may use -----
+  /* tests/mentions.cjs, ported: a capitalised word that does not start a
+     sentence (or two in a row anywhere) has to be someone or somewhere the
+     game has. Known: everyone in the game (full, first and last names, and
+     "the Gentrys"), every place (name, map label, other names), the
+     factions, the town and its map labels, the player, the calendar, NAME_ALLOW
+     (titles, kin words used as names, faith, holidays, the services, brands,
+     states and a few cities) and every capitalised word in the narrator's
+     own packet (what the player typed, a due event, the news). Sentence
+     starts, "I" and words in capitals are never names. */
+  const NAME_ALLOW = new Set(('Mr Mrs Ms Miss Mister Dr Doc Chief Pastor Preacher Reverend Deacon Brother Sister Mayor Officer Sheriff Deputy Judge Coach Captain Sergeant Sarge Major Colonel General Corporal Private Senator Governor President Councilman Councilwoman Trooper ' +
+    "Mama Momma Mom Mommy Ma Daddy Dad Pa Pop Pops Granny Grandma Grandpa Granddad Granddaddy Nana Papa Aunt Auntie Uncle Cousin Sir Ma'am Honey Hon Sugar Darlin Darling Baby Babe Buddy Pal Boss Son Kid Sweetheart Sweetie Friend Mister " +
+    'God Lord Jesus Christ Bible Scripture Heaven Amen Baptist Baptists Methodist Methodists Catholic Catholics Christian Christians Gospel Psalm Psalms Genesis Revelation Revelations School ' +
+    'Christmas Easter Thanksgiving Halloween Fourth Independence Labor Memorial Veterans New Year Eve ' +
+    'Army Navy Marines Marine Corps Air Force National Guard Coast Civil War VA ' +
+    'America American Americans English Spanish Mexican Mexicans Mexico Canada Canadian Yankee Yankees Southern Northern Confederate Union Vietnam Iraq Afghanistan Korea Kuwait Germany German France French ' +
+    'Ford Chevy Chevrolet Dodge Toyota Honda Jeep Buick Coke Coca-Cola Pepsi Budweiser Coors Marlboro Walmart Styrofoam Velcro Facebook Google Internet Polaroid Folgers ' +
+    'Alabama Alaska Arizona Arkansas California Colorado Connecticut Delaware Florida Georgia Hawaii Idaho Illinois Indiana Iowa Kansas Kentucky Louisiana Maine Maryland Massachusetts Michigan Minnesota Mississippi Missouri Montana Nebraska Nevada Ohio Oklahoma Oregon Pennsylvania Tennessee Texas Utah Vermont Virginia Washington Wisconsin Wyoming Carolina Dakota Jersey Hampshire York Rhode Island ' +
+    'Memphis Nashville Atlanta Orleans Birmingham Houston Dallas Chicago Detroit Tulsa Biloxi Knoxville Chattanooga Louisville Little Rock Shreveport Baton Rouge Gulf ' +
+    'Room Highway Route Interstate County State').split(/\s+/));
+  const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  // Words that open a sentence before a name without being part of it ("Ask Bobby", "Tell Earl").
+  const SENTENCE_STARTS = new Set('Ask Tell Try Go Get Come Let See Look Find Call Give Take Bring Send Leave Meet Thank Thanks Hey Hi Hello Well Yes Yeah No Nope Oh Maybe Sure Then Now So But And Or Just Only Even Tonight Today Tomorrow Here There This That When Where Why How What Who If Because Before After Since While Until Unless Like Said Says Asked Told'.split(' '));
+  const escRe = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /* Every name the game has, as written (longest first). opts.names adds more. */
+  function nameList(s, extra) {
+    const out = new Set();
+    const add = x => {
+      if (typeof x !== 'string') return;
+      const t = x.trim().replace(/^the /, '');
+      if (!t || !/[A-Z]/.test(t)) return;
+      out.add(t);
+      out.add(t.replace(/^The /, ''));
+    };
+    const words = x => String(x || '').split(/\s+/).forEach(w => add(w.replace(/'s$/, '')));
+    if (s) {
+      const town = s.meta && s.meta.townName;
+      add(town);
+      words(town);
+      for (const n of s.npcs || []) {
+        add(n.name);
+        const parts = String(n.name || '').split(/\s+/).filter(Boolean);
+        parts.forEach(add);
+        if (parts.length > 1) add(parts[parts.length - 1] + 's');
+      }
+      for (const l of s.locations || []) for (const k of [l.name, l.map && l.map.label].concat(Array.isArray(l.aka) ? l.aka : [])) add(k);
+      for (const f of s.factions || []) add(f.name);
+      if (s.player && s.player.name) { add(s.player.name); words(s.player.name); }
+      const t = State.town;
+      const m = (t && t.map) || (town === TOWN_DATA.name ? TOWN_DATA.map : null);
+      if (m) for (const lab of [m.riverLabel].concat(Array.isArray(m.labels) ? m.labels : [])) if (lab && typeof lab.text === 'string') { add(lab.text); words(lab.text); }
+      if (t && Array.isArray(t.offstage)) for (const o of t.offstage) if (o && o.name) { add(o.name); words(o.name); }
+    }
+    for (const x of extra || []) { add(x); words(x); }
+    return Array.from(out).sort((a, b) => b.length - a.length);
+  }
+  let nameCache = { key: null, res: null, lower: null };
+  let packetWords = new Set();
+  /* Pipeline.narratorPacket hands its text here, so the check that follows
+     knows what the packet named (Style.check also takes opts.packet). */
+  function notePacket(text) { packetWords = capitalised(text); }
+  function capitalised(text) { return new Set(String(text || '').match(/\b[A-Z][a-z][A-Za-z'-]*/g) || []); }
+  /* { res: name RegExps, lower: name words in lower case, single: words
+     allowed on their own } for the running game, or null with no game. */
+  function known(o) {
+    o = o || {};
+    const s = o.state !== undefined ? o.state : State.current;
+    if (!s && !Array.isArray(o.names)) return null;
+    const list = nameList(s, o.names);
+    const key = list.join('|');
+    if (nameCache.key !== key) {
+      nameCache = {
+        key,
+        res: list.map(n => new RegExp(`(^|[^A-Za-z])${escRe(n)}(?=('s|s'|')?(?![A-Za-z]))`, 'g')),
+        lower: new Set(list.flatMap(n => n.toLowerCase().split(/[^a-z]+/)).filter(w => w.length >= 2).concat(CALENDAR.map(d => d.toLowerCase())))
+      };
+    }
+    const single = new Set(NAME_ALLOW);
+    for (const d of CALENDAR) { single.add(d); single.add(d + 's'); }
+    for (const w of (typeof o.packet === 'string' ? capitalised(o.packet) : packetWords)) single.add(w.replace(/('s|s'|')$/, ''));
+    for (const w of Array.isArray(o.allow) ? o.allow : []) single.add(w);
+    return { res: nameCache.res, lower: nameCache.lower, single };
+  }
+  function unknownNames(text, k) {
+    if (!k) return [];
+    let s = String(text || '').replace(/[‘’]/g, "'").replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
+    for (const re of k.res) s = s.replace(re, (m, pre) => pre + ' '.repeat(m.length - pre.length));
+    const words = [...s.matchAll(/[A-Za-z][A-Za-z'-]*/g)];
+    const strip = w => w.replace(/('s|s'|')$/, '');
+    const out = [];
+    for (let i = 0; i < words.length; i++) {
+      const w = strip(words[i][0]);
+      if (!/^[A-Z][a-z]/.test(w) || k.single.has(w)) continue;
+      const head = s.slice(0, words[i].index);
+      const before = head.replace(/["'“”(\s]+$/, '');
+      // An opening quote starts a sentence too ('she says, "Now, listen"'); a closing one does not ('"Fine," Earl says').
+      const opening = /(^|[\s(\[—–-])["“]\s*$/.test(head);
+      const starts = opening || before === '' || /[.!?:;…—–]$/.test(before) || /\s-$/.test(before);
+      if (starts) {
+        // A sentence start is an ordinary word, unless an unknown capitalised word follows it ("Earl Hux nods"; not "Ask Bobby").
+        const nx = words[i + 1];
+        const next = nx && /^\s+$/.test(s.slice(words[i].index + words[i][0].length, nx.index)) ? strip(nx[0]) : null;
+        if (!next || !/^[A-Z][a-z]/.test(next) || k.single.has(next) || SENTENCE_STARTS.has(w)) continue;
+      }
+      if (!out.includes(w)) out.push(w);
+    }
+    return out;
+  }
+
+  // ----- spoken phrases said again -----
+  /* Spoken lines only, as 4-word phrases. A phrase counts only with two
+     words in it that are neither filler nor part of a name (a person, a
+     place, its other names, the calendar), and never with a number in it:
+     naming the Riverview Motor Court again, or "four hundred by Friday", is
+     not a verbal habit. Used to catch a person's catchphrase turning up again. */
   const FILLER = new Set(("i you he she it we they the a an to of in on and but or not is was are am do don't didn't what that this my your his her me him them up out for with at be have has had so if as no yes now then there here just like know say said says one all can can't get got go going come see well right ok okay oh hey man son sir ma'am hon you're i'm it's that's there's he's she's we're they're").split(' '));
-  function spokenPhrases(t) {
+  const NUMBER_WORDS = new Set('zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand million dozen half dollar dollars buck bucks cent cents'.split(' '));
+  function spokenPhrases(t, nameWords) {
+    const names = nameWords instanceof Set ? nameWords : new Set();
     const out = new Set();
     const quotes = String(t || '').replace(/[‘’]/g, "'").match(/"[^"]*"|“[^”]*”/g) || [];
     for (const q of quotes) {
-      const words = q.toLowerCase().replace(/[^a-z' ]+/g, ' ').split(/\s+/).filter(Boolean);
+      const words = q.toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').split(/\s+/).filter(Boolean);
       for (let i = 0; i + 4 <= words.length; i++) {
         const gram = words.slice(i, i + 4);
-        if (gram.some(w => !FILLER.has(w))) out.add(gram.join(' '));
+        if (gram.some(w => /\d/.test(w) || NUMBER_WORDS.has(w))) continue;
+        if (gram.filter(w => !FILLER.has(w) && !names.has(w.replace(/'s?$/, ''))).length >= 2) out.add(gram.join(' '));
       }
     }
     return out;
   }
-  /* A quoted line that addresses the player ("you") and speaks of last
-     night, yesterday, a while, or having met before: on day 1 there is no
-     such past. Returns the phrase, or null. */
-  const PAST_RE = /\b(last night|last week|last month|yesterday|the other day|the other night|known you|knew you|we've met|we have met|met you before|seen you before|you've been (?:here|around|in town)|you been (?:here|around|in town)|been (?:here|around) a while|known a while|for a while now|a while now|go way back|since you (?:came|got|showed up|turned up|rolled in)|the last time you|every time you)\b/i;
+  /* A quoted line that addresses the player ("you") and claims a past with
+     them: having met or known them, having seen or called them last night or
+     yesterday, them having been around a while. On day 1 there is no such
+     past. Bare time words are not a claim ("the fight at the landing last
+     night", "the paper said yesterday"). Returns the phrase, or null. */
+  const PAST_RE = /\b(known you|knew you|we've met|we have met|met you before|seen you before|(?:saw|seen|met|called|phoned|watched|heard from) you (?:last night|yesterday|the other day|the other night|last week|last month)|you were (?:here|in here|around) (?:last night|yesterday|the other day|the other night|last week)|you've been (?:here|around|in town)|you been (?:here|around|in town)|been (?:here|around) a while|known a while|for a while now|a while now|go way back|since you (?:came|got|showed up|turned up|rolled in)|the last time you|every time you)\b/i;
   function inventedPast(text) {
     const quotes = String(text || '').replace(/[‘’]/g, "'").match(/"[^"]*"|“[^”]*”/g) || [];
     for (const q of quotes) {
@@ -11087,56 +11270,80 @@ const Style = (() => {
     }
     return null;
   }
-  function repeatedPhrase(text, previous) {
+  function repeatedPhrase(text, previous, nameWords) {
     const seen = new Set();
-    for (const p of previous || []) for (const g of spokenPhrases(p)) seen.add(g);
-    for (const g of spokenPhrases(text)) if (seen.has(g)) return g;
+    for (const p of previous || []) for (const g of spokenPhrases(p, nameWords)) seen.add(g);
+    for (const g of spokenPhrases(text, nameWords)) if (seen.has(g)) return g;
     return null;
   }
-  /* opts: { zoom, style, previous } (style defaults to the current setting;
-     previous: recent narrations, for the repeated-phrase check). */
+  /* opts: { zoom, style, previous, day, packet, names, allow, state }
+     (style defaults to the current setting; previous: recent narrations, for
+     the repeated-phrase check; day: the invented-past check runs on day 1;
+     packet: the narrator packet, whose capitalised words may be used, else
+     the last one Pipeline built; names: false to skip the name check, or
+     more names to allow). Returns { ok, hard, problems, words, style }: ok
+     when there is no problem at all, hard when one is worth a rewrite. */
   function check(text, opts) {
-    const zoom = !!(opts && opts.zoom);
-    const style = pick(opts && opts.style !== undefined ? opts.style : current());
+    const o = opts || {};
+    const zoom = !!o.zoom;
+    const style = pick(o.style !== undefined ? o.style : current());
     const t = String(text || '').replace(/[‘’]/g, "'");
-    const lower = t.toLowerCase();
+    const outside = unquoted(t);
+    const lowerOut = outside.toLowerCase();
     const problems = [];
-    for (const b of BANNED) if (lower.includes(b)) problems.push({ type: 'banned', detail: b });
+    for (const b of BANNED) if (lowerOut.includes(b)) problems.push({ type: 'banned', detail: b, hard: false });
     const words = wordCount(t);
     const limit = zoom ? WORD_LIMITS.zoom : WORD_LIMITS.normal;
-    if (words > limit) problems.push({ type: 'length', detail: `${words} words, limit ${limit}`, words, limit });
-    if (/what do you do/i.test(t)) problems.push({ type: 'question', detail: 'contains "What do you do"' });
-    if (/^\s*["“]?as you\b/i.test(t)) problems.push({ type: 'opening', detail: 'starts with "As you"' });
+    if (words > limit) problems.push({ type: 'length', detail: `${words} words, limit ${limit}`, words, limit, hard: words > limit + HARD_OVER });
+    if (/what do you do/i.test(outside)) problems.push({ type: 'question', detail: 'contains "What do you do"', hard: true });
+    if (/^\s*["“]?as you\b/i.test(t)) problems.push({ type: 'opening', detail: 'starts with "As you"', hard: false });
     if (style === 'casual') {
-      const m = SIMILE.exec(unquoted(t));
-      if (m) problems.push({ type: 'simile', detail: `a simile ("${m[1].toLowerCase()}")` });
+      const m = simileIn(outside);
+      if (m) problems.push({ type: 'simile', detail: `a simile ("${m}")`, hard: false });
     }
-    const again = opts && Array.isArray(opts.previous) && opts.previous.length ? repeatedPhrase(t, opts.previous) : null;
-    if (again) problems.push({ type: 'repeat', detail: `repeats the spoken phrase "${again}" from an earlier turn`, phrase: again });
-    // Day 1: nobody here had a past with the player, so a spoken line to them about last night or a while ago invents one.
-    if (opts && opts.day === 1) {
+    const k = o.names === false ? null : known(Object.assign({}, o, { names: Array.isArray(o.names) ? o.names : undefined }));
+    const again = Array.isArray(o.previous) && o.previous.length ? repeatedPhrase(t, o.previous, k ? k.lower : null) : null;
+    if (again) problems.push({ type: 'repeat', detail: `repeats the spoken phrase "${again}" from an earlier turn`, phrase: again, hard: false });
+    // Day 1: nobody here had a past with the player, so a spoken line to them about having met or known them invents one.
+    if (o.day === 1) {
       const past = inventedPast(t);
-      if (past) problems.push({ type: 'past', detail: `on day 1, someone speaks to the player of a past that never happened ("${past}")`, phrase: past });
+      if (past) problems.push({ type: 'past', detail: `on day 1, someone speaks to the player of a past that never happened ("${past}")`, phrase: past, hard: true });
     }
-    return { ok: problems.length === 0, problems, words, style };
+    // The owner's first rule, in code: nobody and nowhere the town does not have.
+    const odd = unknownNames(t, k);
+    if (odd.length) problems.push({ type: 'name', detail: `names someone or somewhere that does not exist: ${odd.join(', ')}`, names: odd, hard: true });
+    return { ok: problems.length === 0, hard: problems.some(p => p.hard), problems, words, style };
   }
-  /* Names each problem; a length problem names the word count and the limit
-     and asks for a rewrite under it. */
-  function regenerationNote(problems) {
-    const what = problems.map(p => p.type === 'banned' ? `banned phrase "${p.detail}"` : p.detail).join('; ');
-    const long = problems.find(p => p.type === 'length');
-    const others = problems.some(p => p.type !== 'length');
-    const plain = (problems.some(p => p.type === 'past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (problems.some(p => p.type === 'simile') ? ' Say it plainly, with no comparisons.' : '') + (problems.some(p => p.type === 'repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '');
+  /* Names the problems and asks for a rewrite. The hard ones lead (they are
+     why the rewrite happens); soft ones ride along as "if you can". A length
+     problem names the word count and the limit. opts.draft: the attempt
+     being fixed, sent back so the rewrite is an edit. */
+  const NAME_FIX = 'Everyone who exists is in CAST and every place in THE TOWN or the packet: use those names, and never give a name to anyone or anywhere else.';
+  function describe(p) { return p.type === 'banned' ? `banned phrase "${p.detail}"` : p.detail; }
+  function regenerationNote(problems, opts) {
+    const list = Array.isArray(problems) ? problems : [];
+    const hard = list.filter(p => p.hard);
+    const main = hard.length ? hard : list;
+    const rest = hard.length ? list.filter(p => !p.hard) : [];
+    const what = main.map(describe).join('; ');
+    const long = main.find(p => p.type === 'length');
+    const others = main.some(p => p.type !== 'length');
+    const has = t => main.some(p => p.type === t);
+    const plain = (has('past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (has('simile') ? ' Say it plainly, with no comparisons.' : '') + (has('repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '') + (has('name') ? ` ${NAME_FIX}` : '');
     const fix = long
       ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
       : `Write it again without that.${plain}`;
-    return `STYLE CHECK FAILED on your last attempt: ${what}. ${fix}`;
+    let note = `STYLE CHECK FAILED on your last attempt: ${what}. ${fix}`;
+    if (rest.length) note += ` If you can, also fix: ${rest.map(describe).join('; ')}.`;
+    const draft = opts && typeof opts.draft === 'string' ? opts.draft.trim() : '';
+    if (draft) note += `\nYOUR LAST ATTEMPT (edit it rather than starting over; change only what the problems above need):\n${draft}`;
+    return note;
   }
   /* The narrator packet's last line (Pipeline.narratorPacket) and the
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, EXAMPLES_INTRO, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast };
+  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), notePacket };
 })();
 
 // ===== Module: Api =====
@@ -11213,14 +11420,18 @@ const Api = (() => {
     'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 }
   };
   /* SPEC.md section 10, word for word; the parser's prompt then adds a few
-     sentences: a walk followed by an action there carries the destination
-     (Pipeline moves the player first), a person named by role is never
-     swapped for a listed person who does not match, and the packet's MODE
-     line says whether the input is something done (do) or the player's
-     exact words (say; the composer's Do / Say toggle), with one more for
-     running off in do mode, and one on things the player does not carry
-     (missingItem: the narrator then hears NOT CARRIED). Short and static:
-     everything volatile goes in the user message as a labelled packet.
+     sentences: LAST TURN (a short reply is read against it), a walk before
+     or after the action (destinationId and moveWhen), aboutIds for who or
+     what is only talked about, a person named by role is never swapped for
+     a listed person who does not match, and the packet's MODE line says
+     whether the input is something done (do) or the player's exact words
+     (say; the composer's Do / Say toggle), with one more for running off in
+     do mode; then the rubric (REVIEW section 2.6: when to roll, the four
+     difficulties with their numbers, which stat), gamble, and one on things
+     the player does not carry (missingItem: the narrator then hears NOT
+     CARRIED). Short and static: everything volatile goes in the user
+     message as a labelled packet. The bookkeeper's prompt carries the field
+     rubric (RECORD_RULES).
      MEMORY_RULES is the bookkeeper's memory rule; the memory rewrite
      (Upgrade) states it word for word, so an updated game holds the same
      kind of memory a new one records. PLACE_RULE is the bookkeeper's rule
@@ -11229,15 +11440,18 @@ const Api = (() => {
      story (SYSTEM.places); it sits before MEMORY_RULES so the bookkeeper's
      prompt still ends with the memory rules. */
   const PLACE_RULE = "Add a place to placesRevealed only when someone in the narration names a specific place in or near town that the player could walk to and that is not in the places list: a house, a shop, a spot by the river. Use the name they would use for it. Not for vague mentions, places far away, or places already listed.";
-  const MEMORY_RULES = "A memory is only something this person would still hold against the player or thank them for later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared. Ordinary talk, questions, small talk and the mechanics of a scene are not memories. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
+  const MEMORY_RULES = "A memory is only something this person would still hold against the player, thank them for, or hold them to later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared, what the player claimed about themselves (a name, a job, a story about why they are here), and terms agreed, with the amount and the deadline kept ('owes me $40 by Friday'). Someone who only saw something serious happen (a fight, a theft, a threat) can remember that too ('saw them hit the bartender'). Ordinary talk, questions, small talk and the mechanics of a scene are not memories, and neither is anything already on that person's remembers list. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside', 'says he is a surveyor from the state'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
+  /* The bookkeeper's field rubric (REVIEW section 2.6): what each field is
+     for and what it is not for. */
+  const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. If the player goes somewhere and then does something there, set destinationId to that place and actionType to what they do there; the engine moves them first. Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. Set difficulty by how unlikely the person is to go along: an everyday request is easy or normal; something they would resist is hard; something against their stated stance, their nature or what they just refused is very_hard. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
-    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"). The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
+    bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + RECORD_RULES + " " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
     places: "You read the story so far of a saved text RPG and list the places people in it told the player about that the game does not have yet. " + PLACE_RULE + " List each place once, even if it comes up more than once. Choose nearId from the places list by what was said; when nothing says, use the player's current place. ownerNpcId is a listed person's id only when it is their home or business. The description is one sentence built only from what was said. turn is the TURN the mention comes from, or null when it comes from a summary. Return an empty list when there is nothing to add.",
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most 6 per person, the ones that matter most to them. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
-    chronicle: "Summarise these 10 turns in under 80 words: what the player did, who they met, what changed, what's unresolved. Past tense, plain facts."
+    chronicle: "Summarise these turns for the narrator's memory, under 100 words, past tense, full names. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom. Skip scenery and small talk. End with 'Open:' and what is unresolved. Begin with the day or days the turns cover, like 'Day 2:' or 'Days 2-3:'."
   };
 
   // ----- JSON schemas for structured outputs -----
@@ -11260,13 +11474,18 @@ const Api = (() => {
     ownerNpcId: nullable(STR, "A listed person's id when it is their home or business, else null"),
     kind: { type: 'string', enum: REVEALED_KINDS }
   }, extra || {}));
+  /* The parser's action types: the engine's, and gamble (a card game the
+     engine deals) until the engine's own list has it. */
+  const PARSE_TYPES = ACTION_TYPES.includes('gamble') ? ACTION_TYPES.slice() : ACTION_TYPES.concat(['gamble']);
   const SCHEMAS = {
     parse_action: obj({
-      actionType: { type: 'string', enum: ACTION_TYPES },
-      summary: { type: 'string', description: 'One line restating the intended action' },
+      actionType: { type: 'string', enum: PARSE_TYPES },
+      summary: { type: 'string', description: 'One line restating the intended action; for gamble, the stake ("bets $20 at cards")' },
       targets: list(STR, 'Entity ids the action is aimed at, or new:<short description> for anything not in the lists'),
-      destinationId: nullable(STR, 'The location id the player goes to this turn: for a move, or for an action done after walking there ("I head to the bar and ask..."); otherwise null'),
-      needsRoll: { type: 'boolean', description: 'True only if the outcome is uncertain and failure would be interesting. Walking somewhere, ordinary talk and buying at listed prices never roll.' },
+      aboutIds: list(STR, 'Ids of people, places or things the player only asks or talks about ("ask the bartender about the mayor": the mayor); never the one spoken to; usually empty'),
+      destinationId: nullable(STR, 'The location id the player goes to this turn: for a move, or for an action done before or after walking there; otherwise null'),
+      moveWhen: nullable({ type: 'string', enum: ['before', 'after'] }, '"before": walk to destinationId first, then act there ("I head to the bar and ask..."); "after": act here, then walk there ("ask her, then go to the bridge"); null for a plain move or no move'),
+      needsRoll: { type: 'boolean', description: 'True only if the outcome is uncertain and failure would be interesting. Walking somewhere, ordinary talk, buying at listed prices and gamble never roll.' },
       stat: nullable({ type: 'string', enum: STATS }, 'The stat for the roll, or null when no roll'),
       difficulty: nullable({ type: 'string', enum: DIFFICULTIES }, 'The difficulty of the roll, or null when no roll'),
       usesItemId: nullable(STR, 'An inventory item id the action relies on, or null'),
@@ -11274,8 +11493,15 @@ const Api = (() => {
       timeCost: { type: 'string', enum: TIME_COSTS, description: 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.' },
       declaresWorldFact: { type: 'boolean', description: 'True if the player is asserting a fact about the world rather than acting' }
     }),
+    /* record_changes sits near the API's grammar limit (probed live: 46
+       properties, nested ones counted, pass; 47 are refused). npcFates,
+       memoriesSettled and obligationsSettled (CONTRACTS section 10) add
+       seven counted that way, so attitudeChanges loses its reason (nothing
+       reads it) and newSeeds its cause (State.normaliseSeed defaults it)
+       and its nested trigger (normaliseSeed reads triggerType and
+       triggerValue as well): 45 in all. A live probe is still owed. */
     record_changes: obj({
-      attitudeChanges: list(obj({ npcId: STR, delta: INT, reason: STR })),
+      attitudeChanges: list(obj({ npcId: STR, delta: INT })),
       newMemories: list(obj({ npcId: STR, text: { type: 'string', description: "Under twelve words, from this person's point of view, only for something they would hold against the player or thank them for later; no scene detail." }, weight: { type: 'integer', enum: [1, 2, 3], description: '1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help)' } })),
       goldDelta: nullable(INT, "Change in the player's money, in whole units of the town's currency (negative when spending), or null"),
       hpDelta: nullable(INT, "Change in the player's HP, or null"),
@@ -11290,17 +11516,17 @@ const Api = (() => {
         knownToPlayer: nullable(BOOL),
         summary: nullable(STR)
       })),
-      clockNudges: list(obj({ factionId: STR, delta: { type: 'integer', enum: [-1, 1] } })),
+      clockNudges: list(obj({ factionId: STR, delta: { type: 'integer', enum: [-1, 1] } }), "Only when the action plainly helps (+1) or hinders (-1) the aim of the faction's CLOCK shown in FACTIONS; at most one, usually none"),
       newSeeds: list(obj({
-        cause: STR,
-        effect: STR,
-        trigger: obj({
-          type: { type: 'string', enum: ['day', 'location', 'npc', 'clock'] },
-          value: { type: 'string', description: 'day: a day number at least tomorrow; location: loc_ id; npc: npc_ id; clock: fac_id:segment' }
-        })
-      })),
+        effect: { type: 'string', description: 'What will happen later and why, in one sentence' },
+        triggerType: { type: 'string', enum: ['day', 'location', 'npc', 'clock'] },
+        triggerValue: { type: 'string', description: 'day: a day number at least tomorrow; location: loc_ id; npc: npc_ id; clock: fac_id:segment' }
+      }), 'Usually empty: only a concrete later event the narration sets up'),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
+      npcFates: list(obj({ npcId: STR, status: { type: 'string', enum: ['arrested', 'gone', 'dead', 'hurt'] } }), 'What the narration shows happening to someone present: arrested, gone (left town for good), dead, or hurt (laid up for days); at most one, usually none'),
+      memoriesSettled: list(obj({ npcId: STR, text: { type: 'string', description: 'The memory as their remembers list words it' } }), 'Memories this turn settles (a debt paid, a grudge made up, a promise kept); usually none'),
+      obligationsSettled: list(STR, 'Ids of OPEN obligations the narration shows being met; usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
     }),
     fix_people: obj({
@@ -11520,11 +11746,20 @@ const Api = (() => {
   }
 
   // ----- mock provider -----
-  /* Deterministic stand-ins, good enough to run the acceptance tests offline:
-     a keyword parser, two or three plain sentences of narration built from
-     the turn context (always naming the roll tier and any complication), and
-     small, rule-based bookkeeping. Every mock narration is tagged in the
-     feed. Tests can queue canned replies per method (first in, first out):
+  /* Deterministic stand-ins, good enough to run the acceptance tests offline
+     and to show the game without a key: a keyword parser (aboutIds for "ask
+     X about Y", moveWhen before and after a walk, gamble at a bar), two to
+     four plain sentences of narration built from the turn context (always
+     naming the roll tier and any complication; a social roll answered with a
+     place and a time or a plain no; the addressee's own words in Say mode;
+     arrivals, due events and fresh town news worked in; a few variants per
+     case picked by the turn, never by the dice; never a simile, never a name
+     the town does not have), rule-based bookkeeping that reacts to what
+     happened (insults by their words, buying where it is sold, a drink had,
+     a debt paid, a knockout; memories in the MEMORY_RULES form), and a
+     chronicle that starts with its day stamp and ends with "Open:". Every
+     mock narration is tagged in the feed. Tests can queue canned replies per
+     method (first in, first out):
        Mock.queue('parse', { needsRoll: true, stat: 'wits' })   merged over the keyword result
        Mock.queue('narrate', 'Exact text.')  or { text, stopReason, delay }
                                        (delay: hold the reply that many ms before it streams;
@@ -11592,11 +11827,19 @@ const Api = (() => {
   /* The mock parser's ear for a thing an action needs (MOCK_NEEDS), checked against the inventory by name (Pipeline.carriedAs). */
   const MOCK_NEEDS = [[/\b(stab|stabs|stabbing|knife|blade)\b/, 'knife'], [/\b(shoot|shoots|shooting|gun|pistol|rifle)\b/, 'gun'], [/\b(drive|drives|driving)\b/, 'car']];
   function carriedAs(name, thing) { return Pipeline.carriedAs(name, thing); }
+  /* Betting at a card or dice game ("I bet $20 at cards", "deal me in"):
+     actionType gamble where a game runs (a bar), the stake in the summary. */
+  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|sit in on|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker))\b/;
+  const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
+  const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
+  /* "ask her about Wade, then walk to the bridge": something done here, then
+     a walk on (moveWhen "after"). */
+  const MOCK_THEN_GO = /^(.*?\S)(?:\s*,\s*|\s+)(?:and\s+then|then|and)\s+(?:i\s+)?(?:go|walk|head|run|drive|ride|make my way|leave for|cross)\b(.*)$/i;
   function mockParse(packet) {
     const input = String(packet.input || '');
     const lower = ' ' + input.toLowerCase().replace(/[’]/g, "'") + ' ';
     const has = re => re.test(lower);
-    const out = { actionType: 'other', summary: cleanText(input, 160), targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'short', declaresWorldFact: false };
+    const out = { actionType: 'other', summary: cleanText(input, 160), targets: [], aboutIds: [], destinationId: null, moveWhen: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'short', declaresWorldFact: false };
     // A thing the action plainly needs: the inventory item that answers to it (usesItemId), else missingItem.
     for (const [re, thing] of MOCK_NEEDS) {
       if (!re.test(lower)) continue;
@@ -11620,16 +11863,26 @@ const Api = (() => {
       else out.actionType = 'talk';
       return out;
     }
-    /* A walk and then an action there: the action is parsed from the part
-       after the walk, with nobody assumed present at the destination (the
-       people here count as known elsewhere), and carries the destination;
-       Pipeline moves the player there first. A walk on to somewhere else is
-       left to the plain move below. */
     if (packet.mode !== 'fact' && !packet.inner) {
+      /* A walk and then an action there (moveWhen "before"): the action is
+         parsed from the part after the walk, with nobody assumed present at
+         the destination (the people here count as known elsewhere), and
+         carries the destination; the engine moves the player there first. A
+         walk on to somewhere else is left to the plain move below. */
       const c = mockCompound(input, packet);
-      const inner = c ? mockParse(Object.assign({}, packet, { input: 'I ' + c.rest, inner: true, present: [], knownNpcs: people, itemsHere: [] })) : null;
+      const there0 = c ? [].concat(packet.knownLocations || [], packet.exits || []).find(l => l.id === c.dest) : null;
+      const inner = c ? mockParse(Object.assign({}, packet, { input: 'I ' + c.rest, inner: true, present: [], knownNpcs: people, itemsHere: [], location: there0 ? { id: there0.id, name: there0.name, type: there0.type } : packet.location })) : null;
       if (inner && inner.actionType !== 'move') {
-        return Object.assign(inner, { summary: out.summary, destinationId: c.dest, timeCost: inner.timeCost === 'instant' ? 'short' : inner.timeCost });
+        return Object.assign(inner, { summary: out.summary, destinationId: c.dest, moveWhen: 'before', timeCost: inner.timeCost === 'instant' ? 'short' : inner.timeCost });
+      }
+      // Something done here and then a walk on (moveWhen "after"): the action as if alone, and where the player goes once it is done.
+      const m = MOCK_THEN_GO.exec(input.replace(/[’]/g, "'"));
+      const there = m ? mockDestination(' ' + m[2].toLowerCase() + ' ', packet) : null;
+      if (there && !MOCK_GO.test(' ' + m[1].toLowerCase() + ' ')) {
+        const first = mockParse(Object.assign({}, packet, { input: m[1], inner: true }));
+        if (first.actionType !== 'move' && first.destinationId === null) {
+          return Object.assign(first, { summary: out.summary, destinationId: there, moveWhen: 'after', timeCost: first.timeCost === 'instant' ? 'short' : first.timeCost });
+        }
       }
     }
     const all = people.filter(n => Town.mentions(lower, n));
@@ -11638,14 +11891,31 @@ const Api = (() => {
     const castNamed = (packet.cast || []).filter(n => !people.some(p => p.id === n.id) && String(n.name || '').split(/\s+/)
       .some(w => w.length >= 3 && !placeWords.has(w) && new RegExp(`(^|[^A-Za-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`).test(input)));
     all.push(...castNamed);
+    /* Asked or talked about, not acted on ("ask Loretta about Wade"): whoever
+       or wherever is named only after "about" goes in aboutIds, never in
+       targets, so nobody is looked for who is not here. */
+    const aboutAt = /\b(about|regarding)\b/.exec(lower);
+    const about = [];
+    if (aboutAt && packet.mode !== 'fact') {
+      const head = lower.slice(0, aboutAt.index) + ' ';
+      const tail = ' ' + lower.slice(aboutAt.index) + ' ';
+      for (const n of all) if (Town.nameMentions(tail, n) && !Town.nameMentions(head, n) && !about.includes(n.id)) about.push(n.id);
+      const placeName = l => String(l.name || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, '');
+      for (const l of [].concat(packet.knownLocations || [], packet.away || [])) {
+        const nm = placeName(l);
+        if (nm && tail.includes(nm) && !head.includes(nm) && !about.includes(l.id)) about.push(l.id);
+      }
+    }
+    out.aboutIds = about;
     /* Who the text names. Anyone here answers to their name or role; someone
        who is not here only to their name, or to a role nobody else in the
        lists answers to ("the cook"), so a shared word ("the owner") picks
        the person in front of the player. /fact links whatever it names. */
     const byName = n => Town.nameMentions(lower, n);
-    const roleOnly = all.filter(n => !byName(n));
+    const acting = all.filter(n => !about.includes(n.id));
+    const roleOnly = acting.filter(n => !byName(n));
     const named = packet.mode === 'fact' ? all
-      : all.filter(n => byName(n) || isHere(n) || (!roleOnly.some(isHere) && roleOnly.length === 1));
+      : acting.filter(n => byName(n) || isHere(n) || (!roleOnly.some(isHere) && roleOnly.length === 1));
     const fresh = [];
     for (const [re, desc] of MOCK_NEW) {
       if (!re.test(lower)) continue;
@@ -11678,6 +11948,11 @@ const Api = (() => {
     const thing = (seek || grab) && !named.length && !fresh.length ? (seek || grab)[1].trim() : null;
     const escRe = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const lying = thing ? (packet.itemsHere || []).find(i => new RegExp(`(^|[^a-z])${escRe(i.name.toLowerCase())}([^a-z]|$)`).test(thing)) : null;
+    // Something carried that the words name: its whole name, else one of its longer words ("the knife" for a folding knife).
+    const inv = packet.inventory || [];
+    const held = inv.find(i => new RegExp(`(^|[^a-z])${escRe(String(i.name || '').toLowerCase())}([^a-z]|$)`).test(lower))
+      || inv.find(i => String(i.name || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 4).some(w => new RegExp(`(^|[^a-z])${escRe(w)}s?([^a-z]|$)`).test(lower)));
+    const where = (packet.location && packet.location.type) || '';
     if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; }
     else if (thing) { out.actionType = 'take'; out.timeCost = 'instant'; }
     else if (has(/^\s*(i\s+)?(look|examine|glance|listen|study the)\b/) && !has(/\b(try|tries|attempt)\b/)) { out.actionType = 'look'; out.timeCost = 'instant'; }
@@ -11688,12 +11963,22 @@ const Api = (() => {
       const exit = (packet.exits || []).find(x => !x.closed);
       out.actionType = 'move'; out.destinationId = exit ? exit.id : null; out.timeCost = 'short';
     }
-    else if (has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl)\b/)) { out.actionType = 'attack'; roll('might', 'hard'); out.targets = target(); }
+    else if (has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'hard'); out.targets = target(); }
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
-    else if (has(/\b(buy|buys|purchase|pay for)\b/)) { out.actionType = 'buy'; out.targets = present.map(n => n.id); }
-    else if (has(/\b(talk|talks|ask|asks|say|says|tell|tells|greet|greets|chat|speak)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
+    else if (has(MOCK_GAMBLE) && GAMBLE_PLACES.includes(where) && !aboutAt) {
+      // The engine deals the hand: no roll here, and the stake goes in the summary.
+      const st = MOCK_STAKE.exec(lower);
+      out.actionType = 'gamble';
+      out.summary = `bets $${st ? parseInt(st[1] || st[2], 10) : 10} at cards`;
+      out.timeCost = 'short';
+      out.targets = target();
+    }
+    else if (has(/\b(buy|buys|purchase|pay for)\b/) || (has(/\b(order|orders|drink|drinks|eat|eats)\b/) && Town.goodsFor(lower))) { out.actionType = 'buy'; out.targets = present.map(n => n.id); }
+    else if (has(/\b(sell|sells|pawn|pawns|hock)\b/)) { out.actionType = 'sell'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
+    else if (has(/\b(give|gives|hand over|hands over|pay|pays|repay|pay back|pay off)\b/)) { out.actionType = 'give'; out.targets = target(); out.usesItemId = held ? held.id : out.usesItemId; out.timeCost = 'instant'; }
+    else if (has(/\b(talk|talks|ask|asks|say|says|tell|tells|greet|greets|chat|speak|apologi[sz]e|apologi[sz]es)\b/)) { out.actionType = 'talk'; out.timeCost = 'instant'; out.targets = target(); }
     else if (has(/\b(try|tries|attempt|attempts)\b/)) {
       if (has(/\b(climb|force|lift|break|swim|push|pull|carry)\b/)) roll('might', 'normal');
       else if (has(/\b(charm|haggle|lie|bluff|flatter)\b/)) { roll('charm', 'normal'); out.actionType = 'deceive'; }
@@ -11705,39 +11990,165 @@ const Api = (() => {
     if (thing) out.targets.push(lying ? lying.id : 'new:' + thing);
     return out;
   }
-  function mockGreeting(n) {
+  /* A stable pick among variants: the same turn, words and person always give
+     the same line (no dice are drawn, so a test's rolls never shift), and 30
+     turns in a row still read differently. */
+  function vary(list, key) {
+    let h = 7;
+    const t = String(key || '');
+    for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+    return list[Math.abs(h) % list.length];
+  }
+  const POSSESSIVE = { he: 'his', she: 'her', they: 'their' };
+  function possOf(n) { return POSSESSIVE[n && n.pronouns] || 'their'; }
+  function mockGreeting(n, key) {
     const a = n.attitude | 0;
     if (a <= -60) return `${n.name} turns away and will not look at you.`;
     if (a <= -25) return `${n.name} gives you a cold look. "What now?"`;
-    if (a < -5) return `${n.name} eyes you warily.`;
-    if (a <= 5) return `${n.name} hears you out.`;
-    if (a < 60) return `${n.name} greets you with a nod.`;
-    return `${n.name} greets you warmly.`;
+    if (a < -5) return vary([`${n.name} eyes you warily.`, `${n.name} keeps one eye on you and says nothing yet.`, `${n.name} crosses both arms and waits.`], key);
+    if (a <= 5) return vary([`${n.name} hears you out.`, `${n.name} listens, giving nothing away.`, `${n.name} stops to listen.`], key);
+    if (a < 60) return vary([`${n.name} greets you with a nod.`, `${n.name} gives you a nod and waits.`, `${n.name} looks glad enough to see you.`], key);
+    return vary([`${n.name} greets you warmly.`, `${n.name} brightens when you come over.`], key);
+  }
+  /* The habit in someone's voice line that is a phrase they say ("calls
+     everybody 'hon'", "hedges with 'now, I'm not saying'"), or null. */
+  function voiceHabit(n) {
+    const m = /(?:^|[\s(])'(.+?)'(?=[\s,.;:)!?]|$)/.exec(String((n && n.voice) || '').replace(/[‘’]/g, "'"));
+    const h = m ? m[1].trim() : '';
+    return h && h.length <= 40 && !/\byou (know|think|feel|want|remember|say|said|ask|tell|wonder)\b/i.test(h) ? h : null;
+  }
+  /* What someone says back, in their own words where their voice has a
+     habit: a short answer, a yes or a no as the roll went. */
+  function mockSays(n, c, key) {
+    const r = c.roll;
+    const reply = r && r.success ? vary(['All right. You win that one', 'Fine. Just this once', 'Could be. Let me think on it'], key)
+      : r ? vary(['No. Not happening', "That's a no", 'Not for you, not today'], key)
+        : vary(["Couldn't tell you", 'Depends who is asking', 'Could be', 'Not much to tell'], key);
+    const habit = voiceHabit(n);
+    const line = !habit ? `${reply}.` : habit.split(/\s+/).length <= 2 ? `${reply}, ${habit}.` : `${capFirst(habit).replace(/[.!?]+$/, '')}. ${reply}.`;
+    return `${n.name} says, "${line}"`;
+  }
+  /* The next stretch of the day, for a time someone names. */
+  const LATER = { morning: 'this afternoon', afternoon: 'this evening', evening: 'tonight', night: 'in the morning' };
+  /* A place someone can point to: where their schedule has them next, if the
+     player knows it, else where the player stands. */
+  function placeFor(n, s) {
+    const i = PHASES.indexOf(s.time.phase);
+    const next = PHASES[(i + 1) % PHASES.length];
+    const l = s.locations.find(x => x.discovered && x.away !== true && ((x.npcIdsBySchedule || {})[next] || []).includes(n.id)) || State.loc(s.player.locationId);
+    return String((l && l.name) || 'here').replace(/^The /, 'the ');
+  }
+  /* A social roll, answered: a success gives one concrete thing (a place and
+     a time), a partial gives a little, a failure is a plain no. */
+  function mockOutcome(n, c, s, key) {
+    const r = c.roll;
+    if (!r || !s) return null;
+    const when = LATER[s.time.phase] || 'later';
+    const place = placeFor(n, s);
+    if (r.tier === 'partial') return vary([`${n.name} gives a little. "Maybe. Not here. Ask me at ${place}, ${when}."`, `${n.name} half nods. "Some of it. The rest at ${place}, ${when}."`], key);
+    if (r.success) return vary([`${n.name} gives in. "All right. ${capFirst(place)}, ${when}. I'll be there."`, `${n.name} thinks it over, then nods. "Fine. Find me at ${place} ${when}."`, `${n.name} lowers ${possOf(n)} voice. "Ask again at ${place}, ${when}, when it's quieter."`], key);
+    return vary([`${n.name} shakes ${possOf(n)} head. "No. That's my answer."`, `${n.name} doesn't budge. "I said what I said."`, `${n.name} just looks at you. "Ask somebody else."`], key);
+  }
+  /* The newest public town news, from today or yesterday, that the last
+     turns have not told: its first clause, or null. Never a rumour's text
+     word for word (a rumour is told once). */
+  function freshNews(s) {
+    if (!s) return null;
+    let list = null;
+    try { list = typeof State.news === 'function' ? State.news() : State.news; } catch (e) { list = null; }
+    if (!Array.isArray(list)) list = Array.isArray(s.news) ? s.news : [];
+    const item = list.filter(x => isObj(x) && x.public !== false && typeof x.text === 'string' && Number.isInteger(x.day) && x.day >= s.time.day - 1).slice(-1)[0];
+    if (!item) return null;
+    const clause = item.text.split(/(?<=[.!?])\s+|,\s+|;\s+/)[0].replace(/[.!?]+$/, '').trim();
+    if (!clause || s.rumours.some(r => clause.includes(r.text) || r.text === clause)) return null;
+    if (s.log.slice(-3).some(e => String(e.narration || '').includes(clause))) return null;
+    return clause;
   }
   /* Say mode: the one spoken to answers first (with everyone, the first
-     person here); anyone else here may react. */
+     person here), in their own words; anyone else here reacts. */
   function mockReply(c) {
+    const s = State.current;
     const sp = c.speech;
     const a = c.action || {};
     const here = (c.present || []).map(p => State.npc(p.id)).filter(Boolean);
     const to = sp.to === 'everyone' ? here : here.filter(n => n.id === sp.to);
     if (!to.length) return [here.length ? `${sp.toName || 'Whoever you meant'} is not here to hear it.` : 'Nobody is here to hear it.'];
     const first = to[0];
+    const key = `${(s && s.meta.turn) || 0}|${c.input || ''}|${first.id}`;
     const lines = [sp.to === 'everyone'
       ? `${joinAnd(to.map(n => n.name))} ${to.length > 1 ? 'hear' : 'hears'} you, and ${first.name} answers first.`
       : `${first.name} answers you first.`];
     if (c.rumour && c.rumour.npcId === first.id) lines.push(`${first.name} mentions something: "${c.rumour.text}"`);
     if (a.actionType === 'intimidate') lines.push((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`);
-    else lines.push(mockGreeting(first));
+    else {
+      lines.push(mockGreeting(first, key));
+      lines.push(mockSays(first, c, key));
+    }
     const others = here.filter(n => !to.includes(n));
-    if (others.length) lines.push(`${joinAnd(others.map(n => n.name))} ${others.length > 1 ? 'look' : 'looks'} over.`);
+    if (others.length) lines.push(`${joinAnd(others.map(n => n.name))} ${others.length > 1 ? vary(['look over', 'stop to listen'], key) : vary(['looks over', 'stops to listen'], key)}.`);
     return lines;
+  }
+  /* A good the words name, preferring one sold here and then the cheapest
+     (Town.goodsFor's scoring): "a beer" at the bar is a bottle, not a case. */
+  function mockGood(text, l) {
+    const t = String(text || '').toLowerCase();
+    let best = [];
+    let top = 0;
+    for (const g of TABLES.items.goods) {
+      const words = g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !['the', 'and', 'for', 'set', 'ten', 'five', 'dozen', 'cup', 'jug', 'bed', 'hot', 'old', 'round', 'pair', 'some'].includes(w));
+      const score = words.filter(w => new RegExp(`(^|[^a-z])${w.replace(/s$/, '')}s?([^a-z]|$)`).test(t)).length;
+      if (score > top) { best = [g]; top = score; } else if (score && score === top) best.push(g);
+    }
+    if (!best.length) return null;
+    const own = Town.goodsFor(t);
+    if (own && best.includes(own) && (best.length === 1 || mockSold(own, l))) return own;
+    return best.find(g => mockSold(g, l)) || best.slice().sort((x, y) => x.price - y.price)[0];
+  }
+  /* What a good is (content may tag kind: good, service, drink or food). */
+  function goodKind(g) {
+    if (g && ['good', 'service', 'drink', 'food'].includes(g.kind)) return g.kind;
+    const n = String((g && g.name) || '').toLowerCase();
+    if (/\b(beer|whiskey|bourbon|shot|coffee|soda|energy drink)\b/.test(n) && !/\b(case|fifth|bottle of bourbon)\b/.test(n)) return 'drink';
+    if (/\b(catfish|cheeseburger|fries|biscuit|basket|sandwich|plate)\b/.test(n)) return 'food';
+    if (/\b(night at|rented|tune-up|patched|tow)\b/.test(n)) return 'service';
+    return 'good';
+  }
+  /* Where it is sold: a good named for a place only there; else by what it is
+     and the kind of place (drinks and food at a bar or the station, a room at
+     the motel, bait at the landing, pawned things at the pawn shop, the rest
+     at the station or the pawn shop). Never at a shut door. */
+  const SOLD_AT = [
+    [/\b(night at|room|motel)\b/, ['motel', 'inn']],
+    [/\b(crickets|night crawlers|rod and reel|johnboat|outboard gas)\b/, ['marina', 'gas']],
+    [/\b(pawned|used shotgun|guitar|wedding ring)\b/, ['pawn']],
+    [/\b(tune-up|tire|tow)\b/, ['gas']]
+  ];
+  function mockSold(g, l) {
+    if (!g || !l || l.away === true) return false;
+    const s = State.current;
+    let shut = !!l.closed;
+    try { if (typeof State.isClosed === 'function') shut = !!State.isClosed(l); } catch (e) { /* older engine */ }
+    if (shut) return false;
+    const name = g.name.toLowerCase().replace(/[’‘]/g, "'");
+    const named = s ? s.locations.find(x => x.away !== true && [x.name].concat(Array.isArray(x.aka) ? x.aka : []).some(k => {
+      const k2 = String(k || '').toLowerCase().replace(/[’‘]/g, "'").replace(/^the /, '');
+      const poss = (/^([a-z]+'s)\b/.exec(k2) || [])[1];
+      return (k2.length >= 5 && name.includes(k2)) || (poss && name.includes(poss));
+    })) : null;
+    if (named) return named.id === l.id;
+    const rule = SOLD_AT.find(([re]) => re.test(name));
+    if (rule) return rule[1].includes(l.type);
+    const kind = goodKind(g);
+    if (kind === 'drink' || kind === 'food') return ['bar', 'tavern', 'inn', 'gas', 'diner', 'cafe'].includes(l.type);
+    return ['gas', 'pawn', 'shop', 'store', 'market', 'general', 'marina'].includes(l.type);
   }
   function mockNarration(c) {
     const s = State.current;
     const a = c.action || {};
     const loc = String(c.locationName || (c.location && c.location.name) || 'this place').replace(/^The /, 'the ');
     const mode = c.mode || 'normal';
+    const phase = (s && s.time.phase) || 'day';
+    const key = `${(s && s.meta.turn) || 0}|${c.input || ''}|${a.actionType || ''}`;
     const out = [];
     if (c.timePassed && mode !== 'arrival') out.push(sentence(c.timePassed.replace(/^the player\b/i, 'you').replace(/\bthey are\b/g, 'you are')));
     // A walk before the action (Pipeline's walkFirst): one short sentence, first.
@@ -11751,12 +12162,18 @@ const Api = (() => {
     if (c.pressed) out.push('The answer does not change.');
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
-      if (c.sceneChange.arrived.length) out.push(`${joinAnd(names(c.sceneChange.arrived))} ${c.sceneChange.arrived.length > 1 ? 'arrive' : 'arrives'}.`);
+      const came = names(c.sceneChange.arrived);
+      if (came.length) {
+        out.push(`${joinAnd(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
+        out.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
+      }
       if (c.sceneChange.left.length) out.push(`${joinAnd(names(c.sceneChange.left))} ${c.sceneChange.left.length > 1 ? 'have' : 'has'} left.`);
     }
     if (c.defeated) out.push('You go down hard.');
     if (c.consequence) out.push(sentence(c.consequence.replace(/\s*\([^)]*\)$/, '')));
     const target = s && (a.targets || []).map(id => State.npc(id)).find(n => n && (c.presentIds || []).includes(n.id));
+    const tkey = `${key}|${target ? target.id : ''}`;
+    const here = s ? State.loc(s.player.locationId) : null;
     if (c.beat) {
       const names = (c.present || []).map(n => n.name);
       out.push(names.length ? `You wait. ${joinAnd(names)} ${names.length > 1 ? 'carry' : 'carries'} on, and ${names[0]} speaks first: "Well?"` : 'You wait. Nothing happens for a while.');
@@ -11772,15 +12189,34 @@ const Api = (() => {
       const d = c.destination;
       out.push(d ? `You make your way to ${d.name.replace(/^The /, 'the ')}${d.closed ? ', but it is shut' : ''}.` : 'You look for the way there and do not find it.');
       if (d && !d.closed) out.push(d.present && d.present.length ? `${joinAnd(d.present)} ${d.present.length > 1 ? 'are' : 'is'} there.` : 'Nobody there pays you any attention.');
-    } else if (target && a.actionType === 'attack') {
-      out.push(`${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
-    } else if (target && a.actionType === 'intimidate') {
-      out.push((target.attitude | 0) <= -25 ? `${target.name} has heard enough. "Get out of my sight."` : `${target.name} goes still. "Say that again."`);
-    } else if (target) {
-      out.push(mockGreeting(target));
-      if (c.rumour && c.rumour.npcId === target.id) out.push(`${target.name} mentions something: "${c.rumour.text}"`);
     } else if (a.actionType === 'buy') {
-      out.push('The deal is done quickly.');
+      // The same reckoning as the mock bookkeeper: sold here, open, and affordable.
+      const g = s ? mockGood(c.input || a.summary, here) : null;
+      const price = g ? Tables.price(g.name) : null;
+      if (target) out.push(mockGreeting(target, tkey));
+      if (!g) out.push('Nobody here sells anything like that.');
+      else if (!mockSold(g, here)) out.push(`Nobody at ${loc} sells that.`);
+      else if (price !== null && s.player.gold < price) out.push(`It's ${money(price)}, and you don't have that much on you.`);
+      else out.push(vary(['The deal is done quickly.', 'Money changes hands, and that is that.'], key));
+    } else if (a.actionType === 'gamble') {
+      out.push(vary(['You buy into the next hand.', 'You get dealt into the next hand.', 'Cards go round the table, and you are in.'], key));
+    } else if (target && a.actionType === 'attack') {
+      const down = c.roll && c.roll.success && /\bknocks?\s+(?:\w+\s+){0,2}out\b/i.test(c.input || '');
+      out.push(down ? `${target.name} goes down and stays down.` : `${target.name} ${c.roll && c.roll.success ? 'staggers back' : 'fights back'}.`);
+    } else if (target && a.actionType === 'intimidate') {
+      out.push((target.attitude | 0) <= -25 ? `${target.name} has heard enough. "Get out of my sight."` : c.roll && c.roll.success ? `${target.name} backs off a step.` : `${target.name} goes still. "Say that again."`);
+    } else if (target && (a.actionType === 'give' || a.actionType === 'sell')) {
+      out.push(mockGreeting(target, tkey));
+      out.push(a.actionType === 'give' ? vary([`${target.name} takes it.`, `${target.name} counts it and puts it away.`], tkey) : vary([`${target.name} looks it over.`, `${target.name} turns it over twice.`], tkey));
+    } else if (target) {
+      // A social roll is answered (a place and a time, or a plain no) in place of a greeting.
+      const told = Dice.SOCIAL_ACTIONS.includes(a.actionType) ? mockOutcome(target, c, s, tkey) : null;
+      out.push(told || mockGreeting(target, tkey));
+      if (c.rumour && c.rumour.npcId === target.id) out.push(`${target.name} mentions something: "${c.rumour.text}"`);
+      else if (!told && a.actionType === 'talk') {
+        const news = freshNews(s);
+        if (news) out.push(`${target.name} brings up the news: ${lowerFirst(news)}.`);
+      }
     } else if (a.actionType === 'take') {
       const it = s && (a.targets || []).filter(id => /^item_/.test(id)).map(id => State.entityById(id)).find(Boolean);
       if (it) out.push(`You pick up the ${lowerFirst(it.name)}.`);
@@ -11789,8 +12225,8 @@ const Api = (() => {
     for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
     // Due events (at most two) are always worked in, at the end.
     let due = (c.due || []).slice(0, 2).map(d => sentence(d && d.text)).filter(Boolean);
-    if (!out.length && !due.length) out.push(`At ${loc}, nothing pushes back yet.`);
-    if (out.length + due.length < 2) out.push(`Around you, ${loc} goes on with its ${(s && s.time.phase) || 'day'}.`);
+    if (!out.length && !due.length) out.push(vary([`At ${loc}, nothing pushes back yet.`, `Nothing at ${loc} gets in your way.`, `${capFirst(loc)} carries on around you.`], key));
+    if (out.length + due.length < 2) out.push(vary([`Around you, ${loc} goes on with its ${phase}.`, `Nobody at ${loc} pays you much mind.`, `It stays quiet at ${loc} for now.`], key));
     let body = out.slice(0, Math.max(1, (mode === 'normal' ? (c.moved ? 4 : 3) : 6) - due.length));
     /* Keep to the style check's limit (Style.WORD_LIMITS) like a real
        narrator would: a place's description shrinks to its first sentence
@@ -11948,54 +12384,202 @@ const Api = (() => {
     }
     return { people: out };
   }
+  /* Say mode: words that insult, by what they say (the bookkeeper hears the
+     words, never the word "insult"), and the memory each leaves, in the
+     MEMORY_RULES form ("called me a liar", "told me to shut up"). */
+  const MOCK_INSULTS = [
+    [/\bfuck (off|you)\b/, () => 'told me to fuck off'], [/\bshut up\b/, () => 'told me to shut up'], [/\bgo to hell\b/, () => 'told me to go to hell'],
+    [/\b(piss off|get lost|drop dead)\b/, m => `told me to ${m[1]}`],
+    [/\b(idiot|moron|liar|coward|crook|fool|loser|bitch|bastard|asshole|jackass|dumbass|redneck|drunk|cheat|thief)\b/, m => `called me ${article(m[1])} ${m[1]}`],
+    [/\b(stupid|useless|pathetic|ugly|worthless|trash)\b/, m => `called me ${m[1]}`]
+  ];
+  const MOCK_THREATS = /\b(or else|i'll hurt|i will hurt|you'll regret|you will regret|i'll kill|i will kill|i'll burn|watch your back|you're dead)\b/;
+  const MOCK_HELP = /\b(i help|i'll help|help (?:him|her|them) (?:out|load|carry|move|with)|work for|works for|side with|sides with|vote for|carry .+ for|deliver .+ for|load .+ for)\b/;
+  const MOCK_HINDER = /\b(sabotage|sabotages|expose|exposes|rat out|rats out|report|reports|turn in|turns in|wreck|wrecks|tip off)\b/;
+  const MOCK_SORRY = /\b(apologi[sz]e|apologi[sz]es|sorry|make it up to|make amends)\b/;
+  const MOCK_MONEY = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
+  /* The open obligations (State.obligations once it exists, else the
+     player's list read directly). */
+  function openObligations(s) {
+    let list = null;
+    try { if (typeof State.obligations === 'function') list = State.obligations('open'); } catch (e) { list = null; }
+    if (!Array.isArray(list)) list = (s && s.player && Array.isArray(s.player.obligations) ? s.player.obligations : []).filter(o => isObj(o) && o.status === 'open');
+    return list;
+  }
   function mockBookkeep(packet) {
     const c = packet.context || packet;
     const a = c.action || {};
     const s = State.current;
-    const input = String(c.input || '').toLowerCase();
+    const input = String(c.input || '').toLowerCase().replace(/[’‘]/g, "'");
     const out = {
       attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [],
       playerLocationId: a.actionType === 'move' && a.destinationId ? a.destinationId : null,
-      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], journalEntry: null
+      npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [],
+      npcFates: [], memoriesSettled: [], obligationsSettled: [], journalEntry: null
     };
-    if (!s) return out;
+    // The three fields CONTRACTS section 10 adds go out only once the engine reads them.
+    const known = k => Array.isArray(State.RECORD_KEYS) && State.RECORD_KEYS.includes(k);
+    const finish = () => { for (const k of ['npcFates', 'memoriesSettled', 'obligationsSettled']) if (!known(k)) delete out[k]; return out; };
+    if (!s) return finish();
     // A home someone names in a quoted line becomes a place (State.apply checks it like any other).
     const told = mockHomeFrom(c.narration, { lives: true, nearId: s.player.locationId });
     if (told) out.placesRevealed = [told];
     const presentIds = c.presentIds || State.npcsAt(s.player.locationId).map(n => n.id);
     const npcs = (a.targets || []).map(id => State.npc(id)).filter(n => n && presentIds.includes(n.id));
     const first = npcs[0];
-    if (first && ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give', 'attack'].includes(a.actionType)) {
+    const ok = !c.roll || c.roll.success;
+    const remember = (n, text, weight) => { if (!out.newMemories.some(m => m.npcId === n.id)) out.newMemories.push({ npcId: n.id, text, weight }); };
+    const feel = (n, delta) => { if (!out.attitudeChanges.some(x => x.npcId === n.id)) out.attitudeChanges.push({ npcId: n.id, delta }); };
+    const said = (n, re) => (n.memories || []).some(m => re.test(m.text));
+    const again = (n, text) => (said(n, /\b(insulted|called me|told me to)\b/i) ? `${text} again` : text);
+    if (first && ['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give', 'attack', 'gamble'].includes(a.actionType)) {
       out.npcKnownToPlayer = npcs.filter(n => !n.knownToPlayer).map(n => n.id);
     }
-    if (first && /\b(insult|insults|mock|mocks|sneer|curse)/.test(input)) {
-      const again = first.memories.some(m => /insulted/i.test(m.text));
-      out.attitudeChanges.push({ npcId: first.id, delta: -15, reason: 'insulted' });
-      out.newMemories.push({ npcId: first.id, text: again ? `${s.player.name} insulted them again` : `${s.player.name} insulted them`, weight: again ? 3 : 2 });
+    // Insults: the words themselves in Say mode, the word "insult" in a Do line.
+    if (first && isSay(c.speech)) {
+      const hit = MOCK_INSULTS.map(([re, mem]) => { const m = re.exec(input); return m ? mem(m) : null; }).find(Boolean);
+      if (MOCK_THREATS.test(input)) { feel(first, -20); remember(first, 'threatened me', 3); }
+      else if (hit) {
+        const before = said(first, /\b(insulted|called me|told me to)\b/i);
+        feel(first, -15);
+        remember(first, again(first, hit), before ? 3 : 2);
+      }
+    } else if (first && /\b(insult|insults|mock|mocks|sneer|curse)/.test(input)) {
+      const before = said(first, /\b(insulted|called me|told me to)\b/i);
+      feel(first, -15);
+      remember(first, before ? 'insulted me again' : 'insulted me', before ? 3 : 2);
     }
-    if (first && a.actionType === 'persuade' && c.roll && c.roll.success) out.attitudeChanges.push({ npcId: first.id, delta: 8, reason: 'persuaded' });
+    if (first && a.actionType === 'persuade' && c.roll && c.roll.success) feel(first, 8);
+    // Making up for it: an apology that lands settles the grudge they remember.
+    if (first && MOCK_SORRY.test(input) && ok) {
+      const grudge = (first.memories || []).slice().reverse().find(m => /\b(insulted|called me|told me to|attacked|threatened)\b/i.test(m.text));
+      if (grudge) { out.memoriesSettled.push({ npcId: first.id, text: grudge.text }); feel(first, 10); }
+    }
     // Being attacked is "something major" (the bookkeeper's prompt): more than an insult, inside the ±25 clamp.
     if (first && a.actionType === 'attack') {
-      const again = first.memories.some(m => /attacked/i.test(m.text));
-      out.attitudeChanges.push({ npcId: first.id, delta: -20, reason: 'attacked' });
-      out.newMemories.push({ npcId: first.id, text: again ? `${s.player.name} attacked them again` : `${s.player.name} attacked them`, weight: 3 });
+      feel(first, -20);
+      remember(first, said(first, /\battacked\b/i) ? 'attacked me again' : 'attacked me', 3);
+      // A knockout that lands lays them up (State.apply: hurt, home for two days).
+      if (c.roll && c.roll.success && /\bknocks?\s+(?:\w+\s+){0,2}out\b|\bknockout\b/.test(input)) out.npcFates.push({ npcId: first.id, status: 'hurt' });
     }
+    if (first && /\b(arrest|arrests|cuff|cuffs|handcuff)\b/.test(input) && c.roll && c.roll.success) out.npcFates.push({ npcId: first.id, status: 'arrested' });
     if (a.actionType === 'take') {
       const l = State.loc(s.player.locationId);
       out.itemsGained = (a.targets || []).filter(id => /^item_/.test(id) && ((l && l.items) || []).some(i => i.id === id));
     }
+    // Stealing: on a success the thing named (money goes to cash); caught, the one robbed remembers it.
+    if (a.actionType === 'steal') {
+      if (c.roll && c.roll.success) {
+        const m = /\b(?:steal|steals|lift|lifts)\s+(?:the |a |an |some |his |her |their )?([a-z][a-z' -]*?)(?:\s+(?:from|off|out of)\b|[.!?]|\s*$)/.exec(input);
+        let thing = m ? m[1].trim() : '';
+        // "steal from the till", a pickpocket: money; a person's name is not a thing.
+        const src = /^(?:from|off|out of)\s+(?:the |a |his |her |their )?(.+)$/.exec(thing);
+        if (src) thing = /\b(till|register|wallet|purse|pocket|cash|tips)\b/.test(src[1]) ? 'money' : '';
+        if (/\b(pickpocket|pickpockets|lift a purse)\b/.test(input)) thing = 'money';
+        if (thing && s.npcs.some(n => Town.nameMentions(thing, n))) thing = '';
+        if (/^(money|cash|wallet|purse|tips|till)$/.test(thing)) { out.goldDelta = 20; out.journalEntry = `Stole $20${first ? ` from ${first.name}` : ''}.`; }
+        else if (thing) { out.itemsGained = [capFirst(thing)]; out.journalEntry = `Stole ${article(thing)} ${thing}.`; }
+      } else if (first) {
+        feel(first, -20);
+        remember(first, 'caught me stealing', 3);
+      }
+    }
+    const l = State.loc(s.player.locationId);
+    // Buying, drinking and eating: only where it is sold and open, and only what can be paid for. A drink or a meal is had, not carried.
     if (a.actionType === 'buy') {
-      const g = Town.goodsFor(input);
+      const g = mockGood(c.input || a.summary, l);
       const price = g ? Tables.price(g.name) : null;
-      if (g && price !== null && s.player.gold >= price) {
+      if (g && price !== null && mockSold(g, l) && s.player.gold >= price) {
         out.goldDelta = -price;
-        out.itemsGained = [g.name];
-        out.journalEntry = `Bought ${lowerFirst(g.name)} for ${money(price)}.`;
+        const kind = goodKind(g);
+        if (kind === 'drink') {
+          out.journalEntry = `Had ${article(g.name)} ${lowerFirst(g.name)} for ${money(price)}.`;
+          if (/\b(whiskey|bourbon|shot)\b/i.test(g.name)) out.conditionsAdded = [{ name: 'A little drunk', effect: '-1 wits', untilDay: s.time.day }];
+        } else if (kind === 'food') {
+          out.journalEntry = `Ate ${article(g.name)} ${lowerFirst(g.name)} for ${money(price)}.`;
+          if (s.player.hp < s.player.maxHp) out.hpDelta = 1;
+        } else {
+          out.itemsGained = [g.name];
+          out.journalEntry = `Bought ${lowerFirst(g.name)} for ${money(price)}.`;
+        }
+      }
+    }
+    // Selling, at the pawn shop: half the listed price, or ten for anything unlisted.
+    if (a.actionType === 'sell' && l && l.type === 'pawn') {
+      const it = s.player.inventory.find(i => i.id === a.usesItemId);
+      if (it) {
+        const listed = Tables.price(it.name);
+        const got = listed ? Math.max(1, Math.round(listed / 2)) : 10;
+        out.itemsLost = [it.id];
+        out.goldDelta = got;
+        out.journalEntry = `Sold ${lowerFirst(it.name)} for ${money(got)}.`;
+      }
+    }
+    // Giving: money or a thing, to someone here. Paying off what is owed settles the debt and the memory of it.
+    if (a.actionType === 'give' && first) {
+      const m = MOCK_MONEY.exec(input);
+      const it = a.usesItemId ? s.player.inventory.find(i => i.id === a.usesItemId) : null;
+      if (m) {
+        const amount = Math.min(parseInt(m[1] || m[2], 10), s.player.gold);
+        if (amount > 0) {
+          out.goldDelta = -amount;
+          const debt = openObligations(s).find(o => o.npcId === first.id && o.kind === 'debt' && (!Number.isInteger(o.amount) || amount >= o.amount));
+          if (debt) {
+            out.obligationsSettled.push(debt.id);
+            const owed = (first.memories || []).slice().reverse().find(x => !/^Loose end with /i.test(x.text) && /\b(owes? me|debt|money)\b/i.test(x.text));
+            if (owed) out.memoriesSettled.push({ npcId: first.id, text: owed.text });
+            feel(first, 10);
+            remember(first, `paid me back ${money(amount)}`, 2);
+            out.journalEntry = `Paid ${first.name} ${money(amount)}.`;
+          } else {
+            feel(first, 5);
+            remember(first, `gave me ${money(amount)}`, 2);
+            out.journalEntry = `Gave ${first.name} ${money(amount)}.`;
+          }
+        }
+      } else if (it) {
+        out.itemsLost = [it.id];
+        feel(first, 5);
+        remember(first, `gave me ${article(lowerFirst(it.name))} ${lowerFirst(it.name)}`, 2);
+        const errand = openObligations(s).find(o => o.npcId === first.id && o.kind === 'errand' && o.itemName && String(o.itemName).toLowerCase() === String(it.name).toLowerCase());
+        if (errand) out.obligationsSettled.push(errand.id);
+      }
+    }
+    // A faction's work, plainly helped or hindered (only its running clock moves).
+    if (ok && a.actionType !== 'move' && !isSay(c.speech)) {
+      const helps = MOCK_HELP.test(input) ? 1 : MOCK_HINDER.test(input) ? -1 : 0;
+      if (helps) {
+        const f = s.factions.find(x => (World.activeClock(x) && (input.includes(String(x.name).toLowerCase().replace(/^the /, '')) || npcs.some(n => n.factionId === x.id))));
+        if (f) out.clockNudges = [{ factionId: f.id, delta: helps }];
       }
     }
     // "Only record changes the narration actually shows": the rumour is heard when the narration tells it.
     if (c.rumour && first && c.rumour.npcId === first.id && String(c.narration || '').includes(c.rumour.text)) out.rumoursHeard = [c.rumour.id];
-    return out;
+    return finish();
+  }
+  /* The chronicle, by rule, the way SYSTEM.chronicle asks for it: the day
+     stamp first ("Day 1:", "Days 1-2:"), what the player did (their words),
+     then "Open:" and what is unresolved (the open threads they know and the
+     open obligations), under 80 words. */
+  function mockChronicle(entries) {
+    const listed = Array.isArray(entries) ? entries : [];
+    const from = listed.length ? listed[0].turn : 0;
+    const to = listed.length ? listed[listed.length - 1].turn : 0;
+    const days = listed.map(e => e && e.day).filter(Number.isInteger);
+    const stamp = !days.length ? `Turns ${from}-${to}` : days[0] === days[days.length - 1] ? `Day ${days[0]}` : `Days ${days[0]}-${days[days.length - 1]}`;
+    const head = `${stamp} (turns ${from} to ${to}, mock chronicle):`;
+    const s = State.current;
+    const open = [];
+    if (s) {
+      for (const t of s.threads || []) if (t.status === 'open' && t.knownToPlayer) open.push(lowerFirst(t.title));
+      for (const o of openObligations(s)) open.push(`${cleanText(o.text, 60)}${Number.isInteger(o.dueDay) ? ` by day ${o.dueDay}` : ''}`);
+    }
+    const tail = `Open: ${open.length ? open.slice(0, 4).join('; ') : 'nothing settled yet'}.`;
+    const did = listed.map(e => (isSay(e) ? `said "${cleanText(e.input, 50)}" to ${sayTo(e)}` : cleanText(e && e.input, 60))).filter(Boolean);
+    const room = Math.max(4, 79 - wordCount(head) - wordCount(tail));
+    let body = (did.length ? did.join('; ') : 'nothing of note').split(/\s+/).slice(0, room).join(' ').replace(/[;,:]$/, '');
+    if (!/[.!?]$/.test(body)) body += '.';
+    return `${head} ${body} ${tail}`.split(/\s+/).slice(0, 79).join(' ');
   }
   const Mock = {
     name: 'mock',
@@ -12052,15 +12636,7 @@ const Api = (() => {
     async chronicle(entries) {
       const canned = Mock.take('chronicle', { text: null });
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
-      const listed = Array.isArray(entries) ? entries : [];
-      const from = listed.length ? listed[0].turn : 0;
-      const to = listed.length ? listed[listed.length - 1].turn : 0;
-      // Deterministic: the turns, the days and what the player typed, under 80 words.
-      const days = listed.map(e => e && e.day).filter(Number.isInteger);
-      const did = listed.map(e => (isSay(e) ? `said "${cleanText(e.input, 50)}" to ${sayTo(e)}` : cleanText(e && e.input, 60))).filter(Boolean);
-      const auto = `Turns ${from} to ${to}${days.length ? `, day ${days[0]} to day ${days[days.length - 1]}` : ''} (mock chronicle): ${did.length ? did.join('; ') : 'nothing of note'}.`;
-      const summary = auto.split(/\s+/).slice(0, 79).join(' ');
-      return { result: typeof canned === 'string' ? canned : summary, usage: MOCK_ZERO, model: 'mock' };
+      return { result: typeof canned === 'string' ? canned : mockChronicle(entries), usage: MOCK_ZERO, model: 'mock' };
     },
     async rewriteMemories(packet) {
       const canned = Mock.take('rewriteMemories', packet);
@@ -12405,7 +12981,7 @@ const Api = (() => {
   }
   return {
     ENDPOINT, MODELS_ENDPOINT, API_VERSION, MAX_TOKENS, NARRATOR_MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_AFTER_MAX_MS, RETRY_STATUSES, TIMEOUTS, CACHE_CONTROL, PREWARM_AFTER_MS, KEY_RE,
-    SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE,
+    SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, RECORD_RULES, PARSE_TYPES,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, priceOf, roleModel, roleEffort, narratorMaxTokens, isRefusal, readStream, chronicleText, retryAfterMs, validKey, editMessages,
     providerName: () => provider().name,
@@ -13378,8 +13954,11 @@ const Pipeline = (() => {
     if (places.length) lines.push(`PLACES (how each came to be; when it is open): ${places.map(l => `${l.id} — ${l.name}: ${[l.history, hours(l.hours)].filter(Boolean).join(' ')}`).join(' | ')}`);
     const away = s.locations.filter(l => l.away === true);
     if (away.length) lines.push(`OUT OF TOWN (talked about, never a scene; the story stays in ${s.meta.townName || 'town'}): ${away.map(l => `${l.id} — ${l.name} (${l.distance || 'out of town'}): ${l.history || sentenceOne(l.description)}`).join(' | ')}`);
+    // Clocks complete and votes are held after this was written: the message's news is the newer word.
+    lines.push(TOWN_NEWER);
     return lines.join('\n');
   }
+  const TOWN_NEWER = 'Anything under TOWN NEWS in the message is newer than this and wins.';
   function sentenceOne(text) { const m = /^.*?[.!?](?=\s|$)/.exec(String(text || '')); return m ? m[0] : String(text || ''); }
   function isRefusal(x) { return Api.isRefusal(x); }
   function nowTime() { const t = State.current.time; return { day: t.day, phase: t.phase }; }
@@ -13507,21 +14086,35 @@ const Pipeline = (() => {
     const cant = (CANNOT.find(([re]) => re.test(m.name)) || [null, 'nothing they do this turn can use one'])[1];
     return `NOT CARRIED: ${article(m.name)} ${m.name}. The player has no ${m.name} and nothing like one; ${cant}. Narrate what they can do without it (bare hands, bluff, or realising they have nothing), and nothing happens that needs it.`;
   }
-  /* "CARRYING: Folding knife, Dog tags; cash $140 (nothing else: ...)", every turn. */
+  /* "CARRYING: Folding knife, Dog tags; cash $140 (nothing else: ...)", every
+     turn. The "nothing else" list comes from what is carried: someone with a
+     phone is never told "no phone", someone with a knife never "no weapon". */
+  const CARRY_KINDS = [
+    ['weapon', /\b(knife|blade|switchblade|pocketknife|machete|razor|gun|pistol|rifle|shotgun|revolver|handgun|bat|club|crowbar|brass knuckles)\b/i],
+    ['tool', /\b(socket set|wrench|screwdriver|hammer|crowbar|pliers|bolt cutters|flashlight|lighter|rope|duct tape|toolbox|tools?|lock picks?|pick set|multitool|saw)\b/i],
+    ['phone', /\b(phone|cellphone|cell phone|smartphone)\b/i],
+    ['keys', /\bkeys?\b/i],
+    ['car', /\b(car|truck|pickup|van|car keys|truck keys)\b/i]
+  ];
   function carryingLine(p) {
-    const things = p.inventory.filter(i => i.qty > 0).map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
-    return `CARRYING: ${things.join(', ') || 'nothing'}; ${moneyLine(p.gold)} (nothing else: no weapon, tool, phone, keys, car or money beyond this).`;
+    const held = p.inventory.filter(i => i.qty > 0);
+    const things = held.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
+    const none = CARRY_KINDS.filter(([, re]) => !held.some(i => re.test(i.name))).map(([k]) => k);
+    return `CARRYING: ${things.join(', ') || 'nothing'}; ${moneyLine(p.gold)} (nothing else: no ${none.length ? `${none.join(', ')} or ` : ''}money beyond this).`;
   }
 
   // ----- step 3: parse -----
+  /* The parser's action types (Api.PARSE_TYPES: the engine's, and gamble). */
+  const PARSE_TYPES = Array.isArray(Api.PARSE_TYPES) ? Api.PARSE_TYPES : ACTION_TYPES;
+  const MOVE_WHEN = ['before', 'after'];
   function normaliseParse(raw) {
     const r = isObj(raw) ? raw : {};
     const out = {
-      // gamble: the card game, resolved in code (gamble()); accepted whether or not the shared list has it yet.
-      actionType: ACTION_TYPES.includes(r.actionType) || r.actionType === 'gamble' ? r.actionType : 'other',
+      actionType: PARSE_TYPES.includes(r.actionType) ? r.actionType : 'other',
       summary: cleanText(r.summary, 200),
       targets: strArr(r.targets, 120),
       destinationId: typeof r.destinationId === 'string' && r.destinationId ? r.destinationId : null,
+      moveWhen: MOVE_WHEN.includes(r.moveWhen) ? r.moveWhen : null,
       needsRoll: r.needsRoll === true,
       stat: STATS.includes(r.stat) ? r.stat : null,
       difficulty: DIFFICULTIES.includes(r.difficulty) ? r.difficulty : null,
@@ -13534,6 +14127,9 @@ const Pipeline = (() => {
       if (!out.targets.includes(out.destinationId)) out.targets.push(out.destinationId);
       out.destinationId = null;
     }
+    if (!out.destinationId) out.moveWhen = null;
+    // Talked about, not acted on: only ids the game has, and never one of the targets.
+    out.aboutIds = strArr(r.aboutIds, 120).filter((id, i, all) => all.indexOf(id) === i && !out.targets.includes(id) && !!(State.current && State.entityById(id)));
     return out;
   }
   /* Structured packet for the parser (the mock reads the fields, the real
@@ -13552,7 +14148,7 @@ const Pipeline = (() => {
       location: { id: l.id, name: l.name, type: l.type },
       // Only the ways out the player knows: a home nobody has told them about is not one.
       exits: l.exits.map(id => State.loc(id)).filter(x => x && x.discovered).map(x => ({ id: x.id, name: x.name, type: x.type, closed: !!x.closed })),
-      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, look: n.look, attitude: n.attitude })),
+      present: State.npcsAt(l.id).map(n => ({ id: n.id, name: n.name, pronouns: n.pronouns, role: n.role, look: n.look, attitude: n.attitude, traits: Array.isArray(n.personality) ? n.personality.slice(0, 3) : [], goal: typeof n.goal === 'string' ? n.goal : '' })),
       itemsHere: (l.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       inventory: p.inventory.map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       // People the player knows, and people the story named whom they have only heard of.
@@ -13566,6 +14162,9 @@ const Pipeline = (() => {
     packet.absent = s.npcs.filter(n => presenceOf(n) !== 'here' && !listed.has(n.id)).map(n => ({ id: n.id, name: n.name, role: n.role, presence: presenceOf(n) }));
     // Places out of town: never a destination (the engine refuses one), but the player may name them.
     packet.away = s.locations.filter(x => x.away === true).map(x => ({ id: x.id, name: x.name, type: x.type }));
+    // What the narrator said last, so a short reply ("Deal.") is read against it.
+    const prev = s.log.length ? s.log[s.log.length - 1] : null;
+    packet.lastTurn = prev && prev.narration ? cleanText(prev.narration, 1200) : '';
     const ids = arr => arr.map(x => `${x.id} — ${x.name}${x.role ? ` (${x.role})` : ''}${x.type ? ` (${x.type})` : ''}${x.closed ? ' (closed)' : ''}${x.qty > 1 ? ` x${x.qty}` : ''}`).join('; ') || 'none';
     const presentIds = packet.present.map(n => n.id);
     let modeLine;
@@ -13574,14 +14173,21 @@ const Pipeline = (() => {
       const all = sp.to === 'everyone';
       modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
+    // Traits and wants steer the difficulty (very_hard against what they want); the look lets "the big man with the pens" resolve to the person who matches.
+    const presentRow = n => {
+      const extra = [`${pronounLabel(n.pronouns)}; ${n.role}; attitude to the player ${n.attitude | 0} on -100..100`];
+      if (n.traits.length) extra.push(`traits: ${n.traits.join(', ')}`);
+      if (n.goal) extra.push(`wants: ${lowerFirst(n.goal).replace(/\.$/, '')}`);
+      return `${n.id} — ${n.name} (${extra.join('; ')})${n.look ? `: ${n.look}` : ''}`;
+    };
     packet.text = [
       isSay(sp) ? `PLAYER INPUT: "${input}"` : `PLAYER INPUT: ${input}`,
       modeLine,
-      `TIME: day ${s.time.day}, ${s.time.phase} (${State.phasePart(s.time)})`,
+      `LAST TURN: ${packet.lastTurn || 'none (the story is just starting)'}`,
+      `TIME: day ${s.time.day} (${dateText(s.time.day)}), ${s.time.phase} (${State.phasePart(s.time)})`,
       `PLAYER: ${p.name} (${ageText(p.age) ? `${p.age}; ` : ''}${p.background}); ${STATS.map(k => `${k} ${fmtMod(p.stats[k])}`).join(', ')}; ${moneyLine(p.gold)}; hp ${p.hp}/${p.maxHp}`,
       `LOCATION: ${l.id} — ${l.name} (${l.type})`,
-      // Looks let "the big man with the pens" resolve to the person who matches, not to new:<description>.
-      `NPCS PRESENT: ${packet.present.map(n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; attitude to the player ${n.attitude | 0} on -100..100)${n.look ? `: ${n.look}` : ""}`).join("; ") || "none"}`,
+      `NPCS PRESENT: ${packet.present.map(presentRow).join('; ') || 'none'}`,
       `ITEMS HERE: ${ids(packet.itemsHere)}`,
       `INVENTORY: ${ids(packet.inventory)}`,
       `OTHER KNOWN NPCS (not here): ${packet.knownNpcs.filter(n => !presentIds.includes(n.id)).map(n => `${who(n)}${n.heard ? ' (heard of, not met)' : ''}`).join('; ') || 'none'}`,
@@ -14022,14 +14628,21 @@ const Pipeline = (() => {
 
   /* The memories that matter: every serious one (newest w3), the newest notable
      ones (w2), and a small one only if recent; oldest first, capped. Shared by
-     the narrator packet and the People cards. */
+     the narrator packet and the People cards. A loose end's memory ("Loose end
+     with Tomas (a debt): ...") is the player's own words about the past, so
+     the People card leaves it out; the narrator keeps it (o.looseEnds), on
+     top of the cap, because it is who this person is to the player. */
+  const LOOSE_MEMORY = /^Loose end with /i;
   function pickMemories(list, turn, o) {
-    const ms = (list || []).filter(m => !/^Loose end with /i.test(m.text));
+    const all = list || [];
+    const ms = all.filter(m => !LOOSE_MEMORY.test(m.text));
     const keep = new Set([].concat(
       ms.filter(m => m.weight >= 3).slice(-o.w3),
       ms.filter(m => m.weight === 2).slice(-o.w2),
       ms.filter(m => m.weight <= 1 && turn - m.turn <= o.recent).slice(-o.w1)));
-    return ms.filter(m => keep.has(m)).slice(-o.cap);
+    const picked = ms.filter(m => keep.has(m)).slice(-o.cap);
+    if (!o.looseEnds) return picked;
+    return all.filter(m => LOOSE_MEMORY.test(m.text) || picked.includes(m));
   }
 
   // ----- introductions -----
@@ -14065,13 +14678,138 @@ const Pipeline = (() => {
   }
 
   // ----- step 6: the narrator's packet -----
+  function andList(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
+  /* The calendar (CONTRACTS section 1): State.weekday and State.dateLine
+     when the engine has them, else worked out here from the town's calendar
+     (day 1 is Thursday 8 October 2026 when a town has none). */
+  const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function calendarDay(day) {
+    const t = State.town;
+    const cal = (t && isObj(t.calendar) && t.calendar) || (State.current && State.current.meta.townName === TOWN_DATA.name && isObj(TOWN_DATA.calendar) ? TOWN_DATA.calendar : null);
+    const start = cal && /^\d{4}-\d{2}-\d{2}$/.test(cal.startDate) ? cal.startDate : '2026-10-08';
+    const d = new Date(`${start}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (Number.isInteger(day) ? day : 1) - 1);
+    return { weekday: WEEKDAY_NAMES[d.getUTCDay()], text: `${WEEKDAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}` };
+  }
+  function engineSays(fn, day) {
+    if (typeof fn !== 'function') return null;
+    try { const v = fn(day); return typeof v === 'string' && v ? v : null; } catch (e) { return null; }
+  }
+  function weekdayOf(day) { return engineSays(State.weekday, day) || calendarDay(day).weekday; }
+  function dateText(day) { return engineSays(State.dateLine, day) || calendarDay(day).text; }
+  /* "DAY 2 (Friday 9 October), EVENING (late)": State.clockLine with the date. */
+  function clockText(t) { return State.clockLine(t).replace(/^DAY (\d+)/, (m, d) => `${m} (${dateText(parseInt(d, 10))})`); }
+  /* TIME THIS TAKES, from the action's time cost and the clock now (time
+     passes after the narration): how long, and where in the day it will be. */
+  function timeTakes(ctx) {
+    const a = ctx.action || {};
+    const cost = TIME_COSTS.includes(a.timeCost) ? a.timeCost : 'instant';
+    const t = State.current.time;
+    if (cost === 'instant') return 'a moment, no time passes';
+    const i = PHASES.indexOf(t.phase);
+    const next = i === PHASES.length - 1 ? { day: t.day + 1, phase: PHASES[0] } : { day: t.day, phase: PHASES[i + 1] };
+    const nextText = `${next.phase}${next.day !== t.day ? ` (day ${next.day}, ${weekdayOf(next.day)})` : ''}`;
+    if (cost === 'rest') return `sleep until morning; it will be morning (day ${t.day + 1}, ${weekdayOf(t.day + 1)}) when this is done`;
+    if (cost === 'long') return `an hour or more; it will be ${nextText} when this is done`;
+    const shorts = (t.shorts | 0) + 1;
+    // Night holds until the player sleeps (State advanceTime): a short there stays late at night.
+    if (shorts < SHORTS_PER_PHASE) return `a few minutes; it will still be ${t.phase} (${State.phasePart({ phase: t.phase, shorts })})`;
+    if (t.phase === 'night') return 'a few minutes; it will still be night (late)';
+    return `a few minutes; it will be ${nextText} when this is done`;
+  }
+  /* The town's news (CONTRACTS section 5): State.news once the engine keeps
+     it, the public items only. */
+  function newsItems(s) {
+    let list = null;
+    try { list = typeof State.news === 'function' ? State.news() : State.news; } catch (e) { list = null; }
+    if (!Array.isArray(list)) list = Array.isArray(s.news) ? s.news : [];
+    return list.filter(x => isObj(x) && typeof x.text === 'string' && x.text.trim() && x.public !== false);
+  }
+  /* "TOWN NEWS: Day 5: ...; Day 6: ...": the last five public items, oldest first. */
+  function newsLine(s) {
+    const items = newsItems(s).slice(-5);
+    return items.length ? `TOWN NEWS: ${items.map(x => `${Number.isInteger(x.day) ? `Day ${x.day}` : 'Lately'}: ${cleanText(x.text, 300).replace(/[.]$/, '')}`).join('; ')}` : null;
+  }
+  /* The open obligations (CONTRACTS section 4): State.obligations once the
+     engine keeps them, else the player's list read directly. */
+  function obligationsOpen(s) {
+    let list = null;
+    try { if (typeof State.obligations === 'function') list = State.obligations('open'); } catch (e) { list = null; }
+    if (!Array.isArray(list)) list = (Array.isArray(s.player.obligations) ? s.player.obligations : []).filter(o => isObj(o) && o.status === 'open');
+    return list.filter(o => isObj(o));
+  }
+  function obligationText(o, s) {
+    const n = o.npcId ? State.npc(o.npcId) : null;
+    const text = cleanText(o.text, 160).replace(/[.]$/, '') || `${o.kind || 'a promise'} to ${n ? n.name : 'someone'}`;
+    const amount = Number.isInteger(o.amount) && !text.includes(money(o.amount)) ? ` (${money(o.amount)})` : '';
+    const d = o.dueDay;
+    const due = Number.isInteger(d) ? `, due day ${d} (${weekdayOf(d)}${d === s.time.day ? ', today' : d === s.time.day + 1 ? ', tomorrow' : d < s.time.day ? ', overdue' : `, in ${d - s.time.day} days`})` : '';
+    return `${text}${amount}${due}`;
+  }
+  /* One clause of a thread's summary: its first sentence, at most 25 words. */
+  function firstClause(text) {
+    const one = sentenceOne(cleanText(text, 600));
+    const words = one.split(/\s+/).filter(Boolean);
+    return words.length > 25 ? `${words.slice(0, 25).join(' ')}...` : one.replace(/[.]$/, '');
+  }
+  /* OPEN: the threads the player knows that are still open, one clause
+     each (a loose end's thread is under LOOSE ENDS), and the open
+     obligations with their due day. */
+  function openLine(s) {
+    const loose = new Set((s.player.looseEnds || []).map(le => le.threadId).filter(Boolean));
+    const items = (s.threads || []).filter(t => t.status === 'open' && t.knownToPlayer && !loose.has(t.id)).map(t => `${t.title}: ${firstClause(t.summary)}`);
+    for (const o of obligationsOpen(s)) items.push(obligationText(o, s));
+    return items.length ? `OPEN: ${items.join('; ')}` : null;
+  }
+  /* LOOSE ENDS: who the player's past ties them to, written from that
+     person's side, with the player's own words. Those of a debt, an enemy
+     or a secret knew of the player before (knowledgeLine); a lost one's or a
+     promise's lead has never met them. A loose end whose thread is settled
+     drops out. */
+  const KNEW_BEFORE = ['debt', 'enemy', 'secret'];
+  const LOOSE_SIDE = {
+    debt: (npc, p) => `${npc} is owed money by ${p} from before ${p} came here, and wants it`,
+    enemy: (npc, p) => `${npc} has a score to settle with ${p} from before ${p} came here`,
+    secret: (npc, p) => `${npc} knows what ${p} is hiding and has not let on yet`,
+    lost: (npc, p) => `${npc} has a lead on what ${p} came looking for, though they have never met`,
+    promise: (npc, p) => `${npc} is part of the promise ${p} came here to keep, though they have never met`
+  };
+  function openLooseEnds(s) {
+    return (s.player.looseEnds || []).filter(le => {
+      const n = State.npc(le.npcId);
+      const t = le.threadId ? State.thread(le.threadId) : null;
+      return !!n && (!t || t.status === 'open');
+    });
+  }
+  function looseEndsLine(s, presentIds) {
+    const p = s.player;
+    const parts = openLooseEnds(s).map(le => {
+      const n = State.npc(le.npcId);
+      const side = (LOOSE_SIDE[le.kind] || ((npc, pl) => `${npc} is tied to ${pl}'s past`))(n.name, p.name);
+      const where = presentIds.includes(n.id) ? 'here now' : presenceOf(n) === 'dead' ? 'dead' : 'not here';
+      return `${side} (${where}; ${p.name}'s own words: "${cleanText(le.text, 200)}")`;
+    });
+    return parts.length ? `LOOSE ENDS: ${parts.join(' | ')}` : null;
+  }
+  /* A loose end's memory, one line for the narrator: "tied to Tomas by a
+     debt (see LOOSE ENDS)". */
+  function memoryText(text) {
+    const m = /^Loose end with (.+?) \((.+?)\): /i.exec(String(text || ''));
+    return m ? `tied to ${m[1]} by ${m[2]} (see LOOSE ENDS)` : text;
+  }
   /* SPEC section 13: only memories of weight 2 or more or from the last 20
-     turns (the newest three of those). brief (people at a destination, not
-     yet in the scene) leaves memories out altogether. */
+     turns (the newest three of those), and a loose end's. brief (people at a
+     destination, not yet in the scene) leaves memories, traits and wants out
+     altogether. */
   /* Pronouns come right after the name ("Mavis Toler (she/her; ...)"), so
-     the narration and the People card always agree. */
-  function npcLine(n, turn, brief) {
-    const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5 }).map(m => m.text);
+     the narration and the People card always agree. The look stays until
+     they have met face to face (metTurn); traits and wants steer the
+     person; the secret only with opts.secret (ctx.revealSecretFor: a social
+     roll that landed on them, or attitude 50 and up). */
+  function npcLine(n, turn, brief, opts) {
+    const o = opts || {};
+    const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5, looseEnds: true }).map(m => memoryText(m.text));
     const age = ageText(n.age);
     const parts = [(age ? `${age}, ` : '') + pronounLabel(n.pronouns), n.role];
     const rel = State.relationNote(n);
@@ -14079,12 +14817,18 @@ const Pipeline = (() => {
     // Their people, by name ("wife: Mavis Mangum"), so nobody gets a family the cast does not give them.
     const has = hasWords(n);
     if (has) parts.push(has);
-    if (!n.knownToPlayer && n.look) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
+    if (n.look && !Number.isInteger(n.metTurn)) parts.push('look: ' + lowerFirst(n.look).replace(/\.$/, ''));
     if (heardOf(n)) parts.push('not met yet: the player has heard of them by this name from others, but has never met them');
     else if (!n.knownToPlayer) parts.push('not yet introduced: the player does not know this name; go by the look until they give it');
     if (n.voice) parts.push('voice (a habit, not every line): ' + lowerFirst(n.voice).replace(/\.$/, ''));
-    parts.push('attitude ' + n.attitude);
+    if (!brief) {
+      const traits = (Array.isArray(n.personality) ? n.personality : []).filter(x => typeof x === 'string' && x.trim()).slice(0, 3);
+      if (traits.length) parts.push('traits: ' + traits.join(', '));
+      if (typeof n.goal === 'string' && n.goal.trim()) parts.push('wants (never say this outright; it steers what they push for and dodge): ' + lowerFirst(n.goal.trim()).replace(/\.$/, ''));
+    }
+    parts.push(`attitude ${n.attitude} (${State.attitudeWord(n.attitude)})`);
     if (mems.length) parts.push('remembers: ' + mems.join(' / '));
+    if (!brief && o.secret && typeof n.secret === 'string' && n.secret.trim()) parts.push('secret (it can come out now, if the talk goes there): ' + lowerFirst(n.secret.trim()).replace(/\.$/, ''));
     return `${n.name} (${parts.join('; ')})`;
   }
   /* One fresh rumour a present NPC might share when the player talks to them
@@ -14093,21 +14837,35 @@ const Pipeline = (() => {
           completed off-screen) that they are the source of
        4  news from someone in their faction or about their faction's doings
           (a clock's rumour carries its factionId), or any news if they are
-          an informant, bartender or innkeeper (by tag or role)
+          a gossip, informant, bartender or innkeeper (by tag or role)
        3  an older rumour of their own (sourceNpcId)
-       1  an older rumour from someone in their faction
+       2  an older rumour they are one of the tellers of (tellerIds)
+       1  an older rumour from someone in their faction; and after day 2 any
+          older rumour, if they are tagged gossip or share a home or a
+          household with its source (news gets around)
      The best pair wins; ties go to the NPC the player is talking to first,
      then to the newest news, then to the town's own order. Hostile NPCs
      (attitude -25 or below) share nothing. */
-  const GOSSIP_TAGS = ['informant', 'bartender', 'innkeeper'];
+  const GOSSIP_TAGS = ['informant', 'bartender', 'innkeeper', 'gossip'];
   const GOSSIP_ROLE = /\b(informant|bartender|barkeep|barman|barmaid|innkeeper|publican)\b/i;
   function gossip(n) { return (n.tags || []).some(t => GOSSIP_TAGS.includes(t)) || GOSSIP_ROLE.test(n.role || ''); }
+  function household(a, b) {
+    if (!a || !b || a.id === b.id) return false;
+    if (isObj(a.home) && isObj(b.home) && a.home.locationId && a.home.locationId === b.home.locationId) return true;
+    const tie = (x, y) => (Array.isArray(x.relations) ? x.relations : []).some(r => r && r.npcId === y.id && HOUSEHOLD_RELATIONS.includes(r.relation));
+    return tie(a, b) || tie(b, a);
+  }
   function wouldKnow(n, r) {
     const src = r.sourceNpcId ? State.npc(r.sourceNpcId) : null;
     const own = r.sourceNpcId === n.id;
     const mate = !own && !!n.factionId && ((src && src.factionId === n.factionId) || r.factionId === n.factionId);
     if (Number.isInteger(r.addedTurn)) return own ? 5 : (mate || gossip(n)) ? 4 : 0;
-    return own ? 3 : mate ? 1 : 0;
+    if (own) return 3;
+    if (Array.isArray(r.tellerIds) && r.tellerIds.includes(n.id)) return 2;
+    if (mate) return 1;
+    const day = State.current ? State.current.time.day : 1;
+    if (day > 2 && ((n.tags || []).includes('gossip') || household(n, src))) return 1;
+    return 0;
   }
   function pickRumour(ctx) {
     const s = State.current;
@@ -14144,44 +14902,110 @@ const Pipeline = (() => {
     ctx.turn = s.meta.turn;
     return ctx;
   }
-  /* Labelled plain text per SPEC.md section 10. Hidden secrets, goals,
-     seeds and rumour truth are never included. */
   /* What people can know about the player: they came to town on day 1 and
-     were a stranger before; each person knows only their own memories (a
-     loose end's creditor or enemy remembers the past they share) and what
-     has happened in front of them. The narrator invents the rest otherwise
-     ("I've known a while", "he called me last night" on day 1). */
+     were a stranger before, and only the people of a debt, an enemy or a
+     secret (LOOSE ENDS) knew of them. The rule itself (each person knows
+     only their own memories and what happened in front of them) is in the
+     cached style block (Style.KNOWLEDGE). The narrator invents the rest
+     otherwise ("I've known a while", "he called me last night" on day 1). */
   function knowledgeLine(s) {
     const p = s.player;
     const days = s.time.day - 1;
     const since = days === 0 ? 'today (day 1)' : days === 1 ? 'yesterday (this is day 2)' : `${days} days ago (this is day ${s.time.day})`;
-    return `WHAT PEOPLE KNOW: ${p.name} came to ${s.meta.townName || 'town'} ${since} and was a stranger here before that. Each person knows about ${p.name} only what their own "remembers" list says and what has happened in front of them (STORY SO FAR, LAST 3 TURNS). Anyone with no memory of a past with ${p.name} never met them, heard of them, or got a call, news or a warning about them before they came. Nothing about ${p.name} happened "last night" or "a while ago" that the story does not show.`;
+    const knew = openLooseEnds(s).filter(le => KNEW_BEFORE.includes(le.kind)).map(le => State.npc(le.npcId).name).filter((x, i, all) => all.indexOf(x) === i);
+    const who = knew.length ? ` Only ${andList(knew)} knew of ${p.name} before, as LOOSE ENDS says.` : ` Nobody here knew ${p.name} before.`;
+    return `WHAT PEOPLE KNOW: ${p.name} came to ${s.meta.townName || 'town'} ${since} and was a stranger here before that.${who}`;
   }
+  /* STORY SO FAR: the chronicle, newest kept whole first, up to 400 words,
+     each entry with its day stamp ("Days 2-3: ..."; an entry written without
+     one says its turns). */
+  const STORY_WORDS = 400;
+  function storySoFar(s) {
+    const parts = [];
+    let total = 0;
+    for (let i = s.chronicle.length - 1; i >= 0; i--) {
+      const c = s.chronicle[i];
+      const sum = String(c.summary || '').replace(/\s*\n+\s*/g, ' ').trim();
+      const text = /^days?\s+\d/i.test(sum) ? sum : `Turns ${c.fromTurn}-${c.toTurn}: ${sum}`;
+      const w = wordCount(text);
+      if (total + w > STORY_WORDS) {
+        if (!parts.length) parts.unshift(text.split(/\s+/).slice(-STORY_WORDS).join(' '));
+        break;
+      }
+      parts.unshift(text);
+      total += w;
+    }
+    return parts.join(' ');
+  }
+  /* EARLIER: the journal's last ten lines from before LAST 3 TURNS, each
+     with its day and phase (the entry's own, else its turn's log entry). */
+  function earlierLine(s) {
+    const shown = new Set(s.log.slice(-3).map(e => e.turn));
+    const lines = (Array.isArray(s.journal) ? s.journal : []).filter(j => isObj(j) && typeof j.text === 'string' && j.text.trim() && !shown.has(j.turn)).slice(-10);
+    if (!lines.length) return null;
+    const when = j => {
+      const e = s.log.find(x => x.turn === j.turn) || {};
+      const day = Number.isInteger(j.day) ? j.day : e.day;
+      const phase = typeof j.phase === 'string' ? j.phase : e.phase;
+      return Number.isInteger(day) ? `Day ${day}${phase ? ` ${phase}` : ''}` : `Turn ${j.turn}`;
+    };
+    return `EARLIER: ${lines.map(j => `${when(j)}: ${cleanText(j.text, 200)}`).join(' | ')}`;
+  }
+  /* Labelled plain text per SPEC.md section 10, oldest to newest: the story
+     so far (chronicle, journal, last turns), the scene, the people, this
+     turn, then the rules. A person's secret only through ctx.revealSecretFor;
+     seeds and rumour truth never. The place's full description only on an
+     arrival, a move or a look; otherwise its name. */
   function narratorPacket(ctx) {
     const s = State.current;
     const p = s.player;
     const l = here();
     const turn = s.meta.turn;
-    const conds = p.conditions.map(c => c.name.toLowerCase()).join(', ') || 'none';
-    const present = State.npcsAt(l.id).map(n => npcLine(n, turn));
-    const story = s.chronicle.map(c => c.summary).join(' ').split(/\s+/).filter(Boolean).slice(-150).join(' ');
-    const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${e.input}"` : e.input) + ' ' : ''}${e.narration}`).join(' | ');
     const a = ctx.action || {};
     const roll = ctx.roll;
-    const lines = [
-      `${State.clockLine(s.time)} · Location: ${l.name} — ${l.description}${l.closed ? ' (closed)' : ''}`
-    ];
-    // What you notice inside and when it is open (the town block has how it came to be).
-    if (l.details || l.hours) lines.push(`PLACE: ${[l.details, l.hours ? `Open: ${l.hours}.` : ''].filter(Boolean).join(' ')}`);
+    const reveal = Array.isArray(ctx.revealSecretFor) ? ctx.revealSecretFor : [];
+    const presentNpcs = State.npcsAt(l.id);
+    const presentIds = presentNpcs.map(n => n.id);
+    const present = presentNpcs.map(n => npcLine(n, turn, false, { secret: reveal.includes(n.id) }));
+    const conds = p.conditions.map(c => c.name.toLowerCase()).join(', ') || 'none';
+    // One line each (an arrival's two paragraphs too), so every packet label starts a line.
+    const flat = t => String(t || '').replace(/\s*\n+\s*/g, ' ');
+    const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${flat(e.input)}"` : flat(e.input)) + ' ' : ''}${flat(e.narration)}`).join(' | ');
+    const long = ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue';
+    const full = ctx.mode === 'arrival' || ctx.mode === 'epilogue' || !!ctx.moved || a.actionType === 'look' || a.actionType === 'move';
+    const lines = [];
+    // The story so far, oldest first.
+    lines.push(`STORY SO FAR: ${storySoFar(s) || 'nothing yet'}`);
+    const earlier = earlierLine(s);
+    if (earlier) lines.push(earlier);
+    lines.push(`LAST 3 TURNS: ${last3 || 'none'}`);
+    // The scene: when and where (what you notice inside, with the full description; when it is open, always).
+    lines.push(`${clockText(s.time)} · Location: ${l.name}${full ? ` — ${l.description}` : ''}${l.closed ? ' (closed)' : ''}`);
+    const place = [full ? l.details : null, l.hours ? `Open: ${l.hours}.` : null].filter(Boolean);
+    if (place.length) lines.push(`PLACE: ${place.join(' ')}`);
+    if (s.flags.weather) lines.push(`WEATHER: ${s.flags.weather}`);
+    const items = (l.items || []).map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
+    if (items.length) lines.push(`ITEMS HERE: ${items.join(', ')}.`);
+    const ps = s.pendingScene;
+    if (ps && ps.locationId === l.id && ((ps.arrived || []).length || (ps.left || []).length)) {
+      ctx.sceneChange = ps;
+      const who = ids => ids.map(id => { const n = State.npc(id); if (!n) return id; const home = n.home && n.home.locationId === l.id ? ' (this is their home)' : ''; return n.name + home; }).join(', ');
+      const parts = [];
+      if (ps.arrived.length) parts.push(`arrived here: ${who(ps.arrived)}`);
+      if (ps.left.length) parts.push(`left: ${who(ps.left)}`);
+      lines.push(`SINCE THE LAST TURN (time moved on to ${s.time.phase}${s.time.late ? ', late' : ''}): ${parts.join('; ')}. The player has not acted in between. Show the arrival or departure as it happens or has just happened (a truck pulling in, a door, a goodbye), and let them react to finding the player here.`);
+    }
+    // The people: the player, what they carry, who is here, what they know, and what is still open.
+    const goal = cleanText(p.goal, 160).replace(/[.!]+$/, '');
+    const flaw = cleanText(p.flaw, 160).replace(/[.!]+$/, '');
     lines.push(
-      `PLAYER: ${p.name} (${ageText(p.age) ? `${p.age}, ` : ''}${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.${p.hp < p.maxHp ? ` HP ${p.hp}/${p.maxHp}.` : ''}`,
+      `PLAYER: ${p.name} (${ageText(p.age) ? `${p.age}, ` : ''}${p.background.toLowerCase()}). Reputation: ${State.reputationTier()}. Conditions: ${conds}.${p.hp < p.maxHp ? ` HP ${p.hp}/${p.maxHp}.` : ''}${goal ? ` Came here to: ${lowerFirst(goal)}.` : ''}${flaw ? ` Flaw: ${lowerFirst(flaw)}.` : ''}`,
       carryingLine(p),
       `PRESENT: ${present.join('; ') || 'nobody'}.`,
       knowledgeLine(s)
     );
-    if (s.flags.weather) lines.push(`WEATHER: ${s.flags.weather}`);
-    const items = (l.items || []).map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
-    if (items.length) lines.push(`ITEMS HERE: ${items.join(', ')}.`);
+    for (const line of [looseEndsLine(s, presentIds), openLine(s), newsLine(s)]) if (line) lines.push(line);
+    // This turn.
     const np = (ctx.notPresent || []).map(x => {
       if (x.reason === 'not_here') return `${x.label} (not here right now)`;
       if (x.reason === 'gone') return `${x.label} (${x.why || 'gone from town'})`;
@@ -14194,9 +15018,15 @@ const Pipeline = (() => {
     if (ctx.destination) {
       const d = State.loc(ctx.destination.id);
       const there = State.npcsAt(d.id).map(n => npcLine(n, turn, true));
-      lines.push(`DESTINATION: ${d.name} — ${d.description}${d.closed ? ' (closed: the player cannot go in)' : ''} Present there: ${there.join('; ') || 'nobody'}.`);
+      const shut = typeof State.isClosed === 'function' ? !!State.isClosed(d) : !!d.closed;
+      lines.push(`DESTINATION: ${d.name} — ${d.description}${shut ? ' (closed: the player cannot go in)' : ''} Present there: ${there.join('; ') || 'nobody'}.`);
     }
     if (ctx.moved) lines.push(`MOVED: from ${ctx.moved.fromName} to ${ctx.moved.toName}, just now. The action happens here; give the walk one clause at most.`);
+    // Talked about, not in the scene: never brought in for being named.
+    const about = (Array.isArray(a.aboutIds) ? a.aboutIds : []).map(id => State.entityById(id)).filter(Boolean).filter(e => !presentIds.includes(e.id));
+    if (about.length) lines.push(`ASKED ABOUT: ${about.map(e => e.name).join('; ')} (talked about, not in the scene)`);
+    lines.push(`TIME THIS TAKES: ${timeTakes(ctx)}`);
+    if (ctx.speech && ctx.speech.mode === 'do' && !ctx.beat && ctx.input) lines.push(`PLAYER TYPED: "${String(ctx.input).replace(/^\/zoom\s+/i, '')}"`);
     if (isSay(ctx.speech)) {
       // Say mode: the words themselves, and who answers first.
       const sp = ctx.speech;
@@ -14221,24 +15051,18 @@ const Pipeline = (() => {
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
     // SPEC step 11: work due events in naturally (at most World.MAX_DUE of them).
     const due = (ctx.due || []).map(d => d.text).join(' / ');
-    const ps = s.pendingScene;
-    if (ps && ps.locationId === l.id && ((ps.arrived || []).length || (ps.left || []).length)) {
-      ctx.sceneChange = ps;
-      const who = ids => ids.map(id => { const n = State.npc(id); if (!n) return id; const home = n.home && n.home.locationId === l.id ? ' (this is their home)' : ''; return n.name + home; }).join(', ');
-      const parts = [];
-      if (ps.arrived.length) parts.push(`arrived here: ${who(ps.arrived)}`);
-      if (ps.left.length) parts.push(`left: ${who(ps.left)}`);
-      lines.push(`SINCE THE LAST TURN (time moved on to ${s.time.phase}${s.time.late ? ', late' : ''}): ${parts.join('; ')}. The player has not acted in between. Show the arrival or departure as it happens or has just happened (a truck pulling in, a door, a goodbye), and let them react to finding the player here.`);
-    }
     lines.push(`DUE EVENT: ${due ? `${due} (already true; work it into the scene naturally, not as an announcement)` : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}`);
-    lines.push(`STORY SO FAR: ${story || 'nothing yet'}`);
-    lines.push(`LAST 3 TURNS: ${last3 || 'none'}`);
-    lines.push(`MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
-    // Last, so it is the freshest instruction: the length the style check enforces.
-    lines.push(Style.lengthLine(ctx.mode === 'zoom' || ctx.mode === 'arrival'));
-    return lines.join('\n');
+    // The rules, last: the mode, then the length the style check enforces.
+    lines.push(ctx.mode === 'epilogue'
+      ? 'MODE: epilogue (ZOOM length). This is an ending: close the threads named in DUE EVENT; the player may keep playing afterwards.'
+      : `MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
+    lines.push(Style.lengthLine(long));
+    const text = lines.join('\n');
+    // The style check that follows may use any name this packet gives (what the player typed, a due event, the news).
+    Style.notePacket(text);
+    return text;
   }
   /* Lines the turn adds to the narrator's packet (the card game's OUTCOME):
      after the COMPLICATION line. An epilogue turn says MODE: epilogue, with
@@ -14327,6 +15151,11 @@ const Pipeline = (() => {
   }
 
   // ----- step 8: the bookkeeper's packet -----
+  /* What the bookkeeper needs to judge the turn (REVIEW section 2.6): each
+     present person's last three memories (so nothing is recorded twice and
+     a paid debt can be settled), each faction's running clock with its aim
+     and progress (so a clock nudge is aimed), the threads with their
+     summaries, the open obligations by id, and the town's news. */
   function bookkeeperPacket(ctx) {
     const s = State.current;
     const p = s.player;
@@ -14334,6 +15163,10 @@ const Pipeline = (() => {
     const a = ctx.action || {};
     const presentIds = ctx.presentIds || [];
     const npcRow = n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; attitude ${n.attitude})${n.unnamed ? ' (no name yet)' : ''}`;
+    const presentRow = n => {
+      const mems = (n.memories || []).slice(-3).map(m => m.text);
+      return `${npcRow(n)}${mems.length ? ` remembers: ${mems.join(' / ')}` : ''}`;
+    };
     const engine = [];
     if (ctx.damage) engine.push(`fight damage: the player lost ${ctx.damage} HP`);
     if (ctx.consequence) engine.push(ctx.consequence);
@@ -14348,7 +15181,7 @@ const Pipeline = (() => {
       ...(isSay(ctx.speech)
         ? [`MODE: say, to ${ctx.speech.to === 'everyone' ? 'everyone present' : `${ctx.speech.to} (${ctx.speech.toName})`}. INPUT is the player's exact spoken words; they did nothing else and stayed where they are (playerLocationId null).`]
         : ctx.speech ? ['MODE: do'] : []),
-      `ACTION: ${a.summary || ''} [type ${a.actionType}; targets ${(a.targets || []).join(', ') || 'none'}${a.destinationId ? '; destination ' + a.destinationId : ''}]`,
+      `ACTION: ${a.summary || ''} [type ${a.actionType}; targets ${(a.targets || []).join(', ') || 'none'}${(a.aboutIds || []).length ? '; about ' + a.aboutIds.join(', ') : ''}${a.destinationId ? '; destination ' + a.destinationId : ''}]`,
       `ROLL: ${ctx.roll ? `${ctx.roll.line}${ctx.roll.complication ? ' · Complication: ' + ctx.roll.complication : ''}` : 'none'}`,
       `ALREADY APPLIED BY THE ENGINE (do not record again): ${engine.join('; ')}`
     ];
@@ -14361,7 +15194,7 @@ const Pipeline = (() => {
     if (ctx.rumour) lines.push(`RUMOUR OFFERED: ${ctx.rumour.id} by ${ctx.rumour.npcId}: "${ctx.rumour.text}" (list it in rumoursHeard only if the narration shows it being told)`);
     lines.push(`NARRATION: ${ctx.narration || ''}`);
     lines.push('IDS YOU MAY USE:');
-    lines.push(`NPCS PRESENT: ${State.npcsAt(l.id).map(npcRow).join('; ') || 'none'}`);
+    lines.push(`NPCS PRESENT: ${State.npcsAt(l.id).map(presentRow).join('; ') || 'none'}`);
     lines.push(`OTHER KNOWN NPCS: ${s.npcs.filter(n => n.knownToPlayer && !presentIds.includes(n.id)).map(npcRow).join('; ') || 'none'}`);
     // Someone the narration names who is neither here nor known yet (whose home was just described, say), so placesRevealed can name the owner.
     const named = s.npcs.filter(n => !n.knownToPlayer && !presentIds.includes(n.id) && n.alive !== false && Town.nameMentions(ctx.narration || '', n));
@@ -14373,8 +15206,13 @@ const Pipeline = (() => {
     // The places the player knows. A home in the cast they have not found yet is not listed, so a line that tells them about it goes in placesRevealed (the engine finds it).
     lines.push(`LOCATIONS (the places list): ${s.locations.filter(x => x.discovered).map(x => `${x.id} — ${x.name}${l.exits.includes(x.id) ? ' (exit from here)' : ''}${x.closed ? ' (closed)' : ''}`).join('; ')}`);
     lines.push(`ITEMS HERE: ${(l.items || []).map(i => `${i.id} (${i.name})`).join(', ') || 'none'}`);
-    lines.push(`FACTIONS: ${s.factions.map(f => `${f.id} — ${f.name}`).join('; ')}`);
-    lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'})`).join('; ') || 'none'}`);
+    // A faction's running clock is what a nudge moves: its aim and how far along it is.
+    lines.push(`FACTIONS: ${s.factions.map(f => { const c = World.activeClock(f); return `${f.id} — ${f.name}${c ? `; clock "${c.label}" ${c.filled}/${c.segments}` : '; no clock running'}`; }).join('; ')}`);
+    lines.push(`THREADS: ${s.threads.map(t => `${t.id} — ${t.title} (${t.status}${t.knownToPlayer ? '' : '; player does not know it yet'}): ${firstClause(t.summary)}`).join('; ') || 'none'}`);
+    const owed = obligationsOpen(s);
+    if (owed.length) lines.push(`OPEN OBLIGATIONS (obligationsSettled takes these ids): ${owed.map(o => `${o.id} — ${obligationText(o, s)}${o.npcId ? ` [${o.npcId}]` : ''}`).join('; ')}`);
+    const news = newsLine(s);
+    if (news) lines.push(news);
     return lines.join('\n');
   }
 
@@ -15297,6 +16135,7 @@ const Pipeline = (() => {
     noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom,
     recap: recapText, recapText, printRecap,
     CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
+    npcLine, wouldKnow, knowledgeLine, timeTakes, clockText, dateText, weekdayOf, storySoFar, earlierLine, openLine, newsLine, TOWN_NEWER, looseEndsLine,
     ACTION_TYPES, NOTICES, hooks,
     forceNextRoll(d20) { hooks.nextD20 = Number.isInteger(d20) ? clamp(d20, 1, 20) : null; },
     setStatusListener(fn) { statusFn = typeof fn === 'function' ? fn : null; },

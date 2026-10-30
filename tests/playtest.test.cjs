@@ -479,7 +479,8 @@ s.test('cost per turn at the default models, from measured packet sizes', async 
   assert.ok(turn(THINK) < 0.08, 'with thinking, under 8 cents: $' + turn(THINK).toFixed(4));
   assert.ok(first > 0 && first < 0.12, 'a cache write under 12 cents: $' + first.toFixed(4));
   assert.ok(narr.cached > 512, 'the narrator system prompt is long enough to cache (512-token minimum)');
-  assert.ok(m.narrate.max < 8000 && m.bookkeep.max < 12000, 'packets stay small');
+  // The narrator's packet now carries the story (EARLIER, LOOSE ENDS, OPEN, TOWN NEWS, each person's traits and wants): under 12,000 characters (8,000 before).
+  assert.ok(m.narrate.max < 12000 && m.bookkeep.max < 12000, 'packets stay small');
   assert.equal(m.parse.n, m.bookkeep.n, 'one bookkeeping call per parsed turn');
 });
 

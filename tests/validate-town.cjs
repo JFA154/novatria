@@ -1779,8 +1779,14 @@ for (const [where, k] of flagsRead) if (!flagsWritten.has(k)) err(where, 'reads 
 
 // ---------------------------------------------------------------------------
 // 8. Modern: EXAMPLE_TURNS_LITERARY and EXAMPLE_TURNS_CASUAL in index.html, the
-//    narrator prompt's three example turns for each narration style. Same
-//    shape and length as SPEC.md section 9, and no person or place that
+//    narrator prompt's example turns for each narration style. The literary
+//    three keep the shape and length of SPEC.md section 9; the casual six to
+//    eight are written in the owner's casual voice (60 words at most each)
+//    with their context in the narrator packet's own field format, and
+//    between them cover Say to one person and to everyone, a success that
+//    gives something concrete, a failure whose complication changes things,
+//    an arrival (SINCE THE LAST TURN), a thing not carried, two people
+//    reacting and a due event. Neither set names a person or place that
 //    exists in this town (they are introduced as being from a different town).
 // ---------------------------------------------------------------------------
 const SPEC_EXAMPLE_WORDS = [32, 31, 25]; // narration word counts of the SPEC.md section 9 examples
@@ -1805,7 +1811,20 @@ function properNouns(text) {
   return out;
 }
 
+// The labels a casual example's context may use: the narrator packet's own.
+const PACKET_LABELS = /^(PRESENT|PLAYER SAYS \(to [^)]+\)|PLAYER TYPED|ACTION|ROLL|OUTCOME|COMPLICATION|NOT CARRIED|SINCE THE LAST TURN \([^)]*\)|DUE EVENT|NOT PRESENT|MOVED|TOWN NEWS|LOOSE ENDS|OPEN|TIME THIS TAKES|WHAT PEOPLE KNOW):/;
+const CASUAL_COVERS = [
+  { what: 'Say to one person', test: (c) => /^PLAYER SAYS \(to (?!everyone)[^)]+\): "/m.test(c) },
+  { what: 'Say to everyone', test: (c) => /^PLAYER SAYS \(to everyone present\): "/m.test(c) },
+  { what: 'a success', test: (c) => /^ROLL: \w+ \d+.* vs \d+ · (Success|Critical)$/m.test(c) && /^OUTCOME: the ask succeeded/m.test(c) },
+  { what: 'a failure with a complication', test: (c) => /^ROLL: \w+ \d+.* vs \d+ · Failure$/m.test(c) && /^COMPLICATION: (?!none)/m.test(c) },
+  { what: 'an arrival', test: (c) => /^SINCE THE LAST TURN \(/m.test(c) },
+  { what: 'something not carried', test: (c) => /^NOT CARRIED: /m.test(c) },
+  { what: 'two people present', test: (c) => (/^PRESENT: (.*)$/m.exec(c) || ['', ''])[1].split(/\)\); /).length >= 2 },
+  { what: 'a due event', test: (c) => /^DUE EVENT: (?!none)/m.test(c) }
+];
 function checkExamples(W) {
+  const casual = W === 'EXAMPLE_TURNS_CASUAL';
   // The constant sits after the content block, in the page script.
   const at = html.indexOf('const ' + W + ' = [');
   if (at < 0) { err(W, 'index.html has no "const ' + W + ' = [" constant'); return 0; }
@@ -1839,21 +1858,29 @@ function checkExamples(W) {
   townText.forEach((s) => properNouns(s).forEach((w) => forbidden.add(w)));
   forbidden.delete('The');
 
-  if (turns.length !== 3) err(W, 'expected exactly 3 example turns, found ' + turns.length);
+  if (!casual && turns.length !== 3) err(W, 'expected exactly 3 example turns, found ' + turns.length);
+  if (casual && (turns.length < 6 || turns.length > 8)) err(W, 'expected 6 to 8 example turns, found ' + turns.length);
+  if (casual) {
+    const contexts = turns.map((t) => (isObj(t) && isStr(t.context) ? t.context : ''));
+    for (const c of CASUAL_COVERS) if (!contexts.some(c.test)) err(W, 'no example covers ' + c.what);
+  }
   turns.forEach((turn, i) => {
     const where = W + '[' + i + ']';
     if (!checkKeys(turn, ['input', 'context', 'narration'], where)) return;
     if (!['input', 'context', 'narration'].every((k) => isStr(turn[k]))) { err(where, 'input, context and narration must be non-empty strings'); return; }
     if (/\(|\)/.test(turn.context.charAt(0) + turn.context.slice(-1))) err(where, 'context is written without the parentheses (the prompt adds them)');
     const words = turn.narration.split(/\s+/).filter(Boolean).length;
-    const target = SPEC_EXAMPLE_WORDS[i];
+    const target = casual ? undefined : SPEC_EXAMPLE_WORDS[i];
     if (target !== undefined && Math.abs(words - target) > 10) err(where, 'narration is ' + words + ' words; the SPEC.md example it replaces is ' + target);
-    if (words > 90) err(where, 'narration over the 90-word limit');
+    if (words > (casual ? 60 : 90)) err(where, 'narration over the ' + (casual ? 60 : 90) + '-word limit');
     const sc = sentenceCount(turn.narration);
-    if (sc < 2 || sc > 6) err(where, 'narration should be 2 to 4 sentences plus dialogue, found ' + sc);
-    if (!/^I\b/.test(turn.input)) err(where, 'input should be a first-person action');
+    if (sc < 2 || sc > (casual ? 9 : 6)) err(where, 'narration should be 2 to 4 sentences plus dialogue, found ' + sc);
+    if (!(casual ? /^(I\b|")/ : /^I\b/).test(turn.input)) err(where, casual ? 'input should be a first-person action or the quoted words said' : 'input should be a first-person action');
     if (!/[.!?]$/.test(turn.context)) err(where, 'context should end with a full stop, as in SPEC.md');
-    const scene = EXAMPLE_SCENES[i];
+    if (casual) {
+      for (const line of turn.context.split('\n')) if (!PACKET_LABELS.test(line)) err(where, 'context line is not in the packet\'s field format: "' + line.slice(0, 50) + '"');
+    }
+    const scene = casual ? null : EXAMPLE_SCENES[i];
     if (scene) {
       if (!scene.input.test(turn.input) || !scene.context.test(turn.context) || !scene.narration.test(turn.narration)) {
         err(where, 'should be ' + scene.what + ' (input, context or narration does not match)');

@@ -808,7 +808,8 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   a = await cardInfo(page, sc.a);
   assert.equal(a.expanded, 'true', 'still open after the turn');
   assert.ok(a.moreVisible && a.look === na.look);
-  assert.ok(a.notes.some(t => /^Remembers: you insulted them, day \d+$/.test(t)), a.notes.join(' | '));
+  // The mock bookkeeper writes memories the way MEMORY_RULES asks: from their side ("insulted me").
+  assert.ok(a.notes.some(t => /^Remembers: insulted me, day \d+$/.test(t)), a.notes.join(' | '));
   assert.ok(!a.notes.some(t => /Loose end with/.test(t)));
   // Leave: a is now Known, last seen here; most recently seen first; someone never seen has no location line.
   const scene = await page.evaluate(a => { const l = Game.State.loc(Game.state.player.locationId); return { id: l.id, name: l.name, exit: l.exits.map(id => Game.State.loc(id)).find(x => !x.closed && !Game.State.npcsAt(x.id).some(n => n.id === a)) }; }, sc.a);

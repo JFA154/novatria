@@ -110,7 +110,7 @@ function packetProblems() {
     for (const n of st.npcs) if (!ids.includes(n.id) && present.includes(n.name + ' (')) bad.push('not present: ' + n.id);
   }
   const story = get('STORY SO FAR');
-  if (story !== 'nothing yet' && story.split(/\s+/).length > 150) bad.push('story so far over 150 words');
+  if (story !== 'nothing yet' && story.split(/\s+/).length > 400) bad.push('story so far over 400 words');
   const last3 = get('LAST 3 TURNS');
   if (last3 !== 'none' && last3.split(' | ').length > 3) bad.push('more than 3 turns of log');
   const due = get('DUE EVENT');
@@ -449,8 +449,8 @@ s.test('location, npc and clock seeds fire at the right moment, wait for notBefo
   assert.ok(told, 'and narrated');
 });
 
-// Changed by design (REVIEW 2.2, docs/notes/transport.md): the chronicle waits for 16 log entries and keeps the newest 6.
-s.test('once the log holds 16 entries a chronicle entry exists and the log is trimmed to the newest 6; STORY SO FAR is trimmed to 150 words; a failing chronicle never breaks a turn', async h => {
+// Changed by design (REVIEW 2.2, docs/notes/transport.md and prompts.md): the chronicle waits for 16 log entries and keeps the newest 6; STORY SO FAR keeps whole entries up to 400 words.
+s.test('once the log holds 16 entries a chronicle entry exists and the log is trimmed to the newest 6; STORY SO FAR keeps whole entries up to 400 words, each with its stamp; a failing chronicle never breaks a turn', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 10 });
   await fast(page);
@@ -464,26 +464,30 @@ s.test('once the log holds 16 entries a chronicle entry exists and the log is tr
   assert.equal(r.chron.length, 1);
   assert.equal(r.chron[0].fromTurn, 0);
   assert.equal(r.chron[0].toTurn, 9);
-  assert.match(r.chron[0].summary, /^Turns 0 to 9/);
+  // The mock writes what SYSTEM.chronicle asks for: the day stamp first, "Open:" last.
+  assert.match(r.chron[0].summary, /^Days? 1(-\d+)? \(turns 0 to 9, mock chronicle\): /);
+  assert.match(r.chron[0].summary, / Open: [^]+\.$/);
   assert.ok(r.chron[0].summary.split(/\s+/).length < 80, 'under 80 words');
   assert.deepEqual(r.log, [10, 11, 12, 13, 14, 15], 'the oldest 10 entries left the log; the newest 6 stay');
   assert.deepEqual(r.calls.filter(c => c === 'chronicle'), ['chronicle']);
   await sendText(page, 'I look around');
   assert.equal(line(await lastPacket(page), 'STORY SO FAR'), r.chron[0].summary);
-  // Long history: the most recent 150 words, most recent last.
+  // Long history: whole entries, newest kept first, up to 400 words, most recent last; one written without a day stamp says its turns.
   await page.evaluate(() => {
-    for (let i = 0; i < 5; i++) Game.State.apply({ chronicleEntry: { fromTurn: 1000 + i, toTurn: 1000 + i, summary: Array.from({ length: 60 }, (_, k) => `w${i}x${k}`).join(' ') } });
+    for (let i = 0; i < 8; i++) Game.State.apply({ chronicleEntry: { fromTurn: 1000 + i, toTurn: 1000 + i, summary: Array.from({ length: 60 }, (_, k) => `w${i}x${k}`).join(' ') } });
   });
   await sendText(page, 'I look around');
-  const story = line(await lastPacket(page), 'STORY SO FAR').split(/\s+/);
-  assert.equal(story.length, 150);
-  assert.equal(story[story.length - 1], 'w4x59', 'most recent last');
+  const storyLine = line(await lastPacket(page), 'STORY SO FAR');
+  const story = storyLine.split(/\s+/);
+  assert.equal(story.length, 6 * 62, 'six whole entries of 60 words and their two-word stamps');
+  assert.ok(storyLine.startsWith('Turns 1002-1002: w2x0 '), storyLine.slice(0, 40));
+  assert.equal(story[story.length - 1], 'w7x59', 'most recent last');
   // A reload rebuilds the feed with the chronicle at the top.
   await page.reload();
   await page.waitForFunction(() => window.Game);
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
-  assert.ok((await page.locator('#feed .f-chronicle').first().innerText()).startsWith('Turns 0 to 9'));
+  assert.match(await page.locator('#feed .f-chronicle').first().innerText(), /^Days? 1(-\d+)? \(turns 0 to 9, mock chronicle\)/);
 
   // The chronicle call failing (an error, then a refusal) never breaks a turn; it is retried next turn.
   const p2 = await h.open({ viewport: LAPTOP });
