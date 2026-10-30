@@ -8473,8 +8473,10 @@ const State = (() => {
   function isHurt(n, day) { return !!n && Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > dayOf(day); }
   function laidUp(n, day) { return !!n && n.status === 'free' && isHurt(n, day); }
   /* Why someone is not about, in a few words: the dead and the far away
-     (absentNote), then "hurt and laid up at the Mangum House until day 5",
-     "at the county school in Clayburn until evening"; '' when they are about. */
+     (absentNote), then "hurt and laid up at the Mangum House until day 5"
+     (about again on day 5, their hurtUntilDay: "until day N" is the day it
+     ends, as for a ban), "at the county school in Clayburn until evening";
+     '' when they are about. */
   function absentFor(n, phase, day) {
     if (!n) return '';
     const base = absentNote(n);
@@ -8482,7 +8484,7 @@ const State = (() => {
     const ph = PHASES.includes(phase) ? phase : current.time.phase;
     if (laidUp(n, day)) {
       const h = isObj(n.home) ? loc(n.home.locationId) : null;
-      return `hurt and laid up ${h ? `at ${h.name.replace(/^The /, 'the ')}` : 'at home'} until day ${n.hurtUntilDay - 1}`;
+      return `hurt and laid up ${h ? `at ${h.name.replace(/^The /, 'the ')}` : 'at home'} until day ${n.hurtUntilDay}`;
     }
     if (awayNow(n, ph, day)) {
       const phases = Array.isArray(n.awayOn.phases) ? n.awayOn.phases : PHASES;
@@ -19217,12 +19219,12 @@ const UI = (() => {
   function personFlags(s, n) {
     const out = [];
     const day = s.time.day;
-    // Hurt: the engine's own test when it has one (State.isHurt), else the rule State.laidUp uses (until the day after).
+    // Hurt: the engine's own test when it has one (State.isHurt), else the rule State.laidUp uses (every day before hurtUntilDay).
     let hurt = false;
     if (typeof State.isHurt === 'function') { try { hurt = !!State.isHurt(n); } catch (e) { hurt = false; } }
     else hurt = Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > day;
-    // The last day they are hurt (hurtUntilDay is the day they are about again), as the engine's own note says it.
-    if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt until Day ${Math.max(day, n.hurtUntilDay - 1)}`, hard: true });
+    // "Until Day N" is the day it ends, for a hurt as for a ban: hurtUntilDay, the day they are about again, as the engine's note says it.
+    if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt until Day ${Math.max(day + 1, n.hurtUntilDay)}`, hard: true });
     if (isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
       let note = '';
       try { note = typeof State.absentNote === 'function' ? State.absentNote(n) || '' : ''; } catch (e) { note = ''; }

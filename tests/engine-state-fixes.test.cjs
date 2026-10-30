@@ -453,7 +453,8 @@ s.test('npcFates: present people only, one a turn, dead/arrested/gone after a su
   assert.deepEqual(r.hurt, ['free', r.hurt[2] + 2, r.hurt[2]]);
   assert.equal(r.here, false, 'not where their schedule had them');
   assert.deepEqual(r.atHome, [true, true, true, true], 'at home every phase');
-  assert.match(r.note, /^hurt and laid up at .+ until day \d+$/);
+  // "Until day N" is the day it ends (integration, wave 3): the day they are about again, as for a ban.
+  assert.match(r.note, new RegExp(`^hurt and laid up at .+ until day ${r.hurt[1]}$`));
   assert.equal(r.backDay, r.hurt[1]);
   assert.equal(r.back, '');
   assert.deepEqual(r.dead, [0, false, 'dead', false]);

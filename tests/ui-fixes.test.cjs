@@ -486,8 +486,8 @@ s.test('People: a search box that stays put, sorting, Elsewhere and Gone folded 
   });
   const groups = await page.evaluate(() => [...document.querySelectorAll('#panel-body .people-group')].map(g => ({ key: g.dataset.group, folded: g.tagName === 'DETAILS' && !g.open })));
   for (const k of ['elsewhere', 'gone']) { const g = groups.find(x => x.key === k); if (g) assert.equal(g.folded, true, k + ' folded'); }
-  // The last day they are hurt, as the engine's note says it (hurtUntilDay is the day they are about again).
-  assert.match(await page.textContent(`.pcard[data-npc="${pick.hurt.id}"] .pcard-meta`), new RegExp(`Hurt until Day ${pick.hurt.until - 1}`));
+  // "Hurt until Day N": the day they are about again (hurtUntilDay), as the engine's note says it and as a ban's "until Day N" is the day you are welcome again (changed by design at the wave-3 integration).
+  assert.match(await page.textContent(`.pcard[data-npc="${pick.hurt.id}"] .pcard-meta`), new RegExp(`Hurt until Day ${pick.hurt.until}\\b`));
   // Search: by name.
   await page.fill('#people-search', pick.first.name.split(' ')[0]);
   const shown = await page.evaluate(() => [...document.querySelectorAll('#panel-body .pcard')].filter(c => !c.hidden && !c.closest('[hidden]')).map(c => c.dataset.npc));
@@ -1945,8 +1945,9 @@ s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the en
     return { meta, note, day, bar: bar.name, seen, grown, exitText, exName: ex.name };
   });
   assert.ok(r.meta.includes(`Banned you from ${r.bar.replace(/^The /, 'the ')} until Day ${r.day + 3}`), r.meta);
-  assert.ok(r.meta.includes(`Hurt until Day ${r.day + 1}`), r.meta);
-  if (/until day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until day ${r.day + 1}`), 'the same last day as the engine\'s note: ' + r.note);
+  // The day they are about again (hurtUntilDay), the same day as the engine's note (changed by design at the wave-3 integration).
+  assert.ok(r.meta.includes(`Hurt until Day ${r.day + 2}`), r.meta);
+  if (/until day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until day ${r.day + 2}`), 'the same day as the engine\'s note: ' + r.note);
   assert.equal(r.seen, `Last seen: ${r.bar}, Day ${r.day} · Evening`);
   assert.match(r.grown, /: \+1 Wits/);
   assert.equal(r.exitText, `${r.exName} (closed today)`);

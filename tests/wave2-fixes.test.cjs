@@ -916,7 +916,7 @@ s.test('cards: a fumble without a marked deck is only an accusation (cooler deal
   assert.match(marked.told, /throws you out for cheating/);
 });
 
-s.test('hurt: State.isHurt is true through the day before hurtUntilDay; they are about again on that day; the note names the last day laid up', async h => {
+s.test('hurt: State.isHurt is true through the day before hurtUntilDay; they are about again on that day; the note names that day ("until day N", as for a ban)', async h => {
   const page = await h.open();
   await quickStart(page);
   const r = await page.evaluate(() => {
@@ -924,10 +924,11 @@ s.test('hurt: State.isHurt is true through the day before hurtUntilDay; they are
     const n = st.npcs.find(x => x.status === 'free' && x.alive !== false && x.home);
     S.apply({ npcFates: [{ npcId: n.id, status: 'hurt' }] });
     const d = st.time.day;
-    return { until: n.hurtUntilDay - d, today: S.isHurt(n), next: S.isHurt(n, d + 1), back: S.isHurt(n, d + 2), note: S.absentNote(n), last: d + 1 };
+    return { until: n.hurtUntilDay - d, today: S.isHurt(n), next: S.isHurt(n, d + 1), back: S.isHurt(n, d + 2), note: S.absentNote(n), about: d + 2 };
   });
   assert.deepEqual([r.until, r.today, r.next, r.back], [2, true, true, false]);
-  assert.ok(r.note.endsWith(`until day ${r.last}`), r.note);
+  // Changed by design at the wave-3 integration: "until day N" is the day it ends (about again), as a ban's is (welcome again).
+  assert.ok(r.note.endsWith(`until day ${r.about}`), r.note);
 });
 
 s.test('commands and wording: /load and /save take a name; "You are already at the Low Water" (no capital The mid-sentence)', async h => {
