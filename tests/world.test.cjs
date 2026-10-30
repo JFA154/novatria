@@ -302,7 +302,8 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
   assert.equal(n.attitude, x.attitude - 45);
-  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3, 3]);
+  // Changed by design (engine-state wave 1): the same words again merge into one memory (the heavier weight).
+  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
   await sendText(page, `I talk to ${x.name}`);
   assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), 'greeting turned cold');
   assert.ok(await page.evaluate(() => Game.state.player.reputation.town < 0), 'reputation drifted down with the insults');

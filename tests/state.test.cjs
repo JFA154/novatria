@@ -212,6 +212,8 @@ s.test('attitude changes are clamped to ±25 per turn and to ±100 overall', asy
   assert.equal(r.floor, -100);
 });
 
+// Changed by design (engine-state wave 1): a bookkeeper's hpDelta is held to +/-3 a turn and cannot take the
+// last HP outside a lost fight, so the clamp to 0 is checked from the engine; tests/engine-state-fixes.test.cjs has the model caps.
 s.test('gold cannot go below 0; HP is clamped to 0..max', async h => {
   const page = await h.open();
   await quickStart(page);
@@ -226,9 +228,9 @@ s.test('gold cannot go below 0; HP is clamped to 0..max', async h => {
     out.zero = p().gold;
     G.State.apply({ goldDelta: 7 }, { source: 'model' });
     out.seven = p().gold;
-    G.State.apply({ hpDelta: -50 }, { source: 'model' });
+    G.State.apply({ hpDelta: -50 });
     out.hpLow = p().hp;
-    G.State.apply({ hpDelta: 999 }, { source: 'model' });
+    G.State.apply({ hpDelta: 999 });
     out.hpHigh = p().hp;
     out.max = p().maxHp;
     out.gold = gold;
@@ -270,7 +272,8 @@ s.test('items lost must be held; items gained stack', async h => {
   assert.ok(r.heldGone);
 });
 
-s.test('new seeds: at most 2 per turn, triggers at least 1 day ahead', async h => {
+// Changed by design (engine-state wave 1): the model plants at most 1 seed a turn (the engine still 2).
+s.test('new seeds: at most 1 per turn from the model, triggers at least 1 day ahead', async h => {
   const page = await h.open();
   await quickStart(page);
   const r = await page.evaluate(() => {
@@ -281,8 +284,8 @@ s.test('new seeds: at most 2 per turn, triggers at least 1 day ahead', async h =
     G.State.apply({ beginTurn: true });
     const today = G.State.apply({ newSeeds: [{ cause: 'c', effect: 'Today', trigger: { type: 'day', value: day } }] }, { source: 'model' });
     const ok = G.State.apply({ newSeeds: [
-      { cause: 'c', effect: 'Tomorrow', trigger: { type: 'day', value: day + 1 } },
       { cause: 'c', effect: 'Next meeting', trigger: { type: 'npc', value: npc } },
+      { cause: 'c', effect: 'Tomorrow', trigger: { type: 'day', value: day + 1 } },
       { cause: 'c', effect: 'Third', trigger: { type: 'day', value: day + 3 } }
     ] }, { source: 'model' });
     const added = G.state.seeds.slice(before);
@@ -292,12 +295,12 @@ s.test('new seeds: at most 2 per turn, triggers at least 1 day ahead', async h =
   });
   assert.equal(r.today.length, 1);
   assert.match(r.today[0].reason, /1 day ahead/);
-  assert.equal(r.added.length, 2);
-  assert.equal(r.ok.length, 1);
-  assert.equal(r.ok[0].path, 'newSeeds[2]');
+  assert.equal(r.added.length, 1);
+  assert.equal(r.ok.length, 2);
+  assert.equal(r.ok[0].path, 'newSeeds[1]');
   assert.match(r.ok[0].reason, /limit/);
   assert.ok(r.added.every(sd => sd.hidden === true && sd.fired === false && /^seed_/.test(sd.id)));
-  assert.equal(r.added[1].notBeforeDay, r.day + 1, 'non-day triggers wait at least a day');
+  assert.equal(r.added[0].notBeforeDay, r.day + 1, 'non-day triggers wait at least a day');
   assert.equal(r.nextTurn, 1);
 });
 
@@ -433,7 +436,8 @@ s.test('snapshot and restore round-trip the exact state', async h => {
   assert.deepEqual(r, { changed: true, ok: true, same: true, empty: false });
 });
 
-s.test('time: three shorts make a phase, long is a phase, rest heals 3 and wakes next morning', async h => {
+// Changed by design (engine-state wave 1): a rest away from a bed (the arrival place) is rough and heals 1, not 3.
+s.test('time: three shorts make a phase, long is a phase, rest heals (1 sleeping rough) and wakes next morning', async h => {
   const page = await h.open();
   await quickStart(page);
   const r = await page.evaluate(() => {
@@ -453,7 +457,7 @@ s.test('time: three shorts make a phase, long is a phase, rest heals 3 and wakes
     out.push(G.State.apply({ advanceTime: 'nap' }).rejected.length);
     return out;
   });
-  assert.deepEqual(r, ['1:morning:0', '1:morning:1', '1:morning:2', '1:afternoon:0', 1, '1:afternoon:0', '1:evening:0', '1:night:0', '2:morning:0', 1, 3, 8, 1]);
+  assert.deepEqual(r, ['1:morning:0', '1:morning:1', '1:morning:2', '1:afternoon:0', 1, '1:afternoon:0', '1:evening:0', '1:night:0', '2:morning:0', 1, 1, 6, 1]);
 });
 
 s.test('night holds until the player sleeps: shorts at night stop at late with no phase change and no tick; a long reaches morning with no sleep; /rest clears it', async h => {
