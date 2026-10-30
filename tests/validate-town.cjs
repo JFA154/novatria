@@ -632,6 +632,8 @@ const OPS = {
   threadUpdate: ['threadId'],
   addObligation: ['kind', 'npcId', 'text'],
   settleObligation: ['id', 'status'],
+  // Wave 5: money credited toward a debt (a seizure: take, from the player's cash).
+  obligationPaid: ['id', 'amount'],
   addNews: ['text']
 };
 // The fields an op may carry besides its required ones.
@@ -642,6 +644,7 @@ const OPS_OPTIONAL = {
   banFrom: ['byNpcId'],
   threadUpdate: ['summary', 'status', 'knownToPlayer'],
   addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
+  obligationPaid: ['take'],
   addNews: ['factionId', 'public']
 };
 const opCounts = {};
@@ -886,7 +889,8 @@ function checkEffect(e, where, opts) {
       if (e.summary !== undefined) checkText(e.summary, where + '.summary', { ph, maxSentences: 3, max: 400 });
       if (e.status !== undefined) {
         if (THREAD_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + THREAD_STATUSES.join('/'));
-        if (e.status === 'resolved' && !opts.ending) err(where, 'the world may not resolve a thread (only the player earns a resolution, or the ending settles it)');
+        // Wave 5 (the round-4 playtest): a town event's vote settles the thread it decides too (opts.settles: the council keeping the police).
+        if (e.status === 'resolved' && !opts.ending && !opts.settles) err(where, 'the world may not resolve a thread (only the player earns a resolution, or the ending or a town event\'s vote settles it)');
       }
       if (e.knownToPlayer !== undefined && typeof e.knownToPlayer !== 'boolean') err(where + '.knownToPlayer', 'true or false');
       if (e.summary === undefined && e.status === undefined && e.knownToPlayer === undefined) err(where, 'changes nothing: give a summary, a status or knownToPlayer');
@@ -899,6 +903,12 @@ function checkEffect(e, where, opts) {
     case 'settleObligation':
       if (!OBLIGATION_ID.test(String(e.id))) err(where + '.id', 'an obligation id obl_<kind>_<npc id>');
       if (OBLIGATION_STATUSES.indexOf(e.status) === -1) err(where + '.status', 'met or missed');
+      break;
+    case 'obligationPaid':
+      // "{obligationId}" (the obligation whose onMiss or onMet it is) only where placeholders are.
+      if (!(ph && e.id === '{obligationId}') && !OBLIGATION_ID.test(String(e.id))) err(where + '.id', 'an obligation id obl_<kind>_<npc id>, or "{obligationId}" in an obligation\'s own effects');
+      if (!isInt(e.amount) || e.amount < 1) err(where + '.amount', 'a whole amount, 1 or more');
+      if (e.take !== undefined && typeof e.take !== 'boolean') err(where + '.take', 'true or false');
       break;
     case 'addNews':
       checkText(e.text, where + '.text', { ph, max: 300, maxSentences: 2 });
@@ -1475,7 +1485,7 @@ function checkBranch(b, where, isDefault, sentencesMax, charsMax, opts) {
   if (!checkKeys(b, isDefault ? ['text', 'effects'] : ['when', 'text', 'effects'], where)) return;
   if (!isDefault) checkWhen(b.when, where + '.when');
   checkText(b.text, where + '.text', { maxSentences: sentencesMax, max: charsMax });
-  checkEffectList(b.effects, where + '.effects', { max: 8, world: true, ending: opts.ending === true });
+  checkEffectList(b.effects, where + '.effects', { max: 8, world: true, ending: opts.ending === true, settles: opts.settles === true });
   if (opts.actorsFree && typeof b.text === 'string') {
     const free = isObj(b.when) && Array.isArray(b.when.npcFree) ? b.when.npcFree : [];
     actorsIn(b.text).forEach((id) => { if (free.indexOf(id) === -1) err(where + '.when.npcFree', 'the text has ' + id + ' acting: add them to npcFree (or write the branch for their empty chair)'); });
@@ -1501,7 +1511,7 @@ if (T.events !== undefined) {
     else if (locationById(ev.locationId).away === true || locationById(ev.locationId).discovered === false) err(where + '.locationId', 'a town place on the map, where the player can be');
     checkStr(ev.title, where + '.title', { noPlaceholders: true, maxSentences: 0 });
     if (!Array.isArray(ev.branches) || ev.branches.length < 2) err(where + '.branches', 'at least two branches besides the default');
-    else ev.branches.forEach((b, bi) => checkBranch(b, where + '.branches[' + bi + ']', false, 4, 700, { actorsFree: true }));
+    else ev.branches.forEach((b, bi) => checkBranch(b, where + '.branches[' + bi + ']', false, 4, 700, { actorsFree: true, settles: true }));
     // The default is what happens when no branch's people are all free: it names nobody acting.
     checkBranch(ev.default, where + '.default', true, 4, 700, { actorsFree: true });
     // The news line the event leaves: every branch says something in public.
@@ -1523,7 +1533,8 @@ if (T.epilogue !== undefined) {
     if (!isInt(E.onDay) || E.onDay < 10 || E.onDay > 40) err('TOWN_DATA.epilogue.onDay', 'a day number, 10 to 40');
     else if (E.onDay > ENDING_DAYS[0]) err('TOWN_DATA.epilogue.onDay', 'aftermath seeds wait for day ' + ENDING_DAYS[0] + ' or later: the ending must come by then');
     checkFlagList(E.orFlagsSet, 'TOWN_DATA.epilogue.orFlagsSet');
-    if (!Array.isArray(E.branches) || E.branches.length < 3 || E.branches.length > 6) err('TOWN_DATA.epilogue.branches', '3 to 6 branches');
+    // Wave 5: seven, so the open-bridge ending settles the police both ways (a vote that ended them is a branch of its own).
+    if (!Array.isArray(E.branches) || E.branches.length < 3 || E.branches.length > 7) err('TOWN_DATA.epilogue.branches', '3 to 7 branches');
     else E.branches.forEach((b, bi) => {
       const w = 'TOWN_DATA.epilogue.branches[' + bi + ']';
       checkBranch(b, w, false, 6, 900, { ending: true });
@@ -1722,7 +1733,7 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
   for (const key of LOOSE_END_KEYS) {
     const le = LOOSE_ENDS[key];
     const where = 'LOOSE_ENDS.' + key;
-    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where, ['obligation', 'obligations'])) continue;
+    if (!checkKeys(le, ['label', 'options', 'link', 'seed'], where, ['obligation', 'obligations', 'followUp'])) continue;
     checkStr(le.label, where + '.label', { noPlaceholders: true });
     checkStrList(le.options, where + '.options', 3, { noPlaceholders: true, maxSentences: 1 });
     (Array.isArray(le.options) ? le.options : []).forEach((o, oi) => {
@@ -1756,6 +1767,20 @@ if (checkKeys(LOOSE_ENDS, LOOSE_END_KEYS, 'LOOSE_ENDS')) {
     // kind's default (obligation) and one per preset option (obligations,
     // lined up with options like link.optionTags; null where an option binds
     // to nothing).
+    // Wave 5: what the first beat threatens, some days on (the engine plants it when that beat fires, with what must hold: the loose end open and their grudge still on).
+    if (le.followUp !== undefined && checkKeys(le.followUp, ['dayOffset', 'effect', 'effects', 'alt'], where + '.followUp')) {
+      const fu = le.followUp;
+      checkDayOffset(fu.dayOffset, where + '.followUp.dayOffset', 1, 7);
+      checkStr(fu.effect, where + '.followUp.effect', { maxSentences: 1 });
+      checkPlaceholders(fu.effect, where + '.followUp.effect', ['{npc}']);
+      if (typeof fu.effect === 'string' && (/\{player\}/.test(fu.effect) || !/\byou(r)?\b/.test(fu.effect))) err(where + '.followUp.effect', 'it happens to the player: write it to "you", not {player}');
+      checkEffectList(fu.effects, where + '.followUp.effects', { ph: true, min: 1, max: 5 });
+      if (Array.isArray(fu.effects) && !fu.effects.some((e) => isObj(e) && ['playerHp', 'takeItem', 'playerGold'].indexOf(e.op) !== -1)) err(where + '.followUp.effects', 'a threat that comes good costs the player something (playerHp, takeItem or playerGold)');
+      if (checkKeys(fu.alt, ['text'], where + '.followUp.alt', ['effects'])) {
+        checkStr(fu.alt.text, where + '.followUp.alt.text', { maxSentences: 1 });
+        if (fu.alt.effects !== undefined) checkEffectList(fu.alt.effects, where + '.followUp.alt.effects', { ph: true, max: 3 });
+      }
+    }
     if (le.obligation !== undefined) checkObligation(le.obligation, where + '.obligation');
     if (le.obligations !== undefined) {
       if (!Array.isArray(le.obligations) || le.obligations.length !== (le.options || []).length) err(where + '.obligations', 'one per option (null for none)');
@@ -1794,7 +1819,7 @@ function checkObligation(ob, where) {
   checkEffectList(ob.onMiss, where + '.onMiss', { ph: true, min: 1, max: 5 });
   checkEffectList(ob.onMet, where + '.onMet', { ph: true, max: 4 });
   // A missed debt or blackmail bites: money, a thing, health, a door or a price, not just a feeling.
-  const BITES = ['playerGold', 'playerHp', 'takeItem', 'banFrom', 'playerPrice', 'addCondition', 'addMemory'];
+  const BITES = ['playerGold', 'obligationPaid', 'playerHp', 'takeItem', 'banFrom', 'playerPrice', 'addCondition', 'addMemory'];
   if ((ob.kind === 'debt' || ob.kind === 'blackmail') && Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && BITES.indexOf(e.op) !== -1)) err(where + '.onMiss', 'a missed ' + ob.kind + ' costs the player something (' + BITES.join(', ') + ')');
 }
 

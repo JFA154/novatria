@@ -509,7 +509,8 @@ s.test('mock bookkeeper: Say-mode insults by what they say, buying only where it
   assert.deepEqual(mem(r.pay), ['paid me back $40|2']);
   assert.deepEqual([r.give.itemsLost, mem(r.give)], [[r.knife.id], [`gave me ${/^[aeiou]/i.test(r.knife.name) ? 'an' : 'a'} ${r.knife.name.charAt(0).toLowerCase() + r.knife.name.slice(1)}|2`]]);
   assert.deepEqual(r.stealOk.itemsGained, ['Keys']);
-  assert.deepEqual(mem(r.stealBad), ['caught me stealing|3']);
+  // Changed by design in wave 5 (playtest D7): in their words, about the player.
+  assert.deepEqual(mem(r.stealBad), ['Tester tried to steal from me|3']);
   assert.deepEqual([r.lighterBridge.goldDelta, r.lighterBridge.itemsGained], [null, []], 'nobody sells a lighter at the bridge');
   assert.ok(r.beer.goldDelta < 0 && r.beer.itemsGained.length === 0 && /^Had /.test(r.beer.journalEntry), 'a beer is had: ' + JSON.stringify(r.beer));
   assert.ok(r.food.goldDelta < 0 && r.food.hpDelta === 1 && /^Ate /.test(r.food.journalEntry), 'a meal eaten: ' + JSON.stringify(r.food));
@@ -671,7 +672,8 @@ s.test('wave 2, mock narration: no "null" on a card game, no game without a doll
   await page.evaluate(() => Game.State.apply({ effects: [{ op: 'banFrom', locationId: 'loc_low_water', days: 3, byNpcId: 'npc_curtis' }] }));
   await sendText(page, 'I walk to the Low Water');
   const barred = await last();
-  assert.match(barred, /You make your way to the Low Water, but you are not welcome there until day \d+\./, barred);
+  // Changed by design in wave 5: "until Day 9", as the player reads it everywhere.
+  assert.match(barred, /You make your way to the Low Water, but you are not welcome there until Day \d+\./, barred);
   // Say: someone arrives and the plea rolls, and the answer is still told, before the arrival.
   const who = await page.evaluate(() => {
     const st = Game.state;

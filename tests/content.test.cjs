@@ -452,7 +452,9 @@ s.test('the clocks: staggered, each completion true in either order (requires an
   assert.ok(P[0].onComplete.effects.some(e => e.op === 'clockAdjust' && e.factionId === 'fac_nightrun' && e.delta === -2), 'catching Colt sets the Night Run back two');
   // The Night Run's photographs and Carter's money race to the council meeting; both hold after it too.
   assert.equal(N[0].label, 'Turn the swing vote');
-  for (const c of [S[0], N[0]]) assert.deepEqual(c.onComplete.requires, { flagsUnset: ['councilVoted'] });
+  // Changed by design in wave 5 (the round-4 playtest): each also needs the other side not to have got to Royce first.
+  assert.deepEqual(S[0].onComplete.requires, { flagsUnset: ['councilVoted', 'royceTurned'] });
+  assert.deepEqual(N[0].onComplete.requires, { flagsUnset: ['councilVoted', 'royceBought'] });
   // The buy-the-night-shift text holds whether or not the police caught a boat first.
   assert.doesNotMatch(N[1].onComplete.text, /boats cross every night/);
   const od = T.seeds.find(x => x.id === 'seed_overdose');
@@ -500,7 +502,8 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   const E = T.epilogue;
   assert.equal(E.onDay, 21);
   assert.deepEqual(E.orFlagsSet, ['oldBridgeClosed', 'secondInspectionOrdered']);
-  assert.ok(E.branches.length >= 3 && E.branches.length <= 6);
+  // Changed by design in wave 5: up to seven (the open-bridge ending settles the police both ways).
+  assert.ok(E.branches.length >= 3 && E.branches.length <= 7);
   assert.ok(E.branches.some(b => b.when.obligationStatus) && E.branches.some(b => b.when.attitudeAtLeast), 'endings read obligations and attitudes too');
   // The validator refuses a branch that reads a flag nothing sets, and an op the engine does not have.
   const both = 'when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },';
@@ -687,7 +690,8 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
   await quickStart(page, { kinds: ['debt', 'secret', 'promise'] });
   const live = await page.evaluate(() => {
     const S = Game.State, W = Game.World;
-    S.apply({ setTime: { day: 18, phase: 'morning', shorts: 0 }, effects: [{ op: 'setFlag', key: 'councilVoted', value: true }, { op: 'setFlag', key: 'policeDissolutionPassed', value: true }, { op: 'setFlag', key: 'oldBridgeClosed', value: true }] });
+    // Changed by design in wave 5: the meeting is marked held, as its flags say (the council's branch now settles the police thread it decides).
+    S.apply({ setTime: { day: 18, phase: 'morning', shorts: 0 }, eventsFired: ['evt_council_meeting'], effects: [{ op: 'setFlag', key: 'councilVoted', value: true }, { op: 'setFlag', key: 'policeDissolutionPassed', value: true }, { op: 'setFlag', key: 'oldBridgeClosed', value: true }] });
     W.fireEvents({ day: 18, phase: 'morning' });
     const st = Game.state;
     const th = id => { const t = S.thread(id); return `${t.status}/${t.knownToPlayer}`; };

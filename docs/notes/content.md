@@ -652,3 +652,32 @@ The third playtest's R6, R10, R11 and the README's ending. Checked by
   police threads, as the README says.
 - Nadine's hook needs no change: a due event that names a place in town not
   found yet reveals it (engine-world.md, Wave 4).
+
+## Wave 5
+
+The round-4 playtest's Q6, Q9, Q13 and design notes. Checked by
+`tests/validate-town.cjs`; tested in `tests/wave5-fixes.test.cjs`.
+
+- **The ending settles the police both ways** (Q6): the open-bridge ending
+  is two now, a branch for a council vote that ended the police (police
+  thread failed, "Nothing is settled.": it can come before day 21) and the
+  default, which keeps them "for now" (police thread resolved).
+  `seed_after_police_word` is gone. The validator allows seven branches.
+- **The council keeps the police, the thread is resolved** (design note):
+  every meeting branch that keeps the police resolves `thr_police_vote`.
+  The validator lets a town event's branch settle a thread (`settles`).
+- **The swing vote** (design note): "Buy the swing vote" needs
+  `royceTurned` unset and "Turn the swing vote" `royceBought` unset; their
+  alternatives (the vote taken, or the other side got to Royce first) tell
+  Royce taking the note without a word or refusing to be pushed, and never
+  ask for the bridge vote again (Q9: it may be shut).
+- **The repo man's seizure counts** (design note): the title-loan note's
+  `onMiss` takes up to $150 with `obligationPaid` (`"{obligationId}"`),
+  credited against the note.
+- **An enemy follows up** (design note): `LOOSE_ENDS.enemy.followUp`, three
+  to five days after the first beat: two blows (-2 HP, Bruised ribs), a
+  memory; its alt: they pass close and keep walking. The validator checks
+  a `followUp`.
+- **The beating grudge** (Q13) is "gets {player} away from the others for a
+  minute", not "alone after dark" (told in any phase, in a crowd).
+- Q9's plans after the ending are the engine's (engine-world.md, Wave 5).

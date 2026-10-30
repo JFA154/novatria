@@ -352,7 +352,8 @@ s.test('more than about 40 memories go out in several calls, split by person; a 
   assert.equal(r.calls, 2);
   assert.equal(r.res.ok, true);
   assert.equal(r.firstSame, true, 'missing from the reply: left as it was');
-  assert.deepEqual(r.second, [{ turn: 12, text: 'helped me out once', weight: 2 }]);
+  // Changed by design in wave 5 (the fourth review's bug 6): the line keeps the newest day of the memories it came from.
+  assert.deepEqual(r.second, [{ turn: 12, day: 1, text: 'helped me out once', weight: 2 }]);
   assert.ok(r.debug.some(x => /missing from the reply/.test(x)) && r.debug.some(x => /npc_nobody, who was not asked about/.test(x)), r.debug.join(' | '));
   assert.equal(r.res.summaries[0].text, 'Rewrote memories for 5 people: 40 memories became 12.');
 });
