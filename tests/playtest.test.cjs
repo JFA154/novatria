@@ -246,9 +246,20 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   await turn(`/skip to ${plan.favour.locName} in the ${plan.favour.phase}`, 'skip');
   // A loose end's person can be off with the player somewhere else this phase (their seed brought them): they come over.
   await page.evaluate(id => { if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] }); }, plan.favour.id);
+  // The same ask pays less each time in one scene (diminishing returns), so each ask comes in a later phase:
+  // the clock moves on (no turn, no tick) and the person is brought back over if their schedule took them away.
   for (let i = 0; i < 8; i++) {
     const att = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
     if (att >= 60) break;
+    if (i > 0) {
+      await page.evaluate(id => {
+        const P = ['morning', 'afternoon', 'evening', 'night'];
+        const t = Game.state.time;
+        const idx = P.indexOf(t.phase);
+        Game.Pipeline.setClock(P[(idx + 1) % P.length], idx === P.length - 1 ? t.day + 1 : t.day);
+        if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] });
+      }, plan.favour.id);
+    }
     await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
     await turn(`I persuade ${plan.favour.name} to put in a good word for me`, 'persuade');
   }
