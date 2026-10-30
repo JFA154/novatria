@@ -6101,6 +6101,29 @@ function genderWord(word, pronouns, pairs) {
 function genderPhrase(text, pronouns, pairs) {
   return String(text || '').replace(/[A-Za-z][a-z-]*/g, w => { const g = genderWord(w, pronouns, pairs); return g === w.toLowerCase() ? w : (/^[A-Z]/.test(w) ? capFirst(g) : g); });
 }
+/* Wave 8 (the final pass): the word for someone who goes by they, for each
+   pair of GENDERED_WORDS ("spouse of Dewayne Mangum", "child: Mavis"). */
+const THEY_WORDS = { wife: 'spouse', husband: 'spouse', girlfriend: 'partner', boyfriend: 'partner', fiancee: 'fiance', fiance: 'fiance', daughter: 'child', son: 'child',
+  stepdaughter: 'stepchild', stepson: 'stepchild', sister: 'sibling', brother: 'sibling', stepsister: 'stepsibling', stepbrother: 'stepsibling', mother: 'parent', father: 'parent',
+  mom: 'parent', dad: 'parent', momma: 'parent', daddy: 'parent', mama: 'parent', papa: 'parent', stepmother: 'stepparent', stepfather: 'stepparent', grandmother: 'grandparent',
+  grandfather: 'grandparent', grandma: 'grandparent', grandpa: 'grandparent', granddaughter: 'grandchild', grandson: 'grandchild', aunt: "parent's sibling", uncle: "parent's sibling",
+  niece: "sibling's child", nephew: "sibling's child", 'mother-in-law': 'parent-in-law', 'father-in-law': 'parent-in-law', 'sister-in-law': 'sibling-in-law',
+  'brother-in-law': 'sibling-in-law', 'daughter-in-law': 'child-in-law', 'son-in-law': 'child-in-law', widow: 'widowed spouse', widower: 'widowed spouse', 'ex-wife': 'ex-spouse',
+  'ex-husband': 'ex-spouse', girl: 'child', boy: 'child', woman: 'person', man: 'person', lady: 'person', gentleman: 'person', landlady: 'landlord', landlord: 'landlord',
+  waitress: 'server', waiter: 'server', actress: 'actor', actor: 'actor' };
+/* The family words THEY_WORDS gives (a tie ranks and reads as family with them). */
+const THEY_FAMILY = ['spouse', 'partner', 'fiance', 'child', 'stepchild', 'sibling', 'stepsibling', 'parent', 'stepparent', 'grandparent', 'grandchild', "parent's sibling", "sibling's child",
+  'parent-in-law', 'sibling-in-law', 'child-in-law', 'widowed spouse', 'ex-spouse'];
+function familyWord(w) { return FAMILY_RELATIONS.includes(w) || THEY_FAMILY.includes(w); }
+/* A relation word in the form the pronouns of the person it names take
+   (wave 8, the final pass: a tie follows /pronouns): "wife" for she,
+   "husband" for he, "spouse" for they; any other word as it is. */
+function kinWord(relation, pronouns) {
+  const r = String(relation || '');
+  if (!r || !PRONOUNS.includes(pronouns)) return r;
+  if (pronouns !== 'they') return genderPhrase(r, pronouns);
+  return r.replace(/[A-Za-z][a-z-]*/g, w => { const g = THEY_WORDS[w.toLowerCase()]; return g ? (/^[A-Z]/.test(w) ? capFirst(g) : g) : w; });
+}
 /* Words that say what a person is (not who they are to someone: kin words
    in a look are about someone else), for turning a look with new pronouns. */
 const LOOK_WORDS = [['woman', 'man'], ['women', 'men'], ['girl', 'boy'], ['lady', 'gentleman'], ['gal', 'guy'], ['landlady', 'landlord'], ['waitress', 'waiter'], ['actress', 'actor'],
@@ -7620,20 +7643,27 @@ const State = (() => {
      something ({ id, relation }: Dewayne has his wife Mavis), and isTo,
      what this person is to someone ({ id, relation }: Mavis is Dewayne's
      wife). Only people still in the game, each other person once a side,
-     in the order written. */
+     in the order written. Wave 8 (the final pass): a gendered word follows
+     the pronouns of the one it names (kinWord), so after /pronouns Mavis he
+     she is "husband of Dewayne Mangum, son of the late Inez Crocker" and
+     Dewayne has "husband: Mavis Mangum"; the records keep what was written. */
   function tiesOf(n) {
     const has = [];
     const isTo = [];
     if (!n || !current) return { has, isTo };
-    const add = (list, id, relation) => { if (typeof id === 'string' && id !== n.id && npc(id) && !list.some(x => x.id === id)) list.push({ id, relation: relation || null }); };
-    for (const r of Array.isArray(n.relations) ? n.relations : []) if (isObj(r)) add(has, r.npcId, r.relation);
+    const add = (list, id, relation, named) => {
+      if (typeof id !== 'string' || id === n.id || list.some(x => x.id === id)) return;
+      const m = npc(id);
+      if (m) list.push({ id, relation: relation ? kinWord(relation, (named === 'self' ? n : m).pronouns) : null });
+    };
+    for (const r of Array.isArray(n.relations) ? n.relations : []) if (isObj(r)) add(has, r.npcId, r.relation, 'other');
     const c = isObj(n.created) ? n.created : null;
-    if (c && c.relationToNpcId) add(isTo, c.relationToNpcId, c.relation);
+    if (c && c.relationToNpcId) add(isTo, c.relationToNpcId, c.relation, 'self');
     for (const m of current.npcs) {
       if (m === n) continue;
-      for (const r of Array.isArray(m.relations) ? m.relations : []) if (isObj(r) && r.npcId === n.id) add(isTo, m.id, r.relation);
+      for (const r of Array.isArray(m.relations) ? m.relations : []) if (isObj(r) && r.npcId === n.id) add(isTo, m.id, r.relation, 'self');
       const mc = isObj(m.created) ? m.created : null;
-      if (mc && mc.relationToNpcId === n.id) add(has, m.id, mc.relation);
+      if (mc && mc.relationToNpcId === n.id) add(has, m.id, mc.relation, 'other');
     }
     return { has, isTo };
   }
@@ -7653,7 +7683,7 @@ const State = (() => {
     for (const p of ['here', 'away', 'dead']) {
       if (pick) break;
       const g = isTo.filter(x => presenceOf(npc(x.id)) === p);
-      pick = g.find(x => HOUSEHOLD_RELATIONS.includes(x.relation)) || g.find(x => FAMILY_RELATIONS.includes(x.relation)) || null;
+      pick = g.find(x => HOUSEHOLD_RELATIONS.includes(x.relation)) || g.find(x => familyWord(x.relation)) || null;
     }
     const t = pick ? npc(pick.id) : null;
     if (!t) return '';
@@ -15942,7 +15972,7 @@ const Upgrade = (() => {
     return role ? `${n.name} (${role})` : n.name;
   }
   function tieTag(n) {
-    const t = State.tiesOf(n).isTo.find(x => FAMILY_RELATIONS.includes(x.relation));
+    const t = State.tiesOf(n).isTo.find(x => familyWord(x.relation));
     return t ? State.relationPhrase(State.npc(t.id), t.relation) : '';
   }
   /* Version 6, "A full cast": every person is written by hand and the game
@@ -16266,7 +16296,7 @@ const Pipeline = (() => {
      Royce Pittman" (what they are to others), and "wife: Mavis Mangum, boss:
      Royce Pittman" (who their people are), from State.tiesOf. */
   /* Family first (a household relation, then any other), then work and the rest, each kept in the order written. */
-  function tieRank(x) { return HOUSEHOLD_RELATIONS.includes(x.relation) ? 0 : FAMILY_RELATIONS.includes(x.relation) ? 1 : 2; }
+  function tieRank(x) { return HOUSEHOLD_RELATIONS.includes(x.relation) ? 0 : familyWord(x.relation) ? 1 : 2; }
   function byRank(list) { return list.map((x, i) => ({ x, i })).sort((a, b) => tieRank(a.x) - tieRank(b.x) || a.i - b.i).map(o => o.x); }
   /* A name in someone's ties, marked so a late wife is never taken for a
      living one: "the late Ruth Haskins", "Dale Purvis [lives elsewhere]". */
@@ -17926,7 +17956,7 @@ const Pipeline = (() => {
      (else the first part of the role). */
   function personTag(n) {
     if (!n) return '';
-    const rel = isObj(n.created) && n.created.relationToNpcId ? State.relationPhrase(State.npc(n.created.relationToNpcId), n.created.relation) : '';
+    const rel = isObj(n.created) && n.created.relationToNpcId ? State.relationPhrase(State.npc(n.created.relationToNpcId), kinWord(n.created.relation, n.pronouns)) : '';
     const role = rel || String(n.role || '').split(',')[0].trim();
     return role && role !== 'townsfolk' ? `${n.name} (${role})` : n.name;
   }
@@ -23847,7 +23877,7 @@ const App = (() => {
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, presenceOf, absentNote, ageText,
+  Rng, Dice, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })
