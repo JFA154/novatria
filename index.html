@@ -5085,7 +5085,7 @@ const TABLES = {
       effects: [{ op: "addRumour", rumour: { text: "The newcomer {playerName} has been making trouble at {place}.", true: true, sourceNpcId: "{witnessId}", heard: false } }] },
     { text: "{witness} reports it to the police", tiers: ["failure"], kinds: ["stealth", "physical"], needsPerson: true,
       effects: [{ op: "addNews", text: "{witness} reported {playerName} to the police after trouble at {place}.", public: false }] },
-    { text: "{witness} recognizes you from somewhere", tiers: ["failure"], kinds: ["social", "stealth"], needsPerson: true, notDay1: true },
+    { text: "{witness} sees it, and will know your face from now on", tiers: ["failure"], kinds: ["social", "stealth"], needsPerson: true, notDay1: true },
     { text: "{witness} gets it on video", tiers: ["failure"], kinds: ["stealth", "physical"], needsPerson: true },
     { text: "it breaks", tiers: ["failure"], kinds: ["physical"] },
     { text: "you lose your footing and go down hard", tiers: ["failure"], kinds: ["physical"] },
@@ -13369,8 +13369,9 @@ const Api = (() => {
   function joinAnd(list) { return list.length < 3 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`; }
   /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
      line to its first twelve words, merge lines that come out the same (from
-     lists them all), and keep at most six per person (the heaviest, then the
-     newest), in their original order. */
+     lists them all), and keep at most State.MEMORY_MAX per person (the
+     heaviest, then the newest; the cap the real call is given), in their
+     original order. */
   function mockRewrite(packet) {
     return {
       people: (packet.people || []).map(p => {
@@ -13381,7 +13382,7 @@ const Api = (() => {
           const same = lines.find(x => x.text.toLowerCase() === text.toLowerCase());
           if (same) { same.from.push(m.n); same.weight = Math.max(same.weight, m.weight); } else lines.push({ from: [m.n], text, weight: m.weight, at: lines.length });
         }
-        const keep = lines.slice().sort((a, b) => b.weight - a.weight || b.at - a.at).slice(0, 6);
+        const keep = lines.slice().sort((a, b) => b.weight - a.weight || b.at - a.at).slice(0, State.MEMORY_MAX || 12);
         return { npcId: p.npcId, memories: lines.filter(x => keep.includes(x)).map(x => ({ from: x.from, text: x.text, weight: x.weight })) };
       })
     };
