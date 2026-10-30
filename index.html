@@ -22022,9 +22022,11 @@ const UI = (() => {
     return t ? { day: t.day, phase: t.phase } : null;
   }
   function rollNode(r) { return el('p', { class: 'f-item f-roll' }, r.line); }
-  /* A quiet line; the overnight news gets a little more weight than a dice line. */
+  /* A quiet line; the town's news gets a little more weight than a dice
+     line: overnight, and (wave 6 integration) each day a /cheat time jump
+     passed ("Meanwhile in town, Day 4: …"). */
   function quietNode(text) {
-    const m = /^(Overnight in town):\s*/.exec(String(text));
+    const m = /^(Overnight in town|Meanwhile in town(?:, Day \d+)?):\s*/.exec(String(text));
     if (m) return el('p', { class: 'f-item f-quiet f-news' }, el('span', { class: 'f-news-k' }, `${m[1]}: `), String(text).slice(m[0].length));
     return el('p', { class: 'f-item f-quiet' }, text);
   }

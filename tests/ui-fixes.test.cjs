@@ -3184,6 +3184,8 @@ s.test('integration (playtest R7): the feed after a reload (Continue) and after 
   const clock = at(/^quiet: Clock set to Day \d+ · Evening\.$/);
   assert.match(live[clock - 1], /^divider: Day \d+ · .* · Evening$/);
   assert.ok(live.slice(clock).some(t => /^quiet: Meanwhile in town, Day \d+: /.test(t)), 'news of the days the clock passed');
+  // Styled as the overnight news (the label in bold).
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('#feed .f-news .f-news-k')].some(k => /^Meanwhile in town, Day \d+: $/.test(k.textContent))), 'a "Meanwhile in town" line has the news style');
   assert.match(live[live.length - 2], /^input: I look around$/);
   // Continue after a reload draws it all again in the same order.
   await page.reload();
@@ -3195,6 +3197,33 @@ s.test('integration (playtest R7): the feed after a reload (Continue) and after 
   await T('I look around');
   await T('/undo');
   assert.deepEqual(await feedLines(page), live, 'the same order after /undo');
+});
+
+s.test('integration: the engine\'s short /cheat description sits on one 44px row beside the command at 1280 and 740 and on two whole lines at 568; /help shows the long form', async h => {
+  const want = { 1280: 1, 740: 1, 568: 2 };
+  for (const vp of [LAPTOP, { width: 740, height: 375 }, { width: 568, height: 320 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await page.focus('#cmd');
+    await page.keyboard.type('/che');
+    await page.waitForSelector('#ac:not([hidden])');
+    const row = await page.evaluate(() => {
+      const li = document.querySelector('#ac li[data-cmd="/cheat"]');
+      const e = li.querySelector('.ac-desc');
+      return { text: e.textContent, lines: Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight)), h: Math.round(li.getBoundingClientRect().height), cut: e.scrollWidth > e.clientWidth + 0.5 || e.scrollHeight > e.clientHeight + 0.5, beside: e.getBoundingClientRect().left > li.querySelector('.ac-name').getBoundingClientRect().right };
+    });
+    const tag = `${vp.width}: ${JSON.stringify(row)}`;
+    assert.equal(row.text, await page.evaluate(() => Game.Commands.LIST.find(c => c.name === '/cheat').desc), tag);
+    assert.deepEqual([row.lines, row.cut, row.beside], [want[vp.width], false, true], tag);
+    if (want[vp.width] === 1) assert.ok(row.h <= 46, 'one 44px row: ' + tag);
+    if (vp.width === 1280) {
+      await page.fill('#cmd', '/help');
+      await page.press('#cmd', 'Enter');
+      const line = await page.evaluate(() => [...document.querySelectorAll('#feed .help')].pop().textContent.split('\n').find(l => l.startsWith('/cheat')));
+      const help = await page.evaluate(() => Game.Commands.LIST.find(c => c.name === '/cheat').help);
+      assert.ok(help && help.length > row.text.length && line.endsWith(`: ${help}`), line);
+    }
+  }
 });
 
 s.run();
