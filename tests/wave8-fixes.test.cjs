@@ -296,7 +296,7 @@ s.test('6c: after /skip to a place, the mock names each person there once: who w
   assert.doesNotMatch(r.narr, /\barrives?\./, r.narr);
 });
 
-s.test('6d: three due events in one turn are all told by the mock (each at least to its first sentence), so nothing marked done goes untold', async h => {
+s.test('6d: three due events in one turn are all told by the mock (briefly if need be: the blackmail\'s price is named), so nothing marked done goes untold', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   await fast(page);
@@ -314,6 +314,44 @@ s.test('6d: three due events in one turn are all told by the mock (each at least
   assert.equal(r.due, 3);
   assert.equal(r.left, 0, 'all three marked done');
   for (const t of ['Royce Pittman leans over', 'Tammy Lott slides onto the stool', 'names his price for keeping quiet: two hundred dollars']) assert.ok(r.narr.includes(t), `${t} in: ${r.narr}`);
+});
+
+s.test('6d: more due events than a narration holds (six at once over a wait): the mock tells each briefly within the length, and one it has no room for is not marked done but told by the next narration; nothing marked done goes untold', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await fast(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, st = G.state;
+    const texts = [
+      'Royce Pittman leans over and tells you the bridge vote is coming whether anybody likes it or not, and that the Sturdivants have been buying drinks all week.',
+      'Tammy Lott slides onto the stool next to you, taps the bar twice with one long nail, and says Colt Purvis has been asking about you, twice now.',
+      'Loretta Gaddis sets a glass down in front of you, wipes the ring it leaves with the corner of her apron, and says the cook quit again this morning.',
+      'Elbert Tackett tells you, in front of the whole bar, that the ferry used to run until midnight when he was a boy and nobody locked a door.',
+      'Curtis Pruett asks whether you have seen his dog, a brown hound with one white ear and a red collar, and says she has been gone since Sunday.',
+      'Jodie Strayhorn catches your eye from the end of the bar, lifts her chin toward the door, and mouths that she needs a word later tonight.'];
+    texts.forEach((text, i) => { const id = 'seed_t8_many' + i; S.apply({ effects: [{ op: 'plantSeed', seed: { id, cause: 'test', effect: text, trigger: { type: 'day', value: st.time.day }, fired: false, hidden: true, origin: { kind: 'town' } } }], seedsFired: [id], dueAdd: [{ seedId: id, text }] }); });
+    const heads = texts.map(t => t.slice(0, 24));
+    const told = new Set();
+    const turns = [];
+    const take = () => { const n = st.log[st.log.length - 1].narration; heads.forEach((h, i) => { if (n.includes(h)) told.add(i); }); return n; };
+    const phase = st.time.phase;
+    await G.Pipeline.submit('/wait ' + ({ morning: 'afternoon', afternoon: 'evening', evening: 'night', night: 'morning' })[phase]);
+    turns.push({ handed: (G.Pipeline.lastTurn.ctx.due || []).length, narr: take(), left: st.dueEvents.map(d => d.seedId) });
+    for (let i = 0; i < 4 && st.dueEvents.length; i++) {
+      G.Api.Mock.queue('parse', { actionType: 'look', summary: 'Looks', targets: [], needsRoll: false, timeCost: 'instant' });
+      G.Api.Mock.queue('bookkeep', {});
+      await G.Pipeline.submit('I look around');
+      turns.push({ handed: (G.Pipeline.lastTurn.ctx.due || []).length, narr: take(), left: st.dueEvents.map(d => d.seedId) });
+    }
+    const done = texts.map((t, i) => !st.dueEvents.some(d => d.seedId === 'seed_t8_many' + i));
+    return { turns, told: Array.from(told).sort(), done };
+  });
+  const words = t => (t.trim().match(/\S+/g) || []).length;
+  assert.equal(r.turns[0].handed, 6, 'a wait hands them all over');
+  for (const t of r.turns) assert.ok(words(t.narr) <= 90, `${words(t.narr)} words: ${t.narr}`);
+  assert.ok(r.turns[0].left.length > 0, 'some wait for the next narration: ' + r.turns[0].narr);
+  assert.deepEqual(r.done, r.done.map(() => true), 'all told in the end');
+  assert.deepEqual(r.told, [0, 1, 2, 3, 4, 5], 'each one in a narration: ' + r.turns.map(t => t.narr).join(' || '));
 });
 
 s.run();

@@ -1146,7 +1146,9 @@ talking, I can direct it to one person or all."
      and the people its thread links to no longer make it seen wherever the
      player is, only at its own place; the mock gives with "hand", searches
      for "anything" without making it an item, names a skip's crowd once
-     and tells every due event it is handed. The README says `/undo` is for
-     the current sitting and lists what a live session should still check
-     (the newer packets, Say-mode money, how often the name check rewrites,
-     the cost of a turn). Left open: those live checks.
+     and tells the due events briefly, one it has no room for waiting for
+     the next narration instead of being marked done. The README says
+     `/undo` is for the current sitting and lists what a live session
+     should still check (the newer packets, Say-mode money, how often the
+     name check rewrites, the cost of a turn). Left open: those live
+     checks.

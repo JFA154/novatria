@@ -14633,9 +14633,9 @@ const Api = (() => {
     if (away.length) out.push(`${away[0].label} is not here.`);
     if (c.roll) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
-    // Due events (at most two) are always worked in, at the end, told to the player ("you", not their name).
-    // Due events (as many as the engine hands over), told to "you", are always worked in at the end.
-    let due = (c.due || []).map(d => sentence(secondPerson(d && d.text))).filter(Boolean);
+    // Due events, told to the player ("you", not their name), are worked in at the end: every one that fits, the rest waiting (ctx.dueUntold, below).
+    const dueFrom = (c.due || []).filter(d => sentence(secondPerson(d && d.text)));
+    let due = dueFrom.map(d => sentence(secondPerson(d.text)));
     // Say mode: the answer comes before anyone arriving or leaving, so it is never the line cut.
     const lineBudget = Math.max(1, (mode === 'normal' ? (c.moved ? 4 : isSay(c.speech) ? 4 : 3) : 6) - due.length);
     const said = isSay(c.speech) && !c.beat && mode !== 'arrival' ? mockReply(c, lineBudget - out.length) : null;
@@ -14747,13 +14747,41 @@ const Api = (() => {
     /* Never cut inside a sentence (wave 6, the round-5 playtest's D12: the
        wave-5 D8 fix still made "From the holding cell." and "Boyd Teague
        comes up on you from the side.", the blow lost): a due event is told
-       whole, or to its first sentence. Wave 8 (the final pass): never left
-       out, since the engine marks every one handed over as told (three at
-       dawn dropped the third, and the demo never named the blackmail's
-       price): the first goes to its first sentence too, and the narration
-       runs long rather than drop one. */
-    if (words() > limit) due = due.map(t => (/^.*?[.!?](?=\s|$)/.exec(t) || [t])[0]);
+       whole, or to its first sentence. Wave 8 (the final pass): as many as
+       a turn holds (World.MAX_DUE) are told, briefly if need be, before any
+       waits (three at dawn dropped the third while the engine marked it
+       done, and the demo never named the blackmail's price): the first to
+       its first sentence too, then the line that says how the time passed
+       (the feed's divider has the day; the due events say what it brought),
+       then the longest without its middle clauses (mockBrief: the subject,
+       the first verb and the last clause stay), one at a time. One that
+       does not fit waits, and is not marked done: ctx.dueUntold names it,
+       and Pipeline hands it to the next narration (a dawn after many nights
+       can bring six). */
+    if (words() > limit) due[0] = (/^.*?[.!?](?=\s|$)/.exec(due[0]) || [due[0]])[0];
+    const untold = [];
+    const wait = () => { due.pop(); untold.unshift(dueFrom[due.length].seedId); };
+    while (words() > limit && due.length > World.MAX_DUE) wait();
+    const passed = c.timePassed && mode !== 'arrival' ? sentence(c.timePassed.replace(/^the player\b/i, 'you').replace(/\bthey are\b/g, 'you are')) : null;
+    if (words() > limit && due.length && passed && body[0] === passed && !keep.has(body[0])) body.splice(0, 1);
+    while (words() > limit) {
+      const longest = due.map((t, i) => i).filter(i => mockBrief(due[i]) !== due[i]).sort((x, y) => wordCount(due[y]) - wordCount(due[x]) || y - x)[0];
+      if (longest === undefined) break;
+      due[longest] = mockBrief(due[longest]);
+    }
+    while (words() > limit && due.length > 1) wait();
+    if (isObj(c)) c.dueUntold = untold.filter(Boolean);
     return body.concat(due).join(' ');
+  }
+  /* A due event's sentence without its middle (wave 8): "walks up to you,
+     reads your name off a folded paper, and says the money is due" ->
+     "walks up to you and says the money is due"; "told Carter, in front of
+     the whole bar, that ..." -> "told Carter that ...". Never a fragment:
+     the subject, the first verb and the last clause stay. */
+  function mockBrief(t) {
+    return String(t || '')
+      .replace(/^([^,"“]+), [^,"“]+, and (?=[a-z])/, '$1 and ')
+      .replace(/, (?:in front of|in|at|on|with|from|for|by|after|before|under|over|near|behind|across|without|like) [^,"“]*,(?= )/, '');
   }
   /* The memory rewrite (Upgrade), by rule: keep weight 2 and up, cut each
      line to its first twelve words, merge lines that come out the same (from
@@ -17917,6 +17945,13 @@ const Pipeline = (() => {
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
   function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
+  /* The due events the narration told (wave 8, the final pass): all of
+     them, but for those the offline demo had no room for (ctx.dueUntold,
+     set by the mock), which stay due for the next narration. */
+  function toldDue(ctx) {
+    const later = Array.isArray(ctx.dueUntold) ? ctx.dueUntold : [];
+    return later.length ? ctx.due.filter(d => !(d && later.includes(d.seedId))) : ctx.due;
+  }
   async function narrate(ctx) {
     const zoom = roomy(ctx);
     const style = Style.current();
@@ -18499,7 +18534,7 @@ const Pipeline = (() => {
         } else passTime(action.timeCost, opts.cause || 'turn', ctx.shown);
       }
       // Step 11. The due events just narrated are consumed; seeds whose trigger is now met fire and become due events for the next narration.
-      if (ctx.due.length) for (const id of (World.dueNarrated(ctx.due) || {}).revealed || []) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
+      if (ctx.due.length) for (const id of (World.dueNarrated(toldDue(ctx)) || {}).revealed || []) UI.feed.quiet(`Added to the map: ${State.loc(id).name}.`);
       World.fireSeeds({ turn: s.meta.turn, time: nowTime(), locationId: s.player.locationId, movedFrom: ctx.moved ? ctx.moved.fromId : ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: action.targets.slice() });
       // Retry lock (SPEC section 7): a roll set or cleared it in resolve().
       // The locks hold for a place and a phase: a move or a new phase
@@ -18901,7 +18936,7 @@ const Pipeline = (() => {
         const told = await narrate(ctx);
         if (State.current !== s) return { ok: false, reason: 'replaced' };
         if (told.refusal) notice = { text: NOTICES.refused };
-        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(ctx.due); if (s.pendingScene) State.apply({ sceneChangeDone: true }); }
+        else { narration = told.narration; mock = told.mock; if (ctx.due.length) World.dueNarrated(toldDue(ctx)); if (s.pendingScene) State.apply({ sceneChangeDone: true }); }
       } catch (err) {
         console.error(err);
         if (State.current !== s) return { ok: false, reason: 'replaced' };

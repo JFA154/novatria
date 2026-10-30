@@ -640,7 +640,15 @@ mock. Tests: `tests/wave8-fixes.test.cjs`.
   anyone) makes no item ("Anything washed up") and is narrated as a search
   that turns up nothing worth keeping; an arrival or a look names who was
   there ("is here") and who came in during the wait ("comes in") once each,
-  with no "arrive" line after it (after `/skip`); and every due event the
-  engine hands over is told, at least to its first sentence, since each is
-  marked done (three at dawn dropped the third, and the demo never named
-  the blackmail's price).
+  with no "arrive" line after it (after `/skip`); and the due events are
+  told, as many as a turn holds (`World.MAX_DUE`), briefly if need be (three
+  at dawn dropped the third while it was marked done, and the demo never
+  named the blackmail's price): the first to its first sentence, then the
+  line that says how the time passed goes, then the longest loses its
+  middle clauses (`mockBrief`: "walks up to you, reads your name off a
+  folded paper, and says the money is due" -> "walks up to you and says the
+  money is due"). One that still does not fit (a dawn after many nights can
+  bring six) waits: the mock names it in `ctx.dueUntold`, and
+  `Pipeline.toldDue` leaves it out of `World.dueNarrated`, so it is not
+  marked done and the next narration tells it. Nothing marked done goes
+  untold. The real narrator is handed the same events and marks them all.
