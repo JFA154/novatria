@@ -7835,21 +7835,58 @@ const State = (() => {
   }
   /* A thread's status. Only its first resolution (resolvedOnce) earns a
      story point, and, when the player knows the thread, a step of
-     progression (progress); flipping it back and forth earns nothing more. */
+     progression (progress); flipping it back and forth earns nothing more.
+     Wave 7: under a held town event (rewardHold) a thread the player knows
+     keeps the status they are shown, and the new one waits in t.pending
+     (holdField); measured against the status as it is (threadNow). Not
+     held, it is measured against the status shown: a bookkeeper that reads
+     "open" and says "open" again moves nothing held. */
   function setThreadStatus(t, status) {
     if (!THREAD_STATUSES.includes(status)) bad('status must be open, resolved or failed');
-    if (t.status === status) return `${t.id} already ${status}`;
-    const was = t.status;
+    const was = threadNow(t, 'status');
+    const hold = holdsThread(t);
+    if (was === status || (!hold && t.status === status)) return `${t.id} already ${status}`;
     // A thread resolved in a save from before resolvedOnce has been resolved once already.
     if (was === 'resolved') t.resolvedOnce = true;
-    t.status = status;
-    let extra = '';
+    if (hold) holdField(t, 'status', status);
+    else { t.status = status; dropPending(t, 'status'); }
+    let extra = hold ? ` (shown once the news of ${rewardHold} is told)` : '';
     if (status === 'resolved' && t.resolvedOnce !== true) {
       t.resolvedOnce = true;
-      if (rewardHold) { t.rewardHeld = rewardHold; extra = ` (its reward waits for the news of ${rewardHold})`; }
-      else extra = reward(t);
+      if (rewardHold) { t.rewardHeld = rewardHold; extra += ` (its reward waits for the news of ${rewardHold})`; }
+      else extra += reward(t);
     }
     return `${t.id} ${was} -> ${status}${extra}`;
+  }
+  /* Whether the player knows a thread (threadUpdate, threadUpdates): held
+     like the status when a held town event makes it known (wave 7: the
+     ending names the vote threads; they come into the Journal with its
+     news). Returns the applied line, or null when nothing changes. */
+  function setThreadKnown(t, known) {
+    if (holdsThread(t, known)) {
+      if (threadNow(t, 'knownToPlayer') === known) return null;
+      holdField(t, 'knownToPlayer', known);
+      return `${t.id} known ${known} (shown once the news of ${rewardHold} is told)`;
+    }
+    if (t.knownToPlayer === known) return null;
+    t.knownToPlayer = known;
+    dropPending(t, 'knownToPlayer');
+    return `${t.id} known ${known}`;
+  }
+  /* A thread's summary (threadUpdate; threadUpdates with always: written
+     even when it is the same, as before). Held like the status (wave 7).
+     Not held, it is what the player is shown now; a held one still takes
+     its place once its news is told (the council's result, not a line the
+     bookkeeper wrote that evening without knowing it). */
+  function setThreadSummary(t, summary, always) {
+    if (holdsThread(t)) {
+      if (threadNow(t, 'summary') === summary) return null;
+      holdField(t, 'summary', summary);
+      return `${t.id} summary updated (shown once the news of ${rewardHold} is told)`;
+    }
+    if (!always && summary === t.summary) return null;
+    t.summary = summary;
+    return `${t.id} summary updated`;
   }
   /* What a thread's first resolution earns: a story point, and a step of
      progression when the player knows the thread. */
@@ -7873,13 +7910,85 @@ const State = (() => {
   function heldWaits(key) {
     return (Array.isArray(current.news) ? current.news : []).some(x => isObj(x) && !x.seen && (key === 'ending' ? x.epilogue === true : x.eventId === key && x.public !== false));
   }
+  /* Wave 7 (the wave-6 integration's "What remains"): what such an event
+     (or the ending) changes in a thread the player knows, or makes known,
+     is held with its reward: the thread keeps the status, summary and
+     knownToPlayer the player is shown, and the new ones wait in
+     t.pending, a list in the order they happened of
+     { news: the event's id, or 'ending'; status?, summary?, knownToPlayer? }
+     (the council's, then the ending's when a /cheat time passes both: the
+     council's summary shows with its news, the ending's with the ending).
+     releaseRewards shows each one once its news is told, in the same step
+     that earns the held reward, and earns the reward only once no status
+     or knownness is still held, so the Journal, the recap, OPEN and the
+     Resolved line change together. What the player and the narrator see
+     reads the shown fields; what the engine decides by (a resolved thread
+     never moves, a loose end still open) reads threadNow. A thread the
+     player has not been told of, which the change does not make known, is
+     not held (nothing of it is shown). */
+  const PENDING_FIELDS = ['knownToPlayer', 'status', 'summary'];
+  const heldKey = (x, k) => isObj(x) && Object.prototype.hasOwnProperty.call(x, k);
+  function heldList(t) { return isObj(t) && Array.isArray(t.pending) ? t.pending : []; }
+  function hasPending(t, k) { return heldList(t).some(x => heldKey(x, k)); }
+  /* A thread's field as it is, the newest held value included (State.threadNow). */
+  function threadNow(t, k) {
+    const list = heldList(t);
+    for (let i = list.length - 1; i >= 0; i--) if (heldKey(list[i], k)) return list[i][k];
+    return isObj(t) ? t[k] : undefined;
+  }
+  function holdsThread(t, known) { return !!rewardHold && (threadNow(t, 'knownToPlayer') === true || known === true); }
+  /* Held under rewardHold: in the last entry when it waits for the same
+     news, else in a new one. A value the player is already shown, with
+     nothing of it held, needs no holding. */
+  function holdField(t, k, v) {
+    if (t[k] === v && !hasPending(t, k)) return;
+    if (!Array.isArray(t.pending)) t.pending = [];
+    let last = t.pending[t.pending.length - 1];
+    if (!isObj(last) || last.news !== rewardHold) { last = { news: rewardHold }; t.pending.push(last); }
+    last[k] = v;
+  }
+  /* A change not held is newer than anything held of that field. */
+  function dropPending(t, k) {
+    if (!hasPending(t, k)) return;
+    for (const x of t.pending) if (isObj(x)) delete x[k];
+    tidyPending(t);
+  }
+  function tidyPending(t) {
+    if (!Array.isArray(t.pending)) { delete t.pending; return; }
+    t.pending = t.pending.filter(x => PENDING_FIELDS.some(k => heldKey(x, k)));
+    if (!t.pending.length) delete t.pending;
+  }
+  /* What is held whose news is told, shown now, oldest first (known first,
+     then the status, as threadUpdate); an older entry still waiting loses a
+     field a newer one has just shown. Returns " (status resolved, summary
+     shown)", or '' when nothing showed. */
+  function showHeld(t) {
+    if (t.pending === undefined) return '';
+    if (!Array.isArray(t.pending)) { delete t.pending; return ''; }
+    const parts = [];
+    t.pending.forEach((x, i) => {
+      if (!isObj(x) || (typeof x.news === 'string' && heldWaits(x.news))) return;
+      for (const k of PENDING_FIELDS) {
+        if (!heldKey(x, k)) continue;
+        for (let j = 0; j < i; j++) if (isObj(t.pending[j])) delete t.pending[j][k];
+        t[k] = x[k];
+        parts.push(k === 'summary' ? 'summary shown' : `${k === 'knownToPlayer' ? 'known' : k} ${t[k]}`);
+      }
+      t.pending[i] = null;
+    });
+    tidyPending(t);
+    return parts.length ? ` (${parts.join(', ')})` : '';
+  }
   function releaseRewards() {
     const out = [];
     for (const t of Array.isArray(current.threads) ? current.threads : []) {
-      if (!isObj(t) || typeof t.rewardHeld !== 'string' || heldWaits(t.rewardHeld)) continue;
-      const key = t.rewardHeld;
-      delete t.rewardHeld;
-      out.push(`${t.id}: the news of ${key} is told${t.status === 'resolved' ? reward(t) : ', but it is no longer resolved'}`);
+      if (!isObj(t)) continue;
+      const shown = showHeld(t);
+      const key = typeof t.rewardHeld === 'string' ? t.rewardHeld : null;
+      if (key && !heldWaits(key) && !hasPending(t, 'status') && !hasPending(t, 'knownToPlayer')) {
+        delete t.rewardHeld;
+        out.push(`${t.id}: the news of ${key} is told${shown}${t.status === 'resolved' ? reward(t) : ', but it is no longer resolved'}`);
+      } else if (shown) out.push(`${t.id}: the news is told${shown}`);
     }
     return out;
   }
@@ -8146,7 +8255,7 @@ const State = (() => {
   function looseEndThreads(o) {
     return (Array.isArray(current.player.looseEnds) ? current.player.looseEnds : [])
       .filter(le => isObj(le) && le.npcId === o.npcId && (LOOSE_END_OBLIGATIONS[le.kind] || []).includes(o.kind) && le.threadId)
-      .map(le => thread(le.threadId)).filter(t => t && t.status === 'open');
+      .map(le => thread(le.threadId)).filter(t => t && threadNow(t, 'status') === 'open');
   }
   /* An obligation met late (wave 3): its onMet runs, but a memory that says
      it was on time says it was late ("paid the six hundred in full and on
@@ -8247,8 +8356,8 @@ const State = (() => {
     openThread(e) { const t = normaliseThread(e.thread); current.threads.push(t); return `thread ${t.id} opened`; },
     threadStatus(e) {
       const t = needThread(e.threadId);
-      // A clock or an effect never moves a resolved thread (review E4).
-      if (t.status === 'resolved' && e.status !== 'resolved' && THREAD_STATUSES.includes(e.status)) return `no-op: ${t.id} is resolved`;
+      // A clock or an effect never moves a resolved thread (review E4), resolved by news still held too (wave 7).
+      if (threadNow(t, 'status') === 'resolved' && e.status !== 'resolved' && THREAD_STATUSES.includes(e.status)) return `no-op: ${t.id} is resolved`;
       return setThreadStatus(t, e.status);
     },
     addRumour(e) { const r = normaliseRumour(e.rumour); current.rumours.push(r); return `rumour ${r.id} added`; },
@@ -8405,10 +8514,13 @@ const State = (() => {
       const parts = [];
       if (e.status !== undefined && e.status !== null && !THREAD_STATUSES.includes(e.status)) bad('status must be open, resolved or failed');
       // Known first, then the status (wave 5, playtest Q12): a thread made known and resolved at once shows its Resolved line and its gain.
-      if (typeof e.knownToPlayer === 'boolean' && e.knownToPlayer !== t.knownToPlayer) { t.knownToPlayer = e.knownToPlayer; parts.push(`${t.id} known ${e.knownToPlayer}`); }
-      if (e.status !== undefined && e.status !== null) parts.push(t.status === 'resolved' && e.status !== 'resolved' ? `no-op: ${t.id} is resolved` : setThreadStatus(t, e.status));
+      // Under a held town event each waits for its news (wave 7: setThreadKnown, setThreadStatus, setThreadSummary).
+      const known = typeof e.knownToPlayer === 'boolean' ? setThreadKnown(t, e.knownToPlayer) : null;
+      if (known) parts.push(known);
+      if (e.status !== undefined && e.status !== null) parts.push(threadNow(t, 'status') === 'resolved' && e.status !== 'resolved' ? `no-op: ${t.id} is resolved` : setThreadStatus(t, e.status));
       const summary = cleanText(e.summary, 400);
-      if (summary && summary !== t.summary) { t.summary = summary; parts.push(`${t.id} summary updated`); }
+      const said = summary ? setThreadSummary(t, summary) : null;
+      if (said) parts.push(said);
       return parts.join('; ') || `${t.id} unchanged`;
     },
     /* { kind, npcId, text, amount?, dueDay? or dueOffset?, itemName?, onMiss?,
@@ -9549,11 +9661,13 @@ const State = (() => {
       const t = needThread(u.threadId || u.id);
       if (u.status !== undefined && u.status !== null && !THREAD_STATUSES.includes(u.status)) bad('status must be open, resolved or failed');
       const parts = [];
-      // Known first (wave 5, playtest Q12), as threadUpdate.
-      if (typeof u.knownToPlayer === 'boolean' && u.knownToPlayer !== t.knownToPlayer) { t.knownToPlayer = u.knownToPlayer; parts.push(`${t.id} known ${u.knownToPlayer}`); }
+      // Known first (wave 5, playtest Q12), as threadUpdate; held the same way (wave 7).
+      const known = typeof u.knownToPlayer === 'boolean' ? setThreadKnown(t, u.knownToPlayer) : null;
+      if (known) parts.push(known);
       if (u.status) parts.push(setThreadStatus(t, u.status));
       const summary = cleanText(u.summary, 400);
-      if (summary) { t.summary = summary; parts.push(`${t.id} summary updated`); }
+      const said = summary ? setThreadSummary(t, summary, true) : null;
+      if (said) parts.push(said);
       return parts.join('; ') || null;
     });
     /* One segment per faction per day and phase (meta.nudges, saved, so
@@ -9591,7 +9705,7 @@ const State = (() => {
       r.heardDay = s.time.day; // the Journal's Leads ("told you, day 2")
       // A rumour about a thread makes the thread known (design #6).
       const t = typeof r.threadId === 'string' ? thread(r.threadId) : null;
-      if (t && !t.knownToPlayer) { t.knownToPlayer = true; return `${r.id} heard; ${t.id} known`; }
+      if (t && !t.knownToPlayer) { t.knownToPlayer = true; dropPending(t, 'knownToPlayer'); return `${r.id} heard; ${t.id} known`; }
       return `${r.id} heard`;
     });
     one('journalEntry', v => {
@@ -10582,6 +10696,13 @@ const State = (() => {
     if (!Array.isArray(s.dueEvents)) s.dueEvents = [];
     if (!Array.isArray(s.visits)) s.visits = [];
     if (!isObj(s.seen)) s.seen = {};
+    // What a thread holds for its news (wave 7) is kept as saved; a value that is not the right shape is dropped (the thread shows what it has).
+    const heldOk = { status: v => THREAD_STATUSES.includes(v), summary: v => typeof v === 'string', knownToPlayer: v => typeof v === 'boolean' };
+    for (const t of s.threads) {
+      if (!isObj(t) || t.pending === undefined) continue;
+      if (Array.isArray(t.pending)) for (const x of t.pending) if (isObj(x)) for (const k of PENDING_FIELDS) if (heldKey(x, k) && !heldOk[k](x[k])) delete x[k];
+      tidyPending(t);
+    }
     // Pronouns, once, for people saved before records carried them.
     fillPronouns(s, townData || TOWN_DATA);
     // The dead are on no schedule (review E14: a clock that killed someone used to leave them there).
@@ -10721,7 +10842,7 @@ const State = (() => {
     undoDepth: () => undo.length,
     onChange(fn) { listeners.push(fn); },
     debugLog,
-    npc, loc, faction, thread, seed, rumour, entityById, npcsAt, reputationTier, attitudeWord
+    npc, loc, faction, thread, threadNow, seed, rumour, entityById, npcsAt, reputationTier, attitudeWord
   };
 })();
 
@@ -11957,7 +12078,8 @@ const World = (() => {
     for (const [id, n] of entries(c.attitudeAtLeast)) { const p = State.npc(id); if (!p || !(p.attitude >= Number(n))) return false; }
     // Wave 5: attitudeBelow { npcId: n } (they still hold it against the player) and threadOpen [ids] (a loose end not settled yet).
     for (const [id, n] of entries(c.attitudeBelow)) { const p = State.npc(id); if (!p || !(p.attitude < Number(n))) return false; }
-    if (arr(c.threadOpen).some(id => { const t = State.thread(id); return !t || t.status !== 'open'; })) return false;
+    // As it is, a status held for its news included (wave 7: State.threadNow).
+    if (arr(c.threadOpen).some(id => { const t = State.thread(id); return !t || State.threadNow(t, 'status') !== 'open'; })) return false;
     for (const [id, n] of entries(c.clockAtLeast)) if (!(clockProgress(id) >= Number(n))) return false;
     const obl = obligations();
     if (arr(c.obligationOpen).some(id => !obl.some(o => o.id === id && o.status === 'open'))) return false;
@@ -12531,7 +12653,7 @@ const World = (() => {
     const s = st();
     const town = State.town || TOWN_DATA;
     const base = id => { const t = arr(town && town.npcs).find(x => x.id === id); return t && Number.isInteger(t.attitude) ? clamp(t.attitude, -100, 100) : 0; };
-    const tied = id => (s.player.looseEnds || []).some(le => le.npcId === id && (!State.thread(le.threadId) || State.thread(le.threadId).status === 'open'));
+    const tied = id => (s.player.looseEnds || []).some(le => le.npcId === id && (!State.thread(le.threadId) || State.threadNow(State.thread(le.threadId), 'status') === 'open'));
     const effects = [];
     for (const n of s.npcs) {
       if (n.alive === false || n.status === 'dead') continue;

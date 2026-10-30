@@ -269,7 +269,7 @@ s.test('bug 6 / R6: the council resolving a thread while the player is elsewhere
     M.queue('bookkeep', {});
     await P.submit('I look through the shelves for a while');
     const t = S.thread('thr_police_vote');
-    const evening = { phase: st.time.phase, status: t.status, held: t.rewardHeld || null, gained: st.player.progression.length - p0,
+    const evening = { phase: st.time.phase, status: t.status, now: S.threadNow(t, 'status'), held: t.rewardHeld || null, gained: st.player.progression.length - p0,
       feed: [...document.querySelectorAll('#feed > *')].filter(x => x.dataset.w6 !== '1').map(x => x.textContent) };
     for (const x of document.querySelectorAll('#feed > *')) x.dataset.w6 = '1';
     await P.rest();
@@ -277,7 +277,9 @@ s.test('bug 6 / R6: the council resolving a thread while the player is elsewhere
     return { title, evening, morning };
   });
   assert.equal(r.evening.phase, 'evening');
-  assert.equal(r.evening.status, 'resolved');
+  // Changed by design (wave 7): the status the player is shown waits for the news too; the council has settled it.
+  assert.equal(r.evening.status, 'open');
+  assert.equal(r.evening.now, 'resolved');
   assert.equal(r.evening.held, 'evt_council_meeting', 'held for the meeting\'s news');
   assert.equal(r.evening.gained, 0, 'no gain yet');
   assert.ok(!r.evening.feed.some(t => /^Resolved: /.test(t)), r.evening.feed.join(' | '));

@@ -608,3 +608,67 @@ round-5 playtest's R1, R3, R6, R7 and R9. Tests:
   roll (and its narration), so a reroll's "Cheat: crit" comes before the
   roll line after a rebuild, and damage or a natural 20 (`'before'`)
   after it (ui.md, "Integration (wave 6)").
+
+## Wave 7
+
+The wave-6 integration's "What remains": a thread a town event the player
+did not see settles already held its Resolved line, story point and gain
+for the news (`rewardHeld`), but the Journal showed its new status and
+summary at once. Tests: `tests/wave7-fixes.test.cjs`.
+
+- **What the player is shown waits for the news too.** Under `apply(diff,
+  { holdReward })` (World: a town event's id, or `'ending'`), a change to a
+  thread the player knows, or one the change makes known, leaves the
+  thread's `status`, `summary` and `knownToPlayer` as the player had them;
+  the new values wait in `thread.pending`, a list in the order they
+  happened of `{ news: <the event's id, or 'ending'>, status?, summary?,
+  knownToPlayer? }` (`threadUpdate`, `threadStatus`, the `threadUpdates`
+  key, and a loose end's thread an obligation settles: `setThreadStatus`,
+  `setThreadKnown`, `setThreadSummary`). One entry per news: when a
+  `/cheat time` passes the council and reaches the ending, the police
+  vote's status and summary show with the council's "Meanwhile in town"
+  line, and the ending's summary (and the bridge vote, which the ending
+  makes known) with the ending's narration.
+- **Released together.** `releaseRewards` (from `newsSeen`, so the
+  overnight news, a "Meanwhile in town" line, a due event narrated in
+  front of the player, the ending's narration, and an event with no public
+  news at once) first shows every entry whose news is told (`showHeld`:
+  known, then status, then summary; an older entry still waiting loses a
+  field a newer one has just shown), then earns a held reward once its
+  news is told and no status or knownness of that thread is still held. So
+  the Journal's row, the recap's Open line, the narrator's OPEN and the
+  Resolved line change in the same step and cannot diverge. A thread the
+  player attends (the meeting walked into, or its scene narrated after a
+  `/cheat time` there) is held only until that narration, in the same
+  turn.
+- **Who reads what.** Everything the player or the narrator sees reads the
+  shown fields, unchanged: the Journal, `/recap`, OPEN, LOOSE ENDS, the
+  bookkeeper's THREADS line, the People card, the mock chronicle.
+  `State.threadNow(t, field)` is the field as it is (the newest held
+  value, else the shown one), for what the engine decides by: a resolved
+  thread never moves (`threadStatus`, `threadUpdate`), a loose end's thread
+  still open (`looseEndThreads`; World's `threadOpen` condition and the
+  drift's `tied`).
+- **Changes that are not held.** Measured against what the player is shown:
+  a bookkeeper that reads "open" and says "open" moves nothing held. A
+  status or knownness that differs (an effect, the bookkeeper, a rumour
+  heard) is newer and drops what was held of that field. A summary not
+  held is shown now and a held one still takes its place with its news
+  (the council's result, not a line the bookkeeper wrote that evening
+  without knowing it). A thread the player has not been told of, which the
+  change does not make known, is not held (its reward still is, as in
+  wave 6).
+- **Saved with the thread**: `/undo` and a reload hold it the same way;
+  `State.load` drops a held value of the wrong shape (a status that is not
+  open, resolved or failed, a summary that is not text, a list that is not
+  one). A game saved under wave 6 with a thread already showing what an
+  unseen event did keeps showing it (its old summary is gone; nothing to
+  migrate).
+- **Not changed**: the narrator's TOWN NEWS line is the town's last five
+  public items, heard or not (as before), so someone in a scene may still
+  talk about the meeting the evening it happened; the thread itself waits
+  for the morning's news.
+- Changed by design: `tests/wave6-fixes.test.cjs` (bug 6 / R6: the
+  evening's shown status is `open`, `threadNow` is `resolved`) and
+  `tests/content.test.cjs` (the ending's thread statuses read once the
+  ending is told).

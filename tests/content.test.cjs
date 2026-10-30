@@ -695,9 +695,12 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
     W.fireEvents({ day: 18, phase: 'morning' });
     const st = Game.state;
     const th = id => { const t = S.thread(id); return `${t.status}/${t.knownToPlayer}`; };
+    // Changed by design (wave 7): what the ending says of a thread (and that the player knows it) shows once the ending is told.
+    const before = { bridge: th('thr_bridge_vote'), police: th('thr_police_vote') };
+    S.apply({ newsSeen: 'ending' });
     const out = {
       ending: (st.news.find(n => n.epilogue) || {}).text || '',
-      bridge: th('thr_bridge_vote'), police: th('thr_police_vote'),
+      before, bridge: th('thr_bridge_vote'), police: th('thr_police_vote'),
       planted: st.seeds.filter(x => /^seed_after_/.test(x.id)).map(x => x.id).sort()
     };
     // Six days on, the county takes over: the aftermath seed fires on its day.
@@ -708,6 +711,7 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
     return out;
   });
   assert.match(live.ending, /^The barriers are up on the old bridge, and the town police are finished at the end of the month/);
+  assert.deepEqual(live.before, { bridge: 'open/false', police: 'open/false' }, 'not before the ending is told');
   assert.equal(live.bridge, 'failed/true');
   assert.equal(live.police, 'failed/true');
   assert.deepEqual(live.planted, ['seed_after_bar_for_sale', 'seed_after_deputy', 'seed_after_wade_river']);
