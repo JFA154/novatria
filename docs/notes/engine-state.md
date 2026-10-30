@@ -504,3 +504,47 @@ the third playtest's R5 and R9 and its design notes. Tests:
   happen." A re-read of a current game changes nothing.
 - Dead: the `typeof State.x === 'function'` guards in Api, Pipeline and
   World (every function exists), the stale "beside DWELLING_TYPES" comment.
+
+## Wave 5
+
+The fourth code review's risks on the State side and the round-4
+playtest's Q3, Q5, Q11, Q12 and design notes. Tests:
+`tests/wave5-fixes.test.cjs`.
+
+- **A failed ask settles nothing with that person only** (review risk):
+  `apply` takes `opts.asked`, the one the turn's social roll was against
+  (Pipeline's `ctx.rollNpcId`); said to everyone, a failed roll refuses an
+  `obligationsSettled` for them alone, not for everyone present. Without
+  `asked` the wave-4 rule stands (aimed at them, or alone with the player).
+- **Memories carry the kind of turn** (playtest Q3): `remember` stamps
+  `act` (`MEMORY_ACTS`: attack, steal, talk, persuade, deceive,
+  intimidate) from the turn's action type; `checkMemories` keeps it, and
+  the memory rewrite keeps it when every source agrees, with the newest
+  `day` of its sources (review bug 6).
+- **`obligationPaid`** (effect op, the playtest's design note):
+  `{ id, amount, take? }` credits money toward a debt or blackmail (`paid`,
+  at most what is still owed); `take: true` takes it from the player's cash
+  first (what there is) and credits what it took; paid in full it is met
+  (late when missed). An obligation's own `onMiss` and `onMet` can name
+  `"{obligationId}"`, filled when it is made: the repo man's `$150` is now
+  credited against the title-loan note. `tests/validate-town.cjs` knows it.
+- **Known before resolved** (playtest Q12): `threadUpdate` and
+  `threadUpdates` apply `knownToPlayer` before the status, so a thread made
+  known and resolved at once earns its progression (the Resolved line, the
+  gain).
+- **A shop that is also a home** (playtest Q11): `restQuality` gives the
+  bed of someone who lives there only when they are there now or there
+  tonight (`npcsAt(l, 'night')`): Hollis fishes at the landing at night, so
+  his pawn shop is no couch then.
+- **News that waits for its narration** (review risk): `newsWaits(item)`
+  is true while a due event with the item's `eventId` is still to be told
+  wherever the player is (not a town event's scene, told only at its
+  place); `newsSeen 'public'` leaves such items, and "Overnight in town"
+  skips them.
+- **Next-phase dates**: `addNews` takes a day up to the next phase (the
+  morning after a night), so a walk at night into a morning event dates its
+  news to that morning.
+- **One /undo for a turn and its ending** (playtest Q5): `joinSnapshot(snap)`
+  drops the ending turn's own snapshot once it is told, when a step lies
+  under it.
+- **"until Day N"** (round-4 QA): `absentNote` for someone hurt.

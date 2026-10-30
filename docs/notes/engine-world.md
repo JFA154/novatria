@@ -478,3 +478,70 @@ Tests: `tests/wave4-fixes.test.cjs`.
   told in that narration, and a memory (weight 2). The count starts again.
 - **The tackle box** (playtest R10): its seed's `placeItem` leaves it where
   the player found it (the landing or the old bridge).
+
+## Wave 5
+
+The fourth code review's bugs 5, 6 and 8 and its World and Town risks; the
+round-4 visual QA's /cheat time item; the round-4 playtest's Q3, Q4, Q8,
+Q9, prose items and design notes. Tests: `tests/wave5-fixes.test.cjs`.
+
+- **What a weapon is** (review bug 5): `Town.weaponOf` reads a maker
+  before it splits a name ("Smith & Wesson", "Heckler & Koch"); the head
+  ends before "for", "from", "to", "in", "on" ... ("a postcard from
+  Winchester", "a deck of cards for blackjack", "a knife in a sheath"); a
+  calibre, gauge or maker is a gun only as the whole head, with a maker or
+  a model beside it ("Colt .45", "Sig Sauer P226", "Remington 870", "45
+  ACP", "30-06"); a part after a comma that only gives a measure describes
+  the part before ("Copper wire, 18 gauge"); a box, case, belt or rounds
+  of a calibre is ammunition ("Box of 9mm"). New gun words: sawed-off,
+  sawn-off, six-shooter, six-gun, scattergun (and penknife). A maker that is
+  the whole name ("a Remington") stays a gun, as the design says.
+  `guessKind` makes a gun by maker and model a thing, not a person named
+  Smith. `harmlessHead` and `qualifiedHere` share `wordBefore`.
+- **Arrival events** (review bug 8 and risk): `eventsOnArrival` runs that
+  phase's clock steps first (`clocksAhead`: roll, clock seeds, completions,
+  read at the destination), so a walking-in player gets the branch a player
+  already there would; `flags.clocksAhead` ("day.phase") tells that tick
+  not to run them again, and what they told waits for it. The event's news
+  is dated to the arrival's day and phase.
+- **/cheat time catches up** (round-4 QA): `catchUp({ day, phase })` fires
+  what the jump passed in the order it would have come: a seed due on a
+  day (dated that morning) and a town event (dated its own day and phase),
+  then the ending. `fire(sd, when)` dates a seed's news.
+- **A public grudge or favour** (review risk): its news carries the seed's
+  id (`eventId`), and its due event too; it is seen once the due event is
+  narrated (`dueNarrated`), and told overnight if that due event is dropped
+  untold (its person arrested first).
+- **Grudges by the turn** (playtest Q3): `memoryKind` reads the memory's
+  `act` first (an attack is violence, a theft theft, words an insult); a
+  memory without one is read by its words, an insult's first ("called me a
+  thief", "said I", "told me to beat it"). Exported for tests.
+- **Rough nights** (review risk, playtest Q4 and its design note):
+  `sleptRough` counts nights in a row at the same public place
+  (`flags.roughNights`, `roughAt`, `roughDay`); a bed, a night not slept
+  (a /wait, the cell) or another place starts again, and an arrest sets it
+  to 0. A place someone lives in is not public for this unless the one who
+  lives there is the police (the Low Water is Loretta's; Town Hall is the
+  chief's station). The first time the chief tells the player to move
+  along; the next (`flags.movedOn`) he writes a `$25` fine and takes it, or
+  what cash there is (`ROUGH_FINE`); the memory says which.
+- **Plans told while the player sleeps** (playtest Q8): a completion done in
+  front of a player who slept, waited or skipped through it
+  (`TOLD_CAUSES`) is a due event at their place, told by the narration
+  that follows, not a bare quiet line.
+- **After the ending** (playtest Q9): once `flags.epilogueShown` is set the
+  clocks do not roll, and a clock filled anyway completes as nothing ("after
+  the ending: nothing comes of it").
+- **Homes named in what is told** (review risk): `revealNamedPlaces` reads
+  a place's name, or another name of its own (a capital or a possessive:
+  "the pastor's house", "the Haskins place") that no other place holds;
+  never a plain one ("the apartment", "the white house").
+- **Conditions**: `attitudeBelow { npcId: n }` and `threadOpen [ids]`.
+- **An enemy loose end comes good** (design note): the kind's `followUp`
+  (content) is planted when the first beat fires, three to five days on
+  (picked from the day and the person, no dice drawn), with `requires`
+  `{ threadOpen: [the loose end's thread], attitudeBelow: { them: 0 } }`;
+  it brings them to the player (origin `loose_end`); its `alt` when it does
+  not hold.
+- Prose: "Missed: … (due Day 7)."; `{place}` in an effect is the place as
+  said inside a sentence ("after trouble at the Riverview Motor Court").

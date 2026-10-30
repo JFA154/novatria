@@ -290,7 +290,8 @@ s.test('a loose end\'s obligation rides on its seed with placeholders filled, an
   assert.equal(r.promiseEffects[0].npcId, r.promiseNpc);
   assert.equal(r.promiseEffects[0].text, 'Deliver the letter for Tester');
   assert.equal(r.promiseEffects[0].itemName, 'Letter');
-  assert.equal(r.enemyEffects, null, 'no obligation, no effects');
+  // Changed by design in wave 5: no obligation, only the follow-up its first beat plants (what it threatens, some days on).
+  assert.deepEqual((r.enemyEffects || []).map(e => e.op + ':' + /_due$/.test(e.seed && e.seed.id)), ['plantSeed:true'], 'no obligation, only the follow-up');
   assert.equal(r.fireDay, 3);
   assert.equal(r.obligation.dueDay, 6);
   assert.equal(r.obligation.createdDay, 3);
@@ -453,8 +454,8 @@ s.test('npcFates: present people only, one a turn, dead/arrested/gone after a su
   assert.deepEqual(r.hurt, ['free', r.hurt[2] + 2, r.hurt[2]]);
   assert.equal(r.here, false, 'not where their schedule had them');
   assert.deepEqual(r.atHome, [true, true, true, true], 'at home every phase');
-  // "Until day N" is the day it ends (integration, wave 3): the day they are about again, as for a ban.
-  assert.match(r.note, new RegExp(`^hurt and laid up at .+ until day ${r.hurt[1]}$`));
+  // "Until Day N" is the day it ends (integration, wave 3): the day they are about again, as for a ban. Changed by design in wave 5: "Day" as everywhere the player reads it.
+  assert.match(r.note, new RegExp(`^hurt and laid up at .+ until Day ${r.hurt[1]}$`));
   assert.equal(r.backDay, r.hurt[1]);
   assert.equal(r.back, '');
   assert.deepEqual(r.dead, [0, false, 'dead', false]);

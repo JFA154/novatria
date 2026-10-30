@@ -1960,7 +1960,8 @@ s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the en
   assert.ok(r.meta.includes(`Banned you from ${r.bar.replace(/^The /, 'the ')} until Day ${r.day + 3}`), r.meta);
   // The day they are about again (hurtUntilDay), the same day as the engine's note (changed by design at the wave-3 integration).
   assert.ok(r.meta.includes(`Hurt until Day ${r.day + 2}`), r.meta);
-  if (/until day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until day ${r.day + 2}`), 'the same day as the engine\'s note: ' + r.note);
+  // Changed by design in wave 5: the engine's note says "Day" too.
+  if (/until Day \d+$/.test(r.note)) assert.ok(r.note.endsWith(`until Day ${r.day + 2}`), 'the same day as the engine\'s note: ' + r.note);
   // Changed by design in wave 4: the place as said in a sentence ("the Low Water").
   assert.equal(r.seen, `Last seen: ${r.bar.replace(/^The /, 'the ')}, Day ${r.day} · Evening`);
   assert.match(r.grown, /: \+1 Wits/);

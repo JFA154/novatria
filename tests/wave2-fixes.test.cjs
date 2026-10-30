@@ -928,7 +928,8 @@ s.test('hurt: State.isHurt is true through the day before hurtUntilDay; they are
   });
   assert.deepEqual([r.until, r.today, r.next, r.back], [2, true, true, false]);
   // Changed by design at the wave-3 integration: "until day N" is the day it ends (about again), as a ban's is (welcome again).
-  assert.ok(r.note.endsWith(`until day ${r.about}`), r.note);
+  // Changed by design in wave 5: "until Day N", as the player reads it everywhere.
+  assert.ok(r.note.endsWith(`until Day ${r.about}`), r.note);
 });
 
 s.test('commands and wording: /load and /save take a name; "You are already at the Low Water" (no capital The mid-sentence)', async h => {

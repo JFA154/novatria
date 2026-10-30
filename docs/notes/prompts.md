@@ -523,3 +523,50 @@ The third code review's bugs 2 and 3 and the invented-name middle ground
   says a word." and "Whoever calls, she answers." were a hard invented name
   (a paid rewrite) since wave 3. "Silence answers." and "Bartender nods."
   stay hard, as before.
+
+## Wave 5
+
+The fourth review's bug 2 and its name risks (Style), the round-4
+playtest's sentence-start names, and the demo items D6 to D9 and the QA's
+copy item. Tests: `tests/wave5-fixes.test.cjs`.
+
+### Style.nameHits
+
+- **Who "says" it** (review bug 2): `saidByPerson` reads the head word of
+  the clause before the verb, past the words between ("Royce finally
+  says", "Everybody here says": `SAY_FILLER`, any -ly word) and before what
+  places the speaker ("The woman at the register", "An old man by the
+  door", "The sign that hangs over the door": `SUBJECT_CUTS`), a clause set
+  off by commas left out. It is a person unless that head word is a thing
+  (`SAYING_THINGS`: sign, card, label, note, cap, the radio, a text ...).
+  "say" marks too ("Folks say Darnell"), and "says that Darnell". A run
+  after a thing's "says" stays soft ("The card says Happy Birthday").
+- **Titles and streets** (review risk): Miz, Lieutenant, Lt, Detective,
+  Nurse, Old, Junior, Senior, Jr, Sr are allowed and mark a name; "Front
+  St." reads as Front Street (St, Ave, Rd, Blvd; the period stays at a
+  sentence end).
+- **Makers and people**: two unknown words after "by" are a maker's
+  ("something by Patsy Cline", soft) unless "by" follows a doer's word
+  ("beaten by Earl Hux": `PASSIVE`, -ed, -en); "the late", "a certain",
+  "notorious", "infamous" make a person (`PERSON_ADJ`). "down", "past",
+  "along" and "through" still mark ("He walks past Earl Hux" is hard).
+- **Brands at a sentence start** (round-4 playtest): a run followed by what
+  a thing does (`THING_AFTER`: plays, costs, tastes, "is cheap", "is on
+  the jukebox") is soft ("Red Seal is cheap here.", "Conway Twitty plays on
+  the radio."); "Silence", "Laughter", "Thunder", "Static", "Music",
+  "Applause", "Quiet", "Rumor", "Gossip" are `COMMON`.
+- `PERSON_SUBJECTS` is gone (a speaker is a person by default).
+
+### The mock (demo only)
+
+- D6: "I give Hollis $200" with $45: nothing is handed over (the narration
+  says "come up short").
+- D7: a failed theft is remembered as "Tester tried to steal from me", which
+  the recap reads as "remembers you tried to steal from him"
+  (`prompts-fixes` follows, changed by design).
+- D8: a due event is never cut mid-sentence: its first clause only when that
+  is a whole sentence, else later ones go whole.
+- D9: a thing given is not counted ("takes it", "looks it over and keeps
+  it").
+- "until Day 9" for a barred walk (`prompts-fixes` follows, changed by
+  design).

@@ -666,7 +666,8 @@ s.test('town data passes validation and every content constant has the contract 
   assert.deepEqual(r.loose, ['debt', 'enemy', 'lost', 'promise', 'secret']);
   for (const le of r.looseShape) {
     // What the loose end binds the player to (obligation, obligations: CONTRACTS section 4).
-    assert.deepEqual(le.k.filter(k => !['obligation', 'obligations'].includes(k)), ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
+    // followUp (wave 5, changed by design): what the first beat threatens, some days on.
+    assert.deepEqual(le.k.filter(k => !['obligation', 'obligations', 'followUp'].includes(k)), ['label', 'link', 'options', 'seed'], 'newNpc is retired: every loose end links to the cast');
     assert.deepEqual(le.seed, ['dayOffset', 'effect', 'trigger']);
     assert.ok(le.link);
   }

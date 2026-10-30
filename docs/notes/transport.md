@@ -688,3 +688,61 @@ and design notes. Tests: `tests/wave4-fixes.test.cjs`.
   `UI.feed.rewriting`, `Upgrade.newer`, `App.flushNotes`), and with them
   `NOTICES.readOnly`, which nothing showed: the read-only toast is the
   UI's. A rewrite always dims the first draft.
+
+## Wave 5
+
+The fourth code review's bugs 1, 3, 4 and 7 and its turn-side risks, the
+round-4 visual QA's /cheat items, and the round-4 playtest's Q1, Q2, Q5,
+Q7, Q8, Q10, Q13 and prose items. Tests: `tests/wave5-fixes.test.cjs`.
+
+### Turns
+
+- **Money in Say mode** (review bug 1, playtest Q1 and Q2): money that goes
+  to the one spoken to is a payment toward what is owed them, or a gift,
+  unless the parser read a buy or the line plainly buys something
+  (`BUYING_WORDS`: "gimme", "I'll take", "one of those", "a beer", "how
+  much for" ...). Words that pay what is owed (`PAYING_WORDS`) are never a
+  purchase, and a parsed give never is. `GIVING_WORDS` is gone: giving is
+  the default.
+- **The sixth instant** (review bug 3): `arrivalPhase(cost, counts)` lands
+  an instant that makes up a short where that short does (not for the
+  narration of time passed), so `ctx.landing` and a brought visitor's
+  second visit follow it.
+- **Whom the roll was against** (`ctx.rollNpcId`) goes to `State.apply` as
+  `asked` (review risk: a failed ask said to everyone).
+- **A theft from someone not here** (playtest Q10) rolls nothing
+  (`ctx.noRoll`: "the one the player means to steal from is not here").
+- **The divider first** (playtest Q7 and Q8): the tick's quiet lines wait
+  (`heldNotices`) and print after the new day's divider, then "Overnight in
+  town", on every turn that runs into a new phase (an arrest too).
+- **The ending** (review bug 4, playtest Q5 and the prose item): `settle`
+  tells a noted ending only while it is still unseen in the news, and
+  `/undo` calls `Pipeline.forgetEnding()`; the ending's own snapshot is
+  joined to the turn before it (one /undo takes both back); a turn that
+  brings the ending holds its Resolved lines and its recap
+  (`afterEnding`) until the ending is narrated: narration, Resolved lines,
+  recap, then "This is one ending." A /cheat time that reaches the ending
+  holds what it resolved the same way (`holdForEnding` keeps the earliest
+  mark); one that does not prints its Resolved lines at once (the council
+  keeping the police resolves that thread). `forgetEnding` drops what is
+  held.
+- **/cheat time** (round-4 QA): `World.catchUp` fires the seeds and the
+  events the jump passed in order, each dated to its own day; an event at
+  the player's own place as the clock lands on it is the next narration's
+  scene, not a "Meanwhile in town" line (review risk). The result lists
+  `seeds` too.
+- **Overnight news** skips an item whose due event is still to be told
+  (`State.newsWaits`).
+- OUTCOME of an accused card player: "they end up out on Front Street"
+  (playtest Q13).
+
+### The recap
+
+- Curly apostrophes (review bug 7): `recapReason` reads "I’m" as "I'm".
+
+### Commands
+
+- `/undo` forgets a noted ending.
+- The `/cheat` row: args "[outcome or time <phase> [day]]", "Cheat: redo
+  the last roll (success, partial, fail, crit, fumble or 1-20), or set the
+  clock" (round-4 QA).

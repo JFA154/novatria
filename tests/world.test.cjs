@@ -191,7 +191,9 @@ s.test('faction clocks advance over several days; a completed clock changes the 
       if (c && c.active >= 0) c.filled = Math.max(0, Math.min(c.segments, c.filled + e.delta));
     }
     assert.deepEqual(others.map(c => [c.active, c.filled]), held.map(c => [c.active, c.filled]), 'the other factions were held still but for the completion\'s own clockAdjust');
-    const noticed = quiet.some(q => q.startsWith(plan.text.slice(0, 120)));
+    // Changed by design in wave 5 (playtest Q8): over a /wait the completion in view is told by the /wait's narration (a due event there), not a bare quiet line.
+    const told = (await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'narrate').slice(-2).map(c => (/^DUE EVENT: .*$/m.exec(c.text || '') || [''])[0]).join('\n'))).includes(plan.text.slice(0, 120));
+    const noticed = quiet.some(q => q.startsWith(plan.text.slice(0, 120))) || told;
     if (isTarget && plan.inView) assert.ok(noticed, 'a completion in view gets a quiet notice');
     if (!isTarget) assert.ok(!noticed, 'an off-screen completion is silent');
     if (isTarget) {
