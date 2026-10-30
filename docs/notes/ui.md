@@ -605,3 +605,17 @@ only with `UI_SHOTS` set.
   not play right here."
 - ⋯: "on a phone at the end of the tab row" → add "(beside the Do / Say
   toggle while you type)".
+
+## Integration (wave 3)
+
+- "Until Day N" is the day it ends, for a hurt as for a ban: the People
+  card says "Hurt until Day N" with N = `hurtUntilDay` (about again on Day
+  N), the same day as `State.absentNote` ("laid up … until day N") and as
+  "Banned you from the Low Water until Day 9" (welcome again on Day 9).
+  This replaces N15's last-day form above; `ui-fixes.test.cjs`' People
+  and copy tests follow (changed by design).
+- `/help` is styled by `.f-notice.help` (pre-line, body text colour), no
+  inline style. Commands help in the ⋯ list closes the list (focus back on
+  ⋯) and runs `Commands.run('/help')`; it no longer puts "/" in the box.
+  The ⋯ test follows (changed by design) and still checks the "/" list's
+  descriptions on two lines on a phone.

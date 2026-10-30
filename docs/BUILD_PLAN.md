@@ -1000,3 +1000,25 @@ talking, I can direct it to one person or all."
      - Left open: the live grammar probe for `record_changes` and a
        recorded live opening scene (both need a real API call); a rough
        night in a public place costs nothing beyond the HP.
+   - **Wave 3** (30 Oct 2026). The second code review (10 bugs, its risks
+     and dead code), the second playtest (N1 to N16, D1 to D5) and the
+     second visual, mobile and accessibility QA (11 defects) were fixed by
+     two agents in parallel (engine with content and the mock; UI), then a
+     third integration pass. Notes: each `docs/notes/*` file's "Wave 3"
+     section; tests: `tests/wave3-fixes.test.cjs` and the "wave 3" tests
+     in `tests/ui-fixes.test.cjs`. A purchase is never a payment, a late
+     payment is remembered late, and a loose end's obligation met closes
+     its thread; "until Day N" is the day a ban or a hurt ends (welcome or
+     about again) in State, the absent note, the People card, the Places
+     sheet and the narrator, so an accusation at cards is tonight only;
+     narrator-only commands fire what is due first (the morning's visitor
+     is in that `/rest`), a long wait is one scene change, and a walk's end
+     brings, names and introduces the destination's people; an arrest
+     tells nothing else and takes the player's weapons (a grease gun is
+     none); searches always roll, fights take the target's threat, one
+     "Resolved" line per thread, `/help`; names at a sentence start and
+     soft brands, possessive places, the recap's reasons. The UI holds the
+     focus on the control that started a turn, puts the banner under
+     modals and Undo outside the live region, names place types, lists
+     only known exits and fills the view with the expanded map. Left open:
+     as in wave 2.

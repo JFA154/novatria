@@ -600,3 +600,9 @@ turn items. Tests: `tests/wave3-fixes.test.cjs`.
   list as a notice (`Commands.helpText()`, kind `help`, one line each);
   `shell.test.cjs`'s list gains `/help` (changed by design). The UI's
   "Commands help" may call `Commands.run('/help')`.
+
+## Integration (wave 3)
+
+- The UI's Commands help runs `Commands.run('/help')`; the notice's
+  line breaks come from `.f-notice.help` in the stylesheet (the inline
+  `white-space` is gone).

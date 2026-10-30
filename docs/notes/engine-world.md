@@ -414,3 +414,10 @@ Dice side, its dead code, and the second playtest's engine items. Tests:
   caller; `engine-world-fixes.test.cjs` sets the same lock through `lockFor`,
   changed by design); a lock key never holds ";" (the separator of
   `meta.lastRollKey`).
+
+## Integration (wave 3)
+
+- An arrest takes what `isWeapon` calls a weapon: `WEAPON_RE`, unless the
+  word before it makes it ordinary as plausibility reads it
+  (`Town.harmlessHead`, now exported): a grease gun, peanut shells or ink
+  cartridges stay with the player.

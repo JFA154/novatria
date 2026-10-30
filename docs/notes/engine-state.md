@@ -450,3 +450,11 @@ Tests: `tests/wave3-fixes.test.cjs`.
   motel night as before.
 - `addNews` keeps an ending's text to 1,500 characters and cuts other news
   at a word with "…" (`clipWords`, a helper beside `cleanText`).
+
+## Integration (wave 3)
+
+- `absentNote` for someone laid up names `hurtUntilDay`, the day they are
+  about again ("hurt and laid up at the Mangum House until day 5": about on
+  day 5), as a ban's "until day N" is the day the player is welcome again.
+  This replaces the coordinator item (c) form above (the last day laid up);
+  `wave2-fixes.test.cjs`' hurt test follows (changed by design).
