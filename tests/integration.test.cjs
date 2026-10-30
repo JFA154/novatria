@@ -11,6 +11,8 @@
    keeping one still owed, playerAt and the council's attendance branch, the
    witness complication and the mock's memory cap, one read-only toast, and
    Stop while the town is updated.
+   Wave 4: the Character tab's Grown line reads the entry's own gain, as the
+   quiet line does.
    Mock mode; ids come from Game.data and Game.state, never one town. */
 const assert = require('assert/strict');
 const { suite, quickStart, sendText } = require('./helpers.cjs');
@@ -423,6 +425,32 @@ s.test('wave 2: a read-only tab says so once per refused action (the UI guard an
   const r = await page.evaluate(() => { const e = Game.state.log[Game.state.log.length - 1]; return { input: e.input, changes: e.changes, narration: !!e.narration, box: document.getElementById('cmd').value }; });
   assert.deepEqual(r, { input: 'I look at the counter', changes: 'not recorded', narration: true, box: '' });
   assert.ok((await quiets(page)).some(q => /^Stopped while the town was being updated/.test(q)));
+});
+
+s.test('wave 4: the Character tab\'s Grown line says what the quiet line said: the entry\'s own gain (+2 max HP once the stat is capped), nothing for a loose end\'s thread; an entry from an older build reads the thread\'s reward', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: ['debt'] });
+  await fast(page);
+  const ids = await page.evaluate(() => {
+    const S = Game.State, st = Game.state;
+    const t = st.threads.find(x => x.reward && Game.data.TOWN_DATA.threads.some(y => y.id === x.id));
+    S.apply({ effects: [{ op: 'threadUpdate', threadId: t.id, knownToPlayer: true }] });
+    st.player.stats[t.reward] = S.LIMITS.statCap;
+    Game.Api.Mock.queue('parse', { actionType: 'talk', summary: 'Talks', targets: [], needsRoll: false, timeCost: 'instant' });
+    Game.Api.Mock.queue('bookkeep', { threadUpdates: [{ threadId: t.id, status: 'resolved' }, { threadId: st.player.looseEnds[0].threadId, status: 'resolved' }] });
+    return { town: t.id, title: t.title, reward: t.reward };
+  });
+  await sendText(page, 'I settle it.');
+  const quiet = (await quiets(page)).filter(t => /^Resolved: /.test(t));
+  const grown = async () => { await page.evaluate(() => Game.UI.openPanel('character')); return page.evaluate(() => { const h3 = [...document.querySelectorAll('#panel-body h3')].find(x => x.textContent === 'Grown'); return h3 ? [...h3.nextElementSibling.querySelectorAll('li')].map(li => li.textContent) : []; }); };
+  const lines = await grown();
+  assert.equal(quiet.length, 2, quiet.join(' | '));
+  assert.deepEqual(lines, quiet.map(q => { const m = /^Resolved: (.*?)\.(?: (.*)\.)?$/.exec(q); return m[2] ? `${m[1]}: ${m[2]}` : m[1]; }), `${quiet.join(' | ')} / ${lines.join(' | ')}`);
+  assert.match(lines[0], /: \+2 max HP$/, 'the capped stat gave max HP, and the sheet says so');
+  // An entry saved before gains were kept (no gain key): the thread's reward, as before.
+  await page.evaluate(() => { for (const e of Game.state.player.progression) delete e.gain; });
+  const old = await grown();
+  assert.equal(old[0], `${ids.title}: +1 ${ids.reward[0].toUpperCase()}${ids.reward.slice(1)}`);
 });
 
 s.run();

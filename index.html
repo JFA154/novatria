@@ -20962,8 +20962,10 @@ const UI = (() => {
         el('h3', null, 'Flaw'), el('p', null, p.flaw || '—'),
         progress.length ? [el('h3', null, 'Grown'), list(progress, g => {
           const t = s.threads.find(x => x.id === g.threadId);
-          const what = t && STATS.includes(t.reward) ? `+1 ${capFirst(t.reward)}` : t && t.reward ? `+1 ${t.reward}` : '+2 max HP';
-          return `${t ? t.title : 'A thread resolved'}: ${what}`;
+          // The entry's own gain, as the quiet line said it ("+2 max HP" when the stat was capped; nothing for a loose end's thread). An entry from a build before gains were kept: the thread's reward.
+          const what = Object.prototype.hasOwnProperty.call(g, 'gain') ? Pipeline.gainText(g.gain)
+            : t && STATS.includes(t.reward) ? `+1 ${capFirst(t.reward)}` : t && t.reward ? `+1 ${t.reward}` : '+2 max HP';
+          return `${t ? t.title : 'A thread resolved'}${what ? `: ${what}` : ''}`;
         }, '')] : null,
         el('h3', null, 'Conditions'),
         list(p.conditions, condition, 'None.'),
