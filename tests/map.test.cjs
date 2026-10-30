@@ -134,7 +134,9 @@ s.test('a closed place is dimmed and struck after a closeLocation effect, and cl
   const p = m.places.find(x => x.id === target);
   assert.ok(p.closed && p.strike && p.struck, 'closed, struck through');
   assert.match(p.aria, /, closed/);
-  assert.equal(await page.evaluate(id => getComputedStyle(document.querySelector(`.map-place[data-loc="${id}"] .map-mark`)).opacity, target), '0.5', 'dimmed');
+  // Dimmed with its own ink (--map-dim, 4.5:1 on the land), not with transparency.
+  const dim = await page.evaluate(id => { const g = document.querySelector(`.map-place[data-loc="${id}"]`); const probe = document.createElement('i'); probe.style.color = 'var(--map-dim)'; document.body.append(probe); const want = getComputedStyle(probe).color; probe.remove(); return { mark: getComputedStyle(g.querySelector('.map-mark')).fill, label: getComputedStyle(g.querySelector('.map-label')).fill, opacity: getComputedStyle(g.querySelector('.map-mark')).opacity, want }; }, target);
+  assert.deepEqual(dim, { mark: dim.want, label: dim.want, opacity: '1', want: dim.want }, 'dimmed');
   assert.ok(m.places.filter(x => x.closed).length === 1);
   await page.evaluate(id => Game.State.apply({ effects: [{ op: 'openLocation', locationId: id }] }), target);
   m = await readMap(page);

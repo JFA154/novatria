@@ -14,7 +14,9 @@ const assert = require('assert/strict');
 const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('ui-fixes');
-const SHOTS = process.env.UI_SHOTS || '/tmp/claude-0/-home-user-novatria/5741fd8d-e8b9-5c6d-8cad-fb616ca2dacf/scratchpad/shots2';
+const os = require('os');
+// Screenshots for a look by eye: a temp folder unless UI_SHOTS says where.
+const SHOTS = process.env.UI_SHOTS || path.join(os.tmpdir(), 'novatria-ui-shots');
 const shot = async (page, name, opts) => {
   try { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot(Object.assign({ path: path.join(SHOTS, name + '.png') }, opts || {})); } catch (e) { /* screenshots are for looking at, not for passing */ }
 };
@@ -46,7 +48,7 @@ s.test('title: New game is above the fold at 375x740 and 1280x800, two sentences
     assert.equal((t.shown.match(/[.!?](\s|$)/g) || []).length, 2, 'two sentences: ' + t.shown);
     assert.equal(`${t.shown} ${t.more}`.replace(/\s+/g, ' ').trim(), t.setting.replace(/\s+/g, ' ').trim(), 'nothing of the setting is lost');
     assert.equal(t.open, false, '"More about the town" starts folded');
-    assert.match(t.chip, /^Offline demo — canned replies\s*Add API key$/);
+    assert.match(t.chip, /^Offline demo \(canned replies\)\s*Add API key$/);
   }
   // Continue names the game it picks up.
   const page = await open(h);
@@ -135,7 +137,7 @@ s.test('creation: a line per stat, − / + moves one point (net zero), goal sugg
   assert.ok(await page.isDisabled(`.step-btn[data-for="${Object.keys(bg.stats).find(k => k !== from && k !== to)}"][data-dir="up"]`), 'only one point moves');
   // Goal: a placeholder that is not a value, and suggestions that fill it.
   assert.equal(await page.inputValue('#cr-goal'), '');
-  assert.match(await page.getAttribute('#cr-goal', 'placeholder'), /^Type why you came here/);
+  assert.equal(await page.getAttribute('#cr-goal', 'placeholder'), 'Why you came, in a line');
   const presets = await page.$$eval('.goal-choice', n => n.map(x => x.textContent));
   assert.ok(presets.length >= 1);
   await page.click('.goal-choice >> nth=0');
@@ -326,9 +328,9 @@ s.test('Say on a phone: one sideways row (with a "To:" picker when the place is 
     const r = id => document.getElementById(id).getBoundingClientRect();
     const row = r('say-to');
     const chips = [...document.querySelectorAll('#say-to .say-chip')].map(c => c.getBoundingClientRect());
-    return { rowH: row.height, rows: new Set(chips.map(c => Math.round(c.top))).size, feedH: r('feed-scroll').height, tabbar: getComputedStyle(document.querySelector('.tabbar')).display, pick: !!document.getElementById('say-pick'), cmdBottom: r('cmd').bottom, h: window.innerHeight, scrolls: document.getElementById('say-to').scrollWidth > document.getElementById('say-to').clientWidth };
+    return { rowH: row.height, chips: chips.length, feedH: r('feed-scroll').height, tabbar: getComputedStyle(document.querySelector('.tabbar')).display, pick: !!document.getElementById('say-pick'), cmdBottom: r('cmd').bottom, h: window.innerHeight };
   });
-  assert.equal(m.rows, 1, 'one row of chips');
+  assert.equal(m.chips, 0, 'a busy place: the picker alone, not the chips again after it');
   assert.ok(m.rowH <= 56, 'row height ' + m.rowH);
   assert.ok(m.feedH >= 200, 'feed ' + m.feedH);
   assert.equal(m.tabbar, 'none', 'the tab bar steps aside while typing');
@@ -340,7 +342,7 @@ s.test('Say on a phone: one sideways row (with a "To:" picker when the place is 
   const who = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[2].id);
   await page.selectOption('#say-pick', who);
   assert.equal(await page.evaluate(() => Game.UI.addressee), who);
-  assert.equal(await page.getAttribute(`#say-to .say-chip[data-to="${who}"]`, 'aria-pressed'), 'true');
+  assert.equal(await page.inputValue('#say-pick'), who);
   // The keyboard goes down with the box still focused (Android's back key): the tab bar comes back.
   await page.focus('#cmd');
   await page.setViewportSize(PHONE);
@@ -414,11 +416,13 @@ s.test('the feed keeps its place after Settings and Saves; the toast sits at the
   const w = await page.evaluate(() => ({ bar: document.querySelector('.tb-time').textContent, time: document.getElementById('tb-time').textContent, div: [...document.querySelectorAll('#feed .f-divider')].pop().textContent, wd: Game.State.weekday(Game.state.time.day) }));
   assert.equal(w.bar, `${w.wd.slice(0, 3)} · ${w.time}`);
   assert.match(w.div, new RegExp(`^Day \\d+ · ${w.wd} · (Morning|Afternoon|Evening|Night)$`));
+  // The toast on a phone: clear of the composer and of the bars at the top (D13; see also the wave 2 toast test).
   const phone = await open(h, PHONE);
   await quickStart(phone);
   await phone.evaluate(() => Game.UI.toast('Saved.'));
-  const t = await phone.evaluate(() => ({ toast: document.getElementById('toast').getBoundingClientRect(), composer: document.querySelector('.composer').getBoundingClientRect() }));
-  assert.ok(t.toast.bottom < t.composer.top - 100, 'the toast is near the top, clear of the composer');
+  const t = await phone.evaluate(() => ({ toast: document.getElementById('toast').getBoundingClientRect(), composer: document.querySelector('.composer').getBoundingClientRect(), bar: document.getElementById('demo-bar').getBoundingClientRect() }));
+  assert.ok(t.toast.bottom <= t.composer.top, 'the toast is clear of the composer');
+  assert.ok(t.toast.top >= t.bar.bottom, 'and of the demo bar');
 });
 
 // ----- C. Panels -----
@@ -757,10 +761,12 @@ s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around ru
   await quickStart(page);
   await fast(page);
   await sendText(page, 'I look around');
-  const box = await page.evaluate(() => { const a = document.getElementById('act-btn').getBoundingClientRect(); const t = document.querySelector('.mode-toggle').getBoundingClientRect(); return { a, t }; });
-  assert.ok(box.a.left >= box.t.right - 1 && Math.abs(box.a.top - box.t.top) < 4, 'beside the toggle');
-  assert.equal(await page.getAttribute('#cmd', 'placeholder'), '/ or ⋯ for commands');
-  await page.click('#act-btn');
+  // A phone: ⋯ ends the tab row (the input row keeps its width for the box).
+  const box = await page.evaluate(() => { const a = document.getElementById('act-btn-m').getBoundingClientRect(); const t = document.querySelector('.tabbar').getBoundingClientRect(); return { a, t, rowBtn: getComputedStyle(document.getElementById('act-btn')).display }; });
+  assert.ok(box.a.left >= box.t.right - 1 && Math.abs(box.a.top - box.t.top) < 4, 'at the end of the tab row');
+  assert.equal(box.rowBtn, 'none', 'not in the input row');
+  assert.equal(await page.getAttribute('#cmd', 'placeholder'), 'What do you do?');
+  await page.click('#act-btn-m');
   const items = await page.$$eval('#act-pop [role="menuitem"]', n => n.map(x => x.dataset.act));
   for (const k of ['look', 'wait', 'rest', 'undo', 'fact', 'help']) assert.ok(items.includes(k), k);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.act), 'look', 'the focus goes into the list');
@@ -773,7 +779,7 @@ s.test('the ⋯ actions: beside the toggle and in the phone menu; Look around ru
   await page.keyboard.press('Escape');
   assert.ok(await page.isHidden('#act-pop'));
   const t0 = await page.evaluate(() => Game.state.meta.turn);
-  await page.click('#act-btn');
+  await page.click('#act-btn-m');
   await page.click('#act-pop [data-act="look"]');
   await page.waitForFunction(() => !Game.Pipeline.busy);
   assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].input), '/look');
@@ -851,6 +857,590 @@ s.test('UI.feed.rewriting dims the draft under "Rewriting…" and endNarration p
   });
   assert.deepEqual(r.mid, { cls: true, label: 'Rewriting…', draft: true });
   assert.deepEqual(r.end, { cls: false, label: false, text: 'Second draft.' });
+});
+
+// ----- W. Wave 2 (docs/notes/ui.md, "Wave 2") -----
+
+/* In the page: window.__cr(a, b), the contrast of two CSS colours. */
+function contrastIn() {
+  window.__cr = (a, b) => {
+    const rgb = c => { const ctx = document.createElement('canvas').getContext('2d'); ctx.fillStyle = c; const v = ctx.fillStyle; if (v[0] === '#') return [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16) / 255); return v.match(/[\d.]+/g).slice(0, 3).map(x => +x / 255); };
+    const lum = c => { const [r, g, b] = rgb(c).map(x => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4))); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const x = lum(a);
+    const y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+}
+const rectsMeet = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+
+s.test('wave 2, D1 and B11: a read-only tab plays nothing (⋯, the Undo link, Go there, the map, Edit, the pronoun chips); Play here instead loads the newer game first, keeps the autosave as the other tab saved it, and keeps an unreadable one aside', async h => {
+  const a = await open(h);
+  await quickStart(a);
+  await fast(a);
+  await sendText(a, 'I look around');
+  const b = await a.context().newPage();
+  await b.goto(a.url());
+  await b.waitForFunction(() => window.Game && Game.App);
+  await b.click('#btn-continue');
+  await b.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await sendText(b, 'I look at the pumps');
+  await sendText(b, 'I look at the road out of town');
+  await a.waitForFunction(() => Game.Storage.readOnly && !document.getElementById('tab-bar').hidden);
+  assert.equal(await a.textContent('#tab-bar-text'), 'This game is open in another tab, so this tab is read-only.');
+  const turnA = await a.evaluate(() => Game.state.meta.turn);
+  const turnB = await b.evaluate(() => Game.state.meta.turn);
+  assert.equal(turnB, turnA + 2);
+  // Nothing that plays a turn is offered.
+  assert.equal(await a.locator('#feed .f-undo').count(), 0, 'no Undo link');
+  assert.equal(await a.evaluate(() => Game.UI.canAct()), false, 'the one guard says no');
+  await a.click('#act-btn');
+  for (const k of ['look', 'rest', 'undo']) assert.equal(await a.isDisabled(`#act-pop [data-act="${k}"]`), true, k + ' is off');
+  await a.keyboard.press('Escape');
+  await a.evaluate(() => Game.UI.openPanel('places'));
+  assert.ok(await a.evaluate(() => { const go = [...document.querySelectorAll('#panel-body [data-go]')]; return go.length > 0 && go.every(x => x.disabled); }), 'Go there is off');
+  const who = await a.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[0].id);
+  await a.evaluate(id => { Game.UI.openPanel('people'); Game.UI.togglePerson(id, true); }, who);
+  if (await a.locator(`.pcard[data-npc="${who}"] .pcard-edit`).count()) {
+    assert.equal(await a.isDisabled(`.pcard[data-npc="${who}"] .pcard-edit`), true, 'Edit is off');
+    assert.ok(await a.evaluate(id => [...document.querySelectorAll(`.pcard[data-npc="${id}"] .pcard-pchip`)].every(x => x.disabled), who), 'the pronoun chips are off');
+  }
+  // Even called directly, every entry point refuses (and says why).
+  const calls0 = await a.evaluate(() => Game.Api.Mock.calls.length);
+  const exit = await a.evaluate(() => Game.State.loc(Game.state.player.locationId).exits[0]);
+  const res = await a.evaluate(async ([id, npc]) => [await Game.UI.runAction('/look'), await Game.UI.travel(id), Game.UI.editPerson(npc)], [exit, who]);
+  assert.deepEqual(res, [null, null, false]);
+  assert.equal(await a.evaluate(() => document.getElementById('cmd').readOnly), true, 'the box is read only');
+  assert.equal(await a.isDisabled('#send'), true);
+  assert.equal(await a.evaluate(() => Game.state.meta.turn), turnA, 'no turn was played here');
+  assert.equal(await a.evaluate(() => Game.Api.Mock.calls.length), calls0, 'and nothing was called');
+  assert.match(await a.textContent('#toast'), /open in another tab/);
+  await shot(a, 'W01_read_only_1280');
+  // Play here instead: the newer game first, then this tab plays; the autosave is the other tab's game.
+  const saved = await a.evaluate(() => JSON.parse(localStorage.getItem('novatria.autosave')).state);
+  await a.click('#tab-bar-take');
+  assert.equal(await a.evaluate(() => Game.state.meta.turn), turnB, 'this tab shows the turns the other tab played');
+  assert.equal(await a.evaluate(() => [...document.querySelectorAll('#feed .f-input')].pop().textContent), 'I look at the road out of town');
+  assert.deepEqual(await a.evaluate(() => JSON.parse(localStorage.getItem('novatria.autosave')).state), saved, 'the autosave still holds the newer game');
+  assert.deepEqual(await a.evaluate(() => [Game.Storage.readOnly, document.getElementById('tab-bar').hidden]), [false, true]);
+  await b.waitForFunction(() => Game.Storage.readOnly, null, { timeout: 3000 });
+  assert.equal(await a.evaluate(() => Game.UI.canAct()), true);
+  // An autosave the other tab left unreadable: kept as the previous autosave, this tab's game saved, and the banner says so.
+  await b.evaluate(() => localStorage.setItem('novatria.autosave', '{ not json'));
+  await a.waitForFunction(() => Game.Storage.readOnly);
+  await a.click('#tab-bar-take');
+  const after = await a.evaluate(() => ({ prev: localStorage.getItem('novatria.autosave.prev'), turn: JSON.parse(localStorage.getItem('novatria.autosave')).state.meta.turn, banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent }));
+  assert.equal(after.prev, '{ not json', 'the unreadable autosave is kept aside');
+  assert.equal(after.turn, turnB);
+  assert.match(after.banner, /could not be read.*previous autosave/);
+});
+
+s.test('wave 2, D2: on a phone the composer is one line with its placeholder, before and after a send and in Say mode, and the placeholder is never cut', async h => {
+  for (const vp of [PHONE, { width: 390, height: 844 }]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await fast(page);
+    const measure = () => page.evaluate(() => {
+      const ta = document.getElementById('cmd');
+      const cs = getComputedStyle(ta);
+      const ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const r = ta.getBoundingClientRect();
+      return { h: r.height, w: r.width, need: ctx.measureText(ta.placeholder).width, room: ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ph: ta.placeholder };
+    });
+    let m = await measure();
+    assert.equal(m.ph, 'What do you do?');
+    assert.ok(m.h <= 48, `${vp.width}: one line, ${m.h}px`);
+    assert.ok(m.need <= m.room, `${vp.width}: the placeholder fits (${m.need} in ${m.room})`);
+    assert.ok(m.w >= 200, `${vp.width}: the box keeps its width (${m.w})`);
+    await sendText(page, 'I ask the man at the counter if there is any work around here');
+    m = await measure();
+    assert.ok(m.h <= 48, `${vp.width}: still one line after a send (${m.h}px)`);
+    await page.click('#mode-say');
+    m = await measure();
+    assert.ok(m.h <= 48 && m.need <= m.room, `${vp.width}: Say mode too (${m.ph})`);
+    // Typing still grows the box, and clearing it brings it back to one line.
+    await page.fill('#cmd', 'A long line that wraps in a narrow box, then wraps again, and a third time to be sure of it.');
+    assert.ok((await measure()).h > 60, 'a long line grows the box');
+    await page.fill('#cmd', '');
+    assert.ok((await measure()).h <= 48, 'and an empty box is one line again');
+    if (vp === PHONE) await shot(page, 'W02_composer_375');
+  }
+});
+
+s.test('wave 2, D3: Expand map (phone and laptop) is a modal view larger than the panel map; Close map has the focus, Tab stays inside, the rest is inert; Escape closes and the focus goes back to Expand map', async h => {
+  for (const vp of [PHONE, LAPTOP]) {
+    const page = await open(h, vp);
+    await quickStart(page);
+    await page.evaluate(() => { for (const l of Game.state.locations) if (l.away !== true) l.discovered = true; });
+    if (vp === PHONE) { await page.click('[data-open-tab="places"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('places'));
+    const small = await page.evaluate(() => document.querySelector('.map-svg').getBoundingClientRect().width);
+    await page.click('.map-expand');
+    const m = await page.evaluate(() => {
+      const map = document.querySelector('.map.expanded');
+      const svg = map.querySelector('.map-svg');
+      return {
+        w: svg.getBoundingClientRect().width, box: map.getBoundingClientRect(),
+        focus: document.activeElement.className, role: map.getAttribute('role'), modal: map.getAttribute('aria-modal'), title: document.getElementById(map.getAttribute('aria-labelledby')).textContent,
+        inert: [document.querySelector('.story').inert, document.querySelector('.panel-head').inert, document.querySelector('.map-legend').inert, document.querySelector('.map-tools').inert],
+        label: parseFloat(svg.getAttribute('font-size')) * svg.getBoundingClientRect().width / svg.viewBox.baseVal.width
+      };
+    });
+    assert.ok(m.w >= small * 1.5, `${vp.width}: larger than the panel's map (${Math.round(m.w)} against ${Math.round(small)})`);
+    assert.ok(m.box.width >= vp.width - 1 && m.box.height >= vp.height - 1, 'it covers the screen');
+    assert.ok(m.label >= 13, 'labels read at 13px or more: ' + m.label);
+    assert.match(m.focus, /map-close/);
+    assert.deepEqual([m.role, m.modal], ['dialog', 'true']);
+    assert.match(m.title, /^Map of /);
+    assert.deepEqual(m.inert, [true, true, true, true], 'nothing behind it takes the focus');
+    for (let i = 0; i < 30; i++) await page.keyboard.press('Tab');
+    assert.ok(await page.evaluate(() => document.querySelector('.map.expanded').contains(document.activeElement)), 'Tab stays in the map');
+    for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+Tab');
+    assert.ok(await page.evaluate(() => document.querySelector('.map.expanded').contains(document.activeElement)), 'so does Shift+Tab');
+    if (vp === PHONE) assert.ok(await page.evaluate(() => { const p = document.querySelector('.map.expanded .map-pan'); return p.scrollWidth > p.clientWidth; }), 'a phone pans sideways');
+    await shot(page, `W03_map_expanded_${vp.width}`);
+    await page.keyboard.press('Escape');
+    if (await page.locator('.map.expanded').count()) await page.keyboard.press('Escape'); // a picked place goes first
+    assert.equal(await page.locator('.map.expanded').count(), 0);
+    const back = await page.evaluate(() => ({ focus: document.activeElement.classList.contains('map-expand'), head: document.querySelector('.panel-head').inert, legend: document.querySelector('.map-legend').inert, story: document.querySelector('.story').inert }));
+    assert.deepEqual(back, { focus: true, head: false, legend: false, story: vp === PHONE }, 'the sheet (phone) stays modal; the rest is back');
+  }
+});
+
+s.test('wave 2, D4: the focus is never dropped to the page: Back to edit, a People sort chip, Edit on a phone, and Review with errors (the first field to fix, one message read out)', async h => {
+  // (d) Review with errors on a laptop.
+  const page = await open(h, LAPTOP);
+  await page.evaluate(() => Game.Storage.saveSettings({ playChoice: 'demo' }));
+  await page.click('#btn-new');
+  await page.click('#cr-review');
+  const r = await page.evaluate(() => ({ focus: document.activeElement.id, sum: document.getElementById('cr-errsum').textContent, alerts: [...document.querySelectorAll('#create-steps [role="alert"]')].length, invalid: document.getElementById('cr-name').getAttribute('aria-invalid') }));
+  assert.equal(r.focus, 'cr-name', 'the first field to fix has the focus');
+  assert.match(r.sum, /^Fix \d things first: Name, /);
+  assert.equal(r.alerts, 0, 'one summary is read out, not one alert per step');
+  assert.equal(r.invalid, 'true');
+  await shot(page, 'W04_review_errors_1280');
+  // (a) Random character, then Back to edit: the form's heading.
+  await page.click('#cr-random');
+  await page.waitForSelector('#create-summary-view:not([hidden])');
+  await page.click('#cr-edit');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'create-title');
+  // (b) A sort chip keeps the focus through the redraw.
+  const game = await open(h, LAPTOP);
+  await quickStart(game);
+  await game.evaluate(() => { Game.State.apply({ npcKnownToPlayer: Game.state.npcs.slice(0, 8).map(n => n.id) }); Game.UI.openPanel('people'); });
+  await game.click('[data-sort="attitude"]');
+  assert.equal(await game.evaluate(() => document.activeElement.dataset.sort), 'attitude');
+  // A panel tab clicked (the tabs are drawn again): the new tab has the focus.
+  await game.click('#tab-journal');
+  assert.equal(await game.evaluate(() => document.activeElement.id), 'tab-journal');
+  // A turn ending while a card's control has the focus: still there after the redraw.
+  await game.click('#tab-people');
+  const head = await game.evaluate(() => document.querySelector('#panel-body .pcard-head').id);
+  await game.focus('#' + head);
+  await game.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await game.evaluate(() => Game.Pipeline.submit('I look around', { mode: 'do', to: 'everyone' }));
+  await game.waitForFunction(() => !Game.Pipeline.busy);
+  assert.equal(await game.evaluate(() => document.activeElement.id), head);
+  // (c) Edit on a phone: the form takes the focus (no keyboard pops up).
+  const phone = await open(h, PHONE);
+  await quickStart(phone);
+  const who = await phone.evaluate(() => { const n = Game.State.npcsAt(Game.state.player.locationId)[0]; Game.State.apply({ npcKnownToPlayer: [n.id] }); return n.id; });
+  await phone.click('[data-open-tab="people"]');
+  await phone.waitForTimeout(300);
+  await phone.click(`#phead-${who}`);
+  await phone.click(`.pcard[data-npc="${who}"] .pcard-edit`);
+  assert.deepEqual(await phone.evaluate(() => [document.activeElement.tagName, document.activeElement.classList.contains('pedit')]), ['FORM', true]);
+  // A phone's Next: the step heading, not a field (D12).
+  const cr = await open(h, PHONE);
+  await cr.evaluate(() => Game.Storage.saveSettings({ playChoice: 'demo' }));
+  await cr.click('#btn-new');
+  await cr.fill('#cr-name', 'Ilse');
+  await cr.click('#cr-next');
+  assert.equal(await cr.evaluate(() => document.activeElement.id), 'cr-h-background');
+  await cr.click('.bg-choice >> nth=0');
+  await cr.click('#cr-next');
+  await cr.click('#cr-next');
+  assert.equal(await cr.evaluate(() => document.activeElement.id), 'cr-h-goal', 'step 4: the heading, so no keyboard covers the suggestions');
+  await cr.click('#cr-next');
+  assert.equal(await cr.evaluate(() => document.activeElement.id), 'cr-goal', 'an error: the field to fix');
+  assert.match(await cr.textContent('#cr-errsum'), /Write one line/);
+});
+
+s.test('wave 2, D5, D7, D15: text tokens 4.5:1 and control edges 3:1 on every background in both themes; placeholders 4.5:1; closed places and the river label without transparency; the rewriting draft legible', async h => {
+  for (const scheme of ['light', 'dark']) {
+    const page = await h.open({ colorScheme: scheme });
+    await page.evaluate(contrastIn);
+    const t = await page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const v = k => cs.getPropertyValue('--' + k).trim();
+      const rows = [];
+      for (const fg of ['text', 'muted', 'faint', 'accent', 'danger', 'att-cold', 'att-cool', 'att-mild', 'att-warm']) for (const bg of ['bg', 'surface', 'surface-2']) rows.push([fg, bg, window.__cr(v(fg), v(bg)), 4.5]);
+      rows.push(['accent-ink', 'accent', window.__cr(v('accent-ink'), v('accent')), 4.5]);
+      rows.push(['map-river', 'map-water', window.__cr(v('map-river'), v('map-water')), 4.5]);
+      rows.push(['map-dim', 'map-land', window.__cr(v('map-dim'), v('map-land')), 4.5]);
+      rows.push(['map-ink', 'map-land', window.__cr(v('map-ink'), v('map-land')), 4.5]);
+      for (const bg of ['bg', 'surface', 'surface-2']) rows.push(['field (control edge)', bg, window.__cr(v('field'), v(bg)), 3]);
+      return { theme: document.documentElement.dataset.theme, rows };
+    });
+    const bad = t.rows.filter(r => r[2] < r[3]).map(r => `${r[0]} on ${r[1]} ${r[2].toFixed(2)}`);
+    assert.deepEqual(bad, [], `${t.theme}: under the bar`);
+    // Placeholders and control edges as drawn.
+    await quickStart(page);
+    await page.evaluate(contrastIn);
+    const drawn = await page.evaluate(() => {
+      const ta = document.getElementById('cmd');
+      const bgOf = el => { for (let n = el; n; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor; if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c; } return getComputedStyle(document.body).backgroundColor; };
+      const ph = window.__cr(getComputedStyle(ta, '::placeholder').color, getComputedStyle(ta).backgroundColor);
+      const edges = ['#act-btn', '.mode-toggle', '#tb-panel'].map(sel => { const el = document.querySelector(sel); return [sel, window.__cr(getComputedStyle(el).borderTopColor, bgOf(el.parentElement))]; });
+      return { ph, edges };
+    });
+    assert.ok(drawn.ph >= 4.5, `${t.theme}: placeholder ${drawn.ph.toFixed(2)}`);
+    for (const [sel, c] of drawn.edges.filter(e => e[0] !== '#tb-panel')) assert.ok(c >= 3, `${t.theme}: ${sel} edge ${c.toFixed(2)}`);
+    // A closed place on the map: a token, not opacity; the river's name.
+    const map = await page.evaluate(() => {
+      const st = Game.state;
+      const l = st.locations.find(x => x.discovered && x.away !== true && x.id !== st.player.locationId);
+      l.closed = true;
+      Game.UI.openPanel('places');
+      const g = document.querySelector(`.map-place[data-loc="${l.id}"]`);
+      const root = getComputedStyle(document.documentElement);
+      const lab = g.querySelector('.map-label');
+      const river = document.querySelector('.map-river-label');
+      return { opacity: [getComputedStyle(lab).opacity, getComputedStyle(g.querySelector('.map-mark')).opacity], label: window.__cr(getComputedStyle(lab).fill, root.getPropertyValue('--map-land').trim()), river: river ? window.__cr(getComputedStyle(river).fill, root.getPropertyValue('--map-water').trim()) : 9 };
+    });
+    assert.deepEqual(map.opacity, ['1', '1'], 'no transparency');
+    assert.ok(map.label >= 4.5 && map.river >= 4.5, `${t.theme}: closed label ${map.label.toFixed(2)}, river ${map.river.toFixed(2)}`);
+    // The draft under "Rewriting…": dimmed with a colour that still reads.
+    const draft = await page.evaluate(() => {
+      const node = Game.UI.feed.beginNarration({});
+      Game.UI.feed.stream(node, 'A first draft.');
+      Game.UI.feed.rewriting(node, true);
+      const p = [...node.querySelectorAll('p')].find(x => x.textContent === 'A first draft.');
+      return { c: window.__cr(getComputedStyle(p).color, getComputedStyle(document.body).backgroundColor), o: getComputedStyle(p).opacity };
+    });
+    assert.ok(draft.c >= 4.5 && draft.o === '1', `${t.theme}: rewriting draft ${draft.c.toFixed(2)}`);
+  }
+});
+
+s.test('wave 2, D6: editing someone on a phone with the keyboard up: the search and sort step aside and a focused field sits above the Save bar', async h => {
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  const who = await page.evaluate(() => { const n = Game.State.npcsAt(Game.state.player.locationId)[0]; Game.State.apply({ npcKnownToPlayer: Game.state.npcs.slice(0, 10).map(x => x.id).concat(n.id) }); return n.id; });
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(300);
+  await page.click(`#phead-${who}`);
+  await page.click(`.pcard[data-npc="${who}"] .pcard-edit`);
+  assert.equal(await page.locator('.people-tools').count(), 0, 'no search and sort header while editing');
+  await page.setViewportSize({ width: 375, height: 420 });
+  await page.waitForTimeout(200);
+  for (const k of ['role', 'relation', 'age']) {
+    await page.focus(`#pe-${k}-${who}`);
+    await page.waitForTimeout(150);
+    const m = await page.evaluate(() => ({ f: document.activeElement.getBoundingClientRect(), bar: document.querySelector('.pedit-actions').getBoundingClientRect(), body: document.getElementById('panel-body').getBoundingClientRect() }));
+    assert.ok(m.f.bottom <= m.bar.top + 1, `${k}: above the Save bar (${Math.round(m.f.bottom)} / ${Math.round(m.bar.top)})`);
+    assert.ok(m.f.top >= m.body.top - 1, `${k}: not above the panel either`);
+  }
+  await shot(page, 'W06_editor_keyboard_375x420');
+  await page.click('.pedit-cancel');
+  assert.equal(await page.locator('.people-tools').count(), 1, 'back after the editor closes');
+});
+
+s.test('wave 2, D8 and polish: the recap on Continue is line by line under a heading; after a night the overnight news stands out and the recap does not repeat it', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await fast(page);
+  await sendText(page, 'I look around');
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  await page.click('#btn-continue');
+  const r = await page.evaluate(() => {
+    const n = [...document.querySelectorAll('#feed .f-notice')].pop();
+    const cs = getComputedStyle(n);
+    return { recap: n.classList.contains('recap'), ws: cs.whiteSpace, lines: n.textContent.split('\n').length, h: n.getBoundingClientRect().height, lh: parseFloat(cs.lineHeight) || 20, head: getComputedStyle(n, '::before').content, keys: [...n.querySelectorAll('.f-recap-k')].map(k => k.textContent), text: n.textContent };
+  });
+  assert.ok(r.recap, 'the recap notice');
+  assert.equal(r.ws, 'pre-line');
+  assert.ok(r.lines >= 3, 'several lines: ' + r.text);
+  assert.ok(r.h > 3 * r.lh, 'drawn on several lines');
+  assert.match(r.head, /^"Where things stand"/);
+  assert.ok(r.keys.includes('Here:'), 'the kind of each line in bold: ' + r.keys.join(' '));
+  await shot(page, 'W07_recap_1280');
+  // After a night's sleep: the overnight news, then a recap without its "In town" line.
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; const st = Game.state; if (!Array.isArray(st.news)) st.news = []; st.news.push({ day: st.time.day + 1, phase: 'morning', text: 'The council voted to close the old bridge.', public: true, seen: false }); });
+  await sendText(page, '/rest');
+  const after = await page.evaluate(() => {
+    const news = [...document.querySelectorAll('#feed .f-quiet.f-news')].pop();
+    const recap = [...document.querySelectorAll('#feed .f-notice.recap')].pop();
+    return { news: news ? news.textContent : '', key: news ? (news.querySelector('.f-news-k') || {}).textContent : '', recap: recap ? recap.textContent : '' };
+  });
+  assert.match(after.news, /^Overnight in town: The council voted/);
+  assert.equal(after.key, 'Overnight in town: ');
+  assert.ok(after.recap && !/\nIn town:/.test(after.recap), 'no "In town" repeat: ' + after.recap);
+});
+
+s.test('wave 2, D9 and D10: on a phone the command list spans the input row; a busy place in Say mode shows the "To:" picker alone, wide enough for every name, and the focus stays on it', async h => {
+  const page = await open(h, PHONE);
+  await quickStart(page);
+  await fast(page);
+  await page.focus('#cmd');
+  await page.keyboard.type('/');
+  await page.waitForSelector('#ac:not([hidden])');
+  const ac = await page.evaluate(() => ({ ac: document.getElementById('ac').getBoundingClientRect().width, row: document.querySelector('.input-row').getBoundingClientRect().width, box: document.getElementById('cmd').getBoundingClientRect().width }));
+  assert.ok(ac.ac >= ac.row - 2 && ac.ac > ac.box + 100, `the list spans the row: ${ac.ac} (row ${ac.row}, box ${ac.box})`);
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await shot(page, 'W08_autocomplete_375');
+  await page.keyboard.press('Escape');
+  await page.fill('#cmd', '');
+  const busy = await page.evaluate(() => {
+    let best = null;
+    for (const l of Game.state.locations) for (const ph of ['morning', 'afternoon', 'evening', 'night']) { const n = Game.State.npcsAt(l.id, ph).length; if (!l.closed && !l.away && (!best || n > best.n)) best = { loc: l.id, phase: ph, n }; }
+    return best;
+  });
+  assert.ok(busy.n > 4, 'a busy place: ' + busy.n);
+  await page.evaluate(([loc, phase]) => { while (Game.state.time.phase !== phase) Game.State.apply({ advanceTime: 'long' }); Game.State.apply({ playerLocationId: loc }); for (const n of Game.State.npcsAt(loc)) n.knownToPlayer = true; Game.UI.renderGame(); }, [busy.loc, busy.phase]);
+  await page.click('#mode-say');
+  const say = await page.evaluate(() => {
+    const sel = document.getElementById('say-pick');
+    const cs = getComputedStyle(sel);
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const longest = Math.max(...[...sel.options].map(o => ctx.measureText(o.textContent).width));
+    return { kids: [...document.getElementById('say-to').children].map(c => c.tagName), room: sel.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), longest, options: sel.options.length };
+  });
+  assert.deepEqual(say.kids, ['SELECT'], 'the picker alone, no chips after it');
+  assert.equal(say.options, busy.n + 1);
+  assert.ok(say.longest <= say.room + 1, `no name cut: ${say.longest} in ${say.room}`);
+  await shot(page, 'W09_say_picker_375');
+  await page.focus('#say-pick');
+  const who = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[1].id);
+  await page.selectOption('#say-pick', who);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'say-pick', 'the focus stays on the picker after it is drawn again');
+});
+
+s.test('wave 2, D11 and D12: a place\'s closed day is said once; loose-end chips show their first words while the field holds the line; the goal placeholder fits at 375 and 390', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  const x = await page.evaluate(() => {
+    const st = Game.state;
+    const [a, b] = st.locations.filter(l => l.discovered && l.away !== true && l.id !== st.player.locationId);
+    a.hours = 'Open 7 to 6, closed Sundays'; a.closedOn = ['Sunday'];
+    b.hours = 'Open 7 to 6'; b.closedOn = ['Sunday'];
+    Game.UI.openPanel('places');
+    Game.UI.togglePlace(a.id, true);
+    const one = document.querySelector(`.plcard[data-loc="${a.id}"] [data-fact="hours"]`).textContent;
+    Game.UI.togglePlace(b.id, true);
+    const two = document.querySelector(`.plcard[data-loc="${b.id}"] [data-fact="hours"]`).textContent;
+    return { one, two };
+  });
+  assert.equal(x.one, 'Open 7 to 6, closed Sundays', 'said once');
+  assert.equal(x.two, 'Open 7 to 6 · Closed Sundays');
+  for (const vp of [PHONE, { width: 390, height: 844 }]) {
+    const cr = await open(h, vp);
+    await cr.evaluate(() => Game.Storage.saveSettings({ playChoice: 'demo' }));
+    await cr.click('#btn-new');
+    const show = id => cr.evaluate(i => { const sec = document.getElementById(i); document.querySelectorAll('.step').forEach(x => x.classList.toggle('current', x === sec)); }, id);
+    await show('cr-step-goal');
+    const fit = await cr.evaluate(() => {
+      const f = document.getElementById('cr-goal');
+      const cs = getComputedStyle(f);
+      const ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      return { need: ctx.measureText(f.placeholder).width, room: f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+    });
+    assert.ok(fit.need <= fit.room, `${vp.width}: goal placeholder fits (${fit.need} in ${fit.room})`);
+    await show('cr-step-loose');
+    await cr.click('.le-toggle[data-kind="debt"]');
+    const full = await cr.evaluate(() => Game.data.LOOSE_ENDS.debt.options[1]);
+    await cr.click('.le-choice[data-kind="debt"][data-index="1"]');
+    const chip = await cr.evaluate(() => { const c = document.querySelector('.le-choice[data-kind="debt"][data-index="1"]'); return { text: c.textContent, title: c.title, pressed: c.getAttribute('aria-pressed'), name: c.getAttribute('aria-label') }; });
+    assert.equal(await cr.inputValue('.le-text[data-kind="debt"]'), full, 'the field holds the whole line');
+    assert.equal(chip.pressed, 'true');
+    if (full.split(/\s+/).length > 5) {
+      assert.ok(chip.text.length < full.length && chip.text.endsWith('…'), 'the chip shows its first words: ' + chip.text);
+      assert.deepEqual([chip.title, chip.name], [full, full], 'and its whole line as its name');
+    }
+    if (vp === PHONE) await shot(cr, 'W10_loose_chips_375');
+  }
+});
+
+s.test('wave 2, D13: the toast covers neither the bars, the box, the People search nor the title; the title chip is one line at 375; "Replace the autosave?" focuses Keep it', async h => {
+  const page = await open(h, PHONE);
+  for (const setup of [() => {}, () => { Game.Storage.saveSettings({ mockMode: false }); Game.UI.showScreen('title'); }, () => { Game.Storage.setApiKey('sk-ant-test-0123456789', false); Game.Storage.saveSettings({ mockMode: true }); Game.UI.showScreen('title'); }]) {
+    await page.evaluate(setup);
+    const chip = await page.evaluate(() => document.getElementById('title-mode').getBoundingClientRect().height);
+    assert.ok(chip <= 46, `the chip is one line: ${chip} (${await page.textContent('#title-mode')})`);
+  }
+  await page.evaluate(() => { Game.Storage.setApiKey('', false); Game.Storage.saveSettings({ mockMode: true }); Game.UI.showScreen('title'); Game.UI.toast('Hello.'); });
+  let t = await page.evaluate(() => [document.getElementById('toast').getBoundingClientRect(), document.getElementById('title-name').getBoundingClientRect()]);
+  assert.ok(!rectsMeet(t[0], t[1]), 'not over the title');
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await sendText(page, 'I look around');
+  await page.evaluate(() => Game.UI.toast('Saved to slot 1.'));
+  t = await page.evaluate(() => ['#toast', '#screen-game .topbar', '#demo-bar', '#screen-game .composer'].map(q => document.querySelector(q).getBoundingClientRect()));
+  for (let i = 1; i < t.length; i++) assert.ok(!rectsMeet(t[0], t[i]), 'the toast is clear of ' + ['', 'the top bar', 'the demo bar', 'the composer'][i]);
+  await shot(page, 'W11_toast_375');
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => Game.UI.toast('Wait for the current turn to finish.'));
+  t = await page.evaluate(() => [document.getElementById('toast').getBoundingClientRect(), document.getElementById('people-search').getBoundingClientRect(), document.querySelector('.panel-head').getBoundingClientRect()]);
+  assert.ok(!rectsMeet(t[0], t[1]) && !rectsMeet(t[0], t[2]), 'not over the People search or the tabs');
+  await page.click('#panel-close');
+  await page.waitForTimeout(300);
+  // The dialog: the safe answer has the focus.
+  await page.evaluate(() => Game.App.quitToTitle());
+  await page.click('#btn-new');
+  await page.waitForSelector('#ask[open]');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ask-no');
+  assert.equal(await page.textContent('#ask-no'), 'Keep it');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => Game.UI.screen), 'title', 'Enter keeps the autosave');
+});
+
+s.test('wave 2, D14: a queued line is shown (and can be taken back when the Pipeline can); Check key does not send you to Settings while there; a damaged autosave and a newer one read plainly on the title', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  await fast(page);
+  // A bookkeeper that takes a while: the narration is in, so the next line can wait in the queue.
+  await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 1500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+  await page.fill('#cmd', 'I look at the board out front');
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
+  await page.fill('#cmd', 'I wave at the mechanic');
+  await page.press('#cmd', 'Enter');
+  const q = await page.evaluate(() => ({ shown: !document.getElementById('queued-note').hidden, text: document.getElementById('queued-text').textContent, x: !document.getElementById('queued-cancel').hidden, can: typeof Game.Pipeline.cancelQueued === 'function' }));
+  assert.equal(q.shown, true);
+  assert.equal(q.text, 'Next: “I wave at the mechanic”');
+  assert.equal(q.x, q.can, '× only when the Pipeline can take it back');
+  await shot(page, 'W12_queued_1280');
+  await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 10000 });
+  // Check key, in Settings: the reason without "in Settings".
+  const stubbed = await page.evaluate(() => { const fake = async () => ({ ok: false, message: 'The API key was not accepted. Check the key in Settings.' }); Game.Api.checkKey = fake; return Game.Api.checkKey === fake; });
+  await page.click('#tb-settings');
+  await page.fill('#set-key', 'sk-ant-wrong-0123456789');
+  await page.click('#set-check-key');
+  await page.waitForFunction(() => /did not work|works|cannot check/.test(document.getElementById('key-status').textContent));
+  if (stubbed) assert.equal(await page.textContent('#key-status'), 'The key did not work: The API key was not accepted.');
+  // The title: a damaged autosave, then one from a newer build.
+  const t = await open(h);
+  await t.evaluate(() => { localStorage.setItem('novatria.autosave', '{ not json'); Game.UI.renderTitle(); });
+  assert.match(await t.textContent('#title-broken-text'), /^The autosave in this browser could not be read\. The saved game is not valid JSON\. Download it/);
+  await quickStart(t);
+  await t.evaluate(() => { const env = JSON.parse(localStorage.getItem('novatria.autosave')); env.state.meta.rulesVersion = Game.State.RULES_VERSION + 1; localStorage.setItem('novatria.autosave', JSON.stringify(env)); Game.App.quitToTitle(); });
+  if (await t.evaluate(() => Game.App.newerRules(JSON.parse(localStorage.getItem('novatria.autosave')).state))) {
+    assert.ok(await t.isVisible('#title-newer-note'), 'a one-line note under Continue');
+    assert.match(await t.getAttribute('#btn-continue', 'aria-describedby'), /title-newer-note/);
+    await t.click('#btn-continue');
+    assert.equal(await t.textContent('#banner-text'), 'Saved by a newer version of the game, so it may not play right here.');
+  }
+});
+
+s.test('wave 2, polish: Continue leads when there is a game; Wait is a plain button; a failed turn offers Try again (and Open Settings for the key); one standing line for the town; Random asks over a started form; cards line up at the top; the Wait until list has a heading; five panel tabs fit on a phone; the theme switch sits above the setting', async h => {
+  const page = await open(h, PHONE);
+  assert.ok(await page.evaluate(() => document.getElementById('btn-theme').getBoundingClientRect().top < document.getElementById('title-setting').getBoundingClientRect().top), 'the theme switch is above the setting text');
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('btn-new').classList.contains('primary'), document.getElementById('btn-continue').classList.contains('primary')]), [true, false]);
+  await quickStart(page);
+  await fast(page);
+  await page.evaluate(() => Game.App.quitToTitle());
+  const title = await page.evaluate(() => ({ newP: document.getElementById('btn-new').classList.contains('primary'), contP: document.getElementById('btn-continue').classList.contains('primary'), first: document.getElementById('btn-continue').getBoundingClientRect().top < document.getElementById('btn-new').getBoundingClientRect().top }));
+  assert.deepEqual(title, { newP: false, contP: true, first: true }, 'Continue is first and primary');
+  await shot(page, 'W13_title_continue_375');
+  await page.click('#btn-continue');
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  await page.fill('#cmd', '');
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('send').textContent, document.getElementById('send').classList.contains('primary')]), ['Wait', false], 'Wait is not the primary button');
+  await page.fill('#cmd', 'I look around');
+  assert.deepEqual(await page.evaluate(() => [document.getElementById('send').textContent, document.getElementById('send').classList.contains('primary')]), ['Send', true]);
+  // A failed turn (the key was refused): Try again and Open Settings.
+  const t0 = await page.evaluate(() => Game.state.meta.turn);
+  await page.evaluate(() => Game.Api.Mock.queue('narrate', { error: { type: 'authentication_error' } }));
+  await sendText(page, 'I ask about the boats');
+  const acts = await page.evaluate(() => [...[...document.querySelectorAll('#feed .f-notice.error')].pop().querySelectorAll('.f-notice-acts button')].map(b => b.textContent));
+  assert.deepEqual(acts, ['Try again', 'Open Settings']);
+  await page.click('#feed .f-notice.error [data-retry]');
+  await page.waitForFunction(t => !Game.Pipeline.busy && Game.state.meta.turn === t + 1, t0, { timeout: 5000 });
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].input), 'I ask about the boats', 'Try again played the line');
+  assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
+  await page.evaluate(() => Game.Api.Mock.queue('narrate', { error: { type: 'authentication_error' } }));
+  await sendText(page, 'I ask about the ferry');
+  await page.click('#feed .f-notice.error [data-settings]');
+  assert.deepEqual(await page.evaluate(() => [Game.UI.screen, document.activeElement.id]), ['settings', 'set-key']);
+  await page.click('#settings-done');
+  // Character: the town's standing once.
+  await page.evaluate(() => Game.UI.openPanel('character'));
+  const rep = await page.evaluate(() => ({ dts: [...document.querySelectorAll('#panel-body .kv dt')].map(x => x.textContent), town: !!document.querySelector('#panel-body .rep-list [data-faction="town"]') }));
+  if (rep.town) assert.ok(!rep.dts.includes('Reputation'), 'no second town standing: ' + rep.dts.join(', '));
+  await page.evaluate(() => Game.UI.closeSheet());
+  await page.waitForTimeout(300);
+  // The ⋯ Wait until… list has a heading.
+  await page.click('#act-btn-m');
+  await page.click('#act-pop [data-act="wait"]');
+  assert.equal(await page.textContent('#act-pop .act-h'), 'Wait until…');
+  await page.keyboard.press('Escape');
+  // Five panel tabs on a phone (Debug on): no label cut.
+  await page.fill('#cmd', '');
+  await sendText(page, '/debug');
+  await page.evaluate(() => Game.UI.closeSheet());
+  await page.waitForTimeout(300);
+  await page.click('[data-open-tab="people"]');
+  await page.waitForTimeout(300);
+  const cut = await page.evaluate(() => [...document.querySelectorAll('#panel-tabs [role="tab"]')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.textContent));
+  assert.deepEqual(cut, [], 'every tab label whole');
+  await shot(page, 'W14_debug_tabs_375');
+  // Creation: Random over a started form asks first (Keep mine has the focus), and the cards line up at the top.
+  const cr = await open(h, LAPTOP);
+  await cr.evaluate(() => Game.Storage.saveSettings({ playChoice: 'demo' }));
+  await cr.click('#btn-new');
+  assert.equal(await cr.evaluate(() => getComputedStyle(document.querySelector('.bg-choice')).justifyContent), 'flex-start');
+  await cr.fill('#cr-name', 'Ilse Varga');
+  await cr.click('#cr-random');
+  await cr.waitForSelector('#ask[open]');
+  assert.deepEqual(await cr.evaluate(() => [document.activeElement.id, document.getElementById('ask-no').textContent]), ['ask-no', 'Keep mine']);
+  await cr.keyboard.press('Escape');
+  assert.equal(await cr.inputValue('#cr-name'), 'Ilse Varga', 'kept');
+  await cr.click('#cr-random');
+  await cr.click('#ask-yes');
+  await cr.waitForSelector('#create-summary-view:not([hidden])');
+});
+
+s.test('wave 2, the docs check and B10: "Hurt" until the day after, as the engine counts it; the Re-read hint names the arc; Journal notes keep their own day and phase, and the story so far runs newest first', async h => {
+  const page = await open(h);
+  await quickStart(page);
+  const hurt = await page.evaluate(() => {
+    const st = Game.state;
+    const n = Game.State.npcsAt(st.player.locationId)[0];
+    Game.State.apply({ npcKnownToPlayer: [n.id] });
+    Game.UI.openPanel('people');
+    const flag = () => { Game.UI.renderPanel(); return document.querySelector(`.pcard[data-npc="${n.id}"] .pcard-meta`).textContent; };
+    n.hurtUntilDay = st.time.day;
+    const today = flag();
+    n.hurtUntilDay = st.time.day + 1;
+    return { today, tomorrow: flag(), engine: typeof Game.State.isHurt === 'function' };
+  });
+  if (!hurt.engine) assert.ok(!/Hurt/.test(hurt.today), 'not hurt on the last day: ' + hurt.today);
+  assert.match(hurt.tomorrow, /Hurt, until day/);
+  assert.match(await page.textContent('#set-reread-hint'), /gives the game its arc/);
+  // Journal: a note keeps its own day and phase after the log is compressed.
+  const j = await page.evaluate(() => {
+    const st = Game.state;
+    Game.State.apply({ advanceTime: 'long' });
+    Game.State.apply({ advanceTime: 'long' });
+    Game.State.apply({ journalEntry: 'Saw the night boat.' });
+    const e = st.journal[st.journal.length - 1];
+    st.log = st.log.slice(-1);
+    st.log[0].turn = 99;
+    st.log[0].phase = 'night';
+    st.chronicle = [{ fromTurn: 0, toTurn: 9, summary: 'First days.' }, { fromTurn: 10, toTurn: 19, summary: 'Second days.', toDay: 2 }];
+    st.news = [{ day: 1, phase: 'morning', text: 'Day one news.', public: true, seen: true }, { day: 3, phase: 'morning', text: 'Day three news.', public: true, seen: true }];
+    Game.UI.openPanel('journal');
+    const sec = k => document.querySelector(`#panel-body [data-section="${k}"]`);
+    return {
+      day: e.day, phase: e.phase,
+      note: [...sec('notes').querySelectorAll('li')].find(li => li.textContent.includes('Saw the night boat.')).querySelector('.jr-day').textContent,
+      story: [...sec('story').querySelectorAll('.jr-text')].map(x => x.textContent)
+    };
+  });
+  assert.equal(j.note, `Day ${j.day} · ${await page.evaluate(d => (typeof Game.State.weekday === 'function' ? Game.State.weekday(d) + ' · ' : ''), j.day)}${j.phase.charAt(0).toUpperCase() + j.phase.slice(1)}`, 'the stored day and phase');
+  assert.deepEqual(j.story, ['Day three news.', 'Second days.', 'Day one news.', 'First days.']);
 });
 
 s.run();

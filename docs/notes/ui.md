@@ -272,3 +272,181 @@ to the scratchpad `shots2/` folder (set `UI_SHOTS` to put them elsewhere).
 - Debug: extra usage counters follow the cost, labelled ("1-hour cache
   write N").
 - App's attitude band lines are the only ones (transport's copy is gone).
+
+## Wave 2 (the visual, mobile and accessibility QA)
+
+Region as before: CSS, HTML, Storage, UI, App. Every defect from the QA
+report (D1 to D15), the REVIEW items it found only partly done (U8 to U14),
+its polish list, its two docs-check items and three items from the playtest
+report (B10, B11, the read-only wording) are fixed. Tests: 13 new ones in
+`tests/ui-fixes.test.cjs` ("wave 2, …"); screenshots now go to
+`os.tmpdir()/novatria-ui-shots` (or `UI_SHOTS`), never a session folder.
+
+### One guard for anything that plays (D1)
+- `UI.canAct(opts)` is the single check before Send, Wait, the ⋯ actions,
+  the Undo link, Go there, the map's "Go to" chip, Spend, a pronoun chip,
+  and Edit and Save on a person. It says no in a read-only tab
+  (`Storage.readOnly`), without a game on screen, and while a turn runs
+  (`opts.queue`: unless the Pipeline can queue this line; `opts.fill`: Spend
+  only fills the box, so a turn does not block it). `opts.say` toasts the
+  reason. The panel's controls are drawn disabled with the reason as their
+  title, and `setBusy` re-checks them with the same guard.
+- Going read only (`UI.otherTab`) closes the ⋯ list and the command list,
+  drops a picked map place, takes the Undo link away and redraws the panel.
+  The bar reads "This game is open in another tab, so this tab is
+  read-only." with **Play here instead** as the one way out.
+- **Play here instead** is `App.playHere` (B11): it loads the autosave the
+  other tab wrote (drawn before anything is written, like any load), and
+  only then `Storage.claim()` writes it back, which makes the other tab read
+  only. An autosave this tab cannot read or draw is copied to
+  `novatria.autosave.prev` first (`Storage.keepAside`), this tab's game is
+  saved, and the banner says so. `Storage.takeOver` now calls
+  `App.playHere`. A game loaded or begun in a read-only tab plays there the
+  same way. A load resets App's attitude bands, so turns played in another
+  tab (or a later slot of the same game) never produce "warms to you" lines.
+
+### Phone composer, command list, Say (D2, D9, D10)
+- The ⋯ button moves to the end of the tab row on a phone (`#act-btn-m`;
+  `#act-btn` stays beside the toggle on a laptop), so the box is about 225px
+  wide at 390 (was 178, and two lines). The phone placeholder is "What do
+  you do?" / "What do you say?" and never wraps; `autosize` keeps an empty
+  box at one line whatever the placeholder would wrap to.
+- The command list is positioned on the input row, so it spans the row (359px
+  at 375; was the box's 158) and each description fits on one line.
+- With more than four people here, a phone's Say row is the "To:" picker
+  alone (no chips after it), as wide as its longest name (`min-width: 12em`,
+  `max-width: 100%`). Redrawing the row keeps the focus on the picker or the
+  chip it was on.
+
+### Map (D3, U9)
+- **Expand map** is on the laptop too. The expanded map is a modal dialog
+  (`role=dialog`, `aria-modal`, labelled "Map of …") with a bar and Close
+  map: everything else (the story, the bars, the panel's tabs and the rest
+  of the panel) is inert, Tab and Shift+Tab go round inside it, Close map
+  takes the focus, Escape closes (a picked place first) and the focus goes
+  back to Expand map. Its size (`expandedSize`): a phone fills the height
+  below the bar and is at least 1.6 times the sheet's width (821 by 684 at
+  375x740), panning sideways, opened centred on the player; a laptop fits
+  the window (835px wide at 1280x800, against 320 in the panel). Labels are
+  laid out again at 14px on screen, so there is more room between them. It
+  is drawn again when the window changes.
+
+### Focus never dropped (D4)
+- `renderPanel` puts the focus back on the same control after any redraw
+  (its id, else its class and a few data attributes inside its card or
+  section); a control that is gone or off gives it to the panel's tab, never
+  the page. So a People sort chip keeps it.
+- Back to edit focuses the form's heading. Edit on a phone focuses the form
+  (`tabindex=-1`, labelled "Edit …"; no keyboard pops up). Next and Back on
+  a phone focus the step's heading (`tabindex=-1`), so the keyboard never
+  covers the goal suggestions (D12).
+- Review with errors: one message (`#cr-errsum`, `role=alert`; beside Review
+  on a laptop, for screen readers only on a phone), such as "Fix 3 things
+  first: Name, Background and age and Goal and flaw." The steps' own
+  messages are plain text now (no five alerts at once); the first field to
+  fix gets `aria-invalid`, `aria-describedby` and the focus.
+
+### Contrast (D5, D7, D15)
+- Parchment text tokens darkened to hold 4.5:1 on the page, the panel and
+  an open card: `--accent #815219`, `--danger #9c3d28`, `--att-cold
+  #416076`, `--att-cool #515e62`, `--att-mild #815029`, `--att-warm
+  #8f4819` (`--focus` follows `--accent`). Dark passed already.
+- `::placeholder` uses `--faint` at full opacity: 5.1:1 / 5.0:1 on a field.
+- Controls (buttons, chips, choice cards, Say chips, segmented labels, the
+  ⋯ and New buttons) have a `--field` edge (3:1 or more on every surface);
+  `--border` stays for dividers and containers. The stat tiles show values
+  and are not controls, so they keep `--border`.
+- New map tokens: `--map-river` for the river's name on the water (5.2:1
+  dark, 4.9:1 parchment, with a water halo) and `--map-dim` for a closed
+  place's marker and label (5.1:1 / 4.7:1, no opacity). The "Rewriting…"
+  draft is drawn in `--muted` (7:1) instead of at 45% opacity.
+
+### Smaller fixes
+- D6: while someone is being edited the People search and sort are not
+  drawn, the panel has `scroll-padding-bottom`, and `keepFieldClear` scrolls
+  a focused field above the sticky Save bar (also when the keyboard comes
+  up).
+- D8: the recap is one notice, `.f-notice.recap` (Continue, ⋯ Recap,
+  `/recap`, after `/rest`): "Where things stand" drawn by CSS `::before` (so
+  the node's text stays exactly `Pipeline.recapText()`), one line per kind
+  with the kind in bold, `white-space: pre-line`. Its "In town" line is left
+  out when an "Overnight in town" line is just above it. That line
+  (`.f-quiet.f-news`) has an accent rule and a bold label.
+- D11: a place's hours add "Closed Sundays" only when they do not already
+  name the day; the place here reads "Gas station · Closed today (Sundays)".
+- D12: a loose end's suggestion chips show their first four words with "…"
+  (the whole line is the chip's name and tooltip, and goes in the field);
+  the goal placeholder is "Why you came, in a line".
+- D13: the toast sits just above the composer in the game (clear of the box,
+  the top bar and the demo bar), near the bottom elsewhere and over the
+  phone sheet (`--toast-bottom`). The title chip's texts fit one line at 375
+  ("Offline demo (canned replies) · Add API key", "Claude, no API key yet ·
+  Add API key", "… · Use Claude"). "Replace the autosave?" focuses Keep it.
+- D14: a queued line shows as "Next: “…”" in the status line, with × to take
+  it back once the Pipeline has `cancelQueued()`; Check key drops "Check the
+  key in Settings." while in Settings; a damaged autosave reads "The
+  autosave in this browser could not be read. The saved game is not valid
+  JSON." (`Storage.parseEnvelope(text, 'The saved game')`); a newer-build
+  autosave has a one-line note under Continue, and the banner after loading
+  is one line.
+- B10: Journal notes use the day and phase stored on the entry; "Story so
+  far" sorts news and chronicle together by day, phase and turn, newest
+  first (a chronicle entry with no day takes the last day known before it).
+- Polish: with an autosave, Continue comes first and is the primary button;
+  Wait is a plain button (a paid turn too); a failed turn's notice has **Try
+  again** (the line again, without touching anything new typed in the box)
+  and **Open Settings** when it names Settings (the key field takes the
+  focus); the Character tab drops its Reputation row when the Standing list
+  has the town; Random character over a started form asks (Keep mine is the
+  default); choice cards line up at the top; the Wait until… list has a
+  heading; five panel tabs (Debug on) fit at 375; the theme switch sits
+  above the setting text; Send shows Stop whenever the turn can be stopped
+  (`Pipeline.canStop`, when the engine has it) unless a typed line can be
+  queued.
+- Docs check: "Hurt, until day N" uses `State.isHurt(n)` when the engine has
+  it, else `hurtUntilDay > day` (as `State.laidUp`); the Re-read hint names
+  the arc step.
+- The demo never reads like a test harness: its narration is tagged "Mock
+  narration" and the demo bar says the replies are canned (no recorded live
+  scene: that needs a real API call).
+
+### Tests changed by design
+- `tests/ui-fixes.test.cjs`: the chip text, the goal placeholder, the Say
+  picker without chips, the toast above the composer (not at the top), the
+  phone ⋯ in the tab row and its short placeholder.
+- `tests/shell.test.cjs`: the busiest scene at 375 counts the picker's
+  options when more than four people are here, and picks with it.
+
+### Needs from the engine (coded defensively)
+- One line at the top of `Pipeline.submit` (and of `runTurn`), belt and
+  braces for D1:
+  `if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only' }; }`
+- `Pipeline.cancelQueued()`: clear the queued line and return its text (the
+  × appears once it exists).
+- `State.isHurt(n)` (the same rule as `State.laidUp`).
+- `Pipeline.canStop` (already planned): Stop shows only while it is true.
+- `Pipeline.recapText()` wording, below.
+
+### Recap wording for the engine
+One line each, in this order; a line with nothing in it is left out, except
+Here and Open. The UI adds the heading and bolds what comes before the first
+colon.
+
+    Day 2 (Friday 9 October), morning, at Pittman's Gas and Service.
+    Here: Royce Pittman, Dewayne Mangum and Jodie Strayhorn.
+    Open: A debt (I owe a man in this town six hundred dollars I don't have); An enemy (Someone I wronged is already here, waiting for me).
+    Owed: You owe Royce Pittman $400 · due Day 3 (2 days).
+    Warm to you: Royce Pittman (friendly), Loretta Gaddis (warm, remembers you fixed the fuel pump).
+    Cold to you: Boyd Teague (cold, your loose end: an enemy), Lyman Coker (wary, remembers you called him a liar).
+    Heard: "The council meets Tuesday about the bridge" (Royce Pittman).
+    In town: Day 2: The council voted to close the old bridge.
+
+- Here: names joined with commas and a final "and"; Warm and Cold: people
+  joined with ", ".
+- A person's bracket is their attitude word, then at most one reason: for
+  someone tied to a loose end, "your loose end: " and its label in lower
+  case ("an enemy", "a debt"); otherwise their newest memory of weight 2 or
+  more in your words after "remembers " (the player's name becomes "you";
+  "me" becomes "him", "her" or "them" by their pronouns), and only when it
+  fits the side it is on (never "Warm … remembers you insulted him"). No
+  memory in quotes, and never the raw "Loose end with …" form.

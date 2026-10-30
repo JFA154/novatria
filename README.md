@@ -49,8 +49,9 @@ and the town's story reaches an ending by the third week.
 4. Type what you do and press Enter (Shift+Enter for a new line). The
    **Do / Say** switch at the left of the input says whether you are doing
    something or saying something (see below). Type `/`, or press the **⋯**
-   button beside the switch, for the commands. The side panel (on a phone,
-   the tab bar above the input) has Character, People, Journal and Places.
+   button beside the switch (on a phone, at the end of the tab row above
+   the input), for the commands. The side panel (on a phone, the tab row
+   above the input) has Character, People, Journal and Places.
    After the first narration of your first game a three-line tip says this
    again; × closes it.
 5. While a turn runs, a line above the input says what is happening
@@ -58,7 +59,10 @@ and the town's story reaches an ending by the third week.
    becomes **Stop**. Stop cancels the turn: nothing changes and your words go
    back in the box. Once the narration is in, the box is yours again while
    the town is updated: type the next line and press Send, and it waits
-   ("Queued") and runs as soon as the turn is done.
+   (shown above the box as "Next: “…”") and runs as soon as the turn is
+   done. A turn that fails says why, keeps your words in the box and offers
+   **Try again** (and **Open Settings** when the key or a model name is the
+   trouble).
 
 ## Do and Say
 
@@ -76,8 +80,8 @@ button for each person here, by name. One is always picked: the only person
 here if there is just one, otherwise Everyone. Tap another to talk to them.
 The row changes with the scene (after each turn, when you move, when you load
 a game), and your pick is forgotten when you go somewhere else. On a phone the
-row is one line that scrolls sideways, and with more than four people here a
-"To: Everyone ▾" picker leads it and stays put while the names scroll.
+row is one line that scrolls sideways; with more than four people here it is
+a single "To: Everyone ▾" picker instead, which lists everyone here.
 
 In the story, a Say line shows your words in quotes and who you said them to:
 `“Run.” — to Royce Pittman` or `“Anybody here hiring?” — to everyone`.
@@ -93,9 +97,10 @@ Commands (`/look`, `/undo` and the rest) work in either mode. The switch is
 remembered in this browser; who you were talking to is not.
 
 **Wait, ⋯ and Undo.** Enter on an empty box does nothing. With the box empty,
-the button beside it reads **Wait**: pressing it is a paid turn in which you
-say and do nothing and let the people here act (`/pass`). The **⋯** button (on
-a phone also Menu → Actions and commands) lists Look around, Wait until… (the
+the button beside it reads **Wait** (a plain button, not the bright Send):
+pressing it is a paid turn in which you say and do nothing and let the people
+here act (`/pass`). The **⋯** button (on a phone at the end of the tab row,
+and Menu → Actions and commands) lists Look around, Wait until… (the
 other three phases), Sleep, Recap, Undo last turn, Spend a story point (it
 fills in `/fact ` for you to finish) and Commands help. The newest line you
 typed carries a small **Undo** link too. Quiet lines in the story ("Added to
@@ -141,8 +146,13 @@ ends) and goes to the summary, where everything can still be changed.
 - **Goal and flaw** share a step. The goal has six suggestions from the
   town's own stories to tap, or you type your own.
 - **Loose ends.** Pick three kinds. Each is one line you can edit, with the
-  kind's three options as suggestions to tap. Each option means someone in
+  kind's three options as suggestions to tap (each shows its first words;
+  tapping it puts the whole line in the field). Each option means someone in
   the cast (see The cast and The story moves).
+
+Random character over a form you have started asks first (Keep mine or
+Replace it). **Review character** with something missing says what to fix
+and puts you on the first field to fix.
 
 ## Places and the map
 
@@ -158,12 +168,14 @@ and twelve a game. Walking to a place nobody has told you about yet says
 "You don't know where that is yet. Ask around." and spends nothing.
 
 Each label sits where it hides the fewest markers and other labels; where you
-are shows as a ring and a bold label. On a phone, **Expand map** fills the
-screen with it (Close map or Escape to go back).
+are shows as a ring and a bold label. **Expand map** (phone and laptop) opens
+the map larger, over everything else: on a phone it fills the height and pans
+sideways, on a laptop it fits the window (Close map or Escape to go back).
 
 **Places tab.** Under the map, **Places you know** lists every place you have
 been or heard of. Tap one to open its sheet: what it is, what you notice
-inside, when it is open ("Closed Sundays" beside the hours where it is), how
+inside, when it is open ("Closed Sundays" beside the hours, unless the hours
+already say so), how
 it came to be, who lives there, who works there or drinks there, who is
 buried there and who is there right now. Each exit and each sheet has a **Go
 there** button, the same Do turn as tapping the place on the map and then its
@@ -347,14 +359,16 @@ The Journal tab has five parts:
 `/recap` (or Recap in the ⋯ list) prints the gist in the story with no API
 call: the day, date, phase and place, who is here, the open threads, what you
 owe and by when, the three people warmest and coldest to you with the memory
-behind it, the last three rumours you heard and the last two news items. It
-also shows after Continue and after `/rest`.
+behind it, the last three rumours you heard and the last two news items, one
+line each under the heading "Where things stand". It also shows after
+Continue and after `/rest` (there without the town news, which the
+"Overnight in town" line just above it has told).
 
 ## Character
 
 The Character tab shows your name and age, background, stats, HP, cash, story
 points with a **Spend** button beside them (it fills in `/fact ` for you to
-finish), your reputation in town and a **Standing** line for each faction,
+finish), a **Standing** line for the town and for each faction,
 your goal and flaw, **Grown** (the threads you resolved and what each gave
 you), your conditions with how long each has left ("until you rest" for
 Tired) and what you carry.
@@ -558,7 +572,9 @@ until no turn is running.
 
 - **Autosave** after every turn, in this browser's `localStorage`.
   **Continue** on the title screen picks it up, with a line under it saying
-  who, which day and where ("Tomas Reed · Day 3 · The Low Water").
+  who, which day and where ("Tomas Reed · Day 3 · The Low Water"). While
+  there is an autosave, Continue is the first button and New game comes
+  after it.
 - **Three named slots** on the Saves screen (laptop: Save in the top bar; phone:
   Menu → Save / Load), or with `/save <name>`.
 - **Nothing is replaced without a copy.** Before the autosave is written with
@@ -570,9 +586,14 @@ until no turn is running.
   it cannot be shown, the game that was open comes back and nothing of the
   new one is written.
 - **Two tabs.** When another tab writes the autosave, this one goes read
-  only, with the banner "This game is open in another tab. This tab will not
-  save until you play here instead." and **Play here instead**, which makes
-  the other tab the read-only one.
+  only, with the bar "This game is open in another tab, so this tab is
+  read-only." Nothing there plays a turn or changes the game (the box, Send
+  and Wait, the ⋯ list, Undo, Go there, Edit and the pronoun buttons are
+  off). **Play here instead** first loads the game as the other tab saved it,
+  then plays it in this tab, which makes the other tab the read-only one. If
+  the other tab's autosave cannot be read, it is kept as the previous
+  autosave and the banner says so. Loading or starting a game in a read-only
+  tab plays it there the same way.
 - **Export current game** downloads a `.json` file holding the full state and
   the town data, never the API key; the Saves screen says when you last did
   ("Last exported: 3 days ago", or never). **Import from file** loads one on
@@ -587,8 +608,9 @@ until no turn is running.
 - **A damaged autosave** is explained on the title screen with **Download
   it**, which saves the stored text exactly as it is, as
   `damaged-autosave.json`.
-- **A save from a newer build** of the game loads with a warning banner (it
-  may not play correctly here) and is never updated.
+- **A save from a newer build** of the game says so under Continue on the
+  title screen and loads with a one-line warning ("Saved by a newer version
+  of the game, so it may not play right here.") and is never updated.
 - The game asks the browser once to keep its storage. If the browser refuses
   storage (private mode, full disk), a warning banner appears. Export to keep
   your game.

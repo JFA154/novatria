@@ -84,6 +84,9 @@
   --map-bank: #3d4c4b;
   --map-road: #8a7a63;
   --map-ink: #ddd3c1;
+  /* The river's name on the water, and a closed place's marker and label: 4.5:1 or more. */
+  --map-river: #b6ac9a;
+  --map-dim: #978e81;
   color-scheme: dark;
 }
 :root[data-theme="parchment"] {
@@ -95,10 +98,11 @@
   --faint: #6a5d45;
   --border: #cdbd9b;
   --field: #857559;
-  --accent: #87561a;
+  /* Text tokens hold 4.5:1 on the page, the panel and an open card (surface-2). */
+  --accent: #815219;
   --accent-ink: #fbf6ea;
-  --danger: #a3402a;
-  --focus: #87561a;
+  --danger: #9c3d28;
+  --focus: #815219;
   --shadow: 0 12px 32px rgba(70, 45, 10, .18);
   --scrim: rgba(60, 40, 10, .25);
   --person-1: #dbb4a0;
@@ -108,15 +112,17 @@
   --person-5: #d3b7c4;
   --person-6: #aecabd;
   --person-ink: #2e2519;
-  --att-cold: #46677f;
-  --att-cool: #556267;
-  --att-mild: #8b562c;
-  --att-warm: #a4531d;
+  --att-cold: #416076;
+  --att-cool: #515e62;
+  --att-mild: #815029;
+  --att-warm: #8f4819;
   --map-land: #e8dcc0;
   --map-water: #b3c5c2;
   --map-bank: #93aaa5;
   --map-road: #857559;
   --map-ink: #3a2f21;
+  --map-river: #57492f;
+  --map-dim: #675e4e;
   color-scheme: light;
 }
 :root[data-size="S"] { --read-size: 16px; }
@@ -163,7 +169,8 @@ p { margin: 0 0 .8em; }
   min-width: var(--tap);
   padding: 0 16px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  /* Controls carry a 3:1 edge (--field); --border is for dividers and containers. */
+  border: 1px solid var(--field);
   background: var(--surface);
   color: var(--text);
   font-family: var(--ui-font);
@@ -205,6 +212,8 @@ p { margin: 0 0 .8em; }
 }
 select.input { padding-right: 32px; }
 .input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
+/* Placeholders at 4.5:1 or more in both themes (the browser's grey is not). */
+::placeholder { color: var(--faint); opacity: 1; }
 .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
 .err { font-size: 14px; color: var(--danger); margin: 8px 0 0; min-height: 0; }
 .err:empty { display: none; }
@@ -218,7 +227,7 @@ select.input { padding-right: 32px; }
 .seg label {
   display: inline-flex; align-items: center; gap: 8px;
   min-height: var(--tap); padding: 0 14px;
-  border: 1px solid var(--border); border-radius: 999px; cursor: pointer; background: var(--surface);
+  border: 1px solid var(--field); border-radius: 999px; cursor: pointer; background: var(--surface);
 }
 .seg input { accent-color: var(--accent); margin: 0; }
 .effort-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
@@ -266,7 +275,7 @@ select.input { padding-right: 32px; }
 .status-chip {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; max-width: 100%;
   margin: 16px 0 0; padding: 0 4px 0 14px; min-height: var(--tap);
-  border: 1px solid var(--border); border-radius: 22px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
   font-size: 13px; color: var(--muted); align-self: flex-start;
 }
 .status-chip::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 4px; }
@@ -285,7 +294,9 @@ select.input { padding-right: 32px; }
 .menu-row #btn-continue { flex: 1 1 auto; min-width: 0; }
 .menu-row #btn-update { flex: 0 1 auto; }
 .title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
-.title-foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+.continue-group { display: grid; gap: 10px; }
+.title-note.warn { color: var(--danger); }
+.title-foot { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
 
 /* Character creation */
 .step { border-top: 1px solid var(--border); padding: 24px 0; }
@@ -295,9 +306,9 @@ select.input { padding-right: 32px; }
 .step-count { color: var(--muted); font-size: 13px; margin: 0; }
 .choice-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .choice {
-  display: block; width: 100%; text-align: left;
+  display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; width: 100%; text-align: left;
   padding: 12px 14px; min-height: var(--tap);
-  border: 1px solid var(--border); border-radius: var(--radius);
+  border: 1px solid var(--field); border-radius: var(--radius);
   background: var(--surface); color: var(--text); cursor: pointer;
   font-family: var(--ui-font); font-size: 15px;
 }
@@ -309,7 +320,7 @@ select.input { padding-right: 32px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   min-height: var(--tap); padding: 8px 14px; border-radius: 22px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border: 1px solid var(--field); background: var(--surface); color: var(--text);
   cursor: pointer; text-align: left; font-size: 15px; max-width: 100%;
 }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -338,6 +349,9 @@ select.input { padding-right: 32px; }
 .cr-suggest-k { display: block; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .cr-random { margin: 0 0 18px; }
 .cr-tip { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
+/* One summary of what to fix (laptop: beside Review; a phone reads it out only). */
+.cr-errsum { flex: 1 0 100%; margin: 0; font-size: 14px; color: var(--danger); }
+.cr-errsum:empty { display: none; }
 .mode-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 0 0 18px; }
 .mode-key { display: grid; gap: 10px; }
 .mode-key .row-btns { margin-top: 4px; }
@@ -432,12 +446,21 @@ select.input { padding-right: 32px; }
   color: var(--muted);
 }
 .f-notice.error { border-left-color: var(--danger); color: var(--text); }
+/* A failed turn's notice: Try again (and Open Settings when the key or a model is the trouble). */
+.f-notice-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
+/* The recap (Continue, /recap, after a night's sleep): a heading, then one line per kind. */
+.f-notice.recap { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
+.f-notice.recap::before { content: "Where things stand"; content: "Where things stand" / ""; display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-recap-k { font-weight: 600; }
 .f-quiet {
   margin: 0 0 .75em;
   font-family: var(--ui-font);
   font-size: 13px;
   color: var(--muted);
 }
+/* "Overnight in town": the news, a little above a dice line. */
+.f-quiet.f-news { padding: 6px 12px; border-left: 2px solid var(--accent); font-size: 14px; color: var(--text); }
+.f-news-k { font-weight: 600; }
 .f-narr .f-tag {
   margin: 0 0 .35em;
   font-family: var(--ui-font);
@@ -457,7 +480,7 @@ select.input { padding-right: 32px; }
   min-width: var(--tap);
   padding: 0 18px;
   border-radius: 22px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field);
   background: var(--surface-2);
   color: var(--text);
   font-family: var(--ui-font);
@@ -474,14 +497,18 @@ select.input { padding-right: 32px; }
   padding: 8px calc(12px + var(--sar)) calc(8px + var(--sab)) calc(12px + var(--sal));
 }
 .composer-inner { max-width: var(--feed-w); margin: 0 auto; }
-.tabbar { display: none; gap: 2px; margin: 0 0 6px; }
+/* Phones: the tab row is the four panel tabs and the ⋯ actions button
+   (moved here from the input row, so the box keeps its width). */
+.tabrow { display: none; gap: 4px; margin: 0 0 6px; align-items: stretch; }
+.tabbar { display: none; gap: 2px; margin: 0; }
+.tab-act { flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0 8px; border: 1px solid var(--field); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 20px; line-height: 1; letter-spacing: .05em; cursor: pointer; }
 .tabbar button {
   flex: 1 1 0; min-width: 0; min-height: var(--tap);
   border: 0; border-radius: 6px; background: transparent; color: var(--muted);
   font-family: var(--ui-font); font-size: 13px; cursor: pointer;
 }
 .tabbar button:hover { background: var(--surface); color: var(--text); }
-.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.input-row { position: relative; display: flex; gap: 8px; align-items: flex-end; }
 .input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
 .cmd-input {
   flex: 1 1 auto;
@@ -501,6 +528,8 @@ select.input { padding-right: 32px; }
 }
 .cmd-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .send-btn { flex: none; }
+/* Wait (nothing typed) is a paid turn too: a plain button, not the primary one. */
+.send-btn.wait { font-weight: 600; }
 /* Do / Say toggle and the Say addressee chips */
 .mode-toggle {
   flex: none; display: flex;
@@ -516,10 +545,10 @@ select.input { padding-right: 32px; }
 .mode-btn:hover { color: var(--text); }
 .mode-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .say-to { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; min-width: 0; }
-.say-pick { flex: none; width: auto; max-width: 12em; min-height: var(--tap); padding: 0 32px 0 14px; border-radius: 22px; font-family: var(--ui-font); font-size: 16px; border-color: var(--accent); }
+.say-pick { flex: none; width: auto; min-width: 12em; max-width: 100%; min-height: var(--tap); padding: 0 32px 0 14px; border-radius: 22px; font-family: var(--ui-font); font-size: 16px; border-color: var(--accent); }
 .say-chip {
   min-height: var(--tap); min-width: var(--tap); max-width: 100%; padding: 0 14px;
-  border: 1px solid var(--border); border-radius: 22px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--field); border-radius: 22px; background: var(--surface); color: var(--text);
   font-family: var(--ui-font); font-size: 14px; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -541,6 +570,7 @@ select.input { padding-right: 32px; }
 .ac-args { color: var(--faint); font-family: var(--mono-font); font-size: 13px; white-space: nowrap; }
 .ac-desc { color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
+/* The command list spans the input row (not just the box), so its lines have room on a phone. */
 /* Side panel / mobile sheet */
 .panel {
   flex: none;
@@ -732,7 +762,7 @@ select.input { padding-right: 32px; }
 .map-label { fill: var(--map-ink); }
 .map-caption { fill: var(--accent); font-weight: 600; }
 .map-area { fill: var(--muted); font-style: italic; }
-.map-river-label { fill: var(--muted); font-style: italic; letter-spacing: .14em; }
+.map-river-label { fill: var(--map-river); font-style: italic; letter-spacing: .14em; paint-order: stroke; stroke: var(--map-water); stroke-width: 3px; stroke-linejoin: round; }
 .map-more { fill: var(--muted); }
 .map-mark { fill: var(--map-ink); }
 .map-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
@@ -743,7 +773,9 @@ select.input { padding-right: 32px; }
 .map-place[data-picked="1"] .map-mark { fill: var(--accent); }
 .map-place:focus-visible .map-hit { stroke: var(--focus); stroke-width: 1.5; }
 @media (hover: hover) { .map-place:not([data-here="1"]):hover .map-mark { fill: var(--accent); } }
-.map-place[data-closed="1"] .map-mark, .map-place[data-closed="1"] .map-label { opacity: .5; }
+/* Closed: a dimmer ink (4.5:1 on the land), not transparency. */
+.map-place[data-closed="1"] .map-mark { fill: var(--map-dim); }
+.map-place[data-closed="1"] .map-label { fill: var(--map-dim); }
 /* Heard of (someone told the player about it; not visited yet): a dashed outline. */
 .map-place[data-heard="1"] .map-mark { fill: var(--map-land); stroke: var(--map-ink); stroke-width: 1.4; stroke-dasharray: 2.6 1.8; }
 .map-place[data-heard="1"][data-picked="1"] .map-mark { stroke: var(--accent); }
@@ -775,7 +807,7 @@ select.input { padding-right: 32px; }
 .map-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .lg { flex: none; display: inline-block; }
 .lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
-.lg-closed { width: 10px; height: 10px; border-radius: 1px; opacity: .55; background: linear-gradient(to top right, var(--map-ink) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-ink) calc(50% + 1.2px)); }
+.lg-closed { width: 10px; height: 10px; border-radius: 1px; background: linear-gradient(to top right, var(--map-dim) 0 calc(50% - 1.2px), var(--surface) calc(50% - 1.2px) calc(50% + 1.2px), var(--map-dim) calc(50% + 1.2px)); }
 .lg-person { width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); }
 .lg-heard { box-sizing: border-box; width: 10px; height: 10px; border-radius: 1px; border: 1.5px dashed var(--map-ink); }
 .dbg pre {
@@ -819,7 +851,7 @@ select.input { padding-right: 32px; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(96px + var(--sab));
+  bottom: max(var(--toast-bottom, 0px), calc(24px + var(--sab)));
   transform: translateX(-50%);
   max-width: calc(100% - 32px);
   padding: 10px 16px;
@@ -851,7 +883,10 @@ select.input { padding-right: 32px; }
 .turn-status { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 6px; font-family: var(--ui-font); font-size: 13px; color: var(--muted); }
 .turn-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
-.turn-status .queued { margin-left: auto; padding: 1px 8px; border: 1px solid var(--field); border-radius: 10px; font-size: 12px; color: var(--text); }
+.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; min-width: 0; max-width: 60%; padding: 1px 0 1px 8px; border: 1px solid var(--field); border-radius: 10px; font-size: 12px; color: var(--text); }
+.turn-status .queued[data-cancel="0"] { padding-right: 8px; }
+.queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queued-x { flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
 .turn-status.nudge { color: var(--text); }
 .send-btn.stop { background: var(--surface-2); border-color: var(--danger); color: var(--text); }
 .send-btn.stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--danger); }
@@ -859,6 +894,7 @@ select.input { padding-right: 32px; }
 .act-btn { flex: none; min-width: var(--tap); padding: 0; font-size: 20px; letter-spacing: .05em; }
 .act-pop { top: auto; bottom: calc(100% + 6px); right: auto; left: 0; min-width: 230px; max-height: min(420px, calc(var(--app-h, 100dvh) * .6)); overflow-y: auto; }
 .act-pop .btn { justify-content: flex-start; text-align: left; }
+.act-pop .act-h { margin: 4px 10px 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .act-pop .act-k { margin-left: auto; padding-left: 12px; font-family: var(--mono-font); font-size: 12px; color: var(--faint); }
 .composer-inner { position: relative; }
 /* The slim bars under the top bar: the offline demo, another tab. */
@@ -874,7 +910,7 @@ select.input { padding-right: 32px; }
 .bar-x { min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; border-radius: var(--radius); }
 .read-only .cmd-input { opacity: .6; }
 /* A narration being rewritten keeps its first draft, dimmed, under a label. */
-.f-narr.rewriting > p:not(.f-tag):not(.f-rewriting) { opacity: .45; }
+.f-narr.rewriting > p:not(.f-tag):not(.f-rewriting) { color: var(--muted); }
 .f-rewriting { margin: 0 0 .35em; font-family: var(--ui-font); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 /* Undo, a small link at the end of the newest input line (a sibling of the
    line, laid over its right edge, so the line's own text stays as typed). */
@@ -927,6 +963,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .pcard-flag { color: var(--danger); white-space: nowrap; }
 .pcard-flag.soft { color: var(--muted); }
 /* The editor: Save / Cancel stay in reach at the bottom of the panel. */
+/* The fields scroll clear of that bar (and a focused field is moved above it: UI.keepFieldClear). */
+.panel-body.editing { scroll-padding-bottom: 96px; }
 .pedit-actions { position: sticky; bottom: -16px; z-index: 2; margin: 0 -8px -16px; padding: 10px 8px 16px; background: var(--surface-2); border-top: 1px solid var(--border); }
 .pedit-more { min-width: 0; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); }
 .pedit-more > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; }
@@ -936,9 +974,17 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .pedit-more[open] { padding-bottom: 12px; display: grid; gap: 12px; }
 .pedit-more > .field { margin: 0; }
 .map-tools { display: flex; justify-content: flex-end; margin: 8px 0 0; }
-.map.expanded { position: fixed; inset: 0; z-index: 55; margin: 0; display: flex; flex-direction: column; justify-content: center; padding: var(--sat) var(--sar) var(--sab) var(--sal); border: 0; }
-.map.expanded .map-svg { max-height: calc(100% - 56px); }
-.map-close { position: absolute; top: calc(8px + var(--sat)); right: calc(8px + var(--sar)); z-index: 3; }
+/* The map's canvas: the SVG and the "Go to" chip, which is placed inside it. */
+.map-pan, .map-canvas { position: relative; }
+/* Expand map (phone and laptop): a modal view over everything, the map
+   larger than in the panel (UI.expandedSize: on a phone it fills the height
+   and pans sideways; on a laptop it fits the window). */
+.map.expanded { position: fixed; inset: 0; z-index: 55; margin: 0; display: flex; flex-direction: column; padding: var(--sat) var(--sar) var(--sab) var(--sal); border: 0; background: var(--map-land); }
+.map-bar { flex: none; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 8px 6px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.panel-body .map-bar h2, .map-bar h2 { flex: 1 1 auto; min-width: 0; margin: 0; font-family: var(--ui-font); font-size: 16px; font-weight: 600; }
+.map.expanded .map-pan { flex: 1 1 auto; min-height: 0; display: flex; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+.map.expanded .map-canvas { flex: none; margin: auto; }
+.map.expanded .map-svg { width: 100%; height: 100%; }
 .go-btn { margin-top: 10px; }
 .exit-list li { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .exit-list li > span { flex: 1 1 10em; min-width: 0; }
@@ -982,7 +1028,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .tb-time { grid-area: time; font-size: 13px; }
   .tb-hp { grid-area: hp; font-size: 13px; }
   .tb-gold { grid-area: gold; font-size: 13px; }
-  .tabbar { display: flex; }
+  .tabrow { display: flex; }
+  .tabbar { display: flex; flex: 1 1 auto; min-width: 0; }
   .game-body.panel-collapsed .panel { display: flex; }
   .panel {
     position: fixed;
@@ -1030,11 +1077,13 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   /* The picker stays at the start of the row while the chips scroll under it. */
   .say-to .say-pick { position: sticky; left: 0; z-index: 1; background-color: var(--surface-2); box-shadow: 8px 0 8px -6px var(--bg); }
   .say-chip { max-width: 16em; }
-  /* While typing (the keyboard is up) the tab bar and the demo bar step aside. */
-  #app.typing .tabbar, #app.typing #demo-bar { display: none; }
-  /* The toast sits under the top bar, clear of the composer and the keyboard. */
-  .toast { top: calc(60px + var(--sat)); bottom: auto; }
-  .act-pop { min-width: min(260px, calc(100vw - 24px)); }
+  /* While typing (the keyboard is up) the tab row and the demo bar step aside. */
+  #app.typing .tabrow, #app.typing .tabbar, #app.typing #demo-bar { display: none; }
+  /* Five panel tabs (Debug on) fit without cutting a word. */
+  .panel-tabs[data-count="5"] button { padding: 0 1px; font-size: 12px; letter-spacing: -.01em; }
+  /* The creation summary of errors: the step's own message is on screen, so this one is for screen readers. */
+  #cr-errsum { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+  .act-pop { min-width: min(260px, calc(100vw - 24px)); left: auto; right: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -1055,14 +1104,18 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         <p class="eyebrow">A one-town text RPG</p>
         <h1 id="title-name" class="title-name" tabindex="-1">Novatria</h1>
         <p id="title-tagline" class="title-tagline"></p>
-        <div class="menu-list">
+        <div class="menu-list" id="menu-list">
           <button type="button" class="btn primary" id="btn-new">New game</button>
-          <div class="menu-row">
-            <button type="button" class="btn" id="btn-continue" aria-describedby="continue-sub">Continue</button>
-            <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
+          <!-- With an autosave, this group comes first and Continue is the primary button (UI.renderTitle). -->
+          <div class="continue-group" id="continue-group">
+            <div class="menu-row">
+              <button type="button" class="btn" id="btn-continue" aria-describedby="continue-sub">Continue</button>
+              <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
+            </div>
+            <p class="title-note" id="continue-sub" hidden></p>
+            <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
+            <p class="title-note warn" id="title-newer-note" hidden>Saved by a newer version of the game: it may not play right here.</p>
           </div>
-          <p class="title-note" id="continue-sub" hidden></p>
-          <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
           <div class="title-broken" id="title-broken" role="alert" hidden>
             <p id="title-broken-text"></p>
             <button type="button" class="btn small" id="btn-broken-download">Download it</button>
@@ -1071,15 +1124,15 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
           <button type="button" class="btn" id="btn-settings">Settings</button>
         </div>
         <p class="status-chip" id="title-mode" data-mode="demo"><span id="title-mode-text"></span><button type="button" class="link-btn" id="title-mode-act" hidden></button></p>
+        <div class="title-foot">
+          <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
+        </div>
         <div class="title-about">
           <p id="title-setting" class="title-setting"></p>
           <details class="title-more" id="title-more">
             <summary>More about the town</summary>
             <p id="title-setting-more" class="title-setting"></p>
           </details>
-        </div>
-        <div class="title-foot">
-          <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
         </div>
       </div>
     </div>
@@ -1130,6 +1183,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <span class="spacer"></span>
             <button type="button" class="btn primary mobile-only" id="cr-next">Next</button>
             <button type="button" class="btn primary desktop-only" id="cr-review">Review character</button>
+            <p class="cr-errsum" id="cr-errsum" role="alert"></p>
           </div>
         </div>
         <div id="create-summary-view" hidden>
@@ -1177,7 +1231,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
       <button type="button" class="bar-x" id="demo-bar-close" aria-label="Hide this note">&#215;</button>
     </div>
     <div class="bar-note warn" id="tab-bar" role="alert" hidden>
-      <span>This game is open in another tab. This tab will not save until you play here instead.</span>
+      <span id="tab-bar-text">This game is open in another tab, so this tab is read-only.</span>
       <button type="button" class="btn small" id="tab-bar-take">Play here instead</button>
     </div>
     <div class="game-body" id="game-body">
@@ -1191,23 +1245,26 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         </div>
         <div class="composer">
           <div class="composer-inner">
-            <nav class="tabbar" aria-label="Open a panel">
-              <button type="button" data-open-tab="character" aria-controls="panel" aria-expanded="false">Character</button>
-              <button type="button" data-open-tab="people" aria-controls="panel" aria-expanded="false">People</button>
-              <button type="button" data-open-tab="journal" aria-controls="panel" aria-expanded="false">Journal</button>
-              <button type="button" data-open-tab="places" aria-controls="panel" aria-expanded="false">Places</button>
-            </nav>
+            <div class="tabrow">
+              <nav class="tabbar" aria-label="Open a panel">
+                <button type="button" data-open-tab="character" aria-controls="panel" aria-expanded="false">Character</button>
+                <button type="button" data-open-tab="people" aria-controls="panel" aria-expanded="false">People</button>
+                <button type="button" data-open-tab="journal" aria-controls="panel" aria-expanded="false">Journal</button>
+                <button type="button" data-open-tab="places" aria-controls="panel" aria-expanded="false">Places</button>
+              </nav>
+              <button type="button" class="tab-act" id="act-btn-m" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
+            </div>
             <div class="popover act-pop" id="act-pop" role="menu" aria-label="Actions and commands" hidden></div>
             <div class="say-to" id="say-to" role="group" aria-label="Say it to" hidden></div>
-            <div class="turn-status" id="turn-status" role="status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden>Queued</span></div>
+            <div class="turn-status" id="turn-status" role="status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line" hidden>&#215;</button></span></div>
             <div class="input-row">
+              <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
               <div class="mode-toggle" role="group" aria-label="Do or say">
                 <button type="button" class="mode-btn" id="mode-do" data-mode="do" aria-pressed="true">Do</button>
                 <button type="button" class="mode-btn" id="mode-say" data-mode="say" aria-pressed="false">Say</button>
               </div>
-              <button type="button" class="btn act-btn" id="act-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
+              <button type="button" class="btn act-btn desktop-only" id="act-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
               <div class="input-wrap">
-                <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
                 <textarea id="cmd" class="cmd-input" rows="1" enterkeyhint="send" autocomplete="off" spellcheck="true"
                   aria-label="Your action" aria-autocomplete="list" aria-controls="ac" aria-expanded="false"
                   placeholder="What do you do? (/ for commands)"></textarea>
@@ -1321,7 +1378,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, fixes people the game made up so they match what the story says about them, brings in the town's full cast, written by hand, folding anyone the game made up into the person they were, and fills in the lived-in town: everyone's age and history, the dead and the people who live elsewhere, and the places people talk about. About four API calls (none in mock mode).</p>
+              <p class="hint" id="set-reread-hint">Rewrites what people remember about you in the new short form, adds places people told you about to the map, sets the clock back if it ran ahead of the story, fixes people the game made up so they match what the story says about them, brings in the town's full cast, written by hand, folding anyone the game made up into the person they were, and fills in the lived-in town: everyone's age and history, the dead and the people who live elsewhere, and the places people talk about, and gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost. About four API calls (none in mock mode).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -16391,14 +16448,17 @@ const Storage = (() => {
     if (isObj(v) && v.ok === false) return [String(v.reason || (Array.isArray(v.errors) ? v.errors.join('; ') : 'it is not the right shape'))];
     return [];
   }
-  function parseEnvelope(text) {
+  /* what: how the reason names it ('That file' for an import, 'The saved
+     game' for one kept in this browser). */
+  function parseEnvelope(text, what) {
+    const it = what || 'That file';
     let env;
-    try { env = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { throw new Error('That file is not valid JSON.'); }
-    if (!isObj(env)) throw new Error('That file is not a saved game.');
+    try { env = typeof text === 'string' ? JSON.parse(text) : text; } catch (e) { throw new Error(`${it} is not valid JSON.`); }
+    if (!isObj(env)) throw new Error(`${it} is not a saved game.`);
     if (env.kind !== SAVE_KIND && isObj(env.meta) && isObj(env.player)) env = { kind: SAVE_KIND, saveVersion: 1, name: 'Imported', state: env, town: null };
-    if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error('That file is not a saved game.');
+    if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error(`${it} is not a saved game.`);
     const errs = shapeProblems(env.state);
-    if (errs.length) throw new Error('That save is damaged: ' + errs.join('; '));
+    if (errs.length) throw new Error(`${what ? it : 'That save'} is damaged: ${errs.join('; ')}`);
     delete env.apiKey;
     delete env.settings;
     if (!isObj(env.town)) env.town = deepCopy(TOWN_DATA);
@@ -16430,7 +16490,7 @@ const Storage = (() => {
   function peek(key) {
     const raw = read(key);
     if (!raw) return null;
-    try { return parseEnvelope(raw); } catch (e) { return { broken: true, error: e.message }; }
+    try { return parseEnvelope(raw, 'The saved game'); } catch (e) { return { broken: true, error: e.message }; }
   }
   function hasAutosave() { const e = peek(KEYS.autosave); return !!(e && !e.broken); }
   function loadAutosave() { const e = peek(KEYS.autosave); return e && !e.broken ? e : null; }
@@ -16516,12 +16576,21 @@ const Storage = (() => {
     if (UI.otherTab) UI.otherTab(readOnly);
     return readOnly;
   }
-  /* "Play here instead": this tab writes again (and the other one goes read only). */
-  function takeOver() {
+  /* The last step of "Play here instead" (App.playHere loads the newer
+     game first) and of a game loaded or begun in a read-only tab: this tab
+     writes the autosave again, and so the other tab goes read only. */
+  function claim() {
     setReadOnly(false);
     knownAutosaveId = null;
     return autosave();
   }
+  /* An autosave this tab cannot read is kept as the previous autosave before anything is written over it. */
+  function keepAside(raw) {
+    if (typeof raw !== 'string' || !raw) return false;
+    try { area().setItem(KEYS.prev, raw); return true; } catch (e) { console.warn('[Storage] could not keep the unreadable autosave', e); return false; }
+  }
+  /* Never write this tab's (older) game over the other tab's: App.playHere. */
+  function takeOver() { return App.playHere(); }
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -16529,7 +16598,7 @@ const Storage = (() => {
     gameId, envelope, parseEnvelope, shapeProblems, autosave, hasAutosave, loadAutosave, rawAutosave, loadPrevious, peek, inSlot,
     saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
     exportJson, exportSave, exportFileName, downloadAutosave, importFile,
-    setReadOnly, takeOver,
+    setReadOnly, takeOver, claim, keepAside,
     get readOnly() { return readOnly; },
     get failed() { return failed; }
   };
@@ -16570,7 +16639,9 @@ const UI = (() => {
   /* The turn status line: the stage the Pipeline last reported (or the
      feed implied), whether the Pipeline reports stages itself, and whether
      a line is waiting in the Pipeline's queue. */
-  const status = { stage: 'idle', fromPipeline: false, queued: false };
+  const status = { stage: 'idle', fromPipeline: false, queued: false, queuedText: '' };
+  /* The last thing sent from the box ({ text, mode, to } or { pass: true }), for a failed turn's Try again. */
+  let lastSent = null;
   /* The feed's scroll when the game screen was left for Settings or Saves. */
   let feedPlace = null;
   /* The offline-demo bar was closed for this page load. */
@@ -16592,7 +16663,8 @@ const UI = (() => {
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
-    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no'];
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
+    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -16623,15 +16695,15 @@ const UI = (() => {
     wireMenuKeys(d.actPop, () => closeActions(true));
     document.addEventListener('click', e => {
       if (!d.menuPop.hidden && !d.menuPop.contains(e.target)) closeMenu();
-      if (!d.actPop.hidden && !d.actPop.contains(e.target) && e.target !== d.actBtn) closeActions();
+      if (!d.actPop.hidden && !d.actPop.contains(e.target) && !(e.target.closest && e.target.closest('#act-btn, #act-btn-m'))) closeActions();
     });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (d.ask.open) return; // the dialog closes itself
       if (!d.menuPop.hidden) closeMenu(true);
       else if (!d.actPop.hidden) closeActions(true);
+      else if (mapPick) setPick(null, mapExpanded ? 'close' : null);
       else if (mapExpanded) setMapExpanded(false);
-      else if (mapPick) setPick(null);
       else if (d.gameBody.classList.contains('sheet-open')) closeSheet();
     });
     // The offline demo bar and the second-tab bar
@@ -16640,7 +16712,8 @@ const UI = (() => {
       if (Storage.getApiKey()) { Storage.saveSettings({ mockMode: false }); toast('Mock mode off: playing with Claude'); renderDemoBar(); renderTitleMode(); }
       else openKeySettings();
     });
-    d.tabBarTake.addEventListener('click', () => { Storage.takeOver(); toast('Playing in this tab.'); });
+    // "Play here instead": the newer game the other tab saved is loaded here first, then this tab plays (App.playHere).
+    d.tabBarTake.addEventListener('click', () => App.playHere());
     // Feed
     d.feedScroll.addEventListener('scroll', () => { stick = nearBottom(); if (stick) d.newBtn.hidden = true; }, { passive: true });
     d.newBtn.addEventListener('click', scrollToBottom);
@@ -16663,7 +16736,9 @@ const UI = (() => {
       syncTyping();
     });
     d.send.addEventListener('click', () => sendOrStop());
-    d.actBtn.addEventListener('click', e => { e.stopPropagation(); if (d.actPop.hidden) openActions(d.actBtn); else closeActions(true); });
+    // ⋯: beside the toggle on a laptop, at the end of the tab row on a phone (so the box keeps its width).
+    for (const b of [d.actBtn, d.actBtnM]) b.addEventListener('click', e => { e.stopPropagation(); if (d.actPop.hidden) openActions(b); else closeActions(true); });
+    d.queuedCancel.addEventListener('click', cancelQueued);
     composer.mode = Storage.settings().inputMode === 'say' ? 'say' : 'do';
     d.modeDo.addEventListener('click', () => { setMode('do'); focusInput(); });
     d.modeSay.addEventListener('click', () => { setMode('say'); focusInput(); });
@@ -16675,9 +16750,13 @@ const UI = (() => {
     $$('[data-open-tab]').forEach(b => b.addEventListener('click', () => { sheetOpener = b; openPanel(b.dataset.openTab); }));
     // Panel / sheet
     d.panelClose.addEventListener('click', closeSheet);
+    d.panelBody.addEventListener('focusin', () => { if (editing) requestAnimationFrame(keepFieldClear); });
     d.panelTabs.addEventListener('keydown', onTabKey);
     wireSwipe();
-    mq.addEventListener('change', () => { if (!isMobile()) closeSheet(); else setMapExpanded(false); Create.layoutChanged(); renderComposer(); });
+    mq.addEventListener('change', () => { setMapExpanded(false); if (!isMobile()) closeSheet(); Create.layoutChanged(); renderComposer(); });
+    // An expanded map is sized to the window: drawn again when the window changes (a phone turned sideways).
+    let mapResize = 0;
+    window.addEventListener('resize', () => { if (!mapExpanded || mapResize) return; mapResize = requestAnimationFrame(() => { mapResize = 0; if (mapExpanded) refreshMap(null); }); });
     // Settings and saves
     d.settingsForm.addEventListener('change', onSettingsChange);
     d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
@@ -16730,6 +16809,7 @@ const UI = (() => {
     const root = document.documentElement;
     const update = () => {
       syncTyping();
+      if (editing) requestAnimationFrame(keepFieldClear);
       if (!vv) return;
       root.style.setProperty('--app-h', Math.round(vv.height) + 'px');
       d.app.style.transform = vv.offsetTop > 0 ? `translateY(${Math.round(vv.offsetTop)}px)` : '';
@@ -16760,12 +16840,48 @@ const UI = (() => {
     d.banner.hidden = false;
   }
   function toast(msg) {
+    placeToast();
     d.toast.textContent = msg;
     d.toast.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => d.toast.classList.remove('show'), 2600);
   }
+  /* Where the toast goes: in the game, just above the composer, so it
+     covers neither the box nor the bars at the top (the demo bar's Add key,
+     the top bar); with the phone sheet or the expanded map open, or on
+     another screen, near the bottom (CSS: --toast-bottom, at least 24px
+     above the safe area). */
+  function placeToast() {
+    let bottom = 0;
+    const sheet = isMobile() && !!d.gameBody && d.gameBody.classList.contains('sheet-open');
+    const composer = $('#screen-game .composer');
+    if (screen === 'game' && !sheet && !mapExpanded && composer) {
+      const ref = getComputedStyle(d.app).transform !== 'none' ? d.app.getBoundingClientRect().bottom : window.innerHeight;
+      bottom = Math.max(0, Math.round(ref - composer.getBoundingClientRect().top + 8));
+    }
+    d.toast.style.setProperty('--toast-bottom', bottom + 'px');
+  }
   const MOCK_OFF = 'Mock mode off: playing with Claude';
+  /* The one check before anything that plays a turn or changes the game
+     (Send, Wait, the ⋯ actions, the Undo link, Go there, the map's chip,
+     Spend, a pronoun chip, Edit and Save on a person): not in a tab that is
+     read only because another tab has the game (the bar's "Play here
+     instead" is the way out), not without a game on screen, and not while a
+     turn runs (opts.queue: unless the Pipeline can queue this one).
+     opts.say: a refusal is said in a toast. */
+  const READ_ONLY_NOTICE = 'This game is open in another tab. Press "Play here instead" to play it in this one.';
+  function actBlock(opts) {
+    if (Storage.readOnly) return READ_ONLY_NOTICE;
+    if (screen !== 'game' || !State.current || State.muted) return 'There is no game in progress.';
+    // opts.fill: only puts text in the box (Spend), which typing may do during a turn too.
+    if (turnRunning() && !(opts && opts.fill) && !(opts && opts.queue && canQueue())) return App.BUSY_NOTICE;
+    return '';
+  }
+  function canAct(opts) {
+    const why = actBlock(opts);
+    if (why && opts && opts.say) toast(why);
+    return !why;
+  }
   /* A question in a modal dialog (the page behind it takes no input):
      resolves true for the yes button, false for Cancel or Escape. The focus
      goes back where it was. */
@@ -16786,7 +16902,8 @@ const UI = (() => {
         if (was && was.isConnected && typeof was.focus === 'function') was.focus({ preventScroll: true });
       }, { once: true });
       dlg.showModal();
-      d.askYes.focus();
+      // The safe answer takes the focus: Enter or Space never does the drastic thing by accident.
+      d.askNo.focus();
     });
   }
 
@@ -16861,15 +16978,23 @@ const UI = (() => {
     const auto = raw && !raw.broken ? raw : null;
     const behind = !!auto && Upgrade.behind(auto.state);
     d.btnContinue.disabled = busy || !auto;
+    // With an autosave, Continue comes first and is the primary button; New game steps back.
+    d.btnContinue.classList.toggle('primary', !!auto);
+    d.btnNew.classList.toggle('primary', !auto);
+    if (auto) { if (d.continueGroup.nextElementSibling !== d.btnNew) d.menuList.insertBefore(d.continueGroup, d.btnNew); }
+    else if (d.btnNew.nextElementSibling !== d.continueGroup) d.btnNew.after(d.continueGroup);
     d.btnUpdate.hidden = !behind;
     d.btnUpdate.disabled = busy;
     d.titleUpdateNote.hidden = !behind;
     d.continueSub.textContent = auto ? continueLine(auto) : '';
     d.continueSub.hidden = !auto;
+    // Saved by a newer build: one line here, before it is loaded (the banner after loading is short too).
+    d.titleNewerNote.hidden = !(auto && App.newerRules(auto.state));
+    d.btnContinue.setAttribute('aria-describedby', ['continue-sub', 'title-newer-note'].filter(id => !document.getElementById(id).hidden).join(' ') || 'continue-sub');
     // A damaged autosave is explained, with a way to keep a copy.
     const broken = !!(raw && raw.broken);
     d.titleBroken.hidden = !broken;
-    if (broken) d.titleBrokenText.textContent = `The autosave in this browser could not be read: ${String(raw.error || 'it is damaged').replace(/\.$/, '')}. Download it to keep a copy. A new or loaded game sets it aside as the previous autosave (Load, Restore previous).`;
+    if (broken) d.titleBrokenText.textContent = `The autosave in this browser could not be read. ${String(raw.error || 'The saved game is damaged.').replace(/([^.])$/, '$1.')} Download it to keep a copy. A new or loaded game sets it aside as the previous autosave (Load, Restore previous).`;
     renderTitleMode();
   }
   /* The chip under the title's buttons: how the game is being played. */
@@ -16879,8 +17004,9 @@ const UI = (() => {
     let mode = 'live';
     let text = `Playing with Claude · ${s.narratorModel}`;
     let act = '';
-    if (s.mockMode) { mode = 'demo'; text = 'Offline demo — canned replies'; act = key ? 'Play with Claude' : 'Add API key'; }
-    else if (!key) { mode = 'nokey'; text = 'Playing with Claude, no API key yet'; act = 'Add API key'; }
+    // Short enough to sit on one line with its link at 375 wide.
+    if (s.mockMode) { mode = 'demo'; text = 'Offline demo (canned replies)'; act = key ? 'Use Claude' : 'Add API key'; }
+    else if (!key) { mode = 'nokey'; text = 'Claude, no API key yet'; act = 'Add API key'; }
     d.titleMode.dataset.mode = mode;
     d.titleModeText.textContent = text;
     d.titleModeAct.textContent = act;
@@ -16939,6 +17065,11 @@ const UI = (() => {
     d.tabBar.hidden = !on;
     d.app.classList.toggle('read-only', !!on);
     d.cmd.readOnly = !!on;
+    // Nothing here may play or change the game: the ⋯ list closes, the Undo
+    // link goes, Go there, Edit, Spend and the pronoun chips turn off.
+    if (on) { closeActions(); hideAc(); if (mapPick) setPick(null); }
+    markUndo();
+    if (State.current && !State.muted) renderPanel();
     syncSendLabel();
   }
   function toggleMenu() { if (d.menuPop.hidden) openMenu(); else closeMenu(true); }
@@ -16990,12 +17121,16 @@ const UI = (() => {
     ].filter(Boolean);
   }
   function renderActions(sub) {
-    const turnOn = busy || Pipeline.busy;
+    // A turn item is off while a turn runs or in a read-only tab (the title says which).
+    const why = actBlock();
+    const whyFill = actBlock({ fill: true });
     const item = (label, onclick, extra) => el('button', Object.assign({ type: 'button', class: 'btn ghost', role: 'menuitem', onclick }, extra || {}), label);
     let kids;
+    d.actPop.setAttribute('aria-label', sub === 'wait' ? 'Wait until' : 'Actions and commands');
     if (sub === 'wait') {
       const now = State.current ? State.current.time.phase : '';
-      kids = PHASES.filter(p => p !== now).map(p => item(`Until ${p}`, () => runAction(`/wait ${p}`), { dataset: { act: 'wait-' + p }, disabled: turnOn }))
+      kids = [el('p', { class: 'act-h', 'aria-hidden': 'true' }, 'Wait until…')]
+        .concat(PHASES.filter(p => p !== now).map(p => item(`Until ${p}`, () => runAction(`/wait ${p}`), { dataset: { act: 'wait-' + p }, disabled: !!why, title: why || null })))
         .concat(item('Back', e => { e.stopPropagation(); renderActions(null); focusFirstAction(); }, { dataset: { act: 'back' } }));
     } else {
       kids = actionItems().map(a => item([a.label, a.cmd ? el('span', { class: 'act-k', 'aria-hidden': 'true' }, a.cmd) : null], e => {
@@ -17004,25 +17139,27 @@ const UI = (() => {
         if (a.help) { closeActions(); fillBox('/'); updateAc(); return; }
         if (a.id === 'recap' && !Commands.LIST.some(c => c.name === '/recap')) { closeActions(); showRecap(); return; }
         runAction(a.cmd);
-      }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && turnOn), title: a.off ? 'You have no story points' : null }));
+      }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!why) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && why) || (a.fill && whyFill) || null }));
     }
     d.actPop.replaceChildren(...kids);
   }
   function focusFirstAction() { const f = $('[role="menuitem"]:not([disabled])', d.actPop); if (f) f.focus({ preventScroll: true }); }
+  /* The ⋯ button in view: beside the toggle on a laptop, in the tab row on a phone. */
+  function actButton() { return isMobile() ? d.actBtnM : d.actBtn; }
   function openActions(opener, sub) {
     if (screen !== 'game' || !State.current || State.muted) return false;
     closeMenu();
-    actOpener = opener || d.actBtn;
+    actOpener = opener || actButton();
     renderActions(sub || null);
     d.actPop.hidden = false;
-    d.actBtn.setAttribute('aria-expanded', 'true');
+    for (const b of [d.actBtn, d.actBtnM]) b.setAttribute('aria-expanded', String(b === actOpener));
     focusFirstAction();
     return true;
   }
   function closeActions(refocus) {
     if (!d.actPop || d.actPop.hidden) return;
     d.actPop.hidden = true;
-    d.actBtn.setAttribute('aria-expanded', 'false');
+    for (const b of [d.actBtn, d.actBtnM]) b.setAttribute('aria-expanded', 'false');
     if (refocus && actOpener && actOpener.isConnected) actOpener.focus({ preventScroll: true });
   }
   /* Put text in the box (/fact , /) with the cursor at its end. */
@@ -17035,19 +17172,20 @@ const UI = (() => {
   }
   async function runAction(cmd) {
     closeActions();
+    if (!canAct({ say: true })) return null;
     if (isMobile()) closeSheet(true);
     let res = null;
     try { res = await Pipeline.submit(cmd, { mode: 'do', to: 'everyone' }); } catch (e) { console.error(e); }
     syncSendLabel();
     return res;
   }
-  /* Recap without a /recap command: the Pipeline's text, as a notice. */
+  /* Recap without a /recap command (and on Continue): the Pipeline's text, as the recap notice. */
   function showRecap() {
     const fn = typeof Pipeline.recapText === 'function' ? Pipeline.recapText : typeof Pipeline.recap === 'function' ? Pipeline.recap : null;
     if (!fn) return null;
     let text = null;
     try { text = fn(); } catch (e) { console.error(e); }
-    if (typeof text === 'string' && text.trim()) feed.notice(text.trim());
+    if (typeof text === 'string' && text.trim()) feed.notice(text.trim(), 'recap');
     return text;
   }
   function setCollapsed(c, silent) {
@@ -17127,6 +17265,7 @@ const UI = (() => {
   function renderTabs() {
     const tabs = TABS.concat(debugOn ? [['debug', 'Debug']] : []);
     if (!tabs.some(t => t[0] === tab)) tab = 'character';
+    d.panelTabs.dataset.count = String(tabs.length);
     d.panelTabs.replaceChildren(...tabs.map(([id, label]) => el('button', {
       type: 'button', role: 'tab', id: 'tab-' + id, 'aria-selected': String(id === tab), 'aria-controls': 'panel-body', tabindex: id === tab ? '0' : '-1',
       dataset: { tab: id }, onclick: () => { tab = id; renderPanel(); }
@@ -17149,12 +17288,28 @@ const UI = (() => {
     const t = document.getElementById('tab-' + tab);
     if (t) t.focus();
   }
+  /* Where the focus was in the panel, so a re-render can put it back on the
+     same control: its id, else its class and data-* attributes inside the
+     nearest card, section or group that names itself. */
+  const FOCUS_KEYS = ['npc', 'loc', 'sort', 'pron', 'go', 'section', 'group', 'thread', 'faction', 'rumour', 'obligation', 'retry', 'settings'];
+  function focusKey(node) {
+    if (!node || node === d.panelBody || !d.panelBody.contains(node)) return null;
+    if (node.id) return '#' + CSS.escape(node.id);
+    const own = n => (n.classList[0] ? '.' + CSS.escape(n.classList[0]) : n.tagName.toLowerCase())
+      + FOCUS_KEYS.filter(k => n.dataset[k] !== undefined).map(k => `[data-${k}="${CSS.escape(n.dataset[k])}"]`).join('');
+    const scope = node.parentElement && node.parentElement.closest('[data-npc], [data-loc], [data-section], [data-group], [data-thread]');
+    return (scope && d.panelBody.contains(scope) ? own(scope) + ' ' : '') + own(node);
+  }
   function renderPanel() {
-    renderTabs();
-    const s = State.current;
-    // An open editor keeps what is typed; any field keeps the focus, and the tab its scroll, through a re-render.
-    const form = editing ? $('.pedit', d.panelBody) : null;
+    // The tabs are drawn again too: a tab that had the focus gives it to the selected tab.
     const active = document.activeElement;
+    const onTab = !!active && d.panelTabs.contains(active);
+    renderTabs();
+    if (onTab) { const t = document.getElementById('tab-' + tab); if (t) t.focus({ preventScroll: true }); }
+    const s = State.current;
+    // An open editor keeps what is typed; the control that had the focus keeps it, and the tab its scroll, through a re-render.
+    const form = editing ? $('.pedit', d.panelBody) : null;
+    const key = focusKey(active);
     const focusId = active && active.id && d.panelBody.contains(active) && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) ? active.id : null;
     const caret = focusId && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
     const scroll = d.panelBody.dataset.tab === tab ? d.panelBody.scrollTop : 0;
@@ -17165,14 +17320,20 @@ const UI = (() => {
     d.panelBody.setAttribute('aria-labelledby', 'tab-' + tab);
     if (tab !== 'places') { mapPick = null; mapExpanded = false; }
     if (!s || State.muted) return;
+    d.panelBody.classList.toggle('editing', !!editing && tab === 'people');
     appendKids(d.panelBody, (PANELS[tab] || PANELS.character)(s));
     if (tab === 'places') placeChip($('.map', d.panelBody));
     if (tab === 'people') filterPeople();
     if (scroll) d.panelBody.scrollTop = scroll;
-    const again = focusId && document.getElementById(focusId);
+    syncMapModal();
+    if (!key) return;
+    let again = null;
+    try { again = $(key, d.panelBody); } catch (e) { again = null; }
+    // The control is gone (a sort chip pressed, a card closed): the tab itself, never the page.
+    if (!again || again.disabled || !again.getClientRects().length) again = document.getElementById('tab-' + tab);
     if (again) {
       again.focus({ preventScroll: true });
-      if (caret) try { again.setSelectionRange(caret[0], caret[1]); } catch (e) { /* not a text field */ }
+      if (caret && again.id === focusId) try { again.setSelectionRange(caret[0], caret[1]); } catch (e) { /* not a text field */ }
     }
   }
   function list(items, fmt, empty) { return items.length ? el('ul', null, items.map(x => el('li', null, fmt(x)))) : el('p', { class: 'empty' }, empty); }
@@ -17295,7 +17456,11 @@ const UI = (() => {
   function personFlags(s, n) {
     const out = [];
     const day = s.time.day;
-    if (Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay >= day) out.push({ text: `Hurt, until day ${n.hurtUntilDay}`, hard: true });
+    // Hurt: the engine's own test when it has one (State.isHurt), else the rule State.laidUp uses (until the day after).
+    let hurt = false;
+    if (typeof State.isHurt === 'function') { try { hurt = !!State.isHurt(n); } catch (e) { hurt = false; } }
+    else hurt = Number.isInteger(n.hurtUntilDay) && n.hurtUntilDay > day;
+    if (hurt && Number.isInteger(n.hurtUntilDay)) out.push({ text: `Hurt, until day ${n.hurtUntilDay}`, hard: true });
     if (isObj(n.awayOn) && Array.isArray(n.awayOn.days) && n.awayOn.days.includes(weekdayOf(day))) {
       let note = '';
       try { note = typeof State.absentNote === 'function' ? State.absentNote(n) || '' : ''; } catch (e) { note = ''; }
@@ -17319,6 +17484,8 @@ const UI = (() => {
     const notes = personNotes(s, n);
     const facts = personFacts(s, n, known);
     const edit = !!editing && editing.id === n.id;
+    // Changing someone (pronouns, Edit) waits for a turn to end, and never happens in a read-only tab.
+    const block = actBlock();
     const age = ageText(n.age);
     // Someone not in town says so under their name instead (Died ..., Lives elsewhere: ...).
     const roleLine = [capFirst(n.role || ''), State.relationNote(n), absent ? '' : status].filter(Boolean).join(' · ');
@@ -17345,8 +17512,8 @@ const UI = (() => {
           el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
         !n.look && !notes.length && !facts ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null,
         el('div', { class: 'pcard-fix' }, el('span', { class: 'pcard-fix-k' }, 'Pronouns'),
-          el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, onclick: () => App.setPronouns(n.id, p) }, pronounLabel(p)))),
-          el('button', { type: 'button', class: 'btn small pcard-edit', id: 'pedit-btn-' + n.id, 'aria-label': `Edit ${name}`, disabled: Pipeline.busy, title: Pipeline.busy ? App.BUSY_NOTICE : null, onclick: () => startEdit(n.id) }, 'Edit'))]));
+          el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, disabled: !!block, title: block || null, onclick: () => { if (canAct({ say: true })) App.setPronouns(n.id, p); } }, pronounLabel(p)))),
+          el('button', { type: 'button', class: 'btn small pcard-edit', id: 'pedit-btn-' + n.id, 'aria-label': `Edit ${name}`, disabled: !!block, title: block || null, onclick: () => startEdit(n.id) }, 'Edit'))]));
   }
   /* Open one card (or close it). In memory only, never saved; a re-render
      keeps the open card open. Game.UI.togglePerson(id, open?). */
@@ -17422,7 +17589,7 @@ const UI = (() => {
       (() => { const w = el('select', { class: 'input', id: fid('memw-' + i), dataset: { mem: 'weight' } }, WEIGHTS.map(([val, label]) => el('option', { value: String(val) }, label))); w.value = String(m.weight); return w; })(),
       el('button', { type: 'button', class: 'btn small pedit-mem-del', 'aria-label': `Remove memory ${i + 1}`, onclick: () => editMemories(list => list.splice(i, 1), i) }, 'Remove')));
     const full = v.memories.length >= State.MEMORY_MAX;
-    return el('form', { class: 'pedit', dataset: { npc: id }, 'aria-label': `Edit ${n.name}`, novalidate: true, onsubmit: e => e.preventDefault(), onkeydown: editKey },
+    return el('form', { class: 'pedit', dataset: { npc: id }, 'aria-label': `Edit ${n.name}`, tabindex: '-1', novalidate: true, onsubmit: e => e.preventDefault(), onkeydown: editKey },
       field('name', 'Name', input('name', v.name, max.name)),
       field('age', 'Age', el('input', { class: 'input pedit-age', id: fid('age'), name: 'age', type: 'number', inputmode: 'numeric', min: '0', max: String(max.age), step: '1', value: v.age, autocomplete: 'off' }), presenceOf(n) === 'dead' ? 'Their age when they died.' : `A whole number, 0 to ${max.age}.`),
       field('pronouns', 'Pronouns', select('pronouns', v.pronouns, PRONOUNS.map(p => [p, pronounLabel(p)]))),
@@ -17452,7 +17619,7 @@ const UI = (() => {
         field('secret', 'Secret', area('secret', v.secret, max.secret, 3))),
       el('p', { class: 'err', role: 'alert' }, editing.error || ''),
       el('div', { class: 'pedit-actions' },
-        el('button', { type: 'button', class: 'btn primary pedit-save', disabled: Pipeline.busy, title: Pipeline.busy ? App.BUSY_NOTICE : null, onclick: () => saveEdit() }, 'Save'),
+        el('button', { type: 'button', class: 'btn primary pedit-save', disabled: !!actBlock(), title: actBlock() || null, onclick: () => saveEdit() }, 'Save'),
         el('button', { type: 'button', class: 'btn pedit-cancel', onclick: () => cancelEdit() }, 'Cancel')));
   }
   /* What is typed in an editor form. */
@@ -17516,16 +17683,32 @@ const UI = (() => {
     const s = State.current;
     const n = s && !State.muted ? State.npc(id) : null;
     if (!n || !hasCard(s, n)) return false;
-    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return false; }
+    if (!canAct({ say: true })) return false;
     editing = { id, base: editBase(n), draft: null, error: '' };
     openPerson = id;
     renderPanel();
     const form = $('.pedit', d.panelBody);
     if (form) {
-      if (!isMobile()) $('[name="name"]', form).focus({ preventScroll: true });
+      // A phone: the form itself takes the focus (a screen reader hears "Edit …"; no keyboard pops up over it).
+      if (!isMobile()) $('[name="name"]', form).focus({ preventScroll: true }); else form.focus({ preventScroll: true });
       const card = form.closest('.pcard');
       if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
     }
+    return true;
+  }
+  /* The editor's Save bar sticks to the bottom of the panel: a field that
+     takes the focus (or stays focused while the keyboard comes up) is
+     scrolled up so it sits above the bar. */
+  function keepFieldClear() {
+    const f = document.activeElement;
+    if (!editing || !f || !d.panelBody.contains(f) || !f.closest('.pedit') || f.classList.contains('pedit')) return false;
+    const bar = $('.pedit-actions', d.panelBody);
+    if (!bar || bar.contains(f)) return false;
+    const r = f.getBoundingClientRect();
+    const top = d.panelBody.getBoundingClientRect().top;
+    const limit = Math.min(bar.getBoundingClientRect().top, window.visualViewport ? window.visualViewport.height + window.visualViewport.offsetTop : window.innerHeight) - 8;
+    if (r.bottom > limit) d.panelBody.scrollTop += Math.min(r.bottom - limit, r.top - top - 8);
+    else if (r.top < top + 8) d.panelBody.scrollTop -= top + 8 - r.top;
     return true;
   }
   /* /edit <name> (UI.editPerson): the People panel, with that person's card
@@ -17534,7 +17717,7 @@ const UI = (() => {
     const s = State.current;
     const n = s && State.npc(id);
     if (!n || !hasCard(s, n)) return false;
-    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return false; }
+    if (!canAct({ say: true })) return false;
     tab = 'people';
     if (isMobile()) openSheet(); else setCollapsed(false);
     return startEdit(id);
@@ -17553,7 +17736,7 @@ const UI = (() => {
     if (!editing) return null;
     const form = $('.pedit', d.panelBody);
     if (form) editing.draft = readForm(form);
-    if (busy || Pipeline.busy) { toast(App.BUSY_NOTICE); return { ok: false, reason: 'busy' }; }
+    if (!canAct({ say: true })) return { ok: false, reason: Storage.readOnly ? 'read-only' : 'busy' };
     const keep = editing;
     const fields = editChanges(keep.base, keep.draft || keep.base);
     editing = null;
@@ -17782,9 +17965,22 @@ const UI = (() => {
     return null;
   }
   /* "Closed Sundays", "Closed Sundays and Mondays". */
+  function closedDays(l) { return Array.isArray(l.closedOn) ? l.closedOn.filter(x => typeof x === 'string' && x) : []; }
   function closedOnLine(l) {
-    const days = Array.isArray(l.closedOn) ? l.closedOn.filter(x => typeof x === 'string' && x) : [];
+    const days = closedDays(l);
     return days.length ? `Closed ${joinList(days.map(x => x + 's'))}` : '';
+  }
+  /* A place's hours, with the days it is shut added only when the hours do not already name them. */
+  function hoursLine(l) {
+    const hours = typeof l.hours === 'string' ? l.hours.trim() : '';
+    const left = closedDays(l).filter(day => !new RegExp(`\\b${reEsc(day)}s?\\b`, 'i').test(hours));
+    return [hours, left.length ? `Closed ${joinList(left.map(x => x + 's'))}` : ''].filter(Boolean).join(' · ');
+  }
+  /* The line under the name of the place here: its type, and shut for good, today, or on which days. */
+  function placeStatusLine(l) {
+    const days = closedDays(l);
+    const shut = l.closed === true ? 'Closed' : closedNow(l) ? `Closed today${days.length ? ` (${joinList(days.map(x => x + 's'))})` : ''}` : closedOnLine(l);
+    return [capFirst(l.type), shut].filter(Boolean).join(' · ');
   }
   // ----- Places: label placement -----
   /* Two boxes ({ x, y, w, h }) overlap. */
@@ -17951,9 +18147,22 @@ const UI = (() => {
     }, kids);
   }
   /* Game.UI.renderMap(): the map node (a div holding the SVG and, when a
-     place is picked, its chip). On a phone, "Expand map" fills the screen
-     with it (mapExpanded, memory only; Escape or Close map). */
+     place is picked, its chip). "Expand map" (phone and laptop) opens it as
+     a modal view over everything, larger than in the panel: on a phone it
+     fills the height and pans sideways, on a laptop it fits the window
+     (mapExpanded, memory only; Close map or Escape). */
   let mapExpanded = false;
+  /* The expanded map's size in CSS px (W by H viewBox units): a phone fills
+     the height below the bar, at least 1.6 times the sheet's width, and
+     pans; a laptop fits the window. */
+  const MAP_BAR = 56;
+  function expandedSize(W, H) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight - MAP_BAR;
+    if (isMobile()) { const w = Math.round(Math.max(1.6 * vw, vh * W / H)); return { w, h: Math.round(w * H / W) }; }
+    const w = Math.round(Math.min(vw - 48, (vh - 32) * W / H));
+    return { w, h: Math.round(w * H / W) };
+  }
   function renderMap(s) {
     s = s || State.current;
     if (!s) return null;
@@ -17962,8 +18171,10 @@ const UI = (() => {
     if (mapPick && (mapPick === s.player.locationId || !L.byId[mapPick])) mapPick = null;
     // Sizes in viewBox units, so labels are 11px or more on a map 316px wide
     // (the laptop panel is 319, a 375px phone's sheet 375) and taps hit 44px.
-    const k = L.W / 316;
-    const u = { fs: r1(11 * k), lh: r1(13.2 * k), hit: Math.ceil(44 * k), mono: r1(14 * k) };
+    // Expanded, the map is drawn larger: labels 14px on screen, so there is more room between them.
+    const big = mapExpanded ? expandedSize(L.W, L.H) : null;
+    const k = L.W / (big ? big.w : 316);
+    const u = big ? { fs: r1(14 * k), lh: r1(16.8 * k), hit: Math.ceil(44 * k), mono: r1(17 * k) } : { fs: r1(11 * k), lh: r1(13.2 * k), hit: Math.ceil(44 * k), mono: r1(14 * k) };
     const people = mapPeople(s);
     placeLabels(L, people, u, s);
     const rw = L.rw;
@@ -17987,25 +18198,65 @@ const UI = (() => {
     L.pts.map(p => mapPlace(s, L, p, people[p.id] || [], u)));
     const pick = mapPick ? L.byId[mapPick] : null;
     const chip = pick ? el('button', {
-      type: 'button', class: 'map-go', disabled: busy || Pipeline.busy,
+      type: 'button', class: 'map-go', disabled: !!actBlock(),
       dataset: { loc: pick.id, side: pick.y < L.H * 0.55 ? 'below' : 'above', fx: String(pick.x / L.W) },
       style: `left:${r1(pick.x / L.W * 100)}%;top:${r1(pick.y / L.H * 100)}%`,
       onclick: e => { e.stopPropagation(); confirmTravel(); },
       onkeydown: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPick(null, pick.id); } }
     }, `Go to ${placePhrase(pick.loc.name)}${closedNow(pick.loc) ? ' (closed)' : ''}?`) : null;
-    const close = mapExpanded ? el('button', { type: 'button', class: 'btn small map-close', onclick: e => { e.stopPropagation(); setMapExpanded(false); } }, 'Close map') : null;
-    return el('div', { class: 'map' + (mapExpanded ? ' expanded' : ''), dataset: { pick: mapPick || '' }, role: mapExpanded ? 'dialog' : null, 'aria-label': mapExpanded ? `Map of ${s.meta.townName}` : null, 'aria-modal': mapExpanded ? 'true' : null }, close, svg, chip);
+    const bar = mapExpanded ? el('div', { class: 'map-bar' },
+      el('h2', { id: 'map-title' }, `Map of ${s.meta.townName}`),
+      el('button', { type: 'button', class: 'btn small map-close', onclick: e => { e.stopPropagation(); setMapExpanded(false); } }, 'Close map')) : null;
+    const canvas = el('div', { class: 'map-canvas', style: big ? `width:${big.w}px;height:${big.h}px` : null }, svg, chip);
+    return el('div', {
+      class: 'map' + (mapExpanded ? ' expanded' : ''), dataset: { pick: mapPick || '' },
+      role: mapExpanded ? 'dialog' : null, 'aria-labelledby': mapExpanded ? 'map-title' : null, 'aria-modal': mapExpanded ? 'true' : null,
+      onkeydown: mapExpanded ? trapMapFocus : null
+    }, bar, el('div', { class: 'map-pan' }, canvas));
   }
-  /* Phones: the map full screen (and back). */
+  /* The expanded map is modal: Tab and Shift+Tab go round inside it. */
+  function trapMapFocus(e) {
+    if (e.key !== 'Tab' || !mapExpanded) return;
+    const box = e.currentTarget;
+    const list = $$('button:not([disabled]), [tabindex="0"]', box).filter(x => x.getClientRects().length);
+    if (!list.length) return;
+    const i = list.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); list[list.length - 1].focus(); }
+    else if (!e.shiftKey && (i === list.length - 1 || i < 0)) { e.preventDefault(); list[0].focus(); }
+  }
+  /* While the map is expanded nothing else on the page takes the focus or
+     a tap: the story, the bars, the panel's tabs and the rest of the panel
+     are inert. Closed again, the phone sheet stays modal if it is open. */
+  function syncMapModal() {
+    const on = mapExpanded && !!d.panelBody && !!$('.map.expanded', d.panelBody);
+    const sheet = isMobile() && d.gameBody.classList.contains('sheet-open');
+    for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.tabBar]) if (node) node.inert = on || sheet;
+    const head = $('.panel-head', d.panel);
+    if (head) head.inert = on;
+    for (const kid of d.panelBody ? d.panelBody.children : []) if (!kid.classList.contains('map')) kid.inert = on;
+  }
+  /* Expand map (and back): the close button takes the focus, and the map
+     pans to the player (phone); closed, the focus goes back to Expand map. */
   function setMapExpanded(on) {
-    const want = !!on && isMobile() && tab === 'places' && !!State.current;
+    const want = !!on && tab === 'places' && !!State.current && !State.muted && screen === 'game';
     if (want === mapExpanded) return mapExpanded;
     mapExpanded = want;
-    if (!d.panelBody || d.panelBody.dataset.tab !== 'places') return mapExpanded;
-    refreshMap(null);
-    const f = mapExpanded ? $('.map-close', d.panelBody) : $('.map-expand', d.panelBody);
-    if (f) f.focus({ preventScroll: true });
+    if (!d.panelBody || d.panelBody.dataset.tab !== 'places') { syncMapModal(); return mapExpanded; }
+    refreshMap(mapExpanded ? 'close' : null);
+    syncMapModal();
+    if (mapExpanded) panMapTo(State.current.player.locationId);
+    else { const f = $('.map-expand', d.panelBody); if (f) f.focus({ preventScroll: true }); }
     return mapExpanded;
+  }
+  /* Scroll the expanded map so a place sits in the middle of the view. */
+  function panMapTo(id) {
+    const pan = d.panelBody ? $('.map.expanded .map-pan', d.panelBody) : null;
+    const g = pan && $(`.map-place[data-loc="${CSS.escape(id)}"] .map-mark`, pan);
+    if (!g) return;
+    const pr = pan.getBoundingClientRect();
+    const r = g.getBoundingClientRect();
+    pan.scrollLeft += r.left + r.width / 2 - (pr.left + pr.width / 2);
+    pan.scrollTop += r.top + r.height / 2 - (pr.top + pr.height / 2);
   }
   /* "Heard of" is listed only while a dashed marker is on the map. */
   function mapLegend(s) {
@@ -18018,7 +18269,9 @@ const UI = (() => {
   }
   /* Put the chip under or over its marker, whichever hides fewer marks,
      labels and people, centred where it fits and kept inside the map. */
-  function placeChip(node) {
+  function placeChip(map) {
+    // The chip sits in the map's canvas (the SVG's own box, also when the map is expanded and pans).
+    const node = map ? $('.map-canvas', map) || map : null;
     const chip = node && $('.map-go', node);
     const w = node ? node.clientWidth : 0;
     const h = node ? node.clientHeight : 0;
@@ -18048,11 +18301,20 @@ const UI = (() => {
   function refreshMap(focus) {
     const old = d.panelBody ? $('.map', d.panelBody) : null;
     if (!old || !State.current) return;
+    // An expanded map keeps where it was panned to; the focus stays where it was when nothing else is asked for.
+    const oldPan = $('.map-pan', old);
+    const at = oldPan ? [oldPan.scrollLeft, oldPan.scrollTop] : null;
+    const had = old.contains(document.activeElement) ? document.activeElement : null;
     const fresh = renderMap(State.current);
     old.replaceWith(fresh);
+    const pan = $('.map-pan', fresh);
+    if (at && pan && mapExpanded && old.classList.contains('expanded')) { pan.scrollLeft = at[0]; pan.scrollTop = at[1]; }
     placeChip(fresh);
-    const f = focus === 'chip' ? $('.map-go', fresh) : focus ? $(`.map-place[data-loc="${focus}"]`, fresh) : null;
+    let f = focus === 'chip' ? $('.map-go', fresh) : focus === 'close' ? $('.map-close', fresh) : focus ? $(`.map-place[data-loc="${CSS.escape(focus)}"]`, fresh) : null;
+    if (!f && had) f = had.classList.contains('map-close') ? $('.map-close', fresh) : had.dataset.loc ? $(`.map-place[data-loc="${CSS.escape(had.dataset.loc)}"]`, fresh) : null;
+    if (!f && had) f = mapExpanded ? $('.map-close', fresh) : $('.map-expand', d.panelBody);
     if (f) f.focus({ preventScroll: true });
+    syncMapModal();
   }
   function setPick(id, focus) { mapPick = id; refreshMap(focus); }
   /* A tap (or Enter / Space) on a place: another place shows its chip (a
@@ -18060,7 +18322,7 @@ const UI = (() => {
      turn runs, does nothing. Returns whether a chip is showing. */
   function mapTap(id, viaKey) {
     const s = State.current;
-    if (!s || State.muted || busy || Pipeline.busy) return false;
+    if (!s || State.muted || !canAct({ say: true })) return false;
     if (id === s.player.locationId) { if (mapPick) setPick(null, viaKey ? id : null); return false; }
     const next = mapPick === id ? null : id;
     setPick(next, viaKey ? (next ? 'chip' : id) : null);
@@ -18073,7 +18335,8 @@ const UI = (() => {
     const s = State.current;
     const target = typeof id === 'string' ? id : mapPick;
     const l = target && State.loc(target);
-    if (!s || !l || busy || Pipeline.busy || l.id === s.player.locationId || l.away === true) return null;
+    if (!s || !l || l.id === s.player.locationId || l.away === true) return null;
+    if (!canAct({ say: true })) return null;
     const line = `I head to ${placePhrase(l.name)}.`;
     if (mapPick) setPick(null);
     setMapExpanded(false);
@@ -18086,7 +18349,8 @@ const UI = (() => {
   /* A small "Go there" button (the exits, a place's sheet). */
   function goButton(s, l, cls) {
     if (!l || l.id === s.player.locationId || l.away === true) return null;
-    return el('button', { type: 'button', class: 'btn small ' + (cls || ''), dataset: { go: l.id }, disabled: busy || Pipeline.busy, 'aria-label': `Go to ${placePhrase(l.name)}`, onclick: () => confirmTravel(l.id) }, 'Go there');
+    const why = actBlock();
+    return el('button', { type: 'button', class: 'btn small ' + (cls || ''), dataset: { go: l.id }, disabled: !!why, title: why || null, 'aria-label': `Go to ${placePhrase(l.name)}`, onclick: () => confirmTravel(l.id) }, 'Go there');
   }
   function kv(rows) { return el('dl', { class: 'kv' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', null, v)])); }
   // ----- Places: a sheet for every place -----
@@ -18127,7 +18391,7 @@ const UI = (() => {
     if (open) {
       if (l.away === true && l.distance) rows.push(['How far', l.distance]);
       if (l.details) rows.push(['Inside', l.details]);
-      if (l.hours || closedOnLine(l)) rows.push(['Hours', [l.hours, closedOnLine(l)].filter(Boolean).join(' · ')]);
+      if (hoursLine(l)) rows.push(['Hours', hoursLine(l)]);
       if (l.history) rows.push(['History', l.history]);
       if (who.lives.length) rows.push([l.away === true ? 'Lives there' : 'Lives here', joinList(who.lives)]);
       if (who.works.length) rows.push(['Works or regulars', joinList(who.works)]);
@@ -18162,10 +18426,11 @@ const UI = (() => {
     const wd = weekdayOf(day);
     return [`Day ${day}`, wd, phase ? capFirst(phase) : ''].filter(Boolean).join(' · ');
   }
-  /* The day and phase a turn was played, from the log (an entry kept). */
+  /* The day and phase a turn was played, from the log (an entry kept).
+     Turn 0 is day 1; its phase only while the log still starts there. */
   function whenTurn(s, turn) {
     for (let i = s.log.length - 1; i >= 0; i--) if (s.log[i].turn === turn) return { day: s.log[i].day, phase: s.log[i].phase };
-    if (turn === 0) return { day: 1, phase: s.log.length ? s.log[0].phase : 'morning' };
+    if (turn === 0) return { day: 1, phase: s.log.length && s.log[0].turn === 0 ? s.log[0].phase : null };
     return null;
   }
   /* "in 2 days", "tomorrow", "today", "overdue". */
@@ -18231,7 +18496,7 @@ const UI = (() => {
     for (const g of $$('.people-group', d.panelBody)) {
       let n = 0;
       for (const c of $$('.pcard', g)) {
-        const hit = words.every(w => (c.dataset.search || '').includes(w));
+        const hit = (!!editing && c.dataset.npc === editing.id) || words.every(w => (c.dataset.search || '').includes(w));
         c.hidden = !hit;
         if (hit) n++;
       }
@@ -18254,7 +18519,8 @@ const UI = (() => {
       const day = s.time.day;
       const facs = Object.keys(p.reputation || {});
       const progress = Array.isArray(p.progression) ? p.progression.filter(isObj) : [];
-      const spend = el('button', { type: 'button', class: 'btn small', id: 'sp-spend', disabled: p.storyPoints < 1, title: p.storyPoints < 1 ? 'You have no story points' : 'Make something true: /fact', onclick: () => { if (isMobile()) closeSheet(true); fillBox('/fact '); } }, 'Spend');
+      const noSpend = p.storyPoints < 1 ? 'You have no story points' : actBlock({ fill: true });
+      const spend = el('button', { type: 'button', class: 'btn small', id: 'sp-spend', disabled: !!noSpend, title: noSpend || 'Make something true: /fact', onclick: () => { if (!canAct({ fill: true, say: true })) return; if (isMobile()) closeSheet(true); fillBox('/fact '); } }, 'Spend');
       const condition = c => {
         const left = Number.isInteger(c.untilDay) ? c.untilDay - day : null;
         const when = left === null ? 'until you rest' : left > 1 ? `${left} days left` : left === 1 ? '1 day left' : 'ends today';
@@ -18267,7 +18533,9 @@ const UI = (() => {
         bg && bg.blurb ? el('p', { class: 'char-blurb' }, bg.blurb) : null,
         el('div', { class: 'stat-grid' }, STATS.map(k => el('div', { class: 'stat' }, el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(p.stats[k]))))),
         kv([['HP', `${p.hp} / ${p.maxHp}`], [moneyLabel(), currency() ? money(p.gold) : String(p.gold)],
-          ['Story points', el('span', { class: 'sp-row' }, `${p.storyPoints} / ${State.LIMITS.storyPoints}`, spend)], ['Reputation', capFirst(State.reputationTier())]]),
+          ['Story points', el('span', { class: 'sp-row' }, `${p.storyPoints} / ${State.LIMITS.storyPoints}`, spend)]]
+          // The town's standing is in the Standing list when there is one; said once.
+          .concat(facs.includes('town') ? [] : [['Reputation', capFirst(State.reputationTier())]])),
         facs.length ? [el('h3', null, 'Standing'), el('ul', { class: 'rep-list' }, facs.map(k => {
           const f = s.factions.find(x => x.id === k);
           let tier = '';
@@ -18326,7 +18594,8 @@ const UI = (() => {
       const sort = el('div', { class: 'people-sort', role: 'group', 'aria-label': 'Sort the people you know' }, el('span', null, 'Sort:'),
         SORTS.map(([k, label]) => el('button', { type: 'button', class: 'chip', dataset: { sort: k }, 'aria-pressed': String(peopleSort === k), onclick: () => { peopleSort = k; renderPanel(); } }, label)));
       return [
-        el('div', { class: 'people-tools' }, search, sort),
+        // While someone is being edited the search and sort step aside, so the form keeps the room (a phone with the keyboard up).
+        editing ? null : el('div', { class: 'people-tools' }, search, sort),
         el('p', { class: 'empty people-none', hidden: true }, 'Nobody you know matches.'),
         group('here', 'Here now', now), group('known', 'Known', rest), group('heard', 'Heard of', heard), folded('elsewhere', 'Elsewhere', elsewhere), folded('gone', 'Gone', gone)];
     },
@@ -18337,14 +18606,19 @@ const UI = (() => {
     journal(s) {
       const day = s.time.day;
       const PH = p => Math.max(0, PHASES.indexOf(p));
+      // News and the chronicle together, newest first: by day, then phase, then turn. A chronicle
+      // entry with no day of its own takes the last day known before it (they run in order).
       const story = [];
-      for (const n of newsOf(s)) story.push({ key: (n.day | 0) * 10 + PH(n.phase) + 0.5, when: dayLabel(n.day, n.phase), text: n.text, kind: 'news' });
-      for (const c of s.chronicle) {
+      newsOf(s).forEach((n, i) => story.push({ day: n.day | 0, ph: PH(n.phase), turn: Number.isInteger(n.turn) ? n.turn : -1, i, when: dayLabel(n.day, n.phase), text: n.text, kind: 'news' }));
+      let lastDay = 1;
+      s.chronicle.forEach((c, i) => {
         const at = whenTurn(s, c.toTurn) || whenTurn(s, c.fromTurn);
-        const d0 = Number.isInteger(c.toDay) ? c.toDay : Number.isInteger(c.day) ? c.day : at ? at.day : null;
-        story.push({ key: d0 ? d0 * 10 + (at ? PH(at.phase) : 0) : (c.toTurn | 0) / 1000, when: d0 ? `Up to day ${d0}` : `Turns ${c.fromTurn} to ${c.toTurn}`, text: c.summary, kind: 'chronicle' });
-      }
-      story.sort((a, b) => b.key - a.key);
+        const known = Number.isInteger(c.toDay) ? c.toDay : Number.isInteger(c.day) ? c.day : at ? at.day : null;
+        const d0 = known || lastDay;
+        lastDay = d0;
+        story.push({ day: d0, ph: at && at.phase ? PH(at.phase) : -1, turn: c.toTurn | 0, i, when: known ? `Up to day ${known}` : `Turns ${c.fromTurn} to ${c.toTurn}`, text: c.summary, kind: 'chronicle' });
+      });
+      story.sort((a, b) => (b.day - a.day) || (b.ph - a.ph) || (b.turn - a.turn) || (b.i - a.i));
       const leads = s.rumours.filter(r => r.heard).map((r, i) => ({ r, i })).sort((a, b) => ((b.r.heardDay | 0) - (a.r.heardDay | 0)) || (b.i - a.i)).map(x => x.r);
       const threads = s.threads.filter(t => t.knownToPlayer);
       const ORDER = { open: 0, resolved: 1, failed: 2 };
@@ -18378,7 +18652,8 @@ const UI = (() => {
               : Number.isInteger(o.dueDay) ? el('span', { class: 'jr-due' + (late ? ' late' : '') }, `due Day ${o.dueDay} (${dueIn(o.dueDay, day)})`) : null);
         }, 'Nothing owed either way.')),
         sec('notes', 'Notes', ul(s.journal.slice().reverse(), j => {
-          const at = whenTurn(s, j.turn);
+          // The day and phase stored with the entry; the log only for entries written before it kept them.
+          const at = Number.isInteger(j.day) ? { day: j.day, phase: j.phase || null } : whenTurn(s, j.turn);
           return el('li', null, el('span', { class: 'jr-day' }, at ? dayLabel(at.day, at.phase) : `Turn ${j.turn}`), el('span', { class: 'jr-text' }, j.text));
         }, 'No entries yet.'))
       ];
@@ -18391,10 +18666,10 @@ const UI = (() => {
       const ban = bannedUntil(s, here);
       return [
         renderMap(s),
-        el('div', { class: 'map-tools mobile-only' }, el('button', { type: 'button', class: 'btn small map-expand', onclick: () => setMapExpanded(true) }, 'Expand map')),
+        el('div', { class: 'map-tools' }, el('button', { type: 'button', class: 'btn small map-expand', 'aria-haspopup': 'dialog', onclick: () => setMapExpanded(true) }, 'Expand map')),
         mapLegend(s),
         el('h2', null, here.name),
-        el('p', { class: 'muted' }, [capFirst(here.type), closedNow(here) ? 'closed' : '', closedOnLine(here)].filter(Boolean).join(' · ')),
+        el('p', { class: 'muted' }, placeStatusLine(here)),
         ban ? el('p', { class: 'plcard-warn' }, Number.isInteger(ban) ? `You are banned from here until Day ${ban}.` : 'You are banned from here.') : null,
         el('p', null, here.description),
         el('h3', null, 'Exits from here'),
@@ -18499,7 +18774,69 @@ const UI = (() => {
   /* "Day 2 · Friday · Evening" (the weekday once the engine has a calendar). */
   function dividerNode(day, phase) { return el('div', { class: 'f-item f-divider', role: 'separator' }, dayLabel(day, phase)); }
   function rollNode(r) { return el('p', { class: 'f-item f-roll' }, r.line); }
-  function quietNode(text) { return el('p', { class: 'f-item f-quiet' }, text); }
+  /* A quiet line; the overnight news gets a little more weight than a dice line. */
+  function quietNode(text) {
+    const m = /^(Overnight in town):\s*/.exec(String(text));
+    if (m) return el('p', { class: 'f-item f-quiet f-news' }, el('span', { class: 'f-news-k' }, `${m[1]}: `), String(text).slice(m[0].length));
+    return el('p', { class: 'f-item f-quiet' }, text);
+  }
+  /* The recap (Continue, /recap, ⋯ Recap, after a night's sleep): a heading
+     and one line per kind, the kind in bold. Its "In town" line is left out
+     when the overnight news was just told above it. */
+  const RECAP_HEAD = 'Where things stand';
+  function newsJustAbove() {
+    for (let n = d.feed.lastElementChild; n; n = n.previousElementSibling) {
+      if (n.classList.contains('f-news')) return true;
+      if (n.classList.contains('f-input') || n.classList.contains('f-notice')) return false;
+    }
+    return false;
+  }
+  function recapNode(text) {
+    let lines = String(text || '').split('\n').map(t => t.trim()).filter(Boolean);
+    if (newsJustAbove()) lines = lines.filter(t => !/^In town:/.test(t));
+    // The heading is drawn by CSS (::before), so the node's text stays the recap's own lines.
+    return el('div', { class: 'f-item f-notice recap', role: 'group', 'aria-label': RECAP_HEAD },
+      lines.map((t, i) => {
+        const m = /^([A-Z][A-Za-z ]{0,24}):\s/.exec(t);
+        return [i ? '\n' : '', m ? [el('span', { class: 'f-recap-k' }, `${m[1]}:`), t.slice(m[1].length + 1)] : t];
+      }));
+  }
+  /* A failed turn's notice ("… Your action was kept in the box."): Try
+     again; and Open Settings when the key or a model is the trouble. */
+  const KEPT_LINE = 'Your action was kept in the box.';
+  function noticeActs(text) {
+    const acts = [];
+    if (text.includes(KEPT_LINE)) acts.push(el('button', { type: 'button', class: 'btn small', dataset: { retry: '1' }, onclick: e => retryTurn(e) }, 'Try again'));
+    if (/\bin Settings\b/.test(text)) acts.push(el('button', { type: 'button', class: 'btn small', dataset: { settings: '1' }, onclick: () => openSettingsFor(text) }, 'Open Settings'));
+    return acts.length ? el('span', { class: 'f-notice-acts' }, acts) : null;
+  }
+  /* Try again: the failed line (put back in the box, or, if new words are
+     typed there, sent as it was without touching them), or the failed Wait. */
+  async function retryTurn(e) {
+    if (!canAct({ say: true })) return null;
+    const row = e && e.target && e.target.closest ? e.target.closest('.f-notice-acts') : null;
+    (isMobile() ? d.send : d.cmd).focus({ preventScroll: true });
+    if (row) row.remove();
+    const box = d.cmd.value;
+    const last = lastSent;
+    if (last && last.text && box.trim() && box !== last.text) {
+      let res = null;
+      try { res = await Pipeline.submit(last.text, { mode: last.mode, to: last.to }); } catch (x) { console.error(x); res = { restoreInput: true }; }
+      if (res && res.restoreInput) restoreAction(last.text);
+      syncSendLabel();
+      return res;
+    }
+    if (box.trim()) return send(false);
+    if (last && last.pass) return send(true);
+    if (last && last.text) { d.cmd.value = last.text; autosize(); return send(false); }
+    return null;
+  }
+  /* Settings, at the field the notice is about (the key, else the models under Advanced). */
+  function openSettingsFor(text) {
+    showScreen('settings');
+    if (/\bmodel/i.test(text) && !/\bkey\b/i.test(text)) { d.setAdvanced.open = true; d.setNarratorModel.focus({ preventScroll: false }); }
+    else d.setKey.focus({ preventScroll: false });
+  }
   /* A Do line is the text as typed; a Say line (a turn's speech or a log
      entry with mode 'say') is the words in quotes and who they were said to. */
   function inputNode(text, sp) {
@@ -18561,7 +18898,12 @@ const UI = (() => {
       if (!on && label) label.remove();
       if (on) inferStage('rewrite');
     },
-    notice(text, kind) { return feed.add(el('p', { class: 'f-item f-notice' + (kind ? ' ' + kind : '') }, text)); },
+    notice(text, kind) {
+      if (kind === 'recap') return feed.add(recapNode(text));
+      const t = String(text);
+      // The text in its own span, so the buttons can follow it and "kept in the box" can be rewritten alone (restoreAction).
+      return feed.add(el('p', { class: 'f-item f-notice' + (kind ? ' ' + kind : '') }, el('span', { class: 'f-notice-text' }, t), kind === 'error' ? noticeActs(t) : null));
+    },
     /* A quiet line that is always shown (damage, story points), unlike rolls.
        It is also kept (UI.pendingNotes) for the log entry of the turn that
        commits next, so it is there after a reload; outside a turn it goes
@@ -18606,7 +18948,7 @@ const UI = (() => {
     const tip = el('aside', { class: 'f-tip', 'aria-label': 'How to play' },
       el('p', null, el('strong', null, 'Do'), ' is what you do ("I ask for a beer"); ', el('strong', null, 'Say'), ' is your exact words, to whoever is picked.'),
       el('p', null, el('strong', null, 'Wait'), ' (the button, with the box empty) lets the people here make the next move.'),
-      el('p', null, phone ? 'Type / or press ⋯ for commands. The tabs above the box keep track of people, places and your journal.' : 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.'),
+      el('p', null, phone ? 'Type / or press ⋯ (at the end of the tabs) for commands. The tabs above the box keep track of people, places and your journal.' : 'Type / or press ⋯ for commands. The panel on the right keeps track of people, places and your journal.'),
       el('button', { type: 'button', class: 'bar-x', 'aria-label': 'Close the tip', onclick: e => { const t = e.target.closest('.f-tip'); if (t) t.remove(); focusInput(); } }, '×'));
     d.feedAfter.append(tip);
     afterAppend();
@@ -18642,6 +18984,8 @@ const UI = (() => {
   // ----- composer and autocomplete -----
   function autosize() {
     const ta = d.cmd;
+    // An empty box is one line, whatever the placeholder would wrap to.
+    if (!ta.value) { ta.style.height = ''; ta.style.overflowY = 'hidden'; return; }
     ta.style.height = 'auto';
     const cs = getComputedStyle(ta);
     const lh = parseFloat(cs.lineHeight) || 24;
@@ -18671,9 +19015,11 @@ const UI = (() => {
     // A turn has started: a "Go to" chip on the map goes away, and so does the actions list.
     if (busy && mapPick) setPick(null);
     if (busy) closeActions();
-    // People: no edit starts or saves while a turn runs; Places: no Go there.
-    $$('.pcard-edit, .pedit-save', d.panelBody).forEach(btn => { btn.disabled = busy; if (busy) btn.title = App.BUSY_NOTICE; else btn.removeAttribute('title'); });
-    $$('[data-go]', d.panelBody).forEach(btn => { btn.disabled = busy; });
+    // People: no edit starts or saves, and no pronoun changes, while a turn runs; Places: no Go there (UI.canAct, read only too).
+    const why = actBlock();
+    $$('.pcard-edit, .pedit-save, .pcard-pchip, [data-go], .map-go', d.panelBody).forEach(btn => { btn.disabled = !!why; if (why) btn.title = why; else btn.removeAttribute('title'); });
+    // A new turn: an older failed turn's Try again is out of date.
+    if (busy && !was) for (const x of $$('.f-notice-acts', d.feed)) x.remove();
     if (busy && !was) {
       if (!status.fromPipeline && status.stage === 'idle') setStage('busy');
     } else if (!busy && was) {
@@ -18703,7 +19049,7 @@ const UI = (() => {
   function inferStage(stage) { if (!status.fromPipeline && (busy || Pipeline.busy)) setStage(stage); }
   function setStage(stage, message) {
     status.stage = stage;
-    if (stage === 'idle') status.queued = false;
+    if (stage === 'idle') { status.queued = false; status.queuedText = ''; }
     renderStatus(message);
     syncSendLabel();
   }
@@ -18713,7 +19059,33 @@ const UI = (() => {
     d.turnStatus.hidden = !on;
     d.turnStatus.classList.remove('nudge');
     d.turnStatusText.textContent = on ? (STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '';
-    d.queuedNote.hidden = !(on && status.queued);
+    // The queued line is shown, not just a pill, with × to take it back (when the Pipeline can).
+    const q = on && status.queued;
+    d.queuedNote.hidden = !q;
+    if (q) {
+      const held = typeof Pipeline.queued === 'string' ? Pipeline.queued : status.queuedText;
+      d.queuedText.textContent = held ? `Next: “${held}”` : Pipeline.queued === '' ? 'Next: Wait' : 'Queued';
+      d.queuedNote.title = held || '';
+      const can = typeof Pipeline.cancelQueued === 'function';
+      d.queuedCancel.hidden = !can;
+      d.queuedNote.dataset.cancel = can ? '1' : '0';
+    }
+  }
+  /* × on the queued line: it does not run; its text goes back in the box
+     (or, if something new is typed there, into a notice). */
+  function cancelQueued() {
+    if (typeof Pipeline.cancelQueued !== 'function') return false;
+    let text = null;
+    try { text = Pipeline.cancelQueued(); } catch (e) { console.error(e); }
+    const back = typeof text === 'string' && text ? text : status.queuedText;
+    status.queued = false;
+    status.queuedText = '';
+    renderStatus();
+    if (back) restoreAction(back);
+    syncSendLabel();
+    // The × is gone: the focus goes to the box (a phone: the Send button, so no keyboard pops up).
+    (isMobile() ? d.send : d.cmd).focus({ preventScroll: true });
+    return true;
   }
   /* Enter while a turn runs (and nothing can be queued): the line stays in the box and the status line says why. */
   function nudge() {
@@ -18725,14 +19097,19 @@ const UI = (() => {
   }
   function turnRunning() { return busy || !!Pipeline.busy; }
   function canQueue() { return turnRunning() && Pipeline.acceptsQueue === true && typeof Pipeline.submit === 'function'; }
-  function canStop() { return turnRunning() && !canQueue() && typeof Pipeline.abort === 'function'; }
-  /* The button: Wait with nothing typed, Send, Stop while a turn runs (it
-     can be stopped), Send again while the next line can be queued. */
+  /* A running turn can be stopped when the Pipeline can abort and says it
+     can now (Pipeline.canStop; an engine without it: any time). */
+  function canStop() { return turnRunning() && typeof Pipeline.abort === 'function' && (Pipeline.canStop === undefined || !!Pipeline.canStop); }
+  /* The button: Wait with nothing typed (a plain button: it is a paid turn
+     too), Send, Stop while a turn runs and can be stopped, Send again while
+     a typed line can be queued. */
   function syncSendLabel() {
     if (!d.send) return;
     const empty = !d.cmd.value.trim();
-    const stop = canStop();
+    const stop = canStop() && !(canQueue() && !empty);
     d.send.classList.toggle('stop', stop);
+    d.send.classList.toggle('wait', !stop && empty);
+    d.send.classList.toggle('primary', !stop && !empty);
     if (stop) {
       d.send.textContent = 'Stop';
       d.send.title = 'Stop this turn';
@@ -18740,7 +19117,7 @@ const UI = (() => {
       return;
     }
     d.send.textContent = empty ? 'Wait' : 'Send';
-    d.send.title = canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
+    d.send.title = Storage.readOnly ? READ_ONLY_NOTICE : canQueue() ? 'Send: it runs as soon as this turn is done' : empty ? 'Say nothing and see what they do' : 'Send';
     d.send.disabled = !!Storage.readOnly || (turnRunning() && !(canQueue() && !empty));
   }
   function sendOrStop() {
@@ -18762,11 +19139,12 @@ const UI = (() => {
       if (now !== text) { d.cmd.value = text; autosize(); }
       return 'box';
     }
-    const KEPT = 'Your action was kept in the box.';
+    const KEPT = KEPT_LINE;
     const said = `Your action: “${text}”`;
     const notes = $$('.f-notice', d.feed);
     const last = notes[notes.length - 1];
-    if (last && last.textContent.includes(KEPT)) last.textContent = last.textContent.replace(KEPT, said);
+    const span = last ? $('.f-notice-text', last) || last : null;
+    if (span && span.textContent.includes(KEPT)) span.textContent = span.textContent.replace(KEPT, said);
     else feed.notice(said);
     return 'notice';
   }
@@ -18774,24 +19152,27 @@ const UI = (() => {
      a Wait (a paid turn) only comes from the button. */
   async function send(fromButton) {
     const text = d.cmd.value;
-    if (Storage.readOnly) { toast('This game is open in another tab.'); return; }
+    if (Storage.readOnly) { toast(READ_ONLY_NOTICE); return; }
     if (!text.trim()) {
       if (fromButton !== true || turnRunning()) return;
-      if (screen !== 'game' || !State.current) return;
+      if (!canAct({ say: true })) return;
       hideAc();
+      lastSent = { pass: true };
       try { await Pipeline.pass(); } catch (e) { console.error(e); }
       syncSendLabel();
       if (!isMobile()) d.cmd.focus({ preventScroll: true });
       return;
     }
     if (turnRunning() && !canQueue()) { nudge(); return; }
+    if (!canAct({ say: true, queue: true })) return;
     hideAc();
     d.cmd.value = '';
     autosize();
     syncAddressee();
+    lastSent = { text, mode: composer.mode, to: composer.to };
     let res = null;
     try { res = await Pipeline.submit(text, { mode: composer.mode, to: composer.to }); } catch (e) { console.error(e); res = { restoreInput: true }; }
-    if (res && res.queued) { status.queued = true; renderStatus(); }
+    if (res && res.queued) { status.queued = true; status.queuedText = text; renderStatus(); }
     if (res && res.restoreInput) restoreAction(text);
     syncSendLabel();
     // A command that put the focus somewhere on purpose (/edit: the editor's name field) keeps it there.
@@ -18867,13 +19248,13 @@ const UI = (() => {
     const n = composer.to === 'everyone' ? null : present.find(x => x.id === composer.to);
     return n ? npcLabel(n) : 'everyone';
   }
-  /* More people here than this, on a phone: a "To: …" picker leads the row. */
+  /* More people here than this, on a phone: a "To: …" picker instead of the chips. */
   const SAY_PICK_OVER = 4;
   /* The toggle, the chips (Say mode only: Everyone plus each person here,
-     exactly one pressed; on a phone one row that scrolls sideways, led by a
-     "To: Everyone ▾" picker when the place is busy) and the placeholder.
-     Runs on every render, so the chips follow the scene: after each turn,
-     a move, a load. */
+     exactly one pressed; on a phone one row that scrolls sideways, or, when
+     the place is busy, one "To: Everyone ▾" picker as wide as its longest
+     name instead) and the placeholder. Runs on every render, so the chips
+     follow the scene: after each turn, a move, a load. */
   function renderComposer() {
     if (!d.cmd) return;
     const present = syncAddressee();
@@ -18893,13 +19274,20 @@ const UI = (() => {
           el('option', { value: 'everyone' }, 'To: Everyone'), present.map(n => el('option', { value: n.id }, `To: ${npcLabel(n)}`)));
         pick.value = composer.to;
       }
-      d.sayTo.replaceChildren(...(say ? [pick, chip('everyone', 'Everyone')].concat(present.map(n => chip(n.id, npcLabel(n)))).filter(Boolean) : []));
+      // The focus stays on the picker or the chip it was on (never dropped to the page).
+      const had = d.sayTo.contains(document.activeElement) ? document.activeElement : null;
+      d.sayTo.replaceChildren(...(!say ? [] : pick ? [pick] : [chip('everyone', 'Everyone')].concat(present.map(n => chip(n.id, npcLabel(n))))));
+      if (had) {
+        const again = pick || $(`.say-chip[data-to="${CSS.escape(had.dataset.to || composer.to)}"]`, d.sayTo) || $('.say-chip[aria-pressed="true"]', d.sayTo);
+        if (again) again.focus({ preventScroll: true }); else d.modeSay.focus({ preventScroll: true });
+      }
       // The pressed chip stays in view in the sideways row.
       const on = phone && say ? $('.say-chip[aria-pressed="true"]', d.sayTo) : null;
       if (on && d.sayTo.scrollWidth > d.sayTo.clientWidth) d.sayTo.scrollLeft = Math.max(0, on.offsetLeft - d.sayTo.offsetLeft - (pick ? pick.offsetWidth + 6 : 0) - 8);
     }
     const who = addresseeName(present);
-    d.cmd.placeholder = say ? (phone ? 'What do you say?' : `What do you say to ${who}?`) : (phone ? '/ or ⋯ for commands' : 'What do you do? (/ or ⋯ for commands)');
+    // A phone's box is narrow: a short placeholder that never wraps (the ⋯ in the tab row and the tip say how to reach commands).
+    d.cmd.placeholder = say ? (phone ? 'What do you say?' : `What do you say to ${who}?`) : (phone ? 'What do you do?' : 'What do you do? (/ or ⋯ for commands)');
     d.cmd.setAttribute('aria-label', say ? `What you say to ${who}` : 'Your action');
   }
   /* Game.UI.setMode('do' | 'say') and Game.UI.setAddressee(id | 'everyone'):
@@ -19015,8 +19403,9 @@ const UI = (() => {
     try { r = await Api.checkKey(key); } catch (e) { r = { ok: false, message: (e && e.message) || String(e) }; }
     d.setCheckKey.disabled = false;
     const ok = r === true || (isObj(r) && r.ok === true);
-    const why = isObj(r) ? (r.message || r.reason || '') : '';
-    keyStatus(ok ? 'The key works.' : `The key did not work${why ? ': ' + String(why).replace(/\.$/, '') : ''}.`, ok);
+    // The reason as the API gives it, without sending the player to Settings: they are there.
+    const why = (isObj(r) ? String(r.message || r.reason || '') : '').replace(/\s*(?:Check|Paste) (?:the|your|it) (?:key|again)[^.]*\bin Settings\./gi, '').replace(/\s*Add yours in Settings[^.]*\./gi, '').trim();
+    keyStatus(ok ? 'The key works.' : `The key did not work${why ? ': ' + why.replace(/\.$/, '') : ''}.`, ok);
     return isObj(r) ? r : { ok };
   }
 
@@ -19181,8 +19570,9 @@ const UI = (() => {
       d.crBack.addEventListener('click', backStep);
       d.crNext.addEventListener('click', nextStep);
       d.crReview.addEventListener('click', review);
-      d.crRandom.addEventListener('click', randomise);
-      d.crEdit.addEventListener('click', () => { App.cancelPrepare(); showForm(); });
+      d.crRandom.addEventListener('click', () => randomiseAsk());
+      // Back to edit: the form again, its heading taking the focus (never the page).
+      d.crEdit.addEventListener('click', () => { App.cancelPrepare(); showForm(); focusScreen('create'); });
       d.crBegin.addEventListener('click', () => App.begin());
       // How to play
       d.chooseDemo.addEventListener('click', () => {
@@ -19246,6 +19636,7 @@ const UI = (() => {
       d.createModeView.hidden = true;
       d.createSummaryView.hidden = true;
       d.createFormView.hidden = false;
+      d.crErrsum.textContent = '';
       updateSteps();
       d.createScroll.scrollTop = 0;
     }
@@ -19260,17 +19651,31 @@ const UI = (() => {
       const id = STEPS[step].id;
       const err = stepError(id);
       showErr(id, err);
-      if (err) return;
+      if (err) { const f = firstBadField(id); if (f) f.focus({ preventScroll: false }); return; }
       if (step < STEPS.length - 1) {
         step += 1;
         updateSteps();
         d.createScroll.scrollTop = 0;
-        const first = $('input, button.choice, button.chip, select', sections[STEPS[step].id]);
-        if (first) first.focus({ preventScroll: true });
+        // The step's heading takes the focus: a screen reader hears where it is, and no keyboard covers the suggestions.
+        focusStepHead(STEPS[step].id);
       } else review();
     }
     function backStep() {
-      if (step > 0) { step -= 1; updateSteps(); d.createScroll.scrollTop = 0; } else quit();
+      if (step > 0) { step -= 1; updateSteps(); d.createScroll.scrollTop = 0; focusStepHead(STEPS[step].id); } else quit();
+    }
+    function focusStepHead(id) { const h = document.getElementById('cr-h-' + id); if (h) h.focus({ preventScroll: true }); }
+    /* The control to fix first on a step with an error. */
+    function firstBadField(id) {
+      const sec = sections[id];
+      if (!sec) return null;
+      switch (id) {
+        case 'name': return $('#cr-name', sec);
+        case 'background': return bg() ? $('#cr-age', sec) : $('.bg-choice', sec);
+        case 'stats': return $('.step-btn:not([disabled])', sec);
+        case 'goal': return !cleanText(draft.goal, 140) ? $('#cr-goal', sec) : $('.flaw-choice', sec);
+        case 'loose': return $('.le-text:placeholder-shown', sec) || $$('.le-text', sec).find(x => !x.value.trim()) || $('.le-toggle:not([disabled])[aria-pressed="false"]', sec) || $('.le-toggle', sec);
+        default: return null;
+      }
     }
     function stepError(id) {
       switch (id) {
@@ -19290,16 +19695,37 @@ const UI = (() => {
         default: return '';
       }
     }
-    function showErr(id, msg) { const e = $('.err', sections[id]); if (e) e.textContent = msg || ''; }
+    /* A step's own message (plain text by its fields), and the one summary
+       that is read out (#cr-errsum, role=alert): on a laptop it sits beside
+       Review and lists the steps to fix; on a phone it is the step's message,
+       for screen readers only. */
+    function showErr(id, msg) {
+      const e = $('.err', sections[id]);
+      if (e) e.textContent = msg || '';
+      if (msg) {
+        d.crErrsum.textContent = msg;
+        const f = firstBadField(id);
+        if (f) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', e ? e.id : ''); }
+      } else {
+        for (const x of $$('[aria-invalid="true"]', sections[id])) x.removeAttribute('aria-invalid');
+        if (d.crErrsum.textContent && !STEPS.some(st => $('.err', sections[st.id]) && $('.err', sections[st.id]).textContent)) d.crErrsum.textContent = '';
+      }
+    }
     function review() {
-      let firstBad = -1;
-      STEPS.forEach((st, i) => { const err = stepError(st.id); showErr(st.id, err); if (err && firstBad < 0) firstBad = i; });
-      if (firstBad >= 0) {
+      const bad = [];
+      STEPS.forEach((st, i) => { const err = stepError(st.id); showErr(st.id, err); if (err) bad.push(i); });
+      if (bad.length) {
+        const firstBad = bad[0];
         step = firstBad;
         updateSteps();
+        // One message, not one per step: what to fix, then the focus on the first thing to fix.
+        d.crErrsum.textContent = bad.length === 1 ? `Fix this first: ${$('.err', sections[STEPS[firstBad].id]).textContent}` : `Fix ${bad.length} things first: ${joinList(bad.map(i => STEPS[i].title))}.`;
         sections[STEPS[firstBad].id].scrollIntoView({ block: 'start' });
+        const f = firstBadField(STEPS[firstBad].id);
+        if (f) f.focus({ preventScroll: true }); else focusStepHead(STEPS[firstBad].id);
         return false;
       }
+      d.crErrsum.textContent = '';
       try {
         if (!App.prepare(character())) return false; // a turn is still running
       } catch (e) {
@@ -19312,6 +19738,14 @@ const UI = (() => {
       d.createScroll.scrollTop = 0;
       d.crBegin.focus({ preventScroll: true });
       return true;
+    }
+    /* Random character over a form already started asks first (Keep mine is the default). */
+    async function randomiseAsk() {
+      if (draft && JSON.stringify(draft) !== JSON.stringify(blank())) {
+        const yes = await ask({ title: 'Replace what you have chosen?', text: 'Random character fills in every step, over what you have typed or picked so far.', yes: 'Replace it', no: 'Keep mine' });
+        if (!yes) return false;
+      }
+      return randomise();
     }
     /* "Random character": every step filled in at once, all of it editable,
      then straight to the summary. Names that belong to someone in town are
@@ -19379,22 +19813,30 @@ const UI = (() => {
         })));
     }
     function stepHead(st) {
-      return [el('h2', { class: 'step-title', id: 'cr-h-' + st.id }, st.title), el('p', { class: 'step-sub' }, st.sub)];
+      return [el('h2', { class: 'step-title', id: 'cr-h-' + st.id, tabindex: '-1' }, st.title), el('p', { class: 'step-sub' }, st.sub)];
     }
     function renderStep(id) {
       const st = STEPS.find(x => x.id === id);
       const sec = sections[id];
       if (!sec) return;
       const body = BODIES[id]();
-      sec.replaceChildren(...stepHead(st), ...[].concat(body), el('p', { class: 'err', role: 'alert' }));
+      sec.replaceChildren(...stepHead(st), ...[].concat(body), el('p', { class: 'err', id: 'cr-err-' + id }));
     }
-    /* Suggestion chips that fill a text field (a goal, a loose end's line). */
-    function suggestions(label, list, current, onPick, cls) {
+    /* A loose end's suggestion as a chip: its first words (the whole line goes in the field when picked). */
+    function chipWords(t) {
+      const words = String(t || '').split(/\s+/).filter(Boolean);
+      return words.length > 5 ? `${words.slice(0, 4).join(' ').replace(/[,;:.]$/, '')}…` : words.join(' ');
+    }
+    /* Suggestion chips that fill a text field (a goal, a loose end's line).
+       short: the chip shows the first words, the field the whole line (and
+       the chip's accessible name and tooltip are the whole line). */
+    function suggestions(label, list, current, onPick, cls, short) {
       return el('div', { class: 'cr-suggest' }, el('span', { class: 'cr-suggest-k' }, label),
         el('div', { class: 'chips', role: 'group', 'aria-label': label }, list.map((t, i) => el('button', {
-          type: 'button', class: 'chip ' + (cls || ''), 'aria-pressed': String(cleanText(current, 200) === cleanText(t, 200)), dataset: { index: String(i) },
+          type: 'button', class: 'chip ' + (cls || ''), 'aria-pressed': String(cleanText(current, 200) === cleanText(t, 200)), dataset: { index: String(i), full: t },
+          title: short ? t : null, 'aria-label': short && chipWords(t) !== t ? t : null,
           onclick: () => onPick(t, i)
-        }, t))));
+        }, short ? chipWords(t) : t))));
     }
     /* − / + on a stat: one point moves, the total stays the same. */
     function stepStat(k, dir) {
@@ -19467,7 +19909,7 @@ const UI = (() => {
       },
       goal() {
         const presets = goalPresets();
-        const goal = el('input', { class: 'input', id: 'cr-goal', type: 'text', maxlength: '140', autocomplete: 'off', placeholder: 'Type why you came here, or tap a suggestion', value: draft.goal,
+        const goal = el('input', { class: 'input', id: 'cr-goal', type: 'text', maxlength: '140', autocomplete: 'off', placeholder: 'Why you came, in a line', value: draft.goal,
           'aria-label': 'Your goal',
           oninput: e => { draft.goal = e.target.value; showErr('goal', ''); syncPressed('.goal-choice', draft.goal); },
           onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); if (isMobile()) nextStep(); } } });
@@ -19502,7 +19944,7 @@ const UI = (() => {
             // One line, yours to edit; the suggestions fill it.
             const txt = el('input', { class: 'input le-text', type: 'text', maxlength: '200', autocomplete: 'off', value: st.text, dataset: { kind: k },
               'aria-label': `${def.label}, in your words`, oninput: e => { st.text = e.target.value; syncPressed(`.le-choice[data-kind="${k}"]`, st.text); } });
-            const chips = suggestions('Suggestions:', def.options, st.text, (t, i) => { st.option = i; st.text = t; txt.value = t; syncPressed(`.le-choice[data-kind="${k}"]`, t); }, 'le-choice');
+            const chips = suggestions('Suggestions:', def.options, st.text, (t, i) => { st.option = i; st.text = t; txt.value = t; syncPressed(`.le-choice[data-kind="${k}"]`, t); }, 'le-choice', true);
             for (const c of $$('.le-choice', chips)) c.dataset.kind = k;
             inner = el('div', { class: 'le-body' }, txt, chips);
           }
@@ -19513,9 +19955,9 @@ const UI = (() => {
     };
     function syncPressed(sel, text) {
       const want = cleanText(text, 200);
-      for (const c of $$(sel, d.createSteps)) c.setAttribute('aria-pressed', String(cleanText(c.textContent, 200) === want));
+      for (const c of $$(sel, d.createSteps)) c.setAttribute('aria-pressed', String(cleanText(c.dataset.full || c.textContent, 200) === want));
     }
-    return { wire, start, review, layoutChanged, randomise, needsChoice, showChoice, get draft() { return draft; }, STEPS };
+    return { wire, start, review, layoutChanged, randomise, randomiseAsk, needsChoice, showChoice, get draft() { return draft; }, STEPS };
   })();
 
   return {
@@ -19524,7 +19966,7 @@ const UI = (() => {
     setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout, setMapExpanded, showPerson,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
-    MOCK_OFF, pendingNotes, showRecap,
+    MOCK_OFF, READ_ONLY_NOTICE, pendingNotes, showRecap, canAct, runAction, travel: confirmTravel, cancelQueued,
     attitudeLevel: a => ATTITUDE_LEVEL[State.attitudeWord(a)] || 3,
     get status() { return { stage: status.stage, queued: status.queued, text: d.turnStatus && !d.turnStatus.hidden ? d.turnStatusText.textContent : '' }; },
     get mapExpanded() { return mapExpanded; },
@@ -19688,7 +20130,7 @@ const App = (() => {
      the one just loaded, so these entry points refuse until it is over (the
      UI disables their controls meanwhile). */
   const BUSY_NOTICE = 'Wait for the current turn to finish.';
-  const NEWER_NOTICE = 'This game was saved by a newer version of the game than this one. It may not play correctly here: open it with the newer version, or keep playing at your own risk.';
+  const NEWER_NOTICE = 'Saved by a newer version of the game, so it may not play right here.';
   function turnRunning() {
     if (!Pipeline.busy) return false;
     UI.toast(BUSY_NOTICE);
@@ -19785,6 +20227,8 @@ const App = (() => {
   function begin() {
     const s = State.current;
     if (!s || !State.muted) throw new Error('no character prepared');
+    // Begun in a tab that was read only: this tab plays now (its autosave makes the other tab read only).
+    if (Storage.readOnly) Storage.setReadOnly(false);
     State.commit();
     inGame = true;
     Storage.requestPersist();
@@ -19819,6 +20263,8 @@ const App = (() => {
     const wasIn = inGame;
     const from = UI.screen;
     let r = null;
+    // A loaded game is not a turn: no "warms to you" lines for what happened before it was loaded here.
+    bands = { id: null, turn: -1, map: {} };
     State.beginBatch();
     try {
       r = State.load(env.state, env.town);
@@ -19837,8 +20283,33 @@ const App = (() => {
       State.endBatch();
     }
     if ((isObj(r) && r.newer === true) || newerRules(env.state)) UI.warn(NEWER_NOTICE);
+    // Loaded in a tab that was read only: this tab plays it now.
+    if (Storage.readOnly) Storage.claim();
     Storage.requestPersist();
     return true;
+  }
+  /* "Play here instead" (the bar in a read-only tab): this tab first loads
+     the game as the other tab saved it (drawn before anything is written,
+     like any load), then plays it, and its autosave makes the other tab
+     read only. An autosave that cannot be read is kept as the previous
+     autosave (Saves, Restore previous) before this tab's game is saved,
+     and the banner says so: nothing is overwritten silently. */
+  function playHere() {
+    if (!Storage.readOnly) return true;
+    if (Pipeline.busy) { UI.toast(BUSY_NOTICE); return false; }
+    const raw = Storage.rawAutosave();
+    let env = null;
+    let why = '';
+    if (raw) { try { env = Storage.parseEnvelope(raw, 'The saved game'); } catch (e) { why = e.message; } }
+    if (env) {
+      try { load(env); } catch (e) { env = null; why = e.message || String(e); }
+    }
+    if (!env && raw) Storage.keepAside(raw);
+    if (Storage.readOnly) Storage.claim();
+    if (env) UI.toast('Playing here: the game as the other tab left it.');
+    else if (raw) UI.warn(`The other tab's autosave could not be read (${lowerFirst(String(why || 'it is damaged').replace(/\.$/, ''))}). It is kept as the previous autosave (Saves, Restore previous), and this tab's game is saved.`);
+    else UI.toast('Playing in this tab.');
+    return !!env || !raw;
   }
   /* opts.confirmed: replacing the autosave was already agreed (or loses nothing). */
   function enter(env, opts) {
@@ -19947,7 +20418,7 @@ const App = (() => {
   function quitToTitle() { inGame = false; UI.showScreen('title'); }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, restorePrevious, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, flushNotes, BUSY_NOTICE, inGame: () => inGame };
+  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, restorePrevious, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, flushNotes, playHere, newerRules, BUSY_NOTICE, NEWER_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====

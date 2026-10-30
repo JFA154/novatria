@@ -110,7 +110,8 @@ s.test('375 wide, the busiest scene: the Do / Say toggle and every chip are 44px
     const box = el => { const r = el.getBoundingClientRect(); return { id: el.id || el.dataset.to, w: r.width, h: r.height, left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
     const vis = el => !el.closest('[hidden]') && el.getBoundingClientRect().width > 0;
     return {
-      targets: [...document.querySelectorAll('#mode-do, #mode-say, #say-to .say-chip, #send, #cmd')].filter(vis).map(box),
+      targets: [...document.querySelectorAll('#mode-do, #mode-say, #say-to .say-chip, #say-pick, #send, #cmd')].filter(vis).map(box),
+      options: [...document.querySelectorAll('#say-pick option')].map(o => o.value),
       toggle: box(document.querySelector('.mode-toggle')), cmd: box(document.getElementById('cmd')), chips: box(document.getElementById('say-to')),
       font: parseFloat(getComputedStyle(document.getElementById('cmd')).fontSize)
     };
@@ -121,14 +122,17 @@ s.test('375 wide, the busiest scene: the Do / Say toggle and every chip are 44px
   assert.deepEqual(await overflowReport(page, 375), [], 'Do mode');
   await page.click('#mode-say');
   m = await measure();
-  assert.equal(m.targets.filter(x => x.id && !['mode-do', 'mode-say', 'send', 'cmd'].includes(x.id)).length, busy.n + 1, 'Everyone plus one chip per person');
+  // More than four people here: one "To:" picker (Everyone plus each person) instead of the chips.
+  const picker = busy.n > 4;
+  if (picker) assert.equal(m.options.length, busy.n + 1, 'Everyone plus one option per person');
+  else assert.equal(m.targets.filter(x => x.id && !['mode-do', 'mode-say', 'send', 'cmd'].includes(x.id)).length, busy.n + 1, 'Everyone plus one chip per person');
   assert.deepEqual(m.targets.filter(x => x.w < 44 || x.h < 44), [], 'Say mode: tap targets under 44px');
   assert.ok(m.chips.bottom <= m.cmd.top, 'the chips sit above the input');
   assert.ok(m.cmd.w >= 140, 'the input keeps a usable width: ' + m.cmd.w);
   assert.ok(m.font >= 16, 'input font ' + m.font);
   assert.deepEqual(await overflowReport(page, 375), [], 'Say mode with the chips');
   const who = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[0]);
-  await page.click(`#say-to [data-to="${who.id}"]`);
+  if (picker) await page.selectOption('#say-pick', who.id); else await page.click(`#say-to [data-to="${who.id}"]`);
   const whoLabel = await page.evaluate(id => Game.npcLabel(Game.state.npcs.find(n => n.id === id)), who.id);
   await sendText(page, 'Run.');
   const line = await page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-input')].pop(); return { text: n.textContent, words: n.querySelector('.f-words').textContent, to: n.querySelector('.f-to').textContent, say: n.classList.contains('f-say') }; });
