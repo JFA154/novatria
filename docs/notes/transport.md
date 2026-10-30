@@ -352,3 +352,141 @@ a cache write under 12¢).
   narration turn of `/rest`, `/wait`, `/skip`, an arrival, a defeat, an
   arrest or an epilogue is not counted as an instant (State's
   `NOT_ACTIONS`); an ordinary turn's cause is `turn` and counts.
+
+## Wave 2
+
+The code review's bugs 1, 3, 4, 5, 6, 9, 10 and its risks on the turn side,
+SEAMS "what remains", and the playtest's turn items. Tests:
+`tests/wave2-fixes.test.cjs`.
+
+### Rolls, asks, fights
+
+- **A success locks nothing** (review bug 1). After a roll the Pipeline
+  stores `Dice.lockFor(roll, key)` through `State.apply({ lastRollKey })`:
+  the locks still in force here, plus the key on a failure, or `+key` on a
+  social success (which locks nothing). Only a failure of the same ask is a
+  "SAME ASK AGAIN". **Diminishing returns apply**: `Dice.successes(key)`
+  before the roll; on a social success with earlier ones this phase the
+  bookkeeper's positive attitude change for that person is scaled by
+  `Dice.diminishing(n)` (full, half, a quarter, then nothing) and the
+  narrator gets `ASKED BEFORE: ...`.
+- **Gifts**: the second gift (`give`) to the same person in a day earns no
+  attitude (`State.apply({ giftGiven })`, `meta.gifts`).
+- **Complications act** (review bug 6): `roll.complicationEffects` are
+  applied with the roll; the bookkeeper's ALREADY APPLIED says so; the
+  debug log has a `complication` entry.
+- **No roll without someone there** (playtest B4, B17): an attack or a
+  social action aimed only at people who are not here (NOT PRESENT says
+  so), or a social action with nobody here at all, has no roll: no damage,
+  no complication, no lock, no story point.
+- **Fights** (review bug 5, playtest B2, B7): one fight is the same person,
+  the same place, attack turn after attack turn (a phase may roll over in
+  the middle; a miss keeps it going). `state.fight` is written through
+  `State.apply({ fight })`. The third clean hit: `OUTCOME: <Name> goes down
+  hard ...` in this narration, the one knocked down stays in PRESENT for it
+  (`ctx.stillHere`), and the bookkeeper is told it is done. An attack with
+  the police here: `ARREST: <the plan>` in this narration, TIME THIS TAKES
+  says the night in the cell, and no due event tells it again next turn.
+- **Cards**: a fumble without a marked deck is an accusation (dealer -10,
+  a weight-2 memory, out for the night); with a marked deck it is caught
+  (dealer -20, weight-3 memory, three days out, news). Only a marked deck
+  gives +2. No game at a place shut today.
+- **Takes** (playtest B5, REVIEW E1): a take of a `new:` thing never makes
+  it: NOT PRESENT "nothing like that is here to take" (only ITEMS HERE can
+  be picked up). "X and a Y" is two things.
+
+### Due events, scenes, time
+
+- Due events (playtest B6): three a turn (`World.MAX_DUE`), every one that
+  is waiting on `/rest`, `/wait`, `/skip` (`DUE_QUIET`); such a narration
+  with more than three may run to ZOOM length. A walk to an open place: the
+  due events are those of the destination and whoever comes for the player
+  meets them there. The DUE EVENT line marks a town event at the player's
+  place as the scene, and one from an earlier day says so ("this came up on
+  day N; any days it counts are from then, and OPEN has them as of today").
+- DESTINATION shows who is there in the phase the walk lands in (REVIEW
+  E8, playtest B8).
+- TIME THIS TAKES: the instant that makes six says "a moment, but the talk
+  has added up to a few minutes" (from `time.instants`); an arrest says the
+  night in the cell.
+- `/skip` (review bug 9): a place shut the day the player gets there
+  (closed, closed that weekday, barred) is refused; one shut now but open
+  then is walked to after the wait.
+- `/rest` in a place shut today: the narration hears they slept rough and
+  that the place is shut.
+
+### Turn lifecycle
+
+- **The late bookkeeper** (review bug 3): its diff is applied only while
+  that turn's log entry is still the newest (else the turn stays not
+  recorded, noted in the debug log), never moves the player, runs under that
+  turn's caps, clears `changes` through `logUpdate`, and its quiet line goes
+  on that entry.
+- **Stop while the town is updated** (review risk, coordinator): the
+  narration stays, the turn is logged with `changes: 'not recorded'` (no
+  retry), a quiet line says so, and a queued line goes back in the box
+  instead of running. `Pipeline.canStop` is true while any turn runs.
+- **The ending** (review bug 4): marked seen only when its own turn commits
+  (`newsSeen: 'ending'`); a failed or stopped ending stays unseen and is
+  told at the end of the next turn, with a notice that says so (no "kept in
+  the box": it has no input).
+- **`/reroll` and `/cheat`** (review bug 10): the turn is replayed from the
+  action as parsed (`lastTurn.parsed`), so a failed search can find the
+  thing on a success.
+- **A read-only tab** (coordinator item e): `runTurn`, `submit` (a line),
+  `pass`, `reroll`, `setClock`, `arrival` and `/undo` refuse with
+  `{ ok: false, reason: 'readonly', restoreInput: true }` and a notice,
+  before any snapshot or call.
+- Removed: the pre-rules-8 `advance()` fallback that wrote `time.shorts`,
+  the direct `seen` writes, Pipeline's own calendar (`calendarDay`, its
+  weekday and month lists: `State.weekday` / `State.dateLine`), the second
+  `obligationsOpen`, the `State.news` function fallbacks.
+- `noteIntroductions` passes who is present, so someone introduced in front
+  of the player is met (`metTurn`, playtest B19).
+- Player-facing lines built by the engine say "the Low Water" mid-sentence
+  (notices, the arrest, the knockdown, the card game, the recap); the packet's
+  own lines (MOVED, THEN, TIME PASSED) keep a place's name as written.
+
+### The recap (coordinator item f, playtest B20)
+
+`Pipeline.recapText(opts)` opens with the heading `Where things stand`, then
+the day and place, `Here:`, `Open:`, `Owed:` (open and missed-but-owed, with
+part payments), one line per warm or cold person ("Boyd Teague is cold to
+you: they knew you before: an enemy.", "Loretta Gaddis is warm to you: you
+bought them a beer."), `Heard:` (by the day heard) and `In town:`; long text
+is cut at a word with "…". Once the ending has been told it says "The story
+has reached an ending (day N): ... You can keep playing.", and the recap
+after `/rest` (`{ brief: true }`) is only that and where and when.
+
+### Commands, Upgrade, Api
+
+- `/save` and `/load` list `[name]`.
+- Upgrade version 8 writes through `State.apply({ arcFill })` and builds a
+  loose end's obligation with `Town.obligationFor`.
+- `SYSTEM.memories` and the re-read schema say "At most 12" (State.MEMORY_MAX,
+  Upgrade.PER_PERSON) and that a line already in the current form stays as
+  it is (coordinator item a; the mock's own rewrite still keeps six, a mock
+  matter).
+
+### Small edits outside this region (for the UI agent's merge)
+
+- App `attachNotes`: `State.apply({ logUpdate: { notes } }, { quiet: true })`
+  instead of writing `e.notes`.
+- UI `canStop`: Stop also while the town is updated (`Pipeline.canStop`),
+  unless a typed line is to be queued.
+- UI `newsOf`: reads `State.news` (the function fallback was dead).
+- Storage `keepPrevious`: only a readable autosave of another game is copied
+  to `.prev`. Storage `parseEnvelope` / `shapeProblems`: the town is checked.
+- Mock narrator (now the content agent's): keeps the first due event whole
+  when it has to shorten, and takes every due event the engine hands it.
+
+### Tests changed by design
+
+- `engine-state-fixes.test.cjs` (memoriesSettled needs the person present).
+- `engine-world-fixes.test.cjs` (the missed obligation's due event is plain
+  words, not the task text).
+- `world.test.cjs` (three due events a turn, four planted; a narration of
+  time passing may carry more).
+- `transport-fixes.test.cjs` (the recap's heading and person lines).
+- `upgrade.test.cjs` (the re-read prompt's cap is PER_PERSON).
+- `ui-fixes.test.cjs` (screenshots only with `UI_SHOTS`; coordinator item d).

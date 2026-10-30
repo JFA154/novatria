@@ -15548,8 +15548,8 @@ const Pipeline = (() => {
       const shut = shutReason(d);
       lines.push(`DESTINATION: ${d.name} — ${d.description}${shut ? ` (${shut}: the player cannot go in)` : ''} Present there: ${there.join('; ') || 'nobody'}.`);
     }
-    if (ctx.moved) lines.push(`MOVED: from ${placeName({ name: ctx.moved.fromName })} to ${placeName({ name: ctx.moved.toName })}, just now. The action happens here; give the walk one clause at most.`);
-    if (ctx.walkAfter) lines.push(`THEN: once this is done the player walks on to ${placeName({ name: ctx.walkAfter.toName })}${ctx.walkAfter.shut ? ` and finds it shut (${ctx.walkAfter.shut})` : ''}. The action happens here; end as they set off, one clause at most.`);
+    if (ctx.moved) lines.push(`MOVED: from ${ctx.moved.fromName} to ${ctx.moved.toName}, just now. The action happens here; give the walk one clause at most.`);
+    if (ctx.walkAfter) lines.push(`THEN: once this is done the player walks on to ${ctx.walkAfter.toName}${ctx.walkAfter.shut ? ` and finds it shut (${ctx.walkAfter.shut})` : ''}. The action happens here; end as they set off, one clause at most.`);
     // Talked about, not in the scene: never brought in for being named.
     const about = (Array.isArray(a.aboutIds) ? a.aboutIds : []).map(id => State.entityById(id)).filter(Boolean).filter(e => !presentIds.includes(e.id));
     if (about.length) lines.push(`ASKED ABOUT: ${about.map(e => e.name).join('; ')} (talked about, not in the scene)`);
@@ -16489,9 +16489,9 @@ const Pipeline = (() => {
         for (let i = 0; i < steps; i++) passTime(i === steps - 1 ? Object.assign({}, TO_PHASE_START) : 'long', 'skip');
         if (g.location && waitFirst) State.apply({ playerLocationId: g.location.id });
         const st = State.current;
-        ctx.timePassed = `the player skipped ahead to ${placeName(here())}, ${st.time.phase} of day ${st.time.day}`;
+        ctx.timePassed = `the player skipped ahead to ${here().name}, ${st.time.phase} of day ${st.time.day}`;
       },
-      action: () => ({ actionType: 'move', summary: `${State.current.player.name} arrives at ${placeName(here())}`, targets: [], needsRoll: false, timeCost: 'instant' })
+      action: () => ({ actionType: 'move', summary: `${State.current.player.name} arrives at ${here().name}`, targets: [], needsRoll: false, timeCost: 'instant' })
     });
   }
   /* The first narration of a game (MODE arrival), used when mock mode is off
