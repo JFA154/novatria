@@ -705,3 +705,29 @@ The round-5 playtest's R3 and its design note. Checked by
 - The ending's threads hold their reward until the ending is told
   (engine-state.md, Wave 6): `tests/content.test.cjs` follows (changed by
   design: the story point comes once the ending's news is seen).
+
+## Wave 13 (31 Oct 2026): the card players
+
+The owner asked for card games with "more than the 2 of us" (the engine
+side: `docs/notes/engine-world.md`, Wave 13). The game never invents a
+person, so the other seats at Curtis Pruett's table come from the cast:
+five of the Low Water's regulars carry the tag `cardplayer` in `TOWN_DATA`
+(a lowercase word, as `tests/validate-town.cjs` wants; not `gambler`,
+which is a word for a person the matcher reads, so "the gambler" would stop
+naming Curtis alone):
+
+| Who | At the Low Water | How they play |
+| --- | --- | --- |
+| Royce Pittman | afternoon | genial, cowardly: folds more (he owes Curtis eleven hundred dollars from the game in October) |
+| Elbert Gentry | afternoon | sly: bets and bluffs more |
+| Carter Sturdivant | evening | ambitious, smooth: bets and bluffs the most |
+| Wade Purvis | evening | patient, ruthless: plays it straight |
+| Lyman Coker | evening, night | gloomy, honest: folds the most, never bluffs (he plays cribbage with Curtis between customers) |
+
+Curtis keeps his `bookie` and `gambler` tags and deals; he plays his own
+hand too (charming: bets and bluffs a little more). A card player sits in
+only while alive, present and warmer to the player than -25. A game saved
+before this wave has the cast without the tag: the engine reads the
+built-in town's record for who plays (`cardPeople`). Nothing else changed in
+the cast data, so `docs/CAST.md` (which does not list tags) is unchanged and
+`node tests/cast-doc.cjs --check` and `node tests/validate-town.cjs` pass.

@@ -959,3 +959,195 @@ The second QA pass's findings on the card game, and the rules as built now
   (`dealerHours(l, true)`); the narrator's CARD GAME line keeps the names.
 - **Tests changed by design**: `tests/wave11-cards.test.cjs` (see
   `docs/notes/ui.md`, Wave 12).
+
+## Wave 13 (31 Oct 2026): hold'em, more seats, the win cheat
+
+The owner: "Keep both and build holdem too" (the game "where you have 2
+cards"), "for some games have it so there's more than the 2 of us. Keep the
+backslash cheat win or something so it narrates my win without playing",
+"when the game start have a cheat win somewhere so i can skip the whole
+game and win". Curtis Pruett's table now plays five-card draw or Texas
+hold'em, with up to three of the Low Water's card players besides him (the
+table: `docs/notes/ui.md`, Wave 13; the card players:
+`docs/notes/content.md`, Wave 13). Tests: `tests/wave13-holdem.test.cjs`.
+
+- **The game.** `gameFrom(words)`: hold'em, holdem, hold em, texas →
+  `'holdem'`; draw, five-card, five card, 5-card, draw poker → `'draw'`
+  (the last named, unless it is the one being left: "not draw, hold'em",
+  "hold'em instead of draw"; "draw my gun" is no game). With no game in
+  the words the remembered one (`flags.cardGame`, the engine-only State op
+  `cardGame: 'draw' | 'holdem' | false`, a reserved flag, saved with the
+  game); with neither, `gamble` opens the chooser (`UI.feed.cards({ choose
+  })`, `waitForHand(…, 'choose')`) before anything is dealt or stored:
+  Stop there rejects the turn as `aborted` (no cost, the line back in the
+  box). Choosing or naming a game remembers it (`record.chose`, so a
+  replay or a resumed hand remembers it again); the chooser's Win does not.
+- **The seats** (`cardPeople`, `seatsFor`): the people present who are
+  tagged `cardplayer` (or, in a game saved before this wave, whose
+  `TOWN_DATA` record is), alive, not the dealer, attitude above -25, in the
+  place's order. Per hand, from the hand's seed (`Rng.create(seed ^
+  0x2545f491)`, not the town's dice): none, one or two of them, each a third
+  of the time. The words first: `seatWords` 'all' ("deal everyone in",
+  "everyone in", "the whole table") seats all of them, three at most;
+  'none' ("heads up", "just me and Curtis", "just us") nobody else.
+  `hooks.cardsSeats` (tests, the console) fixes them (ids of card people
+  here; `[]` heads up) until a reload; a hand dealt as given
+  (`hooks.cardsDeal`) has its own (`set.seats`) or none. The order at the
+  table: the player, the seats, the dealer last.
+- **Money.** The stake S (`stakeFor`, as before) is the most the player
+  can lose; every seat risks the same, so there are no side pots. Draw:
+  every seat puts up S, the best hand takes the pot (S × seats), a fold
+  costs `foldPrice(S)` as before (heads up the hand ends there and Curtis's
+  cards show as dealt; with others they draw and settle it among
+  themselves). Hold'em: `unitFor(S)` = max(1, floor(S/5)); every seat antes
+  it; on each of four streets (pre-flop, flop, turn, river; the board
+  turned 0, 3, 4, 5) the player acts first (Check or Bet u), then each
+  other seat in order; with a bet on the table each calls or folds, with
+  none each may check or bet (the first bettor sets it); a bet sends
+  everyone who has not matched it round again (the player gets Call u /
+  Fold). No raises, so a seat puts in five units at most, never more than
+  S (`h.cap`: under $5 a street with no room for a bet is checked
+  through). Everyone else folding gives the player the pot at once
+  (`uncontested`); the player folding settles the hand among the others at
+  once (the board dealt out, the best of them takes it) and costs what the
+  player put in. `settlePot(sides)`: the best of the live sides (by
+  `Cards.evaluate` keys), all of them on a tie, the pot split evenly, the
+  odd dollars to the player when they share it, else to the first winner.
+  `delta` = what the player took back − what they put in (heads-up draw:
+  ±S, 0, −fold price, as before).
+- **Hold'em, pure** (`holdemRun(h, moves)`): from `h` ({ seed, unit, cap,
+  stacked, board, seats: [{ key, hole, tilt }] }) and the player's moves
+  (check, bet, call, fold, win) it plays the hand as far as the moves go
+  and returns { street, in, folded, foldedOn, status (what each seat last
+  did: "checks", "bets $4", "calls $4", "folds"), reads, pot, need (the
+  player's choices) | done (playerFolded, uncontested, showdown) | win }.
+  The live hand (`holdemHand`) redraws the table (`UI.feed.cardsShow`)
+  after each move and waits (`waitForHand(…, 'holdem')`); a resumed or
+  replayed hand runs the same moves to the same place.
+- **Seat play** (`seatMove`): strength from `Cards.strength` (before the
+  flop `Cards.preflop`: a pair from .55 to 1, else by the two ranks, a
+  little more suited or close; after it what the cards make with the
+  board, less when the board makes it alone, and a draw to a flush or a
+  straight before the river) and a tilt from the personality (`tiltOf`:
+  +0.1 for each of reckless, greedy, sly, ambitious, smooth, charming,
+  ruthless…, −0.1 for each of cautious, cowardly, gloomy, honest,
+  careful…, ±0.15 at most). No bet to face: bet at 0.62 − tilt or more,
+  else a bluff when the coin is under 0.1 + tilt, else check. Facing a bet:
+  call at 0.3 − tilt before the flop, 0.38 on the flop and the turn, 0.45
+  on the river, or when the coin is under half the bluff chance; else fold.
+  The coin (`coin(seed, seat, street, ask)`, `Rng.valueAt`) is the hand's
+  own, so a hand plays the same after a reload, an `/undo` or a replay. At
+  draw the seats draw by `Cards.dealerHolds` (the dealer's rule).
+- **Best of seven** (`Cards.best(cards)`: the best five of five to seven,
+  `{ cards, rank, key, name }`; `Cards.compareKeys`); `Cards.holdem(rng,
+  n)` deals two to each seat round the table and the board after;
+  `Cards.holeName` names two hole cards ("Pair of jacks", "Jack high");
+  `Cards.deal(rng, { seats })` deals the extra draw seats from after the
+  first twenty cards, so a heads-up deal is as before.
+- **The reads** (hold'em): a seat's first bet gets a read (`holdemReads`):
+  the truth is whether the bet was a bluff (the coin) or a value bet; it
+  says so with the read's odds (`readOdds`, 60% + 12% a point of Wits,
+  50–95%), from the hand's seed; "Leon has something" / "Leon is
+  bluffing" (`readText`). The verdict shows after the showdown (not after
+  the player folds, not on a win cheat). Draw keeps the dealer's read. None
+  with a marked deck.
+- **The marked deck**: every seat's cards face up; the catch roll exactly
+  as before (once per hand, after it is played, "Keeping the marks from
+  Curtis: …"); caught, the hand is void and the player loses S.
+- **`/cheat cards`** at hold'em: `Cards.holdemStacked` gives the player a
+  pocket pair whose two other cards are on a board with no other pair and
+  no three of a suit, so four of a kind nobody can match or beat; `h.stacked`
+  makes the others call every bet before the flop. At draw with seats the
+  seats get hands that draw to nothing (`stacked(rng, extra)`).
+- **`/cheat win`** (`Pipeline.cheatWin`, `winArmed`, `keepWin`; the
+  engine-only State op `cardsWin`, `flags.cardsWin`, reserved): "Cheat
+  armed: the next hand is yours without playing." / "Already armed: the
+  next hand is yours without playing." The next bet is not played: no
+  chooser (with no game named or remembered, hold'em), a stacked deal,
+  `holdemRun(h, ['win'])` (or the draw's stand-pat full house), every seat
+  still in calls every street (`in` = min(5u, S) at hold'em, S at draw),
+  the pot forced to the player (`settlePot(sides, true)`): (seats − 1) × 5u
+  at hold'em, (seats − 1) × S at draw. No catch roll, nothing about
+  cheating; the seats' memories as for any win; `record.win: 'armed'`.
+  `/undo` of the hand arms it again ("The win cheat is armed again: the
+  next hand is yours without playing."), `/reroll` keeps an armed one, a
+  resumed played hand spends it (the pre-turn autosave still has it).
+- **The Win (cheat) control** (`playHand({ win: true })`, any open table):
+  on the chooser it is the armed win at hold'em (not remembered as the
+  game); mid-hand it ends the hand the player's (`record.win:
+  'control'`): what was put in stays, every seat still in calls every
+  street, and the cards still hidden are dealt so the player's hand is the
+  best (`rigHoldem`: the player's two and the board already turned stay,
+  the rest of the board dealt, the seats' cards kept when that works, else
+  replaced; `rigDraw`: the player's five as dealt stay, they keep their
+  best group and draw the rest of its rank first, the others keep theirs
+  when that still loses). If nothing can make the player's hand the best
+  (a board that plays for everyone), the pot is still the player's.
+- **What the seats make of it** (`seatMarks`, through `State.apply`, not
+  when caught): a seat that loses the most it could to the player (S at
+  draw, min(5u, S) at hold'em — the stake whenever it is a multiple of $5)
+  gets "lost $20 to {player} at cards at the Low Water" (weight 1) and
+  attitude −2; one that takes a pot the player had money in gets "took a
+  pot off {player} at cards at the Low Water" (weight 1) and +1. Not the
+  dealer: it is his game, and his attitude decides whether he deals
+  (`DEALER_COLD`), so a winning streak (or the win cheat) does not end it.
+- **The record** (`logCards`): `game`, at hold'em two cards dealt a side,
+  `board`, `shown`, `street`, `unit`, `moves`; each side's `in`, `won`,
+  `folded`, `foldedOn`, `read`; `seats` ([{ id, who, …a side }], three at
+  most); `pot`, `winners` ('player' or ids), `showdown` (the result before
+  any catch, so a replay can catch again), `uncontested`, `win` ('armed' |
+  'control'), `chose`. A side's `final` is null at hold'em when it never
+  showed. A wave 10–12 record (heads up at draw) is still kept and drawn;
+  `playedHand` works its pot out again for a `/reroll`.
+- **The stored hand** (`holdThis`, `storeHand`): the card game
+  (`cardGame`, not `game`, which `handMark` uses for the game's id), the
+  seats, the player's moves so far (written before each decision) and, at
+  hold'em, the deal; `resumeHand` passes them on (`storedHand`), so a
+  page closed mid-street folds there with the same cards and moves
+  (`record.closed`).
+- **The narrator** (OUTCOME): "the card game (the player put up $20):
+  five-card draw, heads up with Curtis Pruett; the player's … beats Curtis
+  Pruett's … at the showdown: …" (heads-up draw, as before after the
+  game); "the card game (the player came in for at most $20; the ante and
+  every bet $4): Texas hold'em with Royce Pittman and Curtis Pruett, Curtis
+  Pruett dealing; Royce Pittman folded on the turn; Curtis Pruett showed a
+  pair of tens; the player's two pair, aces and nines, takes the $28 pot:
+  the player wins $16 (cash now $96)." (`tableWords`; a fold "the player
+  folded their pair of nines on the flop and gave up the $8 they had put
+  in", everyone folding "everyone else folded, so the player takes the
+  $16 pot without a showdown", a split "splits the $40 pot with Curtis
+  Pruett: no money changes hands"), the stake note as before, "Already
+  recorded: Royce Pittman lost $20 to the player and holds it against them
+  a little" when a seat's memory was written, and the standing "The table
+  was shown to the player card by card already: tell the moment and the
+  people, do not list the cards again." A win cheat is told as a plain
+  win; caught keeps its line. The bookkeeper's CARD GAME line adds "The
+  other players were …, with Curtis Pruett dealing; what they remember of
+  the hand and how they feel about the player are recorded already: record
+  no memory or attitude change for the hand." `plainHandText` and
+  `handOutcome` tell the pot and who took it; heads-up draw as before.
+- **The parsers.** The real parser's GAMBLE rule and the Say MODE line say
+  the game and who sits in may be named in the words (the engine reads
+  them from the input). The demo's parser (`MOCK_GAME_WORDS`), Say mode's
+  `SAY_BET` and `Style.betTalk`'s card words read "deal me in at
+  hold'em", "a hand of draw", "deal everyone in", "heads up with Curtis"
+  as a bet; a bare "Heads up!" is not one.
+- **The demo** (`mockGamble`): "At Curtis Pruett's table, Texas hold'em
+  with Royce Pittman: Royce Pittman folds on the turn; your two pair, aces
+  and nines, takes the $28 pot, and you come out $16 ahead." (and the
+  draw with seats, a fold, a loss, a split); heads-up draw as before.
+- **`/cheat`**: `/cheat win` is the win cheat ("win" was an alias of
+  `/cheat success`; the roll cheat keeps success, succeed and pass). The
+  `/help` row: "Cheat: redo the last roll (success, partial, fail, crit,
+  fumble or 1-20), win your next hand at cards (cards), win it without
+  playing it (win), or set the clock (forward only)".
+- **Tests changed by design**: `tests/wave10-cards.test.cjs`,
+  `tests/wave11-cards.test.cjs`, `tests/wave12-cards.test.cjs` (draw
+  remembered and heads up in their setup, after a reload too; the head
+  names the game; the hint ends with how to switch and the Win (cheat)
+  control; OUTCOME names the game and the table; the `/help` row),
+  `tests/transport-fixes.test.cjs`, `tests/prompts-fixes.test.cjs`,
+  `tests/wave2-fixes.test.cjs`, `tests/wave3-fixes.test.cjs`,
+  `tests/wave4-fixes.test.cjs` (draw remembered, heads up, where they bet)
+  and `tests/wave6-fixes.test.cjs` (the `/help` row). `tests/helpers.cjs`
+  has `presetCards(page, { game, seats })`.

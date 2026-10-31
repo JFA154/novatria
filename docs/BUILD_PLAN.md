@@ -1252,3 +1252,28 @@ talking, I can direct it to one person or all."
      first day the place is open; the demo names someone not met as the Say
      picker does. Left open: a live narrator's telling of a hand, as
      before.
+   - **Wave 13** (31 Oct 2026). The owner asked for Texas hold'em beside
+     five-card draw ("Keep both and build holdem too"), for tables with
+     "more than the 2 of us", and for a cheat that "narrates my win without
+     playing" and a way at the start of a hand to "skip the whole game and
+     win"; built by one agent. Notes: the "Wave 13" sections of
+     `docs/notes/engine-world.md`, `docs/notes/ui.md` and
+     `docs/notes/content.md`; tests: `tests/wave13-holdem.test.cjs`. The
+     game is named in the words or remembered (`flags.cardGame`, an
+     engine-only State op); the first time the table opens with a chooser
+     (Stop there costs nothing). Five of the Low Water's regulars are card
+     players (`cardplayer`): per hand none, one or two of those present sit
+     in ("deal everyone in", "heads up" steer it). The stake is the most
+     anyone can lose, so there are no side pots; hold'em antes and bets a
+     fifth of it, four streets, no raises, best five of seven; the seats
+     play by hand strength and nature, deterministically from the hand's
+     seed, and draw seats draw by the dealer's rule. The table shows a row
+     a seat with a status cell, the board, a pot line and the street's
+     buttons; reads name a seat when it bets. `/cheat cards` works at
+     hold'em; `/cheat win` (armed in the game) and a Win (cheat) button on
+     every open table end the hand the player's, told as a plain win. A
+     card player who loses big to the player, or takes a pot off them,
+     remembers it. Everything waves 11 and 12 built for a hand (Stop, a
+     closed page, another tab, the redraw, `/reroll`) works for both games
+     and any street. Left open: a live narrator's telling of a hand, as
+     before.

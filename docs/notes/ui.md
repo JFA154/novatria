@@ -1189,3 +1189,87 @@ The second QA pass over the wave 11 table, and what the table does now
   Day N" (wave 3, copy) and the place sheet's "You are banned until Day N."
   (Places) name the first day the place is open from the ban's end: in
   both tests that day is a Sunday the place is shut, so it is the Monday.
+
+## Wave 13 (31 Oct 2026): two games, more seats, the Win (cheat) control
+
+The owner asked for Texas hold'em beside five-card draw, for more than the
+two of them at some tables, and for a way to win a hand without playing it
+(the engine side: `docs/notes/engine-world.md`, Wave 13). Tests:
+`tests/wave13-holdem.test.cjs`.
+
+### The chooser (`fillChooser`)
+- With no game named or remembered the table opens (`UI.feed.cards({
+  choose })`) before any card is dealt: the head "Curtis Pruett's table ·
+  stake $20" (it takes the focus, as every table's does), "Which game?",
+  **Five-card draw** and **Texas hold'em** (`.cards-game`, `data-game`),
+  and the hint "Stop leaves the table (nothing lost)." with the Win (cheat)
+  control at its end. Choosing fills the same block with the dealt table
+  (`UI.feed.cardsShow`): the focus, if it was in the block, goes to the new
+  head, and the table is kept in view (`showTable`).
+- Stop at the chooser calls the turn off: the block goes with the turn, the
+  line comes back to the box, "Stopped. Your action was kept in the box."
+- The box's nudge while it is open: "The card table is open: pick
+  Five-card draw or Texas hold'em. Stop leaves the table (nothing lost)."
+  The title screen waits: "Pick a game first, or Stop to leave the table
+  (nothing lost)." (above the table, `handNotice`).
+
+### The table (`fillCards`, `seatRow`)
+- The head names the game once it is known: "Curtis Pruett's table ·
+  Texas hold'em · stake $20 · pot $12" (at hold'em the pot as it stands,
+  updated each street; at draw the stake times the seats, as before).
+- One row a seat (`.cards-side`, `data-seat` the person's id or
+  "player"; Curtis's `.cards-dealer`, the others `.cards-seat`, the
+  player's `.cards-you`, always last): a line (`.cards-top`) with the name
+  (`.cards-who`, the name only), "(deals)" for the dealer (`.cards-deals`)
+  and the status cell at its right (`.cards-status`: "checks", "bets $4",
+  "calls $4", "folds", what the seat last did until it acts again; after
+  the hand the hand's name, "folds on the turn", and "· takes the pot" or
+  "· splits the pot" for the winner, whose row has `data-won` and a bolder
+  status); the read when there is one; the cards. Hold'em: two cards at the
+  left of the line (a grid: cards in the first column across three rows,
+  the line and the read beside them), face down until the showdown, face
+  up with a marked deck or after a win cheat; a seat that folded keeps
+  them face down. Draw: five under the line, as before, each seat's hand
+  name and its draw ("Royce draws 2") after the showdown.
+- The board (hold'em, `.cards-board`): "The board" and the street at the
+  right ("Pre-flop", "The flop", "The turn", "The river", "Showdown"),
+  five slots face down until turned (the open table carries only the cards
+  turned so far); its group is named "The board: the flop".
+- The pot line (`.cards-pot`) on an open table: "Pot $24 · you're in for
+  $8" (at draw "Pot $40 · you're in for $20").
+- The buttons: draw as before (Draw N, Fold −$N); hold'em the street's
+  choices: **Check** (primary) and **Bet $4**, or **Call $4** (primary) and
+  **Fold** (`.cards-check`, `.cards-bet`, `.cards-call`, `.cards-fold`,
+  `data-act`); only Check when the stake leaves no room for a bet.
+- The hint after the buttons: draw "Pick the cards to hold, then Draw: the
+  rest are replaced. Stop folds the hand (−$10). Name the game in your
+  words to switch (hold'em or draw)."; hold'em "Stop folds the hand (−$8).
+  Name the game …" (what the player has in); then the **Win (cheat)**
+  control (`.cards-win`, a small button, 32px tall, at the end of the
+  line, away from the hand's own buttons). It plays `{ win: true }`.
+- The box's nudge at hold'em: "Your hand is on the table: Check or Bet.
+  Stop folds the hand (−$4)." ("Call or Fold" facing a bet); the title
+  screen's refusal "Finish the hand first: play it out or Fold (Stop
+  folds)."; draw's are as before.
+- After the hand (`cardsDone`) the result line: "You win $16", "You lose
+  $12", "Split pot" (or "Split pot: you win $6" when a third seat's money
+  makes the split pay), "You fold: −$8", "Caught cheating: you lose $20",
+  with " · cash $96". The read's verdict ("You were right.") shows after a
+  showdown, not after a fold or a win cheat.
+- Each street at hold'em redraws the open block (`UI.feed.cardsShow`):
+  the focus, if it was on a button there, goes to the head (the buttons
+  are new), and `showTable` keeps the table in view as it grows. Stop, the
+  two-tab void (`cardsVoid` turns the Win control off too), the stored
+  hand, the redraw from the log entry after a reload or `/undo`, and the
+  replay for `/reroll` work for both games, the chooser and any street.
+- Phones: at 320 and 390 wide with four seats, Small, Medium and Large
+  text and both themes, neither game sticks out sideways, open or
+  finished, and every button is on screen.
+
+### Tests changed by design
+- `tests/wave10-cards.test.cjs`, `tests/wave11-cards.test.cjs`,
+  `tests/wave12-cards.test.cjs`: their table setup remembers draw and seats
+  nobody else (`fast` sets `hooks.cardsSeats = []` after a reload too); the
+  head "Curtis Pruett's table · Five-card draw · stake $20 · pot $40"; the
+  hint ends "… Name the game in your words to switch (hold'em or draw).
+  Win (cheat)"; the `/help` row.
