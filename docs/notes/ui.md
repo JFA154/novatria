@@ -1185,3 +1185,7 @@ The second QA pass over the wave 11 table, and what the table does now
   invitation waits while the dealer is still colder than -10 a week on and
   is told once he is warmer (M4), the head says "−$5 is no stake" (M5),
   and the demo names a dealer not met by the Say picker's label (L7).
+- `tests/ui-fixes.test.cjs`: the People card's "Banned you from … until
+  Day N" (wave 3, copy) and the place sheet's "You are banned until Day N."
+  (Places) name the first day the place is open from the ban's end: in
+  both tests that day is a Sunday the place is shut, so it is the Monday.

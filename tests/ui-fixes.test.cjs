@@ -569,7 +569,8 @@ s.test('Places: labels hide no marker and no other label at several positions; t
     st.bans = [{ locationId: l.id, untilDay: st.time.day + 3, byNpcId: null }];
     Game.UI.openPanel('places');
     Game.UI.togglePlace(l.id, true);
-    return { id: l.id, until: st.time.day + 3 };
+    // Changed by design in wave 12 (L9): the first day it is open from the ban's end (a Sunday it is shut moves it to the Monday).
+    return { id: l.id, until: Game.Pipeline.openDayFrom(l, st.time.day + 3) };
   });
   const sheet = await page.textContent(`.plcard[data-loc="${other.id}"] .plcard-more`);
   assert.ok(sheet.includes('Closed Sundays'), sheet);
@@ -1957,9 +1958,12 @@ s.test('wave 3, copy: the UI side of the round-2 copy table, Hurt said as the en
     G.UI.openPanel('places');
     const exitText = document.querySelector(`.exit-list [data-exit="${ex.id}"] span`).textContent;
     delete ex.closedOn;
-    return { meta, note, day, bar: bar.name, seen, grown, exitText, exName: ex.name };
+    // The first day the bar is open from the ban's end (wave 12, L9).
+    const back = G.Pipeline.openDayFrom(bar, day + 3);
+    return { meta, note, day, back, bar: bar.name, seen, grown, exitText, exName: ex.name };
   });
-  assert.ok(r.meta.includes(`Banned you from ${r.bar.replace(/^The /, 'the ')} until Day ${r.day + 3}`), r.meta);
+  // Changed by design in wave 12 (L9): the first day the place is open from the ban's end, as the OUTCOME says it (Day 4 is a Sunday the bar is shut).
+  assert.ok(r.meta.includes(`Banned you from ${r.bar.replace(/^The /, 'the ')} until Day ${r.back}`), r.meta);
   // The day they are about again (hurtUntilDay), the same day as the engine's note (changed by design at the wave-3 integration).
   assert.ok(r.meta.includes(`Hurt until Day ${r.day + 2}`), r.meta);
   // Changed by design in wave 5: the engine's note says "Day" too.
