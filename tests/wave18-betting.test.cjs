@@ -225,16 +225,18 @@ s.test('no limit (table stakes): the head says so; the amount field under the bu
   await click('.cards-step[data-step="-1"]');
   assert.deepEqual(await after(), ['12', 'Bet $12', ''], '− from all in: the most that leaves a bet behind');
   await click('.cards-step[data-step="1"]');
-  assert.deepEqual(await after(), ['19', 'All in $19', ''], '+: $16 would leave $3, so all in');
+  // Wave 19 (QA D7): + that comes to all in says why.
+  assert.deepEqual(await after(), ['19', 'All in $19', 'That would leave you less than a bet, so it is all in $19.'], '+: $16 would leave $3, so all in');
   for (const [sz, want] of [['min', '4'], ['half', '4'], ['pot', '4']]) {
     await click(`.cards-preset[data-size="${sz}"]`);
     assert.equal((await after())[0], want, `${sz} into $2`);
   }
   const typed = async v => { await page.fill('#feed .f-cards.open .cards-amt', v); return after(); };
-  assert.deepEqual(await typed('5'), ['5', 'Bet $8', 'Bets go in $4s, so $8.']);
+  // Wave 19 (QA D7): each change said as the table makes it.
+  assert.deepEqual(await typed('5'), ['5', 'Bet $8', 'Bets go in fours: $5 rounds up to $8.']);
   assert.deepEqual(await typed('2'), ['2', 'Bet $4', 'The least bet is $4.']);
-  assert.deepEqual(await typed('100'), ['100', 'All in $19', 'That\'s more than you have: all in is $19.']);
-  assert.deepEqual(await typed('16'), ['16', 'All in $19', 'That would leave less than $4: all in ($19).']);
+  assert.deepEqual(await typed('100'), ['100', 'All in $19', 'That\'s more than you have, so it is all in $19.']);
+  assert.deepEqual(await typed('16'), ['16', 'All in $19', 'That would leave you less than a bet, so it is all in $19.']);
   assert.deepEqual(await typed('abc'), ['abc', 'Bet $4', 'Type an amount in dollars. The least bet is $4.']);
   assert.deepEqual(await typed('$8'), ['$8', 'Bet $8', '']);
   // Enter in the field bets $8; the seven-deuce folds; the antes are the player's and the $8 comes back.

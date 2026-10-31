@@ -265,7 +265,8 @@ s.test('a hand played at the table: the block under the line and before the narr
   // Wave 18: the house rules, the betting's big moments (if any) before the showdown, the terms said as the player first sits down at this stake.
   assert.ok(outcome.startsWith(`OUTCOME: the card game (the player bought in for $20; house rules: $20 to sit, $1 ante, $4 limit (every bet and raise $4), one round of betting after the draw): five-card draw, heads up with ${spot.dealerName}; `), outcome);
   assert.ok(outcome.includes(`${how} (cash ${c.delta ? 'now' : 'still'} $${judge.gold}).${c.delta ? ' The money has already changed hands.' : ''}`), outcome);
-  assert.ok(outcome.endsWith(`The player sits down at this stake for the first time: have ${spot.dealerName} state the table's terms as they sit ("Twenty to sit, a dollar ante, four-dollar limit."). The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.`), outcome);
+  // Wave 19 (QA D13): told when the terms differ from the last hand at this dealer's table (here the first), not "for the first time".
+  assert.ok(outcome.endsWith(`Tester sits down at ${spot.dealerName}'s twenty-dollar table ($1 ante, $4 limit): have ${spot.dealerName} state the table's terms as they sit ("Twenty to sit, a dollar ante, four-dollar limit."). The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.`), outcome);
   const book = line(await lastCall(page, 'bookkeep'), 'CARD GAME');
   assert.equal(book, `CARD GAME (already applied by the engine; do not record again): the player ${{ win: `wins $${amount}`, lose: `loses $${amount}`, split: 'breaks even (a split pot)' }[want]} at cards (cash now $${judge.gold}); record no goldDelta for it.`);
   assert.ok(e.narration.includes(lowerFirst(c.player.name)) && e.narration.includes(lowerFirst(c.dealer.name)), 'the demo tells the hands by name: ' + e.narration);
@@ -454,7 +455,7 @@ s.test('Stop with a hand open (changed by design in wave 11): the ante is in, so
   assert.deepEqual([r.gold - before.gold, r.turn - before.turn, r.log - before.log], [-1, 1, 1], 'the fold price (wave 18: the ante), and the turn is spent');
   assert.equal(r.tables, 1, 'the table stays, folded');
   assert.equal(r.box, '');
-  assert.equal(r.notice, 'Stopped: a hand on the table is folded, and the ante is gone.');
+  assert.equal(r.notice, 'Stopped: a hand on the table is folded, and the $1 ante is gone.', 'wave 19 (QA D3): what was lost');
   assert.deepEqual([r.e.cards.result, r.e.cards.stopped, r.e.cards.player.dealt], ['fold', true, dealt]);
   assert.deepEqual([r.open, r.statusHidden, r.send, r.canAct], [false, true, 'Wait', true], 'the box is empty: Send is Wait again');
 });

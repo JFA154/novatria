@@ -568,7 +568,9 @@ s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a g
   await idle(page);
   e = await lastEntry(page);
   assert.deepEqual([e.cards.uncontested, e.cards.dealer.folded], [true, true]);
-  assert.match(e.narration, new RegExp(`${spot.dealerName} folds to you before the flop, and the \\$\\d+ pot is yours`));
+  // Wave 19 (QA D8): the fold is told once, by the moment that names him ("you bet $4 … and Curtis Pruett folded"), not again as "folds to you".
+  assert.match(e.narration, new RegExp(`you bet \\$4 before the flop and ${spot.dealerName} folded; the \\$\\d+ pot is yours`));
+  assert.doesNotMatch(e.narration, /folds to you/);
   assert.doesNotMatch(e.narration, /everyone folds/);
   // The people who sat in never "arrive" after the hand they played (the afternoon crowd came while the player waited). Changed by design in wave 15: whoever came in and did not sit in still arrives.
   const page2 = await open(h);

@@ -180,7 +180,7 @@ s.test('M1: Stop with a hand open folds it at the fold price and keeps the turn 
   assert.deepEqual(r.calls, [], 'no narrator and no bookkeeper');
   assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}, get up from the table and give up $1. ${spot.dealerName} never spots the marks.`);
   assert.equal(r.narr, e.narration, 'told plainly (no demo tag)');
-  assert.equal(await lastNotice(page), 'Stopped: a hand on the table is folded, and the ante is gone.');
+  assert.equal(await lastNotice(page), 'Stopped: a hand on the table is folded, and the $1 ante is gone.', 'wave 19 (QA D3): what was lost');
   assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-result'), `Stopped, so you fold: −$1 · cash $${r.gold}`);
   // Played again with the same words on a new turn: a new hand, not the one taken back.
   assert.equal(await page.inputValue('#cmd'), '');
@@ -252,7 +252,7 @@ s.test('M1: a reload never takes a hand back: closed with the hand open, Continu
   // Changed by design in wave 12 (L4): folded because the page was closed (closed), not stopped.
   assert.deepEqual([e.input, e.cards.result, e.cards.closed, e.cards.stopped, e.cards.player.dealt, await page.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, undefined, dealt, -2]);
   assert.match(e.narration, /^You fold your .*, get up from the table and give up \$2\.$/);
-  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
+  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the $2 ante is gone.', 'wave 19 (QA D3): what was lost');
   assert.equal(await page.evaluate(() => Game.Storage.heldHand()), null, 'used up');
   // Closed after the showdown, while the story was being written.
   const g1 = await page.evaluate(() => Game.state.player.gold);
@@ -396,7 +396,8 @@ s.test('M5: the stake from the words: dollars and words, everything and all in, 
   await page.click('.cards-fold');
   await idle(page);
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player bought in for \$20, the usual stake: −\$5 is no stake; house rules: /);
-  await startHand(page, 'I bet fifty dollars');
+  // Wave 19 (QA D12): right after a hand a bare "I bet fifty dollars" is a betting word with no hand open (a notice); naming the game sits down.
+  await startHand(page, 'I bet fifty dollars at cards');
   assert.match(await page.textContent('#feed .f-cards:last-of-type .cards-head'), /· \$50 to sit · \$2 ante · \$10 limit · pot \$4$/);
   await page.click('.cards-fold');
   await idle(page);
@@ -416,7 +417,7 @@ s.test('M6: a split pot\'s OUTCOME says no money changes hands and not that it a
   const e = await lastEntry(page);
   assert.deepEqual([e.cards.result, e.cards.delta, await page.evaluate(() => Game.state.player.gold) - g0], ['split', 0, 0]);
   const out = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
-  assert.match(out, /a split pot, and no money changes hands \(cash still \$\d+\)\. (?:The player sits down at this stake for the first time: [^\n]*?\)\. )?The table was shown/);
+  assert.match(out, /a split pot, and no money changes hands \(cash still \$\d+\)\. (?:\w+ sits down at [^\n]*?\)\. )?The table was shown/);
   assert.doesNotMatch(out, /already changed hands/);
   assert.equal(await page.textContent('#feed .f-cards .cards-result'), `Split pot · cash $${g0}`);
   // L4: a $1 fold costs $1, and its OUTCOME says the money moved.
@@ -516,7 +517,7 @@ s.test('L2: /cheat cards is armed in the game: a second one says it is armed alr
 
 // ----- L3: the table in view -----
 
-s.test('L3: on a short phone at Large text the table opens with its head at the top of the story; where it fits, all of it is in view', async h => {
+s.test('L3 (changed by design in wave 19, QA D5): on a short phone at Large text the table opens with the player\'s cards and the buttons in view (not its head at the top); where it fits, all of it is in view', async h => {
   for (const [viewport, size, fits] of [[{ width: 320, height: 568 }, 'L', false], [{ width: 390, height: 844 }, 'S', true]]) {
     const page = await open(h, viewport, { contextOptions: { reducedMotion: 'reduce', isMobile: true, hasTouch: true } });
     await quickStart(page);
@@ -530,10 +531,12 @@ s.test('L3: on a short phone at Large text the table opens with its head at the 
       const box = f.getBoundingClientRect();
       const t = document.querySelector('#feed .f-cards').getBoundingClientRect();
       const head = document.querySelector('#feed .f-cards .cards-head').getBoundingClientRect();
-      return { fits: t.height <= f.clientHeight, headTop: head.top - box.top, top: t.top - box.top, bottom: box.bottom - t.bottom, h: f.clientHeight };
+      const inside = el => { const r = el.getBoundingClientRect(); return r.top >= box.top - 1 && r.bottom <= box.bottom + 1; };
+      const tt = document.querySelector('#feed .f-cards');
+      return { fits: t.height <= f.clientHeight, headTop: head.top - box.top, top: t.top - box.top, bottom: box.bottom - t.bottom, h: f.clientHeight, you: inside(tt.querySelector('.cards-you .cards-row')), acts: [...tt.querySelectorAll('.cards-acts button')].every(inside) };
     });
     assert.equal(g.fits, fits, JSON.stringify(g));
-    if (!fits) assert.ok(g.headTop >= 0 && g.headTop <= 24, `the head at the top: ${JSON.stringify(g)}`);
+    if (!fits) assert.ok(g.you && g.acts, `the player's cards and the buttons in view: ${JSON.stringify(g)}`);
     else assert.ok(g.top >= 0 && g.bottom >= -1, `all in view: ${JSON.stringify(g)}`);
     await page.click('.cards-fold');
     await idle(page);

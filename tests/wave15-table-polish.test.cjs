@@ -94,7 +94,7 @@ s.test('#1 a draw hand left open in a game saved before wave 13 (the stored hand
   const e = await lastEntry(page);
   assert.deepEqual([e.input, e.cards.game, e.cards.result, e.cards.closed, e.cards.delta, e.cards.player.dealt, await gold(page) - g0], ['I bet $10 at five-card draw', 'draw', 'fold', true, -1, dealt, -1]);
   assert.equal((await tableNow(page)).result, `You left the table, so you fold: −$1 · cash $${g0 - 1}`);
-  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
+  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the $1 ante is gone.', 'wave 19 (QA D3): what was lost');
   assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-cards[data-game="choose"]').length), 0);
   assert.equal(await page.evaluate(() => Game.state.flags.cardGame || null), null, 'a game saved with none remembered (the folded hand chose none)');
   // A typed line at the chooser goes back in the box on Stop, as before.

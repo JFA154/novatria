@@ -170,7 +170,7 @@ s.test('a heads-up hand of hold\'em through the real buttons: Check, the dealer 
   // The flop: $6 typed goes up to $8 (bets go in $4s); he calls.
   await page.fill('#feed .f-cards.open .cards-amt', '6');
   t = await tableNow(page);
-  assert.deepEqual([t.acts[1], await page.textContent('#feed .f-cards.open .cards-amt-note')], ['Bet $8', 'Bets go in $4s, so $8.']);
+  assert.deepEqual([t.acts[1], await page.textContent('#feed .f-cards.open .cards-amt-note')], ['Bet $8', 'Bets go in fours: $6 rounds up to $8.']);
   await page.click('#feed .f-cards.open .cards-acts button[data-act="bet"]');
   await page.waitForFunction(() => !!document.querySelector('#feed .f-cards.open .cards-board .cards-street') && document.querySelector('#feed .f-cards.open .cards-street').textContent === 'The turn');
   t = await tableNow(page);
@@ -215,7 +215,7 @@ s.test('a heads-up hand of hold\'em through the real buttons: Check, the dealer 
   assert.deepEqual([f.result, f.delta, f.folded, f.player.foldedOn, f.winners, f.moves, f.pot, f.dealer.in, f.dealer.back], ['fold', -5, true, 1, [spot.dealer], ['check', 'call', 'check', 'fold'], 10, 5, 4], 'his $4 bet nobody called comes back to him');
   assert.equal(await gold(page), g1 - 5);
   assert.deepEqual([t.seats[1].status, t.seats[0].status, t.result], ['folds on the flop', 'Pair of queens · takes the pot', `You fold: −$5 · cash $${g1 - 5}`]);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`Texas hold'em, heads up with ${spot.dealerName}; ${spot.dealerName} bet \\$4 before the flop and the player called; ${spot.dealerName} bet \\$4 on the flop and the player folded; ${spot.dealerName}'s pair of queens takes the \\$10 pot; the player folded their king high on the flop and gave up the \\$5 they had put in \\(cash now \\$${g1 - 5}\\)\\.`));
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`Texas hold'em, heads up with ${spot.dealerName}; ${spot.dealerName} bet \\$4 before the flop and the player called; ${spot.dealerName} bet \\$4 on the flop; ${spot.dealerName}'s pair of queens takes the \\$10 pot; the player folded their king high on the flop and gave up the \\$5 they had put in \\(cash now \\$${g1 - 5}\\)\\.`));
 });
 
 s.test('three-handed: a seat bets after the player checks (Call, Raise or Fold), the dealer calls, the player folds and the hand is settled among the others at once (the record says who took it); a pot of the player\'s $1 moves nobody (wave 14: $10 or more does); everyone folding to the player\'s bet gives them the pot without a showdown, the bet nobody called given back', async h => {
@@ -254,7 +254,7 @@ s.test('three-handed: a seat bets after the player checks (Call, Raise or Fold),
   assert.equal(after.attitude, a0, 'a pot of the player\'s $1 moves nobody');
   assert.ok(!after.memories.some(m => m.text === 'took a pot off Tester at cards at the Low Water'));
   const out = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
-  assert.match(out, new RegExp(`^OUTCOME: the card game \\(the player bought in for \\$20; house rules: \\$20 to sit, \\$1 ante, \\$4 limit \\(every bet and raise \\$4\\), four rounds of betting\\): Texas hold'em with ${seat.name} and ${spot.dealerName}, ${spot.dealerName} dealing; ${seat.name} bet \\$4 before the flop: ${spot.dealerName} called, the player folded; ${seat.name}'s pair of queens takes the \\$11 pot; ${spot.dealerName} showed a pair of jacks; the player folded their pair of nines before the flop and gave up the \\$1 they had put in`));
+  assert.match(out, new RegExp(`^OUTCOME: the card game \\(the player bought in for \\$20; house rules: \\$20 to sit, \\$1 ante, \\$4 limit \\(every bet and raise \\$4\\), four rounds of betting\\): Texas hold'em with ${seat.name} and ${spot.dealerName}, ${spot.dealerName} dealing; ${seat.name} bet \\$4 before the flop and ${spot.dealerName} called; ${seat.name}'s pair of queens takes the \\$11 pot; ${spot.dealerName} showed a pair of jacks; the player folded their pair of nines before the flop and gave up the \\$1 they had put in`));
   assert.doesNotMatch(out, /Already recorded:/);
   assert.match(line(await lastCall(page, 'bookkeep'), 'CARD GAME'), new RegExp(`The other players were ${seat.name}, with ${spot.dealerName} dealing; what they remember of the hand and how they feel about the player are recorded already`));
   // Everyone folds to the player's $4 bet: the pot (the antes) without a showdown; the $4 nobody called comes back.
@@ -268,7 +268,7 @@ s.test('three-handed: a seat bets after the player checks (Call, Raise or Fold),
   assert.deepEqual([u.result, u.uncontested, u.pot, u.delta, u.street, u.shown, u.player.in, u.player.back, u.moves], ['win', true, 3, 2, 0, 0, 1, 4, ['bet:4']], 'both fold to the bet before the flop: their antes are the player\'s');
   assert.deepEqual([t.seats[0].status, t.seats[1].status, t.seats[2].status, t.seats[0].cards, t.board.cards, t.board.street], ['folds before the flop', 'folds before the flop', 'takes the pot', ['back', 'back'], BACKS, 'Pre-flop']);
   assert.equal(await gold(page), g1 + 2);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the player bet \$4 before the flop and everyone folded; .*everyone else folded, so the player takes the \$3 pot without a showdown: the player wins \$2/);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the player bet \$4 before the flop and everyone folded; the player takes the \$3 pot without a showdown: the player wins \$2/);
 });
 
 s.test('a split pot: the board plays for both, each gets back what they put in, the table says "Split pot" and both hands; heads up, or the odd dollar to the player', async h => {
@@ -557,7 +557,7 @@ s.test('Stop mid-street folds the hand: what the player put in is lost, the turn
   let e = await lastEntry(page);
   assert.deepEqual([e.cards.result, e.cards.stopped, e.cards.delta, e.cards.moves, await gold(page) - g0], ['fold', true, -5, ['check', 'call', 'fold'], -5]);
   assert.match(e.narration, /^Curtis Pruett bet \$4 before the flop and you called\. You fold your pair of aces, get up from the table and give up \$5\.$/);
-  assert.equal(await lastNotice(page), 'Stopped: a hand on the table is folded, and the ante is gone.');
+  assert.equal(await lastNotice(page), 'Stopped: a hand on the table is folded, and the $5 you put in is gone.', 'wave 19 (QA D3): what was lost');
   assert.equal((await tableNow(page)).result, `Stopped, so you fold: −$5 · cash $${g0 - 5}`);
   // A reload mid-street.
   const g1 = await gold(page);
@@ -577,7 +577,7 @@ s.test('Stop mid-street folds the hand: what the player put in is lost, the turn
   e = await lastEntry(page);
   assert.deepEqual([e.cards.game, e.cards.result, e.cards.closed, e.cards.moves, e.cards.delta, await gold(page) - g1], ['holdem', 'fold', true, ['check', 'call', 'bet:8', 'fold'], -13, -13]);
   assert.equal((await tableNow(page)).result, `You left the table, so you fold: −$13 · cash $${g1 - 13}`);
-  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
+  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the $13 you put in is gone.', 'wave 19 (QA D3): what was lost');
 });
 
 s.test('a finished table is drawn again exactly where it was after a reload and after /undo of a later turn; seats, statuses, the board and the result the same', async h => {
@@ -646,7 +646,8 @@ s.test('OUTCOME names the game, the seats and how each ended, the pot and the ca
   assert.match(out, new RegExp(`^OUTCOME: the card game \\(the player bought in for \\$20; house rules: \\$20 to sit, \\$1 ante, \\$4 limit \\(every bet and raise \\$4\\), one round of betting after the draw\\): five-card draw with ${one.name} and ${spot.dealerName}, ${spot.dealerName} dealing; `));
   assert.match(out, /The table was shown to the player card by card already: tell the moment and the people, do not list the cards again\./);
   assert.match(out, new RegExp(`\\(cash (now|still) \\$${e.cards.cash}\\)`));
-  assert.match(e.narration, new RegExp(`^At ${spot.dealerName}'s (Friday game at the back table|table), five-card draw with ${one.name}: `));
+  // Wave 19 (QA D14): new terms at his table are stated first, before the hand is told.
+  assert.match(e.narration, new RegExp(`^(?:"[^"]+," ${spot.dealerName} says as you sit down\\. )?At ${spot.dealerName}'s (Friday game at the back table|table), five-card draw with ${one.name}: `));
   assert.equal(e.cards.seats.length, 1);
   await presetCards(page, { game: 'holdem', seats: [one.id] });
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = {}; });

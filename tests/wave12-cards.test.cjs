@@ -120,7 +120,7 @@ s.test('M1, L6: on a phone (320x640, and 390x844 with the first-run tip open) th
   }
 });
 
-s.test('M1: on a 320x640 phone every hand (a draw, a fold, Stop) leaves the narration on screen and no pill, with the table\'s head at the top while it is open', async h => {
+s.test('M1: on a 320x640 phone every hand (a draw, a fold, Stop) leaves the narration on screen and no pill, with (changed by design in wave 19, QA D5: the head only when the whole table fits) the player\'s cards and the buttons in view while it is open', async h => {
   const page = await open(h, { width: 320, height: 640 }, { contextOptions: PHONE_CTX });
   await quickStart(page);
   await fast(page);
@@ -128,7 +128,13 @@ s.test('M1: on a 320x640 phone every hand (a draw, a fold, Stop) leaves the narr
   await atTable(page);
   for (const how of ['draw', 'fold', 'stop']) {
     await startHand(page, 'I bet $10 at cards');
-    assert.equal((await feedGeo(page)).head, true, `${how}: the head in view while the hand is open`);
+    const open = await page.evaluate(() => {
+      const box = document.querySelector('#feed-scroll').getBoundingClientRect();
+      const t = document.querySelector('#feed .f-cards.open');
+      const inside = el => { const r = el.getBoundingClientRect(); return r.height > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1; };
+      return { you: inside(t.querySelector('.cards-you .cards-row')), acts: [...t.querySelectorAll('.cards-acts button')].every(inside), fits: t.getBoundingClientRect().height <= box.height };
+    });
+    assert.deepEqual([open.you, open.acts, open.fits || (await feedGeo(page)).head === false], [true, true, true], `${how}: the player's cards and the buttons in view while the hand is open: ${JSON.stringify(open)}`);
     if (how === 'stop') await page.locator('#send').tap();
     else await page.locator(how === 'draw' ? '.cards-draw' : '.cards-fold').tap();
     await idle(page);
@@ -218,7 +224,7 @@ s.test('L1, L4: a hand folded because the page was closed reads "You left the ta
   assert.deepEqual([e.cards.result, e.cards.closed, e.cards.stopped], ['fold', true, undefined]);
   const g = await page.evaluate(() => Game.state.player.gold);
   assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-result'), `You left the table, so you fold: −$1 · cash $${g}`);
-  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
+  assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the $1 ante is gone.', 'wave 19 (QA D3): what was lost');
   // Drawn again after another reload: the same words.
   await reloadGame(page);
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .cards-result')].pop().textContent), `You left the table, so you fold: −$1 · cash $${g}`);
@@ -272,7 +278,7 @@ s.test('L3: another tab takes the game over with a hand open here: this tab\'s t
   await idle(b);
   const e = await lastEntry(b);
   assert.deepEqual([e.input, e.cards.result, e.cards.closed, await b.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, -2], 'wave 18: the $2 ante');
-  assert.equal(await lastNotice(b), 'A hand was left open in another tab, so it is folded here and the ante is gone.');
+  assert.equal(await lastNotice(b), 'A hand was left open in another tab, so it is folded here and the $2 ante is gone.', 'wave 19 (QA D3): what was lost');
   // Tab A: read only, the hand void, the turn over.
   await a.waitForFunction(() => Game.Storage.readOnly && !Game.Pipeline.busy);
   const r = await a.evaluate(c => {
