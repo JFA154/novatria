@@ -267,6 +267,8 @@ s.test('mock narration over many varied turns never trips the style check (names
   const turns = ['I look around', 'I ask around about work', 'I try to climb the fence', '/look', 'I talk to whoever is here', 'I try to convince them to help me', '"Anybody here hiring?"', 'I wait a minute', '/wait evening', 'I look around', '"You\'re a liar."', 'I buy a lighter', 'I try to sneak out the back'];
   for (const t of turns) await sendText(page, t);
   await place(page, fx.tavern.id, 'evening');
+  // Wave 10: a hand at the card table is played by the player; this one stands pat.
+  await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { hold: 'all' }; });
   for (const t of ['I look around', 'I order a beer', 'I talk to the bartender', 'I try to persuade the bartender to tell me about the card game', '"What\'s good here?"', 'I bet $20 at cards', '/rest', 'I look around']) await sendText(page, t);
   const r = await page.evaluate(() => ({
     log: Game.state.log.slice(1).map(e => e.narration),
@@ -653,13 +655,13 @@ s.test('wave 2, mock narration: no "null" on a card game, no game without a doll
   await fast(page);
   const last = () => page.evaluate(() => Game.state.log[Game.state.log.length - 1].narration);
   await place(page, 'loc_low_water', 'evening');
-  // Partial and failed hands: the tier line never says "null".
-  for (const d of [11, 3]) {
-    await page.evaluate(d => Game.Pipeline.forceNextRoll(d), d);
+  // Two hands (changed by design in wave 10: five-card draw at a table; the demo names the hands): never "null".
+  for (const choice of [{ hold: 'all' }, { fold: true }]) {
+    await page.evaluate(c => { Game.Pipeline.hooks.cardsPlay = c; }, choice);
     await sendText(page, 'I bet $20 at cards');
     const t = await last();
     assert.doesNotMatch(t, /\bnull\b/, t);
-    assert.match(t, /At Curtis Pruett's (Friday game at the back table|table), you (come out \$\d+ ahead|lose \$\d+|break even)/, t);
+    assert.match(t, /At Curtis Pruett's (Friday game at the back table|table), (your .+ beats Curtis Pruett's .+, and you come out \$\d+ ahead|Curtis Pruett's .+ beats your .+, and you lose \$\d+|your .+ ties Curtis Pruett's .+, and you split the pot|you fold your .+ and give up \$\d+)\./, t);
   }
   // No money: no game.
   await page.evaluate(() => Game.State.apply({ goldDelta: -Game.state.player.gold }));

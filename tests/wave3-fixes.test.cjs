@@ -187,7 +187,8 @@ s.test('bug 6: beaten senseless in a fight in front of the police, TIME THIS TAK
 
 // ----- review bug 7 (playtest N2): bans end before their day -----
 
-s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); an accusation at cards is tonight only, caught cheating is three days with today, and the narrator hears the same', async h => {
+// Changed by design in wave 10: nobody is accused at cards without a marked deck any more; caught with one is three days, today counted.
+s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); caught cheating at cards is three days with today, and the narrator hears the same', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const r = await page.evaluate(async () => {
@@ -200,7 +201,8 @@ s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); an accusatio
     S.apply({ effects: [{ op: 'banFrom', locationId: l.id, days: 3 }] });
     const three = [day, day + 1, day + 2, day + 3].map(d => !!S.isBanned(l.id, d));
     st.bans = [];
-    // The card game's accusation.
+    // Caught cheating at the card game (a marked deck on the player, a fumble).
+    S.apply({ itemsGained: [{ id: 'item_marked_deck', name: 'Marked deck', qty: 1, notes: 'Pricked on the backs.' }] });
     for (const ph of ['evening', 'night', 'afternoon', 'morning']) {
       let d = st.time.day; while (S.isClosed(l, d)) d++;
       S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
@@ -209,16 +211,18 @@ s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); an accusatio
     M.queue('parse', { actionType: 'gamble', summary: 'Sits in at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
     M.queue('bookkeep', {});
     G.Pipeline.hooks.nextTier = 'fumble';
+    G.Pipeline.hooks.cardsPlay = { hold: 'all' };
+    const day0 = st.time.day;
     await G.Pipeline.submit('I sit in at cards for $20');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
     const ban = st.bans.find(b => b.locationId === l.id);
-    return { one, three, accusedDays: ban ? ban.untilDay - st.time.day : null, tonight: !!S.isBanned(l.id), tomorrow: !!S.isBanned(l.id, st.time.day + 1), outcome: (/^OUTCOME: .*$/m.exec(pk) || [''])[0] };
+    return { one, three, caughtUntil: ban ? ban.untilDay - day0 : null, days: [0, 1, 2, 3].map(k => !!S.isBanned(l.id, day0 + k)), outcome: (/^OUTCOME: .*$/m.exec(pk) || [''])[0], day0 };
   });
   assert.deepEqual(r.one, [true, false], 'one day: today only');
   assert.deepEqual(r.three, [true, true, true, false], 'three days: today and the two after; back on day + 3');
-  assert.equal(r.accusedDays, 1);
-  assert.deepEqual([r.tonight, r.tomorrow], [true, false], 'out for the night, welcome again tomorrow');
-  assert.match(r.outcome, /for the night \(they are welcome again tomorrow\)/);
+  assert.equal(r.caughtUntil, 3);
+  assert.deepEqual(r.days, [true, true, true, false], 'caught: today and the two after');
+  assert.match(r.outcome, new RegExp(`not welcome back for three days \\(today counted: back on Day ${r.day0 + 3}\\)`));
 });
 
 // ----- review bug 8 (playtest N10), coordinator item 1: the recap's reasons -----
@@ -917,7 +921,7 @@ s.test('also: the ending is never cut mid-word; "Deal me in" is told with the st
     }
     M.queue('parse', { actionType: 'gamble', summary: 'bets $10 at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
     M.queue('bookkeep', {});
-    G.Pipeline.hooks.nextTier = 'failure';
+    G.Pipeline.hooks.cardsPlay = { hold: 'all' };
     await G.Pipeline.submit('Deal me in');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
     const action = (/^ACTION: .*$/m.exec(pk) || [''])[0];

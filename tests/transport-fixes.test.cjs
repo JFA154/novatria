@@ -696,7 +696,8 @@ s.test('a successful social roll aimed at someone, or their attitude at 50 or mo
 
 // ----- F. the card game -----
 
-s.test('the card game at the Low Water with its dealer: the stake from the words, win, half on a partial, loss, and a fumble caught cheating (memory, ban, news); +2 with a deck; the bookkeeper records no gold', async h => {
+// Changed by design in wave 10: five-card draw at a table the player plays (tests/wave10-cards.test.cjs); the showdown decides, not the roll.
+s.test('the card game at the Low Water with its dealer: the stake from the words, the showdown decides (a /cheat cards hand wins), a fold costs half, the marked deck\'s one roll gets +2 and a fumble is caught cheating (memory, ban, news); the bookkeeper records no gold', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { bgIndex: await page.evaluate(() => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => /deck/i.test(i.name)))) });
   await fast(page);
@@ -711,29 +712,30 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
   });
   assert.ok(spot.phase, 'the dealer sits at the game some phase');
   await place(page, spot.loc, spot.phase);
-  const play = async (d20, words) => {
+  // choice: how the player plays the hand (Pipeline.hooks.cardsPlay); d20: the marked deck's roll.
+  const play = async (choice, d20, words) => {
     const g0 = await page.evaluate(() => Game.state.player.gold);
-    await page.evaluate(d => { Game.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in on the card game', targets: [], needsRoll: true, stat: 'wits', difficulty: 'normal', timeCost: 'short' }); Game.Api.Mock.queue('bookkeep', { goldDelta: 999 }); if (typeof d === 'number') Game.Pipeline.forceNextRoll(d); else Game.Pipeline.hooks.nextTier = d; }, d20);
+    await page.evaluate(([c, d]) => { Game.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in on the card game', targets: [], needsRoll: true, stat: 'wits', difficulty: 'normal', timeCost: 'short' }); Game.Api.Mock.queue('bookkeep', { goldDelta: 999 }); Game.Pipeline.forceNextRoll(d); Game.Pipeline.hooks.cardsPlay = c; }, [choice, d20]);
     await sendText(page, words);
-    return page.evaluate(g0 => ({ delta: Game.state.player.gold - g0, roll: Game.Pipeline.lastTurn.roll, ctx: Game.Pipeline.lastTurn.ctx.gamble, packet: Game.Pipeline.lastTurn.packet, book: Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop().text }), g0);
+    return page.evaluate(g0 => ({ delta: Game.state.player.gold - g0, roll: Game.Pipeline.lastTurn.roll, ctx: Game.Pipeline.lastTurn.ctx.gamble, cards: Game.Pipeline.lastTurn.ctx.cards, packet: Game.Pipeline.lastTurn.packet, book: Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop().text }), g0);
   };
-  const win = await play(15, 'I sit in on the card game for $50');
-  assert.equal(win.delta, 50);
-  assert.equal(win.ctx.stake, 50);
-  assert.ok(win.roll.modifiers.some(m => /deck/i.test(m.label) && m.value === 2), 'the deck gives +2');
-  assert.match(win.packet, /\nOUTCOME: the card game \(the player put up \$50\): the player beats .*'s table and wins \$50\./);
-  assert.match(win.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player wins \$50 at cards/);
+  const first = await play({ hold: 'all' }, 15, 'I sit in on the card game for $50');
+  assert.equal(first.ctx.stake, 50);
+  assert.equal(first.delta, { win: 50, lose: -50, split: 0 }[first.cards.result], 'the showdown decides');
+  assert.ok(first.roll.modifiers.some(m => /deck/i.test(m.label) && m.value === 2), 'the deck gives +2');
+  assert.match(first.packet, /\nOUTCOME: the card game \(the player put up \$50\): the player's .* at the showdown: /);
+  assert.match(first.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player (wins \$50|loses \$50|breaks even \(a split pot\)) at cards/);
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(d => d.path === 'goldDelta' && /card game/.test(d.reason))), 'the bookkeeper\'s gold ignored');
-  const part = await play('partial', 'I play another hand, 40 bucks');
-  assert.equal(part.roll.tier, 'partial');
-  assert.equal(part.delta, 20, 'half the stake');
-  const lose = await play('fail', 'I play again');
-  assert.equal(lose.roll.tier, 'failure');
-  assert.equal(lose.delta, -20, 'default stake $20');
-  const fumble = await play(1, 'I play one more for $30');
+  await page.evaluate(() => { Game.Pipeline.hooks.cardsCheat = true; });
+  const win = await play({ hold: [] }, 10, 'I play another hand, 40 bucks');
+  assert.deepEqual([win.delta, win.cards.result, win.roll], [40, 'win', null], 'a stacked hand wins, with no catch roll');
+  assert.match(win.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player wins \$40 at cards/);
+  const fold = await play({ fold: true }, 10, 'I play again');
+  assert.equal(fold.delta, -10, 'half the default $20 stake');
+  const fumble = await play({ hold: 'all' }, 1, 'I play one more for $30');
   assert.equal(fumble.delta, -30);
   assert.equal(fumble.ctx.caught, true);
-  assert.match(fumble.packet, /catches them cheating with the marked deck\..* throws the player out of /);
+  assert.match(fumble.packet, /catches them cheating with the marked deck; the hand is void \(cash now \$\d+\)\..* throws the player out of /);
   const after = await page.evaluate(d => ({ mem: Game.State.npc(d).memories.slice(-1)[0], here: Game.state.player.locationId }), spot.dealer);
   assert.equal(after.mem.weight, 3);
   assert.match(after.mem.text, /cheating at cards/);
@@ -746,7 +748,7 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
     G.State.apply({ playerLocationId: l.id });
     return l.id;
   });
-  const nogame = await play(18, 'I deal a hand of cards for $50');
+  const nogame = await play(null, 18, 'I deal a hand of cards for $50');
   assert.equal(nogame.delta, 0);
   assert.match(nogame.packet, /\nCARD GAME: no game: there is no card game here\./);
   assert.ok(none);

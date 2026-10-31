@@ -874,7 +874,8 @@ s.test('a read-only tab plays nothing: a line, /look, /rest, Wait, /reroll and /
   assert.match(String(r.toast), /another tab/, 'a toast says why');
 });
 
-s.test('cards: a fumble without a marked deck is only an accusation (cooler dealer, out for the night); with one it is caught (a heavier memory, colder, three days out)', async h => {
+// Changed by design in wave 10 (five-card draw at a table): without a marked deck nothing is rolled at cards and nobody is accused any more.
+s.test('cards: without a marked deck an armed fumble rolls nothing and nobody is accused (the dealer as he was, no ban); with one a fumble is caught (a heavier memory, colder, three days out)', async h => {
   const page = await h.open();
   const go = async (bgIndex) => {
     const p = await h.open();
@@ -893,26 +894,29 @@ s.test('cards: a fumble without a marked deck is only an accusation (cooler deal
       const a0 = dealer.attitude;
       G.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
       G.Pipeline.hooks.nextTier = 'fumble';
+      G.Pipeline.hooks.cardsPlay = { hold: 'all' };
       await G.Pipeline.submit('I sit in at cards for $20');
       const ban = (st.bans || []).find(b => b.locationId === l.id);
-      return { drop: a0 - dealer.attitude, ban: ban ? ban.untilDay - st.time.day : null, mem: (dealer.memories || []).slice(-1)[0], caught: G.Pipeline.lastTurn.ctx.gamble, told: st.log[st.log.length - 1].narration };
+      return { drop: a0 - dealer.attitude, ban: ban ? ban.untilDay - st.time.day : null, mem: (dealer.memories || []).slice(-1)[0], caught: G.Pipeline.lastTurn.ctx.gamble, told: st.log[st.log.length - 1].narration, roll: st.log[st.log.length - 1].roll, armed: G.Pipeline.hooks.nextTier };
     });
   };
   await page.close();
   const plain = await go(0);
   const marked = await go(await (await h.open()).evaluate(() => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => /marked deck/i.test(i.name)))));
   assert.ok(plain && marked, 'a card game with its dealer');
-  assert.equal(plain.caught.accused, true);
+  assert.equal('accused' in plain.caught, false, 'nobody is accused');
   assert.equal(plain.caught.caught, false);
-  assert.equal(plain.drop, 10);
-  assert.ok(plain.ban <= 1, 'out for the night');
-  assert.equal(plain.mem.weight, 2);
+  assert.equal(plain.roll, null, 'no roll at all');
+  assert.equal(plain.armed, 'fumble', 'the armed fumble waits for a real roll');
+  assert.equal(plain.drop, 0);
+  assert.equal(plain.ban, null, 'no ban');
+  assert.ok(!plain.mem || !/cheat/i.test(plain.mem.text));
   assert.equal(marked.caught.caught, true);
   assert.equal(marked.drop, 20);
   assert.ok(marked.ban >= 2, 'three days out');
   assert.equal(marked.mem.weight, 3);
   // The demo tells which (integration: the mock read only caught).
-  assert.match(plain.told, /says you were cheating and tells you to clear out for the night/);
+  assert.doesNotMatch(plain.told, /cheating/);
   assert.match(marked.told, /throws you out for cheating/);
 });
 
