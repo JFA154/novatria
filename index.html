@@ -571,6 +571,21 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .f-cards .cards-name { margin-top: .4em; font-weight: 600; }
 .f-cards .cards-hint { margin-top: .5em; font-size: .92em; color: var(--muted); }
 .cards-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .85em; }
+/* The amount to bet or raise to (wave 18), under the round's buttons: − and + by the ante around a field, then Min, ½ pot, Pot and
+   All in; two rows that fit 320px, every control the app's tap height. The field's text is 16px so a phone does not zoom in on it. */
+.f-cards .cards-size { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: .6em; }
+.cards-stepper { display: flex; align-items: stretch; gap: 4px; }
+.cards-stepper .cards-step { min-width: var(--tap); padding: 0 8px; font-size: 18px; font-weight: 600; }
+.cards-amt-wrap { display: inline-flex; align-items: center; gap: 2px; min-height: var(--tap); padding: 0 8px; border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface-2); cursor: text; }
+.cards-amt-wrap:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cards-amt-cur { color: var(--muted); font-size: 15px; }
+.f-cards .cards-amt { width: 4.2em; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: 600 16px/1.2 var(--ui-font); outline: none; }
+.cards-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.cards-presets .cards-preset { padding: 0 10px; }
+.f-cards .cards-amt-note { flex-basis: 100%; color: var(--muted); font-size: .92em; }
+.f-cards .cards-amt-note:empty { display: none; }
+/* The dealer holding the player to the limit (wave 18): his line, under the buttons. */
+.f-cards .cards-said { margin-top: .6em; font-style: italic; }
 .f-cards .cards-result { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
 /* A hand void in this tab (wave 12, L3: another tab took the game over): its buttons off, a line saying so. */
 .f-cards.void button.card, .f-cards.void .cards-acts .btn, .f-cards.void .cards-win { cursor: not-allowed; opacity: .55; }
@@ -7332,7 +7347,34 @@ const Cards = (() => {
     }
     return v;
   }
-  return { RANKS, SUITS, RANK_NAMES, valid, value, suit, red, label, sign, cardName, deck, shuffle, evaluate, compare, compareKeys, dealerHolds, holdsFrom, draw, deal, fourToStraight, best, holdem, holdemStacked, holeName, preflop, strength, namesApart };
+  /* A player's move at the table (wave 18: no-limit betting), as the stored
+     hand and the record keep it: check, call, fold, win, allin, bet:N and
+     raise:N (N the amount bet or raised to on the round), and at draw
+     hold:024 (the positions held; "hold:" draws five). move(m) reads one
+     (a string, or { act, to }, { hold }, { fold }, { win }) as { act, to? }
+     or { act: 'hold', hold }, null when it is none; moveText(mv) writes it. */
+  const MOVE_ACTS = Object.freeze(['check', 'bet', 'call', 'raise', 'fold', 'allin', 'win']);
+  const MOVE_RE = /^(check|bet|call|raise|fold|allin|win)(?::(\d{1,7}))?$|^hold:([0-4]{0,5})$/;
+  function move(m) {
+    if (m && typeof m === 'object' && !Array.isArray(m)) {
+      if (m.win === true) return { act: 'win' };
+      if (m.fold === true) return { act: 'fold' };
+      if (m.hold !== undefined) return { act: 'hold', hold: holdsFrom(m.hold) };
+      if (!MOVE_ACTS.includes(m.act)) return null;
+      const to = toInt(m.to);
+      return (m.act === 'bet' || m.act === 'raise') && to !== null && to > 0 ? { act: m.act, to } : { act: m.act };
+    }
+    const x = MOVE_RE.exec(String(m || ''));
+    if (!x) return null;
+    if (x[3] !== undefined) return { act: 'hold', hold: holdsFrom(x[3].split('').map(Number)) };
+    return x[2] && (x[1] === 'bet' || x[1] === 'raise') && parseInt(x[2], 10) > 0 ? { act: x[1], to: parseInt(x[2], 10) } : { act: x[1] };
+  }
+  function moveText(mv) {
+    if (!mv) return null;
+    if (mv.act === 'hold') return `hold:${holdsFrom(mv.hold).join('')}`;
+    return (mv.act === 'bet' || mv.act === 'raise') && mv.to ? `${mv.act}:${mv.to}` : mv.act;
+  }
+  return { RANKS, SUITS, RANK_NAMES, valid, value, suit, red, label, sign, cardName, deck, shuffle, evaluate, compare, compareKeys, dealerHolds, holdsFrom, draw, deal, fourToStraight, best, holdem, holdemStacked, holeName, preflop, strength, namesApart, MOVE_ACTS, move, moveText };
 })();
 
 // ===== Module: Tables =====
@@ -7609,8 +7651,19 @@ const State = (() => {
      win ('armed': /cheat win; 'control': the table's Win), chose (the turn
      set the remembered game). A side's final is null at hold'em when it
      never showed (folded). */
+  /* Wave 18 (no-limit betting): moves are Cards.move strings (bet:8,
+     raise:24, allin, hold:024 at draw; wave 13's check, bet, call, fold
+     and win still read), at draw too; ante is the ante and unit the table's bet (wave 13's unit: the step of every bet), at draw too;
+     actions is every action of the hand in order ({ seat: 'player' or an
+     id, act: check | bet | raise | call | fold, to (what that seat had bet
+     on the round after it), add (what it put in), street (0-3 at hold'em;
+     at draw 0 before the draw, 1 after it), allIn }); a side's back is a
+     bet nobody called, given back (its in is what stayed in), and hidden
+     marks a draw hand that took the pot without being shown. */
   const CARD_SHOWDOWNS = ['win', 'lose', 'split', 'fold'];
-  const CARD_MOVES = ['check', 'bet', 'call', 'fold', 'win'];
+  const CARD_ACTS = ['check', 'bet', 'raise', 'call', 'fold'];
+  const CARD_MOVES_MAX = 40;
+  const CARD_ACTIONS_MAX = 160;
   function logCards(x) {
     if (!isObj(x) || !CARD_RESULTS.includes(x.result)) return null;
     const holdem = x.game === 'holdem';
@@ -7627,6 +7680,8 @@ const State = (() => {
       if (Number.isInteger(v.won)) out.won = sum(v.won);
       if (v.folded === true) out.folded = true;
       if (Number.isInteger(v.foldedOn) && v.foldedOn >= 0 && v.foldedOn <= 3) out.foldedOn = v.foldedOn;
+      if (Number.isInteger(v.back) && v.back > 0) out.back = sum(v.back);
+      if (!holdem && v.hidden === true) out.hidden = true;
       const r = holdem ? readOf(v.read) : null;
       if (r) out.read = r;
       return out;
@@ -7640,10 +7695,23 @@ const State = (() => {
       player, dealer, result: x.result, delta: toInt(x.delta) || 0, cash: toInt(x.cash) || 0
     };
     if (x.game === 'draw' || holdem) out.game = holdem ? 'holdem' : 'draw';
+    const moves = (Array.isArray(x.moves) ? x.moves : []).filter(m => typeof m === 'string' && Cards.move(m) !== null).slice(0, CARD_MOVES_MAX);
     if (holdem) {
       const board = cardsOf(x.board, 5);
       if (!board) return null;
-      Object.assign(out, { board, unit: clamp(toInt(x.unit) || 1, 1, 1000000), shown: [0, 3, 4, 5].includes(x.shown) ? x.shown : 5, street: Number.isInteger(x.street) ? clamp(x.street, 0, 4) : 4, moves: (Array.isArray(x.moves) ? x.moves : []).filter(m => CARD_MOVES.includes(m)).slice(0, 12) });
+      Object.assign(out, { board, unit: clamp(toInt(x.unit) || 1, 1, 1000000), shown: [0, 3, 4, 5].includes(x.shown) ? x.shown : 5, street: Number.isInteger(x.street) ? clamp(x.street, 0, 4) : 4, moves });
+    } else {
+      // Wave 18: a draw hand has its house rules (the ante, the table's bet) and its moves too.
+      if (Number.isInteger(x.unit) && x.unit >= 1) out.unit = clamp(x.unit, 1, 1000000);
+      if (moves.length) out.moves = moves;
+    }
+    if (Number.isInteger(x.ante) && x.ante >= 1) out.ante = clamp(x.ante, 1, 1000000);
+    // Amendment 2: the table's structure (limit, the house game, or no limit) and how often the dealer held the player to the limit.
+    if (x.structure === 'limit' || x.structure === 'nolimit') out.structure = x.structure;
+    if (Number.isInteger(x.pushback) && x.pushback > 0) out.pushback = clamp(x.pushback, 1, 99);
+    if (Array.isArray(x.actions) && x.actions.length) {
+      out.actions = x.actions.slice(0, CARD_ACTIONS_MAX).map(a => (isObj(a) && (a.seat === 'player' || (typeof a.seat === 'string' && ID_RE.npc.test(a.seat))) && CARD_ACTS.includes(a.act)
+        ? Object.assign({ seat: a.seat, act: a.act, to: sum(a.to), add: sum(a.add), street: clamp(toInt(a.street) || 0, 0, 3) }, a.allIn === true ? { allIn: true } : {}) : null)).filter(Boolean);
     }
     if (Array.isArray(x.seats) && x.seats.length) {
       out.seats = x.seats.slice(0, 3).map(v => {
@@ -15517,6 +15585,8 @@ const Api = (() => {
     // Wave 6 (the round-5 playtest's D13): a shove, a push, a slap is an attack too.
     else if (has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles|shove|shoves|push|pushes|slap|slaps|kick|kicks|headbutt|headbutts|elbow|elbows|smack|smacks)\b/) && !has(/\b(?:push|pushes)\s+(?:open|the door|through|past|my way|on|for)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'normal'); out.targets = target(); }
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
+    // Asking the dealer for table stakes (wave 18, amendment 2: "no limit", "a bigger game", "take the limit off"): a persuade aimed at the dealer here; the engine rolls it.
+    else if (has(Pipeline.STAKES_ASK) && GAMBLE_PLACES.includes(where) && Pipeline.dealerOf(presentList.map(n => n.id))) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = [Pipeline.dealerOf(presentList.map(n => n.id)).id]; out.timeCost = 'instant'; }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
     else if ((has(MOCK_GAMBLE) || has(MOCK_GAME_WORDS) || (has(MOCK_GAME_NAME) && lower.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(input)) || mockJoins(lower, packet)) && GAMBLE_PLACES.includes(where) && !aboutAt) {
@@ -15705,31 +15775,37 @@ const Api = (() => {
     let told;
     // Hold'em, or more than two at the table (wave 13): the game, who sat in and how each ended, briefly.
     const others = (g.seats || []);
+    // The betting's big moments (wave 18): "you raised to $40 on the turn and Carter Sturdivant called".
+    const moments = !g.caught && Array.isArray(g.moments) && g.moments.length ? `${g.moments.join('; ')}; ` : '';
+    // Wave 18: a heads-up draw fold is told below, with when it was (before the draw, or after it).
     if (!g.caught && (g.game === 'holdem' || others.length || g.uncontested)) {
       const game = g.game === 'holdem' ? "Texas hold'em" : 'five-card draw';
       const with_ = others.length ? ` with ${andList(others.map(x => x.name))}` : '';
-      const when = x => ['before the flop', 'on the flop', 'on the turn', 'on the river'][x.foldedOn] || '';
+      const when = x => (g.game === 'holdem' ? ['before the flop', 'on the flop', 'on the turn', 'on the river'] : ['before the draw', 'after the draw'])[x.foldedOn] || '';
       // Heads up, the one who folds is named (wave 14, QA #21): "Curtis Pruett folds to you on the turn", never "everyone".
       const alone = g.uncontested && g.result === 'win' && !others.length;
       const ends = alone ? [] : others.concat(g.dealerName ? [{ name: g.dealerName, folded: g.dealerFolded, foldedOn: g.dealerFoldedOn, hand: g.dealer }] : [])
         .filter(x => x.folded).map(x => `${x.name} folds ${when(x) || (g.game === 'holdem' ? 'early' : 'without drawing')}`);
       const pot = money(g.pot | 0);
       let mine;
-      if (g.result === 'fold') mine = `you fold your ${lead(g.player)} and give up ${amount}`;
+      if (g.result === 'fold') mine = `you fold your ${lead(g.player)}${when({ foldedOn: g.playerFoldedOn }) ? ` ${when({ foldedOn: g.playerFoldedOn })}` : ''} and give up ${amount}`;
       else if (alone) mine = `${g.dealerName || 'the dealer'} folds to you${when({ foldedOn: g.dealerFoldedOn }) ? ` ${when({ foldedOn: g.dealerFoldedOn })}` : ''}, and the ${pot} pot is yours: you come out ${amount} ahead`;
       else if (g.result === 'win') mine = g.uncontested ? `everyone folds to you, and the ${pot} pot is yours: you come out ${amount} ahead` : `your ${lead(g.player)} takes the ${pot} pot, and you come out ${amount} ahead`;
       else if (g.result === 'lose') mine = `${andList(g.winners || [])} ${(g.winners || []).length > 1 ? 'split' : 'takes'} the ${pot} pot, and you lose ${amount}`;
       else mine = `you split the ${pot} pot${(g.delta | 0) > 0 ? ` and come out ${amount} ahead` : (g.delta | 0) < 0 ? `, ${amount} down` : ''}`;
-      told = `At ${table}, ${game}${with_}: ${ends.length ? `${ends.join(', ')}; ` : ''}${mine}.`;
+      told = `At ${table}, ${game}${with_}: ${moments}${ends.length ? `${ends.join(', ')}; ` : ''}${mine}.`;
     } else if (g.caught) told = `At ${table}, you lose ${amount}, and ${dealer ? dealer.name : 'the dealer'} takes your deck and throws you out for cheating.`;
-    else if (g.result === 'fold') told = `At ${table}, you fold your ${lead(g.player)} and give up ${amount}.`;
-    else if (g.result === 'win') told = `At ${table}, your ${lead(g.player)} beats ${theirs} ${hand(g.dealer)}, and you come out ${amount} ahead.`;
-    else if (g.result === 'lose') told = `At ${table}, ${theirs} ${lead(g.dealer)} beats your ${hand(g.player)}, and you lose ${amount}.`;
-    else told = `At ${table}, your ${lead(g.player)} ties ${theirs} ${hand(g.dealer)}, and you split the pot.`;
+    // Wave 18: a fold heads up at draw says when (before the draw, or after it in the betting).
+    else if (g.result === 'fold') told = `At ${table}, ${moments}you fold your ${lead(g.player)}${Number.isInteger(g.playerFoldedOn) && g.ante ? ` ${['before the draw', 'after the draw'][g.playerFoldedOn] || 'before the draw'}` : ''} and give up ${amount}.`;
+    else if (g.result === 'win') told = `At ${table}, ${moments}your ${lead(g.player)} beats ${theirs} ${hand(g.dealer)}, and you come out ${amount} ahead.`;
+    else if (g.result === 'lose') told = `At ${table}, ${moments}${theirs} ${lead(g.dealer)} beats your ${hand(g.player)}, and you lose ${amount}.`;
+    else told = `At ${table}, ${moments}your ${lead(g.player)} ties ${theirs} ${hand(g.dealer)}, and you split the pot.`;
     const street = g.caught && g.outsideName ? ` You end up outside on ${String(g.outsideName).replace(/^The /, 'the ')}.` : '';
     // A marked deck that was not caught: the roll went the player's way.
     const marks = g.deck && g.tier && !g.caught ? ` ${dealer ? dealer.name : 'The dealer'} never spots the marks.` : '';
-    return told + marks + street;
+    // The first hand at a stake (wave 18): the dealer set the house rules as the player sat down.
+    const terms = g.rules ? ` \"${String(g.rules).replace(/\.$/, ',')}\" ${dealer ? dealer.name : 'the dealer'} said as you sat down.` : '';
+    return told + marks + street + terms;
   }
   /* A good the words name, preferring one sold here and then the cheapest
      (Town.goodsFor's scoring): "a beer" at the bar is a bottle, not a case. */
@@ -15806,6 +15882,18 @@ const Api = (() => {
     // The card game's one roll is whether the dealer catches a marked deck (wave 10): mockGamble tells it, never as "it works".
     if (c.roll && !(c.gamble && c.gamble.played)) out.push(MOCK_TIER[c.roll.tier] ? MOCK_TIER[c.roll.tier](c.roll) : `${capFirst(c.roll.stat)} roll: ${c.roll.label}.`);
     if (c.pressed) out.push('The answer does not change.');
+    // Asking the dealer for table stakes (wave 18, amendment 2): what came of it, as the engine settled it.
+    if (c.stakes) {
+      const n = c.stakes.dealerName || 'The dealer';
+      out.push({
+        yes: `You ask ${n} for table stakes, and ${n} agrees: no limit at the card table for the rest of today.`,
+        no: `You ask ${n} for table stakes, and ${n} keeps the house limit.`,
+        fumble: `You push ${n} for table stakes, and it sours the mood: ${n} won't hear of it again today.`,
+        cold: `${n} won't hear of table stakes from you.`,
+        again: `${n} has said no to table stakes once today, and says it again.`,
+        already: `It is table stakes at ${n}'s table today already.`
+      }[c.stakes.outcome] || '');
+    }
     // Due events, told to the player ("you", not their name), are worked in at the end: every one that fits, the rest waiting (ctx.dueUntold, below).
     const dueFrom = (c.due || []).filter(d => sentence(secondPerson(d && d.text)));
     let due = dueFrom.map(d => sentence(secondPerson(d.text)));
@@ -15883,6 +15971,8 @@ const Api = (() => {
       if (s && want > (s.player.gold | 0)) out.push(`You reach for ${money(want)} and come up short: you have ${money(s.player.gold | 0)} on you.`);
       // Money is counted; a thing is not (wave 5, playtest D9: a letter).
       else out.push(a.actionType === 'give' ? vary(want ? [`${target.name} takes it.`, `${target.name} counts it and puts it away.`] : [`${target.name} takes it.`, `${target.name} looks it over and keeps it.`], tkey) : vary([`${target.name} looks it over.`, `${target.name} turns it over twice.`], tkey));
+    } else if (c.stakes) {
+      // Asking for table stakes (wave 18): told above, with no other answer from the dealer.
     } else if (target) {
       // A social roll is answered (a place and a time, or a plain no) in place of a greeting.
       const told = Dice.SOCIAL_ACTIONS.includes(a.actionType) ? mockOutcome(target, c, s, tkey) : null;
@@ -16166,7 +16256,8 @@ const Api = (() => {
       feel(first, -15);
       remember(first, before ? 'insulted me again' : 'insulted me', before ? 3 : 2);
     }
-    if (first && a.actionType === 'persuade' && c.roll && c.roll.success) feel(first, 8);
+    // Asking the dealer for table stakes (wave 18) changes no feeling: the engine settled it (a fumble's -5 is recorded already).
+    if (first && a.actionType === 'persuade' && c.roll && c.roll.success && !c.stakes) feel(first, 8);
     // Making up for it: an apology that lands settles the grudge they remember.
     if (first && MOCK_SORRY.test(input) && ok) {
       const grudge = (first.memories || []).slice().reverse().find(m => /\b(insulted|called me|told me to|attacked|threatened)\b/i.test(m.text));
@@ -18752,19 +18843,10 @@ const Pipeline = (() => {
     if (t.stakeNote === 'half') return `${money(t.stake)}, half of what they have`;
     return money(t.stake);
   }
-  /* The most a seat can put in at hold'em (wave 14, QA #16): the ante and
-     four bets, five units, never more than the stake; less than the stake
-     when the stake is not a multiple of $5 ($23: at most $20). Said the
-     same way everywhere: the head and the pot line "at most $20 in", the
-     narrator "came in for at most $20 of the $23 named". */
-  function holdemCap(stake, unit) { return Math.min(5 * (toInt(unit) || unitFor(stake)), toInt(stake) || 0); }
-  function capWords(t) {
-    const cap = holdemCap(t.stake, t.unit);
-    if (cap >= t.stake) return stakeWords(t);
-    const named = Number.isFinite(t.named) && t.stakeNote === 'all' && t.named > t.stake ? `; they named ${moneyNamed(t.named)}` : '';
-    const note = t.stakeNote === 'all' ? `all they have${named}` : t.stakeNote === 'half' ? 'half of what they have' : '';
-    return `${money(cap)} of the ${money(t.stake)} named${note ? ` (${note})` : ''}`;
-  }
+  /* The most a seat can put in (wave 14, QA #16: five units at hold'em,
+     less than a stake that was not a multiple of $5). Wave 18: bets are
+     free, so it is the whole stake (the buy-in) in both games. */
+  function holdemCap(stake) { return toInt(stake) || 0; }
   /* A marked deck on the player: it shows them the dealer's cards, and is what gets them caught; a plain deck is only cards. */
   function markedDeck(p) { return p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name) && /\bmarked\b/i.test(`${i.name} ${i.notes || ''}`)) || null; }
   /* The deck's generator for this turn: the game's seed and the turn number, nothing else (the same hand after /undo). */
@@ -18816,7 +18898,6 @@ const Pipeline = (() => {
   const CARD_TAG = 'cardplayer';
   const SEATS_MAX = 3;
   const SEAT_COLD = -25;
-  const HOLDEM_ACTS = Object.freeze(['check', 'bet', 'call', 'fold']);
   // The board turned over at each street: none before the flop, three at the flop, one at the turn, one at the river.
   const STREET_CARDS = Object.freeze([0, 3, 4, 5]);
   const STREET_WORDS = Object.freeze(['before the flop', 'on the flop', 'on the turn', 'on the river']);
@@ -18910,98 +18991,441 @@ const Pipeline = (() => {
   function coin(seed, seat, street, ask) {
     return Rng.valueAt(((seed >>> 0) ^ Math.imul(seat + 1, 0x9e3779b1) ^ Math.imul(street + 1, 0x85ebca6b) ^ Math.imul(ask + 1, 0xc2b2ae35)) >>> 0, 0);
   }
-  /* One seat's move at hold'em: with no bet to face, bet the unit on a
-     good hand (or as a bluff, by the coin), else check; facing a bet, call
-     with enough (the others never fold a stacked hand before the flop:
-     /cheat cards), else fold. */
-  function seatMove(h, i, street, facing) {
+  /* ----- wave 18: no-limit betting -----
+     The owner: "Make the poker game interactive, as in I decide how much
+     money to add, go all in, etc." The stake S is the buy-in: the chips
+     the player brings to the table and the most they can lose; every seat
+     sits with S, so the stacks start equal and there are no side pots (a
+     seat that has matched every bet has as much left as the player). The
+     house rules come from S (the owner's story: "$20 to sit, $1 ante", and
+     the earlier build's $4 bet at $20): the ante a (anteFor: a twentieth of
+     S, at least $1) and the bet b (unitFor: a fifth of S, at least $1, wave
+     13's unit). Every seat antes a. Hold'em has four rounds of betting, the
+     player first on each; five-card draw one, after the draw. On a round:
+     check, or bet b or more in multiples of b, up to all in (whatever is
+     left, the one amount that need not be a multiple); facing a bet: call,
+     raise to at least the bet plus the last raise (rounded up to a multiple
+     of b; when the stack is short of that, all in is the raise), or fold.
+     Four raises a round at most, then only call or fold. An amount that is
+     not a multiple of b goes up to the next one, and one that would leave
+     less than b behind is all in. The player's moves are Cards.move
+     strings (bet:8, raise:24, allin, call, check, fold, win; hold:024 at
+     draw), kept on the stored hand and the record, so a hand plays again
+     exactly from them. */
+  const MAX_RAISES = 4;
+  const DRAW_WORDS = Object.freeze(['before the draw', 'after the draw']);
+  function anteFor(stake) { return Math.max(1, Math.floor((toInt(stake) || 0) / 20)); }
+  /* The table's bet (wave 13's unit, a fifth of the stake, at least $1: $4 at $20, $20 at $100): wave 18 keeps it as the least bet and the step of every bet and raise. */
+  function unitFor(stake) { return Math.max(1, Math.floor((toInt(stake) || 0) / 5)); }
+  /* The house rules in words, as the dealer says them: "Twenty to sit, a dollar ante, four-dollar limit." ("…, no limit." at table stakes). */
+  const SMALL_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const TENS_WORDS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  function countWords(n) {
+    if (n < 20) return SMALL_WORDS[n];
+    if (n < 100) return TENS_WORDS[Math.floor(n / 10)] + (n % 10 ? `-${SMALL_WORDS[n % 10]}` : '');
+    const h = Math.floor(n / 100);
+    return `${h === 1 ? 'a' : SMALL_WORDS[h]} hundred${n % 100 ? ` and ${countWords(n % 100)}` : ''}`;
+  }
+  function dollarWords(n) { return n === 1 ? 'one-dollar' : n < 1000 ? `${countWords(n)}-dollar` : money(n); }
+  function rulesWords(stake, structure) {
+    const S = toInt(stake) || 0;
+    const a = anteFor(S);
+    const sit = S < 1000 ? capFirst(countWords(S)) : money(S);
+    const ante = a === 1 ? 'a dollar' : a < 1000 ? `${/^(?:eight|eleven|eighteen|eighty)/.test(countWords(a)) ? 'an' : 'a'} ${dollarWords(a)}` : `a ${money(a)}`;
+    return `${sit} to sit, ${ante} ante, ${structure === 'nolimit' ? 'no limit' : `${dollarWords(unitFor(S))} limit`}.`;
+  }
+  /* The house rules as figures, for the narrator: "$20 to sit, $1 ante, $4 limit" or "…, no limit (bets from $4, up to all in)". */
+  function rulesText(stake, structure) {
+    return `${money(stake)} to sit, ${money(anteFor(stake))} ante, ${structure === 'nolimit' ? `no limit (bets from ${money(unitFor(stake))}, up to all in)` : `${money(unitFor(stake))} limit (every bet and raise ${money(unitFor(stake))})`}`;
+  }
+  /* The table's structure today (wave 18, amendment 2: the owner's story
+     has the dealer set the terms, so the house game is limit and no limit
+     is something the player asks for). Limit, unless the dealer agreed to
+     table stakes today (flags['cardsNoLimit.<id>'] is the day, set through
+     the engine's setFlag effect by stakesAsk). hooks.cardsStructure (tests,
+     the console): 'limit' or 'nolimit' for every hand until a reload. */
+  const STRUCTURES = Object.freeze(['limit', 'nolimit']);
+  function tableStructure(dealer) {
+    if (STRUCTURES.includes(hooks.cardsStructure)) return hooks.cardsStructure;
+    const s = State.current;
+    return dealer && s && isObj(s.flags) && s.flags[`cardsNoLimit.${dealer.id}`] === s.time.day ? 'nolimit' : 'limit';
+  }
+  /* The dealer holding the player to the limit (wave 18, amendment 2): an
+     amount typed past it (all in, bet 20, raise to 40) is refused in
+     character, at no cost, one of three lines picked by the turn and how
+     many times it was said this hand; the dealer's own name. */
+  const PUSHBACK = [
+    (first, b) => `${first} taps the felt. "${capFirst(dollarWords(b))} bets at this table."`,
+    (first, b) => `${first} doesn't touch the chips. "It's a ${dollarWords(b)} game. House rules."`,
+    (first, b) => `"${capFirst(dollarWords(b))} limit," ${first} says, and slides the chips back.`
+  ];
+  let pushes = 0; // the pushbacks of the hand open now (gamble resets it; the record keeps it)
+  function pushbackLine(dealerName, b) {
+    const s = State.current;
+    const k = Math.floor(Rng.valueAt((((s ? s.meta.seed : 1) >>> 0) ^ Math.imul(((s ? s.meta.turn : 0) | 0) + 1, 0x9e3779b1) ^ Math.imul(pushes + 1, 0x85ebca6b)) >>> 0, 0) * PUSHBACK.length);
+    pushes += 1;
+    return PUSHBACK[clamp(k, 0, PUSHBACK.length - 1)](firstName(dealerName), b);
+  }
+  function validMove(m) { return (typeof m === 'string' || isObj(m)) && Cards.move(m) !== null; }
+  function validMove(m) { return (typeof m === 'string' || isObj(m)) && Cards.move(m) !== null; }
+  /* An amount to bet or raise to on a round, as the table allows it (b,
+     the table's bet): not a multiple of b, the next one up; under the least,
+     the least; at or over the stack, all in; and one that would leave less
+     than b behind, all in. */
+  function clampTo(want, minTo, maxTo, b) {
+    const step = Math.max(1, b | 0);
+    let to = Number.isFinite(want) ? Math.ceil(Math.floor(want) / step) * step : minTo;
+    if (to < minTo) to = minTo;
+    if (to > maxTo) to = maxTo;
+    if (to < maxTo && maxTo - to < step) to = maxTo;
+    return to;
+  }
+  /* A size for a bet or a raise (the table's presets and the seats' bets):
+     min, the least; half, the call and half the pot after it on top (a bet:
+     half the pot); pot, the call and the pot after it (a bet: the pot), the
+     two rounded to the nearest multiple of the table's bet; allin, the
+     rest of the stack. k: a round's ask ({ toCall, level, pot, minTo,
+     maxTo, unit: the table's bet }). */
+  function sizeFor(k, kind) {
+    if (kind === 'allin') return k.maxTo;
+    if (kind === 'min') return k.minTo;
+    const step = Math.max(1, k.unit | 0);
+    const want = k.level + (kind === 'pot' ? 1 : 0.5) * (k.pot + k.toCall);
+    return clampTo(Math.max(step, Math.round(want / step) * step), k.minTo, k.maxTo, step);
+  }
+  /* How good a five-card hand is for the draw's betting round, 0 to 1, read
+     as Cards.strength reads hold'em: high card under .2, a pair .32 (deuces)
+     to .6 (aces), two pair about .7, three of a kind .82, a straight or
+     better .9 and up. */
+  function drawStrength(final) {
+    if (!Array.isArray(final) || final.length !== 5) return 0.1;
+    const e = Cards.evaluate(final);
+    const k = e.key;
+    if (e.rank === 0) return 0.08 + (k[1] - 2) / 12 * 0.12;
+    if (e.rank === 1) return 0.32 + (k[1] - 2) / 12 * 0.28;
+    if (e.rank === 2) return 0.68 + (k[1] - 2) / 12 * 0.08;
+    if (e.rank === 3) return 0.82;
+    return Math.min(1, 0.88 + e.rank * 0.01);
+  }
+  /* One seat's move on a round (wave 18; wave 13 bet or called a unit).
+     v is how good the hand is (Cards.strength at hold'em, drawStrength at
+     draw), t the seat's tilt (tiltOf: Carter, Elbert and Curtis bet, raise
+     and bluff more; careful Lyman and Royce call down or fold). With
+     nothing to call: a value bet from 0.62 − t (half the pot or the least;
+     the pot from .75; the pot or all in from .88, all in only after the
+     flop and at draw), a bluff of half the pot when the coin falls under
+     0.1 + t, else check. Facing a bet: a raise from 0.8 − t (higher for a
+     seat that has bet or raised this round already), the least raise or
+     half the pot, the pot or all in from .9; now and then a bluff raise of
+     the least for the bold (the coin under a third of the bluff chance,
+     never on the river); a call when the hand clears the round's bar (.3
+     before the flop, .38 on the flop and the turn, .45 on the river and
+     after the draw, less t), raised by the price (what the call is of the
+     pot after it, over a quarter, and of the stack left); else fold. The
+     coins are the hand's own (coin: the seat, the round and the seat's
+     decision on it), so a hand plays the same way after a reload, an
+     /undo or a replay given the same moves. /cheat cards: the others call
+     every bet before the flop (at draw, every bet), never raising. */
+  function seatMove(h, i, k) {
     const seat = h.seats[i];
-    const v = Cards.strength(seat.hole, h.board.slice(0, STREET_CARDS[street]));
-    const t = seat.tilt;
+    const draw = h.game === 'draw';
+    const v = draw ? drawStrength(seat.final) : Cards.strength(seat.hole, h.board.slice(0, STREET_CARDS[k.street]));
+    const t = seat.tilt || 0;
     const bluff = Math.max(0, 0.1 + t);
-    const c = coin(h.seed, i, street, facing ? 1 : 0);
-    if (!facing) {
-      if (v >= 0.62 - t) return { act: 'bet', bluff: false };
-      if (c < bluff) return { act: 'bet', bluff: true };
+    const c = coin(h.seed, i, k.street, 2 * k.ask + (k.toCall ? 1 : 0));
+    const c2 = coin(h.seed, i, k.street, 2 * k.ask + 41);
+    const late = draw || k.street > 0;
+    const go = (act, kind, bluffed) => ({ act, to: sizeFor(k, kind), bluff: !!bluffed });
+    if (!k.toCall) {
+      if (!k.canBet) return { act: 'check' };
+      if (v >= 0.62 - t) return go('bet', v >= 0.88 ? (late && c2 < 0.3 + t ? 'allin' : 'pot') : v >= 0.75 ? (c2 < 0.5 ? 'pot' : 'half') : (c2 < 0.3 ? 'min' : 'half'));
+      if (c < bluff) return go('bet', 'half', true);
       return { act: 'check' };
     }
-    if (h.stacked && street === 0) return { act: 'call' };
-    const need = (street === 0 ? 0.3 : street === 3 ? 0.45 : 0.38) - t;
-    return { act: v >= need || c < bluff / 2 ? 'call' : 'fold' };
-  }
-  /* A hand of hold'em as far as the player's moves take it (wave 13): pure,
-     from h ({ seed, unit, stacked, board, seats: [{ key, hole, tilt }], the
-     player first and the dealer last }) and moves (the player's: check,
-     bet, call, fold, win). Every seat antes the unit; on each of the four
-     streets the player acts first (check or bet the unit), then the other
-     seats in order; with a bet on the table each calls or folds, with none
-     each may check or bet (the first bettor sets it); a bet sends everyone
-     who has not matched it round again (the player gets Call or Fold).
-     No raises: a seat puts in five units at most, and never more than the
-     cap (h.cap, the stake: under $5 a street with no room for a bet is
-     checked through). Returns { street, in,
-     folded, foldedOn, status, reads (a seat's first bet: { bluff, street }),
-     pot, need (the player's choices) | done (playerFolded, uncontested,
-     showdown) | win }.
-     Wave 14 (QA #2): the player folding does not end it. The seats that
-     still owe a bet on the table call or fold it as they would, nobody
-     bets after the player has gone, and the rest is checked down to a
-     showdown among those still in (playerFolded with showdown), so a seat
-     that never matched a bet cannot win it. (QA #5) Each new street starts
-     with the statuses of the seats still in cleared: what they did on the
-     last street is no live bet on this one (a fold stays). */
-  function holdemRun(h, moves) {
-    const n = h.seats.length;
-    const u = h.unit;
-    const inn = Array(n).fill(u);
-    const folded = Array(n).fill(false);
-    const foldedOn = Array(n).fill(null);
-    const status = Array(n).fill('');
-    const reads = Array(n).fill(null);
-    let m = 0;
-    let street = 0;
-    let gone = false;
-    const live = () => folded.reduce((k, f) => k + (f ? 0 : 1), 0);
-    const out = extra => Object.assign({ street, in: inn, folded, foldedOn, status, reads, pot: inn.reduce((a, b) => a + b, 0), moves: moves.slice(0, m) }, extra);
-    for (street = 0; street < 4; street++) {
-      if (street) for (let i = 0; i < n; i++) if (!folded[i]) status[i] = '';
-      // Every seat still in has put in the same (no raises): a bet fits while it stays within the cap.
-      const room = !Number.isFinite(h.cap) || inn[folded.indexOf(false)] + u <= h.cap;
-      let bet = 0;
-      const put = Array(n).fill(0);
-      const queue = [];
-      for (let i = 0; i < n; i++) if (!folded[i]) queue.push(i);
-      while (queue.length && live() > 1) {
-        const i = queue.shift();
-        if (folded[i]) continue;
-        let act;
-        if (i === 0) {
-          const opts = bet ? ['call', 'fold'] : room ? ['check', 'bet'] : ['check'];
-          if (m >= moves.length) return out({ need: opts });
-          let mv = moves[m++];
-          if (mv === 'win') return out({ win: true });
-          if (!opts.includes(mv)) mv = mv === 'fold' ? 'fold' : bet ? 'call' : 'check';
-          act = mv;
-        } else if (gone) {
-          // The player has folded: a bet still owed is called or folded as the seat would; nobody bets again.
-          act = bet && put[i] < bet ? seatMove(h, i, street, true).act : 'check';
-        } else {
-          const r = !room && !bet ? { act: 'check' } : seatMove(h, i, street, bet > 0);
-          act = r.act;
-          if (act === 'bet' && !reads[i]) reads[i] = { bluff: r.bluff, street };
-        }
-        if (act === 'check') status[i] = 'checks';
-        else if (act === 'bet') {
-          bet = u; inn[i] += u; put[i] = u; status[i] = `bets ${money(u)}`;
-          for (let k = 1; k < n; k++) { const j = (i + k) % n; if (!folded[j] && put[j] < bet && !queue.includes(j)) queue.push(j); }
-        } else if (act === 'call') { inn[i] += u; put[i] = u; status[i] = `calls ${money(u)}`; }
-        else { folded[i] = true; foldedOn[i] = street; status[i] = 'folds'; }
-        if (i === 0 && act === 'fold') gone = true;
-      }
-      if (live() === 1) return out(gone ? { done: true, playerFolded: true } : { done: true, uncontested: true });
+    if (h.stacked && (draw || k.street === 0)) return { act: 'call' };
+    if (k.canRaise) {
+      if (v >= 0.8 - t + (k.raised ? 0.1 : 0)) return go('raise', v >= 0.9 ? (late && c2 < 0.35 + t ? 'allin' : 'pot') : (c2 < 0.5 ? 'min' : 'half'));
+      if (!k.raised && (draw || k.street < 3) && c < bluff / 3) return go('raise', 'min', true);
     }
-    street = 4;
-    return out(gone ? { done: true, playerFolded: true, showdown: true } : { done: true, showdown: true });
+    const base = draw || k.street === 3 ? 0.45 : k.street === 0 ? 0.3 : 0.38;
+    const price = k.toCall / (k.pot + k.toCall);
+    const committed = Math.min(1, k.toCall / Math.max(1, k.left));
+    const need = base - t + 0.6 * Math.max(0, price - 0.25) + 0.2 * committed;
+    return { act: v >= need || (c < bluff / 2 && committed < 0.5) ? 'call' : 'fold' };
+  }
+  /* The table as a hand starts: every seat's ante in (st.inn: what each has
+     put in), nobody folded. h: { ante, bet, stack } (wave 13's unit, the
+     ante and the bet then, and cap still read). st.u is the table's bet. */
+  function tableStart(h) {
+    const n = h.seats.length;
+    const a0 = toInt(h.ante) || toInt(h.unit) || 1;
+    const S = toInt(h.stack) || toInt(h.cap) || 5 * a0;
+    const b = toInt(h.bet) || toInt(h.unit) || unitFor(S);
+    const a = Math.min(a0, S);
+    return { n, u: b, S, limit: h.limit === true, inn: Array(n).fill(a), folded: Array(n).fill(false), foldedOn: Array(n).fill(null), status: Array(n).fill(''), reads: Array(n).fill(null), log: [], played: [], m: 0, gone: false };
+  }
+  /* One round of betting (wave 18), from the player round the table, as far
+     as the player's moves go (st.m is the next one). A seat with no chips
+     left (all in) is passed over; a round where fewer than two seats still
+     have chips is not bet at all (everyone is all in: the board is dealt
+     out). Returns null when the round is over, { need, ask } when it waits
+     for the player (need: their choices; ask: { toCall, level, put, left,
+     pot, minTo, maxTo, unit, raises }), { win } for the Win (cheat). Every
+     action goes on st.log ({ i, act, to, add, street, allIn }); the player's,
+     made legal and with its amount, on st.played. A seat's first bet or
+     raise of the hand gets the player's read (st.reads). After the player
+     has folded (st.gone) a bet still owed is called or folded and nobody
+     bets again. At a limit table (st.limit, amendment 2: the house game) a
+     bet is the table's bet and a raise one more of it, whatever amount a
+     move names; all in only when the stack is short of that. */
+  function betRound(h, st, street, moves) {
+    const n = st.n;
+    const u = st.u;
+    const left = i => st.S - st.inn[i];
+    const put = Array(n).fill(0);
+    const raised = Array(n).fill(false);
+    const asks = Array(n).fill(0);
+    let level = 0;
+    let lastRaise = u;
+    let raises = 0;
+    const live = () => st.folded.reduce((k, f) => k + (f ? 0 : 1), 0);
+    const can = i => !st.folded[i] && left(i) > 0;
+    const queue = [];
+    for (let i = 0; i < n; i++) if (can(i)) queue.push(i);
+    if (queue.length < 2) return null;
+    while (queue.length && live() > 1) {
+      const i = queue.shift();
+      if (!can(i)) continue;
+      const toCall = Math.max(0, level - put[i]);
+      const maxTo = put[i] + left(i);
+      // Someone else still in with chips to answer a bet or a raise.
+      const answer = st.folded.some((f, j) => j !== i && !f && left(j) > 0);
+      const k = {
+        street, ask: asks[i]++, toCall: Math.min(toCall, left(i)), level, put: put[i], left: left(i), pot: st.inn.reduce((a, b) => a + b, 0), unit: u, raises,
+        minTo: toCall ? Math.min(Math.ceil((level + lastRaise) / u) * u, maxTo) : Math.min(u, maxTo), maxTo,
+        canRaise: !st.gone && answer && raises < MAX_RAISES && maxTo > level, canBet: !st.gone && answer, raised: raised[i]
+      };
+      // The least that would leave less than a bet behind: all in is the only amount.
+      if (st.limit) {
+        // Limit (wave 18, the house game): a bet is the table's bet and a raise one more of it, all in only when the stack is short of that.
+        k.minTo = Math.min(toCall ? level + u : u, maxTo);
+        k.limit = true;
+      } else if (k.minTo < maxTo && maxTo - k.minTo < u) k.minTo = maxTo;
+      let act;
+      let to = null;
+      let bluff = false;
+      if (i === 0) {
+        const opts = toCall ? ['call'].concat(k.canRaise ? ['raise'] : [], ['fold']) : ['check'].concat(k.canBet ? ['bet'] : []);
+        if (st.m >= moves.length) return { need: opts, ask: k };
+        const mv = Cards.move(moves[st.m++]) || { act: toCall ? 'call' : 'check' };
+        if (mv.act === 'win') { st.played.push('win'); return { win: true }; }
+        act = mv.act;
+        // What the table offers: all in is the biggest bet, raise or call there is; a bet facing one is a raise, a raise with none a bet.
+        if (act === 'allin') act = toCall ? (k.canRaise ? 'raise' : 'call') : k.canBet ? 'bet' : 'check';
+        else if (act === 'bet' && toCall) act = 'raise';
+        else if (act === 'raise' && !toCall) act = 'bet';
+        else if (act === 'hold') act = toCall ? 'call' : 'check';
+        if (act === 'raise' && !k.canRaise) act = 'call';
+        if (act === 'bet' && !k.canBet) act = 'check';
+        if (act === 'call' && !toCall) act = 'check';
+        if (act === 'check' && toCall) act = 'call';
+        if (act === 'bet' || act === 'raise') to = st.limit ? k.minTo : clampTo(mv.act === 'allin' ? maxTo : Number.isFinite(mv.to) ? mv.to : k.minTo, k.minTo, maxTo, u);
+        st.played.push(Cards.moveText({ act, to }));
+      } else {
+        const r = seatMove(h, i, k);
+        act = r.act;
+        to = r.to;
+        bluff = r.bluff === true;
+        if (act === 'raise' && !toCall) act = 'bet';
+        if ((act === 'bet' && !k.canBet) || (act === 'raise' && !k.canRaise)) act = toCall ? 'call' : 'check';
+        if (act === 'bet' || act === 'raise') to = st.limit ? k.minTo : clampTo(to, k.minTo, maxTo, u);
+      }
+      const before = st.inn[i];
+      if (act === 'fold') {
+        st.folded[i] = true;
+        st.foldedOn[i] = street;
+        st.status[i] = 'folds';
+        if (i === 0) st.gone = true;
+      } else if (act === 'check') st.status[i] = 'checks';
+      else if (act === 'call') {
+        const add = Math.min(toCall, left(i));
+        put[i] += add;
+        st.inn[i] += add;
+        st.status[i] = left(i) ? `calls ${money(put[i])}` : `all in ${money(put[i])}`;
+      } else {
+        // A full bet or raise sets the least raise after it; a short all in does not.
+        if (to - level >= lastRaise) lastRaise = to - level;
+        if (level) raises += 1;
+        level = Math.max(level, to);
+        st.inn[i] += to - put[i];
+        put[i] = to;
+        raised[i] = true;
+        st.status[i] = !left(i) ? `all in ${money(put[i])}` : act === 'bet' ? `bets ${money(to)}` : `raises to ${money(to)}`;
+        if (i && !st.reads[i]) st.reads[i] = { bluff, street };
+        // Everyone who has not matched it answers it, round the table from the bettor.
+        for (let d = 1; d < n; d++) { const j = (i + d) % n; if (can(j) && put[j] < level && !queue.includes(j)) queue.push(j); }
+      }
+      st.log.push({ i, act, to: put[i], add: st.inn[i] - before, street, allIn: act !== 'fold' && act !== 'check' && left(i) === 0 });
+    }
+    return null;
+  }
+  function runOut(st, street, extra) {
+    return Object.assign({ street, in: st.inn.slice(), folded: st.folded.slice(), foldedOn: st.foldedOn.slice(), status: st.status.slice(), reads: st.reads.slice(), pot: st.inn.reduce((a, b) => a + b, 0), moves: st.played.slice(), log: st.log.slice() }, extra);
+  }
+  /* A hand of hold'em as far as the player's moves take it (wave 13; wave
+     18: no limit): pure, from h ({ seed, ante, stack, stacked, board,
+     seats: [{ key, hole, tilt }], the player first and the dealer last })
+     and moves (Cards.move strings or objects). Every seat antes; four
+     rounds (betRound), the player first on each; each new round starts
+     with the statuses of the seats still in cleared (a fold and an all in
+     stay). Everyone else folding ends it (uncontested); with everyone all
+     in the rounds left are not bet and the board is dealt out. Wave 14
+     (QA #2): the player folding does not end it for the others: a bet
+     still owed is called or folded, nobody bets again, and the rest is
+     checked down (playerFolded with showdown). Returns { street, in,
+     folded, foldedOn, status, reads, pot, moves (the player's as played),
+     log, need and ask | done (playerFolded, uncontested, showdown) | win }. */
+  function holdemRun(h, moves) {
+    const st = tableStart(h);
+    const list = Array.isArray(moves) ? moves : [];
+    const live = () => st.folded.reduce((k, f) => k + (f ? 0 : 1), 0);
+    for (let street = 0; street < 4; street++) {
+      if (street) for (let i = 0; i < st.n; i++) if (!st.folded[i] && st.inn[i] < st.S) st.status[i] = '';
+      const r = betRound(h, st, street, list);
+      if (r && r.need) return runOut(st, street, { need: r.need, ask: r.ask });
+      if (r && r.win) return runOut(st, street, { win: true });
+      if (live() === 1) return runOut(st, street, st.gone ? { done: true, playerFolded: true } : { done: true, uncontested: true });
+    }
+    return runOut(st, 4, st.gone ? { done: true, playerFolded: true, showdown: true } : { done: true, showdown: true });
+  }
+  /* A hand of five-card draw as far as the player's moves go (wave 18):
+     pure, from h ({ seed, ante, stack, stacked, seats: [{ key, dealt, held,
+     final, tilt }]: the player first, the dealer last; each other seat's
+     draw by the dealer's rule known from the deal }). The ante; the
+     player's draw (hold:…), or a fold before it (it costs the ante), or the
+     Win; then one round of betting after the draw (street 1), the seats
+     betting on their final hands; the showdown. A fold heads up before the
+     draw ends the hand there. Returns runOut's shape with phase ('draw' |
+     'bet') and holds (the player's, null before the draw or after a fold
+     there). */
+  function drawRun(h, moves) {
+    const st = tableStart(h);
+    const list = Array.isArray(moves) ? moves : [];
+    const live = () => st.folded.reduce((k, f) => k + (f ? 0 : 1), 0);
+    if (!list.length) return runOut(st, 0, { phase: 'draw', holds: null, need: ['draw', 'fold'] });
+    const first = Cards.move(list[0]);
+    st.m = 1;
+    if (first && first.act === 'win') { st.played.push('win'); return runOut(st, 0, { phase: 'draw', holds: null, win: true }); }
+    let holds = null;
+    if (first && first.act === 'fold') {
+      st.folded[0] = true;
+      st.foldedOn[0] = 0;
+      st.status[0] = 'folds';
+      st.gone = true;
+      st.played.push('fold');
+      st.log.push({ i: 0, act: 'fold', to: 0, add: 0, street: 0, allIn: false });
+    } else {
+      holds = first && first.act === 'hold' ? first.hold : [0, 1, 2, 3, 4];
+      st.played.push(Cards.moveText({ act: 'hold', hold: holds }));
+    }
+    const at = { phase: 'bet', holds };
+    if (live() === 1) return runOut(st, 1, Object.assign(at, { done: true, playerFolded: true }));
+    const r = betRound(h, st, 1, list);
+    if (r && r.need) return runOut(st, 1, Object.assign(at, { need: r.need, ask: r.ask }));
+    if (r && r.win) return runOut(st, 1, Object.assign(at, { win: true }));
+    if (live() === 1) return runOut(st, 1, Object.assign(at, st.gone ? { done: true, playerFolded: true } : { done: true, uncontested: true }));
+    return runOut(st, 1, Object.assign(at, st.gone ? { done: true, playerFolded: true, showdown: true } : { done: true, showdown: true }));
+  }
+  /* The hand's actions for the record (wave 18): each with the seat's key. */
+  function actionsOf(log, keys) {
+    return (log || []).map(x => Object.assign({ seat: keys[x.i], act: x.act, to: x.to | 0, add: x.add | 0, street: x.street | 0 }, x.allIn ? { allIn: true } : {}));
+  }
+  /* A bet typed in the box with a hand open (wave 18): the table's own
+     words, not the parser's (the box otherwise waits while a hand is
+     open). On a betting round: "check"; "call" (with nothing to call it
+     checks); "fold"; "all in" ("go all in", "I'm all in", "shove", "jam",
+     "push"); "bet 10", "bet $10", "bet ten dollars", "raise to 30", "raise
+     30" (to $30, as the control's amount is), "raise by 10" (on top of the
+     bet), "make it 30", a bare "$30" or "30" (a bet, or a raise to it); and
+     "min", "half pot", "pot" after bet or raise, or alone. At the draw:
+     "fold" and "stand pat". "I", "I'll" and "okay" before them are fine.
+     An amount the table does not allow is clamped as the control clamps
+     it, and the note says so. At a limit table (amendment 2) an amount
+     past the limit ("all in" with the stack not short, "bet 20", "raise to
+     40", "pot") is refused by the dealer in character at no cost: { refuse:
+     his line (pushbackLine), say: "Four-dollar limit: Check or Bet $4. Ask
+     Curtis for table stakes if you want a bigger game." }, and the words
+     stay in the box; one under the limit goes up to it. Returns null when
+     the line is none of these; { choice, note? } to play; { say } for the
+     status line when the table offers no such move ("There's a bet to
+     you: call $8, raise or fold."). t: the open table (Pipeline.openHand). */
+  const TYPED_FOLD = /^(?:fold|folds|folding|muck|i'm out|im out)(?: (?:it|my hand|this hand|this one|then))?$/;
+  const TYPED_BETWORD = /^(?:check|call|bet|bets|raise|raises|re-?raise|make it|all[\s-]?in|go all[\s-]?in|shove|jam|push|min|pot|half(?: the)? pot|\$\s*\d|\d)/;
+  function typedBet(text, t) {
+    const raw = String(text || '').toLowerCase().replace(/[’‘]/g, "'").replace(/[.!?]+\s*$/, '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw.startsWith('/') || !isObj(t)) return null;
+    const w = raw.replace(/^(?:(?:ok|okay|fine|alright|all right|right|well|then)\b,?\s*)+/, '').replace(/^(?:i(?:'ll| will)?|i'm going to|i want to|let me)\s+/, '').trim();
+    const opts = Array.isArray(t.options) ? t.options : [];
+    if (opts[0] === 'draw') {
+      if (TYPED_FOLD.test(w)) return { choice: { fold: true } };
+      if (/^stand(?:s|ing)? pat$/.test(w)) return { choice: { hold: 'all' } };
+      if (TYPED_BETWORD.test(w) && !/^\d+ ?(?:,|and|\d)/.test(w)) return { say: 'Pick the cards to hold, then Draw: the betting comes after the draw.' };
+      return null;
+    }
+    const a = isObj(t.ask) ? t.ask : null;
+    if (!a || !opts.length) return null;
+    const facing = opts[0] === 'call';
+    const kind = opts.includes('raise') ? 'raise' : opts.includes('bet') ? 'bet' : null;
+    const callWords = `call ${money(a.toCall)}${a.toCall >= a.left ? ' (all in)' : ''}`;
+    // Amendment 2: at a limit table an amount past the limit is refused by the dealer, in character, at no cost; the words stay in the box.
+    const first = firstName(t.dealerName || 'The dealer');
+    const refuse = () => {
+      const offer = facing ? `Call ${money(a.toCall)}${kind ? `, Raise to ${money(a.minTo)}` : ''} or Fold` : kind ? `Check or Bet ${money(a.minTo)}` : 'Check';
+      return { refuse: pushbackLine(t.dealerName || 'The dealer', a.unit), say: `${capFirst(dollarWords(a.unit))} limit: ${offer}. Ask ${first} for table stakes if you want a bigger game.` };
+    };
+    if (TYPED_FOLD.test(w)) return { choice: { fold: true } };
+    if (/^(?:check|checks|check it|knock)$/.test(w)) return facing ? { say: `There's a bet to you: ${callWords}${kind ? ', raise' : ''} or fold.` } : { choice: { act: 'check' } };
+    if (/^(?:call|calls|call it|call that|call the bet|call you|i call|see it|see you|see the bet)$/.test(w)) return { choice: { act: facing ? 'call' : 'check' } };
+    if (/^(?:(?:go |going |i go |i'm |im |i am )?all[\s-]?in|shove(?: it)?|jam(?: it)?|push(?: it)?|all of it)$/.test(w)) {
+      if (kind && a.limit && a.minTo < a.maxTo) return refuse();
+      if (kind) return { choice: { act: 'allin' } };
+      return facing ? { choice: { act: 'call' }, note: a.toCall >= a.left ? `Calling ${money(a.toCall)} puts you all in.` : `No more raises this round, so you ${callWords}.` } : null;
+    }
+    const m = /^(?:(bet|bets|raise|raises|re-?raise|make it|make that)\b\s*)?(?:(to|by)\s+)?(.*)$/.exec(w);
+    const verb = m[1] || null;
+    const prep = m[2] || null;
+    const rest = m[3].replace(/^(?:it|that)\s+/, '').trim();
+    let size = null;
+    let amount = null;
+    if (!rest) size = verb ? 'min' : null;
+    else if (/^(?:the )?(?:min|minimum)(?:[\s-]?raise| bet)?$/.test(rest)) size = 'min';
+    else if (/^half(?: of)?(?: the)? pot$/.test(rest)) size = 'half';
+    else if (/^(?:the )?pot$/.test(rest)) size = 'pot';
+    else if (/^(?:all[\s-]?in|it all|everything)$/.test(rest)) size = 'allin';
+    else {
+      const num = /^\$?\s*(\d[\d,]*)(?:\.\d+)?(?:\s*(?:dollars?|bucks?))?$/.exec(rest);
+      if (num) amount = parseInt(num[1].replace(/,/g, ''), 10);
+      else if (verb) {
+        const words = rest.replace(/\s*(?:dollars?|bucks?)$/, '').trim();
+        const n = new RegExp(`^${Style.NUMBER_WORD}(?:[\\s-]+${Style.NUMBER_WORD})*$`, 'i').test(words) ? Style.numberWords(words) : null;
+        if (n === null) return null;
+        amount = n;
+      } else return null;
+    }
+    if (size === null && amount === null) return null;
+    if (!kind) return { say: facing ? `No more raises this round: ${callWords} or fold.` : 'Check only: nobody is left to bet against.' };
+    if (a.limit) {
+      // The limit's one amount (all in only when the stack is short of it); under it goes up to it, past it is refused.
+      const want = size === 'min' ? a.minTo : size === 'allin' ? a.maxTo : size ? sizeFor(Object.assign({}, a, { minTo: a.unit }), size) : prep === 'by' && kind === 'raise' ? a.level + amount : amount;
+      if (want > a.minTo) return refuse();
+      return Object.assign({ choice: { act: kind, to: a.minTo } }, want < a.minTo ? { note: `${capFirst(dollarWords(a.unit))} limit, so ${a.minTo >= a.maxTo ? 'you go all in' : kind === 'bet' ? `you bet ${money(a.minTo)}` : `you raise to ${money(a.minTo)}`}.` } : {});
+    }
+    if (size) return { choice: { act: size === 'allin' ? 'allin' : kind, to: sizeFor(a, size) } };
+    const want = prep === 'by' && kind === 'raise' ? a.level + amount : amount;
+    const to = clampTo(want, a.minTo, a.maxTo, a.unit);
+    const did = to >= a.maxTo ? 'you go all in' : kind === 'bet' ? `you bet ${money(to)}` : `you raise to ${money(to)}`;
+    const note = want < a.minTo ? `The least ${kind === 'bet' ? 'bet is' : 'raise is to'} ${money(a.minTo)}, so ${did}.` : want > a.maxTo ? `That's more than you have, so ${did}.` : to === want ? null : want % a.unit ? `Bets go in ${money(a.unit)}s, so ${did}.` : `That would leave less than ${money(a.unit)}, so ${did}.`;
+    return Object.assign({ choice: { act: kind, to } }, note ? { note } : {});
   }
   /* The Win (cheat) at hold'em mid-hand (wave 13): the player's two cards
      and the board already turned stay; the rest of the board is dealt so
@@ -19066,21 +19490,23 @@ const Pipeline = (() => {
      dealt, held }]. Returns { holds, pFinal, others: [{ dealt, held, final
      }] }, or null when nothing does (a pat hand nothing beats): the others
      throw in their hands instead (drawHand). */
-  function rigDraw(rng, player, others) {
+  /* Wave 18: mine ({ holds, final }), after the player has drawn: their five
+     are seen and stay; only the others' draws are dealt again. */
+  function rigDraw(rng, player, others, mine) {
     const e = Cards.evaluate(player);
     const vals = player.map(Cards.value);
     const ALL5 = [0, 1, 2, 3, 4];
-    const plans = [e.rank >= 4 ? ALL5 : e.rank >= 1 ? ALL5.filter(i => vals.filter(v => v === vals[i]).length >= 2) : [vals.indexOf(Math.max(...vals))]];
-    if (e.rank < 4) for (const v of Array.from(new Set(vals)).sort((a, b) => b - a)) plans.push(ALL5.filter(i => vals[i] === v));
-    const taken = new Set(player.concat(others.flatMap(o => o.dealt)));
+    const plans = mine ? [mine.holds.slice()] : [e.rank >= 4 ? ALL5 : e.rank >= 1 ? ALL5.filter(i => vals.filter(v => v === vals[i]).length >= 2) : [vals.indexOf(Math.max(...vals))]];
+    if (!mine && e.rank < 4) for (const v of Array.from(new Set(vals)).sort((a, b) => b - a)) plans.push(ALL5.filter(i => vals[i] === v));
+    const taken = new Set(player.concat(others.flatMap(o => o.dealt), mine ? mine.final : []));
     for (const holds of plans) {
       const ranks = new Set(holds.map(i => player[i][0]));
       for (let t = 0; t < 120; t++) {
         const pool = Cards.shuffle(rng, Cards.deck().filter(c => !taken.has(c)));
         // Every other try draws the held rank first (four of a kind, a full house); the rest draw what comes (a flush, a straight).
         const order = t % 2 ? pool : pool.filter(c => ranks.has(c[0])).concat(pool.filter(c => !ranks.has(c[0])));
-        const pile = order.slice(0, 5 - holds.length);
-        const pFinal = Cards.draw(player, holds, pile);
+        const pile = mine ? [] : order.slice(0, 5 - holds.length);
+        const pFinal = mine ? mine.final.slice() : Cards.draw(player, holds, pile);
         let left = pool.filter(c => !pile.includes(c));
         const outs = [];
         for (const o of others) {
@@ -19099,32 +19525,51 @@ const Pipeline = (() => {
     }
     return null;
   }
-  /* Who takes the pot (wave 13): the best of the sides still in (sides: {
-     key, in, live, final }), all of them on a tie; the pot split evenly,
-     the odd dollars to the player when they share it (else to the first
-     winner). Wave 14 (QA #1): the win cheat no longer forces the pot to
-     the player; its cards (or everyone else folding) make the player's the
-     best hand, so the pot goes as any other does. */
-  function settlePot(sides) {
+  /* Who takes the pot (wave 13; wave 18: no limit). First a bet nobody
+     called goes back to whoever made it: the most anyone put in is cut to
+     the second most (the side's back; its in is what stayed in), so an all
+     in for less than the bet, or a bet everyone folded to, costs only what
+     was matched. Then the pot is shared a layer at a time (side pots,
+     should the stacks ever differ; with equal stacks there is one): each
+     layer to the best hand still in among the seats that put that much in,
+     all of them on a tie, the odd dollars to the player when they share it
+     (else to the first winner). sides: { key, in, live, final }; each gets
+     won. Returns { pot (what stayed in), winners (the best hand still in) }.
+     opts.keepUncalled (a wave 10-12 record replayed): nothing goes back. */
+  function settlePot(sides, opts) {
+    for (const x of sides) { x.in = Math.max(0, x.in | 0); x.won = 0; delete x.back; }
+    if (!(opts && opts.keepUncalled) && sides.length > 1) {
+      const ins = sides.map(x => x.in).sort((a, b) => b - a);
+      const top = sides.find(x => x.in === ins[0]);
+      if (ins[0] > ins[1] && top) { top.back = ins[0] - ins[1]; top.in = ins[1]; }
+    }
     const live = sides.filter(x => x.live);
-    let winners;
-    if (live.length === 1) winners = live;
-    else {
-      const keys = live.map(x => Cards.evaluate(x.final).key);
+    const keyOf = x => (Array.isArray(x.final) && x.final.length === 5 ? Cards.evaluate(x.final).key : [-1]);
+    const best = group => {
+      if (group.length <= 1) return group.slice();
+      const keys = group.map(keyOf);
       let top = keys[0];
       for (const k of keys) if (Cards.compareKeys(k, top) > 0) top = k;
-      winners = live.filter((x, i) => Cards.compareKeys(keys[i], top) === 0);
+      return group.filter((x, i) => Cards.compareKeys(keys[i], top) === 0);
+    };
+    const winners = best(live);
+    const levels = Array.from(new Set(sides.map(x => x.in).filter(v => v > 0))).sort((a, b) => a - b);
+    let prev = 0;
+    for (const lv of levels) {
+      const layer = sides.reduce((t, x) => t + Math.max(0, Math.min(x.in, lv) - prev), 0);
+      const reach = live.filter(x => x.in >= lv);
+      const take = reach.length ? best(reach) : winners;
+      if (take.length) {
+        const share = Math.floor(layer / take.length);
+        for (const x of take) x.won += share;
+        const rest = layer - share * take.length;
+        if (rest) (take.find(x => x.key === 'player') || take[0]).won += rest;
+      }
+      prev = lv;
     }
-    const pot = sides.reduce((t, x) => t + (x.in | 0), 0);
-    const share = Math.floor(pot / winners.length);
-    for (const x of sides) x.won = 0;
-    for (const x of winners) x.won = share;
-    const rest = pot - share * winners.length;
-    if (rest) (winners.find(x => x.key === 'player') || winners[0]).won += rest;
+    const pot = sides.reduce((t, x) => t + x.in, 0);
     return { pot, winners: winners.map(x => x.key) };
   }
-  /* The ante and every bet at hold'em (wave 13): a fifth of the stake, rounded down, at least $1. */
-  function unitFor(stake) { return Math.max(1, Math.floor((toInt(stake) || 0) / 5)); }
   function showdownOf(winners, folded) { return folded ? 'fold' : winners.length === 1 && winners[0] === 'player' ? 'win' : winners.includes('player') ? 'split' : 'lose'; }
   /* What the player's hand makes so far (as they fold): the best five with three or more on the board, else the two hole cards by name. */
   function handSoFar(hole, board) {
@@ -19135,19 +19580,21 @@ const Pipeline = (() => {
      player's moves so far, so a page closed mid-street folds there). */
   function holdThis(c, moves, dealt) {
     const { s, ctx } = c;
-    const held = Object.assign(handMark(s), { input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null, tab: Storage.tabId, token: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, cardGame: c.game, seats: c.seats.map(n => n.id), moves: (moves || []).slice(), chose: !!c.chose }, dealt ? { deal: dealt } : {});
+    const held = Object.assign(handMark(s), { input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null, tab: Storage.tabId, token: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, cardGame: c.game, seats: c.seats.map(n => n.id), moves: (moves || []).slice(), chose: !!c.chose, structure: c.base.structure || null }, dealt ? { deal: dealt } : {});
     if (Storage.holdHand(held)) handHeld = held.token;
     return held;
   }
   function storeHand(held, extra) { if (held && handHeld === held.token) Storage.holdHand(Object.assign(held, extra || {})); }
   /* The open hand: the player's Draw or Fold (UI.feed.cards' buttons, or
      playHand) settles it; Stop (abort) folds it (wave 11: { fold, stopped
-     }), so the ante is never taken back. hooks.cardsPlay ({ hold: [0-4] |
-     'all', fold, win }) plays the next hand at once, as if clicked (tests,
-     the console). Wave 13: kind 'choose' is the chooser (a game, or the
-     Win; Stop there calls the turn off, as no card is dealt yet:
-     hooks.cardsChoose answers it), 'holdem' a decision at hold'em ({ act:
-     check | bet | call | fold }, the fold, or the Win). */
+     }), so the ante is never taken back. Wave 13: kind 'choose' is the
+     chooser (a game, or the Win; Stop there calls the turn off, as no card
+     is dealt yet: hooks.cardsChoose answers it), 'holdem' a decision at
+     hold'em. Wave 18: 'draw' is the draw itself ({ hold }), 'drawbet' the
+     draw's betting round; a betting decision is { act: check | bet | call
+     | raise | allin, to } (to: the amount bet or raised to on the round),
+     { fold } or { win }. hooks.cardsPlay (takeAuto) plays a hand at once,
+     as if clicked (tests, the console). */
   let hand = null;
   let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends: its token
   function waitForHand(table, node, kind) {
@@ -19160,8 +19607,6 @@ const Pipeline = (() => {
         if (pick) { hooks.cardsChoose = null; Promise.resolve().then(() => playHand(pick === 'win' ? { win: true } : { game: pick })); }
         return;
       }
-      const auto = hand.kind === 'draw' ? hooks.cardsPlay : null;
-      if (auto) { hooks.cardsPlay = null; Promise.resolve().then(() => playHand(auto)); }
     });
   }
   function stoppedAtTable() { return Object.assign(new Error('stopped at the card table'), { type: 'aborted' }); }
@@ -19178,8 +19623,11 @@ const Pipeline = (() => {
     }
     if (c.win === true) h.resolve({ win: true });
     else if (c.fold === true) h.resolve({ fold: true, stopped: c.stopped === true });
-    else if (h.kind === 'holdem') h.resolve({ act: HOLDEM_ACTS.includes(c.act) ? c.act : 'check' });
-    else h.resolve({ hold: Cards.holdsFrom(c.hold) });
+    else if (h.kind === 'draw') h.resolve({ hold: Cards.holdsFrom(c.hold) });
+    else {
+      const mv = Cards.move({ act: c.act, to: c.to });
+      h.resolve(mv && mv.act !== 'hold' && mv.act !== 'win' ? mv : { act: 'check' });
+    }
     return true;
   }
   /* Another tab took the game over (wave 12, L3: Storage.setReadOnly) while
@@ -19294,7 +19742,7 @@ const Pipeline = (() => {
     const other = !!m.tab && m.tab !== Storage.tabId;
     // Wave 13: the game, the seats and the moves already made (a hold'em hand folds where it was left).
     // Wave 15: a hand stored before wave 13 has no game, and could only be five-card draw: it folds as one (never the chooser).
-    const storedHand = { game: CARD_GAMES.includes(m.cardGame) ? m.cardGame : 'draw', seats: Array.isArray(m.seats) ? m.seats.filter(x => typeof x === 'string') : [], moves: Array.isArray(m.moves) ? m.moves.filter(x => HOLDEM_ACTS.includes(x)) : [], chose: m.chose === true, deal: isObj(m.deal) ? m.deal : null };
+    const storedHand = { game: CARD_GAMES.includes(m.cardGame) ? m.cardGame : 'draw', seats: Array.isArray(m.seats) ? m.seats.filter(x => typeof x === 'string') : [], moves: Array.isArray(m.moves) ? m.moves.filter(validMove) : [], chose: m.chose === true, deal: isObj(m.deal) ? m.deal : null, structure: STRUCTURES.includes(m.structure) ? m.structure : null };
     return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', resumeOther: other, replayCards: cards, storedHand });
   }
   /* A hand's name inside a sentence: "two pair, kings and sevens," (the comma closes it). */
@@ -19305,79 +19753,161 @@ const Pipeline = (() => {
     // Wave 13: a hold'em hand has its board (a hand folded early has no final five).
     return r.game === 'holdem' ? (Array.isArray(r.board) ? r : null) : Array.isArray(r.player.final) && Array.isArray(r.dealer.final) ? r : null;
   }
-  /* A hand of five-card draw (wave 10; wave 13: with the other seats, each
-     putting up the stake and drawing by the dealer's rule, the Win (cheat)
-     control and the armed win). A fold heads up ends the hand before the
-     dealer draws (his cards as dealt); with others at the table they play
-     it out among themselves. Returns the hand as played: { record, sides,
+  /* A deal kept on the stored hand (wave 18: draw keeps its deal too, as
+     hold'em does): five cards and a pile of five for the player, the
+     dealer and each of n seats. */
+  function drawDealOk(d, n) {
+    const five = v => Array.isArray(v) && v.length === 5 && v.every(Cards.valid);
+    return isObj(d) && five(d.player) && five(d.dealer) && five(d.playerPile) && five(d.dealerPile) && Array.isArray(d.seatHands) && d.seatHands.length === n && d.seatHands.every(x => isObj(x) && five(x.hand) && five(x.pile));
+  }
+  /* A hand of five-card draw (wave 10; wave 13: with the other seats,
+     drawing by the dealer's rule, the Win (cheat) control and the armed
+     win). Wave 18: every seat antes u (anteFor) instead of putting up the
+     stake; the player draws (or folds, for the ante); then one round of
+     no-limit betting after the draw (drawRun), the seats on their final
+     hands; the best hand left takes the pot. A fold heads up before the
+     draw ends the hand there (the dealer's cards as dealt); with others
+     they draw and check it down among themselves. The money goes in as it
+     is put in (c.pay). Returns the hand as played: { record, sides,
      winners, pot, showdown, folded, stopped, closed, win, node, held }. */
   async function drawHand(c) {
     const { s, dealer, seats, stake } = c;
-    const price = foldPrice(stake);
+    const u = anteFor(stake);
     const n = seats.length;
-    const set = isObj(hooks.cardsDeal) && Array.isArray(hooks.cardsDeal.player) ? hooks.cardsDeal : null;
-    if (set) hooks.cardsDeal = null;
-    const dealt = dealHand(c.seed, readOdds(s), c.cheat || c.winNow, set, n);
-    const table = Object.assign({ game: 'draw' }, c.base, {
-      cheat: c.cheat, read: Object.assign({}, dealt.read, { text: readText(dealt.read.says, c.first) }),
-      player: { dealt: dealt.player.slice() }, dealer: { dealt: dealt.dealer.slice() },
-      seats: seats.map((x, k) => ({ id: x.id, who: x.name, dealt: dealt.seatPlay[k].dealt.slice() })),
-      pot: stake * (n + 2), playerIn: stake
-    });
+    const hookSet = isObj(hooks.cardsDeal) && Array.isArray(hooks.cardsDeal.player) ? hooks.cardsDeal : null;
+    if (hookSet) hooks.cardsDeal = null;
+    // A hand resumed after the page was closed (resumeHand) has its cards as stored.
+    const kept = c.stored && drawDealOk(c.stored.deal, n) ? c.stored.deal : null;
+    const dealt = dealHand(c.seed, readOdds(s), c.cheat || c.winNow, kept || hookSet, n);
+    const people = [null].concat(seats, [dealer]);
+    const keys = people.map(x => (x ? x.id : 'player'));
+    // The others in table order (the seats, the dealer last), each with its draw by the dealer's rule.
+    const plays = dealt.seatPlay.map(x => ({ dealt: x.dealt.slice(), held: x.held.slice(), final: x.final.slice() }))
+      .concat([{ dealt: dealt.dealer.slice(), held: dealt.dealerHolds.slice(), final: dealt.dealerFinal.slice() }]);
+    const h = { game: 'draw', seed: c.seed, ante: u, bet: unitFor(stake), stack: stake, limit: c.base.structure === 'limit', stacked: !!c.cheat, seats: [{ key: 'player', dealt: dealt.player.slice(), final: null, tilt: 0 }].concat(plays.map((x, k) => Object.assign({ key: keys[k + 1], tilt: tiltOf(people[k + 1]) }, x))) };
+    const read = Object.assign({}, dealt.read, { text: readText(dealt.read.says, c.first) });
+    const pFinalOf = holds => Cards.draw(dealt.player, holds, dealt.playerPile);
+    let moves = c.stored && Array.isArray(c.stored.moves) ? c.stored.moves.filter(validMove) : [];
+    let run = drawRun(h, moves);
+    let win = null;
+    let stopped = false;
+    let closed = false;
+    if (c.winNow) { win = c.win; run = drawRun(h, ['win']); }
+    else if (c.left && run.need) { moves = run.moves.concat(['fold']); run = drawRun(h, moves); closed = true; }
+    // The open table: before the draw the hands as dealt; after it the player's five (the new ones marked), each seat's draw, the round's choices.
+    const view = () => {
+      const bet = run.phase === 'bet' && !!run.holds;
+      const pf = bet ? pFinalOf(run.holds) : null;
+      const side = (i, extra) => Object.assign({ status: run.status[i], in: run.in[i] }, run.folded[i] ? { folded: true, foldedOn: run.foldedOn[i] } : {}, extra);
+      const other = i => side(i, Object.assign({ dealt: h.seats[i].dealt.slice() }, bet ? { held: h.seats[i].held.slice() } : {}, bet && c.base.marked ? { final: h.seats[i].final.slice() } : {}));
+      return Object.assign({ game: 'draw' }, c.base, {
+        cheat: c.cheat, first: !run.moves.length && !c.node, phase: bet ? 'bet' : 'draw', read, pot: run.pot, playerIn: run.in[0], options: run.need ? run.need.slice() : null, ask: run.ask || null,
+        player: side(0, Object.assign({ dealt: dealt.player.slice() }, pf ? { held: run.holds.slice(), final: pf, name: Cards.evaluate(pf).name } : {})),
+        dealer: other(n + 1),
+        seats: seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, other(k + 1)))
+      });
+    };
     // The win cheat before any card is played (/cheat win, or Win at the chooser): the table is shown finished, never open.
-    let node = c.winNow ? c.node : c.node ? UI.feed.cardsShow(c.node, table) : UI.feed.cards(table, c.left ? { replay: true } : null);
-    const held = !c.left && !c.ctx.reroll ? holdThis(c, []) : null;
-    const choice = c.winNow ? { win: true } : c.left ? { fold: true, closed: true } : await waitForHand(table, node, 'draw');
-    const win = choice.win ? (c.win || 'control') : null;
-    const folded = choice.fold === true;
-    let holds = folded ? [] : c.winNow ? [0, 1, 2, 3, 4] : Cards.holdsFrom(choice.hold);
-    let pFinal = folded ? dealt.player.slice() : Cards.draw(dealt.player, holds, dealt.playerPile);
-    let dDealt = dealt.dealer.slice();
-    let dHold = dealt.dealerHolds.slice();
-    let dFinal = dealt.dealerFinal.slice();
-    let others = dealt.seatPlay.map(x => ({ dealt: x.dealt.slice(), held: x.held.slice(), final: x.final.slice() }));
-    // The win cheat (wave 14, QA #1): never a card the player has seen changed. The hand as it would end (the player standing on what the dealer's rule holds; an armed win stands pat on its stacked hand) when that is already the player's; else the draws dealt so it is (rigDraw); else everyone else throws in their hand.
+    let node = c.winNow ? c.node : c.node ? UI.feed.cardsShow(c.node, view()) : UI.feed.cards(view(), c.left ? { replay: true } : null);
+    c.pay(run.in[0]);
+    const held = !c.left && !c.ctx.reroll ? holdThis(c, run.moves, { player: dealt.player.slice(), dealer: dealt.dealer.slice(), playerPile: dealt.playerPile.slice(), dealerPile: dealt.dealerPile.slice(), seatHands: (dealt.seats || []).map(x => ({ hand: x.hand.slice(), pile: x.pile.slice() })) }) : null;
+    const auto = c.winNow || c.left ? null : takeAuto();
+    while (run.need) {
+      storeHand(held, { moves: run.moves.slice() });
+      const drawing = run.phase === 'draw';
+      // hooks.cardsBetting 'call' (tests, the console): the round after the draw is checked or called down, as a draw hand was played before wave 18.
+      const choice = autoMove(auto, run.need) || (!drawing && hooks.cardsBetting === 'call' ? { act: run.need[0] } : null) || await waitForHand(view(), node, drawing ? 'draw' : 'drawbet');
+      let mv;
+      if (choice.win) mv = 'win';
+      else if (choice.fold) { mv = 'fold'; stopped = choice.stopped === true; }
+      else if (drawing) mv = Cards.moveText({ act: 'hold', hold: Cards.holdsFrom(choice.hold) });
+      else mv = Cards.moveText(Cards.move(choice) || { act: run.need[0] });
+      moves = run.moves.concat([mv]);
+      run = drawRun(h, moves);
+      if (run.win) win = 'control';
+      c.pay(run.in[0]);
+      if (run.need) UI.feed.cardsShow(node, view());
+    }
+    const folded = !!run.playerFolded;
+    const n2 = n + 2;
+    const inn = run.in.slice();
+    const foldedArr = run.folded.slice();
+    const foldedOn = run.foldedOn.slice();
+    let holds = run.holds ? run.holds.slice() : [];
+    let pFinal = run.holds ? pFinalOf(run.holds) : dealt.player.slice();
+    let others = plays.map(x => ({ dealt: x.dealt.slice(), held: x.held.slice(), final: x.final.slice() }));
+    // The win cheat (wave 14, QA #1): never a card the player has seen changed. Before the draw: the hand as it would end (the player standing on what the dealer's rule holds; an armed win stands pat on its stacked hand) when that is already the player's, else the draws dealt so it is (rigDraw), else everyone else throws in their hand. After the draw (wave 18): the player's five stay; the others' draws, unseen without a marked deck, are dealt again so they lose, else they throw in their hands.
     let foldOut = false;
+    const atDraw = !run.holds;
     if (win) {
-      const mine = c.winNow ? [0, 1, 2, 3, 4] : Cards.dealerHolds(dealt.player);
-      const natural = Cards.draw(dealt.player, mine, dealt.playerPile);
-      if (others.concat([{ final: dFinal }]).every(o => Cards.compare(natural, o.final) > 0)) { holds = mine; pFinal = natural; }
-      else {
-        const rig = rigDraw(Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1), dealt.player, others.concat([{ dealt: dDealt, held: dHold }]).map(o => ({ dealt: o.dealt, held: o.held })));
-        if (rig) { holds = rig.holds; pFinal = rig.pFinal; others = rig.others.slice(0, n); ({ dealt: dDealt, held: dHold, final: dFinal } = rig.others[n]); }
-        else { foldOut = true; holds = [0, 1, 2, 3, 4]; pFinal = dealt.player.slice(); }
+      const live = foldedArr.map(f => !f);
+      const rng = Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1);
+      const beats = fin => others.every((o, k) => !live[k + 1] || Cards.compare(fin, o.final) > 0);
+      if (atDraw) {
+        const mine = c.winNow ? [0, 1, 2, 3, 4] : Cards.dealerHolds(dealt.player);
+        const natural = Cards.draw(dealt.player, mine, dealt.playerPile);
+        if (beats(natural)) { holds = mine; pFinal = natural; }
+        else {
+          const rig = rigDraw(rng, dealt.player, others.map(o => ({ dealt: o.dealt, held: o.held })));
+          if (rig) { holds = rig.holds; pFinal = rig.pFinal; others = rig.others.map(o => ({ dealt: o.dealt, held: o.held, final: o.final })); }
+          else { foldOut = true; holds = [0, 1, 2, 3, 4]; pFinal = dealt.player.slice(); }
+        }
+      } else if (!beats(pFinal)) {
+        const rig = c.base.marked ? null : rigDraw(rng, dealt.player, others.map(o => ({ dealt: o.dealt, held: o.held })), { holds, final: pFinal });
+        if (rig) others = rig.others.map(o => ({ dealt: o.dealt, held: o.held, final: o.final }));
+        else foldOut = true;
+      }
+      if (foldOut) {
+        // The others throw in their hands where the hand stands; a bet the player faced is called first (a bet nobody matched is never won).
+        inn[0] = Math.max(...inn.filter((x, i) => live[i]));
+        for (let i = 1; i < n2; i++) if (live[i]) { foldedArr[i] = true; foldedOn[i] = atDraw ? 0 : 1; }
+      } else if (c.winNow) {
+        // The armed win (wave 18): everyone all in, the player's hand the best.
+        for (let i = 0; i < n2; i++) inn[i] = stake;
+      } else {
+        // Every seat still in calls the bet on the table (wave 18): the pot as it stands, matched.
+        const top = Math.max(...inn.filter((x, i) => live[i]));
+        for (let i = 0; i < n2; i++) if (live[i]) inn[i] = top;
       }
     }
-    // Thrown in (a fold heads up, or the win cheat's fold-out): the cards as dealt, nothing drawn.
-    const thrown = foldOut || (folded && !n);
-    const dShown = thrown ? dDealt.slice() : dFinal;
-    const dHeld = thrown ? [0, 1, 2, 3, 4] : dHold;
-    const sides = [{ key: 'player', in: folded ? price : stake, live: !folded, final: pFinal }]
-      .concat(seats.map((x, k) => ({ key: x.id, in: stake, live: !foldOut, final: foldOut ? others[k].dealt : others[k].final })), [{ key: dealer.id, in: stake, live: !foldOut, final: dShown }]);
+    // Thrown in without drawing (a fold heads up before the draw, or the win cheat's fold-out there): the cards as dealt.
+    const thrown = (foldOut && atDraw) || (folded && atDraw && !n);
+    const sides = [{ key: 'player', in: inn[0], live: !foldedArr[0], final: pFinal }]
+      .concat(others.map((o, k) => ({ key: keys[k + 1], in: inn[k + 1], live: !foldedArr[k + 1], final: thrown ? o.dealt.slice() : o.final.slice() })));
     const { pot, winners } = settlePot(sides);
+    const shownAll = sides.filter(x => x.live).length >= 2;
     // The names at the showdown, apart where two of the same name differ (wave 14, QA #9).
-    const names = Cards.namesApart(sides.map(x => (x.live ? x.final : null)));
-    const named = (f, i) => names[i] || Cards.evaluate(f).name;
-    const out = foldOut ? { folded: true, name: null } : {};
-    const record = Object.assign({}, table, {
-      read: Object.assign({}, table.read),
-      player: { dealt: dealt.player.slice(), held: holds.slice(), final: pFinal.slice(), name: named(pFinal, 0), in: sides[0].in, won: sides[0].won },
-      dealer: Object.assign({ dealt: dDealt.slice(), held: dHeld.slice(), final: dShown.slice(), name: named(dShown, n + 1), in: stake, won: sides[n + 1].won }, out),
-      seats: seats.map((x, k) => Object.assign({ id: x.id, who: x.name, dealt: others[k].dealt.slice(), held: foldOut ? [0, 1, 2, 3, 4] : others[k].held.slice(), final: (foldOut ? others[k].dealt : others[k].final).slice(), name: named(others[k].final, k + 1), in: stake, won: sides[k + 1].won }, out)),
-      pot, winners, showdown: showdownOf(winners, folded)
+    const names = Cards.namesApart(sides.map(x => (x.live && shownAll ? x.final : null)));
+    const otherRec = k => {
+      const o = others[k];
+      const i = k + 1;
+      const x = sides[i];
+      const out = { dealt: o.dealt.slice(), held: thrown ? [0, 1, 2, 3, 4] : o.held.slice(), final: x.final.slice(), name: names[i] || (thrown && !foldedArr[i] ? Cards.evaluate(x.final).name : null), in: x.in, won: x.won };
+      if (x.back) out.back = x.back;
+      if (foldedArr[i]) Object.assign(out, { folded: true, foldedOn: foldedOn[i] });
+      // Took the pot unseen after the draw: its cards stay face down (heads up, a hand thrown in before the draw shows as dealt, as before).
+      else if (!shownAll && !thrown) out.hidden = true;
+      return out;
+    };
+    const record = Object.assign({ game: 'draw' }, c.base, {
+      cheat: c.cheat, read, moves: run.moves.slice(),
+      player: Object.assign({ dealt: dealt.player.slice(), held: holds.slice(), final: pFinal.slice(), name: names[0] || Cards.evaluate(pFinal).name, in: sides[0].in, won: sides[0].won }, sides[0].back ? { back: sides[0].back } : {}, folded ? { foldedOn: foldedOn[0] } : {}),
+      dealer: otherRec(n),
+      seats: seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, otherRec(k))),
+      pot, winners, showdown: showdownOf(winners, folded), actions: actionsOf(run.log, keys)
     });
-    delete record.playerIn;
-    if (folded) { record.folded = true; if (choice.stopped === true) record.stopped = true; if (choice.closed === true) record.closed = true; }
-    if (foldOut) record.uncontested = true;
+    if (folded) { record.folded = true; if (stopped) record.stopped = true; if (closed) record.closed = true; }
+    if (foldOut || (!!run.uncontested && !win)) record.uncontested = true;
     if (win) record.win = win;
     if (c.chose) record.chose = true;
     if (!node) node = UI.feed.cards(record, { replay: true });
-    return { record, sides, winners, pot, showdown: record.showdown, folded, stopped: folded && choice.stopped === true, closed: folded && choice.closed === true, win, node, held };
+    return { record, sides, winners, pot, showdown: record.showdown, folded, stopped: folded && stopped, closed: folded && closed, win, node, held };
   }
-  /* The player's reads at hold'em (wave 13): when a seat first bets, a read
-     on whether it has something or is bluffing, right with the read's odds
-     (60% + 12% a point of Wits, 50 to 95%: readOdds), from the hand's seed.
-     None with a marked deck: every seat's cards are face up then. */
+  /* The player's reads at hold'em (wave 13): when a seat first bets (wave
+     18: or raises), a read on whether it has something or is bluffing,
+     right with the read's odds (60% + 12% a point of Wits, 50 to 95%:
+     readOdds), from the hand's seed. None with a marked deck: every seat's
+     cards are face up then. */
   function holdemReads(h, run, odds, people) {
     return h.seats.map((x, i) => {
       const r = run.reads[i];
@@ -19390,7 +19920,8 @@ const Pipeline = (() => {
   }
   /* The open hold'em table for the UI: the board turned so far (the rest is
      not in it), each seat's two cards and what it last did, the pot and
-     what the player has in, and the player's choices. */
+     what the player has in, and the player's choices (wave 18: with the
+     round's ask, the amounts the table allows). */
   function holdemView(c, h, run, odds, people) {
     const n = h.seats.length;
     const street = Math.min(run.street, 3);
@@ -19398,14 +19929,16 @@ const Pipeline = (() => {
     const reads = c.base.marked ? [] : holdemReads(h, run, odds, people);
     const side = i => Object.assign({ dealt: h.seats[i].hole.slice(), status: run.status[i], in: run.in[i] }, run.folded[i] ? { folded: true, foldedOn: run.foldedOn[i] } : {}, reads[i] ? { read: reads[i] } : {});
     return Object.assign({ game: 'holdem' }, c.base, {
-      cheat: c.cheat, unit: h.unit, street, shown, board: h.board.slice(0, shown), pot: run.pot, playerIn: run.in[0], options: run.need ? run.need.slice() : null,
+      cheat: c.cheat, first: !run.moves.length && !c.node, street, shown, board: h.board.slice(0, shown), pot: run.pot, playerIn: run.in[0], options: run.need ? run.need.slice() : null, ask: run.ask || null,
       player: side(0), dealer: side(n - 1), seats: c.seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, side(k + 1)))
     });
   }
-  /* hooks.cardsPlay at hold'em (tests, the console): it lasts the hand.
-     { moves: [...] } plays those and then waits for the table; { fold } or
-     { win } is the first decision; anything else checks and calls to the
-     end. */
+  /* hooks.cardsPlay (tests, the console): it lasts the hand. { moves: [...] }
+     plays those (Cards.move strings or objects: 'bet:8', 'raise:24',
+     'allin', 'call', 'check', 'fold', 'win', 'hold:024') and then waits for
+     the table; { fold } or { win } is the first decision; at draw { hold:
+     [0-4] | 'all' } is the draw; anything else checks and calls to the end
+     (at draw after drawing what hold says: none held, five new). */
   function takeAuto() {
     const a = hooks.cardsPlay;
     hooks.cardsPlay = null;
@@ -19415,31 +19948,40 @@ const Pipeline = (() => {
     if (!auto) return null;
     if (auto.win === true) return { win: true };
     if (auto.fold === true) return { fold: true };
-    if (Array.isArray(auto.moves)) {
+    const listed = Array.isArray(auto.moves);
+    if (need[0] === 'draw' && !(listed && auto.moves.length && /^hold:/.test(String(auto.moves[0])))) {
+      if (auto.drawn) return null;
+      auto.drawn = true;
+      return { hold: Cards.holdsFrom(auto.hold) };
+    }
+    if (listed) {
       if (!auto.moves.length) return null;
-      const mv = auto.moves.shift();
-      return mv === 'win' ? { win: true } : mv === 'fold' ? { fold: true } : { act: mv };
+      const mv = Cards.move(auto.moves.shift());
+      if (!mv) return null;
+      return mv.act === 'win' ? { win: true } : mv.act === 'fold' ? { fold: true } : mv.act === 'hold' ? { hold: mv.hold } : mv;
     }
     return { act: need[0] };
   }
   /* A hand of Texas hold'em (wave 13; the owner: "the one where you have 2
-     cards"). The stake S is the most the player can lose; the unit u is
-     S/5, rounded down, at least $1: the ante and every bet (holdemRun). A
-     page closed with it open folds it after the moves already made; Stop
-     folds it (what the player has put in is lost). The Win (cheat) control
-     or an armed /cheat win ends it the player's: every seat still in calls
-     every street (five units each) and the player's hand is the best.
-     Wave 14 (QA #1, #13): the win cheat changes no card the player has
-     seen: the deal stands when it already makes the player's hand the
-     best, else rigHoldem deals what is still unseen; when nothing can, the
-     seats still in fold to the player on that street (the player calling
-     a bet they faced first) and the player takes the pot as it stands,
-     told as everyone folding (uncontested). No tie and no weaker hand ever
-     takes the pot. (QA #6) The board's label follows it: five cards up at
-     the end is the Showdown; a hand everyone folded stops on its street. */
+     cards"). Wave 18: no limit. The stake S is the buy-in; every seat
+     antes u (anteFor) and bets what it likes on four rounds (holdemRun);
+     the money goes in as it is put in (c.pay). A page closed with it open
+     folds it after the moves already made; Stop folds it (what the player
+     has put in is lost). The Win (cheat) control ends it the player's:
+     every seat still in calls the bet on the table and the player's hand
+     is the best; an armed /cheat win is everyone all in, the player's hand
+     the best. Wave 14 (QA #1, #13): the win cheat changes no card the
+     player has seen: the deal stands when it already makes the player's
+     hand the best, else rigHoldem deals what is still unseen; when nothing
+     can, the seats still in fold to the player on that street (the player
+     calling a bet they faced first) and the player takes the pot as it
+     stands, told as everyone folding (uncontested). No tie and no weaker
+     hand ever takes the pot. (QA #6) The board's label follows it: five
+     cards up at the end is the Showdown; a hand everyone folded stops on
+     its street. */
   async function holdemHand(c) {
     const { s, dealer, seats, stake } = c;
-    const u = unitFor(stake);
+    const u = anteFor(stake);
     const people = [null].concat(seats, [dealer]);
     const n = people.length;
     const set = isObj(hooks.cardsDeal) && Array.isArray(hooks.cardsDeal.holes) ? hooks.cardsDeal : null;
@@ -19449,27 +19991,31 @@ const Pipeline = (() => {
     // A hand resumed after the page was closed (resumeHand) has its cards as stored: the very hand that was dealt.
     const kept = c.stored && isObj(c.stored.deal) && Array.isArray(c.stored.deal.holes) && c.stored.deal.holes.length === n && c.stored.deal.holes.every(x => Array.isArray(x) && x.length === 2 && x.every(Cards.valid)) && Array.isArray(c.stored.deal.board) && c.stored.deal.board.length === 5 && c.stored.deal.board.every(Cards.valid) ? c.stored.deal : null;
     const dealt = kept ? { holes: kept.holes.map(x => x.slice()), board: kept.board.slice() } : given ? { holes: set.holes.map(x => x.slice()), board: set.board.slice() } : c.cheat || c.winNow ? Cards.holdemStacked(rng, n) : Cards.holdem(rng, n);
-    const h = { seed: c.seed, unit: u, cap: stake, stacked: !!c.cheat, board: dealt.board.slice(), seats: people.map((x, i) => ({ key: x ? x.id : 'player', hole: dealt.holes[i].slice(), tilt: x ? tiltOf(x) : 0 })) };
-    const moves = c.stored && Array.isArray(c.stored.moves) ? c.stored.moves.filter(m => HOLDEM_ACTS.includes(m)) : [];
+    const h = { game: 'holdem', seed: c.seed, ante: u, bet: unitFor(stake), stack: stake, limit: c.base.structure === 'limit', stacked: !!c.cheat, board: dealt.board.slice(), seats: people.map((x, i) => ({ key: x ? x.id : 'player', hole: dealt.holes[i].slice(), tilt: x ? tiltOf(x) : 0 })) };
+    let moves = c.stored && Array.isArray(c.stored.moves) ? c.stored.moves.filter(validMove) : [];
     const odds = readOdds(s);
     let run = holdemRun(h, moves);
     let win = null;
     let stopped = false;
     let closed = false;
     if (c.winNow) { win = c.win; run = holdemRun(h, ['win']); }
-    else if (c.left && run.need) { moves.push('fold'); run = holdemRun(h, moves); closed = true; }
+    else if (c.left && run.need) { moves = run.moves.concat(['fold']); run = holdemRun(h, moves); closed = true; }
     const view = () => holdemView(c, h, run, odds, people);
     let node = c.winNow ? c.node : c.node ? UI.feed.cardsShow(c.node, view()) : UI.feed.cards(view(), c.left ? { replay: true } : null);
-    const held = !c.left && !c.ctx.reroll ? holdThis(c, moves, { holes: h.seats.map(x => x.hole.slice()), board: h.board.slice() }) : null;
+    c.pay(run.in[0]);
+    const held = !c.left && !c.ctx.reroll ? holdThis(c, run.moves, { holes: h.seats.map(x => x.hole.slice()), board: h.board.slice() }) : null;
     const auto = c.winNow || c.left ? null : takeAuto();
     while (run.need) {
-      storeHand(held, { moves: moves.slice() });
+      storeHand(held, { moves: run.moves.slice() });
       const choice = autoMove(auto, run.need) || await waitForHand(view(), node, 'holdem');
-      if (choice.win) moves.push('win');
-      else if (choice.fold) { moves.push('fold'); stopped = choice.stopped === true; }
-      else moves.push(choice.act);
+      let mv;
+      if (choice.win) mv = 'win';
+      else if (choice.fold) { mv = 'fold'; stopped = choice.stopped === true; }
+      else mv = Cards.moveText(Cards.move(choice) || { act: run.need[0] });
+      moves = run.moves.concat([mv]);
       run = holdemRun(h, moves);
       if (run.win) win = 'control';
+      c.pay(run.in[0]);
       if (run.need) UI.feed.cardsShow(node, view());
     }
     let board = h.board.slice();
@@ -19490,9 +20036,13 @@ const Pipeline = (() => {
         // The others fold to the player where the hand stands; a bet the player faced is called first (a bet nobody matched is never won).
         inn[0] = Math.max(...inn.filter((x, i) => live[i]));
         for (let i = 1; i < n; i++) if (live[i]) { folded[i] = true; foldedOn[i] = endStreet; }
+      } else if (c.winNow) {
+        // The armed win (wave 18): everyone all in, the player's hand the best.
+        for (let i = 0; i < n; i++) inn[i] = stake;
       } else {
-        // Every seat still in calls every street: the ante and four bets each (never more than the stake).
-        for (let i = 0; i < n; i++) if (live[i]) inn[i] = Math.min(5 * u, stake);
+        // Every seat still in calls the bet on the table (wave 18): the pot as it stands, matched.
+        const top = Math.max(...inn.filter((x, i) => live[i]));
+        for (let i = 0; i < n; i++) if (live[i]) inn[i] = top;
       }
     }
     const playerFolded = !!run.playerFolded;
@@ -19508,6 +20058,7 @@ const Pipeline = (() => {
     const side = i => {
       const x = sides[i];
       const out = { dealt: holes[i].slice(), final: x.final ? x.final.slice() : null, name: x.final ? names[i] : null, in: x.in, won: x.won };
+      if (x.back) out.back = x.back;
       if (folded[i] && i > 0) Object.assign(out, { folded: true, foldedOn: foldedOn[i] });
       if (reads[i]) out.read = reads[i];
       return out;
@@ -19520,9 +20071,9 @@ const Pipeline = (() => {
       if (playerFolded) mine.foldedOn = foldedOn[0];
     }
     const record = Object.assign({ game: 'holdem' }, c.base, {
-      cheat: c.cheat, unit: u, board: board.slice(), shown: shownEnd, street: complete ? 4 : endStreet, moves: moves.slice(),
+      cheat: c.cheat, board: board.slice(), shown: shownEnd, street: complete ? 4 : endStreet, moves: run.moves.slice(),
       player: mine, dealer: side(n - 1), seats: seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, side(k + 1))),
-      pot, winners, showdown: showdownOf(winners, playerFolded)
+      pot, winners, showdown: showdownOf(winners, playerFolded), actions: actionsOf(run.log, h.seats.map(x => x.key))
     });
     if (uncontested) record.uncontested = true;
     if (playerFolded) { record.folded = true; if (stopped) record.stopped = true; if (closed) record.closed = true; }
@@ -19541,7 +20092,7 @@ const Pipeline = (() => {
     const list = [Object.assign({ key: 'player' }, rec.player)].concat((rec.seats || []).map(x => Object.assign({ key: x.id }, x)), [Object.assign({ key: rec.dealerId || 'dealer' }, rec.dealer)]);
     if (!Array.isArray(rec.winners) || !['win', 'lose', 'split', 'fold'].includes(rec.showdown) || list.some(x => !Number.isInteger(x.in) || !Number.isInteger(x.won))) {
       const sides = [{ key: 'player', in: folded ? foldPrice(rec.stake) : rec.stake, live: !folded, final: rec.player.final }, { key: list[list.length - 1].key, in: rec.stake, live: true, final: rec.dealer.final }];
-      const st = settlePot(sides);
+      const st = settlePot(sides, { keepUncalled: true });
       Object.assign(list[0], { in: sides[0].in, won: sides[0].won });
       Object.assign(list[list.length - 1], { in: sides[1].in, won: sides[1].won });
       Object.assign(rec.player, { in: sides[0].in, won: sides[0].won });
@@ -19562,9 +20113,11 @@ const Pipeline = (() => {
      lose is SEAT_MARK_MIN ($10) or more, the win only when the seat took
      $10 or more of the player's own money (its share of what the player
      put in), and each seat has at most one such memory and attitude change
-     a day, the first (flags['cardsMark.<id>'] is the day of it). */
+     a day, the first (flags['cardsMark.<id>'] is the day of it). Wave 18
+     (no limit: "the most it could" is the whole stake, all in): a loss
+     counts when the seat put $10 or more into a pot the player took. */
   const SEAT_MARK_MIN = 10;
-  function seatMarks(out, p, place, most) {
+  function seatMarks(out, p, place) {
     const playerTook = out.winners.includes('player');
     const mems = [];
     const effects = [];
@@ -19578,7 +20131,7 @@ const Pipeline = (() => {
       const took = out.winners.includes(x.key);
       // What the seat took of the player's money: its share of the pot, of what the player put in.
       const fromPlayer = pot > 0 ? Math.floor((out.sides[0].in | 0) * (x.won | 0) / pot) : 0;
-      if (playerTook && !took && (x.in | 0) >= most && most >= SEAT_MARK_MIN) {
+      if (playerTook && !took && (x.in | 0) >= SEAT_MARK_MIN) {
         mems.push({ npcId: n.id, text: `lost ${money(x.in)} to ${p.name} at cards at ${place}`, weight: 1 });
         effects.push({ op: 'attitudeDelta', npcId: n.id, delta: -2 }, { op: 'setFlag', key: `cardsMark.${n.id}`, value: today });
         told.push({ id: n.id, name: n.name, lost: x.in });
@@ -19599,33 +20152,182 @@ const Pipeline = (() => {
     const t = lowerFirst(String(name || 'a hand'));
     return /^(?:pair|flush|straight|full house|royal)\b/.test(t) ? `a ${t}` : t;
   }
+  /* The big moments of a hand's betting (wave 18), for the narrator, the
+     demo and the plain line, never every action: at most two, the all-ins
+     first, then the raises, then the biggest bets, told in the order they
+     came, each with how the table answered: "the player raised to $40 on
+     the turn and Carter Sturdivant called", "Lyman Coker went all in on the
+     river and the player called", "the player bet $10 after the draw and
+     everyone folded". you: "you" for the player (the demo, the plain line). */
+  function betMoments(rec, you) {
+    const acts = Array.isArray(rec && rec.actions) ? rec.actions : [];
+    const names = new Map([['player', you ? 'you' : 'the player']].concat((rec.seats || []).map(x => [x.id, x.who]), [[rec.dealerId, rec.dealerName]]));
+    const who = k => names.get(k) || 'someone';
+    const holdem = rec.game === 'holdem';
+    const when = st => (holdem ? STREET_WORDS[st] : DRAW_WORDS[st]) || '';
+    const big = acts.map((x, i) => ({ x, i })).filter(({ x }) => x.act === 'bet' || x.act === 'raise');
+    if (!big.length) return [];
+    const score = ({ x }) => (x.allIn ? 3e7 : 0) + (x.act === 'raise' ? 1e7 : 0) + (x.to | 0);
+    const pick = big.slice().sort((a, b) => score(b) - score(a) || a.i - b.i).slice(0, 2).sort((a, b) => a.i - b.i);
+    const others = Math.max(0, (rec.seats || []).length + 1);
+    const what = x => (x.allIn ? 'went all in' : x.act === 'bet' ? `bet ${money(x.to)}` : `raised to ${money(x.to)}`);
+    // The answers to the action at i: what came after it on that round, up to the next bet or raise (its index, -1 when none).
+    const answers = i => {
+      const x = acts[i];
+      const calls = [];
+      const folds = [];
+      let next = -1;
+      for (let j = i + 1; j < acts.length && acts[j].street === x.street; j++) {
+        const y = acts[j];
+        if (y.act === 'bet' || y.act === 'raise') { next = j; break; }
+        if (y.act === 'call') calls.push(who(y.seat));
+        else if (y.act === 'fold') folds.push(who(y.seat));
+      }
+      const parts = [];
+      if (calls.length) parts.push(`${andList(calls)} called`);
+      if (folds.length) parts.push(!calls.length && next < 0 && folds.length === others && others > 1 ? 'everyone folded' : `${andList(folds)} folded`);
+      return { parts, next };
+    };
+    const out = [];
+    for (let k = 0; k < pick.length; k++) {
+      const { x, i } = pick[k];
+      const at = when(x.street);
+      const a = answers(i);
+      let text = `${who(x.seat)} ${what(x)}${at ? ` ${at}` : ''}`;
+      if (a.next >= 0) {
+        // The bet or raise that answered it, and how that was answered (the second big moment, when it is that one, is told here).
+        const y = acts[a.next];
+        const b = answers(a.next);
+        if (pick[k + 1] && pick[k + 1].i === a.next) k += 1;
+        text += `${a.parts.length ? `, ${a.parts.join(', ')}` : ''}, ${who(y.seat)} ${what(y)}${b.parts.length ? ` and ${b.parts.join(', ')}` : ''}`;
+      } else if (a.parts.length === 1) text += ` and ${a.parts[0]}`;
+      // More than one answer after a colon: "Lyman Coker went all in on the river: you called, Royce Pittman folded".
+      else if (a.parts.length) text += `: ${a.parts.join(', ')}`;
+      out.push(text);
+    }
+    return out;
+  }
   /* How a table of more than two (or hold'em) ended, for the narrator (wave
      13): each other seat ("Royce Pittman folded on the turn", "Elbert
      Gentry showed a pair of tens", "Curtis Pruett's straight, nine high,
      takes the $36 pot"), then the player ("the player's two pair, aces and
-     nines, takes the $60 pot: the player wins $40"). */
+     nines, takes the $60 pot: the player wins $40"). Wave 18: the betting's
+     big moments first (betMoments), and draw's folds before or after the
+     draw. */
   function tableWords(rec, delta, extra) {
     const others = (rec.seats || []).map(x => ({ key: x.id, name: x.who, side: x })).concat([{ key: rec.dealerId, name: rec.dealerName, side: rec.dealer }]);
     const pot = money(rec.pot | 0);
     const co = others.filter(o => rec.winners.includes(o.key));
-    const parts = [];
+    const holdem = rec.game === 'holdem';
+    const when = st => (holdem ? STREET_WORDS[st] : DRAW_WORDS[st]) || (holdem ? 'before the showdown' : 'before the draw');
+    const parts = extra ? [] : betMoments(rec, false);
     for (const o of others) {
       const x = o.side;
-      if (x.folded) parts.push(`${o.name} folded ${STREET_WORDS[x.foldedOn] || 'before the showdown'}`);
-      else if (co.includes(o) && !rec.winners.includes('player')) parts.push(`${o.name}'s ${handWords(x.name)} ${co.length > 1 ? 'splits' : 'takes'} the ${pot} pot`);
-      else if (x.name) parts.push(`${o.name} showed ${handPhrase(x.name)}`);
+      if (x.folded) parts.push(`${o.name} folded ${when(x.foldedOn)}`);
+      else if (co.includes(o) && !rec.winners.includes('player')) parts.push(`${o.name}${x.name && !x.hidden ? `'s ${handWords(x.name)}` : ''} ${co.length > 1 ? 'splits' : 'takes'} the ${pot} pot${x.hidden ? ' without showing' : ''}`);
+      else if (x.name && !x.hidden) parts.push(`${o.name} showed ${handPhrase(x.name)}`);
     }
     const me = rec.player;
     const mine = handWords(me.name || 'hand');
     const amount = money(Math.abs(delta | 0));
     let part;
-    if (rec.folded) part = rec.game === 'holdem' ? `the player folded their ${mine} ${STREET_WORDS[me.foldedOn] || 'before the showdown'} and gave up the ${money(me.in)} they had put in` : `the player folds their ${mine} before the draw and gives up half the stake: the player loses ${amount}`;
+    if (rec.folded) {
+      const gave = !holdem && Number.isInteger(rec.ante) && me.in === rec.ante ? `the ${money(me.in)} ante` : `the ${money(me.in)} they had put in`;
+      part = holdem || Number.isInteger(rec.ante) ? `the player folded their ${mine} ${when(me.foldedOn)} and gave up ${gave}` : `the player folds their ${mine} before the draw and gives up half the stake: the player loses ${amount}`;
+    }
     // Heads up the one who folded is named already (wave 14, QA #21): not "everyone".
     else if (rec.uncontested) part = `${others.length > 1 ? 'everyone else folded, so ' : ''}the player takes the ${pot} pot without a showdown: the player wins ${amount}`;
     else if (rec.showdown === 'win') part = `the player's ${mine} takes the ${pot} pot: the player wins ${amount}`;
     else if (rec.showdown === 'split') part = `the player's ${mine} splits the ${pot} pot with ${andList(co.map(o => o.name))}: ${delta > 0 ? `the player wins ${amount}` : delta < 0 ? `the player loses ${amount}` : 'no money changes hands'}`;
     else part = `the player's ${mine} loses: the player loses ${amount}`;
     return parts.concat([extra || part]).join('; ');
+  }
+  /* Asking for a bigger game (wave 18, amendment 2: the dealer sets the
+     terms, so no limit is something the player asks for). Said or done at
+     the card table, or to its dealer, between hands: "no limit", "table
+     stakes", "raise the stakes", "a bigger game", "higher stakes", "play
+     for real", "take the limit off", "lift the limit", "can we bet what we
+     like" and the like (STAKES_ASK, the engine's own word rule, read
+     whatever the parser called the action). stakesAsked(ctx) is the dealer
+     asked, or null. stakesAsk resolves it as a Charm persuade at normal
+     difficulty against the dealer (Dice's attitude modifier as for any
+     persuasion): a dealer colder than STAKES_COLD refuses without a roll
+     ("Not with you."); a success makes his table no limit for the rest of
+     the day (flags['cardsNoLimit.<id>'] = the day); a failure is his "no"
+     (flags['cardsAsked.<id>']); a fumble is a "no" that costs 5 attitude.
+     Asked again the same day after a "no", he repeats himself without a
+     roll; a table already no limit says so. Each outcome is a plain line
+     in the dealer's voice, the usual roll line when there was one, and a
+     STAKES line for the narrator. The flags go through the engine's
+     setFlag effect (engine-only). */
+  const STAKES_ASK = /\b(?:no[\s-]?limit|table[\s-]stakes|(?:raise|up|lift)\s+the\s+(?:stakes|limit)|(?:a\s+)?bigger\s+(?:game|stakes|bets)|higher\s+stakes|play\s+for\s+real|(?:take|lift|drop)\s+(?:the|your)\s+limit\s+off|take\s+off\s+the\s+limit|(?:lift|drop|scrap|lose|ditch|forget)\s+(?:the|your)\s+limit|without\s+(?:a|the)\s+limit|bet\s+(?:what(?:ever)?|anything)\s+(?:we|i|you)\s+(?:like|want))\b/i;
+  const STAKES_COLD = 0;
+  function stakesAsked(ctx) {
+    const a = ctx.action;
+    if (!a || !STAKES_ASK.test(String(ctx.input || '').replace(/[’‘]/g, "'"))) return null;
+    if (['attack', 'steal', 'move'].includes(a.actionType)) return null;
+    const l = here();
+    if (!l || !cardGameAt(l) || shutReason(l)) return null;
+    const dealer = dealerOf(ctx.presentIds);
+    if (!dealer) return null;
+    // Said or aimed at someone else here: not an ask of the dealer.
+    if (isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' && ctx.speech.to !== dealer.id) return null;
+    const others = (a.targets || []).filter(t => /^npc_/.test(t) && t !== dealer.id && ctx.presentIds.includes(t));
+    if (others.length && !(a.targets || []).includes(dealer.id)) return null;
+    return dealer;
+  }
+  function stakesAsk(ctx, dealer) {
+    const s = State.current;
+    const a = ctx.action;
+    const day = s.time.day;
+    const fl = isObj(s.flags) ? s.flags : {};
+    const name = dealer.name;
+    const first = firstName(name);
+    a.actionType = 'persuade';
+    a.targets = [dealer.id].concat((a.targets || []).filter(t => t !== dealer.id));
+    Object.assign(a, { needsRoll: false, stat: 'charm', difficulty: 'normal' });
+    let outcome;
+    let roll = null;
+    if (fl[`cardsNoLimit.${dealer.id}`] === day) outcome = 'already';
+    else if (fl[`cardsAsked.${dealer.id}`] === day) outcome = 'again';
+    else if ((toInt(dealer.attitude) || 0) < STAKES_COLD) outcome = 'cold';
+    else {
+      a.needsRoll = true;
+      const rollOpts = { stat: 'charm', difficulty: 'normal', npcId: dealer.id, actionType: 'persuade', presentIds: ctx.presentIds.slice() };
+      roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
+      ctx.roll = roll;
+      ctx.rollNpcId = dealer.id;
+      UI.feed.roll(roll);
+      storyPointFor(ctx, roll);
+      outcome = roll.success ? 'yes' : roll.tier === 'critical_failure' ? 'fumble' : 'no';
+    }
+    const line = {
+      yes: `${first} shrugs. "Table stakes, then. Don't cry to me after."`,
+      no: `"House rules," ${first} says. "We play the limit here."`,
+      fumble: `${first}'s face closes. "Ask me that again and you can find another game."`,
+      cold: `${first} doesn't look up. "Not with you."`,
+      again: `"You heard me," ${first} says. "House rules."`,
+      already: `"Table stakes already," ${first} says. "Bet what you like."`
+    }[outcome];
+    const effects = outcome === 'yes' ? [{ op: 'setFlag', key: `cardsNoLimit.${dealer.id}`, value: day }]
+      : outcome === 'no' || outcome === 'fumble' ? [{ op: 'setFlag', key: `cardsAsked.${dealer.id}`, value: day }].concat(outcome === 'fumble' ? [{ op: 'attitudeDelta', npcId: dealer.id, delta: -5 }] : []) : [];
+    if (effects.length) {
+      const r = State.apply({ effects });
+      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'stakes', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    }
+    UI.feed.quiet(line);
+    const told = {
+      yes: `the roll succeeded: ${name} agrees, and the card table plays table stakes (no limit: any bet from the table's bet up to all in) for the rest of today. Show ${name} agreeing, in character`,
+      no: `the roll failed: ${name} keeps the house limit. Show ${name} turning it down, in character`,
+      fumble: `the roll fumbled: ${name} turns it down and is put out by the asking (recorded already: a little colder), and will not hear it again today`,
+      cold: `${name} is too cold to the player to consider it and turns it down flat`,
+      again: `${name} said no to it earlier today and says it again, shorter`,
+      already: `${name}'s table is table stakes today already; ${name} says so`
+    }[outcome];
+    ctx.narratorLines.push(`TABLE STAKES: the player asked ${name} to take the limit off the card game; ${told}. No hand is dealt this turn and no money changes hands.`);
+    ctx.bookLines.push(`TABLE STAKES (already applied by the engine; do not record again): the player asked ${name} for a no-limit game (${outcome === 'yes' ? 'agreed' : 'refused'}); record no attitude change, flag or goldDelta for it.`);
+    ctx.stakes = { outcome, dealerId: dealer.id, dealerName: name, line };
+    return {};
   }
   async function gamble(ctx) {
     const s = State.current;
@@ -19662,7 +20364,6 @@ const Pipeline = (() => {
     const replay = ctx.reroll || ctx.resume ? replayable(ctx.replayCards) : null;
     const st = replay ? { stake: replay.stake, named: Number.isFinite(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold);
     const stake = st.stake;
-    const price = foldPrice(stake);
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
     a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
     const deck = markedDeck(p);
@@ -19672,7 +20373,12 @@ const Pipeline = (() => {
     const left = !replay && ctx.resume === 'open';
     const stored = !replay && isObj(ctx.storedHand) ? ctx.storedHand : null;
     a.targets = [dealer.id].concat(a.targets.filter(t => t !== dealer.id));
-    const base = { dealerId: dealer.id, dealerName: dealer.name, stake, marked: !!deck };
+    // Wave 18: the house rules (the ante and the table's bet) go with the table and the record.
+    // Amendment 2: the structure (limit, the house game; no limit once the dealer agreed today), as played on a replay, as stored on a hand resumed.
+    const structure = replay ? (STRUCTURES.includes(replay.structure) ? replay.structure : null) : stored && STRUCTURES.includes(stored.structure) ? stored.structure : tableStructure(dealer);
+    const base = { dealerId: dealer.id, dealerName: dealer.name, stake, ante: anteFor(stake), unit: unitFor(stake), marked: !!deck };
+    if (structure) base.structure = structure;
+    pushes = 0;
     if (st.note) base.stakeNote = st.note;
     if (st.note && st.named !== null && st.named !== stake) base.named = st.named;
     status('cards');
@@ -19705,9 +20411,22 @@ const Pipeline = (() => {
     if (win === 'armed' || (replay && ctx.resume && replay.win === 'armed' && winArmed())) State.apply({ cardsWin: false });
     const set = !replay && isObj(hooks.cardsDeal) ? hooks.cardsDeal : null;
     const seats = replay ? (replay.seats || []).map(x => State.npc(x.id)).filter(Boolean) : stored && Array.isArray(stored.seats) ? stored.seats.map(id => State.npc(id)).filter(Boolean) : seatsFor(ctx, dealer, seed, set);
-    const c = { s, ctx, dealer, seats, stake, deck, cheat, win, winNow: !!win, base, seed, first, left, stored, node, game, chose };
+    const c = { s, ctx, dealer, seats, stake, deck, cheat, win, winNow: !!win, base, seed, first, left, stored, node, game, chose, paid: 0 };
+    /* The money goes in as it is put in (wave 18): the ante at the deal and
+       each bet or call as it is made (the top bar and the Character panel
+       follow); the hand's settlement at the end moves the rest. */
+    c.pay = amount => {
+      const d = (amount | 0) - c.paid;
+      if (d <= 0) return;
+      const r = State.apply({ goldDelta: -d });
+      if (r.rejected.length) { State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble pay', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return; }
+      c.paid += d;
+      UI.showCash();
+    };
     const out = replay ? playedHand(replay) : game === 'holdem' ? await holdemHand(c) : await drawHand(c);
     const rec0 = out.record;
+    // The dealer held the player to the limit this hand (amendment 2): how many times, on the record.
+    if (pushes && !replay) rec0.pushback = pushes;
     // Stop folded it (wave 11, M1): the ante is in; the turn is committed and told plainly.
     if (out.folded && out.stopped && !replay) ctx.handStopped = true;
     // Only the marked deck rolls (whether the dealer catches it), and not on a /cheat cards hand or a win cheat.
@@ -19729,7 +20448,8 @@ const Pipeline = (() => {
     const result = caught ? 'caught' : out.showdown;
     const me = out.sides[0];
     const delta = caught ? -stake : (me.won | 0) - (me.in | 0);
-    if (delta) State.apply({ goldDelta: delta });
+    // What was paid in as the hand went (c.pay) is already off the cash: the rest of the hand's result moves now.
+    if (delta + c.paid) State.apply({ goldDelta: delta + c.paid });
     // The top bar and the Character panel show the cash the table shows (wave 11, M2), mid-turn as it is.
     UI.showCash();
     const record = Object.assign({}, rec0, { result, delta, cash: p.gold });
@@ -19739,36 +20459,50 @@ const Pipeline = (() => {
     storeHand(out.held, { cards: record, d20: roll ? roll.d20 : null });
     const place = String(l.name).replace(/^The /, 'the ');
     // What the other seats make of it (wave 13); nothing when the hand is void.
-    const marks = caught ? [] : seatMarks(out, p, place, game === 'holdem' ? holdemCap(stake, rec0.unit || 1) : stake);
+    const marks = caught ? [] : seatMarks(out, p, place);
     // Put out (wave 4, playtest R2): onto the street outside, which the narration tells; the engine moves the player there after it.
     const street = caught ? outsideOf(l) : null;
     // Heads up at draw, as told before wave 13; a fold-out (wave 14: the win cheat's) is told as the table's are.
-    const headsUpDraw = game === 'draw' && !seats.length && rec0.uncontested !== true;
+    // Wave 18: only a showdown is told that way; a fold (before or after the draw) is told as the table's are.
+    const headsUpDraw = game === 'draw' && !seats.length && rec0.uncontested !== true && !out.folded;
+    // The betting's big moments (wave 18): for the narrator, the demo ("you") and the plain line.
+    const moments = caught ? [] : betMoments(rec0, false);
     const nameOf = key => (key === 'player' ? 'the player' : (State.npc(key) || {}).name || 'someone');
     ctx.gamble = {
-      played: true, game, stake, unit: rec0.unit || null, delta, result, caught, folded: out.folded, stopped: !!ctx.handStopped, cheat, win: out.win || null,
+      played: true, game, stake, unit: rec0.unit || null, ante: rec0.ante || null, delta, result, caught, folded: out.folded, stopped: !!ctx.handStopped, cheat, win: out.win || null,
       dealerId: dealer.id, dealerName: dealer.name, deck: deck ? deck.name : null, player: rec0.player.name, dealer: rec0.dealer.name, tier: roll ? roll.tier : null, locationId: l.id,
       pot: out.pot, uncontested: rec0.uncontested === true, headsUp: !seats.length, winners: out.winners.filter(k => k !== 'player').map(nameOf),
       seats: (rec0.seats || []).map(x => ({ id: x.id, name: x.who, hand: x.name, folded: x.folded === true, foldedOn: Number.isInteger(x.foldedOn) ? x.foldedOn : null, won: x.won | 0 })),
-      dealerFolded: rec0.dealer.folded === true, dealerFoldedOn: Number.isInteger(rec0.dealer.foldedOn) ? rec0.dealer.foldedOn : null, marks
+      dealerFolded: rec0.dealer.folded === true, dealerFoldedOn: Number.isInteger(rec0.dealer.foldedOn) ? rec0.dealer.foldedOn : null, marks,
+      playerFoldedOn: Number.isInteger(rec0.player.foldedOn) ? rec0.player.foldedOn : null, dealerHidden: rec0.dealer.hidden === true,
+      moments: caught ? [] : betMoments(rec0, true)
     };
     if (street) Object.assign(ctx.gamble, { outsideId: street.id, outsideName: street.name });
     const onto = street ? ` onto ${placeName(street)}` : '';
     const ph = handWords(rec0.player.name || 'hand');
     const dh = handWords(rec0.dealer.name || 'hand');
     const caughtHow = `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${deck ? lowerFirst(deck.name) : 'deck'}; the hand is void`;
-    const how = headsUpDraw ? {
-      win: `the player's ${ph} beats ${dealer.name}'s ${dh} at the showdown: the player wins ${money(stake)}`,
-      lose: `the player's ${ph} loses to ${dealer.name}'s ${dh} at the showdown: the player loses ${money(stake)}`,
-      split: `the player's ${ph} ties ${dealer.name}'s ${dh} at the showdown: a split pot, and no money changes hands`,
-      fold: `the player folds their ${ph} before the draw and gives up half the stake: the player loses ${money(price)}`,
-      caught: caughtHow
-    }[result] : tableWords(rec0, delta, caught ? caughtHow : null);
-    // The game and who sat in (wave 13): "five-card draw, heads up with Curtis Pruett", "Texas hold'em with Royce Pittman and Curtis Pruett, Curtis Pruett dealing".
+    const won = money(Math.abs(delta));
+    const how = caught && game === 'draw' && !seats.length ? caughtHow : headsUpDraw ? moments.concat([{
+      win: `the player's ${ph} beats ${dealer.name}'s ${dh} at the showdown: the player wins ${won}`,
+      lose: `the player's ${ph} loses to ${dealer.name}'s ${dh} at the showdown: the player loses ${won}`,
+      split: `the player's ${ph} ties ${dealer.name}'s ${dh} at the showdown: a split pot, and no money changes hands`
+    }[result]]).join('; ') : tableWords(rec0, delta, caught ? caughtHow : null);
+    // The game and who sat in (wave 13): "five-card draw, heads up with Curtis Pruett", "Texas hold'em with Royce Pittman and Curtis Pruett, Curtis Pruett dealing". Wave 18: the buy-in and the ante, no limit.
     const around = seats.map(n => n.name).concat([dealer.name]);
-    const lead = game === 'holdem'
-      ? `the card game (the player came in for at most ${capWords(rec0)}; the ante and every bet ${money(rec0.unit)}): Texas hold'em${seats.length ? ` with ${andList(around)}, ${dealer.name} dealing` : `, heads up with ${dealer.name}`}`
-      : `the card game (the player put up ${stakeWords(rec0)}): five-card draw${seats.length ? ` with ${andList(around)}, ${money(stake)} each` : `, heads up with ${dealer.name}`}`;
+    // The house rules (wave 18: "$20 to sit, $1 ante, $4 bets"); a hand recorded before them (a replay of a wave 10-17 draw hand) is told as it was.
+    const fresh = Number.isInteger(rec0.ante) || game === 'holdem';
+    const lead = !fresh
+      ? `the card game (the player put up ${stakeWords(rec0)}): five-card draw${seats.length ? ` with ${andList(around)}, ${money(stake)} each` : `, heads up with ${dealer.name}`}`
+      : `the card game (the player bought in for ${stakeWords(rec0)}; house rules: ${rulesText(stake, rec0.structure)}, ${game === 'holdem' ? 'four rounds of betting' : 'one round of betting after the draw'}): ${game === 'holdem' ? "Texas hold'em" : 'five-card draw'}${seats.length ? ` with ${andList(around)}, ${dealer.name} dealing` : `, heads up with ${dealer.name}`}`;
+    // The first hand at a stake (no hand before it in the story, or one at another stake): the dealer says the terms as the player sits down.
+    const prevHand = s.log.slice().reverse().find(e => isObj(e.cards));
+    const newStake = fresh && !caught && (!prevHand || prevHand.cards.stake !== stake);
+    ctx.gamble.rules = newStake ? rulesWords(stake, rec0.structure) : null;
+    const terms = newStake ? ` The player sits down at this stake for the first time: have ${dealer.name} state the table's terms as they sit ("${rulesWords(stake, rec0.structure)}").` : '';
+    // Held to the limit (amendment 2): one clause, so the narrator can show it; the amounts were on the table already.
+    const heldTo = (rec0.pushback | 0) > 0 ? ` When the player tried to bet past the limit, ${dealer.name} held them to the house's ${money(unitFor(stake))} bets${rec0.pushback > 1 ? ` (${rec0.pushback === 2 ? 'twice' : `${rec0.pushback} times`})` : ''}.` : '';
+    ctx.gamble.pushback = rec0.pushback | 0;
     const cash = delta ? `cash now ${money(p.gold)}` : `cash still ${money(p.gold)}`;
     // Said only when money moved (wave 11, M6): a split pot moves none.
     const moved = delta ? ' The money has already changed hands.' : '';
@@ -19778,7 +20512,7 @@ const Pipeline = (() => {
     // Back on the first day the place is open (wave 11, L6), and the dealer will not deal to them for a week.
     const back = caught ? openDayFrom(l, s.time.day + CAUGHT_BAN_DAYS) : null;
     const thrown = caught ? ` ${dealer.name} takes the ${lowerFirst(deck.name)} and throws the player out of ${place}${onto}, and they are not welcome back for three days (today counted: back on ${State.weekday(back)}, Day ${back}); ${dealer.name} won't deal to them for a week.` : '';
-    nl.push(`OUTCOME: ${lead}; ${how} (${cash}).${moved}${readMarks}${kept} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${thrown}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
+    nl.push(`OUTCOME: ${lead}; ${how} (${cash}).${moved}${readMarks}${kept}${heldTo}${terms} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${thrown}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
     const amount = money(Math.abs(delta));
     const said = caught ? `loses ${money(stake)}` : result === 'fold' ? `folds and loses ${amount}` : result === 'split' ? (delta ? `${delta > 0 ? 'wins' : 'loses'} ${amount} (a split pot)` : 'breaks even (a split pot)') : result === 'win' ? `wins ${amount}` : `loses ${amount}`;
     const seatLine = seats.length ? ` The other players were ${andList(seats.map(n => n.name))}, with ${dealer.name} dealing; what they remember of the hand and how they feel about the player are recorded already: record no memory or attitude change for the hand.` : '';
@@ -19827,7 +20561,9 @@ const Pipeline = (() => {
     else if (g.result === 'lose') text = `The hand is played: your ${lead(yours)} loses to ${name}'s ${theirs}. You lose ${amount}.`;
     else text = `The hand is played: your ${lead(yours)} ties ${name}'s ${theirs}. You split the pot.`;
     if (g.deck && g.tier && !g.caught) text += ` ${name} never spots the marks.`;
-    return text;
+    // The betting's big moments first (wave 18): "You raised to $40 on the turn and Carter Sturdivant called."
+    const moments = !g.caught && Array.isArray(g.moments) ? g.moments : [];
+    return moments.length ? `${capFirst(moments.join('; '))}. ${text}` : text;
   }
   /* What waits after a hand (wave 11, M4): thrown out, an event whose
      person is the dealer, or whose place is this place, is told on a later
@@ -20896,7 +21632,9 @@ const Pipeline = (() => {
       // Something the action needs that the player does not carry: told to the narrator and the bookkeeper (NOT CARRIED).
       ctx.missing = missingThing(ctx);
       // Step 5. Resolve (the card game is played in code, at a table the player plays: wave 10).
-      const resolved = action.actionType === 'gamble' ? await gamble(ctx) : resolve(ctx);
+      // Wave 18 (amendment 2): asking the dealer for table stakes is its own resolution (the engine's word rule, whatever the parser called it).
+      const asked = ctx.replayCards ? null : stakesAsked(ctx);
+      const resolved = asked ? stakesAsk(ctx, asked) : action.actionType === 'gamble' ? await gamble(ctx) : resolve(ctx);
       if (replaced()) return fail(snap, mark, null, {});
       if (resolved.locked) {
         const r = fail(snap, mark, null, { reason: 'retry-locked' });
@@ -21797,7 +22535,9 @@ const Pipeline = (() => {
     cheatWin,
     get winArmed() { return winArmed(); },
     keepWin,
-    gameFrom, seatWords, cardPeople, seatsFor, seatedAt, rememberedGame, holdemRun, settlePot, unitFor, holdemCap, capWords, rigHoldem, rigDraw, CARD_GAMES, GAME_NAMES, CARD_TAG,
+    gameFrom, seatWords, cardPeople, seatsFor, seatedAt, rememberedGame, holdemRun, drawRun, settlePot, unitFor, anteFor, holdemCap, rigHoldem, rigDraw, CARD_GAMES, GAME_NAMES, CARD_TAG,
+    // Wave 18: no-limit betting (the table's amounts, a seat's move, the hand's big moments, a bet typed with a hand open).
+    clampTo, sizeFor, seatMove, drawStrength, betMoments, typedBet, MAX_RAISES, rulesWords, rulesText, STAKES_ASK, stakesAsked, tableStructure, STRUCTURES,
     resumeHand,
     foldPrice,
     get handOpen() { return !!hand; },
@@ -24964,16 +25704,32 @@ const UI = (() => {
      and one, under the street's name) and Check / Bet $u or Call $u / Fold.
      Every open table has a pot line and, at the end of its hint, a small
      Win (cheat) control that ends the hand the player's. */
+  /* Wave 18 (the owner: "Make the poker game interactive, as in I decide how
+     much money to add, go all in, etc."): no-limit betting. The stake is
+     the buy-in; every seat antes; on the player's turn the table has Check
+     and Bet, or Call, Raise and Fold, and under them the amount (betActs);
+     the pot line says what the player has in and has left; the seats' cells
+     say "bets $8", "raises to $24", "calls $24", "all in $20"; a bet can be
+     typed in the box (Pipeline.typedBet). Draw has a round of betting
+     after the draw (Pipeline.handKind 'drawbet'). */
+  function betting(kind) { return kind === 'holdem' || kind === 'drawbet'; }
   function handNudge() {
     const t = Pipeline.openHand;
     const kind = Pipeline.handKind;
     if (kind === 'choose') return "The card table is open: pick Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).";
-    // Wave 14 (QA #10): the nudge names the Win (cheat) control too (typing /cheat win presses it).
-    if (kind === 'holdem') {
+    // Wave 14 (QA #10): the nudge names the Win (cheat) control too (typing /cheat win presses it). Wave 18: and what can be typed.
+    const stop = `Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}; Win (cheat) ends it yours.`;
+    if (betting(kind)) {
       const opts = t && Array.isArray(t.options) ? t.options : [];
-      return `Your hand is on the table: ${opts[0] === 'call' ? 'Call or Fold' : opts.length === 1 ? 'Check' : 'Check or Bet'}. Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}; Win (cheat) ends it yours.`;
+      const a = (t && t.ask) || {};
+      const raise = opts.includes('raise');
+      // At a limit table "all in" is only offered when the stack is short of the bet (amendment 2).
+      const allIn = !a.limit || a.minTo >= a.maxTo ? ', "all in"' : '';
+      if (opts[0] === 'call') return `Your hand is on the table: Call ${money(a.toCall)}${raise ? ', Raise' : ''} or Fold (or type "call"${raise ? `, "raise to ${a.minTo}"${allIn}` : ''} or "fold"). ${stop}`;
+      if (opts.includes('bet')) return `Your hand is on the table: Check or Bet (or type "check"${allIn ? `, "bet ${a.minTo}" or "all in"` : ` or "bet ${a.minTo}"`}). ${stop}`;
+      return `Your hand is on the table: Check (or type "check"). ${stop}`;
     }
-    return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}; Win (cheat) ends it yours.`;
+    return `Your hand is on the table: pick the cards to hold, then Draw or Fold. ${stop}`;
   }
   /* A command typed with a hand open (wave 14, QA #10): /cheat win is the
      Win (cheat) control; /cheat cards says the cards are dealt. Wave 15:
@@ -25018,6 +25774,27 @@ const UI = (() => {
       nudge(Pipeline.handKind === 'choose' ? 'No cards yet: use Win (cheat) or type /cheat win.' : 'The cards are dealt: use Win (cheat) or type /cheat win.');
       return true;
     }
+    // A bet typed with the hand open (wave 18): "bet 10", "raise to 30", "all in", "call", "check", "fold" act as the buttons do.
+    const kind = Pipeline.handKind;
+    if (betting(kind) || kind === 'draw') {
+      const b = Pipeline.typedBet(t, Pipeline.openHand);
+      // Past the limit (amendment 2): the dealer's line under the table, the status line says why, the words stay in the box.
+      if (b && b.refuse) { UI.feed.cardsSay($('#feed .f-cards.open'), b.refuse); nudge(b.say); return true; }
+      if (b && b.say) { nudge(b.say); return true; }
+      // Asking for table stakes is between hands (amendment 2): the words stay in the box for when this one is over.
+      if (!b && Pipeline.STAKES_ASK.test(t)) { const o = Pipeline.openHand; nudge(`Ask ${String((o && o.dealerName) || 'the dealer').split(/\s+/)[0]} for table stakes between hands: finish this one first.`); return true; }
+      if (b && b.choice) {
+        const node = $('#feed .f-cards.open');
+        d.cmd.value = '';
+        autosize();
+        syncSendLabel();
+        hideAc();
+        Pipeline.playHand(b.choice);
+        if (b.note) nudge(b.note);
+        if (node && !isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true });
+        return true;
+      }
+    }
     return false;
   }
   // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual"; and what was named that is no stake (wave 12, L8): "stake $20, the usual: $0.50 is no stake".
@@ -25026,11 +25803,12 @@ const UI = (() => {
     return `stake ${money(t.stake)}${t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? `, the usual${named}` : t.stakeNote === 'half' ? ', half of what you have' : ''}`;
   }
   // The game in the head once it is known (wave 13): "Curtis Pruett's table · Texas hold'em · stake $20 · pot $8"; the chooser's is the dealer and the stake.
-  /* Hold'em's real cap when it is less than the stake (wave 14, QA #16): " · at most $20 in" (a $23 stake). */
-  function capText(t) {
-    if (t.choose || t.game !== 'holdem') return '';
-    const cap = Pipeline.holdemCap(t.stake, t.unit);
-    return cap < t.stake ? ` · at most ${money(cap)} in` : '';
+  /* The house rules in the head (wave 18): "$20 to sit · $1 ante · $4 bets", with why the stake is that ("$140 to sit, all you have"). */
+  function rulesHead(t) {
+    const named = Number.isFinite(t.named) ? `: ${Pipeline.moneyNamed(t.named)} is no stake` : '';
+    const why = t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? `, the usual${named}` : t.stakeNote === 'half' ? ', half of what you have' : '';
+    // Amendment 2: the structure, "$4 limit" (the house game) or "no limit" (table stakes, once the dealer agreed).
+    return `${money(t.stake)} to sit${why} · ${money(t.ante)} ante · ${t.structure === 'nolimit' ? 'no limit' : `${money(t.unit)} limit`}`;
   }
   /* The pot (wave 14, QA #8): the table's own (the open table's as it stands, the record's as played); a wave 10-12 record (heads up at draw) has none, so it is worked out: the stake each, a fold's price for the player. */
   function potOf(t) {
@@ -25039,10 +25817,14 @@ const UI = (() => {
     return t.stake * others + (t.result === 'fold' || t.folded === true ? Pipeline.foldPrice(t.stake) : t.stake);
   }
   function cardsHead(t) {
-    if (t.choose) return `${t.dealerName}'s table · ${stakeText(t)}`;
+    // Wave 18: the house rules where the table has them (a hand recorded before wave 18 keeps its stake).
+    const terms = Number.isInteger(t.ante) && Number.isInteger(t.unit) ? rulesHead(t) : stakeText(t);
+    if (t.choose) return `${t.dealerName}'s table · ${terms}`;
     const game = Pipeline.GAME_NAMES[t.game === 'holdem' ? 'holdem' : 'draw'];
-    return `${t.dealerName}'s table · ${game} · ${stakeText(t)}${capText(t)} · pot ${money(potOf(t))}`;
+    return `${t.dealerName}'s table · ${game} · ${terms} · pot ${money(potOf(t))}`;
   }
+  /* The house rules in words, once a hand (wave 18): on the chooser, else on the dealt table's first hint ("Twenty to sit, a dollar ante, four-dollar bets."). */
+  function rulesSaid(t) { return t.choose || t.first ? `${Pipeline.rulesWords(t.stake, t.structure)} ` : ''; }
   function cardBits(c) { return [el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c))]; }
   // A card face up; one drawn (after the showdown, wave 11, S2) has a "New" tag and says so in its name.
   function cardFace(c, drawn) {
@@ -25081,6 +25863,7 @@ const UI = (() => {
   };
   const STREET_LABELS = ['Pre-flop', 'The flop', 'The turn', 'The river', 'Showdown'];
   const FOLD_WHEN = ['before the flop', 'on the flop', 'on the turn', 'on the river'];
+  const DRAW_WHEN = ['before the draw', 'after the draw'];
   // Wave 14 (QA #11): the game changes only between hands, so the hint is on the chooser and under a finished table, never on an open hand.
   const SWITCH_HINT = "Name the game in your words to skip this choice (hold'em or draw).";
   const NEXT_HINT = "Next hand: name the game in your words to switch (hold'em or draw).";
@@ -25112,7 +25895,109 @@ const UI = (() => {
       el('div', { class: 'cards-acts cards-pick' },
         el('button', { type: 'button', class: 'btn small cards-game', dataset: { game: 'draw' }, onclick: e => tableAct(e.currentTarget, { game: 'draw' }) }, 'Five-card draw'),
         el('button', { type: 'button', class: 'btn small cards-game', dataset: { game: 'holdem' }, onclick: e => tableAct(e.currentTarget, { game: 'holdem' }) }, "Texas hold'em")),
-      el('p', { class: 'cards-hint' }, `Stop leaves the table (nothing lost). ${SWITCH_HINT} `, winButton()));
+      el('p', { class: 'cards-hint' }, `${rulesSaid(t)}Stop leaves the table (nothing lost). ${SWITCH_HINT} `, winButton()));
+  }
+  /* The pot line on an open table (wave 18): the pot, what the player has in and what they have left of the buy-in: "Pot $56 · you're in for $20 · $0 left". */
+  function potLine(t) {
+    const inn = Number.isInteger(t.playerIn) ? t.playerIn : t.stake;
+    return el('p', { class: 'cards-pot' }, `Pot ${money(Number.isInteger(t.pot) ? t.pot : t.stake * 2)} · you're in for ${money(inn)} · ${money(Math.max(0, (t.stake | 0) - inn))} left`);
+  }
+  /* The round's buttons and the amount (wave 18). Check (primary) and Bet,
+     or Call $X (primary), Raise and Fold; Call and Fold when no raise is
+     left (four raises a round, or nobody left to answer one). Under them,
+     when there is a choice of amount: a field with the amount bet or
+     raised to on the round, − and + by the ante, and Min, ½ pot, Pot and
+     All in. Bet or Raise reads what it will do with the amount ("Bet $8",
+     "Raise to $24", "All in $20": all in names everything the player will
+     have in); an amount the table does not allow is clamped (under the
+     least: the least; over the stack: all in) and the line under the field
+     says so. Enter in the field presses Bet or Raise. */
+  function betActs(t) {
+    const opts = Array.isArray(t.options) && t.options.length ? t.options : ['check'];
+    const a = isObj(t.ask) ? t.ask : null;
+    const kind = opts.includes('raise') ? 'raise' : opts.includes('bet') ? 'bet' : null;
+    // All in names what goes in on the round, as bets do ("All in $19" at $20, after the $1 ante: what is left).
+    const label = to => (a && to >= a.maxTo ? `All in ${money(to)}` : kind === 'bet' ? `Bet ${money(to)}` : `Raise to ${money(to)}`);
+    const call = a && a.toCall ? `Call ${money(a.toCall)}${a.toCall >= a.left ? ' (all in)' : ''}` : 'Call';
+    let main = null;
+    let field = null;
+    let sync = () => (a ? a.minTo : 0);
+    const press = btn => { const to = sync(true); tableAct(btn, { act: kind, to }); };
+    const btns = opts.map((o, i) => {
+      const b = el('button', { type: 'button', class: `btn ${i === 0 ? 'primary ' : ''}small cards-${o}`, dataset: { act: o },
+        onclick: e => (o === 'fold' ? tableAct(e.currentTarget, { fold: true }) : o === kind && a ? press(e.currentTarget) : tableAct(e.currentTarget, { act: o })) },
+      o === 'check' ? 'Check' : o === 'fold' ? 'Fold' : o === 'call' ? call : kind === 'bet' ? 'Bet' : 'Raise');
+      if (o === kind) main = b;
+      return b;
+    });
+    const acts = el('div', { class: 'cards-acts' }, btns);
+    if (!kind || !a || !main) return [acts];
+    // One amount only: all in when the stack is short, or a limit table's bet or raise (amendment 2: no field, no presets).
+    if (a.limit || a.minTo >= a.maxTo) { main.textContent = label(a.minTo); main.dataset.to = String(a.minTo); sync = () => a.minTo; return [acts]; }
+    const note = el('p', { class: 'cards-amt-note', 'aria-live': 'polite' });
+    const read = () => { const m = /\d[\d,]*/.exec(field.value); return m ? parseInt(m[0].replace(/,/g, ''), 10) : NaN; };
+    sync = settle => {
+      const want = read();
+      const to = Pipeline.clampTo(want, a.minTo, a.maxTo, a.unit);
+      main.textContent = label(to);
+      main.dataset.to = String(to);
+      const least = kind === 'bet' ? `The least bet is ${money(a.minTo)}` : `The least raise is to ${money(a.minTo)}`;
+      const went = to >= a.maxTo ? `all in (${money(a.maxTo)})` : money(to);
+      note.textContent = !Number.isFinite(want) ? (field.value.trim() ? `Type an amount in dollars. ${least}.` : '')
+        : want < a.minTo ? `${least}.` : want > a.maxTo ? `That's more than you have: all in is ${money(a.maxTo)}.`
+          : to === want ? '' : want % a.unit && to < a.maxTo ? `Bets go in ${money(a.unit)}s, so ${went}.` : to >= a.maxTo && want % a.unit ? `Bets go in ${money(a.unit)}s, so ${went}.` : `That would leave less than ${money(a.unit)}: ${went}.`;
+      if (settle && String(to) !== field.value) field.value = String(to);
+      return to;
+    };
+    const set = v => { field.value = String(v); sync(); };
+    // + is the next amount up; − the next one down that leaves at least a bet behind (from all in $19 at $4 bets: $12).
+    const step = k => {
+      const cur = Pipeline.clampTo(read(), a.minTo, a.maxTo, a.unit);
+      if (k > 0) { set(Pipeline.clampTo(cur + a.unit, a.minTo, a.maxTo, a.unit)); return; }
+      let down = Math.floor((cur - 1) / a.unit) * a.unit;
+      while (down > a.minTo && a.maxTo - down < a.unit) down -= a.unit;
+      set(Math.max(a.minTo, down));
+    };
+    field = el('input', { type: 'text', class: 'cards-amt', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', enterkeyhint: 'go', value: String(a.minTo),
+      'aria-label': kind === 'bet' ? 'Amount to bet' : 'Amount to raise to',
+      oninput: () => sync(), onchange: () => sync(true),
+      onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); main.click(); } } });
+    const preset = (size, text, name) => el('button', { type: 'button', class: 'btn small cards-preset', dataset: { size }, 'aria-label': name, onclick: () => set(Pipeline.sizeFor(a, size)) }, text);
+    const size = el('div', { class: 'cards-size', role: 'group', 'aria-label': kind === 'bet' ? 'How much to bet' : 'How much to raise to' },
+      el('div', { class: 'cards-stepper' },
+        el('button', { type: 'button', class: 'btn small cards-step', dataset: { step: '-1' }, 'aria-label': `${money(a.unit)} less`, onclick: () => step(-1) }, '−'),
+        el('label', { class: 'cards-amt-wrap' }, el('span', { class: 'cards-amt-cur', 'aria-hidden': 'true' }, '$'), field),
+        el('button', { type: 'button', class: 'btn small cards-step', dataset: { step: '1' }, 'aria-label': `${money(a.unit)} more`, onclick: () => step(1) }, '+')),
+      el('div', { class: 'cards-presets' }, preset('min', 'Min', 'The least'), preset('half', '½ pot', 'Half the pot'), preset('pot', 'Pot', 'The pot'), preset('allin', 'All in', 'All in')),
+      note);
+    sync();
+    return [acts, size];
+  }
+  /* The hint on a betting round (wave 18): the choice in words, what Stop costs, and the Win (cheat) control at its end. */
+  /* The amounts a bet or a raise can be, in words (wave 18): "$4, $8, $12… up to all in ($19)", "$16 or all in ($19)", "all in ($19)". */
+  function ladderText(a) {
+    if (a.limit) return a.minTo >= a.maxTo ? `all in (${money(a.maxTo)})` : money(a.minTo);
+    const b = Math.max(1, a.unit | 0);
+    const all = `all in (${money(a.maxTo)})`;
+    if (a.minTo >= a.maxTo) return all;
+    const steps = [a.minTo];
+    for (let x = a.minTo + b; steps.length < 3 && x < a.maxTo && a.maxTo - x >= b; x += b) steps.push(x);
+    if (steps.length === 1) return `${money(a.minTo)} or ${all}`;
+    const more = steps[steps.length - 1] + b < a.maxTo && a.maxTo - (steps[steps.length - 1] + b) >= b;
+    return `${steps.map(money).join(', ')}${more ? '…' : ''} up to ${all}`;
+  }
+  function betHint(t) {
+    const opts = Array.isArray(t.options) ? t.options : [];
+    const a = isObj(t.ask) ? t.ask : {};
+    let say;
+    if (opts[0] === 'call') {
+      const call = `Call ${money(a.toCall)}${a.toCall >= a.left ? ' (all in)' : ''}`;
+      if (!opts.includes('raise')) say = `${call} or fold${(a.raises | 0) >= Pipeline.MAX_RAISES ? ' (four raises: no more this round)' : ''}. `;
+      else if (a.minTo >= a.maxTo) say = `${call}, go ${ladderText(a)}, or fold. `;
+      else say = `${call}, raise to ${ladderText(a)}, or fold. `;
+    } else if (opts.includes('bet')) say = a.minTo >= a.maxTo ? `Check, or go ${ladderText(a)}. ` : `Check, or bet ${ladderText(a)}. `;
+    else say = 'Check. ';
+    return el('p', { class: 'cards-hint' }, rulesSaid(t), say, `Stop folds the hand (−${money(t.playerIn)}). `, winButton());
   }
   /* Under a finished table, the newest only (wave 14, QA #11): how to play the other game next. */
   function nextHint(t) {
@@ -25135,37 +26020,54 @@ const UI = (() => {
     node.classList.toggle('open', !done);
     const rows = [head];
     if (!holdem) {
-      // Five-card draw (wave 10): the dealer's five (and each seat's) face down until the showdown; the player's to hold.
-      const price = Pipeline.foldPrice(t.stake);
-      // A card the showdown brought (wave 11, S2): a position that side did not hold. A fold heads up ends the hand before anyone draws; a hand thrown in (wave 14: the win cheat's fold-out) draws nothing.
-      const played = side => done && Array.isArray(side.held) && !side.folded && !(folded && (side === t.player || !seats.length));
+      // Five-card draw (wave 10): the dealer's five (and each seat's) face down until the showdown; the player's to hold. Wave 18: then a round of betting after the draw (phase 'bet'), the player's five face up with the new ones marked and each seat's draw said.
+      const bet = !done && t.phase === 'bet';
+      // A wave 18 hand (it has its ante): folds before or after the draw are told apart, and a hand that took the pot unseen stays face down (hidden).
+      const fresh = Number.isInteger(t.ante);
+      const pFold = folded && !(fresh && t.player.foldedOn === 1);
+      // A card the draw brought (wave 11, S2): a position that side did not hold. A fold heads up before the draw ends the hand before anyone draws; a hand thrown in (wave 14: the win cheat's fold-out) draws nothing.
+      const played = side => Array.isArray(side.held) && !side.folded && (done ? !(pFold && (side === t.player || !seats.length)) : bet);
       const drew = (side, i) => played(side) && !side.held.includes(i);
-      const drawWord = (side, who) => (played(side) ? el('span', { class: 'cards-drew' }, ` · ${side.held.length < 5 ? `${who} draws ${5 - side.held.length}` : `${who} stands pat`}`) : null);
-      const other = (side, key, who, cls, deals, extra) => seatRow(Object.assign({
-        cls, key, who: side.who || who, deals, won: !!winWord(key), status: side.folded && done ? 'folds' : winWord(key),
-        label: `${firstOf(side.who || who)}'s cards`,
-        cards: side.folded && done ? side.dealt.map(c => (t.marked ? cardFace(c) : cardBack())) : (done ? side.final : side.dealt).map((c, i) => (done || t.marked ? cardFace(c, drew(side, i)) : cardBack())),
-        name: done && !side.folded ? el('p', { class: 'cards-name' }, side.name, drawWord(side, firstOf(side.who || who))) : null
-      }, extra || {}));
-      // The read is about the man while his cards are face down: none over a marked deck's (wave 11, M3); after the showdown, whether it was right (S2), only when his cards are shown after his draw (wave 14, QA #7: not after a fold heads up, a hand thrown in or a win cheat).
-      const verdict = done && !t.win && !t.dealer.folded && !(folded && !seats.length);
+      const drawText = (side, who) => (played(side) ? (side.held.length < 5 ? `${who} draws ${5 - side.held.length}` : `${who} stands pat`) : '');
+      const foldWord = side => (fresh && Number.isInteger(side.foldedOn) ? `folds ${DRAW_WHEN[side.foldedOn] || ''}`.trim() : 'folds');
+      const other = (side, key, who, cls, deals, extra) => {
+        const name1 = firstOf(side.who || who);
+        const dw = drawText(side, name1);
+        const shown = done && !side.folded && !(side.hidden && !t.marked);
+        const cards = side.folded && done ? side.dealt.map(c => (t.marked ? cardFace(c) : cardBack()))
+          : shown ? side.final.map((c, i) => cardFace(c, drew(side, i)))
+            : (bet || done) && t.marked && Array.isArray(side.final) ? side.final.map((c, i) => cardFace(c, drew(side, i)))
+              : side.dealt.map(c => (t.marked ? cardFace(c) : cardBack()));
+        const name = done && !side.folded && !side.hidden ? el('p', { class: 'cards-name' }, side.name, dw ? el('span', { class: 'cards-drew' }, ` · ${dw}`) : null)
+          : dw && (bet || (done && side.hidden)) ? el('p', { class: 'cards-name' }, el('span', { class: 'cards-drew' }, dw)) : null;
+        return seatRow(Object.assign({
+          cls, key, who: side.who || who, deals, won: !!winWord(key), status: done ? (side.folded ? foldWord(side) : winWord(key)) : side.status || (side.folded ? 'folds' : ''),
+          label: `${name1}'s cards`, cards, name
+        }, extra || {}));
+      };
+      // The read is about the man while his cards are face down: none over a marked deck's (wave 11, M3); after the showdown, whether it was right (S2), only when his cards are shown after his draw (wave 14, QA #7: not after a fold heads up, a hand thrown in, cards that took the pot unseen or a win cheat).
+      const verdict = done && !t.win && !t.dealer.folded && !t.dealer.hidden && !(pFold && !seats.length);
       const read = t.read && t.read.text && !t.marked ? readLine(t.read, verdict) : null;
       const note = t.marked && !done ? el('p', { class: 'cards-note' }, `Marked deck: you can read ${seats.length ? "everyone's" : `${first}'s`} cards.`) : null;
       rows.push(other(t.dealer, t.dealerId, t.dealerName, 'cards-dealer', true, { read, note }));
       for (const x of seats) rows.push(other(x, x.id, x.who, 'cards-seat'));
+      const mine = done || bet;
       rows.push(seatRow({
-        cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'), status: winWord('player'),
-        label: done ? 'Your cards' : 'Your hand: pick the cards to hold',
-        cards: done ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle),
-        name: done ? el('p', { class: 'cards-name' }, t.player.name) : null
+        cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'),
+        status: done ? (folded && fresh ? foldWord(Object.assign({}, t.player, { foldedOn: Number.isInteger(t.player.foldedOn) ? t.player.foldedOn : 0 })) : winWord('player')) : t.player.status || '',
+        label: mine ? 'Your cards' : 'Your hand: pick the cards to hold',
+        cards: mine ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle),
+        name: mine ? el('p', { class: 'cards-name' }, t.player.name) : null
       }));
       if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), nextHint(t));
+      else if (bet) rows.push(potLine(t), ...betActs(t), betHint(t));
       else {
-        rows.push(el('p', { class: 'cards-pot' }, `Pot ${money(t.pot || t.stake * 2)} · you're in for ${money(t.playerIn || t.stake)}`));
+        const price = Number.isInteger(t.playerIn) ? t.playerIn : Pipeline.foldPrice(t.stake);
+        rows.push(potLine(t));
         rows.push(el('div', { class: 'cards-acts' },
           el('button', { type: 'button', class: 'btn primary small cards-draw', onclick: e => endHand(e.currentTarget, false) }, drawLabel(5)),
           el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, `Fold −${money(price)}`)));
-        rows.push(el('p', { class: 'cards-hint' }, `Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−${money(price)}). `, winButton()));
+        rows.push(el('p', { class: 'cards-hint' }, `${rulesSaid(t)}Pick the cards to hold, then Draw: the rest are replaced, and a round of betting follows. Stop folds the hand (−${money(price)}). `, winButton()));
       }
       node.replaceChildren(...rows.filter(Boolean));
       return;
@@ -25198,15 +26100,7 @@ const UI = (() => {
       el('div', { class: 'cards-row', role: 'group', 'aria-label': `The board: ${lowerFirst(street)}` }, [0, 1, 2, 3, 4].map(i => (i < shown && t.board && t.board[i] ? cardFace(t.board[i]) : cardBack())))));
     rows.push(seatRow({ cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'), status: ended(t.player, 'player'), label: 'Your cards', cards: t.player.dealt.map(c => cardFace(c)) }));
     if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), nextHint(t));
-    else {
-      const opts = Array.isArray(t.options) && t.options.length ? t.options : ['check', 'bet'];
-      const label = { check: 'Check', bet: `Bet ${money(t.unit)}`, call: `Call ${money(t.unit)}`, fold: 'Fold' };
-      rows.push(el('p', { class: 'cards-pot' }, `Pot ${money(t.pot)} · you're in for ${money(t.playerIn)}${capText(t)}`));
-      rows.push(el('div', { class: 'cards-acts' }, opts.map((o, i) => el('button', { type: 'button', class: `btn ${i === 0 ? 'primary ' : ''}small cards-${o}`, dataset: { act: o }, onclick: e => tableAct(e.currentTarget, o === 'fold' ? { fold: true } : { act: o }) }, label[o]))));
-      // Check alone: the stake leaves no room for a bet (wave 14, QA #23), and the hint says so.
-      const noRoom = opts.length === 1 && opts[0] === 'check' ? `Check only (no room for a bet: you're in for your whole ${money(t.playerIn)}). ` : '';
-      rows.push(el('p', { class: 'cards-hint' }, `${noRoom}Stop folds the hand (−${money(t.playerIn)}). `, winButton()));
-    }
+    else rows.push(potLine(t), ...betActs(t), betHint(t));
     node.replaceChildren(...rows.filter(Boolean));
   }
   function endHand(btn, fold) {
@@ -25410,6 +26304,21 @@ const UI = (() => {
       scrollToBottom();
       return node;
     },
+    /* The dealer holding the player to the limit (wave 18, amendment 2): his
+       line under the open table's buttons, above the hint, until the table
+       is drawn again; the table stays in view and the focus where it is. */
+    cardsSay(node, text) {
+      if (!node || !node.isConnected || !node.classList.contains('open')) return null;
+      let p = $('.cards-said', node);
+      if (!p) {
+        p = el('p', { class: 'cards-said', role: 'status' });
+        const hint = $('.cards-hint', node);
+        if (hint) hint.before(p); else node.append(p);
+      }
+      p.textContent = String(text);
+      keepHand(node);
+      return p;
+    },
     /* Another tab took the game over with the hand open here (wave 12, L3):
        the table stays as dealt, its buttons off, with a line saying so. */
     cardsVoid(node) {
@@ -25417,7 +26326,7 @@ const UI = (() => {
       const had = node.contains(document.activeElement);
       node.classList.remove('open');
       node.classList.add('void');
-      for (const b of $$('button', node)) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+      for (const b of $$('button, input', node)) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
       // A chooser had no hand dealt (wave 14, QA #19; Pipeline takes that turn back and says so in a notice).
       const line = el('p', { class: 'cards-void' }, node.dataset.game === 'choose' ? 'Another tab took over; the table is closed here.' : 'Another tab took over; this hand is void here.');
       const hint = $('.cards-hint', node);
@@ -27288,7 +28197,7 @@ const App = (() => {
   function quitToTitle() {
     if (Pipeline.handOpen) {
       if (UI.screen !== 'game') UI.showScreen('game');
-      UI.feed.handNotice(Pipeline.handKind === 'choose' ? HAND_TITLE_CHOOSE : Pipeline.handKind === 'holdem' ? HAND_TITLE_HOLDEM : HAND_TITLE);
+      UI.feed.handNotice(Pipeline.handKind === 'choose' ? HAND_TITLE_CHOOSE : (Pipeline.handKind === 'holdem' || Pipeline.handKind === 'drawbet') ? HAND_TITLE_HOLDEM : HAND_TITLE);
       return false;
     }
     inGame = false;

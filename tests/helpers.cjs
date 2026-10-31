@@ -226,11 +226,16 @@ function overflowReport(page, width) {
    the game through the engine's own op (State.apply({ cardGame }), 'draw'
    by default; null forgets it: cardGame false) and fixes who sits in for every hand until
    the page reloads (Pipeline.hooks.cardsSeats: ids of card people here, []
-   heads up, the default; null leaves it to the hand's seed and the words). */
+   heads up, the default; null leaves it to the hand's seed and the words).
+   Wave 18: structure ('limit', the house game, or 'nolimit', table
+   stakes) fixes the table's structure until the page reloads
+   (Pipeline.hooks.cardsStructure; null leaves it to the dealer's word for
+   the day). */
 function presetCards(page, opts) {
   return page.evaluate(o => {
     if (o.game !== undefined) Game.State.apply({ cardGame: o.game || false });
     if (o.seats !== undefined) Game.Pipeline.hooks.cardsSeats = o.seats;
+    if (o.structure !== undefined) Game.Pipeline.hooks.cardsStructure = o.structure;
   }, Object.assign({ game: 'draw', seats: [] }, opts || {}));
 }
 
