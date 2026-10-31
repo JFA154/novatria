@@ -8,7 +8,12 @@
    wait; M5 stakes in words, the cap said; M6 the split pot's OUTCOME; M7
    the focus on the table's head and a ring that is not the Hold edge;
    L1-L12 and S1-S4 (docs/notes/ui.md and docs/notes/engine-world.md, Wave
-   11). Mock mode. Run with: node tests/run.cjs wave11 */
+   11). Changed by design in wave 12 (tests/wave12-cards.test.cjs): the
+   catch roll reads "Keeping the marks from Curtis", a closed page's fold
+   is closed (not stopped), the narrator-failure notice says how the hand
+   stands, the invitation waits while the dealer is colder than -10, the
+   head says what was named that is no stake, and the demo names a dealer
+   not met by his label. Mock mode. Run with: node tests/run.cjs wave11 */
 const assert = require('assert/strict');
 const { suite, quickStart, sendText, LAPTOP } = require('./helpers.cjs');
 
@@ -166,7 +171,8 @@ s.test('M1: Stop with a hand open folds it at the fold price and keeps the turn 
   assert.deepEqual([e.cards.result, e.cards.folded, e.cards.stopped, e.cards.delta, r.gold - g0], ['fold', true, true, -15, -15]);
   assert.ok(e.roll && e.roll.d20 === 14, 'the catch roll was made');
   assert.equal(r.rolls.length, 1);
-  assert.match(r.rolls[0], new RegExp(`^Does ${spot.first} spot the marks\\? Wits 14 \\+ \\d+ = \\d+ vs 12 · `));
+  // Changed by design in wave 12 (L2): the label reads so that a success is the player's.
+  assert.match(r.rolls[0], new RegExp(`^Keeping the marks from ${spot.first}: Wits 14 \\+ \\d+ = \\d+ vs 12 · `));
   assert.deepEqual(r.calls, [], 'no narrator and no bookkeeper');
   assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}, get up from the table and give up $15. ${spot.dealerName} never spots the marks.`);
   assert.equal(r.narr, e.narration, 'told plainly (no demo tag)');
@@ -190,7 +196,8 @@ s.test('M1: after the showdown the hand is final: a narrator error, a Stop while
   assert.equal(e.narration, `The hand is played: your two pair, kings and sevens, beats ${spot.dealerName}'s pair of aces. You win $50.`);
   assert.deepEqual([e.cards.result, e.cards.delta, await page.evaluate(() => Game.state.player.gold) - g0], ['win', 50, 50], 'the money stays');
   const notice = await page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return { text: n.textContent, retry: !!n.querySelector('[data-retry]') }; });
-  assert.match(notice.text, /The hand stands as it was played, told plainly above\.$/);
+  // Changed by design in wave 12 (L5): what happened and how the hand stands, no "try again".
+  assert.equal(notice.text, 'The narrator could not be reached. The hand stands: you win $50.');
   assert.equal(notice.retry, false, 'no Try again that would deal again');
   assert.equal(await page.inputValue('#cmd'), '');
   assert.equal(await tables(page), 1, 'the table stays');
@@ -236,7 +243,8 @@ s.test('M1: a reload never takes a hand back: closed with the hand open, Continu
   await page.waitForFunction(() => Game.state.log[Game.state.log.length - 1].cards);
   await idle(page);
   let e = await lastEntry(page);
-  assert.deepEqual([e.input, e.cards.result, e.cards.stopped, e.cards.player.dealt, await page.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, dealt, -20]);
+  // Changed by design in wave 12 (L4): folded because the page was closed (closed), not stopped.
+  assert.deepEqual([e.input, e.cards.result, e.cards.closed, e.cards.stopped, e.cards.player.dealt, await page.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, undefined, dealt, -20]);
   assert.match(e.narration, /^You fold your .*, get up from the table and give up \$20\.$/);
   assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
   assert.equal(await page.evaluate(() => Game.Storage.heldHand()), null, 'used up');
@@ -319,7 +327,7 @@ s.test('M3: with a marked deck the read is not shown (the dealer\'s cards are fa
 
 // ----- M4: thrown out, the dealer's due events wait -----
 
-s.test('M4: caught and thrown out, the hustler\'s invitation from the dealer stays due (not told, not marked done) and waits while he will not deal; an event at the place waits too; after the week it is told', async h => {
+s.test('M4: caught and thrown out, the hustler\'s invitation from the dealer stays due (not told, not marked done) and waits while he will not deal; an event at the place waits too; after the week, once he would deal again, it is told', async h => {
   const page = await open(h);
   await quickStart(page, { bgIndex: await bgWith(page, 'marked deck') });
   await fast(page);
@@ -344,8 +352,13 @@ s.test('M4: caught and thrown out, the hustler\'s invitation from the dealer sta
   await sendText(page, 'I look around');
   assert.ok(await page.evaluate(id => Game.state.dueEvents.some(e => e.seedId === id), due0[0]), 'still waiting');
   assert.doesNotMatch((await lastEntry(page)).narration, /invites/);
-  // A week on, it is told.
+  // A week on, but still colder than -10: he would not deal, so it still waits (changed by design in wave 12, M3).
   await page.evaluate(() => { const st = Game.state; Game.State.apply({ setTime: { day: st.time.day + 7, phase: 'evening' } }); });
+  assert.ok(await page.evaluate(d => Game.State.npc(d).attitude < -10, spot.dealer));
+  await sendText(page, 'I look around');
+  assert.ok(await page.evaluate(id => Game.state.dueEvents.some(e => e.seedId === id), due0[0]), 'waits while he would not deal');
+  // Warmer: he would deal again, and it is told.
+  await page.evaluate(d => Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: d, delta: 25 }] }), spot.dealer);
   await sendText(page, 'I look around');
   assert.ok(!(await page.evaluate(id => Game.state.dueEvents.some(e => e.seedId === id), due0[0])), 'told and done');
 });
@@ -370,7 +383,8 @@ s.test('M5: the stake from the words: dollars and words, everything and all in, 
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`^OUTCOME: the card game \\(the player put up \\$${g}, all they have; they named \\$${g + 360}\\): `));
   assert.equal((await lastEntry(page)).cards.delta, -half);
   await startHand(page, 'I bet -$5');
-  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · stake $20, the usual · pot $40`);
+  // Changed by design in wave 12 (L8): what was named is said too.
+  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · stake $20, the usual: −$5 is no stake · pot $40`);
   await page.click('.cards-fold');
   await idle(page);
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player put up \$20, the usual stake: −\$5 is no stake\): /);
@@ -612,7 +626,11 @@ s.test('L7: with nobody dealing, the OUTCOME and the demo say when the dealer de
   await page.evaluate(() => Game.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Asks for a game', targets: [], needsRoll: false, timeCost: 'short' }));
   await sendText(page, 'I bet $20 at cards');
   assert.equal(line(await lastCall(page, 'narrate'), 'CARD GAME'), `CARD GAME: no game: nobody is dealing right now (${hours.text}), so there is no game to sit in on. No money changes hands.`);
-  assert.ok((await lastEntry(page)).narration.includes(`Nobody is dealing right now, so there is no game to sit in on. ${hours.text}.`), (await lastEntry(page)).narration);
+  // Changed by design in wave 12 (L10): the demo names a dealer the player has not met as the Say picker does.
+  const said = await page.evaluate(l => Game.Pipeline.dealerHours(Game.State.loc(l), true), spot.loc);
+  assert.ok(await page.evaluate(d => !Game.State.npc(d).knownToPlayer, spot.dealer), 'not met yet');
+  assert.notEqual(said, hours.text);
+  assert.ok((await lastEntry(page)).narration.includes(`Nobody is dealing right now, so there is no game to sit in on. ${said}.`), (await lastEntry(page)).narration);
 });
 
 // ----- L8: the demo's filler -----
@@ -672,7 +690,7 @@ s.test('L9-L12: the catch roll is labelled; at Small text the Hold tag is 10px a
   await page.click('.cards-fold');
   await idle(page);
   const e = await lastEntry(page);
-  assert.match(e.roll.line, new RegExp(`^Does ${spot.first} spot the marks\\? Wits 17 [+−] \\d+ = \\d+ vs 12 · `));
+  assert.match(e.roll.line, new RegExp(`^Keeping the marks from ${spot.first}: Wits 17 [+−] \\d+ = \\d+ vs 12 · `));
   assert.equal(await page.textContent('#feed .f-roll'), e.roll.line, 'under the table');
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`the player folds their ${lowerFirst(e.cards.player.name)}`));
   // After a reload it is labelled the same.
