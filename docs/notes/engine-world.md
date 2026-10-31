@@ -759,5 +759,7 @@ dealer at a table in the feed (`docs/notes/ui.md`, Wave 10). Tests:
   fold is half), `tests/wave2-fixes.test.cjs` (no accusation without a
   marked deck), `tests/wave3-fixes.test.cjs` (bug 7: caught is three days;
   the accusation's night is gone), `tests/prompts-fixes.test.cjs` (the
-  demo's words) and `tests/wave6-fixes.test.cjs` (the `/help` row); the
-  rest that bet set `hooks.cardsPlay`.
+  demo's words), `tests/wave5-fixes.test.cjs` (Q13: the accused player's
+  line is gone; the caught one still ends on the street) and
+  `tests/wave6-fixes.test.cjs` (the `/help` row); the rest that bet set
+  `hooks.cardsPlay`.
