@@ -1385,3 +1385,188 @@ and `/rewind`: `docs/notes/engine-state.md`; the box and the link:
   is the same game is dropped when the stack is read back).
 - The same hand is dealt again when the same line is sent after it (the
   deck is the game's seed and the turn, as before).
+
+## Wave 18 (31 Oct 2026): betting for real, limit by the house, table stakes on asking
+
+The owner: "Make the poker game interactive, as in I decide how much money
+to add, go all in, etc." Two amendments followed: the story has Curtis
+state the table's terms ("$20 to sit, $1 ante") and the earlier build's
+$4 bet at a $20 stake stays a house rule; and the house game is limit, no
+limit being something the player asks the dealer for (the table's side:
+`docs/notes/ui.md`, Wave 18). Tests: `tests/wave18-betting.test.cjs`.
+
+- **The buy-in.** The stake S (`stakeFor`, as before: "$20", "all in",
+  "half my money", the usual $20) is the chips the player brings and the
+  most they can lose. Every seat sits with S, so the stacks start equal
+  and a seat that has matched every bet has what the player has left:
+  there are no side pots. A new stake is named between hands as before.
+- **The house rules** (from S): the ante a = `anteFor(S)` = max(1,
+  floor(S/20)) ($1 at $20, $5 at $100) and the table's bet b =
+  `unitFor(S)` = max(1, floor(S/5)) ($4 at $20, wave 13's unit). Every
+  seat antes a. `rulesWords(S, structure)`: "Twenty to sit, a dollar ante,
+  four-dollar limit." ("…, no limit." at table stakes; words up to $999,
+  figures above); `rulesText`: "$20 to sit, $1 ante, $4 limit (every bet
+  and raise $4)" or "…, no limit (bets from $4, up to all in)".
+  `holdemCap(S)` is S now (the wave 14 cap under a stake that was not a
+  multiple of $5 is gone with the fixed unit).
+- **The structure** (`tableStructure(dealer)`, `STRUCTURES`): 'limit',
+  the house game, unless the dealer agreed to table stakes today
+  (`flags['cardsNoLimit.<id>']` is the day): 'nolimit'.
+  `hooks.cardsStructure` ('limit' | 'nolimit', tests and the console)
+  fixes it until a reload. It goes on the table (`base.structure`), the
+  stored hand and the record.
+- **A betting round** (`betRound(h, st, street, moves)`), from the player
+  round the table; a seat with no chips left is passed over, and a round
+  where fewer than two seats have chips is not bet (everyone all in: the
+  board is dealt out). With nothing to call: check or bet; facing a bet:
+  call, raise or fold. No limit: a bet from b, every amount a multiple of
+  b (`clampTo(want, minTo, maxTo, b)`: not a multiple goes up to the next
+  one, under the least is the least, at or over the stack is all in, and
+  one that would leave less than b behind is all in), the least raise the
+  bet and the last full raise, rounded up to a multiple of b (an all in
+  short of a full raise does not set the next one); `sizeFor(ask, 'min' |
+  'half' | 'pot' | 'allin')` is the call and half the pot after it (or the
+  pot) on top, to the nearest b. Limit: a bet is b and a raise one more b
+  whatever amount a move names, all in only when the stack is short of
+  that. Four raises a round at most (`MAX_RAISES`), then only call or
+  fold (with b a fifth of the stake the stacks run out first; the cap is
+  the engine's). The player's ask: { toCall, level, put, left, pot,
+  minTo, maxTo, unit (b), raises, limit }. Every action goes on the log
+  ({ i, act, to: what that seat has bet on the round, add, street, allIn
+  }); the player's, made legal with its amount, on `moves`.
+- **Moves** (`Cards.move`, `Cards.moveText`): 'check', 'call', 'fold',
+  'win', 'allin', 'bet:N', 'raise:N' (N the amount bet or raised to on
+  the round), 'hold:024' at draw; wave 13's bare 'bet' (the least) still
+  reads. All in is the biggest bet, raise or call there is; a bet facing
+  one is a raise and a raise with none a bet.
+- **Hold'em** (`holdemRun(h, moves)`, h { seed, ante, bet, stack, limit,
+  stacked, board, seats }): four rounds, the player first; statuses
+  cleared at a new round (a fold and an all in stay); everyone else
+  folding ends it (uncontested); the player folding is played out as in
+  wave 14 (a bet still owed called or folded, nobody bets again).
+- **Five-card draw** (`drawRun(h, moves)`): the ante; the player's draw
+  (or a fold before it, which costs only the ante, or the Win); one round
+  of betting after the draw (street 1), the seats betting on their final
+  hands (`drawStrength`: high card under .2, a pair .32 to .6, two pair
+  about .7, three of a kind .82, a straight or better .9 and up); the
+  showdown. Heads up a fold before the draw ends the hand there, the
+  dealer's cards shown as dealt (as before); with others they draw and
+  check it down. A draw hand that took the pot without being called is
+  `hidden` (face down at the end). The deal is kept on the stored hand now
+  (`drawDealOk`), as hold'em's is.
+- **The seats** (`seatMove(h, i, k)`): with nothing to call, a value bet
+  from 0.62 − tilt (half the pot or the least; the pot from .75; the pot
+  or, after the flop and at draw, all in from .88), a bluff of half the
+  pot under 0.1 + tilt, else check; facing a bet, a raise from 0.8 − tilt
+  (0.1 more for a seat that has bet or raised this round), the least or
+  half the pot, the pot or all in from .9, a bluff raise of the least now
+  and then for the bold (not on the river); a call when the hand clears
+  the round's bar (.3 before the flop, .38 on the flop and turn, .45 on
+  the river and after the draw, less tilt) raised by the price (what the
+  call is of the pot after it, over a quarter, and of the stack left);
+  else fold. Carter, Elbert and Curtis (bold traits) bet and raise more,
+  Lyman and Royce (careful) call down or fold. The coins are the hand's
+  own (`coin`, the seat's decision number on the round), so the same
+  moves play the same hand after a reload, `/undo` or a replay. A read on
+  a seat's first bet or raise, as before. `/cheat cards`: the others call
+  every bet before the flop (at draw every bet), never raising.
+- **The money.** `c.pay(amount)`: the ante goes in at the deal and each
+  bet or call as it is made (`State.apply({ goldDelta })`, the top bar and
+  the Character panel following, `UI.showCash`); at the end the rest of
+  the hand's result moves (delta + what was paid). The gold never goes
+  under 0 (the stake is never more than the cash). `settlePot(sides)`: a
+  bet nobody called comes back to whoever made it (the most anyone put in
+  is cut to the second most; the side's `back`), then the pot is shared a
+  layer at a time, each layer to the best hand still in among the seats
+  that reached it (a short all in wins only what it matched), the odd
+  dollars to the player when they share. A wave 10-12 record replayed
+  keeps its uncalled money (`keepUncalled`).
+- **The cheats.** The Win (cheat) mid-hand: every seat still in calls the
+  bet on the table (the pot as it stands, matched), then the cards as in
+  wave 14 (at draw after the draw only the others' draws, unseen without
+  a marked deck, are dealt again; else they throw in their hands). An
+  armed `/cheat win`: everyone all in, the player's hand the best:
+  (seats − 1) × S at hold'em and at draw.
+- **Typed bets** (`typedBet(text, table)`; the UI's `handCommand` with a
+  hand open, neither parser involved): "check", "call" (with nothing to
+  call it checks), "fold", "all in" ("go all in", "I'm all in", "shove",
+  "jam", "push"), "bet 10", "bet ten dollars", "raise to 30", "raise 30"
+  (to $30), "raise by 10", "make it 30", a bare "$30", and "min", "half
+  pot", "pot"; at the draw "fold" and "stand pat". "I", "I'll", "okay"
+  before them are fine. Amounts are clamped as the control clamps them,
+  with a note; "check" facing a bet is answered with what the table
+  offers and the line stays in the box.
+- **Held to the limit** (amendment 2). At a limit table an amount past
+  the limit ("all in" with the stack not short, "bet 20", "raise to 40", a
+  pot bet that is more than b) is refused: `pushbackLine` picks one of
+  three lines by the game's seed, the turn and how many were said this
+  hand (Curtis taps the felt: "Four-dollar bets at this table."; Curtis
+  doesn't touch the chips: "It's a four-dollar game. House rules."; "Four-
+  dollar limit," Curtis says, and slides the chips back), the dealer's
+  first name from the record; nothing is played or paid. The record keeps
+  the count (`pushback`); OUTCOME adds "When the player tried to bet past
+  the limit, Curtis Pruett held them to the house's $4 bets (twice)."
+- **Asking for table stakes** (`STAKES_ASK`, `stakesAsked`, `stakesAsk`;
+  `runTurn` resolves it before the gamble and the ordinary roll, whatever
+  the parser called the action): "no limit", "table stakes", "raise the
+  stakes", "a bigger game", "higher stakes", "play for real", "take the
+  limit off", "lift the limit", "can we bet what we like" and the like,
+  said or done where the card game is with its dealer here, to him or to
+  nobody in particular. Cold (attitude under 0, `STAKES_COLD`): "Not with
+  you." without a roll. Already no limit today: he says so. Refused today
+  already: he repeats himself without a roll. Else a Charm persuade at
+  normal against him (`Dice.resolve` with his id: the usual attitude
+  modifier, the usual roll line, a story point on a 20): a success sets
+  `cardsNoLimit.<id>` to the day ("Table stakes, then. Don't cry to me
+  after."); a failure sets `cardsAsked.<id>` ("House rules," Curtis says.
+  "We play the limit here."); a fumble the same and −5 attitude. The flags
+  and the attitude go through the engine's `effects` (setFlag,
+  attitudeDelta). The line is a quiet line; the narrator gets "TABLE
+  STAKES: …" and the bookkeeper is told to record nothing for it. No hand
+  is dealt that turn. Asked with a hand open, the box says to ask between
+  hands.
+- **The record** (`logCards`): `ante`, `unit` (the table's bet) and
+  `moves` at draw too; `actions` ([{ seat, act, to, add, street, allIn }],
+  160 at most), `structure`, `pushback`; a side's `back` and, at draw,
+  `hidden`. `moves` hold up to 40.
+- **The words.** `betMoments(rec, you)`: the betting's big moments, two
+  at most (all-ins, then raises, then the biggest bets), each with how the
+  table answered, a re-raise and its answer told with it ("the player
+  raised to $120 before the flop, Curtis Pruett went all in and the player
+  called"). OUTCOME: "the card game (the player bought in for $20; house
+  rules: $20 to sit, $1 ante, $4 limit (every bet and raise $4), four
+  rounds of betting): Texas hold'em, heads up with Curtis Pruett; the big
+  moments; how each seat ended; …" (a heads-up draw showdown as before,
+  with the amounts won); a fold says when ("before the draw and gave up
+  the $1 ante", "on the flop and gave up the $5 they had put in"); at the
+  first hand at a stake (none before it in the log, or one at another
+  stake) "The player sits down at this stake for the first time: have
+  Curtis Pruett state the table's terms as they sit ("Twenty to sit, a
+  dollar ante, four-dollar limit.")." `plainHandText` opens with the
+  moments ("You raised to $120 before the flop, Curtis Pruett went all in
+  and you called."). Seat memories: a loss counts when the seat put $10 or
+  more into a pot the player took (the wave 14 floor and once a day stay).
+- **The demo.** `mockGamble` tells the moments ("you bet $8 after the
+  draw and Curtis Pruett called; …"), a heads-up draw fold with when, and
+  at a new stake: "Twenty to sit, a dollar ante, four-dollar limit,"
+  Curtis Pruett said as you sat down. The demo's parser reads the table
+  stakes words as a persuade aimed at the dealer; its narration tells the
+  outcome ("You ask Curtis Pruett for table stakes, and Curtis Pruett
+  agrees: no limit at the card table for the rest of today.") and its
+  bookkeeper moves no feeling for it.
+- **Hooks** (tests, the console): `hooks.cardsPlay` takes `{ moves: [...]
+  }` of `Cards.move` strings (and `{ hold, moves }` at draw), `{}` still
+  checks and calls down; `hooks.cardsBetting = 'call'` checks or calls the
+  draw's round down; `hooks.cardsStructure` as above.
+- **Tests changed by design**: `tests/wave10-cards.test.cjs`,
+  `tests/wave11-cards.test.cjs`, `tests/wave12-cards.test.cjs` (the draw's
+  round checked or called down by `hooks.cardsBetting`; the house rules in
+  the head and once in the hint; the ante where the fold price was; the
+  amounts from the record), `tests/wave13-holdem.test.cjs`,
+  `tests/wave14-holdem-fixes.test.cjs` (the ante and $4 bets; table
+  stakes where a test sizes its own bets; #16 and #23: no cap under the
+  stake and always room for a bet; Royce's hand at $50, where a call is
+  $10), `tests/wave15-table-polish.test.cjs`, `tests/wave16-undo.test.cjs`
+  (the nudge, the ante), `tests/transport-fixes.test.cjs` (the draw's
+  money and OUTCOME), and `tests/helpers.cjs` (`presetCards` takes
+  `structure`).

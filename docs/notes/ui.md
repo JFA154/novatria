@@ -1476,3 +1476,103 @@ side: `docs/notes/engine-state.md` and `docs/notes/engine-world.md`, Wave
   the Undo link (`has-undo`).
 - `tests/shell.test.cjs`: the command list has `/redo` and `/rewind` after
   `/undo`.
+
+## Wave 18 (31 Oct 2026): betting at the table
+
+What the table shows and takes for the wave 18 betting (the engine side:
+`docs/notes/engine-world.md`, Wave 18). Tests:
+`tests/wave18-betting.test.cjs`.
+
+### The head and the words (`cardsHead`, `rulesHead`, `rulesSaid`)
+- The head names the house rules and the structure: "Curtis Pruett's
+  table · Texas hold'em · $20 to sit · $1 ante · $4 limit · pot $2" (at
+  table stakes "· no limit ·"; with why the stake is that: "$140 to sit,
+  all you have · $7 ante · $28 limit"); the chooser's "Curtis Pruett's
+  table · $20 to sit · $1 ante · $4 limit". A record from before wave 18
+  keeps its "stake $20" head.
+- The house rules in words, once a hand: at the start of the chooser's
+  hint, else of the dealt table's first hint ("Twenty to sit, a dollar
+  ante, four-dollar limit. …"; "…, no limit." at table stakes).
+- The pot line on every open table: "Pot $56 · you're in for $20 · $0
+  left" (what the player has left of the buy-in).
+
+### The round's buttons (`betActs`, `betHint`)
+- Check (primary) and Bet, or Call $X (primary), Raise and Fold; Call and
+  Fold when no raise is left (four raises, or nobody left to answer one).
+  Call says its price and when it puts the player all in ("Call $70 (all
+  in)").
+- Limit (the house game): the one amount: "Bet $4", "Raise to $8"; "All in
+  $3" only when the stack is short of the bet. No field, no presets.
+- Table stakes: under the buttons the amount (`.cards-size`, a group
+  named "How much to bet" / "How much to raise to"): − and + by the
+  table's bet (− from all in goes to the most that leaves a bet behind), a
+  field with the amount bet or raised to on the round (`.cards-amt`,
+  numeric keyboard, 16px so a phone does not zoom, Enter presses Bet or
+  Raise), and Min, ½ pot, Pot, All in (`.cards-preset`). Bet or Raise
+  reads what it will do: "Bet $8", "Raise to $24", "All in $19" (all in is
+  what is left on the round, the amount the pot line says is left). An
+  amount the table does not allow is clamped and the line under the
+  field (`.cards-amt-note`, polite live region) says why: "Bets go in
+  $4s, so $8.", "The least bet is $4." ("The least raise is to $16."),
+  "That's more than you have: all in is $19.", "That would leave less
+  than $4: all in ($19).", "Type an amount in dollars. …".
+- The hint says the choice in words, what Stop costs, and keeps Win
+  (cheat) at its end: "Check, or bet $4, $8, $12 up to all in ($19).
+  Stop folds the hand (−$1). Win (cheat)", "Call $40, raise to $120 or all
+  in ($190), or fold. …", "Call $4 or fold (four raises: no more this
+  round). …"; at the limit "Check, or bet $4." and "Call $4, raise to $8,
+  or fold.".
+- Seat statuses: "checks", "bets $8", "raises to $24", "calls $24", "all
+  in $19" (what the seat put in on the round), "folds" ("folds on the
+  turn" while the hand is open, "folds before the draw" / "after the draw"
+  at the end of a draw hand).
+
+### Five-card draw
+- Before the draw as before, with "Fold −$1" (the ante) and the hint
+  "Pick the cards to hold, then Draw: the rest are replaced, and a round
+  of betting follows. Stop folds the hand (−$1). Win (cheat)".
+- After the draw the round's buttons as at hold'em; the player's five
+  face up with the new cards marked New and the hand's name under them;
+  each other seat's cards face down (face up with a marked deck) with its
+  draw ("Curtis draws 3"). A seat that took the pot without being called
+  keeps its cards face down at the end, with its draw said; the read on
+  the dealer has no verdict then.
+
+### The box with a hand open (`handCommand`, `handNudge`)
+- A bet typed is played as the buttons are (`Pipeline.typedBet`: "bet
+  10", "raise to 30", "all in", "call", "check", "fold", "stand pat" at
+  the draw); the box empties and a clamp's note goes on the status line.
+  A move the table does not offer is answered on the status line and the
+  words stay ("There's a bet to you: call $8, raise or fold.").
+- At a limit table an amount past the limit is the dealer's: his line
+  under the buttons (`UI.feed.cardsSay`, `.cards-said`, italic, until the
+  table is drawn again) and on the status line "Four-dollar limit: Check
+  or Bet $4. Ask Curtis for table stakes if you want a bigger game."; the
+  words stay in the box. (The dealer is named rather than "him": the
+  record has his name, not his pronouns.)
+- Asking for table stakes with a hand open: "Ask Curtis for table stakes
+  between hands: finish this one first."
+- The nudge says what can be typed: "Your hand is on the table: Check or
+  Bet (or type "check" or "bet 4"). …" at the limit, "… (or type "check",
+  "bet 4" or "all in")" at table stakes, "Call $40, Raise or Fold (or type
+  "call", "raise to 120", "all in" or "fold")" facing a bet.
+- The title screen's refusal for the draw's round is hold'em's ("Finish
+  the hand first: play it out or Fold (Stop folds).").
+
+### The cash
+- The ante and each bet leave the cash as they go in: the top bar and the
+  Character panel follow at every press (`UI.showCash`), and the result
+  line gives the cash after ("You win $44 · cash $184").
+
+### Phones
+- At 320 and 390 wide the control takes two rows (− field + / the four
+  presets) under the buttons with no sideways scroll; every button and
+  the field are 44px tall; after a press `keepHand` keeps the player's
+  row, the buttons and the control inside the story.
+- Another tab taking the game over turns the field off with the buttons
+  (`cardsVoid`).
+
+### Tests changed by design
+- The wave 10-16 card tests: the head's house rules and structure, the
+  hint's words once, the ante for the fold, $4 bets, the nudge's typing
+  words (`docs/notes/engine-world.md`, Wave 18, lists them).

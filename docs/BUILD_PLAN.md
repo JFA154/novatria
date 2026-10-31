@@ -1397,3 +1397,41 @@ talking, I can direct it to one person or all."
      with `record_changes_core` (the thirteen essentials), fills the rest
      in empty and logs it, so the turn is still recorded. Deployed to
      `main` the same hour.
+   - **Wave 18** (31 Oct 2026). The owner: "Make the poker game
+     interactive, as in I decide how much money to add, go all in, etc.";
+     then, with Curtis stating the table's terms in the story ("$20 to
+     sit, $1 ante"), the earlier build's $4 bet kept as a house rule, the
+     house game limit and no limit something the player asks for. Built by
+     one agent with the two amendments. Notes: the "Wave 18" sections of
+     `docs/notes/engine-world.md` and `docs/notes/ui.md`; tests:
+     `tests/wave18-betting.test.cjs`. The stake is the buy-in and every
+     seat sits with it, so the stacks start equal and there are no side
+     pots; the house rules come from it: a twentieth to ante (`anteFor`,
+     $1 at $20) and a fifth a bet (`unitFor`, wave 13's unit, $4 at $20),
+     in the head ("$20 to sit · $1 ante · $4 limit"), in words once on the
+     chooser or the first deal ("Twenty to sit, a dollar ante, four-dollar
+     limit."), and to the narrator, who has the dealer state them at a new
+     stake. Hold'em bets on four rounds and five-card draw on one after the
+     draw (the fold before the draw costs the ante), the player first. The
+     house game is limit (Check / Bet $4, Call / Raise to $8 / Fold, four
+     raises a round, all in only when the stack is short of a bet); an
+     amount typed past it is refused by the dealer in character at no cost
+     (Curtis taps the felt: "Four-dollar bets at this table."), told to
+     the narrator in one clause. Asked for table stakes between hands ("no
+     limit", "take the limit off", "a bigger game"), the dealer answers a
+     Charm roll (cold: no without a roll; a yes: no limit at his table for
+     the day, `flags['cardsNoLimit.<id>']`; a no, repeated without a roll
+     that day; a fumble: a no and 5 colder), and at table stakes an amount
+     control sits under the buttons (a field, − and + by the bet, Min, ½
+     pot, Pot, All in; bets in multiples of the bet, the least raise the
+     bet and the last raise, clamped and said). Bets can be typed with a
+     hand open ("bet 8", "raise to 24", "all in", "call", "check", "fold").
+     The seats bet, raise, call and bluff by strength, the price and their
+     nature, from the hand's seed; the money goes in as it is bet, a bet
+     nobody called comes back and the pot is shared a layer at a time; the
+     record keeps every action, the structure and the pushbacks, so a
+     reload, `/undo`, `/reroll`, the Win (cheat) (the bet on the table
+     called) and `/cheat win` (everyone all in) work as before. OUTCOME,
+     the plain line and the demo tell the big moments ("you raised to $120
+     before the flop, Curtis Pruett went all in and you called"). Left
+     open: a live narrator's telling of a hand and of the terms.
