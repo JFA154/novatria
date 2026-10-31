@@ -602,6 +602,19 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   .f-cards .cards-hint { margin-top: .3em; }
   .f-cards .cards-board .cards-row { grid-template-columns: repeat(5, minmax(0, 2.8em)); }
 }
+/* What a typed amount the table changed went in as, under the result of the hand it finished (wave 20, QA N4). */
+.f-cards .cards-why { margin-top: .35em; font-size: .92em; color: var(--muted); }
+/* Wave 20 (QA N11): under 600px of height the hint is one short line (the choice words and the Win (cheat)) and the rows from the
+   pot line to the hint sit closer, so at 320×568 with Large text and five at the table the player's cards, the buttons, the
+   amount and the Win (cheat) are in view together; the terms and the Stop price are the button row's title and the status line's. */
+@media (max-height: 599.98px) {
+  .f-cards .cards-pot { margin-top: .15em; font-size: .88em; }
+  .f-cards .cards-acts { margin-top: .2em; }
+  .f-cards .cards-size { margin-top: .2em; gap: 4px; }
+  .f-cards .cards-hint { margin-top: .1em; }
+  .f-cards .cards-you .cards-name { margin-top: .15em; }
+  .turn-status.short-hand #turn-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 @media (prefers-reduced-motion: reduce) { button.card { transition: none; } }
 .new-btn {
   position: absolute;
@@ -6388,8 +6401,10 @@ function sentence(s) {
   return /[.!?"'”)]$/.test(s) ? s : s + '.';
 }
 /* The end of a sentence (wave 19, QA D16): a full stop, ! or ? before a space or the end, but not the stop of "Dr.", "Mr.",
-   "Mrs.", "Ms.", "St." or a single initial ("Carter brought Dr. Sayle up" is one sentence). firstSentence: up to the first one. */
-const SENTENCE_END = /(?:[!?]|(?<!(?:^|[^A-Za-z])(?:Dr|Mr|Mrs|Ms|St|[A-Z]))\.)(?=\s|$)/;
+   "Mrs.", "Ms.", "St." or a single initial ("Carter brought Dr. Sayle up" is one sentence); wave 20 (QA N7): nor of "Prof.",
+   "Sgt.", "Rev.", "Jr.", "Sr.", "Lt.", "Capt.", "Gen.", "Col." or "Hon." ("Main St. Then he left." is one sentence, the price of
+   "St. Jude"). firstSentence: up to the first one. */
+const SENTENCE_END = /(?:[!?]|(?<!(?:^|[^A-Za-z])(?:Dr|Mr|Mrs|Ms|St|Prof|Sgt|Rev|Jr|Sr|Lt|Capt|Gen|Col|Hon|[A-Z]))\.)(?=\s|$)/;
 const FIRST_SENTENCE = new RegExp(`^.*?${SENTENCE_END.source}`);
 const SENTENCE_SPLIT = new RegExp(`(?<=${SENTENCE_END.source.replace('(?=\\s|$)', '')})\\s+`);
 function firstSentence(text) { const t = String(text == null ? '' : text); const m = FIRST_SENTENCE.exec(t); return m ? m[0] : t; }
@@ -7744,6 +7759,10 @@ const State = (() => {
     if (x.folded === true || x.result === 'fold') out.folded = true;
     if (x.stopped === true) out.stopped = true;
     if (x.closed === true) out.closed = true;
+    // Told in a plain line, not narrated (wave 20, QA N6: its terms were not said).
+    if (x.plain === true) out.plain = true;
+    // What the move that finished the hand went in as, when the table changed a typed amount (wave 20, QA N4).
+    if (typeof x.amountWhy === 'string' && x.amountWhy.trim()) out.amountWhy = cleanText(x.amountWhy, 200);
     if (x.stakeNote === 'all' || x.stakeNote === 'usual' || x.stakeNote === 'half') out.stakeNote = x.stakeNote;
     if (typeof x.named === 'number' && Number.isFinite(x.named)) out.named = Math.round(clamp(x.named, -1000000, 1000000) * 100) / 100;
     if (!holdem && isObj(x.read) && (x.read.says === 'something' || x.read.says === 'nothing')) out.read = readOf(x.read);
@@ -15433,6 +15452,49 @@ const Api = (() => {
     if (!mockDealerHere(packet)) return false;
     return MOCK_JOIN.test(lower) || MOCK_CARD_NAMED.test(lower) || mockLastHand();
   }
+  /* The words sit down at the card table (the gamble branch of mockParse):
+     a bet, a hand or the game named, a join; l is the line in lower case
+     with a space at each end. */
+  function mockSitWords(l, raw, packet) {
+    return MOCK_GAMBLE.test(l) || MOCK_GAME_WORDS.test(l) || (MOCK_GAME_NAME.test(l) && l.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(raw)) || mockJoins(l, packet);
+  }
+  /* A sit-down with the dealer, the table or the hand named after it or
+     before it (wave 20, QA N5): "all in, Curtis", "Curtis, all in", "I bet
+     $20, Curtis", "all in at the table", "all in on this hand" sit down,
+     as "all in" and "I bet $20" alone do (and "I go all in, Curtis"
+     did); "shove, Curtis" no more than "shove". */
+  const MOCK_BET_AT = /^(.+?)\s+(?:at|on)\s+(?:(?:the|this|his|your|that)\s+(?:card\s+|poker\s+)?(?:table|hand|game)|cards|poker)$/;
+  function mockBetNamed(lower, packet) {
+    if (!mockDealerHere(packet)) return false;
+    const dealer = Pipeline.dealerOf((packet.present || []).map(n => n.id));
+    const t = lower.trim().replace(/[.!?]+$/, '').trim();
+    const him = x => x.trim().split(/\s+/).length <= 3 && Town.nameMentions(` ${x.trim()} `, dealer);
+    const tail = /^(.+?)\s*,\s*([^,]+)$/.exec(t);
+    const head = /^([^,]+?)\s*,\s*(.+)$/.exec(t);
+    const at = MOCK_BET_AT.exec(t);
+    const rest = tail && him(tail[2]) ? tail[1] : head && him(head[1]) ? head[2] : at ? at[1] : null;
+    return !!rest && mockSitWords(` ${rest.trim()} `, rest.trim(), packet);
+  }
+  /* The object of a shove or a push (wave 20, QA N1): the words right
+     after the verb, up to a comma or a stop, a preposition or a particle
+     ("I shove Loretta", "push him away", "shove the old man into the
+     wall"); none when a preposition comes first ("I push past Curtis to
+     the bar") or the verb ends its clause ("shove, Curtis"). A possessive
+     is no object of its own ("push Curtis's chips back": the chips). */
+  const SHOVE_VERB = /\b(?:shove|shoves|shoved|shoving|push|pushes|pushed|pushing)\b/g;
+  const SHOVE_STOP = new Set(['to', 'toward', 'towards', 'at', 'into', 'in', 'inside', 'on', 'onto', 'across', 'over', 'past', 'through', 'from', 'with', 'by', 'and', 'then', 'but', 'so', 'aside', 'away', 'back', 'down', 'off', 'out', 'up', 'along', 'forward', 'forwards', 'around', 'round', 'behind', 'against', 'until', 'till', 'while', 'as', 'or', 'because', 'for', 'if', 'when', 'before', 'after', 'again', 'hard', 'open']);
+  const SHOVE_WHO = /^\s*(?:him|them|someone|somebody|anyone|anybody|everyone|everybody|each other|one another|her\s*$)/;
+  const SHOVE_PERSON = /\b(?:man|men|woman|women|guy|guys|fellow|fellows|fella|fellas|feller|chap|boy|boys|girl|girls|kid|kids|lady|ladies|gentleman|gentlemen|stranger|strangers|drunk|drunks|old[\s-]?timer|bum|punk|thug|brute|idiot|fool|jerk|bastard|person|people|player|players|dealer|bartender|barman|barmaid|waitress|cop|officer|deputy|sheriff)\b/;
+  function shoveObjects(lower) {
+    const out = [];
+    for (const m of lower.matchAll(SHOVE_VERB)) {
+      const after = lower.slice(m.index + m[0].length).split(/[,.;:!?"()]/)[0];
+      const words = [];
+      for (const w of after.trim().split(/\s+/).filter(Boolean)) { if (SHOVE_STOP.has(w)) break; words.push(w); }
+      if (words.length) out.push(` ${words.join(' ').replace(/\b[a-z][\w-]*'s?\s+(?=\S)/g, '')} `);
+    }
+    return out;
+  }
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* The demo's read of an ask for table stakes (wave 19, QA D1): the
      words plainly about the stakes (Pipeline.STAKES_ASK) where a dealer
@@ -15441,14 +15503,19 @@ const Api = (() => {
      limit?", "How about a bigger game?", "Let's take the limit off", "I
      want to raise the stakes"); never with someone else here named and
      not him ("I order a whiskey from Loretta, can we play no limit?" is
-     the whiskey). "I bet he plays without a limit" is no ask. */
-  const MOCK_STAKES_REQUEST = /\?|\b(?:can|could|would|will|shall|should)\s+(?:we|i|you)\b|\blet'?s\b|\blet\s+us\b|\b(?:how|what)\s+about\b|\bi(?:'d|\s+would)?\s+(?:want|like|wanna)\b|\bwhy\s+don'?t\s+we\b|\bcome\s+on\b|\bwe\s+should\b|\bplay\b|\bask(?:s|ing)?\b/;
-  function mockStakes(lower, presentList, present, where) {
-    if (!Pipeline.STAKES_ASK.test(lower) || !GAMBLE_PLACES.includes(where)) return false;
-    const dealer = Pipeline.dealerOf(presentList.map(n => n.id));
-    if (!dealer) return false;
-    if (present.some(n => n.id !== dealer.id) && !present.some(n => n.id === dealer.id)) return false;
-    return Pipeline.stakesNamed(lower, dealer) || MOCK_STAKES_REQUEST.test(lower);
+     the whiskey). "I bet he plays without a limit" is no ask.
+     Wave 20 (QA N2, N3): the engine's own word rule (Pipeline.stakesWords:
+     "Curtis, your greed has no limit." is talk) and the scene: at the
+     card table with its dealer there (mockDealerHere), with nobody else
+     named instead of him, the ask words alone ask ("no limit", "Take the
+     limit off.", "Raise the stakes."), as the engine reads them. At a
+     table already no limit today a line that sits down (sits: the gamble
+     branch's words) deals instead (QA N8). */
+  function mockStakes(lower, packet, named, sits) {
+    if (!Pipeline.stakesWords(lower) || !mockDealerHere(packet)) return false;
+    const dealer = Pipeline.dealerOf((packet.present || []).map(n => n.id));
+    if (named.some(n => n !== dealer.id) && !named.includes(dealer.id)) return false;
+    return !(sits && Pipeline.tableStructure(dealer) === 'nolimit');
   }
   /* "ask her about Wade, then walk to the bridge": something done here, then
      a walk on (moveWhen "after"). */
@@ -15598,6 +15665,8 @@ const Api = (() => {
     const held = inv.find(i => new RegExp(`(^|[^a-z])${escRe(String(i.name || '').toLowerCase())}([^a-z]|$)`).test(lower))
       || inv.filter(i => shared(i) > 0).sort((x, y) => shared(y) - shared(x) || errandThing(y) - errandThing(x))[0];
     const where = (packet.location && packet.location.type) || '';
+    // A bet at cards, a sit-down (the gamble branch below; wave 20, QA N5: a betting word with the dealer, the table or the hand named too).
+    const sits = (mockSitWords(lower, input, packet) || mockBetNamed(lower, packet)) && GAMBLE_PLACES.includes(where) && !aboutAt;
     // A search for something not lying here rolls (the engine makes it only on a success; wave 3, playtest N12).
     if (vague) { out.actionType = 'search'; out.timeCost = 'short'; }
     else if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
@@ -15616,14 +15685,15 @@ const Api = (() => {
     }
     // Wave 6 (the round-5 playtest's D13): a shove, a push, a slap is an attack too.
     // Wave 19 (QA D2): a shove or a push only with a person as its object ("I shove Loretta", "I push him"); alone ("shove", "I shove", "push") it is the card table's all in, never an attack.
-    else if ((has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles|slap|slaps|kick|kicks|headbutt|headbutts|elbow|elbows|smack|smacks)\b/) || (has(/\b(?:shove|shoves|push|pushes)\b/) && (present.length || away.length || fresh.length || has(/\b(?:shove|shoves|push|pushes)\s+(?:him|her|them|someone|somebody|anyone|anybody|everyone|everybody)\b/)))) && !has(/\b(?:push|pushes)\s+(?:open|the door|through|past|my way|on|for)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'normal'); out.targets = target(); }
+    // Wave 20 (QA N1): the person must be the verb's own object (shoveObjects): "I push my chips toward Curtis", "shove, Curtis" and "I push past Curtis to the bar" are no attack.
+    else if ((has(/\b(attack|attacks|hit|hits|fight|fights|punch|punches|stab|shoot|shoots|swing at|brawl|beat up|tackle|tackles|slap|slaps|kick|kicks|headbutt|headbutts|elbow|elbows|smack|smacks)\b/) || shoveObjects(lower).some(o => SHOVE_WHO.test(o) || SHOVE_PERSON.test(o) || named.some(n => Town.mentions(o, n)) || MOCK_NEW.some(([re]) => re.test(o)))) && !has(/\b(?:push|pushes)\s+(?:open|the door|through|past|my way|on|for)\b/) || has(/\bknocks?\s+(?:\w+\s+){0,2}out\b/)) { out.actionType = 'attack'; roll('might', 'normal'); out.targets = target(); }
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     // Asking the dealer for table stakes (wave 18, amendment 2: "no limit", "a bigger game", "take the limit off"): a persuade aimed at the dealer here; the engine rolls it.
-    // Wave 19 (QA D1): only when aimed at him (mockStakes): his name, his game or table, or the words ask for it ("Can we play no limit?"), and nobody else here named instead.
-    else if (mockStakes(lower, presentList, present, where)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = [Pipeline.dealerOf(presentList.map(n => n.id)).id]; out.timeCost = 'instant'; }
+    // Wave 19 (QA D1): only when aimed at him (mockStakes), and nobody else here named instead. Wave 20 (QA N2, N3, N8): the engine's word rule, the ask words alone at his table, and a sit-down at a table already no limit deals.
+    else if (mockStakes(lower, packet, present.concat(away).map(n => n.id).concat(fresh), sits)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = [Pipeline.dealerOf(presentList.map(n => n.id)).id]; out.timeCost = 'instant'; }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
-    else if ((has(MOCK_GAMBLE) || has(MOCK_GAME_WORDS) || (has(MOCK_GAME_NAME) && lower.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(input)) || mockJoins(lower, packet)) && GAMBLE_PLACES.includes(where) && !aboutAt) {
+    else if (sits) {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
@@ -18859,7 +18929,10 @@ const Pipeline = (() => {
     }
     return null;
   }
-  function stakeFor(text, gold) {
+  /* again (wave 20, QA N9): the stake of the last hand at this table today,
+     which "another hand" with no stake named plays at (gamble). */
+  const ANOTHER_HAND = /\b(?:another|one more)\s+hand\b/i;
+  function stakeFor(text, gold, again) {
     const cash = Math.max(0, toInt(gold) || 0);
     const named = namedStake(text);
     const words = String(text || '').replace(/[’]/g, "'");
@@ -18867,7 +18940,8 @@ const Pipeline = (() => {
     const all = named === null && !half && ALL_IN.test(words);
     // Whole dollars: under $1 is no stake (the usual $20).
     const whole = named === null ? null : Math.floor(named);
-    const want = all ? cash : half ? Math.floor(cash / 2) : whole === null || whole <= 0 ? GAMBLE_STAKE : whole;
+    const last = whole === null && Number.isInteger(again) && again >= 1 && ANOTHER_HAND.test(words) ? again : null;
+    const want = all ? cash : half ? Math.floor(cash / 2) : last !== null ? last : whole === null || whole <= 0 ? GAMBLE_STAKE : whole;
     const stake = clamp(want, 1, Math.max(1, cash));
     const note = stake >= cash ? 'all' : whole !== null && whole <= 0 ? 'usual' : half ? 'half' : null;
     return { stake, named, note };
@@ -19165,11 +19239,12 @@ const Pipeline = (() => {
   }
   /* A preset that comes to all in says so (wave 19, QA D7): ½ pot or Pot
      past the stack, or leaving less than a bet behind. { to, why }. */
+  // Half the pot or the pot before it is held to the stack (wave 20: typedBet says what it went in as).
+  function sizeRaw(k, kind) { const step = Math.max(1, k.unit | 0); return Math.max(step, Math.round((k.level + (kind === 'pot' ? 1 : 0.5) * (k.pot + k.toCall)) / step) * step); }
   function sizeWhy(k, kind) {
     const to = sizeFor(k, kind);
     if ((kind !== 'half' && kind !== 'pot') || to < k.maxTo) return { to, why: '' };
-    const step = Math.max(1, k.unit | 0);
-    const raw = Math.max(step, Math.round((k.level + (kind === 'pot' ? 1 : 0.5) * (k.pot + k.toCall)) / step) * step);
+    const raw = sizeRaw(k, kind);
     const name = kind === 'pot' ? 'The pot' : 'Half the pot';
     const why = raw > k.maxTo ? `${name} (${money(raw)}) is more than you have, so it is all in ${money(k.maxTo)}.`
       : raw === k.maxTo ? `${name} is all you have: all in ${money(k.maxTo)}.`
@@ -19448,6 +19523,8 @@ const Pipeline = (() => {
      UI presses Draw when exactly n cards are not held, else says how). */
   const TYPED_FOLD = /^(?:fold|folds|folding|muck|i'm out|im out)(?: (?:it|my hand|this hand|this one|then))?$/;
   const TYPED_BETWORD = /^(?:check|call|bet|bets|raise|raises|re-?raise|make it|all[\s-]?in|go all[\s-]?in|shove|jam|push|min|pot|half(?: the)? pot|\$\s*\d|\d)/;
+  // "push my chips in", "I shove all my money toward Curtis", "push it all in" (wave 20, QA N1): all in.
+  const TYPED_PUSH = /^(?:shove|shoves|push|pushes)(?: (?:it|them))? (?:all[\s-]?in|everything|(?:all (?:of )?)?(?:my |the |these |those |your |our )?(?:chips|money|cash|stack|pile|bankroll))\b/;
   /* An amount in figures or words ("$8", "8", "eight dollars"), or null. */
   function typedAmount(str) {
     const rest = String(str || '').trim();
@@ -19466,7 +19543,8 @@ const Pipeline = (() => {
       if (/^stand(?:s|ing)? pat$/.test(w)) return { choice: { hold: 'all' } };
       // "draw 3", "draw three (cards)": the Draw button as it stands, when it replaces that many (the UI checks the holds).
       const dn = /^draws? (.+?)(?: (?:new )?cards?)?$/.exec(w);
-      const n = dn ? typedAmount(dn[1]) : null;
+      // Wave 20 (QA N10): "draw a card" is one.
+      const n = dn ? (/^an?$/.test(dn[1]) ? 1 : typedAmount(dn[1])) : null;
       if (Number.isInteger(n) && n >= 1 && n <= 5) return { draw: n };
       if (TYPED_BETWORD.test(w) && !/^\d+ ?(?:,|and|\d)/.test(w)) return { say: 'Pick the cards to hold, then Draw: the betting comes after the draw.' };
       return null;
@@ -19486,7 +19564,8 @@ const Pipeline = (() => {
     };
     if (TYPED_FOLD.test(w)) return { choice: { fold: true } };
     if (/^(?:check|checks|check it|knock)$/.test(w)) return facing ? { say: `There's a bet to you: ${callWords}${kind ? ', raise' : ''} or fold.` } : { choice: { act: 'check' } };
-    if (/^(?:call|calls|call it|call that|call the bet|call you|i call|see it|see you|see the bet)$/.test(w)) return { choice: { act: facing ? 'call' : 'check' } };
+    // Wave 20 (QA N10): "I'm calling", "I see your bet", "I'll see that" too.
+    if (/^(?:call|calls|calling|call it|call that|call the bet|call you|i call|(?:i'm|im|i am) calling|see it|see that|see you|see the bet|see your (?:bet|raise)|see the raise)$/.test(w)) return { choice: { act: facing ? 'call' : 'check' } };
     // "call $8", "call 8": the call, when that is its price.
     const cm = /^(?:i )?(?:call|calls|see)(?: (?:it|that|the bet|you))?(?: for)? (.+)$/.exec(w);
     const cn = cm ? typedAmount(cm[1]) : null;
@@ -19495,10 +19574,14 @@ const Pipeline = (() => {
       if (cn === a.toCall || (cn > a.toCall && a.toCall >= a.left)) return { choice: { act: 'call' } };
       return { say: `It's ${money(a.toCall)} to call: ${callWords}${kind ? ', raise' : ''} or fold.` };
     }
-    if (/^(?:(?:go |going |i go |i'm |im |i am |i'm going |im going |i am going )?all[\s-]?in|shove(?: it)?|jam(?: it)?|push(?: it)?|all of it)$/.test(w)) {
+    // Wave 20 (QA N1): a push or a shove of the chips, the money or the stack is all in too ("I push my chips toward Curtis", "shove all my chips in").
+    if (/^(?:(?:go |going |i go |i'm |im |i am |i'm going |im going |i am going )?all[\s-]?in|shove(?: it)?|jam(?: it)?|push(?: it)?|all of it)$/.test(w) || TYPED_PUSH.test(w)) {
       if (kind && a.limit && a.minTo < a.maxTo) return refuse();
       if (kind) return { choice: { act: 'allin' } };
-      return facing ? { choice: { act: 'call' }, note: a.toCall >= a.left ? `Calling ${money(a.toCall)} puts you all in.` : `${(a.raises | 0) >= MAX_RAISES ? 'No more raises this round' : 'Nobody is left to answer a raise'}, so you ${callWords}.` } : null;
+      if (!facing) return null;
+      if (a.toCall >= a.left) return { choice: { act: 'call' }, note: `Calling ${money(a.toCall)} puts you all in.` };
+      const none = (a.raises | 0) >= MAX_RAISES ? 'No more raises this round' : 'Nobody is left to answer a raise';
+      return { choice: { act: 'call' }, note: `${none}, so you ${callWords}.`, after: `Your all in went in as a call of ${money(a.toCall)}: ${lowerFirst(none)}.` };
     }
     // "raise it to 30": the verb, then "it" or "that", then to or by and the amount.
     const m = /^(?:(bet|bets|raise|raises|re-?raise|make it|make that)\b\s*)?(?:(?:it|that)\s+(?=to\b|by\b))?(?:(to|by)\s+)?(.*)$/.exec(w);
@@ -19529,13 +19612,40 @@ const Pipeline = (() => {
       // The limit's one amount (all in only when the stack is short of it); under it goes up to it, past it is refused.
       const want = size === 'min' ? a.minTo : size === 'allin' ? a.maxTo : size ? sizeFor(Object.assign({}, a, { minTo: a.unit }), size) : prep === 'by' && kind === 'raise' ? a.level + amount : amount;
       if (want > a.minTo) return refuse();
-      return Object.assign({ choice: { act: kind, to: a.minTo } }, want < a.minTo ? { note: `${capFirst(dollarWords(a.unit))} limit, so ${a.minTo >= a.maxTo ? 'you go all in' : kind === 'bet' ? `you bet ${money(a.minTo)}` : `you raise to ${money(a.minTo)}`}.` } : {});
+      return Object.assign({ choice: { act: kind, to: a.minTo } }, want < a.minTo ? { note: `${capFirst(dollarWords(a.unit))} limit, so ${a.minTo >= a.maxTo ? 'you go all in' : kind === 'bet' ? `you bet ${money(a.minTo)}` : `you raise to ${money(a.minTo)}`}.`, after: `${typedWas(want, kind)} went in as ${wentAs(a.minTo, a, kind)}: ${dollarWords(a.unit)} limit.` } : {});
     }
     // Wave 19 (QA D7): a preset that comes to all in, and an amount the table changes, say why as the control does (sizeWhy, clampWhy).
-    if (size) { const z = sizeWhy(a, size); return Object.assign({ choice: { act: size === 'allin' ? 'allin' : kind, to: z.to } }, z.why ? { note: z.why } : {}); }
+    if (size) {
+      const z = sizeWhy(a, size);
+      // Wave 20 (QA N4): what it went in as, for a table this move finishes ("The pot ($120) went in as all in $95: that's more than you have.").
+      const raw = z.why ? sizeRaw(a, size) : null;
+      const after = raw !== null && raw !== a.maxTo ? `${size === 'pot' ? 'The pot' : 'Half the pot'} (${money(raw)}) went in as all in ${money(a.maxTo)}: ${raw > a.maxTo ? "that's more than you have" : 'that would have left you less than a bet'}.` : '';
+      return Object.assign({ choice: { act: size === 'allin' ? 'allin' : kind, to: z.to } }, z.why ? { note: z.why } : {}, after ? { after } : {});
+    }
     const want = prep === 'by' && kind === 'raise' ? a.level + amount : amount;
     const c = clampWhy(want, a.minTo, a.maxTo, a.unit, kind);
-    return Object.assign({ choice: { act: kind, to: c.to } }, c.why ? { note: c.why } : {});
+    return Object.assign({ choice: { act: kind, to: c.to } }, c.why ? { note: c.why, after: wentIn(want, c.to, a, kind) } : {});
+  }
+  /* What a typed amount the table changed went in as (wave 20, QA N4: said
+     under the result when that move finished the hand, so the change is
+     never lost to the narration): "Your $70 went in as all in $95: that
+     would have left you less than a bet.", "Your $300 went in as all in
+     $95: that's more than you have.", "Your $50 went in as $60: bets go in
+     twenties.", "Your raise to $130 went in as a raise to $140: bets go in
+     twenties.", "Your $5 went in as $20: the least bet is $20." */
+  function typedWas(w, kind) { return kind === 'raise' ? `Your raise to ${money(w)}` : `Your ${money(w)}`; }
+  function wentAs(to, a, kind) { return to >= a.maxTo ? `all in ${money(a.maxTo)}` : kind === 'raise' ? `a raise to ${money(to)}` : money(to); }
+  function wentIn(want, to, a, kind) {
+    const w = Math.floor(want);
+    if (!Number.isFinite(w) || w === to) return '';
+    const step = Math.max(1, a.unit | 0);
+    let why;
+    if (w > a.maxTo) why = "that's more than you have";
+    else if (to >= a.maxTo) {
+      const up = w < a.minTo ? a.minTo : Math.ceil(w / step) * step;
+      why = up > a.maxTo ? `bets go in ${betsIn(step)}, and ${money(up)} is more than you have` : up < a.maxTo ? 'that would have left you less than a bet' : `bets go in ${betsIn(step)}`;
+    } else why = w < a.minTo ? (kind === 'raise' ? `the least raise is to ${money(a.minTo)}` : `the least bet is ${money(a.minTo)}`) : `bets go in ${betsIn(step)}`;
+    return `${typedWas(w, kind)} went in as ${wentAs(to, a, kind)}: ${why}.`;
   }
   /* The Win (cheat) at hold'em mid-hand (wave 13): the player's two cards
      and the board already turned stay; the rest of the board is dealt so
@@ -19709,6 +19819,7 @@ const Pipeline = (() => {
   let hand = null;
   let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends: its token
   let heldOpen = null; // the stored hand of the hand open now (holdThis), which a pushback updates (wave 19)
+  let moveWhy = null; // what the player's last move went in as, when the table changed a typed amount (wave 20, QA N4: { why } on the choice)
   function waitForHand(table, node, kind) {
     return new Promise((resolve, reject) => {
       hand = { resolve, reject, table, node: node || null, kind: kind || 'draw' };
@@ -19727,6 +19838,7 @@ const Pipeline = (() => {
     const h = hand;
     hand = null;
     const c = isObj(choice) ? choice : {};
+    moveWhy = h.kind !== 'choose' && typeof c.why === 'string' && c.why ? cleanText(c.why, 200) : null;
     if (h.kind === 'choose') {
       // Stop at the chooser: nothing was dealt, so the turn is called off at no cost (the line back in the box).
       if (c.fold === true) { h.reject(Object.assign(stoppedAtTable(), { chooser: true })); return true; }
@@ -20394,19 +20506,47 @@ const Pipeline = (() => {
      the table itself (STAKES_GAME: "table stakes", "no-limit poker", "the
      limit off the table", "bet what we like at cards", "deal me in, no
      limit"). A parser that aimed the line at someone else is never
-     overridden. */
-  const STAKES_ASK = /\b(?:no[\s-]?limit(?!\s+(?:to|on|of|for|in)\b)|table[\s-]stakes|(?:raise|up|lift)\s+the\s+(?:stakes|limit)|(?:a\s+)?bigger\s+(?:game|stakes|bets)(?!\s+than\b)|higher\s+stakes(?!\s+than\b)|play\s+for\s+real|(?:take|lift|drop)\s+(?:the|your)\s+limit\s+off|take\s+off\s+the\s+limit|(?:lift|drop|scrap|lose|ditch|forget)\s+(?:the|your)\s+limit|without\s+(?:a|the)\s+limit|bet\s+(?:what(?:ever)?|anything)\s+(?:we|i|you)\s+(?:like|want))\b/i;
-  const STAKES_GAME = /\b(?:table[\s-]stakes|no[\s-]?limit\s+(?:game|poker|hold[\s'-]*'?em|holdem|draw|cards|table)|cards|poker|hold[\s'-]*'?em|holdem|draw\s+poker|five[\s-]*card|(?:the|this|your|his|our|a)\s+(?:card\s+|poker\s+)?(?:game|table)|deal(?:s|er)?)\b/i;
+     overridden.
+     Wave 20 (QA N2, N3): the words carry it, and the aim is the scene. A
+     "limit" that is talk is never an ask (stakesWords): one after a
+     possessive ("your limit", "my limit"), after know, has, have, is,
+     there's or without ("Curtis, your greed has no limit.", "He'll play
+     without a limit, that one."), or one with a greed, a patience or the
+     like before it in its clause ("Does your greed know no limit,
+     Curtis?"). The ask words alone are enough at the dealer's place with
+     him there: said to him (or to everyone) in Say mode, or done with no
+     one else as the target ("no limit", "Take the limit off.", "Raise the
+     stakes."). At a table already no limit today a line that sits down
+     ("deal me in for $50, no limit") is no ask: it deals (QA N8). The
+     wave 19 test of a name or the game in the words (stakesNamed,
+     STAKES_GAME) is gone with it. */
+  const STAKES_ASK = /\b(?:no[\s-]?limit(?!\s+(?:to|on|of|for|in)\b)|table[\s-]stakes|(?:raise|up|lift)\s+the\s+(?:stakes|limit)|(?:a\s+)?bigger\s+(?:game|stakes|bets)(?!\s+than\b)|higher\s+stakes(?!\s+than\b)|play\s+for\s+real|(?:take|lift|drop)\s+the\s+limit\s+off|take\s+off\s+the\s+limit|(?:lift|drop|scrap|lose|ditch|forget)\s+the\s+limit|bet\s+(?:what(?:ever)?|anything)\s+(?:we|i|you)\s+(?:like|want))\b/i;
   const STAKES_COLD = 0;
-  /* The words name the dealer or his game (wave 19, QA D1). */
-  function stakesNamed(text, dealer) {
+  // A "limit" that is talk (wave 20, QA N2): after know, has, is, there's or without (a possessive one never matches STAKES_ASK), or with a greed or the like before it in its clause.
+  const LIMIT_TALK_BEFORE = /(?:^|[^a-z'])(?:know|knows|knew|knowing|has|have|had|having|is|was|are|were|there|there's|theres|without)\s+$/i;
+  const LIMIT_OWNER = /\b(?:greed|greediness|patience|appetite|ambition|nerve|gall|cheek|luck|thirst|hunger|love|kindness|generosity|imagination|cruelty|stupidity|pride|temper|mercy|charity|ego|vanity|gluttony|spite|malice|meanness|cunning|courage|daring|folly|madness)\b/i;
+  /* The words ask for a bigger game (wave 20, QA N2): a STAKES_ASK phrase
+     that is not talk. "table stakes", "a bigger game", "raise the stakes"
+     always ask; one with "limit" in it asks unless its limit is talk
+     (LIMIT_TALK_BEFORE right before it, a LIMIT_OWNER before it in its
+     clause). STAKES_ASK has no possessive limit ("lift your limit" is
+     talk) and no "without a limit". */
+  function stakesWords(text) {
     const t = String(text || '').replace(/[’‘]/g, "'");
-    return STAKES_GAME.test(t) || (!!dealer && Town.nameMentions(` ${t.toLowerCase()} `, dealer));
+    const re = new RegExp(STAKES_ASK.source, 'gi');
+    for (let m = re.exec(t); m; m = re.exec(t)) {
+      if (!/limit/i.test(m[0])) return true;
+      const before = t.slice(0, m.index);
+      const lead = before + m[0].slice(0, m[0].search(/(?:no[\s-]?)?limit/i));
+      if (LIMIT_TALK_BEFORE.test(lead) || LIMIT_OWNER.test(before.split(/[,;:.!?]/).pop())) continue;
+      return true;
+    }
+    return false;
   }
   function stakesAsked(ctx) {
     const a = ctx.action;
     const text = String(ctx.input || '').replace(/[’‘]/g, "'");
-    if (!a || !STAKES_ASK.test(text)) return null;
+    if (!a || !stakesWords(text)) return null;
     if (['attack', 'steal', 'move'].includes(a.actionType)) return null;
     const l = here();
     if (!l || !cardGameAt(l) || shutReason(l)) return null;
@@ -20417,8 +20557,10 @@ const Pipeline = (() => {
     const targets = a.targets || [];
     const others = targets.filter(t => /^npc_/.test(t) && t !== dealer.id && ctx.presentIds.includes(t));
     if (others.length && !targets.includes(dealer.id)) return null;
-    // Aimed at the dealer (Say mode to him puts him in the targets too), or his name or his game in the words.
-    return targets.includes(dealer.id) || stakesNamed(text, dealer) ? dealer : null;
+    // Wave 20 (QA N8): his table is no limit today already, so a line that sits down deals ("deal me in for $50, no limit").
+    if (tableStructure(dealer) === 'nolimit' && (a.actionType === 'gamble' || wordsBet(text))) return null;
+    // Wave 20 (QA N3): at his place, said to him or done with nobody else as the target, the words alone are the ask.
+    return dealer;
   }
   function stakesAsk(ctx, dealer) {
     const s = State.current;
@@ -20429,7 +20571,8 @@ const Pipeline = (() => {
     const first = firstName(name);
     a.actionType = 'persuade';
     a.targets = [dealer.id].concat((a.targets || []).filter(t => t !== dealer.id));
-    Object.assign(a, { needsRoll: false, stat: 'charm', difficulty: 'normal' });
+    // Wave 20 (QA N3): an ask is a sentence at the table, whatever the parser made of its time.
+    Object.assign(a, { needsRoll: false, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
     let outcome;
     let roll = null;
     if (fl[`cardsNoLimit.${dealer.id}`] === day) outcome = 'already';
@@ -20506,7 +20649,9 @@ const Pipeline = (() => {
     }
     // A /reroll of a hand (wave 11, L5): the hand as it was played; only the catch roll is new. A hand the page was closed on after it was played (resumeHand): the same.
     const replay = ctx.reroll || ctx.resume ? replayable(ctx.replayCards) : null;
-    const st = replay ? { stake: replay.stake, named: Number.isFinite(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold);
+    // "another hand" (wave 20, QA N9): at the stake of the last hand at this table today, as the between-hands notice pairs them; else the usual.
+    const lastToday = s.log.slice().reverse().find(e => isObj(e.cards) && e.cards.dealerId === dealer.id && e.day === s.time.day);
+    const st = replay ? { stake: replay.stake, named: Number.isFinite(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold, lastToday ? lastToday.cards.stake : null);
     const stake = st.stake;
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
     a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
@@ -20569,8 +20714,12 @@ const Pipeline = (() => {
       c.paid += d;
       UI.showCash();
     };
+    moveWhy = null;
     const out = replay ? playedHand(replay) : game === 'holdem' ? await holdemHand(c) : await drawHand(c);
     const rec0 = out.record;
+    // The move that finished the hand was a typed amount the table changed (wave 20, QA N4): what it went in as stays under the result.
+    if (!replay && moveWhy && !out.folded && !out.win) rec0.amountWhy = moveWhy;
+    moveWhy = null;
     // The dealer held the player to the limit this hand (amendment 2): how many times, on the record.
     if (pushes && !replay) rec0.pushback = pushes;
     // Stop folded it (wave 11, M1): the ante is in; the turn is committed and told plainly.
@@ -20599,6 +20748,7 @@ const Pipeline = (() => {
     // The top bar and the Character panel show the cash the table shows (wave 11, M2), mid-turn as it is.
     UI.showCash();
     const record = Object.assign({}, rec0, { result, delta, cash: p.gold });
+    delete record.plain;
     ctx.cards = record;
     UI.feed.cardsDone(out.node, record);
     // Played: a page closed before the turn is kept finds the hand as it ended, and the catch roll's die.
@@ -20647,8 +20797,12 @@ const Pipeline = (() => {
        stake or the structure differs from the last hand at this dealer's
        table (none before it in the story, another stake, or limit then and
        no limit now), not "for the first time". A hand Stop folded is told
-       in a plain line (wave 11, by design), so its terms are not said. */
-    const prevHand = s.log.slice().reverse().find(e => isObj(e.cards) && e.cards.dealerId === dealer.id);
+       in a plain line (wave 11, by design), so its terms are not said.
+       Wave 20 (QA N6): so the last hand here is the last one narrated: a
+       hand told in a plain line (Stop, a closed page, another tab, a
+       narrator that failed or was stopped: stopped, closed or plain on its
+       record) is passed over, and the next hand at its stake says them. */
+    const prevHand = s.log.slice().reverse().find(e => isObj(e.cards) && e.cards.dealerId === dealer.id && !e.cards.stopped && !e.cards.closed && !e.cards.plain);
     const newTerms = fresh && !caught && (!prevHand || prevHand.cards.stake !== stake || (prevHand.cards.structure || null) !== (rec0.structure || null));
     ctx.gamble.rules = newTerms ? rulesWords(stake, rec0.structure) : null;
     const tableSize = stake < 1000 ? dollarWords(stake).replace(/^a /, '') : money(stake);
@@ -21919,7 +22073,7 @@ const Pipeline = (() => {
       const entry = Object.assign({ input: opts.input, roll: rollForLog(ctx.roll), narration, day: narrTime.day, phase: narrTime.phase, mock: told.mock }, said, sameTime(startTime, narrTime) ? {} : { from: { day: startTime.day, phase: startTime.phase } });
       if (notRecorded) entry.changes = 'not recorded';
       // The card table as it ended (wave 10): the feed draws it again after a reload or an /undo.
-      if (ctx.cards) entry.cards = ctx.cards;
+      if (ctx.cards) entry.cards = ctx.plain ? Object.assign({}, ctx.cards, { plain: true }) : ctx.cards;
       State.apply({ logEntry: entry });
       // The ending has been told: its news is seen now, not before (a failed or stopped ending is told after the next turn).
       // One /undo takes it back with the turn that brought it (wave 5, playtest Q5).
@@ -22168,10 +22322,14 @@ const Pipeline = (() => {
     if (isSay(speech) && speech.to && speech.to !== 'everyone' && speech.to !== e.cards.dealerId) return null;
     const dealer = dealerOf(State.npcsAt(s.player.locationId).map(n => n.id));
     if (!dealer || dealer.id !== e.cards.dealerId) return null;
-    const t = String(text || '').trim();
-    if (/^\$?\s*\d[\d,]*(?:\.\d+)?\s*(?:dollars?|bucks?)?[.!?]*$/i.test(t)) return null;
-    if (typedBet(t, BETWEEN_TABLE) === null) return null;
+    if (!betWord(text)) return null;
     return `No hand is on the table. 'Another hand' or 'deal me in for ${money(e.cards.stake | 0 || 20)}' starts one.`;
+  }
+  /* A move typedBet reads (against a stand-in table facing a bet), a bare amount aside, which is a stake (wave 19; wave 20: the demo's sit-down with the dealer or the table named reads it too). */
+  function betWord(text) {
+    const t = String(text || '').trim();
+    if (/^\$?\s*\d[\d,]*(?:\.\d+)?\s*(?:dollars?|bucks?)?[.!?]*$/i.test(t)) return false;
+    return typedBet(t, BETWEEN_TABLE) !== null;
   }
   async function submit(rawText, opts) {
     const text = String(rawText || '').trim();
@@ -22725,7 +22883,7 @@ const Pipeline = (() => {
     keepWin,
     gameFrom, seatWords, cardPeople, seatsFor, seatedAt, rememberedGame, holdemRun, drawRun, settlePot, unitFor, anteFor, holdemCap, rigHoldem, rigDraw, CARD_GAMES, GAME_NAMES, CARD_TAG,
     // Wave 18: no-limit betting (the table's amounts, a seat's move, the hand's big moments, a bet typed with a hand open).
-    clampTo, clampWhy, sizeFor, sizeWhy, seatMove, drawStrength, betMoments, typedBet, MAX_RAISES, rulesWords, rulesText, STAKES_ASK, STAKES_GAME, stakesNamed, stakesAsked, betweenHands, tableStructure, STRUCTURES,
+    clampTo, clampWhy, sizeFor, sizeWhy, seatMove, drawStrength, betMoments, typedBet, MAX_RAISES, rulesWords, rulesText, STAKES_ASK, stakesWords, stakesAsked, betweenHands, betWord, tableStructure, STRUCTURES,
     // Wave 19: the first sentence of a text, never cut at "Dr." or an initial (the demo's and the packets' split).
     sentenceOne,
     resumeHand,
@@ -25987,7 +26145,7 @@ const UI = (() => {
         return true;
       }
       // Asking for table stakes is between hands (amendment 2): the words stay in the box for when this one is over.
-      if (!b && Pipeline.STAKES_ASK.test(t)) { const o = Pipeline.openHand; nudge(`Ask ${String((o && o.dealerName) || 'the dealer').split(/\s+/)[0]} for table stakes between hands: finish this one first.`); return true; }
+      if (!b && Pipeline.stakesWords(t)) { const o = Pipeline.openHand; nudge(`Ask ${String((o && o.dealerName) || 'the dealer').split(/\s+/)[0]} for table stakes between hands: finish this one first.`); return true; }
       if (b && b.choice) {
         const node = $('#feed .f-cards.open');
         d.cmd.value = '';
@@ -25996,7 +26154,8 @@ const UI = (() => {
         hideAc();
         // A clamp's note (wave 19, QA D4) shows once the table is drawn again for the move, not before it (tableRedrawn).
         tableNote = b.note || null;
-        Pipeline.playHand(b.choice);
+        // What it went in as goes with the move (wave 20, QA N4): said under the result if this move finishes the hand.
+        Pipeline.playHand(b.after ? Object.assign({}, b.choice, { why: b.after }) : b.choice);
         if (node && !isMobile() && screen === 'game') d.cmd.focus({ preventScroll: true });
         return true;
       }
@@ -26136,12 +26295,23 @@ const UI = (() => {
       if (o === kind) main = b;
       return b;
     });
-    const acts = el('div', { class: 'cards-acts' }, btns);
+    const acts = actsNamed(el('div', { class: 'cards-acts' }, btns), t, t.playerIn);
     if (!kind || !a || !main) return [acts];
     // One amount only: all in when the stack is short, or a limit table's bet or raise (amendment 2: no field, no presets).
     if (a.limit || a.minTo >= a.maxTo) { main.textContent = label(a.minTo); main.dataset.to = String(a.minTo); sync = () => a.minTo; return [acts]; }
     const note = el('p', { class: 'cards-amt-note', 'aria-live': 'polite' });
-    const read = () => { const m = /\d[\d,]*/.exec(field.value); return m ? parseInt(m[0].replace(/,/g, ''), 10) : NaN; };
+    /* The field read (wave 20, QA N10): a minus sign makes no amount of its
+       own, so it is the least ("Bets are at least $4."); cents are cut to
+       whole dollars ("Whole dollars at this table: $60."); each said on the
+       line under the field, before any change the table makes. */
+    const parse = () => {
+      const m = /(-)?\s*\$?\s*(-)?\s*(\d[\d,]*)(?:\.(\d*))?/.exec(field.value.replace(/[−–]/g, '-'));
+      if (!m) return { n: NaN, why: '' };
+      if (m[1] || m[2]) return { n: a.minTo, why: kind === 'raise' ? `Raises are to at least ${money(a.minTo)}.` : `Bets are at least ${money(a.minTo)}.` };
+      const n = parseInt(m[3].replace(/,/g, ''), 10);
+      return { n, why: m[4] && /[1-9]/.test(m[4]) ? `Whole dollars at this table: ${money(n)}.` : '' };
+    };
+    const read = () => parse().n;
     /* Wave 19 (QA D7): the button always reads what the amount comes to,
        and the line under the field says each change ("Bets go in
        twenties: $50 rounds up to $60.", "That would leave you less than a
@@ -26151,13 +26321,14 @@ const UI = (() => {
        show: a typed amount the table changes is put in the field first,
        with its reason, and the next Enter bets it. */
     sync = settle => {
-      const want = read();
+      const p = parse();
+      const want = p.n;
       const c = Pipeline.clampWhy(want, a.minTo, a.maxTo, a.unit, kind);
       const to = c.to;
       main.textContent = label(to);
       main.dataset.to = String(to);
       const least = kind === 'bet' ? `The least bet is ${money(a.minTo)}` : `The least raise is to ${money(a.minTo)}`;
-      note.textContent = !Number.isFinite(want) ? (field.value.trim() ? `Type an amount in dollars. ${least}.` : '') : c.why;
+      note.textContent = !Number.isFinite(want) ? (field.value.trim() ? `Type an amount in dollars. ${least}.` : '') : [p.why, c.why].filter(Boolean).join(' ');
       if (settle && String(to) !== field.value) field.value = String(to);
       return to;
     };
@@ -26178,9 +26349,9 @@ const UI = (() => {
         if (e.key !== 'Enter') return;
         e.preventDefault();
         // The field and the button agree before anything is bet: an amount the table changes goes in the field first, its reason kept.
-        const typed = read();
+        const typed = parse();
         const to = sync(true);
-        if (typed !== to) return;
+        if (typed.why || typed.n !== to) return;
         main.click();
       } });
     const preset = (size, text, name) => el('button', { type: 'button', class: 'btn small cards-preset', dataset: { size }, 'aria-label': name, onclick: () => { const z = Pipeline.sizeWhy(a, size); set(z.to, z.why); } }, text);
@@ -26218,8 +26389,66 @@ const UI = (() => {
       else say = `${call}, raise to ${ladderText(a)}, or fold. `;
     } else if (opts.includes('bet')) say = a.minTo >= a.maxTo ? `Check, or go ${ladderText(a)}. ` : `Check, or bet ${ladderText(a)}. `;
     else say = 'Check. ';
+    // Wave 20 (QA N11): a short screen has the choice words alone, the Win (cheat) beside them (shortHint).
+    if (shortScreen()) return el('p', { class: 'cards-hint short' }, choiceWords(t), ' ', winButton());
     return el('p', { class: 'cards-hint' }, rulesSaid(t), say, `Stop folds the hand (−${money(t.playerIn)}). `, winButton());
   }
+  /* Wave 20 (QA N11): under 600px of height the hint under the table is
+     one short line, the choice words and the Win (cheat) ("Check or bet.
+     Win (cheat)", "Call, raise or fold.", "Hold, then Draw."), so
+     the Win stays in view with the player's cards, the buttons and the
+     amount; the terms (on the first deal) and what Stop costs are the
+     button row's title and name (actsTitle) and on the status line
+     (handStatus). A turn of the phone across 600px draws the hint again
+     (shortMq). */
+  const shortMq = window.matchMedia('(max-height: 599.98px)');
+  const shortScreen = () => shortMq.matches;
+  function choiceWords(t) {
+    if (t.phase !== 'bet' && t.game !== 'holdem') return 'Hold, then Draw.';
+    const opts = Array.isArray(t.options) ? t.options : [];
+    const a = isObj(t.ask) ? t.ask : {};
+    const raise = a.minTo >= a.maxTo ? 'all in' : 'raise';
+    if (opts[0] === 'call') return opts.includes('raise') ? `Call, ${raise} or fold.` : 'Call or fold.';
+    if (opts.includes('bet')) return a.minTo >= a.maxTo ? 'Check or all in.' : 'Check or bet.';
+    return 'Check.';
+  }
+  /* Five-card draw's hint before the draw (wave 18; the short line on a short screen, wave 20). */
+  function drawHint(t, price) {
+    if (shortScreen()) return el('p', { class: 'cards-hint short' }, choiceWords(t), ' ', winButton());
+    return el('p', { class: 'cards-hint' }, `${rulesSaid(t)}Pick the cards to hold, then Draw: the rest are replaced, and a round of betting follows. Stop folds the hand (−${money(price)}). `, winButton());
+  }
+  /* A phone turned (or a window sized) across 600px of height with a hand open: the hint, the button row's name and the status line follow. */
+  function shortChanged() {
+    const node = $('#feed .f-cards.open');
+    const t = shownTable;
+    if (!node || !isObj(t) || t.choose || t.result) return;
+    const price = Number.isInteger(t.playerIn) ? t.playerIn : Pipeline.foldPrice(t.stake);
+    const hint = $('.cards-hint', node);
+    if (hint) hint.replaceWith(t.game === 'holdem' || t.phase === 'bet' ? betHint(t) : drawHint(t, price));
+    const acts = $('.cards-acts', node);
+    if (acts && shortScreen()) actsNamed(acts, t, price);
+    else if (acts) for (const k of ['title', 'role', 'aria-label']) acts.removeAttribute(k);
+    if (d.turnStatus && !d.turnStatus.classList.contains('nudge')) renderStatus();
+  }
+  if (shortMq.addEventListener) shortMq.addEventListener('change', shortChanged); else if (shortMq.addListener) shortMq.addListener(shortChanged);
+  function actsTitle(t, price) { return `${rulesSaid(t)}Stop folds the hand (−${money(price)}).`; }
+  /* The button row on a short screen carries the terms and the Stop price as its title and its group name (QA N11). */
+  function actsNamed(acts, t, price) {
+    if (!shortScreen()) return acts;
+    const said = actsTitle(t, price);
+    acts.title = said;
+    acts.setAttribute('role', 'group');
+    acts.setAttribute('aria-label', said);
+    return acts;
+  }
+  /* The status line on a short screen while the hand waits (QA N11): "Your hand · Stop folds it (−$5)", with the terms on the first deal ("… · $100 to sit, $5 ante, no limit"). */
+  function handStatus(t) {
+    if (!shortScreen() || !isObj(t) || t.result || t.choose || !Number.isInteger(t.playerIn)) return null;
+    const terms = t.first && Number.isInteger(t.ante) ? ` · ${money(t.stake)} to sit, ${money(t.ante)} ante, ${t.structure === 'nolimit' ? 'no limit' : `${money(t.unit)} limit`}` : '';
+    return { text: `Your hand · Stop folds it (−${money(t.playerIn)})${terms}`, title: `Your hand. ${actsTitle(t, t.playerIn)}` };
+  }
+  /* Under the result (wave 20, QA N4): what the move that finished the hand went in as, when the table changed a typed amount ("Your $70 went in as all in $95: that would have left you less than a bet."). */
+  function amountWhy(t) { return typeof t.amountWhy === 'string' && t.amountWhy ? el('p', { class: 'cards-why' }, t.amountWhy) : null; }
   /* Under a finished table, the newest only (wave 14, QA #11): how to play the other game next. */
   function nextHint(t) {
     if (t.result === 'caught') return null;
@@ -26280,15 +26509,15 @@ const UI = (() => {
         cards: mine ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle),
         name: mine ? el('p', { class: 'cards-name' }, t.player.name) : null
       }));
-      if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), nextHint(t));
+      if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), amountWhy(t), nextHint(t));
       else if (bet) rows.push(potLine(t), ...betActs(t), betHint(t));
       else {
         const price = Number.isInteger(t.playerIn) ? t.playerIn : Pipeline.foldPrice(t.stake);
         rows.push(potLine(t));
-        rows.push(el('div', { class: 'cards-acts' },
+        rows.push(actsNamed(el('div', { class: 'cards-acts' },
           el('button', { type: 'button', class: 'btn primary small cards-draw', onclick: e => endHand(e.currentTarget, false) }, drawLabel(5)),
-          el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, `Fold −${money(price)}`)));
-        rows.push(el('p', { class: 'cards-hint' }, `${rulesSaid(t)}Pick the cards to hold, then Draw: the rest are replaced, and a round of betting follows. Stop folds the hand (−${money(price)}). `, winButton()));
+          el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, `Fold −${money(price)}`)), t, price));
+        rows.push(drawHint(t, price));
       }
       node.replaceChildren(...rows.filter(Boolean));
       return;
@@ -26320,7 +26549,7 @@ const UI = (() => {
       el('p', { class: 'cards-top' }, el('span', { class: 'cards-board-k' }, 'The board'), el('span', { class: 'cards-street' }, street)),
       el('div', { class: 'cards-row', role: 'group', 'aria-label': `The board: ${lowerFirst(street)}` }, [0, 1, 2, 3, 4].map(i => (i < shown && t.board && t.board[i] ? cardFace(t.board[i]) : cardBack())))));
     rows.push(seatRow({ cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'), status: ended(t.player, 'player'), label: 'Your cards', cards: t.player.dealt.map(c => cardFace(c)) }));
-    if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), nextHint(t));
+    if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)), amountWhy(t), nextHint(t));
     else rows.push(potLine(t), ...betActs(t), betHint(t));
     node.replaceChildren(...rows.filter(Boolean));
   }
@@ -26366,11 +26595,13 @@ const UI = (() => {
      with the amount control), the player's cards and the controls (the
      buttons and the amount) are what stays: the cards at the top of the
      story, the hint's end a short scroll below, the board a short scroll
-     above. */
+     above. Wave 20 (QA N11): under 600px of height the margin kept above
+     and below is 4px, not 8px, so with the short hint the player's cards
+     and everything under them, the Win (cheat) too, fit at 320×568. */
   function keepHand(node) {
     const f = d.feedScroll;
     if (!f || !node || !node.isConnected) return;
-    const gap = 8;
+    const gap = shortScreen() ? 4 : 8;
     const room = f.clientHeight - 2 * gap;
     const you = $('.cards-you', node);
     const last = node.lastElementChild;
@@ -26382,7 +26613,9 @@ const UI = (() => {
     const boardTop = board ? rect(board).top : null;
     const youTop = rect(you).top;
     const row = $('.cards-row', you);
-    const cardsTop = row ? Math.max(youTop, rect(row).top - gap / 2) : youTop;
+    // The cards' own top (wave 20: the row's padding above five-card draw's cards is not kept in view; a held card raised is).
+    const tops = row ? $$('.card', row).map(c => rect(c).top) : [];
+    const cardsTop = row ? Math.max(youTop, (tops.length ? Math.min(...tops) : rect(row).top) - gap / 2) : youTop;
     const ctrls = $$('.cards-acts, .cards-size', node);
     const ctrlEnd = ctrls.length ? Math.max(...ctrls.map(x => rect(x).bottom)) : bottom;
     // The most that fits, from the top: the board and all under it; the player's row and all under it; the player's cards and all under them.
@@ -26444,7 +26677,7 @@ const UI = (() => {
     add(node) { d.feed.append(node); afterAppend(); return node; },
     input(text, sp) { inferStage('parse'); Object.assign(turnMark, { open: true, roll: false, narr: false }); return feed.add(inputNode(text, sp)); },
     roll(r) { if (r) turnMark.roll = true; return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
-    narration(text, mock) { turnMark.narr = true; return feed.add(narrationNode(text, mock)); },
+    narration(text, mock) { turnMark.narr = true; const node = feed.add(narrationNode(text, mock)); releaseNote(); return node; },
     beginNarration(opts) {
       turnMark.narr = true;
       const node = el('div', { class: 'f-item f-narr pending', 'aria-busy': 'true', 'aria-hidden': 'true', dataset: opts && opts.mock ? { mock: '1' } : null });
@@ -26453,7 +26686,7 @@ const UI = (() => {
       inferStage('narrate');
       return feed.add(node);
     },
-    stream(node, soFar) { fillParas(node, soFar); afterAppend(); },
+    stream(node, soFar) { fillParas(node, soFar); afterAppend(); if (soFar) releaseNote(); },
     endNarration(node, text) {
       liveOn();
       node.classList.remove('rewriting');
@@ -26462,6 +26695,7 @@ const UI = (() => {
       node.classList.remove('pending');
       node.removeAttribute('aria-busy');
       afterAppend();
+      releaseNote();
       inferStage('bookkeep');
     },
     /* UI.feed.rewriting(node, on): the first draft stays, dimmed, under
@@ -26515,6 +26749,7 @@ const UI = (() => {
       if (screen === 'game' && head && focusStillOnComposer()) moveFocus(head);
       // Wave 19 (QA D5): a dealt table taller than the story shows the player's row and the controls (keepHand), not its head; the chooser as before.
       if (t.choose) showTable(node); else keepHand(node);
+      shownTable = t;
       tableRedrawn();
       return node;
     },
@@ -26536,6 +26771,7 @@ const UI = (() => {
       if (had && screen === 'game') moveFocus(first ? $('.cards-head', node) : tableFocus(node));
       // Wave 19 (QA D5): the first deal too keeps the player's row and the controls in view (the whole table when it fits).
       keepHand(node);
+      shownTable = t;
       tableRedrawn(t);
       return node;
     },
@@ -26548,7 +26784,8 @@ const UI = (() => {
       fillCards(node, t);
       if (had) focusComposer();
       scrollToBottom();
-      tableRedrawn();
+      shownTable = null;
+      tableRedrawn(t);
       return node;
     },
     /* The dealer holding the player to the limit (wave 18, amendment 2): his
@@ -26801,6 +27038,8 @@ const UI = (() => {
   let nudgeTimer = null;
   let nudgeAgain = null; // a nudge read again from the hand when the table is drawn again (handNudge)
   let tableNote = null; // a typed move's note, shown when the table is drawn again for it
+  let noteHeld = false; // that note, on a table its move finished, kept until the narration arrives (wave 20, QA N4)
+  let shownTable = null; // the open table as last drawn (wave 20, QA N11: the status line on a short screen reads it)
   /* Pipeline.setStatusListener: { stage, message } at each step of a turn. */
   function onPipelineStatus(ev) {
     status.fromPipeline = true;
@@ -26820,10 +27059,16 @@ const UI = (() => {
   }
   function renderStatus(message) {
     if (!d.turnStatus) return;
+    // A typed amount's note on the hand it finished stays through "Writing…" until the narration arrives (wave 20, QA N4: releaseNote).
+    if (noteHeld) { if (status.stage === 'cards' || status.stage === 'narrate') return; noteHeld = false; }
     const on = status.stage !== 'idle';
     d.turnStatus.hidden = !on;
     d.turnStatus.classList.remove('nudge');
-    d.turnStatusText.textContent = on ? (STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '';
+    // A short screen (wave 20, QA N11): while the hand waits, what Stop costs (and the terms on the first deal), on one line.
+    const hs = on && status.stage === 'cards' ? handStatus(shownTable) : null;
+    d.turnStatus.classList.toggle('short-hand', !!hs);
+    if (hs) d.turnStatusText.title = hs.title; else d.turnStatusText.removeAttribute('title');
+    d.turnStatusText.textContent = on ? (hs ? hs.text : STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '';
     // The queued line is shown, not just a pill, with × to take it back.
     const q = on && status.queued;
     d.queuedNote.hidden = !q;
@@ -26854,7 +27099,10 @@ const UI = (() => {
      (QUEUE_FULL: a line typed while one already waits). */
   function nudge(text, again) {
     if (!d.turnStatus || d.turnStatus.hidden) return;
+    noteHeld = false;
     d.turnStatus.classList.add('nudge');
+    d.turnStatus.classList.remove('short-hand');
+    d.turnStatusText.removeAttribute('title');
     d.turnStatusText.textContent = text || 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.';
     nudgeAgain = typeof again === 'function' ? again : null;
     clearTimeout(nudgeTimer);
@@ -26869,10 +27117,20 @@ const UI = (() => {
   function tableRedrawn(t) {
     const note = tableNote;
     tableNote = null;
-    if (note) { nudge(note); return; }
-    if (!d.turnStatus || !d.turnStatus.classList.contains('nudge')) return;
+    // Wave 20 (QA N4): on a table the move finished, the note stays until the narration arrives.
+    if (note) { nudge(note); if (isObj(t) && t.result) noteHeld = true; return; }
+    if (!d.turnStatus) return;
+    // Wave 20 (QA N11): the status line follows the table drawn (on a short screen it says what Stop costs now).
+    if (!d.turnStatus.classList.contains('nudge')) { if (status.stage === 'cards') renderStatus(); return; }
     // The open table as drawn (the hand waits for the player right after this, so its kind is the table's own).
     if (nudgeAgain && isObj(t) && !t.result && !t.choose) { d.turnStatusText.textContent = nudgeAgain(t, t.game === 'holdem' ? 'holdem' : t.phase === 'bet' ? 'drawbet' : 'draw'); return; }
+    clearTimeout(nudgeTimer);
+    renderStatus();
+  }
+  /* The narration has arrived (wave 20, QA N4): a held note gives way to the turn's stage. */
+  function releaseNote() {
+    if (!noteHeld) return;
+    noteHeld = false;
     clearTimeout(nudgeTimer);
     renderStatus();
   }
