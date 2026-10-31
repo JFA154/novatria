@@ -1206,3 +1206,28 @@ talking, I can direct it to one person or all."
      bookkeeper's CARD GAME line and its ignored goldDelta are as before,
      and the demo tells the hands. Left open: a live narrator's telling of a
      hand.
+   - **Wave 11** (31 Oct 2026). QA played the wave 10 table on phones and
+     laptops and found two high, seven medium and twelve low items, fixed
+     by one agent with four of its suggestions. Notes: the "Wave 11"
+     sections of `docs/notes/engine-world.md` and `docs/notes/ui.md`;
+     tests: `tests/wave11-cards.test.cjs`. A dealt hand is final: Stop
+     with it open folds it (the fold price, now half rounded up, and the
+     marked deck's catch roll), a narrator that fails, is stopped or
+     declines after the showdown leaves the hand told in one plain engine
+     line, and a page closed on a hand finds it on the next load (folded,
+     or as played); `/reroll` replays a hand from its record and rolls only
+     the catch. The title screen waits for an open hand. A bet said in Say
+     mode deals when said to the dealer or to everyone. Stakes come from
+     figures or words, all in is all the cash, a capped or defaulted stake
+     is said. The read is 60% + 12% a point and reads on the man; it is
+     hidden over a marked deck and says afterwards whether it was right.
+     Caught, the ban names the first day the bar is open, the dealer will
+     not deal for a week (or while colder than -10) and his due events
+     wait; nobody dealing says when he deals. `/cheat cards` lives in the
+     game (survives a reload and `/undo`). The table's head takes the
+     focus and names the group, a card says whether it is held, the
+     keyboard ring is not the Hold edge, Draw and Fold say what they do,
+     drawn cards are marked, the catch roll is labelled, the cash follows
+     the hand at once, a short phone opens the table at its head, and suit
+     signs ask for text presentation. Left open: a live narrator's telling
+     of a hand, as before.

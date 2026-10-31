@@ -763,3 +763,119 @@ dealer at a table in the feed (`docs/notes/ui.md`, Wave 10). Tests:
   line is gone; the caught one still ends on the street) and
   `tests/wave6-fixes.test.cjs` (the `/help` row); the rest that bet set
   `hooks.cardsPlay`.
+
+## Wave 11 (31 Oct 2026): the card game after QA
+
+QA's findings on the wave 10 card game, and the rules as built now (the
+table: `docs/notes/ui.md`, Wave 11). Tests: `tests/wave11-cards.test.cjs`.
+
+- **A dealt hand is final (M1).** Once the cards are dealt the ante is in.
+  `Pipeline.abort` with a hand open resolves it as `{ fold, stopped }`
+  instead of rejecting it: the fold price, the marked deck's catch roll,
+  the record (`folded`, `stopped`), and the turn goes on to be kept, told
+  by the engine (`plainNarration(ctx, 'folded')`: "You fold your pair of
+  nines, get up from the table and give up $10."), with no narrator and
+  no bookkeeper. After the showdown the hand is final: when the narrator
+  throws (a network error, Stop while "Writing…") or declines, runTurn
+  keeps the turn with `plainHandText` ("The hand is played: your two pair,
+  kings and sevens, beats Curtis Pruett's pair of aces. You win $50.";
+  loses to, ties, the fold, caught: "Curtis Pruett catches you with the
+  marked deck: the hand is void. You lose $20 and the deck, and you are
+  out on Front Street."). A plainly told turn empties `ctx.due` (what came
+  due waits for the next narration), does not mark the scene change told,
+  and asks no bookkeeper (the engine already moved the money and wrote
+  what being caught does); the bookkeeper's own failure path (narration
+  stands, not recorded, one retry) is as before.
+- **A page closed on a hand (M1).** `Storage.holdHand` writes the hand
+  (`novatria.hand`: the game's `createdAt`, the turn, the input, the Say
+  addressee, the parsed action) when the cards are dealt, and again with
+  the record and the catch die once it is played; runTurn's `finally`
+  drops it. `App.load` then calls `Pipeline.resumeHand()` (after
+  Continue's recap): the same game at the turn before plays that turn at
+  once, `resume: 'open'` (folded, as Stop would, the same cards from the
+  seed) or `'played'` (replayed from the record, the catch roll forced to
+  the same die), told plainly ("The game was closed with a hand on the
+  table, so the hand is folded and the ante is gone." / "… after this hand
+  was played. It stands …"). The stored hand is used up.
+- **`/undo`** of a kept hand is still the game's undo; a redone turn with
+  the same words deals the same cards by design (the seed and the turn).
+- **The fold price (L4)** is `foldPrice(stake)`, half rounded up: $1 of $1,
+  $10 of $20, $13 of $25 (was rounded down, so a $1 fold cost nothing).
+- **Stakes (M5)** come from `stakeFor(text, gold)` → `{ stake, named,
+  note }`: "$50", "50 bucks", "$2.50" (whole dollars: $2), "-$5"
+  (negative), "fifty dollars" and "a hundred bucks" (`Style.numberWords`,
+  exported with `Style.NUMBER_WORD`), a bare number after a bet ("I raise
+  20", "I'm in for fifty", "I put 30 in"); "everything", "all I have",
+  "all in" is all the cash; nothing named, $0 or less is the usual $20.
+  Never more than the cash. `note: 'all'` when the stake is all the cash
+  (asked for, capped, or all of it), `'usual'` when the amount named was no
+  stake; the table record keeps `stakeNote` and `named`, and the OUTCOME
+  says "(the player put up $140, all they have; they named $500)" or
+  "($20, the usual stake: −$5 is no stake)".
+- **The split pot (M6).** "The money has already changed hands." follows
+  the OUTCOME only when money moved.
+- **The read (S3)** is right 60% + 12% a point of Wits, 50% to 95%
+  (`READ_BASE`, `READ_STEP`), and reads on the man: `readText` "Curtis has
+  something" / "Curtis is bluffing" (`says` stays 'something' |
+  'nothing').
+- **Say mode (H2).** `sayAction(a, sp, words)` keeps `gamble` when the
+  parser said so, or when the words bet (`wordsBet`: "deal me in", "I'm in
+  for $50", "ante up", "I'll play a hand", "another hand", "raise", "all
+  in", "I raise $20", "put $30 in"…; "I'm in trouble", "raise your glass",
+  "I bet you are tired" and "we're all in this together" are not) where
+  there is a card game; anything else is talk as before. `gamble` deals when the dealer was spoken to or
+  everyone was, and otherwise gives the no-game line ("the player said it
+  to Loretta Gaddis, and Curtis Pruett is the one who deals"). The
+  parser's Say MODE line allows gamble for such words.
+- **Caught (L6, M4).** The OUTCOME names the first day from the ban's end
+  that the place is open (`openDayFrom`: "back on Monday, Day 5" when Day
+  4 is a Sunday the bar is shut) and says the dealer "won't deal to them
+  for a week". The catch sets `flags['cardsCaught.<dealer id>']` to the
+  day; `dealerRefusal` makes him refuse for `DEALER_GRUDGE_DAYS` (7, that
+  day counted), and while his attitude is under `DEALER_COLD` (-10): the
+  no-game reason "Curtis Pruett won't deal to the player, not since
+  catching them cheating at cards on Day 2" (or "not the way things stand
+  between them"). `dueHold(ctx)` passes `World.dueSeeds` a `hold`: on the
+  turn he throws the player out, an event whose person is the dealer, or
+  whose place is this one (a location trigger, or a scene here), stays due
+  for a later turn; and for that week an event of his that is not about an
+  obligation waits too (the poker hustler's invitation to his Friday game
+  is not told on the street the turn after).
+- **Nobody dealing (L7)** says when the dealer does (`dealerHours`, from
+  who sits at the table each phase today): "nobody is dealing right now
+  (Curtis Pruett deals in the afternoon, evening and night), so there is
+  no game to sit in on".
+- **The catch roll (L9)** is labelled in `roll.line`: "Does Curtis spot
+  the marks? Wits 17 + 3 = 20 vs 12 · Success" (`packetLine` as before).
+- **`/reroll` and `/cheat <tier>` (L5).** A redo of a gamble turn passes
+  the log entry's table (`replayCards`) to runTurn: `gamble` replays it
+  (the same cards, holds or fold; no table to play) and only the catch
+  roll is new. A hand with no roll says "Nothing to reroll: the cards were
+  dealt." (`/cheat <tier>` adds that before arming the next roll).
+- **`/cheat cards` (L2)** is `flags.cardsCheat` (the engine-only State op
+  `cardsCheat: true | false`; a reserved flag): a reload keeps it; the
+  hand it is spent on spends it even when folded or stopped; a failed turn
+  gives it back with the snapshot; `/undo` (and `/reroll`) keep an armed
+  cheat armed (`keepCheat`) and an `/undo` of the hand it won arms it
+  again ("You took back the last turn. The cards cheat is armed again: the
+  next hand is yours."); a second `/cheat cards` says "Already armed: the
+  next hand is yours." `hooks.cardsCheat` is gone; `hooks.cardsDeal` deals
+  the next hand as given (tests, the console).
+- **The demo (L1, L8, H2).** `MOCK_GAMBLE` reads "another hand", "deal
+  again", "one more hand", "deal me another", "I play a hand", "let's
+  play", "I sit down at the card table", "I raise $20", "I go all in",
+  "I'm in for $50" as a bet ("I raise my glass" is not). `mockGamble`
+  says "Curtis Pruett won't deal to you, not after the marked deck.",
+  "It's Curtis Pruett who deals, and you said it to Loretta Gaddis.", and
+  "Nobody is dealing right now, so there is no game to sit in on. Curtis
+  Pruett deals in the afternoon, evening and night." A Say bet is told as
+  the hand, not as a reply. The filler line after a hand is never "Nobody
+  … pays you much mind", and after being thrown out "Behind you, the Low
+  Water carries on without you." (not "It stays quiet …").
+- **Fold words (L11)**: the OUTCOME says "the player folds their pair of
+  nines before the draw".
+- **Tests changed by design**: `tests/wave10-cards.test.cjs` (see
+  `docs/notes/ui.md`, Wave 11), `tests/transport-fixes.test.cjs` (the
+  cheat is armed with `State.apply({ cardsCheat: true })`) and
+  `tests/wave3-fixes.test.cjs` (bug 7: the ban's day is the first the bar
+  is open, with its weekday).

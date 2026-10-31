@@ -1045,3 +1045,87 @@ side: `docs/notes/engine-world.md`, Wave 10). Tests:
 ### Tests changed by design
 - `tests/wave6-fixes.test.cjs`, "QA: the /cheat row": the `/help` line
   with the cards cheat.
+
+## Wave 11 (31 Oct 2026): the card table after QA
+
+QA played the wave 10 table on phones and laptops in both themes. What it
+found, and what the table does now (the engine side:
+`docs/notes/engine-world.md`, Wave 11). Tests:
+`tests/wave11-cards.test.cjs`.
+
+### The title screen (H1)
+- `App.quitToTitle` (the phone menu's Title screen, Settings' Quit to
+  title) refuses while a hand is open: the game screen stays (Settings
+  goes back to it), the feed says "Finish the hand first: Draw or Fold
+  (Stop folds).", and nothing changes. The turn waits for the player's
+  Draw or Fold, so the title screen it used to show kept Continue, New
+  game and Load off until a reload.
+- Any other running turn may still go to the title screen; `setBusy`
+  draws the title again when the turn ends (`renderTitle`), so Continue,
+  New game and Load come back with Continue naming the game as it is now.
+
+### The table (`fillCards`, `cardsNode`, `UI.feed.cards`)
+- The head (`p.cards-head`, `tabindex="-1"`, an id) names the group
+  (`aria-labelledby`, no `aria-label`, so the name is not said twice) and
+  takes the focus when the table opens (M7), never a card: a card with the
+  focus ring looked held. `UI.feed.cards(t, { replay })` skips the focus
+  and the scroll for a hand replayed by `/reroll` or after a reload.
+- The table in view (`showTable`, L3): when the whole table does not fit
+  the story area (320×568 at Large, a phone with the keyboard up), its head
+  goes to the top of the story and the feed stops sticking to the bottom
+  (so the keyboard going down does not scroll it away); else all of it is
+  in view.
+- A card the player holds is a button named with its state ("Eight of
+  hearts, not held" / "…, held", L11); `data-held` drives the look (no
+  `aria-pressed` any more). The Hold tag and the New tag are `.card-tag`,
+  `max(10px, .62em)` (10px at Small, L10); the head is `max(11px, .78em)`.
+- The keyboard's ring on a card (M7) is a 2px `--accent-ink` outline 1px
+  out, inside a 5px `--text` halo (`box-shadow`): 8.4:1 against the Hold
+  edge (`--accent`) in Dark and 6.2:1 in Parchment, where the old ring
+  (`--focus`) was 1.29:1 and 1.00:1.
+- Draw says how many it replaces ("Draw 5", "Draw 3", "Stand pat" with
+  all five held; `syncDraw` on every toggle) and Fold what it costs ("Fold
+  −$10"); the hint ends "Stop folds the hand (−$10)." (S1, S4, M1). The
+  box's nudge while the hand is open (`handNudge`): "Your hand is on the
+  table: pick the cards to hold, then Draw or Fold. Stop folds the hand
+  (−$10)."
+- The head says why the stake is what it is (M5): "Curtis Pruett's table ·
+  stake $140, all you have · pot $280", "… · stake $20, the usual · …".
+- The read (M3, S3): "Your read: Curtis has something." / "… is
+  bluffing."; not shown with a marked deck (his cards are face up), open
+  or finished. After the showdown (not a fold) it says " You were right."
+  or " You were wrong." (`.cards-verdict`).
+- After the showdown (S2) the cards a side drew (positions not in its
+  `held`) carry a "New" tag and say ", drawn" in their names; the
+  dealer's hand name is followed by " · Curtis draws 3" or " · Curtis
+  stands pat" (`.cards-drew`). A fold draws nothing. A fold by Stop reads
+  "Stopped, so you fold: −$10".
+- Suit signs carry U+FE0E (text presentation, `Cards.sign`, L12), so a
+  phone draws ♥ and ♦ in the card's colour, not as emoji.
+- The marked deck's roll under the table is labelled (L9): "Does Curtis
+  spot the marks? Wits 17 + 3 = 20 vs 12 · Success" (the engine writes it
+  into `roll.line`, so a reload shows it the same).
+
+### The cash (M2)
+- `UI.showCash()` writes the player's cash into the top bar (`#tb-gold`)
+  and the Character panel (`.char-cash`, the Cash row's value) as soon as
+  the hand moves money. The turn is still running (the state notifies its
+  listeners when the turn's batch closes), so nothing else is drawn again.
+
+### Stop and the composer
+- Stop with a hand open folds it (`Pipeline.abort`); the turn goes on and
+  is kept, so the line is not put back in the box and the table stays,
+  folded, with the plain line under it and "Stopped: a hand on the table
+  is folded, and the ante is gone." After the showdown a narrator that
+  fails, is stopped or declines leaves the plain line and a notice ("…
+  The hand stands as it was played, told plainly above."), with no Try
+  again.
+
+### Tests changed by design
+- `tests/wave10-cards.test.cjs`: the suit signs, the read's odds (60%) and
+  words, a fold of $25 costs $13, the head names the group and has the
+  focus, a card's name says it is not held and `data-held` replaces
+  `aria-pressed`, Draw and Fold read "Draw 5" and "Fold −$10", the nudge,
+  the hand's name line carries the dealer's draw, Stop folds (the turn is
+  kept and Send is Wait again), and the cheat test arms and checks
+  `flags.cardsCheat`.
