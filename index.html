@@ -5961,6 +5961,7 @@ NEVER:
 - Change the roll outcome. Failure is failure.
 - Offer options or ask "What do you do?"
 - Recap what the player just did.
+- Let anyone know or say how much money the player has or has left: people see only what is handed over or shown.
 - End with a summary of the mood.
 
 BANNED PHRASES: "the air is thick with", "a testament to", "little did you know", "somewhere in the distance", "you can't help but", "a sense of", "palpable", "tapestry", "whispers of", "the weight of", "sends shivers", "unbeknownst", "in the grand scheme", "it's worth noting", "echoes through", "hangs in the air", "a mix of", "as if on cue", "time seems to slow", "eyes glinting with".
@@ -5982,6 +5983,7 @@ NEVER:
 - Change the roll outcome. Failure is failure.
 - Offer options or ask "What do you do?"
 - Recap what the player just did.
+- Let anyone know or say how much money the player has or has left: people see only what is handed over or shown.
 - End with a summary of the mood.
 
 BANNED PHRASES: "the air is thick with", "a testament to", "little did you know", "somewhere in the distance", "you can't help but", "a sense of", "palpable", "tapestry", "whispers of", "the weight of", "sends shivers", "unbeknownst", "in the grand scheme", "it's worth noting", "echoes through", "hangs in the air", "a mix of", "as if on cue", "time seems to slow", "eyes glinting with".
@@ -13210,7 +13212,7 @@ const Style = (() => {
      it sits in the cached style block (between the guide and the examples,
      byte-identical per style); the packet keeps only when the player came to
      town and who knew them before (Pipeline.knowledgeLine). */
-  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS.';
+  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS. What the player carries and how much money they have is theirs alone to know: a person sees only what the player shows, hands over or says, and never knows or names the total the player has or has left.';
   const STYLES = {
     casual: { guide: STYLE_GUIDE_CASUAL, examples: EXAMPLE_TURNS_CASUAL },
     literary: { guide: STYLE_GUIDE_LITERARY, examples: EXAMPLE_TURNS_LITERARY }
@@ -13689,6 +13691,54 @@ const Style = (() => {
      the last one Pipeline built; names: false to skip the name check, or
      more names to allow). Returns { ok, hard, problems, words, style }: ok
      when there is no problem at all, hard when one is worth a rewrite. */
+  /* A person in the scene cannot see the player's money. A quoted line that
+     says what the player has or has left ("You've got five bucks left to your
+     name") with the player's real total, before or after what their input
+     hands over, is a hard problem; the player saying their own figure makes
+     it public, and a price ("That's five bucks") is nobody's wallet. */
+  const NUMWORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+  const NUMWORD = `(?:a|an|and|hundred|${Object.keys(NUMWORDS).join('|')})`;
+  const MONEY_WORDS = new RegExp(`\\b(${NUMWORD}(?:[\\s-]+${NUMWORD})*)\\s+(?:bucks?|dollars?)\\b`, 'gi');
+  const MONEY_DIGITS = /\$\s*(\d[\d,]*)(?:\.\d+)?|\b(\d[\d,]*)\s*(?:\$|bucks?|dollars?)\b/g;
+  const OWN_MONEY = /\b(?:you(?:'ve| have)?(?: only| just| still)? (?:got|have)|you're (?:down to|left with)|left to your name|to your name|all you(?:'ve| have)? got|all you have|on you\b|in your (?:pocket|pockets|wallet|purse)|your last)\b/i;
+  function numberWords(str) {
+    let total = 0, any = false;
+    for (const w of str.toLowerCase().replace(/-/g, ' ').split(/\s+/).filter(Boolean)) {
+      if (w === 'and') continue;
+      if (w === 'a' || w === 'an') { if (!any) total = 1; continue; }
+      if (w === 'hundred') { total = (total || 1) * 100; any = true; continue; }
+      if (NUMWORDS[w] === undefined) return null;
+      total += NUMWORDS[w]; any = true;
+    }
+    return any ? total : null;
+  }
+  function moneyAmounts(str) {
+    const out = [];
+    const t = String(str || '');
+    MONEY_DIGITS.lastIndex = 0;
+    for (let m = MONEY_DIGITS.exec(t); m; m = MONEY_DIGITS.exec(t)) out.push(parseInt((m[1] || m[2]).replace(/,/g, ''), 10));
+    MONEY_WORDS.lastIndex = 0;
+    for (let m = MONEY_WORDS.exec(t); m; m = MONEY_WORDS.exec(t)) { const n = numberWords(m[1]); if (n !== null) out.push(n); }
+    return out.filter(n => Number.isFinite(n));
+  }
+  function moneyLeak(t, o) {
+    if (!Number.isInteger(o.gold)) return null;
+    const said = moneyAmounts(o.input);
+    const bare = String(o.input || '').match(/\b\d{1,5}\b/g) || [];
+    const handed = said.concat(bare.map(n => parseInt(n, 10)));
+    const totals = new Set([o.gold]);
+    for (const n of handed) { if (o.gold - n > 0) totals.add(o.gold - n); totals.add(o.gold + n); }
+    for (const n of said) totals.delete(n);
+    totals.delete(0);
+    const spoken = [];
+    for (const m of t.matchAll(/"([^"]*)"|“([^”]*)”?/g)) spoken.push(m[1] || m[2] || '');
+    for (const q of spoken) {
+      if (!OWN_MONEY.test(q)) continue;
+      const hit = moneyAmounts(q).find(n => totals.has(n));
+      if (hit !== undefined) return { amount: hit, phrase: q.trim().slice(0, 80) };
+    }
+    return null;
+  }
   function check(text, opts) {
     const o = opts || {};
     const zoom = !!o.zoom;
@@ -13722,6 +13772,9 @@ const Style = (() => {
     const lone = hits.filter(h => !h.marked).map(h => h.word);
     if (odd.length) problems.push({ type: 'name', detail: `names someone or somewhere that does not exist: ${odd.join(', ')}`, names: odd, hard: true });
     if (lone.length) problems.push({ type: 'name', detail: `capitalises a word the town does not have (fine for a brand or a thing, not for a person or a place): ${lone.join(', ')}`, names: lone, hard: false });
+    // Nobody can see into the player's pocket: a spoken line that knows their total is a leak.
+    const leak = moneyLeak(t, o);
+    if (leak) problems.push({ type: 'money', detail: `someone says how much money the player has ("${leak.phrase}"), which nobody in the scene can know`, phrase: leak.phrase, amount: leak.amount, hard: true });
     return { ok: problems.length === 0, hard: problems.some(p => p.hard), problems, words, style };
   }
   /* Names the problems and asks for a rewrite. The hard ones lead (they are
@@ -13739,7 +13792,7 @@ const Style = (() => {
     const long = main.find(p => p.type === 'length');
     const others = main.some(p => p.type !== 'length');
     const has = t => main.some(p => p.type === t);
-    const plain = (has('past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (has('simile') ? ' Say it plainly, with no comparisons.' : '') + (has('repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '') + (has('name') ? ` ${NAME_FIX}` : '');
+    const plain = (has('money') ? " Nobody can see the player's money: people know only what the player hands over, shows or says, so no one names the total the player has or has left." : '') + (has('past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (has('simile') ? ' Say it plainly, with no comparisons.' : '') + (has('repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '') + (has('name') ? ` ${NAME_FIX}` : '');
     const fix = long
       ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
       : `Write it again without that.${plain}`;
@@ -16790,7 +16843,7 @@ const Pipeline = (() => {
     const held = p.inventory.filter(i => i.qty > 0);
     const things = held.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : ''));
     const none = CARRY_KINDS.filter(([, re]) => !held.some(i => re.test(i.name))).map(([k]) => k);
-    return `CARRYING: ${things.join(', ') || 'nothing'}; ${moneyLine(p.gold)} (nothing else: no ${none.length ? `${none.join(', ')} or ` : ''}money beyond this).`;
+    return `CARRYING: ${things.join(', ') || 'nothing'}; ${moneyLine(p.gold)}, known to the player alone: people see only what is shown or handed over, and nobody says the total or what is left (nothing else: no ${none.length ? `${none.join(', ')} or ` : ''}money beyond this).`;
   }
 
   // ----- step 3: parse -----
@@ -18090,7 +18143,7 @@ const Pipeline = (() => {
       let narration = String((res && res.text) || '').trim();
       if (!narration) throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.');
       const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
-      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
+      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
       ctx.style = [check];
       const problems = Array.isArray(check.problems) ? check.problems : [];
       const hard = problems.filter(isHard);
@@ -18116,7 +18169,7 @@ const Pipeline = (() => {
         UI.feed.rewriting(node, false);
         if (second) {
           narration = second;
-          check = Style.check(narration, { zoom, style, previous, day: State.current.time.day });
+          check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
           ctx.style.push(check);
           if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
         } else ctx.rewriteFailed = true;

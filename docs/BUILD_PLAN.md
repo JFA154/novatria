@@ -1173,3 +1173,14 @@ talking, I can direct it to one person or all."
      should still check (the newer packets, Say-mode money, how often the
      name check rewrites, the cost of a turn). Left open: those live
      checks.
+   - **Wave 9** (31 Oct 2026). The first live turns of the round (the owner
+     playing the Say-mode money rule) found what the mock could not: told
+     the player's cash on CARRYING, the narrator had Jodie say "You've got
+     five bucks left to your name" after a $20 tip from $25. Notes: the
+     "Wave 9" section of `docs/notes/prompts.md`; tests:
+     `tests/wave9-fixes.test.cjs`. The packet marks the cash as the
+     player's alone, WHAT PEOPLE KNOW and both style guides say nobody in
+     the scene sees it, and `Style.check` makes a spoken line that knows
+     the total (digits or words, before or after what the input hands over)
+     a hard problem, rewritten once; the player's own figure, a price and
+     narration outside quotes pass. Left open: the rest of the live list.

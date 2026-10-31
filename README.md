@@ -130,7 +130,10 @@ that", "Clock set …", "Meanwhile in town …") stays under it, and one printed
 before the narration (damage, "Missed: …" after a night) stays before it.
 
 **You have only what you carry.** Every turn the narrator is told exactly what
-you carry and how much money you have, and that you have nothing else. When you
+you carry and how much money you have, and that you have nothing else. That
+figure is yours alone: nobody in the scene can see into your pocket, so a
+person knows only what you show them, hand over or say, and a spoken line that
+names your total or what you have left is sent back to be written again. When you
 try something that needs a thing you do not have and that is not lying here ("I
 stab Royce" with no knife, "I drive off" with no car; a grease gun or gun oil
 is no gun), the turn still plays, but as what you can do without it: bare
@@ -1063,6 +1066,14 @@ relying on it with a key, a short live session should confirm:
   or after "you watch" count as someone;
 - what a turn really costs (the Debug tab's session cost, with the 1-hour
   cache writes).
+
+The first live turns of this round (31 Oct 2026, on the Say-mode money rule)
+found one thing the mock could not: told the player's cash on the CARRYING
+line, the narrator had Jodie say "You've got five bucks left to your name"
+after a $20 tip from $25. The packet now marks the cash as the player's alone,
+both style guides forbid anyone naming it, and a spoken line that knows the
+total is a hard style problem and is rewritten. Still to confirm live: the
+rest of the list above, and that the rewrite rarely fires.
 
 Earlier rounds were checked live: on 28 Oct 2026 an arrival, several turns,
 the casual style and the Do / Say switch (every call 200, the cache read on

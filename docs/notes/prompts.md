@@ -24,7 +24,7 @@ DAY 2 (Friday 9 October), EVENING (late) · Location: The Low Water[ — full de
 PLACE: [details with the full description] Open: <hours>.
 WEATHER / ITEMS HERE / SINCE THE LAST TURN
 PLAYER: Tomas (34, veteran). Reputation: unknown. Conditions: none. Came here to: <goal>. Flaw: <flaw>.
-CARRYING: ...; cash $140 (nothing else: no <only what is not carried> or money beyond this).
+CARRYING: ...; cash $140, known to the player alone: people see only what is shown or handed over, and nobody says the total or what is left (nothing else: no <only what is not carried> or money beyond this).
 PRESENT: Name (60, she/her; role; ties; look: <until metTurn>; voice; traits: a, b; wants (never say this outright; it steers what they push for and dodge): <goal>; attitude 5 (neutral); remembers: ... / tied to Tomas by a debt (see LOOSE ENDS)[; secret (it can come out now, if the talk goes there): ...]).
 WHAT PEOPLE KNOW: Tomas came to Lockett's Ferry today (day 1) and was a stranger here before that. Only X, Y and Z knew of Tomas before, as LOOSE ENDS says.
 LOOSE ENDS: Curtis Pruett is owed money by Tomas from before Tomas came here, and wants it (here now; Tomas's own words: "...") | ...
@@ -652,3 +652,27 @@ mock. Tests: `tests/wave8-fixes.test.cjs`.
   `Pipeline.toldDue` leaves it out of `World.dueNarrated`, so it is not
   marked done and the next narration tells it. Nothing marked done goes
   untold. The real narrator is handed the same events and marks them all.
+
+## Wave 9 (31 Oct 2026)
+
+The first live turns on the Say-mode money rule showed a leak the mock
+could not: the narrator reads the player's cash on CARRYING (so it never
+invents money), the narration runs before the bookkeeper, and after "Here's
+a 20$ tip" from $25 it had Jodie say "You've got five bucks left to your
+name". Nobody in the scene can see the player's pocket.
+
+- `CARRYING` now says the cash is known to the player alone, and that
+  people see only what is shown or handed over and never say the total or
+  what is left; `Style.KNOWLEDGE` (WHAT PEOPLE KNOW) carries the same rule,
+  and both style guides have a NEVER bullet for it.
+- `Style.check(text, { gold, input })`: a quoted line that says what the
+  player has or has left (`OWN_MONEY`: "you've got", "left to your name",
+  "on you", "in your pocket", "your last" and so on) with the player's real
+  total, or the total before or after an amount the input hands over, is a
+  hard `money` problem; `regenerationNote` adds the plain rule. The amount
+  may be digits ("$25", "25 bucks") or words ("twenty-five dollars", "a
+  hundred"; `numberWords`). Not a leak: a figure the player's own input
+  states, a price with no "you have" around it, narration outside quotes,
+  or a number that is not the player's. Callers without `gold` get no
+  check. `Pipeline.narrate` passes the cash and the input on both attempts.
+- Tests: `tests/wave9-fixes.test.cjs`.
