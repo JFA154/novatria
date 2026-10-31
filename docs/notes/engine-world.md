@@ -1759,7 +1759,7 @@ eleven leftovers (N1-N11), fixed as decided (the table's side:
   (`moveWhy`), and when that move is the one that finished the hand (not
   a fold, not a win cheat) `gamble` puts it on the record as `amountWhy`
   (`logCards` keeps it, 200 characters), so the finished table shows it
-  after a reload, `/undo`, or a replay too.
+  after a reload, the `/undo` of a later turn, or a replay too.
 - **Sitting down with Curtis named (N5).** The demo's parser reads a
   sit-down with the dealer named before or after it, or the table, the
   hand or the cards named after it (`mockBetNamed`, `mockSitWords`: "all

@@ -1697,7 +1697,8 @@ engine side: `docs/notes/engine-world.md`, Wave 20). Tests:
   Stop costs are the button row's `title` and, as a group, its
   `aria-label` (`actsNamed`: "A hundred to sit, a five-dollar ante, no
   limit. Stop folds the hand (−$5)."), and on the status line while the
-  hand waits (`handStatus`, from the table last drawn, `shownTable`: "Your
+  hand waits (`handStatus`, from the table last drawn, `shownTable`, which
+  any stage but the hand's own forgets: "Your
   hand · Stop folds it (−$5)", "… · $100 to sit, $5 ante, no limit" on the
   first deal), kept to one line (`.turn-status.short-hand`: no wrap, an
   ellipsis, the whole in its title).
