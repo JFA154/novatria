@@ -564,7 +564,8 @@ s.test('D9 with a hand open: "call $8" / "call 8" (its price, else what the call
   assert.deepEqual(pure, {
     'call $8': { choice: { act: 'call' } }, 'call 8': { choice: { act: 'call' } }, 'call eight': { choice: { act: 'call' } },
     'call $4': { say: "It's $8 to call: call $8, raise or fold." },
-    'raise it to 30': { choice: { act: 'raise', to: 32 }, note: 'Bets go in fours: $30 rounds up to $32.' },
+    // Wave 20 (QA N4): with what it went in as, for a table this move finishes.
+    'raise it to 30': { choice: { act: 'raise', to: 32 }, note: 'Bets go in fours: $30 rounds up to $32.', after: 'Your raise to $30 went in as a raise to $32: bets go in fours.' },
     "I'm going all in": { choice: { act: 'allin' } }, 'I go all in': { choice: { act: 'allin' } }, 'I fold': { choice: { fold: true } }, 'I call': { choice: { act: 'call' } },
     'I check': { say: "There's a bet to you: call $8, raise or fold." },
     'open: I check': { choice: { act: 'check' } }, 'open: I call': { choice: { act: 'check' } }, 'open: call $8': { choice: { act: 'check' } },
