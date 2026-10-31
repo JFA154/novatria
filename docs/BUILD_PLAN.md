@@ -1435,3 +1435,47 @@ talking, I can direct it to one person or all."
      the plain line and the demo tell the big moments ("you raised to $120
      before the flop, Curtis Pruett went all in and you called"). Left
      open: a live narrator's telling of a hand and of the terms.
+   - **Wave 19** (31 Oct 2026). A QA player played 150 hands of the wave
+     18 table (both games, both structures, phones and laptops) and found
+     the money exact everywhere; the 17 defects were in words, notices,
+     layout and telling, fixed by one agent as decided. Notes: the "Wave
+     19" sections of `docs/notes/engine-world.md` and `docs/notes/ui.md`;
+     tests: `tests/wave19-betting-fixes.test.cjs`. An ask for table stakes
+     needs words plainly about the game's stakes ("no limit" not followed
+     by to, on, of, for or in; "a bigger game" not followed by "than")
+     aimed at the dealer: said to him in Say mode, the parser's targets,
+     his name, or the game or table named (`STAKES_GAME`); a parser that
+     aimed the line at someone else is never overridden ("There's no limit
+     to what I'd do for her" and a whiskey from Loretta "no limit on the
+     whiskey" are talk and a purchase). The demo reads "shove" or "push"
+     as an attack only with a person to shove, and betting words typed
+     just after a hand at this table ("all in", "shove", "bet 10", "raise
+     30", "call", "check", "fold") are a notice ("No hand is on the table.
+     'Another hand' or 'deal me in for $20' starts one."), the line kept in
+     the box, no turn (`Pipeline.betweenHands`). Stop, a closed page and
+     another tab say what the fold cost ("the $15 you put in is gone", "the
+     $1 ante is gone"). The status line follows every move at once (a
+     nudge is read again, or goes, when the table is drawn again). The
+     first deal keeps the player's cards and the controls in view when the
+     table is taller than the story (the head at the top only when it all
+     fits), and at 360px and under the rows from the cards to the hint sit
+     closer and the board's cards are smaller, so at 320×640 the player's
+     cards, the buttons and the amount stay in view at every text size.
+     The amount control says each change (`clampWhy`, `sizeWhy`: "Bets go
+     in twenties: $50 rounds up to $60.", "That would leave you less than
+     a bet, so it is all in $110.", "Half the pot ($60) would leave you
+     less than a bet, …") and Enter commits only what the field and the
+     button show. A fold is told once across OUTCOME, the plain line and
+     the demo (`betMoments` returns the folds it told; the player's own
+     fold is told with its cost). Typed with a hand open: "call $8", "raise
+     it to 30", "I'm going all in", "I fold", and at the draw "draw 3"
+     (Draw when exactly that many are not held). The dealer's pushbacks
+     are kept on the stored hand through a reload; the limit refusal names
+     the buttons ("All in $19"). The terms are told when the stake or the
+     structure differs from the last hand at this dealer ("Tomas Reed
+     sits down at Curtis Pruett's twenty-dollar table ($1 ante, $4
+     limit)"), and
+     the demo has him state them before the hand; a hand Stop folds stays a
+     plain line, by design. "A hundred-dollar ante", never "a a"; "Dr." and
+     an initial end no sentence in the demo; one `validMove`. Left open: a
+     live narrator's telling of a hand and of the terms, as before.

@@ -698,8 +698,10 @@ The table's heading says them, with why the stake is what it is ("Curtis
 Pruett's table · Texas hold'em · $20 to sit · $1 ante · $4 limit · pot $2";
 "$140 to sit, all you have", "$20 to sit, the usual: $0.50 is no stake"),
 and the first hint of a hand (or the chooser's) says them in words once
-("Twenty to sit, a dollar ante, four-dollar limit."); the first time you
-sit down at a stake, Curtis says them in the story. Nobody at the table?
+("Twenty to sit, a dollar ante, four-dollar limit."); when the stake or
+the structure differs from your last hand at his table (your first hand
+there, another stake, or table stakes after the limit), Curtis says them
+in the story as you sit down. Nobody at the table?
 The story says when Curtis deals. The table appears under your line, one
 row a seat: the name (Curtis marked "(deals)"), the cards (face down until
 the showdown, yours face up) and what that seat did this round ("checks",
@@ -721,11 +723,21 @@ $4", "Raise to $8"), four raises a round at most, and all in only when
 what you have left is short of a bet ("All in $3"). Type more than that
 ("all in", "bet 20", "raise to 40") and Curtis holds you to the house
 rules in character, at no cost ("Curtis taps the felt. "Four-dollar bets
-at this table.""); your words stay in the box, the status line says "Ask
-Curtis for table stakes if you want a bigger game", and the story notes it.
+at this table.""); your words stay in the box, the status line names the
+buttons as they read and says "Ask Curtis for table stakes if you want a
+bigger game" ("Four-dollar limit: Call $4, All in $19 or Fold. …"), and
+the story notes how many times (kept through a reload).
 **Table stakes.** Between hands, ask Curtis for a bigger game ("no limit",
 "table stakes", "raise the stakes", "a bigger game", "play for real", "take
-the limit off", "can we bet what we like"), said to him or at his table:
+the limit off", "can we bet what we like"), said to him (Say mode, or his
+name in the words: "Curtis, no limit?"), naming his game or his table
+("no-limit poker", "take the limit off the table", "bet what we like at
+cards", "deal me in, no limit") or asked of him at his table ("Can we play
+no limit?").
+Words that only sound like it are talk ("There's no limit to what I'd do
+for her", "I'm after bigger game than this town", "I bet he plays without a
+limit"), and a line meant for someone else (said to Loretta, or a whiskey
+ordered from her "with no limit on the whiskey") is never an ask:
 he weighs it with a Charm roll at normal difficulty (the roll line shows;
 how he feels about you counts as for any persuasion). Yes, and his table is
 no limit for the rest of the day ("Table stakes, then. Don't cry to me
@@ -740,22 +752,42 @@ what you bet or raise to on the round, − and + by the table's bet, and
 what it will do ("Bet $8", "Raise to $24", "All in $19"); bets go in
 multiples of the table's bet ($4, $8, $12… at $20), a raise is to at least
 the bet plus the last raise, and all in is whatever you have left. An
-amount the table does not allow is fixed and the line under the field says
-why ("Bets go in $4s, so $8.", "The least bet is $4.", "That's more than
-you have: all in is $19.", "That would leave less than $4: all in ($19).");
-Enter in the field presses the button. The hint says your choice in words
-("Check, or bet $4, $8, $12 up to all in ($19)", "Call $40, raise to $120
-or all in ($190), or fold"), what Stop costs and the Win (cheat) control.
+amount the table does not allow is fixed: the button reads what it comes
+to and the line under the field says each change ("Bets go in fours: $5
+rounds up to $8.", "The least bet is $4.", "That's more than you have, so
+it is all in $19.", "Bets go in twenties: $70 rounds up to $80. That would
+leave you less than a bet, so it is all in $95."), and + or ½ pot or Pot
+that comes to all in says so too ("Half the pot ($60) would leave you less
+than a bet, so it is all in $75."). Enter in the field bets only what the
+field and the button both show: an amount the table changes goes in the
+field first, with its reason, and the next Enter bets it. The hint says
+your choice in words ("Check, or bet $4, $8, $12 up to all in ($19)",
+"Call $40, raise to $120 or all in ($190), or fold"), what Stop costs and
+the Win (cheat) control.
 With a hand open you can also type the move in the box instead of pressing
-it: "check", "call", "fold", "all in" (or "I'm all in", "shove"), "bet 10",
-"bet ten dollars", "raise to 30", "raise by 10", "make it 30", or a bare
-"$30" (and "stand pat" or "fold" at the draw); an amount is fixed as the
-field fixes it (the status line says so), and a move the table does not
-offer is answered on the status line ("There's a bet to you: call $8, raise
-or fold.") with your words left in the box. The others bet, raise, call
-and bluff by their hand, the price and their nature (Carter, sly Elbert
-and Curtis bet, raise and bluff more; careful Lyman and Royce call down or
-fold), from the hand's own dice, so the same moves meet the same answers.
+it: "check", "call", "fold" (or "I check", "I call", "I fold"), "call $8"
+(the call's price; another amount is answered with what the call is),
+"all in" (or "I'm all in", "I'm going all in", "I go all in", "shove"),
+"bet 10", "bet ten dollars", "raise to 30", "raise it to 30", "raise by
+10", "make it 30", or a bare "$30"; at the draw "stand pat", "fold" or
+"draw 3" ("draw three", "I draw two": Draw, when it replaces that many;
+otherwise "Tap the cards you keep, then Draw (it says how many)."). An
+amount is fixed as the field fixes it (the status line says so once the
+move is made), and a move the table does not offer is answered on the
+status line ("There's a bet to you: call $8, raise or fold.") with your
+words left in the box; a line that is no move leaves the hand's nudge. The
+status line follows each move at once. Right after a hand at Curtis's
+table (the same day), those betting words are no new hand: "all in",
+"shove", "bet 10", "raise 30", "call", "check" or "fold" typed then gets a
+notice ("No hand is on the table. 'Another hand' or 'deal me in for $20'
+starts one.", with your last stake), your words stay in the box and
+nothing is spent; name the game, the hand, the table or Curtis ("I go all
+in at cards") to sit down with them, as after any other turn (the demo
+never reads "shove" or "push" with nobody to shove as a fight). The others
+bet, raise, call and bluff by their hand, the price and their nature
+(Carter, sly Elbert and Curtis bet, raise and bluff more; careful Lyman and
+Royce call down or fold), from the hand's own dice, so the same moves meet
+the same answers.
 The money goes in as you bet it (the cash in the top bar and the Character
 panel follows each bet), a bet nobody calls comes back to whoever made it,
 and when everyone left is all in the rest of the cards are dealt out to the
@@ -787,71 +819,76 @@ seat's seven cards wins, the pot split on a tie (the odd dollar to you).
 The game moves the money itself, the result line gives your cash after
 ("You win $44 · cash $184"), and the narration tells the big moments ("you
 raised to $120 before the flop, Curtis Pruett went all in and you called")
-and the people without listing the cards again. A card player who puts $10
-or more into a pot you take remembers it and likes you a little less (2
-points); one who takes $10 or more of your money in a pot remembers that
-and likes you a little more (1 point); only the first of these a day counts
-for each of them, so small hands cannot be used to win or lose anyone over
-(Curtis keeps his game: his feelings only change if you cheat, or push him
-too hard for table stakes). Your wits are a read on the others, not the
-result: at draw the line over Curtis's cards says "Your read: Curtis has
-something" (he ends the hand with a pair or better) or "Your read: Curtis
-is bluffing"; at hold'em a read appears by a seat when it first bets or
-raises ("Your read: Carter is bluffing"). A read is right 60% of the time
-plus 12% for each point of wits (a condition such as Tired counts), never
-under 50% or over 95%, and at the end it says whether you were right
-wherever that seat's cards were shown (a seat that folded keeps its cards
-face down, and its read has no verdict). The deck is shuffled from the
-game's seed and the turn, so a hand taken back with `/undo` is dealt again
-the same way, by design, when you send the same line (at hold'em too: the
-same seats, the same two cards each and the same board). With a marked deck
-on you, everyone else's cards are face up while you play (you read the
-marks, so there is no read), and once the hand is played one wits roll at
-normal difficulty, +2 for the deck, says whether you keep the marks from
-Curtis ("Keeping the marks from Curtis: Wits 17 + 3 = 20 vs 12 · Success",
-under the table; a success means he did not notice): on a fumble he catches
-you (the hand is void and you lose the stake; he keeps the deck, puts you
-out on Front Street, remembers it hard, you are barred for three days, today
-counted, and the town hears of it). Every line about the ban names the
-first day the bar is open after it ("back on Monday, Day 5" in the story,
-"not welcome there until Day 5" at its door, on his People card and on the
-place's card). After that he will not deal to you for a week, nor while he
-is colder to you than -10 ("Curtis Pruett won't deal to you"), and what he
-had coming for you (a background's invitation to his Friday game) waits for
-as long as he will not deal, for either reason. Without a marked deck
-nothing is rolled at the table and nobody is accused. No complication is
-rolled at cards. Once the cards are dealt the ante is in: while a hand is
+and the people without listing the cards again, each fold once ("you bet $4
+on the flop and Curtis Pruett folded; the $2 pot is yours"). A card player
+who puts $10 or more into a pot you take remembers it and likes you a
+little less (2 points); one who takes $10 or more of your money in a pot
+remembers that and likes you a little more (1 point); only the first of
+these a day counts for each of them, so small hands cannot be used to win
+or lose anyone over (Curtis keeps his game: his feelings only change if you
+cheat, or push him too hard for table stakes). Your wits are a read on the
+others, not the result: at draw the line over Curtis's cards says "Your
+read: Curtis has something" (he ends the hand with a pair or better) or
+"Your read: Curtis is bluffing"; at hold'em a read appears by a seat when
+it first bets or raises ("Your read: Carter is bluffing"). A read is right
+60% of the time plus 12% for each point of wits (a condition such as
+Tired counts), never under 50% or over 95%, and at the end it says whether
+you were right wherever that seat's cards were shown (a seat that folded
+keeps its cards face down, and its read has no verdict). The deck is
+shuffled from the game's seed and the turn, so a hand taken back with
+`/undo` is dealt again the same way, by design, when you send the same line
+(at hold'em too: the same seats, the same two cards each and the same
+board). With a marked deck on you, everyone else's cards are face up while
+you play (you read the marks, so there is no read), and once the hand is
+played one wits roll at normal difficulty, +2 for the deck, says whether you
+keep the marks from Curtis ("Keeping the marks from Curtis: Wits 17 + 3 = 20
+vs 12 · Success", under the table; a success means he did not notice): on a
+fumble he catches you (the hand is void and you lose the stake; he keeps the
+deck, puts you out on Front Street, remembers it hard, you are barred for
+three days, today counted, and the town hears of it). Every line about the
+ban names the first day the bar is open after it ("back on Monday, Day 5" in
+the story, "not welcome there until Day 5" at its door, on his People card
+and on the place's card). After that he will not deal to you for a week, nor
+while he is colder to you than -10 ("Curtis Pruett won't deal to you"), and
+what he had coming for you (a background's invitation to his Friday game)
+waits for as long as he will not deal, for either reason. Without a marked
+deck nothing is rolled at the table and nobody is accused. No complication
+is rolled at cards. Once the cards are dealt the ante is in: while a hand is
 open the box waits as it does during any turn (a bet typed in it plays, as
 above), **Stop** folds the hand (losing what you have put in: the ante
-before the draw; the table's hint says so, and with a marked deck the catch
-roll is still made), and the turn is kept, told in one plain line. `/undo`
-is the way out at no cost: typed with a hand open (or the Undo link, or
-Undo last turn in the ⋯ list), it takes back the whole turn that dealt it,
-at the chooser, at draw or on any hold'em street, whatever was bet, with a
-marked deck too: the table and your line leave the story, every bet comes
-back, nothing is rolled or remembered, your line goes back in the box and
-a cheat the hand spent is armed again ("You took back the last turn; the
-hand is off the table. 3 more can be taken back."); `/undo 3` takes that
-turn and two before it. Closing the page does not take it back either (the
-next time that game is loaded, a hand left open is folded where you left
-it, with the bets made so far, "You left the table, so you fold: −$1" (so
-is a draw hand left open before hold'em came in: never the chooser), and one
-already played stands as it was played; loading an older save of the game,
-another game or a new one drops it instead, so a hand you never played is
-never folded). If another tab takes the game over while a hand is open, the
-table in the first tab is void ("Another tab took over; this hand is void
-here.") and the tab that took over folds it; with the chooser open nothing
-was dealt, so the first tab takes that turn back ("Another tab took over;
-the table is closed here.", your line back in the box) and nothing is lost
-in either tab. While a hand is open, typing `/cheat win` is the **Win
-(cheat)** button, `/cheat cards` says "The cards are dealt: use Win (cheat)
-or type /cheat win.", `/help` lists the commands as ever (the hand stays
-open), `/undo` (and `/rewind`) take the turn back as above; other commands
-wait with the hand's own nudge, which says what you can type. After a
-reload the fold on load is one step like any turn: `/undo` goes back to
-before the bet. After each press the table keeps your cards, its buttons
-and the amount in view (on a phone it no longer jumps back to its heading),
-and the keyboard focus is on its first button.
+before the draw; the table's hint says so, the notice names it, "Stopped: a
+hand on the table is folded, and the $15 you put in is gone." or "…and the
+$1 ante is gone.", and with a marked deck the catch roll is still made), and
+the turn is kept, told in one plain line. `/undo` is the way out at no cost:
+typed with a hand open (or the Undo link, or Undo last turn in the ⋯ list),
+it takes back the whole turn that dealt it, at the chooser, at draw or on
+any hold'em street, whatever was bet, with a marked deck too: the table and
+your line leave the story, every bet comes back, nothing is rolled or
+remembered, your line goes back in the box and a cheat the hand spent is
+armed again ("You took back the last turn; the hand is off the table. 3 more
+can be taken back."); `/undo 3` takes that turn and two before it. Closing
+the page does not take it back either (the next time that game is loaded, a
+hand left open is folded where you left it, with the bets made so far, "You
+left the table, so you fold: −$1" (so is a draw hand left open before
+hold'em came in: never the chooser), and one already played stands as it was
+played; loading an older save of the game, another game or a new one drops
+it instead, so a hand you never played is never folded). If another tab
+takes the game over while a hand is open, the table in the first tab is void
+("Another tab took over; this hand is void here.") and the tab that took
+over folds it; with the chooser open nothing was dealt, so the first tab
+takes that turn back ("Another tab took over; the table is closed here.",
+your line back in the box) and nothing is lost in either tab. While a hand
+is open, typing `/cheat win` is the **Win (cheat)** button, `/cheat cards`
+says "The cards are dealt: use Win (cheat) or type /cheat win.", `/help`
+lists the commands as ever (the hand stays open), `/undo` (and `/rewind`)
+take the turn back as above; other commands wait with the hand's own nudge,
+which says what you can type. After a reload the fold on load is one step
+like any turn: `/undo` goes back to before the bet. When it is dealt and
+after each press the table keeps your cards, its buttons and the amount in
+view (its heading at the top only when the whole table fits; on a phone it
+never jumps back to the heading; on a 320px phone the board's cards are
+smaller and the board a short scroll above), and after a press the keyboard
+focus is on its first button.
 Menu → Title screen waits until the hand is played (the notice shows above
 the table). After the showdown the hand is final: if the narrator fails, is
 stopped or declines, the turn is still kept and the hand told in a plain

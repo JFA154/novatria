@@ -1570,3 +1570,126 @@ limit being something the player asks the dealer for (the table's side:
   (the nudge, the ante), `tests/transport-fixes.test.cjs` (the draw's
   money and OUTCOME), and `tests/helpers.cjs` (`presetCards` takes
   `structure`).
+
+## Wave 19 (31 Oct 2026): the betting table after its QA
+
+A QA player played 150 hands of the wave 18 table (both games, both
+structures, 2 to 5 seats, stakes $5 to $1,975, phones and laptops) and
+found the money exact everywhere; the defects (D1-D17) were in words,
+notices, layout and telling, fixed as decided (the table's side:
+`docs/notes/ui.md`, Wave 19). Tests: `tests/wave19-betting-fixes.test.cjs`.
+
+- **The ask for table stakes (D1).** `STAKES_ASK` is plainly about the
+  game's stakes: "no limit" not followed by to, on, of, for or in ("no
+  limit to what I'd do", "no limit on the whiskey" are not), "a bigger
+  game" and "higher stakes" not followed by "than" ("bigger game than
+  this town" is not). `stakesAsked` fires only when the line is also
+  aimed at the dealer: Say mode to him (`sayAction` puts him in the
+  targets), the parser's targets include him, his name is in the words
+  (`Town.nameMentions`), or the words name the game or the table
+  (`STAKES_GAME`: "table stakes", "no-limit game / poker / hold'em",
+  "cards", "poker", "the table", "the game", "deal", "dealer": "take the
+  limit off the table", "bet what we like at cards", "deal me in, no
+  limit"; `stakesNamed`). A parser whose targets are someone else here and
+  not him is never overridden (a whiskey ordered from Loretta stays a
+  purchase), and Say mode to someone else is no ask, as before. The demo's
+  parser (`mockStakes`) reads an ask only with the dealer named, his game
+  or table named, or a request ("Can we play no limit?", "How about a
+  bigger game?", "Let's take the limit off", "I want to raise the stakes",
+  `MOCK_STAKES_REQUEST`), and never with someone else here named and not
+  him; "I bet he plays without a limit" is no ask.
+- **Shove and push; betting words between hands (D2, D12).** The demo's
+  attack rule reads "shove", "shoves", "push", "pushes" as an attack only
+  with a person as the object: someone named or by role, someone new, or
+  "him", "her", "them", "someone" and the like ("I shove Loretta");
+  "shove", "I shove", "push" alone are not. `Pipeline.betweenHands(text,
+  speech)`, checked by `submit` before any turn (both parsers): when the
+  newest log entry is a hand at the dealer here, today, a line that
+  `typedBet` reads as a move (against a stand-in table facing a bet: "all
+  in", "shove", "bet 10", "raise 30", "call", "check", "fold", "I'm all
+  in", "I bet $20"; a bare amount is a stake and is left alone) is a
+  notice, "No hand is on the table. 'Another hand' or 'deal me in for
+  $20' starts one." (the last hand's stake), returned with `restoreInput`
+  so the line stays in the box: no turn, no cost. Words that name the
+  game, the hand, the table or the dealer are no bare move ("I go all in
+  at cards", "all in, Curtis"), so they sit down as documented; after any
+  other turn the sit-down phrases keep their meaning. Say mode to someone
+  else than the dealer is left alone.
+- **Fold notices (D3).** `NOTICES.handFolded`, `handLeftOpen` and
+  `handOtherOpen` take what was lost (`handLost(ctx.gamble)`): "the $1
+  ante is gone" when only the ante went in, else "the $15 you put in is
+  gone"; caught with a marked deck, "you lose $20".
+- **The amounts said (D7).** `clampWhy(want, minTo, maxTo, b, kind)` is
+  `clampTo` with each step in words, in the order the table makes them:
+  "Bets go in twenties: $50 rounds up to $60." (`betsIn`: fours,
+  twenties, forties, hundreds, else "$140s"), "The least bet is $4." /
+  "The least raise is to $16.", "That's more than you have, so it is all
+  in $19.", "That would leave you less than a bet, so it is all in $110."
+  (after a rounding too, both sentences); '' when nothing changed.
+  `sizeWhy(k, 'half' | 'pot')` says a preset that comes to all in ("Half
+  the pot ($60) would leave you less than a bet, so it is all in $75.",
+  "The pot ($120) is more than you have, …", "Half the pot is all you
+  have: all in $75."). `typedBet`'s notes are the same words.
+- **A fold told once (D8).** `betMoments` returns its moments with
+  `.folds`, the seats whose folds they told, and never tells the player's
+  own fold as an answer (the result tells it, with what it cost: "Curtis
+  Pruett bet $8 on the flop; … the player folded their king high on the
+  flop and gave up the $5 they had put in"). `tableWords` leaves out a
+  seat's "folded on the flop" when a moment told it, and an uncontested
+  pot is "the player takes the $10 pot without a showdown" (each fold is
+  told above it; no "everyone else folded, so"). `ctx.gamble.foldsTold`
+  carries the seats to the demo (no "X folds after the draw" again, no
+  "everyone folds to you": "the $3 pot is yours") and the plain line
+  ("The hand is played: the $10 pot is yours." when the moments told every
+  fold).
+- **Typed forms (D9).** `typedBet` also reads "call $8" / "call 8" /
+  "call eight" (`typedAmount`: the call when that is its price, or all of
+  a short stack; another amount is answered "It's $8 to call: call $8,
+  raise or fold."; nothing to call: check), "raise it to 30", "I'm going
+  all in", "I fold", "I check", "I call"; at the draw "draw 3", "draw
+  three (cards)", "I draw two" give `{ draw: n }` (the UI presses Draw when
+  exactly n cards are not held). An all in facing a bet when no raise is
+  on offer says why: "No more raises this round" after four, else "Nobody
+  is left to answer a raise".
+- **Pushbacks kept (D10, D11).** `pushbackLine` writes the count to the
+  stored hand of the hand open now (`heldOpen`, set by `holdThis`;
+  `storeHand`), `resumeHand` reads it back (`storedHand.pushback`) and
+  `gamble` starts `pushes` from it, so a hand folded on a reload keeps
+  `pushback` on its record and OUTCOME says it. The limit refusal's status
+  names the buttons as they read: "Four-dollar limit: Call $4, All in $19
+  or Fold." when the stack is short of a raise ("Check or All in $3" when
+  short of a bet).
+- **The terms (D13).** The narrator is told the terms when the stake or
+  the structure differs from the last hand at this dealer's table (the
+  newest log entry with a hand whose `dealerId` is his: none, another
+  stake, or another structure, a record from before wave 18 having none):
+  "Tomas Reed sits down at Curtis Pruett's twenty-dollar table ($1 ante,
+  $4 limit): have Curtis Pruett state the table's terms as they sit ("Twenty
+  to sit, a dollar ante, four-dollar limit.")." ("…'s hundred-dollar
+  table ($5 ante, no limit)"; at $1000 and up "$2000 table"), never "for
+  the first time"; going back to an earlier stake tells them again, and a
+  limit → no limit change at the same stake is told once. A hand Stop
+  folded is told in a plain line by design (wave 11, M1), so its terms are
+  never said; the next hand at the same terms does not say them either.
+- **The demo's terms first (D14).** `mockGamble` opens with the dealer
+  stating them, before the hand is told: '"Twenty to sit, a dollar ante,
+  four-dollar limit," Curtis Pruett says as you sit down. At Curtis
+  Pruett's table, …'.
+- **Words (D15, D16, D17).** `rulesWords`: an ante whose words start with
+  "a" ($100-$199: "a hundred-dollar ante") takes no second "a". A
+  sentence ends at a full stop, ! or ? before a space, never after "Dr.",
+  "Mr.", "Mrs.", "Ms.", "St." or a single initial (`SENTENCE_END`,
+  `firstSentence`, `SENTENCE_SPLIT`, shared): the demo's news clause
+  (`freshNews`), its first sentence of a due event or a place, and the
+  packets' `sentenceOne` (exposed as `Pipeline.sentenceOne`). The second
+  `validMove` is gone.
+- **Tests changed by design**: `tests/wave10-cards.test.cjs` (the terms
+  line), `tests/wave11-cards.test.cjs` (the notices' amounts; L3: the
+  first deal keeps the cards and the buttons in view; M5: "I bet fifty
+  dollars at cards" right after a hand), `tests/wave12-cards.test.cjs`
+  (the notices; M1: the cards and the buttons in view while a hand is
+  open), `tests/wave13-holdem.test.cjs` (the notices, a fold told once,
+  the demo's terms first, "Bets go in fours: $6 rounds up to $8."),
+  `tests/wave14-holdem-fixes.test.cjs` (#21: the moment names the dealer
+  who folds), `tests/wave15-table-polish.test.cjs` (the notice) and
+  `tests/wave18-betting.test.cjs` (the amount notes).

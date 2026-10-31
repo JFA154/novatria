@@ -1576,3 +1576,81 @@ What the table shows and takes for the wave 18 betting (the engine side:
 - The wave 10-16 card tests: the head's house rules and structure, the
   hint's words once, the ante for the fold, $4 bets, the nudge's typing
   words (`docs/notes/engine-world.md`, Wave 18, lists them).
+
+## Wave 19 (31 Oct 2026): the betting table after its QA
+
+What the table shows and takes after the QA of the wave 18 betting (the
+engine side: `docs/notes/engine-world.md`, Wave 19). Tests:
+`tests/wave19-betting-fixes.test.cjs`.
+
+### The status line at once (D4)
+- `nudge(text, again)`: `again` reads the nudge again from a table (the
+  hand's own nudge, `handNudge(t, kind)`). When the open table is drawn
+  again (`cardsShow`, `cardsDone`, and the first deal) `tableRedrawn(t)`
+  runs in the same step: a typed move's note (`tableNote`, set by
+  `handCommand` before the move is played) shows then; a hand nudge is
+  read again from the table as drawn; any other nudge (the dealer's
+  limit line, "There's a bet to you: …", "Pick the cards to hold, then
+  Draw: the betting comes after the draw.") goes at once, back to "Your
+  hand". Nothing waits for the 2.6 s timer.
+
+### The first deal and a 320px phone (D5, D6)
+- The first deal (`feed.cards`, and the chooser turning into the dealt
+  table in `cardsShow`) is kept in view by `keepHand`, as a press is: the
+  whole table when it fits (its head with it), else the player's row and
+  the controls. The chooser is shown from its head as before
+  (`showTable`), and a notice above the open table (`handNotice`) still
+  shows it with the head. The head has the focus as the table first
+  appears, as before (wave 15), even when it is scrolled above.
+- `keepHand` keeps the most that fits, from the top: the board and all
+  under it; the player's row and all under it; the player's cards and
+  all under them; else the player's cards at the top of the story with
+  the buttons and the amount under them (the hint's end a short scroll
+  below); only when even that does not fit, the buttons at the foot. A
+  draw table has no board (wave 18 read a missing board as one that fits).
+- At 360px and under (`@media (max-width: 360px)`) the pot line, the
+  buttons, the amount and the hint sit closer, and the board's cards are
+  smaller (`.cards-board .cards-row`, columns of 2.8em; never the
+  player's), so at 320×640 with five at the table and Small, Medium or
+  Large text the player's cards, the buttons and the amount are wholly
+  in view on the first deal and after every press, and the board is a
+  short scroll above.
+
+### The amount control (D7)
+- The line under the field says each change as `Pipeline.clampWhy` words
+  it ("Bets go in twenties: $50 rounds up to $60.", "Bets go in twenties:
+  $70 rounds up to $80. That would leave you less than a bet, so it is all
+  in $95.", "That's more than you have, so it is all in $19.", "The least
+  bet is $4."); the main button reads the amount it will commit.
+- + that comes to all in says so; ½ pot and Pot that come to all in say
+  so (`Pipeline.sizeWhy`: "Half the pot ($40) would leave you less than a
+  bet, so it is all in $55."). − says nothing (it never jumps).
+- The field shows the amount once typing stops (change) and at once
+  after −, + or a preset. Enter commits only what the field and the
+  button both show: a typed amount the table changes is put in the field
+  first, its reason kept on the line, and nothing is bet; the next Enter
+  bets it. The button itself always commits what it reads.
+
+### The box with a hand open (D9, D11)
+- `handCommand`: a typed move's note shows after the move (D4); "draw 3"
+  at the draw presses Draw (`endHand`) when exactly that many cards are
+  not held, else the status line says "Tap the cards you keep, then Draw
+  (it says how many)." and the words stay; "call 8" at another price is
+  answered with what the call is; the limit refusal names the buttons
+  ("Call $4, All in $19 or Fold"). A line that is no move keeps the hand's
+  nudge, as before.
+
+### Between hands (D12)
+- A betting word typed just after a hand at this table gets the notice
+  from `Pipeline.submit` (`betweenHands`) and `restoreInput`, so `send`
+  puts the line back in the box (`restoreAction`); no turn runs.
+
+### The fold notices (D3)
+- Stop, a closed page and another tab: "…is folded, and the $18 you put
+  in is gone." ("…and the $1 ante is gone." for the ante alone).
+
+### Tests changed by design
+- `tests/wave11-cards.test.cjs` L3 and `tests/wave12-cards.test.cjs` M1:
+  a dealt table taller than the story opens with the player's cards and
+  the buttons in view, not its head; the notes and notices in the wave
+  10-18 card tests (`docs/notes/engine-world.md`, Wave 19, lists them).
