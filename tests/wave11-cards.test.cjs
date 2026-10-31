@@ -164,7 +164,7 @@ s.test('M1: Stop with a hand open folds it at the fold price and keeps the turn 
   const spot = await atTable(page);
   const g0 = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, 'I bet $30 at cards');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$15). Name the game in your words to switch (hold\'em or draw). Win (cheat)'); // wave 13: how to switch, and the Win (cheat) control
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$15). Win (cheat)'); // wave 13: the Win (cheat) control (wave 14: how to switch is said between hands)
   const calls = await page.evaluate(() => Game.Api.Mock.calls.length);
   await page.evaluate(() => Game.Pipeline.forceNextRoll(14));
   await page.click('#send');
@@ -716,7 +716,7 @@ s.test('S1-S4: Draw says how many it replaces ("Draw 3", "Stand pat") and Fold i
   const label = () => page.textContent('.cards-draw');
   assert.equal(await label(), 'Draw 5');
   assert.equal(await page.textContent('.cards-fold'), 'Fold −$20');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$20). Name the game in your words to switch (hold\'em or draw). Win (cheat)'); // wave 13
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$20). Win (cheat)'); // wave 13; wave 14: no switch hint on an open hand
   for (const i of [0, 1]) await page.click(`.cards-you button.card[data-i="${i}"]`);
   assert.equal(await label(), 'Draw 3');
   for (const i of [2, 3, 4]) await page.click(`.cards-you button.card[data-i="${i}"]`);

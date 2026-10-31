@@ -80,9 +80,10 @@ s.test('the deck and the hands: 52 cards, a seeded shuffle, every hand named and
     const ladder = ['Ac Qd 9h 4s 2c', 'Ac Ad 9h 4s 2c', 'Kc Kd 7h 7s 2c', '7c 7d 7h 2d 9s', 'As 2d 3c 4h 5s', 'Ac 9c 7c 4c 2c', '3c 3d 3h Kd Ks', 'Kc Kd Kh Ks 2c', '9h 8h 7h 6h 5h', 'As Ks Qs Js Ts'];
     let lost = 0;
     let full = 0;
+    const shapes = new Set();
     for (let seed = 1; seed <= 300; seed++) {
       const d = C.deal(Game.Rng.create(seed), { stacked: true });
-      if (C.evaluate(d.player).rank === 6) full++;
+      if ([4, 5, 6].includes(C.evaluate(d.player).rank)) { full++; shapes.add(C.evaluate(d.player).rank); }
       const fin = C.draw(d.dealer, C.dealerHolds(d.dealer), d.dealerPile);
       for (let m = 0; m < 32; m++) {
         const holds = [0, 1, 2, 3, 4].filter(i => m & (1 << i));
@@ -101,7 +102,7 @@ s.test('the deck and the hands: 52 cards, a seeded shuffle, every hand named and
       },
       holds: ['Kc Kd 7h 7s 2c', '7c 7d 7h 2d 9s', 'Ac Ad 9h 4s 2c', 'Ac 9c 7c 4c 2d', '5c 6d 7h 8s Kc', 'Ac 2d 3h 4s 9c', 'Ac Qd 9h 4s 2c', '9h 8h 7h 6h 5h', '3c 3d 3h Kd Ks'].map(t => C.dealerHolds(H(t))),
       draw: C.draw(H('Ac Kd 9h 4s 2c'), [0, 1], H('Qs Jd Tc 8h 7h')),
-      stacked: { lost, full }, dealtApart: new Set([].concat(plain.player, plain.dealer, plain.dealerPile, plain.playerPile)).size,
+      stacked: { lost, full, shapes: shapes.size }, dealtApart: new Set([].concat(plain.player, plain.dealer, plain.dealerPile, plain.playerPile)).size,
       looks: [C.label('Th'), C.sign('Th'), C.red('Th'), C.red('Kd'), C.red('Ks'), C.sign('Ac'), C.cardName('Qd'), C.cardName('6c')]
     };
   });
@@ -114,7 +115,7 @@ s.test('the deck and the hands: 52 cards, a seeded shuffle, every hand named and
   assert.deepEqual(r.ties, { kicker: 1, split: 0, lowPair: 1, twoPairKicker: 1, fullHouse: 1, wheel: -1, flush: 1, high: 1, suits: 0, trips: 1 });
   assert.deepEqual(r.holds, [[0, 1, 2, 3], [0, 1, 2], [0, 1], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], 'two pair, three, a pair, four to a flush, four to a straight (an ace low too), the two highest, a straight flush and a full house stand');
   assert.deepEqual(r.draw, ['Ac', 'Kd', 'Qs', 'Jd', 'Tc'], 'the new cards go where the ones let go were');
-  assert.deepEqual(r.stacked, { lost: 0, full: 300 }, 'a stacked deal is a full house that beats the dealer\'s final hand whatever the player holds');
+  assert.deepEqual(r.stacked, { lost: 0, full: 300, shapes: 3 }, 'a stacked deal is a made hand (wave 14: a full house, a flush or a straight, by the seed) that beats the dealer\'s final hand whatever the player holds');
   assert.equal(r.dealtApart, 20, 'the hands and both draw piles are twenty different cards');
   assert.deepEqual(r.looks, ['10', '♥\uFE0E', true, true, false, '♣\uFE0E', 'Queen of diamonds', 'Six of clubs']);
 });
@@ -205,7 +206,7 @@ s.test('a hand played at the table: the block under the line and before the narr
   // Enter in the box while the hand is open: the line stays, the status says why.
   await page.fill('#cmd', 'I look around');
   await page.press('#cmd', 'Enter');
-  assert.match(await page.textContent('#turn-status-text'), /^Your hand is on the table: pick the cards to hold, then Draw or Fold\. Stop folds the hand \(−\$10\)\.$/);
+  assert.match(await page.textContent('#turn-status-text'), /^Your hand is on the table: pick the cards to hold, then Draw or Fold\. Stop folds the hand \(−\$10\); Win \(cheat\) ends it yours\.$/); // wave 14: the Win (cheat) control named
   assert.equal(await page.inputValue('#cmd'), 'I look around');
   await page.fill('#cmd', '');
   // Holds: a click, Space, Enter (on and off again).
@@ -383,7 +384,7 @@ s.test('the marked deck: the dealer\'s cards are face up through the hand and th
 
 // ----- the cheat -----
 
-s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is dealt a full house and wins however they draw, with no catch roll even with a marked deck and nothing on record about cheating; the next hand is dealt fair; a hand Stop folded is spent, and /undo of it arms the cheat again (wave 11); /cheat and /help list it', async h => {
+s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is dealt a made hand (wave 14: a full house, a flush or a straight) and wins however they draw, with no catch roll even with a marked deck and nothing on record about cheating; the next hand is dealt fair; a hand Stop folded is spent, and /undo of it arms the cheat again (wave 11); /cheat and /help list it', async h => {
   const page = await open(h);
   await quickStart(page, { bgIndex: await bgWith(page, 'marked deck') });
   await fast(page);
@@ -406,7 +407,7 @@ s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is deal
   await startHand(page, 'I bet $40 at cards');
   const dealt = (await tableNow(page)).player;
   assert.deepEqual(dealt, stopped);
-  assert.equal(await page.evaluate(d => Game.Cards.evaluate(d).rank, dealt), 6, 'a full house');
+  assert.ok([4, 5, 6].includes(await page.evaluate(d => Game.Cards.evaluate(d).rank, dealt)), 'a made hand: a full house, a flush or a straight (wave 14: the shape varies with the seed)');
   await page.click('.cards-draw'); // nothing held: the worst draw
   await idle(page);
   const e = await lastEntry(page);

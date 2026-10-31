@@ -366,7 +366,8 @@ s.test('L8: "0.50 dollars" is the usual $20 and the table and the OUTCOME say "$
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player put up \$20, the usual stake: \$0\.50 is no stake\): /);
   // Drawn again after a reload: the same.
   await reloadGame(page);
-  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: $0.50 is no stake · pot $40`);
+  // Wave 14 (QA #8): the head of the finished table has the real pot: the player folded, so $20 and $10.
+  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: $0.50 is no stake · pot $30`);
   await startHand(page, 'I bet a fiver on this hand');
   assert.match(await page.textContent('#feed .f-cards:last-of-type .cards-head'), /· stake \$5 · pot \$10$/);
   await page.click('.cards-fold');

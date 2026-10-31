@@ -137,12 +137,12 @@ s.test('a heads-up hand of hold\'em through the real buttons: Check, the dealer 
   assert.deepEqual(t.board, { street: 'Pre-flop', cards: BACKS });
   assert.equal(t.pot, 'Pot $8 · you\'re in for $4');
   assert.deepEqual(t.acts, ['Check', 'Bet $4']);
-  assert.equal(t.hint, 'Stop folds the hand (−$4). Name the game in your words to switch (hold\'em or draw). Win (cheat)');
+  assert.equal(t.hint, 'Stop folds the hand (−$4). Win (cheat)', 'wave 14: how to switch the game is said between hands, not on an open one');
   assert.equal(await page.evaluate(() => document.activeElement.className), 'cards-head', 'the head has the focus');
   assert.equal(await gold(page), g0, 'nothing moves before the hand is over');
   assert.match(await page.evaluate(() => { const b = document.querySelector('#cmd'); b.value = 'I look around'; return ''; }), /^$/);
   await page.press('#cmd', 'Enter');
-  assert.equal(await page.textContent('#turn-status-text'), 'Your hand is on the table: Check or Bet. Stop folds the hand (−$4).');
+  assert.equal(await page.textContent('#turn-status-text'), 'Your hand is on the table: Check or Bet. Stop folds the hand (−$4); Win (cheat) ends it yours.'); // wave 14: the nudge names the Win (cheat) control
   await page.fill('#cmd', '');
   // Pre-flop: Check; he bets; Call.
   await press(page, 'Check');
@@ -156,7 +156,7 @@ s.test('a heads-up hand of hold\'em through the real buttons: Check, the dealer 
   // The flop: Bet; he calls.
   await press(page, 'Bet $4');
   t = await tableNow(page);
-  assert.deepEqual([t.board.street, t.board.cards.slice(3), t.seats[0].status, t.seats[1].status, t.pot], ['The turn', ['3s', 'back'], 'calls $4', 'bets $4', 'Pot $24 · you\'re in for $12']);
+  assert.deepEqual([t.board.street, t.board.cards.slice(3), t.seats[0].status, t.seats[1].status, t.pot], ['The turn', ['3s', 'back'], '', '', 'Pot $24 · you\'re in for $12'], 'wave 14: a new street starts with the statuses cleared');
   // The turn: Check, he bets, Call; the river: Bet, he calls.
   await press(page, 'Check');
   await press(page, 'Call $4');
@@ -200,7 +200,7 @@ s.test('a heads-up hand of hold\'em through the real buttons: Check, the dealer 
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`Texas hold'em, heads up with ${spot.dealerName}; ${spot.dealerName}'s pair of queens takes the \\$20 pot; the player folded their king high on the flop and gave up the \\$8 they had put in \\(cash now \\$${g1 - 8}\\)\\.`));
 });
 
-s.test('three-handed: a seat bets after the player checks (Call or Fold), the dealer calls, the player folds and the hand is settled among the others at once (the record says who took it); that seat remembers taking a pot off the player and likes them a little more; everyone folding to the player gives them the pot without a showdown', async h => {
+s.test('three-handed: a seat bets after the player checks (Call or Fold), the dealer calls, the player folds and the hand is settled among the others at once (the record says who took it); a pot of the player\'s $4 moves nobody (wave 14: $10 or more does); everyone folding to the player gives them the pot without a showdown', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -232,11 +232,12 @@ s.test('three-handed: a seat bets after the player checks (Call or Fold), the de
   assert.equal(t.seats[2].status, 'folds before the flop');
   assert.equal(await gold(page), g0 - 4);
   const after = await page.evaluate(id => Game.State.npc(id), seat.id);
-  assert.equal(after.attitude, a0 + 1, 'a seat that takes a pot off the player likes them 1 more');
-  assert.ok(after.memories.some(m => m.text === 'took a pot off Tester at cards at the Low Water' && m.weight === 1));
+  // Wave 14 (QA #3): the seat took $4 of the player's money, under the $10 that counts: no memory, no attitude change (tests/wave14-holdem-fixes.test.cjs has the $10 and more).
+  assert.equal(after.attitude, a0, 'a pot of the player\'s $4 moves nobody');
+  assert.ok(!after.memories.some(m => m.text === 'took a pot off Tester at cards at the Low Water'));
   const out = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
   assert.match(out, new RegExp(`^OUTCOME: the card game \\(the player came in for at most \\$20; the ante and every bet \\$4\\): Texas hold'em with ${seat.name} and ${spot.dealerName}, ${spot.dealerName} dealing; ${seat.name}'s pair of queens takes the \\$\\d+ pot; ${spot.dealerName} showed [a-z ,]+; the player folded their pair of nines before the flop and gave up the \\$4 they had put in`));
-  assert.match(out, new RegExp(`Already recorded: ${seat.name} took a pot off the player and is pleased about it\\.`));
+  assert.doesNotMatch(out, /Already recorded:/);
   assert.match(line(await lastCall(page, 'bookkeep'), 'CARD GAME'), new RegExp(`The other players were ${seat.name}, with ${spot.dealerName} dealing; what they remember of the hand and how they feel about the player are recorded already`));
   // Everyone folds to the player: the pot without a showdown.
   const g1 = await gold(page);
@@ -282,7 +283,7 @@ s.test('the chooser: with no game named or remembered the table opens with the d
   const log0 = await page.evaluate(() => Game.state.log.length);
   await startHand(page, 'deal me in');
   let t = await tableNow(page);
-  assert.deepEqual([t.game, t.head, t.acts, t.hint, t.win], ['choose', `${spot.dealerName}'s table · stake $20`, ['Five-card draw', "Texas hold'em"], 'Stop leaves the table (nothing lost). Win (cheat)', true]);
+  assert.deepEqual([t.game, t.head, t.acts, t.hint, t.win], ['choose', `${spot.dealerName}'s table · stake $20`, ['Five-card draw', "Texas hold'em"], "Stop leaves the table (nothing lost). Name the game in your words to skip this choice (hold'em or draw). Win (cheat)", true]);
   assert.equal(await page.locator('#feed .f-cards .card').count(), 0, 'no card dealt');
   assert.deepEqual(await page.evaluate(() => [Game.Pipeline.handKind, document.activeElement.className, document.querySelector('#send').textContent]), ['choose', 'cards-head', 'Stop']);
   // The title screen waits (nothing is lost by leaving, but the turn waits for the choice).
@@ -366,13 +367,15 @@ s.test('/cheat cards at hold\'em: the player\'s two cards and the board make the
   assert.ok(t.seats.slice(0, 3).every(x => x.cards.every(c => c !== 'back')), 'a marked deck: every seat\'s cards face up');
   await press(page, 'Bet $4');
   t = await tableNow(page);
-  assert.deepEqual(t.seats.slice(0, 3).map(x => x.status), ['calls $4', 'calls $4', 'calls $4'], 'nobody folds before the flop');
+  // Wave 14 (QA #5): the flop starts with the statuses cleared; everyone called (the pot is four antes and four calls).
+  assert.deepEqual([t.board.street, t.seats.slice(0, 3).map(x => x.status), t.pot], ['The flop', ['', '', ''], 'Pot $32 · you\'re in for $8'], 'nobody folds before the flop');
   await page.evaluate(() => { Game.Pipeline.playHand({ act: 'check' }); });
   while (await page.evaluate(() => Game.Pipeline.handOpen)) await page.evaluate(() => Game.Pipeline.playHand({ act: (Game.Pipeline.openHand.options || ['check'])[0] }));
   await idle(page);
   const e = await lastEntry(page);
   assert.deepEqual([e.cards.cheat, e.cards.result, e.cards.winners, e.roll], [true, 'win', ['player'], null]);
-  assert.equal(e.cards.player.name.startsWith('Four of a kind'), true, e.cards.player.name);
+  // Wave 14 (QA #20): the shape varies with the seed; the player's hand is strictly the best of those still in.
+  assert.ok(await page.evaluate(x => [x.dealer].concat(x.seats).filter(o => !o.folded).every(o => Game.Cards.compareKeys(Game.Cards.best(x.player.dealt.concat(x.board)).key, Game.Cards.best(o.dealt.concat(x.board)).key) > 0), e.cards), e.cards.player.name);
   assert.equal(await gold(page) - g0, e.cards.delta);
   assert.ok(e.cards.delta >= 8, 'at least the others\' antes and calls');
   assert.equal(await page.evaluate(() => Game.state.flags.cardsCheat), undefined, 'spent');
@@ -526,7 +529,7 @@ s.test('Stop mid-street folds the hand: what the player put in is lost, the turn
   await startHand(page, 'I bet $20 at cards');
   await press(page, 'Check');
   await press(page, 'Call $4');
-  assert.equal((await tableNow(page)).hint, 'Stop folds the hand (−$8). Name the game in your words to switch (hold\'em or draw). Win (cheat)');
+  assert.equal((await tableNow(page)).hint, 'Stop folds the hand (−$8). Win (cheat)');
   await page.click('#send');
   await idle(page);
   let e = await lastEntry(page);
