@@ -311,13 +311,13 @@ result adds `progressed` and `settled`.
 | `Rng` | mulberry32 seeded by `meta.seed`; `Rng.int(a,b)`, `Rng.pick(arr)`, `Rng.d(n)`; advances a counter stored in `meta.rngCalls` so a loaded save continues deterministically |
 | `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complications that fit the action (`complication(ctx)`), the retry locks (`lockKey`, `isLocked`, `lockFor`, `lock`, `clearLocks`; a set in `meta.lastRollKey`), `threat(npc)` and `fightDamage(tier)` |
 | `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
-| `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
+| `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, the undo and redo stacks (`undoSteps`, `redoSteps`, `undoRecord`, `resumeUndo`), helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
 | `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
 | `Style` | banned-phrase and length checks, hard and soft problems, invented names |
 | `Api` | real provider and mock provider behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting (1-hour cache writes); timeouts, `abort()`, retries, `checkKey()`, `prewarm()` |
 | `Pipeline` | the 13 steps of SPEC.md section 6; the status listener, `abort()`, the one-deep queue, the card game, `/recap`, the epilogue turn |
-| `Storage` | autosave (and the previous autosave), slots, export, import, settings and presets (key storage per SPEC.md section 13), the second-tab guard |
+| `Storage` | autosave (and the previous autosave), slots, export, import, settings and presets (key storage per SPEC.md section 13), the second-tab guard, the undo stack kept in IndexedDB |
 | `UI` | rendering, feed, panels, sheet, screens, autocomplete, the ⋯ actions, the status line |
 | `Commands` | the `/` commands |
 | `App` | boot, screen routing |
@@ -1338,3 +1338,42 @@ talking, I can direct it to one person or all."
      A game named and then put down ("draw poker is for old men") is the
      one being left. Left open: a live narrator's telling of a hand, as
      before.
+   - **Wave 16** (31 Oct 2026). The owner, playing on a phone: "Let me undo
+     multiple times. I was in the middle of a poker game and I can't undo
+     to the start of the game."; then, for turns played as plain text on
+     the build before the card table, which have no undo step anywhere, a
+     way to strike them from the story. Built by one agent. Notes: the
+     "Wave 16" sections of `docs/notes/engine-state.md`,
+     `docs/notes/engine-world.md` and `docs/notes/ui.md`; tests:
+     `tests/wave16-undo.test.cjs`. `/undo` with a hand open (typed, the
+     Undo link, which now shows with a hand or the chooser open, or the ⋯
+     list's Undo) takes back the whole turn that dealt it, free, at the
+     chooser, at draw and on any hold'em street, with a marked deck too: no
+     fold price, no catch roll, nothing recorded, the table and the line
+     out of the story, the line back in the box, the stored hand dropped,
+     the pipeline free, a cheat the hand spent armed again ("You took back
+     the last turn; the hand is off the table."); Stop still folds at a
+     price. The undo stack (20 steps, about 8 MB at most) is kept in
+     IndexedDB for the game in the autosave, written a moment after each
+     step and when the page is hidden, never by a tab another tab has
+     taken over; Continue and Play here instead read it back (its steps up
+     to the turn loaded), a new game, a slot, an import or the previous
+     autosave start it empty and clear it, and without IndexedDB undo is
+     the page's own as before, with nothing said. `/undo 3` and `/undo all`
+     take back several steps, every notice ending with how many more can
+     be ("2 more can be taken back.") and the Undo link's name counting
+     them; asked for more than there is, it takes back what it can and
+     names `/rewind` for the rest. `/redo` (`/redo 2`, `/redo all`) puts
+     back what an undo took, in memory only, emptied by the next step
+     played or another game. `/rewind N` (`/rewind to turn 12`, `/rewind
+     day 2`) strikes turns from the story from the records that carry a
+     turn (the log, memories, journal notes, progression, seen marks, who
+     was met, people and places first named then that nothing else names),
+     sets the clock back to when the first struck turn began and says what
+     it cannot take back (money, health, things carried, feelings, where
+     the player is, what they heard); it is one undo step, an engine-only
+     op (`rewind`), and the turn count goes on. `/cheat cash <amount>` sets
+     the cash (one undo step, nothing in the story). The fold on load after
+     a reload is one step back to before the bet, and `/undo` after an
+     update still takes back exactly the update. Left open: a live
+     narrator's telling of a hand, as before.
