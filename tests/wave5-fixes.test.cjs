@@ -628,11 +628,13 @@ s.test('D7: a failed theft reads in the recap as "remembers you tried to steal f
   assert.match(r, /remembers you tried to steal from him/);
 });
 
-s.test('Q13 and prose: the accused card player ends up "out on Front Street"; the beating grudge is not "alone after dark"; "Missed: … (due Day N)"; a complication names the place inside a sentence', async h => {
+// Changed by design in wave 10: nobody is accused at cards any more; the player caught cheating is still put out on the street outside.
+s.test('Q13 and prose: the card player caught cheating ends up "outside on Front Street" (nobody is accused any more); the beating grudge is not "alone after dark"; "Missed: … (due Day N)"; a complication names the place inside a sentence', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.match(src, /and they end up \$\{street \? `out on \$\{placeName\(street\)\}` : 'outside'\}\./);
+  assert.doesNotMatch(src, /accuses them of cheating|clear out of \$\{place\} for the night/);
+  assert.match(src, /End the narration with the player outside on \$\{placeName\(street\)\}: the engine moves them there\./);
   assert.doesNotMatch(src, /end up outside\$\{onto\}/);
   const r = await page.evaluate(() => {
     const G = Game, S = G.State, st = G.state;
