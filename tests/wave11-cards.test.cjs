@@ -495,7 +495,7 @@ s.test('L2: /cheat cards is armed in the game: a second one says it is armed alr
   assert.deepEqual([won.cards.cheat, won.cards.result, await page.evaluate(() => Game.state.flags.cardsCheat)], [true, 'win', undefined]);
   await sendText(page, '/undo');
   assert.equal(await page.evaluate(() => Game.state.flags.cardsCheat), true, 'armed again');
-  assert.equal(await lastNotice(page), 'You took back the last turn. The cards cheat is armed again: the next hand is yours.');
+  assert.equal(await lastNotice(page), 'You took back the last turn. The cards cheat is armed again: the next hand is yours. Nothing more can be taken back.');
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { hold: [] }; });
   await sendText(page, 'I bet $30 at cards');
   const again = await lastEntry(page);

@@ -431,7 +431,7 @@ s.test('/cheat win: armed in the game ("Cheat armed: the next hand is yours with
   assert.equal(await page.evaluate(id => Game.State.npc(id).memories.filter(m => /cheat/i.test(m.text)).length, spot.dealer), 0, 'nothing about cheating');
   // /undo takes it back and arms it again.
   await sendText(page, '/undo');
-  assert.equal(await lastNotice(page), 'You took back the last turn. The win cheat is armed again: the next hand is yours without playing.');
+  assert.equal(await lastNotice(page), 'You took back the last turn. The win cheat is armed again: the next hand is yours without playing. Nothing more can be taken back.');
   assert.deepEqual([await page.evaluate(() => Game.Pipeline.winArmed), await gold(page)], [true, g0]);
 });
 

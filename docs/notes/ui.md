@@ -1404,3 +1404,75 @@ What changed at the table and in the box after the wave 14 verification QA
 - `tests/wave14-holdem-fixes.test.cjs`: the heads-up kicker statuses
   ("Pair of aces, king-nine kickers · takes the pot" / "Pair of aces,
   king-eight kickers").
+
+## Wave 16 (31 Oct 2026): undo that reaches back
+
+The Undo link, the box and the notices for the wave 16 undo (the engine
+side: `docs/notes/engine-state.md` and `docs/notes/engine-world.md`, Wave
+16). Tests: `tests/wave16-undo.test.cjs`.
+
+### The Undo link (`markUndo`)
+- Shown as before (the newest line typed, not while a turn runs), and now
+  also while a hand is open at cards (`Pipeline.handOpen`: the chooser, a
+  draw hand, any hold'em street), laid over the bet's line. `waitForHand`
+  calls `UI.markUndo()` as a hand opens, `onPipelineStatus` at every stage
+  (the narration after a hand takes the link away) and a `State.onUndo`
+  listener whenever the stack changes (read back after a reload).
+- Its text stays "Undo". Its name counts the steps: `aria-label` "Undo the
+  last turn (5 can be taken back)", title "Take back the last turn (/undo;
+  5 can be taken back)"; with a hand open "Undo this turn and its hand,
+  free (N can be taken back)" (N counts the hand's own turn).
+- Pressed with a hand open, `runAction` runs `Commands.run('/undo')`
+  directly (`Pipeline.submit` refuses while a turn runs), holding the
+  focus as for any action. The ⋯ list's Undo last turn is not turned off
+  then (`actBlock({ hand: true })`); every other item still waits.
+
+### The box with a hand open (`handCommand`)
+- `/undo` (`/undo N`, `/undo all`) and `/rewind N` typed with a hand open
+  empty the box and run the command: the turn is taken back free and its
+  own line comes back in the box (the `send` that played it restores it);
+  a count that is no count puts the typed line back with the usage notice.
+  `undoNudge` and its "Finish the hand or Stop it first" line are gone.
+  `/help`, `/cheat win`, `/cheat cards` and the hand's nudge for anything
+  else are as in waves 14 and 15.
+
+### Words (Commands)
+- `/undo`: "You took back the last turn." / "You took back 3 turns.", with
+  a hand "…; the hand is off the table.", then the cheats armed again (as
+  before), then how many more: "5 more can be taken back." / "Nothing more
+  can be taken back." Asked for more than the stack holds: "You took back
+  4 turns. Only 4 turns could be taken back exactly; /rewind 6 strikes
+  earlier turns from the story (money and feelings stay)." (the number
+  bounded by what `/rewind` can strike; "Nothing more can be taken back."
+  when that is nothing). With nothing at all: "There is nothing to undo
+  exactly. /rewind 1 strikes the last turn from the story (money and
+  feelings stay).", or "There is nothing to undo." when the story has only
+  begun. "Take back how many turns? Try /undo, /undo 3 or /undo all."
+- `/redo`: "You put back 2 turns. 1 more can be put back." / "… Nothing
+  more to put back."; "There is nothing to redo."
+- `/rewind`: "Rewound to turn 5 (Day 2, evening): 3 turns struck from the
+  story. Not taken back: money, health, things carried and how people
+  feel, nor where you are or what you heard. /cheat cash <amount> sets
+  your cash." (with "The hand is off the table, free." when a hand was
+  open, and "A thread settled then stays settled, with what it gave you."
+  when one was); "Nothing to rewind: that is where the story is."
+- `/cheat cash 25`: "Cheat: your cash is $25 now."; "Your cash is already
+  $25."; "Set your cash to what? Try /cheat cash 25 (whole dollars, 0 to
+  1,000,000)." `/cheat` alone and the `/cheat` row of `/help` name it.
+- `/help` rows: "/undo [n or all]: Take back the last turn (or n)", "/redo
+  [n or all]: Put back a turn you took back", "/rewind <n>: Strike the last
+  n turns from the story, for turns /undo cannot reach (money, health,
+  things carried and feelings stay)"; the `/` list shows the short "Strike
+  turns from the story (money stays)".
+
+### Tests changed by design
+- `tests/wave15-table-polish.test.cjs` (#6): `/undo` with a hand open takes
+  the turn back, free (at hold'em, at draw, at the chooser) instead of the
+  "Finish the hand or Stop it first" nudge.
+- `tests/wave10-cards.test.cjs`, `tests/wave11-cards.test.cjs`,
+  `tests/wave13-holdem.test.cjs`: the `/undo` notice ends "Nothing more can
+  be taken back."; the `/cheat` row names `cash <amount>` (and
+  `tests/wave6-fixes.test.cjs`); with a hand open the bet's line carries
+  the Undo link (`has-undo`).
+- `tests/shell.test.cjs`: the command list has `/redo` and `/rewind` after
+  `/undo`.

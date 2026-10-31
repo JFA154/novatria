@@ -7547,8 +7547,24 @@ const State = (() => {
   let current = null;
   let town = null;
   let muted = false;
+  /* The undo stack (wave 16): one entry a step, oldest first, { json (the
+     game before the step), town (its town copy, the string shared with the
+     entry below when the same), turn (meta.turn then) }. At most UNDO_MAX
+     entries and about UNDO_BYTES of text; the oldest go first. Storage
+     keeps it in IndexedDB
+     (onUndo), so it survives a reload. The redo stack (/redo) holds the
+     steps an undo took back, newest last, in memory only; a new step
+     empties it (snapshot), unless that step is rolled back (restore(snap):
+     a turn that failed or was taken back mid-hand), which gives it back. */
   const undo = [];
+  const redo = [];
   const UNDO_MAX = 20;
+  const UNDO_BYTES = 8 * 1024 * 1024;
+  let redoKept = null;
+  // A load, a new game or a clear (stackGen): a stack read back from storage for what was there before is not merged in.
+  let stackGen = 0;
+  let loaded = null; // { json, turn }: the game as loaded (resumeUndo)
+  const undoListeners = [];
   const LOG_MAX = 30;
   const LOG_NOTES_MAX = 24; // quiet lines kept on one log entry (logEntry / logUpdate notes)
   /* A log entry's quiet lines: a string (shown after the narration, as
@@ -7691,7 +7707,7 @@ const State = (() => {
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
-    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame'];
+    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -10654,6 +10670,92 @@ const State = (() => {
       if (v) s.flags.cardGame = v; else delete s.flags.cardGame;
       return v ? `card game ${v}` : 'card game forgotten';
     });
+    /* /rewind (wave 16): { turn } strikes every turn after that one from the
+       story, for turns the undo stack cannot reach (played before it was
+       kept, or more than it holds). It works from the records that carry a
+       turn number: log entries, memories, journal notes, progression and
+       seen marks of later turns go; whoever was met later is not met (the
+       narrator describes them again); a person or place first named later
+       goes when nothing else refers to it (a home the cast wrote is not
+       found again), else stays; a fight from those turns is over. The
+       clock goes back to when the first struck turn was played (its
+       input's time: its from, else its own), the start of that phase, and
+       a visit after it and an untold change of scene go. meta.turn keeps
+       counting (the next turn is logged after the struck numbers), so what
+       else carries a later turn (an obligation, a due event, a rumour, a
+       defeat) keeps it, and an undo step kept from before the rewind is
+       still this game's after a reload.
+       Not taken back (nothing records it by turn): money, health, things
+       carried, attitudes, where the player is, rumours heard, clocks, loose
+       ends and threads (a thread settled then stays settled, its gain
+       kept). result.rewound: { struck, turn, day, phase, settled, people,
+       places }. */
+    one('rewind', v => {
+      if (!isObj(v) || !Number.isInteger(v.turn) || v.turn < 0) bad('needs turn: the last turn kept');
+      const T = v.turn;
+      const later = x => Number.isInteger(x) && x > T;
+      const kept = s.log.filter(e => !(isObj(e) && later(e.turn)));
+      if (!kept.length) bad('nothing of the story would be left');
+      const gone = s.log.filter(e => isObj(e) && later(e.turn));
+      if (!gone.length) return null;
+      const first = gone[0];
+      const when = isObj(first.from) && Number.isInteger(first.from.day) && PHASES.includes(first.from.phase) ? first.from : first;
+      s.log = kept;
+      for (const n of s.npcs) {
+        if (Array.isArray(n.memories)) n.memories = n.memories.filter(m => !(isObj(m) && later(m.turn)));
+        if (later(n.metTurn)) delete n.metTurn;
+      }
+      s.journal = s.journal.filter(j => !(isObj(j) && later(j.turn)));
+      const prog = Array.isArray(p.progression) ? p.progression : [];
+      const settled = prog.filter(x => isObj(x) && later(x.turn)).length;
+      p.progression = prog.filter(x => !(isObj(x) && later(x.turn)));
+      if (isObj(s.seen)) for (const id of Object.keys(s.seen)) if (isObj(s.seen[id]) && later(s.seen[id].turn)) delete s.seen[id];
+      if (isObj(s.fight) && later(s.fight.turn)) delete s.fight;
+      // The clock as the first struck turn found it.
+      const t = s.time;
+      if (Number.isInteger(when.day) && when.day >= 1 && PHASES.includes(when.phase)) {
+        t.day = when.day;
+        t.phase = when.phase;
+        t.shorts = 0;
+        delete t.late;
+        delete t.noSleep;
+        delete t.instants;
+      }
+      const at = t.day * PHASES.length + PHASES.indexOf(t.phase);
+      if (Array.isArray(s.visits)) s.visits = s.visits.filter(x => !(isObj(x) && Number.isInteger(x.day) && x.day * PHASES.length + PHASES.indexOf(x.phase) > at));
+      delete s.pendingScene;
+      // People and places first named later: gone unless something else names them (their own record, the schedules, the seen marks and a place's exits back to it aside).
+      const newPeople = s.npcs.filter(n => isObj(n.created) && later(n.created.turn));
+      const newPlaces = s.locations.filter(l => isObj(l.revealed) && later(l.revealed.turn) && l.id !== p.locationId);
+      const drop = new Set(newPeople.map(n => n.id).concat(newPlaces.filter(l => l.revealed.authored !== true).map(l => l.id)));
+      // Until nothing changes: one kept because something names it may name another.
+      for (let size = -1; drop.size && drop.size !== size;) {
+        size = drop.size;
+        const text = JSON.stringify(s, function (k, x) {
+          if (k === 'npcIdsBySchedule' || k === 'seen' || k === 'exits') return undefined;
+          if (Array.isArray(this) && isObj(x) && drop.has(x.id)) return undefined;
+          return x;
+        });
+        for (const id of Array.from(drop)) if (text.includes(`"${id}"`)) drop.delete(id);
+      }
+      const people = [];
+      const places = [];
+      if (drop.size) {
+        for (const n of s.npcs) if (drop.has(n.id)) people.push(n.name);
+        for (const l of s.locations) if (drop.has(l.id)) places.push(l.name);
+        s.npcs = s.npcs.filter(n => !drop.has(n.id));
+        s.locations = s.locations.filter(l => !drop.has(l.id));
+        for (const l of s.locations) {
+          if (Array.isArray(l.exits)) l.exits = l.exits.filter(x => !drop.has(x));
+          for (const ph of PHASES) { const sch = l.npcIdsBySchedule; if (isObj(sch) && Array.isArray(sch[ph])) sch[ph] = sch[ph].filter(x => !drop.has(x)); }
+        }
+        if (isObj(s.seen)) for (const id of Object.keys(s.seen)) if (drop.has(id)) delete s.seen[id];
+      }
+      // A home the cast wrote, found later: not found again.
+      for (const l of newPlaces) if (l.revealed.authored === true && !drop.has(l.id)) { l.discovered = false; delete l.revealed; places.push(l.name); }
+      if (applyCtx) applyCtx.result.rewound = { struck: gone.length, turn: T, day: t.day, phase: t.phase, settled, people, places };
+      return `rewound to turn ${T}: ${gone.length} turn${gone.length === 1 ? '' : 's'} struck, the clock at day ${t.day} ${t.phase}${people.length ? `; gone: ${people.join(', ')}` : ''}${places.length ? `; places gone: ${places.join(', ')}` : ''}`;
+    });
     each('npcHome', hm => {
       if (!isObj(hm)) bad('must be an object');
       const n = needNpc(hm.npcId);
@@ -11101,10 +11203,11 @@ const State = (() => {
       bans: [],
       eventsFired: []
     };
+    undoSwitch();
     current = st;
     town = deepCopy(townData);
     muted = opts.pending === true;
-    undo.length = 0;
+    loaded = null;
     ledger = freshLedger(-1);
     /* The season is the calendar's (review E13). The old random pick still
        draws from the seeded stream, so a seed gives the same world as
@@ -11159,7 +11262,7 @@ const State = (() => {
     return r.rejected.length ? null : sd.id;
   }
   function commit() { muted = false; notify(); }
-  function clear() { current = null; town = null; muted = false; undo.length = 0; }
+  function clear() { undoSwitch(); current = null; town = null; muted = false; loaded = null; }
   /* A save's shape, checked deep before anything loads it (review R3, R4):
      returns [] or a list holding the first problem. Every person, place,
      faction, thread, seed and rumour is an object with a string id (people,
@@ -11382,27 +11485,67 @@ const State = (() => {
       if (!isObj(n) || !(n.alive === false || n.status === 'dead')) continue;
       for (const l of s.locations) for (const ph of PHASES) { const sch = l.npcIdsBySchedule; if (isObj(sch) && Array.isArray(sch[ph]) && sch[ph].includes(n.id)) sch[ph] = sch[ph].filter(x => x !== n.id); }
     }
+    undoSwitch();
     current = s;
     town = deepCopy(townData || TOWN_DATA);
     muted = false;
-    undo.length = 0;
+    loaded = { json: JSON.stringify(s), turn: s.meta.turn | 0 };
     ledger = freshLedger(-1);
     notify();
     const rv = rulesVersion(s);
     return { state: current, rulesVersion: rv, newer: rv > RULES_VERSION };
   }
-  /* A snapshot holds the game and the game's copy of the town (an update
-     changes the town copy too; review R8), and returns the game's JSON, as
-     before, for callers that compare it with State.current. A town copy the
-     same as the last snapshot's shares its string. */
-  function snapshot() {
-    if (!current) return null;
-    const json = JSON.stringify(current);
+  // ----- the undo and redo stacks (wave 16) -----
+  /* Listeners (Storage: the stack kept in IndexedDB; UI: the Undo link's
+     count) hear 'switch' before another game takes this one's place (the
+     stack is still this game's then), and 'push', 'pop', 'undo', 'redo',
+     'join' and 'resume' after the stack changed. */
+  function undoChanged(why) { for (const fn of undoListeners) { try { fn(why); } catch (e) { console.error(e); } } }
+  function undoSwitch() {
+    if (current) undoChanged('switch');
+    undo.length = 0;
+    redo.length = 0;
+    redoKept = null;
+    stackGen += 1;
+  }
+  /* The game as it is now, as a stack entry (its town copy sharing the
+     string of the newest undo entry when the same). */
+  function entryNow(json) {
     let t = town ? JSON.stringify(town) : null;
     const last = undo[undo.length - 1];
     if (last && last.town === t) t = last.town;
-    undo.push({ json, town: t });
-    if (undo.length > UNDO_MAX) undo.splice(0, undo.length - UNDO_MAX);
+    return { json: typeof json === 'string' ? json : JSON.stringify(current), town: t, turn: current.meta.turn | 0 };
+  }
+  function stackBytes(list) {
+    let b = 0;
+    let prev = null;
+    for (const e of list) { b += e.json.length; if (typeof e.town === 'string' && e.town !== prev) b += e.town.length; prev = e.town; }
+    return b;
+  }
+  // At most UNDO_MAX steps and about UNDO_BYTES (the oldest go first; the newest is always kept).
+  function capStack(list) {
+    if (list.length > UNDO_MAX) list.splice(0, list.length - UNDO_MAX);
+    while (list.length > 1 && stackBytes(list) > UNDO_BYTES) list.shift();
+  }
+  // An entry back as the game (and its town copy).
+  function useEntry(e) {
+    current = JSON.parse(e.json);
+    if (e.town !== undefined) town = e.town === null ? null : JSON.parse(e.town);
+    ledger = freshLedger(-1);
+  }
+  /* A snapshot holds the game and the game's copy of the town (an update
+     changes the town copy too; review R8), and returns the game's JSON, as
+     before, for callers that compare it with State.current. A town copy the
+     same as the last snapshot's shares its string. Wave 16: a new step, so
+     what /redo could bring back is put aside (redoKept) and comes back only
+     if this step is rolled back. */
+  function snapshot() {
+    if (!current) return null;
+    const json = JSON.stringify(current);
+    undo.push(entryNow(json));
+    capStack(undo);
+    redoKept = { json, list: redo.splice(0) };
+    undoChanged('push');
     return json;
   }
   /* An ending told right after a turn is one /undo step with that turn
@@ -11411,22 +11554,96 @@ const State = (() => {
   function joinSnapshot(snap) {
     if (undo.length < 2 || undo[undo.length - 1].json !== snap) return false;
     undo.pop();
+    undoChanged('join');
     return true;
   }
   /* restore() pops the newest snapshot; restore(snap) restores a given one
      (and drops it from the stack if it is the newest). The town copy comes
-     back with it when the stack holds it. */
+     back with it when the stack holds it. Wave 16: restore(snap) of the
+     newest step (a rollback) gives back what /redo held before it; a bare
+     restore() (/reroll) leaves nothing to redo. /undo is undoSteps. */
   function restore(snap) {
     let entry = null;
     if (snap === undefined) entry = undo.pop() || null;
     else if (undo.length && undo[undo.length - 1].json === snap) entry = undo.pop();
     else entry = undo.slice().reverse().find(e => e.json === snap) || (typeof snap === 'string' && snap ? { json: snap } : null);
     if (!entry || !entry.json) return false;
-    current = JSON.parse(entry.json);
-    if (entry.town !== undefined) town = entry.town === null ? null : JSON.parse(entry.town);
-    ledger = freshLedger(-1);
+    useEntry(entry);
+    if (snap !== undefined && redoKept && redoKept.json === snap) redo.splice(0, redo.length, ...redoKept.list);
+    else if (snap === undefined) redo.length = 0;
+    redoKept = null;
+    undoChanged('pop');
     notify();
     return true;
+  }
+  /* /undo N (wave 16): up to n steps back, each one's game put on the redo
+     stack first; onStep(json) hears each game passed through (the last is
+     the one restored). Returns how many were taken back. */
+  function undoSteps(n, onStep) {
+    if (!current || muted) return 0;
+    let cur = entryNow();
+    let k = 0;
+    while (k < n && undo.length) { redo.push(cur); cur = undo.pop(); k += 1; if (onStep) onStep(cur.json); }
+    if (!k) return 0;
+    if (redo.length > UNDO_MAX) redo.splice(0, redo.length - UNDO_MAX);
+    useEntry(cur);
+    redoKept = null;
+    undoChanged('undo');
+    notify();
+    return k;
+  }
+  /* /redo N (wave 16): up to n of the steps an undo took back, brought back
+     in order, each one's game put on the undo stack first. */
+  function redoSteps(n, onStep) {
+    if (!current || muted) return 0;
+    let cur = entryNow();
+    let k = 0;
+    while (k < n && redo.length) { undo.push(cur); cur = redo.pop(); k += 1; if (onStep) onStep(cur.json); }
+    if (!k) return 0;
+    capStack(undo);
+    useEntry(cur);
+    redoKept = null;
+    undoChanged('redo');
+    notify();
+    return k;
+  }
+  /* The stack as Storage keeps it (wave 16): { v, game, turn, entries:
+     [{ turn, json, t (an index into towns, -1 for none) }], towns }, or
+     null with no game (or one not yet begun). */
+  function undoRecord() {
+    if (!current || muted) return null;
+    const towns = [];
+    const entries = undo.map(e => {
+      let t = -1;
+      if (typeof e.town === 'string') { t = towns.length && towns[towns.length - 1] === e.town ? towns.length - 1 : towns.push(e.town) - 1; }
+      return { turn: e.turn, json: e.json, t };
+    });
+    return { v: 1, game: `${current.meta.createdAt || ''}|${current.meta.seed}`, turn: current.meta.turn | 0, entries, towns };
+  }
+  /* A stack read back from storage after a load of the autosave (Continue,
+     Play here instead): only its steps for this game (the caller checked
+     the game; gen: no other game loaded since), up to the turn the game was
+     loaded at (a step kept from after it was never saved in the autosave),
+     in order; steps at the top that are the game as loaded are dropped
+     (nothing to take back), and what was done since the load stays on top.
+     Returns how many were added. */
+  function resumeUndo(rec, gen) {
+    if (gen !== stackGen || !current || muted || !loaded || !isObj(rec) || !Array.isArray(rec.entries)) return 0;
+    const towns = Array.isArray(rec.towns) ? rec.towns : [];
+    const list = [];
+    for (const x of rec.entries) {
+      if (!isObj(x) || typeof x.json !== 'string' || !x.json || !Number.isInteger(x.turn) || x.turn > loaded.turn) continue;
+      const t = Number.isInteger(x.t) && typeof towns[x.t] === 'string' ? towns[x.t] : null;
+      list.push({ json: x.json, town: t, turn: x.turn });
+    }
+    while (list.length && list[list.length - 1].json === loaded.json) list.pop();
+    if (!list.length) return 0;
+    const merged = list.concat(undo);
+    capStack(merged);
+    const added = merged.length - undo.length;
+    undo.splice(0, undo.length, ...merged);
+    undoChanged('resume');
+    return added;
   }
 
   /* Called by the logEntry writer: everyone present with the player in the
@@ -11512,6 +11729,12 @@ const State = (() => {
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, joinSnapshot, beginBatch, endBatch,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
+    // Wave 16: several steps at once, /redo, and the stack kept in storage.
+    UNDO_MAX, UNDO_BYTES, undoSteps, redoSteps, undoRecord, resumeUndo,
+    redoDepth: () => redo.length,
+    undoBytes: () => stackBytes(undo),
+    get undoGen() { return stackGen; },
+    onUndo(fn) { undoListeners.push(fn); },
     onChange(fn) { listeners.push(fn); },
     debugLog,
     npc, loc, faction, thread, threadNow, seed, rumour, entityById, npcsAt, reputationTier, attitudeWord
@@ -18930,6 +19153,8 @@ const Pipeline = (() => {
   function waitForHand(table, node, kind) {
     return new Promise((resolve, reject) => {
       hand = { resolve, reject, table, node: node || null, kind: kind || 'draw' };
+      // The Undo link comes with an open hand (wave 16: /undo takes its turn back, free).
+      try { UI.markUndo(); } catch (e) { console.error(e); }
       if (hand.kind === 'choose') {
         const pick = hooks.cardsChoose;
         if (pick) { hooks.cardsChoose = null; Promise.resolve().then(() => playHand(pick === 'win' ? { win: true } : { game: pick })); }
@@ -18973,6 +19198,23 @@ const Pipeline = (() => {
     if (!chooser) { try { UI.feed.cardsVoid(h.node); } catch (e) { console.error(e); } }
     h.reject(Object.assign(new Error('another tab took over'), { type: 'void', chooser }));
     return true;
+  }
+  /* /undo with a hand open (wave 16; the owner: "I can't undo to the start
+     of the game" from the middle of a hand): the whole turn is taken back,
+     free, at the chooser, at draw and on any hold'em street. Like the void
+     above nothing is played out: no fold price, no catch roll, nothing
+     recorded; the turn ends as a rollback (runTurn: fail), so the game is as
+     its snapshot had it (a cheat the hand spent is armed again), the table
+     and the turn's lines leave the feed, the stored hand is dropped and the
+     line goes back in the box. Returns a promise that resolves once the
+     turn is over (the pipeline free), or null with no hand open. */
+  function takeBackHand() {
+    if (!hand) return null;
+    const h = hand;
+    hand = null;
+    const done = whenIdle();
+    h.reject(Object.assign(new Error('taken back with /undo'), { type: 'undone', chooser: h.kind === 'choose' }));
+    return done;
   }
   /* /cheat cards (wave 11, L2): armed in the game itself (State
      cardsCheat), so it survives a reload; a second one says it is armed
@@ -20814,6 +21056,8 @@ const Pipeline = (() => {
       // At the chooser (wave 14, QA #19) nothing was dealt: the turn's lines go, the line goes back in the box, and the notice says why.
       if (err && err.type === 'void' && err.chooser) return fail(snap, mark, { text: NOTICES.chooserVoid }, { reason: 'void', restoreInput: true });
       if (err && err.type === 'void') return fail(snap, UI.feed.mark(), null, { reason: 'void' });
+      // Taken back with /undo while the hand was open (wave 16: takeBackHand): nothing played, nothing kept, the line back in the box; /undo says so.
+      if (err && err.type === 'undone') return fail(snap, mark, null, { reason: 'undone', restoreInput: true });
       // Stop at the chooser of a turn with no line to put back (wave 15: a resumed turn, or none typed): nothing was dealt, and the box is not said to hold anything.
       if (err && err.type === 'aborted' && err.chooser && (ctx.resume || !String(opts.input || '').trim())) return fail(snap, mark, { text: NOTICES.chooserStopped }, { reason: 'aborted' });
       if (err && err.type === 'aborted') return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingStopped : NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
@@ -21546,6 +21790,7 @@ const Pipeline = (() => {
     /* The open hand (wave 10): Draw ({ hold: [0-4] }) or Fold ({ fold: true }); false when no hand is open. */
     playHand,
     voidHand,
+    takeBackHand,
     cheatCards,
     get cheatArmed() { return cheatArmed(); },
     keepCheat,
@@ -21570,7 +21815,9 @@ const Pipeline = (() => {
     /* The line waiting in the queue taken back (the UI's "Next: ..." and its
        x): it will not run. Returns its text, or null when nothing waits. */
     cancelQueued() { if (!queued) return null; const q = queued; queued = null; return q.text || ''; },
-    get lastTurn() { return lastTurn; }
+    get lastTurn() { return lastTurn; },
+    /* /rewind (wave 16): the turn /reroll would replay is struck from the story. */
+    forgetLastTurn() { lastTurn = null; }
   };
 })();
 
@@ -21688,6 +21935,7 @@ const Storage = (() => {
     // Nothing chosen yet: the demo only while there is no key.
     if (!(isObj(parsed) && typeof parsed.mockMode === 'boolean')) settings.mockMode = !apiKey;
     try { window.addEventListener('storage', onStorageEvent); } catch (e) { /* no window events */ }
+    undoInit();
   }
   function saveSettings(patch) {
     const next = Object.assign({}, settings, patch || {});
@@ -21931,6 +22179,109 @@ const Storage = (() => {
     }
     return tabId;
   }
+  /* The undo stack, kept (wave 16: a phone reloads a tab left in the
+     background, and /undo had nothing left). localStorage is too small (a
+     step is the whole game, about 200-400 KB, and the stack holds 20), so
+     it lives in IndexedDB: database "novatria", store "undo", one record,
+     the current game's (State.undoRecord, keyed by its createdAt and seed,
+     with the tab that wrote it), written a moment after the stack changes
+     (UNDO_WRITE_MS; at once before another game takes this one's place,
+     and when the page is hidden). Continue and Play here instead read it
+     back (undoResume: only that game's steps, up to the turn loaded,
+     State.resumeUndo); a new game, a slot, an import or the previous
+     autosave start empty and clear it (undoReset). A tab another tab has
+     taken over (read only) never writes it. Without IndexedDB (some private
+     windows, some browsers on file://) or when it fails, nothing is said:
+     the stack is this page's only, as before. The redo stack is never kept. */
+  const UNDO_DB = 'novatria';
+  const UNDO_STORE = 'undo';
+  const UNDO_WRITE_MS = 250;
+  let undoDbP = null;
+  let undoTimer = null;
+  let undoDirty = false;
+  let undoReading = 0;
+  let undoChain = Promise.resolve();
+  function undoDb() {
+    if (undoDbP) return undoDbP;
+    undoDbP = new Promise(resolve => {
+      try {
+        const req = window.indexedDB.open(UNDO_DB, 1);
+        req.onupgradeneeded = () => { try { if (!req.result.objectStoreNames.contains(UNDO_STORE)) req.result.createObjectStore(UNDO_STORE); } catch (e) { /* none then */ } };
+        req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => db.close(); } catch (e) { /* fine */ } resolve(db); };
+        req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } resolve(null); };
+        req.onblocked = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return undoDbP;
+  }
+  /* One transaction on the store, after every one asked for before it.
+     work(store) returns a request whose result is the answer, or nothing.
+     Resolves to that result, or null whatever went wrong. */
+  function undoTx(mode, work) {
+    const run = () => undoDb().then(db => new Promise(resolve => {
+      if (!db) { resolve(null); return; }
+      let req = null;
+      try {
+        const tx = db.transaction(UNDO_STORE, mode);
+        req = work(tx.objectStore(UNDO_STORE)) || null;
+        tx.oncomplete = () => resolve(req && req.result !== undefined ? req.result : null);
+        tx.onabort = () => resolve(null);
+        tx.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } };
+      } catch (e) { resolve(null); }
+    }));
+    const p = undoChain.then(run, run);
+    undoChain = p.catch(() => null);
+    return p;
+  }
+  function onUndo(why) {
+    if (why === 'switch') { undoFlush(); return; }
+    undoDirty = true;
+    if (!undoTimer) undoTimer = setTimeout(() => { undoTimer = null; undoFlush(true); }, UNDO_WRITE_MS);
+  }
+  /* Write the stack now (later: the timer's write, which waits for a read
+     back that is still under way). */
+  function undoFlush(later) {
+    clearTimeout(undoTimer);
+    undoTimer = null;
+    if (!undoDirty) return false;
+    if (undoReading) { if (later) undoTimer = setTimeout(() => { undoTimer = null; undoFlush(true); }, UNDO_WRITE_MS); return false; }
+    undoDirty = false;
+    if (readOnly) return false;
+    const rec = State.undoRecord();
+    if (!rec) return false;
+    rec.tab = tab();
+    rec.savedAt = new Date().toISOString();
+    undoTx('readwrite', store => { store.clear(); return store.put(rec, rec.game); });
+    return true;
+  }
+  /* A new game, a slot, an import or the previous autosave: an empty stack, written now over the one kept. */
+  function undoReset() { undoDirty = true; return undoFlush(); }
+  /* Continue, Play here instead: the stack kept for this game, read back
+     under what was done since the load. Resolves to how many steps came back. */
+  function undoResume() {
+    const s = State.current;
+    if (!s || State.muted) return Promise.resolve(0);
+    const game = gameId(s);
+    const gen = State.undoGen;
+    undoReading += 1;
+    return undoTx('readonly', store => store.get(game)).then(rec => {
+      undoReading -= 1;
+      const n = isObj(rec) && rec.game === game ? State.resumeUndo(rec, gen) : 0;
+      return n;
+    }, () => { undoReading -= 1; return 0; });
+  }
+  /* The record as kept (tests, the console), or null. */
+  function undoKept() { return undoTx('readonly', store => store.getAll()).then(list => (Array.isArray(list) && list.length ? list[0] : null)); }
+  /* Every read and write asked for so far is done (tests). */
+  function undoIdle() { return undoChain.then(() => null); }
+  function undoInit() {
+    State.onUndo(onUndo);
+    const hide = () => undoFlush();
+    try {
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hide(); });
+      window.addEventListener('pagehide', hide);
+    } catch (e) { /* no page events */ }
+  }
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -21939,6 +22290,7 @@ const Storage = (() => {
     saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
     exportJson, exportSave, exportFileName, downloadAutosave, importFile,
     setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
+    undoFlush, undoReset, undoResume, undoKept, undoIdle, UNDO_DB, UNDO_STORE,
     get tabId() { return tab(); },
     get readOnly() { return readOnly; },
     get failed() { return failed; }
@@ -22150,6 +22502,8 @@ const UI = (() => {
     try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyDisplay); } catch (e) { /* old browsers */ }
     // The Pipeline reports each stage of a turn.
     Pipeline.setStatusListener(onPipelineStatus);
+    // The undo stack changed (a step, an undo, the stack read back after a reload): the Undo link's count follows (wave 16).
+    State.onUndo(why => { if (why !== 'switch' && screen === 'game') markUndo(); });
     initViewport();
     applyDisplay();
     setCollapsed(Storage.settings().panelCollapsed, true);
@@ -22347,7 +22701,8 @@ const UI = (() => {
     if (Storage.readOnly) return READ_ONLY_NOTICE;
     if (screen !== 'game' || !State.current || State.muted) return 'There is no game in progress.';
     // opts.fill: only puts text in the box (Spend), which typing may do during a turn too.
-    if (turnRunning() && !(opts && opts.fill) && !(opts && opts.queue && canQueue())) return App.BUSY_NOTICE;
+    // opts.hand (wave 16): Undo, which takes back the turn of a hand open at cards, free.
+    if (turnRunning() && !(opts && opts.fill) && !(opts && opts.queue && canQueue()) && !(opts && opts.hand && Pipeline.handOpen)) return App.BUSY_NOTICE;
     return '';
   }
   function canAct(opts) {
@@ -22686,6 +23041,8 @@ const UI = (() => {
     // A turn item is off while a turn runs or in a read-only tab (the title says which).
     const why = actBlock();
     const whyFill = actBlock({ fill: true });
+    // Undo last turn works with a hand open at cards too (wave 16).
+    const whyUndo = actBlock({ hand: true });
     const item = (label, onclick, extra) => el('button', Object.assign({ type: 'button', class: 'btn ghost', role: 'menuitem', onclick }, extra || {}), label);
     let kids;
     d.actPop.setAttribute('aria-label', sub === 'wait' ? 'Wait until' : 'Actions and commands');
@@ -22701,7 +23058,7 @@ const UI = (() => {
         if (a.help) { closeActions(true); Commands.run('/help'); return; }
         if (a.id === 'recap' && !Commands.LIST.some(c => c.name === '/recap')) { closeActions(true); showRecap(); return; }
         runAction(a.cmd);
-      }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!why) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && why) || (a.fill && whyFill) || null }));
+      }, { dataset: { act: a.id }, disabled: !!a.off || (!!a.cmd && !!(a.id === 'undo' ? whyUndo : why)) || (!!a.fill && !!whyFill), title: a.off ? 'You have no story points' : (a.cmd && (a.id === 'undo' ? whyUndo : why)) || (a.fill && whyFill) || null }));
     }
     d.actPop.replaceChildren(...kids);
     // Two columns (a phone on its side) are filled column by column: the heading's row and half the items, rounded up (CSS: --act-rows).
@@ -22747,12 +23104,14 @@ const UI = (() => {
      while the turn runs; after, the box (laptop) or the opener (phone). */
   async function runAction(cmd, from) {
     closeActions(true);
-    if (!canAct({ say: true })) return null;
+    // Undo with a hand open at cards (wave 16): the turn that dealt it is taken back, free (Commands: Pipeline.takeBackHand).
+    const hand = /^\/undo\b/i.test(cmd) && Pipeline.handOpen;
+    if (!canAct({ say: true, hand })) return null;
     if (isMobile()) closeSheet();
     const opener = from || document.activeElement;
     holdTurnFocus(opener && opener !== document.body ? opener : null);
     let res = null;
-    try { res = await Pipeline.submit(cmd, { mode: 'do', to: 'everyone' }); } catch (e) { console.error(e); }
+    try { res = await (hand ? Commands.run(cmd) : Pipeline.submit(cmd, { mode: 'do', to: 'everyone' })); } catch (e) { console.error(e); }
     syncSendLabel();
     releaseTurnFocus();
     return res;
@@ -24616,24 +24975,17 @@ const UI = (() => {
     }
     return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}; Win (cheat) ends it yours.`;
   }
-  /* /undo typed with a hand open (wave 15): the turn can only be taken back
-     once it is over, so the line says how to end it first. */
-  function undoNudge() {
-    const t = Pipeline.openHand;
-    const kind = Pipeline.handKind;
-    if (kind === 'choose') return 'Pick a game and finish the hand first; /undo then takes the turn back. Stop leaves the table (nothing lost).';
-    const cost = !t ? null : kind === 'holdem' ? t.playerIn : Pipeline.foldPrice(t.stake);
-    return `Finish the hand or Stop it${Number.isFinite(cost) ? ` (−${money(cost)})` : ''} first; /undo then takes the turn back.`;
-  }
   /* A command typed with a hand open (wave 14, QA #10): /cheat win is the
      Win (cheat) control; /cheat cards says the cards are dealt. Wave 15:
-     /help (or /commands) is shown as ever, the hand left open; /undo says
-     to finish the hand or Stop it first (the line stays in the box).
-     Returns true when the line was taken. */
+     /help (or /commands) is shown as ever, the hand left open. Wave 16:
+     /undo (and /undo N, /undo all, /rewind N) takes back the turn that
+     dealt the hand, free (Pipeline.takeBackHand): the box is emptied first,
+     so the turn's own line goes back in it. Returns true when the line was
+     taken. */
   const CHEAT_WIN_TYPED = /^\/cheat\s+win\s*$/i;
   const CHEAT_CARDS_TYPED = /^\/cheat\s+cards\s*$/i;
   const HELP_TYPED = /^\/(?:help|commands)[:.,!?]*$/i;
-  const UNDO_TYPED = /^\/undo[:.,!?]*(?:\s|$)/i;
+  const UNDO_TYPED = /^\/(?:undo|rewind)[:.,!?]*(?:\s|$)/i;
   function handCommand(text) {
     if (!Pipeline.handOpen) return false;
     const t = String(text || '').trim();
@@ -24646,7 +24998,11 @@ const UI = (() => {
       return true;
     }
     if (UNDO_TYPED.test(t)) {
-      nudge(undoNudge());
+      d.cmd.value = '';
+      autosize();
+      syncSendLabel();
+      hideAc();
+      Promise.resolve(Commands.run(t)).then(r => { if (r && r.restoreInput && r.reason === 'usage') restoreAction(t); syncSendLabel(); }, e => console.error(e));
       return true;
     }
     if (CHEAT_WIN_TYPED.test(t)) {
@@ -25107,7 +25463,13 @@ const UI = (() => {
     const s = State.current;
     const inputs = $$('.f-input', d.feed);
     const last = inputs[inputs.length - 1] || null;
-    const ok = !!s && !State.muted && !busy && !Pipeline.busy && !Storage.readOnly && !(s.player && s.player.dead) && State.undoDepth() >= 1 && !!last;
+    // Wave 16: also while a hand is open at cards (its turn is taken back, free), and the link's name says how many steps there are.
+    const hand = Pipeline.handOpen;
+    const ok = !!s && !State.muted && !Storage.readOnly && !(s.player && s.player.dead) && !!last && (hand || (!busy && !Pipeline.busy && State.undoDepth() >= 1));
+    const n = State.undoDepth();
+    const more = `${n} can be taken back`;
+    d.undoBtn.title = hand ? `Take back this turn and its hand, free (/undo; ${more})` : `Take back the last turn (/undo; ${more})`;
+    d.undoBtn.setAttribute('aria-label', hand ? `Undo this turn and its hand, free (${more})` : `Undo the last turn (${more})`);
     const focused = document.activeElement === d.undoBtn;
     if (!ok && focused && (busy || Pipeline.busy) && !Storage.readOnly && undoLine && undoLine.isConnected) {
       undoLine.classList.add('has-undo');
@@ -25287,6 +25649,8 @@ const UI = (() => {
     const stage = ev && typeof ev.stage === 'string' ? ev.stage : 'idle';
     if (stage === 'parse') status.queued = false;
     setStage(stage, ev && typeof ev.message === 'string' ? ev.message : '');
+    // A hand open at cards (the 'cards' and 'choose' stages) brings the Undo link; the narration after it takes it away (wave 16).
+    markUndo();
   }
   /* Without a Pipeline that reports, the feed says where the turn is. */
   function inferStage(stage) { if (!status.fromPipeline && (busy || Pipeline.busy)) setStage(stage); }
@@ -26299,10 +26663,13 @@ const Commands = (() => {
     { name: '/journal', args: '', desc: 'Open the Journal panel' },
     { name: '/recap', args: '', desc: 'Where you are, what is open, who matters' },
     { name: '/places', args: '', desc: 'Open the Places panel' },
-    { name: '/undo', args: '', desc: 'Take back the last turn' },
+    // Wave 16: several turns at once, /redo, and /rewind for turns /undo cannot reach.
+    { name: '/undo', args: '[n or all]', desc: 'Take back the last turn (or n)' },
+    { name: '/redo', args: '[n or all]', desc: 'Put back a turn you took back' },
+    { name: '/rewind', args: '<n>', desc: 'Strike turns from the story (money stays)', help: 'Strike the last n turns from the story, for turns /undo cannot reach (money, health, things carried and feelings stay)' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     // Wave 6 (the round-5 visual QA): the / list's line fits at every width; /help keeps the long form (help).
-    { name: '/cheat', args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll, or set the clock', help: 'Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), or set the clock (forward only)', turn: true },
+    { name: '/cheat', args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll, or set the clock', help: 'Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), set your cash (cash <amount>), or set the clock (forward only)', turn: true },
     { name: '/pronouns', args: '<who> <she|he|they>', desc: 'Set someone\'s pronouns' },
     { name: '/edit', args: '<who>', desc: 'Edit someone on the People tab' },
     { name: '/save', args: '[name]', desc: 'Save to a named slot (no name: open saved games)' },
@@ -26335,7 +26702,7 @@ const Commands = (() => {
     if (!cmd) { UI.feed.notice(`There is no ${head} command. Type / to see the list.`); return { ok: false, reason: 'unknown', restoreInput: true }; }
     if (PANEL_FOR[cmd.name]) { UI.openPanel(PANEL_FOR[cmd.name]); return { ok: true }; }
     const dead = !!(State.current && State.current.player.dead);
-    if (dead && (cmd.turn || cmd.name === '/undo')) { UI.feed.notice(Pipeline.NOTICES.dead); return { ok: false, reason: 'dead' }; }
+    if (dead && (cmd.turn || ['/undo', '/redo', '/rewind'].includes(cmd.name))) { UI.feed.notice(Pipeline.NOTICES.dead); return { ok: false, reason: 'dead' }; }
     switch (cmd.name) {
       case '/help': {
         // A notice in the feed, one command a line (no turn, no API call; the composer's list after "/" is the same).
@@ -26381,8 +26748,10 @@ const Commands = (() => {
         return { ok: false, reason: 'no-card' };
       }
       case '/cheat': {
-        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat cards stacks the deck so you win your next hand at cards. /cheat win wins your next hand without playing it: the table is shown finished and the pot is yours (every open table also has a Win (cheat) button that does the same). /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
+        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat cards stacks the deck so you win your next hand at cards. /cheat win wins your next hand without playing it: the table is shown finished and the pot is yours (every open table also has a Win (cheat) button that does the same). /cheat cash <amount> sets your cash, as in /cheat cash 25. /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
         if (/^reroll\b/i.test(arg)) return Pipeline.reroll(arg.replace(/^reroll\s*/i, ''));
+        // Your cash set outright (wave 16: what /rewind leaves as it was).
+        if (/^(?:cash|money|gold)\b/i.test(arg)) return cheatCash(arg.replace(/^(?:cash|money|gold)\b[\s:]*/i, ''));
         // The next hand at cards is the player's (wave 10): free, no roll, nothing on record.
         if (/^(?:the\s+)?(?:cards?|poker|hand|deck)\b/i.test(arg)) return Pipeline.cheatCards();
         // The next hand won without playing it (wave 13: the owner's "cheat win").
@@ -26396,22 +26765,9 @@ const Commands = (() => {
         }
         return Pipeline.reroll(arg);
       }
-      case '/undo': {
-        if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
-        // An armed /cheat cards stays armed, and one the turn spent comes back with it (wave 11, L2).
-        const armed = Pipeline.cheatArmed;
-        const winArmed = Pipeline.winArmed;
-        if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
-        Pipeline.keepCheat(armed);
-        Pipeline.keepWin(winArmed);
-        // Everything goes back, an ending noted for after the next turn too (wave 5, the fourth review's bug 4).
-        Pipeline.forgetEnding();
-        World.forget(State.current.meta.turn);
-        Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
-        UI.rebuildFeed();
-        UI.feed.notice(`You took back the last turn.${!armed && Pipeline.cheatArmed ? ' The cards cheat is armed again: the next hand is yours.' : ''}${!winArmed && Pipeline.winArmed ? ' The win cheat is armed again: the next hand is yours without playing.' : ''}`);
-        return { ok: true };
-      }
+      case '/undo': return undo(arg);
+      case '/redo': return redo(arg);
+      case '/rewind': return rewind(arg);
       case '/save': {
         if (!arg) { UI.showScreen('saves'); return { ok: true }; }
         const r = Storage.saveNamed(arg);
@@ -26436,7 +26792,161 @@ const Commands = (() => {
         return { ok: false, reason: 'unknown' };
     }
   }
-  return { LIST, ALIASES, match, run, helpText };
+  // ----- /undo, /redo, /rewind and /cheat cash (wave 16) -----
+  /* How many: none said is 1, "all" all there are, else a whole number from
+     1 ("/undo 3", "/undo 3 turns"). null when it is none of these. */
+  function countOf(arg) {
+    const a = String(arg || '').trim().toLowerCase().replace(/[.!]+$/, '');
+    if (!a) return 1;
+    if (/^all(?:\s+(?:of\s+them|turns?))?$/.test(a)) return 'all';
+    const m = /^(\d{1,4})(?:\s+turns?)?$/.exec(a);
+    return m && parseInt(m[1], 10) >= 1 ? parseInt(m[1], 10) : null;
+  }
+  const turns = n => (n === 1 ? '1 turn' : `${n} turns`);
+  /* The end of every /undo notice: how many more can be taken back. */
+  function leftLine() {
+    const d = State.undoDepth();
+    return d ? `${d} more can be taken back.` : 'Nothing more can be taken back.';
+  }
+  // What /rewind can strike now: every log entry but the first.
+  function rewindRoom() { const s = State.current; return s && Array.isArray(s.log) ? Math.max(0, s.log.length - 1) : 0; }
+  /* The cheats through steps back (or forward): armed before a step, armed
+     after it (wave 11, L2; wave 13), so several steps keep one armed in any
+     game passed through (a step's JSON: watch); the notice says when one is
+     armed that was not. */
+  function cheatWatch() {
+    const w = { armed: Pipeline.cheatArmed, win: Pipeline.winArmed, keep: false, keepWin: false };
+    w.see = json => { if (json.includes('"cardsCheat":true')) w.keep = true; if (json.includes('"cardsWin":true')) w.keepWin = true; };
+    w.now = () => { if (Pipeline.cheatArmed) w.keep = true; if (Pipeline.winArmed) w.keepWin = true; };
+    return w;
+  }
+  function cheatsBack(w) {
+    Pipeline.keepCheat(w.armed || w.keep);
+    Pipeline.keepWin(w.win || w.keepWin);
+    return `${!w.armed && Pipeline.cheatArmed ? ' The cards cheat is armed again: the next hand is yours.' : ''}${!w.win && Pipeline.winArmed ? ' The win cheat is armed again: the next hand is yours without playing.' : ''}`;
+  }
+  /* /undo, /undo N, /undo all: each step exactly as it was (State.undoSteps),
+     its game put on the redo stack. With a hand open at cards (wave 16, the
+     owner's "I can't undo to the start of the game") the turn that dealt it
+     is the first step, taken back free (Pipeline.takeBackHand): the table
+     goes, the line goes back in the box, nothing is paid or rolled. Fewer
+     steps than asked: as many as there are, and the notice says /rewind
+     can strike the rest from the story. */
+  function undo(arg) {
+    if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
+    const want = countOf(arg);
+    if (want === null) return usage('Take back how many turns? Try /undo, /undo 3 or /undo all.');
+    // An armed /cheat cards stays armed, and one the turn spent comes back with it (wave 11, L2).
+    const w = cheatWatch();
+    if (Pipeline.handOpen) {
+      const done = Pipeline.takeBackHand();
+      return Promise.resolve(done).then(() => { w.now(); return undoMore(want, w, true); });
+    }
+    return undoMore(want, w, false);
+  }
+  function undoMore(want, w, hand) {
+    const n = want === 'all' ? State.undoDepth() + (hand ? 1 : 0) : want;
+    const more = hand ? n - 1 : n;
+    const k = (hand ? 1 : 0) + (more > 0 ? State.undoSteps(more, w.see) : 0);
+    if (!k) {
+      const m = Math.min(n, rewindRoom());
+      UI.feed.notice(m ? `There is nothing to undo exactly. /rewind ${m} strikes the last ${m === 1 ? 'turn' : `${m} turns`} from the story (money and feelings stay).` : 'There is nothing to undo.');
+      return { ok: false, reason: 'nothing' };
+    }
+    if (!hand || k > 1) {
+      // Everything goes back, an ending noted for after the next turn too (wave 5, the fourth review's bug 4).
+      Pipeline.forgetEnding();
+      World.forget(State.current.meta.turn);
+      UI.rebuildFeed();
+    }
+    Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
+    const cheats = cheatsBack(w);
+    const head = `You took back ${k === 1 ? 'the last turn' : turns(k)}${hand ? '; the hand is off the table' : ''}.${cheats}`;
+    const short = want !== 'all' && k < n ? Math.min(n - k, rewindRoom()) : 0;
+    const tail = short ? `Only ${turns(k)} could be taken back exactly; /rewind ${short} strikes earlier turns from the story (money and feelings stay).` : leftLine();
+    UI.feed.notice(`${head} ${tail}`);
+    return { ok: true, undone: k };
+  }
+  /* /redo, /redo N, /redo all (wave 16): the steps an undo took back, put
+     back in order (State.redoSteps); a new turn or another game empties
+     them, and they are this page's only (never kept with the undo stack). */
+  function redo(arg) {
+    if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
+    const want = countOf(arg);
+    if (want === null) return usage('Put back how many turns? Try /redo, /redo 2 or /redo all.');
+    const w = cheatWatch();
+    const k = State.redoSteps(want === 'all' ? State.redoDepth() : want, w.see);
+    if (!k) { UI.feed.notice('There is nothing to redo.'); return { ok: false, reason: 'nothing' }; }
+    Pipeline.forgetEnding();
+    UI.rebuildFeed();
+    const cheats = cheatsBack(w);
+    const d = State.redoDepth();
+    UI.feed.notice(`You put back ${turns(k)}.${cheats} ${d ? `${d} more can be put back.` : 'Nothing more to put back.'}`);
+    return { ok: true, redone: k };
+  }
+  /* /rewind N, /rewind to <turn>, /rewind day <d> (wave 16): the last turns
+     struck from the story (State rewind), for turns no undo step reaches (a
+     game played before the stack was kept, or older than it); what nothing
+     records by turn stays, and the notice says what. One /undo step. With a
+     hand open, its turn is taken back first, free, as /undo does. */
+  function rewind(arg) {
+    if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
+    const a = String(arg || '').trim().toLowerCase().replace(/[.!]+$/, '');
+    const to = /^to\s+(?:turn\s+)?(\d{1,6})$/.exec(a);
+    const day = /^(?:to\s+)?(?:the\s+end\s+of\s+)?day\s+(\d{1,4})$/.exec(a);
+    const n = to || day ? null : a ? countOf(a) : null;
+    if (!to && !day && (n === null || n === 'all')) return usage('Strike how many turns from the story? Try /rewind 3 (or /rewind to turn 12, /rewind day 2).');
+    if (Pipeline.handOpen) return Promise.resolve(Pipeline.takeBackHand()).then(() => rewindTo(to, day, n, true));
+    return rewindTo(to, day, n, false);
+  }
+  function rewindTo(to, day, n, hand) {
+    const s = State.current;
+    const log = s.log;
+    let keep;
+    if (to) keep = log.filter(e => e.turn <= parseInt(to[1], 10)).length;
+    else if (day) keep = log.filter(e => e.day <= parseInt(day[1], 10)).length;
+    else keep = log.length - n;
+    keep = Math.max(1, keep);
+    const handLine = hand ? ' The hand is off the table, free.' : '';
+    if (keep >= log.length) {
+      UI.feed.notice(`${log.length > 1 ? 'Nothing to rewind: that is where the story is.' : 'Nothing to rewind: the story has only begun.'}${handLine}`);
+      return { ok: false, reason: 'nothing' };
+    }
+    const T = log[keep - 1].turn;
+    const snap = State.snapshot();
+    const r = State.apply({ rewind: { turn: T } });
+    if (r.rejected.length || !r.rewound) {
+      State.restore(snap);
+      UI.feed.notice(`Nothing was rewound: ${r.rejected.length ? r.rejected[0].reason : 'nothing changed'}.${handLine}`);
+      return { ok: false, reason: 'rejected' };
+    }
+    const w = r.rewound;
+    Pipeline.forgetEnding();
+    Pipeline.forgetLastTurn();
+    World.forget(T);
+    Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1;
+    UI.rebuildFeed();
+    const settled = w.settled ? ' A thread settled then stays settled, with what it gave you.' : '';
+    UI.feed.notice(`Rewound to turn ${T} (Day ${w.day}, ${w.phase}): ${turns(w.struck)} struck from the story.${handLine} Not taken back: money, health, things carried and how people feel, nor where you are or what you heard.${settled} /cheat cash <amount> sets your cash.`);
+    return { ok: true, struck: w.struck, turn: T };
+  }
+  /* /cheat cash <amount> (wave 16): the player's cash set outright, in whole
+     dollars, 0 to $1,000,000, through the engine's goldDelta: no roll,
+     nothing in the story; one /undo step. */
+  function cheatCash(arg) {
+    if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
+    const m = /^\$?\s*(\d[\d,]*)(?:\.0+)?\s*(?:dollars?|bucks)?[.!]*$/i.exec(String(arg || '').trim());
+    const amount = m ? parseInt(m[1].replace(/,/g, ''), 10) : NaN;
+    if (!Number.isInteger(amount) || amount > 1000000) return usage('Set your cash to what? Try /cheat cash 25 (whole dollars, 0 to 1,000,000).');
+    const s = State.current;
+    if (s.player.gold === amount) { UI.feed.notice(`Your cash is already ${money(amount)}.`); return { ok: true, same: true }; }
+    const snap = State.snapshot();
+    const r = State.apply({ goldDelta: amount - s.player.gold });
+    if (r.rejected.length) { State.restore(snap); UI.feed.notice(`Your cash was not changed: ${r.rejected[0].reason}.`); return { ok: false, reason: 'rejected' }; }
+    UI.feed.notice(`Cheat: your cash is ${money(State.current.player.gold)} now.`);
+    return { ok: true };
+  }
+  return { LIST, ALIASES, match, run, helpText, countOf };
 })();
 
 // ===== Module: App =====
@@ -26568,6 +27078,8 @@ const App = (() => {
     inGame = true;
     // A hand left on a table is never this new game's (wave 12, M2): it is dropped, as a load that does not match drops it.
     Storage.dropHand();
+    // A new game starts with nothing to undo, and the stack kept for the last one goes (wave 16).
+    Storage.undoReset();
     Storage.requestPersist();
     const live = !Storage.settings().mockMode && !!Storage.getApiKey();
     if (live) {
@@ -26592,8 +27104,10 @@ const App = (() => {
   /* Load a game and draw it before anything is saved: State's listeners
      (the autosave) hear about it only once it is on screen. If it cannot be
      drawn, the game that was open comes back and the error goes to the
-     caller. */
-  function load(env) {
+     caller. Wave 16: opts.resume (Continue, Play here instead: the
+     autosave) reads back the undo stack kept for that game; any other load
+     starts with nothing to undo and clears the one kept. */
+  function load(env, opts) {
     const before = State.current;
     const beforeJson = before && !State.muted ? JSON.stringify(before) : null;
     const beforeTown = State.town;
@@ -26610,7 +27124,7 @@ const App = (() => {
       UI.showScreen('game');
     } catch (e) {
       try {
-        if (beforeJson && State.current !== before) State.load(JSON.parse(beforeJson), beforeTown);
+        if (beforeJson && State.current !== before) { State.load(JSON.parse(beforeJson), beforeTown); Storage.undoResume(); }
         else if (!beforeJson && State.current) State.clear();
       } catch (x) { console.error(x); }
       inGame = wasIn && !!beforeJson;
@@ -26622,6 +27136,7 @@ const App = (() => {
     if ((isObj(r) && r.newer === true) || newerRules(env.state)) UI.warn(NEWER_NOTICE);
     // Loaded in a tab that was read only: this tab plays it now.
     if (Storage.readOnly) Storage.claim();
+    if (opts && opts.resume) Storage.undoResume(); else Storage.undoReset();
     Storage.requestPersist();
     // A hand this game's page was closed on (wave 11, M1): folded or kept as played, after anything the load prints (Continue's recap).
     Promise.resolve().then(() => { try { const t = Pipeline.resumeHand(); if (t && typeof t.catch === 'function') t.catch(e => console.error(e)); } catch (e) { console.error(e); } });
@@ -26641,7 +27156,7 @@ const App = (() => {
     let why = '';
     if (raw) { try { env = Storage.parseEnvelope(raw, 'The saved game'); } catch (e) { why = e.message; } }
     if (env) {
-      try { load(env); } catch (e) { env = null; why = e.message || String(e); }
+      try { load(env, { resume: true }); } catch (e) { env = null; why = e.message || String(e); }
     }
     if (!env && raw) Storage.keepAside(raw);
     if (Storage.readOnly) Storage.claim();
@@ -26661,7 +27176,7 @@ const App = (() => {
     if (turnRunning()) return false;
     const env = Storage.loadAutosave();
     if (!env) { UI.toast('There is no autosave yet.'); return false; }
-    try { load(env); } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
+    try { load(env, { resume: true }); } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
     // Where things stand, when the Pipeline can say (a recap built in code, no API call).
     UI.showRecap();
     return true;

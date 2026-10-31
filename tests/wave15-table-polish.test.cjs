@@ -9,7 +9,8 @@
    whoever came in and did not sit in still arrives, in the demo and in the
    narrator's packet, and nobody who sat in does (#4); after a press the
    focus goes to the table's first button, in view (#5); /help works with a
-   hand open and /undo says to end the hand first (#6); the demo reads
+   hand open (#6; wave 16: /undo there takes the turn back, free, where wave
+   15 said to end the hand first: tests/wave16-undo.test.cjs); the demo reads
    "Mind if I join you for a hand?", "Count me in", "I take a seat at the
    card table", "I sit at the table" and "Deal me into the game" as bets
    where a dealer sits, and still not "I sit in the corner" or "I bet he is
@@ -285,7 +286,7 @@ s.test('#5 after a press the keyboard focus goes to the first button of the tabl
 
 // ----- #6: commands with a hand open -----
 
-s.test('#6 with a hand open /help shows the commands as ever and the hand stays open; /undo says "Finish the hand or Stop it (−$N) first; /undo then takes the turn back." (the line stays in the box), and works once the turn is over; other commands keep the nudge; /cheat win typed is still the Win (cheat) control', async h => {
+s.test('#6 with a hand open /help shows the commands as ever and the hand stays open; /undo (changed by design in wave 16) takes the turn back, free, the line back in the box, at hold\'em, at draw and at the chooser, and once the turn is over as ever; other commands keep the nudge; /cheat win typed is still the Win (cheat) control', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -300,10 +301,6 @@ s.test('#6 with a hand open /help shows the commands as ever and the hand stays 
   await page.waitForFunction(n => document.querySelectorAll('#feed .f-notice.help').length > n, helps);
   assert.match(await page.locator('#feed .f-notice.help').last().textContent(), /\/undo/);
   assert.deepEqual(await page.evaluate(() => [Game.Pipeline.handOpen, Game.Pipeline.handKind, document.querySelector('#cmd').value, !!document.querySelector('#feed .f-cards.open')]), [true, 'holdem', '', true], 'the hand stays open, the box is empty');
-  await page.fill('#cmd', '/undo');
-  await page.press('#cmd', 'Enter');
-  assert.equal(await statusLine(page), 'Finish the hand or Stop it (−$4) first; /undo then takes the turn back.');
-  assert.deepEqual(await page.evaluate(() => [Game.Pipeline.handOpen, document.querySelector('#cmd').value]), [true, '/undo']);
   await page.fill('#cmd', '/look');
   await page.press('#cmd', 'Enter');
   assert.equal(await statusLine(page), 'Your hand is on the table: Check or Bet. Stop folds the hand (−$4); Win (cheat) ends it yours.');
@@ -317,20 +314,20 @@ s.test('#6 with a hand open /help shows the commands as ever and the hand stays 
   await sendText(page, '/undo');
   assert.equal(await page.evaluate(() => Game.state.log.length), log0);
   assert.match(await lastNotice(page), /^You took back the last turn\./);
-  // At draw the fold price; at the chooser, what Stop does there.
-  await presetCards(page, { game: 'draw', seats: [] });
-  await startHand(page, 'I bet $20 at cards');
-  await page.fill('#cmd', '/undo');
-  await page.press('#cmd', 'Enter');
-  assert.equal(await statusLine(page), 'Finish the hand or Stop it (−$10) first; /undo then takes the turn back.');
-  await page.fill('#cmd', '');
-  await page.click('#send');
-  await idle(page);
+  // Wave 16: typed with the hand open, /undo takes the turn back at once, free: at hold'em, at draw and at the chooser.
+  for (const [game, words] of [['holdem', 'I bet $20 at cards'], ['draw', 'I bet $20 at cards'], [null, 'deal me in']]) {
+    await presetCards(page, { game, seats: [] });
+    const g = await gold(page);
+    await startHand(page, words);
+    await page.fill('#cmd', '/undo');
+    await page.press('#cmd', 'Enter');
+    await idle(page);
+    await page.waitForFunction(() => /hand is off the table/.test(([...document.querySelectorAll('#feed .f-notice')].pop() || {}).textContent || ''));
+    assert.deepEqual([await page.evaluate(() => [Game.Pipeline.handOpen, Game.state.log.length]), await gold(page), await page.inputValue('#cmd')], [[false, log0], g, words], String(game));
+    await page.fill('#cmd', '');
+  }
   await presetCards(page, { game: null, seats: [] });
   await startHand(page, 'deal me in');
-  await page.fill('#cmd', '/undo');
-  await page.press('#cmd', 'Enter');
-  assert.equal(await statusLine(page), 'Pick a game and finish the hand first; /undo then takes the turn back. Stop leaves the table (nothing lost).');
   const helps2 = await page.locator('#feed .f-notice.help').count();
   await page.fill('#cmd', '/commands');
   await page.press('#cmd', 'Enter');

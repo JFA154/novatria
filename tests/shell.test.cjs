@@ -406,7 +406,7 @@ s.test('typing "/" lists every command from SPEC section 12; arrows and Enter co
   await page.waitForSelector('#ac:not([hidden])');
   const names = await page.$$eval('#ac li .ac-name', els => els.map(e => e.textContent));
   // Changed by design in wave 3 (coordinator item 5): /help is a command too, last in the list.
-  assert.deepEqual(names, ['/look', '/zoom', '/skip', '/pass', '/rest', '/wait', '/fact', '/sheet', '/people', '/journal', '/recap', '/places', '/undo', '/reroll', '/cheat', '/pronouns', '/edit', '/save', '/load', '/debug', '/help']);
+  assert.deepEqual(names, ['/look', '/zoom', '/skip', '/pass', '/rest', '/wait', '/fact', '/sheet', '/people', '/journal', '/recap', '/places', '/undo', '/redo', '/rewind', '/reroll', '/cheat', '/pronouns', '/edit', '/save', '/load', '/debug', '/help']);
   await page.keyboard.type('pe');
   assert.deepEqual(await page.$$eval('#ac li .ac-name', els => els.map(e => e.textContent)), ['/people']);
   await page.keyboard.press('ArrowDown');

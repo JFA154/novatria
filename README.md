@@ -118,7 +118,14 @@ Commands help (the command list, as `/help` prints it); on a phone on its
 side the list is two columns, read down the first and then the second (the
 arrow keys follow that order, and go across a row). The newest line you
 typed carries a small **Undo** link too (outside the story's live region, so a
-screen reader does not announce it with every turn). A turn started from the
+screen reader does not announce it with every turn); its name says how many
+turns can be taken back ("Undo the last turn (5 can be taken back)"), and it
+is there while a hand is open at cards too, where it takes that turn back,
+free (see Cards; Undo last turn in the ⋯ list does the same). `/undo 3` and
+`/undo all` take back several turns at once and `/redo` puts them back. For
+turns older than the undo history (a game played before the history was
+kept, say), `/rewind` is the approximate tool: it strikes them from the
+story but leaves money and feelings as they are. A turn started from the
 list, the Undo link or a Go there button never drops the focus: it stays on
 that control, or on what stands in for it (the ⋯ button once the list closes,
 the box once the Undo link goes), while the turn runs, and on a laptop the box
@@ -772,7 +779,14 @@ complication is rolled at cards. Once the cards are dealt the ante is in:
 while a hand is open the box waits as it does during any turn, **Stop**
 folds the hand (at draw the fold price, at hold'em what you have put in; the
 table's hint says so, and with a marked deck the catch roll is still made),
-and the turn is kept, told in one plain line; closing the page does not take
+and the turn is kept, told in one plain line. `/undo` is the way out at no
+cost: typed with a hand open (or the Undo link, or Undo last turn in the ⋯
+list), it takes back the whole turn that dealt it, at the chooser, at draw
+or on any hold'em street, with a marked deck too: the table and your line
+leave the story, nothing is paid, rolled or remembered, your line goes back
+in the box and a cheat the hand spent is armed again ("You took back the
+last turn; the hand is off the table. 3 more can be taken back."); `/undo 3`
+takes that turn and two before it. Closing the page does not take
 it back either (the next time that game is loaded, a hand left open is
 folded where you left it, "You left the table, so you fold: −$10" (so is a
 draw hand left open before hold'em came in: never the chooser), and one
@@ -786,9 +800,9 @@ the table is closed here.", your line back in the box) and nothing is lost
 in either tab. While a hand is open, typing `/cheat win` is the **Win
 (cheat)** button, `/cheat cards` says "The cards are dealt: use Win (cheat)
 or type /cheat win.", `/help` lists the commands as ever (the hand stays
-open), and `/undo` says "Finish the hand or Stop it (−$4) first; /undo then
-takes the turn back." (the line stays in the box); other commands wait with
-the hand's own nudge. After each press the table keeps your cards and its
+open), `/undo` (and `/rewind`) take the turn back as above; other commands
+wait with the hand's own nudge. After a reload the fold on load is one step
+like any turn: `/undo` goes back to before the bet. After each press the table keeps your cards and its
 buttons in view (on a phone it no longer jumps back to its heading), and the
 keyboard focus is on its first button.
 Menu → Title screen waits until the hand is played (the notice shows above
@@ -860,11 +874,14 @@ once more in the background.
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
-| `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step. The history is for this sitting only: a reload, **Continue** or **Play here instead** starts it empty. A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. Typed while a hand is open it waits for the hand: "Finish the hand or Stop it (−$4) first; /undo then takes the turn back." | None |
+| `/undo` (also `/undo 3`, `/undo all`) | Take back the last turn exactly, or that many (up to 20 steps, fewer only if they would pass about 8 MB); a turn and the ending it brought are one step, and so is a `/cheat time`, a `/cheat cash`, an edit, an update or a `/rewind`. The notice ends with how many more can be taken back ("You took back 3 turns. 2 more can be taken back."; "Nothing more can be taken back."). The history is kept in this browser (IndexedDB) for the game in the autosave, so it survives a reload: **Continue** and **Play here instead** bring it back (only its steps up to the turn the autosave was saved at); a new game, a loaded slot, an import or the previous autosave start it empty. Where IndexedDB is off or fails (some private windows, some browsers opening the file from disk) nothing is said and the history is for this page only, as before; a tab another tab has taken over never writes it. Asked for more than there is, it takes back what it can and says `/rewind` can strike the rest ("You took back 4 turns. Only 4 turns could be taken back exactly; /rewind 6 strikes earlier turns from the story (money and feelings stay)."). A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. With a hand open it takes back the turn that dealt it, free: "You took back the last turn; the hand is off the table." (see Cards) | None |
+| `/redo` (also `/redo 2`, `/redo all`) | Put back what `/undo` took back, in order ("You put back 2 turns. 1 more can be put back."). For this page only (a reload, a load or a new game empties it, and it is never kept with the undo history), and emptied by the next turn played (or a `/cheat time`, `/cheat cash`, edit, update or `/rewind`); a turn that fails, is refused or is taken back with its hand still open leaves it. A cheat armed before stays armed | None |
+| `/rewind <n>` (also `/rewind to turn 12`, `/rewind day 2`) | Strike the last n turns from the story, for turns `/undo` cannot reach (played before the undo history was kept, or older than it); the first turn of the story always stays. It works from what records a turn number: those turns' story and the memories, notes, progression and last-seen marks they left go; whoever was first met then is not met (the narrator describes them again); a person or place first named then goes unless something else refers to it, and a home the cast wrote that was found then is unfound again (unless you are in it); and the clock goes back to the start of the phase the first struck turn began in (as that time passes again, the town's clocks roll for it again). Not taken back (nothing records it by turn): money, health, things carried, how people feel, where you are, what you heard, the town's clocks, loose ends and threads (one settled then stays settled, with what it gave you). The notice says so: "Rewound to turn 5 (Day 2, evening): 3 turns struck from the story. Not taken back: money, health, things carried and how people feel, nor where you are or what you heard. /cheat cash <amount> sets your cash." One `/undo` step, so `/undo` brings the struck turns back. The turn count goes on (the next turn is numbered after the struck ones). With a hand open, its turn is taken back first, free | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." After a hand at cards only the marked deck's catch roll is new: the hand replays as it was played (the same cards and holds, nothing to tap); with no marked deck it says "Nothing to reroll: the cards were dealt.", and after a hand the win cheat ended "Nothing to reroll: that hand was yours." (the cheat stays spent: only `/undo` arms it again; a cheat armed and not yet used stays armed through a `/reroll`) | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). After a hand at cards with a marked deck, the hand replays as it was played and only the catch roll takes that outcome. With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."; after a hand with no marked deck, "Nothing to reroll: the cards were dealt." first, or "Nothing to reroll: that hand was yours." after a win-cheat hand). `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat cards` | Cheat: stack the deck so you win your next hand at cards ("Cheat armed: the next hand is yours."; typed again, "Already armed: the next hand is yours."). You still play it: at draw you are dealt a made hand (a full house, a flush or a straight, by the deal) whose draw keeps at least a pair, and the others draw to nothing, so you win however you draw; at hold'em your two cards and the board make the best hand at the table (a set, the nut flush, a straight, a full house or four of a kind, by the deal), the others holding hands that lose to it, and nobody folds before the flop, so the pot is worth having (you can still fold it away). Typed while a hand is open it says "The cards are dealt: use Win (cheat) or type /cheat win." No roll, even with a marked deck, and nothing about cheating is recorded. The armed cheat is kept in the game, so a reload keeps it and `/undo` of another turn does not lose it; the hand it is spent on is spent even if you fold it or Stop folds it, and `/undo` of that hand arms it again ("The cards cheat is armed again"). `/help` lists it in the `/cheat` row | None (the hand is part of the turn that bets) |
 | `/cheat win` | Cheat: win your next hand at cards without playing it ("Cheat armed: the next hand is yours without playing."; typed again, "Already armed: the next hand is yours without playing."). The next bet is not played: the table appears already finished, every seat's cards face up, the board complete, your hand the best and every seat having called every round, so you win the stake from each other seat at draw and five units (the whole stake when it is a multiple of $5) from each at hold'em; the cash moves and the story tells it as a plain win. No chooser (with no game named or remembered it is hold'em), no roll even with a marked deck, nothing about cheating recorded; the other players remember losing as after any win. Kept in the game like `/cheat cards` (a reload keeps it, `/undo` of the hand arms it again: "The win cheat is armed again"). The same at once from any open table: its small **Win (cheat)** button (on the chooser, a draw hand or any hold'em round; what is already in the pot stays there), or `/cheat win` typed while the hand is open. Mid-hand it never changes a card you have seen (your own, the board so far, and every seat's with a marked deck): only what is still hidden is dealt so your hand is the best, and when nothing can do that the others fold to you and you take the pot as it stands ("Curtis Pruett folds to you on the river"); no tie and no weaker hand ever takes the pot. `/help` lists it in the `/cheat` row. (`/cheat success` is the roll cheat; "win" is no longer one of its words.) | None (the hand is part of the turn that bets) |
+| `/cheat cash <amount>` | Cheat: set your cash to a whole-dollar amount from 0 to $1,000,000 ("/cheat cash 25": "Cheat: your cash is $25 now."; the same amount again: "Your cash is already $25."). No roll and nothing in the story; one `/undo` step. Handy after a `/rewind`, which leaves the cash as it was. `/help` lists it in the `/cheat` row | None |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none), forward only ("The clock only goes forward: it is Day 3 · Morning now."). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to Day 4 · Night." What the clock jumps past happens at once and in order, each on its own day: a "Meanwhile in town, Day 3: …" line for each day with town news or an event elsewhere, and each morning's "Missed: …" (what fell due) and "Condition over: …"; a town event at your own place happens in front of you in the next narration, and what came due for you (a loose end's moment, say) in the narrations that follow, oldest first. One `/undo` takes it back, with an ending it reached | None |
 | `/pronouns <who> <she\|he\|they>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, their ties, look and voice turn with it (Dewayne's husband becomes Dewayne's wife; "husband of Dewayne Mangum" becomes "wife of Dewayne Mangum", or "spouse" for they) | None |
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
@@ -885,6 +902,13 @@ until no turn is running.
   who, which day and where ("Tomas Reed · Day 3 · The Low Water"). While
   there is an autosave, Continue is the first button and New game comes
   after it.
+- **Undo history** (wave 16): the last 20 steps of the game in the autosave
+  are kept in this browser's IndexedDB as well (a step is the whole game, too
+  big for `localStorage`), written a moment after each step and when the page
+  is hidden, so a phone that reloads a tab left in the background can still
+  `/undo` after **Continue**. Only the game in the autosave has one: a new
+  game, a slot, an import or the previous autosave start it empty. `/redo`
+  is never kept.
 - **Three named slots** in Save / Load (laptop: Save in the top bar; phone:
   Menu → Save / Load), or with `/save <name>`. A slot saved with its name
   left blank is named after you and the day ("Tomas Reed, Day 3").

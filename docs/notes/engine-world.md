@@ -1353,3 +1353,35 @@ Tests: `tests/wave15-table-polish.test.cjs`.
   heads-up kicker names "Pair of aces, king-nine kickers" / "king-eight
   kickers"; after a hand the arrival line names nobody who sat in, rather
   than no arrival at all).
+
+## Wave 16 (31 Oct 2026): /undo with a hand open
+
+The owner: "I was in the middle of a poker game and I can't undo to the
+start of the game." Since wave 11 a dealt hand was final (Stop folds it at
+a price) and wave 15 had `/undo` say to finish the hand first. Now `/undo`
+with a hand open takes back the whole turn that dealt it, free (the stack
+and `/rewind`: `docs/notes/engine-state.md`; the box and the link:
+`docs/notes/ui.md`, Wave 16). Tests: `tests/wave16-undo.test.cjs`.
+
+- **`Pipeline.takeBackHand()`** (beside `voidHand`, the other tab's path):
+  the open hand (`hand`) is cleared and its promise rejected with `{ type:
+  'undone', chooser }`, at the chooser, a draw hand or any hold'em street.
+  Nothing is played out: `gamble` throws before the catch roll, the money,
+  the record and the seats' memories. `runTurn` catches it as a rollback:
+  `fail(snap, mark, null, { reason: 'undone', restoreInput: true })`, so
+  the game is its pre-turn snapshot (a `/cheat cards` the deal spent is
+  armed again), the feed loses everything from the turn's mark (the line
+  and the table: unlike the void, no table is left), World forgets the
+  turn, the `finally` drops this turn's stored hand (`Storage.dropHand`
+  with its token) and `settle()` frees the pipeline; the line goes back in
+  the box from the `send` that played it. The rollback gives back the redo
+  stack the turn's snapshot put aside. Returns `whenIdle()`, so
+  `Commands` (`/undo`, `/undo N`, `/rewind N`) carries on once the turn is
+  over: the open turn is the first step, `State.undoSteps` the rest.
+- **Stop is unchanged**: it still folds an open hand at its price (with
+  the marked deck's catch roll) and keeps the turn; a page closed on a hand
+  still folds it on load, and that fold-on-load turn is one undo step back
+  to before the bet (its snapshot is the autosave's game; a kept step that
+  is the same game is dropped when the stack is read back).
+- The same hand is dealt again when the same line is sent after it (the
+  deck is the game's seed and the turn, as before).

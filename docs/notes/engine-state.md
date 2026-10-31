@@ -672,3 +672,88 @@ summary at once. Tests: `tests/wave7-fixes.test.cjs`.
   evening's shown status is `open`, `threadNow` is `resolved`) and
   `tests/content.test.cjs` (the ending's thread statuses read once the
   ending is told).
+
+## Wave 16 (31 Oct 2026): undo that reaches back
+
+The owner, mid-hand on a phone: "Let me undo multiple times. I was in the
+middle of a poker game and I can't undo to the start of the game." The
+stack lived in memory only (a phone that reloads a backgrounded tab lost
+it), `/undo` took one step a call, and a hand open refused it. Tests:
+`tests/wave16-undo.test.cjs` (the table's side: `docs/notes/engine-world.md`
+and `docs/notes/ui.md`, Wave 16).
+
+- **The stack.** `undo` entries are `{ json, town, turn }` (`turn`: the
+  game's `meta.turn` then; `town` shares the string of the entry below when
+  the same, as before). At most `UNDO_MAX` (20) and about `UNDO_BYTES`
+  (8 MB of text, each distinct town string counted once; `undoBytes()`):
+  the oldest go first, the newest always stays (`capStack`).
+- **Several steps.** `undoSteps(n, onStep?)` takes back up to n steps,
+  each one's game pushed on the redo stack first, and restores only the
+  last (the ones between are passed as strings); `onStep(json)` hears each
+  game passed through (Commands keeps a cheat armed in any of them armed,
+  as n single `/undo` would). Returns how many. `restore()` (bare: `/reroll`)
+  and `restore(snap)` are as before.
+- **Redo** (memory only, never kept): `redoSteps(n, onStep?)` brings back
+  the newest of what an undo took, each current game pushed on the undo
+  stack first; `redoDepth()`. `snapshot()` (a new step) puts the redo
+  stack aside in `redoKept`; `restore(snap)` of that same newest step (a
+  rollback: a turn that failed, was refused, or was taken back with its
+  hand open) gives it back; a bare `restore()` empties it; a load, a new
+  game or a clear empties it. So it is emptied by a turn (or a `/cheat
+  time`, `/cheat cash`, edit, update or `/rewind`) that goes through.
+- **Kept in storage.** `onUndo(fn)` listeners hear `'switch'` before
+  another game replaces this one (load, newGame, clear: the stack is still
+  this game's) and `'push'`, `'pop'`, `'undo'`, `'redo'`, `'join'`,
+  `'resume'` after a change. `undoRecord()` is what Storage writes: `{ v: 1,
+  game: "<createdAt>|<seed>", turn, entries: [{ turn, json, t }], towns }`
+  (`t` indexes `towns`, -1 for none; consecutive equal towns share one), or
+  null with no game or a game not yet begun. `load` remembers the game as
+  loaded (`loaded: { json, turn }`) and counts the stack's generation
+  (`undoGen`); `resumeUndo(rec, gen)` merges a kept record under what was
+  done since the load, if no other game came since: only entries with
+  `turn` ≤ the turn loaded (a step kept after the autosave was written was
+  never in it), in order, minus any at the top that are the game as loaded
+  (nothing to take back), capped as above.
+- **Storage** (`Storage.undo*`): IndexedDB database `novatria`, store
+  `undo`, one record keyed by the game, written with the tab
+  (`Storage.tabId`) and the time, `store.clear()` first so only one game's
+  is ever kept. A change is written 250 ms later (`UNDO_WRITE_MS`), and at
+  once on `'switch'` and when the page is hidden (`visibilitychange`,
+  `pagehide`); every read and write runs in order on one chain, and a
+  write waits while a read-back is under way. Never written in a read-only
+  tab (another tab owns the game), with no game or a game not begun.
+  `undoResume()` (App: Continue and Play here instead, after any claim)
+  reads the record for the game loaded; `undoReset()` (a new game at
+  Begin, a slot, an import, the previous autosave) writes the empty stack
+  over it. Without IndexedDB, or when it fails (some private windows, a
+  blocked `indexedDB`, a quota), every call quietly resolves to null and
+  the stack is the page's only, as before. `undoKept()` and `undoIdle()`
+  are for tests and the console. Left as a limit: a page killed within a
+  quarter second of a step can leave the kept record one step behind; only
+  its entries up to the turn the autosave holds are used.
+- **`/rewind` (State op `rewind: { turn }`, engine only).** For turns no
+  snapshot reaches (a game played on an older build, whose turns have no
+  steps anywhere). Strikes every log entry after that turn (one entry at
+  least is left), and every memory, journal note, progression entry and
+  `seen` mark with a later `turn`; `metTurn` after it is deleted (the
+  narrator describes them again); a person whose `created.turn` or a place
+  whose `revealed.turn` is later goes, unless something else refers to it
+  (the state's JSON without its own record, the schedules, the seen marks
+  and exits, checked until nothing changes: someone's home, an
+  obligation, a seed, the player standing there), and a cast
+  home found later is unfound again (`discovered: false`, no `revealed`)
+  unless the player is in it; a fight with a later turn is over. The clock
+  goes to the time the first struck entry's input was given (`from`, else
+  its own day and phase), shorts 0, with `late`, `noSleep` and `instants`
+  dropped; a visit dated after that and an untold `pendingScene` go (all
+  before the check above). That time passes again for the world as the
+  player plays on, so its clocks roll for those phases again.
+  `meta.turn` is not set back: the next turn is logged after the struck
+  numbers, so what else carries a later turn (an obligation, a due event,
+  a rumour's `addedTurn`, a defeat) stays consistent and an undo step kept
+  from before the rewind still passes `resumeUndo` after a reload. Not
+  taken back, having no turn: money, HP, things carried, attitudes, the
+  player's place, rumours heard, clocks, loose ends, threads (a thread
+  settled then stays settled and its gain stays; its progression entry
+  goes). `result.rewound`: `{ struck, turn, day, phase, settled, people,
+  places }`. Commands takes one snapshot before it (one `/undo` step).
