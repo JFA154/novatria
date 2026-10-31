@@ -504,8 +504,23 @@ select.input { padding-right: 32px; }
 /* The head takes the focus when the table opens (wave 11, M7); at Small text it is still 11px (L10). */
 .f-cards .cards-head { margin-bottom: .65em; font-size: max(11px, .78em); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-cards .cards-head:focus { outline: none; }
-.cards-side + .cards-side { margin-top: .8em; padding-top: .7em; border-top: 1px solid var(--border); }
-.f-cards .cards-who { margin-bottom: .2em; font-weight: 600; }
+.cards-side + .cards-side, .cards-board, .cards-board + .cards-side { margin-top: .8em; padding-top: .7em; border-top: 1px solid var(--border); }
+/* A seat's line (wave 13): its name, the dealer's "(deals)", and its status cell at the right ("checks", "bets $4", the hand's name). */
+.f-cards .cards-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .45em; margin-bottom: .2em; }
+.f-cards .cards-who { font-weight: 600; }
+.cards-deals { color: var(--muted); }
+.cards-status { margin-left: auto; color: var(--muted); text-align: right; }
+.cards-side[data-won="true"] .cards-status { color: var(--text); font-weight: 700; }
+.cards-board-k { font-weight: 600; }
+.cards-street { margin-left: auto; color: var(--muted); }
+/* Hold'em (wave 13): a seat's two cards at the left of its line, so four seats and the board fit a phone. */
+.f-cards.holdem .cards-side { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .75em; align-items: center; }
+.f-cards.holdem .cards-side > .cards-row { grid-column: 1; grid-row: 1 / span 3; grid-template-columns: repeat(2, 3.6em); padding-top: 0; }
+.f-cards.holdem .cards-side > :not(.cards-row) { grid-column: 2; }
+.f-cards .cards-pot { margin-top: .75em; color: var(--muted); }
+.f-cards .cards-ask { margin-bottom: .2em; font-weight: 600; }
+/* The Win (cheat) control at the end of the hint (wave 13): small, and away from the hand's own buttons. */
+.f-cards .cards-hint .cards-win { margin-left: .2em; min-height: 32px; padding: 2px 10px; font-size: 1em; vertical-align: baseline; }
 .f-cards .cards-read { margin-bottom: .3em; font-style: italic; }
 .cards-k { font-style: normal; color: var(--muted); }
 .f-cards .cards-note { margin-bottom: .3em; color: var(--muted); }
@@ -554,7 +569,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .cards-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .85em; }
 .f-cards .cards-result { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
 /* A hand void in this tab (wave 12, L3: another tab took the game over): its buttons off, a line saying so. */
-.f-cards.void button.card, .f-cards.void .cards-acts .btn { cursor: not-allowed; opacity: .55; }
+.f-cards.void button.card, .f-cards.void .cards-acts .btn, .f-cards.void .cards-win { cursor: not-allowed; opacity: .55; }
 .f-cards .cards-void { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
 .cards-cash { font-weight: 400; color: var(--muted); }
 @media (max-width: 420px) { .f-cards { padding: .65em .6em .75em; } .cards-row { gap: .35em; } }
@@ -2442,7 +2457,7 @@ const TOWN_DATA = {
       presence: "here",
       role: "owner of Pittman's Gas and Service and the swing vote on the town council",
       factionId: null,
-      tags: ["council", "merchant"],
+      tags: ["council", "merchant", "cardplayer"],
       look: "Big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear.",
       voice: "Folksy and slippery; dodges a straight answer, now and then with a story about his daddy; once in a while hedges with 'now, I'm not saying'; laughs to fill a silence.",
       personality: ["genial", "cowardly"],
@@ -2488,7 +2503,7 @@ const TOWN_DATA = {
       presence: "here",
       role: "head of Sturdivant Land and Timber, who holds half the town's paper",
       factionId: "fac_sturdivant",
-      tags: ["lender", "landowner"],
+      tags: ["lender", "landowner", "cardplayer"],
       look: "Trim, tanned man of forty-five in a quarter-zip pullover and pressed khakis, turning a truck key fob over and over in his fingers.",
       voice: "Fast and friendly, like a salesman closing; uses your first name too soon and too often, talks about 'the future of this town', and states every sum to the dollar.",
       personality: ["ambitious", "smooth"],
@@ -2557,7 +2572,7 @@ const TOWN_DATA = {
       presence: "here",
       role: "owner of Purvis Landing and boss of the Night Run",
       factionId: "fac_nightrun",
-      tags: ["boatman", "smuggler", "tough"],
+      tags: ["boatman", "smuggler", "tough", "cardplayer"],
       look: "Lean, sunburnt man in his fifties with a gray ponytail, a faded camouflage cap and the tip of one finger missing.",
       voice: "Quiet and dry; lets you talk yourself out, answers in river terms like stage, chop and slack water, and never says the word police, only 'the law'.",
       personality: ["patient", "ruthless"],
@@ -2928,7 +2943,7 @@ const TOWN_DATA = {
       presence: "here",
       role: "night bartender at the Low Water",
       factionId: null,
-      tags: ["bartender", "elderly"],
+      tags: ["bartender", "elderly", "cardplayer"],
       look: "Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube looped over his ears and a ledger of bar tabs in his shirt pocket.",
       voice: "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
       personality: ["gloomy", "honest"],
@@ -2951,7 +2966,7 @@ const TOWN_DATA = {
       presence: "here",
       role: "the oldest man in town and on the town council, whose granddaddy ran the last ferry",
       factionId: null,
-      tags: ["oldtimer", "council", "elderly"],
+      tags: ["oldtimer", "council", "elderly", "cardplayer"],
       look: "Bent, bright-eyed man of eighty-eight in suspenders and a cap from the 1982 bass tournament, with a cane carved from a cypress knee.",
       voice: "Tells you the year of everything, and corrects other people's stories about the river with the date it really happened and who drowned.",
       personality: ["sly", "garrulous"],
@@ -7004,18 +7019,24 @@ const Cards = (() => {
     let k = 0;
     return hand.map((c, i) => (keep.includes(i) ? c : pile[k++]));
   }
+  /* Wave 13: extra seats (opts.seats, 0-3) get five cards and a draw pile
+     each from the deck after the player's and the dealer's, so a heads-up
+     deal is the same as before. */
   function deal(rng, opts) {
-    if (opts && opts.stacked) { const st = stacked(rng); if (st) return st; }
+    const n = clamp(toInt(opts && opts.seats) || 0, 0, 3);
+    if (opts && opts.stacked) { const st = stacked(rng, n); if (st) return st; }
     const d = shuffle(rng);
     const player = [];
     const dealer = [];
     for (let i = 0; i < 5; i++) { player.push(d[2 * i]); dealer.push(d[2 * i + 1]); }
-    return { player, dealer, dealerPile: d.slice(10, 15), playerPile: d.slice(15, 20) };
+    const seats = [];
+    for (let k = 0; k < n; k++) seats.push({ hand: d.slice(20 + 10 * k, 25 + 10 * k), pile: d.slice(25 + 10 * k, 30 + 10 * k) });
+    return { player, dealer, dealerPile: d.slice(10, 15), playerPile: d.slice(15, 20), seats };
   }
   /* The /cheat cards deck: three of one rank and two of another for the
      player, the fourth of the three and the other two of the pair next in
      their draw pile, and a dealer hand that draws to nothing. */
-  function stacked(rng) {
+  function stacked(rng, extra) {
     const ranks = shuffle(rng, RANKS.split(''));
     const tr = ranks[0];
     const pr = ranks[1];
@@ -7024,15 +7045,128 @@ const Cards = (() => {
     const player = shuffle(rng, [tr + ts[0], tr + ts[1], tr + ts[2], pr + ps[0], pr + ps[1]]);
     const head = [tr + ts[3], pr + ps[2], pr + ps[3]];
     const rest = deck().filter(c => c[0] !== tr && c[0] !== pr);
-    for (let tries = 0; tries < 400; tries++) {
-      const pool = shuffle(rng, rest);
-      const dealer = pool.slice(0, 5);
-      const dealerPile = pool.slice(5, 10);
-      if (evaluate(draw(dealer, dealerHolds(dealer), dealerPile)).rank === 0) return { player, dealer, dealerPile, playerPile: head.concat(pool.slice(10, 12)), stacked: true };
+    // A hand that the dealer's rule draws to nothing, from the cards left (wave 13: one for each extra seat too).
+    const nothing = pool => {
+      for (let tries = 0; tries < 400; tries++) {
+        const p = shuffle(rng, pool);
+        if (evaluate(draw(p.slice(0, 5), dealerHolds(p.slice(0, 5)), p.slice(5, 10))).rank === 0) return p;
+      }
+      return null;
+    };
+    let pool = nothing(rest);
+    if (!pool) return null;
+    const out = { player, dealer: pool.slice(0, 5), dealerPile: pool.slice(5, 10), playerPile: head.concat(pool.slice(10, 12)), seats: [], stacked: true };
+    pool = pool.slice(12);
+    for (let k = 0; k < (extra | 0); k++) {
+      const p = nothing(pool);
+      if (!p) return null;
+      out.seats.push({ hand: p.slice(0, 5), pile: p.slice(5, 10) });
+      pool = p.slice(10);
     }
-    return null;
+    return out;
   }
-  return { RANKS, SUITS, RANK_NAMES, valid, value, suit, red, label, sign, cardName, deck, shuffle, evaluate, compare, dealerHolds, holdsFrom, draw, deal, fourToStraight };
+
+  // ----- Texas hold'em (wave 13) -----
+  /* The owner: "Keep both and build holdem too". best(cards) is the best
+     five of five to seven cards ({ cards, rank, key, name } as evaluate
+     names it); compareKeys(x, y) is compare on two keys. holdem(rng, n)
+     deals two cards to each of n seats, round the table from the first,
+     then the board's five. holdemStacked(rng, n) (/cheat cards, /cheat win)
+     gives the first seat a pocket pair whose other two cards are on a board
+     with no other pair and no three of a suit: four of a kind nobody can
+     beat or tie. */
+  function compareKeys(x, y) {
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const d = (x[i] || 0) - (y[i] || 0);
+      if (d) return d;
+    }
+    return 0;
+  }
+  function best(cards) {
+    const list = (cards || []).filter(valid);
+    if (list.length <= 5) return Object.assign({ cards: list.slice() }, evaluate(list));
+    let top = null;
+    const n = list.length;
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+      const five = list.filter((c, i) => i !== a && i !== b);
+      if (five.length !== 5) continue;
+      const e = evaluate(five);
+      if (!top || compareKeys(e.key, top.key) > 0) top = Object.assign({ cards: five }, e);
+    }
+    // Six cards: leave one out (seven leave two, the pairs above).
+    if (n === 6) for (let a = 0; a < n; a++) {
+      const five = list.filter((c, i) => i !== a);
+      const e = evaluate(five);
+      if (!top || compareKeys(e.key, top.key) > 0) top = Object.assign({ cards: five }, e);
+    }
+    return top;
+  }
+  function holdem(rng, n) {
+    const d = shuffle(rng);
+    const holes = [];
+    for (let i = 0; i < n; i++) holes.push([d[i], d[n + i]]);
+    return { holes, board: d.slice(2 * n, 2 * n + 5), rest: d.slice(2 * n + 5) };
+  }
+  function holdemStacked(rng, n) {
+    const r = shuffle(rng, RANKS.split(''))[0];
+    const ss = shuffle(rng, SUITS.split(''));
+    const others = shuffle(rng, RANKS.split('').filter(x => x !== r)).slice(0, 3);
+    // The three other board cards: three ranks and, with the two of r, no suit three times (so nobody makes a flush).
+    const os = shuffle(rng, SUITS.split('')).slice(0, 3);
+    const board = shuffle(rng, [r + ss[2], r + ss[3]].concat(others.map((x, i) => x + os[i])));
+    const rest = shuffle(rng, deck().filter(c => c[0] !== r && !board.includes(c)));
+    const holes = [[r + ss[0], r + ss[1]]];
+    for (let i = 1; i < n; i++) holes.push([rest[2 * i - 2], rest[2 * i - 1]]);
+    return { holes, board, rest: rest.slice(2 * n - 2), stacked: true };
+  }
+  /* Two hole cards by name, before the flop: "Pair of jacks", "Jack high". */
+  function holeName(hole) {
+    const [x, y] = hole.map(value).sort((a, b) => b - a);
+    return x === y ? `Pair of ${plural(x)}` : `${capFirst(WORD[x])} high`;
+  }
+  /* How good two hole cards are before the flop, 0 to 1: a pair from .55
+     (deuces) to 1 (aces); else by the two ranks, a little more suited or
+     close together. */
+  function preflop(hole) {
+    const [x, y] = hole.map(value).sort((a, b) => b - a);
+    if (x === y) return 0.55 + (x - 2) / 12 * 0.45;
+    let v = (x - 2) / 12 * 0.5 + (y - 2) / 12 * 0.25;
+    if (suit(hole[0]) === suit(hole[1])) v += 0.06;
+    if (x - y <= 2 || (x === 14 && y <= 5)) v += 0.05;
+    return Math.min(0.9, v);
+  }
+  /* How good a seat's hand is after the flop, 0 to 1: what it makes with
+     the board (worth less when the board makes it alone), and a draw to a
+     flush or a straight before the river. */
+  function strength(hole, board) {
+    if (!board.length) return preflop(hole);
+    const made = best(hole.concat(board));
+    const hv = hole.map(value);
+    const uses = v => hv.includes(v);
+    let v;
+    switch (made.rank) {
+      case 0: v = 0.1 + (Math.max(...hv) - 2) / 120; break;
+      case 1: v = uses(made.key[1]) ? 0.4 + (made.key[1] - 2) / 12 * 0.3 : 0.2; break;
+      case 2: v = uses(made.key[1]) || uses(made.key[2]) ? 0.68 : 0.3; break;
+      case 3: v = uses(made.key[1]) ? 0.85 : 0.4; break;
+      default: v = 0.9;
+    }
+    if (made.rank >= 4 && board.length === 5 && compareKeys(best(board).key, made.key) >= 0) v = 0.4;
+    if (board.length < 5 && made.rank < 4) {
+      const all = hole.concat(board);
+      const flushDraw = SUITS.split('').some(su => all.filter(c => suit(c) === su).length >= 4 && hole.some(c => suit(c) === su));
+      const vals = Array.from(new Set(all.map(value)));
+      let run = false;
+      for (let low = 1; low <= 10 && !run; low++) {
+        const inRun = vals.filter(x => (x >= low && x <= low + 4) || (low === 1 && x === 14));
+        if (inRun.length >= 4 && hv.some(x => inRun.includes(x))) run = true;
+      }
+      if (flushDraw) v = Math.max(v, 0.45);
+      else if (run) v = Math.max(v, 0.4);
+    }
+    return v;
+  }
+  return { RANKS, SUITS, RANK_NAMES, valid, value, suit, red, label, sign, cardName, deck, shuffle, evaluate, compare, compareKeys, dealerHolds, holdsFrom, draw, deal, fourToStraight, best, holdem, holdemStacked, holeName, preflop, strength };
 })();
 
 // ===== Module: Tables =====
@@ -7282,12 +7416,38 @@ const State = (() => {
      draws it again after a reload or an /undo, and /reroll replays it;
      anything else is dropped. */
   const CARD_RESULTS = ['win', 'lose', 'split', 'fold', 'caught'];
+  /* Wave 13: game ('draw' | 'holdem'; none is draw), at hold'em two cards
+     dealt a side and its board (five), shown (how many of the board were
+     turned: 0, 3, 4, 5), street (where it ended: 0-3, 4 at the showdown),
+     unit (the ante and every bet) and the player's moves; each side's in
+     (what it put in), won (what it took), folded and foldedOn (0-3), and
+     its read (hold'em: a seat that bet); seats (the others at the table,
+     three at most: { id, who, ...a side }); pot, winners ('player' or a
+     person's id), showdown (the result before any catch), uncontested,
+     win ('armed': /cheat win; 'control': the table's Win), chose (the turn
+     set the remembered game). A side's final is null at hold'em when it
+     never showed (folded). */
+  const CARD_SHOWDOWNS = ['win', 'lose', 'split', 'fold'];
+  const CARD_MOVES = ['check', 'bet', 'call', 'fold', 'win'];
   function logCards(x) {
     if (!isObj(x) || !CARD_RESULTS.includes(x.result)) return null;
-    const five = v => (Array.isArray(v) && v.length === 5 && v.every(c => Cards.valid(c)) ? v.slice() : null);
+    const holdem = x.game === 'holdem';
+    const cardsOf = (v, n) => (Array.isArray(v) && v.length === n && v.every(c => Cards.valid(c)) ? v.slice() : null);
+    const sum = v => clamp(toInt(v) || 0, 0, 10000000);
+    const readOf = r => (isObj(r) && (r.says === 'something' || r.says === 'nothing') ? { says: r.says, right: r.right === true, odds: Number.isFinite(Number(r.odds)) ? clamp(Number(r.odds), 0, 1) : null, text: cleanText(r.text, 120) } : null);
     const side = v => {
-      if (!isObj(v) || !five(v.dealt) || !five(v.final)) return null;
-      return { dealt: five(v.dealt), held: Cards.holdsFrom(v.held), final: five(v.final), name: cleanText(v.name, 60) };
+      if (!isObj(v)) return null;
+      const dealt = cardsOf(v.dealt, holdem ? 2 : 5);
+      const fin = cardsOf(v.final, 5);
+      if (!dealt || (!fin && !holdem)) return null;
+      const out = holdem ? { dealt, final: fin, name: cleanText(v.name, 60) } : { dealt, held: Cards.holdsFrom(v.held), final: fin, name: cleanText(v.name, 60) };
+      if (Number.isInteger(v.in)) out.in = sum(v.in);
+      if (Number.isInteger(v.won)) out.won = sum(v.won);
+      if (v.folded === true) out.folded = true;
+      if (Number.isInteger(v.foldedOn) && v.foldedOn >= 0 && v.foldedOn <= 3) out.foldedOn = v.foldedOn;
+      const r = holdem ? readOf(v.read) : null;
+      if (r) out.read = r;
+      return out;
     };
     const player = side(x.player);
     const dealer = side(x.dealer);
@@ -7297,14 +7457,30 @@ const State = (() => {
       dealerName: cleanText(x.dealerName, 80) || 'The dealer', marked: x.marked === true, cheat: x.cheat === true,
       player, dealer, result: x.result, delta: toInt(x.delta) || 0, cash: toInt(x.cash) || 0
     };
+    if (x.game === 'draw' || holdem) out.game = holdem ? 'holdem' : 'draw';
+    if (holdem) {
+      const board = cardsOf(x.board, 5);
+      if (!board) return null;
+      Object.assign(out, { board, unit: clamp(toInt(x.unit) || 1, 1, 1000000), shown: [0, 3, 4, 5].includes(x.shown) ? x.shown : 5, street: Number.isInteger(x.street) ? clamp(x.street, 0, 4) : 4, moves: (Array.isArray(x.moves) ? x.moves : []).filter(m => CARD_MOVES.includes(m)).slice(0, 12) });
+    }
+    if (Array.isArray(x.seats) && x.seats.length) {
+      out.seats = x.seats.slice(0, 3).map(v => {
+        const sd = isObj(v) && typeof v.id === 'string' && ID_RE.npc.test(v.id) ? side(v) : null;
+        return sd ? Object.assign({ id: v.id, who: cleanText(v.who, 80) || 'Someone' }, sd) : null;
+      }).filter(Boolean);
+    }
+    if (Number.isInteger(x.pot)) out.pot = sum(x.pot);
+    if (Array.isArray(x.winners)) out.winners = x.winners.filter(w => w === 'player' || (typeof w === 'string' && ID_RE.npc.test(w))).slice(0, 5);
+    if (CARD_SHOWDOWNS.includes(x.showdown)) out.showdown = x.showdown;
+    if (x.uncontested === true) out.uncontested = true;
+    if (x.win === 'armed' || x.win === 'control') out.win = x.win;
+    if (x.chose === true) out.chose = true;
     if (x.folded === true || x.result === 'fold') out.folded = true;
     if (x.stopped === true) out.stopped = true;
     if (x.closed === true) out.closed = true;
     if (x.stakeNote === 'all' || x.stakeNote === 'usual' || x.stakeNote === 'half') out.stakeNote = x.stakeNote;
     if (typeof x.named === 'number' && Number.isFinite(x.named)) out.named = Math.round(clamp(x.named, -1000000, 1000000) * 100) / 100;
-    if (isObj(x.read) && (x.read.says === 'something' || x.read.says === 'nothing')) {
-      out.read = { says: x.read.says, right: x.read.right === true, odds: Number.isFinite(Number(x.read.odds)) ? clamp(Number(x.read.odds), 0, 1) : null, text: cleanText(x.read.text, 120) };
-    }
+    if (!holdem && isObj(x.read) && (x.read.says === 'something' || x.read.says === 'nothing')) out.read = readOf(x.read);
     return out;
   }
   const MEMORY_MAX = 12; // per person; the oldest, lightest go first (State.apply newMemories)
@@ -7349,7 +7525,7 @@ const State = (() => {
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
-    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat'];
+    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -7366,7 +7542,7 @@ const State = (() => {
     effectHp: 3, statCap: 3, maxHpCap: 16, instantsPerShort: 6, news: 60, effectList: 12
   };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
-  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season', 'playerPriceMultiplier', 'playerPriceUntilDay', 'lodgingPaidUntilDay', 'cardsCheat']);
+  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season', 'playerPriceMultiplier', 'playerPriceUntilDay', 'lodgingPaidUntilDay', 'cardsCheat', 'cardsWin', 'cardGame']);
   // What someone owes or is owed (player.obligations; CONTRACTS section 4).
   const OBLIGATION_KINDS = Object.freeze(['debt', 'blackmail', 'promise', 'errand', 'lodging']);
   // What a bookkeeper's npcFates can do to someone present (CONTRACTS section 10).
@@ -10294,6 +10470,23 @@ const State = (() => {
       if (!isObj(s.flags)) s.flags = {};
       if (v) s.flags.cardsCheat = true; else delete s.flags.cardsCheat;
       return v ? 'cards cheat armed' : 'cards cheat spent';
+    });
+    /* /cheat win armed (true) or spent (false) (wave 13): kept in the game
+       (flags.cardsWin) as cardsCheat is. */
+    one('cardsWin', v => {
+      if (typeof v !== 'boolean') bad('must be true or false');
+      if (!isObj(s.flags)) s.flags = {};
+      if (v) s.flags.cardsWin = true; else delete s.flags.cardsWin;
+      return v ? 'win cheat armed' : 'win cheat spent';
+    });
+    /* The card game the player plays at the table (wave 13): 'draw' or
+       'holdem', remembered (flags.cardGame) once chosen or named; false
+       forgets it (the chooser comes back). */
+    one('cardGame', v => {
+      if (v !== false && v !== 'draw' && v !== 'holdem') bad("must be 'draw', 'holdem' or false");
+      if (!isObj(s.flags)) s.flags = {};
+      if (v) s.flags.cardGame = v; else delete s.flags.cardGame;
+      return v ? `card game ${v}` : 'card game forgotten';
     });
     each('npcHome', hm => {
       if (!isObj(hm)) bad('must be an object');
@@ -14004,7 +14197,7 @@ const Style = (() => {
      bet." alone; 'other' for a bet on something that is not the cards ("I
      bet my watch", "I bet $20 on it"). */
   const BET_VERB = /\b(?:bet|bets|betting|wager|wagers|wagering)\b/i;
-  const CARD_TALK = /\b(?:cards?|hands?|game|games|pot|poker|deal|deals|dealt|dealer|table|ante|antes|chips?|showdown|draw|blinds?)\b/i;
+  const CARD_TALK = /\b(?:cards?|hands?|game|games|pot|poker|deal|deals|dealt|dealer|table|ante|antes|chips?|showdown|draw|blinds?|hold[\s'-]*'?em|holdem|texas|flop|river)\b/i;
   const BET_STAKE = `(?:-?\\$\\s?-?\\d[\\d,]*(?:\\.\\d+)?|-?\\d[\\d,]*(?:\\.\\d+)?|${NUMWORD}(?:[\\s-]+${NUMWORD})*)(?:\\s*(?:dollars?|bucks?|grand))?|(?:${NUMWORD}\\s+)?(?:fivers?|tenners?)`;
   const BET_SUBJECT = `(?:he|she|they|it|we|i|you|there|this|someone|somebody|nobody|no one|everyone|everybody|he's|she's|they're|it's|it'll|there's|that's|you're|i'm|we're|they'll|he'll|she'll|you'll|i'll|we'll|he'd|she'd|they'd|you'd|the\\s+(?!whole\\b|entire\\b|lot\\b|rest\\b|pot\\b)[a-z]+)`;
   const BET_CLAUSE = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them|ya)\\s+)?(?:(?:${BET_STAKE})\\s+)?(?:that\\b|${BET_SUBJECT}\\s+(?!all\\b)(?!${NUMWORD}\\b)[a-z']+)`, 'i');
@@ -14219,7 +14412,7 @@ const Api = (() => {
      for and what it is not for. */
   const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"); \"I bet he is lying\" or \"I bet you ten bucks it rains tomorrow\" is a way of speaking, not gamble. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"); the game (Texas hold'em or five-card draw) and who sits in (\"deal everyone in\", \"heads up\") may be named in the words, and the engine reads them from the input; \"I bet he is lying\" or \"I bet you ten bucks it rains tomorrow\" is a way of speaking, not gamble. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + RECORD_RULES + " " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
@@ -14697,6 +14890,8 @@ const Api = (() => {
   // Wave 6 (the round-5 playtest's D10): "I put $50 in" and "I ante up $20" are bets, as the README says.
   // Wave 11 (L1, H2): "another hand", "deal again", "one more hand", "deal me another", "I play a hand", "let's play", "I sit down at the card table", "I raise $20", "I go all in", "I'm in for $50".
   // Wave 12 (L7): bet and wager are a bet only as Style.betTalk reads them (the cards named, or a bare stake): "I bet he is lying" is not.
+  // Wave 13: the game and the table size named: "deal me in at hold'em", "a hand of draw", "deal everyone in", "heads up" (with a hand, a game or a dealer).
+  const MOCK_GAME_WORDS = /\b(?:(?:a|another|one more) (?:hand|game|round) of (?:five[\s-]*card\s+)?(?:draw|hold[\s'-]*'?em|holdem|texas hold[\s'-]*'?em)|(?:play|playing|let's play|deal|deal me in at|deal us in at|i'll play)\s+(?:some\s+)?(?:texas\s+)?(?:hold[\s'-]*'?em|holdem|draw poker|five[\s-]*card(?: draw)?)|deal (?:everyone|everybody|us all|all of us|the (?:whole )?table) in|heads[\s-]*up\s+(?:game|hand|poker|hold[\s'-]*'?em|holdem|draw|with)|(?:play|deal|let's play)\s+(?:it\s+)?heads[\s-]*up)\b/;
   const MOCK_GAMBLE = /\b(gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in|all[ -]in)\s*[.!?]*\s*$/;
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
@@ -14869,7 +15064,7 @@ const Api = (() => {
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
-    else if ((has(MOCK_GAMBLE) || ['bet', 'bare'].includes(Style.betTalk(input))) && GAMBLE_PLACES.includes(where) && !aboutAt) {
+    else if ((has(MOCK_GAMBLE) || has(MOCK_GAME_WORDS) || ['bet', 'bare'].includes(Style.betTalk(input))) && GAMBLE_PLACES.includes(where) && !aboutAt) {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
@@ -15053,7 +15248,21 @@ const Api = (() => {
     const hand = n => lowerFirst(String(n || 'hand'));
     const lead = n => (hand(n).includes(',') ? `${hand(n)},` : hand(n));
     let told;
-    if (g.caught) told = `At ${table}, you lose ${amount}, and ${dealer ? dealer.name : 'the dealer'} takes your deck and throws you out for cheating.`;
+    // Hold'em, or more than two at the table (wave 13): the game, who sat in and how each ended, briefly.
+    const others = (g.seats || []);
+    if (!g.caught && (g.game === 'holdem' || others.length)) {
+      const game = g.game === 'holdem' ? "Texas hold'em" : 'five-card draw';
+      const with_ = others.length ? ` with ${andList(others.map(x => x.name))}` : '';
+      const ends = others.concat(g.dealerName ? [{ name: g.dealerName, folded: g.dealerFolded, foldedOn: g.dealerFoldedOn, hand: g.dealer }] : [])
+        .filter(x => x.folded).map(x => `${x.name} folds ${['before the flop', 'on the flop', 'on the turn', 'on the river'][x.foldedOn] || 'early'}`);
+      const pot = money(g.pot | 0);
+      let mine;
+      if (g.result === 'fold') mine = `you fold your ${lead(g.player)} and give up ${amount}`;
+      else if (g.result === 'win') mine = g.uncontested ? `everyone folds to you, and the ${pot} pot is yours: you come out ${amount} ahead` : `your ${lead(g.player)} takes the ${pot} pot, and you come out ${amount} ahead`;
+      else if (g.result === 'lose') mine = `${andList(g.winners || [])} ${(g.winners || []).length > 1 ? 'split' : 'takes'} the ${pot} pot, and you lose ${amount}`;
+      else mine = `you split the ${pot} pot${(g.delta | 0) > 0 ? ` and come out ${amount} ahead` : (g.delta | 0) < 0 ? `, ${amount} down` : ''}`;
+      told = `At ${table}, ${game}${with_}: ${ends.length ? `${ends.join(', ')}; ` : ''}${mine}.`;
+    } else if (g.caught) told = `At ${table}, you lose ${amount}, and ${dealer ? dealer.name : 'the dealer'} takes your deck and throws you out for cheating.`;
     else if (g.result === 'fold') told = `At ${table}, you fold your ${lead(g.player)} and give up ${amount}.`;
     else if (g.result === 'win') told = `At ${table}, your ${lead(g.player)} beats ${theirs} ${hand(g.dealer)}, and you come out ${amount} ahead.`;
     else if (g.result === 'lose') told = `At ${table}, ${theirs} ${lead(g.dealer)} beats your ${hand(g.player)}, and you lose ${amount}.`;
@@ -17265,7 +17474,7 @@ const Pipeline = (() => {
     if (mode === 'fact') modeLine = 'MODE: fact. The player is spending a story point to make this statement true in the world. Put the ids of existing people, places and things it refers to in targets, and new:<short description> for anyone or anything it adds. Set declaresWorldFact to true, needsRoll to false and timeCost to instant.';
     else if (isSay(sp)) {
       const all = sp.to === 'everyone';
-      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate (or gamble when the words buy into a card game here: a bet at cards, "deal me in", "I'm in for $50", "another hand"; "I bet he is lying" is talk): choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
+      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate (or gamble when the words buy into a card game here: a bet at cards, "deal me in", "I'm in for $50", "another hand", "deal me in at hold'em", "a hand of draw", "deal everyone in", "heads up"; the game and the table size may be named in the words; "I bet he is lying" is talk): choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
     // Traits and wants steer the difficulty (very_hard against what they want); the look lets "the big man with the pens" resolve to the person who matches.
     const presentRow = n => {
@@ -17365,7 +17574,12 @@ const Pipeline = (() => {
     new RegExp(`\\b(?:raise|raises)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
     // All in as a bet ("I'm all in", "I go all in", "All in.", "all in for $50"), not "we're all in this together".
     new RegExp(`\\b(?:i'?m|i am|i go|go|going)\\s+all[\\s-]in\\b|^\\s*all[\\s-]in\\s*[.!?]*\\s*$|\\ball[\\s-]in\\s+for\\s+${SAY_NUM}`, 'i'),
-    /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i
+    /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i,
+    // Wave 13: the game and the table size named ("deal me in at hold'em", "a hand of draw", "deal everyone in", "heads up").
+    /\b(?:a|another|one more) (?:hand|game|round) of (?:five[\s-]*card\s+)?(?:draw|hold[\s'-]*'?em|holdem|texas hold[\s'-]*'?em|poker)\b/i,
+    /\b(?:play|playing|let'?s play|deal|deal me in at|deal us in at|i'?ll play)\s+(?:some\s+)?(?:texas\s+)?(?:hold[\s'-]*'?em|holdem|draw poker|five[\s-]*card(?:\s+draw)?)\b/i,
+    /\bdeal (?:everyone|everybody|us all|all of us|the (?:whole )?table) in\b/i,
+    /\bheads[\s-]*up\s+(?:game|hand|poker|hold[\s'-]*'?em|holdem|draw|with)\b|\b(?:play|deal|let'?s play)\s+(?:it\s+)?heads[\s-]*up\b/i
   ];
   /* A bet or a wager is a bet at cards only as Style.betTalk reads it (wave
      12, L7: the cards, a hand, the game or the pot named, or a bare stake);
@@ -18075,39 +18289,348 @@ const Pipeline = (() => {
      (it never hangs on the player's) and the player's read of how he ends
      up, right with the odds given (readOdds): says 'something' (a pair or
      better after his draw) or 'nothing'. stacked: /cheat cards. set: {
-     player, dealer, playerPile, dealerPile } dealt as given (tests:
-     hooks.cardsDeal), the read still from the seed. */
-  function dealHand(seed, odds, stacked, set) {
+     player, dealer, playerPile, dealerPile, seatHands: [{ hand, pile }] }
+     dealt as given (tests: hooks.cardsDeal), the read still from the seed.
+     Wave 13: seats (0-3) are the other players at a multi-way table, each
+     dealt five after the dealer's and the player's and drawing by the
+     dealer's rule (seatPlay), so a heads-up deal is as it was. */
+  function dealHand(seed, odds, stacked, set, seats) {
     const rng = Rng.create(seed);
-    const dealt = isObj(set) && Array.isArray(set.player) && Array.isArray(set.dealer)
-      ? { player: set.player.slice(), dealer: set.dealer.slice(), playerPile: (set.playerPile || []).slice(), dealerPile: (set.dealerPile || []).slice() }
-      : Cards.deal(rng, { stacked: !!stacked });
+    const given = isObj(set) && Array.isArray(set.player) && Array.isArray(set.dealer);
+    const n = given ? (Array.isArray(set.seatHands) ? set.seatHands.length : 0) : clamp(toInt(seats) || 0, 0, SEATS_MAX);
+    const dealt = given
+      ? { player: set.player.slice(), dealer: set.dealer.slice(), playerPile: (set.playerPile || []).slice(), dealerPile: (set.dealerPile || []).slice(), seats: (set.seatHands || []).map(x => ({ hand: x.hand.slice(), pile: (x.pile || []).slice() })) }
+      : Cards.deal(rng, { stacked: !!stacked, seats: n });
     const dealerHolds = Cards.dealerHolds(dealt.dealer);
     const dealerFinal = Cards.draw(dealt.dealer, dealerHolds, dealt.dealerPile);
     const has = Cards.evaluate(dealerFinal).rank >= 1;
     const right = rng.next() < odds;
-    return Object.assign(dealt, { dealerHolds, dealerFinal, read: { says: right === has ? 'something' : 'nothing', right, odds } });
+    const seatPlay = (dealt.seats || []).map(x => { const held = Cards.dealerHolds(x.hand); return { dealt: x.hand.slice(), held, final: Cards.draw(x.hand, held, x.pile) }; });
+    return Object.assign(dealt, { dealerHolds, dealerFinal, seatPlay, read: { says: right === has ? 'something' : 'nothing', right, odds } });
   }
+
+  // ----- wave 13: two games, more seats, the win cheat -----
+  /* The owner: "Keep both and build holdem too", "for some games have it so
+     there's more than the 2 of us", "when the game start have a cheat win
+     somewhere so i can skip the whole game and win". The game is named in
+     the words (gameFrom) or remembered (flags.cardGame, the engine-only
+     State op cardGame); with neither, the table opens with a chooser. Other
+     seats come from the card people present (tagged cardplayer: alive, not
+     the dealer, warmer than -25): per hand, from the hand's seed, none, one
+     or two of them sit in; "deal everyone in" seats all of them (three at
+     most), "heads up" or "just me and Curtis" none. Each seat risks at most
+     the stake, so there are no side pots. */
+  const CARD_GAMES = Object.freeze(['draw', 'holdem']);
+  const GAME_NAMES = Object.freeze({ draw: 'Five-card draw', holdem: "Texas hold'em" });
+  const CARD_TAG = 'cardplayer';
+  const SEATS_MAX = 3;
+  const SEAT_COLD = -25;
+  const HOLDEM_ACTS = Object.freeze(['check', 'bet', 'call', 'fold']);
+  // The board turned over at each street: none before the flop, three at the flop, one at the turn, one at the river.
+  const STREET_CARDS = Object.freeze([0, 3, 4, 5]);
+  const STREET_WORDS = Object.freeze(['before the flop', 'on the flop', 'on the turn', 'on the river']);
+  function firstName(name) { return String(name || '').split(/\s+/)[0]; }
+  /* The game the words name: hold'em (hold'em, holdem, hold em, texas) or
+     draw (draw, five-card, five card, 5-card, draw poker); the last one
+     named, unless it is the one being left ("not draw", "instead of
+     hold'em"); null when neither is. */
+  const HOLDEM_WORD = /\btexas\b|\bhold[\s'-]*'?em\b|\bholdem\b/gi;
+  const DRAW_WORD = /\b(?:five|5)[\s-]*cards?(?:\s+draw)?\b|\bdraw\s+poker\b|\bdraw\b(?!\s+(?:my|a|an|the|his|her|their|your|our|it|them|him|me|us|out|from|on|up|back|cards?|breath|attention|blood|straws?|lots|near|close|closer|level|steel|iron|fire|water|money|cash|gun|pistol|knife)\b)/gi;
+  const NOT_THIS = /(?:\bnot|\binstead\s+of|\brather\s+than|\bno\s+more|\bswitch(?:ing)?\s+from|\bfrom|\bover)\s+(?:a\s+(?:hand|game)\s+of\s+|the\s+)?$/i;
+  function gameFrom(words) {
+    const t = String(words || '').replace(/[’‘]/g, "'");
+    const found = [];
+    for (const [game, re] of [['holdem', HOLDEM_WORD], ['draw', DRAW_WORD]]) {
+      re.lastIndex = 0;
+      for (let m = re.exec(t); m; m = re.exec(t)) found.push({ game, at: m.index, away: NOT_THIS.test(t.slice(0, m.index)) });
+    }
+    found.sort((a, b) => a.at - b.at);
+    const kept = found.filter(x => !x.away);
+    if (kept.length) return kept[kept.length - 1].game;
+    // Only the one being left is named ("not hold'em"): the other.
+    const away = found.length ? found[found.length - 1].game : null;
+    return away ? (away === 'holdem' ? 'draw' : 'holdem') : null;
+  }
+  function rememberedGame() { const s = State.current; const g = s && isObj(s.flags) ? s.flags.cardGame : null; return CARD_GAMES.includes(g) ? g : null; }
+  /* How many sit in, from the words: 'all' ("deal everyone in", "everyone
+     in"), 'none' ("heads up", "just me and Curtis", "just us"), or null. */
+  const SEATS_ALL = /\b(?:deal|deals|dealing|let)\s+(?:everyone|everybody|every\s+body|us\s+all|all\s+of\s+us|the\s+(?:whole\s+)?table)\s+in\b|\b(?:everyone|everybody)(?:'s)?\s+in\b|\b(?:full|whole)\s+table\b|\beveryone\s+(?:plays|sits\s+in|at\s+the\s+table)\b/i;
+  const SEATS_NONE = /\bheads[\s-]*up\b|\bjust\s+(?:me\s+and\s+(?:you|him|her|the\s+dealer|[a-z]+)|you\s+and\s+me|us(?:\s+two)?|the\s+two\s+of\s+us)\b|\bone[\s-]+on[\s-]+one\b|\bnobody\s+else\b/i;
+  function seatWords(words) {
+    const t = String(words || '').replace(/[’‘]/g, "'");
+    if (SEATS_NONE.test(t)) return 'none';
+    if (SEATS_ALL.test(t)) return 'all';
+    return null;
+  }
+  /* The card people here who can sit in (the cast's own: the game never
+     makes a person): tagged cardplayer, alive, not the dealer, attitude
+     above SEAT_COLD; in the order the place lists them. */
+  function cardPeople(presentIds, dealer) {
+    const s = State.current;
+    // A game saved before wave 13 has the cast without the tag: the town's own record says who plays (the built-in town).
+    const cast = s && s.meta.townName === TOWN_DATA.name ? new Set(TOWN_DATA.npcs.filter(x => (x.tags || []).includes(CARD_TAG)).map(x => x.id)) : new Set();
+    return (presentIds || []).map(id => State.npc(id)).filter(n => n && (!dealer || n.id !== dealer.id) && n.alive !== false && ((n.tags || []).includes(CARD_TAG) || cast.has(n.id)) && (toInt(n.attitude) || 0) > SEAT_COLD);
+  }
+  /* Who sits in this hand besides the player and the dealer: the words
+     first, then the hand's seed (none, one or two, each a third of the
+     time). hooks.cardsSeats (tests, the console): these ids, of the card
+     people here, for every hand until it is cleared; a hand dealt as given
+     (hooks.cardsDeal) has its own seats (set.seats) or none. */
+  function seatsFor(ctx, dealer, seed, set) {
+    const pool = cardPeople(ctx.presentIds, dealer);
+    const pickIds = ids => ids.map(id => pool.find(n => n.id === id)).filter(Boolean).slice(0, SEATS_MAX);
+    if (set) return pickIds(Array.isArray(set.seats) ? set.seats : []);
+    if (Array.isArray(hooks.cardsSeats)) return pickIds(hooks.cardsSeats);
+    const w = seatWords(ctx.input);
+    if (w === 'none') return [];
+    if (w === 'all') return pool.slice(0, SEATS_MAX);
+    const rng = Rng.create(((seed ^ 0x2545f491) >>> 0) || 1);
+    const k = Math.min(rng.int(0, 2), pool.length);
+    const chosen = Cards.shuffle(rng, pool.map(n => n.id)).slice(0, k);
+    return pool.filter(n => chosen.includes(n.id));
+  }
+  /* A seat's play (wave 13): from how good the hand is (Cards.strength) and
+     a tilt from who they are: a reckless, greedy or sly sort bets and
+     bluffs more, a cautious one folds more. coin: a draw of the hand's
+     seed for one seat, street and question, so the same hand plays the
+     same way after a reload, an /undo or a replay. */
+  const BOLD_TRAIT = /^(?:reckless|greedy|bold|brash|hot-?headed|impulsive|ambitious|sly|cocky|arrogant|ruthless|smooth|flashy|showy|charming|daring|wild|swaggering)$/i;
+  const CAREFUL_TRAIT = /^(?:cautious|careful|cowardly|timid|nervous|anxious|gloomy|honest|meek|shy|worried|frugal|thrifty|stingy|prudent|wary|guarded|fearful)$/i;
+  function tiltOf(n) {
+    let t = 0;
+    for (const x of (n && n.personality) || []) { if (BOLD_TRAIT.test(x)) t += 0.1; else if (CAREFUL_TRAIT.test(x)) t -= 0.1; }
+    return clamp(t, -0.15, 0.15);
+  }
+  function coin(seed, seat, street, ask) {
+    return Rng.valueAt(((seed >>> 0) ^ Math.imul(seat + 1, 0x9e3779b1) ^ Math.imul(street + 1, 0x85ebca6b) ^ Math.imul(ask + 1, 0xc2b2ae35)) >>> 0, 0);
+  }
+  /* One seat's move at hold'em: with no bet to face, bet the unit on a
+     good hand (or as a bluff, by the coin), else check; facing a bet, call
+     with enough (the others never fold a stacked hand before the flop:
+     /cheat cards), else fold. */
+  function seatMove(h, i, street, facing) {
+    const seat = h.seats[i];
+    const v = Cards.strength(seat.hole, h.board.slice(0, STREET_CARDS[street]));
+    const t = seat.tilt;
+    const bluff = Math.max(0, 0.1 + t);
+    const c = coin(h.seed, i, street, facing ? 1 : 0);
+    if (!facing) {
+      if (v >= 0.62 - t) return { act: 'bet', bluff: false };
+      if (c < bluff) return { act: 'bet', bluff: true };
+      return { act: 'check' };
+    }
+    if (h.stacked && street === 0) return { act: 'call' };
+    const need = (street === 0 ? 0.3 : street === 3 ? 0.45 : 0.38) - t;
+    return { act: v >= need || c < bluff / 2 ? 'call' : 'fold' };
+  }
+  /* A hand of hold'em as far as the player's moves take it (wave 13): pure,
+     from h ({ seed, unit, stacked, board, seats: [{ key, hole, tilt }], the
+     player first and the dealer last }) and moves (the player's: check,
+     bet, call, fold, win). Every seat antes the unit; on each of the four
+     streets the player acts first (check or bet the unit), then the other
+     seats in order; with a bet on the table each calls or folds, with none
+     each may check or bet (the first bettor sets it); a bet sends everyone
+     who has not matched it round again (the player gets Call or Fold).
+     No raises: a seat puts in five units at most, and never more than the
+     cap (h.cap, the stake: under $5 a street with no room for a bet is
+     checked through). Returns { street, in,
+     folded, foldedOn, status, reads (a seat's first bet: { bluff, street }),
+     pot, need (the player's choices) | done (playerFolded, uncontested,
+     showdown) | win }. */
+  function holdemRun(h, moves) {
+    const n = h.seats.length;
+    const u = h.unit;
+    const inn = Array(n).fill(u);
+    const folded = Array(n).fill(false);
+    const foldedOn = Array(n).fill(null);
+    const status = Array(n).fill('');
+    const reads = Array(n).fill(null);
+    let m = 0;
+    let street = 0;
+    const live = () => folded.reduce((k, f) => k + (f ? 0 : 1), 0);
+    const out = extra => Object.assign({ street, in: inn, folded, foldedOn, status, reads, pot: inn.reduce((a, b) => a + b, 0), moves: moves.slice(0, m) }, extra);
+    for (street = 0; street < 4; street++) {
+      // A seat's status is what it last did, until it acts again (the street's calls stay in view when the next card turns).
+      // Every seat still in has put in the same (no raises): a bet fits while it stays within the cap.
+      const room = !Number.isFinite(h.cap) || inn[folded.indexOf(false)] + u <= h.cap;
+      let bet = 0;
+      const put = Array(n).fill(0);
+      const queue = [];
+      for (let i = 0; i < n; i++) if (!folded[i]) queue.push(i);
+      while (queue.length && live() > 1) {
+        const i = queue.shift();
+        if (folded[i]) continue;
+        let act;
+        if (i === 0) {
+          const opts = bet ? ['call', 'fold'] : room ? ['check', 'bet'] : ['check'];
+          if (m >= moves.length) return out({ need: opts });
+          let mv = moves[m++];
+          if (mv === 'win') return out({ win: true });
+          if (!opts.includes(mv)) mv = mv === 'fold' ? 'fold' : bet ? 'call' : 'check';
+          act = mv;
+        } else {
+          const r = !room && !bet ? { act: 'check' } : seatMove(h, i, street, bet > 0);
+          act = r.act;
+          if (act === 'bet' && !reads[i]) reads[i] = { bluff: r.bluff, street };
+        }
+        if (act === 'check') status[i] = 'checks';
+        else if (act === 'bet') {
+          bet = u; inn[i] += u; put[i] = u; status[i] = `bets ${money(u)}`;
+          for (let k = 1; k < n; k++) { const j = (i + k) % n; if (!folded[j] && put[j] < bet && !queue.includes(j)) queue.push(j); }
+        } else if (act === 'call') { inn[i] += u; put[i] = u; status[i] = `calls ${money(u)}`; }
+        else { folded[i] = true; foldedOn[i] = street; status[i] = 'folds'; }
+        if (i === 0 && act === 'fold') return out({ done: true, playerFolded: true });
+      }
+      if (live() === 1) return out({ done: true, uncontested: true });
+    }
+    street = 4;
+    return out({ done: true, showdown: true });
+  }
+  /* The Win (cheat) at hold'em mid-hand (wave 13): the player's two cards
+     and the board already turned stay; the rest of the board is dealt so
+     the player's hand beats every other seat's, keeping their cards when
+     that works and else giving them ones that lose. null when nothing
+     does (the board alone ties everyone): the player still takes the pot. */
+  function rigHoldem(rng, holes, board, shown) {
+    const mine = holes[0];
+    const fixed = board.slice(0, shown);
+    const others = holes.slice(1);
+    const beats = (bd, hs) => { const k = Cards.best(mine.concat(bd)).key; return hs.every(x => Cards.compareKeys(k, Cards.best(x.concat(bd)).key) > 0); };
+    for (const keep of [true, false]) {
+      const taken = new Set(mine.concat(fixed, keep ? others.flat() : []));
+      const pool = Cards.deck().filter(c => !taken.has(c));
+      for (let t = 0; t < (keep ? 400 : shown === 5 ? 1 : 20); t++) {
+        const p = Cards.shuffle(rng, pool);
+        const bd = fixed.concat(p.slice(0, 5 - shown));
+        if (keep) { if (beats(bd, others)) return { board: bd, holes: others.map(x => x.slice()) }; continue; }
+        let left = p.slice(5 - shown);
+        const hs = [];
+        const k = Cards.best(mine.concat(bd)).key;
+        for (let s = 0; s < others.length; s++) {
+          let found = null;
+          for (let a = 0; a < left.length && !found; a++) for (let b = a + 1; b < left.length && !found; b++) {
+            if (Cards.compareKeys(k, Cards.best([left[a], left[b]].concat(bd)).key) > 0) found = [left[a], left[b]];
+          }
+          if (!found) break;
+          hs.push(found);
+          left = left.filter(c => !found.includes(c));
+        }
+        if (hs.length === others.length) return { board: bd, holes: hs };
+      }
+    }
+    return null;
+  }
+  /* The Win (cheat) at a draw hand (wave 13): the player's five as dealt
+     stay; they keep their best group (all five with a straight or better)
+     and draw the rest of its rank first, so they end with the best hand;
+     the other seats keep what they were dealt when that still loses, else
+     they are dealt hands that lose. null if nothing works (the player still
+     takes the pot). */
+  function rigDraw(rng, player, others) {
+    const e = Cards.evaluate(player);
+    const vals = player.map(Cards.value);
+    const holds = e.rank >= 4 ? [0, 1, 2, 3, 4] : e.rank >= 1 ? [0, 1, 2, 3, 4].filter(i => vals.filter(v => v === vals[i]).length >= 2) : [vals.indexOf(Math.max(...vals))];
+    const ranks = new Set(holds.map(i => player[i][0]));
+    for (const keep of [true, false]) {
+      for (let t = 0; t < 200; t++) {
+        const taken = new Set(player.concat(keep ? others.flat() : []));
+        const pool = Cards.shuffle(rng, Cards.deck().filter(c => !taken.has(c)));
+        const pile = pool.filter(c => ranks.has(c[0])).concat(pool.filter(c => !ranks.has(c[0]))).slice(0, 5 - holds.length);
+        const pFinal = Cards.draw(player, holds, pile);
+        let left = pool.filter(c => !pile.includes(c));
+        const outs = [];
+        for (const o of others) {
+          const dealt = keep ? o.slice() : left.slice(0, 5);
+          if (!keep) left = left.slice(5);
+          const held = Cards.dealerHolds(dealt);
+          const fin = Cards.draw(dealt, held, left.slice(0, 5));
+          left = left.slice(5);
+          if (Cards.compare(pFinal, fin) <= 0) break;
+          outs.push({ dealt, held, final: fin });
+        }
+        if (outs.length === others.length) return { holds, pFinal, others: outs };
+      }
+    }
+    return null;
+  }
+  /* Who takes the pot (wave 13): the best of the sides still in (sides: {
+     key, in, live, final }), all of them on a tie; the pot split evenly,
+     the odd dollars to the player when they share it (else to the first
+     winner). force: the pot is the player's (the win cheat). */
+  function settlePot(sides, force) {
+    const live = sides.filter(x => x.live);
+    let winners;
+    if (force) winners = [sides[0]];
+    else if (live.length === 1) winners = live;
+    else {
+      const keys = live.map(x => Cards.evaluate(x.final).key);
+      let top = keys[0];
+      for (const k of keys) if (Cards.compareKeys(k, top) > 0) top = k;
+      winners = live.filter((x, i) => Cards.compareKeys(keys[i], top) === 0);
+    }
+    const pot = sides.reduce((t, x) => t + (x.in | 0), 0);
+    const share = Math.floor(pot / winners.length);
+    for (const x of sides) x.won = 0;
+    for (const x of winners) x.won = share;
+    const rest = pot - share * winners.length;
+    if (rest) (winners.find(x => x.key === 'player') || winners[0]).won += rest;
+    return { pot, winners: winners.map(x => x.key) };
+  }
+  /* The ante and every bet at hold'em (wave 13): a fifth of the stake, rounded down, at least $1. */
+  function unitFor(stake) { return Math.max(1, Math.floor((toInt(stake) || 0) / 5)); }
+  function showdownOf(winners, folded) { return folded ? 'fold' : winners.length === 1 && winners[0] === 'player' ? 'win' : winners.includes('player') ? 'split' : 'lose'; }
+  /* What the player's hand makes so far (as they fold): the best five with three or more on the board, else the two hole cards by name. */
+  function handSoFar(hole, board) {
+    if (board.length >= 3) { const b = Cards.best(hole.concat(board)); return { final: b.cards, name: b.name }; }
+    return { final: null, name: Cards.holeName(hole) };
+  }
+  /* The stored hand (wave 11, M1; wave 13: the game, the seats and the
+     player's moves so far, so a page closed mid-street folds there). */
+  function holdThis(c, moves, dealt) {
+    const { s, ctx } = c;
+    const held = Object.assign(handMark(s), { input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null, tab: Storage.tabId, token: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, cardGame: c.game, seats: c.seats.map(n => n.id), moves: (moves || []).slice(), chose: !!c.chose }, dealt ? { deal: dealt } : {});
+    if (Storage.holdHand(held)) handHeld = held.token;
+    return held;
+  }
+  function storeHand(held, extra) { if (held && handHeld === held.token) Storage.holdHand(Object.assign(held, extra || {})); }
   /* The open hand: the player's Draw or Fold (UI.feed.cards' buttons, or
      playHand) settles it; Stop (abort) folds it (wave 11: { fold, stopped
      }), so the ante is never taken back. hooks.cardsPlay ({ hold: [0-4] |
-     'all', fold }) plays the next hand at once, as if clicked (tests, the
-     console). */
+     'all', fold, win }) plays the next hand at once, as if clicked (tests,
+     the console). Wave 13: kind 'choose' is the chooser (a game, or the
+     Win; Stop there calls the turn off, as no card is dealt yet:
+     hooks.cardsChoose answers it), 'holdem' a decision at hold'em ({ act:
+     check | bet | call | fold }, the fold, or the Win). */
   let hand = null;
   let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends: its token
-  function waitForHand(table, node) {
+  function waitForHand(table, node, kind) {
     return new Promise((resolve, reject) => {
-      hand = { resolve, reject, table, node: node || null };
-      const auto = hooks.cardsPlay;
+      hand = { resolve, reject, table, node: node || null, kind: kind || 'draw' };
+      if (hand.kind === 'choose') {
+        const pick = hooks.cardsChoose;
+        if (pick) { hooks.cardsChoose = null; Promise.resolve().then(() => playHand(pick === 'win' ? { win: true } : { game: pick })); }
+        return;
+      }
+      const auto = hand.kind === 'draw' ? hooks.cardsPlay : null;
       if (auto) { hooks.cardsPlay = null; Promise.resolve().then(() => playHand(auto)); }
     });
   }
+  function stoppedAtTable() { return Object.assign(new Error('stopped at the card table'), { type: 'aborted' }); }
   function playHand(choice) {
     if (!hand) return false;
     const h = hand;
     hand = null;
     const c = isObj(choice) ? choice : {};
-    h.resolve(c.fold === true ? { fold: true, stopped: c.stopped === true } : { hold: Cards.holdsFrom(c.hold) });
+    if (h.kind === 'choose') {
+      // Stop at the chooser: nothing was dealt, so the turn is called off at no cost (the line back in the box).
+      if (c.fold === true) { h.reject(stoppedAtTable()); return true; }
+      h.resolve(c.win === true ? { win: true } : { game: CARD_GAMES.includes(c.game) ? c.game : 'holdem' });
+      return true;
+    }
+    if (c.win === true) h.resolve({ win: true });
+    else if (c.fold === true) h.resolve({ fold: true, stopped: c.stopped === true });
+    else if (h.kind === 'holdem') h.resolve({ act: HOLDEM_ACTS.includes(c.act) ? c.act : 'check' });
+    else h.resolve({ hold: Cards.holdsFrom(c.hold) });
     return true;
   }
   /* Another tab took the game over (wave 12, L3: Storage.setReadOnly) while
@@ -18141,6 +18664,26 @@ const Pipeline = (() => {
   function keepCheat(armed) {
     if (!armed || cheatArmed() || !State.current) return false;
     State.apply({ cardsCheat: true });
+    return true;
+  }
+  /* /cheat win (wave 13; the owner: "Keep the backslash cheat win or
+     something so it narrates my win without playing"): the next hand is not
+     played; the table is shown finished, the player's. Armed in the game
+     (State cardsWin, flags.cardsWin) as /cheat cards is: a reload keeps it,
+     an /undo of the hand it won arms it again, a second one says so. */
+  function winArmed() { const s = State.current; return !!(s && isObj(s.flags) && s.flags.cardsWin === true); }
+  function cheatWin() {
+    const ro = readOnlyRefusal();
+    if (ro) return ro;
+    if (!State.current) return { ok: false, reason: 'no game' };
+    if (winArmed()) { UI.feed.notice('Already armed: the next hand is yours without playing.'); return { ok: true, already: true }; }
+    State.apply({ cardsWin: true });
+    UI.feed.notice('Cheat armed: the next hand is yours without playing.');
+    return { ok: true };
+  }
+  function keepWin(armed) {
+    if (!armed || winArmed() || !State.current) return false;
+    State.apply({ cardsWin: true });
     return true;
   }
   /* Which game, and where in it, a hand was dealt (wave 12, M2): the game
@@ -18179,12 +18722,290 @@ const Pipeline = (() => {
     const speech = isObj(m.speech) ? m.speech : { mode: 'do' };
     // Dealt in this tab before a reload, or in another tab (wave 12, L3): the notice says which.
     const other = !!m.tab && m.tab !== Storage.tabId;
-    return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', resumeOther: other, replayCards: cards });
+    // Wave 13: the game, the seats and the moves already made (a hold'em hand folds where it was left).
+    const storedHand = { game: CARD_GAMES.includes(m.cardGame) ? m.cardGame : null, seats: Array.isArray(m.seats) ? m.seats.filter(x => typeof x === 'string') : [], moves: Array.isArray(m.moves) ? m.moves.filter(x => HOLDEM_ACTS.includes(x)) : [], chose: m.chose === true, deal: isObj(m.deal) ? m.deal : null };
+    return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', resumeOther: other, replayCards: cards, storedHand });
   }
   /* A hand's name inside a sentence: "two pair, kings and sevens," (the comma closes it). */
   function handWords(name) { const t = lowerFirst(name); return t.includes(',') ? `${t},` : t; }
   /* The record /reroll replays (wave 11, L5): the hand as it was played, its cards and its holds. */
-  function replayable(r) { return isObj(r) && isObj(r.player) && isObj(r.dealer) && Array.isArray(r.player.final) && Array.isArray(r.dealer.final) ? r : null; }
+  function replayable(r) {
+    if (!isObj(r) || !isObj(r.player) || !isObj(r.dealer) || !Array.isArray(r.player.dealt) || !Array.isArray(r.dealer.dealt)) return null;
+    // Wave 13: a hold'em hand has its board (a hand folded early has no final five).
+    return r.game === 'holdem' ? (Array.isArray(r.board) ? r : null) : Array.isArray(r.player.final) && Array.isArray(r.dealer.final) ? r : null;
+  }
+  /* A hand of five-card draw (wave 10; wave 13: with the other seats, each
+     putting up the stake and drawing by the dealer's rule, the Win (cheat)
+     control and the armed win). A fold heads up ends the hand before the
+     dealer draws (his cards as dealt); with others at the table they play
+     it out among themselves. Returns the hand as played: { record, sides,
+     winners, pot, showdown, folded, stopped, closed, win, node, held }. */
+  async function drawHand(c) {
+    const { s, dealer, seats, stake } = c;
+    const price = foldPrice(stake);
+    const n = seats.length;
+    const set = isObj(hooks.cardsDeal) && Array.isArray(hooks.cardsDeal.player) ? hooks.cardsDeal : null;
+    if (set) hooks.cardsDeal = null;
+    const dealt = dealHand(c.seed, readOdds(s), c.cheat || c.winNow, set, n);
+    const table = Object.assign({ game: 'draw' }, c.base, {
+      cheat: c.cheat, read: Object.assign({}, dealt.read, { text: readText(dealt.read.says, c.first) }),
+      player: { dealt: dealt.player.slice() }, dealer: { dealt: dealt.dealer.slice() },
+      seats: seats.map((x, k) => ({ id: x.id, who: x.name, dealt: dealt.seatPlay[k].dealt.slice() })),
+      pot: stake * (n + 2), playerIn: stake
+    });
+    // The win cheat before any card is played (/cheat win, or Win at the chooser): the table is shown finished, never open.
+    let node = c.winNow ? c.node : c.node ? UI.feed.cardsShow(c.node, table) : UI.feed.cards(table, c.left ? { replay: true } : null);
+    const held = !c.left && !c.ctx.reroll ? holdThis(c, []) : null;
+    const choice = c.winNow ? { win: true } : c.left ? { fold: true, closed: true } : await waitForHand(table, node, 'draw');
+    const win = choice.win ? (c.win || 'control') : null;
+    const folded = choice.fold === true;
+    let holds = folded ? [] : c.winNow ? [0, 1, 2, 3, 4] : Cards.holdsFrom(choice.hold);
+    let pFinal = folded ? dealt.player.slice() : Cards.draw(dealt.player, holds, dealt.playerPile);
+    let dDealt = dealt.dealer.slice();
+    let dHold = dealt.dealerHolds.slice();
+    let dFinal = dealt.dealerFinal.slice();
+    let others = dealt.seatPlay.map(x => ({ dealt: x.dealt.slice(), held: x.held.slice(), final: x.final.slice() }));
+    if (win && !c.winNow) {
+      const rig = rigDraw(Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1), dealt.player, others.map(x => x.dealt).concat([dDealt]));
+      if (rig) { holds = rig.holds; pFinal = rig.pFinal; others = rig.others.slice(0, n); ({ dealt: dDealt, held: dHold, final: dFinal } = rig.others[n]); }
+      else { holds = [0, 1, 2, 3, 4]; pFinal = dealt.player.slice(); }
+    }
+    const dShown = folded && !n ? dDealt.slice() : dFinal;
+    const dHeld = folded && !n ? [0, 1, 2, 3, 4] : dHold;
+    const sides = [{ key: 'player', in: folded ? price : stake, live: !folded, final: pFinal }]
+      .concat(seats.map((x, k) => ({ key: x.id, in: stake, live: true, final: others[k].final })), [{ key: dealer.id, in: stake, live: true, final: dShown }]);
+    const { pot, winners } = settlePot(sides, !!win);
+    const named = f => Cards.evaluate(f).name;
+    const record = Object.assign({}, table, {
+      read: Object.assign({}, table.read),
+      player: { dealt: dealt.player.slice(), held: holds.slice(), final: pFinal.slice(), name: named(pFinal), in: sides[0].in, won: sides[0].won },
+      dealer: { dealt: dDealt.slice(), held: dHeld.slice(), final: dShown.slice(), name: named(dShown), in: stake, won: sides[n + 1].won },
+      seats: seats.map((x, k) => ({ id: x.id, who: x.name, dealt: others[k].dealt.slice(), held: others[k].held.slice(), final: others[k].final.slice(), name: named(others[k].final), in: stake, won: sides[k + 1].won })),
+      pot, winners, showdown: showdownOf(winners, folded)
+    });
+    delete record.playerIn;
+    if (folded) { record.folded = true; if (choice.stopped === true) record.stopped = true; if (choice.closed === true) record.closed = true; }
+    if (win) record.win = win;
+    if (c.chose) record.chose = true;
+    if (!node) node = UI.feed.cards(record, { replay: true });
+    return { record, sides, winners, pot, showdown: record.showdown, folded, stopped: folded && choice.stopped === true, closed: folded && choice.closed === true, win, node, held };
+  }
+  /* The player's reads at hold'em (wave 13): when a seat first bets, a read
+     on whether it has something or is bluffing, right with the read's odds
+     (60% + 12% a point of Wits, 50 to 95%: readOdds), from the hand's seed.
+     None with a marked deck: every seat's cards are face up then. */
+  function holdemReads(h, run, odds, people) {
+    return h.seats.map((x, i) => {
+      const r = run.reads[i];
+      if (!i || !r) return null;
+      const truth = r.bluff ? 'nothing' : 'something';
+      const right = coin(h.seed, i, 8, r.street) < odds;
+      const says = right ? truth : truth === 'something' ? 'nothing' : 'something';
+      return { says, right, odds, text: readText(says, firstName(people[i].name)) };
+    });
+  }
+  /* The open hold'em table for the UI: the board turned so far (the rest is
+     not in it), each seat's two cards and what it last did, the pot and
+     what the player has in, and the player's choices. */
+  function holdemView(c, h, run, odds, people) {
+    const n = h.seats.length;
+    const street = Math.min(run.street, 3);
+    const shown = STREET_CARDS[street];
+    const reads = c.base.marked ? [] : holdemReads(h, run, odds, people);
+    const side = i => Object.assign({ dealt: h.seats[i].hole.slice(), status: run.status[i], in: run.in[i] }, run.folded[i] ? { folded: true } : {}, reads[i] ? { read: reads[i] } : {});
+    return Object.assign({ game: 'holdem' }, c.base, {
+      cheat: c.cheat, unit: h.unit, street, shown, board: h.board.slice(0, shown), pot: run.pot, playerIn: run.in[0], options: run.need ? run.need.slice() : null,
+      player: side(0), dealer: side(n - 1), seats: c.seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, side(k + 1)))
+    });
+  }
+  /* hooks.cardsPlay at hold'em (tests, the console): it lasts the hand.
+     { moves: [...] } plays those and then waits for the table; { fold } or
+     { win } is the first decision; anything else checks and calls to the
+     end. */
+  function takeAuto() {
+    const a = hooks.cardsPlay;
+    hooks.cardsPlay = null;
+    return isObj(a) ? Object.assign({}, a, Array.isArray(a.moves) ? { moves: a.moves.slice() } : {}) : null;
+  }
+  function autoMove(auto, need) {
+    if (!auto) return null;
+    if (auto.win === true) return { win: true };
+    if (auto.fold === true) return { fold: true };
+    if (Array.isArray(auto.moves)) {
+      if (!auto.moves.length) return null;
+      const mv = auto.moves.shift();
+      return mv === 'win' ? { win: true } : mv === 'fold' ? { fold: true } : { act: mv };
+    }
+    return { act: need[0] };
+  }
+  /* A hand of Texas hold'em (wave 13; the owner: "the one where you have 2
+     cards"). The stake S is the most the player can lose; the unit u is
+     S/5, rounded down, at least $1: the ante and every bet (holdemRun). A
+     page closed with it open folds it after the moves already made; Stop
+     folds it (what the player has put in is lost). The Win (cheat) control
+     or an armed /cheat win ends it the player's: every seat still in calls
+     every street (five units each) and the player's hand is the best. */
+  async function holdemHand(c) {
+    const { s, dealer, seats, stake } = c;
+    const u = unitFor(stake);
+    const people = [null].concat(seats, [dealer]);
+    const n = people.length;
+    const set = isObj(hooks.cardsDeal) && Array.isArray(hooks.cardsDeal.holes) ? hooks.cardsDeal : null;
+    if (set) hooks.cardsDeal = null;
+    const rng = Rng.create(c.seed);
+    const given = set && set.holes.length === n && set.holes.every(x => Array.isArray(x) && x.length === 2) && Array.isArray(set.board) && set.board.length === 5;
+    // A hand resumed after the page was closed (resumeHand) has its cards as stored: the very hand that was dealt.
+    const kept = c.stored && isObj(c.stored.deal) && Array.isArray(c.stored.deal.holes) && c.stored.deal.holes.length === n && c.stored.deal.holes.every(x => Array.isArray(x) && x.length === 2 && x.every(Cards.valid)) && Array.isArray(c.stored.deal.board) && c.stored.deal.board.length === 5 && c.stored.deal.board.every(Cards.valid) ? c.stored.deal : null;
+    const dealt = kept ? { holes: kept.holes.map(x => x.slice()), board: kept.board.slice() } : given ? { holes: set.holes.map(x => x.slice()), board: set.board.slice() } : c.cheat || c.winNow ? Cards.holdemStacked(rng, n) : Cards.holdem(rng, n);
+    const h = { seed: c.seed, unit: u, cap: stake, stacked: !!c.cheat, board: dealt.board.slice(), seats: people.map((x, i) => ({ key: x ? x.id : 'player', hole: dealt.holes[i].slice(), tilt: x ? tiltOf(x) : 0 })) };
+    const moves = c.stored && Array.isArray(c.stored.moves) ? c.stored.moves.filter(m => HOLDEM_ACTS.includes(m)) : [];
+    const odds = readOdds(s);
+    let run = holdemRun(h, moves);
+    let win = null;
+    let stopped = false;
+    let closed = false;
+    if (c.winNow) { win = c.win; run = holdemRun(h, ['win']); }
+    else if (c.left && run.need) { moves.push('fold'); run = holdemRun(h, moves); closed = true; }
+    const view = () => holdemView(c, h, run, odds, people);
+    let node = c.winNow ? c.node : c.node ? UI.feed.cardsShow(c.node, view()) : UI.feed.cards(view(), c.left ? { replay: true } : null);
+    const held = !c.left && !c.ctx.reroll ? holdThis(c, moves, { holes: h.seats.map(x => x.hole.slice()), board: h.board.slice() }) : null;
+    const auto = c.winNow || c.left ? null : takeAuto();
+    while (run.need) {
+      storeHand(held, { moves: moves.slice() });
+      const choice = autoMove(auto, run.need) || await waitForHand(view(), node, 'holdem');
+      if (choice.win) moves.push('win');
+      else if (choice.fold) { moves.push('fold'); stopped = choice.stopped === true; }
+      else moves.push(choice.act);
+      run = holdemRun(h, moves);
+      if (run.win) win = 'control';
+      if (run.need) UI.feed.cardsShow(node, view());
+    }
+    let board = h.board.slice();
+    let holes = h.seats.map(x => x.hole.slice());
+    const inn = run.in.slice();
+    const folded = run.folded.slice();
+    if (win) {
+      const shown = STREET_CARDS[Math.min(run.street, 3)];
+      const rig = c.winNow ? null : rigHoldem(Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1), holes, board, shown);
+      if (rig) { board = rig.board; holes = [holes[0]].concat(rig.holes); }
+      // Every seat still in calls every street: the ante and four bets each (never more than the stake).
+      for (let i = 0; i < n; i++) if (!folded[i]) inn[i] = Math.min(5 * u, stake);
+    }
+    const playerFolded = !!run.playerFolded;
+    // At a showdown (and when the others play the player's fold out among themselves) the board is complete; a hand everyone folded to the player stops where it was.
+    const complete = !!(win || run.showdown || playerFolded);
+    const shownEnd = complete ? 5 : STREET_CARDS[Math.min(run.street, 3)];
+    const sides = h.seats.map((x, i) => ({ key: x.key, in: inn[i], live: !folded[i], final: !folded[i] && complete ? Cards.best(holes[i].concat(board)).cards : null }));
+    const { pot, winners } = settlePot(sides, !!win);
+    const reads = c.base.marked ? [] : holdemReads(h, run, odds, people);
+    const side = i => {
+      const x = sides[i];
+      const out = { dealt: holes[i].slice(), final: x.final ? x.final.slice() : null, name: x.final ? Cards.evaluate(x.final).name : null, in: x.in, won: x.won };
+      if (folded[i] && i > 0) Object.assign(out, { folded: true, foldedOn: run.foldedOn[i] });
+      if (reads[i]) out.read = reads[i];
+      return out;
+    };
+    const mine = side(0);
+    if (playerFolded || run.uncontested) {
+      const so = handSoFar(holes[0], board.slice(0, playerFolded ? STREET_CARDS[Math.min(run.street, 3)] : shownEnd));
+      Object.assign(mine, { final: so.final, name: so.name });
+      if (playerFolded) mine.foldedOn = run.foldedOn[0];
+    }
+    const record = Object.assign({ game: 'holdem' }, c.base, {
+      cheat: c.cheat, unit: u, board: board.slice(), shown: shownEnd, street: complete && !playerFolded ? 4 : Math.min(run.street, 3), moves: moves.slice(),
+      player: mine, dealer: side(n - 1), seats: seats.map((x, k) => Object.assign({ id: x.id, who: x.name }, side(k + 1))),
+      pot, winners, showdown: showdownOf(winners, playerFolded)
+    });
+    if (run.uncontested && !win) record.uncontested = true;
+    if (playerFolded) { record.folded = true; if (stopped) record.stopped = true; if (closed) record.closed = true; }
+    if (win) record.win = win;
+    if (c.chose) record.chose = true;
+    if (!node) node = UI.feed.cards(record, { replay: true });
+    return { record, sides, winners, pot, showdown: record.showdown, folded: playerFolded, stopped: playerFolded && stopped, closed: playerFolded && closed, win, node, held };
+  }
+  /* A hand replayed from its record (/reroll; a hand played before the page
+     was closed): its seats and its money as played. A wave 10-12 record
+     (heads up at draw, no money per seat) has its pot worked out again. */
+  function playedHand(r) {
+    const rec = deepCopy(r);
+    for (const k of ['result', 'delta', 'cash']) delete rec[k];
+    const folded = rec.folded === true || r.result === 'fold';
+    const list = [Object.assign({ key: 'player' }, rec.player)].concat((rec.seats || []).map(x => Object.assign({ key: x.id }, x)), [Object.assign({ key: rec.dealerId || 'dealer' }, rec.dealer)]);
+    if (!Array.isArray(rec.winners) || !['win', 'lose', 'split', 'fold'].includes(rec.showdown) || list.some(x => !Number.isInteger(x.in) || !Number.isInteger(x.won))) {
+      const sides = [{ key: 'player', in: folded ? foldPrice(rec.stake) : rec.stake, live: !folded, final: rec.player.final }, { key: list[list.length - 1].key, in: rec.stake, live: true, final: rec.dealer.final }];
+      const st = settlePot(sides, false);
+      Object.assign(list[0], { in: sides[0].in, won: sides[0].won });
+      Object.assign(list[list.length - 1], { in: sides[1].in, won: sides[1].won });
+      Object.assign(rec.player, { in: sides[0].in, won: sides[0].won });
+      Object.assign(rec.dealer, { in: sides[1].in, won: sides[1].won });
+      Object.assign(rec, { game: rec.game || 'draw', pot: st.pot, winners: st.winners, showdown: showdownOf(st.winners, folded) });
+    }
+    const node = UI.feed.cards(r, { replay: true });
+    return { record: rec, sides: list, winners: rec.winners, pot: rec.pot, showdown: rec.showdown, folded, stopped: rec.stopped === true, closed: rec.closed === true, win: rec.win || null, node, held: null };
+  }
+  /* What the other seats make of the hand (wave 13), recorded by the engine:
+     one that lost the most it could to the player (the stake at draw, five
+     units at hold'em: the stake when it is a multiple of $5) remembers it
+     and likes the player 2 less; one that took a pot the player had money
+     in remembers it and likes them 1 more. Not the dealer: it is his game
+     (and his attitude decides whether he deals). */
+  function seatMarks(out, p, place, most) {
+    const playerTook = out.winners.includes('player');
+    const mems = [];
+    const effects = [];
+    const told = [];
+    for (const x of out.sides.slice(1, -1)) {
+      const n = State.npc(x.key);
+      if (!n) continue;
+      const took = out.winners.includes(x.key);
+      if (playerTook && !took && (x.in | 0) >= most) {
+        mems.push({ npcId: n.id, text: `lost ${money(x.in)} to ${p.name} at cards at ${place}`, weight: 1 });
+        effects.push({ op: 'attitudeDelta', npcId: n.id, delta: -2 });
+        told.push({ id: n.id, name: n.name, lost: x.in });
+      } else if (took && !playerTook && (out.sides[0].in | 0) > 0) {
+        mems.push({ npcId: n.id, text: `took a pot off ${p.name} at cards at ${place}`, weight: 1 });
+        effects.push({ op: 'attitudeDelta', npcId: n.id, delta: 1 });
+        told.push({ id: n.id, name: n.name, took: true });
+      }
+    }
+    if (mems.length) {
+      const r = State.apply({ newMemories: mems, effects });
+      if (r.rejected.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble seats', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    }
+    return told;
+  }
+  /* A hand's name as something shown: "a pair of tens", "two pair, aces and nines", "ace high", "a flush, king high". */
+  function handPhrase(name) {
+    const t = lowerFirst(String(name || 'a hand'));
+    return /^(?:pair|flush|straight|full house|royal)\b/.test(t) ? `a ${t}` : t;
+  }
+  /* How a table of more than two (or hold'em) ended, for the narrator (wave
+     13): each other seat ("Royce Pittman folded on the turn", "Elbert
+     Gentry showed a pair of tens", "Curtis Pruett's straight, nine high,
+     takes the $36 pot"), then the player ("the player's two pair, aces and
+     nines, takes the $60 pot: the player wins $40"). */
+  function tableWords(rec, delta, extra) {
+    const others = (rec.seats || []).map(x => ({ key: x.id, name: x.who, side: x })).concat([{ key: rec.dealerId, name: rec.dealerName, side: rec.dealer }]);
+    const pot = money(rec.pot | 0);
+    const co = others.filter(o => rec.winners.includes(o.key));
+    const parts = [];
+    for (const o of others) {
+      const x = o.side;
+      if (x.folded) parts.push(`${o.name} folded ${STREET_WORDS[x.foldedOn] || 'before the showdown'}`);
+      else if (co.includes(o) && !rec.winners.includes('player')) parts.push(`${o.name}'s ${handWords(x.name)} ${co.length > 1 ? 'splits' : 'takes'} the ${pot} pot`);
+      else if (x.name) parts.push(`${o.name} showed ${handPhrase(x.name)}`);
+    }
+    const me = rec.player;
+    const mine = handWords(me.name || 'hand');
+    const amount = money(Math.abs(delta | 0));
+    let part;
+    if (rec.folded) part = rec.game === 'holdem' ? `the player folded their ${mine} ${STREET_WORDS[me.foldedOn] || 'before the showdown'} and gave up the ${money(me.in)} they had put in` : `the player folds their ${mine} before the draw and gives up half the stake: the player loses ${amount}`;
+    else if (rec.uncontested) part = `everyone else folded, so the player takes the ${pot} pot without a showdown: the player wins ${amount}`;
+    else if (rec.showdown === 'win') part = `the player's ${mine} takes the ${pot} pot: the player wins ${amount}`;
+    else if (rec.showdown === 'split') part = `the player's ${mine} splits the ${pot} pot with ${andList(co.map(o => o.name))}: ${delta > 0 ? `the player wins ${amount}` : delta < 0 ? `the player loses ${amount}` : 'no money changes hands'}`;
+    else part = `the player's ${mine} loses: the player loses ${amount}`;
+    return parts.concat([extra || part]).join('; ');
+  }
   async function gamble(ctx) {
     const s = State.current;
     const p = s.player;
@@ -18196,16 +19017,16 @@ const Pipeline = (() => {
     if (a.timeCost === 'instant') a.timeCost = 'short';
     // Why it is shut, in words (wave 3, playtest N8), and "today" before the evening.
     const shut = shutReason(l);
-    const game = !shut && cardGameAt(l);
+    const game0 = !shut && cardGameAt(l);
     // He will not deal to someone he caught (wave 11, L6); a bet said to someone else in Say mode is no bet (wave 11, H2).
-    const cold = game && dealer ? dealerRefusal(dealer, s) : null;
-    const saidTo = game && dealer && isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' && ctx.speech.to !== dealer.id ? State.npc(ctx.speech.to) : null;
-    if (!game || !dealer || cold || saidTo || (p.gold | 0) < 1) {
+    const cold = game0 && dealer ? dealerRefusal(dealer, s) : null;
+    const saidTo = game0 && dealer && isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' && ctx.speech.to !== dealer.id ? State.npc(ctx.speech.to) : null;
+    if (!game0 || !dealer || cold || saidTo || (p.gold | 0) < 1) {
       Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
       const when = ['evening', 'night'].includes(s.time.phase) ? 'tonight' : 'today';
       // Nobody dealing: when the dealer does (wave 11, L7).
-      const hours = game && !dealer ? dealerHours(l) : '';
-      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game ${when}` : !game ? 'there is no card game here'
+      const hours = game0 && !dealer ? dealerHours(l) : '';
+      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game ${when}` : !game0 ? 'there is no card game here'
         : !dealer ? `nobody is dealing right now${hours ? ` (${hours})` : ''}, so there is no game to sit in on`
           : cold ? `${dealer.name} won't deal to the player${cold.caughtDay ? `, not since catching them cheating at cards on Day ${cold.caughtDay}` : ', not the way things stand between them'}`
             : saidTo ? `the player said it to ${saidTo.name}, and ${dealer.name} is the one who deals`
@@ -18224,49 +19045,50 @@ const Pipeline = (() => {
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
     a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
     const deck = markedDeck(p);
-    const cheat = replay ? replay.cheat === true : cheatArmed();
+    const first = firstName(dealer.name);
+    const seed = cardSeed(s);
+    // A hand the page was closed on before it was played (resumeHand): folded, as if the player got up and left (wave 12, L4: closed, not stopped), after the moves already made (wave 13).
+    const left = !replay && ctx.resume === 'open';
+    const stored = !replay && isObj(ctx.storedHand) ? ctx.storedHand : null;
+    a.targets = [dealer.id].concat(a.targets.filter(t => t !== dealer.id));
+    const base = { dealerId: dealer.id, dealerName: dealer.name, stake, marked: !!deck };
+    if (st.note) base.stakeNote = st.note;
+    if (st.note && st.named !== null && st.named !== stake) base.named = st.named;
+    status('cards');
+    /* The game (wave 13): as played (a replay), as stored (a page closed on
+       the hand), named in the words, or the one played last; with none,
+       the table opens with a chooser before any card is dealt (Stop there
+       costs nothing: the turn is called off). A game chosen or named is
+       remembered (flags.cardGame). */
+    const named = replay || stored ? null : gameFrom(ctx.input);
+    let game = replay ? (replay.game === 'holdem' ? 'holdem' : 'draw') : stored && CARD_GAMES.includes(stored.game) ? stored.game : named || rememberedGame();
+    let chose = replay ? replay.chose === true : stored ? stored.chose === true : !!named;
+    // /cheat win (wave 13): armed, this hand is not played; it is the player's, the table shown finished.
+    let win = !replay && !left && winArmed() ? 'armed' : null;
+    let node = null;
+    if (!game && !win) {
+      const pick = Object.assign({ choose: true }, base);
+      node = UI.feed.cards(pick);
+      const choice = await waitForHand(pick, node, 'choose');
+      if (choice.win) win = 'control';
+      else { game = choice.game; chose = true; }
+    }
+    if (!game) game = 'holdem';
+    if (chose && rememberedGame() !== game) State.apply({ cardGame: game });
+    const cheat = replay ? replay.cheat === true : !win && cheatArmed();
     // Spent with this deal: a turn that does not go through gives it back with the snapshot. A hand played before the page was closed (resumeHand) spends it too (wave 12, L1: the pre-turn autosave still has it armed).
     if (cheat && cheatArmed() && (!replay || ctx.resume)) State.apply({ cardsCheat: false });
-    // Only the marked deck rolls (whether the dealer catches it), and not on a /cheat cards hand.
-    const rolls = !!deck && !cheat;
-    Object.assign(a, { needsRoll: rolls, stat: rolls ? 'wits' : null, difficulty: rolls ? 'normal' : null, targets: [dealer.id].concat(a.targets.filter(t => t !== dealer.id)) });
-    // hooks.cardsDeal (tests, the console): the next hand dealt as given.
+    if (win === 'armed' || (replay && ctx.resume && replay.win === 'armed' && winArmed())) State.apply({ cardsWin: false });
     const set = !replay && isObj(hooks.cardsDeal) ? hooks.cardsDeal : null;
-    if (set) hooks.cardsDeal = null;
-    const dealt = replay
-      ? { player: replay.player.dealt.slice(), dealer: replay.dealer.dealt.slice(), dealerHolds: replay.dealer.held.slice(), dealerFinal: replay.dealer.final.slice(), read: Object.assign({ says: 'nothing', right: false, odds: readOdds(s) }, replay.read || {}) }
-      : dealHand(cardSeed(s), readOdds(s), cheat, set);
-    const dHold = dealt.dealerHolds;
-    const dFinal = dealt.dealerFinal;
-    const first = String(dealer.name).split(/\s+/)[0];
-    const table = {
-      dealerId: dealer.id, dealerName: dealer.name, stake, marked: !!deck, cheat,
-      read: Object.assign({}, dealt.read, { text: readText(dealt.read.says, first) }),
-      player: { dealt: dealt.player.slice() }, dealer: { dealt: dealt.dealer.slice() }
-    };
-    if (st.note) table.stakeNote = st.note;
-    if (st.note && st.named !== null && st.named !== stake) table.named = st.named;
-    status('cards');
-    // A hand the page was closed on before it was played (resumeHand): folded, as if the player got up and left (wave 12, L4: closed, not stopped).
-    const left = !replay && ctx.resume === 'open';
-    const node = UI.feed.cards(table, replay || left ? { replay: true } : null);
-    /* On the table (wave 11, M1): a page closed now finds it on the next
-       load, so the ante stays in. Bound to the game it came from (wave 12,
-       M2: its id, the turn and the story it follows, handMark) and to this
-       tab and this hand (L3: the tab, a token), so only that game's next
-       load resumes it and only this turn takes it off the table. */
-    const held = !replay && !left && !ctx.reroll ? Object.assign(handMark(s), { input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null, tab: Storage.tabId, token: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` }) : null;
-    if (held && Storage.holdHand(held)) handHeld = held.token;
-    const choice = replay ? (replay.folded ? { fold: true, stopped: replay.stopped === true, closed: replay.closed === true } : { hold: replay.player.held.slice() }) : left ? { fold: true, closed: true } : await waitForHand(table, node);
-    const folded = choice.fold === true;
+    const seats = replay ? (replay.seats || []).map(x => State.npc(x.id)).filter(Boolean) : stored && Array.isArray(stored.seats) ? stored.seats.map(id => State.npc(id)).filter(Boolean) : seatsFor(ctx, dealer, seed, set);
+    const c = { s, ctx, dealer, seats, stake, deck, cheat, win, winNow: !!win, base, seed, first, left, stored, node, game, chose };
+    const out = replay ? playedHand(replay) : game === 'holdem' ? await holdemHand(c) : await drawHand(c);
+    const rec0 = out.record;
     // Stop folded it (wave 11, M1): the ante is in; the turn is committed and told plainly.
-    if (folded && choice.stopped === true && !replay) ctx.handStopped = true;
-    const holds = folded ? [] : Cards.holdsFrom(choice.hold);
-    const pFinal = replay ? replay.player.final.slice() : folded ? dealt.player.slice() : Cards.draw(dealt.player, holds, dealt.playerPile);
-    // A fold ends the hand before the dealer draws: his cards are shown as dealt.
-    const dShown = folded ? dealt.dealer.slice() : dFinal;
-    const pe = Cards.evaluate(pFinal);
-    const de = Cards.evaluate(dShown);
+    if (out.folded && out.stopped && !replay) ctx.handStopped = true;
+    // Only the marked deck rolls (whether the dealer catches it), and not on a /cheat cards hand or a win cheat.
+    const rolls = !!deck && !cheat && !out.win;
+    Object.assign(a, { needsRoll: rolls, stat: rolls ? 'wits' : null, difficulty: rolls ? 'normal' : null });
     // The marked deck's one roll, once the hand is played (no complication at cards: being caught is what goes wrong).
     let roll = null;
     if (rolls) {
@@ -18280,47 +19102,62 @@ const Pipeline = (() => {
       storyPointFor(ctx, roll);
     }
     const caught = !!roll && roll.tier === 'critical_failure';
-    const cmp = folded ? 0 : Cards.compare(pFinal, dFinal);
-    const result = caught ? 'caught' : folded ? 'fold' : cmp > 0 ? 'win' : cmp < 0 ? 'lose' : 'split';
-    const delta = { win: stake, lose: -stake, split: 0, fold: -price, caught: -stake }[result];
+    const result = caught ? 'caught' : out.showdown;
+    const me = out.sides[0];
+    const delta = caught ? -stake : (me.won | 0) - (me.in | 0);
     if (delta) State.apply({ goldDelta: delta });
     // The top bar and the Character panel show the cash the table shows (wave 11, M2), mid-turn as it is.
     UI.showCash();
-    const record = Object.assign({}, table, {
-      read: Object.assign({}, table.read),
-      player: { dealt: dealt.player.slice(), held: holds.slice(), final: pFinal, name: pe.name },
-      dealer: { dealt: dealt.dealer.slice(), held: folded ? [0, 1, 2, 3, 4] : dHold.slice(), final: dShown, name: de.name },
-      result, delta, cash: p.gold
-    }, folded ? { folded: true } : {}, folded && choice.stopped === true ? { stopped: true } : {}, folded && choice.closed === true ? { closed: true } : {});
+    const record = Object.assign({}, rec0, { result, delta, cash: p.gold });
     ctx.cards = record;
-    UI.feed.cardsDone(node, record);
+    UI.feed.cardsDone(out.node, record);
     // Played: a page closed before the turn is kept finds the hand as it ended, and the catch roll's die.
-    if (held && handHeld === held.token) Storage.holdHand(Object.assign(held, { cards: record, d20: roll ? roll.d20 : null }));
+    storeHand(out.held, { cards: record, d20: roll ? roll.d20 : null });
     const place = String(l.name).replace(/^The /, 'the ');
+    // What the other seats make of it (wave 13); nothing when the hand is void.
+    const marks = caught ? [] : seatMarks(out, p, place, game === 'holdem' ? Math.min(5 * (rec0.unit || 1), stake) : stake);
     // Put out (wave 4, playtest R2): onto the street outside, which the narration tells; the engine moves the player there after it.
     const street = caught ? outsideOf(l) : null;
-    ctx.gamble = { played: true, stake, delta, result, caught, folded, stopped: !!ctx.handStopped, cheat, dealerId: dealer.id, dealerName: dealer.name, deck: deck ? deck.name : null, player: pe.name, dealer: de.name, tier: roll ? roll.tier : null, locationId: l.id };
+    const headsUpDraw = game === 'draw' && !seats.length;
+    const nameOf = key => (key === 'player' ? 'the player' : (State.npc(key) || {}).name || 'someone');
+    ctx.gamble = {
+      played: true, game, stake, unit: rec0.unit || null, delta, result, caught, folded: out.folded, stopped: !!ctx.handStopped, cheat, win: out.win || null,
+      dealerId: dealer.id, dealerName: dealer.name, deck: deck ? deck.name : null, player: rec0.player.name, dealer: rec0.dealer.name, tier: roll ? roll.tier : null, locationId: l.id,
+      pot: out.pot, uncontested: rec0.uncontested === true, headsUp: !seats.length, winners: out.winners.filter(k => k !== 'player').map(nameOf),
+      seats: (rec0.seats || []).map(x => ({ id: x.id, name: x.who, hand: x.name, folded: x.folded === true, foldedOn: Number.isInteger(x.foldedOn) ? x.foldedOn : null, won: x.won | 0 })),
+      dealerFolded: rec0.dealer.folded === true, dealerFoldedOn: Number.isInteger(rec0.dealer.foldedOn) ? rec0.dealer.foldedOn : null, marks
+    };
     if (street) Object.assign(ctx.gamble, { outsideId: street.id, outsideName: street.name });
     const onto = street ? ` onto ${placeName(street)}` : '';
-    const ph = handWords(pe.name);
-    const dh = handWords(de.name);
-    const how = {
+    const ph = handWords(rec0.player.name || 'hand');
+    const dh = handWords(rec0.dealer.name || 'hand');
+    const caughtHow = `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${deck ? lowerFirst(deck.name) : 'deck'}; the hand is void`;
+    const how = headsUpDraw ? {
       win: `the player's ${ph} beats ${dealer.name}'s ${dh} at the showdown: the player wins ${money(stake)}`,
       lose: `the player's ${ph} loses to ${dealer.name}'s ${dh} at the showdown: the player loses ${money(stake)}`,
       split: `the player's ${ph} ties ${dealer.name}'s ${dh} at the showdown: a split pot, and no money changes hands`,
       fold: `the player folds their ${ph} before the draw and gives up half the stake: the player loses ${money(price)}`,
-      caught: `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${deck ? lowerFirst(deck.name) : 'deck'}; the hand is void`
-    }[result];
+      caught: caughtHow
+    }[result] : tableWords(rec0, delta, caught ? caughtHow : null);
+    // The game and who sat in (wave 13): "five-card draw, heads up with Curtis Pruett", "Texas hold'em with Royce Pittman and Curtis Pruett, Curtis Pruett dealing".
+    const around = seats.map(n => n.name).concat([dealer.name]);
+    const lead = game === 'holdem'
+      ? `the card game (the player came in for at most ${stakeWords(rec0)}; the ante and every bet ${money(rec0.unit)}): Texas hold'em${seats.length ? ` with ${andList(around)}, ${dealer.name} dealing` : `, heads up with ${dealer.name}`}`
+      : `the card game (the player put up ${stakeWords(rec0)}): five-card draw${seats.length ? ` with ${andList(around)}, ${money(stake)} each` : `, heads up with ${dealer.name}`}`;
     const cash = delta ? `cash now ${money(p.gold)}` : `cash still ${money(p.gold)}`;
     // Said only when money moved (wave 11, M6): a split pot moves none.
     const moved = delta ? ' The money has already changed hands.' : '';
-    const marks = rolls && !caught ? ` The player read the dealer's cards off the ${lowerFirst(deck.name)} through the hand, and ${dealer.name} did not catch it.` : '';
+    const readMarks = rolls && !caught ? ` The player read the dealer's cards off the ${lowerFirst(deck.name)} through the hand, and ${dealer.name} did not catch it.` : '';
+    // What the seats make of it is recorded already (wave 13).
+    const kept = marks.length ? ` Already recorded: ${marks.map(m => (m.lost ? `${m.name} lost ${money(m.lost)} to the player and holds it against them a little` : `${m.name} took a pot off the player and is pleased about it`)).join('; ')}.` : '';
     // Back on the first day the place is open (wave 11, L6), and the dealer will not deal to them for a week.
     const back = caught ? openDayFrom(l, s.time.day + CAUGHT_BAN_DAYS) : null;
-    const out = caught ? ` ${dealer.name} takes the ${lowerFirst(deck.name)} and throws the player out of ${place}${onto}, and they are not welcome back for three days (today counted: back on ${State.weekday(back)}, Day ${back}); ${dealer.name} won't deal to them for a week.` : '';
-    nl.push(`OUTCOME: the card game (the player put up ${stakeWords(table)}): ${how} (${cash}).${moved}${marks} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${out}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
-    const said = { win: `wins ${money(stake)}`, lose: `loses ${money(stake)}`, split: 'breaks even (a split pot)', fold: `folds and loses ${money(price)}`, caught: `loses ${money(stake)}` }[result];
-    bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${said} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: his memory, his attitude, the three-day ban and the deck he took are recorded already.` : ''}${street ? ` The engine puts the player out on ${placeName(street)}: record no playerLocationId.` : ''}`);
+    const thrown = caught ? ` ${dealer.name} takes the ${lowerFirst(deck.name)} and throws the player out of ${place}${onto}, and they are not welcome back for three days (today counted: back on ${State.weekday(back)}, Day ${back}); ${dealer.name} won't deal to them for a week.` : '';
+    nl.push(`OUTCOME: ${lead}; ${how} (${cash}).${moved}${readMarks}${kept} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${thrown}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
+    const amount = money(Math.abs(delta));
+    const said = caught ? `loses ${money(stake)}` : result === 'fold' ? `folds and loses ${amount}` : result === 'split' ? (delta ? `${delta > 0 ? 'wins' : 'loses'} ${amount} (a split pot)` : 'breaks even (a split pot)') : result === 'win' ? `wins ${amount}` : `loses ${amount}`;
+    const seatLine = seats.length ? ` The other players were ${andList(seats.map(n => n.name))}, with ${dealer.name} dealing; what they remember of the hand and how they feel about the player are recorded already: record no memory or attitude change for the hand.` : '';
+    bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${said} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: his memory, his attitude, the three-day ban and the deck he took are recorded already.` : ''}${seatLine}${street ? ` The engine puts the player out on ${placeName(street)}: record no playerLocationId.` : ''}`);
     if (caught) {
       const r = State.apply({
         // Caught with a marked deck (wave 4, the playtest's design note): the dealer keeps it.
@@ -18349,9 +19186,16 @@ const Pipeline = (() => {
     const lead = t => (t.includes(',') ? `${t},` : t);
     const yours = lowerFirst(String(g.player || 'hand'));
     const theirs = lowerFirst(String(g.dealer || 'hand'));
+    // Heads up at draw, as before; at hold'em or with more at the table (wave 13), the pot and who took it.
+    const headsUpDraw = g.game !== 'holdem' && !(g.seats || []).length;
+    const pot = money(g.pot | 0);
+    const takers = Array.isArray(g.winners) && g.winners.length ? andList(g.winners) : name;
     let text;
     if (g.caught) text = `${name} catches you with the ${lowerFirst(g.deck || 'deck')}: the hand is void. You lose ${amount} and the deck${g.outsideName ? `, and you are out on ${String(g.outsideName).replace(/^The /, 'the ')}` : ''}.`;
     else if (g.result === 'fold') text = c.stopped || c.closed ? `You fold your ${yours}, get up from the table and give up ${amount}.` : `You fold your ${lead(yours)} and give up ${amount}.`;
+    else if (!headsUpDraw && g.result === 'win') text = g.uncontested ? `The hand is played: everyone else folds, and the ${pot} pot is yours. You win ${amount}.` : `The hand is played: your ${lead(yours)} takes the ${pot} pot. You win ${amount}.`;
+    else if (!headsUpDraw && g.result === 'lose') text = `The hand is played: ${takers} ${(g.winners || []).length > 1 ? 'split' : 'takes'} the ${pot} pot, and your ${yours} loses. You lose ${amount}.`;
+    else if (!headsUpDraw) text = `The hand is played: your ${lead(yours)} splits the ${pot} pot. ${(g.delta | 0) > 0 ? `You win ${amount}.` : (g.delta | 0) < 0 ? `You lose ${amount}.` : 'Nothing changes hands.'}`;
     else if (g.result === 'win') text = `The hand is played: your ${lead(yours)} beats ${name}'s ${theirs}. You win ${amount}.`;
     else if (g.result === 'lose') text = `The hand is played: your ${lead(yours)} loses to ${name}'s ${theirs}. You lose ${amount}.`;
     else text = `The hand is played: your ${lead(yours)} ties ${name}'s ${theirs}. You split the pot.`;
@@ -18383,7 +19227,7 @@ const Pipeline = (() => {
   function handOutcome(g) {
     const amount = money(Math.abs((g && g.delta) | 0));
     return !g ? 'as it was played' : g.caught ? `you are caught cheating and lose ${amount}` : g.result === 'win' ? `you win ${amount}`
-      : g.result === 'lose' ? `you lose ${amount}` : g.result === 'fold' ? `you fold and give up ${amount}` : 'a split pot';
+      : g.result === 'lose' ? `you lose ${amount}` : g.result === 'fold' ? `you fold and give up ${amount}` : (g.delta | 0) > 0 ? `a split pot: you win ${amount}` : (g.delta | 0) < 0 ? `a split pot: you lose ${amount}` : 'a split pot';
   }
   function plainNarration(ctx, why, err) {
     const text = plainHandText(ctx);
@@ -19366,7 +20210,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [], replayCards: opts.replayCards || null, resume: opts.resume || null, resumeOther: opts.resumeOther === true };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [], replayCards: opts.replayCards || null, resume: opts.resume || null, resumeOther: opts.resumeOther === true, storedHand: opts.storedHand || null };
     // Step 13: the autosave and the render run when this batch closes: once
     // the turn is logged (then the chronicle runs), or after a rollback.
     State.beginBatch();
@@ -19753,8 +20597,10 @@ const Pipeline = (() => {
     // The hand as it was played (wave 11, L5): replayed from its record, only the marked deck's catch rolled again.
     const replayCards = isObj(entry.cards) ? deepCopy(entry.cards) : null;
     const armed = cheatArmed();
+    const winning = winArmed();
     if (!State.restore()) { UI.feed.notice('There is nothing to take back, so nothing to reroll.'); return { ok: false, reason: 'nothing' }; }
     keepCheat(armed);
+    keepWin(winning);
     World.forget(State.current.meta.turn);
     hooks.diceSalt = (hooks.diceSalt || 0) + 1;
     UI.rebuildFeed();
@@ -20310,11 +21156,16 @@ const Pipeline = (() => {
     cheatCards,
     get cheatArmed() { return cheatArmed(); },
     keepCheat,
+    cheatWin,
+    get winArmed() { return winArmed(); },
+    keepWin,
+    gameFrom, seatWords, cardPeople, seatsFor, rememberedGame, holdemRun, settlePot, unitFor, CARD_GAMES, GAME_NAMES, CARD_TAG,
     resumeHand,
     foldPrice,
     get handOpen() { return !!hand; },
-    /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). */
+    /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). Wave 13: kind is 'choose', 'draw' or 'holdem'. */
     get openHand() { return hand ? hand.table : null; },
+    get handKind() { return hand ? hand.kind : null; },
     whenIdle,
     get busy() { return busy; },
     /* Stop does something now: in any stage of a running turn. While the
@@ -23349,8 +24200,23 @@ const UI = (() => {
      shown over a marked deck's face-up cards; after the showdown the cards
      drawn are marked "New", the dealer's draw is said ("Curtis draws 3")
      and the read says whether it was right. */
+  /* Wave 13 (the owner: "Keep both and build holdem too", "more than the 2
+     of us", "a cheat win somewhere so i can skip the whole game and win"):
+     the table plays five-card draw or Texas hold'em, with up to three
+     other seats; with no game named or remembered it opens as a chooser
+     (Five-card draw, Texas hold'em). One row per seat (the dealer marked
+     "(deals)"): their cards (two at hold'em, five at draw; face down until
+     the showdown, face up with a marked deck) and a status cell ("checks",
+     "bets $4", "calls $4", "folds", then the hand's name, the winner's
+     "takes the pot"). Hold'em has the board (five slots, turned three, one
+     and one, under the street's name) and Check / Bet $u or Call $u / Fold.
+     Every open table has a pot line and, at the end of its hint, a small
+     Win (cheat) control that ends the hand the player's. */
   function handNudge() {
     const t = Pipeline.openHand;
+    const kind = Pipeline.handKind;
+    if (kind === 'choose') return "The card table is open: pick Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).";
+    if (kind === 'holdem') return `Your hand is on the table: ${t && Array.isArray(t.options) && t.options[0] === 'call' ? 'Call or Fold' : 'Check or Bet'}. Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}.`;
     return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}.`;
   }
   // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual"; and what was named that is no stake (wave 12, L8): "stake $20, the usual: $0.50 is no stake".
@@ -23358,7 +24224,14 @@ const UI = (() => {
     const named = Number.isFinite(t.named) ? `: ${Pipeline.moneyNamed(t.named)} is no stake` : '';
     return `stake ${money(t.stake)}${t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? `, the usual${named}` : t.stakeNote === 'half' ? ', half of what you have' : ''}`;
   }
-  function cardsHead(t) { return `${t.dealerName}'s table · ${stakeText(t)} · pot ${money(t.stake * 2)}`; }
+  // The game in the head once it is known (wave 13): "Curtis Pruett's table · Texas hold'em · stake $20 · pot $8"; the chooser's is the dealer and the stake.
+  function cardsHead(t) {
+    if (t.choose) return `${t.dealerName}'s table · ${stakeText(t)}`;
+    const game = Pipeline.GAME_NAMES[t.game === 'holdem' ? 'holdem' : 'draw'];
+    // At draw every seat puts up the stake (the pot as dealt, a fold or not); at hold'em the pot as it stands.
+    const pot = t.game === 'holdem' && Number.isInteger(t.pot) ? t.pot : t.stake * ((Array.isArray(t.seats) ? t.seats.length : 0) + 2);
+    return `${t.dealerName}'s table · ${game} · ${stakeText(t)} · pot ${money(pot)}`;
+  }
   function cardBits(c) { return [el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c))]; }
   // A card face up; one drawn (after the showdown, wave 11, S2) has a "New" tag and says so in its name.
   function cardFace(c, drawn) {
@@ -23389,40 +24262,126 @@ const UI = (() => {
     if (btn) btn.textContent = drawLabel($$('.cards-you button.card', node).filter(b => b.dataset.held !== 'true').length);
   }
   const CARDS_RESULT = {
-    win: t => `You win ${money(t.stake)}`, lose: t => `You lose ${money(t.stake)}`, split: () => 'Split pot',
+    win: t => `You win ${money(Math.abs(t.delta))}`, lose: t => `You lose ${money(Math.abs(t.delta))}`,
+    // A split with more at the table can still move money (wave 13): "Split pot: you win $6".
+    split: t => (t.delta ? `Split pot: ${t.delta > 0 ? 'you win' : 'you lose'} ${money(Math.abs(t.delta))}` : 'Split pot'),
     // Why a fold the player did not press (wave 12, L4): Stop, or the page closed with the hand open.
     fold: t => `${t.closed ? 'You left the table, so you fold' : t.stopped ? 'Stopped, so you fold' : 'You fold'}: −${money(Math.abs(t.delta))}`, caught: t => `Caught cheating: you lose ${money(t.stake)}`
   };
+  const STREET_LABELS = ['Pre-flop', 'The flop', 'The turn', 'The river', 'Showdown'];
+  const FOLD_WHEN = ['before the flop', 'on the flop', 'on the turn', 'on the river'];
+  const SWITCH_HINT = "Name the game in your words to switch (hold'em or draw).";
+  const firstOf = name => String(name || '').split(/\s+/)[0];
+  // The Win (cheat) control, at the end of the hint on every open table (wave 13).
+  function winButton() { return el('button', { type: 'button', class: 'btn small cards-win', onclick: e => tableAct(e.currentTarget, { win: true }) }, 'Win (cheat)'); }
+  function tableAct(btn, choice) {
+    const node = btn && btn.closest('.f-cards');
+    if (!node || !node.classList.contains('open') || !Pipeline.handOpen) return;
+    Pipeline.playHand(choice);
+  }
+  /* One seat's row: its name (the dealer marked), what it last did or how
+     it ended, the player's read of it, and its cards. */
+  function seatRow(o) {
+    return el('div', { class: `cards-side ${o.cls}`, dataset: Object.assign({ seat: o.key }, o.won ? { won: 'true' } : {}) },
+      el('p', { class: 'cards-top' }, el('span', { class: 'cards-who' }, o.who), o.deals ? el('span', { class: 'cards-deals' }, '(deals)') : null, el('span', { class: 'cards-status' }, o.status || '')),
+      o.read || null, o.note || null,
+      el('div', { class: 'cards-row', role: 'group', 'aria-label': o.label }, o.cards),
+      o.name || null);
+  }
+  function readLine(r, verdict) {
+    return el('p', { class: 'cards-read' }, el('span', { class: 'cards-k' }, 'Your read: '), `${r.text}.`,
+      verdict ? el('span', { class: 'cards-verdict', dataset: { right: String(r.right === true) } }, r.right === true ? ' You were right.' : ' You were wrong.') : null);
+  }
+  function fillChooser(node, t, head) {
+    node.classList.add('open');
+    node.replaceChildren(head,
+      el('p', { class: 'cards-ask' }, 'Which game?'),
+      el('div', { class: 'cards-acts cards-pick' },
+        el('button', { type: 'button', class: 'btn small cards-game', dataset: { game: 'draw' }, onclick: e => tableAct(e.currentTarget, { game: 'draw' }) }, 'Five-card draw'),
+        el('button', { type: 'button', class: 'btn small cards-game', dataset: { game: 'holdem' }, onclick: e => tableAct(e.currentTarget, { game: 'holdem' }) }, "Texas hold'em")),
+      el('p', { class: 'cards-hint' }, 'Stop leaves the table (nothing lost). ', winButton()));
+  }
   function fillCards(node, t) {
+    const head = el('p', { class: 'cards-head', id: node.dataset.head || null, tabindex: '-1' }, cardsHead(t));
+    node.dataset.game = t.choose ? 'choose' : t.game === 'holdem' ? 'holdem' : 'draw';
+    node.classList.toggle('holdem', !t.choose && t.game === 'holdem');
+    if (t.choose) { fillChooser(node, t, head); return; }
     const done = !!t.result;
-    const first = String(t.dealerName).split(/\s+/)[0];
-    const dealerUp = done || t.marked;
-    const price = Pipeline.foldPrice(t.stake);
+    const holdem = t.game === 'holdem';
+    const first = firstOf(t.dealerName);
+    const seats = Array.isArray(t.seats) ? t.seats : [];
     const folded = done && (t.folded === true || t.result === 'fold');
-    // A card the showdown brought (wave 11, S2): a position that side did not hold.
-    const drew = (side, i) => done && !folded && Array.isArray(side.held) && !side.held.includes(i);
-    const dealerDrew = done && !folded && Array.isArray(t.dealer.held) ? 5 - t.dealer.held.length : null;
-    // The read is about the man while his cards are face down: none over a marked deck's (wave 11, M3); after the showdown, whether it was right (S2).
-    const read = t.read && t.read.text && !t.marked ? el('p', { class: 'cards-read' }, el('span', { class: 'cards-k' }, 'Your read: '), `${t.read.text}.`,
-      done && !folded ? el('span', { class: 'cards-verdict', dataset: { right: String(t.read.right === true) } }, t.read.right === true ? ' You were right.' : ' You were wrong.') : null) : null;
+    const winners = done && t.result !== 'caught' && Array.isArray(t.winners) ? t.winners : [];
+    const winWord = key => (winners.includes(key) ? (winners.length > 1 ? 'splits the pot' : 'takes the pot') : '');
+    const verdict = done && !folded && !t.win;
     node.classList.toggle('open', !done);
-    node.replaceChildren(
-      el('p', { class: 'cards-head', id: node.dataset.head || null, tabindex: '-1' }, cardsHead(t)),
-      el('div', { class: 'cards-side cards-dealer' },
-        el('p', { class: 'cards-who' }, t.dealerName),
-        read,
-        t.marked && !done ? el('p', { class: 'cards-note' }, `Marked deck: you can read ${first}'s cards.`) : null,
-        el('div', { class: 'cards-row', role: 'group', 'aria-label': `${first}'s cards` }, (done ? t.dealer.final : t.dealer.dealt).map((c, i) => (dealerUp ? cardFace(c, drew(t.dealer, i)) : cardBack()))),
-        done ? el('p', { class: 'cards-name' }, t.dealer.name, dealerDrew !== null ? el('span', { class: 'cards-drew' }, ` · ${dealerDrew ? `${first} draws ${dealerDrew}` : `${first} stands pat`}`) : null) : null),
-      el('div', { class: 'cards-side cards-you' },
-        el('p', { class: 'cards-who' }, 'You'),
-        el('div', { class: 'cards-row', role: 'group', 'aria-label': done ? 'Your cards' : 'Your hand: pick the cards to hold' }, done ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle)),
-        done ? el('p', { class: 'cards-name' }, t.player.name) : el('p', { class: 'cards-hint' }, `Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−${money(price)}).`)),
-      done
-        ? el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`))
-        : el('div', { class: 'cards-acts' },
+    const rows = [head];
+    if (!holdem) {
+      // Five-card draw (wave 10): the dealer's five (and each seat's) face down until the showdown; the player's to hold.
+      const price = Pipeline.foldPrice(t.stake);
+      // A card the showdown brought (wave 11, S2): a position that side did not hold. A fold heads up ends the hand before anyone draws.
+      const played = side => done && Array.isArray(side.held) && !(folded && (side === t.player || !seats.length));
+      const drew = (side, i) => played(side) && !side.held.includes(i);
+      const drawWord = (side, who) => (played(side) ? el('span', { class: 'cards-drew' }, ` · ${side.held.length < 5 ? `${who} draws ${5 - side.held.length}` : `${who} stands pat`}`) : null);
+      const other = (side, key, who, cls, deals, extra) => seatRow(Object.assign({
+        cls, key, who: side.who || who, deals, won: !!winWord(key), status: winWord(key),
+        label: `${firstOf(side.who || who)}'s cards`,
+        cards: (done ? side.final : side.dealt).map((c, i) => (done || t.marked ? cardFace(c, drew(side, i)) : cardBack())),
+        name: done ? el('p', { class: 'cards-name' }, side.name, drawWord(side, firstOf(side.who || who))) : null
+      }, extra || {}));
+      // The read is about the man while his cards are face down: none over a marked deck's (wave 11, M3); after the showdown, whether it was right (S2).
+      const read = t.read && t.read.text && !t.marked ? readLine(t.read, verdict) : null;
+      const note = t.marked && !done ? el('p', { class: 'cards-note' }, `Marked deck: you can read ${seats.length ? "everyone's" : `${first}'s`} cards.`) : null;
+      rows.push(other(t.dealer, t.dealerId, t.dealerName, 'cards-dealer', true, { read, note }));
+      for (const x of seats) rows.push(other(x, x.id, x.who, 'cards-seat'));
+      rows.push(seatRow({
+        cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'), status: winWord('player'),
+        label: done ? 'Your cards' : 'Your hand: pick the cards to hold',
+        cards: done ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle),
+        name: done ? el('p', { class: 'cards-name' }, t.player.name) : null
+      }));
+      if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)));
+      else {
+        rows.push(el('p', { class: 'cards-pot' }, `Pot ${money(t.pot || t.stake * 2)} · you're in for ${money(t.playerIn || t.stake)}`));
+        rows.push(el('div', { class: 'cards-acts' },
           el('button', { type: 'button', class: 'btn primary small cards-draw', onclick: e => endHand(e.currentTarget, false) }, drawLabel(5)),
           el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, `Fold −${money(price)}`)));
+        rows.push(el('p', { class: 'cards-hint' }, `Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−${money(price)}). ${SWITCH_HINT} `, winButton()));
+      }
+      node.replaceChildren(...rows);
+      return;
+    }
+    // Texas hold'em (wave 13): two cards a seat, the board, a street at a time.
+    const up = side => t.marked || !!t.win || (done && !!side.final);
+    const ended = (side, key) => {
+      if (!done) return side.status || (side.folded ? 'folds' : '');
+      if (side.folded || (key === 'player' && folded)) return `folds ${FOLD_WHEN[side.foldedOn] || ''}`.trim();
+      if (key === 'player' && t.uncontested) return winWord('player') || 'takes the pot';
+      return [side.final ? side.name : '', winWord(key)].filter(Boolean).join(' · ');
+    };
+    const seatOf = (side, key, who, cls, deals) => seatRow({
+      cls, key, who, deals, won: !!winWord(key), status: ended(side, key), label: `${firstOf(who)}'s cards`,
+      read: side.read && side.read.text && !t.marked ? readLine(side.read, verdict) : null,
+      note: deals && t.marked && !done ? el('p', { class: 'cards-note' }, `Marked deck: you can read ${seats.length ? "everyone's" : `${first}'s`} cards.`) : null,
+      cards: side.dealt.map(c => (up(side) ? cardFace(c) : cardBack()))
+    });
+    rows.push(seatOf(t.dealer, t.dealerId, t.dealerName, 'cards-dealer', true));
+    for (const x of seats) rows.push(seatOf(x, x.id, x.who, 'cards-seat', false));
+    const shown = done ? (Number.isInteger(t.shown) ? t.shown : 5) : (t.board || []).length;
+    const street = done ? (t.street === 4 ? 'Showdown' : STREET_LABELS[t.street] || '') : STREET_LABELS[t.street] || STREET_LABELS[0];
+    rows.push(el('div', { class: 'cards-board' },
+      el('p', { class: 'cards-top' }, el('span', { class: 'cards-board-k' }, 'The board'), el('span', { class: 'cards-street' }, street)),
+      el('div', { class: 'cards-row', role: 'group', 'aria-label': `The board: ${lowerFirst(street)}` }, [0, 1, 2, 3, 4].map(i => (i < shown && t.board && t.board[i] ? cardFace(t.board[i]) : cardBack())))));
+    rows.push(seatRow({ cls: 'cards-you', key: 'player', who: 'You', won: !!winWord('player'), status: ended(t.player, 'player'), label: 'Your cards', cards: t.player.dealt.map(c => cardFace(c)) }));
+    if (done) rows.push(el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`)));
+    else {
+      const opts = Array.isArray(t.options) && t.options.length ? t.options : ['check', 'bet'];
+      const label = { check: 'Check', bet: `Bet ${money(t.unit)}`, call: `Call ${money(t.unit)}`, fold: 'Fold' };
+      rows.push(el('p', { class: 'cards-pot' }, `Pot ${money(t.pot)} · you're in for ${money(t.playerIn)}`));
+      rows.push(el('div', { class: 'cards-acts' }, opts.map((o, i) => el('button', { type: 'button', class: `btn ${i === 0 ? 'primary ' : ''}small cards-${o}`, dataset: { act: o }, onclick: e => tableAct(e.currentTarget, o === 'fold' ? { fold: true } : { act: o }) }, label[o]))));
+      rows.push(el('p', { class: 'cards-hint' }, `Stop folds the hand (−${money(t.playerIn)}). ${SWITCH_HINT} `, winButton()));
+    }
+    node.replaceChildren(...rows);
   }
   function endHand(btn, fold) {
     const node = btn && btn.closest('.f-cards');
@@ -23556,6 +24515,19 @@ const UI = (() => {
       if (opts && opts.replay) return node;
       const head = $('.cards-head', node);
       if (screen === 'game' && head && focusStillOnComposer()) moveFocus(head);
+      showTable(node);
+      return node;
+    },
+    /* The same open table drawn again (wave 13): the chooser's game dealt,
+       or the next street at hold'em. A focus that was in the table goes to
+       its head (the buttons it was on are new), and the table is kept in
+       view as it grows. */
+    cardsShow(node, t) {
+      if (!node || !node.isConnected) return node;
+      const had = node.contains(document.activeElement);
+      fillCards(node, t);
+      const head = $('.cards-head', node);
+      if (had && screen === 'game' && head) moveFocus(head);
       showTable(node);
       return node;
     },
@@ -24815,7 +25787,7 @@ const Commands = (() => {
     { name: '/undo', args: '', desc: 'Take back the last turn' },
     { name: '/reroll', args: '', desc: 'Cheat: roll the last turn\'s dice again', turn: true },
     // Wave 6 (the round-5 visual QA): the / list's line fits at every width; /help keeps the long form (help).
-    { name: '/cheat', args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll, or set the clock', help: 'Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), or set the clock (forward only)', turn: true },
+    { name: '/cheat', args: '[outcome or time <phase> [day]]', desc: 'Cheat: redo the last roll, or set the clock', help: 'Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), or set the clock (forward only)', turn: true },
     { name: '/pronouns', args: '<who> <she|he|they>', desc: 'Set someone\'s pronouns' },
     { name: '/edit', args: '<who>', desc: 'Edit someone on the People tab' },
     { name: '/save', args: '[name]', desc: 'Save to a named slot (no name: open saved games)' },
@@ -24894,10 +25866,12 @@ const Commands = (() => {
         return { ok: false, reason: 'no-card' };
       }
       case '/cheat': {
-        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat cards stacks the deck so you win your next hand at cards. /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
+        if (!arg) { UI.feed.notice('Cheats: /cheat success, /cheat partial, /cheat fail, /cheat crit, /cheat fumble or /cheat <1-20> redo the last roll with that outcome (or, with no roll to redo, make your next roll come out that way). /reroll rolls the last turn again at random. /cheat cards stacks the deck so you win your next hand at cards. /cheat win wins your next hand without playing it: the table is shown finished and the pot is yours (every open table also has a Win (cheat) button that does the same). /cheat time <phase> [day] sets the clock, as in /cheat time night or /cheat morning 2.'); return { ok: true }; }
         if (/^reroll\b/i.test(arg)) return Pipeline.reroll(arg.replace(/^reroll\s*/i, ''));
         // The next hand at cards is the player's (wave 10): free, no roll, nothing on record.
         if (/^(?:the\s+)?(?:cards?|poker|hand|deck)\b/i.test(arg)) return Pipeline.cheatCards();
+        // The next hand won without playing it (wave 13: the owner's "cheat win").
+        if (/^(?:a\s+|the\s+)?(?:win|wins|won)\b/i.test(arg)) return Pipeline.cheatWin();
         // The clock: "/cheat time night", "/cheat time morning 2", "/cheat night", "/cheat morning day 2".
         const TIME_WORD = /^(?:time|clock)\b[\s:]*/i;
         const when = TIME_WORD.test(arg) ? arg.replace(TIME_WORD, '') : /^(morning|afternoon|evening|night)\b/i.test(arg) ? arg : null;
@@ -24911,14 +25885,16 @@ const Commands = (() => {
         if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
         // An armed /cheat cards stays armed, and one the turn spent comes back with it (wave 11, L2).
         const armed = Pipeline.cheatArmed;
+        const winArmed = Pipeline.winArmed;
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
         Pipeline.keepCheat(armed);
+        Pipeline.keepWin(winArmed);
         // Everything goes back, an ending noted for after the next turn too (wave 5, the fourth review's bug 4).
         Pipeline.forgetEnding();
         World.forget(State.current.meta.turn);
         Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
         UI.rebuildFeed();
-        UI.feed.notice(`You took back the last turn.${!armed && Pipeline.cheatArmed ? ' The cards cheat is armed again: the next hand is yours.' : ''}`);
+        UI.feed.notice(`You took back the last turn.${!armed && Pipeline.cheatArmed ? ' The cards cheat is armed again: the next hand is yours.' : ''}${!winArmed && Pipeline.winArmed ? ' The win cheat is armed again: the next hand is yours without playing.' : ''}`);
         return { ok: true };
       }
       case '/save': {
@@ -25276,10 +26252,13 @@ const App = (() => {
      and L6: on a phone it was below the fold, under the "New" pill, and
      the focus fell to the page). */
   const HAND_TITLE = 'Finish the hand first: Draw or Fold (Stop folds).';
+  // Wave 13: hold'em's buttons, and the chooser (no card dealt yet).
+  const HAND_TITLE_HOLDEM = 'Finish the hand first: play it out or Fold (Stop folds).';
+  const HAND_TITLE_CHOOSE = 'Pick a game first, or Stop to leave the table (nothing lost).';
   function quitToTitle() {
     if (Pipeline.handOpen) {
       if (UI.screen !== 'game') UI.showScreen('game');
-      UI.feed.handNotice(HAND_TITLE);
+      UI.feed.handNotice(Pipeline.handKind === 'choose' ? HAND_TITLE_CHOOSE : Pipeline.handKind === 'holdem' ? HAND_TITLE_HOLDEM : HAND_TITLE);
       return false;
     }
     inGame = false;
