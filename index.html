@@ -553,6 +553,9 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .f-cards .cards-hint { margin-top: .5em; font-size: .92em; color: var(--muted); }
 .cards-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .85em; }
 .f-cards .cards-result { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
+/* A hand void in this tab (wave 12, L3: another tab took the game over): its buttons off, a line saying so. */
+.f-cards.void button.card, .f-cards.void .cards-acts .btn { cursor: not-allowed; opacity: .55; }
+.f-cards .cards-void { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
 .cards-cash { font-weight: 400; color: var(--muted); }
 @media (max-width: 420px) { .f-cards { padding: .65em .6em .75em; } .cards-row { gap: .35em; } }
 @media (prefers-reduced-motion: reduce) { button.card { transition: none; } }
@@ -7273,8 +7276,11 @@ const State = (() => {
      cash (after) }. Wave 11: folded (the player folded, or Stop folded for
      them: stopped), stakeNote ('all': all the cash they had; 'usual': the
      amount named was no stake, so $20) and named (the amount they named,
-     when it was not the stake). The feed draws it again after a reload or
-     an /undo, and /reroll replays it; anything else is dropped. */
+     when it was not the stake). Wave 12: closed (folded because the page
+     was closed with the hand open, L4), stakeNote 'half' (half their cash,
+     as asked) and named to the cent ("$0.50 is no stake", L8). The feed
+     draws it again after a reload or an /undo, and /reroll replays it;
+     anything else is dropped. */
   const CARD_RESULTS = ['win', 'lose', 'split', 'fold', 'caught'];
   function logCards(x) {
     if (!isObj(x) || !CARD_RESULTS.includes(x.result)) return null;
@@ -7293,8 +7299,9 @@ const State = (() => {
     };
     if (x.folded === true || x.result === 'fold') out.folded = true;
     if (x.stopped === true) out.stopped = true;
-    if (x.stakeNote === 'all' || x.stakeNote === 'usual') out.stakeNote = x.stakeNote;
-    if (Number.isInteger(x.named)) out.named = clamp(x.named, -1000000, 1000000);
+    if (x.closed === true) out.closed = true;
+    if (x.stakeNote === 'all' || x.stakeNote === 'usual' || x.stakeNote === 'half') out.stakeNote = x.stakeNote;
+    if (typeof x.named === 'number' && Number.isFinite(x.named)) out.named = Math.round(clamp(x.named, -1000000, 1000000) * 100) / 100;
     if (isObj(x.read) && (x.read.says === 'something' || x.read.says === 'nothing')) {
       out.read = { says: x.read.says, right: x.read.right === true, odds: Number.isFinite(Number(x.read.odds)) ? clamp(Number(x.read.odds), 0, 1) : null, text: cleanText(x.read.text, 120) };
     }
@@ -13987,6 +13994,31 @@ const Style = (() => {
     }
     return any ? total : null;
   }
+  /* "Bet" as a way of speaking (wave 12, L7): "I bet he is lying", "I bet
+     you ten bucks it rains tomorrow", "I bet you are tired" is talk, not a
+     bet at the card table. betTalk(text) is null when nothing in it bets
+     or wagers; 'clause' when the bet is followed by a clause (talk);
+     'bet' when it is a bet at cards: the cards, a hand, the game or the
+     pot named, or a bare stake ("I bet $20", "I'll bet you fifty.", "I bet
+     a fiver", "I bet everything", "I bet half my money"); 'bare' for "I
+     bet." alone; 'other' for a bet on something that is not the cards ("I
+     bet my watch", "I bet $20 on it"). */
+  const BET_VERB = /\b(?:bet|bets|betting|wager|wagers|wagering)\b/i;
+  const CARD_TALK = /\b(?:cards?|hands?|game|games|pot|poker|deal|deals|dealt|dealer|table|ante|antes|chips?|showdown|draw|blinds?)\b/i;
+  const BET_STAKE = `(?:-?\\$\\s?-?\\d[\\d,]*(?:\\.\\d+)?|-?\\d[\\d,]*(?:\\.\\d+)?|${NUMWORD}(?:[\\s-]+${NUMWORD})*)(?:\\s*(?:dollars?|bucks?|grand))?|(?:${NUMWORD}\\s+)?(?:fivers?|tenners?)`;
+  const BET_SUBJECT = `(?:he|she|they|it|we|i|you|there|this|someone|somebody|nobody|no one|everyone|everybody|he's|she's|they're|it's|it'll|there's|that's|you're|i'm|we're|they'll|he'll|she'll|you'll|i'll|we'll|he'd|she'd|they'd|you'd|the\\s+(?!whole\\b|entire\\b|lot\\b|rest\\b|pot\\b)[a-z]+)`;
+  const BET_CLAUSE = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them|ya)\\s+)?(?:(?:${BET_STAKE})\\s+)?(?:that\\b|${BET_SUBJECT}\\s+(?!all\\b)(?!${NUMWORD}\\b)[a-z']+)`, 'i');
+  // "I bet Curtis is bluffing": a name and a verb (the name is capitalised, so this one is case-sensitive).
+  const BET_NAME_CLAUSE = /\b(?:bet|bets|wager|wagers)\s+(?:(?:you|him|her|them)\s+)?(?:\S+\s+){0,2}?[A-Z][a-z]+\s+(?:is|was|will|would|can|could|has|had|did|does|knows|thinks|wants|isn't|wasn't|won't|can't|doesn't|didn't|never|always|just|already|still)\b/;
+  const BET_BARE = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them)\\s+)?(?:${BET_STAKE}|everything(?:\\s+i\\s+(?:have|got))?|it\\s+all|all\\s+i\\s+(?:have|got)|all\\s+(?:of\\s+)?my\\s+(?:money|cash)|the\\s+(?:whole|entire)\\s+(?:roll|stack|bankroll|wad|pile)|half\\s+(?:of\\s+)?(?:my\\s+(?:money|cash)|what\\s+i\\s+(?:have|got)|everything))\\s*[.!?]*\\s*$`, 'i');
+  function betTalk(text) {
+    const t = String(text || '').replace(/[’]/g, "'").replace(/[−–]/g, '-');
+    if (!BET_VERB.test(t)) return null;
+    if (BET_CLAUSE.test(t) || BET_NAME_CLAUSE.test(t)) return 'clause';
+    if (CARD_TALK.test(t) || BET_BARE.test(t)) return 'bet';
+    if (/\b(?:bet|bets|wager|wagers)\s*[.!?]*\s*$/i.test(t)) return 'bare';
+    return 'other';
+  }
   function moneyAmounts(str) {
     const out = [];
     const t = String(str || '');
@@ -14083,7 +14115,9 @@ const Style = (() => {
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
   return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
     // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
-    numberWords, NUMBER_WORD: NUMWORD };
+    numberWords, NUMBER_WORD: NUMWORD,
+    // Wave 12 (L7): "I bet he is lying" is a way of speaking, not a bet at cards.
+    betTalk };
 })();
 
 // ===== Module: Api =====
@@ -14185,7 +14219,7 @@ const Api = (() => {
      for and what it is not for. */
   const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
   const SYSTEM = {
-    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"). The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
+    parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"); \"I bet he is lying\" or \"I bet you ten bucks it rains tomorrow\" is a way of speaking, not gamble. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + RECORD_RULES + " " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
     people: "You check the people a saved text RPG made up during play against what its story says about them. The game made each of them when the player first asked for them, sometimes from random tables before anything in the story was taken into account, so a record can contradict the story (someone the story calls a man's wife recorded as a man). For each person listed, return the record corrected to match the story: name (keep it unless the story calls this person something else), pronouns from how the story refers to them, a one-line role (who they are to someone, like \"Dewayne's wife\", or their job), a one-line look and a one-line voice (keep the old ones when nothing contradicts them, else make them fit), relationToNpcId and relation only when the story states them, and homeLocationId: the listed place the story says they live, else null. Who a person is comes from what the characters state about them (\"his wife Mavis\", \"my brother Earl\", \"that's my wife you hear in there\"), and a stated relation outranks everything else: a wife or a mother is she, a husband or a brother is he, otherwise they. The pronouns the narration itself used for this person are not evidence, and neither are the player's words: the narration followed the record you are checking, so a wrong record makes the story call a wife \"he\" for turns on end, and a player sometimes corrects the story the wrong way. A line from before they were named (\"his wife's gonna be thrilled when you knock\") counts when it is clearly about them. When this person calls a man their husband and another line calls them his wife, they are his wife, she. Never add anything the story does not support. Return every person listed, in the order given.",
     clock: "You check the clock of a saved text RPG against its story. The clock has four phases a day, in order: morning, afternoon, evening, night, then the next day's morning. In older versions of the game it could run ahead of the story, for example ticking into morning in the middle of a night scene. Read the last turns (oldest first, each stamped with the clock when it was narrated) and decide where the latest narration actually is in time. behind is true only when the story is clearly earlier than CLOCK NOW: the scene is still plainly in an earlier phase (lamps on, going to bed, nobody has slept yet, while the clock says morning). phase is the phase the latest narration takes place in. dayOffset is 0 when that phase is on the clock's day and -1 when it is the day before (the night before the clock's morning). When the story fits the clock, behind is false, phase is the clock's phase and dayOffset is 0. reason is one short sentence.",
@@ -14662,7 +14696,8 @@ const Api = (() => {
      actionType gamble where a game runs (a bar), the stake in the summary. */
   // Wave 6 (the round-5 playtest's D10): "I put $50 in" and "I ante up $20" are bets, as the README says.
   // Wave 11 (L1, H2): "another hand", "deal again", "one more hand", "deal me another", "I play a hand", "let's play", "I sit down at the card table", "I raise $20", "I go all in", "I'm in for $50".
-  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in|all[ -]in)\s*[.!?]*\s*$/;
+  // Wave 12 (L7): bet and wager are a bet only as Style.betTalk reads them (the cards named, or a bare stake): "I bet he is lying" is not.
+  const MOCK_GAMBLE = /\b(gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in|all[ -]in)\s*[.!?]*\s*$/;
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* "ask her about Wade, then walk to the bridge": something done here, then
@@ -14834,7 +14869,7 @@ const Api = (() => {
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
-    else if (has(MOCK_GAMBLE) && GAMBLE_PLACES.includes(where) && !aboutAt) {
+    else if ((has(MOCK_GAMBLE) || ['bet', 'bare'].includes(Style.betTalk(input))) && GAMBLE_PLACES.includes(where) && !aboutAt) {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
@@ -14999,9 +15034,11 @@ const Api = (() => {
     if (!g.played) {
       if (/no money/.test(g.why || '')) return "You don't have a dollar to put up, so there is no game for you tonight.";
       // Wave 11 (L6, H2, L7): he will not deal to someone he caught; a bet said to someone else; when the dealer deals.
-      if (g.refused) return `${g.dealerName || 'The dealer'} won't deal to you${g.caughtDay ? ', not after the marked deck' : ''}.`;
-      if (g.saidTo) return `It's ${g.dealerName || 'the dealer'} who deals, and you said it to ${g.saidTo}.`;
-      if (/nobody is dealing/.test(g.why || '')) return `Nobody is dealing right now, so there is no game to sit in on.${g.hours ? ` ${g.hours}.` : ''}`;
+      // Someone not met yet is named as the Say picker names them (wave 12, L10).
+      const dealerSaid = g.dealerLabel || g.dealerName || 'the dealer';
+      if (g.refused) return `${capFirst(dealerSaid)} won't deal to you${g.caughtDay ? ', not after the marked deck' : ''}.`;
+      if (g.saidTo) return `It's ${dealerSaid} who deals, and you said it to ${g.saidToLabel || g.saidTo}.`;
+      if (/nobody is dealing/.test(g.why || '')) return `Nobody is dealing right now, so there is no game to sit in on.${g.hoursLabel || g.hours ? ` ${g.hoursLabel || g.hours}.` : ''}`;
       if (/ is shut /.test(g.why || '')) return 'The place is shut today, so there is no game.';
       return 'There is no card game here.';
     }
@@ -16831,9 +16868,13 @@ const Pipeline = (() => {
     handFolded: 'Stopped: a hand on the table is folded, and the ante is gone.',
     handStopped: 'Stopped. The hand stands as it was played, told plainly above.',
     handRefused: 'The narrator declined to tell that hand. It stands as it was played, told plainly above.',
-    handKept: 'The hand stands as it was played, told plainly above.',
+    // Wave 12, L5: no "try again" when there is nothing to try again.
+    handUntold: (reached, outcome) => `${reached ? 'The narrator could not be reached' : 'The story could not be written'}. The hand stands: ${outcome}.`,
     handLeftOpen: 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.',
     handLeftPlayed: 'The game was closed after this hand was played. It stands as it was played, told plainly above.',
+    // Wave 12, L3: a hand dealt in another tab, which this tab took the game over from.
+    handOtherOpen: 'A hand was left open in another tab, so it is folded here and the ante is gone.',
+    handOtherPlayed: 'A hand was played in another tab before this one took over. It stands as it was played, told plainly above.',
     locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.',
     aborted: 'Stopped. Your action was kept in the box.',
@@ -17224,7 +17265,7 @@ const Pipeline = (() => {
     if (mode === 'fact') modeLine = 'MODE: fact. The player is spending a story point to make this statement true in the world. Put the ids of existing people, places and things it refers to in targets, and new:<short description> for anyone or anything it adds. Set declaresWorldFact to true, needsRoll to false and timeCost to instant.';
     else if (isSay(sp)) {
       const all = sp.to === 'everyone';
-      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate (or gamble when the words buy into a card game here: a bet, "deal me in", "I'm in for $50", "another hand"): choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
+      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate (or gamble when the words buy into a card game here: a bet at cards, "deal me in", "I'm in for $50", "another hand"; "I bet he is lying" is talk): choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
     // Traits and wants steer the difficulty (very_hard against what they want); the look lets "the big man with the pens" resolve to the person who matches.
     const presentRow = n => {
@@ -17260,7 +17301,7 @@ const Pipeline = (() => {
   function shutReason(l, day) {
     if (!l) return '';
     const ban = State.isBanned(l.id, day);
-    if (ban) return `the player is not welcome there until day ${ban.untilDay}`;
+    if (ban) return `the player is not welcome there until day ${banBackDay(ban)}`;
     if (l.closed) return 'closed';
     if (State.isClosed(l, day)) return `closed on ${State.weekday(day)}s`;
     return '';
@@ -17321,18 +17362,25 @@ const Pipeline = (() => {
     /^\s*let'?s play(?:\s+(?:cards|poker|a hand))?\s*[.!?]*\s*$/i,
     /\b(?:another|one more) hand\b/i,
     /^\s*(?:i\s+)?raise(?:\s+(?:you|it|the pot))?\s*[.!?]*\s*$/i,
-    new RegExp(`\\b(?:raise|raises|bet|bets|wager)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
+    new RegExp(`\\b(?:raise|raises)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
     // All in as a bet ("I'm all in", "I go all in", "All in.", "all in for $50"), not "we're all in this together".
     new RegExp(`\\b(?:i'?m|i am|i go|go|going)\\s+all[\\s-]in\\b|^\\s*all[\\s-]in\\s*[.!?]*\\s*$|\\ball[\\s-]in\\s+for\\s+${SAY_NUM}`, 'i'),
     /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i
   ];
-  function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return SAY_BET.some(re => re.test(t)); }
+  /* A bet or a wager is a bet at cards only as Style.betTalk reads it (wave
+     12, L7: the cards, a hand, the game or the pot named, or a bare stake);
+     "I bet you ten bucks it rains tomorrow" and "I bet he is lying" are
+     talk. */
+  function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return SAY_BET.some(re => re.test(t)) || Style.betTalk(t) === 'bet'; }
+  // Only a figure of speech: a bet followed by a clause, and nothing else in the words that bets.
+  function betIsTalk(words) { const t = String(words || '').replace(/[’]/g, "'"); return Style.betTalk(t) === 'clause' && !SAY_BET.some(re => re.test(t)); }
   function sayAction(a, sp, words) {
     const s = State.current;
     const presentIds = State.npcsAt(s.player.locationId).map(n => n.id);
     const fixed = [];
     // A bet (wave 11, H2): the parser's gamble, or words that bet where a card game is.
-    const bet = a.actionType === 'gamble' || (wordsBet(words) && cardGameAt(here()));
+    // "I bet he is lying" is talk even when the parser read a bet (wave 12, L7).
+    const bet = (a.actionType === 'gamble' && !betIsTalk(words)) || (wordsBet(words) && cardGameAt(here()));
     if (bet && a.actionType !== 'gamble') { fixed.push(`actionType ${a.actionType} became gamble (the words bet at the card game)`); a.actionType = 'gamble'; }
     else if (!bet && !SAY_TYPES.includes(a.actionType)) { fixed.push(`actionType ${a.actionType} became talk`); a.actionType = 'talk'; }
     if (a.destinationId) { fixed.push(`destinationId ${a.destinationId} dropped`); a.destinationId = null; }
@@ -17895,21 +17943,25 @@ const Pipeline = (() => {
     if (l.cardGame === true || (Array.isArray(l.tags) && l.tags.includes('cards'))) return true;
     return /\b(card game|poker game|card table)\b/i.test(`${l.details || ''} ${l.description || ''}`);
   }
+  // Who deals cards: a person tagged bookie, or tagged dealer with cards in their role.
+  function isBookie(n) { return !!n && (n.tags || []).includes('bookie'); }
+  function isCardDealer(n) { return !!n && (n.tags || []).includes('dealer') && /\bcards?\b|card game|poker/i.test(n.role || ''); }
   function dealerOf(presentIds) {
     const people = (presentIds || []).map(id => State.npc(id)).filter(Boolean);
-    return people.find(n => (n.tags || []).includes('bookie'))
-      || people.find(n => (n.tags || []).includes('dealer') && /\bcards?\b|card game|poker/i.test(n.role || '')) || null;
+    return people.find(isBookie) || people.find(isCardDealer) || null;
   }
   /* When a place's dealer sits at its table today (wave 11, L7): "Curtis
      Pruett deals in the afternoon, evening and night", or '' when nobody
-     does. */
-  function dealerHours(l) {
+     does. labelled (the demo's words, wave 12, L10): someone the player has
+     not met is named as the Say picker names them ("The card dealer deals
+     …"). */
+  function dealerHours(l, labelled) {
     const by = [];
     for (const ph of PHASES) {
       const d = dealerOf(State.npcsAt(l.id, ph).map(n => n.id));
       if (!d) continue;
       let row = by.find(x => x.id === d.id);
-      if (!row) by.push(row = { id: d.id, name: d.name, phases: [] });
+      if (!row) by.push(row = { id: d.id, name: labelled ? capFirst(npcLabel(d)) : d.name, phases: [] });
       row.phases.push(ph);
     }
     return by.length ? `${by[0].name} deals in the ${andList(by[0].phases)}` : '';
@@ -17932,30 +17984,51 @@ const Pipeline = (() => {
     for (let i = 0; i < 7 && l && State.isClosed(l, d); i++) d++;
     return d;
   }
+  /* The day a ban lets the player back in (wave 12, L9): the first day from
+     its untilDay that the place is open, so every line about one ban (the
+     walk to the door, Go there, the People card, the Places panel, the
+     OUTCOME of being caught) names the same day. */
+  function banBackDay(ban) {
+    if (!isObj(ban) || !Number.isInteger(ban.untilDay)) return null;
+    return openDayFrom(State.loc(ban.locationId), ban.untilDay);
+  }
   /* The stake the words name (wave 11, M5): "$50", "50 bucks", "$2.50" (a
      dollar amount is whole: $2), "fifty dollars", "a hundred bucks", a bare
      number after a bet ("I raise 20", "I'm in for fifty", "I put 30 in");
-     "-$5" is negative. "Everything", "all I have", "all in" (and nothing
-     named) is all the cash. stakeFor(text, gold) -> { stake, named (the
-     amount named, or null), note: 'all' (the stake is all the cash they
-     have: asked for, or more than they have, or all of it) | 'usual' (a
-     zero or negative amount, so the usual $20) | null }. A stake is never
-     more than the cash, and at least $1. */
-  const ALL_IN = /\b(?:all[\s-]in|everything(?:\s+i(?:\s+have|'ve got|\s+got))?|all\s+(?:i|i've)\s+(?:have|got)|all\s+(?:of\s+)?my\s+(?:money|cash)|every\s+(?:dollar|cent|penny)|the\s+(?:whole|entire)\s+(?:roll|stack|bankroll|wad|pile))\b/i;
+     "-$5" is negative; "a fiver", "a tenner", "two grand" (wave 12, L8).
+     "Everything", "all I have", "all in" (and nothing named) is all the
+     cash; "half my money", "half of what I have" is half of it, rounded
+     down, at least $1 (wave 12, L8). stakeFor(text, gold) -> { stake,
+     named (the amount named, to the cent, or null), note: 'all' (the stake
+     is all the cash they have: asked for, or more than they have, or all
+     of it) | 'half' (half of it, as asked) | 'usual' (an amount under $1,
+     zero or negative, so the usual $20: "$0.50 is no stake") | null }. A
+     stake is never more than the cash, and at least $1. */
+  const ALL_IN = /\b(?:all[\s-]in|it\s+all|everything(?:\s+i(?:\s+have|'ve got|\s+got))?|all\s+(?:i|i've)\s+(?:have|got)|all\s+(?:of\s+)?my\s+(?:money|cash)|every\s+(?:dollar|cent|penny)|the\s+(?:whole|entire)\s+(?:roll|stack|bankroll|wad|pile))\b/i;
   const ONLY_ARTICLES = /^(?:(?:a|an|and)[\s-]*)+$/i;
+  const HALF_IN = /\bhalf\s+(?:of\s+)?(?:(?:my|the)\s+(?:money|cash|stack|roll|bankroll|wad|pile|winnings)|what\s+i(?:\s+have|'ve\s+got|\s+got)|everything(?:\s+i\s+have)?|it\s+all|all\s+(?:i|i've)\s+(?:have|got))\b/i;
+  // An amount to the cent, as named ("0.50 dollars" is 0.5): the stake is its whole dollars.
+  const cents = n => Math.round(n * 100) / 100;
   function namedStake(text) {
     const t = String(text || '').replace(/[’]/g, "'").replace(/[−–]/g, '-');
     const d = /(-)?\s*\$\s*(-)?\s*(\d[\d,]*(?:\.\d+)?)|(-)?\b(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|bucks?)\b/i.exec(t);
     if (d) {
-      const n = Math.floor(parseFloat((d[3] || d[5]).replace(/,/g, '')));
+      const n = cents(parseFloat((d[3] || d[5]).replace(/,/g, '')));
       if (Number.isFinite(n)) return d[1] || d[2] || d[4] ? -n : n;
     }
     const NUM = Style.NUMBER_WORD;
+    // "a fiver", "two tenners", "a grand", "5 grand" (wave 12, L8).
+    const slang = new RegExp(`\\b(?:(\\d+|${NUM}(?:[\\s-]+${NUM})*)\\s+)?(fiver|tenner)s?\\b|\\b(\\d+|${NUM}(?:[\\s-]+${NUM})*)\\s+grand\\b`, 'i').exec(t);
+    if (slang) {
+      const count = slang[1] || slang[3] || '';
+      const k = !count || ONLY_ARTICLES.test(count.trim()) ? 1 : /\d/.test(count) ? parseInt(count, 10) : Style.numberWords(count.trim());
+      if (Number.isFinite(k) && k > 0) return k * (slang[2] ? (/^f/i.test(slang[2]) ? 5 : 10) : 1000);
+    }
     const w = new RegExp(`\\b(${NUM}(?:[\\s-]+${NUM})*)\\s+(?:dollars?|bucks?)\\b`, 'i').exec(t);
     if (w && !ONLY_ARTICLES.test(w[1].trim())) { const n = Style.numberWords(w[1]); if (n !== null) return n; }
     const put = /\bput\s+(\d[\d,]*)\s+(?:in|into|on|down)\b/i.exec(t);
     if (put) return parseInt(put[1].replace(/,/g, ''), 10);
-    const bare = new RegExp(`\\b(?:bet|bets|betting|wager|wagers|raise|raises|raising|stake|in for|put in|ante up|play for)\\s+(-?\\d[\\d,]*(?:\\.\\d+)?|${NUM}(?:[\\s-]+${NUM})*)(?![\\w$])`, 'i').exec(t);
+    const bare = new RegExp(`\\b(?:bet|bets|betting|wager|wagers|raise|raises|raising|stake|in for|put in|ante up|play for)\\s+(?:(?:you|ya)\\s+)?(-?\\d[\\d,]*(?:\\.\\d+)?|${NUM}(?:[\\s-]+${NUM})*)(?![\\w$])`, 'i').exec(t);
     if (bare) {
       const x = bare[1].trim();
       if (/\d/.test(x)) { const n = Math.floor(parseFloat(x.replace(/,/g, ''))); if (Number.isFinite(n)) return n; }
@@ -17966,19 +18039,25 @@ const Pipeline = (() => {
   function stakeFor(text, gold) {
     const cash = Math.max(0, toInt(gold) || 0);
     const named = namedStake(text);
-    const all = named === null && ALL_IN.test(String(text || '').replace(/[’]/g, "'"));
-    const want = all ? cash : named === null || named <= 0 ? GAMBLE_STAKE : named;
+    const words = String(text || '').replace(/[’]/g, "'");
+    const half = named === null && HALF_IN.test(words);
+    const all = named === null && !half && ALL_IN.test(words);
+    // Whole dollars: under $1 is no stake (the usual $20).
+    const whole = named === null ? null : Math.floor(named);
+    const want = all ? cash : half ? Math.floor(cash / 2) : whole === null || whole <= 0 ? GAMBLE_STAKE : whole;
     const stake = clamp(want, 1, Math.max(1, cash));
-    const note = stake >= cash ? 'all' : named !== null && named <= 0 ? 'usual' : null;
+    const note = stake >= cash ? 'all' : whole !== null && whole <= 0 ? 'usual' : half ? 'half' : null;
     return { stake, named, note };
   }
   function stakeFrom(text, gold) { return stakeFor(text, gold).stake; }
-  /* The stake as the narrator hears it: "$140, all they have; they named $500". */
+  /* An amount as named, to the cent when it has cents: "$0.50", "−$5", "$500". */
+  function moneyNamed(n) { const v = Math.abs(n); return `${n < 0 ? '−' : ''}${money(Number.isInteger(v) ? v : v.toFixed(2))}`; }
+  /* The stake as the narrator hears it: "$140, all they have; they named $500", "$20, the usual stake: $0.50 is no stake", "$70, half of what they have". */
   function stakeWords(t) {
-    const named = Number.isInteger(t.named) ? t.named : null;
-    const said = n => (n < 0 ? `−${money(-n)}` : money(n));
-    if (t.stakeNote === 'all') return `${money(t.stake)}, all they have${named !== null && named > t.stake ? `; they named ${said(named)}` : ''}`;
-    if (t.stakeNote === 'usual') return `${money(t.stake)}, the usual stake${named !== null ? `: ${said(named)} is no stake` : ''}`;
+    const named = Number.isFinite(t.named) ? t.named : null;
+    if (t.stakeNote === 'all') return `${money(t.stake)}, all they have${named !== null && named > t.stake ? `; they named ${moneyNamed(named)}` : ''}`;
+    if (t.stakeNote === 'usual') return `${money(t.stake)}, the usual stake${named !== null ? `: ${moneyNamed(named)} is no stake` : ''}`;
+    if (t.stakeNote === 'half') return `${money(t.stake)}, half of what they have`;
     return money(t.stake);
   }
   /* A marked deck on the player: it shows them the dealer's cards, and is what gets them caught; a plain deck is only cards. */
@@ -18015,10 +18094,10 @@ const Pipeline = (() => {
      'all', fold }) plays the next hand at once, as if clicked (tests, the
      console). */
   let hand = null;
-  let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends
-  function waitForHand(table) {
+  let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends: its token
+  function waitForHand(table, node) {
     return new Promise((resolve, reject) => {
-      hand = { resolve, reject, table };
+      hand = { resolve, reject, table, node: node || null };
       const auto = hooks.cardsPlay;
       if (auto) { hooks.cardsPlay = null; Promise.resolve().then(() => playHand(auto)); }
     });
@@ -18029,6 +18108,19 @@ const Pipeline = (() => {
     hand = null;
     const c = isObj(choice) ? choice : {};
     h.resolve(c.fold === true ? { fold: true, stopped: c.stopped === true } : { hold: Cards.holdsFrom(c.hold) });
+    return true;
+  }
+  /* Another tab took the game over (wave 12, L3: Storage.setReadOnly) while
+     a hand is open here: this tab can save nothing, so the hand is void
+     here (the table stays, its buttons off, with a line saying so: the
+     other tab resumed it from storage, or it is gone with the game the
+     other tab loaded), and the turn ends without a call or a save. */
+  function voidHand() {
+    if (!hand) return false;
+    const h = hand;
+    hand = null;
+    try { UI.feed.cardsVoid(h.node); } catch (e) { console.error(e); }
+    h.reject(Object.assign(new Error('another tab took over'), { type: 'void' }));
     return true;
   }
   /* /cheat cards (wave 11, L2): armed in the game itself (State
@@ -18051,22 +18143,43 @@ const Pipeline = (() => {
     State.apply({ cardsCheat: true });
     return true;
   }
+  /* Which game, and where in it, a hand was dealt (wave 12, M2): the game
+     (its createdAt and seed), the turn, and a mark of the story it follows
+     (how long the log is and its last entry's words), so a hand is resumed
+     only by the game it came from at the turn it was dealt in, never by an
+     older save of that game played on to the same turn. */
+  function storyMark(s) {
+    const last = s.log[s.log.length - 1] || {};
+    const text = `${s.log.length}|${last.day}|${last.phase}|${last.input || ''}|${last.narration || ''}`;
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    return h.toString(36);
+  }
+  function handMark(s) { return { game: s.meta.createdAt, seed: s.meta.seed, turn: s.meta.turn, story: storyMark(s) }; }
   /* A hand the page was closed on (wave 11, M1): loaded again, the game
-     whose turn it was (the same game, the turn before it) plays that turn
-     at once: a hand left open is folded (the fold price; a marked deck's
-     catch roll), a hand already played stands as it ended (its catch roll
-     the same die), and either is told plainly. The stored hand is used up
-     either way. Returns the turn's promise, or null. */
+     whose turn it was (the same game, the turn before it, the same story:
+     handMark) plays that turn at once: a hand left open is folded (the
+     fold price; a marked deck's catch roll), a hand already played stands
+     as it ended (its catch roll the same die), and either is told plainly.
+     The stored hand is used up either way, and dropped whenever it is not
+     resumed (wave 12, M2: another game, an older save of this one, New
+     game, an import), except in a tab another tab has taken over, where it
+     is that tab's. Returns the turn's promise, or null. */
   function resumeHand() {
     const m = Storage.heldHand();
+    if (!m) return null;
+    if (Storage.readOnly) return null;
     const s = State.current;
-    if (!m || !s || busy || State.muted || readOnlyRefusal()) return null;
-    if (m.game !== s.meta.createdAt || (s.meta.turn | 0) + 1 !== m.turn || !isObj(m.action)) return null;
     Storage.dropHand();
+    if (!s || busy || State.muted || !isObj(m.action)) return null;
+    const at = handMark(s);
+    if (m.game !== at.game || m.seed !== at.seed || (at.turn | 0) + 1 !== m.turn || m.story !== at.story) return null;
     const cards = isObj(m.cards) ? m.cards : null;
     if (cards && Number.isInteger(m.d20)) hooks.nextD20 = clamp(m.d20, 1, 20);
     const speech = isObj(m.speech) ? m.speech : { mode: 'do' };
-    return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', replayCards: cards });
+    // Dealt in this tab before a reload, or in another tab (wave 12, L3): the notice says which.
+    const other = !!m.tab && m.tab !== Storage.tabId;
+    return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', resumeOther: other, replayCards: cards });
   }
   /* A hand's name inside a sentence: "two pair, kings and sevens," (the comma closes it). */
   function handWords(name) { const t = lowerFirst(name); return t.includes(',') ? `${t},` : t; }
@@ -18099,20 +18212,21 @@ const Pipeline = (() => {
               : 'the player has no money to put up';
       nl.push(`CARD GAME: no game: ${why}. No money changes hands.`);
       bl.push(`CARD GAME: no game was played (${why}); record no goldDelta.`);
-      ctx.gamble = { played: false, why, dealerId: dealer ? dealer.id : null, dealerName: dealer ? dealer.name : null, hours: hours || null, refused: !!cold, caughtDay: cold && cold.caughtDay ? cold.caughtDay : null, saidTo: saidTo ? saidTo.name : null };
+      // The demo's words name someone the player has not met as the Say picker does (wave 12, L10: "the owner and bartender"); the narrator always gets the name.
+      ctx.gamble = { played: false, why, dealerId: dealer ? dealer.id : null, dealerName: dealer ? dealer.name : null, dealerLabel: dealer ? npcLabel(dealer) : null, hours: hours || null, hoursLabel: hours ? dealerHours(l, true) : null, refused: !!cold, caughtDay: cold && cold.caughtDay ? cold.caughtDay : null, saidTo: saidTo ? saidTo.name : null, saidToLabel: saidTo ? npcLabel(saidTo) : null };
       return {};
     }
     // A /reroll of a hand (wave 11, L5): the hand as it was played; only the catch roll is new. A hand the page was closed on after it was played (resumeHand): the same.
     const replay = ctx.reroll || ctx.resume ? replayable(ctx.replayCards) : null;
-    const st = replay ? { stake: replay.stake, named: Number.isInteger(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold);
+    const st = replay ? { stake: replay.stake, named: Number.isFinite(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold);
     const stake = st.stake;
     const price = foldPrice(stake);
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
     a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
     const deck = markedDeck(p);
     const cheat = replay ? replay.cheat === true : cheatArmed();
-    // Spent with this deal: a turn that does not go through gives it back with the snapshot.
-    if (cheat && !replay) State.apply({ cardsCheat: false });
+    // Spent with this deal: a turn that does not go through gives it back with the snapshot. A hand played before the page was closed (resumeHand) spends it too (wave 12, L1: the pre-turn autosave still has it armed).
+    if (cheat && cheatArmed() && (!replay || ctx.resume)) State.apply({ cardsCheat: false });
     // Only the marked deck rolls (whether the dealer catches it), and not on a /cheat cards hand.
     const rolls = !!deck && !cheat;
     Object.assign(a, { needsRoll: rolls, stat: rolls ? 'wits' : null, difficulty: rolls ? 'normal' : null, targets: [dealer.id].concat(a.targets.filter(t => t !== dealer.id)) });
@@ -18133,13 +18247,17 @@ const Pipeline = (() => {
     if (st.note) table.stakeNote = st.note;
     if (st.note && st.named !== null && st.named !== stake) table.named = st.named;
     status('cards');
-    // A hand the page was closed on before it was played (resumeHand): folded, as Stop would have.
+    // A hand the page was closed on before it was played (resumeHand): folded, as if the player got up and left (wave 12, L4: closed, not stopped).
     const left = !replay && ctx.resume === 'open';
     const node = UI.feed.cards(table, replay || left ? { replay: true } : null);
-    // On the table (wave 11, M1): a page closed now finds it on the next load, so the ante stays in.
-    const held = !replay && !left && !ctx.reroll ? { game: s.meta.createdAt, turn: s.meta.turn, input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null } : null;
-    if (held) handHeld = Storage.holdHand(held) || handHeld;
-    const choice = replay ? (replay.folded ? { fold: true, stopped: replay.stopped === true } : { hold: replay.player.held.slice() }) : left ? { fold: true, stopped: true } : await waitForHand(table);
+    /* On the table (wave 11, M1): a page closed now finds it on the next
+       load, so the ante stays in. Bound to the game it came from (wave 12,
+       M2: its id, the turn and the story it follows, handMark) and to this
+       tab and this hand (L3: the tab, a token), so only that game's next
+       load resumes it and only this turn takes it off the table. */
+    const held = !replay && !left && !ctx.reroll ? Object.assign(handMark(s), { input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null, tab: Storage.tabId, token: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` }) : null;
+    if (held && Storage.holdHand(held)) handHeld = held.token;
+    const choice = replay ? (replay.folded ? { fold: true, stopped: replay.stopped === true, closed: replay.closed === true } : { hold: replay.player.held.slice() }) : left ? { fold: true, closed: true } : await waitForHand(table, node);
     const folded = choice.fold === true;
     // Stop folded it (wave 11, M1): the ante is in; the turn is committed and told plainly.
     if (folded && choice.stopped === true && !replay) ctx.handStopped = true;
@@ -18155,8 +18273,8 @@ const Pipeline = (() => {
       const mods = Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }).concat([{ label: deck.name, value: 2 }]);
       const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods, complication: null };
       roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
-      // What the roll is for, under the table (wave 11, L9): "Does Curtis spot the marks? Wits 17 + 3 = 20 vs 12 · Success".
-      roll.line = `Does ${first} spot the marks? ${roll.line}`;
+      // What the roll is for, under the table (wave 11, L9), read so that a success is the player's (wave 12, L2): "Keeping the marks from Curtis: Wits 17 + 3 = 20 vs 12 · Success".
+      roll.line = `Keeping the marks from ${first}: ${roll.line}`;
       ctx.roll = roll;
       UI.feed.roll(roll);
       storyPointFor(ctx, roll);
@@ -18173,11 +18291,11 @@ const Pipeline = (() => {
       player: { dealt: dealt.player.slice(), held: holds.slice(), final: pFinal, name: pe.name },
       dealer: { dealt: dealt.dealer.slice(), held: folded ? [0, 1, 2, 3, 4] : dHold.slice(), final: dShown, name: de.name },
       result, delta, cash: p.gold
-    }, folded ? { folded: true } : {}, folded && choice.stopped === true ? { stopped: true } : {});
+    }, folded ? { folded: true } : {}, folded && choice.stopped === true ? { stopped: true } : {}, folded && choice.closed === true ? { closed: true } : {});
     ctx.cards = record;
     UI.feed.cardsDone(node, record);
     // Played: a page closed before the turn is kept finds the hand as it ended, and the catch roll's die.
-    if (held && handHeld) Storage.holdHand(Object.assign(held, { cards: record, d20: roll ? roll.d20 : null }));
+    if (held && handHeld === held.token) Storage.holdHand(Object.assign(held, { cards: record, d20: roll ? roll.d20 : null }));
     const place = String(l.name).replace(/^The /, 'the ');
     // Put out (wave 4, playtest R2): onto the street outside, which the narration tells; the engine moves the player there after it.
     const street = caught ? outsideOf(l) : null;
@@ -18233,7 +18351,7 @@ const Pipeline = (() => {
     const theirs = lowerFirst(String(g.dealer || 'hand'));
     let text;
     if (g.caught) text = `${name} catches you with the ${lowerFirst(g.deck || 'deck')}: the hand is void. You lose ${amount} and the deck${g.outsideName ? `, and you are out on ${String(g.outsideName).replace(/^The /, 'the ')}` : ''}.`;
-    else if (g.result === 'fold') text = c.stopped ? `You fold your ${yours}, get up from the table and give up ${amount}.` : `You fold your ${lead(yours)} and give up ${amount}.`;
+    else if (g.result === 'fold') text = c.stopped || c.closed ? `You fold your ${yours}, get up from the table and give up ${amount}.` : `You fold your ${lead(yours)} and give up ${amount}.`;
     else if (g.result === 'win') text = `The hand is played: your ${lead(yours)} beats ${name}'s ${theirs}. You win ${amount}.`;
     else if (g.result === 'lose') text = `The hand is played: your ${lead(yours)} loses to ${name}'s ${theirs}. You lose ${amount}.`;
     else text = `The hand is played: your ${lead(yours)} ties ${name}'s ${theirs}. You split the pot.`;
@@ -18242,9 +18360,11 @@ const Pipeline = (() => {
   }
   /* What waits after a hand (wave 11, M4): thrown out, an event whose
      person is the dealer, or whose place is this place, is told on a later
-     turn, kept due; and for the week a dealer will not deal to someone he
-     caught, an event of his that is not about an obligation waits too (he
-     does not come to invite them to his game). */
+     turn, kept due; and while a dealer will not deal to the player
+     (dealerRefusal, for any reason: wave 12, M3 — the week after he caught
+     them, or while he is colder to them than DEALER_COLD), an event of his
+     that is not about an obligation waits too (he does not come to invite
+     them to his game). */
   function dueHold(ctx) {
     const s = State.current;
     const g = ctx && ctx.gamble;
@@ -18252,8 +18372,18 @@ const Pipeline = (() => {
     let locationId = null;
     if (g && g.played && g.caught) { npcIds.push(g.dealerId); locationId = g.locationId || null; }
     const fl = isObj(s.flags) ? s.flags : {};
-    const coldNpcIds = Object.keys(fl).filter(k => k.startsWith('cardsCaught.') && Number.isInteger(fl[k]) && s.time.day - fl[k] < DEALER_GRUDGE_DAYS).map(k => k.slice('cardsCaught.'.length));
+    const cold = new Set(Object.keys(fl).filter(k => k.startsWith('cardsCaught.') && Number.isInteger(fl[k]) && s.time.day - fl[k] < DEALER_GRUDGE_DAYS).map(k => k.slice('cardsCaught.'.length)));
+    for (const n of s.npcs) if ((isBookie(n) || isCardDealer(n)) && n.alive !== false && dealerRefusal(n, s)) cold.add(n.id);
+    const coldNpcIds = [...cold];
     return npcIds.length || coldNpcIds.length ? { npcIds, locationId, coldNpcIds } : null;
+  }
+  /* What the hand came to, for a notice (wave 12, L5): "you win $50",
+     "you lose $20", "a split pot", "you fold and give up $10", "you are
+     caught cheating and lose $20". */
+  function handOutcome(g) {
+    const amount = money(Math.abs((g && g.delta) | 0));
+    return !g ? 'as it was played' : g.caught ? `you are caught cheating and lose ${amount}` : g.result === 'win' ? `you win ${amount}`
+      : g.result === 'lose' ? `you lose ${amount}` : g.result === 'fold' ? `you fold and give up ${amount}` : 'a split pot';
   }
   function plainNarration(ctx, why, err) {
     const text = plainHandText(ctx);
@@ -18261,12 +18391,16 @@ const Pipeline = (() => {
     ctx.due = [];
     ctx.rumour = null;
     const node = UI.feed.narration(text, false);
-    const msg = err instanceof Api.ApiError ? cleanText(err.message, 200) : err ? `Something went wrong: ${cleanText((err && err.message) || String(err), 160)}` : '';
-    if (why === 'left') UI.feed.notice(ctx.cards && ctx.cards.stopped ? NOTICES.handLeftOpen : NOTICES.handLeftPlayed);
+    // A hand left open was folded; one already played stands. Left in this tab (a reload) or in another one (wave 12, L3).
+    if (why === 'left') UI.feed.notice(ctx.resume === 'open' ? (ctx.resumeOther ? NOTICES.handOtherOpen : NOTICES.handLeftOpen) : (ctx.resumeOther ? NOTICES.handOtherPlayed : NOTICES.handLeftPlayed));
     else if (why === 'folded') UI.feed.notice(NOTICES.handFolded);
     else if (why === 'stopped') UI.feed.notice(NOTICES.handStopped);
     else if (why === 'refused') UI.feed.notice(NOTICES.handRefused);
-    else UI.feed.notice(`${msg ? `${msg.replace(/([^.!?])$/, '$1.')} ` : ''}${NOTICES.handKept}`, 'error');
+    else {
+      // The narrator failed after the showdown (wave 12, L5): there is nothing to try again, so the notice says what happened and how the hand stands, not "try again".
+      if (err) { console.warn('[Pipeline] the narrator failed after a hand', err); State.debugLog.push({ turn: State.current.meta.turn, kind: 'narrator', reason: `the narrator failed after the hand (${(err && (err.type || err.message)) || err}); told plainly` }); }
+      UI.feed.notice(NOTICES.handUntold(err instanceof Api.ApiError || !err, handOutcome(ctx.gamble)), 'error');
+    }
     return { narration: text, node, mock: false, plain: true };
   }
 
@@ -19232,7 +19366,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [], replayCards: opts.replayCards || null, resume: opts.resume || null };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [], replayCards: opts.replayCards || null, resume: opts.resume || null, resumeOther: opts.resumeOther === true };
     // Step 13: the autosave and the render run when this batch closes: once
     // the turn is logged (then the chronicle runs), or after a rollback.
     State.beginBatch();
@@ -19444,6 +19578,8 @@ const Pipeline = (() => {
       return { ok: true, defeat: ctx.defeat ? ctx.defeat.outcome : undefined, notRecorded: notRecorded ? true : undefined };
     } catch (err) {
       if (committed) { console.error(err); return { ok: true }; }
+      // Another tab took over with the hand open (wave 12, L3: voidHand): the void table stays where it is; nothing here is kept.
+      if (err && err.type === 'void') return fail(snap, UI.feed.mark(), null, { reason: 'void' });
       if (err && err.type === 'aborted') return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingStopped : NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
       console.error(err);
       return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater(err instanceof Api.ApiError ? cleanText(err.message, 160).replace(/[.]$/, '') : '') : errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
@@ -19451,8 +19587,8 @@ const Pipeline = (() => {
       turnState = null;
       // A hand left open (a failure elsewhere) is gone; a /cheat cards the turn did not keep came back with the snapshot.
       hand = null;
-      // The turn is over, kept or not: the hand it dealt is no longer on the table (a closed page would have left it: resumeHand).
-      if (handHeld) { Storage.dropHand(); handHeld = false; }
+      // The turn is over, kept or not: the hand it dealt is no longer on the table (a closed page would have left it: resumeHand). Only this turn's hand (wave 12, L3: another tab may have put its own there since).
+      if (handHeld) { Storage.dropHand(handHeld); handHeld = false; }
       if (batchOpen) State.endBatch(); // listeners see the finished turn, or the restored state after a failure
       if (later) later();
       // An ending that could not be told waits for the end of the next turn (not this settle, or it would be tried again at once).
@@ -19756,7 +19892,7 @@ const Pipeline = (() => {
     const steps = g.phase ? phaseSteps(g.phase) : 0;
     const arrivalDay = s.time.day + (g.phase && PHASES.indexOf(s.time.phase) + steps >= PHASES.length ? 1 : 0);
     const shutThen = g.location && g.location.id !== s.player.locationId ? shutReason(g.location, arrivalDay) : null;
-    if (shutThen) { const ban = State.isBanned(g.location.id, arrivalDay); UI.feed.notice(ban ? `You are not welcome at ${placeName(g.location)} until Day ${ban.untilDay}.` : `${capFirst(placeName(g.location))} is shut then (${shutThen}).`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
+    if (shutThen) { const ban = State.isBanned(g.location.id, arrivalDay); UI.feed.notice(ban ? `You are not welcome at ${placeName(g.location)} until Day ${banBackDay(ban)}.` : `${capFirst(placeName(g.location))} is shut then (${shutThen}).`); return { ok: false, reason: State.isBanned(g.location.id, arrivalDay) ? 'banned' : 'closed', restoreInput: true }; }
     // Open then but shut now (the night before it opens): wait first and walk over when it opens.
     const waitFirst = !!(g.location && g.location.id !== s.player.locationId && isShut(g.location));
     // Already there (with a phase to skip to): the player stays and waits, so the narration is no arrival (wave 3).
@@ -20151,7 +20287,7 @@ const Pipeline = (() => {
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
-    noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine,
+    noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine, moneyNamed, openDayFrom, banBackDay,
     recap: recapText, recapText, printRecap,
     CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
     npcLine, wouldKnow, knowledgeLine, timeTakes, clockText, dateText, weekdayOf, storySoFar, earlierLine, openLine, newsLine, TOWN_NEWER, looseEndsLine,
@@ -20170,6 +20306,7 @@ const Pipeline = (() => {
     },
     /* The open hand (wave 10): Draw ({ hold: [0-4] }) or Fold ({ fold: true }); false when no hand is open. */
     playHand,
+    voidHand,
     cheatCards,
     get cheatArmed() { return cheatArmed(); },
     keepCheat,
@@ -20505,6 +20642,8 @@ const Storage = (() => {
   function setReadOnly(on) {
     readOnly = !!on;
     if (UI.otherTab) UI.otherTab(readOnly);
+    // A hand open here is void now (wave 12, L3): this tab can save nothing, and the other tab holds the game.
+    if (readOnly && Pipeline.handOpen) Pipeline.voidHand();
     return readOnly;
   }
   /* The last step of "Play here instead" (App.playHere loads the newer
@@ -20530,7 +20669,24 @@ const Storage = (() => {
   const HAND_KEY = PREFIX + 'hand';
   function holdHand(h) { if (readOnly) return false; try { area().setItem(HAND_KEY, JSON.stringify(h)); return true; } catch (e) { return false; } }
   function heldHand() { try { const raw = area().getItem(HAND_KEY); const h = raw ? JSON.parse(raw) : null; return isObj(h) ? h : null; } catch (e) { return null; } }
-  function dropHand() { try { area().removeItem(HAND_KEY); return true; } catch (e) { return false; } }
+  /* token (wave 12, L3): drop it only if it is still that hand (another tab may have put its own there since). */
+  function dropHand(token) {
+    if (token !== undefined) { const h = heldHand(); if (!h || h.token !== token) return false; }
+    try { area().removeItem(HAND_KEY); return true; } catch (e) { return false; }
+  }
+  /* This tab (wave 12, L3): kept in sessionStorage, so a reload is the same
+     tab and another tab is not; a stored hand says which tab dealt it. */
+  const TAB_KEY = PREFIX + 'tab';
+  let tabId = null;
+  function tab() {
+    if (tabId) return tabId;
+    try { tabId = area('session').getItem(TAB_KEY); } catch (e) { tabId = null; }
+    if (!tabId) {
+      tabId = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      try { area('session').setItem(TAB_KEY, tabId); } catch (e) { /* this page only */ }
+    }
+    return tabId;
+  }
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -20539,6 +20695,7 @@ const Storage = (() => {
     saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
     exportJson, exportSave, exportFileName, downloadAutosave, importFile,
     setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
+    get tabId() { return tab(); },
     get readOnly() { return readOnly; },
     get failed() { return failed; }
   };
@@ -21657,7 +21814,7 @@ const UI = (() => {
     for (const b of (Array.isArray(s.bans) ? s.bans : [])) {
       if (!isObj(b) || b.byNpcId !== n.id || !(b.untilDay > day)) continue;
       const l = State.loc(b.locationId);
-      if (l) out.push({ text: `Banned you from ${placePhrase(l.name)} until Day ${b.untilDay}`, hard: true });
+      if (l) out.push({ text: `Banned you from ${placePhrase(l.name)} until Day ${Pipeline.banBackDay(b)}`, hard: true });
     }
     return out;
   }
@@ -22144,7 +22301,8 @@ const UI = (() => {
     if (!l) return null;
     const day = s.time.day;
     const ban = (Array.isArray(s.bans) ? s.bans : []).filter(b => isObj(b) && b.locationId === l.id && b.untilDay > day).sort((a, b) => b.untilDay - a.untilDay)[0];
-    return ban ? ban.untilDay : null;
+    // The first day it is open again (wave 12, L9), as every other line about the ban says.
+    return ban ? Pipeline.banBackDay(ban) : null;
   }
   /* "Closed Sundays", "Closed Sundays and Mondays". */
   function closedDays(l) { return Array.isArray(l.closedOn) ? l.closedOn.filter(x => typeof x === 'string' && x) : []; }
@@ -23195,8 +23353,11 @@ const UI = (() => {
     const t = Pipeline.openHand;
     return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}.`;
   }
-  // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual".
-  function stakeText(t) { return `stake ${money(t.stake)}${t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? ', the usual' : ''}`; }
+  // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual"; and what was named that is no stake (wave 12, L8): "stake $20, the usual: $0.50 is no stake".
+  function stakeText(t) {
+    const named = Number.isFinite(t.named) ? `: ${Pipeline.moneyNamed(t.named)} is no stake` : '';
+    return `stake ${money(t.stake)}${t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? `, the usual${named}` : t.stakeNote === 'half' ? ', half of what you have' : ''}`;
+  }
   function cardsHead(t) { return `${t.dealerName}'s table · ${stakeText(t)} · pot ${money(t.stake * 2)}`; }
   function cardBits(c) { return [el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c))]; }
   // A card face up; one drawn (after the showdown, wave 11, S2) has a "New" tag and says so in its name.
@@ -23229,7 +23390,8 @@ const UI = (() => {
   }
   const CARDS_RESULT = {
     win: t => `You win ${money(t.stake)}`, lose: t => `You lose ${money(t.stake)}`, split: () => 'Split pot',
-    fold: t => `${t.stopped ? 'Stopped, so you fold' : 'You fold'}: −${money(Math.abs(t.delta))}`, caught: t => `Caught cheating: you lose ${money(t.stake)}`
+    // Why a fold the player did not press (wave 12, L4): Stop, or the page closed with the hand open.
+    fold: t => `${t.closed ? 'You left the table, so you fold' : t.stopped ? 'Stopped, so you fold' : 'You fold'}: −${money(Math.abs(t.delta))}`, caught: t => `Caught cheating: you lose ${money(t.stake)}`
   };
   function fillCards(node, t) {
     const done = !!t.result;
@@ -23279,11 +23441,14 @@ const UI = (() => {
   /* The open table in view (wave 11, L3): its head at the top of the story
      when the whole table does not fit (a short phone, Large text, the
      keyboard up), else all of it. */
-  function showTable(node) {
+  function showTable(node, lead) {
     const f = d.feedScroll;
     if (!f || !node || !node.isConnected) return;
     const box = f.getBoundingClientRect();
-    const r = node.getBoundingClientRect();
+    const t = node.getBoundingClientRect();
+    // A notice shown above the open table (wave 12, M1: the title screen refused) is in view with it.
+    const l = lead && lead.isConnected ? lead.getBoundingClientRect() : null;
+    const r = l ? { top: Math.min(l.top, t.top), bottom: t.bottom, height: t.bottom - Math.min(l.top, t.top) } : t;
     const gap = 8;
     const top = r.top - box.top + f.scrollTop;
     if (r.height + gap > f.clientHeight) { f.scrollTop = Math.max(0, top - gap); stick = false; d.newBtn.hidden = true; }
@@ -23394,13 +23559,46 @@ const UI = (() => {
       showTable(node);
       return node;
     },
+    /* The hand is played (wave 12, M1): the story is followed again, from
+       the result line on (the table's head may have been held at the top
+       of a short phone, or the tip under it, while the hand was open). */
     cardsDone(node, t) {
       if (!node || !node.isConnected) return null;
       const had = node.contains(document.activeElement);
       fillCards(node, t);
       if (had) focusComposer();
-      afterAppend();
+      scrollToBottom();
       return node;
+    },
+    /* Another tab took the game over with the hand open here (wave 12, L3):
+       the table stays as dealt, its buttons off, with a line saying so. */
+    cardsVoid(node) {
+      if (!node || !node.isConnected) return null;
+      const had = node.contains(document.activeElement);
+      node.classList.remove('open');
+      node.classList.add('void');
+      for (const b of $$('button', node)) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+      const line = el('p', { class: 'cards-void' }, 'Another tab took over; this hand is void here.');
+      const hint = $('.cards-hint', node);
+      if (hint) hint.remove();
+      const acts = $('.cards-acts', node);
+      if (acts) acts.before(line); else node.append(line);
+      if (had) { const head = $('.cards-head', node); if (head) moveFocus(head); }
+      return node;
+    },
+    /* A notice while the hand is open (wave 12, M1 and L6: the title screen
+       refused): above the table, so it and the table's head are in view
+       together on a short phone, with no "New" pill over the buttons; the
+       focus goes to the table's head. Not at an open table: a notice. */
+    handNotice(text) {
+      const node = $('#feed .f-cards.open');
+      if (!node) return feed.notice(text);
+      const n = el('p', { class: 'f-item f-notice' }, el('span', { class: 'f-notice-text' }, String(text)));
+      node.before(n);
+      showTable(node, n);
+      const head = $('.cards-head', node);
+      if (screen === 'game' && head) moveFocus(head);
+      return n;
     },
     /* mark()/rollback(mark): take a failed turn's lines back out of the feed. */
     mark() { return d.feed.childElementCount; },
@@ -24877,6 +25075,8 @@ const App = (() => {
     if (Storage.readOnly) Storage.setReadOnly(false);
     State.commit();
     inGame = true;
+    // A hand left on a table is never this new game's (wave 12, M2): it is dropped, as a load that does not match drops it.
+    Storage.dropHand();
     Storage.requestPersist();
     const live = !Storage.settings().mockMode && !!Storage.getApiKey();
     if (live) {
@@ -25071,12 +25271,15 @@ const App = (() => {
   /* The title screen (the menu's Title screen, Settings' Quit). Not with a
      hand on the table (wave 11, H1): the turn waits for the player's Draw
      or Fold, so nothing could be loaded or started until a reload; the
-     game stays, with a notice, and nothing changes. */
+     game stays, with a notice, and nothing changes. The notice goes above
+     the table, in view with its head, which takes the focus (wave 12, M1
+     and L6: on a phone it was below the fold, under the "New" pill, and
+     the focus fell to the page). */
   const HAND_TITLE = 'Finish the hand first: Draw or Fold (Stop folds).';
   function quitToTitle() {
     if (Pipeline.handOpen) {
       if (UI.screen !== 'game') UI.showScreen('game');
-      UI.feed.notice(HAND_TITLE);
+      UI.feed.handNotice(HAND_TITLE);
       return false;
     }
     inGame = false;
