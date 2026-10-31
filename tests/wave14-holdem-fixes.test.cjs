@@ -421,7 +421,7 @@ s.test('#5 a new street starts with the statuses of the seats still in cleared (
 
 // ----- #8, #9: the head's pot at draw, the kickers -----
 
-s.test('#8 at draw the head\'s pot is the real pot after a fold (heads up $30, five at the table $90); #9 two shown hands of the same name are told apart by the deciding cards ("Pair of aces, nine kicker" / "eight kicker"; "Flush, ace-king high" / "ace-queen high"), an exact tie keeps one name', async h => {
+s.test('#8 at draw the head\'s pot is the real pot after a fold (heads up $30, five at the table $90); #9 two shown hands of the same name are told apart by the deciding cards ("Pair of aces, king-nine kickers" / "king-eight kickers"; "Flush, ace-king high" / "ace-queen high"), an exact tie keeps one name', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -449,9 +449,10 @@ s.test('#8 at draw the head\'s pot is the real pot after a fold (heads up $30, f
   await sendText(page, 'I bet $20 at cards');
   c = (await lastEntry(page)).cards;
   const t = await tableNow(page);
-  assert.deepEqual([c.player.name, c.dealer.name], ['Pair of aces, nine kicker', 'Pair of aces, eight kicker']);
-  assert.deepEqual([t.seats[1].status, t.seats[0].status], ['Pair of aces, nine kicker · takes the pot', 'Pair of aces, eight kicker']);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /pair of aces, eight kicker/);
+  // Changed by design in wave 15: the kickers are named from the first (the king both hold) to the one that decides.
+  assert.deepEqual([c.player.name, c.dealer.name], ['Pair of aces, king-nine kickers', 'Pair of aces, king-eight kickers']);
+  assert.deepEqual([t.seats[1].status, t.seats[0].status], ['Pair of aces, king-nine kickers · takes the pot', 'Pair of aces, king-eight kickers']);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /pair of aces, king-eight kickers/);
   const names = await page.evaluate(() => {
     const C = Game.Cards;
     const H = t => t.split(' ');
@@ -526,7 +527,7 @@ s.test('#10 /cheat win typed with a hand open is the Win (cheat) control; /cheat
 
 // ----- #14, #15, #17, #21: the words and the demo -----
 
-s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a game named in a short line as a bet (the last game named wins; the stake from the words or the usual), and "I bet he is lying" as talk; #17 drawing cards is not the game; #15 nobody at the table "arrives" after the hand; #21 heads up "Curtis Pruett folds to you"', async h => {
+s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a game named in a short line as a bet (the last game named wins; the stake from the words or the usual), and "I bet he is lying" as talk; #17 drawing cards is not the game; #15 nobody who sat at the table "arrives" after the hand; #21 heads up "Curtis Pruett folds to you"', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -562,7 +563,7 @@ s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a g
   assert.deepEqual([e.cards.uncontested, e.cards.dealer.folded], [true, true]);
   assert.match(e.narration, new RegExp(`${spot.dealerName} folds to you before the flop, and the \\$\\d+ pot is yours`));
   assert.doesNotMatch(e.narration, /everyone folds/);
-  // The people who sat in never "arrive" after the hand they played (the afternoon crowd came while the player waited).
+  // The people who sat in never "arrive" after the hand they played (the afternoon crowd came while the player waited). Changed by design in wave 15: whoever came in and did not sit in still arrives.
   const page2 = await open(h);
   await quickStart(page2);
   await fast(page2);
@@ -575,7 +576,8 @@ s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a g
   await sendText(page2, "deal everyone in, hold'em, $20");
   const e2 = await lastEntry(page2);
   assert.ok(e2.cards && e2.cards.seats.length >= 1, 'seats sat in');
-  assert.doesNotMatch(e2.narration, /\barrives?\b/, e2.narration);
+  const arriving = (/[^.]*\barrives?\./.exec(e2.narration) || [''])[0];
+  for (const who of e2.cards.seats.map(x => x.who).concat([e2.cards.dealerName])) assert.ok(!arriving.includes(who), `${who} sat in: ${e2.narration}`);
 });
 
 // ----- #16, #18, #19: the cap, the chooser's status, two tabs -----
