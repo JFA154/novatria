@@ -125,8 +125,14 @@ s.test('H2: a bet said in Say mode deals: "Deal me in" to the dealer and "I\'m i
   await idle(page);
   assert.equal((await lastEntry(page)).cards.result, 'fold');
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(d => /became gamble/.test(d.reason || ''))), 'logged as changed');
-  // Said to someone else: no table, the no-game line.
+  // Words that only sound like it are talk.
   const n0 = await tables(page);
+  await sayLine(page, "We're all in this together.", 'everyone');
+  await idle(page);
+  assert.deepEqual([await tables(page), await page.evaluate(() => Game.Pipeline.lastTurn.action.actionType)], [n0, 'talk']);
+  assert.deepEqual(await page.evaluate(() => ['All in.', "I'm all in", 'all in for $40', 'Raise.', 'I raise you twenty', 'Another hand?', "I'll play a hand", 'Count me in', "I'm in trouble", 'Raise your glass', 'I bet you are tired', 'all in all, a good night'].map(Game.Pipeline.wordsBet)),
+    [true, true, true, true, true, true, true, true, false, false, false, false]);
+  // Said to someone else: no table, the no-game line.
   await sayLine(page, 'Deal me in', spot.other.id);
   await idle(page);
   assert.equal(await tables(page), n0, 'no table');
@@ -437,12 +443,12 @@ s.test('L1: the demo\'s parser reads another hand, deal again, one more hand, de
   await atTable(page);
   const r = await page.evaluate(async () => {
     const out = {};
-    for (const t of ['another hand', 'Deal again.', 'one more hand', 'deal me another', 'I play a hand', "let's play", 'I sit down at the card table', 'I raise $20', 'I go all in', "I'm in for $50", 'Ante up', 'Deal me in', 'I raise my glass', 'I order a beer']) {
+    for (const t of ['another hand', 'Deal again.', 'one more hand', 'deal me another', 'I play a hand', "let's play", 'I sit down at the card table', 'I raise $20', 'I go all in', "I'm in for $50", 'Ante up', 'Deal me in', 'I raise my glass', 'I order a beer', "I tell them we're all in this together"]) {
       out[t] = (await Game.Api.parse(Game.Pipeline.parsePacket(t, { mode: 'action' }))).actionType;
     }
     return out;
   });
-  for (const [t, type] of Object.entries(r)) assert.equal(type, /glass|beer/.test(t) ? (type === 'gamble' ? 'not gamble' : type) : 'gamble', `${t}: ${type}`);
+  for (const [t, type] of Object.entries(r)) assert.equal(type, /glass|beer|together/.test(t) ? (type === 'gamble' ? 'not gamble' : type) : 'gamble', `${t}: ${type}`);
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { fold: true }; });
   await sendText(page, 'another hand');
   assert.equal((await lastEntry(page)).cards.result, 'fold', 'a table was dealt');

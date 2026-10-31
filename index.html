@@ -14662,7 +14662,7 @@ const Api = (() => {
      actionType gamble where a game runs (a bar), the stake in the summary. */
   // Wave 6 (the round-5 playtest's D10): "I put $50 in" and "I ante up $20" are bets, as the README says.
   // Wave 11 (L1, H2): "another hand", "deal again", "one more hand", "deal me another", "I play a hand", "let's play", "I sit down at the card table", "I raise $20", "I go all in", "I'm in for $50".
-  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|all[ -]in(?! all\b)|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in)\s*[.!?]*\s*$/;
+  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in|all[ -]in)\s*[.!?]*\s*$/;
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* "ask her about Wade, then walk to the bridge": something done here, then
@@ -17322,7 +17322,8 @@ const Pipeline = (() => {
     /\b(?:another|one more) hand\b/i,
     /^\s*(?:i\s+)?raise(?:\s+(?:you|it|the pot))?\s*[.!?]*\s*$/i,
     new RegExp(`\\b(?:raise|raises|bet|bets|wager)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
-    /\ball[\s-]in\b(?!\s+all\b)/i,
+    // All in as a bet ("I'm all in", "I go all in", "All in.", "all in for $50"), not "we're all in this together".
+    new RegExp(`\\b(?:i'?m|i am|i go|go|going)\\s+all[\\s-]in\\b|^\\s*all[\\s-]in\\s*[.!?]*\\s*$|\\ball[\\s-]in\\s+for\\s+${SAY_NUM}`, 'i'),
     /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i
   ];
   function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return SAY_BET.some(re => re.test(t)); }
