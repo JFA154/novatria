@@ -501,7 +501,9 @@ select.input { padding-right: 32px; }
   overflow-wrap: break-word;
 }
 .f-cards p { margin: 0; }
-.f-cards .cards-head { margin-bottom: .65em; font-size: .78em; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+/* The head takes the focus when the table opens (wave 11, M7); at Small text it is still 11px (L10). */
+.f-cards .cards-head { margin-bottom: .65em; font-size: max(11px, .78em); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-cards .cards-head:focus { outline: none; }
 .cards-side + .cards-side { margin-top: .8em; padding-top: .7em; border-top: 1px solid var(--border); }
 .f-cards .cards-who { margin-bottom: .2em; font-weight: 600; }
 .f-cards .cards-read { margin-bottom: .3em; font-style: italic; }
@@ -535,9 +537,18 @@ select.input { padding-right: 32px; }
 .card.back { background: repeating-linear-gradient(45deg, var(--accent) 0 2px, var(--surface-2) 2px 7px); border-color: var(--accent); }
 button.card { cursor: pointer; transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease; -webkit-tap-highlight-color: transparent; }
 button.card:hover { border-color: var(--muted); }
-button.card[aria-pressed="true"] { padding-bottom: .9em; transform: translateY(-.3em); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.card-hold { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 1px 0; border-radius: 3px; background: var(--accent); color: var(--accent-ink); font-size: .62em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-align: center; visibility: hidden; }
-button.card[aria-pressed="true"] .card-hold { visibility: visible; }
+button.card[data-held="true"] { padding-bottom: .9em; transform: translateY(-.3em); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* The keyboard's ring on a card is not the Hold edge (wave 11, M7): a ring in --accent-ink (3:1 and more against the accent
+   edge in both themes) between two in the text colour, so it shows on the table and on a held card alike. */
+.f-cards button.card:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 1px; box-shadow: 0 0 0 5px var(--text); }
+/* Hold (a held card) and New (a card the draw brought, after the showdown): at least 10px at Small text (wave 11, L10). */
+.card-tag { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 1px 0; border-radius: 3px; font-size: max(10px, .62em); font-weight: 700; letter-spacing: .04em; line-height: 1.1; text-transform: uppercase; text-align: center; }
+.card-hold { background: var(--accent); color: var(--accent-ink); visibility: hidden; }
+button.card[data-held="true"] .card-hold { visibility: visible; }
+.card-new { border: 1px solid var(--accent); color: var(--accent); background: var(--surface-2); }
+.card.drawn { padding-bottom: .9em; }
+.cards-drew { font-weight: 400; color: var(--muted); }
+.cards-verdict { font-style: normal; color: var(--muted); }
 .f-cards .cards-name { margin-top: .4em; font-weight: 600; }
 .f-cards .cards-hint { margin-top: .5em; font-size: .92em; color: var(--muted); }
 .cards-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: .85em; }
@@ -6902,7 +6913,8 @@ const Cards = (() => {
   const SUITS = 'shdc';
   const WORD = { 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'jack', 12: 'queen', 13: 'king', 14: 'ace' };
   const SUIT_WORD = { s: 'spades', h: 'hearts', d: 'diamonds', c: 'clubs' };
-  const SUIT_SIGN = { s: '♠', h: '♥', d: '♦', c: '♣' };
+  // Each sign is followed by U+FE0E (text presentation), so a phone draws ♥ and ♦ in the card's own colour, never as emoji (wave 11, L12).
+  const SUIT_SIGN = { s: '♠\uFE0E', h: '♥\uFE0E', d: '♦\uFE0E', c: '♣\uFE0E' };
   const RANK_NAMES = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
   const ALL = [0, 1, 2, 3, 4];
   function valid(c) { return typeof c === 'string' && c.length === 2 && RANKS.includes(c[0]) && SUITS.includes(c[1]); }
@@ -7258,8 +7270,11 @@ const State = (() => {
      'nothing', right, odds, text }, player and dealer: { dealt, held (the
      positions kept, 0-4), final (five cards each, as Cards writes them:
      'Ks', 'Th'), name }, result: win | lose | split | fold | caught, delta,
-     cash (after) }. The feed draws it again after a reload or an /undo;
-     anything else is dropped. */
+     cash (after) }. Wave 11: folded (the player folded, or Stop folded for
+     them: stopped), stakeNote ('all': all the cash they had; 'usual': the
+     amount named was no stake, so $20) and named (the amount they named,
+     when it was not the stake). The feed draws it again after a reload or
+     an /undo, and /reroll replays it; anything else is dropped. */
   const CARD_RESULTS = ['win', 'lose', 'split', 'fold', 'caught'];
   function logCards(x) {
     if (!isObj(x) || !CARD_RESULTS.includes(x.result)) return null;
@@ -7276,6 +7291,10 @@ const State = (() => {
       dealerName: cleanText(x.dealerName, 80) || 'The dealer', marked: x.marked === true, cheat: x.cheat === true,
       player, dealer, result: x.result, delta: toInt(x.delta) || 0, cash: toInt(x.cash) || 0
     };
+    if (x.folded === true || x.result === 'fold') out.folded = true;
+    if (x.stopped === true) out.stopped = true;
+    if (x.stakeNote === 'all' || x.stakeNote === 'usual') out.stakeNote = x.stakeNote;
+    if (Number.isInteger(x.named)) out.named = clamp(x.named, -1000000, 1000000);
     if (isObj(x.read) && (x.read.says === 'something' || x.read.says === 'nothing')) {
       out.read = { says: x.read.says, right: x.read.right === true, odds: Number.isFinite(Number(x.read.odds)) ? clamp(Number(x.read.odds), 0, 1) : null, text: cleanText(x.read.text, 120) };
     }
@@ -7323,7 +7342,7 @@ const State = (() => {
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
-    'fight', 'logUpdate', 'arcFill', 'giftGiven'];
+    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -7340,7 +7359,7 @@ const State = (() => {
     effectHp: 3, statCap: 3, maxHpCap: 16, instantsPerShort: 6, news: 60, effectList: 12
   };
   // Content note 7: setFlag may never overwrite these (they have their own writers).
-  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season', 'playerPriceMultiplier', 'playerPriceUntilDay', 'lodgingPaidUntilDay']);
+  const RESERVED_FLAGS = Object.freeze(['priceMultiplier', 'weather', 'season', 'playerPriceMultiplier', 'playerPriceUntilDay', 'lodgingPaidUntilDay', 'cardsCheat']);
   // What someone owes or is owed (player.obligations; CONTRACTS section 4).
   const OBLIGATION_KINDS = Object.freeze(['debt', 'blackmail', 'promise', 'errand', 'lodging']);
   // What a bookkeeper's npcFates can do to someone present (CONTRACTS section 10).
@@ -10260,6 +10279,15 @@ const State = (() => {
       return `scene at ${l.id}: arrived ${arrived.join(', ') || 'nobody'}; left ${left.join(', ') || 'nobody'}`;
     });
     one('sceneChangeDone', () => { delete s.pendingScene; return 'scene change narrated'; });
+    /* /cheat cards armed (true) or spent (false) (wave 11, L2): kept in the
+       game (flags.cardsCheat), so a reload keeps it and an /undo of the hand
+       it won arms it again. */
+    one('cardsCheat', v => {
+      if (typeof v !== 'boolean') bad('must be true or false');
+      if (!isObj(s.flags)) s.flags = {};
+      if (v) s.flags.cardsCheat = true; else delete s.flags.cardsCheat;
+      return v ? 'cards cheat armed' : 'cards cheat spent';
+    });
     each('npcHome', hm => {
       if (!isObj(hm)) bad('must be an object');
       const n = needNpc(hm.npcId);
@@ -13114,7 +13142,13 @@ const World = (() => {
      nights brought is told on time). Each keeps its day (firedDay), its
      scene flag and its town event. ctx.phase and ctx.day: the phase a walk
      lands in, so whoever comes for the player meets them there and is
-     still there once the walk's time has passed (wave 3). */
+     still there once the walk's time has passed (wave 3). ctx.hold (wave
+     11, M4: thrown out of the card game): { npcIds, locationId, coldNpcIds
+     } keeps an event whose person is one of npcIds, or whose place is
+     locationId (its trigger's place, or a scene there), due for a later
+     turn; one whose person is in coldNpcIds waits too unless it is about
+     an obligation (a dealer who will not deal to the player does not come
+     to invite them to his game). */
   function dueSeeds(ctx) {
     const s = st();
     if (!s || !Array.isArray(s.dueEvents) || !s.dueEvents.length) return [];
@@ -13128,6 +13162,10 @@ const World = (() => {
        shut door): whoever comes for them is there now and still there then. */
     const then = ctx && isObj(ctx.then) && PHASES.includes(ctx.then.phase) && Number.isInteger(ctx.then.day) && (ctx.then.phase !== phase || ctx.then.day !== day) ? ctx.then : null;
     const cap = ctx && (ctx.max === Infinity || (Number.isInteger(ctx.max) && ctx.max > 0)) ? ctx.max : MAX_DUE;
+    const hold = ctx && isObj(ctx.hold) ? ctx.hold : null;
+    const held = (ev, sd) => !!hold && ((!!ev.npcId && arr(hold.npcIds).includes(ev.npcId))
+      || (!!ev.npcId && !ev.obligationId && arr(hold.coldNpcIds).includes(ev.npcId))
+      || (!!hold.locationId && ((ev.scene === true && hold.locationId === here) || (!!sd && isObj(sd.trigger) && sd.trigger.type === 'location' && anyOf(sd.trigger.value, v => v === hold.locationId)))));
     const cands = [];
     const drop = [];
     for (const ev of s.dueEvents.slice()) {
@@ -13138,6 +13176,8 @@ const World = (() => {
       // A place's event is told in that place: if the player has moved on, it waits for them to come back.
       const sd = State.seed(ev.seedId);
       if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (!anyOf(sd.trigger.value, v => v === here) || (ctx && ctx.leaving))) continue;
+      // Held for a later turn (ctx.hold): kept due, not told now.
+      if (held(ev, sd)) continue;
       const item = { seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null };
       if (Number.isInteger(ev.firedDay)) item.firedDay = ev.firedDay;
       if (ev.scene === true) item.scene = true;
@@ -14041,7 +14081,9 @@ const Style = (() => {
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket };
+  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
+    // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
+    numberWords, NUMBER_WORD: NUMWORD };
 })();
 
 // ===== Module: Api =====
@@ -14619,7 +14661,8 @@ const Api = (() => {
   /* Betting at a card or dice game ("I bet $20 at cards", "deal me in"):
      actionType gamble where a game runs (a bar), the stake in the summary. */
   // Wave 6 (the round-5 playtest's D10): "I put $50 in" and "I ante up $20" are bets, as the README says.
-  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|sit in on|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b/;
+  // Wave 11 (L1, H2): "another hand", "deal again", "one more hand", "deal me another", "I play a hand", "let's play", "I sit down at the card table", "I raise $20", "I go all in", "I'm in for $50".
+  const MOCK_GAMBLE = /\b(bet|bets|betting|wager|wagers|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|all[ -]in(?! all\b)|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in)\s*[.!?]*\s*$/;
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* "ask her about Wade, then walk to the bridge": something done here, then
@@ -14955,7 +14998,10 @@ const Api = (() => {
     if (!g) return vary(['You buy into the next hand.', 'You get dealt into the next hand.', 'Cards go round the table, and you are in.'], key);
     if (!g.played) {
       if (/no money/.test(g.why || '')) return "You don't have a dollar to put up, so there is no game for you tonight.";
-      if (/nobody is dealing/.test(g.why || '')) return 'Nobody is dealing right now, so there is no game to sit in on.';
+      // Wave 11 (L6, H2, L7): he will not deal to someone he caught; a bet said to someone else; when the dealer deals.
+      if (g.refused) return `${g.dealerName || 'The dealer'} won't deal to you${g.caughtDay ? ', not after the marked deck' : ''}.`;
+      if (g.saidTo) return `It's ${g.dealerName || 'the dealer'} who deals, and you said it to ${g.saidTo}.`;
+      if (/nobody is dealing/.test(g.why || '')) return `Nobody is dealing right now, so there is no game to sit in on.${g.hours ? ` ${g.hours}.` : ''}`;
       if (/ is shut /.test(g.why || '')) return 'The place is shut today, so there is no game.';
       return 'There is no card game here.';
     }
@@ -15060,7 +15106,8 @@ const Api = (() => {
     let due = dueFrom.map(d => sentence(secondPerson(d.text)));
     // Say mode: the answer comes before anyone arriving or leaving, so it is never the line cut.
     const lineBudget = Math.max(1, (mode === 'normal' ? (c.moved ? 4 : isSay(c.speech) ? 4 : 3) : 6) - due.length);
-    const said = isSay(c.speech) && !c.beat && mode !== 'arrival' ? mockReply(c, lineBudget - out.length) : null;
+    // A bet said aloud is told as the hand (wave 11, H2: the demo plays the same game), not as a reply.
+    const said = isSay(c.speech) && !c.beat && mode !== 'arrival' && !c.gamble ? mockReply(c, lineBudget - out.length) : null;
     if (said) out.push(...said.lines);
     // The comings and goings are told after what the action came to (wave 3, playtest D2: a knockdown or a card loss is never the line cut).
     const scenery = [];
@@ -15149,7 +15196,13 @@ const Api = (() => {
     for (const made of (c.created || []).filter(x => x.kind === 'npc')) out.push(`${capFirst(article(made.role))} ${made.role} called ${made.name} is here.`);
     for (const made of (c.created || []).filter(x => x.kind === 'item' && !x.carried)) out.push(`You find ${article(made.name)} ${lowerFirst(made.name)} here.`);
     if (!out.length && !due.length) out.push(vary([`At ${loc}, nothing pushes back yet.`, `Nothing at ${loc} gets in your way.`, `${capFirst(loc)} carries on around you.`], key));
-    if (out.length + due.length < 2) out.push(vary([`Around you, ${loc} goes on with its ${phase}.`, `Nobody at ${loc} pays you much mind.`, `It stays quiet at ${loc} for now.`], key));
+    if (out.length + due.length < 2) {
+      // Wave 11 (L8): not "nobody pays you much mind" at a hand, and not "it stays quiet" when you were thrown out.
+      const g = c.gamble && c.gamble.played ? c.gamble : null;
+      const fill = g && g.caught ? [`Behind you, ${loc} carries on without you.`]
+        : [`Around you, ${loc} goes on with its ${phase}.`].concat(g ? [] : [`Nobody at ${loc} pays you much mind.`], [`It stays quiet at ${loc} for now.`]);
+      out.push(vary(fill, key));
+    }
     let body = out.slice(0, lineBudget);
     /* Keep to the style check's limit (Style.WORD_LIMITS) like a real
        narrator would: a place's description shrinks to its first sentence
@@ -16773,6 +16826,14 @@ const Pipeline = (() => {
       bookkeeper: 'The bookkeeper declined to record this turn, so the story stands but what changed was not recorded.'
     },
     noReroll: 'Nothing to reroll: the last turn had no dice roll.',
+    // The card table (wave 11): a hand is final once it is dealt.
+    cardsDealt: 'Nothing to reroll: the cards were dealt.',
+    handFolded: 'Stopped: a hand on the table is folded, and the ante is gone.',
+    handStopped: 'Stopped. The hand stands as it was played, told plainly above.',
+    handRefused: 'The narrator declined to tell that hand. It stands as it was played, told plainly above.',
+    handKept: 'The hand stands as it was played, told plainly above.',
+    handLeftOpen: 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.',
+    handLeftPlayed: 'The game was closed after this hand was played. It stands as it was played, told plainly above.',
     locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.',
     aborted: 'Stopped. Your action was kept in the box.',
@@ -17163,7 +17224,7 @@ const Pipeline = (() => {
     if (mode === 'fact') modeLine = 'MODE: fact. The player is spending a story point to make this statement true in the world. Put the ids of existing people, places and things it refers to in targets, and new:<short description> for anyone or anything it adds. Set declaresWorldFact to true, needsRoll to false and timeCost to instant.';
     else if (isSay(sp)) {
       const all = sp.to === 'everyone';
-      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate: choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
+      modeLine = `MODE: say, to ${all ? 'everyone present' : `${sp.to} (${sp.toName})`}. The input is the player's exact spoken words, said aloud to ${all ? 'everyone here' : sp.toName}; nothing else was done. actionType must be talk, persuade, deceive or intimidate (or gamble when the words buy into a card game here: a bet, "deal me in", "I'm in for $50", "another hand"): choose by what the words do, and decide the roll as usual. targets must include ${all ? `every NPC present (${presentIds.join(', ') || 'nobody is here'})` : sp.to}. destinationId must be null. A person mentioned in the words is one of the listed ids; never use new: for a person.`;
     } else modeLine = 'MODE: do. The input is what the player does; any speech inside it is incidental to the action.';
     // Traits and wants steer the difficulty (very_hard against what they want); the look lets "the big man with the pens" resolve to the person who matches.
     const presentRow = n => {
@@ -17242,13 +17303,37 @@ const Pipeline = (() => {
   /* The player only spoke. Whatever the parser made of it, the action is
      talk, persuade, deceive or intimidate, aimed at whoever was spoken to
      (everyone present for "Everyone"), it goes nowhere and it takes a short
-     at most. What was changed is logged as a rejected model field. */
+     at most. What was changed is logged as a rejected model field.
+     Wave 11 (H2): a bet said aloud is still a bet. A line the parser read
+     as gamble, or whose words bet where there is a card game ("Deal me
+     in", "I'm in for $50", "ante up", "I'll play a hand", "another hand",
+     "raise", "all in": SAY_BET), stays gamble: Pipeline.gamble deals when
+     the dealer was spoken to (or everyone was), and otherwise gives the
+     no-game line. */
   const SAY_TYPES = ['talk', 'persuade', 'deceive', 'intimidate'];
-  function sayAction(a, sp) {
+  const SAY_NUM = '(?:\\$\\s?\\d|\\d|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\\b)';
+  const SAY_BET = [
+    /\bdeal me (?:in|another|a hand|one more)\b/i,
+    /\bdeal (?:again|another|one more)\b/i,
+    new RegExp(`\\b(?:i'?m|i am|count me) in(?:\\s+for\\s+${SAY_NUM}|\\s*[.!?,…]*\\s*$)`, 'i'),
+    /\bante(?:\s+up)?\b/i,
+    /\b(?:i'?ll|i will|let me|i) play (?:a hand|another hand|one more hand|another|one more|cards|poker)\b/i,
+    /^\s*let'?s play(?:\s+(?:cards|poker|a hand))?\s*[.!?]*\s*$/i,
+    /\b(?:another|one more) hand\b/i,
+    /^\s*(?:i\s+)?raise(?:\s+(?:you|it|the pot))?\s*[.!?]*\s*$/i,
+    new RegExp(`\\b(?:raise|raises|bet|bets|wager)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
+    /\ball[\s-]in\b(?!\s+all\b)/i,
+    /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i
+  ];
+  function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return SAY_BET.some(re => re.test(t)); }
+  function sayAction(a, sp, words) {
     const s = State.current;
     const presentIds = State.npcsAt(s.player.locationId).map(n => n.id);
     const fixed = [];
-    if (!SAY_TYPES.includes(a.actionType)) { fixed.push(`actionType ${a.actionType} became talk`); a.actionType = 'talk'; }
+    // A bet (wave 11, H2): the parser's gamble, or words that bet where a card game is.
+    const bet = a.actionType === 'gamble' || (wordsBet(words) && cardGameAt(here()));
+    if (bet && a.actionType !== 'gamble') { fixed.push(`actionType ${a.actionType} became gamble (the words bet at the card game)`); a.actionType = 'gamble'; }
+    else if (!bet && !SAY_TYPES.includes(a.actionType)) { fixed.push(`actionType ${a.actionType} became talk`); a.actionType = 'talk'; }
     if (a.destinationId) { fixed.push(`destinationId ${a.destinationId} dropped`); a.destinationId = null; }
     if (a.timeCost === 'long' || a.timeCost === 'rest') { fixed.push(`timeCost ${a.timeCost} became short`); a.timeCost = 'short'; }
     const want = sp.to === 'everyone' ? presentIds : presentIds.filter(id => id === sp.to);
@@ -17755,8 +17840,8 @@ const Pipeline = (() => {
   /* REVIEW 3.8: a card game played in code where there is one (a place
      whose record says so: cardGame, or "card game" in its details) and its
      dealer is here (a person tagged bookie, or tagged dealer with cards in
-     their role). The stake comes from the words ($50, 50 bucks; else $20),
-     no more than the player has.
+     their role). The stake comes from the words (stakeFor), no more than
+     the player has.
      Wave 10 (the owner: "Poker is so confusing with texts. When playing
      poker, there should be a proper ui to see everything and a cheat to
      win"): five-card draw, played at a table in the feed (UI.feed.cards).
@@ -17765,22 +17850,37 @@ const Pipeline = (() => {
      the player holds what they like and draws, or folds; the dealer draws
      by Cards.dealerHolds; the better hand wins. A win pays the stake, a
      loss costs it, a split pot moves nothing, a fold costs half (rounded
-     down). Wits is a read, not the result: one line over the dealer's
-     cards ("Curtis is sitting on something": a pair or better after his
-     draw; "Curtis has nothing"), right 55% + 12% a point of Wits (its
-     modifiers too), 50 to 95%. A marked deck on the player turns the
+     up since wave 11: foldPrice). Wits is a read, not the result: one line
+     over the dealer's cards, right 60% + 12% a point of Wits (its modifiers
+     too), 50 to 95% (readOdds). A marked deck on the player turns the
      dealer's cards face up (they read the marks) and is the only roll:
      Wits against normal, +2 for the deck, once the hand is played; a
      fumble is caught cheating (the hand is void, the stake lost, the deck
      taken, a weight-3 memory, -20, banned three days with today, news, put
-     out on the street). /cheat cards (hooks.cardsCheat) stacks the next
-     hand so the player wins it, with no roll and nothing on record. The
-     money moves here; the narrator hears the hands and the result
-     (OUTCOME) and the bookkeeper that it is done (its goldDelta is
-     ignored); the log entry keeps the table (entry.cards) for the feed. */
+     out on the street, and the dealer will not deal to them for a week).
+     /cheat cards (flags.cardsCheat) stacks the next hand so the player
+     wins it, with no roll and nothing on record. The money moves here; the
+     narrator hears the hands and the result (OUTCOME) and the bookkeeper
+     that it is done (its goldDelta is ignored); the log entry keeps the
+     table (entry.cards) for the feed.
+     Wave 11 (the QA of the table): once the cards are dealt the ante is
+     in. Stop with the hand open folds it (the fold price, and the marked
+     deck's catch roll), and the turn is committed, told plainly by the
+     engine (plainNarration); after the showdown the hand is final, so a
+     narrator that fails, is stopped or declines leaves the hand told
+     plainly too, never taken back and dealt again. /reroll of a hand
+     replays it from its record and rolls only the catch again. */
   const GAMBLE_STAKE = 20;
   // Caught cheating: not welcome for three days, today counted (the narrator's "three days" and the ban agree).
   const CAUGHT_BAN_DAYS = 3;
+  // After catching the player the dealer will not deal to them for a week, today counted, nor while he is this cold to them (wave 11, L6).
+  const DEALER_GRUDGE_DAYS = 7;
+  const DEALER_COLD = -10;
+  // The read (wave 11, S3: so Wits matters): right READ_BASE% + READ_STEP% a point of Wits, 50% to 95%.
+  const READ_BASE = 60;
+  const READ_STEP = 12;
+  /* What a fold costs: half the stake, rounded up (wave 11, L4: $1 of $1, $10 of $20, $13 of $25). */
+  function foldPrice(stake) { return Math.ceil(Math.max(0, toInt(stake) || 0) / 2); }
   /* The street outside a place (wave 4, playtest R2): an exit that is a
      street, a road or a lot, else the first open exit; known, open and in
      town. Where someone thrown out of the card game ends up. */
@@ -17799,27 +17899,109 @@ const Pipeline = (() => {
     return people.find(n => (n.tags || []).includes('bookie'))
       || people.find(n => (n.tags || []).includes('dealer') && /\bcards?\b|card game|poker/i.test(n.role || '')) || null;
   }
-  function stakeFrom(text, gold) {
-    const m = /\$\s*(\d[\d,]*)|\b(\d[\d,]*)\s*(?:dollars?|bucks?)\b/i.exec(String(text || ''));
-    const want = m ? parseInt((m[1] || m[2]).replace(/,/g, ''), 10) : GAMBLE_STAKE;
-    return clamp(Number.isFinite(want) && want > 0 ? want : GAMBLE_STAKE, 1, Math.max(1, gold | 0));
+  /* When a place's dealer sits at its table today (wave 11, L7): "Curtis
+     Pruett deals in the afternoon, evening and night", or '' when nobody
+     does. */
+  function dealerHours(l) {
+    const by = [];
+    for (const ph of PHASES) {
+      const d = dealerOf(State.npcsAt(l.id, ph).map(n => n.id));
+      if (!d) continue;
+      let row = by.find(x => x.id === d.id);
+      if (!row) by.push(row = { id: d.id, name: d.name, phases: [] });
+      row.phases.push(ph);
+    }
+    return by.length ? `${by[0].name} deals in the ${andList(by[0].phases)}` : '';
+  }
+  /* Whether the dealer will deal to the player (wave 11, L6): not for a
+     week after he caught them cheating (flags['cardsCaught.<id>'] is the
+     day), nor while his attitude to them is under DEALER_COLD. Returns {
+     caughtDay } or { cold: true }, or null when he deals. */
+  function dealerRefusal(dealer, s) {
+    if (!dealer || !s) return null;
+    const caught = toInt(isObj(s.flags) ? s.flags[`cardsCaught.${dealer.id}`] : null);
+    if (caught !== null && s.time.day - caught < DEALER_GRUDGE_DAYS) return { caughtDay: caught };
+    if ((toInt(dealer.attitude) || 0) < DEALER_COLD) return { cold: true };
+    return null;
+  }
+  /* The first day from `day` on that a place is open (wave 11, L6: a ban
+     that ends on a Sunday the bar is shut says the Monday). */
+  function openDayFrom(l, day) {
+    let d = day;
+    for (let i = 0; i < 7 && l && State.isClosed(l, d); i++) d++;
+    return d;
+  }
+  /* The stake the words name (wave 11, M5): "$50", "50 bucks", "$2.50" (a
+     dollar amount is whole: $2), "fifty dollars", "a hundred bucks", a bare
+     number after a bet ("I raise 20", "I'm in for fifty", "I put 30 in");
+     "-$5" is negative. "Everything", "all I have", "all in" (and nothing
+     named) is all the cash. stakeFor(text, gold) -> { stake, named (the
+     amount named, or null), note: 'all' (the stake is all the cash they
+     have: asked for, or more than they have, or all of it) | 'usual' (a
+     zero or negative amount, so the usual $20) | null }. A stake is never
+     more than the cash, and at least $1. */
+  const ALL_IN = /\b(?:all[\s-]in|everything(?:\s+i(?:\s+have|'ve got|\s+got))?|all\s+(?:i|i've)\s+(?:have|got)|all\s+(?:of\s+)?my\s+(?:money|cash)|every\s+(?:dollar|cent|penny)|the\s+(?:whole|entire)\s+(?:roll|stack|bankroll|wad|pile))\b/i;
+  const ONLY_ARTICLES = /^(?:(?:a|an|and)[\s-]*)+$/i;
+  function namedStake(text) {
+    const t = String(text || '').replace(/[’]/g, "'").replace(/[−–]/g, '-');
+    const d = /(-)?\s*\$\s*(-)?\s*(\d[\d,]*(?:\.\d+)?)|(-)?\b(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|bucks?)\b/i.exec(t);
+    if (d) {
+      const n = Math.floor(parseFloat((d[3] || d[5]).replace(/,/g, '')));
+      if (Number.isFinite(n)) return d[1] || d[2] || d[4] ? -n : n;
+    }
+    const NUM = Style.NUMBER_WORD;
+    const w = new RegExp(`\\b(${NUM}(?:[\\s-]+${NUM})*)\\s+(?:dollars?|bucks?)\\b`, 'i').exec(t);
+    if (w && !ONLY_ARTICLES.test(w[1].trim())) { const n = Style.numberWords(w[1]); if (n !== null) return n; }
+    const put = /\bput\s+(\d[\d,]*)\s+(?:in|into|on|down)\b/i.exec(t);
+    if (put) return parseInt(put[1].replace(/,/g, ''), 10);
+    const bare = new RegExp(`\\b(?:bet|bets|betting|wager|wagers|raise|raises|raising|stake|in for|put in|ante up|play for)\\s+(-?\\d[\\d,]*(?:\\.\\d+)?|${NUM}(?:[\\s-]+${NUM})*)(?![\\w$])`, 'i').exec(t);
+    if (bare) {
+      const x = bare[1].trim();
+      if (/\d/.test(x)) { const n = Math.floor(parseFloat(x.replace(/,/g, ''))); if (Number.isFinite(n)) return n; }
+      else if (!ONLY_ARTICLES.test(x)) { const n = Style.numberWords(x); if (n !== null) return n; }
+    }
+    return null;
+  }
+  function stakeFor(text, gold) {
+    const cash = Math.max(0, toInt(gold) || 0);
+    const named = namedStake(text);
+    const all = named === null && ALL_IN.test(String(text || '').replace(/[’]/g, "'"));
+    const want = all ? cash : named === null || named <= 0 ? GAMBLE_STAKE : named;
+    const stake = clamp(want, 1, Math.max(1, cash));
+    const note = stake >= cash ? 'all' : named !== null && named <= 0 ? 'usual' : null;
+    return { stake, named, note };
+  }
+  function stakeFrom(text, gold) { return stakeFor(text, gold).stake; }
+  /* The stake as the narrator hears it: "$140, all they have; they named $500". */
+  function stakeWords(t) {
+    const named = Number.isInteger(t.named) ? t.named : null;
+    const said = n => (n < 0 ? `−${money(-n)}` : money(n));
+    if (t.stakeNote === 'all') return `${money(t.stake)}, all they have${named !== null && named > t.stake ? `; they named ${said(named)}` : ''}`;
+    if (t.stakeNote === 'usual') return `${money(t.stake)}, the usual stake${named !== null ? `: ${said(named)} is no stake` : ''}`;
+    return money(t.stake);
   }
   /* A marked deck on the player: it shows them the dealer's cards, and is what gets them caught; a plain deck is only cards. */
   function markedDeck(p) { return p.inventory.find(i => i.qty > 0 && /\bdeck\b/i.test(i.name) && /\bmarked\b/i.test(`${i.name} ${i.notes || ''}`)) || null; }
   /* The deck's generator for this turn: the game's seed and the turn number, nothing else (the same hand after /undo). */
   function cardSeed(s) { return ((Math.imul((s.meta.seed >>> 0) ^ 0x5bd1e995, 0x01000193) ^ Math.imul((s.meta.turn | 0) + 1, 0x9e3779b1)) >>> 0) || 1; }
-  /* How often the player's read of the dealer is right: 55% + 12% a point of Wits (and of its modifiers: Tired and the like), 50% to 95%. */
+  /* How often the player's read of the dealer is right: 60% + 12% a point of Wits (and of its modifiers: Tired and the like), 50% to 95%. */
   function readOdds(s) {
     const wits = clamp(toInt(s.player.stats && s.player.stats.wits) || 0, -1, 3) + Dice.sumModifiers(Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }));
-    return clamp(55 + 12 * wits, 50, 95) / 100;
+    return clamp(READ_BASE + READ_STEP * wits, 50, 95) / 100;
   }
+  /* The read in words (wave 11, S3: a read on the man, not his hand). */
+  function readText(says, first) { return says === 'something' ? `${first} has something` : `${first} is bluffing`; }
   /* A turn's hand from its seed (cardSeed): the deal, the dealer's draw
      (it never hangs on the player's) and the player's read of how he ends
      up, right with the odds given (readOdds): says 'something' (a pair or
-     better after his draw) or 'nothing'. stacked: /cheat cards. */
-  function dealHand(seed, odds, stacked) {
+     better after his draw) or 'nothing'. stacked: /cheat cards. set: {
+     player, dealer, playerPile, dealerPile } dealt as given (tests:
+     hooks.cardsDeal), the read still from the seed. */
+  function dealHand(seed, odds, stacked, set) {
     const rng = Rng.create(seed);
-    const dealt = Cards.deal(rng, { stacked: !!stacked });
+    const dealt = isObj(set) && Array.isArray(set.player) && Array.isArray(set.dealer)
+      ? { player: set.player.slice(), dealer: set.dealer.slice(), playerPile: (set.playerPile || []).slice(), dealerPile: (set.dealerPile || []).slice() }
+      : Cards.deal(rng, { stacked: !!stacked });
     const dealerHolds = Cards.dealerHolds(dealt.dealer);
     const dealerFinal = Cards.draw(dealt.dealer, dealerHolds, dealt.dealerPile);
     const has = Cards.evaluate(dealerFinal).rank >= 1;
@@ -17827,11 +18009,12 @@ const Pipeline = (() => {
     return Object.assign(dealt, { dealerHolds, dealerFinal, read: { says: right === has ? 'something' : 'nothing', right, odds } });
   }
   /* The open hand: the player's Draw or Fold (UI.feed.cards' buttons, or
-     playHand) settles it; Stop (abort) rejects it as aborted, so the turn
-     fails cleanly. hooks.cardsPlay ({ hold: [0-4] | 'all', fold }) plays
-     the next hand at once, as if clicked (tests, the console). */
+     playHand) settles it; Stop (abort) folds it (wave 11: { fold, stopped
+     }), so the ante is never taken back. hooks.cardsPlay ({ hold: [0-4] |
+     'all', fold }) plays the next hand at once, as if clicked (tests, the
+     console). */
   let hand = null;
-  let cheatTaken = false; // /cheat cards spent on the running turn's hand: given back if the turn does not go through
+  let handHeld = false; // this turn's hand is written to storage (Storage.holdHand) until the turn ends
   function waitForHand(table) {
     return new Promise((resolve, reject) => {
       hand = { resolve, reject, table };
@@ -17844,19 +18027,50 @@ const Pipeline = (() => {
     const h = hand;
     hand = null;
     const c = isObj(choice) ? choice : {};
-    h.resolve(c.fold === true ? { fold: true } : { hold: Cards.holdsFrom(c.hold) });
+    h.resolve(c.fold === true ? { fold: true, stopped: c.stopped === true } : { hold: Cards.holdsFrom(c.hold) });
     return true;
   }
+  /* /cheat cards (wave 11, L2): armed in the game itself (State
+     cardsCheat), so it survives a reload; a second one says it is armed
+     already. */
+  function cheatArmed() { const s = State.current; return !!(s && isObj(s.flags) && s.flags.cardsCheat === true); }
   function cheatCards() {
     const ro = readOnlyRefusal();
     if (ro) return ro;
     if (!State.current) return { ok: false, reason: 'no game' };
-    hooks.cardsCheat = true;
+    if (cheatArmed()) { UI.feed.notice('Already armed: the next hand is yours.'); return { ok: true, already: true }; }
+    State.apply({ cardsCheat: true });
     UI.feed.notice('Cheat armed: the next hand is yours.');
     return { ok: true };
   }
+  /* An armed /cheat cards survives taking a turn back (/undo, /reroll):
+     armed before, armed after. Returns true when it was put back. */
+  function keepCheat(armed) {
+    if (!armed || cheatArmed() || !State.current) return false;
+    State.apply({ cardsCheat: true });
+    return true;
+  }
+  /* A hand the page was closed on (wave 11, M1): loaded again, the game
+     whose turn it was (the same game, the turn before it) plays that turn
+     at once: a hand left open is folded (the fold price; a marked deck's
+     catch roll), a hand already played stands as it ended (its catch roll
+     the same die), and either is told plainly. The stored hand is used up
+     either way. Returns the turn's promise, or null. */
+  function resumeHand() {
+    const m = Storage.heldHand();
+    const s = State.current;
+    if (!m || !s || busy || State.muted || readOnlyRefusal()) return null;
+    if (m.game !== s.meta.createdAt || (s.meta.turn | 0) + 1 !== m.turn || !isObj(m.action)) return null;
+    Storage.dropHand();
+    const cards = isObj(m.cards) ? m.cards : null;
+    if (cards && Number.isInteger(m.d20)) hooks.nextD20 = clamp(m.d20, 1, 20);
+    const speech = isObj(m.speech) ? m.speech : { mode: 'do' };
+    return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', replayCards: cards });
+  }
   /* A hand's name inside a sentence: "two pair, kings and sevens," (the comma closes it). */
   function handWords(name) { const t = lowerFirst(name); return t.includes(',') ? `${t},` : t; }
+  /* The record /reroll replays (wave 11, L5): the hand as it was played, its cards and its holds. */
+  function replayable(r) { return isObj(r) && isObj(r.player) && isObj(r.dealer) && Array.isArray(r.player.final) && Array.isArray(r.dealer.final) ? r : null; }
   async function gamble(ctx) {
     const s = State.current;
     const p = s.player;
@@ -17868,41 +18082,70 @@ const Pipeline = (() => {
     if (a.timeCost === 'instant') a.timeCost = 'short';
     // Why it is shut, in words (wave 3, playtest N8), and "today" before the evening.
     const shut = shutReason(l);
-    if (shut || !cardGameAt(l) || !dealer || (p.gold | 0) < 1) {
+    const game = !shut && cardGameAt(l);
+    // He will not deal to someone he caught (wave 11, L6); a bet said to someone else in Say mode is no bet (wave 11, H2).
+    const cold = game && dealer ? dealerRefusal(dealer, s) : null;
+    const saidTo = game && dealer && isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' && ctx.speech.to !== dealer.id ? State.npc(ctx.speech.to) : null;
+    if (!game || !dealer || cold || saidTo || (p.gold | 0) < 1) {
       Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
       const when = ['evening', 'night'].includes(s.time.phase) ? 'tonight' : 'today';
-      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game ${when}` : !cardGameAt(l) ? 'there is no card game here' : !dealer ? 'nobody is dealing right now, so there is no game to sit in on' : 'the player has no money to put up';
+      // Nobody dealing: when the dealer does (wave 11, L7).
+      const hours = game && !dealer ? dealerHours(l) : '';
+      const why = shut ? `${placeName(l)} is shut (${shut}), so there is no game ${when}` : !game ? 'there is no card game here'
+        : !dealer ? `nobody is dealing right now${hours ? ` (${hours})` : ''}, so there is no game to sit in on`
+          : cold ? `${dealer.name} won't deal to the player${cold.caughtDay ? `, not since catching them cheating at cards on Day ${cold.caughtDay}` : ', not the way things stand between them'}`
+            : saidTo ? `the player said it to ${saidTo.name}, and ${dealer.name} is the one who deals`
+              : 'the player has no money to put up';
       nl.push(`CARD GAME: no game: ${why}. No money changes hands.`);
       bl.push(`CARD GAME: no game was played (${why}); record no goldDelta.`);
-      ctx.gamble = { played: false, why };
+      ctx.gamble = { played: false, why, dealerId: dealer ? dealer.id : null, dealerName: dealer ? dealer.name : null, hours: hours || null, refused: !!cold, caughtDay: cold && cold.caughtDay ? cold.caughtDay : null, saidTo: saidTo ? saidTo.name : null };
       return {};
     }
-    const stake = stakeFrom(ctx.input, p.gold);
+    // A /reroll of a hand (wave 11, L5): the hand as it was played; only the catch roll is new. A hand the page was closed on after it was played (resumeHand): the same.
+    const replay = ctx.reroll || ctx.resume ? replayable(ctx.replayCards) : null;
+    const st = replay ? { stake: replay.stake, named: Number.isInteger(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold);
+    const stake = st.stake;
+    const price = foldPrice(stake);
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
     a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
     const deck = markedDeck(p);
-    const cheat = hooks.cardsCheat === true;
-    if (cheat) { hooks.cardsCheat = false; cheatTaken = true; }
+    const cheat = replay ? replay.cheat === true : cheatArmed();
+    // Spent with this deal: a turn that does not go through gives it back with the snapshot.
+    if (cheat && !replay) State.apply({ cardsCheat: false });
     // Only the marked deck rolls (whether the dealer catches it), and not on a /cheat cards hand.
     const rolls = !!deck && !cheat;
     Object.assign(a, { needsRoll: rolls, stat: rolls ? 'wits' : null, difficulty: rolls ? 'normal' : null, targets: [dealer.id].concat(a.targets.filter(t => t !== dealer.id)) });
-    const dealt = dealHand(cardSeed(s), readOdds(s), cheat);
+    // hooks.cardsDeal (tests, the console): the next hand dealt as given.
+    const set = !replay && isObj(hooks.cardsDeal) ? hooks.cardsDeal : null;
+    if (set) hooks.cardsDeal = null;
+    const dealt = replay
+      ? { player: replay.player.dealt.slice(), dealer: replay.dealer.dealt.slice(), dealerHolds: replay.dealer.held.slice(), dealerFinal: replay.dealer.final.slice(), read: Object.assign({ says: 'nothing', right: false, odds: readOdds(s) }, replay.read || {}) }
+      : dealHand(cardSeed(s), readOdds(s), cheat, set);
     const dHold = dealt.dealerHolds;
     const dFinal = dealt.dealerFinal;
     const first = String(dealer.name).split(/\s+/)[0];
     const table = {
       dealerId: dealer.id, dealerName: dealer.name, stake, marked: !!deck, cheat,
-      read: Object.assign({}, dealt.read, { text: dealt.read.says === 'something' ? `${first} is sitting on something` : `${first} has nothing` }),
+      read: Object.assign({}, dealt.read, { text: readText(dealt.read.says, first) }),
       player: { dealt: dealt.player.slice() }, dealer: { dealt: dealt.dealer.slice() }
     };
+    if (st.note) table.stakeNote = st.note;
+    if (st.note && st.named !== null && st.named !== stake) table.named = st.named;
     status('cards');
-    const node = UI.feed.cards(table);
-    const choice = await waitForHand(table);
-    const fold = choice.fold === true;
-    const holds = fold ? [] : choice.hold;
-    const pFinal = fold ? dealt.player.slice() : Cards.draw(dealt.player, holds, dealt.playerPile);
+    // A hand the page was closed on before it was played (resumeHand): folded, as Stop would have.
+    const left = !replay && ctx.resume === 'open';
+    const node = UI.feed.cards(table, replay || left ? { replay: true } : null);
+    // On the table (wave 11, M1): a page closed now finds it on the next load, so the ante stays in.
+    const held = !replay && !left && !ctx.reroll ? { game: s.meta.createdAt, turn: s.meta.turn, input: ctx.input, speech: ctx.speech || null, action: ctx.parsed || null } : null;
+    if (held) handHeld = Storage.holdHand(held) || handHeld;
+    const choice = replay ? (replay.folded ? { fold: true, stopped: replay.stopped === true } : { hold: replay.player.held.slice() }) : left ? { fold: true, stopped: true } : await waitForHand(table);
+    const folded = choice.fold === true;
+    // Stop folded it (wave 11, M1): the ante is in; the turn is committed and told plainly.
+    if (folded && choice.stopped === true && !replay) ctx.handStopped = true;
+    const holds = folded ? [] : Cards.holdsFrom(choice.hold);
+    const pFinal = replay ? replay.player.final.slice() : folded ? dealt.player.slice() : Cards.draw(dealt.player, holds, dealt.playerPile);
     // A fold ends the hand before the dealer draws: his cards are shown as dealt.
-    const dShown = fold ? dealt.dealer.slice() : dFinal;
+    const dShown = folded ? dealt.dealer.slice() : dFinal;
     const pe = Cards.evaluate(pFinal);
     const de = Cards.evaluate(dShown);
     // The marked deck's one roll, once the hand is played (no complication at cards: being caught is what goes wrong).
@@ -17911,28 +18154,33 @@ const Pipeline = (() => {
       const mods = Dice.modifiersFor(s, { stat: 'wits', actionType: 'gamble', social: false }).concat([{ label: deck.name, value: 2 }]);
       const rollOpts = { stat: 'wits', difficulty: 'normal', actionType: 'gamble', modifiers: mods, complication: null };
       roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
+      // What the roll is for, under the table (wave 11, L9): "Does Curtis spot the marks? Wits 17 + 3 = 20 vs 12 · Success".
+      roll.line = `Does ${first} spot the marks? ${roll.line}`;
       ctx.roll = roll;
       UI.feed.roll(roll);
       storyPointFor(ctx, roll);
     }
     const caught = !!roll && roll.tier === 'critical_failure';
-    const cmp = fold ? 0 : Cards.compare(pFinal, dFinal);
-    const result = caught ? 'caught' : fold ? 'fold' : cmp > 0 ? 'win' : cmp < 0 ? 'lose' : 'split';
-    const half = Math.floor(stake / 2);
-    const delta = { win: stake, lose: -stake, split: 0, fold: -half, caught: -stake }[result];
+    const cmp = folded ? 0 : Cards.compare(pFinal, dFinal);
+    const result = caught ? 'caught' : folded ? 'fold' : cmp > 0 ? 'win' : cmp < 0 ? 'lose' : 'split';
+    const delta = { win: stake, lose: -stake, split: 0, fold: -price, caught: -stake }[result];
     if (delta) State.apply({ goldDelta: delta });
+    // The top bar and the Character panel show the cash the table shows (wave 11, M2), mid-turn as it is.
+    UI.showCash();
     const record = Object.assign({}, table, {
       read: Object.assign({}, table.read),
       player: { dealt: dealt.player.slice(), held: holds.slice(), final: pFinal, name: pe.name },
-      dealer: { dealt: dealt.dealer.slice(), held: fold ? [0, 1, 2, 3, 4] : dHold.slice(), final: dShown, name: de.name },
+      dealer: { dealt: dealt.dealer.slice(), held: folded ? [0, 1, 2, 3, 4] : dHold.slice(), final: dShown, name: de.name },
       result, delta, cash: p.gold
-    });
+    }, folded ? { folded: true } : {}, folded && choice.stopped === true ? { stopped: true } : {});
     ctx.cards = record;
     UI.feed.cardsDone(node, record);
+    // Played: a page closed before the turn is kept finds the hand as it ended, and the catch roll's die.
+    if (held && handHeld) Storage.holdHand(Object.assign(held, { cards: record, d20: roll ? roll.d20 : null }));
     const place = String(l.name).replace(/^The /, 'the ');
     // Put out (wave 4, playtest R2): onto the street outside, which the narration tells; the engine moves the player there after it.
     const street = caught ? outsideOf(l) : null;
-    ctx.gamble = { played: true, stake, delta, result, caught, folded: fold, cheat, dealerId: dealer.id, deck: deck ? deck.name : null, player: pe.name, dealer: de.name, tier: roll ? roll.tier : null };
+    ctx.gamble = { played: true, stake, delta, result, caught, folded, stopped: !!ctx.handStopped, cheat, dealerId: dealer.id, dealerName: dealer.name, deck: deck ? deck.name : null, player: pe.name, dealer: de.name, tier: roll ? roll.tier : null, locationId: l.id };
     if (street) Object.assign(ctx.gamble, { outsideId: street.id, outsideName: street.name });
     const onto = street ? ` onto ${placeName(street)}` : '';
     const ph = handWords(pe.name);
@@ -17941,27 +18189,84 @@ const Pipeline = (() => {
       win: `the player's ${ph} beats ${dealer.name}'s ${dh} at the showdown: the player wins ${money(stake)}`,
       lose: `the player's ${ph} loses to ${dealer.name}'s ${dh} at the showdown: the player loses ${money(stake)}`,
       split: `the player's ${ph} ties ${dealer.name}'s ${dh} at the showdown: a split pot, and no money changes hands`,
-      fold: `the player folds ${ph} before the draw and gives up half the stake: the player loses ${money(half)}`,
+      fold: `the player folds their ${ph} before the draw and gives up half the stake: the player loses ${money(price)}`,
       caught: `the player loses ${money(stake)}, and ${dealer.name} catches them cheating with the ${deck ? lowerFirst(deck.name) : 'deck'}; the hand is void`
     }[result];
     const cash = delta ? `cash now ${money(p.gold)}` : `cash still ${money(p.gold)}`;
+    // Said only when money moved (wave 11, M6): a split pot moves none.
+    const moved = delta ? ' The money has already changed hands.' : '';
     const marks = rolls && !caught ? ` The player read the dealer's cards off the ${lowerFirst(deck.name)} through the hand, and ${dealer.name} did not catch it.` : '';
-    const out = caught ? ` ${dealer.name} takes the ${lowerFirst(deck.name)} and throws the player out of ${place}${onto}, and they are not welcome back for three days (today counted: back on Day ${s.time.day + CAUGHT_BAN_DAYS}).` : '';
-    nl.push(`OUTCOME: the card game (the player put up ${money(stake)}): ${how} (${cash}). The money has already changed hands.${marks} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${out}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
-    const said = { win: `wins ${money(stake)}`, lose: `loses ${money(stake)}`, split: 'breaks even (a split pot)', fold: `folds and loses ${money(half)}`, caught: `loses ${money(stake)}` }[result];
+    // Back on the first day the place is open (wave 11, L6), and the dealer will not deal to them for a week.
+    const back = caught ? openDayFrom(l, s.time.day + CAUGHT_BAN_DAYS) : null;
+    const out = caught ? ` ${dealer.name} takes the ${lowerFirst(deck.name)} and throws the player out of ${place}${onto}, and they are not welcome back for three days (today counted: back on ${State.weekday(back)}, Day ${back}); ${dealer.name} won't deal to them for a week.` : '';
+    nl.push(`OUTCOME: the card game (the player put up ${stakeWords(table)}): ${how} (${cash}).${moved}${marks} The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.${out}${street ? ` End the narration with the player outside on ${placeName(street)}: the engine moves them there.` : ''}`);
+    const said = { win: `wins ${money(stake)}`, lose: `loses ${money(stake)}`, split: 'breaks even (a split pot)', fold: `folds and loses ${money(price)}`, caught: `loses ${money(stake)}` }[result];
     bl.push(`CARD GAME (already applied by the engine; do not record again): the player ${said} at cards (cash now ${money(p.gold)}); record no goldDelta for it.${caught ? ` ${dealer.name} caught them cheating: his memory, his attitude, the three-day ban and the deck he took are recorded already.` : ''}${street ? ` The engine puts the player out on ${placeName(street)}: record no playerLocationId.` : ''}`);
     if (caught) {
       const r = State.apply({
         // Caught with a marked deck (wave 4, the playtest's design note): the dealer keeps it.
         itemsLost: [{ id: deck.id, qty: deck.qty || 1 }],
         newMemories: [{ npcId: dealer.id, text: `caught ${p.name} cheating at cards in ${place}`, weight: 3 }],
-        // A ban ends before its untilDay (State.isBanned): three days is today and the two after (wave 3).
+        // A ban ends before its untilDay (State.isBanned): three days is today and the two after (wave 3). The day he caught them: no game for a week (dealerRefusal).
         effects: [{ op: 'attitudeDelta', npcId: dealer.id, delta: -20 }, { op: 'banFrom', locationId: l.id, days: CAUGHT_BAN_DAYS, byNpcId: dealer.id },
+          { op: 'setFlag', key: `cardsCaught.${dealer.id}`, value: s.time.day },
           { op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true, seen: true }]
       });
       if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     }
     return {};
+  }
+  /* The hand told by the engine (wave 11, M1): when Stop folded it, or the
+     narrator failed, was stopped or declined after the showdown. One plain
+     paragraph ("The hand is played: your two pair, kings and sevens, beats
+     Curtis Pruett's pair of aces. You win $50."); nothing else this turn is
+     told, so what came due waits (ctx.due emptied) and the bookkeeper is
+     not asked. */
+  function plainHandText(ctx) {
+    const g = ctx.gamble || {};
+    const c = ctx.cards || {};
+    const name = g.dealerName || 'The dealer';
+    const amount = money(Math.abs(g.delta | 0));
+    const lead = t => (t.includes(',') ? `${t},` : t);
+    const yours = lowerFirst(String(g.player || 'hand'));
+    const theirs = lowerFirst(String(g.dealer || 'hand'));
+    let text;
+    if (g.caught) text = `${name} catches you with the ${lowerFirst(g.deck || 'deck')}: the hand is void. You lose ${amount} and the deck${g.outsideName ? `, and you are out on ${String(g.outsideName).replace(/^The /, 'the ')}` : ''}.`;
+    else if (g.result === 'fold') text = c.stopped ? `You fold your ${yours}, get up from the table and give up ${amount}.` : `You fold your ${lead(yours)} and give up ${amount}.`;
+    else if (g.result === 'win') text = `The hand is played: your ${lead(yours)} beats ${name}'s ${theirs}. You win ${amount}.`;
+    else if (g.result === 'lose') text = `The hand is played: your ${lead(yours)} loses to ${name}'s ${theirs}. You lose ${amount}.`;
+    else text = `The hand is played: your ${lead(yours)} ties ${name}'s ${theirs}. You split the pot.`;
+    if (g.deck && g.tier && !g.caught) text += ` ${name} never spots the marks.`;
+    return text;
+  }
+  /* What waits after a hand (wave 11, M4): thrown out, an event whose
+     person is the dealer, or whose place is this place, is told on a later
+     turn, kept due; and for the week a dealer will not deal to someone he
+     caught, an event of his that is not about an obligation waits too (he
+     does not come to invite them to his game). */
+  function dueHold(ctx) {
+    const s = State.current;
+    const g = ctx && ctx.gamble;
+    const npcIds = [];
+    let locationId = null;
+    if (g && g.played && g.caught) { npcIds.push(g.dealerId); locationId = g.locationId || null; }
+    const fl = isObj(s.flags) ? s.flags : {};
+    const coldNpcIds = Object.keys(fl).filter(k => k.startsWith('cardsCaught.') && Number.isInteger(fl[k]) && s.time.day - fl[k] < DEALER_GRUDGE_DAYS).map(k => k.slice('cardsCaught.'.length));
+    return npcIds.length || coldNpcIds.length ? { npcIds, locationId, coldNpcIds } : null;
+  }
+  function plainNarration(ctx, why, err) {
+    const text = plainHandText(ctx);
+    ctx.plain = why;
+    ctx.due = [];
+    ctx.rumour = null;
+    const node = UI.feed.narration(text, false);
+    const msg = err instanceof Api.ApiError ? cleanText(err.message, 200) : err ? `Something went wrong: ${cleanText((err && err.message) || String(err), 160)}` : '';
+    if (why === 'left') UI.feed.notice(ctx.cards && ctx.cards.stopped ? NOTICES.handLeftOpen : NOTICES.handLeftPlayed);
+    else if (why === 'folded') UI.feed.notice(NOTICES.handFolded);
+    else if (why === 'stopped') UI.feed.notice(NOTICES.handStopped);
+    else if (why === 'refused') UI.feed.notice(NOTICES.handRefused);
+    else UI.feed.notice(`${msg ? `${msg.replace(/([^.!?])$/, '$1.')} ` : ''}${NOTICES.handKept}`, 'error');
+    return { narration: text, node, mock: false, plain: true };
   }
 
   /* The memories that matter: every serious one (newest w3), the newest notable
@@ -18926,7 +19231,7 @@ const Pipeline = (() => {
     Api.beginTurn();
     const snap = State.snapshot();
     const mark = UI.feed.mark();
-    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [] };
+    const ctx = { input: opts.input, mode: opts.mode || 'normal', speech: opts.speech || null, cause: opts.cause || 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: !!opts.reroll, beat: !!opts.beat, narratorLines: [], bookLines: [], replayCards: opts.replayCards || null, resume: opts.resume || null };
     // Step 13: the autosave and the render run when this batch closes: once
     // the turn is logged (then the chronicle runs), or after a rollback.
     State.beginBatch();
@@ -18960,11 +19265,12 @@ const Pipeline = (() => {
       // The action as parsed, before the steps below change it (a walk, a thing made or not found): /reroll replays this.
       const parsedAction = deepCopy(action);
       ctx.action = action;
+      ctx.parsed = parsedAction;
       // A purchase, as the parser read it or (Say mode) as the words say it, before Say mode makes it talk (wave 4): its money pays no debt and is no gift.
       ctx.paying = !opts.fact && payingIn(ctx);
       ctx.bought = !opts.fact && boughtIn(action, ctx);
-      // Step 3c. Say mode: the player only spoke, to whoever they addressed.
-      if (!opts.fact && isSay(ctx.speech)) sayAction(action, ctx.speech);
+      // Step 3c. Say mode: the player only spoke, to whoever they addressed (a bet is still a bet: wave 11, H2).
+      if (!opts.fact && isSay(ctx.speech)) sayAction(action, ctx.speech, ctx.input);
       // A place out of town is never a destination, and a place not found yet cannot be walked to: a plain line, nothing spent.
       if (!opts.fact && awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
       if (!opts.fact && unknownTarget(action)) return refuseUnknown(unknownTarget(action), opts, ctx, snap, mark);
@@ -19006,7 +19312,7 @@ const Pipeline = (() => {
       if (dest && !opts.epilogue && !(ctx.arrest && ctx.arrest.plan) && (dest.phase !== narrTime.phase || dest.day !== narrTime.day)) World.eventsOnArrival({ locationId: dest.id, day: dest.day, phase: dest.phase });
       // An arrest this turn is all that happens next (wave 3): what else came due waits for the next narration.
       ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }] : ctx.arrest && ctx.arrest.plan ? []
-        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, phase: dest ? dest.phase : undefined, day: dest ? dest.day : undefined, then: dest ? undefined : ctx.landing, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined }) || [];
+        : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, phase: dest ? dest.phase : undefined, day: dest ? dest.day : undefined, then: dest ? undefined : ctx.landing, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined, hold: dueHold(ctx) }) || [];
       // Whoever came for the player is there in the phase the walk lands in (wave 3: and stays once the walk's time has passed).
       if (dest && ctx.due.length) ctx.destination.present = State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.name);
       // Who this narration shows where the player ends up (wave 4, playtest R1): the next scene change is measured from them.
@@ -19014,8 +19320,22 @@ const Pipeline = (() => {
       if (ctx.due.length) { squareScene(ctx); scene(ctx); } // a due event may have brought someone into the scene
       ctx.rumour = opts.epilogue ? null : pickRumour(ctx);
       status('narrate');
-      const told = await narrate(ctx);
-      if (replaced()) return fail(snap, mark, null, {});
+      /* A hand at cards is final once it is played (wave 11, M1): Stop with
+         it open folded it, and a narrator that fails, is stopped or
+         declines leaves it told plainly by the engine; the turn is kept. */
+      const played = !!(ctx.gamble && ctx.gamble.played);
+      let told;
+      // A hand the page was closed on (resumeHand): told plainly, as it was left.
+      if (played && ctx.resume) told = plainNarration(ctx, 'left');
+      else if (played && ctx.handStopped) told = plainNarration(ctx, 'folded');
+      else {
+        try { told = await narrate(ctx); } catch (err) {
+          if (!played || replaced()) throw err;
+          told = plainNarration(ctx, err && err.type === 'aborted' ? 'stopped' : 'failed', err);
+        }
+        if (replaced()) return fail(snap, mark, null, {});
+        if (told.refusal && played) told = plainNarration(ctx, 'refused');
+      }
       if (told.refusal) return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater('the narrator declined it') : refusedText('narrator') }, { reason: 'refused', restoreInput: true });
       let narration = told.narration;
       ctx.narration = narration;
@@ -19024,10 +19344,11 @@ const Pipeline = (() => {
       noteMentioned(narration);
       // The narration is in: from here the next input can wait in the queue.
       acceptsQueue = true;
-      // The comings and goings this narration showed are done now, before this turn's time records new ones.
-      if (s.pendingScene) State.apply({ sceneChangeDone: true });
+      // The comings and goings this narration showed are done now, before this turn's time records new ones (a hand told plainly showed none).
+      if (s.pendingScene && !told.plain) State.apply({ sceneChangeDone: true });
       // Steps 8-9. Bookkeep, then apply the diff as model output. A due event narrated on /look, /rest, /wait or /skip is bookkept too.
-      const book = !opts.epilogue && (opts.bookkeep !== false || ctx.due.length > 0);
+      // A hand told plainly (wave 11, M1) has nothing for the bookkeeper: the engine moved the money and wrote what being caught does.
+      const book = !opts.epilogue && !told.plain && (opts.bookkeep !== false || ctx.due.length > 0);
       let notRecorded = null;
       if (book) {
         status('bookkeep');
@@ -19127,9 +19448,10 @@ const Pipeline = (() => {
       return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater(err instanceof Api.ApiError ? cleanText(err.message, 160).replace(/[.]$/, '') : '') : errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
     } finally {
       turnState = null;
-      // A hand left open (a failure elsewhere) is gone; a /cheat cards the turn did not keep is armed again.
+      // A hand left open (a failure elsewhere) is gone; a /cheat cards the turn did not keep came back with the snapshot.
       hand = null;
-      if (cheatTaken) { if (!committed) hooks.cardsCheat = true; cheatTaken = false; }
+      // The turn is over, kept or not: the hand it dealt is no longer on the table (a closed page would have left it: resumeHand).
+      if (handHeld) { Storage.dropHand(); handHeld = false; }
       if (batchOpen) State.endBatch(); // listeners see the finished turn, or the restored state after a failure
       if (later) later();
       // An ending that could not be told waits for the end of the next turn (not this settle, or it would be tried again at once).
@@ -19276,27 +19598,33 @@ const Pipeline = (() => {
     const s = State.current;
     const entry = s && s.log.length ? s.log[s.log.length - 1] : null;
     const last = lastTurn;
+    // A hand at cards (wave 11, L5): with no catch roll the cards were dealt, and there is nothing to redo.
+    const dealtNote = entry && isObj(entry.cards) && !entry.roll ? NOTICES.cardsDealt : null;
     if (!entry || !entry.roll || !last || !last.action || !last.action.needsRoll || (last.ctx && last.ctx.mode === 'arrival')) {
       if (want !== null) {
         hooks.nextTier = want;
-        UI.feed.notice(`Cheat armed: your next roll will be ${Number.isInteger(want) ? 'a ' + want : /^(fail|failure|lose)$/.test(want) ? 'a failure' : /^(crit|critical|nat20)$/.test(want) ? 'a natural 20' : /^(fumble|botch|nat1)$/.test(want) ? 'a natural 1' : /^partial$/.test(want) ? 'a partial success' : 'a success'}.`);
+        UI.feed.notice(`${dealtNote ? `${dealtNote} ` : ''}Cheat armed: your next roll will be ${Number.isInteger(want) ? 'a ' + want : /^(fail|failure|lose)$/.test(want) ? 'a failure' : /^(crit|critical|nat20)$/.test(want) ? 'a natural 20' : /^(fumble|botch|nat1)$/.test(want) ? 'a natural 1' : /^partial$/.test(want) ? 'a partial success' : 'a success'}.`);
         return { ok: true };
       }
-      UI.feed.notice(NOTICES.noReroll);
+      UI.feed.notice(dealtNote || NOTICES.noReroll);
       return { ok: false, reason: 'no-roll' };
     }
     if (want !== null) hooks.nextTier = want;
     const input = entry.input;
     const speech = entry.mode === 'say' ? { mode: 'say', to: entry.to, toName: entry.toName, toLabel: entry.toLabel || null } : (entry.mode === 'do' ? { mode: 'do' } : null);
     const mode = last.ctx && last.ctx.mode === 'zoom' ? 'zoom' : 'normal';
+    // The hand as it was played (wave 11, L5): replayed from its record, only the marked deck's catch rolled again.
+    const replayCards = isObj(entry.cards) ? deepCopy(entry.cards) : null;
+    const armed = cheatArmed();
     if (!State.restore()) { UI.feed.notice('There is nothing to take back, so nothing to reroll.'); return { ok: false, reason: 'nothing' }; }
+    keepCheat(armed);
     World.forget(State.current.meta.turn);
     hooks.diceSalt = (hooks.diceSalt || 0) + 1;
     UI.rebuildFeed();
     // "/cheat success" says so; a plain /reroll says it rolled again.
     const said = want === null ? 'Rerolled.' : `Cheat: ${Number.isInteger(want) ? want : String(want).toLowerCase()}`;
     // The action as it was parsed: the turn's own steps (a walk, a thing looked for) run again from the restored state.
-    return runTurn({ input, mode, speech, action: deepCopy(last.parsed || last.action), reroll: true, prepare: () => UI.feed.quiet(said) });
+    return runTurn({ input, mode, speech, action: deepCopy(last.parsed || last.action), reroll: true, replayCards, prepare: () => UI.feed.quiet(said) });
   }
 
   /* While the bookkeeper or the chronicle runs after a narration
@@ -19822,7 +20150,7 @@ const Pipeline = (() => {
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
-    noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, outsideOf, markedDeck, cardSeed, readOdds, dealHand, gainText, shutHereLine,
+    noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine,
     recap: recapText, recapText, printRecap,
     CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
     npcLine, wouldKnow, knowledgeLine, timeTakes, clockText, dateText, weekdayOf, storySoFar, earlierLine, openLine, newsLine, TOWN_NEWER, looseEndsLine,
@@ -19834,15 +20162,21 @@ const Pipeline = (() => {
     abort() {
       if (!busy) return false;
       if (acceptsQueue && queued) { const q = queued; queued = null; if (q.text) restoreQueued(q.text); }
-      // A hand on the table (wave 10): called off, nothing moves, the table goes with the turn.
-      if (hand) { const h = hand; hand = null; h.reject(new Api.ApiError('aborted', NOTICES.aborted, { retryable: false })); }
+      // A hand on the table (wave 11, M1): the ante is in, so Stop folds it (the fold price, the marked deck's catch roll) and the turn is kept, told plainly.
+      if (hand) { playHand({ fold: true, stopped: true }); return true; }
       Api.abort();
       return true;
     },
     /* The open hand (wave 10): Draw ({ hold: [0-4] }) or Fold ({ fold: true }); false when no hand is open. */
     playHand,
     cheatCards,
+    get cheatArmed() { return cheatArmed(); },
+    keepCheat,
+    resumeHand,
+    foldPrice,
     get handOpen() { return !!hand; },
+    /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). */
+    get openHand() { return hand ? hand.table : null; },
     whenIdle,
     get busy() { return busy; },
     /* Stop does something now: in any stage of a running turn. While the
@@ -20187,6 +20521,15 @@ const Storage = (() => {
   }
   /* Never write this tab's (older) game over the other tab's: App.playHere. */
   function takeOver() { return App.playHere(); }
+  /* A hand on the table (wave 11, M1: once the cards are dealt the ante is
+     in). Written when the cards are dealt and again once the hand is
+     played, removed when its turn ends; a page closed in between leaves it
+     here for the next load of that game (Pipeline.resumeHand), so a reload
+     never takes a hand back. Quietly nothing when storage is blocked. */
+  const HAND_KEY = PREFIX + 'hand';
+  function holdHand(h) { if (readOnly) return false; try { area().setItem(HAND_KEY, JSON.stringify(h)); return true; } catch (e) { return false; } }
+  function heldHand() { try { const raw = area().getItem(HAND_KEY); const h = raw ? JSON.parse(raw) : null; return isObj(h) ? h : null; } catch (e) { return null; } }
+  function dropHand() { try { area().removeItem(HAND_KEY); return true; } catch (e) { return false; } }
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -20194,7 +20537,7 @@ const Storage = (() => {
     gameId, envelope, parseEnvelope, shapeProblems, autosave, hasAutosave, loadAutosave, rawAutosave, loadPrevious, peek, inSlot,
     saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
     exportJson, exportSave, exportFileName, downloadAutosave, importFile,
-    setReadOnly, takeOver, claim, keepAside,
+    setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
     get readOnly() { return readOnly; },
     get failed() { return failed; }
   };
@@ -22487,7 +22830,7 @@ const UI = (() => {
         el('p', { class: 'muted' }, p.background),
         bg && bg.blurb ? el('p', { class: 'char-blurb' }, bg.blurb) : null,
         el('div', { class: 'stat-grid' }, STATS.map(k => el('div', { class: 'stat' }, el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(p.stats[k]))))),
-        kv([['HP', `${p.hp} / ${p.maxHp}`], [moneyLabel(), currency() ? money(p.gold) : String(p.gold)],
+        kv([['HP', `${p.hp} / ${p.maxHp}`], [moneyLabel(), el('span', { class: 'char-cash' }, currency() ? money(p.gold) : String(p.gold))],
           ['Story points', el('span', { class: 'sp-row' }, `${p.storyPoints} / ${State.LIMITS.storyPoints}`, spend)]]
           // The town's standing is in the Standing list when there is one; said once.
           .concat(facs.includes('town') ? [] : [['Reputation', capFirst(State.reputationTier())]])),
@@ -22834,64 +23177,127 @@ const UI = (() => {
      the feed, under the player's line and before the narration. Its head
      names the table, the stake and the pot; then the dealer's five (face
      down until the showdown, face up when the player carries a marked
-     deck) under the player's read of him, and the player's five: toggle
-     buttons while the hand is open (aria-pressed, a Hold tag; a click,
-     Space or Enter), with Draw and Fold. After the draw both hands are
-     face up with their names, and the result line gives the cash after.
-     Built from nodes. A finished table is the log entry's cards
-     (State logCards), which rebuildFeed draws again where it was. */
-  const HAND_NUDGE = 'Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop calls the hand off.';
-  function cardsHead(t) { return `${t.dealerName}'s table · stake ${money(t.stake)} · pot ${money(t.stake * 2)}`; }
-  function cardFace(c) {
-    return el('span', { class: 'card' + (Cards.red(c) ? ' red' : ''), role: 'img', 'aria-label': Cards.cardName(c), dataset: { card: c } },
-      el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c)));
+     deck) under the player's read of him, and the player's five: buttons
+     while the hand is open (each named with whether it is held, a Hold
+     tag; a click, Space or Enter), with Draw and Fold. After the draw both
+     hands are face up with their names, and the result line gives the cash
+     after. Built from nodes. A finished table is the log entry's cards
+     (State logCards), which rebuildFeed draws again where it was.
+     Wave 11 (the QA of the table): the head is the group's name
+     (aria-labelledby) and takes the focus when the table opens, never a
+     card; Draw says how many it replaces ("Draw 3", "Stand pat") and Fold
+     what it costs ("Fold −$10"); the hint says Stop folds; the read is not
+     shown over a marked deck's face-up cards; after the showdown the cards
+     drawn are marked "New", the dealer's draw is said ("Curtis draws 3")
+     and the read says whether it was right. */
+  function handNudge() {
+    const t = Pipeline.openHand;
+    return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}.`;
+  }
+  // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual".
+  function stakeText(t) { return `stake ${money(t.stake)}${t.stakeNote === 'all' ? ', all you have' : t.stakeNote === 'usual' ? ', the usual' : ''}`; }
+  function cardsHead(t) { return `${t.dealerName}'s table · ${stakeText(t)} · pot ${money(t.stake * 2)}`; }
+  function cardBits(c) { return [el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c))]; }
+  // A card face up; one drawn (after the showdown, wave 11, S2) has a "New" tag and says so in its name.
+  function cardFace(c, drawn) {
+    return el('span', { class: 'card' + (Cards.red(c) ? ' red' : '') + (drawn ? ' drawn' : ''), role: 'img', 'aria-label': Cards.cardName(c) + (drawn ? ', drawn' : ''), dataset: { card: c } },
+      cardBits(c), drawn ? el('span', { class: 'card-tag card-new', 'aria-hidden': 'true' }, 'New') : null);
   }
   function cardBack() { return el('span', { class: 'card back', role: 'img', 'aria-label': 'Face-down card' }); }
+  /* One of the player's cards while the hand is open: a button whose name
+     says whether it is held (wave 11, L11: "Eight of hearts, held" or "…,
+     not held"); data-held is the state the look follows. */
+  function holdName(c, held) { return `${Cards.cardName(c)}, ${held ? 'held' : 'not held'}`; }
   function cardToggle(c, i) {
-    return el('button', { type: 'button', class: 'card' + (Cards.red(c) ? ' red' : ''), 'aria-pressed': 'false', 'aria-label': Cards.cardName(c), dataset: { i: String(i), card: c }, onclick: e => toggleHold(e.currentTarget) },
-      el('span', { class: 'card-rank', 'aria-hidden': 'true' }, Cards.label(c)), el('span', { class: 'card-suit', 'aria-hidden': 'true' }, Cards.sign(c)), el('span', { class: 'card-hold', 'aria-hidden': 'true' }, 'Hold'));
+    return el('button', { type: 'button', class: 'card' + (Cards.red(c) ? ' red' : ''), 'aria-label': holdName(c, false), dataset: { i: String(i), card: c, held: 'false' }, onclick: e => toggleHold(e.currentTarget) },
+      cardBits(c), el('span', { class: 'card-tag card-hold', 'aria-hidden': 'true' }, 'Hold'));
   }
   function toggleHold(b) {
     if (!b || !Pipeline.handOpen) return;
-    b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+    const held = b.dataset.held !== 'true';
+    b.dataset.held = String(held);
+    b.setAttribute('aria-label', holdName(b.dataset.card, held));
+    const node = b.closest('.f-cards');
+    if (node) syncDraw(node);
+  }
+  // Draw says how many cards it replaces (wave 11, S1): "Draw 3", or "Stand pat" with all five held.
+  function drawLabel(n) { return n ? `Draw ${n}` : 'Stand pat'; }
+  function syncDraw(node) {
+    const btn = $('.cards-draw', node);
+    if (btn) btn.textContent = drawLabel($$('.cards-you button.card', node).filter(b => b.dataset.held !== 'true').length);
   }
   const CARDS_RESULT = {
     win: t => `You win ${money(t.stake)}`, lose: t => `You lose ${money(t.stake)}`, split: () => 'Split pot',
-    fold: t => `You fold: −${money(Math.abs(t.delta))}`, caught: t => `Caught cheating: you lose ${money(t.stake)}`
+    fold: t => `${t.stopped ? 'Stopped, so you fold' : 'You fold'}: −${money(Math.abs(t.delta))}`, caught: t => `Caught cheating: you lose ${money(t.stake)}`
   };
   function fillCards(node, t) {
     const done = !!t.result;
     const first = String(t.dealerName).split(/\s+/)[0];
     const dealerUp = done || t.marked;
+    const price = Pipeline.foldPrice(t.stake);
+    const folded = done && (t.folded === true || t.result === 'fold');
+    // A card the showdown brought (wave 11, S2): a position that side did not hold.
+    const drew = (side, i) => done && !folded && Array.isArray(side.held) && !side.held.includes(i);
+    const dealerDrew = done && !folded && Array.isArray(t.dealer.held) ? 5 - t.dealer.held.length : null;
+    // The read is about the man while his cards are face down: none over a marked deck's (wave 11, M3); after the showdown, whether it was right (S2).
+    const read = t.read && t.read.text && !t.marked ? el('p', { class: 'cards-read' }, el('span', { class: 'cards-k' }, 'Your read: '), `${t.read.text}.`,
+      done && !folded ? el('span', { class: 'cards-verdict', dataset: { right: String(t.read.right === true) } }, t.read.right === true ? ' You were right.' : ' You were wrong.') : null) : null;
     node.classList.toggle('open', !done);
     node.replaceChildren(
-      el('p', { class: 'cards-head' }, cardsHead(t)),
+      el('p', { class: 'cards-head', id: node.dataset.head || null, tabindex: '-1' }, cardsHead(t)),
       el('div', { class: 'cards-side cards-dealer' },
         el('p', { class: 'cards-who' }, t.dealerName),
-        t.read && t.read.text ? el('p', { class: 'cards-read' }, el('span', { class: 'cards-k' }, 'Your read: '), `${t.read.text}.`) : null,
+        read,
         t.marked && !done ? el('p', { class: 'cards-note' }, `Marked deck: you can read ${first}'s cards.`) : null,
-        el('div', { class: 'cards-row', role: 'group', 'aria-label': `${first}'s cards` }, (done ? t.dealer.final : t.dealer.dealt).map(c => (dealerUp ? cardFace(c) : cardBack()))),
-        done ? el('p', { class: 'cards-name' }, t.dealer.name) : null),
+        el('div', { class: 'cards-row', role: 'group', 'aria-label': `${first}'s cards` }, (done ? t.dealer.final : t.dealer.dealt).map((c, i) => (dealerUp ? cardFace(c, drew(t.dealer, i)) : cardBack()))),
+        done ? el('p', { class: 'cards-name' }, t.dealer.name, dealerDrew !== null ? el('span', { class: 'cards-drew' }, ` · ${dealerDrew ? `${first} draws ${dealerDrew}` : `${first} stands pat`}`) : null) : null),
       el('div', { class: 'cards-side cards-you' },
         el('p', { class: 'cards-who' }, 'You'),
-        el('div', { class: 'cards-row', role: 'group', 'aria-label': done ? 'Your cards' : 'Your hand: pick the cards to hold' }, done ? t.player.final.map(cardFace) : t.player.dealt.map(cardToggle)),
-        done ? el('p', { class: 'cards-name' }, t.player.name) : el('p', { class: 'cards-hint' }, 'Pick the cards to hold, then Draw: the rest are replaced.')),
+        el('div', { class: 'cards-row', role: 'group', 'aria-label': done ? 'Your cards' : 'Your hand: pick the cards to hold' }, done ? t.player.final.map((c, i) => cardFace(c, drew(t.player, i))) : t.player.dealt.map(cardToggle)),
+        done ? el('p', { class: 'cards-name' }, t.player.name) : el('p', { class: 'cards-hint' }, `Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−${money(price)}).`)),
       done
         ? el('p', { class: 'cards-result', dataset: { result: t.result } }, (CARDS_RESULT[t.result] || (() => ''))(t), el('span', { class: 'cards-cash' }, ` · cash ${money(t.cash)}`))
         : el('div', { class: 'cards-acts' },
-          el('button', { type: 'button', class: 'btn primary small cards-draw', onclick: e => endHand(e.currentTarget, false) }, 'Draw'),
-          el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, 'Fold')));
+          el('button', { type: 'button', class: 'btn primary small cards-draw', onclick: e => endHand(e.currentTarget, false) }, drawLabel(5)),
+          el('button', { type: 'button', class: 'btn small cards-fold', onclick: e => endHand(e.currentTarget, true) }, `Fold −${money(price)}`)));
   }
   function endHand(btn, fold) {
     const node = btn && btn.closest('.f-cards');
     if (!node || !Pipeline.handOpen) return;
-    const hold = $$('.cards-you button.card', node).filter(b => b.getAttribute('aria-pressed') === 'true').map(b => toInt(b.dataset.i));
+    const hold = $$('.cards-you button.card', node).filter(b => b.dataset.held === 'true').map(b => toInt(b.dataset.i));
     Pipeline.playHand(fold ? { fold: true } : { hold });
   }
+  // The head names the group (wave 11, L11: aria-labelledby, so the name is not said twice).
+  let cardsSeq = 0;
   function cardsNode(t) {
-    const node = el('section', { class: 'f-item f-cards', role: 'group', 'aria-label': cardsHead(t) });
+    const id = `cards-head-${++cardsSeq}`;
+    const node = el('section', { class: 'f-item f-cards', role: 'group', 'aria-labelledby': id, dataset: { head: id } });
     fillCards(node, t);
     return node;
+  }
+  /* The open table in view (wave 11, L3): its head at the top of the story
+     when the whole table does not fit (a short phone, Large text, the
+     keyboard up), else all of it. */
+  function showTable(node) {
+    const f = d.feedScroll;
+    if (!f || !node || !node.isConnected) return;
+    const box = f.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    const gap = 8;
+    const top = r.top - box.top + f.scrollTop;
+    if (r.height + gap > f.clientHeight) { f.scrollTop = Math.max(0, top - gap); stick = false; d.newBtn.hidden = true; }
+    else if (r.bottom > box.bottom || r.top < box.top) { f.scrollTop = Math.max(0, top + r.height + gap - f.clientHeight); stick = nearBottom(); if (stick) d.newBtn.hidden = true; }
+  }
+  /* The cash where it shows (wave 11, M2): the top bar and the Character
+     panel, as soon as a hand moves it (the turn is still running, so the
+     game is not drawn again until it ends). */
+  function cashText(n) { return currency() ? money(n) : String(n); }
+  function showCash() {
+    const s = State.current;
+    if (!s || !d.tbGold) return;
+    d.tbGold.textContent = cashText(s.player.gold);
+    d.tbGoldUnit.textContent = currency() ? '' : ' gold';
+    for (const x of $$('.char-cash')) x.textContent = cashText(s.player.gold);
   }
   /* Quiet lines whose feed line was taken back (a failed turn) are not kept. */
   function prunePending() {
@@ -22973,14 +23379,18 @@ const UI = (() => {
     },
     divider(day, phase) { return feed.add(dividerNode(day, phase)); },
     /* The card table (wave 10, Pipeline.gamble): the hand as dealt, open
-       for the player's holds; the focus goes to the first card when it was
-       on the box, Send or nowhere. cardsDone(node, record) turns the same
-       block into the finished table (the focus, if it was in it, back to
-       the box). */
-    cards(t) {
+       for the player's holds; the focus goes to the table's head (wave 11,
+       M7: never a card, which would look held) when it was on the box,
+       Send or nowhere, and the table is scrolled into view (showTable).
+       opts.replay (a /reroll of the hand): drawn where it goes, no focus.
+       cardsDone(node, record) turns the same block into the finished table
+       (the focus, if it was in it, back to the box). */
+    cards(t, opts) {
       const node = feed.add(cardsNode(t));
-      const first = $('.cards-you button.card', node);
-      if (screen === 'game' && first && focusStillOnComposer()) moveFocus(first);
+      if (opts && opts.replay) return node;
+      const head = $('.cards-head', node);
+      if (screen === 'game' && head && focusStillOnComposer()) moveFocus(head);
+      showTable(node);
       return node;
     },
     cardsDone(node, t) {
@@ -23145,6 +23555,8 @@ const UI = (() => {
     d.btnLoad.disabled = busy;
     d.btnImport.disabled = busy;
     if (screen === 'title') d.btnContinue.disabled = busy || !Storage.hasAutosave();
+    // A turn that ends while the title screen is up (wave 11, H1): Continue, New game and Load come back, and Continue names the game as it is now.
+    if (screen === 'title' && was && !busy) renderTitle();
     d.btnUpdate.disabled = busy;
     d.setReread.disabled = busy || !gameLoaded();
     $$('[data-action="load"], [data-action="restore"]', d.slotList).forEach(btn => { btn.disabled = busy || btn.dataset.filled !== '1'; });
@@ -23321,7 +23733,7 @@ const UI = (() => {
       if (!isMobile() && screen === 'game' && focusStillOnComposer()) d.cmd.focus({ preventScroll: true });
       return;
     }
-    if (turnRunning() && !canQueue()) { nudge(Pipeline.handOpen ? HAND_NUDGE : undefined); return; }
+    if (turnRunning() && !canQueue()) { nudge(Pipeline.handOpen ? handNudge() : undefined); return; }
     // A third line while one waits: it stays in the box (the Pipeline keeps one), and the status line says so.
     if (lineWaiting()) { nudge(QUEUE_FULL); return; }
     if (!canAct({ say: true, queue: true })) return;
@@ -24159,7 +24571,7 @@ const UI = (() => {
 
   return {
     init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
-    toggleTheme, applyDisplay, warn, toast, ask, setBusy, feed, Create, scrollToBottom,
+    toggleTheme, applyDisplay, warn, toast, ask, setBusy, feed, Create, scrollToBottom, showCash,
     setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout, setMapExpanded, showPerson,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
@@ -24298,13 +24710,16 @@ const Commands = (() => {
       }
       case '/undo': {
         if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
+        // An armed /cheat cards stays armed, and one the turn spent comes back with it (wave 11, L2).
+        const armed = Pipeline.cheatArmed;
         if (!State.restore()) { UI.feed.notice('There is nothing to undo.'); return { ok: false, reason: 'nothing' }; }
+        Pipeline.keepCheat(armed);
         // Everything goes back, an ending noted for after the next turn too (wave 5, the fourth review's bug 4).
         Pipeline.forgetEnding();
         World.forget(State.current.meta.turn);
         Pipeline.hooks.diceSalt = (Pipeline.hooks.diceSalt || 0) + 1; // so a retried roll is not the same number
         UI.rebuildFeed();
-        UI.feed.notice('You took back the last turn.');
+        UI.feed.notice(`You took back the last turn.${!armed && Pipeline.cheatArmed ? ' The cards cheat is armed again: the next hand is yours.' : ''}`);
         return { ok: true };
       }
       case '/save': {
@@ -24516,6 +24931,8 @@ const App = (() => {
     // Loaded in a tab that was read only: this tab plays it now.
     if (Storage.readOnly) Storage.claim();
     Storage.requestPersist();
+    // A hand this game's page was closed on (wave 11, M1): folded or kept as played, after anything the load prints (Continue's recap).
+    Promise.resolve().then(() => { try { const t = Pipeline.resumeHand(); if (t && typeof t.catch === 'function') t.catch(e => console.error(e)); } catch (e) { console.error(e); } });
     return true;
   }
   /* "Play here instead" (the bar in a read-only tab): this tab first loads
@@ -24650,7 +25067,21 @@ const App = (() => {
     UI.feed.quiet(`Edited ${State.npc(npcId).name}: ${e.fields.join(', ')}.`);
     return { ok: true, fields: e.fields };
   }
-  function quitToTitle() { inGame = false; UI.showScreen('title'); }
+  /* The title screen (the menu's Title screen, Settings' Quit). Not with a
+     hand on the table (wave 11, H1): the turn waits for the player's Draw
+     or Fold, so nothing could be loaded or started until a reload; the
+     game stays, with a notice, and nothing changes. */
+  const HAND_TITLE = 'Finish the hand first: Draw or Fold (Stop folds).';
+  function quitToTitle() {
+    if (Pipeline.handOpen) {
+      if (UI.screen !== 'game') UI.showScreen('game');
+      UI.feed.notice(HAND_TITLE);
+      return false;
+    }
+    inGame = false;
+    UI.showScreen('title');
+    return true;
+  }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
   return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, restorePrevious, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, flushNotes, playHere, newerRules, BUSY_NOTICE, NEWER_NOTICE, inGame: () => inGame };
