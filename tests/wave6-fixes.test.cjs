@@ -435,8 +435,8 @@ s.test('QA: the /cheat row in the / list is short ("Cheat: redo the last roll, o
   const r = await page.evaluate(() => ({ row: Game.Commands.LIST.find(c => c.name === '/cheat'), help: Game.Commands.helpText().split('\n').find(l => l.startsWith('/cheat')) }));
   assert.equal(r.row.desc, 'Cheat: redo the last roll, or set the clock');
   assert.equal(r.row.args, '[outcome or time <phase> [day]]');
-  // Changed by design in wave 10: /cheat cards wins the next hand.
-  assert.equal(r.help, '/cheat [outcome or time <phase> [day]]: Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), or set the clock (forward only)');
+  // Changed by design in wave 10: /cheat cards wins the next hand; wave 16: /cheat cash sets the cash.
+  assert.equal(r.help, '/cheat [outcome or time <phase> [day]]: Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), set your cash (cash <amount>), or set the clock (forward only)');
 });
 
 // ----- playtest R2, R8 and the design note: /cheat time -----

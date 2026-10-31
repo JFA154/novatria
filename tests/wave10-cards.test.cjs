@@ -195,7 +195,8 @@ s.test('a hand played at the table: the block under the line and before the narr
   }
   assert.deepEqual(live.acts, ['Draw 5', 'Fold −$10']);
   assert.match(live.hint, /Pick the cards to hold, then Draw/);
-  assert.equal(live.prev, 'f-item f-input|I bet $20 at cards', 'under the player\'s line');
+  // Wave 16: with the hand open the Undo link is over the bet's line (has-undo): /undo takes the turn back, free.
+  assert.equal(live.prev, 'f-item f-input has-undo|I bet $20 at cards', 'under the player\'s line');
   assert.equal(live.last, true, 'nothing told yet');
   assert.deepEqual([live.status, live.statusShown, live.send], ['Your hand', true, 'Stop']);
   assert.equal(live.stage, 'Your hand');
@@ -402,7 +403,7 @@ s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is deal
   assert.deepEqual(await page.evaluate(() => [Game.state.flags.cardsCheat, Game.state.log[Game.state.log.length - 1].cards.result]), [undefined, 'fold'], 'Stop folds the cheat hand, and the cheat is spent');
   await sendText(page, '/undo');
   assert.equal(await page.evaluate(() => Game.state.flags.cardsCheat), true, 'the hand taken back arms the cheat again');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), 'You took back the last turn. The cards cheat is armed again: the next hand is yours.');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), 'You took back the last turn. The cards cheat is armed again: the next hand is yours. Nothing more can be taken back.', 'wave 16: how many more can be taken back');
   await page.fill('#cmd', '');
   await startHand(page, 'I bet $40 at cards');
   const dealt = (await tableNow(page)).player;
@@ -424,7 +425,7 @@ s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is deal
   await sendText(page, '/cheat');
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), /\/cheat cards stacks the deck so you win your next hand at cards\./);
   await sendText(page, '/help');
-  assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.help')].pop().textContent), /\/cheat \[outcome or time <phase> \[day\]\]: Cheat: redo the last roll \(success, partial, fail, crit, fumble or 1-20\), win your next hand at cards \(cards\), win it without playing it \(win\), or set the clock \(forward only\)/);
+  assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.help')].pop().textContent), /\/cheat \[outcome or time <phase> \[day\]\]: Cheat: redo the last roll \(success, partial, fail, crit, fumble or 1-20\), win your next hand at cards \(cards\), win it without playing it \(win\), set your cash \(cash <amount>\), or set the clock \(forward only\)/);
 });
 
 // ----- Stop -----
