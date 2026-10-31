@@ -14626,13 +14626,20 @@ const Api = (() => {
       timeCost: { type: 'string', enum: TIME_COSTS, description: 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.' },
       declaresWorldFact: { type: 'boolean', description: 'True if the player is asserting a fact about the world rather than acting' }
     }),
-    /* record_changes sits near the API's grammar limit (probed live: 46
-       properties, nested ones counted, pass; 47 are refused). npcFates,
-       memoriesSettled and obligationsSettled (CONTRACTS section 10) add
-       seven counted that way, so attitudeChanges loses its reason (nothing
-       reads it) and newSeeds its cause (State.normaliseSeed defaults it)
-       and its nested trigger (normaliseSeed reads triggerType and
-       triggerValue as well): 45 in all. A live probe is still owed. */
+    /* record_changes sits near the API's grammar limit. The limit is on the
+       compiled grammar, not a plain count: a live probe once passed 46
+       properties (nested ones counted) and refused 47, then on 31 Oct 2026
+       the API refused 45 properties with six enums for every turn ("The
+       compiled grammar is too large"). So the schema is kept to the shape
+       that is known to pass live: 41 properties and three enums outside the
+       nullables (the 31 Oct build of main, which recorded turns that same
+       morning). npcFates and memoriesSettled go over the wire as "npc_id:
+       ..." strings (recordFromWire turns them into the engine's objects),
+       the clock delta and the seed trigger type are plain values the engine
+       checks, and attitudeChanges' reason and newSeeds' cause are gone
+       (nothing read them). If the API ever refuses the grammar again,
+       bookkeep() asks once more with record_changes_core, the essentials
+       only, so the turn is still recorded. */
     record_changes: obj({
       attitudeChanges: list(obj({ npcId: STR, delta: INT })),
       newMemories: list(obj({ npcId: STR, text: { type: 'string', description: "Under twelve words, from this person's point of view, only for something they would hold against the player or thank them for later; no scene detail." }, weight: { type: 'integer', enum: [1, 2, 3], description: '1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help)' } })),
@@ -14649,16 +14656,16 @@ const Api = (() => {
         knownToPlayer: nullable(BOOL),
         summary: nullable(STR)
       })),
-      clockNudges: list(obj({ factionId: STR, delta: { type: 'integer', enum: [-1, 1] } }), "Only when the action plainly helps (+1) or hinders (-1) the aim of the faction's CLOCK shown in FACTIONS; at most one, usually none"),
+      clockNudges: list(obj({ factionId: STR, delta: { type: 'integer', description: '1 when the action helps the aim, -1 when it hinders it' } }), "Only when the action plainly helps (+1) or hinders (-1) the aim of the faction's CLOCK shown in FACTIONS; at most one, usually none"),
       newSeeds: list(obj({
         effect: { type: 'string', description: 'What will happen later and why, in one sentence' },
-        triggerType: { type: 'string', enum: ['day', 'location', 'npc', 'clock'] },
+        triggerType: { type: 'string', description: 'One of: day, location, npc, clock' },
         triggerValue: { type: 'string', description: 'day: a day number at least tomorrow; location: loc_ id; npc: npc_ id; clock: fac_id:segment' }
       }), 'Usually empty: only a concrete later event the narration sets up'),
       rumoursHeard: list(STR, 'Rumour ids the narration shows the player hearing'),
       placesRevealed: list(placeItem(), 'A specific place someone in the narration named that is not in LOCATIONS; at most one, usually none'),
-      npcFates: list(obj({ npcId: STR, status: { type: 'string', enum: ['arrested', 'gone', 'dead', 'hurt'] } }), 'What the narration shows happening to someone present: arrested, gone (left town for good), dead, or hurt (laid up for days); at most one, usually none'),
-      memoriesSettled: list(obj({ npcId: STR, text: { type: 'string', description: 'The memory as their remembers list words it' } }), 'Memories this turn settles (a debt paid, a grudge made up, a promise kept); usually none'),
+      npcFates: list(STR, 'What the narration shows happening to someone present, written "npc_id: status" with the status one of arrested, gone (left town for good), dead or hurt (laid up for days): "npc_wade: hurt"; at most one, usually none'),
+      memoriesSettled: list(STR, 'Memories this turn settles (a debt paid, a grudge made up, a promise kept), each written "npc_id: the memory as their remembers list words it"; usually none'),
       obligationsSettled: list(STR, 'Ids of OPEN obligations the narration shows being met; usually none'),
       journalEntry: nullable(STR, "One plain line for the player's journal, or null")
     }),
@@ -14695,6 +14702,35 @@ const Api = (() => {
       }), 'Every person listed, in the order given')
     })
   };
+
+  /* The essentials of record_changes (the fallback when the API refuses the
+     full grammar): what moved money, health, things, people's feelings and
+     memories, where the player is, who they met, what they heard and the
+     journal line. The rest (conditions, threads, clocks, seeds, places) is
+     left for a turn the full schema is accepted. */
+  const RECORD_CORE_FIELDS = ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'memoriesSettled', 'obligationsSettled', 'journalEntry'];
+  SCHEMAS.record_changes_core = obj(Object.fromEntries(RECORD_CORE_FIELDS.map(k => [k, SCHEMAS.record_changes.properties[k]])));
+  /* What an empty record holds for each field (a core reply gets the rest filled in). */
+  const RECORD_EMPTY = Object.freeze({ attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], npcFates: [], memoriesSettled: [], obligationsSettled: [], journalEntry: null });
+  /* The bookkeeper's reply as the engine reads it: "npc_id: status" and
+     "npc_id: memory text" strings become { npcId, status } and { npcId, text }
+     (objects pass through, so the mock's reply reads the same); a clock
+     delta is 1 or -1 (0 or nothing is dropped); fields a core reply left
+     out are empty. A string without an id becomes an object State.apply
+     rejects by name. */
+  const WIRE_ID = /^\s*(npc_[a-z0-9_]+)\s*(?:[:\-\u2013\u2014]\s*|\s+)(.+?)\s*$/i;
+  function recordFromWire(d) {
+    if (!isObj(d)) return d;
+    const out = Object.assign({}, d);
+    const split = v => { const m = WIRE_ID.exec(String(v == null ? '' : v)); return m ? { npcId: m[1].toLowerCase(), rest: m[2] } : { npcId: String(v == null ? '' : v).trim(), rest: '' }; };
+    if (Array.isArray(out.npcFates)) out.npcFates = out.npcFates.map(f => { if (isObj(f)) return f; const x = split(f); return { npcId: x.npcId, status: x.rest.toLowerCase().replace(/[^a-z]/g, '') }; });
+    if (Array.isArray(out.memoriesSettled)) out.memoriesSettled = out.memoriesSettled.map(m => { if (isObj(m)) return m; const x = split(m); return { npcId: x.npcId, text: x.rest }; });
+    if (Array.isArray(out.clockNudges)) out.clockNudges = out.clockNudges.filter(c => !isObj(c) || (Number(c.delta) || 0) !== 0).map(c => isObj(c) ? Object.assign({}, c, { delta: (Number(c.delta) || 0) > 0 ? 1 : -1 }) : c);
+    for (const k of Object.keys(RECORD_EMPTY)) if (!(k in out)) out[k] = deepCopy(RECORD_EMPTY[k]);
+    return out;
+  }
+  /* The API refusing the schema's grammar as too large (31 Oct 2026). */
+  const grammarRefused = err => !!err && err.type === 'invalid_request_error' && /grammar/i.test(String(err.detail || err.message || ''));
 
   // ----- errors -----
   class ApiError extends Error {
@@ -16328,7 +16364,18 @@ const Api = (() => {
   const Real = {
     name: 'claude',
     parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
-    bookkeep(packet) { return messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.record_changes }); },
+    async bookkeep(packet) {
+      const user = packet.text || JSON.stringify(packet);
+      let r;
+      try { r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes }); } catch (err) {
+        if (!grammarRefused(err)) throw err;
+        // The API refused the full record as too large a grammar: once more with the essentials, so the turn is still recorded.
+        State.debugLog.push({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role: 'bookkeeper', status: err.status || 400, requestId: err.requestId || null, reason: 'the API refused the record_changes grammar as too large; asking again with the core fields only' });
+        r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes_core });
+      }
+      if (r && isObj(r.result)) r.result = recordFromWire(r.result);
+      return r;
+    },
     chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
     rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
     revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
@@ -16461,7 +16508,7 @@ const Api = (() => {
   }
   return {
     ENDPOINT, MODELS_ENDPOINT, API_VERSION, MAX_TOKENS, NARRATOR_MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_AFTER_MAX_MS, RETRY_STATUSES, TIMEOUTS, CACHE_CONTROL, PREWARM_AFTER_MS, KEY_RE,
-    SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, RECORD_RULES, PARSE_TYPES,
+    SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, RECORD_RULES, PARSE_TYPES, RECORD_CORE_FIELDS, recordFromWire, grammarRefused,
     ApiError, Mock, Real, usage, responses,
     headers, requestBody, costOf, priceOf, roleModel, roleEffort, narratorMaxTokens, isRefusal, readStream, chronicleText, retryAfterMs, validKey, editMessages,
     providerName: () => provider().name,

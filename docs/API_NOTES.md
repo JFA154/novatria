@@ -229,11 +229,28 @@ against canned replies (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`).
 - **Idle timeouts.** Every call runs under an `AbortController`. A stream
   gives up after 45 s with no bytes (each chunk resets the timer); a
   non-streaming call after 120 s in all. Stop aborts every call in flight.
-- **`record_changes`.** The bookkeeper's schema gained `npcFates`,
-  `memoriesSettled` and `obligationsSettled`, and lost
-  `attitudeChanges[].reason`, `newSeeds[].cause` and the nested
-  `newSeeds[].trigger` object (now flat `triggerType` / `triggerValue`), for
-  45 properties counted the way the grammar counts them (every property of
-  every nested object). An earlier live probe passed 46 and refused 47 with
-  "compiled grammar too large". The 45-property schema still needs a live
-  probe.
+- **`record_changes` and the grammar limit.** The API compiles a JSON
+  schema to a grammar with a size limit, and `record_changes` sits at it.
+  A live probe once passed 46 properties (every property of every nested
+  object counted) and refused 47; then on 31 Oct 2026 the API refused a
+  45-property, six-enum schema on every turn with HTTP 400 "The compiled
+  grammar is too large, which would cause performance issues", so no
+  turn's changes were recorded (the owner's debug view showed the refusal
+  twice a turn, the retry included). Wave 17 holds the schema to the shape
+  known to pass live that same morning: 41 properties and four enums
+  (`weight`, the place `type` and `kind`, the nullable thread `status`).
+  `npcFates` and `memoriesSettled` are arrays of strings on the wire
+  ("npc_wade: hurt", "npc_curtis: loaned Joe $15"); `Api.recordFromWire`
+  turns them into the engine's `{ npcId, status }` / `{ npcId, text }`
+  objects (objects pass through, so the demo's reply reads the same), the
+  clock delta and the seed trigger type are plain values the engine checks,
+  and `attitudeChanges[].reason` and `newSeeds[].cause` stay gone. If the
+  API refuses the grammar again (`invalid_request_error` mentioning
+  "grammar"), `bookkeep()` asks once more with `record_changes_core`, the
+  thirteen essentials (money, health, things, feelings, memories, where the
+  player is, who they met, rumours, fates, settled memories and
+  obligations, the journal line; 18 properties counted), fills the rest in
+  empty and logs the fallback in the debug view, so the turn is still
+  recorded. The lesson: a schema this size needs a live probe before any
+  field is added, and the count alone is not the measure (enums and
+  nullables weigh too).

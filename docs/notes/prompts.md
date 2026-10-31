@@ -676,3 +676,39 @@ name". Nobody in the scene can see the player's pocket.
   or a number that is not the player's. Callers without `gold` get no
   check. `Pipeline.narrate` passes the cash and the input on both attempts.
 - Tests: `tests/wave9-fixes.test.cjs`.
+
+## Wave 17 (31 Oct 2026): the bookkeeper's grammar
+
+- The API refused `record_changes` on every live turn: HTTP 400
+  `invalid_request_error`, "The compiled grammar is too large, which would
+  cause performance issues. Simplify your tool schemas or reduce the number
+  of strict tools." Both attempts a turn failed, so the story stood and
+  nothing was recorded (the quiet "could not be recorded yet" line each
+  turn; the owner's debug view showed eight refusals over four turns).
+- `Api.SCHEMAS.record_changes` is back to the shape known to pass live
+  that morning: 41 properties counted with nested ones, four enums
+  (`newMemories[].weight`, `placesRevealed[].type` and `.kind`, the
+  nullable `threadUpdates[].status`). `npcFates` and `memoriesSettled` are
+  `list(STR)` with the format in the description ("npc_id: status",
+  "npc_id: the memory as their remembers list words it");
+  `clockNudges[].delta` and `newSeeds[].triggerType` are a plain integer and
+  string with the allowed values in the description.
+- `Api.recordFromWire(diff)`: strings become `{ npcId, status }` and
+  `{ npcId, text }` (a colon, a dash or a space after the id; the id
+  lower-cased, the status letters only), objects pass through, a clock delta
+  becomes 1 or -1 (0 dropped), fields a core reply left out are filled in
+  empty, and a string with no `npc_` id becomes an object `State.apply`
+  rejects by name. `Real.bookkeep` runs every reply through it; the mock's
+  replies already hold objects.
+- `Api.SCHEMAS.record_changes_core` (`RECORD_CORE_FIELDS`: attitudeChanges,
+  newMemories, goldDelta, hpDelta, itemsGained, itemsLost, playerLocationId,
+  npcKnownToPlayer, rumoursHeard, npcFates, memoriesSettled,
+  obligationsSettled, journalEntry; 18 counted) is the fallback when the
+  API refuses the grammar (`Api.grammarRefused`): one more call with the
+  same system prompt and packet, a debug line "the API refused the
+  record_changes grammar as too large; asking again with the core fields
+  only". Any other 400 fails the turn's bookkeeping as before.
+- Tests: `tests/wave17-grammar.test.cjs` (the shape, the normaliser, a live
+  reply with string fates recorded, the fallback through a routed endpoint,
+  another 400 still failing); `tests/api.test.cjs` and
+  `tests/prompts-fixes.test.cjs` follow the shape.

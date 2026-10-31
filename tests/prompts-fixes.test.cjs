@@ -380,7 +380,7 @@ s.test('parse packet and mock parser: LAST TURN, present traits and wants, TIME 
   for (const bit of ['LAST TURN is what the narrator said just before this', 'DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18)', 'STAT: might for force', 'moveWhen to "after"', 'goes in aboutIds, not targets', 'GAMBLE: betting or playing cards']) assert.ok(r.parserSys.includes(bit), 'parser rubric: ' + bit);
 });
 
-s.test('record_changes: the three new fields, 45 properties counted the way the API compiles them (limit 46), additionalProperties false and every property required everywhere; the bookkeeper\'s rubric and memory rules', async h => {
+s.test('record_changes: the three newer fields, 41 properties counted the way the API compiles them (the shape known to pass the grammar limit; wave 17), additionalProperties false and every property required everywhere; the bookkeeper\'s rubric and memory rules', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const r = await page.evaluate(() => ({ schemas: Game.Api.SCHEMAS, sys: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES, record: Game.Api.RECORD_RULES, chron: Game.Api.SYSTEM.chronicle }));
   const walk = (node, where, out) => {
@@ -397,12 +397,16 @@ s.test('record_changes: the three new fields, 45 properties counted the way the 
     const out = { props: 0, bad: [] };
     walk(sc, name, out);
     assert.deepEqual(out.bad, [], name);
-    if (name === 'record_changes') assert.equal(out.props, 45, 'record_changes: 45 counted with nested properties (the live grammar probe passed 46)');
+    if (name === 'record_changes') assert.equal(out.props, 41, 'record_changes: 41 counted with nested properties (45 was refused live on 31 Oct 2026)');
+    if (name === 'record_changes_core') assert.equal(out.props, 18, 'the core fallback: thirteen essentials, with their item objects');
   }
   const rc = r.schemas.record_changes.properties;
-  assert.deepEqual(Object.keys(rc.npcFates.items.properties), ['npcId', 'status']);
-  assert.deepEqual(rc.npcFates.items.properties.status.enum, ['arrested', 'gone', 'dead', 'hurt']);
-  assert.deepEqual(Object.keys(rc.memoriesSettled.items.properties), ['npcId', 'text']);
+  // Wave 17: fates and settled memories cross the wire as "npc_id: ..." strings (the grammar limit); Api.recordFromWire makes the engine's objects.
+  assert.equal(rc.npcFates.items.type, 'string');
+  assert.match(rc.npcFates.description, /"npc_id: status".*arrested, gone \(left town for good\), dead or hurt/);
+  assert.equal(rc.memoriesSettled.items.type, 'string');
+  assert.match(rc.memoriesSettled.description, /"npc_id: the memory as their remembers list words it"/);
+  assert.ok(!('enum' in rc.clockNudges.items.properties.delta) && !('enum' in rc.newSeeds.items.properties.triggerType), 'no enum on the clock delta or the trigger type');
   assert.equal(rc.obligationsSettled.items.type, 'string');
   assert.deepEqual(Object.keys(rc.newSeeds.items.properties), ['effect', 'triggerType', 'triggerValue']);
   assert.deepEqual(Object.keys(rc.attitudeChanges.items.properties), ['npcId', 'delta']);

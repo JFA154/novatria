@@ -1338,3 +1338,23 @@ talking, I can direct it to one person or all."
      A game named and then put down ("draw poker is for old men") is the
      one being left. Left open: a live narrator's telling of a hand, as
      before.
+   - **Wave 17** (31 Oct 2026). The owner's live game showed "What changed
+     this turn could not be recorded yet (the bookkeeper did not answer)"
+     on every turn, and the debug view had the cause: HTTP 400, "The
+     compiled grammar is too large". The API had stopped accepting the
+     bookkeeper's `record_changes` schema (45 properties, six enums; the
+     earlier live probe had passed 46), so nothing a turn changed was
+     recorded, both attempts. Notes: `docs/API_NOTES.md` ("record_changes
+     and the grammar limit"), `docs/notes/prompts.md` and
+     `docs/notes/transport.md` Wave 17; tests:
+     `tests/wave17-grammar.test.cjs`, with `tests/api.test.cjs` and
+     `tests/prompts-fixes.test.cjs` following. The schema is held at the
+     shape known to pass live that morning: 41 properties and four enums.
+     `npcFates` and `memoriesSettled` cross the wire as "npc_id: ..."
+     strings, which `Api.recordFromWire` turns into the engine's objects
+     (the engine, the demo and `World.knockDown` are unchanged); the clock
+     delta and the seed trigger type lose their enums (State checks them).
+     If the API refuses the grammar again, the bookkeeper asks once more
+     with `record_changes_core` (the thirteen essentials), fills the rest
+     in empty and logs it, so the turn is still recorded. Deployed to
+     `main` the same hour.

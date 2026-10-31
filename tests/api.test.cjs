@@ -141,20 +141,22 @@ s.test('requests carry the four headers and a body the current API accepts, with
       assert.match(mi.description, /not in INVENTORY and not lying here \(a knife, a gun, a car, a key, a tool\), named plainly; else null\. usesItemId is for a listed item\./);
       assert.ok(r.body.output_config.format.schema.required.includes('missingItem'));
     }
-    // bookkeeper: the root and the nine array item objects (placesRevealed, npcFates and memoriesSettled too; peopleRevealed is gone,
-    // the cast is fixed; newSeeds carries triggerType and triggerValue, no nested trigger).
-    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 10 : 1, `${r.role}: nested objects spelled out`);
-    // The API compiles the schema to a grammar with a size limit, and record_changes sits right at it
-    // (probed live: 46 properties pass, 47 are refused as "compiled grammar too large"). Adding a field
-    // anywhere in it needs another field removed, or a live probe first.
+    // bookkeeper: the root and the seven array item objects (placesRevealed too; npcFates and memoriesSettled are "npc_id: ..." strings
+    // since wave 17, peopleRevealed is gone, the cast is fixed; newSeeds carries triggerType and triggerValue, no nested trigger).
+    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 8 : 1, `${r.role}: nested objects spelled out`);
+    // The API compiles the schema to a grammar with a size limit. On 31 Oct 2026 it refused 45 properties with six enums for every
+    // turn ("The compiled grammar is too large"), so record_changes is held at the shape known to pass live: 41 properties, three
+    // enums outside the nullables (wave 17). Adding a field anywhere in it needs another removed, or a live probe first.
     if (r.role === 'bookkeeper') {
       let props = 0;
-      const count = node => { if (Array.isArray(node)) return node.forEach(count); if (node && typeof node === 'object') { if (node.type === 'object' && node.properties) props += Object.keys(node.properties).length; Object.values(node).forEach(count); } };
+      let enums = 0;
+      const count = node => { if (Array.isArray(node)) return node.forEach(count); if (node && typeof node === 'object') { if (node.type === 'object' && node.properties) props += Object.keys(node.properties).length; if (Array.isArray(node.enum) && node.type !== 'null') enums += 1; Object.values(node).forEach(count); } };
       count(r.body.output_config.format.schema);
-      assert.ok(props <= 46, `record_changes has ${props} properties; the API's grammar limit is 46`);
-      // npcFates, memoriesSettled and obligationsSettled in (seven counted with their items); attitudeChanges' reason and newSeeds' cause
-      // and nested trigger out (four): 45. Not yet probed live.
-      assert.equal(props, 45, 'the three new fields, with the room made for them');
+      assert.equal(props, 41, `record_changes has ${props} properties; 41 is the shape known to pass the API's grammar limit`);
+      assert.equal(enums, 4, `record_changes has ${enums} enums (weight, place type, place kind, and the nullable thread status)`);
+      const sch = r.body.output_config.format.schema.properties;
+      assert.equal(sch.npcFates.items.type, 'string');
+      assert.equal(sch.memoriesSettled.items.type, 'string');
       assert.ok(!('peopleRevealed' in r.body.output_config.format.schema.properties));
     }
   }

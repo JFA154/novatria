@@ -827,3 +827,14 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   lost when the turn that told the ending was taken back with `/undo`
   (the gain stayed: the fifth review's /cheat risk, its p11). Test: the
   "wave 6" test in `tests/integration.test.cjs`.
+
+## Wave 17 (31 Oct 2026)
+
+- A 400 `invalid_request_error` whose message mentions the grammar ("The
+  compiled grammar is too large") on the bookkeeper is not retried as a
+  transient failure (it never was: 400 is not in `RETRY_STATUSES`) but is
+  asked once more by `Real.bookkeep` with `SCHEMAS.record_changes_core`, the
+  essentials only, under the same `messageCall` rules (one transient retry,
+  the 120 s JSON timeout, Stop aborts it). The refusal and the fallback are
+  both in the debug view's API errors. See `docs/notes/prompts.md` Wave 17
+  for the schema itself.
