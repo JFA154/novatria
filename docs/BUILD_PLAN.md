@@ -1277,3 +1277,40 @@ talking, I can direct it to one person or all."
      closed page, another tab, the redraw, `/reroll`) works for both games
      and any street. Left open: a live narrator's telling of a hand, as
      before.
+   - **Wave 14** (31 Oct 2026). A QA player played about 300 hands of the
+     wave 13 table and found 4 bugs, 11 rough edges and 9 nits, fixed by
+     one agent as decided (all but `/undo` dealing the same hand again,
+     kept by design). Notes: the "Wave 14" sections of
+     `docs/notes/engine-world.md` and `docs/notes/ui.md`; tests:
+     `tests/wave14-holdem-fixes.test.cjs`. The Win (cheat) never changes a
+     card the player has seen (their own, the board so far, every seat's
+     with a marked deck): only what is unseen is dealt so their hand is
+     the best, and when nothing can do that the others fold to them and
+     they take the pot as it stands, so no tie and no weaker hand ever
+     takes it. The player folding with a bet unanswered no longer ends the
+     hand for the others: whoever owes the bet calls or folds it, the rest
+     is checked down, and a seat that never matched a bet cannot win it
+     (Stop, a closed page and another tab the same). A card player is
+     marked by a hand only for $10 or more (a loss of the most it could, or
+     its share of the player's money), once a day. On a phone the table no
+     longer jumps back to its head at every press: the player's cards and
+     the buttons stay in view. A new street starts with the statuses
+     cleared, five cards up is the Showdown, a verdict shows only where the
+     cards were shown, the head's pot is the real one (a fold at draw too),
+     hands of one name are told apart by their kickers, a stake that is not
+     a multiple of $5 says "at most $20 in" (and the narrator "of the $23
+     named"), and Check alone says there is no room for a bet. `/cheat win`
+     typed with a hand open is the Win (cheat) control and `/cheat cards`
+     says the cards are dealt; the switch hint is on the chooser and the
+     newest finished table only; `/reroll` after a cheat-win hand says
+     "Nothing to reroll: that hand was yours." (only `/undo` arms the cheat
+     again); the chooser has its own status line, and another tab taking
+     over at the chooser takes the turn back with nothing lost. The cheat
+     hands vary (at hold'em a set, the nut flush, a straight, a full house
+     or four of a kind against hands that lose; at draw a full house, a
+     flush or a straight). The demo reads "a hand of cards", "Mind if I sit
+     in?" and a game named in a short line as a bet, says "Curtis Pruett
+     folds to you" heads up, and never has the people at the table
+     "arrive" after the hand; "draw to an inside straight" is no game. The
+     Win (cheat) control is 44px tall on a phone. Left open: a live
+     narrator's telling of a hand, as before.

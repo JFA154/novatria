@@ -1273,3 +1273,90 @@ two of them at some tables, and for a way to win a hand without playing it
   head "Curtis Pruett's table · Five-card draw · stake $20 · pot $40"; the
   hint ends "… Name the game in your words to switch (hold'em or draw).
   Win (cheat)"; the `/help` row.
+
+## Wave 14 (31 Oct 2026): the card table after the hold'em QA
+
+A QA player played about 300 hands of the wave 13 table on phones and
+laptops; what changed at the table (the engine side:
+`docs/notes/engine-world.md`, Wave 14). Tests:
+`tests/wave14-holdem-fixes.test.cjs`.
+
+### Phones (QA #4)
+- `UI.feed.cardsShow` no longer pins the head to the top at every street
+  or move. Only the chooser turning into the dealt table (it first appears
+  then) goes through `showTable` as before; every later redraw goes
+  through `keepHand(node)`: when the whole table fits the story area it is
+  all shown (`showTable`); else, if the player's row, the pot line, the
+  buttons and the hint (with the board above them when that fits too) are
+  already in view nothing moves, and otherwise the story is scrolled so the
+  end of the table sits at its foot (the buttons first when even the
+  player's row and they do not fit). The finished table still re-sticks to
+  the bottom (`cardsDone`). Checked at 390×844, 375×667 and 320×640 with
+  five at the table: after every press the player's cards, the street's
+  buttons and Win (cheat) are inside the story area.
+
+### The table (`fillCards`)
+- **Statuses (QA #5).** The status cells come cleared at a new street (the
+  engine clears them); a seat that folded on an earlier street says when
+  ("folds before the flop") while the hand is open. The reads stay by
+  their seats.
+- **The label (QA #6).** At the end the board's label is "Showdown"
+  whenever five cards are up (the player's fold played out by the others
+  included); a hand everyone folded names the street it stopped on, its
+  fold statuses telling it.
+- **Face up and verdicts (QA #7).** A seat's cards are up with a marked
+  deck, or at the end when they were shown (`final`): a seat that folded
+  keeps them face down, a win cheat's fold-out too. A read's verdict ("You
+  were right.") only on a seat whose cards are up at the end (a showdown,
+  or the hands shown after the player folds), never on one that folded,
+  never after a win cheat. At draw, as before, after a showdown where the
+  dealer drew (not a heads-up fold, a hand thrown in or a win cheat).
+- **The head's pot (QA #8).** `cardsHead` uses the table's own pot (`pot`
+  on the open table, the record's after), at draw too: a fold heads up at
+  $20 shows "pot $30", five at the table "pot $90". A wave 10-12 record
+  with no pot works it out (the stake each, the fold price for the player).
+- **The cap (QA #16).** At hold'em when the stake is not a multiple of $5
+  the head and the pot line say the real cap: "Curtis Pruett's table ·
+  Texas hold'em · stake $23 · at most $20 in · pot $8", "Pot $8 · you're
+  in for $4 · at most $20 in" (`capText`, `Pipeline.holdemCap`).
+- **No room for a bet (QA #23).** When only Check is offered the hint
+  starts "Check only (no room for a bet: you're in for your whole $3)."
+- **The switch hint (QA #11).** Not on an open hand any more: the chooser's
+  hint is "Stop leaves the table (nothing lost). Name the game in your
+  words to skip this choice (hold'em or draw)." and Win (cheat); a finished
+  table has the line "Next hand: name the game in your words to switch
+  (hold'em or draw)." (`.cards-next`, under the result, not after a hand
+  that was caught), the newest finished table only (drawing one takes it
+  off the others).
+- **A draw hand thrown in** (the win cheat's fold-out): the seat's cards as
+  dealt, face down unless a marked deck shows them, status "folds", no
+  hand name and no draw count.
+- **Win (cheat) (QA #22).** Still the small control at the end of the
+  hint, but at a phone's width (899px or less) or on a touch screen it is
+  44px tall (`--tap`), as the app's other taps are.
+
+### The box and the status line
+- **Typed cheats (QA #10).** With a hand open, `/cheat win` typed in the
+  box is the Win (cheat) control (`handCommand`: the box empties and the
+  hand ends the player's; at the chooser it is the chooser's Win), and
+  `/cheat cards` puts "The cards are dealt: use Win (cheat) or type /cheat
+  win." on the status line ("No cards yet: use Win (cheat) or type /cheat
+  win." at the chooser). The nudge for any other line names the control:
+  "Your hand is on the table: Check or Bet. Stop folds the hand (−$4); Win
+  (cheat) ends it yours." (draw: "… then Draw or Fold. Stop folds the hand
+  (−$10); Win (cheat) ends it yours.").
+- **The chooser's status line (QA #18).** The stage `choose`: "Choose the
+  game: Five-card draw or Texas hold'em. Stop leaves the table (nothing
+  lost)." instead of "Your hand"; "Your hand" once a game is dealt.
+- **Two tabs at the chooser (QA #19).** The turn is taken back (the typed
+  line and the chooser leave the story, the line goes back in the box) with
+  the notice "Another tab took over; the table is closed here."; `cardsVoid`
+  says the same if it is ever given a chooser.
+
+### Tests changed by design
+- `tests/wave13-holdem.test.cjs`, `tests/wave11-cards.test.cjs`: the open
+  table's hint ends "Stop folds the hand (−$4). Win (cheat)" (at draw
+  "… Stop folds the hand (−$15). Win (cheat)"); the chooser's hint; the
+  statuses cleared at the turn and after the bet before the flop; the
+  nudge's last words. `tests/wave12-cards.test.cjs`: the head's pot after a
+  fold. `tests/wave10-cards.test.cjs`: the nudge.

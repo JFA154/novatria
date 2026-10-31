@@ -1151,3 +1151,132 @@ table: `docs/notes/ui.md`, Wave 13; the card players:
   `tests/wave4-fixes.test.cjs` (draw remembered, heads up, where they bet)
   and `tests/wave6-fixes.test.cjs` (the `/help` row). `tests/helpers.cjs`
   has `presetCards(page, { game, seats })`.
+
+## Wave 14 (31 Oct 2026): the card table after the hold'em QA
+
+A QA player played about 300 hands of the wave 13 table (hold'em, more
+seats, the win cheat) and reported 4 bugs, 11 rough edges and 9 nits; all
+but one (the identical hand after `/undo`, by design) are fixed as decided
+(the table's side: `docs/notes/ui.md`, Wave 14). Tests:
+`tests/wave14-holdem-fixes.test.cjs`.
+
+- **The win cheat changes nothing the player has seen (QA #1, #13).** Seen
+  is the player's own cards, the board turned so far and, with a marked
+  deck, every seat's cards. Mid-hand (the Win (cheat) control, or
+  `/cheat win` typed with the hand open) at hold'em: the deal stands when
+  it already makes the player's hand strictly the best of the seats still
+  in (`beatsAll`); else `rigHoldem(rng, holes, board, shown, live, marked)`
+  deals the board still to come with every hole card kept (every card with
+  one to come, every pair with two, 3000 boards with five), and only with
+  no marked deck changes the hidden hole cards of the seats still in (a
+  seat that folded keeps its own). At draw `rigDraw(rng, player, others)`
+  keeps every hand as dealt and what each other seat holds by the dealer's
+  rule; only the draws are dealt: the player keeps their best group (or,
+  failing that, the cards of one rank, or the highest) and draws the rest
+  of its rank first on every other try, the others' draws are dealt from
+  what is left so they lose. When nothing works (a board complete under a
+  marked deck, a royal flush on the board, a pat four aces), the others
+  fold to the player instead: at hold'em on the street the hand stands on
+  (the player first calling a bet they faced, so no bet nobody matched is
+  won), with `foldedOn` that street, the board as turned and the record
+  `uncontested`; at draw they throw their hands in (`folded`, `final` the
+  hand as dealt, no name). The player takes the pot as it stands.
+  `settlePot` has no `force` any more: the cards (or everyone folding) make
+  the player's hand the best, so the pot goes as any pot does, and no tie
+  or weaker hand is ever shown taking it. An armed `/cheat win` (no table
+  shown, nothing seen) keeps its stacked deal and its winnings as built:
+  (seats − 1) × min(5u, S) at hold'em, (seats − 1) × S at draw.
+- **The player folding with a bet unanswered (QA #2).** `holdemRun` no
+  longer returns at the player's fold. The street's queue goes on: a seat
+  that still owes a bet calls or folds it by `seatMove` (the same coin), a
+  seat with nothing to answer checks, nobody bets after the player has
+  gone, and the later streets are checked down. It returns `playerFolded`
+  (with `showdown` when two or more are still in), so a seat that never
+  matched a bet cannot win it and the record's `in` shows the calls. Stop,
+  the reload fold ("You left the table") and the two-tab fold play the
+  same `fold` move, so they take the same path.
+- **Statuses (QA #5).** At each new street `holdemRun` clears the status of
+  every seat still in; a folded seat keeps "folds" (the table says when).
+- **The street of the record (QA #6).** `street` is 4 (the Showdown)
+  whenever the board was dealt out (a showdown, or the player's fold played
+  out by the others), else the street the hand stopped on (everyone folding
+  to someone); `shown` is the cards turned.
+- **Seat memories (QA #3)** (`seatMarks`, `SEAT_MARK_MIN` = $10): a losing
+  seat gets "lost $X to {player} at cards at the Low Water" and −2 only
+  when it lost the most it could and that most is $10 or more (the stake at
+  draw, min(5u, S) at hold'em: never at a $1 to $9 stake); a seat that took
+  a pot gets "took a pot off {player} …" and +1 only when its share of what
+  the player put in is $10 or more (floor of the player's `in` × its `won`
+  / the pot); and each seat has at most one such change a day, the first
+  (the effect `setFlag` `cardsMark.<id>` = the day, written with it; a seat
+  marked today is skipped). Curtis still never moves. A `/reroll` or
+  `/undo` restores the flags with the turn.
+- **Names at a showdown (QA #9).** `Cards.namesApart(finals)` names the
+  hands shown together; two that share a name but differ get the deciding
+  cards ("Pair of aces, nine kicker" / "eight kicker", "Two pair, jacks and
+  eights, queen kicker", "Three of a kind, sevens, ace kicker", "Four of a
+  kind, twos, king kicker"; a flush or high card by its top cards up to
+  where they differ, "Flush, ace-king high" / "Flush, ace-queen high",
+  "Ace-king high"); an exact tie keeps one name. Used for the record's
+  names at hold'em and at draw, so OUTCOME, the plain line and the demo say
+  the same.
+- **The cap (QA #16).** `holdemCap(S, u)` = min(5u, S); `capWords(rec)` is
+  the stake as before when they are equal, else "$20 of the $23 named" (the
+  note in brackets: "(all they have)", "(half of what they have)"). OUTCOME:
+  "the card game (the player came in for at most $20 of the $23 named; the
+  ante and every bet $4)". `seatMarks` uses the same cap.
+- **The words (QA #17).** `DRAW_WORD` no longer reads "draw to", "draw
+  into", "draw one/two/three/four/five", "draw 1-5", "draw another", "draw
+  some", "draw new" (with "a", "the", "my", "on" and the rest as before),
+  nor "five cards" right after "draw" ("I draw five cards"). The last game
+  named still wins ("I play texas hold'em, draw poker is for old men" is
+  draw).
+- **Varied cheat hands (QA #20).** `Cards.holdemStacked(rng, n)` picks a
+  shape from the seed (`STACK_SHAPES`: a set, the nut flush, the top
+  two of a straight six-high to king-high, a full house over the board's
+  pair, four of a kind), checks the player's seven make exactly that, and
+  gives each other seat two cards from a sample of 120 pairs: one of the
+  three best that still lose to the player (`stackOthers`), so they hold a
+  pair, two pair, a lower straight or flush… After 40 tries it falls back
+  to wave 13's four of a kind (`quadsStacked`). At draw `stacked` deals a full house
+  (as before), a flush (the pile five more of the suit: any draw stays a
+  flush) or a straight (the pile five cards of its ranks: any draw keeps
+  the straight or a pair), and the others still draw to nothing. `/cheat
+  cards` at hold'em still makes the others call every bet before the flop.
+- **/reroll after a cheat win (QA #12).** A hand the win cheat ended
+  (`record.win`) answers "Nothing to reroll: that hand was yours."
+  (`NOTICES.cardsWon`) and the cheat stays spent: only `/undo` of the hand
+  arms it again; `/reroll` keeps a cheat that is armed and not yet used.
+- **The chooser (QA #18, #19).** `status('choose')` while the chooser is
+  open ("Choose the game: Five-card draw or Texas hold'em. Stop leaves the
+  table (nothing lost)."), `status('cards')` once it is answered. Another
+  tab taking the game over with the chooser open (`voidHand`, `kind`
+  'choose') rejects the turn as `{ type: 'void', chooser: true }`: the turn
+  is taken back as Stop takes it (its lines out of the story, the line back
+  in the box) with the notice "Another tab took over; the table is closed
+  here." (`NOTICES.chooserVoid`); nothing was dealt or stored, so nothing
+  is lost in either tab.
+- **The narrator.** `tableWords` heads up: "Curtis Pruett folded on the
+  river; the player takes the $16 pot without a showdown" (not "everyone
+  else"); a heads-up draw thrown in is told as the table's are, not as a
+  showdown. `plainHandText`: "Curtis Pruett folds, and the $16 pot is
+  yours" heads up.
+- **The demo (QA #14, #15, #21).** `MOCK_GAMBLE` reads "a hand of cards"
+  (another, one more; of poker too) and "sit in" when it ends the line or
+  is followed by for, with, tonight, today or this ("Mind if I sit in?",
+  "Can I sit in for a hand?"; "I sit in the corner" is not a bet);
+  `MOCK_GAME_NAME` reads a game named in a line of eight words or fewer
+  ("hold'em? no, five card draw", "texas hold'em, twenty bucks"; "I ask
+  Curtis about hold'em" stays talk). The stake is the words' or the usual,
+  the game the last named. `mockGamble` heads up: "Curtis Pruett folds to
+  you on the turn, and the $24 pot is yours", never "everyone"; a draw
+  thrown in is told as a fold. The arrival line leaves out the action's
+  targets, and after a hand of cards nobody "arrives" at all (the people
+  who came in while the player waited were at the table for it).
+- **Tests changed by design**: `tests/wave13-holdem.test.cjs` (the hint
+  without the switch line, the cleared statuses at a new street, the
+  three-handed fold's $4 moves nobody, the chooser's hint, the nudge, the
+  `/cheat cards` hand's shape), `tests/wave10-cards.test.cjs` (the stacked
+  draw is a made hand of three shapes; the nudge),
+  `tests/wave11-cards.test.cjs` (the draw hint) and
+  `tests/wave12-cards.test.cjs` (the head's pot after a fold is $30).
