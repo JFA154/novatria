@@ -1231,3 +1231,24 @@ talking, I can direct it to one person or all."
      the hand at once, a short phone opens the table at its head, and suit
      signs ask for text presentation. Left open: a live narrator's telling
      of a hand, as before.
+   - **Wave 12** (31 Oct 2026). A second QA pass over the wave 11 table
+     found three medium and ten low items, fixed by one agent. Notes: the
+     "Wave 12" sections of `docs/notes/engine-world.md` and
+     `docs/notes/ui.md`; tests: `tests/wave12-cards.test.cjs`. Once a hand
+     is played the story is followed again on a phone (the narration was
+     left below the fold under the "New" pill), and the title screen's
+     refusal shows above the table with the focus on its head. A hand left
+     on the table is bound to the game, the turn and the story it was
+     dealt in, and to its tab: any load that does not match (an older save
+     of the same game, another game, New game) drops it; another tab that
+     takes the game over folds it there, and the first tab's table is void.
+     The dealer's invitation waits while he will not deal for any reason.
+     A `/cheat cards` hand resumed after a reload spends the cheat. The
+     catch roll reads "Keeping the marks from Curtis", a closed page's fold
+     "You left the table, so you fold", and a narrator that fails after the
+     showdown says so and how the hand stands, with no "try again". "I bet
+     he is lying" is talk, not a bet; "a fiver", "half my money" and "$0.50
+     is no stake" are stakes as said; every line about a ban names the
+     first day the place is open; the demo names someone not met as the Say
+     picker does. Left open: a live narrator's telling of a hand, as
+     before.

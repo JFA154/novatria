@@ -648,13 +648,17 @@ still rolls stealth.
 nights), there is a card game at the back table: five-card draw, you against
 Curtis, at a table the story shows you. Say you bet, in Do or in Say mode
 ("I put $50 in", "deal me in", "I'm in for fifty", "another hand", "I go all
-in"; said in Say mode to Curtis or to everyone): the stake is what you name,
-in figures or in words ("fifty dollars", "a hundred bucks"; whole dollars, so
-"$2.50" is $2), all your cash for "everything" or "all in", $20 if you name
-nothing (or $0, or less), and never more than your cash. When the stake is all you
-have, or is the usual $20 because what you named was no stake, the table's
-heading says so ("stake $140, all you have"). Nobody at the table? The story
-says when Curtis deals. The table appears under your line ("Curtis Pruett's
+in", "I bet $20", "I bet twenty on the next hand"; said in Say mode to Curtis
+or to everyone). A bet names the cards, the hand, the game or the pot, or is
+a bare stake: "I bet he is lying" or "I bet you ten bucks it rains tomorrow"
+is talk, and no hand is dealt. The stake is what you name, in figures or in
+words ("fifty dollars", "a hundred bucks", "a fiver"; whole dollars, so
+"$2.50" is $2), all your cash for "everything" or "all in", half of it
+(rounded down, at least $1) for "half my money", $20 if you name nothing
+(or less than $1), and never more than your cash. When the stake is all you
+have, half of it, or the usual $20 because what you named was no stake, the
+table's heading says so ("stake $140, all you have", "stake $20, the usual:
+$0.50 is no stake"). Nobody at the table? The story says when Curtis deals. The table appears under your line ("Curtis Pruett's
 table · stake $20 · pot $40"), Curtis's five cards face down and yours face
 up. Tap the cards you want to keep (or Space or Enter on them; each says
 Hold), then **Draw** (it says how many it replaces: "Draw 3", or "Stand pat"
@@ -679,27 +683,38 @@ shuffled from the game's seed and the turn, so a hand taken back with
 `/undo` is dealt again the same way, by design, when you send the same line.
 With a marked deck on you, Curtis's cards are face up while you draw (you
 read the marks, so there is no read), and once the hand is played one wits
-roll at normal difficulty, +2 for the deck, says whether he notices ("Does
-Curtis spot the marks? Wits 17 + 3 = 20 vs 12 · Success", under the table):
-on a fumble he catches you (the hand is void and you lose the stake; he keeps
-the deck, puts you out on Front Street, remembers it hard, you are barred for
-three days, today counted, the story names the first day the bar is open
-after that ("back on Monday, Day 5"), and the town hears of it). After that
-he will not deal to you for a week, nor while he is colder to you than -10
-("Curtis Pruett won't deal to you"), and what he had coming for you (a
-background's invitation to his Friday game) waits until he would. Without a
+roll at normal difficulty, +2 for the deck, says whether you keep the marks
+from him ("Keeping the marks from Curtis: Wits 17 + 3 = 20 vs 12 · Success",
+under the table; a success means he did not notice): on a fumble he catches
+you (the hand is void and you lose the stake; he keeps the deck, puts you out
+on Front Street, remembers it hard, you are barred for three days, today
+counted, and the town hears of it). Every line about the ban names the first
+day the bar is open after it ("back on Monday, Day 5" in the story, "not
+welcome there until Day 5" at its door, on his People card and on the
+place's card). After that he will not deal to you for a week, nor while he
+is colder to you than -10 ("Curtis Pruett won't deal to you"), and what he
+had coming for you (a background's invitation to his Friday game) waits for
+as long as he will not deal, for either reason. Without a
 marked deck nothing is rolled and nobody is accused. No complication is
 rolled at cards. Once the cards are dealt the ante is in: while a hand is
 open the box waits as it does during any turn, **Stop** folds the hand (at
 the fold price, the table's hint says so, and with a marked deck the catch
 roll is still made), and the turn is kept, told in one plain line; closing
-the page does not take it back either (the next time the game is loaded, a
-hand left open is folded and one already played stands as it was played);
-Menu → Title screen waits until you Draw or Fold. After the showdown the
+the page does not take it back either (the next time that game is loaded, a
+hand left open is folded, "You left the table, so you fold: −$10", and one
+already played stands as it was played; loading an older save of the game,
+another game or a new one drops it instead, so a hand you never played is
+never folded). If another tab takes the game over while a hand is open, the
+table in the first tab is void ("Another tab took over; this hand is void
+here.") and the tab that took over folds it. Menu → Title screen waits until
+you Draw or Fold (the notice shows above the table). After the showdown the
 hand is final: if the narrator fails, is stopped or declines, the turn is
-still kept and the hand told in a plain line ("The hand is played: your two pair, kings
-and sevens, beats Curtis Pruett's pair of aces. You win $50."). A reload or
-`/undo` draws a finished table again where it was in the story.
+still kept and the hand told in a plain line ("The hand is played: your two
+pair, kings and sevens, beats Curtis Pruett's pair of aces. You win $50."),
+with a notice that says what happened ("The narrator could not be reached.
+The hand stands: you win $50."). Once the hand is played the story is
+followed again, on a phone too. A reload or `/undo` draws a finished table
+again where it was in the story.
 `/cheat cards` stacks the deck so you win the next hand. With no game here,
 nobody dealing, or the bar shut for the day, nothing is bet and no table is
 dealt.

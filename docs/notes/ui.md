@@ -1129,3 +1129,59 @@ found, and what the table does now (the engine side:
   the hand's name line carries the dealer's draw, Stop folds (the turn is
   kept and Send is Wait again), and the cheat test arms and checks
   `flags.cardsCheat`.
+
+## Wave 12 (31 Oct 2026): the card table after the second QA
+
+The second QA pass over the wave 11 table, and what the table does now
+(the engine side: `docs/notes/engine-world.md`, Wave 12). Tests:
+`tests/wave12-cards.test.cjs`.
+
+### The story after a hand (M1)
+- `UI.feed.cardsDone` follows the story again once the hand is played (a
+  showdown, a fold, Stop): it scrolls to the bottom and sticks
+  (`scrollToBottom`), so the catch roll, the narration and the notices
+  that come after are on screen with no "↓ New" pill. Wave 11's
+  `showTable` stays for the open table (its head at the top of a short
+  phone, or all of it in view), but it had left the feed unstuck: on a
+  320×640 phone every hand, and at 390×844 with the first-run tip under
+  the feed, the narration landed below the fold behind the pill.
+- `UI.feed.handNotice(text)`: a notice while the hand is open (the title
+  screen's refusal, `App.quitToTitle`) goes just above the table, and
+  `showTable(node, lead)` puts the notice and the table's head in view
+  together; nothing is appended, so no pill covers Fold. Not at an open
+  table, it is a plain notice.
+
+### Focus (L6)
+- After the refusal the focus goes to the table's head (it fell to the
+  page on a phone, where the menu item that had it was hidden).
+
+### Another tab (L3)
+- `Storage.setReadOnly(true)` with a hand open calls
+  `Pipeline.voidHand()`: `UI.feed.cardsVoid(node)` keeps the table as
+  dealt, takes off `.open`, adds `.void` (its buttons disabled and dimmed),
+  puts "Another tab took over; this hand is void here." where the hint
+  was, and keeps the focus on the head if it was in the table. The turn
+  ends with nothing kept and no call; "Play here instead" loads the game
+  as the other tab left it.
+
+### Words
+- The fold of a hand left open when the page was closed (L4): "You left
+  the table, so you fold: −$10 · cash $90" (`record.closed`); Stop's stays
+  "Stopped, so you fold".
+- The catch roll's label (L2): "Keeping the marks from Curtis: Wits 17 + 3
+  = 20 vs 12 · Success", so a success is the player's.
+- The head with a stake that was no stake (L8): "stake $20, the usual:
+  $0.50 is no stake" (the amount as named, to the cent, `t.named`); half
+  the cash: "stake $70, half of what you have".
+- A ban's day (L9): the People card ("Banned you from the Low Water until
+  Day 5"), the Places card ("You are banned until Day 5.") and `/skip`
+  there ("You are not welcome at the Low Water until Day 5.") name the
+  first day the place is open again (`Pipeline.banBackDay`), the day the
+  OUTCOME names.
+
+### Tests changed by design
+- `tests/wave11-cards.test.cjs`: the catch roll's label (M1 Stop, L9), the
+  narrator-failure notice (M1), the reload's fold is `closed` (M1), the
+  invitation waits while the dealer is still colder than -10 a week on and
+  is told once he is warmer (M4), the head says "−$5 is no stake" (M5),
+  and the demo names a dealer not met by the Say picker's label (L7).

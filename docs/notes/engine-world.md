@@ -879,3 +879,83 @@ table: `docs/notes/ui.md`, Wave 11). Tests: `tests/wave11-cards.test.cjs`.
   cheat is armed with `State.apply({ cardsCheat: true })`) and
   `tests/wave3-fixes.test.cjs` (bug 7: the ban's day is the first the bar
   is open, with its weekday).
+
+## Wave 12 (31 Oct 2026): the card game after the second QA
+
+The second QA pass's findings on the card game, and the rules as built now
+(the table: `docs/notes/ui.md`, Wave 12). Tests:
+`tests/wave12-cards.test.cjs`.
+
+- **A stored hand is bound to its game (M2).** `Storage.holdHand` writes
+  `handMark(s)` with the hand: the game (`createdAt` and `seed`), the turn
+  and `storyMark(s)` (a hash of the log's length and its last entry's day,
+  phase, input and narration), plus the tab that dealt it and a token.
+  `Pipeline.resumeHand()` resumes it only when all of these match the game
+  just loaded at the turn before; otherwise it drops it, so loading an
+  older save of the same game (or another game) and playing on to the same
+  turn never folds a hand the player did not play there. `App.begin` (New
+  game) drops it too. Only a tab another tab has taken over leaves it (it
+  is that tab's). runTurn's `finally` drops only its own hand
+  (`Storage.dropHand(token)`).
+- **Two tabs (L3).** `Storage.tabId` is kept in sessionStorage (a reload is
+  the same tab). A tab that loads the game (Continue, Load, Play here
+  instead) holds it and resumes the hand: one dealt in another tab is
+  folded with "A hand was left open in another tab, so it is folded here
+  and the ante is gone." (or, played, "A hand was played in another tab
+  before this one took over. It stands …"); one from this tab's reload
+  keeps the wave 11 notices. The tab that lost the game voids its open hand
+  (`Pipeline.voidHand`: the hand's promise rejects with `type: 'void'`,
+  runTurn restores its snapshot without taking the table out of the feed,
+  and nothing is called or saved).
+- **The invitation waits while he will not deal (M3).** `dueHold` holds a
+  dealer's non-obligation due events while `dealerRefusal` is true for any
+  reason: the week after he caught the player (as before) and while his
+  attitude is under `DEALER_COLD` (-10). A dealer is `isBookie` or
+  `isCardDealer` (what `dealerOf` looks for).
+- **`/cheat cards` on a resumed hand (L1).** A hand played before the page
+  was closed is replayed from its record; it spends an armed cheat too (the
+  autosave from before the turn still had it armed).
+- **The catch roll (L2)** is labelled "Keeping the marks from Curtis:
+  Wits 17 + 3 = 20 vs 12 · Success" in `roll.line` (a success is the
+  player's: he did not notice).
+- **A closed page's fold (L4)** is recorded `closed: true` (not `stopped`;
+  State's `logCards` keeps it) and told "You fold your pair of nines, get
+  up from the table and give up $10."
+- **The narrator failing after the showdown (L5)**: the notice says what
+  happened and how the hand stands, with no "try again"
+  (`NOTICES.handUntold`): "The narrator could not be reached. The hand
+  stands: you win $50." ("you lose $20", "a split pot", "you fold and give
+  up $10", "you are caught cheating and lose $20"; a code error: "The story
+  could not be written. …"). The error goes to the console and the debug
+  log.
+- **Bets that are not bets (L7).** `Style.betTalk(text)`: null (no bet or
+  wager), `'clause'` (a bet followed by a clause: "I bet he is lying", "I
+  bet you ten bucks it rains tomorrow", "I bet you are tired", "I bet
+  Curtis is bluffing"), `'bet'` (the cards, a hand, the game or the pot
+  named, or a bare stake: "I bet $20", "I'll bet you fifty.", "I bet a
+  fiver", "I bet it all", "I bet half my money"), `'bare'` ("I bet.") or
+  `'other'` ("I bet my watch", "I bet $20 on it"). `wordsBet` (Say mode)
+  takes `'bet'`; `sayAction` makes a parser's gamble talk when the words
+  are only a clause (`betIsTalk`); the demo's parser takes `'bet'` and
+  `'bare'` (bet and wager are no longer in `MOCK_GAMBLE`). The parser's
+  GAMBLE rubric and the Say MODE line say "I bet he is lying" is talk.
+- **Stakes (L8).** `stakeFor` keeps the amount named to the cent ("0.50
+  dollars" is named 0.5; under $1 is the usual $20, `note: 'usual'`, and
+  the OUTCOME says "$20, the usual stake: $0.50 is no stake",
+  `moneyNamed`); "a fiver" is $5, "a tenner" $10, "two grand" $2000;
+  "half my money", "half of what I have" is half the cash rounded down, at
+  least $1 (`note: 'half'`, "$70, half of what they have"); "I bet it
+  all" is all of it; "I'll bet you fifty" is $50. `logCards` keeps
+  `stakeNote: 'half'` and a `named` with cents.
+- **One day for one ban (L9).** `banBackDay(ban)` is `openDayFrom` from the
+  ban's `untilDay`: `shutReason` (the walk to the door, the narrator's
+  packet, the demo's "you are not welcome there until Day 5"), `/skip`
+  there, the People card and the Places card name the day the OUTCOME
+  names ("back on Monday, Day 5").
+- **The demo names who the player knows (L10).** The no-game lines use the
+  Say picker's label (`npcLabel`) for someone not met: "It's the insurance
+  man who deals, and you said it to the owner and bartender.", "The
+  insurance man deals in the afternoon, evening and night."
+  (`dealerHours(l, true)`); the narrator's CARD GAME line keeps the names.
+- **Tests changed by design**: `tests/wave11-cards.test.cjs` (see
+  `docs/notes/ui.md`, Wave 12).
