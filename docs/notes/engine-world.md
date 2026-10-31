@@ -1693,3 +1693,99 @@ notices, layout and telling, fixed as decided (the table's side:
   `tests/wave14-holdem-fixes.test.cjs` (#21: the moment names the dealer
   who folds), `tests/wave15-table-polish.test.cjs` (the notice) and
   `tests/wave18-betting.test.cjs` (the amount notes).
+
+## Wave 20 (31 Oct 2026): the betting table's words after its second QA
+
+A verification QA of the wave 19 table confirmed its fixes and found
+eleven leftovers (N1-N11), fixed as decided (the table's side:
+`docs/notes/ui.md`, Wave 20). Tests: `tests/wave20-table-words.test.cjs`.
+
+- **Shove and push (N1).** The demo's attack rule reads "shove" or "push"
+  (and their -s, -ed, -ing forms) as an attack only with a person as the
+  verb's own object (`shoveObjects`: the words right after the verb, up to
+  a comma or a stop, a preposition or a particle; a possessive is no object
+  of its own): someone named or by role, someone new, "him", "them",
+  "someone" and the like, "her" alone, or a person's noun ("shove the old
+  man", `SHOVE_PERSON`). "I push my chips toward Curtis", "I shove all my
+  chips at Curtis", "I push the pot to Curtis", "shove, Curtis", "I push
+  past Curtis to the bar" and "push Curtis's chips back" hurt nobody.
+  `typedBet` reads a push or a shove of the chips, the money, the cash or
+  the stack as all in (`TYPED_PUSH`: "I push my chips in", "shove all my
+  money toward Curtis", "push it all in"), so with a hand open it is the
+  all in (held to the limit at the house game) and right after a hand the
+  between-hands notice (`Pipeline.betWord`, `betweenHands`).
+- **The ask for table stakes (N2, N3).** `stakesWords(text)` is the word
+  rule for the engine (`stakesAsked`), the demo (`mockStakes`) and the box
+  with a hand open: a `STAKES_ASK` phrase that is not talk. `STAKES_ASK`
+  loses "without a limit" and the possessive forms ("lift your limit",
+  "take your limit off"); a phrase with "limit" in it is talk when know,
+  knows, has, have, is, was, there, there's or without comes right before
+  its limit (`LIMIT_TALK_BEFORE`: "your greed knows no limit", "Curtis,
+  your greed has no limit.", "Is there no limit to your greed?") or a
+  greed, a patience, a nerve or the like comes before it in its clause
+  (`LIMIT_OWNER`: "Does your greed know no limit, Curtis?"). Talk (all
+  tested): the first report's five lines, "Does your greed know no limit,
+  Curtis?", "Curtis, your greed has no limit.", "He'll play without a
+  limit, that one.", "Your greed has no limit." said to him. Asks (all
+  tested, in Do mode and in the demo's parser): "no limit", "table
+  stakes", "take the limit off", "lift the limit", "raise the stakes", "a
+  bigger game", "play for real", "can we bet what we like", "let's take
+  the limit off", "Curtis, table stakes?", "Can we play no limit?".
+  `stakesAsked` no longer needs his name or his game in the words
+  (`stakesNamed` and `STAKES_GAME` are gone): at the
+  card table with its dealer there, said to him or to everyone in Say
+  mode, or done with no one else as the parser's target (a parser aimed at
+  someone else is still never overridden), the words are the ask.
+  `mockStakes(lower, packet, named, sits)` reads the scene the same way:
+  the card table with its dealer there (`mockDealerHere`), nobody else
+  named instead of him; `MOCK_STAKES_REQUEST` is gone. `stakesAsk` makes
+  the ask instant whatever the parser said (no time step for it).
+- **Dealing at no limit (N8).** At a table already no limit today
+  (`tableStructure`), a line the parser read as a bet at cards or whose
+  words sit down (`wordsBet`: "deal me in for $50, no limit", "I bet $20
+  at no-limit hold'em") is no ask: `stakesAsked` returns null and the hand
+  is dealt; the demo's `mockStakes` gives way to the gamble branch
+  (`sits`). On a limit day the same words are the request, as before.
+- **What a typed amount went in as (N4).** `typedBet` returns `after`
+  beside its note when the table changed what was typed (`wentIn`:
+  "Your $70 went in as all in $95: that would have left you less than a
+  bet.", "Your $300 went in as all in $95: that's more than you have.",
+  "Your $50 went in as $60: bets go in twenties.", "Your raise to $130
+  went in as a raise to $140: bets go in twenties.", "Your $2 went in as
+  $4: four-dollar limit."; a preset: "The pot ($120) went in as all in
+  $95: that's more than you have."; "all in" with no raise on offer: "Your
+  all in went in as a call of $8: nobody is left to answer a raise.").
+  The UI plays the move with it (`why` on the choice); `playHand` keeps it
+  (`moveWhy`), and when that move is the one that finished the hand (not
+  a fold, not a win cheat) `gamble` puts it on the record as `amountWhy`
+  (`logCards` keeps it, 200 characters), so the finished table shows it
+  after a reload, `/undo`, or a replay too.
+- **Sitting down with Curtis named (N5).** The demo's parser reads a
+  sit-down with the dealer named before or after it, or the table, the
+  hand or the cards named after it (`mockBetNamed`, `mockSitWords`: "all
+  in, Curtis", "Curtis, all in", "I bet $20, Curtis", "all in at the
+  table", "all in on this hand") as a bet at cards, as "I go all in,
+  Curtis" was; the words without the name must sit down on their own
+  ("shove, Curtis" no more than "shove").
+- **The terms after a plain line (N6).** A hand told in a plain line
+  (`plainNarration`: Stop, a closed page, another tab, a narrator that
+  failed, was stopped or declined) has `plain: true` on its record (a
+  replay of it drops the mark), and the last hand at this dealer that
+  decides whether the terms are told passes over records with `stopped`,
+  `closed` or `plain`, so the next hand at a Stopped hand's stake tells
+  them.
+- **Sentence ends (N7).** `SENTENCE_END` also passes over "Prof.", "Sgt.",
+  "Rev.", "Jr.", "Sr.", "Lt.", "Capt.", "Gen.", "Col." and "Hon." ("Main
+  St. Then he left." stays one sentence, the price of "St. Jude"; the
+  town's text has none of these at a sentence's end).
+- **"another hand" (N9).** `stakeFor(text, gold, again)`: with no stake
+  named, "another hand" or "one more hand" plays at `again`, the stake of
+  the newest hand at this dealer today (`gamble` finds it in the log), so
+  the notice's "'Another hand' or 'deal me in for $37'" agree; with none
+  today it is the usual $20; never more than the cash.
+- **Typed forms (N10).** `typedBet` also reads "calling", "I'm calling",
+  "see that", "see your bet", "see your raise", "see the raise" (with "I",
+  "I'll" before them as before) as a call (a check with nothing to call),
+  and at the draw "draw a card" / "draw a new card" as `{ draw: 1 }`.
+- **Tests changed by design**: `tests/wave19-betting-fixes.test.cjs` (D9:
+  `typedBet`'s "raise it to 30" carries its `after`).

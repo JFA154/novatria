@@ -1654,3 +1654,70 @@ engine side: `docs/notes/engine-world.md`, Wave 19). Tests:
   a dealt table taller than the story opens with the player's cards and
   the buttons in view, not its head; the notes and notices in the wave
   10-18 card tests (`docs/notes/engine-world.md`, Wave 19, lists them).
+
+## Wave 20 (31 Oct 2026): the betting table after its second QA
+
+What the table shows and takes after the verification QA of wave 19 (the
+engine side: `docs/notes/engine-world.md`, Wave 20). Tests:
+`tests/wave20-table-words.test.cjs`.
+
+### What a typed amount went in as (N4)
+- `handCommand` plays a typed move with what it went in as (`why`, from
+  `typedBet`'s `after`) when the table changed the amount; when that move
+  finishes the hand the finished table has a quiet line under the result
+  (`.cards-why`, from the record's `amountWhy`, so it is there after a
+  reload too): "Your $70 went in as all in $95: that would have left you
+  less than a bet."
+- The note itself ("Bets go in twenties: $70 rounds up to $80. That would
+  leave you less than a bet, so it is all in $95.") shows on the status
+  line when the finished table is drawn (`tableRedrawn`) and is held there
+  (`noteHeld`) through the cards and narrate stages, not replaced by
+  "Writing…", until the narration arrives (`releaseNote`: its first
+  streamed words, a plain line, or its end); any other nudge or another
+  stage lets it go.
+
+### The amount field (N10)
+- A minus makes the least ("-20": "Bets are at least $20.", "Raises are to
+  at least $16."); cents are cut to whole dollars ("60.5": "Whole dollars
+  at this table: $60."); either is said before the table's own change
+  ("Whole dollars at this table: $50. Bets go in twenties: $50 rounds up to
+  $60."). Enter on such an amount puts the amount in the field first and
+  bets nothing; the next Enter bets it.
+- Typed with a hand open: "I'm calling", "I see your bet", "I see it", "I'll
+  see that" call; "draw a card" presses Draw when exactly one card is not
+  held, else "Tap the cards you keep, then Draw (it says how many)." and
+  the words stay.
+
+### A short screen (N11)
+- Under 600px of height (`shortMq`, `(max-height: 599.98px)`) the hint
+  under an open table is one short line, the choice words and the Win
+  (cheat) (`choiceWords`: "Check or bet.", "Check or all in.", "Check.",
+  "Call, raise or fold.", "Call, all in or fold.", "Call or fold.", "Hold,
+  then Draw."; `.cards-hint.short`). The terms (on the first deal) and what
+  Stop costs are the button row's `title` and, as a group, its
+  `aria-label` (`actsNamed`: "A hundred to sit, a five-dollar ante, no
+  limit. Stop folds the hand (−$5)."), and on the status line while the
+  hand waits (`handStatus`, from the table last drawn, `shownTable`: "Your
+  hand · Stop folds it (−$5)", "… · $100 to sit, $5 ante, no limit" on the
+  first deal), kept to one line (`.turn-status.short-hand`: no wrap, an
+  ellipsis, the whole in its title).
+- There the rows from the pot line to the hint sit closer, the pot line is
+  a little smaller and the hand's name under five-card draw's cards sits
+  closer; `keepHand` keeps a 4px margin, not 8px (and at every height now
+  measures from the player's cards themselves, not the padding above
+  five-card draw's row; a held card raised counts), so at 320×568
+  with Large text and five at the table the player's cards, the buttons,
+  the amount and the Win (cheat) are wholly in view on the first deal and
+  after every press, at hold'em and at the draw's betting round. A screen
+  turned across 600px with a hand open draws the hint, the button row's
+  name and the status line again (`shortChanged`).
+- At 600px and taller the hint, the button row and the status line are as
+  before: the long hint, no title on the button row, "Your hand".
+
+### Sitting down, shoving (N1, N5)
+- Right after a hand "I push my chips toward Curtis" is the between-hands
+  notice (no turn); "all in, Curtis", "I bet $20, Curtis", "all in at the
+  table" deal a hand.
+
+### Tests changed by design
+- `tests/wave19-betting-fixes.test.cjs` D9 (`typedBet`'s `after`).

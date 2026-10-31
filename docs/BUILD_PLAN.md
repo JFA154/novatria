@@ -1479,3 +1479,39 @@ talking, I can direct it to one person or all."
      plain line, by design. "A hundred-dollar ante", never "a a"; "Dr." and
      an initial end no sentence in the demo; one `validMove`. Left open: a
      live narrator's telling of a hand and of the terms, as before.
+   - **Wave 20** (31 Oct 2026). A verification QA of the wave 19 table
+     confirmed its fixes (the money exact over 110 more hands) and found
+     eleven leftovers (N1-N11), fixed by one agent as decided. Notes: the
+     "Wave 20" sections of `docs/notes/engine-world.md` and
+     `docs/notes/ui.md`; tests: `tests/wave20-table-words.test.cjs`. The
+     demo reads "shove" or "push" as an attack only with a person as the
+     verb's own object ("I shove Loretta", "push him", "shove the old
+     man"), never "I push my chips toward Curtis", "shove, Curtis" or "I
+     push past Curtis to the bar"; a push of the chips, the money or the
+     stack is all in with a hand open and the notice right after one. The
+     ask for table stakes reads its words and its scene alike in the engine
+     and the demo (`stakesWords`): a limit that is someone's, that
+     something has, knows or is, or that is without ("Curtis, your greed
+     has no limit.", "He'll play without a limit, that one.") is talk; the
+     ask words alone ("no limit", "Take the limit off.", "Raise the
+     stakes.") are an ask at the dealer's table with him there, said to him
+     or done with nobody else as the target, and take no time; at a table
+     already no limit "deal me in for $50, no limit" deals. A typed amount
+     the table changed that ends the hand leaves "Your $70 went in as all
+     in $95: that would have left you less than a bet." under the result
+     (on the record, `amountWhy`), its note on the status line until the
+     narration arrives. "all in, Curtis", "I bet $20, Curtis" and "all in
+     at the table" sit down; the terms are told at the next hand after one
+     told in a plain line (Stop, a closed page, a narrator that failed:
+     `plain` on its record); "Prof.", "Sgt.", "Rev.", "Jr.", "Sr.", "Lt.",
+     "Capt.", "Gen.", "Col." and "Hon." end no sentence; "another hand"
+     plays at the last stake at the table that day; "I'm calling", "I see
+     your bet", "I'll see that", "draw a card"; the amount field says a
+     minus ("Bets are at least $4.") and cents ("Whole dollars at this
+     table: $60."). Under 600px of height the hint is one short line
+     ("Check or bet." and the Win (cheat)), the terms and the Stop price
+     the button row's title and the status line's, so at 320×568 with
+     Large text and five at the table the cards, the buttons, the amount
+     and the Win (cheat) are in view on the first deal and after every
+     press. Left open: a live narrator's telling of a hand and of the
+     terms, as before.

@@ -687,7 +687,9 @@ at most; "heads up", "just me and Curtis" or "just us" seats nobody else.
 The stake is your buy-in: what you name, in figures or in words ("fifty
 dollars", "a hundred bucks", "a fiver"; whole dollars, so "$2.50" is $2),
 all your cash for "everything" or "all in", half of it (rounded down, at
-least $1) for "half my money", $20 if you name nothing (or less than $1),
+least $1) for "half my money", $20 if you name nothing (or less than $1;
+"another hand" or "one more hand" with no stake named plays at the stake
+of your last hand at Curtis's table that day, $20 if there was none),
 and never more than your cash. It is the chips you bring to the table and
 the most you can lose in a hand; every seat sits with the same, so the
 stacks start equal and there are no side pots. You name a new stake between
@@ -721,22 +723,26 @@ it is all you have left), **Raise** or **Fold**. Curtis's house game is
 limit: every bet is the table's bet and every raise one more of it ("Bet
 $4", "Raise to $8"), four raises a round at most, and all in only when
 what you have left is short of a bet ("All in $3"). Type more than that
-("all in", "bet 20", "raise to 40") and Curtis holds you to the house
-rules in character, at no cost ("Curtis taps the felt. "Four-dollar bets
-at this table.""); your words stay in the box, the status line names the
-buttons as they read and says "Ask Curtis for table stakes if you want a
-bigger game" ("Four-dollar limit: Call $4, All in $19 or Fold. …"), and
-the story notes how many times (kept through a reload).
-**Table stakes.** Between hands, ask Curtis for a bigger game ("no limit",
-"table stakes", "raise the stakes", "a bigger game", "play for real", "take
-the limit off", "can we bet what we like"), said to him (Say mode, or his
-name in the words: "Curtis, no limit?"), naming his game or his table
-("no-limit poker", "take the limit off the table", "bet what we like at
-cards", "deal me in, no limit") or asked of him at his table ("Can we play
-no limit?").
-Words that only sound like it are talk ("There's no limit to what I'd do
-for her", "I'm after bigger game than this town", "I bet he plays without a
-limit"), and a line meant for someone else (said to Loretta, or a whiskey
+("all in", "bet 20", "raise to 40", "I push my chips in") and Curtis
+holds you to the house rules in character, at no cost ("Curtis taps the
+felt. "Four-dollar bets at this table.""); your words stay in the box,
+the status line names the buttons as they read and says "Ask Curtis for
+table stakes if you want a bigger game" ("Four-dollar limit: Call $4, All
+in $19 or Fold. …"), and the story notes how many times (kept through a
+reload).
+**Table stakes.** Between hands, at his table with him there, ask Curtis
+for a bigger game ("no limit", "table stakes", "take the limit off", "lift
+the limit", "raise the stakes", "a bigger game", "play for real", "can we
+bet what we like", "let's take the limit off", "Curtis, table stakes?",
+"Can we play no limit?", "deal me in, no limit"): the words alone are
+enough, said to him (or to everyone) in Say mode, or typed as an action
+with nobody else named or aimed at. Asking takes no time. Words that only
+sound like it are talk: a limit that is someone's ("your limit"), one
+something has, knows or is, or one without ("There's no limit to what I'd
+do for her", "Does your greed know no limit, Curtis?", "Curtis, your greed
+has no limit.", "He'll play without a limit, that one.", "I bet he plays
+without a limit"), and "bigger game than this town"; and a line meant for
+someone else (said to Loretta, "Loretta, no limit tonight?", or a whiskey
 ordered from her "with no limit on the whiskey") is never an ask:
 he weighs it with a Charm roll at normal difficulty (the roll line shows;
 how he feels about you counts as for any persuasion). Yes, and his table is
@@ -745,7 +751,9 @@ after."); no, and he says so ("House rules," and the limit stays), and
 asked again the same day he repeats himself without a roll; a fumble is a
 no that costs you a little of his goodwill (5 points) and he will not hear
 it again that day; colder to you than neutral, he refuses without a roll
-("Not with you."); already no limit, he says so. At table stakes the
+("Not with you."); already no limit, he says so, and a line that sits down
+("deal me in for $50, no limit", "I bet $20 at no-limit hold'em") deals
+the hand instead. At table stakes the
 heading says "no limit", and under the buttons is the amount: a field with
 what you bet or raise to on the round, − and + by the table's bet, and
 **Min**, **½ pot**, **Pot** and **All in**. The Bet or Raise button reads
@@ -756,34 +764,51 @@ amount the table does not allow is fixed: the button reads what it comes
 to and the line under the field says each change ("Bets go in fours: $5
 rounds up to $8.", "The least bet is $4.", "That's more than you have, so
 it is all in $19.", "Bets go in twenties: $70 rounds up to $80. That would
-leave you less than a bet, so it is all in $95."), and + or ½ pot or Pot
+leave you less than a bet, so it is all in $95."; a minus is the least,
+"Bets are at least $4.", and cents are cut, "Whole dollars at this table:
+$60."), and + or ½ pot or Pot
 that comes to all in says so too ("Half the pot ($60) would leave you less
 than a bet, so it is all in $75."). Enter in the field bets only what the
 field and the button both show: an amount the table changes goes in the
 field first, with its reason, and the next Enter bets it. The hint says
 your choice in words ("Check, or bet $4, $8, $12 up to all in ($19)",
 "Call $40, raise to $120 or all in ($190), or fold"), what Stop costs and
-the Win (cheat) control.
+the Win (cheat) control; on a screen under 600px tall it is one short line,
+the choice and the Win (cheat) ("Check or bet.", "Call, raise or fold.",
+"Hold, then Draw."), so the Win stays in view with your cards, the buttons
+and the amount, and what Stop costs is on the status line ("Your hand ·
+Stop folds it (−$5)") and in the buttons' tooltip, with the house rules
+on the first deal.
 With a hand open you can also type the move in the box instead of pressing
-it: "check", "call", "fold" (or "I check", "I call", "I fold"), "call $8"
-(the call's price; another amount is answered with what the call is),
-"all in" (or "I'm all in", "I'm going all in", "I go all in", "shove"),
+it: "check", "call", "fold" (or "I check", "I call", "I'm calling", "I
+see your bet", "I see it", "I'll see that", "I fold"), "call $8" (the
+call's price; another amount is answered with what the call is), "all in"
+(or "I'm all in", "I'm going all in", "I go all in", "shove", "I push my
+chips in", "I shove all my chips at Curtis"),
 "bet 10", "bet ten dollars", "raise to 30", "raise it to 30", "raise by
 10", "make it 30", or a bare "$30"; at the draw "stand pat", "fold" or
-"draw 3" ("draw three", "I draw two": Draw, when it replaces that many;
-otherwise "Tap the cards you keep, then Draw (it says how many)."). An
-amount is fixed as the field fixes it (the status line says so once the
-move is made), and a move the table does not offer is answered on the
-status line ("There's a bet to you: call $8, raise or fold.") with your
-words left in the box; a line that is no move leaves the hand's nudge. The
-status line follows each move at once. Right after a hand at Curtis's
-table (the same day), those betting words are no new hand: "all in",
+"draw 3" ("draw three", "I draw two", "draw a card": Draw, when it
+replaces that many; otherwise "Tap the cards you keep, then Draw (it says
+how many)."). An amount is fixed as the field fixes it (the status line
+says so once the move is made, and when that move ended the hand it keeps
+saying so until the story's first words arrive; the finished table keeps
+it under the result: "Your $70 went in as all in $95: that would have
+left you less than a bet."), and a move the table does not offer is
+answered on the status line ("There's a bet to you: call $8, raise or
+fold.") with your words left in the box; a line that is no move leaves the
+hand's nudge. The status line follows each move at once. Right after a
+hand at Curtis's table (the same day), those betting words are no new
+hand: "all in",
 "shove", "bet 10", "raise 30", "call", "check" or "fold" typed then gets a
 notice ("No hand is on the table. 'Another hand' or 'deal me in for $20'
-starts one.", with your last stake), your words stay in the box and
-nothing is spent; name the game, the hand, the table or Curtis ("I go all
-in at cards") to sit down with them, as after any other turn (the demo
-never reads "shove" or "push" with nobody to shove as a fight). The others
+starts one.", with your last stake, which "another hand" plays at), your
+words stay in the box and nothing is spent ("I push my chips toward
+Curtis" too); name the game, the hand, the table or Curtis ("I go all in
+at cards", "all in, Curtis", "I bet $20, Curtis", "all in at the table")
+to sit down with them, as after any other turn (the demo reads "shove" or
+"push" as a fight only with a person as what is shoved: "I shove Loretta",
+"push him", never "I push my chips toward Curtis" or "I push past Curtis
+to the bar"). The others
 bet, raise, call and bluff by their hand, the price and their nature
 (Carter, sly Elbert and Curtis bet, raise and bluff more; careful Lyman and
 Royce call down or fold), from the hand's own dice, so the same moves meet
