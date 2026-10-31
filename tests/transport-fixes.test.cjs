@@ -721,17 +721,20 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
   };
   const first = await play({ hold: 'all' }, 15, 'I sit in on the card game for $50');
   assert.equal(first.ctx.stake, 50);
-  assert.equal(first.delta, { win: 50, lose: -50, split: 0 }[first.cards.result], 'the showdown decides');
+  // Wave 18: the ante and the round after the draw (checked or called down by the hook) make the pot; the showdown decides who takes it.
+  assert.equal(first.delta, first.cards.delta);
+  assert.equal(Math.sign(first.delta), { win: 1, lose: -1, split: 0 }[first.cards.result], 'the showdown decides');
   assert.ok(first.roll.modifiers.some(m => /deck/i.test(m.label) && m.value === 2), 'the deck gives +2');
-  assert.match(first.packet, /\nOUTCOME: the card game \(the player put up \$50\): five-card draw, heads up with [^;]+; the player's .* at the showdown: /); // wave 13: the game and the table
-  assert.match(first.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player (wins \$50|loses \$50|breaks even \(a split pot\)) at cards/);
+  assert.match(first.packet, /\nOUTCOME: the card game \(the player bought in for \$50; house rules: .*?\): five-card draw, heads up with [^;]+; .*the player's .* at the showdown: /); // wave 13: the game and the table; wave 18: the house rules
+  assert.match(first.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player (wins \$\d+|loses \$\d+|breaks even \(a split pot\)) at cards/);
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(d => d.path === 'goldDelta' && /card game/.test(d.reason))), 'the bookkeeper\'s gold ignored');
   await page.evaluate(() => { Game.State.apply({ cardsCheat: true }); }); // wave 11: /cheat cards is armed in the game (flags.cardsCheat)
   const win = await play({ hold: [] }, 10, 'I play another hand, 40 bucks');
-  assert.deepEqual([win.delta, win.cards.result, win.roll], [40, 'win', null], 'a stacked hand wins, with no catch roll');
-  assert.match(win.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player wins \$40 at cards/);
+  assert.deepEqual([win.delta, win.cards.result, win.roll], [win.cards.delta, 'win', null], 'a stacked hand wins, with no catch roll');
+  assert.ok(win.delta > 0);
+  assert.match(win.book, new RegExp(`\\nCARD GAME \\(already applied by the engine; do not record again\\): the player wins \\$${win.delta} at cards`));
   const fold = await play({ fold: true }, 10, 'I play again');
-  assert.equal(fold.delta, -10, 'half the default $20 stake');
+  assert.equal(fold.delta, -1, 'the ante of the default $20 stake (wave 18; it was half the stake)');
   const fumble = await play({ hold: 'all' }, 1, 'I play one more for $30');
   assert.equal(fumble.delta, -30);
   assert.equal(fumble.ctx.caught, true);

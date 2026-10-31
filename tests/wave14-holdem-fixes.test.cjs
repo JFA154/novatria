@@ -75,6 +75,12 @@ const tableNow = page => page.evaluate(() => {
     text: t.textContent
   };
 });
+/* Wave 18: an amount in the table's field, then its Bet or Raise button. */
+const betAmount = async (page, amount) => {
+  await page.fill('#feed .f-cards.open .cards-amt', String(amount));
+  await page.click('#feed .f-cards.open .cards-acts button[data-act="bet"], #feed .f-cards.open .cards-acts button[data-act="raise"]');
+  await page.waitForFunction(() => !Game.Pipeline.handOpen || !!document.querySelector('#feed .f-cards.open .cards-acts button'));
+};
 const press = async (page, label) => {
   await page.click(`#feed .f-cards.open .cards-acts button:text-is("${label}")`);
   await page.waitForFunction(() => !Game.Pipeline.handOpen || !!document.querySelector('#feed .f-cards.open .cards-acts button'));
@@ -119,20 +125,20 @@ s.test('#1 marked deck at hold\'em: Win (cheat) at the turn keeps Curtis\'s face
   assert.deepEqual([c.dealer.dealt, c.board.slice(0, 4), c.uncontested, c.dealer.foldedOn, c.shown, t.board.street, t.seats[0].status, t.seats[0].cards], [['As', 'Ah'], ['Ac', 'Kd', 'Qd', '3s'], true, 2, 4, 'The turn', 'folds on the turn', ['As', 'Ah']]);
   assert.doesNotMatch(t.text, /Ace high · takes/, 'no weaker hand takes the pot');
   assert.equal(t.seats[1].status, 'takes the pot');
-  // At the river: the board is complete and his aces are seen, so nothing can change: he folds to the player.
+  // At the river: the board is complete and his jack-nine is seen, so nothing can change: he folds to the player. (Wave 18: a hand he checks, so the stack is not all in before the river.)
   const g0 = await gold(page);
-  await deal(page, [['7c', '2d'], ['As', 'Ah']], ['Ac', 'Kd', 'Qd', '3s', '4h']);
+  await deal(page, [['7c', '2d'], ['Jc', '9c']], ['Ac', 'Kd', 'Qd', '3s', '4h']);
   await startHand(page, "heads up hold'em for $20");
   while ((await tableNow(page)).board.street !== 'The river') await press(page, (await tableNow(page)).acts[0]);
   const before = await tableNow(page);
   const potBefore = Number(/Pot \$(\d+)/.exec(before.pot)[1]);
-  const facing = before.acts[0].startsWith('Call');
+  const facing = before.acts[0].startsWith('Call') ? Number(/\$(\d+)/.exec(before.acts[0])[1]) : 0;
   await pressWin(page);
   c = (await lastEntry(page)).cards;
   t = await tableNow(page);
-  assert.deepEqual([c.dealer.dealt, c.board], [['As', 'Ah'], ['Ac', 'Kd', 'Qd', '3s', '4h']], 'nothing seen changes');
+  assert.deepEqual([c.dealer.dealt, c.board], [['Jc', '9c'], ['Ac', 'Kd', 'Qd', '3s', '4h']], 'nothing seen changes');
   assert.deepEqual([c.win, c.result, c.uncontested, c.winners, c.dealer.folded, c.dealer.foldedOn, c.street], ['control', 'win', true, ['player'], true, 3, 3]);
-  assert.equal(c.pot, potBefore + (facing ? 4 : 0), 'the pot as it stands (a bet the player faced, called first)');
+  assert.equal(c.pot, potBefore + facing, 'the pot as it stands (a bet the player faced, called first)');
   assert.deepEqual([t.board.street, t.seats[0].status, t.seats[1].status], ['The river', 'folds on the river', 'takes the pot'], 'the river\'s label, his fold, no hand "taking the pot" at a showdown');
   assert.doesNotMatch(t.text, /Royal flush|Three of a kind, aces · /);
   assert.equal(await gold(page) - g0, c.delta);
@@ -162,7 +168,8 @@ s.test('#1 marked deck at draw: Win (cheat) keeps every hand as dealt and what t
   assert.deepEqual(c.player.dealt, ['7c', '7d', 'Kh', '4s', '2c']);
   assert.ok(c.player.held.every(i => c.player.final[i] === c.player.dealt[i]));
   assert.ok(await page.evaluate(x => Game.Cards.compare(x.player.final, x.dealer.final) > 0, c), `${c.player.name} beats ${c.dealer.name}`);
-  assert.deepEqual([c.win, c.result, c.delta], ['control', 'win', 20]);
+  // Wave 18: before the draw only the antes are in (the dealer's $1 is the player's).
+  assert.deepEqual([c.win, c.result, c.delta], ['control', 'win', 1]);
   // Four aces, pat: nothing the player draws beats them.
   await page.evaluate(() => { Game.Pipeline.hooks.cardsDeal = { player: ['2c', '5d', '9h', 'Js', '3c'], dealer: ['As', 'Ah', 'Ad', 'Ac', 'Kd'], playerPile: ['8d', '9c', 'Jh', 'Qs', '6d'], dealerPile: ['Ks', 'Kc', 'Qd', 'Ts', '2h'] }; });
   const g0 = await gold(page);
@@ -170,9 +177,9 @@ s.test('#1 marked deck at draw: Win (cheat) keeps every hand as dealt and what t
   await pressWin(page);
   c = (await lastEntry(page)).cards;
   t = await tableNow(page);
-  assert.deepEqual([c.dealer.dealt, c.dealer.final, c.dealer.folded, c.uncontested, c.result, c.winners, c.pot, c.delta], [['As', 'Ah', 'Ad', 'Ac', 'Kd'], ['As', 'Ah', 'Ad', 'Ac', 'Kd'], true, true, 'win', ['player'], 40, 20]);
-  assert.deepEqual([t.seats[0].cards, t.seats[0].status, t.seats[0].name, t.seats[1].status], [['As', 'Ah', 'Ad', 'Ac', 'Kd'], 'folds', null, 'takes the pot']);
-  assert.equal(await gold(page), g0 + 20);
+  assert.deepEqual([c.dealer.dealt, c.dealer.final, c.dealer.folded, c.uncontested, c.result, c.winners, c.pot, c.delta], [['As', 'Ah', 'Ad', 'Ac', 'Kd'], ['As', 'Ah', 'Ad', 'Ac', 'Kd'], true, true, 'win', ['player'], 2, 1]);
+  assert.deepEqual([t.seats[0].cards, t.seats[0].status, t.seats[0].name, t.seats[1].status], [['As', 'Ah', 'Ad', 'Ac', 'Kd'], 'folds before the draw', null, 'takes the pot']);
+  assert.equal(await gold(page), g0 + 1);
   assert.doesNotMatch(t.text, /Four of a kind, aces · takes|draws \d/);
 });
 
@@ -209,13 +216,13 @@ s.test('#2 the player folds while a bet is unanswered: the seats that owe it cal
   await startHand(page, "deal me in at hold'em for $20");
   await press(page, 'Check');
   let t = await tableNow(page);
-  assert.deepEqual([t.seats[0].status, t.seats[1].status, t.acts], ['bets $4', 'checks', ['Call $4', 'Fold']], 'Curtis bets after Royce checks; Royce has not answered it');
+  assert.deepEqual([t.seats[0].status, t.seats[1].status, t.acts], ['bets $4', 'checks', ['Call $4', 'Raise to $8', 'Fold']], 'Curtis bets after Royce checks; Royce has not answered it');
   await press(page, 'Fold');
   await idle(page);
   let c = (await lastEntry(page)).cards;
   t = await tableNow(page);
-  assert.deepEqual([c.player.in, c.seats[0].in, c.dealer.in], [4, 4, 8]);
-  assert.deepEqual([c.seats[0].folded, c.seats[0].foldedOn, c.winners, c.dealer.won, c.seats[0].won], [true, 0, [spot.dealer], 16, 0], 'Royce folds the bet he never matched and wins nothing');
+  assert.deepEqual([c.player.in, c.seats[0].in, c.dealer.in, c.dealer.back], [1, 1, 1, 4], 'wave 18: nobody called his $4, so it comes back to him');
+  assert.deepEqual([c.seats[0].folded, c.seats[0].foldedOn, c.winners, c.dealer.won, c.seats[0].won], [true, 0, [spot.dealer], 3, 0], 'Royce folds the bet he never matched and wins nothing');
   assert.equal(t.seats[1].status, 'folds before the flop');
   const out = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
   assert.doesNotMatch(out, /Royce Pittman's full house/);
@@ -228,7 +235,7 @@ s.test('#2 the player folds while a bet is unanswered: the seats that owe it cal
   await idle(page);
   c = (await lastEntry(page)).cards;
   t = await tableNow(page);
-  assert.deepEqual([c.player.in, c.seats[0].in, c.dealer.in, c.pot, c.seats[0].folded, c.winners], [4, 8, 8, 20, undefined, [spot.dealer]], 'Royce called: the ins show the call; nobody bets after the player has gone');
+  assert.deepEqual([c.player.in, c.seats[0].in, c.dealer.in, c.pot, c.seats[0].folded, c.winners], [1, 5, 5, 11, undefined, [spot.dealer]], 'Royce called: the ins show the call; nobody bets after the player has gone');
   assert.deepEqual([c.street, c.shown, t.board.street], [4, 5, 'Showdown'], '#6: five cards up is the showdown');
   assert.deepEqual(t.seats[1].cards, ['Ac', '9d'], 'shown at the showdown');
   assert.equal(t.seats[2].status, 'folds before the flop');
@@ -239,7 +246,7 @@ s.test('#2 the player folds while a bet is unanswered: the seats that owe it cal
   await page.click('#send');
   await idle(page);
   c = (await lastEntry(page)).cards;
-  assert.deepEqual([c.result, c.stopped, c.seats[0].folded, c.winners, c.seats[0].in, c.dealer.in], ['fold', true, true, [spot.dealer], 4, 8]);
+  assert.deepEqual([c.result, c.stopped, c.seats[0].folded, c.winners, c.seats[0].in, c.dealer.in, c.dealer.back], ['fold', true, true, [spot.dealer], 1, 1, 4]);
   // The engine, pure: after the player's fold no seat bets, and every one still in has matched the bet.
   const runs = await page.evaluate(() => {
     const P = Game.Pipeline;
@@ -287,11 +294,11 @@ s.test('#3 a $1 hand moves nobody (lost or won), a seat that takes $10 or more o
     assert.deepEqual((await lastEntry(page)).cards.winners, ['npc_royce']);
   }
   assert.deepEqual([await npc(page, 'npc_royce'), await npc(page, 'npc_elbert')], [a0.royce, a0.elbert], '$1 hands move nobody');
-  // Royce takes $20 of the player's money: +1, remembered.
+  // Royce takes $10 or more of the player's money: +1, remembered. (Wave 18: at the $4 limit he checks his aces after the flop, so $50, $10 bets: the call of his $10 before the flop is enough.)
   await pin(page, spot.day);
   await deal(page, [['7c', '2d'], ['As', 'Ad'], ['3c', '4h']], ['Ks', 'Kd', '9c', '8h', '5s'], ['npc_royce']);
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = {}; });
-  await sendText(page, "deal me in at hold'em for $20");
+  await sendText(page, "deal me in at hold'em for $50");
   let c = (await lastEntry(page)).cards;
   assert.deepEqual([c.winners, c.player.in >= 10], [['npc_royce'], true]);
   let r = await npc(page, 'npc_royce');
@@ -301,7 +308,7 @@ s.test('#3 a $1 hand moves nobody (lost or won), a seat that takes $10 or more o
   await pin(page, spot.day);
   await deal(page, [['7c', '2d'], ['As', 'Ad'], ['3c', '4h']], ['Ks', 'Kd', '9c', '8h', '5s'], ['npc_royce']);
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = {}; });
-  await sendText(page, "deal me in at hold'em for $20");
+  await sendText(page, "deal me in at hold'em for $50");
   assert.deepEqual((await lastEntry(page)).cards.winners, ['npc_royce']);
   r = await npc(page, 'npc_royce');
   assert.equal(r.attitude, a0.royce.attitude + 1, 'once a day');
@@ -386,9 +393,9 @@ s.test('#5 a new street starts with the statuses of the seats still in cleared (
   await startHand(page, 'I bet $20 at cards');
   await press(page, 'Check');
   t = await tableNow(page);
-  assert.equal(t.seats[1].status, 'bets $4', 'Lyman bets');
+  assert.match(t.seats[1].status, /^bets \$\d+$/, 'Lyman bets');
   assert.match(t.seats[1].read, /^Your read: Lyman /);
-  await press(page, 'Call $4');
+  await press(page, t.acts[0]);
   t = await tableNow(page);
   assert.equal(t.seats[0].status, 'folds before the flop', 'Curtis folded and says when');
   assert.equal(t.seats[1].status, '', 'Lyman\'s bet is not a live bet on the flop');
@@ -421,27 +428,27 @@ s.test('#5 a new street starts with the statuses of the seats still in cleared (
 
 // ----- #8, #9: the head's pot at draw, the kickers -----
 
-s.test('#8 at draw the head\'s pot is the real pot after a fold (heads up $30, five at the table $90); #9 two shown hands of the same name are told apart by the deciding cards ("Pair of aces, king-nine kickers" / "king-eight kickers"; "Flush, ace-king high" / "ace-queen high"), an exact tie keeps one name', async h => {
+s.test('#8 at draw the head\'s pot is the real pot after a fold (wave 18: the antes, heads up $2, five at the table $5); #9 two shown hands of the same name are told apart by the deciding cards ("Pair of aces, king-nine kickers" / "king-eight kickers"; "Flush, ace-king high" / "ace-queen high"), an exact tie keeps one name', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
   const spot = await atTable(page, 'evening');
   await presetCards(page, { game: 'draw', seats: [] });
   await startHand(page, 'heads up, five-card draw for $20');
-  assert.match((await tableNow(page)).head, / · pot \$40$/, 'open: the stake each');
+  assert.match((await tableNow(page)).head, / · pot \$2$/, 'open: the ante each');
   await page.click('.cards-fold');
   await idle(page);
   let c = (await lastEntry(page)).cards;
-  assert.equal(c.pot, 30);
-  assert.equal((await tableNow(page)).head, `${spot.dealerName}'s table · Five-card draw · stake $20 · pot $30`);
+  assert.equal(c.pot, 2);
+  assert.equal((await tableNow(page)).head, `${spot.dealerName}'s table · Five-card draw · $20 to sit · $1 ante · $4 limit · pot $2`);
   await presetCards(page, { game: 'draw', seats: spot.people.map(p => p.id) });
   await startHand(page, 'deal everyone in at five-card draw for $20');
   await page.click('.cards-fold');
   await idle(page);
   c = (await lastEntry(page)).cards;
-  assert.equal(c.pot, 90);
-  assert.match((await tableNow(page)).head, / · pot \$90$/);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the \$90 pot/);
+  assert.equal(c.pot, 5, 'the others drew and checked it down among themselves: nobody bets after the player has gone');
+  assert.match((await tableNow(page)).head, / · pot \$5$/);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the \$5 pot/);
   // The kicker decides.
   await presetCards(page, { game: 'holdem', seats: [] });
   await deal(page, [['Ah', '9c'], ['Ad', '8c']], ['As', 'Kd', '7h', '4c', '2s']);
@@ -500,7 +507,7 @@ s.test('#10 /cheat win typed with a hand open is the Win (cheat) control; /cheat
   assert.equal(await page.evaluate(() => [Game.Pipeline.handOpen, Game.state.flags.cardsCheat]).then(x => x.join()), 'true,');
   await page.fill('#cmd', 'I look around');
   await page.press('#cmd', 'Enter');
-  assert.match(await page.textContent('#turn-status-text'), /^Your hand is on the table: Check or Bet\. Stop folds the hand \(−\$4\); Win \(cheat\) ends it yours\.$/);
+  assert.equal(await page.textContent('#turn-status-text'), 'Your hand is on the table: Check or Bet (or type "check" or "bet 4"). Stop folds the hand (−$1); Win (cheat) ends it yours.', 'wave 18: at the limit, no "all in" to type');
   // /cheat win typed: the Win (cheat) control.
   await page.fill('#cmd', '/cheat win');
   await page.press('#cmd', 'Enter');
@@ -582,42 +589,39 @@ s.test('#14 the demo reads a hand of cards, sitting in, "deal me a hand" and a g
 
 // ----- #16, #18, #19: the cap, the chooser's status, two tabs -----
 
-s.test('#16 a $23 stake at hold\'em says the real cap everywhere: the head and the pot line "at most $20 in", OUTCOME "came in for at most $20 of the $23 named"; #23 when there is no room for a bet the hint says why', async h => {
+s.test('#16, #23 changed by design in wave 18 (bets are free, so there is no cap under the stake and always room for a bet): a $23 stake says the stake, the pot and what is left ("$22 left"), all of it can go in, and OUTCOME says "bought in for $23"; at $3 the least bet is the $1 ante, all in is the rest, and once all in there is nothing left to choose', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
   const spot = await atTable(page, 'evening');
-  await presetCards(page, { game: 'holdem', seats: [] });
+  // Table stakes (amendment 2: the dealer agrees when asked; the test fixes it).
+  await presetCards(page, { game: 'holdem', seats: [], structure: 'nolimit' });
   await deal(page, [['Ah', 'Ad'], ['Ks', 'Kc']], ['2c', '7d', '9h', '3s', 'Jc']);
   await startHand(page, 'I bet $23 at cards');
   let t = await tableNow(page);
-  assert.equal(t.head, `${spot.dealerName}'s table · Texas hold'em · stake $23 · at most $20 in · pot $8`);
-  assert.equal(t.pot, 'Pot $8 · you\'re in for $4 · at most $20 in');
+  assert.equal(t.head, `${spot.dealerName}'s table · Texas hold'em · $23 to sit · $1 ante · no limit · pot $2`);
+  assert.equal(t.pot, 'Pot $2 · you\'re in for $1 · $22 left');
   await page.click('#send');
   await idle(page);
-  assert.match((await tableNow(page)).head, /stake \$23 · at most \$20 in · pot \$8$/);
-  // Played to the showdown: the narrator hears the cap.
+  assert.match((await tableNow(page)).head, /\$23 to sit · \$1 ante · no limit · pot \$2$/);
+  // All in at once: the narrator hears the buy-in; the kings call it.
   await deal(page, [['Ah', 'Ad'], ['Ks', 'Kc']], ['2c', '7d', '9h', '3s', 'Jc']);
-  await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = {}; });
+  await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { moves: ['allin'] }; });
   await sendText(page, 'I bet $23 at cards');
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player came in for at most \$20 of the \$23 named; the ante and every bet \$4\)/);
-  assert.ok((await lastEntry(page)).cards.player.in <= 20);
-  // A multiple of $5: as before.
-  await deal(page, [['Ah', 'Ad'], ['Ks', 'Kc']], ['2c', '7d', '9h', '3s', 'Jc']);
-  await startHand(page, 'I bet $20 at cards');
-  assert.equal((await tableNow(page)).head, `${spot.dealerName}'s table · Texas hold'em · stake $20 · pot $8`);
-  await page.click('#send');
-  await idle(page);
-  // $3: bet, bet, and then only Check, with the reason.
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player bought in for \$23; house rules: \$23 to sit, \$1 ante, no limit \(bets from \$4, up to all in\), four rounds of betting\)/);
+  let c = (await lastEntry(page)).cards;
+  assert.deepEqual([c.player.in, c.dealer.in, c.moves, c.result, c.delta], [23, 23, ['bet:22'], 'win', 23]);
+  // $3: the ante and the table's bet are both $1: Check, or Bet $1 or all in ($2).
   await deal(page, [['Ah', 'Ad'], ['Ks', 'Kc']], ['2c', '7d', '9h', '3s', 'Jc']);
   await startHand(page, 'I bet $3 at cards');
-  await press(page, 'Bet $1');
-  await press(page, 'Bet $1');
   t = await tableNow(page);
-  assert.deepEqual([t.board.street, t.acts], ['The turn', ['Check']]);
-  assert.equal(t.hint, "Check only (no room for a bet: you're in for your whole $3). Stop folds the hand (−$3). Win (cheat)");
-  await page.click('#send');
+  assert.deepEqual([t.acts, t.pot, t.hint], [['Check', 'Bet $1'], 'Pot $2 · you\'re in for $1 · $2 left', 'Three to sit, a dollar ante, no limit. Check, or bet $1 or all in ($2). Stop folds the hand (−$1). Win (cheat)']);
+  await page.click('#feed .f-cards.open .cards-preset[data-size="allin"]');
+  assert.equal((await tableNow(page)).acts[1], 'All in $2');
+  await page.click('#feed .f-cards.open .cards-acts button[data-act="bet"]');
   await idle(page);
+  c = (await lastEntry(page)).cards;
+  assert.deepEqual([c.player.in, c.dealer.in, c.street, c.shown, c.moves], [3, 3, 4, 5, ['bet:2']], 'all in and called before the flop: the board is dealt out to the showdown, with nothing left to choose');
 });
 
 s.test('#19 two tabs with the chooser open: tab A\'s turn is taken back with "Another tab took over; the table is closed here." (the line back in the box, no table left), nothing is lost in either tab', async h => {

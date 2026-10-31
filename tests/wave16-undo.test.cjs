@@ -357,7 +357,7 @@ s.test('B: after a reload with a hand open, the fold on load is one step: /undo 
   await idle(page);
   await page.evaluate(() => Game.Storage.undoIdle());
   const e = await page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
-  assert.deepEqual([e.input, e.cards.result, e.cards.closed, await gold(page) - g0], ['I bet $10 at cards', 'fold', true, -5]);
+  assert.deepEqual([e.input, e.cards.result, e.cards.closed, await gold(page) - g0], ['I bet $10 at cards', 'fold', true, -1], 'wave 18: the fold costs the ante');
   assert.equal(await depth(page), 2, 'the look, then the fold on load');
   await sendText(page, '/undo');
   assert.equal(await stateJson(page), s0, 'before the bet');
@@ -518,7 +518,7 @@ s.test('E: /rewind with a hand open takes the hand\'s turn back first, free, the
   await page.click('#send');
   await idle(page);
   const e = await page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
-  assert.deepEqual([e.cards.result, e.cards.delta], ['fold', -10]);
+  assert.deepEqual([e.cards.result, e.cards.delta], ['fold', -1], 'wave 18: the ante');
 });
 
 s.test('phone: the Undo link shows with a hand open and takes it back; the focus is never dropped', async h => {

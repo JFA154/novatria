@@ -20,7 +20,8 @@ const { suite, quickStart, sendText, LAPTOP } = require('./helpers.cjs');
 const s = suite('wave11-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 // Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; });
+// Wave 18: the round of betting after the draw is checked or called down (hooks.cardsBetting), so a Draw plays to the showdown as these tests were written; tests/wave18-betting.test.cjs plays it.
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsBetting = 'call'; });
 const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
@@ -113,18 +114,18 @@ s.test('H2: a bet said in Say mode deals: "Deal me in" to the dealer and "I\'m i
   assert.ok(spot && spot.other, 'the dealer and someone else at the table');
   await sayLine(page, 'Deal me in', spot.dealer);
   await page.waitForSelector('#feed .f-cards.open');
-  assert.match(await page.textContent('#feed .f-cards .cards-head'), /stake \$20 · pot \$40$/);
+  assert.match(await page.textContent('#feed .f-cards .cards-head'), /\$20 to sit · \$1 ante · \$4 limit · pot \$2$/);
   await page.evaluate(() => Game.Pipeline.playHand({ fold: true }));
   await idle(page);
   let e = await lastEntry(page);
   assert.deepEqual([e.mode, e.to, e.cards.result, e.cards.stake], ['say', spot.dealer, 'fold', 20]);
-  assert.match(e.narration, /you fold your .* and give up \$10\./, 'the demo tells the hand, not a reply');
+  assert.match(e.narration, /you fold your .* and give up \$1\./, 'the demo tells the hand, not a reply');
   await sayLine(page, "I'm in for $50", 'everyone');
   await page.waitForSelector('#feed .f-cards.open');
   await page.evaluate(() => Game.Pipeline.playHand({ fold: true }));
   await idle(page);
   e = await lastEntry(page);
-  assert.deepEqual([e.to, e.cards.stake, e.cards.delta], ['everyone', 50, -25]);
+  assert.deepEqual([e.to, e.cards.stake, e.cards.delta], ['everyone', 50, -2], 'wave 18: the $2 ante at $50');
   // The parser read talk; the words bet: a bet all the same.
   await page.evaluate(() => Game.Api.Mock.queue('parse', { actionType: 'talk', summary: 'Asks to ante up', targets: [], needsRoll: false, timeCost: 'instant' }));
   await sayLine(page, 'Ante up.', spot.dealer);
@@ -164,23 +165,23 @@ s.test('M1: Stop with a hand open folds it at the fold price and keeps the turn 
   const spot = await atTable(page);
   const g0 = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, 'I bet $30 at cards');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$15). Win (cheat)'); // wave 13: the Win (cheat) control (wave 14: how to switch is said between hands)
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Thirty to sit, a dollar ante, six-dollar limit. Pick the cards to hold, then Draw: the rest are replaced, and a round of betting follows. Stop folds the hand (−$1). Win (cheat)'); // wave 13: the Win (cheat) control (wave 14: how to switch is said between hands; wave 18: the house rules said once, the fold the ante)
   const calls = await page.evaluate(() => Game.Api.Mock.calls.length);
   await page.evaluate(() => Game.Pipeline.forceNextRoll(14));
   await page.click('#send');
   await idle(page);
   const e = await lastEntry(page);
   const r = await page.evaluate(c => ({ gold: Game.state.player.gold, calls: Game.Api.Mock.calls.slice(c).map(x => x.method), rolls: [...document.querySelectorAll('#feed .f-roll')].map(x => x.textContent), narr: [...document.querySelectorAll('#feed .f-narr')].pop().textContent }), calls);
-  assert.deepEqual([e.cards.result, e.cards.folded, e.cards.stopped, e.cards.delta, r.gold - g0], ['fold', true, true, -15, -15]);
+  assert.deepEqual([e.cards.result, e.cards.folded, e.cards.stopped, e.cards.delta, r.gold - g0], ['fold', true, true, -1, -1]);
   assert.ok(e.roll && e.roll.d20 === 14, 'the catch roll was made');
   assert.equal(r.rolls.length, 1);
   // Changed by design in wave 12 (L2): the label reads so that a success is the player's.
   assert.match(r.rolls[0], new RegExp(`^Keeping the marks from ${spot.first}: Wits 14 \\+ \\d+ = \\d+ vs 12 · `));
   assert.deepEqual(r.calls, [], 'no narrator and no bookkeeper');
-  assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}, get up from the table and give up $15. ${spot.dealerName} never spots the marks.`);
+  assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}, get up from the table and give up $1. ${spot.dealerName} never spots the marks.`);
   assert.equal(r.narr, e.narration, 'told plainly (no demo tag)');
   assert.equal(await lastNotice(page), 'Stopped: a hand on the table is folded, and the ante is gone.');
-  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-result'), `Stopped, so you fold: −$15 · cash $${r.gold}`);
+  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-result'), `Stopped, so you fold: −$1 · cash $${r.gold}`);
   // Played again with the same words on a new turn: a new hand, not the one taken back.
   assert.equal(await page.inputValue('#cmd'), '');
 });
@@ -196,11 +197,13 @@ s.test('M1: after the showdown the hand is final: a narrator error, a Stop while
   await page.evaluate(() => { Game.Api.Mock.queue('narrate', { error: { type: 'network' } }); Game.Pipeline.hooks.cardsPlay = { hold: 'all' }; });
   await sendText(page, 'I bet $50 at cards');
   let e = await lastEntry(page);
-  assert.equal(e.narration, `The hand is played: your two pair, kings and sevens, beats ${spot.dealerName}'s pair of aces. You win $50.`);
-  assert.deepEqual([e.cards.result, e.cards.delta, await page.evaluate(() => Game.state.player.gold) - g0], ['win', 50, 50], 'the money stays');
+  // Wave 18: the betting's big moment first ("Curtis Pruett bet $10 after the draw and you called."), then the hand.
+  assert.ok(e.narration.endsWith(`The hand is played: your two pair, kings and sevens, beats ${spot.dealerName}'s pair of aces. You win $${e.cards.delta}.`), e.narration);
+  assert.ok(e.cards.delta > 0);
+  assert.deepEqual([e.cards.result, await page.evaluate(() => Game.state.player.gold) - g0], ['win', e.cards.delta], 'the money stays');
   const notice = await page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return { text: n.textContent, retry: !!n.querySelector('[data-retry]') }; });
   // Changed by design in wave 12 (L5): what happened and how the hand stands, no "try again".
-  assert.equal(notice.text, 'The narrator could not be reached. The hand stands: you win $50.');
+  assert.equal(notice.text, `The narrator could not be reached. The hand stands: you win $${e.cards.delta}.`);
   assert.equal(notice.retry, false, 'no Try again that would deal again');
   assert.equal(await page.inputValue('#cmd'), '');
   assert.equal(await tables(page), 1, 'the table stays');
@@ -213,8 +216,8 @@ s.test('M1: after the showdown the hand is final: a narrator error, a Stop while
   await page.click('#send');
   await idle(page);
   e = await lastEntry(page);
-  assert.deepEqual([e.cards.result, await page.evaluate(() => Game.state.player.gold) - g0], ['fold', -10]);
-  assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}${e.cards.player.name.includes(',') ? ',' : ''} and give up $10.`);
+  assert.deepEqual([e.cards.result, await page.evaluate(() => Game.state.player.gold) - g0], ['fold', -1]);
+  assert.equal(e.narration, `You fold your ${lowerFirst(e.cards.player.name)}${e.cards.player.name.includes(',') ? ',' : ''} and give up $1.`);
   assert.equal(await lastNotice(page), 'Stopped. The hand stands as it was played, told plainly above.');
   // A refusal.
   await page.evaluate(() => { Game.Api.Mock.queue('narrate', { refusal: true }); Game.Pipeline.hooks.cardsPlay = { fold: true }; });
@@ -247,8 +250,8 @@ s.test('M1: a reload never takes a hand back: closed with the hand open, Continu
   await idle(page);
   let e = await lastEntry(page);
   // Changed by design in wave 12 (L4): folded because the page was closed (closed), not stopped.
-  assert.deepEqual([e.input, e.cards.result, e.cards.closed, e.cards.stopped, e.cards.player.dealt, await page.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, undefined, dealt, -20]);
-  assert.match(e.narration, /^You fold your .*, get up from the table and give up \$20\.$/);
+  assert.deepEqual([e.input, e.cards.result, e.cards.closed, e.cards.stopped, e.cards.player.dealt, await page.evaluate(() => Game.state.player.gold) - g0], ['I bet $40 at cards', 'fold', true, undefined, dealt, -2]);
+  assert.match(e.narration, /^You fold your .*, get up from the table and give up \$2\.$/);
   assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
   assert.equal(await page.evaluate(() => Game.Storage.heldHand()), null, 'used up');
   // Closed after the showdown, while the story was being written.
@@ -268,7 +271,7 @@ s.test('M1: a reload never takes a hand back: closed with the hand open, Continu
   await idle(page);
   e = await lastEntry(page);
   assert.deepEqual([e.cards.result, e.cards.player.final, e.cards.dealer.final, await page.evaluate(() => Game.state.player.gold) - g1], [played.result, played.player.final, played.dealer.final, played.delta]);
-  assert.match(e.narration, /^The hand is played: your /);
+  assert.match(e.narration, /(?:^|\. )The hand is played: your /, 'wave 18: after the big moment of the betting, if any');
   assert.equal(await lastNotice(page), 'The game was closed after this hand was played. It stands as it was played, told plainly above.');
   // A turn that ends leaves nothing on record.
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { fold: true }; });
@@ -288,16 +291,18 @@ s.test('M2: the top bar and the Character panel show the cash the table shows as
   await setDeal(page, { player: ['Kc', 'Kd', '7h', '7s', '2c'], dealer: ['Ac', 'Qd', '9h', '4s', '3c'], dealerPile: ['5c', '6d', '8h', '2d', '2h'], playerPile: ['3d', '4d', '5d', '6c', '8c'] });
   await page.evaluate(() => Game.Api.Mock.queue('narrate', { delay: 1500 }));
   await startHand(page, 'I bet $40 at cards');
-  assert.equal(await page.textContent('#tb-gold'), `$${g0}`);
+  assert.equal(await page.textContent('#tb-gold'), `$${g0 - 2}`, 'wave 18: the $2 ante is off the cash as the hand is dealt');
   for (const i of [0, 1, 2, 3, 4]) await page.click(`.cards-you button.card[data-i="${i}"]`);
   assert.equal(await page.textContent('.cards-draw'), 'Stand pat');
   await page.click('.cards-draw');
   await page.waitForSelector('#feed .f-cards:not(.open)');
   const mid = await page.evaluate(() => ({ busy: Game.Pipeline.busy, bar: document.querySelector('#tb-gold').textContent, sheet: document.querySelector('.char-cash').textContent, gold: Game.state.player.gold, result: document.querySelector('.cards-result').textContent }));
   assert.equal(mid.busy, true, 'the narration is still being written');
-  assert.equal(mid.gold, g0 + 40);
-  assert.deepEqual([mid.bar, mid.sheet], [`$${g0 + 40}`, `$${g0 + 40}`]);
-  assert.match(mid.result, new RegExp(`cash \\$${g0 + 40}$`));
+  const won = await page.evaluate(() => { const t = document.querySelector('.cards-result').textContent; return Number(/You win \$(\d+)/.exec(t)[1]); });
+  assert.ok(won > 0, 'the kings and sevens win');
+  assert.equal(mid.gold, g0 + won);
+  assert.deepEqual([mid.bar, mid.sheet], [`$${g0 + won}`, `$${g0 + won}`]);
+  assert.match(mid.result, new RegExp(`cash \\$${g0 + won}$`));
   await idle(page);
 });
 
@@ -379,20 +384,20 @@ s.test('M5: the stake from the words: dollars and words, everything and all in, 
   const spot = await atTable(page);
   const g = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, `I put $${g + 360} in`);
-  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $${g}, all you have · pot $${g * 2}`);
+  const ante = Math.max(1, Math.floor(g / 20));
+  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · $${g} to sit, all you have · $${ante} ante · $${Math.floor(g / 5)} limit · pot $${ante * 2}`);
   await page.click('.cards-fold');
   await idle(page);
-  const half = Math.ceil(g / 2);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`^OUTCOME: the card game \\(the player put up \\$${g}, all they have; they named \\$${g + 360}\\): `));
-  assert.equal((await lastEntry(page)).cards.delta, -half);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`^OUTCOME: the card game \\(the player bought in for \\$${g}, all they have; they named \\$${g + 360}; house rules: `));
+  assert.equal((await lastEntry(page)).cards.delta, -ante, 'wave 18: a fold before the draw costs the ante');
   await startHand(page, 'I bet -$5');
   // Changed by design in wave 12 (L8): what was named is said too.
-  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: −$5 is no stake · pot $40`);
+  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · Five-card draw · $20 to sit, the usual: −$5 is no stake · $1 ante · $4 limit · pot $2`);
   await page.click('.cards-fold');
   await idle(page);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player put up \$20, the usual stake: −\$5 is no stake\): /);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player bought in for \$20, the usual stake: −\$5 is no stake; house rules: /);
   await startHand(page, 'I bet fifty dollars');
-  assert.match(await page.textContent('#feed .f-cards:last-of-type .cards-head'), /· stake \$50 · pot \$100$/);
+  assert.match(await page.textContent('#feed .f-cards:last-of-type .cards-head'), /· \$50 to sit · \$2 ante · \$10 limit · pot \$4$/);
   await page.click('.cards-fold');
   await idle(page);
 });
@@ -411,14 +416,14 @@ s.test('M6: a split pot\'s OUTCOME says no money changes hands and not that it a
   const e = await lastEntry(page);
   assert.deepEqual([e.cards.result, e.cards.delta, await page.evaluate(() => Game.state.player.gold) - g0], ['split', 0, 0]);
   const out = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
-  assert.match(out, /a split pot, and no money changes hands \(cash still \$\d+\)\. The table was shown/);
+  assert.match(out, /a split pot, and no money changes hands \(cash still \$\d+\)\. (?:The player sits down at this stake for the first time: [^\n]*?\)\. )?The table was shown/);
   assert.doesNotMatch(out, /already changed hands/);
   assert.equal(await page.textContent('#feed .f-cards .cards-result'), `Split pot · cash $${g0}`);
   // L4: a $1 fold costs $1, and its OUTCOME says the money moved.
   await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { fold: true }; });
   await sendText(page, 'I bet $1 at cards');
   assert.equal((await lastEntry(page)).cards.delta, -1);
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the player folds their .* and gives up half the stake: the player loses \$1 \(cash now \$\d+\)\. The money has already changed hands\./);
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /the player folded their .* before the draw and gave up the \$1 ante \(cash now \$\d+\)\. The money has already changed hands\./);
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .cards-result')].pop().textContent), /^You fold: −\$1 · /);
   assert.deepEqual(await page.evaluate(() => [1, 2, 20, 25, 50, 51].map(Game.Pipeline.foldPrice)), [1, 1, 10, 13, 25, 26]);
 });
@@ -695,7 +700,7 @@ s.test('L9-L12: the catch roll is labelled; at Small text the Hold tag is 10px a
   const e = await lastEntry(page);
   assert.match(e.roll.line, new RegExp(`^Keeping the marks from ${spot.first}: Wits 17 [+−] \\d+ = \\d+ vs 12 · `));
   assert.equal(await page.textContent('#feed .f-roll'), e.roll.line, 'under the table');
-  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`the player folds their ${lowerFirst(e.cards.player.name)}`));
+  assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`the player folded their ${lowerFirst(e.cards.player.name)}`));
   // After a reload it is labelled the same.
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
@@ -715,8 +720,8 @@ s.test('S1-S4: Draw says how many it replaces ("Draw 3", "Stand pat") and Fold i
   await startHand(page, 'I bet $40 at cards');
   const label = () => page.textContent('.cards-draw');
   assert.equal(await label(), 'Draw 5');
-  assert.equal(await page.textContent('.cards-fold'), 'Fold −$20');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$20). Win (cheat)'); // wave 13; wave 14: no switch hint on an open hand
+  assert.equal(await page.textContent('.cards-fold'), 'Fold −$2');
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Forty to sit, a two-dollar ante, eight-dollar limit. Pick the cards to hold, then Draw: the rest are replaced, and a round of betting follows. Stop folds the hand (−$2). Win (cheat)'); // wave 13; wave 14: no switch hint on an open hand; wave 18: the house rules once, the ante
   for (const i of [0, 1]) await page.click(`.cards-you button.card[data-i="${i}"]`);
   assert.equal(await label(), 'Draw 3');
   for (const i of [2, 3, 4]) await page.click(`.cards-you button.card[data-i="${i}"]`);

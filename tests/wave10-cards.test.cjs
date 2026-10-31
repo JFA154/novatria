@@ -24,7 +24,8 @@ const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP } = requi
 const s = suite('wave10-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 // Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; });
+// Wave 18: the round of betting after the draw is checked or called down (hooks.cardsBetting), so a Draw plays to the showdown as these tests were written; tests/wave18-betting.test.cjs plays it.
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsBetting = 'call'; });
 const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
@@ -182,7 +183,7 @@ s.test('a hand played at the table: the block under the line and before the narr
       narrates: Game.Api.Mock.calls.filter(c => c.method === 'narrate').length, gold: Game.state.player.gold
     };
   });
-  assert.equal(live.head, `${spot.dealerName}'s table · Five-card draw · stake $20 · pot $40`); // wave 13: the game in the head
+  assert.equal(live.head, `${spot.dealerName}'s table · Five-card draw · $20 to sit · $1 ante · $4 limit · pot $2`); // wave 13: the game in the head; wave 18: the house rules, the antes in the pot
   assert.equal(live.label, live.head);
   assert.deepEqual(live.who, [spot.dealerName, 'You']);
   assert.match(live.read, new RegExp(`^Your read: ${spot.first} (has something|is bluffing)\\.$`));
@@ -193,7 +194,7 @@ s.test('a hand played at the table: the block under the line and before the narr
     assert.match(name, /^(Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Jack|Queen|King|Ace) of (spades|hearts|diamonds|clubs), not held$/);
     assert.match(code, /^[2-9TJQKA][shdc]$/);
   }
-  assert.deepEqual(live.acts, ['Draw 5', 'Fold −$10']);
+  assert.deepEqual(live.acts, ['Draw 5', 'Fold −$1'], 'wave 18: a fold before the draw costs the ante');
   assert.match(live.hint, /Pick the cards to hold, then Draw/);
   // Wave 16: with the hand open the Undo link is over the bet's line (has-undo): /undo takes the turn back, free.
   assert.equal(live.prev, 'f-item f-input has-undo|I bet $20 at cards', 'under the player\'s line');
@@ -203,11 +204,11 @@ s.test('a hand played at the table: the block under the line and before the narr
   assert.equal(live.focus, 'cards-head', 'the focus is on the table\'s head');
   assert.deepEqual([live.busy, live.open, live.canAct], [true, true, false], 'a turn runs: nothing else may act');
   assert.equal(live.narrates, 0);
-  assert.equal(live.gold, g0, 'no money moves before the showdown');
+  assert.equal(live.gold, g0 - 1, 'wave 18: only the ante goes in before the draw');
   // Enter in the box while the hand is open: the line stays, the status says why.
   await page.fill('#cmd', 'I look around');
   await page.press('#cmd', 'Enter');
-  assert.match(await page.textContent('#turn-status-text'), /^Your hand is on the table: pick the cards to hold, then Draw or Fold\. Stop folds the hand \(−\$10\); Win \(cheat\) ends it yours\.$/); // wave 14: the Win (cheat) control named
+  assert.match(await page.textContent('#turn-status-text'), /^Your hand is on the table: pick the cards to hold, then Draw or Fold\. Stop folds the hand \(−\$1\); Win \(cheat\) ends it yours\.$/); // wave 14: the Win (cheat) control named
   assert.equal(await page.inputValue('#cmd'), 'I look around');
   await page.fill('#cmd', '');
   // Holds: a click, Space, Enter (on and off again).
@@ -234,7 +235,9 @@ s.test('a hand played at the table: the block under the line and before the narr
   const judge = await page.evaluate(x => ({ cmp: Math.sign(Game.Cards.compare(x.player.final, x.dealer.final)), p: Game.Cards.evaluate(x.player.final).name, d: Game.Cards.evaluate(x.dealer.final).name, dealerHas: Game.Cards.evaluate(x.dealer.final).rank >= 1, holds: Game.Cards.dealerHolds(x.dealer.dealt), gold: Game.state.player.gold }), c);
   const want = { 1: 'win', '-1': 'lose', 0: 'split' }[judge.cmp];
   assert.equal(c.result, want);
-  assert.equal(c.delta, { win: 20, lose: -20, split: 0 }[want]);
+  // Wave 18: the ante and the round after the draw (checked or called down here) make the pot.
+  assert.equal(c.delta, c.player.won - c.player.in);
+  assert.equal(Math.sign(c.delta), { win: 1, lose: -1, split: 0 }[want]);
   assert.equal(judge.gold - g0, c.delta, 'the engine moved the money');
   assert.equal(c.cash, judge.gold);
   assert.deepEqual([c.player.name, c.dealer.name], [judge.p, judge.d]);
@@ -249,7 +252,7 @@ s.test('a hand played at the table: the block under the line and before the narr
   assert.deepEqual(done.player, c.player.final);
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#feed .f-cards .cards-name')].map(x => x.firstChild.textContent)), [c.dealer.name, c.player.name], 'each hand named under it');
   const result = await page.textContent('#feed .f-cards .cards-result');
-  assert.equal(result, `${{ win: 'You win $20', lose: 'You lose $20', split: 'Split pot' }[want]} · cash $${judge.gold}`);
+  assert.equal(result, `${{ win: `You win $${c.delta}`, lose: `You lose $${-c.delta}`, split: 'Split pot' }[want]} · cash $${judge.gold}`);
   assert.equal(await page.locator('#feed .f-cards button').count(), 0, 'nothing to press once it is over');
   assert.equal(done.next, 'f-narr', 'the narration follows the table');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'the focus back in the box');
@@ -257,10 +260,14 @@ s.test('a hand played at the table: the block under the line and before the narr
   const outcome = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
   const ph = lowerFirst(c.player.name) + (c.player.name.includes(',') ? ',' : '');
   const dh = lowerFirst(c.dealer.name) + (c.dealer.name.includes(',') ? ',' : '');
-  const how = { win: `the player's ${ph} beats ${spot.dealerName}'s ${dh} at the showdown: the player wins \\$20`, lose: `the player's ${ph} loses to ${spot.dealerName}'s ${dh} at the showdown: the player loses \\$20`, split: `the player's ${ph} ties ${spot.dealerName}'s ${dh} at the showdown: a split pot, and no money changes hands` }[want];
-  assert.match(outcome, new RegExp(`^OUTCOME: the card game \\(the player put up \\$20\\): five-card draw, heads up with ${esc(spot.dealerName)}; ${how.split('\\$').map(esc).join('\\$')} \\(cash (now|still) \\$${judge.gold}\\)\\. The money has already changed hands\\. The table was shown to the player card by card already: tell the moment and the people, do not list the cards again\\.$`), outcome);
+  const amount = Math.abs(c.delta);
+  const how = { win: `the player's ${ph} beats ${spot.dealerName}'s ${dh} at the showdown: the player wins $${amount}`, lose: `the player's ${ph} loses to ${spot.dealerName}'s ${dh} at the showdown: the player loses $${amount}`, split: `the player's ${ph} ties ${spot.dealerName}'s ${dh} at the showdown: a split pot, and no money changes hands` }[want];
+  // Wave 18: the house rules, the betting's big moments (if any) before the showdown, the terms said as the player first sits down at this stake.
+  assert.ok(outcome.startsWith(`OUTCOME: the card game (the player bought in for $20; house rules: $20 to sit, $1 ante, $4 limit (every bet and raise $4), one round of betting after the draw): five-card draw, heads up with ${spot.dealerName}; `), outcome);
+  assert.ok(outcome.includes(`${how} (cash ${c.delta ? 'now' : 'still'} $${judge.gold}).${c.delta ? ' The money has already changed hands.' : ''}`), outcome);
+  assert.ok(outcome.endsWith(`The player sits down at this stake for the first time: have ${spot.dealerName} state the table's terms as they sit ("Twenty to sit, a dollar ante, four-dollar limit."). The table was shown to the player card by card already: tell the moment and the people, do not list the cards again.`), outcome);
   const book = line(await lastCall(page, 'bookkeep'), 'CARD GAME');
-  assert.equal(book, `CARD GAME (already applied by the engine; do not record again): the player ${{ win: 'wins $20', lose: 'loses $20', split: 'breaks even (a split pot)' }[want]} at cards (cash now $${judge.gold}); record no goldDelta for it.`);
+  assert.equal(book, `CARD GAME (already applied by the engine; do not record again): the player ${{ win: `wins $${amount}`, lose: `loses $${amount}`, split: 'breaks even (a split pot)' }[want]} at cards (cash now $${judge.gold}); record no goldDelta for it.`);
   assert.ok(e.narration.includes(lowerFirst(c.player.name)) && e.narration.includes(lowerFirst(c.dealer.name)), 'the demo tells the hands by name: ' + e.narration);
   // /undo of a later turn draws it again where it was.
   const played = await feedLines(page);
@@ -290,7 +297,7 @@ s.test('a hand played at the table: the block under the line and before the narr
   assert.deepEqual(await feedLines(page), before, 'in the same place');
 });
 
-s.test('Fold: half the stake (rounded up since wave 11) is lost, the dealer\'s cards are turned up as dealt, the result says so, and the narrator and the bookkeeper hear a fold', async h => {
+s.test('Fold: half the stake (rounded up since wave 11; wave 18: the ante, $1 at $25) is lost, the dealer\'s cards are turned up as dealt, the result says so, and the narrator and the bookkeeper hear a fold', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -303,17 +310,17 @@ s.test('Fold: half the stake (rounded up since wave 11) is lost, the dealer\'s c
   await idle(page);
   const e = await lastEntry(page);
   const gold = await page.evaluate(() => Game.state.player.gold);
-  assert.deepEqual([e.cards.result, e.cards.delta, e.cards.stake, gold - g0], ['fold', -13, 25, -13]);
+  assert.deepEqual([e.cards.result, e.cards.delta, e.cards.stake, gold - g0], ['fold', -1, 25, -1]);
   assert.deepEqual(e.cards.player.final, e.cards.player.dealt, 'nothing drawn');
   assert.deepEqual(e.cards.dealer.final, e.cards.dealer.dealt, 'the dealer\'s hand as dealt');
   const t = await tableNow(page);
   assert.deepEqual(t.dealer, e.cards.dealer.dealt);
-  assert.equal(await page.textContent('#feed .f-cards .cards-result'), `You fold: −$13 · cash $${gold}`);
+  assert.equal(await page.textContent('#feed .f-cards .cards-result'), `You fold: −$1 · cash $${gold}`);
   const outcome = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
-  assert.ok(outcome.startsWith(`OUTCOME: the card game (the player put up $25): five-card draw, heads up with ${spot.dealerName}; the player folds their ${lowerFirst(e.cards.player.name)}`), outcome);
-  assert.ok(outcome.includes(`before the draw and gives up half the stake: the player loses $13 (cash now $${gold}).`), outcome);
-  assert.match(line(await lastCall(page, 'bookkeep'), 'CARD GAME'), /: the player folds and loses \$13 at cards \(cash now \$\d+\); record no goldDelta for it\.$/);
-  assert.match(e.narration, /you fold your .* and give up \$13\./);
+  assert.ok(outcome.startsWith(`OUTCOME: the card game (the player bought in for $25; house rules: $25 to sit, $1 ante, $5 limit (every bet and raise $5), one round of betting after the draw): five-card draw, heads up with ${spot.dealerName}; `), outcome);
+  assert.ok(outcome.includes(`the player folded their ${lowerFirst(e.cards.player.name)}${e.cards.player.name.includes(',') ? ',' : ''} before the draw and gave up the $1 ante (cash now $${gold}).`), outcome);
+  assert.match(line(await lastCall(page, 'bookkeep'), 'CARD GAME'), /: the player folds and loses \$1 at cards \(cash now \$\d+\); record no goldDelta for it\.$/);
+  assert.match(e.narration, /you fold your .* before the draw and give up \$1\./);
   assert.ok(spot);
 });
 
@@ -413,7 +420,9 @@ s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is deal
   await idle(page);
   const e = await lastEntry(page);
   const after = await page.evaluate(([d, l]) => ({ att: Game.State.npc(d).attitude, mems: Game.State.npc(d).memories.filter(m => /cheat/i.test(m.text)).length, gold: Game.state.player.gold, deck: Game.state.player.inventory.some(i => /marked/i.test(i.name)), ban: (Game.state.bans || []).some(b => b.locationId === l), armed: Game.state.flags.cardsCheat === true }), [spot.dealer, spot.loc]);
-  assert.deepEqual([e.cards.result, e.cards.delta, e.cards.cheat, after.gold - a0.gold], ['win', 40, true, 40]);
+  // Wave 18: the antes and whatever was bet after the draw (checked down here: the dealer's ante).
+  assert.deepEqual([e.cards.result, e.cards.cheat, after.gold - a0.gold], ['win', true, e.cards.delta]);
+  assert.ok(e.cards.delta > 0);
   assert.equal(e.roll, null, 'no catch roll');
   assert.deepEqual([after.att, after.mems, after.deck, after.ban, after.armed], [a0.att, 0, true, false, false]);
   assert.doesNotMatch(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /cheat/i);
@@ -442,7 +451,7 @@ s.test('Stop with a hand open (changed by design in wave 11): the ante is in, so
   await page.click('#send');
   await idle(page);
   const r = await page.evaluate(() => ({ gold: Game.state.player.gold, turn: Game.state.meta.turn, log: Game.state.log.length, tables: document.querySelectorAll('#feed .f-cards').length, box: document.querySelector('#cmd').value, notice: [...document.querySelectorAll('#feed .f-notice')].pop().textContent, open: Game.Pipeline.handOpen, statusHidden: document.querySelector('#turn-status').hidden, send: document.querySelector('#send').textContent, canAct: Game.UI.canAct(), e: Game.state.log[Game.state.log.length - 1] }));
-  assert.deepEqual([r.gold - before.gold, r.turn - before.turn, r.log - before.log], [-10, 1, 1], 'the fold price, and the turn is spent');
+  assert.deepEqual([r.gold - before.gold, r.turn - before.turn, r.log - before.log], [-1, 1, 1], 'the fold price (wave 18: the ante), and the turn is spent');
   assert.equal(r.tables, 1, 'the table stays, folded');
   assert.equal(r.box, '');
   assert.equal(r.notice, 'Stopped: a hand on the table is folded, and the ante is gone.');

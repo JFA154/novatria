@@ -68,7 +68,7 @@ const parse = (page, list) => page.evaluate(async l => { const out = {}; for (co
 
 // ----- #1: a hand left open before wave 13; the chooser's Stop with nothing to put back -----
 
-s.test('#1 a draw hand left open in a game saved before wave 13 (the stored hand has no game, seats or moves) folds on load at the normal price, with the cards as dealt ("You left the table, so you fold: −$5"), never the chooser; Stop at a chooser with no line to put back says only "Stopped. Nothing lost."', async h => {
+s.test('#1 a draw hand left open in a game saved before wave 13 (the stored hand has no game, seats or moves) folds on load at the normal price (wave 18: the ante), with the cards as dealt ("You left the table, so you fold: −$1"), never the chooser; Stop at a chooser with no line to put back says only "Stopped. Nothing lost."', async h => {
   const page = await open(h);
   await quickStart(page);
   await fast(page);
@@ -92,8 +92,8 @@ s.test('#1 a draw hand left open in a game saved before wave 13 (the stored hand
   assert.notEqual(await page.evaluate(() => Game.Pipeline.handKind), 'choose', 'not the chooser');
   await idle(page);
   const e = await lastEntry(page);
-  assert.deepEqual([e.input, e.cards.game, e.cards.result, e.cards.closed, e.cards.delta, e.cards.player.dealt, await gold(page) - g0], ['I bet $10 at five-card draw', 'draw', 'fold', true, -5, dealt, -5]);
-  assert.equal((await tableNow(page)).result, `You left the table, so you fold: −$5 · cash $${g0 - 5}`);
+  assert.deepEqual([e.input, e.cards.game, e.cards.result, e.cards.closed, e.cards.delta, e.cards.player.dealt, await gold(page) - g0], ['I bet $10 at five-card draw', 'draw', 'fold', true, -1, dealt, -1]);
+  assert.equal((await tableNow(page)).result, `You left the table, so you fold: −$1 · cash $${g0 - 1}`);
   assert.equal(await lastNotice(page), 'The game was closed with a hand on the table, so the hand is folded and the ante is gone.');
   assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-cards[data-game="choose"]').length), 0);
   assert.equal(await page.evaluate(() => Game.state.flags.cardGame || null), null, 'a game saved with none remembered (the folded hand chose none)');
@@ -303,7 +303,7 @@ s.test('#6 with a hand open /help shows the commands as ever and the hand stays 
   assert.deepEqual(await page.evaluate(() => [Game.Pipeline.handOpen, Game.Pipeline.handKind, document.querySelector('#cmd').value, !!document.querySelector('#feed .f-cards.open')]), [true, 'holdem', '', true], 'the hand stays open, the box is empty');
   await page.fill('#cmd', '/look');
   await page.press('#cmd', 'Enter');
-  assert.equal(await statusLine(page), 'Your hand is on the table: Check or Bet. Stop folds the hand (−$4); Win (cheat) ends it yours.');
+  assert.equal(await statusLine(page), 'Your hand is on the table: Check or Bet (or type "check" or "bet 4"). Stop folds the hand (−$1); Win (cheat) ends it yours.');
   // The typed /cheat win is the Win (cheat) control (wave 14).
   await page.fill('#cmd', '/cheat win');
   await page.press('#cmd', 'Enter');
