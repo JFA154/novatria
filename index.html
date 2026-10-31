@@ -7183,11 +7183,15 @@ const Cards = (() => {
   }
   /* Two cards for each other seat (wave 14): from a sample of what is left,
      one of the three best hands that still lose to the player's. null when
-     a seat has none. */
+     a seat has none. Wave 15 (the QA's three "Straight, nine high" against
+     one ten-high): each seat's hand differs from those already given when
+     the sample allows, by its name (another shape, or other ranks) first,
+     else by the cards that count. */
   function stackOthers(rng, hole, board, n) {
     const top = best(hole.concat(board)).key;
     let pool = deck().filter(c => !hole.includes(c) && !board.includes(c));
     const holes = [];
+    const given = [];
     for (let i = 1; i < n; i++) {
       const loses = [];
       for (let t = 0; t < 120; t++) {
@@ -7195,14 +7199,18 @@ const Cards = (() => {
         let b = rng.int(0, pool.length - 2);
         if (b >= a) b++;
         const pair = [pool[a], pool[b]];
-        const k = best(pair.concat(board)).key;
-        if (compareKeys(top, k) > 0) loses.push({ pair, k });
+        const e = best(pair.concat(board));
+        if (compareKeys(top, e.key) > 0) loses.push({ pair, k: e.key, name: e.name });
       }
       if (!loses.length) return null;
       loses.sort((x, y) => compareKeys(y.k, x.k));
-      const pick = loses[rng.int(0, Math.min(2, loses.length - 1))].pair;
-      holes.push(pick);
-      pool = pool.filter(c => !pick.includes(c));
+      const named = loses.filter(x => given.every(g => g.name !== x.name));
+      const apart = loses.filter(x => given.every(g => compareKeys(g.k, x.k) !== 0));
+      const from = named.length ? named : apart.length ? apart : loses;
+      const pick = from[rng.int(0, Math.min(2, from.length - 1))];
+      holes.push(pick.pair);
+      given.push(pick);
+      pool = pool.filter(c => !pick.pair.includes(c));
     }
     return { holes, rest: shuffle(rng, pool) };
   }
@@ -7234,34 +7242,46 @@ const Cards = (() => {
   }
   /* A hand's name with the cards that decide it against a hand of the same
      name (wave 14, QA #9): "Pair of aces, nine kicker"; a flush or a high
-     card by its top cards, "Flush, ace-king high". upto: the first place in
-     the hand's key where the hands differ. */
+     card by its top cards, "Flush, ace-king high". upto: the last place in
+     the hand's key that is named. Wave 15: the kickers are named from the
+     first one to upto, so a name never reads as if a lower kicker were the
+     top one ("Pair of aces, king-jack kickers"). */
+  // Where a name's kickers start in the key: one pair and three of a kind after the rank, two pair after both pairs, four of a kind after the four.
+  const KICKER_AT = Object.freeze({ 1: 2, 2: 3, 3: 2, 7: 2 });
   function nameUpTo(e, upto) {
     const k = e.key;
     if (!(upto > 1) || upto >= k.length) return e.name;
     if (e.rank === 0 || e.rank === 5) return `${e.rank === 5 ? 'Flush, ' : ''}${k.slice(1, upto + 1).map(v => WORD[v]).join('-')} high`.replace(/^[a-z]/, x => x.toUpperCase());
-    if ([1, 2, 3, 7].includes(e.rank)) return `${e.name}, ${WORD[k[upto]]} kicker`;
-    return e.name;
+    const from = KICKER_AT[e.rank];
+    if (!from || upto < from) return e.name;
+    const named = k.slice(from, upto + 1).map(v => WORD[v]);
+    return `${e.name}, ${named.join('-')} ${named.length > 1 ? 'kickers' : 'kicker'}`;
   }
   /* The names of the hands shown together (finals: five cards each, or
      null): two that differ never share a name, a name is only made longer
-     where it has to be, and an exact tie keeps the one name. */
+     where it has to be, and an exact tie keeps the one name. Wave 15: the
+     hands of one name are named to one depth, the deepest place where any
+     two of them that differ first differ, so their names line up ("king-jack
+     kickers" / "king-ten kickers" / "nine-eight kickers"; "jack kicker" /
+     "ten kicker" / "nine kicker" when the first kicker tells them all
+     apart). */
   function namesApart(finals) {
     const evs = finals.map(f => (Array.isArray(f) && f.length === 5 ? evaluate(f) : null));
     const names = evs.map(e => (e ? e.name : null));
-    for (let round = 0; round < 4; round++) {
-      let changed = false;
-      const groups = new Map();
-      evs.forEach((e, i) => { if (e) groups.set(names[i], (groups.get(names[i]) || []).concat(i)); });
-      for (const g of groups.values()) {
-        if (g.length < 2) continue;
-        const keys = g.map(i => evs[i].key);
-        let upto = -1;
-        for (let p = 1; p < keys[0].length && upto < 0; p++) if (keys.some(k => k[p] !== keys[0][p])) upto = p;
-        if (upto < 0) continue;
-        for (const i of g) { const nm = nameUpTo(evs[i], upto); if (nm !== names[i]) { names[i] = nm; changed = true; } }
+    const groups = new Map();
+    evs.forEach((e, i) => { if (e) groups.set(e.name, (groups.get(e.name) || []).concat(i)); });
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      let depth = -1;
+      for (let x = 0; x < g.length; x++) for (let y = x + 1; y < g.length; y++) {
+        const kx = evs[g[x]].key;
+        const ky = evs[g[y]].key;
+        let at = 1;
+        while (at < kx.length && kx[at] === ky[at]) at++;
+        if (at < kx.length && at > depth) depth = at;
       }
-      if (!changed) break;
+      if (depth < 0) continue;
+      for (const i of g) names[i] = nameUpTo(evs[i], depth);
     }
     return names;
   }
@@ -15040,8 +15060,36 @@ const Api = (() => {
   const MOCK_GAME_WORDS = /\b(?:(?:a|another|one more) (?:hand|game|round) of (?:five[\s-]*card\s+)?(?:draw|hold[\s'-]*'?em|holdem|texas hold[\s'-]*'?em)|(?:play|playing|let's play|deal|deal me in at|deal us in at|i'll play)\s+(?:some\s+)?(?:texas\s+)?(?:hold[\s'-]*'?em|holdem|draw poker|five[\s-]*card(?: draw)?)|deal (?:everyone|everybody|us all|all of us|the (?:whole )?table) in|heads[\s-]*up\s+(?:game|hand|poker|hold[\s'-]*'?em|holdem|draw|with)|(?:play|deal|let's play)\s+(?:it\s+)?heads[\s-]*up)\b/;
   // Wave 14 (QA #14): "a hand of cards", "sit in" ("Mind if I sit in?", "Can I sit in for a hand?"; not "sit in the corner"); and a game named in a short line ("hold'em? no, five card draw", "texas hold'em, twenty bucks": MOCK_GAME_NAME).
   const MOCK_GAME_NAME = /\b(?:five[\s-]*card\s+draw|texas\s+hold[\s'-]*'?em|hold[\s'-]*'?em|holdem|draw\s+poker)\b/;
-  const MOCK_GAMBLE = /\b((?:a|another|one more) hand of (?:cards|poker)|sit(?:s|ting)?(?: down)? in(?=\s*(?:[.!?,]|$|for\b|with\b|tonight\b|today\b|this\b))|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|i'm in|all[ -]in)\s*[.!?]*\s*$/;
+  const MOCK_GAMBLE = /\b((?:a|another|one more) hand of (?:cards|poker)|sit(?:s|ting)?(?: down)? in(?=\s*(?:[.!?,]|$|for\b|with\b|tonight\b|today\b|this\b))|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|all[ -]in)\s*[.!?]*\s*$/;
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
+  /* Wave 15 (QA N7): softer ways to sit in, read as a bet only where a
+     dealer is at the card table now (mockDealerHere): "Mind if I join you
+     for a hand?", "I join the game", "I take a seat at the card table", "I
+     sit at the table", "Deal me into the game", "deal us in". "I sit in the
+     corner", "I sit at the bar" and "Mind if I join you?" are not bets. */
+  const MOCK_JOIN = /\bjoin (?:you(?: all| boys| fellas| folks| two| gentlemen)?|y'all|in)\b[^.!?]*\b(?:a hand|hands|a game|the game|your game|cards|poker|a round)\b|\bjoin (?:the|your) (?:card |poker )?(?:table|game)\b|\b(?:sit|sits|sat|sitting)(?: down| back)? at (?:the|his|your) (?:(?:card|poker) table\b|table(?=\s*(?:[.!?,;]|$|and\b|with\b|for\b|across\b)))|\b(?:take|takes|took|taking|grab|grabs|pull up|pulls up|find|finds) (?:a|the|an empty|my) (?:seat|chair|spot|place) at (?:the|his|your) (?:(?:card|poker) )?table\b|\bdeal (?:me|us) into\b|\bdeal us in\b|\bdeal (?:me|us) (?:some )?cards\b/;
+  /* "Count me in", "I'm in" (wave 15): a bet only with the cards, a hand,
+     the table or the game named in the line ("Count me in for a hand",
+     "I'm in, deal the cards"), or right after a hand at the table; never
+     "I'm in trouble" or "I'm in for a long night". */
+  const MOCK_COUNT_IN = /\b(?:count (?:me|us)|i'm|i am|we're) in(?: too| again| on (?:the|this|that|your) (?:game|hand|next one)| for (?:a|another|one more|the next) (?:hand|game|round))?(?=\s*(?:[.!?,;:]|$))/;
+  const MOCK_CARD_NAMED = /\b(?:cards?|hands?|poker|table|game|round|deal|hold[\s'-]*'?em|holdem)\b/;
+  /* A dealer at the card table where the player is (the demo's parser, wave 15). */
+  function mockDealerHere(packet) {
+    const l = packet.location ? State.loc(packet.location.id) : null;
+    return !!l && Pipeline.cardGameAt(l) && !!Pipeline.dealerOf((packet.present || []).map(n => n.id));
+  }
+  /* The turn before was a hand at the table (the log's newest entry has one). */
+  function mockLastHand() {
+    const s = State.current;
+    const e = s && s.log.length ? s.log[s.log.length - 1] : null;
+    return !!(e && isObj(e.cards));
+  }
+  function mockJoins(lower, packet) {
+    if (!MOCK_JOIN.test(lower) && !MOCK_COUNT_IN.test(lower)) return false;
+    if (!mockDealerHere(packet)) return false;
+    return MOCK_JOIN.test(lower) || MOCK_CARD_NAMED.test(lower) || mockLastHand();
+  }
   const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* "ask her about Wade, then walk to the bridge": something done here, then
      a walk on (moveWhen "after"). */
@@ -15212,7 +15260,7 @@ const Api = (() => {
     else if (has(/\b(sneak|creep|pick|picks|steal|steals|pickpocket|lift a purse)\b/)) { out.actionType = has(/\b(steal|steals|pickpocket|lift a purse)\b/) ? 'steal' : has(/\b(sneak|creep)\b/) ? 'sneak' : 'use'; roll('stealth', 'normal'); }
     else if (has(/\b(persuade|persuades|convince|convinces|talk \w+ into)\b/)) { out.actionType = 'persuade'; roll('charm', 'normal'); out.targets = target(); out.timeCost = 'instant'; }
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
-    else if ((has(MOCK_GAMBLE) || has(MOCK_GAME_WORDS) || (has(MOCK_GAME_NAME) && lower.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(input))) && GAMBLE_PLACES.includes(where) && !aboutAt) {
+    else if ((has(MOCK_GAMBLE) || has(MOCK_GAME_WORDS) || (has(MOCK_GAME_NAME) && lower.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(input)) || mockJoins(lower, packet)) && GAMBLE_PLACES.includes(where) && !aboutAt) {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
       const st = MOCK_STAKE.exec(lower);
       out.actionType = 'gamble';
@@ -15513,9 +15561,9 @@ const Api = (() => {
     const listsHere = !c.beat && (mode === 'arrival' || a.actionType === 'look');
     if (c.sceneChange) {
       const names = ids => ids.map(id => { const n = State.npc(id); return n ? n.name : id; });
-      // Wave 14 (QA #15): whoever the action was with (its targets) is in the scene already, never one more arrival after it; a hand of cards was played with everyone here (the dealer and the seats among them), so nobody "arrives" after it.
-      const played = !!(c.gamble && c.gamble.played);
-      const came = listsHere || played ? [] : names(c.sceneChange.arrived.filter(id => !(a.targets || []).includes(id)));
+      // Wave 14 (QA #15): whoever the action was with (its targets) is in the scene already, never one more arrival after it. Wave 15: after a hand of cards only those who sat at it (the dealer and the seats) are left out; whoever else came in still arrives.
+      const seated = Pipeline.seatedAt(c.gamble);
+      const came = listsHere ? [] : names(c.sceneChange.arrived.filter(id => !(a.targets || []).includes(id) && !seated.includes(id)));
       if (came.length) {
         scenery.push(`${andList(came)} ${came.length > 1 ? 'arrive' : 'arrives'}.`);
         scenery.push(vary([`${came[0]} sees you there.`, `${came[0]} looks your way.`, `${came[0]} gives the room a once-over.`], key));
@@ -17245,6 +17293,8 @@ const Pipeline = (() => {
     locked: 'You just tried that and it failed. Change something first: a different approach, something to use or offer, another place, or let time pass (/wait or /rest).',
     dead: 'Your story has ended. Load a saved game or start a new one.',
     aborted: 'Stopped. Your action was kept in the box.',
+    // Wave 15: Stop at the chooser when there is no line to put back in the box.
+    chooserStopped: 'Stopped. Nothing lost.',
     bookFailed: 'What changed this turn could not be recorded yet (the bookkeeper did not answer); the story stands. Trying once more in the background.',
     bookLate: 'What changed on that turn is recorded now.',
     bookStopped: 'Stopped while the town was being updated: the story stands, but what changed this turn was not recorded.',
@@ -18506,16 +18556,21 @@ const Pipeline = (() => {
      named, unless it is the one being left ("not draw", "instead of
      hold'em"); null when neither is. Wave 14 (QA #17): drawing cards is
      not the game: "draw to an inside straight", "draw two", "draw three
-     cards", "draw five cards", "draw a card", "draw the queen". */
+     cards", "draw five cards", "draw a card", "draw the queen". Wave 15: a
+     game named right before it is put down ("draw poker is for old men",
+     "hold'em isn't my game", "draw is no fun", "hold'em is not for me",
+     "draw, not for me") is the one being left too. */
   const HOLDEM_WORD = /\btexas\b|\bhold[\s'-]*'?em\b|\bholdem\b/gi;
   const DRAW_WORD = /(?<!\bdraw(?:ing|s)?\s+)\b(?:five|5)[\s-]*cards?(?:\s+draw)?\b|\bdraw\s+poker\b|\bdraw\b(?!\s+(?:my|a|an|the|his|her|their|your|our|it|them|him|me|us|out|from|on|up|back|cards?|breath|attention|blood|straws?|lots|near|close|closer|level|steel|iron|fire|water|money|cash|gun|pistol|knife|to|into|one|two|three|four|five|[1-5]|another|some|new)\b)/gi;
   const NOT_THIS = /(?:\bnot|\binstead\s+of|\brather\s+than|\bno\s+more|\bswitch(?:ing)?\s+from|\bfrom|\bover)\s+(?:a\s+(?:hand|game)\s+of\s+|the\s+)?$/i;
+  // Said of the game just named (wave 15): the rest of its name ("texas" then "hold'em", "draw" then "poker"), then a put-down; "is for me" is not one.
+  const PUT_DOWN = /^(?:\s*(?:texas|hold[\s'-]*'?em|holdem|poker|draw|five[\s-]*card|5[\s-]*card))*\s*(?:(?:is|'s)\s+for\b(?!\s+(?:me|us|real|keeps)\b)|(?:isn'?t|(?:is|'s)\s+not)\b(?!\s+(?:so\s+|too\s+|half\s+)?bad\b)|(?:is|'s)\s+no\b|[,;:-]?\s*not\s+for\s+me\b)/i;
   function gameFrom(words) {
     const t = String(words || '').replace(/[’‘]/g, "'");
     const found = [];
     for (const [game, re] of [['holdem', HOLDEM_WORD], ['draw', DRAW_WORD]]) {
       re.lastIndex = 0;
-      for (let m = re.exec(t); m; m = re.exec(t)) found.push({ game, at: m.index, away: NOT_THIS.test(t.slice(0, m.index)) });
+      for (let m = re.exec(t); m; m = re.exec(t)) found.push({ game, at: m.index, away: NOT_THIS.test(t.slice(0, m.index)) || PUT_DOWN.test(t.slice(m.index + m[0].length)) });
     }
     found.sort((a, b) => a.at - b.at);
     const kept = found.filter(x => !x.away);
@@ -18543,6 +18598,14 @@ const Pipeline = (() => {
     // A game saved before wave 13 has the cast without the tag: the town's own record says who plays (the built-in town).
     const cast = s && s.meta.townName === TOWN_DATA.name ? new Set(TOWN_DATA.npcs.filter(x => (x.tags || []).includes(CARD_TAG)).map(x => x.id)) : new Set();
     return (presentIds || []).map(id => State.npc(id)).filter(n => n && (!dealer || n.id !== dealer.id) && n.alive !== false && ((n.tags || []).includes(CARD_TAG) || cast.has(n.id)) && (toInt(n.attitude) || 0) > SEAT_COLD);
+  }
+  /* Who sat at a hand played this turn (wave 15): the dealer and the seats
+     (ids), from ctx.gamble; [] when no hand was played. They were at the
+     table for it, so neither the narrator's packet nor the demo tells them
+     as arriving after it. */
+  function seatedAt(g) {
+    if (!isObj(g) || g.played !== true) return [];
+    return [g.dealerId].concat((Array.isArray(g.seats) ? g.seats : []).map(x => x && x.id)).filter(id => typeof id === 'string');
   }
   /* Who sits in this hand besides the player and the dealer: the words
      first, then the hand's seed (none, one or two, each a third of the
@@ -18837,7 +18900,7 @@ const Pipeline = (() => {
     const c = isObj(choice) ? choice : {};
     if (h.kind === 'choose') {
       // Stop at the chooser: nothing was dealt, so the turn is called off at no cost (the line back in the box).
-      if (c.fold === true) { h.reject(stoppedAtTable()); return true; }
+      if (c.fold === true) { h.reject(Object.assign(stoppedAtTable(), { chooser: true })); return true; }
       h.resolve(c.win === true ? { win: true } : { game: CARD_GAMES.includes(c.game) ? c.game : 'holdem' });
       return true;
     }
@@ -18941,7 +19004,8 @@ const Pipeline = (() => {
     // Dealt in this tab before a reload, or in another tab (wave 12, L3): the notice says which.
     const other = !!m.tab && m.tab !== Storage.tabId;
     // Wave 13: the game, the seats and the moves already made (a hold'em hand folds where it was left).
-    const storedHand = { game: CARD_GAMES.includes(m.cardGame) ? m.cardGame : null, seats: Array.isArray(m.seats) ? m.seats.filter(x => typeof x === 'string') : [], moves: Array.isArray(m.moves) ? m.moves.filter(x => HOLDEM_ACTS.includes(x)) : [], chose: m.chose === true, deal: isObj(m.deal) ? m.deal : null };
+    // Wave 15: a hand stored before wave 13 has no game, and could only be five-card draw: it folds as one (never the chooser).
+    const storedHand = { game: CARD_GAMES.includes(m.cardGame) ? m.cardGame : 'draw', seats: Array.isArray(m.seats) ? m.seats.filter(x => typeof x === 'string') : [], moves: Array.isArray(m.moves) ? m.moves.filter(x => HOLDEM_ACTS.includes(x)) : [], chose: m.chose === true, deal: isObj(m.deal) ? m.deal : null };
     return runTurn({ input: String(m.input || ''), mode: 'normal', speech, action: deepCopy(m.action), resume: cards ? 'played' : 'open', resumeOther: other, replayCards: cards, storedHand });
   }
   /* A hand's name inside a sentence: "two pair, kings and sevens," (the comma closes it). */
@@ -19924,10 +19988,13 @@ const Pipeline = (() => {
     if (ps && ps.locationId === l.id && ((ps.arrived || []).length || (ps.left || []).length)) {
       ctx.sceneChange = ps;
       const who = ids => ids.map(id => { const n = State.npc(id); if (!n) return id; const home = n.home && n.home.locationId === l.id ? ' (this is their home)' : ''; return n.name + home; }).join(', ');
+      // Wave 15: whoever sat at a hand of cards this turn (the dealer, the seats) was at the table for it, and is not told as arriving after it.
+      const seated = seatedAt(ctx.gamble);
+      const arrived = (ps.arrived || []).filter(id => !seated.includes(id));
       const parts = [];
-      if (ps.arrived.length) parts.push(`arrived here: ${who(ps.arrived)}`);
+      if (arrived.length) parts.push(`arrived here: ${who(arrived)}`);
       if (ps.left.length) parts.push(`left: ${who(ps.left)}`);
-      lines.push(`SINCE THE LAST TURN (time moved on to ${s.time.phase}${s.time.late ? ', late' : ''}): ${parts.join('; ')}. The player has not acted in between. Show the arrival or departure as it happens or has just happened (a truck pulling in, a door, a goodbye), and let them react to finding the player here.`);
+      if (parts.length) lines.push(`SINCE THE LAST TURN (time moved on to ${s.time.phase}${s.time.late ? ', late' : ''}): ${parts.join('; ')}. The player has not acted in between. Show the arrival or departure as it happens or has just happened (a truck pulling in, a door, a goodbye), and let them react to finding the player here.`);
     }
     // The people: the player, what they carry, who is here, what they know, and what is still open.
     const goal = cleanText(p.goal, 160).replace(/[.!]+$/, '');
@@ -20700,6 +20767,8 @@ const Pipeline = (() => {
       // At the chooser (wave 14, QA #19) nothing was dealt: the turn's lines go, the line goes back in the box, and the notice says why.
       if (err && err.type === 'void' && err.chooser) return fail(snap, mark, { text: NOTICES.chooserVoid }, { reason: 'void', restoreInput: true });
       if (err && err.type === 'void') return fail(snap, UI.feed.mark(), null, { reason: 'void' });
+      // Stop at the chooser of a turn with no line to put back (wave 15: a resumed turn, or none typed): nothing was dealt, and the box is not said to hold anything.
+      if (err && err.type === 'aborted' && err.chooser && (ctx.resume || !String(opts.input || '').trim())) return fail(snap, mark, { text: NOTICES.chooserStopped }, { reason: 'aborted' });
       if (err && err.type === 'aborted') return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingStopped : NOTICES.aborted }, { reason: 'aborted', restoreInput: true });
       console.error(err);
       return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater(err instanceof Api.ApiError ? cleanText(err.message, 160).replace(/[.]$/, '') : '') : errorText(err), kind: 'error' }, { reason: 'error', restoreInput: true, error: err && err.type });
@@ -21436,7 +21505,7 @@ const Pipeline = (() => {
     cheatWin,
     get winArmed() { return winArmed(); },
     keepWin,
-    gameFrom, seatWords, cardPeople, seatsFor, rememberedGame, holdemRun, settlePot, unitFor, holdemCap, capWords, rigHoldem, rigDraw, CARD_GAMES, GAME_NAMES, CARD_TAG,
+    gameFrom, seatWords, cardPeople, seatsFor, seatedAt, rememberedGame, holdemRun, settlePot, unitFor, holdemCap, capWords, rigHoldem, rigDraw, CARD_GAMES, GAME_NAMES, CARD_TAG,
     resumeHand,
     foldPrice,
     get handOpen() { return !!hand; },
@@ -24500,14 +24569,39 @@ const UI = (() => {
     }
     return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}; Win (cheat) ends it yours.`;
   }
+  /* /undo typed with a hand open (wave 15): the turn can only be taken back
+     once it is over, so the line says how to end it first. */
+  function undoNudge() {
+    const t = Pipeline.openHand;
+    const kind = Pipeline.handKind;
+    if (kind === 'choose') return 'Pick a game and finish the hand first; /undo then takes the turn back. Stop leaves the table (nothing lost).';
+    const cost = !t ? null : kind === 'holdem' ? t.playerIn : Pipeline.foldPrice(t.stake);
+    return `Finish the hand or Stop it${Number.isFinite(cost) ? ` (−${money(cost)})` : ''} first; /undo then takes the turn back.`;
+  }
   /* A command typed with a hand open (wave 14, QA #10): /cheat win is the
-     Win (cheat) control; /cheat cards says the cards are dealt. Returns
-     true when the line was taken. */
+     Win (cheat) control; /cheat cards says the cards are dealt. Wave 15:
+     /help (or /commands) is shown as ever, the hand left open; /undo says
+     to finish the hand or Stop it first (the line stays in the box).
+     Returns true when the line was taken. */
   const CHEAT_WIN_TYPED = /^\/cheat\s+win\s*$/i;
   const CHEAT_CARDS_TYPED = /^\/cheat\s+cards\s*$/i;
+  const HELP_TYPED = /^\/(?:help|commands)[:.,!?]*$/i;
+  const UNDO_TYPED = /^\/undo[:.,!?]*(?:\s|$)/i;
   function handCommand(text) {
     if (!Pipeline.handOpen) return false;
     const t = String(text || '').trim();
+    if (HELP_TYPED.test(t)) {
+      d.cmd.value = '';
+      autosize();
+      syncSendLabel();
+      hideAc();
+      Commands.run(t);
+      return true;
+    }
+    if (UNDO_TYPED.test(t)) {
+      nudge(undoNudge());
+      return true;
+    }
     if (CHEAT_WIN_TYPED.test(t)) {
       const node = $('#feed .f-cards.open');
       d.cmd.value = '';
@@ -24768,6 +24862,16 @@ const UI = (() => {
     stick = nearBottom();
     if (stick) d.newBtn.hidden = true;
   }
+  /* Where the focus goes in an open table after a press (wave 15): its
+     first button that can be pressed (Check, Call, Draw), else the
+     player's row (made focusable for it). */
+  function tableFocus(node) {
+    const btn = $$('.cards-acts button', node).find(b => !b.disabled);
+    if (btn) return btn;
+    const you = $('.cards-you', node);
+    if (you && !you.hasAttribute('tabindex')) you.setAttribute('tabindex', '-1');
+    return you || $('.cards-head', node);
+  }
   /* The cash where it shows (wave 11, M2): the top bar and the Character
      panel, as soon as a hand moves it (the turn is still running, so the
      game is not drawn again until it ends). */
@@ -24874,19 +24978,21 @@ const UI = (() => {
       return node;
     },
     /* The same open table drawn again (wave 13): the chooser's game dealt,
-       or the next street at hold'em. A focus that was in the table goes to
-       its head (the buttons it was on are new), and the table is kept in
-       view as it grows. Wave 14 (QA #4): only the chooser's table turning
-       into the dealt one is shown from its head (it first appears then);
-       a street or a move keeps the player's row and the buttons in view
-       (keepHand). */
+       or the next street at hold'em. A focus that was in the table goes
+       back into it (the buttons it was on are new), and the table is kept
+       in view as it grows. Wave 14 (QA #4): only the chooser's table
+       turning into the dealt one is shown from its head (it first appears
+       then); a street or a move keeps the player's row and the buttons in
+       view (keepHand). Wave 15: the head takes the focus only then too;
+       after a press the focus goes to the first button the table offers
+       now (it is in view), or the player's row when there is none, never
+       to a head scrolled out of view. */
     cardsShow(node, t) {
       if (!node || !node.isConnected) return node;
       const had = node.contains(document.activeElement);
       const first = node.dataset.game === 'choose';
       fillCards(node, t);
-      const head = $('.cards-head', node);
-      if (had && screen === 'game' && head) moveFocus(head);
+      if (had && screen === 'game') moveFocus(first ? $('.cards-head', node) : tableFocus(node));
       if (first) showTable(node); else keepHand(node);
       return node;
     },
