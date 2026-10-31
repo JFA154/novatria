@@ -645,17 +645,38 @@ nothing; stealing from their register or their things while they are away
 still rolls stealth.
 
 **Cards.** When Curtis Pruett is at the Low Water (afternoons, evenings and
-nights), there is a card game at the back table. Say you bet ("I put $50 in",
-"deal me in"): the stake is what you name, $20 if you name nothing, never more
-than your cash. It rolls wits at normal difficulty, +2 with a marked deck on
-you, and the game moves the money itself: a win pays the stake, a partial half
-of it, a loss or a fumble costs the stake. On a fumble without a marked deck
-Curtis accuses you (he cools, remembers, and you are out on Front Street for
-the night; welcome again tomorrow); with one he catches you (he keeps the
-deck, puts you out on Front Street, remembers it hard, you are barred for
-three days, today counted, and the town hears of it). No
-complication is rolled at cards. With no game here, nobody dealing, or the bar
-shut for the day, nothing is bet.
+nights), there is a card game at the back table: five-card draw, you against
+Curtis, at a table the story shows you. Say you bet ("I put $50 in", "deal me
+in"): the stake is what you name, $20 if you name nothing, never more than
+your cash. The table appears under your line ("Curtis Pruett's table · stake
+$20 · pot $40"), Curtis's five cards face down and yours face up. Tap the
+cards you want to keep (or Space or Enter on them; each says Hold), then
+**Draw** to replace the rest, or **Fold**. Curtis draws by a fixed rule (he
+stands on a straight or better, keeps three of a kind, two pair or a pair,
+then four to a flush or a straight, else his two highest cards), both hands
+turn up with their names ("Two pair, kings and sevens", "Pair of aces"), and
+the better poker hand wins: a win pays the stake, a loss costs it, a tie
+splits the pot (nothing moves), and a fold costs half the stake, rounded down.
+The game moves the money itself, the result line gives your cash after, and
+the narration tells the moment and the people without listing the cards
+again. Your wits are a read on Curtis, not the result: the line over his
+cards says "Curtis is sitting on something" (he ends the hand with a pair or
+better) or "Curtis has nothing", and it is right 55% of the time plus 12% for
+each point of wits (a condition such as Tired counts), never under 50% or
+over 95%. The deck is shuffled from the game's seed and the turn, so a hand
+taken back with `/undo` is dealt again the same way. With a marked deck on
+you, Curtis's cards are face up while you draw (you read the marks), and once
+the hand is played one wits roll at normal difficulty, +2 for the deck, says
+whether he notices: on a fumble he catches you (the hand is void and you lose
+the stake; he keeps the deck, puts you out on Front Street, remembers it
+hard, you are barred for three days, today counted, and the town hears of
+it). Without a marked deck nothing is rolled and nobody is accused. No
+complication is rolled at cards. While a hand is open the box waits as it
+does during any turn; **Stop** calls the hand off, and nothing is bet. A
+reload or `/undo` draws a finished table again where it was in the story.
+`/cheat cards` stacks the deck so you win the next hand. With no game here,
+nobody dealing, or the bar shut for the day, nothing is bet and no table is
+dealt.
 
 **What one turn can do.** The bookkeeper that records each turn is held to
 what a turn can do: $500 in or out (a payment toward what you owe, up to
@@ -698,6 +719,7 @@ once more in the background.
 | `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step. The history is for this sitting only: a reload, **Continue** or **Play here instead** starts it empty | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."). `/cheat` alone lists these | Narrator, bookkeeper |
+| `/cheat cards` | Cheat: stack the deck so you win your next hand at cards ("Cheat armed: the next hand is yours."): you are dealt a full house and Curtis draws to nothing, so you win however you draw. No roll, even with a marked deck, and nothing about cheating is recorded. A hand you stop keeps the cheat for the next one. `/help` lists it in the `/cheat` row | None (the hand is part of the turn that bets) |
 | `/cheat time <phase> [day]` (also `/cheat night`, `/cheat morning 2`) | Cheat: set the clock to the start of that phase, on that day (today if none), forward only ("The clock only goes forward: it is Day 3 · Morning now."). The world does not tick and nothing is narrated; the story shows the new day and phase and "Clock set to Day 4 · Night." What the clock jumps past happens at once and in order, each on its own day: a "Meanwhile in town, Day 3: …" line for each day with town news or an event elsewhere, and each morning's "Missed: …" (what fell due) and "Condition over: …"; a town event at your own place happens in front of you in the next narration, and what came due for you (a loose end's moment, say) in the narrations that follow, oldest first. One `/undo` takes it back, with an ending it reached | None |
 | `/pronouns <who> <she\|he\|they>` | Set someone's pronouns ("/pronouns Mavis she"); the chips on their People card do the same. A gendered relation, their ties, look and voice turn with it (Dewayne's husband becomes Dewayne's wife; "husband of Dewayne Mangum" becomes "wife of Dewayne Mangum", or "spouse" for they) | None |
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
@@ -982,7 +1004,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 570 tests and takes about
+nothing else to install. The whole run is about 600 tests and takes about
 ten minutes.
 
 - `acceptance`: the twelve acceptance checks of SPEC.md section 14.
@@ -996,8 +1018,8 @@ ten minutes.
   `docs/CAST.md` up to date.
 - One suite per area of the review fixes: `engine-state-fixes`,
   `engine-world-fixes`, `prompts-fixes`, `transport-fixes` and `ui-fixes`,
-  `wave2-fixes` to `wave6-fixes` for the later rounds, and
-  `integration` for the seams between them.
+  `wave2-fixes` to `wave9-fixes` for the later rounds, `wave10-cards`
+  for the card table, and `integration` for the seams between them.
 - `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
   milestone suites.
 

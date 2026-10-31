@@ -1184,3 +1184,25 @@ talking, I can direct it to one person or all."
      the total (digits or words, before or after what the input hands over)
      a hard problem, rewritten once; the player's own figure, a price and
      narration outside quotes pass. Left open: the rest of the live list.
+   - **Wave 10** (31 Oct 2026). The owner asked for a card game they can
+     see ("Poker is so confusing with texts. When playing poker, there
+     should be a proper ui to see everything and a cheat to win"), built by
+     one agent. Notes: the "Wave 10" sections of
+     `docs/notes/engine-world.md` and `docs/notes/ui.md`; tests:
+     `tests/wave10-cards.test.cjs`. The card game is five-card draw against
+     the dealer at a table in the feed: a `Cards` module (the deck, hand
+     ranking with its tie-breaks, the dealer's draw) deals from a generator
+     seeded by the game's seed and the turn, so `/undo` deals the same hand;
+     the player holds cards and draws, or folds; the better hand wins (the
+     stake either way, a split pot moves nothing, a fold costs half) and the
+     money moves through `State.apply` as before. Wits is a read of the
+     dealer (right 55% + 12% a point, 50 to 95%), not the result. A marked
+     deck turns the dealer's cards up and is the only roll, its fumble
+     caught with every old consequence; the accusation without one is gone.
+     `/cheat cards` stacks the next hand so the player wins it, with no roll
+     and nothing on record. The table is built from nodes, kept on the log
+     entry and drawn again in place after a reload or `/undo`; Stop with a
+     hand open calls the turn off. OUTCOME names both hands, the
+     bookkeeper's CARD GAME line and its ignored goldDelta are as before,
+     and the demo tells the hands. Left open: a live narrator's telling of a
+     hand.

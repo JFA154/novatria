@@ -971,3 +971,77 @@ before (f02f7a0) and passing now; the picker test runs with
   "quiet lines are kept with their turn" test there follows (changed by
   design: "Clock set to Day 1 · Night." printed under the night's divider
   is kept as `{ text, day, phase }`).
+
+## Wave 10 (31 Oct 2026): the card table
+
+The owner: "Poker is so confusing with texts. When playing poker, there
+should be a proper ui to see everything and a cheat to win." The card game
+is now five-card draw the player plays at a table in the feed (the engine
+side: `docs/notes/engine-world.md`, Wave 10). Tests:
+`tests/wave10-cards.test.cjs`.
+
+### The block (`UI.feed.cards`, `cardsDone`, `cardsNode`)
+- One `section.f-item.f-cards` (role `group`, its label the head) under the
+  player's line and before the narration, built from nodes: the head
+  "Curtis Pruett's table · stake $20 · pot $40"; the dealer's side (his
+  name, "Your read: Curtis is sitting on something." or "… has nothing.",
+  with a marked deck "Marked deck: you can read Curtis's cards.", and his
+  five cards); the player's side ("You", five cards, the hint "Pick the
+  cards to hold, then Draw: the rest are replaced."); then **Draw**
+  (primary) and **Fold**.
+- A card is a `.card` with its rank ("10" for a ten) over its suit sign
+  (♠ ♥ ♦ ♣), named for screen readers ("King of spades"; role `img` when
+  shown, "Face-down card" for a back). Hearts and diamonds (`.red`) are in
+  the theme's red (`--danger`: 6.3:1 on a card in Dark, 4.7:1 in
+  Parchment), spades and clubs in `--text`; a back is accent stripes. The
+  dealer's are face down while the hand is open, face up with a marked
+  deck (the player reads the marks).
+- The player's cards are toggle buttons (`aria-pressed`): a click, Space or
+  Enter holds or lets go; a held card lifts a little, takes the accent edge
+  and shows a "Hold" tag. They answer only while `Pipeline.handOpen`.
+  Draw sends the held positions, Fold a fold (`Pipeline.playHand`).
+- `cardsDone(node, record)` fills the same block with the finished table:
+  both hands face up (the dealer's after his draw, or as dealt on a fold),
+  each hand's name under it ("Two pair, kings and sevens"), and the result
+  line ("You win $20", "You lose $20", "Split pot", "You fold: −$10",
+  "Caught cheating: you lose $20") with " · cash $45" after it. Nothing is
+  left to press.
+- Sizes come from the story's text size: the block is 0.8 of
+  `--read-size` (Small, Medium, Large), the cards a five-column grid of up
+  to 4.4em each with a 5:7 shape, so five fit a row at 320 px (about 47 px
+  a card at Large) with no sideways scroll; the block's padding and gaps
+  narrow under 420 px. Draw and Fold are 44 px buttons.
+
+### Focus, the box and the status line
+- When the table opens, the focus goes to the first card if it was on the
+  box, Send or nowhere (a field the player moved to keeps it); a phone's
+  keyboard goes down with it. When the hand is over and the focus was in
+  the block, it goes back to the composer (the box on a laptop, Send on a
+  phone).
+- A hand is part of the turn: `Pipeline.busy` stays on, so the composer
+  and everything `UI.canAct` guards wait as they do while a turn runs, and
+  Send is Stop. Enter in the box says "Your hand is on the table: pick the
+  cards to hold, then Draw or Fold. Stop calls the hand off." (the nudge).
+  The status line reads "Your hand" (stage `cards`, from the Pipeline's
+  status listener).
+- Stop with a hand open: the turn fails as any stopped turn does (the
+  table is taken back out of the feed with its turn, the line returns to
+  the box, "Stopped. Your action was kept in the box.").
+
+### Kept and drawn again
+- The log entry keeps the finished table (`entry.cards`, checked by State's
+  `logCards`). `rebuildFeed` draws it after the entry's input and its
+  `'start'` lines and divider, before the roll (the marked deck's catch
+  roll, which the live turn prints under the table): a reload (Continue)
+  and an `/undo` show it exactly where it was played.
+
+### Words
+- The `/cheat` row's long form (`/help`): "Cheat: redo the last roll
+  (success, partial, fail, crit, fumble or 1-20), win your next hand at
+  cards (cards), or set the clock (forward only)"; the short form in the
+  `/` list is as it was. `/cheat` alone adds "/cheat cards stacks the deck
+  so you win your next hand at cards."
+
+### Tests changed by design
+- `tests/wave6-fixes.test.cjs`, "QA: the /cheat row": the `/help` line
+  with the cards cheat.

@@ -657,3 +657,107 @@ The final verification pass's World items. Tests:
   them) are news for the morning, not a bare quiet line there; at the old
   bridge they happen in front of the player. `tests/world.test.cjs`'s
   `seenIds` follows (changed by design).
+
+## Wave 10 (31 Oct 2026): five-card draw
+
+The owner: "Poker is so confusing with texts. When playing poker, there
+should be a proper ui to see everything and a cheat to win." The card game
+was one hidden Wits roll (a win, half on a partial, a loss) that the
+narrator then described; now the player plays five-card draw against the
+dealer at a table in the feed (`docs/notes/ui.md`, Wave 10). Tests:
+`tests/wave10-cards.test.cjs`.
+
+- **The deck and the hands** (`Cards`, a module of its own after Dice,
+  exported as `Game.Cards`): a card is two characters ("Ks", "Th");
+  `deck`, `shuffle(rng)` (Fisher-Yates), `evaluate(hand)` ({ rank 0 high
+  card to 8 straight flush, key [rank, tie-break ranks], name: "Two pair,
+  kings and sevens", "Full house, threes over kings", "Straight, five high"
+  for the wheel, "Royal flush" }), `compare` (above 0: the first wins; 0: a
+  split pot; suits never break a tie), `dealerHolds`, `draw(hand, holds,
+  pile)` (new cards where the ones let go were), `deal(rng, { stacked })`.
+- **The deal** (`Pipeline.dealHand(cardSeed(state), readOdds(state),
+  stacked)`): a generator made with `Rng.create` from the game's seed and
+  the turn number (`cardSeed`), never the live stream, so the hand does not
+  move the town's dice and `/undo` (or a Stop, or Try again) deals the same
+  hand; `hooks.diceSalt` is not in it. Five each, then each one's draw
+  pile: the dealer's comes off the deck first, so his hand after the draw
+  is known at the deal and never hangs on what the player lets go.
+- **The dealer's draw** (`Cards.dealerHolds`): a straight or better stands
+  pat; three of a kind, two pair or a pair keeps the matched cards; else
+  four to a flush, else four to a straight (an ace low too), else his two
+  highest.
+- **The read** (Wits is a read, not the result): right with probability
+  55% + 12% a point of Wits (the stat, -1 to 3, plus `Dice.modifiersFor`'s
+  conditions, capped as rolls are), 50% to 95% (`readOdds`); the coin is
+  the deal's generator. It says "Curtis is sitting on something" (a pair or
+  better after his draw) or "Curtis has nothing", the opposite when it is
+  wrong. The table record keeps `read: { says, right, odds, text }`.
+- **The hand** (`gamble`, async now; runTurn awaits it): the no-game cases
+  are as before (shut, no game, nobody dealing, no money: no table). The
+  stake is `stakeFrom`. The turn's status is `cards` ("Your hand"); the
+  table is drawn (`UI.feed.cards`) and the turn waits for the player
+  (`waitForHand`; `Pipeline.playHand({ hold: [0-4] })` or `({ fold: true
+  })`; `hooks.cardsPlay` answers the next hand at once, for tests and the
+  console). Draw replaces what is not held; the better hand wins. Money
+  (`State.apply({ goldDelta })`): a win +stake, a loss −stake, a split 0, a
+  fold −half the stake rounded down. A hand takes a short.
+- **The marked deck** (`markedDeck`, the same test as before): the
+  dealer's cards are face up while the hand is open, and once it is played
+  (a draw or a fold) the one roll is made: Wits against normal, +2 for the
+  deck, no complication, shown with `UI.feed.roll` under the table; a
+  natural 20 still earns a story point. A fumble is caught cheating with
+  every consequence as before (the deck taken, −20, a weight-3 memory,
+  banned three days with today, the news, put out on the street outside),
+  and the hand is void: the stake is lost whatever the showdown said
+  (`result: 'caught'`). Without a marked deck nothing is rolled: no
+  `needsRoll`, no `ROLL` line, and the old "accused on a fumble" case (a
+  one-night ban, −10) is gone; an armed `/cheat fumble` waits for the next
+  real roll.
+- **`/cheat cards`** (`Pipeline.cheatCards`, `hooks.cardsCheat`): "Cheat
+  armed: the next hand is yours." The next deal is stacked: three of one
+  rank and two of another for the player, the fourth of the three and the
+  other two of the pair first in their draw pile (so whatever they hold
+  they end with a pair or better), and a dealer hand drawn from the other
+  ranks that his own rule takes to nothing. Free: no catch roll even with a
+  marked deck, nothing recorded about cheating; the record says `cheat:
+  true`. A turn that does not go through (Stop, an error) gives the cheat
+  back (`cheatTaken`).
+- **Stop** (`Pipeline.abort`) rejects the open hand as `aborted`: the turn
+  fails cleanly (the snapshot back, no money moved, the table out of the
+  feed, the line back in the box).
+- **What the turn keeps**: `ctx.cards` (the finished table) goes on the log
+  entry as `cards` ({ stake, dealerId, dealerName, marked, cheat, read,
+  player and dealer: { dealt, held, final, name }, result: win | lose |
+  split | fold | caught, delta, cash }), sanitised by State's `logCards`
+  (five valid cards a side, or nothing is kept). `ctx.gamble` keeps
+  `{ played, stake, delta, result, caught, folded, cheat, dealerId, deck,
+  player, dealer, tier }` (no `accused` any more).
+- **The narrator** (OUTCOME): "the card game (the player put up $20): the
+  player's two pair, kings and sevens, beats Curtis Pruett's pair of aces
+  at the showdown: the player wins $20 (cash now $45). The money has
+  already changed hands. The table was shown to the player card by card
+  already: tell the moment and the people, do not list the cards again."
+  A loss "loses to", a split "ties … a split pot, and no money changes
+  hands (cash still $25)", a fold "the player folds ace high before the
+  draw and gives up half the stake: the player loses $10", caught "the
+  player loses $20, and Curtis Pruett catches them cheating with the marked
+  deck; the hand is void" with the thrown-out and street lines as before.
+  A marked deck not caught adds "The player read the dealer's cards off
+  the marked deck through the hand, and Curtis Pruett did not catch it."
+- **The bookkeeper**: "CARD GAME (already applied by the engine; do not
+  record again): the player wins $20 at cards (cash now $45); record no
+  goldDelta for it." (loses, "breaks even (a split pot)", "folds and loses
+  $10"); its goldDelta is still ignored (`cleanDiff`).
+- **The demo** (`mockGamble`): "At Curtis Pruett's table, your two pair,
+  kings and sevens, beats Curtis Pruett's pair of aces, and you come out
+  $20 ahead." (loses, splits the pot, "you fold your ace high and give up
+  $10", caught as before); a marked deck not caught adds "Curtis Pruett
+  never spots the marks."; the generic roll sentence ("Wits roll, success:
+  it works.") is not said for a hand.
+- **Tests changed by design**: the card tests in
+  `tests/transport-fixes.test.cjs` (the showdown decides, a cheat wins, a
+  fold is half), `tests/wave2-fixes.test.cjs` (no accusation without a
+  marked deck), `tests/wave3-fixes.test.cjs` (bug 7: caught is three days;
+  the accusation's night is gone), `tests/prompts-fixes.test.cjs` (the
+  demo's words) and `tests/wave6-fixes.test.cjs` (the `/help` row); the
+  rest that bet set `hooks.cardsPlay`.
