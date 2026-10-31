@@ -27054,6 +27054,8 @@ const UI = (() => {
   function setStage(stage, message) {
     status.stage = stage;
     if (stage === 'idle') { status.queued = false; status.queuedText = ''; }
+    // A table is the status line's only while its hand waits (wave 20, QA N11): one voided or taken back is not the next hand's.
+    if (stage !== 'cards') shownTable = null;
     renderStatus(message);
     syncSendLabel();
   }
