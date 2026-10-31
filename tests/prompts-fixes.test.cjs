@@ -268,7 +268,7 @@ s.test('mock narration over many varied turns never trips the style check (names
   for (const t of turns) await sendText(page, t);
   await place(page, fx.tavern.id, 'evening');
   // Wave 10: a hand at the card table is played by the player; this one stands pat.
-  await page.evaluate(() => { Game.Pipeline.hooks.cardsPlay = { hold: 'all' }; });
+  await page.evaluate(() => { Game.State.apply({ cardGame: 'draw' }); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsPlay = { hold: 'all' }; }); // wave 13: five-card draw remembered, heads up
   for (const t of ['I look around', 'I order a beer', 'I talk to the bartender', 'I try to persuade the bartender to tell me about the card game', '"What\'s good here?"', 'I bet $20 at cards', '/rest', 'I look around']) await sendText(page, t);
   const r = await page.evaluate(() => ({
     log: Game.state.log.slice(1).map(e => e.narration),
@@ -657,7 +657,7 @@ s.test('wave 2, mock narration: no "null" on a card game, no game without a doll
   await place(page, 'loc_low_water', 'evening');
   // Two hands (changed by design in wave 10: five-card draw at a table; the demo names the hands): never "null".
   for (const choice of [{ hold: 'all' }, { fold: true }]) {
-    await page.evaluate(c => { Game.Pipeline.hooks.cardsPlay = c; }, choice);
+    await page.evaluate(c => { Game.State.apply({ cardGame: 'draw' }); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsPlay = c; }, choice); // wave 13: five-card draw remembered, heads up
     await sendText(page, 'I bet $20 at cards');
     const t = await last();
     assert.doesNotMatch(t, /\bnull\b/, t);

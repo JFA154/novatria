@@ -220,4 +220,18 @@ function overflowReport(page, width) {
   }, width);
 }
 
-module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };
+/* Wave 13: the card table plays the game named in the words or the one
+   remembered, and opens with a chooser when there is neither; and the card
+   people present may sit in. presetCards(page, { game, seats }) remembers
+   the game through the engine's own op (State.apply({ cardGame }), 'draw'
+   by default; null forgets it: cardGame false) and fixes who sits in for every hand until
+   the page reloads (Pipeline.hooks.cardsSeats: ids of card people here, []
+   heads up, the default; null leaves it to the hand's seed and the words). */
+function presetCards(page, opts) {
+  return page.evaluate(o => {
+    if (o.game !== undefined) Game.State.apply({ cardGame: o.game || false });
+    if (o.seats !== undefined) Game.Pipeline.hooks.cardsSeats = o.seats;
+  }, Object.assign({ game: 'draw', seats: [] }, opts || {}));
+}
+
+module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, presetCards, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };

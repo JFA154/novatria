@@ -715,7 +715,7 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
   // choice: how the player plays the hand (Pipeline.hooks.cardsPlay); d20: the marked deck's roll.
   const play = async (choice, d20, words) => {
     const g0 = await page.evaluate(() => Game.state.player.gold);
-    await page.evaluate(([c, d]) => { Game.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in on the card game', targets: [], needsRoll: true, stat: 'wits', difficulty: 'normal', timeCost: 'short' }); Game.Api.Mock.queue('bookkeep', { goldDelta: 999 }); Game.Pipeline.forceNextRoll(d); Game.Pipeline.hooks.cardsPlay = c; }, [choice, d20]);
+    await page.evaluate(([c, d]) => { Game.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in on the card game', targets: [], needsRoll: true, stat: 'wits', difficulty: 'normal', timeCost: 'short' }); Game.Api.Mock.queue('bookkeep', { goldDelta: 999 }); Game.Pipeline.forceNextRoll(d); Game.State.apply({ cardGame: 'draw' }); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsPlay = c; }, [choice, d20]); // wave 13: five-card draw remembered, heads up
     await sendText(page, words);
     return page.evaluate(g0 => ({ delta: Game.state.player.gold - g0, roll: Game.Pipeline.lastTurn.roll, ctx: Game.Pipeline.lastTurn.ctx.gamble, cards: Game.Pipeline.lastTurn.ctx.cards, packet: Game.Pipeline.lastTurn.packet, book: Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').pop().text }), g0);
   };
@@ -723,7 +723,7 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
   assert.equal(first.ctx.stake, 50);
   assert.equal(first.delta, { win: 50, lose: -50, split: 0 }[first.cards.result], 'the showdown decides');
   assert.ok(first.roll.modifiers.some(m => /deck/i.test(m.label) && m.value === 2), 'the deck gives +2');
-  assert.match(first.packet, /\nOUTCOME: the card game \(the player put up \$50\): the player's .* at the showdown: /);
+  assert.match(first.packet, /\nOUTCOME: the card game \(the player put up \$50\): five-card draw, heads up with [^;]+; the player's .* at the showdown: /); // wave 13: the game and the table
   assert.match(first.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player (wins \$50|loses \$50|breaks even \(a split pot\)) at cards/);
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(d => d.path === 'goldDelta' && /card game/.test(d.reason))), 'the bookkeeper\'s gold ignored');
   await page.evaluate(() => { Game.State.apply({ cardsCheat: true }); }); // wave 11: /cheat cards is armed in the game (flags.cardsCheat)

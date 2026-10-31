@@ -19,7 +19,8 @@ const { suite, quickStart, sendText, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave11-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
+// Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; });
 const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
@@ -33,6 +34,8 @@ const atTable = page => page.evaluate(() => {
     S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
     const dealer = G.Pipeline.dealerOf(S.npcsAt(l.id).map(n => n.id));
     if (dealer) {
+      // Wave 13: five-card draw remembered (no chooser) and heads up, as these tests were written.
+      S.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = [];
       const other = S.npcsAt(l.id).find(n => n.id !== dealer.id);
       return { loc: l.id, name: l.name, dealer: dealer.id, dealerName: dealer.name, first: dealer.name.split(' ')[0], other: other ? { id: other.id, name: other.name } : null };
     }
@@ -161,7 +164,7 @@ s.test('M1: Stop with a hand open folds it at the fold price and keeps the turn 
   const spot = await atTable(page);
   const g0 = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, 'I bet $30 at cards');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$15).');
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$15). Name the game in your words to switch (hold\'em or draw). Win (cheat)'); // wave 13: how to switch, and the Win (cheat) control
   const calls = await page.evaluate(() => Game.Api.Mock.calls.length);
   await page.evaluate(() => Game.Pipeline.forceNextRoll(14));
   await page.click('#send');
@@ -376,7 +379,7 @@ s.test('M5: the stake from the words: dollars and words, everything and all in, 
   const spot = await atTable(page);
   const g = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, `I put $${g + 360} in`);
-  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · stake $${g}, all you have · pot $${g * 2}`);
+  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $${g}, all you have · pot $${g * 2}`);
   await page.click('.cards-fold');
   await idle(page);
   const half = Math.ceil(g / 2);
@@ -384,7 +387,7 @@ s.test('M5: the stake from the words: dollars and words, everything and all in, 
   assert.equal((await lastEntry(page)).cards.delta, -half);
   await startHand(page, 'I bet -$5');
   // Changed by design in wave 12 (L8): what was named is said too.
-  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · stake $20, the usual: −$5 is no stake · pot $40`);
+  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: −$5 is no stake · pot $40`);
   await page.click('.cards-fold');
   await idle(page);
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player put up \$20, the usual stake: −\$5 is no stake\): /);
@@ -713,7 +716,7 @@ s.test('S1-S4: Draw says how many it replaces ("Draw 3", "Stand pat") and Fold i
   const label = () => page.textContent('.cards-draw');
   assert.equal(await label(), 'Draw 5');
   assert.equal(await page.textContent('.cards-fold'), 'Fold −$20');
-  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$20).');
+  assert.equal(await page.textContent('#feed .f-cards .cards-hint'), 'Pick the cards to hold, then Draw: the rest are replaced. Stop folds the hand (−$20). Name the game in your words to switch (hold\'em or draw). Win (cheat)'); // wave 13
   for (const i of [0, 1]) await page.click(`.cards-you button.card[data-i="${i}"]`);
   assert.equal(await label(), 'Draw 3');
   for (const i of [2, 3, 4]) await page.click(`.cards-you button.card[data-i="${i}"]`);

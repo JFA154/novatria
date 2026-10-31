@@ -211,7 +211,7 @@ s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); caught cheat
     M.queue('parse', { actionType: 'gamble', summary: 'Sits in at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
     M.queue('bookkeep', {});
     G.Pipeline.hooks.nextTier = 'fumble';
-    G.Pipeline.hooks.cardsPlay = { hold: 'all' };
+    G.State.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = []; G.Pipeline.hooks.cardsPlay = { hold: 'all' }; // wave 13: five-card draw remembered, heads up
     const day0 = st.time.day;
     await G.Pipeline.submit('I sit in at cards for $20');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
@@ -924,7 +924,7 @@ s.test('also: the ending is never cut mid-word; "Deal me in" is told with the st
     }
     M.queue('parse', { actionType: 'gamble', summary: 'bets $10 at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
     M.queue('bookkeep', {});
-    G.Pipeline.hooks.cardsPlay = { hold: 'all' };
+    G.State.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = []; G.Pipeline.hooks.cardsPlay = { hold: 'all' }; // wave 13: five-card draw remembered, heads up
     await G.Pipeline.submit('Deal me in');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
     const action = (/^ACTION: .*$/m.exec(pk) || [''])[0];

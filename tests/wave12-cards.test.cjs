@@ -20,7 +20,8 @@ const { suite, quickStart, sendText, LAPTOP, GAME_URL } = require('./helpers.cjs
 const s = suite('wave12-cards');
 const PHONE_CTX = { reducedMotion: 'reduce', isMobile: true, hasTouch: true };
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
+// Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; });
 const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
 /* The card game's place on a day it is open, at a phase its dealer sits at it. */
@@ -33,6 +34,8 @@ const atTable = page => page.evaluate(() => {
     S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
     const dealer = G.Pipeline.dealerOf(S.npcsAt(l.id).map(n => n.id));
     if (dealer) {
+      // Wave 13: five-card draw remembered (no chooser) and heads up, as these tests were written.
+      S.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = [];
       const other = S.npcsAt(l.id).find(n => n.id !== dealer.id);
       return { loc: l.id, name: l.name, dealer: dealer.id, dealerName: dealer.name, first: dealer.name.split(' ')[0], other: other ? { id: other.id, name: other.name } : null };
     }
@@ -357,13 +360,13 @@ s.test('L8: "0.50 dollars" is the usual $20 and the table and the OUTCOME say "$
   assert.equal(r[0].named, 0.5);
   const spot = await atTable(page);
   await startHand(page, 'I bet 0.50 dollars at cards');
-  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · stake $20, the usual: $0.50 is no stake · pot $40`);
+  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: $0.50 is no stake · pot $40`);
   await page.click('.cards-fold');
   await idle(page);
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), /^OUTCOME: the card game \(the player put up \$20, the usual stake: \$0\.50 is no stake\): /);
   // Drawn again after a reload: the same.
   await reloadGame(page);
-  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · stake $20, the usual: $0.50 is no stake · pot $40`);
+  assert.equal(await page.textContent('#feed .f-cards .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $20, the usual: $0.50 is no stake · pot $40`);
   await startHand(page, 'I bet a fiver on this hand');
   assert.match(await page.textContent('#feed .f-cards:last-of-type .cards-head'), /· stake \$5 · pot \$10$/);
   await page.click('.cards-fold');
@@ -371,7 +374,7 @@ s.test('L8: "0.50 dollars" is the usual $20 and the table and the OUTCOME say "$
   const g = await page.evaluate(() => Game.state.player.gold);
   await startHand(page, 'I bet half my money on a hand');
   const half = Math.max(1, Math.floor(g / 2));
-  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · stake $${half}, half of what you have · pot $${half * 2}`);
+  assert.equal(await page.textContent('#feed .f-cards:last-of-type .cards-head'), `${spot.dealerName}'s table · Five-card draw · stake $${half}, half of what you have · pot $${half * 2}`);
   await page.click('.cards-fold');
   await idle(page);
   assert.match(line(await lastCall(page, 'narrate'), 'OUTCOME: '), new RegExp(`^OUTCOME: the card game \\(the player put up \\$${half}, half of what they have\\): `));

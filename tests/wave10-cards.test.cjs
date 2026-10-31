@@ -23,7 +23,8 @@ const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP } = requi
 
 const s = suite('wave10-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
+// Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; });
 const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
@@ -37,6 +38,8 @@ const atTable = page => page.evaluate(() => {
     while (S.isClosed(l, d)) d++;
     S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
     const dealer = G.Pipeline.dealerOf(S.npcsAt(l.id).map(n => n.id));
+    // Wave 13: five-card draw remembered (no chooser) and heads up, as these tests were written.
+    if (dealer) { S.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = []; }
     if (dealer) return { loc: l.id, name: l.name, dealer: dealer.id, dealerName: dealer.name, first: dealer.name.split(' ')[0] };
   }
   return null;
@@ -178,7 +181,7 @@ s.test('a hand played at the table: the block under the line and before the narr
       narrates: Game.Api.Mock.calls.filter(c => c.method === 'narrate').length, gold: Game.state.player.gold
     };
   });
-  assert.equal(live.head, `${spot.dealerName}'s table · stake $20 · pot $40`);
+  assert.equal(live.head, `${spot.dealerName}'s table · Five-card draw · stake $20 · pot $40`); // wave 13: the game in the head
   assert.equal(live.label, live.head);
   assert.deepEqual(live.who, [spot.dealerName, 'You']);
   assert.match(live.read, new RegExp(`^Your read: ${spot.first} (has something|is bluffing)\\.$`));
@@ -253,7 +256,7 @@ s.test('a hand played at the table: the block under the line and before the narr
   const ph = lowerFirst(c.player.name) + (c.player.name.includes(',') ? ',' : '');
   const dh = lowerFirst(c.dealer.name) + (c.dealer.name.includes(',') ? ',' : '');
   const how = { win: `the player's ${ph} beats ${spot.dealerName}'s ${dh} at the showdown: the player wins \\$20`, lose: `the player's ${ph} loses to ${spot.dealerName}'s ${dh} at the showdown: the player loses \\$20`, split: `the player's ${ph} ties ${spot.dealerName}'s ${dh} at the showdown: a split pot, and no money changes hands` }[want];
-  assert.match(outcome, new RegExp(`^OUTCOME: the card game \\(the player put up \\$20\\): ${how.split('\\$').map(esc).join('\\$')} \\(cash (now|still) \\$${judge.gold}\\)\\. The money has already changed hands\\. The table was shown to the player card by card already: tell the moment and the people, do not list the cards again\\.$`), outcome);
+  assert.match(outcome, new RegExp(`^OUTCOME: the card game \\(the player put up \\$20\\): five-card draw, heads up with ${esc(spot.dealerName)}; ${how.split('\\$').map(esc).join('\\$')} \\(cash (now|still) \\$${judge.gold}\\)\\. The money has already changed hands\\. The table was shown to the player card by card already: tell the moment and the people, do not list the cards again\\.$`), outcome);
   const book = line(await lastCall(page, 'bookkeep'), 'CARD GAME');
   assert.equal(book, `CARD GAME (already applied by the engine; do not record again): the player ${{ win: 'wins $20', lose: 'loses $20', split: 'breaks even (a split pot)' }[want]} at cards (cash now $${judge.gold}); record no goldDelta for it.`);
   assert.ok(e.narration.includes(lowerFirst(c.player.name)) && e.narration.includes(lowerFirst(c.dealer.name)), 'the demo tells the hands by name: ' + e.narration);
@@ -305,7 +308,7 @@ s.test('Fold: half the stake (rounded up since wave 11) is lost, the dealer\'s c
   assert.deepEqual(t.dealer, e.cards.dealer.dealt);
   assert.equal(await page.textContent('#feed .f-cards .cards-result'), `You fold: −$13 · cash $${gold}`);
   const outcome = line(await lastCall(page, 'narrate'), 'OUTCOME: ');
-  assert.ok(outcome.startsWith(`OUTCOME: the card game (the player put up $25): the player folds their ${lowerFirst(e.cards.player.name)}`), outcome);
+  assert.ok(outcome.startsWith(`OUTCOME: the card game (the player put up $25): five-card draw, heads up with ${spot.dealerName}; the player folds their ${lowerFirst(e.cards.player.name)}`), outcome);
   assert.ok(outcome.includes(`before the draw and gives up half the stake: the player loses $13 (cash now $${gold}).`), outcome);
   assert.match(line(await lastCall(page, 'bookkeep'), 'CARD GAME'), /: the player folds and loses \$13 at cards \(cash now \$\d+\); record no goldDelta for it\.$/);
   assert.match(e.narration, /you fold your .* and give up \$13\./);
@@ -420,7 +423,7 @@ s.test('/cheat cards: "Cheat armed: the next hand is yours."; the player is deal
   await sendText(page, '/cheat');
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), /\/cheat cards stacks the deck so you win your next hand at cards\./);
   await sendText(page, '/help');
-  assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.help')].pop().textContent), /\/cheat \[outcome or time <phase> \[day\]\]: Cheat: redo the last roll \(success, partial, fail, crit, fumble or 1-20\), win your next hand at cards \(cards\), or set the clock \(forward only\)/);
+  assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.help')].pop().textContent), /\/cheat \[outcome or time <phase> \[day\]\]: Cheat: redo the last roll \(success, partial, fail, crit, fumble or 1-20\), win your next hand at cards \(cards\), win it without playing it \(win\), or set the clock \(forward only\)/);
 });
 
 // ----- Stop -----

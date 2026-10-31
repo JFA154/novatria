@@ -894,7 +894,7 @@ s.test('cards: without a marked deck an armed fumble rolls nothing and nobody is
       const a0 = dealer.attitude;
       G.Api.Mock.queue('parse', { actionType: 'gamble', summary: 'Sits in at cards', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
       G.Pipeline.hooks.nextTier = 'fumble';
-      G.Pipeline.hooks.cardsPlay = { hold: 'all' };
+      G.State.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = []; G.Pipeline.hooks.cardsPlay = { hold: 'all' }; // wave 13: five-card draw remembered, heads up
       await G.Pipeline.submit('I sit in at cards for $20');
       const ban = (st.bans || []).find(b => b.locationId === l.id);
       return { drop: a0 - dealer.attitude, ban: ban ? ban.untilDay - st.time.day : null, mem: (dealer.memories || []).slice(-1)[0], caught: G.Pipeline.lastTurn.ctx.gamble, told: st.log[st.log.length - 1].narration, roll: st.log[st.log.length - 1].roll, armed: G.Pipeline.hooks.nextTier };

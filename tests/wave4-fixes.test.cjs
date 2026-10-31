@@ -446,7 +446,7 @@ s.test('R2 and the design note: thrown out of the card game the player lands on 
     M.queue('parse', { actionType: 'gamble', summary: 'Bets', targets: [], needsRoll: true, stat: 'wits', timeCost: 'short' });
     M.queue('bookkeep', {});
     G.Pipeline.hooks.nextTier = 'fumble';
-    G.Pipeline.hooks.cardsPlay = { hold: 'all' }; // wave 10: the hand is played at a table; this one stands pat
+    G.State.apply({ cardGame: 'draw' }); G.Pipeline.hooks.cardsSeats = []; G.Pipeline.hooks.cardsPlay = { hold: 'all' }; // wave 10: the hand is played at a table; this one stands pat
     await G.Pipeline.submit('I bet $20 at cards');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
     const bk = (M.calls.filter(c => c.method === 'bookkeep').pop() || {}).text || '';

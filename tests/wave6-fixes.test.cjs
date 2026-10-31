@@ -436,7 +436,7 @@ s.test('QA: the /cheat row in the / list is short ("Cheat: redo the last roll, o
   assert.equal(r.row.desc, 'Cheat: redo the last roll, or set the clock');
   assert.equal(r.row.args, '[outcome or time <phase> [day]]');
   // Changed by design in wave 10: /cheat cards wins the next hand.
-  assert.equal(r.help, '/cheat [outcome or time <phase> [day]]: Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), or set the clock (forward only)');
+  assert.equal(r.help, '/cheat [outcome or time <phase> [day]]: Cheat: redo the last roll (success, partial, fail, crit, fumble or 1-20), win your next hand at cards (cards), win it without playing it (win), or set the clock (forward only)');
 });
 
 // ----- playtest R2, R8 and the design note: /cheat time -----
