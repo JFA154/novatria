@@ -69,4 +69,38 @@ s.test('/cheat time goes back as well as forward: a quiet line says what already
   assert.equal(await clock(page), '2:morning:0');
 });
 
+s.test('/cheat success is a success even with a penalty and a hard target: the die that reaches the target, or the 20 when nothing less does; never a partial', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const out = [];
+    // Charm -1 and Tired -1 against 18 (the owner's roll): only a 20 reaches 18, and a 20 is a critical.
+    for (const [statValue, modifier, target] of [[-1, -1, 18], [0, 0, 12], [2, 0, 15], [-1, -1, 15], [3, 1, 10]]) {
+      const die = Game.Pipeline.hooks.dieFor ? Game.Pipeline.hooks.dieFor('success', { stat: 'charm', statValue, modifier, difficulty: 'normal', target }) : null;
+      out.push({ statValue, modifier, target, die });
+    }
+    return out;
+  });
+  // The hook may not be exposed; then drive it through a real roll with the cheat armed.
+  if (r.every(x => x.die === null)) {
+    await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.State.apply({ effects: [{ op: 'addCondition', name: 'Tired', effect: '-1 all', days: 1 }] }); });
+    const tiers = [];
+    for (let i = 0; i < 4; i++) {
+      await sendText(page, '/cheat success');
+      await sendText(page, i % 2 ? 'I try to talk the barkeep into a free drink' : 'I try to pick the lock on the back door');
+      tiers.push(await page.evaluate(() => { const e = Game.state.log[Game.state.log.length - 1]; return e.roll ? e.roll.tier + ' ' + e.roll.line : 'no roll'; }));
+    }
+    const rolled = tiers.filter(t => t !== 'no roll');
+    assert.ok(rolled.length >= 1, 'at least one roll happened: ' + JSON.stringify(tiers));
+    for (const t of rolled) assert.match(t, /^(success|critical) /, 'the cheat gives a success: ' + t);
+  } else {
+    for (const x of r) {
+      const total = x.die + x.statValue + x.modifier;
+      assert.ok(x.die === 20 || total >= x.target, 'reaches the target or is the 20: ' + JSON.stringify(x));
+      assert.ok(x.die >= 2, JSON.stringify(x));
+    }
+    assert.equal(r[0].die, 20, 'Charm -1, Tired -1 vs 18: only the 20 reaches it');
+  }
+});
+
 s.run();

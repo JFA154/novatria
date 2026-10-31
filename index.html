@@ -18503,7 +18503,8 @@ const Pipeline = (() => {
     const pick = d => clamp(d, 2, 19);
     let d = tier === 'success' ? pick(base) : tier === 'partial' ? pick(base - 2) : pick(base - 5);
     const tierOf = x => Dice.tier(x, x + probe.statValue + probe.modifier, probe.target);
-    if (tier === 'success' && !Dice.isSuccess(tierOf(d))) d = 20;
+    // Wave 21: a success is a success, not a partial (the owner, Tired and at Charm -1: "Charm 19 - 2 = 17 vs 18 · Partial"); when only a 20 reaches the target it is the 20.
+    if (tier === 'success' && tierOf(d) !== 'success' && tierOf(d) !== 'critical') d = 20;
     if (tier === 'failure' && tierOf(d) !== 'failure') d = tierOf(2) === 'failure' ? 2 : 1;
     if (tier === 'partial' && tierOf(d) !== 'partial') { for (let x = 19; x >= 2; x--) if (tierOf(x) === 'partial') { d = x; break; } }
     return d;

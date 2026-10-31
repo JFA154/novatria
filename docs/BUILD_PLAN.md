@@ -1523,5 +1523,8 @@ talking, I can direct it to one person or all."
      tick); the second long, `/wait`, `/skip`, a rest or a defeat bring the
      morning. And `/cheat time` may go back as well as forward ("Clock set
      back to Day 1 · Night. What has already happened stays in the story."):
-     nothing is caught up and nothing told is untold. Tests:
+     nothing is caught up and nothing told is untold. And `/cheat success`
+     gives a success (never a partial): with a penalty and a hard target the
+     die that reaches the target, or the 20 when nothing less does (the
+     owner, Tired at Charm -1: "Charm 19 - 2 = 17 vs 18 · Partial"). Tests:
      `tests/wave21-night-clock.test.cjs`; wave 6's forward-only test follows.
