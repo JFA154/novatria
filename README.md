@@ -743,8 +743,8 @@ do for her", "Does your greed know no limit, Curtis?", "Curtis, your greed
 has no limit.", "He'll play without a limit, that one.", "I bet he plays
 without a limit"), and "bigger game than this town"; and a line meant for
 someone else (said to Loretta, "Loretta, no limit tonight?", or a whiskey
-ordered from her "with no limit on the whiskey") is never an ask:
-he weighs it with a Charm roll at normal difficulty (the roll line shows;
+ordered from her "with no limit on the whiskey") is never an ask.
+He weighs an ask with a Charm roll at normal difficulty (the roll line shows;
 how he feels about you counts as for any persuasion). Yes, and his table is
 no limit for the rest of the day ("Table stakes, then. Don't cry to me
 after."); no, and he says so ("House rules," and the limit stays), and
