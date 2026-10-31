@@ -823,7 +823,7 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
   assert.deepEqual(sections(r.cas), ['LENGTH', 'VOICE', 'DIALOGUE', 'NEVER', 'BANNED PHRASES', 'Also avoid']);
   assert.deepEqual(sections(r.cas), sections(r.lit));
   const never = g => g.split('\n').filter(l => l.startsWith('- '));
-  assert.equal(never(r.lit).length, 6);
+  assert.equal(never(r.lit).length, 7);
   assert.deepEqual(never(r.cas), never(r.lit), 'the same NEVER lines');
   const lineOf = (g, head) => g.split('\n').find(l => l.startsWith(head));
   assert.equal(lineOf(r.cas, 'BANNED PHRASES:'), lineOf(r.lit, 'BANNED PHRASES:'), 'the full banned list');
