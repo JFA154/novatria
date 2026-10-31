@@ -216,13 +216,16 @@ s.test('bug 7 / N2: a ban ends before its untilDay (back on day N); caught cheat
     await G.Pipeline.submit('I sit in at cards for $20');
     const pk = (M.calls.filter(c => c.method === 'narrate').pop() || {}).text || '';
     const ban = st.bans.find(b => b.locationId === l.id);
-    return { one, three, caughtUntil: ban ? ban.untilDay - day0 : null, days: [0, 1, 2, 3].map(k => !!S.isBanned(l.id, day0 + k)), outcome: (/^OUTCOME: .*$/m.exec(pk) || [''])[0], day0 };
+    // Wave 11 (L6): back on the first day the place is open from the end of the ban (a Sunday the bar is shut is not said).
+    let back = day0 + 3; while (S.isClosed(l, back)) back++;
+    return { one, three, caughtUntil: ban ? ban.untilDay - day0 : null, days: [0, 1, 2, 3].map(k => !!S.isBanned(l.id, day0 + k)), outcome: (/^OUTCOME: .*$/m.exec(pk) || [''])[0], day0, back: { day: back, weekday: S.weekday(back) } };
   });
   assert.deepEqual(r.one, [true, false], 'one day: today only');
   assert.deepEqual(r.three, [true, true, true, false], 'three days: today and the two after; back on day + 3');
   assert.equal(r.caughtUntil, 3);
   assert.deepEqual(r.days, [true, true, true, false], 'caught: today and the two after');
-  assert.match(r.outcome, new RegExp(`not welcome back for three days \\(today counted: back on Day ${r.day0 + 3}\\)`));
+  // Changed by design in wave 11 (L6): the day named is the first the place is open, with its weekday.
+  assert.match(r.outcome, new RegExp(`not welcome back for three days \\(today counted: back on ${r.back.weekday}, Day ${r.back.day}\\)`));
 });
 
 // ----- review bug 8 (playtest N10), coordinator item 1: the recap's reasons -----

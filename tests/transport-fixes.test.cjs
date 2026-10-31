@@ -726,7 +726,7 @@ s.test('the card game at the Low Water with its dealer: the stake from the words
   assert.match(first.packet, /\nOUTCOME: the card game \(the player put up \$50\): the player's .* at the showdown: /);
   assert.match(first.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player (wins \$50|loses \$50|breaks even \(a split pot\)) at cards/);
   assert.ok(await page.evaluate(() => Game.State.debugLog.some(d => d.path === 'goldDelta' && /card game/.test(d.reason))), 'the bookkeeper\'s gold ignored');
-  await page.evaluate(() => { Game.Pipeline.hooks.cardsCheat = true; });
+  await page.evaluate(() => { Game.State.apply({ cardsCheat: true }); }); // wave 11: /cheat cards is armed in the game (flags.cardsCheat)
   const win = await play({ hold: [] }, 10, 'I play another hand, 40 bucks');
   assert.deepEqual([win.delta, win.cards.result, win.roll], [40, 'win', null], 'a stacked hand wins, with no catch roll');
   assert.match(win.book, /\nCARD GAME \(already applied by the engine; do not record again\): the player wins \$40 at cards/);
