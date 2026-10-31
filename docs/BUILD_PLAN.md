@@ -1515,3 +1515,13 @@ talking, I can direct it to one person or all."
      and the Win (cheat) are in view on the first deal and after every
      press. Left open: a live narrator's telling of a hand and of the
      terms, as before.
+   - **Wave 21** (31 Oct 2026). The owner, at last call with Jodie: "I
+     can't talk to Jodie now cz the clock moved forward by itself?" A long
+     action at night rolled the clock into the next morning, so the scene's
+     people were gone. Night now holds one long too: a long at a night not
+     yet late lands in the small hours (`time.late`, no phase passed, no
+     tick); the second long, `/wait`, `/skip`, a rest or a defeat bring the
+     morning. And `/cheat time` may go back as well as forward ("Clock set
+     back to Day 1 · Night. What has already happened stays in the story."):
+     nothing is caught up and nothing told is untold. Tests:
+     `tests/wave21-night-clock.test.cjs`; wave 6's forward-only test follows.

@@ -9407,8 +9407,11 @@ const State = (() => {
      crosses from night into morning. When the shorts would roll over at
      night the clock stays at night with shorts at the most (2) and
      time.late = true (the small hours); no phase passes, so World.tick does
-     not run (Pipeline.passTime ticks per phase passed). Morning comes only
-     with a rest, a long (an hour or more; /wait and /skip pass longs) or a
+     not run (Pipeline.passTime ticks per phase passed). A long action (an
+     hour or more) at night that is not yet late does the same (wave 21: a
+     wait until last call stays that night, with the people of the scene
+     still there). Morning comes only with a rest, a long at a night already
+     late, /wait or /skip (they pass longs with their own cause), or a
      defeat. A new day starts early (shorts 0); reached by anything but a
      rest it sets time.noSleep (no sleep last night), which a rest clears.
      Any phase change clears time.late. Both flags are kept only while
@@ -9458,7 +9461,11 @@ const State = (() => {
         else { t.shorts = 0; steps = 1; }
       }
     } else if (cost === 'long') {
-      steps = 1;
+      // Wave 21: night holds one long too. An action of an hour or more at night that is not yet late (a wait until last call,
+      // a long talk out back) lands in the small hours, still that night, with the scene and its people intact; the second
+      // long, or /wait, /skip, a rest or a defeat, brings the morning.
+      if (t.phase === 'night' && t.late !== true && !NOT_ACTIONS.includes(cause)) { t.shorts = SHORTS_PER_PHASE - 1; t.late = true; held = true; }
+      else steps = 1;
     } else if (cost === 'rest') {
       quality = restQuality();
       // A night paid for is used by sleeping in it (where it was bought: a motel).
@@ -22548,8 +22555,10 @@ const Pipeline = (() => {
     if (!PHASES.includes(phase)) { UI.feed.notice('Set the clock to which phase? Try /cheat time night (morning, afternoon, evening or night), or /cheat morning 2 for a day too.'); return { ok: false, reason: 'usage', restoreInput: true }; }
     const day = dayArg === undefined || dayArg === null ? s.time.day : dayArg;
     if (!Number.isInteger(day) || day < 1) { UI.feed.notice('The day must be 1 or more.'); return { ok: false, reason: 'usage', restoreInput: true }; }
-    // Only forward (wave 6, the round-5 playtest's R8): the news and the seeds already fired would be in the future.
-    if (day < s.time.day || (day === s.time.day && PHASES.indexOf(phase) < PHASES.indexOf(s.time.phase))) { UI.feed.notice(`The clock only goes forward: it is Day ${s.time.day} · ${capFirst(s.time.phase)} now.`); return { ok: false, reason: 'backwards', restoreInput: true }; }
+    // Wave 21: the clock may go back too (the owner, with a scene the clock had left behind: "I can't talk to Jodie now cz the clock
+    // moved forward by itself?"). Nothing is caught up on the way back and nothing already told is untold: the news and the seeds
+    // that fired stay fired, a missed obligation stays missed. Wave 6 had refused this (the round-5 playtest's R8).
+    const backwards = day < s.time.day || (day === s.time.day && PHASES.indexOf(phase) < PHASES.indexOf(s.time.phase));
     const from = { day: s.time.day, phase: s.time.phase };
     const snap = State.snapshot();
     const earned = progressMark(s);
@@ -22557,6 +22566,10 @@ const Pipeline = (() => {
     if (r.rejected.length) { State.restore(snap); UI.feed.notice(`The clock was not changed: ${r.rejected[0].reason}.`); return { ok: false, reason: 'rejected' }; }
     if (JSON.stringify(State.current) === snap) { State.restore(snap); UI.feed.notice(`The clock is already at Day ${day} · ${capFirst(phase)}.`); return { ok: false, reason: 'same-time' }; }
     UI.feed.divider(day, phase);
+    if (backwards) {
+      UI.feed.quiet(`Clock set back to Day ${day} · ${capFirst(phase)}. What has already happened stays in the story.`);
+      return { ok: true };
+    }
     UI.feed.quiet(`Clock set to Day ${day} · ${capFirst(phase)}.`);
     // A town event the clock jumped past happens now, as news of its own day (wave 4, the playtest's design note: not at the next tick, two days late).
     // Wave 5 (the round-4 QA): with the seeds of the days it passed, in the order they would have come, each dated to its own day.

@@ -476,18 +476,27 @@ s.test('R8: /cheat time never goes back; a forward jump ends conditions by the l
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, P = G.Pipeline, st = G.state;
     S.apply({ setTime: { day: 3, phase: 'morning', shorts: 0, late: false } });
-    const back = await P.submit('/cheat time morning 1');
-    const notice = [...document.querySelectorAll('#feed .f-notice')].pop().textContent;
     const day = st.time.day;
     S.apply({ effects: [{ op: 'addCondition', name: 'Stiff', effect: '-1 might', days: 2 }, { op: 'plantSeed', seed: { id: 'seed_grudge_w6', cause: 'Grudge test', effect: 'Loretta Gaddis puts your name on the list by the register.', trigger: { type: 'day', value: 9 }, fired: false, hidden: true, origin: { kind: 'grudge', npcId: 'npc_loretta' }, effects: [{ op: 'banFrom', locationId: 'loc_low_water', days: 5, byNpcId: 'npc_loretta' }] } }] });
     for (const x of document.querySelectorAll('#feed > *')) x.dataset.w6 = '1';
     await P.submit('/cheat time morning 11');
     const quiets = [...document.querySelectorAll('#feed > *')].filter(x => x.dataset.w6 !== '1').map(x => x.textContent);
-    return { back: back.reason, notice, day, conds: st.player.conditions.map(c => c.name), quiets, ban: (st.bans || []).find(b => b.locationId === 'loc_low_water') || null };
+    const out = { day, conds: st.player.conditions.map(c => c.name), quiets, ban: (st.bans || []).find(b => b.locationId === 'loc_low_water') || null };
+    // Wave 21: the clock may go back too; nothing is caught up and nothing told is untold (the ban holds, the condition stays over).
+    const back = await P.submit('/cheat time morning 1');
+    out.back = back.ok;
+    out.backNotice = [...document.querySelectorAll('#feed .f-quiet, #feed .quiet')].pop().textContent;
+    out.backDay = `${st.time.day}:${st.time.phase}`;
+    out.backConds = st.player.conditions.map(c => c.name);
+    out.backBan = (st.bans || []).find(b => b.locationId === 'loc_low_water') || null;
+    return out;
   });
-  assert.equal(r.back, 'backwards');
-  assert.match(r.notice, /^The clock only goes forward/);
   assert.equal(r.day, 3);
+  assert.equal(r.back, true);
+  assert.equal(r.backNotice, 'Clock set back to Day 1 · Morning. What has already happened stays in the story.');
+  assert.equal(r.backDay, '1:morning');
+  assert.ok(!r.backConds.includes('Stiff'), 'going back does not bring the condition back');
+  assert.ok(r.backBan && r.backBan.untilDay === 14, 'the ban still holds after going back');
   assert.ok(!r.conds.includes('Stiff'), 'the condition ran out on the way');
   assert.ok(r.quiets.some(t => /^Condition over: Stiff/.test(t)), r.quiets.join(' | '));
   assert.ok(r.ban, 'the ban holds');

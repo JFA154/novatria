@@ -119,9 +119,9 @@ s.test('banFrom and playerPrice last until their day and run out with the mornin
     out.factor = S.priceFactor();
     out.flags = [st.flags.playerPriceMultiplier, st.flags.playerPriceUntilDay];
     // Day 2: the price is over (untilDay 1), and so is the ban (wave 3: a ban ends before its untilDay, the day the player is welcome again).
-    for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
+    for (let i = 0; i < 4; i++) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } }); // wave 21: a plain long at night holds, so the night is passed as /wait does
     out.day2 = [st.time.day, S.priceFactor(), 'playerPriceMultiplier' in st.flags, !!S.isBanned(l.id)];
-    for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
+    for (let i = 0; i < 4; i++) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } }); // wave 21: a plain long at night holds, so the night is passed as /wait does
     out.day3 = [st.time.day, S.isBanned(l.id), st.bans.length];
     // expireDaily through apply is the same, and says what ran out.
     S.apply({ effects: [{ op: 'banFrom', locationId: l.id, days: 0 }] });
@@ -585,7 +585,7 @@ s.test('a morning without sleep makes the player Tired (-1 all) until they rest;
     const cond = id => p.conditions.find(c => c.id === id) || null;
     const out = {};
     // Through the night with no sleep.
-    for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
+    for (let i = 0; i < 4; i++) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } }); // wave 21: a plain long at night holds, so the night is passed as /wait does
     out.tired = Object.assign({}, cond('cond_tired'));
     out.tiredMod = Game.Dice.modifiersFor(st, { stat: 'wits', actionType: 'search' }).map(m => m.value);
     S.apply({ effects: [{ op: 'playerHp', delta: -3 }, { op: 'playerHp', delta: -3 }] });
@@ -824,7 +824,7 @@ s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day
     for (const x of st.locations) { const n = S.npcsAt(x.id, 'morning')[0]; if (n) { who = { n, loc: x.id }; break; } }
     who.n.awayOn = { days: ['Thursday'], phases: ['morning', 'afternoon'], where: 'at the county school in Clayburn' };
     out.away = [S.npcsAt(who.loc, 'morning').some(x => x.id === who.n.id), S.absentNote(who.n), S.awayNow(who.n, 'evening')];
-    for (let i = 0; i < 4; i++) S.apply({ advanceTime: 'long' });
+    for (let i = 0; i < 4; i++) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } }); // wave 21: a plain long at night holds, so the night is passed as /wait does
     out.friday = [S.weekday(), S.npcsAt(who.loc, 'morning').some(x => x.id === who.n.id), S.absentNote(who.n)];
     return out;
   });

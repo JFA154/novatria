@@ -757,3 +757,17 @@ and `docs/notes/ui.md`, Wave 16).
   settled then stays settled and its gain stays; its progression entry
   goes). `result.rewound`: `{ struck, turn, day, phase, settled, people,
   places }`. Commands takes one snapshot before it (one `/undo` step).
+
+## Wave 21 (31 Oct 2026): night holds a long; the clock may go back
+
+- `advanceTime`: a `long` at night that is not yet late, with a cause that is
+  an action (not rest, wait, skip, arrival, defeat, arrest, epilogue), sets
+  `shorts` to 2 and `time.late = true` and passes no phase (`held`), like the
+  third short. A long at a night already late goes to the next morning with
+  `noSleep`, as before. `/wait` and `/skip` (cause wait/skip) and a defeat's
+  long still pass the night at once.
+- `Pipeline.setClock` (`/cheat time`): a day and phase earlier than now is
+  allowed. It is the same `setTime` (shorts 0, no late) under a snapshot, with
+  the divider and the quiet line "Clock set back to Day N · Phase. What has
+  already happened stays in the story."; `World.catchUp` does not run, so
+  nothing fires, and nothing told is untold.
