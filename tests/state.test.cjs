@@ -144,7 +144,7 @@ s.test('the retry lock refuses the identical failed roll until the situation cha
   assert.equal(res.reason, 'retry-locked');
   assert.equal(await stateJson(page), before, 'a refused retry changes nothing');
   assert.match(await page.textContent('#feed .f-notice:last-child'), /Change something first/);
-  await page.evaluate(() => Game.State.apply({ advanceTime: 'long' }));
+  await page.evaluate(() => Game.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }));
   const res2 = await page.evaluate(t => Game.Pipeline.submit(t), text);
   assert.equal(res2.ok, true, 'allowed once time has passed');
 });
@@ -425,7 +425,7 @@ s.test('snapshot and restore round-trip the exact state', async h => {
     const G = Game;
     const before = JSON.stringify(G.state);
     G.State.snapshot();
-    G.State.apply({ beginTurn: true, goldDelta: 3, journalEntry: 'x', advanceTime: 'long' });
+    G.State.apply({ beginTurn: true, goldDelta: 3, journalEntry: 'x', advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     G.Rng.int(1, 6);
     const changed = JSON.stringify(G.state) !== before;
     const ok = G.State.restore();
@@ -449,8 +449,8 @@ s.test('time: three shorts make a phase, long is a phase, rest heals (1 sleeping
     const third = G.State.apply({ advanceTime: 'short' }); out.push(t());
     out.push(third.time.phasesPassed);
     G.State.apply({ advanceTime: 'instant' }); out.push(t());
-    G.State.apply({ advanceTime: 'long' }); out.push(t());
-    G.State.apply({ advanceTime: 'long' }); out.push(t());
+    G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); out.push(t());
+    G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); out.push(t());
     G.State.apply({ hpDelta: -5 });
     const rest = G.State.apply({ advanceTime: 'rest' }); out.push(t());
     out.push(rest.time.phasesPassed, rest.time.healed, G.state.player.hp);
@@ -473,7 +473,7 @@ s.test('night holds until the player sleeps: shorts at night stop at late with n
     const out = { steps: [], parts: [], lines: [] };
     const note = () => { out.steps.push(t()); out.parts.push(G.State.phasePart(G.state.time)); out.lines.push(G.State.clockLine(G.state.time)); };
     // Evening into night as before: three shorts make a phase, and the world ticks.
-    G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' });
+    G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     for (let i = 0; i < 3; i++) G.Pipeline.passTime('short');
     note();
     out.ticksToNight = ticks.splice(0);
@@ -494,7 +494,7 @@ s.test('night holds until the player sleeps: shorts at night stop at late with n
     G.Pipeline.passTime('rest'); note();
     out.ticksRest = ticks.splice(0);
     // /wait morning from night also counts as no sleep.
-    G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' }); G.State.apply({ advanceTime: 'long' });
+    G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); G.State.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     G.State.apply({ advanceTime: 'short' }); G.State.apply({ advanceTime: 'short' }); G.State.apply({ advanceTime: 'short' });
     note();
     G.World.tick = orig;
@@ -536,7 +536,7 @@ s.test('setTime sets the clock outright (engine only, validated, no tick); late 
     G.World.tick = info => { ticks += 1; return orig(info); };
     const reason = diff => { const x = S.apply(diff); return x.rejected.length ? x.rejected[0].reason : null; };
     const out = {};
-    S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); S.apply({ advanceTime: 'long' }); // day 2 morning, no sleep
+    S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); // day 2 morning, no sleep
     out.start = JSON.stringify(G.state.time);
     out.bad = [
       reason({ setTime: null }) || 'none',

@@ -246,7 +246,7 @@ s.test('wave 2: a loose end\'s obligation keeps content\'s owedTo and missText; 
     const o = st.player.obligations[0];
     const made = { owedTo: o.owedTo, missText: o.missText, npcId: o.npcId };
     S.apply({ setTime: { day: o.dueDay, phase: 'night' } });
-    Game.Pipeline.passTime('long');
+    Game.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     const owed = S.npc(o.owedTo);
     return {
       made, status: o.status, name: S.npc(o.npcId).name,
@@ -284,7 +284,7 @@ s.test('wave 2: a missed obligation owed to someone in town brings them with con
       { op: 'addObligation', kind: 'errand', npcId: c.id, text: 'Take {npc} the parcel.', dueOffset: 0, askerId: a.id }] });
     const os = st.player.obligations.map(o => ({ id: o.id, owedTo: o.owedTo }));
     S.apply({ setTime: { day: st.time.day, phase: 'night' } });
-    Game.Pipeline.passTime('long');
+    Game.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     return { a: a.id, b: b.id, c: c.id, aName: a.name, os, due: st.dueEvents.map(e => ({ npcId: e.npcId || null, text: e.text, bring: !!e.bring })), visits: (st.visits || []).map(v => v.npcId) };
   });
   assert.deepEqual(r.os.map(o => o.owedTo), [r.b, r.a], 'owedTo kept, askerId read as owedTo');
@@ -306,7 +306,7 @@ s.test('wave 2: the Journal keeps a missed debt that is still owed with the open
     S.apply({ effects: [{ op: 'playerGold', delta: 1000 }, { op: 'addObligation', kind: 'debt', npcId: n.id, text: 'Pay {npc} the four hundred dollars.', amount: 400, dueOffset: 0 }] });
     const o = st.player.obligations[0];
     S.apply({ setTime: { day: st.time.day, phase: 'night' } });
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     S.apply({ beginTurn: true });
     S.apply({ goldDelta: -150 }, { source: 'model', present: [n.id] });
     const row = () => { G.UI.openPanel('journal'); const li = document.querySelector(`#panel-body [data-section="owe"] [data-obligation="${o.id}"]`); return { text: li.textContent, done: li.classList.contains('jr-done') }; };

@@ -77,7 +77,7 @@ s.test('bug 2: a due event told at the end of a walk that crosses into the next 
     const G = Game, S = G.State, M = G.Api.Mock, st = G.state;
     const le = st.player.looseEnds[0];
     const npc = S.npc(le.npcId);
-    while (st.time.phase !== 'morning') S.apply({ advanceTime: 'long' });
+    while (st.time.phase !== 'morning') S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     S.apply({ advanceTime: 'short' }); S.apply({ advanceTime: 'short' });
     const here = st.player.locationId;
     const next = 'afternoon';
@@ -168,7 +168,7 @@ s.test('bug 6: beaten senseless in a fight in front of the police, TIME THIS TAK
         const other = here.find(n => !(n.tags || []).includes('police'));
         if (cop && other) { found = { l, other }; break; }
       }
-      if (!found) S.apply({ advanceTime: 'long' });
+      if (!found) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     }
     S.apply({ playerLocationId: found.l.id });
     while (st.player.hp > 1) S.apply({ effects: [{ op: 'playerHp', delta: -Math.min(3, st.player.hp - 1) }] });
@@ -505,7 +505,7 @@ s.test('coordinator 2 to 5: Owed says "missed Day N, still owed"; Here takes a s
     const n = st.npcs.find(x => x.status === 'free' && x.alive !== false);
     S.apply({ effects: [{ op: 'addObligation', kind: 'debt', npcId: n.id, text: 'Pay {npc} back.', amount: 100, dueOffset: 0 }] });
     S.apply({ setTime: { day: st.time.day, phase: 'night' } });
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     const recap = G.Pipeline.recapText();
     // Here: find a scene with someone unmet whose label has "and" in it.
     let here = null;
@@ -514,7 +514,7 @@ s.test('coordinator 2 to 5: Owed says "missed Day N, still owed"; Here takes a s
       if (!here && ppl.length >= 3 && ppl.some(p => !p.knownToPlayer && /\band\b/.test(G.npcLabel ? G.npcLabel(p) : p.role || ''))) here = { l, ph };
     }
     let hereLine = null;
-    if (here) { while (st.time.phase !== here.ph) S.apply({ advanceTime: 'long' }); S.apply({ playerLocationId: here.l.id }); hereLine = G.Pipeline.recapText().split('\n').find(x => x.startsWith('Here: ')); }
+    if (here) { while (st.time.phase !== here.ph) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ }); S.apply({ playerLocationId: here.l.id }); hereLine = G.Pipeline.recapText().split('\n').find(x => x.startsWith('Here: ')); }
     const C = G.Commands;
     const args = Object.fromEntries(C.LIST.filter(c => ['/skip', '/pronouns', '/help'].includes(c.name)).map(c => [c.name, c.args]));
     const before = document.querySelectorAll('#feed .f-notice').length;
@@ -644,7 +644,7 @@ s.test('N9: a /wait over several phases tells one change from where it began to 
       const passing = a.filter(id => !m.includes(id) && !n.includes(id));
       if (passing.length) { pick = { l, passing }; break; }
     }
-    while (st.time.phase !== 'morning') S.apply({ advanceTime: 'long' });
+    while (st.time.phase !== 'morning') S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     S.apply({ playerLocationId: pick.l.id });
     const start = S.npcsAt(pick.l.id).map(n => n.id);
     await G.Pipeline.submit('/wait night');
@@ -787,7 +787,7 @@ s.test('design: an arrest takes the player\'s weapons (the chief remembers takin
         const other = here.find(n => !(n.tags || []).includes('police'));
         if (cop && other) { found = { l, other }; break; }
       }
-      if (!found) S.apply({ advanceTime: 'long' });
+      if (!found) S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     }
     S.apply({ playerLocationId: found.l.id, effects: [{ op: 'giveItem', name: 'Shotgun' }, { op: 'giveItem', name: 'Coil of rope' }, { op: 'giveItem', name: 'Grease gun' }] });
     S.apply({ effects: [{ op: 'plantSeed', seed: { id: 'seed_t_offer', effect: 'A man offers you a job.', trigger: { type: 'day', value: st.time.day + 9 } } }] });
@@ -931,7 +931,7 @@ s.test('also: the ending is never cut mid-word; "Deal me in" is told with the st
     const stake = G.Pipeline.lastTurn.ctx.gamble && G.Pipeline.lastTurn.ctx.gamble.stake;
     // /skip to where the player is, at a later phase.
     const here = S.loc(st.player.locationId);
-    while (st.time.phase !== 'morning') S.apply({ advanceTime: 'long' });
+    while (st.time.phase !== 'morning') S.apply({ advanceTime: { cost: 'long', cause: 'wait' } /* wave 21: a plain long at night holds; these pass the night as /wait does */ });
     st.bans = [];
     await G.Pipeline.submit(`/skip to ${here.name} in the evening`);
     const skip = st.log[st.log.length - 1];

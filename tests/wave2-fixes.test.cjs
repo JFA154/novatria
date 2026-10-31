@@ -123,7 +123,7 @@ s.test('B18: a missed debt is still owed (OPEN and the recap say so), paying it 
     const n = S.npc(o.npcId);
     const mem0 = (n.memories || []).length;
     S.apply({ setTime: { day: st.time.day, phase: 'night' } });
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     const out = { status: o.status, owed: S.obligations('owed').map(x => x.id), due: st.dueEvents.filter(e => e.npcId === n.id).map(e => e.text), memories: (n.memories || []).length - mem0 };
     out.open = G.Pipeline.openLine(st);
     out.recap = G.Pipeline.recapText();
@@ -153,7 +153,7 @@ s.test('B18: an errand\'s missed due event never brings the person the thing is 
     S.apply({ effects: [{ op: 'giveItem', name: 'Letter for ' + a.name }, { op: 'addObligation', kind: 'errand', npcId: a.id, text: 'Put the letter in {npc}\'s hand.', itemName: 'Letter for {npc}', dueOffset: 0 },
       { op: 'addObligation', kind: 'promise', npcId: b.id, text: 'Help {npc} with the boat.', dueOffset: 0, missText: '{npc} waits at the landing for {playerName} and nobody comes.' }] }, { source: 'world' });
     S.apply({ setTime: { day: st.time.day, phase: 'night' } });
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     return { errand: st.dueEvents.filter(e => e.npcId === a.id).length, promise: st.dueEvents.filter(e => e.npcId === b.id).map(e => e.text), name: b.name, player: st.player.name };
   });
   assert.equal(r.errand, 0, 'the recipient does not come looking');
@@ -323,7 +323,7 @@ s.test('bug 8 and B9: a town event is one news item, seen once the player watche
   const late = await b.evaluate(d => {
     const G = Game;
     G.State.apply({ setTime: { day: d + 2, phase: 'morning' } });
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     const e = G.State.town.events[0];
     return { news: G.state.news.filter(n => n.eventId === e.id).map(n => ({ day: n.day, phase: n.phase })), due: G.state.dueEvents.filter(x => x.eventId === e.id).length, fired: G.state.eventsFired.includes(e.id), phase: e.phase };
   }, ev.day);
@@ -362,7 +362,7 @@ s.test('B9: a clock completion that happens in front of the player is one news i
     S.apply({ clockFill: [{ factionId: f.id, delta: c.segments }] });
     const n0 = st.news.length;
     G.World.forceClockRoll(1);
-    G.Pipeline.passTime('long');
+    G.Pipeline.passTime('long', 'wait'); // wave 21: a plain long at night holds; the night is passed as /wait does
     const mine = st.news.slice(n0).filter(n => n.factionId === f.id || n.text === c.onComplete.text);
     return { count: mine.length, seen: mine.map(n => n.seen) };
   });
