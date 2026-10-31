@@ -1360,3 +1360,47 @@ laptops; what changed at the table (the engine side:
   statuses cleared at the turn and after the bet before the flop; the
   nudge's last words. `tests/wave12-cards.test.cjs`: the head's pot after a
   fold. `tests/wave10-cards.test.cjs`: the nudge.
+
+## Wave 15 (31 Oct 2026): the card table's last rough spots
+
+What changed at the table and in the box after the wave 14 verification QA
+(the engine side: `docs/notes/engine-world.md`, Wave 15). Tests:
+`tests/wave15-table-polish.test.cjs`.
+
+### Focus after a press
+- `UI.feed.cardsShow` moves a focus that was in the table to the head only
+  when the table first appears (the chooser turning into the dealt table,
+  as `UI.feed.cards` does for a new table). After a press (a street, a
+  move) it goes to `tableFocus(node)`: the first button of `.cards-acts`
+  that is not disabled (Check, or Call facing a bet), which `keepHand`
+  keeps in view, else the player's row (`.cards-you`, given
+  `tabindex="-1"` for it). At 1280×800 with five at the table the focus
+  was on the head, scrolled out of view above the story; it is now on
+  Check or Call, inside the story, after every press.
+
+### The box with a hand open
+- `handCommand` (with `/cheat win` and `/cheat cards` as in wave 14):
+  `/help` or `/commands` empties the box and runs `/help` as ever (the
+  "Commands" notice in the feed); the hand stays open. `/undo` leaves the
+  line in the box and puts `undoNudge()` on the status line: "Finish the
+  hand or Stop it (−$4) first; /undo then takes the turn back." (at
+  hold'em what the player has put in, at draw the fold price); at the
+  chooser "Pick a game and finish the hand first; /undo then takes the turn
+  back. Stop leaves the table (nothing lost)." Once the turn is over the
+  same `/undo` takes it back. Any other line keeps the hand's nudge.
+
+### The chooser's Stop
+- With no line to put back (a resumed turn; see the engine notes) the
+  notice is "Stopped. Nothing lost." and nothing is said about the box. A
+  typed line goes back in the box with "Stopped. Your action was kept in
+  the box." as before.
+
+### Words
+- Kicker names at a showdown line up across the table ("Pair of aces,
+  king-jack kickers", "king-ten kickers", "nine-eight kickers": the status
+  cells, OUTCOME and the demo's narration all use the record's names).
+
+### Tests changed by design
+- `tests/wave14-holdem-fixes.test.cjs`: the heads-up kicker statuses
+  ("Pair of aces, king-nine kickers · takes the pot" / "Pair of aces,
+  king-eight kickers").

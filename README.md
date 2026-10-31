@@ -497,7 +497,9 @@ Being knocked out until morning in a defeat is not a night without sleep.
 When time passes while you stay put, anyone who arrives at or leaves your
 place is worked into the next scene as it happens: a truck pulling in, a
 door, a goodbye. A `/wait` over several phases tells who came and went
-between where it began and where it ends.
+between where it began and where it ends. When that next scene is a hand of
+cards, the people who sat at the table for it are not told as arriving
+after it; anyone else who came in still is.
 
 ## The story moves
 
@@ -651,13 +653,15 @@ five on the board. Say you bet, in Do or in Say mode ("I put $50 in", "deal
 me in", "I'm in for fifty", "another hand", "I go all in", "I bet $20", "I
 bet twenty on the next hand", "deal me in at hold'em", "a hand of draw", "I
 sit down with Curtis for a hand of cards, five dollars", "Mind if I sit
-in?"; said in Say mode to Curtis or to everyone). A bet names the cards, the
+in?", "Mind if I join you for a hand?", "I take a seat at the card table";
+said in Say mode to Curtis or to everyone). A bet names the cards, the
 hand, the game or the pot, or is a bare stake: "I bet he is lying" or "I bet
 you ten bucks it rains tomorrow" is talk, and no hand is dealt. The game is
 the one you name ("hold'em", "holdem", "hold em", "Texas"; "draw",
 "five-card", "5-card", "draw poker"; the last one named, so "hold'em? no,
-five card draw" is draw; drawing cards is not the game: "I'll draw to an
-inside straight", "I draw two"), else the one you played last; the first
+five card draw" is draw, unless it is put down: "I play texas hold'em, draw
+poker is for old men" is hold'em; drawing cards is not the game: "I'll draw
+to an inside straight", "I draw two"), else the one you played last; the first
 time, with neither, the table opens with a chooser before any card is dealt
 (Curtis and the stake, **Five-card draw** and **Texas hold'em**, and "Stop
 leaves the table (nothing lost)": Stop there calls the turn off at no cost
@@ -693,7 +697,9 @@ starts with them cleared, while a seat that folded keeps "folds on the
 flop"; at the end its hand's name, and "takes the pot" for the winner; two
 hands of the same name are told apart by the cards that decide them, "Pair
 of aces, nine kicker" against "Pair of aces, eight kicker", "Flush, ace-king
-high" against "Flush, ace-queen high"), with a pot line ("Pot $24 · you're
+high" against "Flush, ace-queen high", and the hands of one name are named
+to the same depth from the top kicker, "Pair of aces, king-jack kickers",
+"king-ten kickers", "nine-eight kickers"), with a pot line ("Pot $24 · you're
 in for $8"). **Five-card draw:** everyone puts up the stake and gets five
 cards. Tap the cards you want to keep (or Space or Enter on them; each says
 Hold), then **Draw** (it says how many it replaces: "Draw 3", or "Stand pat"
@@ -768,7 +774,8 @@ folds the hand (at draw the fold price, at hold'em what you have put in; the
 table's hint says so, and with a marked deck the catch roll is still made),
 and the turn is kept, told in one plain line; closing the page does not take
 it back either (the next time that game is loaded, a hand left open is
-folded where you left it, "You left the table, so you fold: −$10", and one
+folded where you left it, "You left the table, so you fold: −$10" (so is a
+draw hand left open before hold'em came in: never the chooser), and one
 already played stands as it was played; loading an older save of the game,
 another game or a new one drops it instead, so a hand you never played is
 never folded). If another tab takes the game over while a hand is open, the
@@ -777,9 +784,13 @@ here.") and the tab that took over folds it; with the chooser open nothing
 was dealt, so the first tab takes that turn back ("Another tab took over;
 the table is closed here.", your line back in the box) and nothing is lost
 in either tab. While a hand is open, typing `/cheat win` is the **Win
-(cheat)** button, and `/cheat cards` says "The cards are dealt: use Win
-(cheat) or type /cheat win." After each press the table keeps your cards and
-its buttons in view (on a phone it no longer jumps back to its heading).
+(cheat)** button, `/cheat cards` says "The cards are dealt: use Win (cheat)
+or type /cheat win.", `/help` lists the commands as ever (the hand stays
+open), and `/undo` says "Finish the hand or Stop it (−$4) first; /undo then
+takes the turn back." (the line stays in the box); other commands wait with
+the hand's own nudge. After each press the table keeps your cards and its
+buttons in view (on a phone it no longer jumps back to its heading), and the
+keyboard focus is on its first button.
 Menu → Title screen waits until the hand is played (the notice shows above
 the table). After the showdown the hand is final: if the narrator fails, is
 stopped or declines, the turn is still kept and the hand told in a plain
@@ -791,8 +802,9 @@ the hand is played the story is followed again, on a phone too. A reload or
 `/cheat cards` stacks the deck so you win the next hand (you still play it;
 the winning hand varies, at hold'em a set, the nut flush, a straight, a full
 house or four of a kind, at draw a full house, a flush or a straight, and
-the others hold hands that lose; at hold'em nobody folds before the flop, so
-the pot is worth having), and `/cheat win` wins the next hand without
+the others hold hands that lose, at hold'em each a different one when the
+deck allows; at hold'em nobody folds before the flop, so the pot is worth
+having), and `/cheat win` wins the next hand without
 playing it: the table appears already finished (every seat's cards face up,
 the board complete, your hand the best, everyone having called every round:
 you win the stake from each other seat at draw, five units from each at
@@ -848,7 +860,7 @@ once more in the background.
 | `/fact <statement>` | Spend a story point to make something true ("/fact the mechanic owes me a favour") | Parser |
 | `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
-| `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step. The history is for this sitting only: a reload, **Continue** or **Play here instead** starts it empty. A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again | None |
+| `/undo` | Take back the last turn exactly (up to 20 turns); a turn and the ending it brought are one step. The history is for this sitting only: a reload, **Continue** or **Play here instead** starts it empty. A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. Typed while a hand is open it waits for the hand: "Finish the hand or Stop it (−$4) first; /undo then takes the turn back." | None |
 | `/reroll` | Cheat: take back the last turn and roll its dice again, as often as you like, ignoring the no-retry rule. The same action replays with a fresh die, and the story says "Rerolled." After a hand at cards only the marked deck's catch roll is new: the hand replays as it was played (the same cards and holds, nothing to tap); with no marked deck it says "Nothing to reroll: the cards were dealt.", and after a hand the win cheat ended "Nothing to reroll: that hand was yours." (the cheat stays spent: only `/undo` arms it again; a cheat armed and not yet used stays armed through a `/reroll`) | Narrator, bookkeeper |
 | `/cheat success` (or `partial`, `fail`, `crit`, `fumble`, a number 1-20) | Cheat: redo the last roll with that outcome; the story says "Cheat: success" (or the number). After a hand at cards with a marked deck, the hand replays as it was played and only the catch roll takes that outcome. With no roll to redo, it arms your next roll instead ("Cheat armed: your next roll will be a success."; after a hand with no marked deck, "Nothing to reroll: the cards were dealt." first, or "Nothing to reroll: that hand was yours." after a win-cheat hand). `/cheat` alone lists these | Narrator, bookkeeper |
 | `/cheat cards` | Cheat: stack the deck so you win your next hand at cards ("Cheat armed: the next hand is yours."; typed again, "Already armed: the next hand is yours."). You still play it: at draw you are dealt a made hand (a full house, a flush or a straight, by the deal) whose draw keeps at least a pair, and the others draw to nothing, so you win however you draw; at hold'em your two cards and the board make the best hand at the table (a set, the nut flush, a straight, a full house or four of a kind, by the deal), the others holding hands that lose to it, and nobody folds before the flop, so the pot is worth having (you can still fold it away). Typed while a hand is open it says "The cards are dealt: use Win (cheat) or type /cheat win." No roll, even with a marked deck, and nothing about cheating is recorded. The armed cheat is kept in the game, so a reload keeps it and `/undo` of another turn does not lose it; the hand it is spent on is spent even if you fold it or Stop folds it, and `/undo` of that hand arms it again ("The cards cheat is armed again"). `/help` lists it in the `/cheat` row | None (the hand is part of the turn that bets) |
@@ -858,7 +870,7 @@ once more in the background.
 | `/edit <name>` | Open the People panel with that person's card in edit mode ("/edit Mavis"; a first name is enough): anything about them, saved as one `/undo` step (see Editing people) | None |
 | `/save <name>` | Save to a named slot (no name opens Save / Load) | None |
 | `/load <name>` | Load a named slot (no name opens Save / Load) | None |
-| `/help` (or `/commands`) | List every command with what it does, one a line in the story under a "Commands" heading (Commands help in the ⋯ list does the same) | None |
+| `/help` (or `/commands`) | List every command with what it does, one a line in the story under a "Commands" heading (Commands help in the ⋯ list does the same); with a hand open at cards too, the hand staying open | None |
 | `/debug` | Toggle the Debug tab: town news, obligations, bans and town events fired, secrets, seeds, faction clocks, rumour truth, rejected changes, token totals (with 1-hour cache writes) and session cost, and the last raw API responses | None |
 
 The **⋯** button lists the everyday ones (see Do and Say). While a turn runs

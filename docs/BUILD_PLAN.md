@@ -1314,3 +1314,27 @@ talking, I can direct it to one person or all."
      "arrive" after the hand; "draw to an inside straight" is no game. The
      Win (cheat) control is 44px tall on a phone. Left open: a live
      narrator's telling of a hand, as before.
+   - **Wave 15** (31 Oct 2026). A verification QA pass over the wave 14
+     table confirmed all 24 of its fixes and found one rough edge and seven
+     nits, fixed by one agent as decided. Notes: the "Wave 15" sections of
+     `docs/notes/engine-world.md` and `docs/notes/ui.md`; tests:
+     `tests/wave15-table-polish.test.cjs`. A draw hand left open in a game
+     saved before wave 13 (no game stored with it) folds on load at the
+     normal price instead of opening the chooser, and Stop at a chooser with
+     no line to put back says only "Stopped. Nothing lost." Hands of one
+     name at a showdown are named to one depth from the first kicker
+     ("king-jack kickers" / "king-ten kickers" / "nine-eight kickers"). A
+     cheat deal at hold'em gives the other seats hands that differ from one
+     another when the deck allows (two alike in about 1 of 400 five-seat
+     deals, from 184), every one still losing. After a hand only the dealer
+     and the seats are left out of who arrived, in the demo and in the
+     narrator's packet. After a press the focus goes to the table's first
+     button, in view; the head has it only when the table first appears.
+     With a hand open `/help` works and `/undo` says to finish the hand or
+     Stop it first. The demo reads "Mind if I join you for a hand?", "I take
+     a seat at the card table", "I sit at the table" and "Deal me into the
+     game" as bets where a dealer sits, and "Count me in" or "I'm in" with
+     the cards, a hand, the table or the game named, or right after a hand.
+     A game named and then put down ("draw poker is for old men") is the
+     one being left. Left open: a live narrator's telling of a hand, as
+     before.

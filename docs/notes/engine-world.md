@@ -1280,3 +1280,76 @@ but one (the identical hand after `/undo`, by design) are fixed as decided
   draw is a made hand of three shapes; the nudge),
   `tests/wave11-cards.test.cjs` (the draw hint) and
   `tests/wave12-cards.test.cjs` (the head's pot after a fold is $30).
+
+## Wave 15 (31 Oct 2026): the card table's last rough spots
+
+A verification QA pass played about 330 hands of the wave 14 table,
+confirmed all 24 of its fixes and found one rough edge and seven nits; all
+eight are fixed as decided (the table's side: `docs/notes/ui.md`, Wave 15).
+Tests: `tests/wave15-table-polish.test.cjs`.
+
+- **An old open draw hand (rough edge).** `resumeHand` gives a stored hand
+  with no `cardGame` (one stored before wave 13, which could only be
+  five-card draw) the game `'draw'` instead of null, so `gamble` never
+  opens the chooser for it: it folds where it was left at the normal
+  price ("You left the table, so you fold: −$5", the cards as dealt, the
+  notice "The game was closed with a hand on the table, …"). Stop at the
+  chooser now rejects with `chooser: true`; when the turn has no line to
+  put back (a resumed turn, or none typed) `runTurn` takes it back with
+  `NOTICES.chooserStopped`, "Stopped. Nothing lost.", and no
+  `restoreInput`. A typed line still goes back in the box with "Stopped.
+  Your action was kept in the box."
+- **Kickers at one depth.** `Cards.namesApart` groups the shown hands by
+  their name and gives each group of two or more one depth: the deepest
+  place in the key where any two of them that differ first differ.
+  `nameUpTo(e, upto)` names the kickers from the first one
+  (`KICKER_AT`: after the pair, the trips or the four; after both pairs) to
+  that depth, so the names line up and never read as if a lower kicker
+  were the top one: "Pair of aces, king-jack kickers" / "king-ten kickers"
+  / "nine-eight kickers"; "jack kicker" / "ten kicker" / "nine kicker" when
+  the first kicker tells them all apart; "Three of a kind, sevens, ace-king
+  kickers"; a flush or high card as before ("Flush, ace-king high"). An
+  exact tie keeps one name. Heads up the same rule gives "Pair of aces,
+  king-nine kickers" against "king-eight kickers" where wave 14 said "nine
+  kicker" against "eight kicker".
+- **Cheat deals (`stackOthers`).** Each other seat still gets one of the
+  three best hands that lose to the player's from a sample of 120 pairs,
+  but from those whose name differs from every hand already given (another
+  shape, or other ranks), else whose key differs, else any. Over 400 seeds
+  (`Rng.create(seed × 7 + n)`) two others alike went from 184 to 1 at five
+  at the table, from 122 to 3 at four, and from 61 to 0 at three (the
+  ones left are deals whose sample held no different hand that loses).
+  Every other hand still loses to the player's; `/cheat cards` still makes
+  the others call every bet before the flop.
+- **Arrivals after a hand.** `seatedAt(ctx.gamble)` (Pipeline, exported):
+  the dealer and the seats of a hand played this turn, else []. The
+  narrator's packet leaves them out of "SINCE THE LAST TURN … arrived
+  here: …" (and drops the line when nobody else came or went); the demo's
+  narration leaves them and the action's targets out of its arrival line
+  and keeps the rest ("Tammy Lott and Jodie Strayhorn arrive." after a
+  hand with Royce Pittman and Elbert Gentry, who came in with them).
+- **Words (the demo's parser).** `MOCK_JOIN`: "Mind if I join you for a
+  hand?" (join you / in, with a hand, a game, cards, poker or a round in
+  the line), "I join the game", "I take a seat at the card table", "I sit
+  at the table" (the card table, or the table at the end of a clause),
+  "Deal me into the game", "deal us in", "deal me some cards".
+  `MOCK_COUNT_IN`: "Count me in", "I'm in" (with "too", "again", "on the
+  game", "for a hand" and no more), a bet only when the line also names
+  the cards, a hand, the table, the game or the deal (`MOCK_CARD_NAMED`),
+  or the log's newest entry is a hand (`mockLastHand`). Both only where a
+  dealer sits at the card table now (`mockDealerHere`: `cardGameAt` and
+  `dealerOf` the people here), on top of the gamble branch's own checks;
+  the bare "I'm in" is no longer a bet on its own. "I sit in the corner",
+  "I sit at the bar", "Mind if I join you?", "I'm in trouble", "I'm in for
+  a long night" and "I bet he is lying" are not bets. Say mode is as
+  before (`SAY_BET`).
+- **Words (`gameFrom`).** `PUT_DOWN`: a game named right before "is for"
+  (not "is for me"), "isn't" or "is not" (not "… bad"), "is no", or "not
+  for me" is the one being left, as `NOT_THIS` before it: "I play texas
+  hold'em, draw poker is for old men" is hold'em, "hold'em isn't my game,
+  deal draw" draw, "draw is no fun" hold'em. Otherwise the last game named
+  still wins.
+- **Tests changed by design**: `tests/wave14-holdem-fixes.test.cjs` (the
+  heads-up kicker names "Pair of aces, king-nine kickers" / "king-eight
+  kickers"; after a hand the arrival line names nobody who sat in, rather
+  than no arrival at all).
