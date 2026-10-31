@@ -1078,8 +1078,8 @@ table: `docs/notes/ui.md`, Wave 13; the card players:
   'control'`): what was put in stays, every seat still in calls every
   street, and the cards still hidden are dealt so the player's hand is the
   best (`rigHoldem`: the player's two and the board already turned stay,
-  the rest of the board dealt, the seats' cards kept when that works, else
-  replaced; `rigDraw`: the player's five as dealt stay, they keep their
+  the rest of the board dealt, the cards of the seats still in kept when
+  that works, else replaced, a seat that folded keeping its own; `rigDraw`: the player's five as dealt stay, they keep their
   best group and draw the rest of its rank first, the others keep theirs
   when that still loses). If nothing can make the player's hand the best
   (a board that plays for everyone), the pot is still the player's.

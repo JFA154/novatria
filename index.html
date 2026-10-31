@@ -18488,21 +18488,25 @@ const Pipeline = (() => {
   }
   /* The Win (cheat) at hold'em mid-hand (wave 13): the player's two cards
      and the board already turned stay; the rest of the board is dealt so
-     the player's hand beats every other seat's, keeping their cards when
-     that works and else giving them ones that lose. null when nothing
-     does (the board alone ties everyone): the player still takes the pot. */
-  function rigHoldem(rng, holes, board, shown) {
+     the player's hand beats every other seat still in (live), keeping
+     their cards when that works and else giving them ones that lose (a
+     seat that folded keeps its cards). Returns { board, holes } (every
+     seat's), or null when nothing does (the board alone ties everyone):
+     the player still takes the pot. */
+  function rigHoldem(rng, holes, board, shown, live) {
     const mine = holes[0];
     const fixed = board.slice(0, shown);
-    const others = holes.slice(1);
+    const idx = holes.map((x, i) => i).filter(i => i > 0 && (!live || live[i]));
+    const others = idx.map(i => holes[i]);
+    const all = hs => holes.map((x, i) => (idx.includes(i) ? hs[idx.indexOf(i)].slice() : x.slice()));
     const beats = (bd, hs) => { const k = Cards.best(mine.concat(bd)).key; return hs.every(x => Cards.compareKeys(k, Cards.best(x.concat(bd)).key) > 0); };
     for (const keep of [true, false]) {
-      const taken = new Set(mine.concat(fixed, keep ? others.flat() : []));
+      const taken = new Set(mine.concat(fixed, keep ? others.flat() : [], holes.filter((x, i) => i > 0 && !idx.includes(i)).flat()));
       const pool = Cards.deck().filter(c => !taken.has(c));
       for (let t = 0; t < (keep ? 400 : shown === 5 ? 1 : 20); t++) {
         const p = Cards.shuffle(rng, pool);
         const bd = fixed.concat(p.slice(0, 5 - shown));
-        if (keep) { if (beats(bd, others)) return { board: bd, holes: others.map(x => x.slice()) }; continue; }
+        if (keep) { if (beats(bd, others)) return { board: bd, holes: all(others) }; continue; }
         let left = p.slice(5 - shown);
         const hs = [];
         const k = Cards.best(mine.concat(bd)).key;
@@ -18515,7 +18519,7 @@ const Pipeline = (() => {
           hs.push(found);
           left = left.filter(c => !found.includes(c));
         }
-        if (hs.length === others.length) return { board: bd, holes: hs };
+        if (hs.length === others.length) return { board: bd, holes: all(hs) };
       }
     }
     return null;
@@ -18886,8 +18890,8 @@ const Pipeline = (() => {
     const folded = run.folded.slice();
     if (win) {
       const shown = STREET_CARDS[Math.min(run.street, 3)];
-      const rig = c.winNow ? null : rigHoldem(Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1), holes, board, shown);
-      if (rig) { board = rig.board; holes = [holes[0]].concat(rig.holes); }
+      const rig = c.winNow ? null : rigHoldem(Rng.create(((c.seed ^ 0x6a09e667) >>> 0) || 1), holes, board, shown, folded.map(f => !f));
+      if (rig) { board = rig.board; holes = rig.holes; }
       // Every seat still in calls every street: the ante and four bets each (never more than the stake).
       for (let i = 0; i < n; i++) if (!folded[i]) inn[i] = Math.min(5 * u, stake);
     }
@@ -24216,7 +24220,10 @@ const UI = (() => {
     const t = Pipeline.openHand;
     const kind = Pipeline.handKind;
     if (kind === 'choose') return "The card table is open: pick Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).";
-    if (kind === 'holdem') return `Your hand is on the table: ${t && Array.isArray(t.options) && t.options[0] === 'call' ? 'Call or Fold' : 'Check or Bet'}. Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}.`;
+    if (kind === 'holdem') {
+      const opts = t && Array.isArray(t.options) ? t.options : [];
+      return `Your hand is on the table: ${opts[0] === 'call' ? 'Call or Fold' : opts.length === 1 ? 'Check' : 'Check or Bet'}. Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}.`;
+    }
     return `Your hand is on the table: pick the cards to hold, then Draw or Fold. Stop folds the hand${t ? ` (−${money(Pipeline.foldPrice(t.stake))})` : ''}.`;
   }
   // The stake, and why it is that (wave 11, M5): "stake $140, all you have", "stake $20, the usual"; and what was named that is no stake (wave 12, L8): "stake $20, the usual: $0.50 is no stake".
