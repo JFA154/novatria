@@ -843,3 +843,149 @@ the bookkeeper's: `docs/notes/prompts.md`, Wave 22).
 - **`mergePlaces` / `mergePeople`** move an appointment's place and person.
 - `/undo` needs nothing new: the seed, its visits and the scene change are
   state.
+
+## Wave 26 (1 Nov 2026): the tracks under the number
+
+The owner: "plan a complicated relationship system that isn't 2 dimensional,
+what we have now is very basic." Wave A1 of `docs/RELATIONSHIPS_PLAN.md`
+(scope: `docs/relationships/integration.md` section 16), a refactor: every
+number the game shows or stores is what it was, and no existing test
+changed. Tests: `tests/wave26-rel-tracks.test.cjs`.
+
+- **`Rel`** (a new module between State and Town, on `window.Game`) is pure:
+  frozen tables and functions that read a person, the state and the town
+  and return values or a new rel record; it never writes. Tables: `EVENTS`
+  (the design's 41 rows plus `card_win`, `card_loss`, `unwanted_advance`:
+  each `{ src, w, t, f, k, s, weight, decay, dedupe, rep, proud?, money?,
+  owed? }`), `WIRE_EVENTS`, `ALIASES`, `DEDUPE`, `TRAIT_AXES` (Appendix A),
+  `FLAVOUR_TRAITS`, `AXIS_EFFECTS`, `MERCENARY`, `DECAY` (`mood` 2 days,
+  `slight` 5 (floor 0.2 harm, 0 kind), `wound` 10 (0.4), `scar` 21 (0.6),
+  `keeps`), `LIGHTER`, `FEAR_CLOCK` (4 days, floor 0), `CAPS`, `SETTLE`,
+  `BANDS`, `STANCE_GRID`, `PHRASES`, `SIDES`, `OVERRIDES`, `TAGS`,
+  `SPARK_STATUS`, `CUES`, `CONTEMPT_EVENTS`, `WITNESS`, `SECONDHAND_TEXT`,
+  `LEVERAGE_WEIGHT`, `GATES` (every threshold of the plan, by wave; nothing
+  reads them yet), `UNWANTED_ADVANCE`, `WORDS`.
+- **The record.** `n.rel = { v: 1, start, everyday: { w, t, k, s }, fix: {
+  w, t, f, k, s }, today, days, recent, asks, owed, w, t, f, k, s, net,
+  levFear, bands }`. `Rel.startOf(n, townNpc)`: liking the town's written
+  attitude (0 for someone nobody wrote, as the old drift's baseline), trust
+  5 x guardedness, -10 for the police (tag or role) and smugglers, or the
+  record's `start.trust`; fear `start.fear` or 0; knows and spark 0.
+  `Rel.fill` gives a person with no rel their start and liking exactly
+  their attitude (the difference in everyday, past its bound in fix).
+  `Rel.repair` makes a hand-edited one whole. `Town.instantiate` gives
+  every cast member theirs; `addNpc` and `peopleRevealed` theirs.
+- **`Rel.recompute(n, day)`** is the cache: each track is start + everyday +
+  fix + what each typed memory still carries (`Rel.remainder`: `d` x what
+  settling left x the fade: `floor + (1 - floor) x 0.5^(age / half-life)`,
+  harm half-lives x 2^(-r/2); fear on the one clock; spark on the slight
+  clock; knows-you never fades; a witness or secondhand copy one class
+  lighter with floor 0; a protected line while its loose end is open does
+  not fade). Liking and trust -100..100, fear 0..100 with its leverage share
+  (`levFear`, 10 x weight a record the player holds), a hard person's held
+  to `CAPS.hardFear` (39); spark 0 unless `Rel.eligible`. Bands enter at
+  their edge and leave 5 back toward the middle (the previous ones are read
+  from the cache). Ages are whole days; a memory with no day takes
+  `Rel.memoryDay` (World's, moved), else a week ago.
+- **`relWrite(n)`** (State) runs in every op that touches a person's
+  feelings or memories, before and after: the record made whole, a direct
+  write to `n.attitude` since the last recompute folded into fix
+  (`Rel.landTo`, so it holds exactly), the cache recomputed, the alias
+  written (`n.attitude = rel.w`). `relWriteAll` after `setTime`, `/rewind`
+  and at load. `Rel.landTo(n, targets, buckets)` lands each track exactly
+  (integers, `Math.round` so a whole-number shift lands exactly); `relPin`
+  holds the tracks across a memory change.
+- **`attitudeDelta`, `attitudeChanges`, `meetingRep`** keep today's numbers
+  and lines (`likingBy`): before + delta, clamped to -100..100, into
+  everyday; past `CAPS.everyday` (15) the rest goes into fix, so the number
+  reads exactly before + delta. The bookkeeper's 25 a turn is as before.
+- **`socialEvent`** (effect op 29; and the engine key `socialEvents`, a list
+  of the same; the model cannot send either): `{ npcId, event, text,
+  weight?, act?, aboutId?, private?, leverageId?, d?, decay?, secondhand?,
+  scale? }`. `Rel.applyEvent` plans it: the row (or `d`, whole numbers
+  within +/-50), `scale`, the traits (pride on the proud rows' liking x (1 +
+  0.25p); guardedness on trust gains x (1 + 0.2g) and losses x (1 - 0.15g);
+  nerve on fear gains x (1 - 0.25n); mercenary money x2, blackmail x0.5),
+  the repeats (kind things the same day 1, 1/2, 1/4, 0, `CAPS.sameDay` 1
+  then 0 for gifts and time together; `spent_time` and `gift` in full the
+  first 3 days per person, then reduced; harm within 3 days compounds x1.5
+  then x2.25 and merges into one memory, its weight +1 up to 3, the old
+  part folded in as it stood), the bounds (a turn's w 40, t 45, f 40, s 20;
+  a hard person's fear 39; knows-you at least 2; spark 0 for anyone it
+  cannot move for, logged), then the memory (`{ turn, day, text, weight,
+  event, d, decay, key, n, place?, act?, about?, leverageId?, private?,
+  secondhand? }`) or everyday (held to 15, nothing past it), what it settles
+  (`SETTLE`: by its words, else the newest harm within 3 days), owed
+  favours and the counters. A typed memory pushed out past 12 leaves its
+  part in everyday. The dead: a no-op. The ledger keeps each person's
+  totals this turn (`ledger.rel`) and the dedupe classes (`ledger.classes`,
+  for wave 27).
+- **Legacy memories.** `remember` (newMemories, addMemory) types each line
+  (`Rel.typeMemory`: by its words, then its act) with `d: null`: it moves no
+  track. `memoriesSettled` deletes such a line as before; a typed memory is
+  softened instead (`Rel.settle`, `'settled'`: half the liking, a quarter of
+  the trust), never deleted, at most two and getting even. `checkMemories`
+  keeps the typed fields when they are well formed.
+- **`relSet`** (engine key, `{ npcId, w?, t?, f?, k?, s? }` or a list):
+  each track lands exactly in fix. `World.forceAttitude` is `relSet { w }`.
+- **`relDay`** (engine key, a day number; World's `driftAttitudes` sends it
+  each morning): for everyone, the fold, then the old drift exactly
+  (`Rel.driftStep`: two a day toward the save's town copy, else 0; not for
+  the dead, someone tied by an open loose end, or someone with a weight-3
+  memory from the last `CAPS.quietDays` (5) days), landed in everyday,
+  then every track recomputed. `result.drifted`; World keeps its note
+  "attitudes drift for N people". `World.DRIFT_PER_DAY` and
+  `DRIFT_QUIET_DAYS` read Rel's numbers; `World.memoryKind` is
+  `Rel.kindOf` (the same reading for every legacy line).
+- **`editPerson`** takes `rel: { w?, t?, f?, k?, s? }` (`EDIT_KEYS`,
+  `EDIT_FIELDS` 'rel'); attitude and the tracks given land in fix; memories
+  edited with no track given leave every track where it was. The line
+  keeps its old words ("attitude 5 -> 10"), plus "trust -5 -> 12" for the
+  others.
+- **`setMemories` and `mergePeople`** pin the tracks; a fresh cast member's
+  liking taken from the made-up record lands in fix.
+- **`/rewind`** strikes, with the turns after the one kept: a kept memory's
+  settlements, `rel.owed`, `rel.asks`, `rel.recent`, `rel.today` when it began
+  on a struck turn, leverage records and their logs, secrets shown; the
+  everyday and fix buckets and the across-days counts stay. Then everyone's
+  tracks are recomputed.
+- **The minor rule's anchors.** `Rel.isMinor(n)`: the lowest of the record's
+  age, the save's town copy and the live `TOWN_DATA` record by id for the
+  built-in town, under 18; or tagged teen or teenager; or no age anywhere
+  and a role, tag or look that reads as a teen (fails closed).
+  `Rel.playerMinor()`: the player under 18 or of no age. `Rel.eligible`
+  adds the town's romance list (`Rel.romanceOf`), which does not exist yet,
+  so spark is 0 for everyone. Spark above 0 is refused (rejected) at
+  `socialEvent` (`d.s`), `relSet` and `editPerson`; a row's spark is held at
+  0 and logged; the load fill, `setMemories`, an edit's memories and
+  `mergePeople` set any spark found to 0 (`relGuard`, `Rel.sparkGuard`),
+  logged as rejected changes (source 'rel').
+- **Load** (no version bump): `state.leverage` and `state.known.secrets`
+  made where missing; anyone without rel gets one (liking exactly their
+  attitude; their memories stay untyped until rules version 9); the spark
+  guard; everyone recomputed, before the game is remembered as loaded.
+  `typeProblem` checks rel (`relProblem`), memories' `d` and `settled`,
+  `leverage` and `known`; `coerceNumbers` reads their numbers written as
+  text.
+- **`newGame`** makes `leverage: []` and `known: { secrets: {} }`.
+- **Read helpers.** `Rel.tracksOf(n)` (`{ w, t, f, k, s, owed }`, liking the
+  alias), `Rel.stance(n)` (`{ phrase, grid, tags, side, cell, override,
+  contempt, why }`: twelve phrases, "hates you" only with an unsettled
+  weight-3 harm, "doesn't know you" with no memories and knows under 10,
+  "loyal to you" only with trust above 0; the fear override only in [-60,
+  25); tags in order: leverage, spark, fear, debts, uneasy), `Rel.cue(n)`
+  (whole clauses, 12 words at most), `Rel.reasons(n, 2)`,
+  `Rel.sparkStatus(n)` (null for anyone it cannot move for, before reading a
+  number), `Rel.words(track, v)`, `Rel.axesOf(n)` (with `hard`: nerve 1 or
+  more, tough, or a faction head by role), `Rel.debugLine(n)`,
+  `Rel.debugMemory(m)`. Debug's person line ends `· w N t N f N k N s N ·
+  <stance>[ · <tag>]`.
+- **Wave 27's dice.** `Rel.rng(kind, npcId, day, n)`: `Rng.create` keyed by
+  FNV-1a of the seed, kind, person, day and n, no shared draw.
+  `Dice.burn()`: a forced die (`Pipeline.hooks.nextD20` or `nextTier`) is
+  taken, else one d20 drawn and dropped. Nothing calls either yet.
+- **Left for later waves**: witness rows, dedupe by class and legacy lines
+  yielding to engine events (27); the bookkeeper's `socialEvents` and its
+  preconditions, and the minor's line before narration (28); the romance
+  list, leverage records and owed asks (29); the card, the narrator's line,
+  the feed and rules version 9 (30).

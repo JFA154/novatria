@@ -12,7 +12,7 @@ organised and the shared data contract).
 - Script organised into clearly delimited sections, one per module, in this
   order: `TOWN_DATA`, `TABLES`, `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`,
   `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `STYLE_GUIDE`, `EXAMPLE_TURNS`,
-  then modules `Rng`, `Dice`, `Tables`, `State`, `Town`, `World`, `Style`,
+  then modules `Rng`, `Dice`, `Tables`, `State`, `Rel`, `Town`, `World`, `Style`,
   `Api`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`. Each module starts
   with a banner comment: `// ===== Module: State =====`.
 - Expose every module on `window.Game` (`Game.State`, `Game.Dice`, ...) so
@@ -78,14 +78,21 @@ const TOWN_DATA = {
     look, voice,                    // one line each
     personality: ["trait", "trait"],
     goal, secret,
-    attitude: 0,                    // -100..100
+    attitude: 0,                    // -100..100; in a game the stored alias of liking (rel.w), rewritten
+                                    // after every change; a direct write to it holds (wave 26)
     relations: [{ npcId, relation }],  // "npcId is this person's relation", written on both sides
     home: "loc_...",                // where they live; they are there in at least one phase
-    memories: [],                   // { turn, text, weight: 1|2|3 }
+    memories: [],                   // { turn, text, weight: 1|2|3 }; in a game an event's memory also keeps
+                                    // event, d (what it did to each track), decay, settled (wave 26)
     alive: true, knownToPlayer: false,
     status: "free",                 // free | arrested | gone | dead
     awayOn: { days: ["Monday", ...], phases: ["morning", "afternoon"], where: "at the county school in Clayburn" }
                                     // optional: nowhere in town on those days and phases (State.npcsAt)
+    // start: { trust?, fear? }     // optional (read since wave 26, written from wave 28): overrides the start
+    // rel                          // never written by hand: in a game, how they feel about the player
+                                    // (Town.instantiate, Rel; wave 26): { v, start, everyday, fix, today,
+                                    // days, recent, asks, owed, w, t, f, k, s, net, levFear, bands }; tracks
+                                    // liking w, trust t, fear f, knows-you k, spark s, plus owed favours
   }],                               // everyone is in npcIdsBySchedule in every phase
   offstage: [{ name, about }],      // optional: people the story names who never appear
   factions: [{
@@ -167,8 +174,9 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `settleObligation` | `id`, `status` (`met` / `missed`), `how?` | runs `onMet` / `onMiss` once; a no-op if already settled |
 | `obligationPaid` | `id`, `amount`, `take?` | credits money toward a debt or blackmail (at most what is still owed); `take: true` takes it from the player's cash first and credits what it took; paid in full it is met (wave 5), except inside that obligation's own `onMiss`, where it only credits (wave 6) |
 | `addNews` | `text`, `factionId?`, `public?` (default true), `epilogue?` | pushes `{ day, phase, text, factionId, public, seen: false, epilogue? }`; keeps the newest 60 |
+| `socialEvent` | `npcId`, `event` (one of `Rel.EVENTS`, the engine's rows too), `text` (what they would remember), `weight?`, `act?`, `aboutId?`, `private?`, `leverageId?`, `d?` (a part of the row, whole numbers within ±50), `decay?`, `secondhand?`, `scale?` (0.1..2) | wave 26: planned by `Rel.applyEvent` (traits, repeats, bounds), written by State: a typed memory or an everyday change, what it settles, owed favours; spark above 0 refused for anyone it cannot move for; a no-op for the dead |
 
-`State.EFFECT_OPS` is the list (28 with `placeItem` and `obligationPaid`),
+`State.EFFECT_OPS` is the list (29 with `placeItem`, `obligationPaid` and `socialEvent`),
 and `tests/validate-town.cjs` keeps the same list in `OPS`. Placeholders
 `{npcId}`, `{npc}`, `{playerName}` (also `{player}`, `{witnessId}`,
 `{witness}`, `{place}`, and an obligation's own `{obligationId}` in its
@@ -257,6 +265,10 @@ state.bans = [{ locationId, untilDay, byNpcId? }];
 state.eventsFired = ["evt_..."];
 state.fight = { npcId, hits, day, phase, locationId };   // the Pipeline's, inside the turn
 npc.hurtUntilDay                    // knocked down: at home every phase until then
+state.leverage = [];                // wave 26 (empty; wave 29 fills it): who has something on whom,
+                                    // [{ id, holder, over, about, text, weight, since, aware, playerKnows, status, ... }]
+state.known = { secrets: {} };      // wave 26 (empty; wave 29 fills it): each secret the player was shown,
+                                    // { npcId: { turn, day, how } }
 ```
 
 ### Map
@@ -312,6 +324,7 @@ result adds `progressed` and `settled`.
 | `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complications that fit the action (`complication(ctx)`), the retry locks (`lockKey`, `isLocked`, `lockFor`, `lock`, `clearLocks`; a set in `meta.lastRollKey`), `threat(npc)` and `fightDamage(tier)` |
 | `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, the undo and redo stacks (`undoSteps`, `redoSteps`, `undoRecord`, `resumeUndo`), helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
+| `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, owed), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables) |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
 | `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
 | `Style` | banned-phrase and length checks, hard and soft problems, invented names |
@@ -1601,3 +1614,42 @@ talking, I can direct it to one person or all."
      bookkeeper's meeting rule also counts "I'll come by in ten minutes" as
      a meeting at the player's place, now. Tests:
      `tests/wave25-arrivals.test.cjs`.
+11. **People who remember** (owner, 1 Nov 2026: "plan a complicated
+    relationship system that isn't 2 dimensional, what we have now is very
+    basic"). One number, `attitude`, decided more than twenty unrelated
+    things, the bookkeeper picked it, drift erased earned warmth, and
+    nothing remembered why. The plan is `docs/RELATIONSHIPS_PLAN.md` (its
+    appendices in `docs/relationships/`: the audit, the design, the review
+    and the integration plan, which has each wave's scope, files and tests):
+    six tracks per person (liking, trust, fear, knows-you, spark, owed),
+    events instead of deltas, memories that carry their cause and fade by
+    class, a stance in twelve phrases, leverage as a record, an airtight
+    guard for anyone under 18, and in tier B the town as a graph. Eight
+    waves, A1 to A5 and B1 to B3, each leaving the game playable and the
+    suite green.
+   - **Wave 26** (1 Nov 2026). A1, "The tracks under the number", a
+     refactor: every number the game shows or stores is what it was, and
+     no existing test changed. A new module `Rel` (between State and Town,
+     on `window.Game`) is pure: frozen tables (`EVENTS`, 41 events plus
+     `card_win`, `card_loss` and `unwanted_advance`; `TRAIT_AXES`, `DECAY`,
+     `CAPS`, `SETTLE`, `BANDS`, `STANCE_GRID`, `CUES`, `GATES` and the
+     rest) and functions (`recompute`, `applyEvent`, `landTo`, `stance`,
+     `cue`, `reasons`, `isMinor`, `eligible`, `rng`, `debugLine`) that State's
+     ops call and write. Every person carries `rel` (`start`, `everyday`,
+     `fix`, the repeat counters, `asks`, `owed` and the cache); a track is
+     start + what each typed memory still carries (four fading classes, one
+     fear clock, settlements that combine and never lock) + everyday + fix;
+     `attitude` stays as the stored alias of liking (`relWrite`), and a
+     direct write to it holds. `attitudeDelta`, `attitudeChanges` and
+     `meetingRep` land in everyday with today's exact meaning (past its
+     bound of 15 the rest goes into fix); new: the `socialEvent` effect op
+     (29 ops), and the engine keys `socialEvents`, `relSet` (World's
+     `forceAttitude`) and `relDay` (the morning: the old drift exactly).
+     `editPerson` takes `rel`; `setMemories`, `mergePeople` and an edit's
+     memories leave the tracks where they were; `/rewind` strikes stamped
+     settlements, owed entries and asks; `state.leverage` and
+     `state.known` start empty. Spark is 0 for everyone (no romance list
+     yet) and refused at every writer for a minor. Debug's person line ends
+     with `w t f k s · stance`. `Rel.rng` and `Dice.burn` exist for wave
+     27. `docs/notes/engine-state.md`; tests:
+     `tests/wave26-rel-tracks.test.cjs`.

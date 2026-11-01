@@ -6948,11 +6948,28 @@ const Dice = (() => {
     if (t === 'partial') return 1;
     return 0;
   }
+  /* A roll the rules skip (wave 27 on: someone afraid of the player does a
+     small thing with no roll; a backed ask) still uses up its die, so the
+     next real roll and the faction clocks land where they would have: a
+     die a test or a cheat forced (Pipeline.hooks.nextD20 or nextTier) is
+     taken and dropped, else one d20 is drawn from the stream (rng, the
+     state's by default) and dropped. Returns the die, or null for a forced
+     tier. Nothing calls it in wave 26. */
+  function burn(rng) {
+    const h = typeof Pipeline !== 'undefined' && Pipeline && isObj(Pipeline.hooks) ? Pipeline.hooks : null;
+    if (h && (Number.isInteger(h.nextD20) || h.nextTier)) {
+      const d = Number.isInteger(h.nextD20) ? h.nextD20 : null;
+      h.nextD20 = null;
+      h.nextTier = null;
+      return d;
+    }
+    return (rng || Rng).d(20);
+  }
 
   return {
     TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, FAMILIES, SOCIAL_FAMILIES, COMPLICATION_KIND,
     target, capModifier, sumModifiers, tier, isSuccess, needsComplication, conditionAffects, modifiersFor, resolve, formatLine, complication,
-    family, lockKey, isLocked, lockFor, clearLocks, successes, diminishing, threat, fightDamage
+    family, lockKey, isLocked, lockFor, clearLocks, successes, diminishing, threat, fightDamage, burn
   };
 })();
 
@@ -7614,6 +7631,20 @@ const Tables = (() => {
    rest heals 1 and adds Stiff (restQuality). The calendar (season,
    weekday, dateLine, isClosed) and who is away (awayOn) or laid up
    (hurtUntilDay) are read helpers below.
+   Wave 26 (Rel; docs/RELATIONSHIPS_PLAN.md): every person carries rel,
+   the tracks under attitude (liking, trust, fear, knows-you, spark, owed),
+   and attitude stays on the record as the stored alias of liking: relWrite
+   rewrites it after every change, and a direct write to it holds (folded
+   into fix at the next recompute). New: the socialEvent effect op and the
+   engine's socialEvents (an event of Rel.EVENTS for someone, planned by
+   Rel.applyEvent), relSet ({ npcId, w?, t?, f?, k?, s? }, or a list: tracks
+   set outright, in fix), relDay (a day number: the morning's step, the old
+   drift exactly) and editPerson's rel. attitudeDelta, attitudeChanges and
+   meetingRep keep their exact numbers (liking moves in the everyday
+   bucket, past its bound in fix); spark above 0 is refused for anyone it
+   cannot move for, at every writer. state.leverage and state.known.secrets
+   start empty (wave 29 fills them). result.drifted (relDay) counts who
+   drifted.
    Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?,
    progressed?: [{ threadId, gain }], settled?: [{ id, status }] }. */
 const State = (() => {
@@ -7810,7 +7841,9 @@ const State = (() => {
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
-    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind', 'seedsDropped'];
+    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind', 'seedsDropped',
+    // Wave 26 (Rel): engine events for people (the bookkeeper's from wave 28), a track set outright, the morning's step.
+    'socialEvents', 'relSet', 'relDay'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -7843,7 +7876,11 @@ const State = (() => {
   // Where a paid night gives a real bed (restQuality); a friendly host's bed is anywhere they live or keep.
   const LODGING_TYPES = ['motel', 'inn', 'hotel'];
 
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0 }; }
+  /* rel: what events moved each person this turn ({ npcId: { w, t, f, s } },
+     the per-turn bounds, Rel.CAPS.turn); classes: the dedupe classes the
+     engine recorded for each person this turn (wave 27 drops the
+     bookkeeper's duplicates by them). */
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0, rel: {}, classes: {} }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -8352,6 +8389,8 @@ const State = (() => {
     }
     if (home) n.home = home;
     current.npcs.push(n);
+    // How they feel (wave 26): their own start, liking exactly as given.
+    relWrite(n);
     if (home) home.phases.forEach(p => addToSchedule(loc(home.locationId), p, n.id));
     return `added ${n.id} (${n.name})`;
   }
@@ -8861,6 +8900,7 @@ const State = (() => {
     };
     if (unnamed) n.unnamed = true;
     s.npcs.push(n);
+    relWrite(n);
     if (source === 'model') ledger.people += 1;
     const h = household ? homeOf(relTo) : null;
     const ph = h ? moveIn(n, h) : [];
@@ -9071,6 +9111,129 @@ const State = (() => {
     if (applyCtx) (applyCtx.result.progressed = applyCtx.result.progressed || []).push({ threadId: t.id, gain });
     return gain ? ` (${gain})` : '';
   }
+  // ----- how people feel: the tracks under attitude (Rel, wave 26) -----
+  /* Rel plans and State writes. relWrite(n) makes a person's rel record
+     whole (Rel.repair: one filled for a person who has none: an older save,
+     an /undo step from an older build, someone made in play), folds a
+     direct write to n.attitude since the last recompute into fix (it holds,
+     exactly), recomputes the tracks (Rel.recompute: the cache, with the
+     bands' hysteresis read from the previous ones) and writes the alias:
+     n.attitude = liking. Every op that touches a person's feelings or
+     memories calls it before (so it reads what is there) and after. */
+  function townRec(id) { return town && Array.isArray(town.npcs) ? (town.npcs.find(x => isObj(x) && x.id === id) || null) : null; }
+  function relCtx(extra) { return Object.assign({ s: current, town, day: current.time.day, turn: current.meta.turn, place: current.player.locationId }, extra || {}); }
+  function relWrite(n) {
+    if (!isObj(n) || !current) return;
+    n.rel = Rel.repair(n, townRec(n.id));
+    const a = toInt(n.attitude);
+    if (a !== null && (!Number.isInteger(n.rel.w) || clamp(a, -100, 100) !== n.rel.w)) n.rel = Rel.landTo(n, { w: clamp(a, -100, 100) }, 'fix', relCtx());
+    Object.assign(n.rel, Rel.recompute(n, current.time.day, relCtx()));
+    n.attitude = n.rel.w;
+  }
+  function relWriteAll() { for (const n of current.npcs) relWrite(n); }
+  // The tracks as they read now (after relWrite).
+  function relNow(n) { const r = n.rel || {}; return { w: r.w, t: r.t, f: r.f, k: r.k, s: r.s }; }
+  /* A change of liking with attitude's own meaning (attitudeDelta,
+     attitudeChanges, meetingRep): before + d, clamped to -100..100, into
+     everyday; past everyday's bound the rest goes into fix, so the number
+     reads exactly that. Returns [before, after]. */
+  function likingBy(n, d) {
+    relWrite(n);
+    const before = n.attitude;
+    const target = clamp(before + d, -100, 100);
+    if (target !== before) { n.rel = Rel.landTo(n, { w: target }, 'everyday', relCtx()); relWrite(n); }
+    return [before, n.attitude];
+  }
+  /* A change to someone's memories that should move no track (a legacy
+     line arriving and evicting a typed one, setMemories, mergePeople, an
+     edit): the tracks as they were, pinned (the difference into everyday,
+     fear into fix). keep: the tracks to hold (relNow before the change). */
+  function relPin(n, keep, buckets) {
+    n.rel = Rel.landTo(n, Rel.pinOf(keep, Rel.eligible(n, relCtx())), Object.assign({ w: 'everyday', t: 'everyday', f: 'fix', k: 'everyday', s: 'everyday' }, buckets || {}), relCtx());
+    relWrite(n);
+  }
+  /* A refused spark write is logged where every refusal is (Debug's
+     rejected changes), without failing what else the write did. */
+  function relRefused(path, reason) { pushDebug({ turn: current ? current.meta.turn : 0, kind: 'rejected', source: 'rel', path, reason }); console.debug('[State.apply] refused', path, '-', reason); }
+  function sparkWhy(n) { return Rel.isMinor(n, relCtx()) ? 'they are under 18' : Rel.playerMinor(relCtx()) ? 'the player is under 18 or has no age' : 'they are not on the town\'s romance list'; }
+  /* Spark on someone it cannot move for, wherever it came in (an import,
+     a memory list an upgrade or the editor wrote, a merge), set to 0 and
+     logged (Rel.sparkGuard). */
+  function relGuard(n, path) {
+    const g = Rel.sparkGuard(n, relCtx());
+    if (!g.cleared) return;
+    n.rel = g.rel;
+    n.memories = g.memories;
+    relRefused(path, `spark set to 0 for ${n.id}: ${sparkWhy(n)}`);
+  }
+  /* Track values as the engine and the editor give them ({ w?, t?, f?, k?,
+     s? }): whole numbers in each track's range; spark above 0 refused for
+     anyone it cannot move for (a minor, an under-18 player, anyone not on
+     the romance list); a hard person's fear held at Rel.CAPS.hardFear. */
+  function relTargets(n, v, where) {
+    if (!isObj(v)) bad(`${where} must be an object of tracks (w, t, f, k, s)`);
+    const out = {};
+    for (const k of Object.keys(v)) {
+      if (!Rel.TRACKS.includes(k)) bad(`${where}: unknown track "${k}" (w, t, f, k or s)`);
+      const x = typeof v[k] === 'number' || typeof v[k] === 'string' ? toInt(v[k]) : null;
+      const [lo, hi] = Rel.RANGE[k];
+      if (x === null || (typeof v[k] === 'number' && !Number.isInteger(v[k])) || x < lo || x > hi) bad(`${where}.${k} must be a whole number from ${lo} to ${hi}`);
+      out[k] = x;
+    }
+    if (out.s > 0 && !Rel.eligible(n, relCtx())) bad(`spark stays 0 for ${n.id}: ${sparkWhy(n)}`);
+    if (out.f !== undefined && Rel.axesOf(n, relCtx()).hard) out.f = Math.min(out.f, Rel.CAPS.hardFear);
+    return out;
+  }
+  const RELWORD = Object.freeze({ w: 'liking', t: 'trust', f: 'fear', k: 'knows', s: 'spark' });
+  const relChanges = (a, b) => Rel.TRACKS.filter(x => a[x] !== b[x]).map(x => `${RELWORD[x]} ${a[x]} -> ${b[x]}`);
+  /* One event for one person (the socialEvent op, the socialEvents field):
+     checked, planned by Rel.applyEvent, written. The dead remember nothing
+     (a no-op). Returns the applied line. */
+  function socialEvent(e, path) {
+    if (!isObj(e)) bad('must be an object');
+    const n = needNpc(e.npcId);
+    const row = typeof e.event === 'string' ? Rel.EVENTS[e.event] : null;
+    if (!row) bad(`unknown event "${e.event}" (one of ${Rel.EVENT_NAMES.join(', ')})`);
+    const text = cleanText(e.text, 400);
+    if (!text) bad('needs text: what they would remember');
+    if (presenceOf(n) === 'dead') return `no-op: ${n.id} is dead and remembers nothing`;
+    if (e.weight !== undefined && !(Number.isInteger(e.weight) && e.weight >= 1 && e.weight <= 3)) bad('weight must be 1, 2 or 3');
+    if (e.act !== undefined && !MEMORY_ACTS.includes(e.act)) bad(`act must be one of ${MEMORY_ACTS.join(', ')}`);
+    if (e.aboutId !== undefined && e.aboutId !== null) needNpc(e.aboutId);
+    if (e.private !== undefined && typeof e.private !== 'boolean') bad('private must be true or false');
+    if (e.decay !== undefined && !Object.prototype.hasOwnProperty.call(Rel.DECAY, e.decay)) bad(`decay must be one of ${Object.keys(Rel.DECAY).join(', ')}`);
+    if (e.scale !== undefined && !(typeof e.scale === 'number' && e.scale >= 0.1 && e.scale <= 2)) bad('scale must be a number from 0.1 to 2');
+    let d;
+    if (e.d !== undefined && e.d !== null) {
+      if (!isObj(e.d)) bad('d must be an object of tracks (w, t, f, k, s)');
+      d = {};
+      for (const k of Object.keys(e.d)) {
+        if (!Rel.TRACKS.includes(k)) bad(`d: unknown track "${k}"`);
+        if (!Number.isInteger(e.d[k]) || Math.abs(e.d[k]) > 50) bad(`d.${k} must be a whole number within +/-50`);
+        d[k] = e.d[k];
+      }
+      if (d.s > 0 && !Rel.eligible(n, relCtx())) bad(`spark stays 0 for ${n.id}: ${sparkWhy(n)}`);
+    }
+    relWrite(n);
+    const before = relNow(n);
+    const plan = Rel.applyEvent(n, {
+      event: e.event, text, weight: e.weight, act: e.act, aboutId: e.aboutId || null, private: e.private === true, leverageId: typeof e.leverageId === 'string' ? e.leverageId : null,
+      d, decay: e.decay, secondhand: e.secondhand === true, scale: e.scale
+    }, relCtx({ used: ledger.rel[n.id] }));
+    for (const why of plan.refused) relRefused(path, why);
+    n.rel = plan.rel;
+    n.memories = plan.memories;
+    ledger.rel[n.id] = plan.used;
+    if (row.dedupe) {
+      const classes = ledger.classes[n.id] || (ledger.classes[n.id] = []);
+      if (!classes.includes(row.dedupe)) classes.push(row.dedupe);
+    }
+    relWrite(n);
+    const moved = relChanges(before, relNow(n));
+    const what = plan.memory ? `remembers "${plan.memory.text}" (weight ${plan.memory.weight}${plan.merged ? `, merged x${plan.memory.n}` : ''})` : 'everyday';
+    return `${n.id} ${e.event}: ${moved.join(', ') || 'no change'}; ${what}${plan.settled ? `; softens "${plan.settled}"` : ''}`;
+  }
+
   // ----- memories -----
   /* The first five words of a memory, for telling near-identical ones apart. */
   function memoryKey(text) {
@@ -9091,11 +9254,18 @@ const State = (() => {
      chief locking them up): no offence of the player's, so no grudge grows
      from it (World.freshMemory and memoryKind skip it). */
   const MEMORY_ACTS = Object.freeze(['attack', 'steal', 'talk', 'persuade', 'deceive', 'intimidate', 'own']);
+  /* Wave 26 (Rel): a line written here is typed for its kind
+     (Rel.typeMemory: event) with d null, so it moves no track; one that
+     replaces or pushes out a typed memory (socialEvent's) leaves the tracks
+     where they were (relPin). */
   function remember(n, text, w, opts) {
     const s = current;
     const model = !!(opts && opts.model);
     const act = opts && MEMORY_ACTS.includes(opts.act) ? opts.act : null;
     if (!Array.isArray(n.memories)) n.memories = [];
+    relWrite(n);
+    const keep = relNow(n);
+    const typedBefore = n.memories.filter(x => isObj(x) && isObj(x.d));
     if (model) {
       const sameTurn = n.memories.findIndex(x => x.turn === s.meta.turn && x.model);
       if (sameTurn >= 0) {
@@ -9111,11 +9281,13 @@ const State = (() => {
       if (i >= 0) { merged = n.memories.splice(i, 1)[0]; w = Math.max(w, merged.weight | 0); }
     }
     // Its day too (wave 4, playtest R5): how old a memory is never depends on how far back the log reaches.
-    n.memories.push(Object.assign({ turn: s.meta.turn, day: s.time.day, text, weight: w }, model ? { model: true } : {}, act ? { act } : {}));
+    const line = Object.assign({ turn: s.meta.turn, day: s.time.day, text, weight: w }, model ? { model: true } : {}, act ? { act } : {});
+    n.memories.push(Object.assign(line, { event: Rel.typeMemory(line), d: null }));
     while (n.memories.length > MEMORY_MAX) {
       const minW = Math.min(...n.memories.map(x => x.weight));
       n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
     }
+    if (typedBefore.some(x => !n.memories.includes(x))) relPin(n, keep);
     return `${n.id} remembers "${text}" (weight ${w})` + (merged ? ` (merged with "${merged.text}")` : '');
   }
   // ----- the player's things and conditions -----
@@ -9402,13 +9574,14 @@ const State = (() => {
       ph.forEach(p => addToSchedule(l, p, n.id));
       return `${n.id} at ${l.id} (${ph.join(', ')})`;
     },
+    /* Liking by delta, clamped to -100..100, exactly as before wave 26: it
+       lands in the everyday bucket, and past its bound in fix (likingBy). */
     attitudeDelta(e) {
       const n = needNpc(e.npcId);
       const d = toInt(e.delta);
       if (d === null) bad('delta must be an integer');
-      const before = n.attitude;
-      n.attitude = clamp(before + d, -100, 100);
-      return `${n.id} attitude ${before} -> ${n.attitude}`;
+      const [before, after] = likingBy(n, d);
+      return `${n.id} attitude ${before} -> ${after}`;
     },
     priceMultiplier(e) {
       const f = Number(e.factor);
@@ -9697,7 +9870,17 @@ const State = (() => {
       current.news.push(item);
       if (current.news.length > LIMITS.news) current.news.splice(0, current.news.length - LIMITS.news);
       return `news day ${item.day} ${item.phase}: "${text.length > 60 ? text.slice(0, 57) + '...' : text}"`;
-    }
+    },
+    /* Wave 26: what happened to someone, as an event of Rel.EVENTS (the
+       engine's own rows too): { npcId, event, text (what they would
+       remember), weight?, act?, aboutId?, private?, leverageId?, d? (a
+       part of the row, whole numbers within +/-50), decay?, secondhand?,
+       scale? (0.1 to 2) }. Rel.applyEvent plans it (traits, repeats,
+       bounds, the memory or everyday, what it settles, owed favours) and
+       this writes the plan. Spark given above 0 for someone it cannot move
+       for is refused; spark a row would give them is held at 0 and logged.
+       The dead: a no-op. */
+    socialEvent(e) { return socialEvent(e, 'socialEvent'); }
   };
   const EFFECT_OPS = Object.freeze(Object.keys(EFFECTS));
 
@@ -9992,8 +10175,30 @@ const State = (() => {
       if (!Number.isInteger(m.weight) || m.weight < 1 || m.weight > 3) bad(`memories[${i}]: weight must be 1, 2 or 3`);
       // A day it already had is kept (wave 4), when it is a day the game has reached.
       const day = Number.isInteger(m.day) && m.day >= 1 && m.day <= current.time.day ? { day: m.day } : {};
-      return Object.assign({ turn: m.turn }, day, { text, weight: m.weight }, m.model === true ? { model: true } : {}, MEMORY_ACTS.includes(m.act) ? { act: m.act } : {});
+      return Object.assign({ turn: m.turn }, day, { text, weight: m.weight }, m.model === true ? { model: true } : {}, MEMORY_ACTS.includes(m.act) ? { act: m.act } : {}, typedFields(m));
     });
+  }
+  /* What a typed memory carries besides its words (wave 26; the
+     integration plan's section 2.2), kept when it is well formed and only
+     when it is there: event, d (the change as applied, or null), decay,
+     settled (its settlements), n (merges), place, key, witness, scene,
+     secondhand, leverageId, about, private, seen. */
+  function typedFields(m) {
+    const out = {};
+    const finite = v => typeof v === 'number' && Number.isFinite(v);
+    if (typeof m.event === 'string' && Rel.EVENTS[m.event]) out.event = m.event;
+    if (m.d === null) out.d = null;
+    else if (isObj(m.d) && Object.keys(m.d).every(k => Rel.TRACKS.includes(k) && finite(m.d[k]))) out.d = Object.fromEntries(Rel.TRACKS.map(k => [k, finite(m.d[k]) ? m.d[k] : 0]));
+    if (typeof m.decay === 'string' && Object.prototype.hasOwnProperty.call(Rel.DECAY, m.decay)) out.decay = m.decay;
+    if (Array.isArray(m.settled)) {
+      const list = m.settled.filter(x => isObj(x) && typeof x.by === 'string' && Number.isInteger(x.turn)).map(x => Object.assign({ turn: x.turn, day: Number.isInteger(x.day) ? x.day : null, by: x.by.slice(0, 30), w: finite(x.w) ? clamp(x.w, 0, 1) : 0, t: finite(x.t) ? clamp(x.t, 0, 1) : 0, f: finite(x.f) ? clamp(x.f, 0, 1) : 0 }, x.folded === true ? { folded: true } : {}));
+      if (list.length) out.settled = list;
+    }
+    if (Number.isInteger(m.n) && m.n >= 1) out.n = m.n;
+    for (const k of ['place', 'key', 'scene', 'leverageId', 'about']) if (typeof m[k] === 'string' && m[k] && m[k].length <= 80) out[k] = m[k];
+    for (const k of ['witness', 'private', 'seen']) if (m[k] === true) out[k] = true;
+    if (m.secondhand === true || isObj(m.secondhand)) out.secondhand = isObj(m.secondhand) ? deepCopy(m.secondhand) : true;
+    return out;
   }
   /* New pronouns turn a gendered relation with them (husband -> wife), and
      the tags and the role that carry the word (unless roleStated); they
@@ -10066,8 +10271,13 @@ const State = (() => {
   /* editPerson: the player's edit of anyone's record (see the apply()
      header). The fields the editor may send, the fields an edit reports
      (in the editor's order) and the limits. */
-  const EDIT_KEYS = ['npcId', 'name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'goal', 'secret', 'attitude', 'relationToNpcId', 'relation', 'homeLocationId', 'status', 'alive', 'memories'];
-  const EDIT_FIELDS = ['name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret'];
+  /* Wave 26: rel ({ w?, t?, f?, k?, s? }, as relSet takes them: liking,
+     trust, fear, knows-you, spark) sets tracks outright; they land in fix,
+     which never drifts, and spark above 0 is refused for anyone it cannot
+     move for. Memories edited with no track given leave every track where
+     it was (pinned). */
+  const EDIT_KEYS = ['npcId', 'name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'goal', 'secret', 'attitude', 'relationToNpcId', 'relation', 'homeLocationId', 'status', 'alive', 'memories', 'rel'];
+  const EDIT_FIELDS = ['name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'attitude', 'rel', 'relation', 'home', 'status', 'memories', 'goal', 'secret'];
   const EDIT_MAX = Object.freeze({ name: 40, role: 60, look: 200, voice: 200, history: 400, goal: 200, secret: 300, relation: 30, trait: 30, traits: 3, memory: 400, age: 120 });
   /* Returns { id, fields, line }, or null when nothing changed. */
   function editPerson(e) {
@@ -10145,8 +10355,12 @@ const State = (() => {
       else if (status === 'dead') status = 'free';
     }
     const memories = given('memories') ? checkMemories(e.memories, true) : null;
+    const tracks = given('rel') ? relTargets(n, e.rel, 'rel') : {};
+    if (tracks.w !== undefined && want.attitude !== undefined && tracks.w !== want.attitude) bad('attitude and rel.w are the same track: give one');
 
     // 2. Change what is different, and say what.
+    relWrite(n);
+    const keep = relNow(n);
     const fields = new Set();
     const parts = [];
     const show = v => JSON.stringify(v);
@@ -10167,7 +10381,12 @@ const State = (() => {
       fields.add(k);
     }
     if (want.personality && show(want.personality) !== show(n.personality || [])) { parts.push(`personality ${show(n.personality || [])} -> ${show(want.personality)}`); n.personality = want.personality; fields.add('personality'); }
-    if (want.attitude !== undefined && want.attitude !== n.attitude) { parts.push(`attitude ${n.attitude} -> ${want.attitude}`); n.attitude = want.attitude; fields.add('attitude'); }
+    // Liking (attitude, or rel.w) and the other tracks given land exactly, in fix, after the memories below.
+    const liking = want.attitude !== undefined ? want.attitude : tracks.w;
+    const land = {};
+    if (liking !== undefined && liking !== n.attitude) { parts.push(`attitude ${n.attitude} -> ${liking}`); land.w = liking; fields.add('attitude'); }
+    const others = Rel.TRACKS.filter(x => x !== 'w' && tracks[x] !== undefined && tracks[x] !== keep[x]);
+    if (others.length) { parts.push(...others.map(x => `${RELWORD[x]} ${keep[x]} -> ${tracks[x]}`)); for (const x of others) land[x] = tracks[x]; fields.add('rel'); }
     if (relChanged) {
       if (relTo) {
         // A town person has no created record until the player gives them a relation.
@@ -10194,6 +10413,13 @@ const State = (() => {
       else if (home && home.id !== cur) { parts.push(setHome(n, home)); fields.add('home'); }
     }
     if (memories && show(memories) !== show(n.memories || [])) { parts.push(`memories ${(n.memories || []).length} -> ${memories.length}`); n.memories = memories; fields.add('memories'); }
+    // The tracks: what was given lands in fix; with the memories changed, every other track stays where it was.
+    if (fields.has('memories')) { relGuard(n, `editPerson.${n.id}`); for (const x of Rel.TRACKS) if (land[x] === undefined) land[x] = keep[x]; }
+    if (Object.keys(land).length) {
+      const pinned = Object.keys(land).filter(x => !(x === 'w' ? fields.has('attitude') : others.includes(x)));
+      n.rel = Rel.landTo(n, Object.assign({}, land, Rel.eligible(n, relCtx()) ? {} : { s: undefined }), Object.fromEntries(Rel.TRACKS.map(x => [x, pinned.includes(x) ? 'everyday' : 'fix'])), relCtx());
+    }
+    relWrite(n);
     if (!fields.size) return null;
     return { id: n.id, fields: EDIT_FIELDS.filter(f => fields.has(f)), line: `${n.id} edited: ${parts.join('; ')}` };
   }
@@ -10425,10 +10651,16 @@ const State = (() => {
     const s = current;
     const fresh = !into.knownToPlayer && !(into.memories || []).length;
     if (from.knownToPlayer) into.knownToPlayer = true;
-    if (fresh) into.attitude = clamp(toInt(from.attitude) || 0, -100, 100);
+    // Wave 26: the cast member's tracks stay as they were (pinned), but for liking taken over from a fresh record, which lands in fix.
+    relWrite(into);
+    relWrite(from);
+    const keep = relNow(into);
+    if (fresh) keep.w = clamp(toInt(from.attitude) || 0, -100, 100);
     const mems = (into.memories || []).concat(from.memories || []).map((m, i) => ({ m, i })).sort((a, b) => ((a.m.turn | 0) - (b.m.turn | 0)) || a.i - b.i).map(x => x.m);
     while (mems.length > MEMORY_MAX) { const minW = Math.min(...mems.map(x => x.weight)); mems.splice(mems.findIndex(x => x.weight === minW), 1); }
     into.memories = mems;
+    relGuard(into, `mergePeople.${into.id}`);
+    relPin(into, keep, { w: fresh ? 'fix' : 'everyday' });
     const swap = id => (id === from.id ? into.id : id);
     for (const le of s.player.looseEnds || []) le.npcId = swap(le.npcId);
     for (const t of s.threads) t.linkedIds = Array.from(new Set(t.linkedIds.map(swap)));
@@ -10594,10 +10826,10 @@ const State = (() => {
       const used = ledger.attitude[n.id] || 0;
       const allowedDelta = clamp(used + d, -LIMITS.attitudePerTurn, LIMITS.attitudePerTurn) - used;
       if (allowedDelta === 0) bad(`${n.id} attitude already moved ${LIMITS.attitudePerTurn} this turn`);
-      const before = n.attitude;
-      n.attitude = clamp(before + allowedDelta, -100, 100);
+      // Into everyday, as attitudeDelta (wave 26: likingBy).
+      const [before, after] = likingBy(n, allowedDelta);
       ledger.attitude[n.id] = used + allowedDelta;
-      return `${n.id} ${before} -> ${n.attitude}` + (allowedDelta !== d ? ` (delta ${plusMinus(d)} clamped to ${plusMinus(allowedDelta)})` : '');
+      return `${n.id} ${before} -> ${after}` + (allowedDelta !== d ? ` (delta ${plusMinus(d)} clamped to ${plusMinus(allowedDelta)})` : '');
     });
     each('newMemories', m => {
       if (!isObj(m)) bad('must be an object');
@@ -10838,6 +11070,15 @@ const State = (() => {
       const list = Array.isArray(n.memories) ? n.memories : [];
       const i = list.findIndex(x => { if (protectedMemory(x)) return false; const t = String(x.text || '').toLowerCase(); return t.includes(want) || (t.length >= 6 && want.includes(t)); });
       if (i < 0) bad(`${n.id} has no memory like "${m.text}"${list.some(protectedMemory) ? ' (a loose end or a fact is never settled away)' : ''}`);
+      // Wave 26: a typed memory (an event's) is softened, never deleted (Rel.settle: combined, at most two); a line that moves nothing goes, as before.
+      if (isObj(list[i].d)) {
+        relWrite(n);
+        const r = Rel.settle(n, i, 'settled', relCtx());
+        if (!r.ok) return `no-op: ${n.id}: ${r.why}`;
+        n.memories = r.memories;
+        relWrite(n);
+        return `${n.id} lets some of "${r.text}" go`;
+      }
       const gone = list.splice(i, 1)[0];
       return `${n.id} let go of "${gone.text}"`;
     });
@@ -10882,6 +11123,11 @@ const State = (() => {
       }
       return settle(o, 'met', 'in the story');
     });
+    /* Wave 26: events for people (the engine's; the bookkeeper's from wave
+       28), each as the socialEvent op takes it: after the money and the
+       obligations above (an engine event sees what this diff paid) and
+       before the effects. */
+    each('socialEvents', e => socialEvent(e, 'socialEvents'));
 
     // 3. Effect ops
     each('effects', runEffect);
@@ -11000,6 +11246,8 @@ const State = (() => {
       if (late) t.late = true; else delete t.late;
       delete t.noSleep;
       delete t.instants;
+      // How old every memory is follows the clock (wave 26).
+      relWriteAll();
       const after = clockWords(t);
       return before === after ? null : `clock ${before} -> ${after}`;
     });
@@ -11120,8 +11368,12 @@ const State = (() => {
        Not taken back (nothing records it by turn): money, health, things
        carried, attitudes, where the player is, rumours heard, clocks, loose
        ends and threads (a thread settled then stays settled, its gain
-       kept). result.rewound: { struck, turn, day, phase, settled, people,
-       places, seeds (how many seeds went) }. */
+       kept). Wave 26: a memory's settlements, owed favours, the ask log and
+       recent times together carry their turn and go with it, as do
+       leverage records and secrets shown (wave 29); the everyday and fix
+       buckets that attitude changes land in stay, so attitudes still do;
+       everyone's tracks are recomputed. result.rewound: { struck, turn,
+       day, phase, settled, people, places, seeds (how many seeds went) }. */
     one('rewind', v => {
       if (!isObj(v) || !Number.isInteger(v.turn) || v.turn < 0) bad('needs turn: the last turn kept');
       const T = v.turn;
@@ -11136,7 +11388,22 @@ const State = (() => {
       for (const n of s.npcs) {
         if (Array.isArray(n.memories)) n.memories = n.memories.filter(m => !(isObj(m) && later(m.turn)));
         if (later(n.metTurn)) delete n.metTurn;
+        /* Wave 26: what carries a turn goes with it: a kept memory's
+           settlements, owed favours, the ask log, recent times together, and
+           today's counts when today began on a struck turn. The everyday
+           and fix buckets and the across-days counts stay, as money does. */
+        if (Array.isArray(n.memories)) for (const m of n.memories) if (isObj(m) && Array.isArray(m.settled)) { m.settled = m.settled.filter(x => !(isObj(x) && later(x.turn))); if (!m.settled.length) delete m.settled; }
+        if (isObj(n.rel)) {
+          for (const k of ['owed', 'asks', 'recent']) if (Array.isArray(n.rel[k])) n.rel[k] = n.rel[k].filter(x => !(isObj(x) && later(x.turn)));
+          if (isObj(n.rel.today) && later(n.rel.today.turn)) n.rel.today = null;
+        }
       }
+      // Leverage records and what the player has been shown (wave 29), by their turns.
+      if (Array.isArray(s.leverage)) {
+        s.leverage = s.leverage.filter(x => !(isObj(x) && isObj(x.since) && later(x.since.turn)));
+        for (const x of s.leverage) for (const k of ['log', 'uses', 'knownBy']) if (isObj(x) && Array.isArray(x[k])) x[k] = x[k].filter(y => !(isObj(y) && later(y.turn)));
+      }
+      if (isObj(s.known) && isObj(s.known.secrets)) for (const id of Object.keys(s.known.secrets)) if (isObj(s.known.secrets[id]) && later(s.known.secrets[id].turn)) delete s.known.secrets[id];
       s.journal = s.journal.filter(j => !(isObj(j) && later(j.turn)));
       const prog = Array.isArray(p.progression) ? p.progression : [];
       const settled = prog.filter(x => isObj(x) && later(x.turn)).length;
@@ -11191,6 +11458,8 @@ const State = (() => {
       }
       // A home the cast wrote, found later: not found again.
       for (const l of newPlaces) if (l.revealed.authored === true && !drop.has(l.id)) { l.discovered = false; delete l.revealed; places.push(l.name); }
+      // Everyone's tracks from what is left, at the clock as it is now.
+      relWriteAll();
       if (applyCtx) applyCtx.result.rewound = { struck: gone.length, turn: T, day: t.day, phase: t.phase, settled, people, places, seeds: struckSeeds.length };
       return `rewound to turn ${T}: ${gone.length} turn${gone.length === 1 ? '' : 's'} struck, the clock at day ${t.day} ${t.phase}${people.length ? `; gone: ${people.join(', ')}` : ''}${places.length ? `; places gone: ${places.join(', ')}` : ''}`;
     });
@@ -11405,8 +11674,52 @@ const State = (() => {
       const n = needNpc(e.npcId);
       const list = checkMemories(e.memories, false);
       const before = (n.memories || []).length;
+      // The words change, the feelings do not (wave 26: every track pinned).
+      relWrite(n);
+      const keep = relNow(n);
       n.memories = list;
+      relGuard(n, `setMemories.${n.id}`);
+      relPin(n, keep);
       return `${n.id} memories rewritten (${before} -> ${list.length})`;
+    });
+    /* Wave 26: tracks set outright ({ npcId, w?, t?, f?, k?, s? }, or a
+       list): each lands exactly, in fix (it never drifts). Spark above 0 is
+       refused for anyone it cannot move for; a hard person's fear stops at
+       Rel.CAPS.hardFear. World.forceAttitude is this. */
+    const relSets = val('relSet');
+    const relSetOne = (path, x) => run(path, () => {
+      if (!isObj(x)) bad('must be an object');
+      const n = needNpc(x.npcId);
+      const want = relTargets(n, Object.fromEntries(Object.entries(x).filter(([k]) => k !== 'npcId')), 'relSet');
+      relWrite(n);
+      const before = relNow(n);
+      n.rel = Rel.landTo(n, want, 'fix', relCtx());
+      relWrite(n);
+      const moved = relChanges(before, relNow(n));
+      return moved.length ? `${n.id} set: ${moved.join(', ')}` : null;
+    });
+    if (Array.isArray(relSets)) relSets.forEach((x, i) => relSetOne(`relSet[${i}]`, x));
+    else if (relSets !== undefined) relSetOne('relSet', relSets);
+    /* Wave 26: the morning (World step g, every morning): for everyone, a
+       direct write to attitude folded in, then liking two a day back
+       toward the town's own number, exactly as the old drift did (not for
+       the dead, someone tied by an open loose end, or someone with a
+       weight-3 memory from the last five days: Rel.driftStep), then every
+       track recomputed for the new day. result.drifted counts who moved. */
+    one('relDay', v => {
+      if (!Number.isInteger(v) || v < 1) bad('must be a day number');
+      let moved = 0;
+      for (const n of s.npcs) {
+        if (!isObj(n)) continue;
+        relWrite(n);
+        const step = Rel.driftStep(n, v, s, town || TOWN_DATA);
+        if (!step) continue;
+        n.rel = Rel.landTo(n, { w: n.attitude + step }, 'everyday', relCtx());
+        relWrite(n);
+        moved += 1;
+      }
+      result.drifted = moved;
+      return moved ? `attitudes drift for ${moved} people` : null;
     });
     /* A person's record corrected to match the story (Upgrade version 5;
        the People card's pronoun chips and /pronouns). Everything is checked
@@ -11495,9 +11808,9 @@ const State = (() => {
     const rep = (current.player.reputation || {})[n.factionId] | 0;
     const d = Math.round(rep / 5);
     if (!d) return [];
-    const before = n.attitude;
-    n.attitude = clamp(before + d, -100, 100);
-    return [`${n.id} attitude ${before} -> ${n.attitude} (what their people think of the player)`];
+    // Into everyday, the same number (wave 26: likingBy).
+    const [before, after] = likingBy(n, d);
+    return [`${n.id} attitude ${before} -> ${after} (what their people think of the player)`];
   }
   /* A model's memory line, made short: no "Remembers:" label or full stop,
      at most MEMORY_TEXT_MAX characters, cut at a word (the bookkeeper's
@@ -11620,7 +11933,10 @@ const State = (() => {
       seen: {},
       news: [],
       bans: [],
-      eventsFired: []
+      eventsFired: [],
+      // Wave 26: who has something on whom (wave 29 fills it), and each secret the player has been shown.
+      leverage: [],
+      known: { secrets: {} }
     };
     undoSwitch();
     current = st;
@@ -11776,7 +12092,16 @@ const State = (() => {
       if (n.home !== undefined && n.home !== null && (!isObj(n.home) || typeof n.home.locationId !== 'string')) return `${n.id}: home is not a place`;
       if (n.status !== undefined && typeof n.status !== 'string') return `${n.id}: status is not a word`;
       if (n.hurtUntilDay !== undefined && !Number.isInteger(n.hurtUntilDay)) return `${n.id}: hurtUntilDay is not a day`;
+      // Wave 26: how they feel (rel) and what a typed memory did (d, settled).
+      const relBad = relProblem(n.rel);
+      if (relBad) return `${n.id}: ${relBad}`;
+      for (const m of Array.isArray(n.memories) ? n.memories : []) {
+        if (m.d !== undefined && m.d !== null && (!isObj(m.d) || Object.values(m.d).some(v => !numberLike(v)))) return `${n.id}: a memory's d is not a record of numbers`;
+        if (m.settled !== undefined && (!Array.isArray(m.settled) || m.settled.some(x => !isObj(x)))) return `${n.id}: a memory's settled is not a list of records`;
+      }
     }
+    if (st.leverage !== undefined && (!Array.isArray(st.leverage) || st.leverage.some(x => !isObj(x)))) return 'leverage is not a list of records';
+    if (st.known !== undefined && (!isObj(st.known) || (st.known.secrets !== undefined && !isObj(st.known.secrets)))) return 'known is not a record of secrets';
     for (const f of st.factions) {
       if (f.clocks !== undefined && (!Array.isArray(f.clocks) || f.clocks.some(c => !isObj(c) || !numberLike(c.segments) || !numberLike(c.filled)))) return `${f.id}: clocks is not a list of clocks`;
       if (f.activeClock !== undefined && !Number.isInteger(f.activeClock)) return `${f.id}: activeClock is not a number`;
@@ -11803,6 +12128,22 @@ const State = (() => {
     for (const e of st.log) if (!isObj(e)) return 'log: an entry that is not a record';
     return null;
   }
+  /* A person's rel (wave 26), when there is one: a record whose buckets
+     are records of numbers, whose lists are lists of records, and whose
+     cached tracks are numbers. The first problem, or null. */
+  function relProblem(r) {
+    if (r === undefined) return null;
+    if (!isObj(r)) return 'rel is not a record';
+    for (const k of ['start', 'everyday', 'fix', 'days', 'bands']) {
+      if (r[k] === undefined) continue;
+      if (!isObj(r[k])) return `rel.${k} is not a record`;
+      if (k !== 'bands' && Object.values(r[k]).some(v => !numberLike(v))) return `rel.${k} is not a record of numbers`;
+    }
+    if (r.today !== undefined && r.today !== null && !isObj(r.today)) return 'rel.today is not a record';
+    for (const k of ['recent', 'asks', 'owed']) if (r[k] !== undefined && (!Array.isArray(r[k]) || r[k].some(x => !isObj(x)))) return `rel.${k} is not a list of records`;
+    for (const k of ['w', 't', 'f', 'k', 's', 'net', 'levFear']) if (r[k] !== undefined && !numberLike(r[k])) return `rel.${k} is not a number`;
+    return null;
+  }
   /* Numbers written as text ("140") read as numbers, once a save has passed
      typeProblem (load). */
   function coerceNumbers(s) {
@@ -11818,6 +12159,18 @@ const State = (() => {
     for (const b of Array.isArray(s.bans) ? s.bans : []) num(b, 'untilDay');
     for (const c of Array.isArray(s.player.conditions) ? s.player.conditions : []) num(c, 'untilDay');
     for (const n of s.npcs) { num(n, 'attitude'); num(n, 'age'); for (const m of n.memories || []) num(m, 'weight'); }
+    // Wave 26: the tracks, their buckets, and what a typed memory did.
+    for (const n of s.npcs) {
+      const r = isObj(n.rel) ? n.rel : null;
+      if (r) {
+        for (const k of ['w', 't', 'f', 'k', 's', 'net', 'levFear']) num(r, k);
+        for (const b of ['start', 'everyday', 'fix', 'days']) if (isObj(r[b])) for (const k of Object.keys(r[b])) num(r[b], k);
+      }
+      for (const m of n.memories || []) {
+        if (isObj(m.d)) for (const k of Object.keys(m.d)) num(m.d, k);
+        for (const x of Array.isArray(m.settled) ? m.settled : []) for (const k of ['w', 't', 'f']) num(x, k);
+      }
+    }
     for (const f of s.factions) for (const c of f.clocks || []) { num(c, 'segments'); num(c, 'filled'); }
   }
   /* The town copy a save carries is read the same way: its people and
@@ -11907,6 +12260,20 @@ const State = (() => {
     undoSwitch();
     current = s;
     town = deepCopy(townData || TOWN_DATA);
+    /* Wave 26 (Rel), no version bump: the leverage records and the secrets
+       shown, empty where a save has none; a person with no rel gets one
+       (their start from the save's town copy, liking exactly their
+       attitude; their memories move nothing until rules version 9); and
+       any spark on someone it cannot move for (an import's) is set to 0,
+       and logged. Everyone's tracks recomputed for the save's day. */
+    if (!Array.isArray(s.leverage)) s.leverage = [];
+    if (!isObj(s.known)) s.known = { secrets: {} };
+    else if (!isObj(s.known.secrets)) s.known.secrets = {};
+    for (const n of s.npcs) {
+      if (!isObj(n)) continue;
+      relGuard(n, `load.${n.id}`);
+      relWrite(n);
+    }
     muted = false;
     loaded = { json: JSON.stringify(s), turn: s.meta.turn | 0 };
     ledger = freshLedger(-1);
@@ -12162,6 +12529,1103 @@ const State = (() => {
   };
 })();
 
+// ===== Module: Rel =====
+/* How each person feels about the player (docs/RELATIONSHIPS_PLAN.md; wave
+   26 is its first step, A1): six tracks under the one number. Liking (w,
+   -100..100) is what attitude always was; trust (t, -100..100) is whether
+   they believe the player and rely on them; fear (f, 0..100) fades in days;
+   knows-you (k, 0..100) never fades; spark (s, 0..100) is wanting, and stays
+   0 for anyone not on the town's romance list, for anyone under 18 and with
+   a player under 18 or of no recorded age; owed is a short list of favours
+   outside the money obligations, net -3..+3.
+
+   A person's n.rel holds where they stood before the player came (start:
+   liking the town's written attitude, trust 5 x guardedness and -10 for the
+   police and smugglers, or the record's start.trust), the small things not
+   worth a memory (everyday, each held to CAPS.everyday), what was set
+   outright (fix: the editor, relSet, a direct write to n.attitude, which is
+   folded in at the next recompute; it never drifts), what the repeat rules
+   count (today, days, recent), the ask log (asks, wave 27), owed favours,
+   and the cache relWrite keeps: the five tracks, net owed, the share of fear
+   leverage gives (levFear) and the band each track last entered (bands:
+   the hysteresis reads it). A track is start + what each memory still
+   carries + everyday + fix. A typed memory (socialEvent) keeps d, what it
+   did to each track as applied; that fades by its class (DECAY), fear on
+   one clock, and settlements soften it (combined, never locked). A memory
+   with d null (every legacy line: newMemories, addMemory, the engine's
+   own) moves no track. n.attitude stays on the record as the stored alias
+   of liking, so everything that reads it reads liking.
+
+   Rel is pure: frozen tables (Game.Rel.EVENTS and the rest) and functions
+   that read a person, the state and the town and return values or a new
+   rel record. It never writes. State's ops (attitudeDelta, attitudeChanges,
+   socialEvent, relSet, relDay, editPerson, the memory writers, the load
+   fill) call it and write what it returns, so State.apply stays the only
+   writer. In wave 26 nothing reads the stance but Debug and the tests:
+   every number the game shows or stores is what it was before. */
+const Rel = (() => {
+  function deepFreeze(v) {
+    if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) deepFreeze(v[k]); }
+    return v;
+  }
+  const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  // An event's change rounded half away from zero (a halved -15 is -8, as a halved 15 is 8). Tracks round with Math.round, which lands exactly.
+  function rnd(x) { return (x < 0 ? -Math.round(-x) : Math.round(x)) || 0; }
+  const two = x => Math.round(x * 100) / 100 || 0;
+  const list = v => (Array.isArray(v) ? v.filter(isObj) : []);
+
+  const TRACKS = Object.freeze(['w', 't', 'f', 'k', 's']);
+  const TRACK_NAMES = Object.freeze({ w: 'liking', t: 'trust', f: 'fear', k: 'knows', s: 'spark' });
+  const RANGE = deepFreeze({ w: [-100, 100], t: [-100, 100], f: [0, 100], k: [0, 100], s: [0, 100] });
+
+  /* The events (design section 3.1): what each does to each track before
+     the person's traits and the repeat rules. s is a number or 'halves'
+     (a weight-3 harm halves spark), 'rate' (a welcome flirt: 10 x the
+     person's sparkRate) or 'warm' (+2 once spark is 10 or more). rep: town
+     reputation when it happens in public (wave 27). weight 0: no memory,
+     the change goes into everyday. decay: the fading class (DECAY;
+     'everyday' rows make no memory, 'keeps' never fades). dedupe: the class
+     an engine event drops the bookkeeper's duplicates by (DEDUPE, wave 27).
+     src: E the engine sees it, B the bookkeeper names it (wave 28), EB
+     both. proud: pride scales its liking; money: the mercenary flag doubles
+     its liking; owed: the favours it puts on the ledger (+ they owe the
+     player, - the player owes them, 'clear' clears what the player owes
+     them). What settles is SETTLE. card_win, card_loss and
+     unwanted_advance are code's own rows (a card seat's -2 / +1 a day; the
+     minor rule, wave 28). */
+  function row(src, w, t, f, k, s, weight, decay, dedupe, more) {
+    return Object.assign({ src, w, t, f, k, s, weight, decay, dedupe: dedupe || null, rep: 0 }, more || {});
+  }
+  const EVENTS = deepFreeze({
+    hit: row('E', -25, -10, 20, 2, 'halves', 3, 'wound', 'violence', { rep: -3 }),
+    shoved: row('E', -15, -5, 5, 2, 0, 2, 'slight', 'violence', { rep: -2, proud: true }),
+    beat_down: row('E', -35, -15, 35, 2, 'halves', 3, 'scar', 'violence', { rep: -5 }),
+    threatened: row('E', -10, -10, 25, 2, 0, 2, 'slight', 'threat', { rep: -2 }),
+    threatened_to_tell: row('E', -15, -20, 20, 2, 'halves', 2, 'wound', 'threat'),
+    blackmailed: row('E', -25, -30, 15, 2, 'halves', 3, 'scar', 'threat', { proud: true }),
+    stole_from: row('EB', -20, -25, 0, 2, 'halves', 3, 'wound', 'theft', { rep: -5 }),
+    gift: row('E', 5, 0, 0, 2, 0, 1, 'slight', 'money', { money: true }),
+    bribed: row('E', 3, 0, 0, 2, 0, 2, 'slight', 'money', { money: true }),
+    spent_time: row('E', 2, 0, 0, 4, 'warm', 0, 'everyday', null),
+    humiliated: row('E', -15, -5, 0, 2, 0, 2, 'slight', 'words', { rep: -2, proud: true }),
+    paid_back: row('E', 5, 10, 0, 2, 0, 2, 'wound', 'money', { rep: 2, money: true, owed: 'clear' }),
+    kept_word: row('EB', 5, 15, 0, 2, 0, 2, 'wound', 'money', { rep: 2 }),
+    broke_word: row('E', -8, -15, 0, 2, 0, 2, 'wound', null, { rep: -3 }),
+    rescued: row('E', 25, 15, 0, 5, 0, 3, 'scar', null, { rep: 5, owed: 2 }),
+    flirted: row('E', 4, 0, 0, 2, 'rate', 1, 'mood', 'romance'),
+    intimate: row('E', 10, 5, 0, 15, 15, 3, 'scar', 'romance'),
+    paid_silence: row('E', 5, 10, 0, 2, 0, 1, 'slight', 'money', { money: true }),
+    told_anyway: row('E', -5, -15, 0, 2, 0, 2, 'wound', null, { rep: -5 }),
+    cheated: row('EB', -15, -30, 0, 2, 'halves', 3, 'scar', 'theft', { rep: -5 }),
+    lied_caught: row('B', -5, -30, 0, 2, 0, 2, 'wound', null, { rep: -2 }),
+    came_clean: row('B', 0, 0, 0, 3, 0, 2, 'wound', null),
+    confided: row('B', 3, 5, 0, 8, 0, 1, 'wound', null),
+    they_confided: row('B', 5, 3, 0, 10, 0, 2, 'wound', null),
+    betrayed_confidence: row('B', -20, -40, 0, 2, 0, 3, 'scar', null),
+    exposed: row('B', 0, 8, 0, 3, 0, 2, 'wound', null),
+    complimented: row('B', 3, 0, 0, 2, 0, 1, 'mood', 'words'),
+    insulted: row('B', -10, 0, 0, 2, 0, 1, 'mood', 'words', { proud: true }),
+    apologised: row('B', 2, 0, 0, 2, 0, 0, 'everyday', null),
+    pried: row('B', -3, -3, 0, 3, 0, 1, 'mood', 'words', { proud: true }),
+    rebuffed: row('B', -5, 0, 0, 2, -15, 1, 'slight', 'romance', { proud: true }),
+    did_favour: row('B', 8, 5, 0, 3, 0, 2, 'wound', null, { owed: 1 }),
+    they_helped: row('B', 2, 0, 0, 3, 0, 1, 'wound', null, { owed: -1 }),
+    defended: row('B', 15, 10, 0, 2, 0, 2, 'wound', null, { rep: 3 }),
+    informed_on: row('B', -30, -35, 10, 2, 'halves', 3, 'scar', null),
+    crossed: row('B', -12, -12, 0, 2, 0, 2, 'wound', null),
+    badmouthed: row('B', 0, 0, 0, 2, 0, 0, 'everyday', null, { tier: 'B' }),
+    vouched_for: row('B', 0, 0, 0, 2, 0, 0, 'everyday', null, { tier: 'B' }),
+    noted: row('B', 0, 0, 0, 2, 0, 1, 'keeps', null),
+    learned_secret: row('EB', 0, 0, 0, 2, 0, 1, 'keeps', null),
+    caught_you_at: row('EB', -5, -10, 0, 2, 0, 2, 'wound', null),
+    card_win: row('E', 1, 0, 0, 2, 0, 0, 'everyday', null),
+    card_loss: row('E', -2, 0, 0, 2, 0, 0, 'everyday', null),
+    unwanted_advance: row('E', -20, -20, 10, 2, 0, 3, 'wound', null, { fearBuysNothing: true })
+  });
+  const EVENT_NAMES = Object.freeze(Object.keys(EVENTS));
+  // The words the bookkeeper may send (wave 28): 22 in tier A, two more in B.
+  const WIRE_EVENTS = deepFreeze({
+    insulted: 'A', complimented: 'A', pried: 'A', apologised: 'A', confided: 'A', they_confided: 'A', kept_word: 'A', came_clean: 'A',
+    lied_caught: 'A', betrayed_confidence: 'A', exposed: 'A', did_favour: 'A', they_helped: 'A', defended: 'A', informed_on: 'A', crossed: 'A',
+    rebuffed: 'A', noted: 'A', learned_secret: 'A', caught_you_at: 'A', stole_from: 'A', cheated: 'A', badmouthed: 'B', vouched_for: 'B'
+  });
+  // Spelling, tense, spaces and hyphens to the event's name (the wire reader, wave 28; eventName).
+  const ALIASES = deepFreeze({
+    apologized: 'apologised', apologise: 'apologised', apologize: 'apologised', apology: 'apologised', sorry: 'apologised',
+    insult: 'insulted', compliment: 'complimented', complimented_me: 'complimented', thanked: 'complimented', praised: 'complimented',
+    pry: 'pried', prying: 'pried', confide: 'confided', confided_in: 'confided', they_confide: 'they_confided', told_me_private: 'they_confided',
+    kept_their_word: 'kept_word', kept_word: 'kept_word', keptword: 'kept_word', kept_a_secret: 'kept_word', kept_quiet: 'kept_word',
+    owned_up: 'came_clean', come_clean: 'came_clean', confessed: 'came_clean', caught_lying: 'lied_caught', lied: 'lied_caught', lie_caught: 'lied_caught',
+    betrayed: 'betrayed_confidence', betrayal: 'betrayed_confidence', expose: 'exposed', told_on: 'exposed', favour: 'did_favour', favor: 'did_favour',
+    did_favor: 'did_favour', did_a_favour: 'did_favour', did_a_favor: 'did_favour', helped_me: 'they_helped', helped: 'they_helped', they_help: 'they_helped',
+    defend: 'defended', stood_up_for: 'defended', informed: 'informed_on', snitched: 'informed_on', reported: 'informed_on', cross: 'crossed',
+    rebuff: 'rebuffed', turned_down: 'rebuffed', note: 'noted', learnt_secret: 'learned_secret', learned_a_secret: 'learned_secret',
+    caught_at: 'caught_you_at', caught_you: 'caught_you_at', stole: 'stole_from', steal: 'stole_from', theft: 'stole_from', cheat: 'cheated',
+    bad_mouthed: 'badmouthed', vouched: 'vouched_for'
+  });
+  /* Dedupe by class (wave 27): an engine event of a class drops the
+     bookkeeper's events of that class for the same person that turn, and
+     these drop more besides. */
+  const DEDUPE = deepFreeze({
+    violence: { events: ['hit', 'shoved', 'beat_down'], drops: ['humiliated', 'threatened'] },
+    threat: { events: ['threatened', 'threatened_to_tell', 'blackmailed'], drops: [] },
+    theft: { events: ['stole_from', 'cheated'], drops: [] },
+    money: { events: ['gift', 'bribed', 'paid_back', 'paid_silence', 'kept_word'], drops: ['kept_word', 'did_favour'] },
+    romance: { events: ['flirted'], drops: ['complimented', 'flirted'] },
+    words: { events: ['humiliated'], drops: ['insulted'] }
+  });
+  /* Four signed axes from the two written traits (design Appendix A):
+     pride p (humble - / proud +), guardedness g (suspicious - / open +),
+     nerve n (timid - / hard +), grudge-holding r (grudging - / forgiving
+     +). Each trait gives [p, g, n, r]; a person's axis is the sum, held to
+     +/-2. A trait not here is flavour only. */
+  const TRAIT_AXES = deepFreeze((() => {
+    const out = {};
+    const put = (names, a) => { for (const t of names.split(' ')) out[t] = a; };
+    put('proud imperious vain boastful officious', [1, 0, 0, 0]);
+    put('stubborn', [1, 0, 0, -1]);
+    put('earnest grateful', [-1, 1, 0, 0]);
+    put('shy', [-1, 0, -1, 0]);
+    put('genial sociable garrulous gossipy lonely charming', [0, 1, 0, 0]);
+    put('kind gentle cheerful easygoing', [0, 1, 0, 1]);
+    put('watchful guarded shrewd methodical discreet observant precise sharp careful calculating', [0, -1, 0, 0]);
+    put('bitter', [0, -1, 0, -1]);
+    put('cowardly frightened jumpy worried tired', [0, 0, -1, 0]);
+    put('unflappable unshockable disciplined hard reckless', [0, 0, 1, 0]);
+    put('ruthless merciless relentless', [0, 0, 1, -1]);
+    put('grieving angry gloomy vindictive', [0, 0, 0, -1]);
+    put('fair', [0, 0, 0, 1]);
+    return out;
+  })());
+  const FLAVOUR_TRAITS = Object.freeze(['loyal', 'sentimental', 'ambitious', 'smooth', 'greedy', 'patient', 'nosy', 'honest', 'mercenary', 'bored', 'fussy',
+    'restless', 'sly', 'curious', 'principled', 'practical', 'resourceful', 'dutiful']);
+  /* What each axis does, per point (design section 3.4). */
+  const AXIS_EFFECTS = deepFreeze({
+    pride: { liking: 0.25, settle: -0.2, refusesAt: 1 },      // the proud rows' liking x (1 + 0.25p); settling x (1 - 0.2p)
+    guarded: { startTrust: 5, gain: 0.2, loss: -0.15 },        // start trust 5g; trust gains x (1 + 0.2g), losses x (1 - 0.15g)
+    nerve: { fear: -0.25, hardAt: 1 },                         // fear gains x (1 - 0.25n); hard at 1 or more
+    grudge: { halfLife: -0.5, settle: 0.15 }                   // harm half-lives x 2^(-r/2); settling x (1 + 0.15r)
+  });
+  // The mercenary flag (content, wave 29: Hollis, Shayla, Tyler, Curtis, Leon): money counts double on liking, blackmail half.
+  const MERCENARY = deepFreeze({ money: 2, blackmailed: 0.5 });
+  /* How long things last: [half-life in days, floor] (slight's floor 0.2
+     for harm, 0 for kind). Witness and secondhand copies fade one class
+     lighter (LIGHTER) with floor 0. One fear clock for every source but
+     leverage. */
+  const DECAY = deepFreeze({ mood: [2, 0], slight: [5, { harm: 0.2, kind: 0 }], wound: [10, 0.4], scar: [21, 0.6], keeps: [Infinity, 1] });
+  const LIGHTER = deepFreeze({ scar: 'wound', wound: 'slight', slight: 'mood', mood: 'mood', keeps: 'keeps' });
+  const FEAR_CLOCK = Object.freeze([4, 0]);
+  /* The bounds (design sections 3.3, 6.1-6.2). turn: what events may move
+     one person in one turn; everyday: each everyday bucket's bound
+     (knows-you is held only to its range there); compound: harm repeated
+     within mergeDays (x1.5, then x2.25), merged into one memory; kindRepeat:
+     the same kind thing to the same person on the same day (sameDay for
+     the things that count once a day); acrossDays: time together and gifts
+     count in full the first 3 days per person, then as after; hardFear:
+     where a hard person's fear stops; quietDays: wave 26's drift hold (a
+     weight-3 memory this fresh holds liking where it is). */
+  const CAPS = deepFreeze({
+    turn: { w: 40, t: 45, f: 40, s: 20 }, graph: { w: 15, t: 15 }, everyday: 15, everydayDrift: 2, perPerson: 2, perTurn: 4, kMin: 2, kPerDayAimed: 3,
+    owed: 3, owedEntries: 8, mergeDays: 3, compound: [1, 1.5, 2.25], kindRepeat: [1, 0.5, 0.25, 0],
+    sameDay: { gift: [1, 0], bribed: [1, 0], spent_time: [1, 0], card_win: [1, 0], card_loss: [1, 0] },
+    acrossDays: { spent_time: { full: 3, after: { w: 1, k: 2 } }, gift: { full: 3, after: { w: 1 } } },
+    hardFear: 39, noted: 3, memories: 12, settlements: 2, hysteresis: 5, cuePerPerson: 50, cueWords: 12, recent: 4, asks: 8, quietDays: 5, staleTurns: 30
+  });
+  /* Settling (design section 5.3): the share of a memory's liking, trust
+     and fear it takes away, and which memory: 'harm' (the one its words
+     name, else the newest harm within mergeDays), 'debt' (named, else the
+     newest broken word), an event's name (named, else the newest of that
+     event), 'named' (only one its words name). Settlements combine as
+     1 - (1-a)(1-b), at most CAPS.settlements a memory plus getting even;
+     pride and grudge-holding scale them. 'settled' is a legacy
+     memoriesSettled on a typed memory: it softens it as an apology does. */
+  const SETTLE = deepFreeze({
+    apologised: { w: 0.5, t: 0.25, f: 0, on: 'harm' },
+    paid_back: { w: 1, t: 1, f: 0, on: 'debt' },
+    came_clean: { w: 0, t: 0.4, f: 0, on: 'lied_caught' },
+    kept_word: { w: 0.7, t: 0.35, f: 0, on: 'broke_word' },
+    did_favour: { w: 0.5, t: 0.25, f: 0, on: 'named' },
+    got_even: { w: 0.4, t: 0, f: 0, on: 'harm', extra: true },
+    settled: { w: 0.5, t: 0.25, f: 0, on: 'named' }
+  });
+  /* Bands (design section 2.4). A track enters a band at its edge and
+     leaves it only CAPS.hysteresis points back toward the middle (warm is
+     entered at 25 and left below 20; distrusts entered at -25 and left
+     above -20); the middle band (centre) has none. Fear's bands are the
+     uneasy tag (20) and the override (40); spark's are its statuses'
+     thresholds. */
+  const BANDS = deepFreeze({
+    w: [['hates', -100, -60], ['dislikes', -59, -25], ['cool', -24, -6], ['neutral', -5, 5], ['friendly', 6, 24], ['warm', 25, 59], ['devoted', 60, 100]],
+    t: [['distrusts', -100, -25], ['unsure', -24, 24], ['trusts', 25, 100]],
+    f: [['calm', 0, 19], ['uneasy', 20, 39], ['afraid', 40, 100]],
+    s: [['none', 0, 19], ['noticed', 20, 29], ['sweet', 30, 39], ['wants', 40, 59], ['falling', 60, 100]],
+    centre: { w: 'neutral', t: 'unsure', f: 'calm', s: 'none' }
+  });
+  /* The stance: twelve phrases, liking against trust. "hates you" needs an
+     unsettled weight-3 harm behind it, else it is "against you"; the
+     neutral cell is "doesn't know you" with no memories and knows-you
+     under 10; the devoted cell is "loyal to you" only with trust above 0,
+     else "warm to you". */
+  const STANCE_GRID = deepFreeze({
+    hates: { distrusts: 'hates you', unsure: 'hates you', trusts: 'hates you' },
+    dislikes: { distrusts: 'against you', unsure: 'against you', trusts: 'against you' },
+    cool: { distrusts: 'suspicious of you', unsure: 'cool to you', trusts: 'takes you at your word' },
+    neutral: { distrusts: 'suspicious of you', unsure: 'sizing you up', trusts: 'takes you at your word' },
+    friendly: { distrusts: 'suspicious of you', unsure: 'friendly', trusts: 'friendly' },
+    warm: { distrusts: "fond of you, doesn't trust you", unsure: 'warm to you', trusts: 'in your corner' },
+    devoted: { distrusts: "fond of you, doesn't trust you", unsure: 'loyal to you', trusts: 'in your corner' }
+  });
+  const PHRASES = Object.freeze(['hates you', 'against you', 'suspicious of you', 'cool to you', 'sizing you up', "doesn't know you", 'takes you at your word',
+    'friendly', "fond of you, doesn't trust you", 'warm to you', 'in your corner', 'loyal to you']);
+  const SIDES = deepFreeze({
+    'hates you': 'bad', 'against you': 'bad', 'suspicious of you': 'bad', 'cool to you': 'bad', 'sizing you up': 'neutral', "doesn't know you": 'neutral',
+    'takes you at your word': 'good', friendly: 'good', "fond of you, doesn't trust you": 'mixed', 'warm to you': 'good', 'in your corner': 'good', 'loyal to you': 'good',
+    'afraid of you': 'mixed', 'afraid of what you know': 'mixed'
+  });
+  /* Fear's override, checked first: fear 40 or more (the afraid band) and
+     liking in [-60, 25) reads "afraid of what you know" when leverage the
+     player holds is the larger share of the fear, else "afraid of you";
+     below -60 the stance stands with "and afraid of you", from 25 up with
+     "wary of your temper". Hard people stop at 39 and never get it. */
+  const OVERRIDES = deepFreeze({ fear: 40, window: [-60, 25], know: 'afraid of what you know', you: 'afraid of you', below: 'and afraid of you', above: 'wary of your temper' });
+  // The tags, in this order (the card shows two, the narrator one).
+  const TAGS = deepFreeze({
+    order: ['leverage', 'spark', 'fear', 'debts', 'uneasy'],
+    leverage: { both: 'you have something on each other', theirs: 'has something on you', yours: 'you have something on them' },
+    debts: { big: 'owes you big', owes: 'owes you', owe: 'you owe them', marker: 'holding your marker' },
+    uneasy: 'uneasy around you'
+  });
+  /* Spark's statuses (design section 2.5), first match wins, only for an
+     eligible adult (sparkStatus returns null before reading a number).
+     caring: liking less what romance gave; distrust: trust at or below. */
+  const SPARK_STATUS = deepFreeze([
+    { status: 'falling for you', band: 'falling', caring: 50, trust: 25, cue: ['lights up when you come in', 'stands close', "asks where you've been"], feed: '{name} is falling for you.' },
+    { status: 'sweet on you', band: 'sweet', caring: 25, cue: ['lights up when you come in', 'remembers what you told {them}'], feed: '{name} is sweet on you.' },
+    { status: 'using you', band: 'wants', below: 25, distrust: -25, earned: true, cue: ['wants you around for one reason', "doesn't ask about your day"], feed: "{name} is interested. It isn't friendship." },
+    { status: 'wants you', band: 'wants', below: 25, cue: ['flirts back', 'keeps it light', 'not sure {they} likes you'], feed: '{name} is interested.' },
+    { status: 'has noticed you', band: 'noticed', cue: ['looks twice', 'finds a reason to stand near you'], feed: '{name} looks at you twice.' }
+  ]);
+  /* The narrator's cue, present demeanour only (design section 8, with
+     "; " made ", ": a field separator never sits inside one). Each is a
+     list of clauses, so a cue can stop at a whole clause. */
+  const CUES = deepFreeze({
+    'hates you': ["won't share a room with you if they can help it", 'says it with their face'],
+    'against you': ['polite as a locked door', 'wants you gone'],
+    contempt: ['talks past you'],
+    'suspicious of you': ['checks every answer', 'gives nothing for free'],
+    'cool to you': ['civil and brief', 'waits for you to leave'],
+    'sizing you up': ['watches what you do, not what you say'],
+    "doesn't know you": ['treats you like a stranger'],
+    'takes you at your word': ['matter-of-fact', 'believes what you tell them'],
+    friendly: ['easy with you', 'small talk comes easy'],
+    "fond of you, doesn't trust you": ['glad to see you', 'changes the subject or lies when pressed'],
+    'warm to you': ['glad to see you', 'easy to ask small things of'],
+    'in your corner': ['glad to see you', 'tells you things', 'asks your advice'],
+    'loyal to you': ['takes your side out loud'],
+    'afraid of you': ['agrees fast', "won't meet your eye", 'keeps their distance'],
+    'afraid of what you know': ['careful with every word', "won't look at you long", 'hates you for it'],
+    'uneasy around you': ['keeps a step back'],
+    'wary of your temper': ['careful around you', "doesn't argue"],
+    'has something on you': ['sure of themselves around you'],
+    'you have something on them': ['careful around you'],
+    'you have something on each other': ['careful around you'],
+    seriously: ['takes you seriously']
+  });
+  // The harm a "talks past you" needs on top: words and honesty, never a hurt (exposed counts as harm).
+  const CONTEMPT_EVENTS = Object.freeze(['insulted', 'pried', 'humiliated', 'lied_caught', 'broke_word', 'told_anyway', 'caught_you_at']);
+  // What an onlooker takes (design section 4.3; wave 27): one class lighter, floor 0, one copy a scene.
+  const WITNESS = deepFreeze({
+    hit: { w: -5, t: -5, f: 8 }, shoved: { w: -3, f: 3 }, beat_down: { w: -8, t: -6, f: 12 }, threatened: { w: -3, f: 5 }, insulted: { w: -2 }, humiliated: { w: -2 },
+    defended: { w: 5, t: 5 }, rescued: { w: 5, t: 5 }, kept_word: { t: 3 }, cheated: { t: -10 }, lied_caught: { t: -5 }
+  });
+  // Their words for it, from the event and the place, never the victim's (design section 5.4; wave 27).
+  const SECONDHAND_TEXT = deepFreeze({
+    seen: { hit: 'saw you hit {victim} at {place}', shoved: 'saw you shove {victim} at {place}', beat_down: 'saw you put {victim} down at {place}', threatened: 'saw you lean on {victim} at {place}',
+      insulted: 'heard you run {victim} down at {place}', humiliated: 'saw you shame {victim} at {place}', defended: 'saw you stand up for {victim} at {place}', rescued: 'saw you help {victim} at {place}',
+      kept_word: 'saw you keep your word to {victim}', cheated: 'saw you caught cheating {victim} at {place}', lied_caught: 'saw you caught lying to {victim}' },
+    heard: { hit: 'heard you hit {victim} at {place}', beat_down: 'heard you put {victim} down at {place}', humiliated: 'heard you shamed {victim} at {place}', threatened: 'heard you leaned on {victim} at {place}' }
+  });
+  // How much a leverage record weighs (wave 29): the informant loose end's options, what the player was caught at, a secret's default.
+  const LEVERAGE_WEIGHT = deepFreeze({ looseEnd: [2, 2, 3], caught: { steal: 2, deceive: 2, attack: 3, sneak: 1, search: 1 }, secret: 2 });
+  /* Every threshold the plan's gates read, as data (integration plan
+     section 9.3), with the wave each lands in. Nothing reads them in wave
+     26: the gates still read attitude where they always did. */
+  const GATES = deepFreeze({
+    social: { wave: 27, liking: [[30, 1], [60, 2]] },
+    intimidate: { wave: 27, fear: [[20, 1], [40, 2]], likedAt: 40, liked: -1 },
+    deceive: { wave: 28, trust: [[40, 2]], distrust: [[-25, -1], [-50, -2]] },
+    floors: { wave: 28, ask: 'hard', lie: [[-25, 'hard'], [-50, 'very_hard']], intimidateHard: 'hard' },
+    compliance: { wave: 27, fear: 40 },
+    secret: { wave: 28, trust: 40, knows: 30, fear: 60 },
+    couch: { wave: 28, liking: 25, trust: 0, owedLiking: -25 },
+    rescue: { wave: 27, liking: 25, owed: 1 },
+    seats: { wave: 28, liking: -25, trust: -40 },
+    dealer: { wave: 28, liking: -10, trust: -40 },
+    rumour: { wave: 28, liking: -25, trust: -25 },
+    grudge: { wave: 27, liking: -60, trust: -60 },
+    favour: { wave: 28, liking: 50, trust: 20, owed: 2, owedLiking: -25, cashLiking: 25, cashTrust: 0 },
+    report: { wave: 27, fear: 40, violenceLiking: 0 },
+    wontSell: { wave: 27, days: 3, markup: 1.25 },
+    needs: { wave: 28, alibi: 40, ramp: 30, photo: 30 },
+    council: { wave: 30, royce: { trust: 30, knows: 25 }, friendly: { liking: 15 }, bought: { trust: 20 } },
+    epilogue: { wave: 30, loretta: { liking: 40 } }
+  });
+  // The minor rule's row (wave 28): no spark part, and fear that buys nothing.
+  const UNWANTED_ADVANCE = deepFreeze({ w: -20, t: -20, f: 10, k: 2, s: 0, weight: 3, decay: 'wound', fearBuysNothing: true });
+  const TEEN_RE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
+
+  // ----- context: the state and town a reading is for -----
+  /* ctx: { s (a game state; the live one by default), town (its town copy),
+     day, turn, place } . Tests may pass their own. */
+  function context(ctx) {
+    const c = isObj(ctx) ? ctx : {};
+    const s = c.s !== undefined ? c.s : State.current;
+    const town = c.town !== undefined ? c.town : State.town;
+    const day = Number.isInteger(c.day) ? c.day : s && isObj(s.time) && Number.isInteger(s.time.day) ? s.time.day : 1;
+    const turn = Number.isInteger(c.turn) ? c.turn : s && isObj(s.meta) ? s.meta.turn | 0 : 0;
+    return { s: s || null, town: town || null, day, turn, place: c.place !== undefined ? c.place : s && s.player ? s.player.locationId : null, used: c.used };
+  }
+  function builtIn(ctx) { return !ctx.s || !isObj(ctx.s.meta) || ctx.s.meta.townName === TOWN_DATA.name; }
+  function townRecord(id, ctx) { return ctx.town && Array.isArray(ctx.town.npcs) ? (ctx.town.npcs.find(x => isObj(x) && x.id === id) || null) : null; }
+
+  // ----- who someone is -----
+  /* A faction's head: someone in a faction whose role says they lead it
+     (head, boss, chief, leader): Carter, Wade and Marcus in the built-in
+     town. */
+  function isFactionHead(n) { return !!(isObj(n) && n.factionId && /\b(head|boss|chief|leader)\b/i.test(String(n.role || ''))); }
+  /* { p, g, n, r, mercenary, hard, tough }: content's axes (on the record
+     or its town record) where given, else the sum over TRAIT_AXES, each held
+     to +/-2. Hard is nerve 1 or more, the tough tag, or a faction head. */
+  function axesOf(n, ctx) {
+    ctx = context(ctx);
+    const rec = isObj(n) ? townRecord(n.id, ctx) : null;
+    const own = isObj(n) && isObj(n.axes) ? n.axes : rec && isObj(rec.axes) ? rec.axes : null;
+    const sum = { p: 0, g: 0, n: 0, r: 0 };
+    for (const tr of isObj(n) && Array.isArray(n.personality) ? n.personality : []) {
+      const a = TRAIT_AXES[String(tr).toLowerCase().trim()];
+      if (a) { sum.p += a[0]; sum.g += a[1]; sum.n += a[2]; sum.r += a[3]; }
+    }
+    for (const k of ['p', 'g', 'n', 'r']) { if (own && Number.isFinite(own[k])) sum[k] = own[k]; sum[k] = clamp(Math.round(sum[k]), -2, 2); }
+    const tags = isObj(n) && Array.isArray(n.tags) ? n.tags.map(t => String(t).toLowerCase()) : [];
+    const tough = tags.includes('tough');
+    const mercenary = !!(isObj(n) && n.mercenary === true) || !!(rec && rec.mercenary === true);
+    return { p: sum.p, g: sum.g, n: sum.n, r: sum.r, mercenary, tough, hard: sum.n >= AXIS_EFFECTS.nerve.hardAt || tough || isFactionHead(n) };
+  }
+  /* Under 18, by the strictest anchor (design section 2.7): the lowest of
+     the record's age, the save's town copy and, for the built-in town, the
+     live TOWN_DATA record by id; or tagged teen or teenager; or, with no age
+     anywhere, a role, tag or look that reads as a teen (it fails closed).
+     An edit can make someone a minor, never an adult. */
+  function isMinor(n, ctx) {
+    if (!isObj(n)) return true;
+    ctx = context(ctx);
+    const copy = townRecord(n.id, ctx);
+    const live = builtIn(ctx) ? (TOWN_DATA.npcs.find(x => x.id === n.id) || null) : null;
+    const recs = [n, copy, live].filter(isObj);
+    const ages = recs.map(r => r.age).filter(a => Number.isInteger(a));
+    if (ages.length && Math.min(...ages) < 18) return true;
+    const tags = recs.flatMap(r => (Array.isArray(r.tags) ? r.tags : [])).map(t => String(t).toLowerCase());
+    if (tags.includes('teen') || tags.includes('teenager')) return true;
+    return !ages.length && recs.some(r => TEEN_RE.test(`${r.role || ''} ${(Array.isArray(r.tags) ? r.tags : []).join(' ')} ${r.look || ''}`));
+  }
+  // The player under 18, or of no recorded age (that counts as under 18 for romance only), or no game: no spark for anyone.
+  function playerMinor(ctx) {
+    ctx = context(ctx);
+    const p = ctx.s && isObj(ctx.s.player) ? ctx.s.player : null;
+    return !p || !Number.isInteger(p.age) || p.age < 18;
+  }
+  // The town's romance list ([{ npcId, open, sparkRate, opensAt, faithful }], wave 29): the save's copy, else the built-in town's.
+  function romanceOf(ctx) {
+    ctx = context(ctx);
+    if (ctx.town && Array.isArray(ctx.town.romance)) return ctx.town.romance.filter(isObj);
+    return builtIn(ctx) && Array.isArray(TOWN_DATA.romance) ? TOWN_DATA.romance.filter(isObj) : [];
+  }
+  /* Spark can move for them: an adult, with an adult player, on the
+     romance list. Nobody is in wave 26 (the list does not exist yet). */
+  function eligible(n, ctx) {
+    ctx = context(ctx);
+    if (!isObj(n) || isMinor(n, ctx) || playerMinor(ctx)) return false;
+    return romanceOf(ctx).some(r => r.npcId === n.id && r.open !== false);
+  }
+  function sparkRate(n, ctx) { const r = romanceOf(ctx).find(x => x.npcId === n.id); return r && Number.isFinite(r.sparkRate) ? clamp(r.sparkRate, 0, 2) : 1; }
+
+  // ----- the record -----
+  /* Where someone stood before the player came. townNpc: their record in
+     the town data (left out: n is that record); null: nobody wrote them,
+     so liking starts at 0 (as the old drift's baseline did) and trust from
+     their own traits and work. */
+  function startOf(n, townNpc) {
+    const rec = townNpc === undefined ? n : townNpc;
+    const src = isObj(rec) ? rec : n;
+    const ax = axesOf(src, { s: null, town: null });
+    const tags = Array.isArray(src.tags) ? src.tags.map(t => String(t).toLowerCase()) : [];
+    const police = tags.includes('police') || /\b(police|sheriff|deputy|trooper)\b/i.test(String(src.role || ''));
+    let t = AXIS_EFFECTS.guarded.startTrust * ax.g - (police || tags.includes('smuggler') ? 10 : 0);
+    if (isObj(src.start) && Number.isInteger(src.start.trust)) t = clamp(src.start.trust, -100, 100);
+    const f = isObj(src.start) && Number.isInteger(src.start.fear) ? clamp(src.start.fear, 0, 100) : 0;
+    const w = isObj(rec) && Number.isInteger(toInt(rec.attitude)) ? clamp(toInt(rec.attitude), -100, 100) : 0;
+    return { w, t, f, k: 0, s: 0 };
+  }
+  function emptyRel(start) {
+    return { v: 1, start, everyday: { w: 0, t: 0, k: 0, s: 0 }, fix: { w: 0, t: 0, f: 0, k: 0, s: 0 }, today: null, days: {}, recent: [], asks: [], owed: [] };
+  }
+  /* A change into a person's everyday bucket, held to its bound; what
+     would pass it goes into fix (attitudeDelta's exact meaning). Fear has
+     no everyday bucket: it goes into fix. */
+  function putEveryday(rel, x, K) {
+    if (!K) return;
+    if (x === 'f') { rel.fix.f = num(rel.fix.f) + K; return; }
+    const cur = num(rel.everyday[x]);
+    const lo = x === 'k' ? 0 : -CAPS.everyday;
+    const hi = x === 'k' ? RANGE.k[1] : CAPS.everyday;
+    const next = clamp(cur + K, lo, hi);
+    rel.everyday[x] = next;
+    if (cur + K !== next) rel.fix[x] = num(rel.fix[x]) + (cur + K - next);
+  }
+  /* A new rel for someone who has none (a new game's town, an older save,
+     a person made in play): their start, and liking exactly their attitude
+     (the difference in everyday, past its bound in fix). */
+  function fill(n, townNpc) {
+    const rel = emptyRel(startOf(n, townNpc));
+    const a = toInt(n.attitude);
+    putEveryday(rel, 'w', (a === null ? rel.start.w : clamp(a, -100, 100)) - rel.start.w);
+    return rel;
+  }
+  const numbers = (o, keys) => keys.reduce((out, k) => { const v = isObj(o) ? o[k] : 0; out[k] = typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && /^\s*-?\d+(\.\d+)?\s*$/.test(v) ? Number(v) : 0; return out; }, {});
+  function wellFormed(r) {
+    return isObj(r) && r.v === 1 && isObj(r.start) && isObj(r.everyday) && isObj(r.fix) && isObj(r.days) && (r.today === null || isObj(r.today))
+      && Array.isArray(r.recent) && Array.isArray(r.asks) && Array.isArray(r.owed);
+  }
+  /* The person's rel made whole: as it is when it is, else every part
+     checked (a hand-edited or older save), a missing record filled. */
+  function repair(n, townNpc) {
+    const r = n.rel;
+    if (wellFormed(r)) return r;
+    if (!isObj(r)) return fill(n, townNpc);
+    const out = Object.assign({}, r, { v: 1 });
+    out.start = numbers(isObj(r.start) ? r.start : startOf(n, townNpc), TRACKS);
+    out.everyday = numbers(r.everyday, ['w', 't', 'k', 's']);
+    out.fix = numbers(r.fix, TRACKS);
+    out.today = isObj(r.today) && Number.isInteger(r.today.day) ? Object.assign({}, r.today, { ev: isObj(r.today.ev) ? r.today.ev : {} }) : null;
+    out.days = isObj(r.days) ? r.days : {};
+    out.recent = list(r.recent);
+    out.asks = list(r.asks);
+    out.owed = list(r.owed);
+    if (!isObj(out.bands)) delete out.bands;
+    return out;
+  }
+  function copyRel(r) { return JSON.parse(JSON.stringify(r)); }
+
+  // ----- memories -----
+  /* The day a memory was made: its own day, else the log's day for its
+     turn (World's own until wave 26; the drift's hold and fading both read
+     it), null when the log no longer reaches back to it. */
+  function memoryDay(m, s) {
+    if (Number.isInteger(m.day)) return m.day;
+    if (!(m.turn > 0)) return 1;
+    const log = (s && Array.isArray(s.log) ? s.log : []).filter(e => isObj(e) && Number.isInteger(e.turn) && Number.isInteger(e.day));
+    const at = log.filter(e => e.turn <= m.turn).pop();
+    return at ? at.day : null;
+  }
+  // For fading: a memory with no day and none in the log is a week old.
+  function dayOf(m, ctx, day) { const d = memoryDay(m, ctx.s); return d === null ? day - 7 : d; }
+  function classOf(m) {
+    if (typeof m.decay === 'string' && DECAY[m.decay]) return m.decay;
+    const r = EVENTS[m.event];
+    return r && DECAY[r.decay] ? r.decay : 'wound';
+  }
+  // Harm or kind, by what it did (a typed memory) or by its event.
+  function harmful(m) {
+    if (isObj(m.d)) { const v = num(m.d.w) + num(m.d.t); return v < 0 || (v === 0 && num(m.d.f) > 0); }
+    const r = EVENTS[typeMemory(m)];
+    return !!r && r.w + r.t < 0;
+  }
+  function settlements(m) { return list(m.settled).filter(e => !e.folded); }
+  function settleShare(m, x) { let f = 1; for (const e of settlements(m)) f *= 1 - clamp(num(e[x]), 0, 1); return f; }
+  /* What of a typed memory's part still counts after age whole days:
+     floor + (1 - floor) x 0.5^(age / half-life), the half-life x 2^(-r/2)
+     for harm; fear on its own clock; spark on the slight clock (intimacy on
+     the scar clock); knows-you always. held: a protected line while its
+     loose end is open does not fade. */
+  function fade(m, x, age, ax, held) {
+    if (x === 'k') return 1;
+    if (x === 'f') return Math.pow(0.5, age / FEAR_CLOCK[0]);
+    if (x === 's') { const sc = m.event === 'intimate'; const half = sc ? DECAY.scar[0] : DECAY.slight[0]; const fl = sc ? DECAY.scar[1] : 0; return fl + (1 - fl) * Math.pow(0.5, age / half); }
+    if (held) return 1;
+    const light = !!(m.witness || m.secondhand);
+    let c = classOf(m);
+    if (light) c = LIGHTER[c] || c;
+    const [half, fl] = DECAY[c];
+    if (!Number.isFinite(half)) return 1;
+    const harm = harmful(m);
+    const floor = light ? 0 : isObj(fl) ? (harm ? fl.harm : fl.kind) : fl;
+    const gr = harm ? Math.pow(2, AXIS_EFFECTS.grudge.halfLife * num(ax && ax.r)) : 1;
+    return floor + (1 - floor) * Math.pow(0.5, age / (half * gr));
+  }
+  function tiedByLooseEnd(n, s) {
+    if (!s || !isObj(s.player)) return false;
+    return (Array.isArray(s.player.looseEnds) ? s.player.looseEnds : []).some(le => {
+      if (!isObj(le) || le.npcId !== n.id) return false;
+      if (s === State.current) { const t = State.thread(le.threadId); return !t || State.threadNow(t, 'status') === 'open'; }
+      const t = (Array.isArray(s.threads) ? s.threads : []).find(x => isObj(x) && x.id === le.threadId);
+      return !t || t.status === 'open';
+    });
+  }
+  /* A typed memory's remaining part on each track: d x what settling left x
+     the fade. A memory with no d moves nothing. */
+  function remainder(m, n, day, ax, ctx) {
+    ctx = context(ctx);
+    const out = { w: 0, t: 0, f: 0, k: 0, s: 0 };
+    if (!isObj(m) || !isObj(m.d)) return out;
+    day = Number.isInteger(day) ? day : ctx.day;
+    ax = ax || axesOf(n, ctx);
+    const age = Math.max(0, day - dayOf(m, ctx, day));
+    const held = !!(State.protectedMemory(m) && tiedByLooseEnd(n, ctx.s));
+    for (const x of TRACKS) {
+      const v = num(m.d[x]);
+      if (v) out[x] = v * (x === 'k' || x === 's' ? 1 : settleShare(m, x)) * fade(m, x, age, ax, held);
+    }
+    return out;
+  }
+  /* Every track before rounding and clamping: start + everyday + fix + what
+     each memory still carries (fear without its leverage share). */
+  function raw(n, day, ctx) {
+    ctx = context(ctx);
+    day = Number.isInteger(day) ? day : ctx.day;
+    const r = isObj(n.rel) ? n.rel : fill(n, townRecord(n.id, ctx));
+    const st = r.start || {}, ev = r.everyday || {}, fx = r.fix || {};
+    const out = {};
+    for (const x of TRACKS) out[x] = num(st[x]) + num(ev[x]) + num(fx[x]);
+    const ax = axesOf(n, ctx);
+    for (const m of list(n.memories)) {
+      if (!isObj(m.d)) continue;
+      const q = remainder(m, n, day, ax, ctx);
+      for (const x of TRACKS) out[x] += q[x];
+    }
+    return out;
+  }
+  /* The fear leverage gives (wave 29): 10 x weight for each aware record the
+     player holds over them (held, used or paid), halved at trust 40 and
+     halved again once paid. It lasts while the record does. */
+  function leverageFear(n, t, ctx) {
+    const recs = ctx.s && Array.isArray(ctx.s.leverage) ? ctx.s.leverage : [];
+    let f = 0;
+    for (const x of recs) {
+      if (!isObj(x) || x.holder !== 'player' || x.over !== n.id || x.aware !== true || !['held', 'used', 'paid'].includes(x.status)) continue;
+      f += 10 * clamp(toInt(x.weight) || 1, 1, 3) * (t >= 40 ? 0.5 : 1) * (x.status === 'paid' ? 0.5 : 1);
+    }
+    return f;
+  }
+  function owedNet(r) { return clamp(list(r && r.owed).reduce((sum, o) => sum + Math.sign(num(o.dir)) * Math.abs(num(o.size) || 1), 0), -CAPS.owed, CAPS.owed); }
+  /* A band with its hysteresis: kept while the value is no more than
+     CAPS.hysteresis back toward the middle; a band further out is entered
+     at its own edge. */
+  function band(track, v, prev) {
+    const bands = BANDS[track];
+    const at = bands.find(b => v >= b[1] && v <= b[2]) || (v < bands[0][1] ? bands[0] : bands[bands.length - 1]);
+    if (!prev || prev === at[0]) return at[0];
+    const pi = bands.findIndex(b => b[0] === prev);
+    if (pi < 0) return at[0];
+    const p = bands[pi];
+    const ci = bands.findIndex(b => b[0] === BANDS.centre[track]);
+    const H = CAPS.hysteresis;
+    if (pi > ci && v >= p[1] - H && v <= p[2]) return prev;
+    if (pi < ci && v <= p[2] + H && v >= p[1]) return prev;
+    return at[0];
+  }
+  /* The cache relWrite keeps: { w, t, f, k, s, net, levFear, bands }.
+     Liking and trust -100..100; fear 0..100 with its leverage share, a hard
+     person's held to CAPS.hardFear; knows 0..100; spark 0 unless eligible
+     (a minor, a player under 18 or anyone not on the romance list); the
+     bands entered, read against the previous ones (n.rel.bands). */
+  function recompute(n, day, ctx) {
+    ctx = context(ctx);
+    day = Number.isInteger(day) ? day : ctx.day;
+    const r = raw(n, day, ctx);
+    const ax = axesOf(n, ctx);
+    // (|| 0: a part faded to nothing reads 0, never -0.)
+    const w = clamp(Math.round(r.w), -100, 100) || 0;
+    const t = clamp(Math.round(r.t), -100, 100) || 0;
+    const lev = leverageFear(n, t, ctx);
+    const f = clamp(Math.round(r.f + lev), 0, ax.hard ? CAPS.hardFear : 100) || 0;
+    const k = clamp(Math.round(r.k), 0, 100) || 0;
+    const s = eligible(n, ctx) ? clamp(Math.round(r.s), 0, 100) || 0 : 0;
+    const prev = isObj(n.rel) && isObj(n.rel.bands) ? n.rel.bands : {};
+    const bands = { w: band('w', w, prev.w), t: band('t', t, prev.t), f: band('f', f, prev.f), s: band('s', s, prev.s) };
+    return { w, t, f, k, s, net: owedNet(n.rel), levFear: Math.round(lev), bands };
+  }
+  function cacheOf(n, ctx) {
+    const r = isObj(n) ? n.rel : null;
+    if (isObj(r) && TRACKS.every(x => Number.isInteger(r[x])) && isObj(r.bands)) return r;
+    const tmp = Object.assign({}, n, { rel: isObj(r) ? repair(n, townRecord(n.id, context(ctx))) : fill(n, townRecord(n.id, context(ctx))) });
+    return Object.assign({}, tmp.rel, recompute(tmp, undefined, ctx));
+  }
+  /* { w, t, f, k, s, owed }: what a gate or a card reads. Liking is the
+     alias (n.attitude), so a direct write to it reads at once. */
+  function tracksOf(n, ctx) {
+    if (!isObj(n)) return { w: 0, t: 0, f: 0, k: 0, s: 0, owed: 0 };
+    const c = cacheOf(n, ctx);
+    const a = toInt(n.attitude);
+    return { w: a === null ? c.w : clamp(a, -100, 100), t: c.t, f: c.f, k: c.k, s: c.s, owed: c.net | 0 };
+  }
+  /* The rel that makes each given track read exactly its target now
+     (targets: { w?, t?, f?, k?, s? }, whole numbers): the difference goes
+     into fix ('fix', the editor and relSet) or everyday ('everyday', with
+     what would pass its bound in fix; fear always in fix), or per track
+     ({ w: 'fix', t: 'everyday' }). Returns a new rel; n is not touched. */
+  function landTo(n, targets, buckets, ctx) {
+    ctx = context(ctx);
+    const tmp = Object.assign({}, n, { rel: copyRel(repair(n, townRecord(n.id, ctx))) });
+    const open = eligible(n, ctx);
+    for (let pass = 0; pass < 3; pass++) {
+      const r = raw(tmp, ctx.day, ctx);
+      const t = clamp(Math.round(r.t), -100, 100);
+      r.f += leverageFear(tmp, t, ctx);
+      let moved = false;
+      for (const x of TRACKS) {
+        if (!isObj(targets) || !Number.isInteger(targets[x]) || (x === 's' && !open)) continue;
+        const K = targets[x] - Math.round(r[x]);
+        if (!K) continue;
+        moved = true;
+        const b = typeof buckets === 'string' ? buckets : isObj(buckets) && buckets[x] ? buckets[x] : 'fix';
+        if (b === 'fix') tmp.rel.fix[x] = num(tmp.rel.fix[x]) + K; else putEveryday(tmp.rel, x, K);
+      }
+      if (!moved) break;
+    }
+    return tmp.rel;
+  }
+  // Every track a pin holds: spark only for someone it can move for.
+  function pinOf(c, open) { const o = { w: c.w, t: c.t, f: c.f, k: c.k }; if (open) o.s = c.s; return o; }
+
+  // ----- the legacy typing -----
+  const ACT_KIND = Object.freeze({ attack: 'violence', steal: 'theft', talk: 'insult', persuade: 'insult', deceive: 'insult', intimidate: 'insult' });
+  const CLASS_KIND = Object.freeze({ violence: 'violence', theft: 'theft', threat: 'insult', words: 'insult' });
+  const INSULT_WORDS = /\b(insult\w*|called me|calls me|said i|says i|told me to|mock\w*|laugh\w* at|liar|lied|threat\w*|cheat\w*|cuss\w*|curs\w*|spat at|spit at)\b/;
+  const VIOLENCE_WORDS = /\b(attack\w*|hit|hits|punch\w*|beat|beaten|knock\w*|shov\w*|fight|fought|slapp?\w*|hurt)\b/;
+  const THEFT_WORDS = /\b(stole|steal\w*|thief|rob\w*|took my|pickpocket\w*)\b/;
+  /* What a grudge's memory is about (World.memoryKind): violence, theft,
+     insult or null. A typed memory by its event; a legacy one by the kind
+     of turn it was made in (act), else by its words (an insult's first). */
+  function kindOf(m) {
+    if (m && m.act === 'own') return null;
+    if (m && isObj(m.d) && EVENTS[m.event]) { const r = EVENTS[m.event]; return r.w + r.t >= 0 ? null : (CLASS_KIND[r.dedupe] || 'insult'); }
+    if (m && ACT_KIND[m.act]) return ACT_KIND[m.act];
+    const t = String((m && m.text) || '').toLowerCase().replace(/[’]/g, "'");
+    if (INSULT_WORDS.test(t)) return 'insult';
+    if (VIOLENCE_WORDS.test(t)) return 'violence';
+    if (THEFT_WORDS.test(t)) return 'theft';
+    return null;
+  }
+  const KIND_WORDS = Object.freeze([
+    [/\b(gave me|bought me|paid me|tipped me|brought me|paid back|paid up)\b/, 'gift'],
+    [/\b(helped|fixed|carried|covered for|saved|pulled me|dragged me|looked after|gave me a ride|patched me)\b/, 'did_favour'],
+    [/\b(thank\w*|compliment\w*|praised|was kind|was nice|stood up for)\b/, 'complimented'],
+    [/\b(told me (about|that|how|where|why|what)|confided|trusted me)\b/, 'they_confided']
+  ]);
+  /* The event a legacy line would have been (its kind, for the stance and
+     the reasons): by its words first, then by the turn it was made in;
+     what they did to the player, a loose end and a fact are noted. It moves
+     nothing (d stays null). */
+  function typeMemory(m) {
+    if (!isObj(m)) return 'noted';
+    if (typeof m.event === 'string' && EVENTS[m.event]) return m.event;
+    if (m.act === 'own' || State.protectedMemory(m)) return 'noted';
+    const t = String(m.text || '').toLowerCase().replace(/[’]/g, "'");
+    if (/\bthreat\w*/.test(t)) return 'threatened';
+    if (/\b(liar|lied)\b/.test(t)) return 'lied_caught';
+    if (/\bcheat\w*/.test(t)) return 'cheated';
+    if (INSULT_WORDS.test(t)) return 'insulted';
+    if (/\b(beat|beaten|knock\w* (me )?(down|out))\b/.test(t)) return 'beat_down';
+    if (/\bshov\w*/.test(t)) return 'shoved';
+    if (VIOLENCE_WORDS.test(t)) return 'hit';
+    if (THEFT_WORDS.test(t)) return 'stole_from';
+    for (const [re, ev] of KIND_WORDS) if (re.test(t)) return ev;
+    if (m.act === 'attack') return 'hit';
+    if (m.act === 'steal') return 'stole_from';
+    if (m.act === 'intimidate') return 'threatened';
+    return 'noted';
+  }
+  /* An event word as the bookkeeper may write it (wave 28): any case,
+     spaces or hyphens, an alias, else a unique five-letter stem; null when
+     it names nothing. */
+  function eventName(word) {
+    const w = String(word == null ? '' : word).toLowerCase().trim().replace(/[\s-]+/g, '_').replace(/[^a-z_]/g, '');
+    if (!w) return null;
+    if (EVENTS[w]) return w;
+    if (ALIASES[w]) return ALIASES[w];
+    if (w.length < 5) return null;
+    const hits = EVENT_NAMES.filter(e => e.slice(0, 5) === w.slice(0, 5));
+    return hits.length === 1 ? hits[0] : null;
+  }
+
+  // ----- events -----
+  // The text a settling event's words name, as memoriesSettled matches them: one holds the other, six characters at least.
+  function named(m, want) {
+    if (!want || want.length < 6 || State.protectedMemory(m)) return false;
+    const t = String(m.text || '').toLowerCase();
+    return t.includes(want) || (t.length >= 6 && want.includes(t));
+  }
+  function settleTarget(mems, how, text, day, ctx, skip) {
+    const want = cleanText(text, 200).toLowerCase();
+    const room = m => isObj(m.d) && m !== skip && (how.extra ? !list(m.settled).some(e => e.by === 'got_even' && !e.folded) : settlements(m).filter(e => e.by !== 'got_even').length < CAPS.settlements);
+    const wanted = m => (how.on === 'harm' || how.on === 'named' ? harmful(m) : how.on === 'debt' ? m.event === 'broke_word' || harmful(m) : m.event === how.on);
+    let i = mems.findIndex(m => room(m) && wanted(m) && named(m, want));
+    if (i >= 0 || how.on === 'named') return i;
+    for (let j = mems.length - 1; j >= 0; j--) {
+      const m = mems[j];
+      if (!room(m)) continue;
+      if (how.on === 'harm' ? harmful(m) && day - dayOf(m, ctx, day) <= CAPS.mergeDays : how.on === 'debt' ? m.event === 'broke_word' : m.event === how.on) { i = j; break; }
+    }
+    return i;
+  }
+  function settleEntry(by, how, ax, ctx) {
+    const scale = (1 + AXIS_EFFECTS.pride.settle * ax.p) * (1 + AXIS_EFFECTS.grudge.settle * ax.r);
+    const part = a => two(clamp(num(a) * scale, 0, 1));
+    return { turn: ctx.turn, day: ctx.day, by, w: part(how.w), t: part(how.t), f: part(how.f) };
+  }
+  /* A settlement on n's memory at index i (by: an event name, 'got_even' or
+     'settled'): { rel, memories, ok, text, why }. Never deletes anything;
+     at most CAPS.settlements plus getting even. */
+  function settle(n, i, by, ctx) {
+    ctx = context(ctx);
+    const how = SETTLE[by] || SETTLE.settled;
+    const mems = deepCopy(list(n.memories));
+    const m = mems[i];
+    if (!m || !isObj(m.d)) return { ok: false, why: 'that memory moves nothing to settle' };
+    const used = settlements(m).filter(e => e.by !== 'got_even').length;
+    if (how.extra ? list(m.settled).some(e => e.by === 'got_even' && !e.folded) : used >= CAPS.settlements) return { ok: false, why: `"${m.text}" is settled as far as it goes` };
+    m.settled = list(m.settled).concat([settleEntry(by, how, axesOf(n, ctx), ctx)]);
+    return { ok: true, rel: n.rel, memories: mems, text: m.text };
+  }
+  /* What one event does to a person (State's socialEvent): the plan, with
+     nothing written. ev: { event, text, weight?, act?, aboutId?, private?,
+     leverageId?, d? (a part of the row, as given), decay?, secondhand?,
+     scale? }; ctx.used: what events moved them this turn so far. The
+     row, then the person's traits, then the repeats (kind things the same
+     day, time and gifts across days, harm that compounds and merges), then
+     the bounds (a turn's, a hard person's fear, spark for nobody it cannot
+     move for, knows-you at least CAPS.kMin), then the memory (or everyday),
+     what it settles, the owed ledger and the counters. Returns { rel,
+     memories, d, memory, merged, settled, refused, used }. */
+  function applyEvent(n, ev, ctx) {
+    ctx = context(ctx);
+    const row = EVENTS[ev.event];
+    if (!row) return null;
+    const day = ctx.day;
+    const turn = ctx.turn;
+    const rel = copyRel(repair(n, townRecord(n.id, ctx)));
+    const mems = deepCopy(list(n.memories));
+    const now = recompute(Object.assign({}, n, { rel }), day, ctx);
+    const ax = axesOf(n, ctx);
+    const open = eligible(n, ctx);
+    const refused = [];
+    if (!isObj(rel.today) || rel.today.day !== day) rel.today = { day, turn, ev: {} };
+    rel.today.turn = turn;
+    const count = num(rel.today.ev[ev.event]);
+    // The row, or what the reduced days give.
+    const base = { w: row.w, t: row.t, f: row.f, k: row.k, s: row.s };
+    const across = CAPS.acrossDays[ev.event];
+    const reduced = !!across && num(rel.days[ev.event]) >= across.full;
+    if (reduced) Object.assign(base, across.after);
+    if (isObj(ev.d)) for (const x of TRACKS) if (Number.isFinite(ev.d[x])) base[x] = ev.d[x];
+    if (base.s === 'halves') base.s = now.s > 0 ? -now.s / 2 : 0;
+    else if (base.s === 'rate') base.s = 10 * sparkRate(n, ctx);
+    else if (base.s === 'warm') base.s = now.s >= 10 ? 2 : 0;
+    const scale = Number.isFinite(ev.scale) ? clamp(ev.scale, 0.1, 2) : 1;
+    const d = { w: num(base.w) * scale, t: num(base.t) * scale, f: num(base.f) * scale, k: num(base.k), s: num(base.s) * scale };
+    // The person's traits. Spark is never scaled by one.
+    if (row.proud) d.w *= 1 + AXIS_EFFECTS.pride.liking * ax.p;
+    if (ax.mercenary && row.money) d.w *= MERCENARY.money;
+    if (ax.mercenary && ev.event === 'blackmailed') d.w *= MERCENARY.blackmailed;
+    d.t *= d.t > 0 ? 1 + AXIS_EFFECTS.guarded.gain * ax.g : 1 + AXIS_EFFECTS.guarded.loss * ax.g;
+    if (d.f > 0) d.f *= 1 + AXIS_EFFECTS.nerve.fear * ax.n;
+    // Repeats.
+    const harm = d.w + d.t < 0 || (d.w + d.t === 0 && d.f > 0);
+    let mergeAt = -1;
+    if (harm && row.weight > 0) {
+      for (let j = mems.length - 1; j >= 0; j--) if (mems[j].event === ev.event && isObj(mems[j].d) && day - dayOf(mems[j], ctx, day) <= CAPS.mergeDays) { mergeAt = j; break; }
+      if (mergeAt >= 0) { const c = CAPS.compound[Math.min(num(mems[mergeAt].n) || 1, CAPS.compound.length - 1)]; d.w *= c; d.t *= c; d.f *= c; }
+    } else if (!harm && (d.w > 0 || d.t > 0 || d.s > 0)) {
+      // Knows-you too, down to CAPS.kMin: a second time together the same day teaches 2, not 4.
+      const rep = CAPS.sameDay[ev.event] || CAPS.kindRepeat;
+      const c = rep[Math.min(count, rep.length - 1)];
+      d.w *= c; d.t *= c; d.s *= c; d.k *= c;
+    }
+    // The bounds.
+    if (d.s > 0 && !open) refused.push(`${n.id}: spark stays 0 (${isMinor(n, ctx) ? 'under 18' : playerMinor(ctx) ? 'the player is under 18 or has no age' : 'not on the romance list'})`);
+    if (!open) d.s = 0;
+    const used = Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {});
+    for (const x of ['w', 't', 'f', 's']) {
+      const v = rnd(d[x]);
+      const cap = CAPS.turn[x];
+      d[x] = clamp(used[x] + v, -cap, cap) - used[x];
+      used[x] += d[x];
+    }
+    if (ax.hard && d.f > 0) { const room = Math.max(0, CAPS.hardFear - now.f); used.f -= d.f - Math.min(d.f, room); d.f = Math.min(d.f, room); }
+    d.k = Math.max(CAPS.kMin, rnd(d.k));
+    // The memory, or the everyday bucket.
+    const weight = row.weight > 0 ? (Number.isInteger(ev.weight) ? clamp(ev.weight, 1, 3) : row.weight) : 0;
+    let memory = null;
+    let merged = false;
+    let evicted = [];
+    if (weight) {
+      const text = cleanText(ev.text, 400);
+      if (mergeAt >= 0) {
+        // Merged: what the old one still carries (faded and settled) plus this; its settlements kept, as history, folded in.
+        const old = mems.splice(mergeAt, 1)[0];
+        const q = remainder(old, Object.assign({}, n, { rel }), day, ax, ctx);
+        const nd = {};
+        for (const x of TRACKS) nd[x] = x === 'k' ? num(old.d.k) + d.k : two(q[x] + d[x]);
+        memory = Object.assign(old, { turn, day, text, weight: Math.min(3, Math.max(weight, num(old.weight)) + 1), d: nd, n: (num(old.n) || 1) + 1 });
+        if (Array.isArray(memory.settled)) memory.settled = memory.settled.map(e => Object.assign({}, e, { folded: true }));
+        merged = true;
+      } else {
+        memory = { turn, day, text, weight, event: ev.event, d: { w: d.w, t: d.t, f: d.f, k: d.k, s: d.s }, decay: typeof ev.decay === 'string' && DECAY[ev.decay] ? ev.decay : row.decay, key: `m${turn}-${n.id}`, n: 1 };
+        if (ctx.place) memory.place = ctx.place;
+        if (typeof ev.act === 'string' && ev.act) memory.act = ev.act;
+        if (typeof ev.aboutId === 'string' && ev.aboutId) memory.about = ev.aboutId;
+        if (typeof ev.leverageId === 'string' && ev.leverageId) memory.leverageId = ev.leverageId;
+        if (ev.private === true) memory.private = true;
+        if (ev.secondhand === true) memory.secondhand = true;
+      }
+      // As remember() does for every new memory: weight-1 lines older than CAPS.staleTurns go, then past CAPS.memories the lightest, oldest first.
+      const kept = mems.filter(x => x.weight > 1 || turn - x.turn <= CAPS.staleTurns);
+      kept.push(memory);
+      while (kept.length > CAPS.memories) { const minW = Math.min(...kept.map(x => x.weight)); kept.splice(kept.findIndex(x => x.weight === minW), 1); }
+      // What a typed one that went still carried stays, pinned into everyday below.
+      evicted = mems.concat([memory]).filter(x => !kept.includes(x) && isObj(x.d));
+      mems.length = 0;
+      mems.push(...kept);
+    } else {
+      for (const x of ['w', 't', 'k', 's']) putEverydayHeld(rel, x, d[x]);
+    }
+    // What it settles.
+    let settledText = null;
+    const how = SETTLE[ev.event];
+    if (how) {
+      const i = settleTarget(mems, how, ev.text, day, ctx, memory);
+      if (i >= 0) { mems[i].settled = list(mems[i].settled).concat([settleEntry(ev.event, how, ax, ctx)]); settledText = mems[i].text; }
+    }
+    // The favours.
+    if (row.owed === 'clear') rel.owed = list(rel.owed).filter(o => !(num(o.dir) < 0));
+    else if (Number.isInteger(row.owed) && row.owed) rel.owed = list(rel.owed).concat([{ dir: Math.sign(row.owed), size: Math.abs(row.owed), key: `m${turn}-${n.id}`, day, turn, why: cleanText(ev.text, 120) }]).slice(-CAPS.owedEntries);
+    // The counters.
+    rel.today.ev[ev.event] = count + 1;
+    if (across && count === 0 && !reduced) rel.days[ev.event] = num(rel.days[ev.event]) + 1;
+    rel.recent = list(rel.recent).concat([{ ev: ev.event, day, at: ctx.place || null, turn }]).slice(-CAPS.recent);
+    const out = { rel, memories: mems, d, memory, merged, settled: settledText, refused, used, weight };
+    if (evicted.length) out.rel = landTo(Object.assign({}, n, { rel, memories: mems }), pinOf(recompute(Object.assign({}, n, { rel, memories: mems.concat(evicted) }), day, ctx), open), 'everyday', ctx);
+    return out;
+  }
+  // An event's everyday part: held to the bound, nothing past it (everyday stops at 15; knows-you only within its range).
+  function putEverydayHeld(rel, x, v) {
+    if (!v) return;
+    const lo = x === 'k' ? 0 : -CAPS.everyday;
+    const hi = x === 'k' ? RANGE.k[1] : CAPS.everyday;
+    rel.everyday[x] = clamp(num(rel.everyday[x]) + v, lo, hi);
+  }
+  /* The import guard (design section 2.7 item 5): every spark value on
+     someone it cannot move for set to 0, in rel and in their memories.
+     Returns { rel, memories, cleared }. */
+  function sparkGuard(n, ctx) {
+    ctx = context(ctx);
+    const rel = isObj(n.rel) ? copyRel(n.rel) : null;
+    const mems = deepCopy(list(n.memories));
+    if (eligible(n, ctx)) return { rel: n.rel, memories: n.memories, cleared: false };
+    let cleared = false;
+    const zero = o => { if (isObj(o) && num(o.s) !== 0) { o.s = 0; cleared = true; } };
+    if (rel) { zero(rel.start); zero(rel.everyday); zero(rel.fix); zero(rel); }
+    for (const m of mems) zero(m.d);
+    return cleared ? { rel, memories: mems, cleared } : { rel: n.rel, memories: n.memories, cleared };
+  }
+  /* The morning's step for one person in wave 26 (State's relDay): the old
+     drift exactly, two a day back toward the town's own number (the save's
+     town copy, else 0, which is start.w for anyone made since), except for
+     the dead, for someone tied by an open loose end and for someone with a
+     weight-3 memory from the last CAPS.quietDays days. Wave 27 moves it to
+     the everyday bucket alone. */
+  function heldHard(n, day, s) {
+    return list(n.memories).some(m => {
+      if (m.weight < 3) return false;
+      const d = memoryDay(m, s);
+      return d !== null && d > day - CAPS.quietDays;
+    });
+  }
+  function driftStep(n, day, s, town) {
+    if (!isObj(n) || n.alive === false || n.status === 'dead') return 0;
+    const t = town || TOWN_DATA;
+    const rec = (t && Array.isArray(t.npcs) ? t.npcs : []).find(x => isObj(x) && x.id === n.id);
+    const b = rec && Number.isInteger(rec.attitude) ? clamp(rec.attitude, -100, 100) : 0;
+    if (n.attitude === b || tiedByLooseEnd(n, s) || heldHard(n, day, s)) return 0;
+    const gap = b - n.attitude;
+    return Math.sign(gap) * Math.min(CAPS.everydayDrift, Math.abs(gap));
+  }
+
+  // ----- what it reads as -----
+  function unsettledHarm3(m) { return isObj(m) && m.weight >= 3 && harmful(m) && !settlements(m).length; }
+  function holdsMarker(n, ctx) {
+    const obs = ctx.s && isObj(ctx.s.player) && Array.isArray(ctx.s.player.obligations) ? ctx.s.player.obligations : [];
+    return obs.some(o => isObj(o) && o.npcId === n.id && o.kind === 'debt' && (o.status === 'open' || (o.status === 'missed' && (o.paid | 0) < (o.amount | 0))));
+  }
+  function leverageBetween(n, ctx) {
+    const recs = ctx.s && Array.isArray(ctx.s.leverage) ? ctx.s.leverage.filter(isObj) : [];
+    const live = x => ['held', 'used', 'paid'].includes(x.status);
+    return {
+      yours: recs.some(x => x.holder === 'player' && x.over === n.id && x.aware === true && live(x)),
+      theirs: recs.some(x => x.holder === n.id && x.over === 'player' && x.playerKnows === true && live(x))
+    };
+  }
+  /* Spark's status, or null: null for anyone it cannot move for, before
+     a number is read. */
+  function sparkStatus(n, ctx) {
+    ctx = context(ctx);
+    if (!eligible(n, ctx)) return null;
+    const c = cacheOf(n, ctx);
+    const order = BANDS.s.map(b => b[0]);
+    const tier = order.indexOf(c.bands.s);
+    const caring = c.w - list(n.memories).filter(m => isObj(m.d) && EVENTS[m.event] && EVENTS[m.event].dedupe === 'romance').reduce((sum, m) => sum + remainder(m, n, ctx.day, null, ctx).w, 0);
+    const earned = axesOf(n, ctx).mercenary || list(n.memories).some(m => isObj(m.d) && harmful(m) && !settlements(m).length);
+    for (const st of SPARK_STATUS) {
+      if (tier < order.indexOf(st.band)) continue;
+      if (st.caring !== undefined && caring < st.caring) continue;
+      if (st.trust !== undefined && c.t < st.trust) continue;
+      if (st.below !== undefined && c.w >= st.below) continue;
+      if (st.distrust !== undefined && c.t > st.distrust) continue;
+      if (st.earned && !earned) continue;
+      return st.status;
+    }
+    return null;
+  }
+  /* The stance: { phrase, grid, tags, side, cell, override, contempt, why }.
+     Bands from the cache (with their hysteresis); the memories decide
+     "hates you", "doesn't know you" and contempt; tags in TAGS.order. */
+  function stance(n, ctx) {
+    ctx = context(ctx);
+    const c = cacheOf(n, ctx);
+    const ax = axesOf(n, ctx);
+    const mems = list(n.memories);
+    const wb = c.bands.w;
+    const tb = c.bands.t;
+    let grid = STANCE_GRID[wb] ? STANCE_GRID[wb][tb] : 'sizing you up';
+    if (grid === 'hates you' && !mems.some(unsettledHarm3)) grid = 'against you';
+    if (grid === 'sizing you up' && !mems.length && c.k < 10) grid = "doesn't know you";
+    if (grid === 'loyal to you' && !(c.t > 0)) grid = 'warm to you';
+    let phrase = grid;
+    let override = null;
+    const afraid = c.bands.f === 'afraid' && !ax.hard;
+    if (afraid && c.w >= OVERRIDES.window[0] && c.w < OVERRIDES.window[1]) { override = c.levFear > c.f - c.levFear ? OVERRIDES.know : OVERRIDES.you; phrase = override; }
+    const tags = [];
+    const lev = leverageBetween(n, ctx);
+    if (lev.yours && lev.theirs) tags.push(TAGS.leverage.both);
+    else if (lev.theirs) tags.push(TAGS.leverage.theirs);
+    else if (lev.yours && override !== OVERRIDES.know) tags.push(TAGS.leverage.yours);
+    const sp = sparkStatus(n, ctx);
+    if (sp) tags.push(sp);
+    if (afraid && c.w < OVERRIDES.window[0]) tags.push(OVERRIDES.below);
+    else if (afraid && c.w >= OVERRIDES.window[1]) tags.push(OVERRIDES.above);
+    if (c.net >= 2) tags.push(TAGS.debts.big); else if (c.net >= 1) tags.push(TAGS.debts.owes); else if (c.net <= -1) tags.push(TAGS.debts.owe);
+    if (holdsMarker(n, ctx)) tags.push(TAGS.debts.marker);
+    if (c.bands.f === 'uneasy') tags.push(TAGS.uneasy);
+    // Contempt: against them, and what holds them there is words or honesty, not a hurt.
+    let contempt = false;
+    if (grid === 'against you') {
+      const day = ctx.day;
+      const bad = mems.filter(m => harmful(m)).map(m => ({ m, size: isObj(m.d) ? -(remainder(m, n, day, ax, ctx).w + remainder(m, n, day, ax, ctx).t) : m.weight })).sort((a, b) => b.size - a.size).slice(0, 2);
+      contempt = bad.length > 0 && bad.every(x => CONTEMPT_EVENTS.includes(typeMemory(x.m)));
+    }
+    return { phrase, grid, tags, side: SIDES[phrase] || 'neutral', cell: `${wb}/${tb}`, override, contempt, why: reasons(n, 2, { ctx }) };
+  }
+  /* How they carry it now, at most CAPS.cueWords words: the override's or
+     spark status's clause first (never cut), then the cell's, then the
+     first tag's, then "takes you seriously" (respected or feared in town,
+     or trust 25) if it fits. Whole clauses only. */
+  function cue(n, ctx) {
+    ctx = context(ctx);
+    const st = stance(n, ctx);
+    const pron = isObj(n) && n.pronouns === 'he' ? { them: 'him', they: 'he' } : isObj(n) && n.pronouns === 'she' ? { them: 'her', they: 'she' } : { them: 'them', they: 'they' };
+    const sp = SPARK_STATUS.find(x => st.tags.includes(x.status));
+    const lead = (st.override ? CUES[st.override] : sp ? sp.cue : []).map(x => fillTemplate(x, pron));
+    const words = x => x.split(/\s+/).filter(Boolean).length;
+    const out = lead.slice();
+    let used = out.reduce((a, x) => a + words(x), 0);
+    const add = clauses => { for (const x of clauses || []) { if (used + words(x) > CAPS.cueWords) return; out.push(x); used += words(x); } };
+    add(st.contempt ? CUES.contempt : CUES[st.grid]);
+    const tag = st.tags.find(t => CUES[t] && !(sp && t === sp.status));
+    if (tag) add(CUES[tag]);
+    const tier = ctx.s === State.current ? State.reputationTier('town') : null;
+    if (tier === 'respected' || tier === 'feared' || cacheOf(n, ctx).t >= 25) add(CUES.seriously);
+    return out.join(', ');
+  }
+  /* The memories that hold them where they are, biggest first: typed ones
+     by what they still carry, then legacy lines by weight and how new they
+     are. [{ text, day, event, settled, weight }]. */
+  function reasons(n, max, opts) {
+    const ctx = context(opts && opts.ctx);
+    const ax = axesOf(n, ctx);
+    const rows = list(n.memories).map((m, i) => {
+      const typed = isObj(m.d);
+      const q = typed ? remainder(m, n, ctx.day, ax, ctx) : null;
+      return { m, i, typed, size: q ? Math.abs(q.w) + Math.abs(q.t) + Math.abs(q.f) : 0 };
+    });
+    rows.sort((a, b) => (Number(b.typed) - Number(a.typed)) || (b.size - a.size) || (num(b.m.weight) - num(a.m.weight)) || (b.i - a.i));
+    return rows.slice(0, Number.isInteger(max) && max > 0 ? max : 2).map(x => ({ text: x.m.text, day: dayOf(x.m, ctx, ctx.day), event: typeMemory(x.m), settled: settlements(x.m).length, weight: x.m.weight }));
+  }
+  /* The card's word for one track (the People card's fold, wave 30). */
+  const WORDS = deepFreeze({
+    w: { hates: 'hates you', dislikes: 'dislikes you', cool: 'cool', neutral: 'neutral', friendly: 'friendly', warm: 'warm', devoted: 'devoted' },
+    t: { distrusts: "doesn't trust you", unsure: 'unsure of you', trusts: 'trusts you' },
+    f: { calm: 'no', uneasy: 'uneasy', afraid: 'scared' },
+    s: { none: null, noticed: 'looks twice', sweet: 'interested', wants: 'interested', falling: 'very' }
+  });
+  function words(track, v) {
+    const x = toInt(v) || 0;
+    if (track === 'k') return x < 10 ? 'a stranger' : x < 30 ? 'by sight' : x < 60 ? 'yes' : 'well';
+    if (!BANDS[track] || !WORDS[track]) return null;
+    return WORDS[track][band(track, x)];
+  }
+
+  // ----- dice and debug -----
+  // FNV-1a over a string: the key of a sub-stream.
+  function fnv1a32(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return h >>> 0;
+  }
+  /* A dice stream of its own for one kind of relationship draw (a report,
+     a price, a backed ask; wave 27 on), keyed by the game's seed, the kind,
+     the person and the day, as the card code keys its decks: it depends on
+     no call order, so the shared stream (the dice, the clocks) never
+     shifts. Nothing draws from it yet. */
+  function rng(kind, npcId, day, n) {
+    const s = State.current;
+    const seed = s && isObj(s.meta) ? s.meta.seed >>> 0 : 0;
+    return Rng.create(fnv1a32(`${seed}|${kind}|${npcId}|${day}|${n | 0}`) || 1);
+  }
+  // Debug's person line: "w 5 t -5 f 0 k 0 s 0 · sizing you up · uneasy around you".
+  function debugLine(n, ctx) {
+    if (!isObj(n)) return '';
+    const c = tracksOf(n, ctx);
+    const st = stance(n, ctx);
+    return `w ${c.w} t ${c.t} f ${c.f} k ${c.k} s ${c.s} · ${st.phrase}${st.tags.length ? ' · ' + st.tags[0] : ''}`;
+  }
+  // One memory as Debug shows it: its event, what it did, its class and settlements.
+  function debugMemory(m) {
+    if (!isObj(m)) return '';
+    const ev = typeMemory(m);
+    if (!isObj(m.d)) return `${ev} (moves nothing)`;
+    return `${ev} w ${m.d.w} t ${m.d.t} f ${m.d.f} k ${m.d.k}${m.d.s ? ' s ' + m.d.s : ''} · ${classOf(m)}${m.witness || m.secondhand ? ' (lighter)' : ''}${settlements(m).length ? ` · settled ${settlements(m).length}` : ''}${m.n > 1 ? ` · x${m.n}` : ''}`;
+  }
+
+  return {
+    TRACKS, TRACK_NAMES, RANGE, EVENTS, EVENT_NAMES, WIRE_EVENTS, ALIASES, DEDUPE, TRAIT_AXES, FLAVOUR_TRAITS, AXIS_EFFECTS, MERCENARY, DECAY, LIGHTER, FEAR_CLOCK,
+    CAPS, SETTLE, BANDS, STANCE_GRID, PHRASES, SIDES, OVERRIDES, TAGS, SPARK_STATUS, CUES, CONTEMPT_EVENTS, WITNESS, SECONDHAND_TEXT, LEVERAGE_WEIGHT, GATES,
+    UNWANTED_ADVANCE, WORDS,
+    tracksOf, startOf, fill, repair, axesOf, isFactionHead, isMinor, playerMinor, eligible, romanceOf, recompute, raw, remainder, fade, band, landTo, pinOf,
+    applyEvent, settle, settleTarget, sparkGuard, driftStep, stance, sparkStatus, cue, reasons, words, typeMemory, kindOf, memoryDay, eventName, rng, fnv1a32,
+    debugLine, debugMemory
+  };
+})();
+
 // ===== Module: Town =====
 /* Town data at new game (copied into state by State.newGame), validation of a
    TOWN_DATA object, plausibility of `new:` targets, loose ends at character
@@ -12184,6 +13648,14 @@ const Town = (() => {
         { pronouns: validPronouns(n.pronouns) || inferPronouns(`${n.role || ''} ${n.look || ''}`) });
       if (typeof n.home === 'string' && n.home) o.home = homeOf(n);
       else if (!isObj(n.home)) delete o.home;
+      /* How they feel about the player (wave 26, Rel): where the town put
+         them (Rel.startOf: liking the written attitude, trust from their
+         traits and work or start.trust), with the tracks worked out. The
+         authored start and axes stay in the town data. */
+      delete o.start;
+      delete o.rel;
+      o.rel = Rel.fill(o, n);
+      Object.assign(o.rel, Rel.recompute(o, 1, { s: null, town: townData }));
       return o;
     });
     t.factions = t.factions.map(f => Object.assign({ relations: {} }, f, { activeClock: Number.isInteger(f.activeClock) ? f.activeClock : 0 }));
@@ -13186,7 +14658,9 @@ const Town = (() => {
         drift DRIFT_PER_DAY (2) a day back toward where the town data put
         them (0 for someone it does not have), for anyone with no weight-3
         memory from the last DRIFT_QUIET_DAYS (5) days and no open loose
-        end with the player.
+        end with the player. Wave 26: that is State's relDay (Rel.driftStep
+        decides the step, liking moves in the everyday bucket), which also
+        recomputes everyone's tracks for the new day.
      h. Appointments (wave 22): a meeting agreed in the story (a seed with
         appointment) whose last phase has passed is settled: kept (it fires)
         when the player was at its place as that phase ended, dropped
@@ -13229,7 +14703,8 @@ const Town = (() => {
    faction and forceClockRoll(value, factionId) of one (that wins over the
    all-factions value); forceClockRoll(null) clears them all and
    forceClockRoll(null, factionId) just that one. forceAttitude(npcId,
-   value) sets an attitude through State.apply; recent lists the latest
+   value) sets an attitude through State.apply (wave 26: relSet, liking
+   landed exactly in fix); recent lists the latest
    world events for the debug view (memory only, not saved; news is noted
    there too, kind 'news'), and forget(turn) drops those of turns taken
    back by /undo or a failed turn. */
@@ -13242,8 +14717,9 @@ const World = (() => {
   const RECENT_MAX = 60;
   const FEELING_COOLDOWN = 7;
   const GOT_EVEN = 10;
-  const DRIFT_PER_DAY = 2;
-  const DRIFT_QUIET_DAYS = 5;
+  // The morning's drift (wave 26: Rel's own numbers, State's relDay).
+  const DRIFT_PER_DAY = Rel.CAPS.everydayDrift;
+  const DRIFT_QUIET_DAYS = Rel.CAPS.quietDays;
   const FINE = 50;
   const CLOCK_ODDS = 5;
   const W = { source: 'world' };
@@ -13699,17 +15175,10 @@ const World = (() => {
      (State keeps act: an attack is violence, a theft theft, words an
      insult), so "told me to beat it" is no beating; a memory without one
      (an older save, an effect's) is read by its words, the words of an
-     insult first ("called me a thief", "said I fight like a girl"). */
-  const ACT_KIND = { attack: 'violence', steal: 'theft', talk: 'insult', persuade: 'insult', deceive: 'insult', intimidate: 'insult' };
-  function memoryKind(m) {
-    if (m && m.act === 'own') return null;
-    if (m && ACT_KIND[m.act]) return ACT_KIND[m.act];
-    const t = String((m && m.text) || '').toLowerCase().replace(/[’]/g, "'");
-    if (/\b(insult\w*|called me|calls me|said i|says i|told me to|mock\w*|laugh\w* at|liar|lied|threat\w*|cheat\w*|cuss\w*|curs\w*|spat at|spit at)\b/.test(t)) return 'insult';
-    if (/\b(attack\w*|hit|hits|punch\w*|beat|beaten|knock\w*|shov\w*|fight|fought|slapp?\w*|hurt)\b/.test(t)) return 'violence';
-    if (/\b(stole|steal\w*|thief|rob\w*|took my|pickpocket\w*)\b/.test(t)) return 'theft';
-    return null;
-  }
+     insult first ("called me a thief", "said I fight like a girl").
+     Wave 26: Rel.kindOf, the same reading for every line that moves no
+     track; a typed memory (an event's) answers by its event. */
+  function memoryKind(m) { return Rel.kindOf(m); }
   const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban'];
   const GRUDGE_FOR = { violence: ['violence', 'police'], theft: ['police', 'gossip', 'money'], insult: ['gossip', 'ban', 'money'] };
   function grudgeKind(t) {
@@ -13978,42 +15447,16 @@ const World = (() => {
   }
 
   // ----- g. a new morning -----
-  /* The day a memory was made: its own day if it has one, else the log's
-     day for its turn; null when the log no longer reaches back to it. */
-  function memoryDay(m, s) {
-    if (Number.isInteger(m.day)) return m.day;
-    if (!(m.turn > 0)) return 1;
-    const log = arr(s.log).filter(e => Number.isInteger(e.turn) && Number.isInteger(e.day));
-    const at = log.filter(e => e.turn <= m.turn).pop();
-    return at ? at.day : null;
-  }
-  /* A weight-3 memory from the last DRIFT_QUIET_DAYS days. Wave 4
-     (playtest R5): every memory made now carries its day; one from an older
-     build with no day that the log no longer reaches back to is old (the
-     log is trimmed every few turns, so "older than the log" was every
-     serious memory of an active player, and nobody ever drifted back). */
-  function heldHard(n, day, s) {
-    return (n.memories || []).some(m => {
-      if (m.weight < 3) return false;
-      const d = memoryDay(m, s);
-      return d !== null && d > day - DRIFT_QUIET_DAYS;
-    });
-  }
+  /* The drift (wave 4, playtest R5: a weight-3 memory from the last
+     DRIFT_QUIET_DAYS days holds it; one from an older build with no day
+     that the log no longer reaches back to is old). Wave 26: the morning's
+     step for everyone is State's relDay (Rel.driftStep, the same rule),
+     which lands it in the everyday bucket and recomputes every track. */
   function driftAttitudes(day) {
-    const s = st();
-    const town = State.town || TOWN_DATA;
-    const base = id => { const t = arr(town && town.npcs).find(x => x.id === id); return t && Number.isInteger(t.attitude) ? clamp(t.attitude, -100, 100) : 0; };
-    const tied = id => (s.player.looseEnds || []).some(le => le.npcId === id && (!State.thread(le.threadId) || State.threadNow(State.thread(le.threadId), 'status') === 'open'));
-    const effects = [];
-    for (const n of s.npcs) {
-      if (n.alive === false || n.status === 'dead') continue;
-      const b = base(n.id);
-      if (n.attitude === b || tied(n.id) || heldHard(n, day, s)) continue;
-      const gap = b - n.attitude;
-      effects.push({ op: 'attitudeDelta', npcId: n.id, delta: Math.sign(gap) * Math.min(DRIFT_PER_DAY, Math.abs(gap)) });
-    }
-    if (effects.length) { applyEffects(effects); note(`attitudes drift for ${effects.length} people`, { kind: 'drift' }); }
-    return effects.length;
+    const r = State.apply({ relDay: day }, W);
+    const moved = r.drifted | 0;
+    if (moved) note(`attitudes drift for ${moved} people`, { kind: 'drift' });
+    return moved;
   }
   function season() {
     const s = st();
@@ -14580,7 +16023,7 @@ const World = (() => {
     const n = State.npc(npcId);
     if (!n) return null;
     const v = clamp(toInt(value) || 0, -100, 100);
-    if (v !== n.attitude) applyEffects([{ op: 'attitudeDelta', npcId: n.id, delta: v - n.attitude }]);
+    if (v !== n.attitude) State.apply({ relSet: { npcId: n.id, w: v } }, W);
     return State.npc(npcId).attitude;
   }
 
@@ -26401,7 +27844,7 @@ const UI = (() => {
       const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
       const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
-      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
+      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''} · ${Rel.debugLine(n)}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
       const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
       const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');
       const chron = s.chronicle.map(c => `turns ${c.fromTurn}-${c.toTurn}: ${c.summary}`).join('\n');
@@ -29272,7 +30715,7 @@ const App = (() => {
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Cards, Tables, State, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
+  Rng, Dice, Cards, Tables, State, Rel, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })

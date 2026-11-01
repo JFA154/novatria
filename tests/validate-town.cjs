@@ -634,7 +634,9 @@ const OPS = {
   settleObligation: ['id', 'status'],
   // Wave 5: money credited toward a debt (a seizure: take, from the player's cash).
   obligationPaid: ['id', 'amount'],
-  addNews: ['text']
+  addNews: ['text'],
+  // Wave 26 (Rel): what happened to someone, as one of Rel.EVENTS (read from index.html below).
+  socialEvent: ['npcId', 'event', 'text']
 };
 // The fields an op may carry besides its required ones.
 const OPS_OPTIONAL = {
@@ -647,8 +649,25 @@ const OPS_OPTIONAL = {
   threadUpdate: ['summary', 'status', 'knownToPlayer'],
   addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
   obligationPaid: ['take'],
-  addNews: ['factionId', 'public']
+  addNews: ['factionId', 'public'],
+  socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale']
 };
+/* The events a socialEvent may name and the fading classes it may give,
+   read from the Rel module in the same file (its EVENTS table is one row a
+   line, its DECAY one line), so this check and State.apply cannot drift
+   apart. */
+const REL_EVENTS = (() => {
+  const a = html.indexOf('const EVENTS = deepFreeze({');
+  const b = a < 0 ? -1 : html.indexOf('\n  });', a);
+  if (a < 0 || b < 0) fatal('file', 'index.html has no EVENTS table in its Rel module');
+  return [...html.slice(a, b).matchAll(/^ {4}([a-z_]+): row\(/gm)].map(m => m[1]);
+})();
+const REL_DECAY = (() => {
+  const m = /const DECAY = deepFreeze\((\{[^\n]*\})\);/.exec(html);
+  if (!m) fatal('file', 'index.html has no DECAY table in its Rel module');
+  return Object.keys(vm.runInNewContext('(' + m[1] + ')', { Infinity }, { filename: 'index.html#DECAY', timeout: 1000 }));
+})();
+const REL_TRACKS = ['w', 't', 'f', 'k', 's'];
 const opCounts = {};
 // Flags the content sets (setFlag) and the flags its conditions read
 // (requires, an event's when, the epilogue): a flag read is a flag set.
@@ -917,6 +936,29 @@ function checkEffect(e, where, opts) {
       checkText(e.text, where + '.text', { ph, max: 300, maxSentences: 2 });
       if (e.factionId !== undefined && !isFac(e.factionId)) err(where + '.factionId', '"' + e.factionId + '" is not a faction');
       if (e.public !== undefined && typeof e.public !== 'boolean') err(where + '.public', 'true or false');
+      break;
+    case 'socialEvent':
+      // Wave 26: the person, an event of Rel.EVENTS (the engine's rows too), and what they would remember.
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      if (REL_EVENTS.indexOf(e.event) === -1) err(where + '.event', '"' + e.event + '" is not an event (one of ' + REL_EVENTS.join(', ') + ')');
+      checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 2 });
+      if (e.weight !== undefined && [1, 2, 3].indexOf(e.weight) === -1) err(where + '.weight', 'must be 1, 2 or 3');
+      if (e.act !== undefined && e.act !== 'own') err(where + '.act', 'only "own" (what they did to the player)');
+      if (e.aboutId !== undefined && !npcRef(e.aboutId, ph)) err(where + '.aboutId', '"' + e.aboutId + '" is not an NPC');
+      if (e.private !== undefined && typeof e.private !== 'boolean') err(where + '.private', 'true or false');
+      if (e.secondhand !== undefined && typeof e.secondhand !== 'boolean') err(where + '.secondhand', 'true or false');
+      if (e.leverageId !== undefined && !(typeof e.leverageId === 'string' && (/^lev_[a-z0-9_]+$/.test(e.leverageId) || (ph && e.leverageId === '{leverageId}')))) err(where + '.leverageId', 'a leverage id lev_<npc>_<n>');
+      if (e.decay !== undefined && REL_DECAY.indexOf(e.decay) === -1) err(where + '.decay', 'one of ' + REL_DECAY.join(', '));
+      if (e.scale !== undefined && !(typeof e.scale === 'number' && e.scale >= 0.1 && e.scale <= 2)) err(where + '.scale', 'a number from 0.1 to 2');
+      if (e.d !== undefined) {
+        if (!isObj(e.d) || !Object.keys(e.d).length) err(where + '.d', 'an object of tracks (w, t, f, k, s)');
+        else for (const k of Object.keys(e.d)) {
+          if (REL_TRACKS.indexOf(k) === -1) err(where + '.d', 'unknown track "' + k + '" (w, t, f, k, s)');
+          else checkDelta(e.d[k], where + '.d.' + k, 50);
+          // Spark never moves from content: the romance list decides it (wave 29), and nobody under 18 is ever on it.
+          if (k === 's' && e.d.s > 0) err(where + '.d.s', 'spark is never given by content');
+        }
+      }
       break;
   }
 }

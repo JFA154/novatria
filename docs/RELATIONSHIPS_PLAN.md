@@ -1,9 +1,14 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan, not a build. Nothing in `index.html` changes with this
-document. It was written on the branch `claude/magical-dijkstra-wvs3pi`
-against `main` at `56e69f5`, and every line reference in it and in its
-appendices is to that commit.
+1 Nov 2026 · a plan being built. **Wave A1 (wave 26, "The tracks under the
+number") has landed**: the `Rel` module, six tracks on every person under the
+`attitude` alias, `socialEvent`, `relSet` and `relDay`, with no number the
+game shows or stores changed (`docs/notes/engine-state.md`, Wave 26; tests:
+`tests/wave26-rel-tracks.test.cjs`). A2 to A5 and B1 to B3 are still plans.
+It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
+at `56e69f5`, and every line reference in it and in its appendices is to that
+commit (wave 26 put `Rel` after State, so references below `index.html:12163`
+have moved down).
 
 The owner's brief: "plan a complicated relationship system that isn't 2
 dimensional, what we have now is very basic." Then, before the write-up: spark
