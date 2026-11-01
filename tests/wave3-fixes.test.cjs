@@ -63,7 +63,7 @@ s.test('bug 1 / N1: money spent buying from a creditor (alone, or aimed at them)
   });
   assert.equal(r.drink, 0, 'a cold drink bought from the creditor is the price of a drink');
   assert.equal(r.alone, 0, 'a buy with the creditor alone pays nothing');
-  assert.deepEqual(r.capped, [500, 0], 'a purchase keeps the usual $500 cap and pays nothing');
+  assert.deepEqual(r.capped, [600, 0], 'a purchase spends what it says (wave 24: a spend is held only by the cash) and pays nothing toward the debt');
   assert.equal(r.gave, 100, 'money handed over is a payment');
   assert.deepEqual(r.done, ['met', 600]);
 });
