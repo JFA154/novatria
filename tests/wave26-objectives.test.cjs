@@ -238,7 +238,7 @@ s.test('engine rules: only the model\'s seeds are asks (never the engine\'s, nev
   assert.deepEqual(r.rewards, ['$500 cash', '$300 cash', 'or else he tells the chief', '$40', null]);
   const p = await page.evaluate(() => ({ rules: Game.Api.RECORD_RULES, sys: Game.Api.SYSTEM.bookkeeper, rc: JSON.stringify(Game.Api.SCHEMAS.record_changes) }));
   for (const bit of ['A favour or a job someone in the narration asks of the player (something to fetch, find out, deliver, keep quiet about, say or do; an offer with a reward; a warning with a threat) is one seed too',
-    "triggerType day with its deadline's day number when it has one ('before the council vote' is the day THREADS or TOWN NEWS give for it; 'by Friday' is that day)",
+    "triggerType day with its deadline's day number when it has one ('before the council vote' is the day THREADS or TOWN NEWS give for it; 'by Friday' is that day; DAYS on the TURN line numbers the weekdays)",
     "else triggerType npc with that person's id as triggerValue (it comes due when the player next meets them)",
     "the effect starts with that person's full name and says what they asked, the reward or the threat, and the deadline in words",
     "'Carter Sturdivant wants copies of the station's debts from Darlene Pittman's back office before the council vote on Day 6; $500 cash, and deny knowing him if caught'",
@@ -249,6 +249,10 @@ s.test('engine rules: only the model\'s seeds are asks (never the engine\'s, nev
   }
   // The exact schema the wave 21 build sent (the grammar limit: wave 17).
   assert.equal(crypto.createHash('sha256').update(p.rc).digest('hex'), 'a5a714b4852db5e4966aa491a8b5ecf4eccf0d5f66cc5d26cbb114e6c44ad344');
+  // The packet's TURN line numbers the week ahead, so "before Tuesday's vote" can be a day trigger.
+  await sendText(page, 'I look around');
+  const packet = await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'bookkeep').map(c => c.text).pop() || '');
+  assert.match(packet.split('\n')[0], / DAYS: Day 1 Thursday, Day 2 Friday, Day 3 Saturday, Day 4 Sunday, Day 5 Monday, Day 6 Tuesday, Day 7 Wednesday, Day 8 Thursday\.$/);
 });
 
 s.test('a 320x640 phone, dark: the tab row (now five tabs) fits without a cut label or a sideways scroll, every target a tap tall, with the Objectives sheet open and every entry opened; entries start shut on a phone', async h => {
