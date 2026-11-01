@@ -130,4 +130,30 @@ s.test('/fact refuses a question or a how-to at no cost (the owner\'s "/fact how
   assert.equal(after.last, '/fact the mechanic owes me a favour');
 });
 
+s.test('a bookkeeper\'s spend is held only by what the player carries (wave 24: $6,850 handed over goes in full); a gain is still held to $500 a turn, a second gain refused, and more than the cash refused', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  const r = await page.evaluate(() => {
+    const S = Game.State; const M = { source: 'model', present: [] };
+    S.apply({ goldDelta: 10000 - Game.state.player.gold }); // the engine's own op: no cap
+    const out = { start: Game.state.player.gold };
+    S.apply({ beginTurn: true });
+    const a = S.apply({ goldDelta: -6850 }, M); out.big = { applied: a.applied, rejected: a.rejected.map(x => x.reason), gold: Game.state.player.gold };
+    S.apply({ beginTurn: true });
+    const b = S.apply({ goldDelta: -4200 }, M); out.second = { gold: Game.state.player.gold, rejected: b.rejected.map(x => x.reason) };
+    S.apply({ beginTurn: true });
+    const c = S.apply({ goldDelta: -5000 }, M); out.tooMuch = { gold: Game.state.player.gold, rejected: c.rejected.map(x => x.reason) };
+    S.apply({ beginTurn: true });
+    const d = S.apply({ goldDelta: 900 }, M); out.gain = { applied: d.applied, gold: Game.state.player.gold };
+    const e = S.apply({ goldDelta: 50 }, M); out.gainAgain = e.rejected.map(x => x.reason);
+    return out;
+  });
+  assert.equal(r.start, 10000);
+  assert.deepEqual(r.big.rejected, []); assert.equal(r.big.gold, 3150, JSON.stringify(r.big));
+  assert.match(r.second.rejected[0] || '', /cannot afford \$4,?200 \(have \$3,?150\)/, JSON.stringify(r.second)); assert.equal(r.second.gold, 3150);
+  assert.match(r.tooMuch.rejected[0] || '', /cannot afford/); assert.equal(r.tooMuch.gold, 3150);
+  assert.match(r.gain.applied[0], /gold 3150 -> 3650 \(\+900 held to \+500\)/, JSON.stringify(r.gain));
+  assert.match(r.gainAgain[0] || '', /money already gained \$500 this turn/, JSON.stringify(r.gainAgain));
+});
+
 s.run();

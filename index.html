@@ -10613,11 +10613,12 @@ const State = (() => {
       if (d0 === null) bad('must be an integer');
       if (d0 === 0) return null;
       let d = d0;
-      // A bookkeeper moves at most LIMITS.modelGoldPerTurn either way in a turn; a payment toward an open debt, up to what is still owed.
-      if (model) {
-        const most = Math.max(LIMITS.modelGoldPerTurn, owedNow);
-        d = clamp(ledger.gold + d0, -most, LIMITS.modelGoldPerTurn) - ledger.gold;
-        if (d === 0) bad(`money already moved ${money(LIMITS.modelGoldPerTurn)} this turn`);
+      // A bookkeeper may give the player at most LIMITS.modelGoldPerTurn in a turn (the model never invents money). What the player
+      // hands over is held only by what they carry (wave 24: the owner paid $6,850 the story showed counted "in full" and the engine
+      // took $500 of it); the affordability check below is the whole guard on spending.
+      if (model && d0 > 0) {
+        d = clamp(ledger.gold + d0, -Infinity, LIMITS.modelGoldPerTurn) - ledger.gold;
+        if (d <= 0) bad(`money already gained ${money(LIMITS.modelGoldPerTurn)} this turn`);
       }
       if (p.gold + d < 0) { goldRefused = true; bad(`cannot afford ${money(-d)} (have ${money(p.gold)})`); }
       const before = p.gold;

@@ -970,8 +970,9 @@ rolls or puts anything about cheating on record. With no game here, nobody
 dealing, or the bar shut for the day, nothing is bet and no table is dealt.
 
 **What one turn can do.** The bookkeeper that records each turn is held to
-what a turn can do: $500 in or out (a payment toward what you owe, up to
-what is still owed), 3 HP, two things gained, one new plan, a
+what a turn can do: $500 gained (what you hand over is held only by what
+you carry, so a payment the story shows counted out goes in full), 3 HP,
+two things gained, one new plan, a
 condition of three days at most, and nobody dies, is arrested or leaves town
 without a roll against them that succeeded. A thing bought is refused when
 the money for it was. HP never reaches 0 from what it writes unless you

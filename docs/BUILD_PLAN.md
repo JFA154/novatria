@@ -293,7 +293,7 @@ ops above. It returns `{ applied: [...], rejected: [{ path, reason }] }` and
 pushes rejections to the debug console. Every number is clamped, every id
 checked, per SPEC.md section 10 "Validation in State.apply()". The
 bookkeeper's diff comes with `{ source: 'model', present: [npcIds],
-rollSuccess, attacked }` and is held to one turn: `goldDelta` ±500, `hpDelta`
+rollSuccess, attacked }` and is held to one turn: `goldDelta` +500 (a spend held only by the cash carried, wave 24), `hpDelta`
 ±3 and never from above 0 to 0 unless `attacked` and the roll failed, two
 things carried, one seed, conditions of three days at most, and items refused
 when their payment was. `record_changes` gains `npcFates: [{ npcId, status:
@@ -1579,3 +1579,11 @@ talking, I can direct it to one person or all."
      "?" at the end) at no cost, with what a fact is for and a pointer to
      asking someone in the story; the command list and the README row say
      "make a statement true". Test in `tests/wave21-night-clock.test.cjs`.
+   - **Wave 24** (1 Nov 2026). The owner paid Jodie about $4,200 and Carter
+     $6,850 from cheated cash, the story counted it "paid in full", and the
+     cash barely moved: the bookkeeper's `goldDelta` was held to $500 either
+     way a turn. The cap now holds only what the player gains (the model
+     never invents money); what they hand over is held by what they carry,
+     the affordability check being the whole guard on spending. README "What
+     one turn can do", `docs/notes/engine-state.md`; test in
+     `tests/wave21-night-clock.test.cjs`, the engine-state test follows.

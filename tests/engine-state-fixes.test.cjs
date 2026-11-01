@@ -399,7 +399,7 @@ s.test('a bookkeeper\'s diff is capped: gold +/-500 and HP +/-3 a turn, HP to 0 
   });
   assert.match(r.goldBig, /\(\+900 held to \+500\)/);
   assert.equal(r.goldUp, 500);
-  assert.match(r.goldMore, /money already moved \$500 this turn/);
+  assert.match(r.goldMore, /money already gained \$500 this turn/); // wave 24: only gains are held to $500
   assert.deepEqual(r.atomic, ['goldDelta: cannot afford $240 (have $10)', 'itemsGained[0]: not paid for: Used shotgun']);
   assert.equal(r.noGun, true);
   assert.deepEqual(r.items, ['itemsGained[2]: at most 2 things gained a turn']);

@@ -107,7 +107,7 @@ errand`). Options that are plain strings still work (they are read through
 `State.apply(diff, { source: 'model', present: [npcIds], rollSuccess:
 bool, attacked: npcId|null })`:
 
-- `goldDelta` held to +/-500 a turn (a per-turn ledger), `hpDelta` to +/-3 a
+- `goldDelta` held to +500 a turn (a per-turn ledger; a spend is held only by the cash carried, wave 24), `hpDelta` to +/-3 a
   turn; HP never goes from above 0 to 0 unless `attacked` and
   `rollSuccess === false` (held at 1).
 - `itemsGained`: at most 2 things carried in a turn (services do not count);
@@ -297,7 +297,7 @@ Nothing happens without a hook.
 > and missing it has consequences; paying in front of the creditor
 > settles it. Resolving a thread you know about the first time earns a
 > story point and +1 to a stat (or +2 max HP). The bookkeeper is held to
-> what one turn can do: $500, 3 HP, two things, one plan, three days of a
+> what one turn can do: $500 gained (a spend by the cash carried), 3 HP, two things, one plan, three days of a
 > condition, and nobody dies, is arrested or leaves without a roll that
 > succeeded.
 
