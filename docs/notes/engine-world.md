@@ -1956,3 +1956,79 @@ Wave A3 of `docs/RELATIONSHIPS_PLAN.md`.
   after an intimidation that worked (never a minor's); `pickRumour` skips
   anyone at trust -25 or below unless a gossip; the dealer deals nobody at
   trust -40 or below and `cardPeople` seats nobody there.
+
+## Wave 29 (1 Nov 2026): what people hold, in World, Town and Pipeline
+
+Wave A4 of `docs/RELATIONSHIPS_PLAN.md`. Every new seed draws on a stream
+of its own (`Rel.rng(kind, npcId, day)`: pay, inquiry, owedFavour, owedAsk,
+owedAskAgain, tell, price, levViolence, levReport, levTalk, trustGrudge), so
+the shared dice, the clocks and every older seed are draw for draw the same.
+
+- **The backed ask** (Pipeline `backedAsk`, first in `resolve` after
+  coercion): an intimidation or a persuasion with a held record in
+  `aboutIds` (kept by `normaliseParse` only when the player's words use it:
+  `Rel.references`) at the one it names. Weight 2 or more is no roll (the
+  d20 burned, `Dice.burn`), weight 1 easy, a hard target normal, a minor
+  as the parse had it. `Rel.leverageAnswer` decides before narration: a
+  price in the words (`Rel.priceIn`, "three hundred", "$300") and they
+  agree to pay tomorrow, capped at `canRaise` and 100 a weight, nothing now
+  (a payment seed, origin leverage, the next day: the money, the record
+  paid, their `paid_silence` at liking -5); no price and they go along; the
+  hard who are not tough refuse and talk or report
+  (`World.leverageAnswered`, levTalk / levReport), the tough answer with
+  violence (levViolence); a failed roll is the bluff called; a price on a
+  paid record is "already paid, and won't again" (`threatened_to_tell`, no
+  money). The narrator gets the `LEVERAGE:` line, the bookkeeper "already
+  applied", and the OUTCOME lines are left out. A minor's answer is $0 and
+  `World.minorHarm(id, 'threat')`.
+- **Coercion with a record** (`coerce`): the record named is `used` with
+  `blackmailed` carrying its id; the report goes through the police bar
+  (`plantReport(..., { force })` and `coercion` pass `protectorOf`'s
+  `anyway`).
+- **Caught at it** (`rolledEvents`): a theft, a sneak or a search with
+  exactly one other person there, no news, gives that person's
+  `caught_you_at` and their record over the player (`about.kind` seen,
+  weight 2 for a theft or a lie, 1 for a sneak or a search, key
+  `t<turn>-<actionType>`; it matters to the one robbed, else the police
+  head).
+- **The informant** (Town's `resolveLooseEnd`, a secret loose end): the person
+  starts holding the record over the player, weight by the option (2, 2,
+  3), mattering to the police head, the player not knowing it until the
+  price is named (`playerKnows` then, "Glenda Pryor has something on
+  you.").
+- **`plantFeelings`** (step e) gains, in this order per person: the favour
+  owed asked back (`owedAsk`: a FAVOUR_TEMPLATES `ask` by their tags 5 days
+  after the debt began, again 3 days after that, 3 days after the second a
+  crossed-class memory and the debt let go; on its own clock, whatever
+  else is waiting); a standoff plants nothing (`Rel.standoff`); the police
+  bar (`Rel.policeBarred`: no police grudge); `barLifted` (a record spent
+  or voided in the last day: no cooldown, the check runs at once); the
+  trust route (`betrayal`: trust -60 with one of `BETRAYALS` first-hand and
+  unsettled, a gossip or police grudge on trustGrudge); the payback of
+  favours owed (`owedFavour`: owed 2 at liking above -25, a non-cash
+  favour unless liking 25 and trust 0, ending square with `owedSettle`);
+  then `plantHolders` (someone holding a live record over the player: at
+  liking -60 a `tell` grudge, the record spent and told to `mattersTo`; a
+  mercenary holder at liking 10 or less a `price`, a blackmail of $50 a
+  weight due in 2 days, linked by `leverageId`; never in a standoff, never
+  the loose end's own record, never one already priced).
+- **`plantReports`** skips a standoff; a report by a holder spends what
+  they hold over the player, told to whom they went (`told_anyway`, hidden
+  through a hidden tie).
+- **`plantFeeling(n, kind, memory, day, o)`** takes `o.filter`, `o.only`,
+  `o.key` (on the origin) and `o.effects` (added to the template's); tell,
+  price, report and ask templates (`OWN_KINDS`) are never an ordinary
+  grudge's or favour's. `fillEffects` fills `{leverageId}`, `{amount}` and
+  `{price}`.
+- **The romance step** (Pipeline): `Rel.romanceTurn` decides welcome and a
+  night together before narration (`ROMANCE (decided by the engine): ...`
+  for the narrator: open to it, not interested, says yes and fade to black,
+  or not tonight, kindly); `romanceEvents` records the flirts (welcome:
+  W +4, K +2, S 10 x sparkRate), the jealousy of whoever saw it
+  (`Rel.jealousyOf`) and the night (`intimate`, private, a weight-3 scar).
+  The bookkeeper is told what the engine recorded.
+- **Secrets shown** (`secretsFor`): what the narrator was given is
+  `secretShown` with how it opened.
+- **World exports** `leverageAnswered`, `plantHolders`, `owedFavour`,
+  `owedAsk`, `barLifted`, `betrayal`, `BETRAYALS`, `OWN_KINDS`,
+  `plantFeelings`.

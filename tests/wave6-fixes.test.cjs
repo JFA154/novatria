@@ -125,7 +125,8 @@ for (const lines of SAY_GIFTS) {
     const out = [];
     for (const t of lines) out.push(await sayToHollis(page, t, { goldDelta: -20, attitudeChanges: [{ npcId: 'npc_hollis', delta: 5 }] }));
     assert.deepEqual(out.map(x => x.gift), ['npc_hollis', 'npc_hollis', 'npc_hollis'], 'each is a gift');
-    assert.deepEqual(out.map(x => x.att), [5, 0, 0], 'only the first warms');
+    // Changed by design in wave 29 (A4): Hollis is mercenary in content, and money given to him counts double on liking.
+    assert.deepEqual(out.map(x => x.att), [10, 0, 0], 'only the first warms (doubled: Hollis is mercenary)');
     assert.match(out[2].gifts, /npc_hollis.*npc_hollis.*npc_hollis/);
   });
 }

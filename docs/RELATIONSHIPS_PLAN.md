@@ -1,6 +1,6 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Waves 26 to 28 have landed; wave 28's
+1 Nov 2026 · a plan being built. **Waves 26 to 29 have landed; wave 28's
 live grammar probe is still to run** (`ANTHROPIC_API_KEY=… node
 tests/probe-grammar.cjs`). A1 (wave
 26, "The tracks under the number"): the `Rel` module, six tracks on every
@@ -22,7 +22,16 @@ coercion, fade to black, `start` and `axes` in the content, and the Debug
 export of bookkeeper turns (`docs/notes/prompts.md`, `transport.md`,
 `content.md`, `engine-state.md`, `engine-world.md`, Wave 28; tests:
 `tests/wave28-social-events.test.cjs`, `tests/relationships.test.cjs`).
-A4, A5 and B1 to B3 are still plans.
+A4 (wave 29, "What people hold: wanting, leverage and favours"): spark for
+the shipped twelve-adult romance list with welcome decided before
+narration, statuses with hysteresis on caring liking, the gated night
+together (fade to black), leverage in full (secrets shown, keys in the
+narration, caught at it, the informant, backed asks and their answers, the
+payment seed, the obligation link, the standoff, the police bar, tell and
+price, `whenTold`), and favours owed both ways (`docs/notes/prompts.md`,
+`transport.md`, `content.md`, `engine-state.md`, `engine-world.md`, Wave
+29; tests: `tests/wave29-rel-hold.test.cjs`, examples 2, 6, 8, 10, 11, 12
+and 14). A5 and B1 to B3 are still plans.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

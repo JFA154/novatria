@@ -402,7 +402,9 @@ s.test('the bookkeeper hears stances, three handles a person and the engine\'s o
       claim: (await auto("I'm a surveyor from the state.")).socialEvents,
       lied: (await auto('Fine.', { narration: '"You lied to me," Royce says.' })).socialEvents,
       confide: (await auto('Tell me about yourself.', { roll: { success: true } })).socialEvents,
-      secret: (await auto('Hm.', { revealSecretFor: ['npc_royce'] })).socialEvents,
+      // Changed by design in wave 29 (A4): the demo sends a secret let slip only when the narration shows it (two of its keys), in the narration's words.
+      secret: (await auto('Hm.', { revealSecretFor: ['npc_royce'], narration: 'Royce says Carter Sturdivant holds the note on the station and has offered him the truck stop lease.' })).socialEvents,
+      secretUnshown: (await auto('Hm.', { revealSecretFor: ['npc_royce'] })).socialEvents,
       attack: (await auto('x', { action: { summary: 'x', actionType: 'attack', targets: ['npc_royce'] }, speech: { mode: 'do' }, roll: { success: true } })),
       keys: Object.keys(await auto('Morning.'))
     };
@@ -427,6 +429,8 @@ s.test('the bookkeeper hears stances, three handles a person and the engine\'s o
   assert.deepEqual(r.mock.lied.map(e => e.event), ['lied_caught']);
   assert.deepEqual(r.mock.confide.map(e => e.event), ['they_confided']);
   assert.deepEqual(r.mock.secret.map(e => e.event), ['learned_secret']);
+  assert.match(r.mock.secret[0].text, /note on the station/, 'in the narration\'s words');
+  assert.deepEqual(r.mock.secretUnshown, [], 'a secret the narration did not show is not sent');
   assert.deepEqual(r.mock.attack.socialEvents, [], 'an attack is the engine\'s: the demo sends nothing');
   assert.ok(!r.mock.keys.includes('attitudeChanges') && !r.mock.keys.includes('newMemories') && !r.mock.keys.includes('memoriesSettled') && r.mock.keys.includes('socialEvents'), JSON.stringify(r.mock.keys));
   assert.deepEqual(r.noted, ['says they are a surveyor from the state'], 'the claim is held to them');

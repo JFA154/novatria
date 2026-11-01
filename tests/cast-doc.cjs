@@ -62,6 +62,29 @@ function render(D) {
     const axes = n.axes ? Object.keys(n.axes).map(k => `${AXIS_NAMES[k] || k} ${signed(n.axes[k])}`) : [];
     return (parts.length ? `Starts with a stranger at ${parts.join(', ')}.` : '') + (axes.length ? `${parts.length ? ' ' : ''}Axes: ${axes.join(', ')}.` : '');
   };
+  /* Wave 29: whom they go to when the player frightens or hurts them (a
+     protector the town knows of; a hidden one is left out, it would spoil
+     a secret), what their secret weighs as leverage and the most a demand
+     can take from them, the mercenary flag, and whether they can be
+     interested in the player (the romance list: spark rate, how well they
+     must know the player first). */
+  const name = id => { const m = T.npcs.find(x => x.id === id); return m ? m.name : id; };
+  const romance = Array.isArray(T.romance) ? T.romance : [];
+  const holdLine = n => {
+    const parts = [];
+    const p = n.protector;
+    if (p === 'nobody') parts.push('Goes to nobody when leaned on (a grudge instead).');
+    else if (p !== undefined) {
+      const ids = (Array.isArray(p) ? p : [p]).filter(x => typeof x === 'string' || (x && x.hidden !== true)).map(x => (typeof x === 'string' ? x : x.npcId));
+      if (ids.length) parts.push(`Goes to ${ids.map(name).join(' and ')} when leaned on.`);
+    }
+    if (Number.isInteger(n.secretWeight)) parts.push(`Secret weight ${n.secretWeight}${Number.isInteger(n.canRaise) ? `; a demand can take $${n.canRaise}` : ''}.`);
+    else if (Number.isInteger(n.canRaise)) parts.push(`A demand can take $${n.canRaise}.`);
+    if (n.mercenary === true) parts.push('Mercenary.');
+    const r = romance.find(x => x && x.npcId === n.id);
+    if (r) parts.push(`Can be interested in the player (spark rate ${r.sparkRate}; opens at knows ${r.opensAt && Number.isInteger(r.opensAt.knows) ? r.opensAt.knows : 0}${r.faithful ? '; faithful' : ''}).`);
+    return parts.join(' ');
+  };
   const here = T.npcs.filter(n => presence(n) === 'here');
   const away = T.npcs.filter(n => presence(n) === 'away');
   const dead = T.npcs.filter(n => presence(n) === 'dead');
@@ -99,6 +122,8 @@ function render(D) {
       if (aw) bits.push(aw);
       const sl = startLine(n);
       if (sl) bits.push(sl);
+      const hl = holdLine(n);
+      if (hl) bits.push(hl);
       out.push(`- ${bits.join(' ')} \`${n.id}\``);
     }
   }

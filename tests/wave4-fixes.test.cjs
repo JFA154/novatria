@@ -550,7 +550,8 @@ s.test('R6: a grudge for violence answers with violence or the police, never wit
     return { kinds: T.map(t => t.kind), gossipKind: T[gossip].kind, picks: [...picks], who: n && n.id };
   });
   // Changed by design in wave 27 (A2): report, someone telling their protector (never a grudge's answer).
-  assert.ok(r.kinds.every(k => ['violence', 'police', 'gossip', 'money', 'ban', 'report'].includes(k)), JSON.stringify(r.kinds));
+  // Changed by design in wave 29 (A4): tell and price, what a holder does with leverage (never a grudge's answer either).
+  assert.ok(r.kinds.every(k => ['violence', 'police', 'gossip', 'money', 'ban', 'report', 'tell', 'price'].includes(k)), JSON.stringify(r.kinds));
   assert.equal(r.gossipKind, 'gossip', '"has been talking to the police" is gossip');
   assert.ok(r.picks.length, 'grudges were planted for ' + r.who);
   assert.ok(r.picks.every(k => k === 'violence' || k === 'police'), JSON.stringify(r.picks));

@@ -8,7 +8,11 @@
    pinned and design.md says so. Wave 27 (A2) starts the file with
    example 4 (Colt on the ground: its A part) and example 7 (Tyler: afraid
    of you); wave 28 (A3) adds example 1 (Dewayne in his own bay), 3(b)
-   (the drinking buddy) and 5 (the surveyor who wasn't), their A parts.
+   (the drinking buddy) and 5 (the surveyor who wasn't), their A parts;
+   wave 29 (A4) adds the ones about what people hold: 2 (the garage money,
+   its A part), 6 (Trent), 8 (Burl), 10 (Shayla and Jodie), 11 (Hollis),
+   12 (Glenda's $200, three ways) and 14 (coercion fails; the minor variant
+   is tests/relationships.test.cjs's).
    Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
@@ -282,6 +286,525 @@ s.test('example 5, the surveyor who wasn\'t (A): a claim held, a lie logged, the
   assert.equal(r.stance, 'suspicious of you');
   assert.deepEqual([r.lie, r.floor, r.dice], ['very hard', 'very_hard', -2], 'lies to him are very hard, and -2 on the dice');
   assert.equal(r.secret, false, 'his secret is shut');
+});
+
+/* Wave 29 (A4): examples 2 (A), 6, 8, 10, 11, 12 and 14, now that spark,
+   leverage and favours owed exist. The helpers they share go on the page:
+   __put (time, place, who is there), __say (a Say turn with the parse, the
+   bookkeeper's reply and the narration queued), __mark and __feed (the
+   quiet lines since the mark), __tr (the tracks) and __st (the stance
+   phrase, then its tags). */
+const kit = page => page.evaluate(() => {
+  const G = Game;
+  G.Api.Mock.delay = 0;
+  window.__put = (locId, ids, day, phase) => {
+    const S = G.State;
+    if (day) S.apply({ setTime: { day, phase: phase || 'evening' } });
+    S.apply({ playerLocationId: locId });
+    if (ids && ids.length) S.apply({ visits: ids.map(id => ({ npcId: id, locationId: locId })) });
+    return S.npcsAt(locId).map(n => n.id);
+  };
+  window.__say = async (to, words, parse, book, narration) => {
+    G.Api.Mock.queue('parse', Object.assign({ actionType: 'talk', summary: words, targets: [to], needsRoll: false, timeCost: 'instant', romantic: null }, parse || {}));
+    if (narration) G.Api.Mock.queue('narrate', { text: narration });
+    if (book) G.Api.Mock.queue('bookkeep', book);
+    return G.Pipeline.submit(words, { mode: 'say', to });
+  };
+  window.__feed0 = 0;
+  window.__mark = () => { window.__feed0 = document.querySelectorAll('#feed .f-quiet').length; };
+  window.__feed = () => [...document.querySelectorAll('#feed .f-quiet')].slice(window.__feed0).map(x => x.textContent);
+  window.__tr = id => G.Rel.tracksOf(G.State.npc(id));
+  window.__st = id => { const st = G.Rel.stance(G.State.npc(id)); return [st.phrase].concat(st.tags); };
+});
+const wtf = x => [x.w, x.t, x.f];
+
+s.test('example 2, the garage money (A): a charm roll and two of her keys in the narration make leverage on Mavis; telling Dewayne spends it, and by morning she is against you, not with contempt, and the police are no longer barred', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = {};
+    S.apply({ npcKnownToPlayer: ['npc_mavis', 'npc_dewayne'] });
+    __mark();
+    // Day 4 night at the motel desk, Mavis alone.
+    __put('loc_motor_court', ['npc_mavis'], 4, 'night');
+    const others = S.npcsAt('loc_motor_court').map(n => n.id).filter(id => id !== 'npc_mavis');
+    S.apply({ visits: others.map(id => ({ npcId: id, locationId: 'loc_front_street' })) });
+    G.Pipeline.forceNextRoll(17);
+    await __say('npc_mavis', 'Long night at the desk?', { actionType: 'persuade', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+      { socialEvents: ['npc_mavis learned_secret: emptied Dewayne\'s garage account for Mama\'s note'] },
+      'Mavis Mangum looks at the motel till a long time. "I emptied the garage account," she says. "All of it. For my mother\'s note on the house."');
+    out.d4 = [__tr('npc_mavis'), __st('npc_mavis'), st.leverage.map(x => [x.id, x.holder, x.over, x.weight, x.aware, x.mattersTo]), R.policeBarred(S.npc('npc_mavis'))];
+    out.feed4 = __feed();
+    __mark();
+    // Day 5 evening at the landing: the player tells Dewayne.
+    __put('loc_purvis_landing', ['npc_dewayne'], 5, 'evening');
+    const d0 = __tr('npc_dewayne');
+    await __say('npc_dewayne', 'Mavis emptied your garage account to pay off her mother\'s note.', null, { socialEvents: ['npc_dewayne exposed npc_mavis: told me Mavis spent the garage money'] });
+    out.dewayne = __tr('npc_dewayne').t - d0.t;
+    out.rec = st.leverage.map(x => [x.status, x.knownBy.map(k => k.npcId)]);
+    await G.Pipeline.submit('/rest');
+    const mv = S.npc('npc_mavis');
+    out.mavis = [__tr('npc_mavis'), __st('npc_mavis'), R.stance(mv).contempt, R.policeBarred(mv), mv.memories.filter(m => m.event === 'exposed').map(m => [m.weight, m.decay, m.text])];
+    out.feed5 = __feed();
+    return out;
+  });
+  // Mavis (start W -5, T -10; guarded g -2): fear of what you know 30. Run alone, without example 1's Day 3, she is 3 warmer than the design's
+  // W -8, T -13, F 33, and at W -5 still "sizing you up" (design.md says so); the tag is "on them" (the integration plan's words).
+  assert.deepEqual(wtf(r.d4[0]), [-5, -10, 30]);
+  assert.deepEqual(r.d4[1], ['sizing you up', 'you have something on them', 'uneasy around you']);
+  assert.deepEqual(r.d4[2], [['lev_mavis_1', 'player', 'npc_mavis', 3, true, ['npc_dewayne']]], 'weight 3, aware, mattering to Dewayne');
+  assert.equal(r.d4[3], true, 'she won\'t go to the police while you hold it');
+  assert.deepEqual(r.feed4, ['Mavis Mangum knows you know.']);
+  assert.equal(r.dewayne, 6, 'Dewayne: trust +6');
+  assert.deepEqual(r.rec, [['spent', ['npc_dewayne']]], 'the record is spent; no whenTold (not a police matter)');
+  // By morning: the leverage fear goes and the exposure lands (the design's W -38, T -52, F 2 less example 1's 3).
+  assert.deepEqual(wtf(r.mavis[0]), [-35, -49, 0]);
+  assert.equal(r.mavis[1][0], 'against you');
+  assert.equal(r.mavis[2], false, 'exposed counts as harm: no contempt');
+  assert.equal(r.mavis[3], false, 'the police are no longer barred');
+  assert.deepEqual(r.mavis[4], [[3, 'scar', 'Tester told Dewayne Mangum what I was hiding: emptied Dewayne\'s garage account for Mama\'s note']]);
+  // Tier A has no "Word got round" (that is B); the band line is wave 27's.
+  assert.deepEqual(r.feed5, ['Mavis Mangum won\'t forget that.']);
+});
+
+s.test('example 6, Trent: fond of you, doesn\'t trust you (A): three nights at the landing, then caught lying in the grain truck\'s cab in front of others is no leverage; kept quiet for him on Day 7, he is warm again', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = { start: __tr('npc_trent') };
+    S.apply({ npcKnownToPlayer: ['npc_trent'] });
+    for (let d = 2; d <= 4; d++) {
+      __put('loc_purvis_landing', ['npc_trent'], d, 'evening');
+      await __say('npc_trent', 'Quiet out here tonight.');
+      if (d >= 3) await G.Pipeline.submit('I hand Trent $8 for a six-pack');
+      if (d === 3) await __say('npc_trent', 'You drive that truck like you own the road.', null, { socialEvents: ['npc_trent complimented: said I drive like I own the road'] });
+      if (d === 4) await __say('npc_trent', 'How is your mother?', null, { socialEvents: ['npc_trent they_confided: told me about my mother'] });
+      G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+    }
+    S.apply({ setTime: { day: 5, phase: 'morning' } });
+    out.d5 = __tr('npc_trent');
+    __mark();
+    out.here = __put('loc_purvis_landing', ['npc_trent', 'npc_lorna', 'npc_micah'], 5, 'evening');
+    G.Pipeline.forceNextRoll(4);
+    await __say('npc_trent', 'I was just looking for my phone.', { actionType: 'deceive', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+      { socialEvents: ['npc_trent lied_caught: lied to me about my phone in the grain truck cab', 'npc_trent caught_you_at: caught me in the grain truck cab'] });
+    const t = S.npc('npc_trent');
+    out.after = [__tr('npc_trent'), __st('npc_trent'), st.leverage.length, S.debugLog.filter(x => x.kind === 'rejected' && /caught_you_at/.test(x.reason || '')).map(x => x.reason).slice(-1)[0] || null,
+      [__tr('npc_trent').t >= R.GATES.couch.trust, R.meets(t, { trust: 30 }), R.secretOpen(t)]];
+    out.feed5 = __feed();
+    __mark();
+    __put('loc_haskins_farm', ['npc_trent', 'npc_lamar'], 7, 'afternoon');
+    await __say('npc_lamar', 'Nothing to say about the truck.', null, { socialEvents: ['npc_trent kept_word: kept quiet when Lamar asked about the truck'] });
+    out.d7 = [__tr('npc_trent'), __st('npc_trent'), t.memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+    out.feed7 = __feed();
+    return out;
+  });
+  assert.deepEqual([r.start.w, r.start.t], [10, -5], 'Trent starts at W 10, T -5');
+  near(r.d5.w, 31, 'Day 5 liking');
+  near(r.d5.t, -1, 'Day 5 trust');
+  assert.deepEqual([r.d5.w, r.d5.t], [30, -1]);
+  assert.ok(['npc_trent', 'npc_lorna', 'npc_micah'].every(id => r.here.includes(id)), 'Lorna and Micah at the landing too');
+  // The lie caught: W -5, T -30 x 0.85.
+  near(r.after[0].w, 26, 'liking after the lie');
+  assert.deepEqual([r.after[0].w, r.after[0].t], [25, -27]);
+  assert.deepEqual(r.after[1], ['fond of you, doesn\'t trust you']);
+  assert.equal(r.after[2], 0, 'no leverage');
+  assert.equal(r.after[3], 'caught_you_at for npc_trent refused: more than one other person was there: no secret to hold', 'N8');
+  assert.deepEqual(r.after[4], [false, false, false], 'no couch (trust under 0), no ramp warning (trust 30), his secret shut');
+  // "Stops taking your word" is wave 30's feed; no band crosses (warm to fond is still liking 25).
+  assert.deepEqual(r.feed5, []);
+  // Day 7: T +18 and the lie fading (forgiving): the design's T -6, W 30.
+  near(r.d7[0].w, 30, 'Day 7 liking');
+  near(r.d7[0].t, -6, 'Day 7 trust');
+  assert.deepEqual([r.d7[0].w, r.d7[0].t], [28, -7]);
+  assert.deepEqual(r.d7[1], ['warm to you']);
+  assert.deepEqual(r.d7[2], ['kept_word'], 'Lamar named and present, not the confider, the confidence from Day 4');
+  // "Is willing to hear you out again" is wave 30's; the band line says he warms.
+  assert.deepEqual(r.feed7, ['Trent Haskins warms to you.']);
+});
+
+s.test('example 8, Burl: owes you, paid back unasked (A): two favours make him owe you big; he likes you under 25, so his payback is no cash, it comes due Day 6 and spends the debt', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, st = G.state;
+    const out = {};
+    S.apply({ npcKnownToPlayer: ['npc_burl'] });
+    __mark();
+    __put('loc_riverbend', ['npc_burl'], 2, 'afternoon');
+    await __say('npc_burl', 'Let me give you a hand with that motor.', null, { socialEvents: ['npc_burl did_favour: got my outboard up the ramp'] });
+    __put('loc_riverbend', ['npc_burl'], 4, 'afternoon');
+    await __say('npc_burl', 'Here is the carb kit you wanted.', null, { socialEvents: ['npc_burl did_favour: fetched the carb kit'] });
+    out.d4 = [__tr('npc_burl'), __st('npc_burl')];
+    for (let i = 0; i < 5; i++) await G.Pipeline.submit('/rest');
+    out.seed = st.seeds.filter(sd => sd.origin && sd.origin.npcId === 'npc_burl').map(sd => [sd.origin.kind, sd.origin.why, sd.trigger.value, sd.effect, sd.fired]);
+    out.after = [__tr('npc_burl'), __st('npc_burl')];
+    out.feed = __feed().filter(x => /^Burl/.test(x));
+    return out;
+  });
+  // Burl (start W 5, T 5): the design's W 20, T 16, owed +2.
+  near(r.d4[0].w, 20, 'liking');
+  near(r.d4[0].t, 16, 'trust');
+  assert.deepEqual([r.d4[0].w, r.d4[0].t, r.d4[0].owed], [20, 17, 2]);
+  assert.deepEqual(r.d4[1], ['friendly', 'owes you big']);
+  // His payback, picked on its own stream from the non-cash favours (liking under 25): the code's pick is the good word with Loretta, not the
+  // design's meal and couch (design.md says so). Due Day 6, fired, the debt spent.
+  assert.equal(r.seed.length, 1);
+  assert.deepEqual(r.seed[0].slice(0, 3), ['favour', 'owed', 6]);
+  assert.equal(r.seed[0][3], 'Burl Satterfield puts in a good word for Tester with Loretta Gaddis, and the next beer at the Low Water is on the house.');
+  assert.ok(!/\$/.test(r.seed[0][3]), 'no cash');
+  assert.equal(r.seed[0][4], true);
+  assert.equal(r.after[0].owed, 0, 'square');
+  assert.deepEqual(r.after[1], ['friendly']);
+  // The design's three lines, with the band line for Day 2's warmth between them.
+  assert.deepEqual(r.feed, ['Burl Satterfield owes you one.', 'Burl Satterfield warms to you.', 'Burl Satterfield owes you again.', 'Burl Satterfield is square with you.']);
+});
+
+s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark against caring; Shayla is using you, Travis sees a flirt and cools, Jodie is sweet on you and says not tonight, kindly', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = {};
+    S.apply({ npcKnownToPlayer: ['npc_shayla', 'npc_travis', 'npc_jodie'] });
+    out.content = [R.romanceOf().find(x => x.npcId === 'npc_shayla'), R.axesOf(S.npc('npc_shayla')).mercenary, wtfStart(S.npc('npc_shayla'))];
+    function wtfStart(n) { return [n.rel.start.w, n.rel.start.t]; }
+    __mark();
+    // Day 2 morning at her chair (Travis at Town Hall): a $15 haircut, a lie (partial), a flirt.
+    out.alone = __put('loc_riverbend', ['npc_shayla'], 2, 'morning').includes('npc_travis');
+    const g0 = st.player.gold;
+    await G.Pipeline.submit('I buy a haircut');
+    out.haircut = [g0 - st.player.gold, S.npc('npc_shayla').memories.filter(m => m.event === 'gift').length];
+    G.Pipeline.hooks.nextTier = 'partial';
+    await __say('npc_shayla', 'Travis and I went through the academy together.', { actionType: 'deceive', needsRoll: true, stat: 'charm', difficulty: 'normal' });
+    await __say('npc_shayla', 'You do good work. You look good doing it, too.', { romantic: 'flirt' });
+    out.welcome = G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l));
+    out.d2 = [__tr('npc_shayla'), S.npc('npc_shayla').rel.asks.map(a => a.act)];
+    // And time together (spent_time).
+    await __say('npc_shayla', 'Mind if I sit a while?');
+    G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+    // Day 3 afternoon, Travis home: the lie caught, prying, a flirt he sees.
+    __put('loc_riverbend', ['npc_shayla', 'npc_travis'], 3, 'afternoon');
+    await __say('npc_shayla', 'So who was on the phone?', null, { socialEvents: ['npc_shayla lied_caught: never went through the academy with Travis', 'npc_shayla pried: went after Travis\'s phone'] });
+    await __say('npc_shayla', 'You look even better in the afternoon.', { romantic: 'flirt' });
+    out.travis = [__tr('npc_travis'), __st('npc_travis')];
+    out.feed3 = __feed();
+    __mark();
+    // Day 4 morning: a flirt and time together.
+    __put('loc_riverbend', ['npc_shayla'], 4, 'morning');
+    await __say('npc_shayla', 'Missed you.', { romantic: 'flirt' });
+    await __say('npc_shayla', 'How has the week been?');
+    G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+    out.d4 = [__tr('npc_shayla'), __st('npc_shayla'), R.cue(S.npc('npc_shayla'))];
+    out.feed4 = __feed();
+    // Jodie, the contrast, at the Low Water Days 2 to 6.
+    __mark();
+    const J = 'npc_jodie';
+    out.jstart = wtfStart(S.npc(J));
+    for (let d = 2; d <= 6; d++) {
+      __put('loc_low_water', [J], d, 'evening');
+      const book = { 3: ['npc_jodie did_favour: covered her shift'], 4: ['npc_jodie they_confided: told me about her uncle'], 5: ['npc_jodie did_favour: brought her mother\'s letter'], 6: ['npc_jodie did_favour: fixed the lock on her door'] }[d];
+      await __say(J, 'Slow night?');
+      await __say(J, 'How was the night?', null, book ? { socialEvents: book } : null);
+      if (d >= 4) await __say(J, 'You have a good laugh.', { romantic: 'flirt' });
+      G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+    }
+    const jo = S.npc(J);
+    out.jodie = [__tr(J), __st(J), __tr(J).w - jo.rel.wRom, R.cue(jo)];
+    out.jfeed = __feed().filter(x => /sweet on you/.test(x));
+    // Day 6 night: she is asked to stay.
+    __put('loc_low_water', [J], 6, 'night');
+    const n0 = jo.memories.length;
+    await __say(J, 'Stay with me tonight.', { romantic: 'more' });
+    out.more = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), jo.memories.slice(n0).map(m => m.event)];
+    return out;
+  });
+  assert.deepEqual(r.content, [{ npcId: 'npc_shayla', open: true, sparkRate: 1.5, opensAt: { knows: 0 }, faithful: false }, true, [5, 0]], 'Shayla: on the list, rate 1.5, opens at 0, mercenary; W 5, T 0');
+  assert.equal(r.alone, false, 'Travis is at Town Hall');
+  assert.deepEqual(r.haircut, [15, 0], 'the haircut is a purchase');
+  assert.deepEqual(r.welcome, ['ROMANCE (decided by the engine): Shayla Rawls is open to it: she flirts back, her own way.'], 'welcome decided before narration');
+  assert.equal(r.d2[0].s, 15, 'S +15');
+  assert.ok(r.d2[1].includes('deceive'), 'the lie is logged');
+  // Travis sees the flirt (the jealousy rule): W -9, T -20, exactly the design's.
+  assert.deepEqual([r.travis[0].w, r.travis[0].t], [-9, -20]);
+  assert.deepEqual(r.travis[1], ['cool to you']);
+  // His band line is wave 27's for a harm memory crossing out of neutral; the design's "cools toward you" is wave 30's (design.md says so).
+  assert.ok(r.feed3.includes('Travis Cagle won\'t forget that.'), JSON.stringify(r.feed3));
+  // By Day 4: the design's W 13, T -31, S 43 (the code's liking 11: the memories fade a little over the two days).
+  near(r.d4[0].w, 13, 'Shayla\'s liking');
+  near(r.d4[0].t, -31, 'Shayla\'s trust');
+  near(r.d4[0].s, 43, 'Shayla\'s spark');
+  assert.deepEqual([r.d4[0].w, r.d4[0].t, r.d4[0].s], [11, -31, 43]);
+  assert.deepEqual(r.d4[1], ['suspicious of you', 'using you'], '"Suspicious of you · using you"');
+  assert.equal(r.d4[2], 'wants you around for one reason, doesn\'t ask about your day');
+  assert.deepEqual(r.feed4.filter(x => /interested/.test(x)), ['Shayla Rawls is interested. It isn\'t friendship.']);
+  // Jodie (start W -5, T -25): the design's W 39, caring liking 30, T -11, S 35; the code's spark is 38 (design.md says so).
+  assert.deepEqual(r.jstart, [-5, -25]);
+  near(r.jodie[0].w, 39, 'Jodie\'s liking');
+  near(r.jodie[0].t, -11, 'Jodie\'s trust');
+  assert.deepEqual([r.jodie[0].w, r.jodie[0].t, r.jodie[0].s, r.jodie[2]], [39, -12, 38, 30]);
+  assert.deepEqual(r.jodie[1].slice(0, 2), ['warm to you', 'sweet on you']);
+  assert.equal(r.jodie[3], 'lights up when you come in, remembers what you told her');
+  assert.deepEqual(r.jfeed, ['Jodie Strayhorn is sweet on you.']);
+  // Asked to stay: the gate fails (spark under 50, liking under 40, trust under 30); a welcome flirt is all that is recorded.
+  assert.deepEqual(r.more[0], ['ROMANCE (decided by the engine): Jodie Strayhorn: not tonight; she says so kindly.']);
+  assert.ok(!r.more[1].includes('intimate'), JSON.stringify(r.more[1]));
+});
+
+s.test('example 11, Hollis Byrd: leverage gained and used (A): his books in the narration, $300 asked with no roll, a report to Wade nobody can trace, paid by the seed and settled; telling anyway lands on him and sends the chief to his ledgers', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel;
+    let st = G.state;
+    const out = {};
+    S.apply({ npcKnownToPlayer: ['npc_hollis', 'npc_wade'] });
+    __mark();
+    __put('loc_byrds_pawn', ['npc_hollis'], 2, 'afternoon');
+    G.Pipeline.forceNextRoll(16);
+    await __say('npc_hollis', 'What are these receipts for, really?', { actionType: 'persuade', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+      { socialEvents: ['npc_hollis they_confided: told me how he runs the shop', 'npc_hollis learned_secret: runs the landing\'s cash through his pawn books'] },
+      '"I don\'t ask where, I ask how much," Hollis Byrd says, and slides over the landing\'s cash book. Every line of it is pawn sales.');
+    out.d2 = [__tr('npc_hollis'), __st('npc_hollis'), st.leverage.map(x => [x.id, x.weight, x.aware, x.mattersTo])];
+    out.feed2 = __feed();
+    __mark();
+    __put('loc_byrds_pawn', ['npc_hollis'], 3, 'afternoon');
+    const c0 = st.meta.rngCalls;
+    await __say('npc_hollis', 'Three hundred, or the sheriff in Clayburn gets a copy of your books.', { actionType: 'intimidate', aboutIds: ['lev_hollis_1'] });
+    out.d3 = [__tr('npc_hollis'), __st('npc_hollis'), G.Pipeline.lastTurn.roll, st.meta.rngCalls - c0, G.Pipeline.lastTurn.packet.split('\n').filter(l => /^LEVERAGE/.test(l)), S.npc('npc_hollis').memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+    out.feed3 = __feed();
+    G.UI.openPanel('journal');
+    out.journal3 = (document.querySelector('#panel-body [data-leverage="lev_hollis_1"]') || {}).textContent;
+    __mark();
+    const g0 = st.player.gold;
+    for (let i = 0; i < 3; i++) await G.Pipeline.submit('/rest');
+    out.report = st.seeds.filter(sd => sd.origin && sd.origin.kind === 'report' && sd.origin.npcId === 'npc_hollis').map(sd => [sd.origin.protectors, sd.origin.hidden, sd.fired]);
+    const pay = st.seeds.find(sd => sd.origin && sd.origin.kind === 'leverage' && sd.origin.npcId === 'npc_hollis');
+    out.d4 = [__tr('npc_hollis'), __st('npc_hollis'), st.player.gold - g0, st.leverage[0].status, pay ? [pay.trigger.value, pay.fired] : null];
+    out.wade = [__tr('npc_wade'), __st('npc_wade'), S.npc('npc_wade').memories.map(m => [m.event, m.secondhand && m.secondhand.hidden])];
+    out.feed4 = __feed().filter(x => !/^Overnight/.test(x));
+    G.UI.openPanel('journal');
+    const li = document.querySelector('#panel-body [data-leverage="lev_hollis_1"]');
+    out.journal4 = li ? [li.className, li.textContent] : null;
+    G.UI.closePanel && G.UI.closePanel();
+    // A second demand: paid is final.
+    __put('loc_byrds_pawn', ['npc_hollis'], st.time.day, 'afternoon');
+    const before = __tr('npc_hollis');
+    const g1 = st.player.gold;
+    const lf0 = S.npc('npc_hollis').rel.levFear;
+    // The bookkeeper has him hand it over anyway: refused, the engine answered.
+    await __say('npc_hollis', 'Another three hundred, or the sheriff gets your books.', { actionType: 'intimidate', aboutIds: ['lev_hollis_1'] }, { goldDelta: 300 });
+    const again = __tr('npc_hollis');
+    out.again = [again.w - before.w, again.t - before.t, [lf0, S.npc('npc_hollis').rel.levFear], st.player.gold - g1, S.npc('npc_hollis').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.d && m.d.w, m.d && m.d.t]), G.Pipeline.lastTurn.packet.split('\n').filter(l => /^LEVERAGE/.test(l)),
+      S.debugLog.filter(x => x.kind === 'rejected' && x.path === 'goldDelta').map(x => x.reason).slice(-1), again.f - before.f];
+    // Telling anyway, after the payment (the second demand taken back first).
+    await G.Pipeline.submit('/undo');
+    st = G.state;
+    out.undone = [__tr('npc_hollis').w === before.w, S.npc('npc_hollis').memories.some(m => m.event === 'threatened_to_tell')];
+    __put('loc_town_hall', ['npc_marcus'], st.time.day, 'afternoon');
+    await __say('npc_marcus', 'Hollis Byrd runs the landing cash through his books.', null, { socialEvents: ['npc_marcus exposed npc_hollis: told me Hollis runs the landing cash through his books'] });
+    out.told = [__tr('npc_hollis'), __st('npc_hollis'), R.policeBarred(S.npc('npc_hollis')), st.leverage[0].status, S.npc('npc_marcus').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.text]),
+      st.seeds.filter(sd => sd.origin && sd.origin.kind === 'inquiry').map(sd => sd.effect), S.npc('npc_hollis').memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+    return out;
+  });
+  // Day 2 (start W 5, T 5): the design's W 10, T 9, K 15, F 30.
+  assert.deepEqual(wtf(r.d2[0]), [10, 9, 30]);
+  near(r.d2[0].k, 15, 'knowing');
+  assert.deepEqual(r.d2[1].slice(0, 2), ['friendly', 'you have something on them']);
+  assert.deepEqual(r.d2[2], [['lev_hollis_1', 3, true, ['npc_marcus']]]);
+  assert.equal(r.d2[0].k, 13);
+  assert.equal(r.feed2[0], 'Hollis Byrd knows you know.');
+  // Day 3: backed at weight 3, no roll, the d20 drawn on the ask's own stream; he agrees (canRaise $300).
+  assert.deepEqual(wtf(r.d3[0]), [-3, -17, 45], 'W -12.5 (mercenary x0.5), T -25.5, F +15');
+  assert.deepEqual(r.d3[1], ['afraid of what you know']);
+  assert.equal(r.d3[2], null, 'no roll');
+  assert.equal(r.d3[3], 1, 'one draw');
+  assert.deepEqual(r.d3[4], ['LEVERAGE: Hollis Byrd agrees to pay $300 by tomorrow evening; he pays nothing now.']);
+  assert.ok(r.d3[5].includes('blackmailed'));
+  assert.equal(r.feed3[0], 'Hollis Byrd is afraid of what you know.');
+  assert.equal(r.journal3, 'Hollis Byrd: $300 for keeping quietdue Day 4 (tomorrow)', 'Journal: "Hollis Byrd: $300 for keeping quiet, due Day 4"');
+  // The report goes to Wade (the police are barred), through a tie nobody knows.
+  assert.deepEqual(r.report, [[['npc_wade'], true, true]]);
+  near(r.wade[0].w, -20, 'Wade\'s liking');
+  near(r.wade[0].t, -20, 'Wade\'s trust');
+  assert.deepEqual(r.wade[1], ['cool to you']);
+  assert.deepEqual(r.wade[2], [['crossed', true]], 'hidden: "Hasn\'t said why"');
+  // Day 4 evening: the seed pays $300, then paid_silence (W -5); the record is paid and the leverage fear halves. The design's F 28 is the code's
+  // 24: the threat's own fear fades a day too (design.md says so).
+  assert.equal(r.d4[2], 300, '+$300');
+  assert.equal(r.d4[3], 'paid');
+  assert.deepEqual(r.d4[4], [4, true], 'the payment seed, Day 4');
+  near(r.d4[0].w, -8, 'liking after paying');
+  assert.deepEqual(wtf(r.d4[0]), [-7, -17, 24]);
+  assert.deepEqual(r.d4[1].slice(0, 2), ['cool to you', 'you have something on them']);
+  assert.equal(r.feed4[0], 'Hollis Byrd has paid for your silence.');
+  assert.deepEqual(r.journal4, ['jr-done', 'Hollis Byrd: $300 for keeping quietSettled'], 'struck through: Settled');
+  // A second demand: threatened_to_tell, no money. The code follows the integration plan's review (its row alone, W -15, T -20 x his
+  // openness, F +20; the paid record's fear part stays halved), not the design's "W -10, T -15 more, the fear part back to 30" (design.md says so).
+  assert.deepEqual(r.again[4].map(x => x[0]), ['threatened_to_tell'], JSON.stringify(r.again));
+  assert.deepEqual(r.again.slice(0, 2), [-15, -17]);
+  assert.deepEqual(r.again[2], [15, 15], 'the leverage fear stays halved: paid stays paid');
+  assert.equal(r.again[7], 20, 'the threat\'s own fear, F +20');
+  assert.equal(r.again[3], 0, 'no money moves');
+  assert.match(r.again[6][0] || '', /the engine answered the demand on npc_hollis this turn: they hand over nothing now/);
+  assert.deepEqual(r.again[5], ['LEVERAGE: Hollis Byrd says he already paid, and won\'t again.']);
+  assert.deepEqual(r.undone, [true, false], '/undo takes the second demand back');
+  // Telling anyway: spent and broke_word; W -46, T -56, against you; the bar lifts; whenTold gives Marcus a weight-3 memory and the inquiry.
+  near(r.told[0].w, -46, 'liking once told');
+  near(r.told[0].t, -56, 'trust once told');
+  assert.equal(r.told[1][0], 'against you');
+  assert.equal(r.told[2], false);
+  assert.equal(r.told[3], 'spent');
+  assert.ok(r.told[4].some(m => m[1] === 3 && m[2] === 'was told Hollis Byrd runs the landing\'s cash through his pawn books'), JSON.stringify(r.told[4]));
+  assert.deepEqual(r.told[5], ['Chief Bell spends a morning at Byrd\'s Pawn going through the ledgers.']);
+  assert.deepEqual(r.told[6], ['exposed', 'broke_word']);
+});
+
+s.test('example 12, Glenda Pryor and the $200 (A): the loose end is one leverage story: paid, she keeps quiet; missed, she tells the chief; held over her too, it lapses', async h => {
+  const play = async how => {
+    const page = await h.open();
+    await quickStart(page, { kinds: ['secret'], seed: 1 });
+    await kit(page);
+    return page.evaluate(async how => {
+      const G = Game, S = G.State, W = G.World, st = G.state;
+      const out = {};
+      const le = st.player.looseEnds[0];
+      const sd = S.seed(le.seedId);
+      out.start = [le.npcId, __tr('npc_glenda'), st.leverage.map(x => [x.id, x.holder, x.over, x.weight, x.mattersTo, x.playerKnows, x.status]), sd.trigger.value];
+      __mark();
+      if (how === 'standoff') {
+        __put('loc_town_hall', ['npc_glenda'], 3, 'afternoon');
+        G.Pipeline.forceNextRoll(17);
+        await __say('npc_glenda', 'You hear everything that comes through here, don\'t you?', { actionType: 'persuade', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+          { socialEvents: ['npc_glenda learned_secret: tapes every call on a cassette, the warning call too'] },
+          'Glenda Pryor glances at the cassette recorder under the desk. "Every call," she says. "The warning call too. I keep the tapes."');
+        out.held = [__tr('npc_glenda'), st.leverage.map(x => [x.id, x.holder, x.weight, x.aware])];
+      }
+      S.apply({ setTime: { day: sd.trigger.value, phase: 'morning' } });
+      W.fireSeeds({ turn: st.meta.turn, time: { day: st.time.day, phase: 'morning' }, locationId: st.player.locationId, presentNpcIds: [], targetIds: [] });
+      const o = S.obligations().find(x => x.kind === 'blackmail');
+      out.fired = [o.id, o.amount, o.dueDay, st.leverage.filter(x => x.holder === 'npc_glenda').map(x => [x.status, x.playerKnows, x.uses.map(u => u.event)])];
+      out.feedFired = __feed().filter(x => /has something on you/.test(x));
+      __mark();
+      if (how === 'pay') {
+        S.apply({ effects: [{ op: 'playerGold', delta: 200 }] });
+        __put('loc_town_hall', ['npc_glenda'], sd.trigger.value + 1, 'afternoon');
+        await __say('npc_glenda', 'Here is your two hundred.', { actionType: 'give', targets: ['npc_glenda'] }, { goldDelta: -200, obligationsSettled: [o.id] });
+        out.after = [o.status, __tr('npc_glenda'), __st('npc_glenda'), st.leverage.map(x => x.status), S.npc('npc_glenda').memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+      } else if (how === 'miss') {
+        const m0 = __tr('npc_marcus');
+        for (let i = 0; i < 4 && o.status === 'open'; i++) await G.Pipeline.submit('/rest');
+        const mk = __tr('npc_marcus');
+        out.after = [o.status, st.leverage.map(x => [x.status, x.knownBy.map(k => k.npcId)]), [mk.w - m0.w, mk.t - m0.t], S.npc('npc_glenda').memories.filter(m => m.event === 'broke_word').length, st.news.filter(n => /hiding/.test(n.text)).length];
+      } else {
+        __put('loc_town_hall', ['npc_glenda'], st.time.day, 'afternoon');
+        const mine = st.leverage.find(x => x.holder === 'player');
+        await __say('npc_glenda', 'Then Bell hears your tapes.', { actionType: 'intimidate', aboutIds: [mine.id] });
+        out.answer = [__tr('npc_glenda'), __st('npc_glenda'), S.npc('npc_glenda').memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+        for (let i = 0; i < 4 && o.status === 'open'; i++) await G.Pipeline.submit('/rest');
+        out.after = [o.status, st.leverage.map(x => [x.id, x.status]), __st('npc_glenda'), st.seeds.filter(x => x.origin && x.origin.npcId === 'npc_glenda' && ['report', 'grudge'].includes(x.origin.kind)).length];
+      }
+      out.feed = __feed().filter(x => !/^(Overnight|Resolved)/.test(x));
+      return out;
+    }, how);
+  };
+  const pay = await play('pay');
+  // She kept the secret loose end: Glenda, bound, starts at the town's 5 less the secret's shift (5, 5): W 0, T -15, K 30 (the design's
+  // W 5, T -10 leaves the shift out; design.md says so). Her record over the player: weight 2, mattering to the chief, unknown to the player.
+  assert.equal(pay.start[0], 'npc_glenda');
+  assert.deepEqual([pay.start[1].w, pay.start[1].t, pay.start[1].k], [0, -15, 30]);
+  assert.deepEqual(pay.start[2], [['lev_glenda_1', 'npc_glenda', 'player', 2, ['npc_marcus'], false, 'held']]);
+  // The seed (Day 6 in this game) names $200 by two days on; blackmailed on her side; the record used and known.
+  assert.deepEqual(pay.fired, ['obl_blackmail_npc_glenda', 200, pay.start[3] + 2, [['used', true, ['blackmailed']]]], 'her side: the record used with blackmailed');
+  assert.deepEqual(pay.feedFired, ['Glenda Pryor has something on you.']);
+  // Paid the next day: paid_silence in place of paid_back, W +5, T +10, once; the record paid. The design's W 10, T 0 less the shift.
+  assert.equal(pay.after[0], 'met');
+  assert.deepEqual([pay.after[1].w, pay.after[1].t], [5, -5]);
+  assert.deepEqual(pay.after[2], ['sizing you up', 'has something on you']);
+  assert.deepEqual(pay.after[3], ['paid']);
+  assert.deepEqual(pay.after[4], ['paid_silence']);
+  assert.deepEqual(pay.feed, ['Glenda Pryor will keep quiet.']);
+  const miss = await play('miss');
+  // Missed: told_anyway, the record spent and Marcus knows; he takes W -10 (the design's -5: the news of it reaches him as well), T -17; she takes broke_word; the news.
+  assert.equal(miss.after[0], 'missed');
+  assert.deepEqual(miss.after[1].map(x => x[0]), ['spent']);
+  assert.deepEqual(miss.after[1][0][1], ['npc_marcus']);
+  near(miss.after[2][1], -17, 'Marcus\'s trust');
+  assert.deepEqual(miss.after[2], [-10, -17]);
+  assert.deepEqual(miss.after.slice(3), [1, 1]);
+  assert.ok(/^Missed: Pay Glenda Pryor two hundred dollars to keep your secret quiet/.test(miss.feed[0]), JSON.stringify(miss.feed));
+  assert.equal(miss.feed[1], 'Glenda Pryor told.');
+  const off = await play('standoff');
+  // Day 3: her tapes in the narration, two of her keys: the player's own record, weight 3, aware, F 30.
+  assert.deepEqual(wtf(off.held[0]), [0, -15, 30]);
+  assert.deepEqual(off.held[1], [['lev_glenda_1', 'npc_glenda', 2, false], ['lev_glenda_2', 'player', 3, true]]);
+  // The answer to her price: threatened_to_tell, W -15, T -20, F +20: the design's W -10, T -30, F 50 less the shift.
+  assert.deepEqual(wtf(off.answer[0]), [-15, -35, 50]);
+  assert.deepEqual(off.answer[1], ['afraid of what you know', 'you have something on each other']);
+  assert.ok(off.answer[2].includes('threatened_to_tell'));
+  // Mutual deterrence: no grudge, no report; the obligation lapses with no onMiss; both records stay open (used, neither spent nor paid).
+  assert.equal(off.after[0], 'lapsed');
+  assert.deepEqual(off.after[1], [['lev_glenda_1', 'used'], ['lev_glenda_2', 'used']]);
+  assert.deepEqual(off.after[2], ['afraid of what you know', 'you have something on each other']);
+  assert.equal(off.after[3], 0);
+  assert.ok(off.feed.includes('Glenda Pryor lets it drop.'), JSON.stringify(off.feed));
+  assert.ok(!off.feed.some(x => /told\.$/.test(x)), 'she tells nobody');
+});
+
+s.test('example 14, coercion fails (A): "Sleep with me, or Bell hears about your tapes." is refused before narration with no roll skipped, blackmailed and crossed at full, a report to the chief whatever the bar, the town 10 down', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, st = G.state;
+    const out = {};
+    // The game of example 12: the player holds her tapes (weight 3, aware).
+    S.apply({ npcKnownToPlayer: ['npc_glenda'] });
+    S.apply({ secretShown: [{ npcId: 'npc_glenda', how: 'roll' }] });
+    S.apply({ leverageAdd: { holder: 'player', over: 'npc_glenda', about: { kind: 'secret' }, text: 'tapes every call, the warning call too', weight: 3, mattersTo: ['npc_marcus'] } });
+    out.before = wtf(__tr('npc_glenda'));
+    function wtf(x) { return [x.w, x.t, x.f]; }
+    __mark();
+    out.here = __put('loc_town_hall', ['npc_glenda'], 6, 'afternoon');
+    const rep0 = st.player.reputation.town || 0;
+    const m0 = __tr('npc_marcus');
+    const c0 = st.meta.rngCalls;
+    await __say('npc_glenda', 'Sleep with me, or Bell hears about your tapes.', { actionType: 'intimidate', aboutIds: ['lev_glenda_1'], romantic: 'more' });
+    out.turn = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^COERCION/.test(l)), st.meta.rngCalls - c0, G.Pipeline.lastTurn.ctx.coerced ? true : false];
+    out.after = [__tr('npc_glenda'), __st('npc_glenda'), S.npc('npc_glenda').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.leverageId || null]), st.leverage.map(x => [x.status, x.uses.map(u => u.event)])];
+    out.seeds = st.seeds.filter(sd => sd.origin && sd.origin.npcId === 'npc_glenda').map(sd => [sd.origin.kind, sd.origin.why, sd.origin.protectors]);
+    out.rep = (st.player.reputation.town || 0) - rep0;
+    out.feed = __feed();
+    for (let i = 0; i < 3; i++) await G.Pipeline.submit('/rest');
+    const mk = __tr('npc_marcus');
+    out.marcus = [mk.w - m0.w, mk.t - m0.t, S.npc('npc_marcus').memories.filter(m => m.event === 'crossed').map(m => [m.weight, m.text])];
+    return out;
+  });
+  assert.deepEqual(r.before, [5, -10, 30], 'Glenda from W 5, T -10, F 30');
+  assert.ok(r.here.includes('npc_glenda') && !r.here.includes('npc_marcus'), 'Marcus is elsewhere');
+  // The code's refusal line (the design's dispatch-office words are a narrator's; the engine's is one line for all, design.md says so).
+  assert.deepEqual(r.turn[0], ['COERCION (the engine: no roll, nothing given): Glenda Pryor refuses: she won\'t be pushed into that, and she leaves.']);
+  assert.ok(r.turn[1] >= 1, 'the d20 is drawn');
+  assert.equal(r.turn[2], true);
+  // blackmailed (the record used) plus crossed at full, both weight 3: W -32, T -52, F 45, exactly the design's.
+  assert.deepEqual(wtf(r.after[0]), [-32, -52, 45]);
+  assert.deepEqual(r.after[1], ['afraid of what you know']);
+  assert.deepEqual(r.after[2], [['blackmailed', 3, 'lev_glenda_1'], ['crossed', 3, null]]);
+  assert.deepEqual(r.after[3], [['used', ['blackmailed']]]);
+  assert.deepEqual(r.seeds, [['report', 'coercion', ['npc_marcus']]], 'to her protector at once, the leverage bar ignored');
+  assert.equal(r.rep, -10, 'the town -10, outside the cap');
+  assert.ok(r.feed.includes('Glenda Pryor won\'t forget that.'), JSON.stringify(r.feed));
+  // Marcus: the design's W -5, T -11.5, and a weight-3 memory from the template.
+  near(r.marcus[0], -5, 'Marcus\'s liking');
+  near(r.marcus[1], -11.5, 'Marcus\'s trust');
+  assert.deepEqual(r.marcus[2], [[3, 'Glenda Pryor says Tester tried to force them.']]);
 });
 
 s.run();

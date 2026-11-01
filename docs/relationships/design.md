@@ -42,7 +42,7 @@ Marked by the numbers in `review.md` part two: R is its re-check of the first re
 - **[N9, R9, N10a] Leverage.**
   - `learned_secret` needs the narration to contain 2 of the secret's content `leverageKeys`.
   - A backed ask needs the player's own words to reference the record.
-  - `paid` is terminal for demands. A second demand is `threatened_to_tell` with no money, and costs W -10, T -15 more.
+  - `paid` is terminal for demands. A second demand is `threatened_to_tell` with no money (its own row: W -15, T -20, F +20; the integration plan's review drops the "W -10, T -15 more", and wave 29's code follows it).
   - Default `canRaise` is $100; Hollis and Jolene $300, Curtis $200.
   - `paid_silence` replaces `paid_back` for blackmail obligations.
   - No `goldDelta` is accepted from a target with a pending demand. The `LEVERAGE:` line is present-tense.
@@ -481,7 +481,7 @@ state.leverage = [ {
 | Event | Source | What it does |
 |---|---|---|
 | `blackmailed` (X) | **Engine.** A backed ask (2.6.5) with a price in the player's words ("$300"). Also when an NPC names a price to the player (the loose-end seed, the price template): recorded on the record only. And any coercion (2.5). | Status `used`. The player's demand is stored on the record ("are owed" in the Journal). An NPC's demand is the blackmail obligation. |
-| `threatened_to_tell` (X) | **Engine.** A backed ask with no price. **A second demand on a `paid` record** is this event, with no money, plus W -10, T -15 ("you said that was the end of it"), and the record's fear part returns to full. | Status `used` (unless it was `paid`, which stays `paid`); `aware` becomes true. |
+| `threatened_to_tell` (X) | **Engine.** A backed ask with no price. **A second demand on a `paid` record** is this event, with no money ("you said that was the end of it"). Wave 29's code, after the integration plan's review: the row alone, nothing more, and the paid record's fear part stays halved. | Status `used` (unless it was `paid`, which stays `paid`); `aware` becomes true. |
 | `paid_silence` (X) | **Engine.** The blackmail obligation is met, or the player's demand is paid by its seed. **For a blackmail obligation it replaces `paid_back`:** one payment, one event. | Status `paid`. |
 | `told_anyway` (X) | **Engine.** The obligation's `onMiss`; a "tell" grudge; a report seed that spends it. When the player tells after being paid: `exposed` plus an engine `broke_word`. | Status `spent`; whoever was told goes into `knownBy`; `whenTold` runs (2.6.5). |
 | `exposed` (about Y, to X) | **Bookkeeper**, with a precondition (3.2). | Spends the player's record over Y; `whenTold` runs. |
@@ -1243,12 +1243,12 @@ Trait axes used below (Appendix A):
 
 - **Situation.** The same game. Day 4 night at the motel desk, a charm roll with Mavis succeeds, so her secret is in the packet. The narration has her say she emptied Dewayne's garage account to pay off the note on her mother's house. That contains two of her keys, "garage account" and "mother's note".
 - **Events.** `npc_mavis learned_secret: emptied Dewayne's garage account for Mama's note` (both preconditions met). `lev_mavis_1`: weight 3, aware, `mattersTo: npc_dewayne`.
-- **Tracks.** Mavis: fear of what you know 30. **W -8, T -13, F 33**: "cool to you · you have something on her" (the card also shows "uneasy around you").
+- **Tracks.** Mavis: fear of what you know 30. **W -8, T -13, F 33**: "cool to you · you have something on her" (the card also shows "uneasy around you"). (Wave 29's code, pinned by `tests/relationships-examples.test.cjs`, runs the example alone, without example 1's Day 3: **W -5, T -10, F 30**, "sizing you up · you have something on them · uneasy around you". The tag says "them" for everyone, as the integration plan's tag list has it.)
 - **Day 5 evening, at the landing.** `npc_dewayne exposed npc_mavis: ...` (precondition met).
   - The record is spent. Mavis's secret is not a police matter, so no `whenTold` runs.
   - Dewayne: trust +6, so **T -7**.
   - B: the tie Dewayne→Mavis goes from 50/60 to 30/15.
-  - Mavis by morning: W -30, T -39; the leverage fear goes. **W -38, T -52, F 2.**
+  - Mavis by morning: W -30, T -39; the leverage fear goes. **W -38, T -52, F 2.** (Run alone: W -35, T -49, F 0.)
 - **Stance.** Mavis: **"against you"**.
   - `exposed` counts as harm, so the contempt cue doesn't apply.
   - The police are no longer barred.
@@ -1257,7 +1257,7 @@ Trait axes used below (Appendix A):
 - **Narrator (Day 6).** `Mavis Mangum ... to you: against you — told Dewayne about the garage money (Day 5); hit Dewayne at Pittman's (Day 3, made good) — plays it: polite as a locked door; wants you gone`
 - **Player sees.**
   - Day 4 night: "Mavis Mangum knows you know."
-  - Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne."
+  - Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne." (Tier B. In tier A as wave 29 has it, the band line the morning after: "Mavis Mangum won't forget that.")
   - Her card: "Against you" / "You told Dewayne about the garage money. Day 5" / "You knew: the garage money. Day 4 · told Dewayne, Day 5".
   - Dewayne's card: "wife Mavis Mangum, strained since Day 5".
 
@@ -1332,11 +1332,11 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - The ramp warning: skipped (it needs trust 30).
   - His secret: shut.
 - **Narrator.** `to you: fond of you, doesn't trust you — caught you lying in his truck's cab (Day 5); drinks with you at the landing (3 nights) — plays it: glad to see you; changes the subject or lies when pressed`
-- **Player sees.** "Trent Haskins stops taking your word."
+- **Player sees.** "Trent Haskins stops taking your word." (Wave 30's feed. In tier A as wave 29 has it no band crosses here, so no line prints; the code's numbers are W 25, T -27.)
 - **Day 7.** At the farm, Lamar asks the player about the truck, with Trent in the yard.
   - `npc_trent kept_word: kept quiet when Lamar asked about the truck`. The preconditions are met: Lamar is named and present and is not the confider, and the confidence is from Day 4.
-  - T +18, and the lie has faded (forgiving, r +1). **T -6, W 30**: "warm to you".
-  - "Trent Haskins is willing to hear you out again."
+  - T +18, and the lie has faded (forgiving, r +1). **T -6, W 30**: "warm to you". (The code: T -7, W 28; on Day 5 before anything else, W 30, T -1.)
+  - "Trent Haskins is willing to hear you out again." (Wave 30's; until then the band line, "Trent Haskins warms to you.")
 
 #### 7. Tyler: afraid of you (A: complies, then reports)
 
@@ -1355,9 +1355,9 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 
 - **Situation.** Two `did_favour`: Day 2, an outboard up the ramp; Day 4, a carburetor kit.
 - **Tracks.** Burl (start W 5, T 5): **W 20, T 16, owed +2**. "friendly · owes you big".
-- **Behaviour.** Owed +2 plants a favour on its own dice stream. His liking is under 25, so the $100 cash work is excluded and a non-cash template is used: "gives you a hot meal and a couch for the night" (HP +2). It comes due Day 6 or 7 and spends the debt.
+- **Behaviour.** Owed +2 plants a favour on its own dice stream. His liking is under 25, so the $100 cash work is excluded and a non-cash template is used: "gives you a hot meal and a couch for the night" (HP +2). It comes due Day 6 or 7 and spends the debt. (Wave 29's code, pinned by `tests/relationships-examples.test.cjs`: T 17, and the stream picks another non-cash favour, due Day 6: "Burl Satterfield puts in a good word for the player with Loretta Gaddis, and the next beer at the Low Water is on the house.")
 - **Narrator.** `to you: friendly; owes you big — got his motor up the ramp (Day 2); fetched the carb kit (Day 4) — plays it: easy with you; small talk comes easy`
-- **Player sees.** "Burl Satterfield owes you one." / "Burl Satterfield owes you again." / "Burl Satterfield is square with you."
+- **Player sees.** "Burl Satterfield owes you one." / "Burl Satterfield owes you again." / "Burl Satterfield is square with you." (With the band line for Day 2's warmth between the first two: "Burl Satterfield warms to you.")
 
 #### 9. Loretta goes quiet (B: a hidden tie, a named act)
 
@@ -1378,13 +1378,13 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - `npc_shayla lied_caught: never went through the academy with Travis`: W -5, T -30.
   - `pried` (Travis's phone): W -3, T -3.
   - Another welcome flirt: W +4, S +15.
-  - Travis sees it (the jealousy rule): **W -9, T -20**, "cool to you".
+  - Travis sees it (the jealousy rule): **W -9, T -20**, "cool to you". (His band line in tier A as wave 29 has it: "Travis Cagle won't forget that.", a harm memory taking him out of neutral.)
 - **Day 4 morning:** a flirt (S +15) and time together (S +2, W +2).
-- **Tracks by Day 4.** **W 13, T -31, S 43.**
+- **Tracks by Day 4.** **W 13, T -31, S 43.** (The code: W 11, the memories fading a little over two days.)
 - **Stance.** Grid "suspicious of you". Status **"using you"**: spark 40 or more, liking under 25, trust -25 or less, and the distrust is earned (a caught lie, first-hand), as well as her `mercenary` flag. "Suspicious of you · using you".
 - **Behaviour.** She keeps a late meeting at the water tower and flirts back. She tells the player nothing, does no favours, and won't offer a couch.
 - **Narrator (Day 4).** `Shayla Rawls ... to you: suspicious of you; using you — caught you lying about knowing Travis (Day 3); flirts back at the chair (Days 2-4) — plays it: wants you around for one reason; doesn't ask about your day`
-- **Player sees.** Day 3: "Travis Cagle cools toward you." Day 4: "Shayla Rawls is interested. It isn't friendship." If the status lapses and comes back within 7 days, no new line prints.
+- **Player sees.** Day 3: "Travis Cagle cools toward you." (wave 30's words; until then "Travis Cagle won't forget that.") Day 4: "Shayla Rawls is interested. It isn't friendship." If the status lapses and comes back within 7 days, no new line prints.
 - **The contrast, in the same game: Jodie Strayhorn** (29; g -1; start W -5, T -25; eligible, `sparkRate` 1.2, `opensAt` 20). She lives at the Low Water.
   - Days 2 to 6: `spent_time` (W +8, K +16), turns aimed at her (K +15).
   - Day 3: `did_favour` (covers her shift).
@@ -1392,60 +1392,60 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - Day 5: the player hands her her mother's letter. The errand is met, and the engine gives her `did_favour`.
   - Day 6: `did_favour` (the player fixes the lock on her door).
   - Flirts on Days 4, 5 and 6, each welcome (knows-you is past 20).
-  - **Tracks: W 39 (caring liking 30, after taking away 9 from the flirts), T -11, S 35.**
+  - **Tracks: W 39 (caring liking 30, after taking away 9 from the flirts), T -11, S 35.** (Wave 29's code, pinned by `tests/relationships-examples.test.cjs`: T -12 and **S 38**; the three favours also leave her owing the player, "owes you big".)
   - Grid "warm to you"; status **"sweet on you"**, since spark is 30 or more and caring liking 25 or more.
   - Without the three favours, five days of flirting alone would leave her caring liking under 25. Her start trust is -25 and she has earned no distrust, so she would read "wants you", cue "flirts back; keeps it light; doesn't trust you". She would never read "using you", and never "sweet on you".
   - **Narrator:** `to you: warm to you; sweet on you — brought her mother's letter (Day 5); flirts back at the bar (Days 4-6) — plays it: lights up when you come in; remembers what you told her`
   - Feed: "Jodie Strayhorn is sweet on you."
-  - **Day 6 night,** the player asks her to stay (`romantic: "more"`). The gate fails on spark (35, under 50), liking (39, under 40) and trust (-11, under 30). The narrator is told "Jodie Strayhorn says not tonight, kindly." The turn counts as a welcome flirt, and nothing more is recorded.
+  - **Day 6 night,** the player asks her to stay (`romantic: "more"`). The gate fails on spark (35, under 50), liking (39, under 40) and trust (-11, under 30). The narrator is told "Jodie Strayhorn says not tonight, kindly." (the code's line: `ROMANCE (decided by the engine): Jodie Strayhorn: not tonight; she says so kindly.`). The turn counts as a welcome flirt, and nothing more is recorded.
   - Shayla and Jodie are at almost the same spark. Earned distrust and caring separate them, and the cue says so.
 
 #### 11. Hollis Byrd: leverage gained and used (A)
 
 - **Situation.** The player is the fired bookkeeper, whose first job is Hollis's. Day 2 afternoon at Byrd's Pawn, the player asks straight what the receipts are for. The charm roll succeeds, so his secret is in the packet. "I don't ask where, I ask how much," and he slides over the landing's cash book. That contains two of his keys, "cash book" and "pawn sales".
 - **Events.** `they_confided` and `npc_hollis learned_secret: runs the landing's cash through his pawn books`. `lev_hollis_1`: weight 3, aware, `mattersTo: npc_marcus`.
-- **Tracks.** Hollis (start W 5, T 5): **W 10, T 9, K 15, F 30**. "friendly · you have something on him".
+- **Tracks.** Hollis (start W 5, T 5): **W 10, T 9, K 15, F 30**. "friendly · you have something on him". (Wave 29's code: K 13, and "friendly · you have something on them · uneasy around you".)
 - **Day 3 afternoon.** "Three hundred, or the sheriff in Clayburn gets a copy of your books."
   - The parse: intimidate, `aboutIds: [lev_hollis_1]`. The player's words reference the record ("books", and "or the sheriff …" is a threat phrase). Not romantic. A price is named.
   - Backed at weight 3: no roll; the d20 is drawn on the ask's stream. Engine `blackmailed`.
   - The answer: neither hard nor tough, pride 0, `canRaise` $300, cap 3 × $100 = $300: he agrees.
-  - Packet: `LEVERAGE: Hollis Byrd agrees to pay $300 by tomorrow evening; pays nothing now.` No `goldDelta` from Hollis is accepted until the payment seed.
+  - Packet: `LEVERAGE: Hollis Byrd agrees to pay $300 by tomorrow evening; he pays nothing now.` No `goldDelta` from Hollis is accepted until the payment seed (nor on the turn of any backed ask at him: wave 29).
   - Tracks: W -12.5 (mercenary ×0.5), T -25.5, F +15. **W -3, T -17, F 45**: "afraid of what you know".
 - **Report.** Threat-made fear fires it.
   - The police are barred (the player holds aware leverage), so it goes to his content protector, Wade: "Hollis Byrd tells Wade Purvis somebody has seen the landing's books, and who."
-  - Wade takes W -10, T -10: **W -20, T -20**, "cool to you".
+  - Wade takes W -10, T -10: **W -20, T -20**, "cool to you". (The code: W -18, T -18; his memory is the report template's, "Hollis Byrd says the player has been leaning on them.")
   - Hollis→Wade is a hidden tie, so the hidden-tie rule applies. Wade's card: "Cooler since Day 3. Hasn't said why." Wade's narrator reason: `cooler since Day 3, for a reason of his own; keeps it to himself, never hint at it`. Nothing shows the Night Run link.
 - **Day 4 evening.** The payment seed: "Hollis slides an envelope under the grille. 'Merchandise.'" The engine moves +$300, then `paid_silence` (he paid: W -5). The record becomes `paid`, and the leverage fear halves to 15.
-  - **W -8, T -17, F 28**: "cool to you · you have something on him".
-- **A second demand** ("another three hundred, or …"). `paid` is terminal, so this is `threatened_to_tell` with no money, plus W -10, T -15, and the fear part goes back to 30.
+  - **W -8, T -17, F 28**: "cool to you · you have something on him". (Wave 29's code: **W -7, T -17, F 24**, the threat's own fear fading a day as well; "cool to you · you have something on them · uneasy around you".)
+- **A second demand** ("another three hundred, or …"). `paid` is terminal, so this is `threatened_to_tell` with no money, plus W -10, T -15, and the fear part goes back to 30. (Wave 29's code follows the integration plan's review: the row alone, W -15, T -17 (his openness), F +20; the leverage fear stays halved at 15; the line "LEVERAGE: Hollis Byrd says he already paid, and won't again.")
 - **Narrator (Day 3).** `Hollis Byrd ... to you: afraid of what you know — you know about the landing's cash in his books (Day 2); want $300 for it (Day 3) — plays it: careful with every word; won't look at you long; hates you for it`
 - **Player sees.**
   - "Hollis Byrd knows you know." / "Hollis Byrd is afraid of what you know." Journal: "Hollis Byrd: $300 for keeping quiet, due Day 4".
   - Day 4: "Hollis Byrd has paid for your silence." The Journal entry is struck through: Settled.
 - **If the player tells anyway** (`exposed` to Marcus after the payment):
   - The record is spent, plus an engine `broke_word`.
-  - Hollis: **W -46, T -56**, "against you". The police bar lifts.
+  - Hollis: **W -46, T -56**, "against you". The police bar lifts. (The code: W -45, T -56.)
   - `whenTold` runs: Marcus takes the weight-3 memory "was told Hollis Byrd runs the landing's cash through his pawn books". Because it is a crime, the inquiry seed "Chief Bell spends a morning at Byrd's Pawn going through the ledgers" fills one police clock segment in a day or two. There is no arrest.
 
 #### 12. Glenda Pryor and the $200 (A: the loose end as one leverage story)
 
-- **Situation.** The player kept "Someone here knows what I did before I came." Glenda is bound: start W 5, T -10, K 30.
+- **Situation.** The player kept "Someone here knows what I did before I came." Glenda is bound: start W 5, T -10, K 30. (Wave 29's code, pinned by `tests/relationships-examples.test.cjs`: the secret's shift (-5, -5) is part of her start, so **W 0, T -15, K 30**, and every number of hers below is 5 lower in liking and trust. The record's id is `lev_glenda_1`; in the test's game the seed fires on Day 6 and the $200 is due Day 8.)
 - **Game start.** `lev_glenda_le` is held over the player: weight 2, `mattersTo: npc_marcus`, `playerKnows: false`.
 - **Day 5.** The seed names $200 by Day 7. Engine `blackmailed` (her side); `obl_blackmail_npc_glenda` is created. The record becomes `used`, and `playerKnows` becomes true. Feed: "Glenda Pryor has something on you."
 - **Paid on Day 6.** The obligation is met, and `paid_silence` runs in place of `paid_back`: W +5, T +10, counted once. The record becomes `paid`.
-  - **W 10, T 0**: "friendly · has something on you".
+  - **W 10, T 0**: "friendly · has something on you". (The code: W 5, T -5, "sizing you up · has something on you".)
   - Feed: "Glenda Pryor will keep quiet."
   - Narrator: `to you: friendly; has something on you — knows what you did before you came (paid her to keep quiet, Day 6) — plays it: easy with you; never brings it up`
 - **Missed on Day 7.**
   - `told_anyway`: the record is spent, and `knownBy` gets Marcus.
-  - Marcus takes W -5, T -17.
+  - Marcus takes W -5, T -17. (The code: W -10, T -17: the told memory and the news of it.)
   - Glenda takes `broke_word`.
   - The news is posted. Feed: "Missed: …" then "Glenda Pryor told."
 - **The standoff.**
   - On Day 3 a social roll with Glenda succeeded, and the narration had her let slip the tapes and the warning call: two of her keys. `learned_secret`, weight 3, aware, F 30.
-  - On Day 5 the player answers her price: "Then Bell hears your tapes." The words reference the record. Engine `threatened_to_tell`: W -15, T -20, F +20. **W -10, T -30, F 50**: "afraid of what you know".
+  - On Day 5 the player answers her price: "Then Bell hears your tapes." The words reference the record (one of her own keys, "tapes"). Engine `threatened_to_tell`: W -15, T -20, F +20. **W -10, T -30, F 50**: "afraid of what you know". (The code: W -15, T -35, F 50, "afraid of what you know · you have something on each other"; the LEVERAGE line "Glenda Pryor goes along with it; she knows what you know.")
   - **Mutual deterrence:** with both records held, Glenda plants no grudge and no report.
-  - On Day 7 the obligation becomes "can no longer be", with no `onMiss`. Both records stay `held`, and the tag on both sides is "you have something on each other".
+  - On Day 7 the obligation becomes "can no longer be", with no `onMiss`. Both records stay `held`, and the tag on both sides is "you have something on each other". (In the code both are `used` by then, by her price and by the player's answer, and stay so: neither spent nor paid.)
   - Feed: "Glenda Pryor lets it drop."
 
 #### 13. A flirt aimed at Kaylee (A: the minor guard before and after narration)
@@ -1474,11 +1474,11 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 - **The parse.** Intimidate, `romantic: "more"`, `aboutIds: [lev_glenda_tapes]`, a threat phrase. It is coercion.
 - **Before narration.**
   - No roll is skipped and nothing is complied with. The d20 is drawn on its own stream, and the outcome is failure.
-  - The packet line: `COERCION: Glenda Pryor refuses, flatly, and tells you to get out of the dispatch office.` (Her protector isn't present, and Town Hall is her workplace.)
+  - The packet line: `COERCION: Glenda Pryor refuses, flatly, and tells you to get out of the dispatch office.` (Her protector isn't present, and Town Hall is her workplace.) (Wave 28's code has one line for everyone, pinned by `tests/relationships-examples.test.cjs`: `COERCION (the engine: no roll, nothing given): Glenda Pryor refuses: she won't be pushed into that, and she leaves.`)
 - **Events.**
   - `blackmailed` (W -25, T -30, F +15; the record is marked used) plus `crossed` at full (W -12, T -12), both weight 3.
   - Glenda (from W 5, T -10, F 30): **W -32, T -52, F 45**: "afraid of what you know".
-- **Report.** At once, to her protector, Marcus. Coercion reports ignore the leverage police bar. Marcus takes W -5, T -11.5 and a weight-3 memory from a template: "Glenda Pryor says you tried to force her".
+- **Report.** At once, to her protector, Marcus. Coercion reports ignore the leverage police bar. Marcus takes W -5, T -11.5 and a weight-3 memory from a template: "Glenda Pryor says you tried to force her". (The code: W -4, T -10; the template's words "Glenda Pryor says the player tried to force them.")
 - **Town reputation:** -10, outside the cap.
 - **The minor variant.** The same line to Micah (17), using leverage on the dock light.
   - It is coercion: the same refusal line, the same events and the same report, also to Ray and Nadine.

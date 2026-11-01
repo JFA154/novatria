@@ -89,6 +89,13 @@ const TOWN_DATA = {
     awayOn: { days: ["Monday", ...], phases: ["morning", "afternoon"], where: "at the county school in Clayburn" }
                                     // optional: nowhere in town on those days and phases (State.npcsAt)
     // start: { trust?, fear? }     // optional (read since wave 26, written from wave 28): overrides the start
+    // secretWeight: 2              // optional (wave 29): 1..3, how heavy their secret is to hold over them
+    // leverageKeys: ["cash book", "pawn sales"]  // optional (wave 29): a narration shows the secret with 2 of them
+    // mattersTo: ["npc_..."]       // optional (wave 29): whom the telling would hurt them with
+    // whenTold: { memory?, crime?, inquiry?, news? }  // optional (wave 29): what telling the police does
+    // canRaise: 100                // optional (wave 29): what they can pay for silence (0..1000; three above 100
+                                    // at most; 0 for anyone under 18)
+    // mercenary: true              // optional (wave 29): money counts double on liking, blackmail half; names prices
     // rel                          // never written by hand: in a game, how they feel about the player
                                     // (Town.instantiate, Rel; wave 26): { v, start, everyday, fix, today,
                                     // days, recent, asks, owed, w, t, f, k, s, net, levFear, bands }; tracks
@@ -120,7 +127,11 @@ const TOWN_DATA = {
   }],
   rumours: [{ id, text, true: true, sourceNpcId, heard: false,
               tellerIds: ["npc_..."],  // at least two people besides the source who can tell it
-              threadId, factionId }],  // optional: the thread it reveals when heard; whose people know it
+              threadId, factionId,     // optional: the thread it reveals when heard; whose people know it
+              leverageOver }],         // optional (wave 29): a true rumour that is leverage over that person
+  romance: [{ npcId, open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false }],
+                                    // wave 29: who can be interested in the player (adults only; anyone
+                                    // not listed never has spark above 0); the twelve of design Appendix E
   events: [{                        // town events (World.fireEvents): the council meeting
     id: "evt_...", day, phase, locationId, title,
     attendees: ["npc_..."],         // optional: free people there for that phase
@@ -170,13 +181,15 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `addMemory` | `npcId`, `text`, `weight` (1..3), `act?` (`"own"`) | the memory path; a no-op for the dead; someone living elsewhere still remembers; `act: "own"` (wave 6): what they did to the player, which starts no grudge |
 | `clockAdjust` | `factionId`, `delta` (-2, -1, 1, 2) | the running clock, clamped, no completion check; a no-op with no running clock |
 | `threadUpdate` | `threadId`, `summary?`, `status?`, `knownToPlayer?` | status through `setThreadStatus`; a resolved thread never moves |
-| `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?`, `itemName?`, `onMiss?`, `onMet?`, `id?` | see Game state; one open per (kind, npcId) |
+| `addObligation` | `kind`, `npcId`, `text`, `amount?`, `dueDay?` or `dueOffset?`, `itemName?`, `onMiss?`, `onMet?`, `id?`, `leverageId?`, `missText?` | see Game state; one open per (kind, npcId); a blackmail with `leverageId` (wave 29) is that record's demand: met, the record paid in the same step and `paid_silence` for `paid_back`; missed, spent and told; lapsed in a standoff |
 | `settleObligation` | `id`, `status` (`met` / `missed`), `how?` | runs `onMet` / `onMiss` once; a no-op if already settled |
 | `obligationPaid` | `id`, `amount`, `take?` | credits money toward a debt or blackmail (at most what is still owed); `take: true` takes it from the player's cash first and credits what it took; paid in full it is met (wave 5), except inside that obligation's own `onMiss`, where it only credits (wave 6) |
 | `addNews` | `text`, `factionId?`, `public?` (default true), `epilogue?` | pushes `{ day, phase, text, factionId, public, seen: false, epilogue? }`; keeps the newest 60 |
 | `socialEvent` | `npcId`, `event` (one of `Rel.EVENTS`, the engine's rows too), `text` (what they would remember), `weight?`, `act?`, `aboutId?`, `private?`, `leverageId?`, `d?` (a part of the row, whole numbers within ±50), `decay?`, `secondhand?`, `scale?` (0.1..2) | wave 26: planned by `Rel.applyEvent` (traits, repeats, bounds), written by State: a typed memory or an everyday change, what it settles, owed favours; spark above 0 refused for anyone it cannot move for; a no-op for the dead |
+| `owedSettle` | `npcId`, `dir?` (1: they owed the player; -1: the player owed them; omitted: both) | wave 29: the favours owed that way cleared ("<Name> is square with you.") |
+| `leverageSet` | `id` (a `lev_` record, or `"{leverageId}"` in a template), `status?` (along `Rel.LEV_NEXT`), `aware?`, `playerKnows?`, `demand?`, `use?`, `knownBy?` (ids or `"mattersTo"`), `tell?`, `hidden?` | wave 29: a leverage record's change; `tell` with a spent record over the player gives each new knower `told_anyway`; a change the record cannot make is a no-op |
 
-`State.EFFECT_OPS` is the list (29 with `placeItem`, `obligationPaid` and `socialEvent`),
+`State.EFFECT_OPS` is the list (31 with `placeItem`, `obligationPaid`, `socialEvent`, and since wave 29 `owedSettle` and `leverageSet`),
 and `tests/validate-town.cjs` keeps the same list in `OPS`. Wave 27's
 `relSettle`, `relTurn`, `relAsk` and `relStart` are engine-only keys of
 `State.apply` (like `relSet` and `relDay`), not effect ops: content never
@@ -262,7 +275,7 @@ state.meta = { seed, turn, createdAt, townName, townVersion: 1, lastRollKey: nul
                                     // lastRollKey: the retry locks, keys joined by ";"
 state.player.storyPoints // 0..3
 state.player.obligations = [{ id, kind: "debt"|"blackmail"|"promise"|"errand"|"lodging",
-  npcId, text, amount, dueDay, itemName, status: "open"|"met"|"missed",
+  npcId, text, amount, dueDay, itemName, status: "open"|"met"|"missed"|"lapsed",   // lapsed (wave 29): can no longer be
   onMiss: [], onMet: [], createdTurn, createdDay }];
 state.player.progression = [{ turn, day, threadId, gain }];   // a thread's first resolution
 state.news = [{ day, phase, text, factionId, public, seen, epilogue? }];   // newest 60
@@ -270,10 +283,15 @@ state.bans = [{ locationId, untilDay, byNpcId? }];
 state.eventsFired = ["evt_..."];
 state.fight = { npcId, hits, day, phase, locationId };   // the Pipeline's, inside the turn
 npc.hurtUntilDay                    // knocked down: at home every phase until then
-state.leverage = [];                // wave 26 (empty; wave 29 fills it): who has something on whom,
-                                    // [{ id, holder, over, about, text, weight, since, aware, playerKnows, status, ... }]
-state.known = { secrets: {} };      // wave 26 (empty; wave 29 fills it): each secret the player was shown,
-                                    // { npcId: { turn, day, how } }
+state.leverage = [{                 // wave 26 (empty), filled since wave 29: who has something on whom
+  id: "lev_hollis_1", holder: "player" | "npc_...", over: "npc_..." | "player",
+  about: { kind: "secret" | "seen" | "loose_end" }, text,   // text: 120 at most, never the secret field
+  weight: 1..3, since: { day, turn, via }, aware, playerKnows,
+  status: "held" | "used" | "paid" | "spent" | "void",      // only along Rel.LEV_NEXT; paid is final for demands
+  log: [{ turn, day, status }], demand?: { amount, dueDay, turn, obligationId?, paid?, paidDay? },
+  uses: [{ turn, day, event }], knownBy: [{ npcId, turn }], mattersTo: ["npc_..."], key? }];
+state.known = { secrets: {} };      // wave 26 (empty), filled since wave 29: each secret the narrator was given,
+                                    // { npcId: { turn, day, how: roll | trust | fear | rumour } }
 ```
 
 ### Map
@@ -1729,3 +1747,39 @@ talking, I can direct it to one person or all."
      `content.md`, `engine-state.md`, `engine-world.md`; tests:
      `tests/wave28-social-events.test.cjs`, `tests/relationships.test.cjs`,
      examples 1, 3(b) and 5 in `tests/relationships-examples.test.cjs`.
+   - **Wave 29** (1 Nov 2026). A4, "What people hold: wanting, leverage
+     and favours". Spark is live for the twelve adults of the shipped
+     `TOWN_DATA.romance`: welcome is decided before narration (`Rel.welcomeOf`,
+     the narrator's `ROMANCE (decided by the engine)` line), statuses with
+     hysteresis read caring liking (liking less the flirts' own,
+     `wRom`) and earned distrust ("using you" needs it or the mercenary
+     flag), a status's feed line prints once a week (`rel.status = { name,
+     day }`), a lost one "takes the hint", a partner who sees a flirt cools
+     (`Rel.jealousyOf`), `rebuffed`, and `intimate` behind every gate (both
+     adults, eligible, welcome, spark 50, liking 40, trust 30, knows 30),
+     fade to black and a weight-3 scar. Leverage in full: `known.secrets`
+     and `secretShown`; `learned_secret` needs two `leverageKeys` in the
+     narration; true rumours with `leverageOver`; `caught_you_at` with one
+     witness; the secret loose end's informant holds a record from the
+     start; a backed ask (the player's words must use the record) skips the
+     roll at weight 2 with the d20 burned, and `Rel.leverageAnswer` decides
+     (pays tomorrow up to `canRaise`, refuses, answers with violence, calls
+     the bluff, "already paid"), told in a present-tense `LEVERAGE:` line;
+     the payment seed; `paid` final; no goldDelta from someone owing a
+     demand or on the backed turn; the obligation link inside `settle`
+     (`paid_silence` for `paid_back`, missed is told, `lapsed` in a
+     standoff); coming clean voids; the police bar and its lift; the
+     holders' `tell` and `price` templates; `whenTold` and the inquiry seed;
+     a holder's report spends the record. Favours owed: paid back unasked
+     (`owedSettle`, cash only at liking 25 and trust 0), and asked for back
+     twice, then crossed. Ops 31 (`owedSettle`, `leverageSet`); engine keys
+     `leverageAdd`, `secretShown`; seed origins leverage, inquiry, tell,
+     price. Content: Appendix C's fields on 24 people, three rumours, two
+     grudge and three favour templates; the validator and `docs/CAST.md`
+     follow. No cached block changed. `docs/notes/prompts.md`,
+     `transport.md`, `content.md`, `engine-state.md`, `engine-world.md`;
+     tests: `tests/wave29-rel-hold.test.cjs`, `tests/relationships.test.cjs`,
+     examples 2, 6, 8, 10, 11, 12 and 14 in
+     `tests/relationships-examples.test.cjs` (where the code differs from
+     `docs/relationships/design.md` the code's numbers are pinned and the
+     design says so).

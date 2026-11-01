@@ -148,8 +148,9 @@ s.test('the engine wins: its hit drops the bookkeeper\'s humiliated and threaten
   assert.deepEqual(r.attack.mems.map(m => m[0]), ['hit'], 'one memory, the engine\'s: ' + JSON.stringify(r.attack.mems));
   assert.ok(r.attack.dropped.includes('attitudeChanges') && r.attack.dropped.includes('newMemories'), 'a debug line for each: ' + JSON.stringify(r.attack.dropped));
   assert.equal(r.gift.paid, 5);
-  assert.equal(r.gift.moved, 5, 'the gift counts once: +5');
-  assert.deepEqual(r.gift.mems, [['gave me $5', 1, 5]], 'the engine\'s words for what moved, weight 1 (a slight)');
+  // Changed by design in wave 29 (A4): Hollis is mercenary in content, and money given to him counts double on liking.
+  assert.equal(r.gift.moved, 10, 'the gift counts once: +5, doubled for a mercenary man');
+  assert.deepEqual(r.gift.mems, [['gave me $5', 1, 10]], 'the engine\'s words for what moved, weight 1 (a slight)');
   assert.equal(r.gift.legacy, false, 'the demo\'s memory yields');
   assert.deepEqual(r.refused, [0, 1], 'money that never moved is no gift (the demo\'s +5 still yields)');
 });
@@ -342,8 +343,9 @@ s.test('missed and kept meetings, missed and paid debts are broken and kept word
   assert.deepEqual(r.debtMissed.mem, [[3, 'own', -15]], 'a missed debt: today\'s -15 as a broken word, what they did to the player (own)');
   assert.equal(r.debtMissed.moved[0], -15);
   assert.ok(r.debtMissed.moved[1] < 0, 'with trust');
-  assert.deepEqual(r.debtPaid.mem, [[2, 10]], 'a debt paid: today\'s +10 as paid_back');
-  assert.deepEqual(r.debtPaid.moved, [10, 12], 'and trust +10 (Hollis is sociable: trust gains x1.2)');
+  // Changed by design in wave 29 (A4): Hollis is mercenary in content, and money given to him counts double on liking (trust as before).
+  assert.deepEqual(r.debtPaid.mem, [[2, 20]], 'a debt paid: today\'s +10 as paid_back, doubled for a mercenary man');
+  assert.deepEqual(r.debtPaid.moved, [20, 12], 'and trust +10 (Hollis is sociable: trust gains x1.2)');
   assert.deepEqual(r.late.settled, [['paid_back']], 'paying it late settles the broken word');
   assert.deepEqual(r.late.mem, ['Tester paid the four hundred in full, but late.'], 'the late words');
   assert.equal(r.late.moved, 25, 'the -15 made good and +10');

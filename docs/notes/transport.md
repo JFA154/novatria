@@ -863,3 +863,16 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   "Export bookkeeper turns" saves them as JSONL (`Pipeline.bookTurnsJsonl`),
   one `{ id: "pt-<date>-t<turn>", packet, labels: [], note }` a line in the
   labelled eval's input shape, the note saying what the model sent.
+
+## Wave 29 (1 Nov 2026)
+
+- No schema changes: the parser's 14 fields and the bookkeeper's 34
+  properties and three enums are as wave 28 left them (`aboutIds` already
+  carried ids; a `lev_` id is now let through by `normaliseParse` when the
+  player's words use the record). `tests/probe-grammar.cjs` needs nothing
+  new.
+- `State.apply` with `{ source: 'model' }` takes `backed` (the npc id of the
+  turn's backed ask, from `Pipeline.bookkeep`), with `present`, to refuse a
+  positive goldDelta while that person is here: the engine's LEVERAGE
+  answer said they hand over nothing now. A late bookkeeper (a retry after
+  the turn) passes the same options, so the guard holds then too.

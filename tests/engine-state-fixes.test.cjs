@@ -190,7 +190,8 @@ s.test('obligations: one open per kind and person, dueOffset from today, met and
     onMiss: [{ op: 'attitudeDelta', npcId: `npc_${r.slug}`, delta: -20 }] }]);
   assert.match(r.bad[0], /kind must be debt, blackmail, promise, errand, lodging/);
   assert.match(r.bad[1], /unknown npc/);
-  assert.match(r.bad[2], /status must be met or missed/);
+  // Changed by design in wave 29 (A4): an obligation can also lapse ("can no longer be": a standoff, or the player came clean).
+  assert.match(r.bad[2], /status must be met, missed or lapsed/);
   assert.match(r.bad[3], /unknown obligation/);
   assert.deepEqual(r.met, ['met', 10]);
   assert.match(r.again, /no-op: obl_debt_npc_\w+ is already met/);

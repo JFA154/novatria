@@ -811,3 +811,96 @@ option order and template indices are unchanged; templates were appended.
   `where`) and `romance` (never anyone under 18: "<id> is under 18: nobody
   under 18 is ever on the romance list"), a favour template's `needs`
   (trust 0 to 60), and the report kinds `advance` and `coercion`.
+
+## Wave 29 (1 Nov 2026): what people hold
+
+Wave A4 of `docs/RELATIONSHIPS_PLAN.md` (design Appendices C, E and F).
+Content ids, the loose ends' option order and every older template index
+are unchanged; templates were appended (GRUDGE_TEMPLATES [21] tell, [22]
+price; FAVOUR_TEMPLATES [12] to [14], kind ask).
+
+**The romance list** (`TOWN_DATA.romance`, before `policeHead`): the twelve
+adults of Appendix E, every one 18 or older by `docs/CAST.md`. Anyone not
+on it never has spark above 0. Ready to paste:
+
+```js
+  romance: [
+    { npcId: "npc_jodie", open: true, sparkRate: 1.2, opensAt: { knows: 20 }, faithful: false },
+    { npcId: "npc_shayla", open: true, sparkRate: 1.5, opensAt: { knows: 0 }, faithful: false },
+    { npcId: "npc_travis", open: true, sparkRate: 1.2, opensAt: { knows: 0 }, faithful: false },
+    { npcId: "npc_curtis", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
+    { npcId: "npc_trent", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
+    { npcId: "npc_nikki", open: true, sparkRate: 0.8, opensAt: { knows: 20 }, faithful: false },
+    { npcId: "npc_annette", open: true, sparkRate: 0.7, opensAt: { knows: 25 }, faithful: false },
+    { npcId: "npc_carter", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
+    { npcId: "npc_lamar", open: true, sparkRate: 0.6, opensAt: { knows: 30 }, faithful: false },
+    { npcId: "npc_glenda", open: true, sparkRate: 0.8, opensAt: { knows: 20 }, faithful: false },
+    { npcId: "npc_colt", open: true, sparkRate: 1.2, opensAt: { knows: 0 }, faithful: false },
+    { npcId: "npc_tyler", open: true, sparkRate: 0.8, opensAt: { knows: 15 }, faithful: false }
+  ],
+```
+
+`sparkRate` scales a welcome flirt's spark (10 x the rate, 0 to 2);
+`opensAt.knows` is how well they must know the player before a flirt is
+welcome; `open: false` takes them off the list (never eligible, spark
+held at 0); `faithful: true` keeps them eligible but turns every flirt from
+the player aside (tier A has no partners; nobody ships with it).
+
+**Curtis stays on the list** (the integration plan's decision 19.8-4): he
+is "separated" (Lynette put him out in December 2025), which the red team
+flagged against "married people are left off". Leaving married people and
+the old off is a default of the list, not a rule of the engine, so he
+stays, `faithful: false`, as Appendix E has him. Take him off by deleting
+his row; nothing else reads it.
+
+**Appendix C, on the people** (after each `secret:`; `Rel.authored` reads
+the record, then the save's copy, then the built-in town, so an older save
+reads them too):
+
+- `secretWeight` (1 to 3, default 2) on the 21 people with a secret that
+  can be held: 3 for Royce, Carter, Jolene, Hollis, Wade, Colt, Travis,
+  Mavis, Nadine, Glenda, Nikki, Lamar; 2 for Loretta, Micah, Lyman,
+  Virgil, Trent, Dwight; 1 for Tyler, Annette, Burl.
+- `leverageKeys`: two or three short content phrases a narration must
+  carry two of ("garage account", "mother's note", "motel till" for
+  Mavis; "cash book", "pawn sales", "converters" for Hollis; "tapes",
+  "cassette", "warning call" for Glenda).
+- `mattersTo`: whom the telling would hurt them with (Mavis: Dewayne;
+  Hollis and Glenda: Chief Bell; Micah: Ray and Nadine).
+- `whenTold`: Hollis, Wade and Colt in full (`memory`, `crime: true`,
+  `inquiry`, `news`, design 2.6.5); `{ crime: true }` for Carter, Jolene,
+  Travis, Glenda, Trent, Micah, Nadine and Dwight (the defaults: "knows
+  what <npc> has been doing", "<police> starts asking around about <npc>.").
+- `canRaise`: Hollis $300, Jolene $300, Curtis $200; everyone else the
+  default $100; anyone under 18 $0 whatever is written (the validator
+  refuses one, and more than three above $100).
+- `mercenary: true`: Hollis, Shayla, Tyler, Curtis, Leon (money given
+  counts double on liking, `blackmailed` half; a mercenary holder names a
+  price).
+
+**Rumours.** `leverageOver` on the true rumours that are leverage over
+someone: `rum_mavis_cash_rooms` (Mavis), `rum_micah_landing` (Micah),
+`rum_darlene_folder` (Darlene). Hearing one gives a private record.
+
+**Templates.** GRUDGE_TEMPLATES [21] (`kind: "tell"`, `dayOffset [1, 3]`:
+`leverageSet { id: "{leverageId}", status: "spent", knownBy: "mattersTo",
+tell: true }`) and [22] (`kind: "price"`, `dayOffset [1, 2]`: an
+`addObligation` blackmail of `"{amount}"`, `dueOffset 2`, `leverageId
+"{leverageId}"`, "Pay {npc} {price} to keep quiet.", onMet `paid_silence`,
+onMiss `broke_word`). FAVOUR_TEMPLATES [12] to [14] (`kind: "ask"`,
+`dayOffset [1, 1]`): the mechanic's engine (`forTags` mechanic, outboard),
+the Friday delivery (bartender, shopkeeper, merchant, cashier), and a plain
+reminder for everyone else (never a teen). None of them is ever an
+ordinary grudge's or favour's (`World.OWN_KINDS`).
+
+**The validator** whitelists the person fields above (with the canRaise and
+minor checks), `TOWN_DATA.romance` (every key, no duplicates, `opensAt` an
+object, nobody under 18), a rumour's `leverageOver` (a person, a true
+rumour), the ops `owedSettle` and `leverageSet`, `addObligation`'s
+`leverageId` and price fields and its nested `onMet` / `onMiss`, the
+obligation status `lapsed`, the grudge kinds `tell` and `price`, the favour
+kind `ask`, and `{price}` among the placeholders. `docs/CAST.md`
+(`tests/cast-doc.cjs`) prints a person's protector (unless the tie is
+hidden), "Goes to nobody when leaned on", the secret's weight and what they
+can raise, "Mercenary.", and "Can be interested in the player (spark rate
+X; opens at knows N)".

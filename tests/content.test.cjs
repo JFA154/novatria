@@ -531,7 +531,8 @@ s.test('rumours spread: twenty, each with two or more people who can tell it, mo
   const story = JSON.stringify([T.factions, T.seeds, T.rumours, T.threads, T.events, D.BACKGROUNDS.map(b => b.hook)]);
   const plotless = T.npcs.filter(n => (n.presence || 'here') === 'here' && !story.includes(`"${n.id}"`) && !story.includes(n.name)).map(n => n.id);
   assert.ok(plotless.length <= 4, 'people in town in no clock, seed, rumour, thread, event or hook: ' + plotless.join(', '));
-  const r = validateEdited(h => once(h, 'sourceNpcId: "npc_brianna", tellerIds: ["npc_tyler"], heard: false', 'sourceNpcId: "npc_brianna", heard: false'));
+  // Changed by design in wave 29 (A4): the rumour is leverage over Mavis once heard (leverageOver), so the edit keeps that field.
+  const r = validateEdited(h => once(h, 'sourceNpcId: "npc_brianna", tellerIds: ["npc_tyler"], leverageOver: "npc_mavis", heard: false', 'sourceNpcId: "npc_brianna", leverageOver: "npc_mavis", heard: false'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /rum_mavis_cash_rooms\): only npc_brianna can tell it/);
 });

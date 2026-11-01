@@ -36,7 +36,8 @@ const STATS = ['might', 'wits', 'charm', 'stealth'];
 const GOOD_KINDS = ['good', 'service', 'drink', 'food'];
 // Obligations (CONTRACTS section 4).
 const OBLIGATION_KINDS = ['debt', 'blackmail', 'promise', 'errand', 'lodging'];
-const OBLIGATION_STATUSES = ['met', 'missed'];
+// Wave 29: lapsed, "can no longer be" (a standoff, or the player came clean; State.OBLIGATION_STATUSES).
+const OBLIGATION_STATUSES = ['met', 'missed', 'lapsed'];
 const OBLIGATION_ID = /^obl_(debt|blackmail|promise|errand|lodging)_(npc_[a-z0-9_]+)$/;
 const NPC_STATUSES = ['free', 'arrested', 'gone', 'dead'];
 const THREAD_STATUSES = ['open', 'resolved', 'failed'];
@@ -518,9 +519,23 @@ function checkThread(t, where, expectStatus) {
 // people know it (factionId) and the other people who can tell it (tellerIds:
 // people in town besides the source).
 function checkRumour(r, where) {
-  if (!checkKeys(r, ['id', 'text', 'true', 'sourceNpcId', 'heard'], where, ['threadId', 'tellerIds', 'factionId'])) return;
+  if (!checkKeys(r, ['id', 'text', 'true', 'sourceNpcId', 'heard'], where, ['threadId', 'tellerIds', 'factionId', 'leverageOver'])) return;
   checkStr(r.text, where + '.text', { noPlaceholders: true, maxSentences: 2 });
   if (typeof r['true'] !== 'boolean') err(where, '"true" must be a boolean');
+  /* Wave 29: a true rumour heard is something the player holds over that
+     person (State's rumoursHeard: a leverage record they do not know of):
+     someone in town with a secret, named in the rumour, never its source. */
+  if (r.leverageOver !== undefined) {
+    const o = npcById.get(r.leverageOver);
+    if (!o) err(where + '.leverageOver', '"' + r.leverageOver + '" is not an NPC');
+    else {
+      if (r['true'] !== true) err(where + '.leverageOver', 'only a true rumour is leverage');
+      if (typeof o.secret !== 'string' || !o.secret.trim()) err(where + '.leverageOver', r.leverageOver + ' has no secret');
+      if ((o.presence || 'here') !== 'here') err(where + '.leverageOver', r.leverageOver + ' does not live in town');
+      if (r.leverageOver === r.sourceNpcId) err(where + '.leverageOver', 'never the one who tells it');
+      if (typeof r.text === 'string' && typeof o.name === 'string' && r.text.indexOf(o.name) === -1) err(where + '.leverageOver', 'the rumour names ' + o.name);
+    }
+  }
   if (!isNpc(r.sourceNpcId)) err(where, 'sourceNpcId "' + r.sourceNpcId + '" is not an NPC');
   if (r.heard !== false) err(where, 'heard must be false');
   if (r.threadId !== undefined && !isThread(r.threadId)) err(where + '.threadId', '"' + r.threadId + '" is not a thread');
@@ -636,7 +651,10 @@ const OPS = {
   obligationPaid: ['id', 'amount'],
   addNews: ['text'],
   // Wave 26 (Rel): what happened to someone, as one of Rel.EVENTS (read from index.html below).
-  socialEvent: ['npcId', 'event', 'text']
+  socialEvent: ['npcId', 'event', 'text'],
+  // Wave 29: favours owed cleared (an owed favour's payback), and a leverage record's change (a tell spends it).
+  owedSettle: ['npcId'],
+  leverageSet: ['id']
 };
 // The fields an op may carry besides its required ones.
 const OPS_OPTIONAL = {
@@ -647,11 +665,16 @@ const OPS_OPTIONAL = {
   // Wave 6: 'own', what the person did to the player (no grudge grows from it).
   addMemory: ['act'],
   threadUpdate: ['summary', 'status', 'knownToPlayer'],
-  addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
+  // Wave 29: a price seed's blackmail is due some days from when it fires, on the record it names ({leverageId}), and says what happens when missed.
+  addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet', 'dueOffset', 'leverageId', 'missText'],
   obligationPaid: ['take'],
   addNews: ['factionId', 'public'],
-  socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public']
+  socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public'],
+  owedSettle: ['dir'],
+  leverageSet: ['status', 'aware', 'playerKnows', 'use', 'knownBy', 'tell']
 };
+// Wave 29: where a leverage record can go (Rel.LEV_STATUSES).
+const LEV_STATUSES = ['held', 'used', 'paid', 'spent', 'void'];
 /* The events a socialEvent may name and the fading classes it may give,
    read from the Rel module in the same file (its EVENTS table is one row a
    line, its DECAY one line), so this check and State.apply cannot drift
@@ -677,6 +700,7 @@ const flagsRead = []; // [where, key]
 // the grudge and favour templates: "{npcId}" for an id, "{npc}" and
 // "{playerName}" inside text. The engine fills them before State.apply.
 const PH_TEXT = ['{npc}', '{playerName}'];
+let PH_MORE = [];
 function npcRef(v, ph) { return isNpc(v) || (ph === true && v === '{npcId}'); }
 function checkText(s, where, opts) {
   opts = opts || {};
@@ -684,7 +708,9 @@ function checkText(s, where, opts) {
   if (opts.max && s.length > opts.max) err(where, 'at most ' + opts.max + ' characters, found ' + s.length);
   const found = s.match(/\{[^}]*\}/g) || [];
   if (found.length && !opts.ph) err(where, 'placeholders are only allowed in the loose ends and the grudge and favour templates');
-  found.forEach((p) => { if (PH_TEXT.indexOf(p) === -1) err(where, 'unknown placeholder ' + p + ' (use ' + PH_TEXT.join(', ') + ')'); });
+  // Wave 29: a price template's text may also name its price ({price}: PH_MORE while it is checked).
+  const known = PH_TEXT.concat(PH_MORE);
+  found.forEach((p) => { if (known.indexOf(p) === -1) err(where, 'unknown placeholder ' + p + ' (use ' + known.join(', ') + ')'); });
   if (/[{}]/.test(s.replace(/\{[^}]*\}/g, ''))) err(where, 'stray brace');
 }
 // A condition effect in the form "-1 might" or "+1 charm, -1 wits" (CONTRACTS section 8).
@@ -784,10 +810,10 @@ function checkWhen(w, where) {
     }
   }
   if (w.obligationStatus !== undefined) {
-    if (!isObj(w.obligationStatus) || !Object.keys(w.obligationStatus).length) err(where + '.obligationStatus', 'an object { obligationId: "met" | "missed" }');
+    if (!isObj(w.obligationStatus) || !Object.keys(w.obligationStatus).length) err(where + '.obligationStatus', 'an object { obligationId: "met" | "missed" | "lapsed" }');
     else for (const k of Object.keys(w.obligationStatus)) {
       if (!obligationPossible(k)) err(where + '.obligationStatus', '"' + k + '" is no obligation a loose end can make (obl_<kind>_<npc id>)');
-      if (OBLIGATION_STATUSES.indexOf(w.obligationStatus[k]) === -1) err(where + '.obligationStatus.' + k, 'must be met or missed');
+      if (OBLIGATION_STATUSES.indexOf(w.obligationStatus[k]) === -1) err(where + '.obligationStatus.' + k, 'must be met, missed or lapsed');
     }
   }
 }
@@ -921,10 +947,30 @@ function checkEffect(e, where, opts) {
       if (OBLIGATION_KINDS.indexOf(e.kind) === -1) err(where + '.kind', 'one of ' + OBLIGATION_KINDS.join(', '));
       if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
       checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 1 });
+      // Wave 29: a price template's blackmail (its amount "{amount}", on "{leverageId}", due two days from when it fires).
+      if (e.amount !== undefined && !(isInt(e.amount) && e.amount > 0) && !(opts.price === true && e.amount === '{amount}')) err(where + '.amount', 'a whole amount, or "{amount}" in a price template');
+      if (e.dueOffset !== undefined && !(isInt(e.dueOffset) && e.dueOffset >= 1 && e.dueOffset <= 7)) err(where + '.dueOffset', 'a whole number of days, 1 to 7');
+      if (e.leverageId !== undefined && !(opts.price === true && e.leverageId === '{leverageId}')) err(where + '.leverageId', 'only "{leverageId}", in a price template');
+      if (e.missText !== undefined) checkText(e.missText, where + '.missText', { ph, max: 300, maxSentences: 1 });
+      if (e.onMet !== undefined) checkEffectList(e.onMet, where + '.onMet', Object.assign({}, opts, { max: 3 }));
+      if (e.onMiss !== undefined) checkEffectList(e.onMiss, where + '.onMiss', Object.assign({}, opts, { max: 3 }));
       break;
     case 'settleObligation':
       if (!OBLIGATION_ID.test(String(e.id))) err(where + '.id', 'an obligation id obl_<kind>_<npc id>');
-      if (OBLIGATION_STATUSES.indexOf(e.status) === -1) err(where + '.status', 'met or missed');
+      if (OBLIGATION_STATUSES.indexOf(e.status) === -1) err(where + '.status', OBLIGATION_STATUSES.join(', '));
+      break;
+    // Wave 29: favours owed cleared ({npcId}, an owed favour's last effect; dir 1 what they owed the player, -1 what the player owed them).
+    case 'owedSettle':
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      if (e.dir !== undefined && e.dir !== 1 && e.dir !== -1) err(where + '.dir', '1 or -1');
+      break;
+    // Wave 29: a leverage record's change: only "{leverageId}" (a tell template's), spent or void.
+    case 'leverageSet':
+      if (!(ph && e.id === '{leverageId}')) err(where + '.id', 'only "{leverageId}", in a tell template');
+      if (e.status !== undefined && LEV_STATUSES.indexOf(e.status) === -1) err(where + '.status', 'one of ' + LEV_STATUSES.join(', '));
+      if (e.knownBy !== undefined && e.knownBy !== 'mattersTo' && !(Array.isArray(e.knownBy) && e.knownBy.every(isNpc))) err(where + '.knownBy', '"mattersTo" or a list of npc ids');
+      for (const k of ['aware', 'playerKnows', 'tell']) if (e[k] !== undefined && typeof e[k] !== 'boolean') err(where + '.' + k, 'true or false');
+      if (e.use !== undefined && REL_EVENTS.indexOf(e.use) === -1) err(where + '.use', 'an event');
       break;
     case 'obligationPaid':
       // "{obligationId}" (the obligation whose onMiss or onMet it is) only where placeholders are.
@@ -978,7 +1024,10 @@ if (T.romance !== undefined) {
   if (!Array.isArray(T.romance)) err('TOWN_DATA.romance', 'a list of { npcId, open, sparkRate, opensAt, faithful }');
   else T.romance.forEach((r, i) => {
     const where = 'TOWN_DATA.romance[' + i + ']';
-    if (!checkKeys(r, ['npcId'], where, ['open', 'sparkRate', 'opensAt', 'faithful'])) return;
+    if (!isObj(r)) { err(where, 'an object { npcId, open, sparkRate, opensAt, faithful }'); return; }
+    // Wave 29: every field written out (design Appendix E's block), each person once; who it names is checked whatever is missing.
+    checkKeys(r, ['npcId', 'open', 'sparkRate', 'opensAt', 'faithful'], where);
+    if (T.romance.findIndex(x => isObj(x) && x.npcId === r.npcId) !== i) err(where + '.npcId', r.npcId + ' is on the list twice');
     const n = npcById.get(r.npcId);
     if (!n) { err(where + '.npcId', '"' + r.npcId + '" is not an NPC'); return; }
     const tags = Array.isArray(n.tags) ? n.tags : [];
@@ -988,7 +1037,7 @@ if (T.romance !== undefined) {
     if (r.open !== undefined && typeof r.open !== 'boolean') err(where + '.open', 'true or false');
     if (r.faithful !== undefined && typeof r.faithful !== 'boolean') err(where + '.faithful', 'true or false');
     if (r.sparkRate !== undefined && !(typeof r.sparkRate === 'number' && r.sparkRate >= 0.5 && r.sparkRate <= 1.5)) err(where + '.sparkRate', 'a number from 0.5 to 1.5');
-    if (r.opensAt !== undefined && !(isObj(r.opensAt) ? Number.isInteger(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60 : Number.isInteger(r.opensAt) && r.opensAt >= 0 && r.opensAt <= 60)) err(where + '.opensAt', 'knows-you from 0 to 60 ({ knows } or a number)');
+    if (r.opensAt !== undefined && !(isObj(r.opensAt) && Object.keys(r.opensAt).length === 1 && Number.isInteger(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60)) err(where + '.opensAt', '{ knows } from 0 to 60 (how well they must know the player)');
   });
 }
 // Wave 27: the police head a report to the police goes to (Rel.policeHead): someone in town tagged police.
@@ -1267,7 +1316,36 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn', 'protector', 'start', 'axes'])) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn', 'protector', 'start', 'axes',
+    'secretWeight', 'leverageKeys', 'mattersTo', 'whenTold', 'canRaise', 'mercenary'])) return;
+  /* Wave 29: what their secret is worth as leverage (design Appendix C):
+     secretWeight 1 to 3; leverageKeys, the short phrases the narration
+     must show two of (two or three, each a few words, 2 or more for any
+     secret with a weight); mattersTo, whom the telling hurts them with (in
+     the cast, never themselves); whenTold ({ memory?, crime?, inquiry?,
+     news? }: what telling the police does); canRaise, the most a demand can
+     take from them (0 to 1000; above 100 for at most three people);
+     mercenary (true: money counts double, blackmail half, and they may name
+     a price; design Appendix F). */
+  if (n.secretWeight !== undefined && !(Number.isInteger(n.secretWeight) && n.secretWeight >= 1 && n.secretWeight <= 3)) err(where + '.secretWeight', '1, 2 or 3');
+  if (n.leverageKeys !== undefined) {
+    if (!Array.isArray(n.leverageKeys) || n.leverageKeys.length < 2 || n.leverageKeys.length > 3) err(where + '.leverageKeys', 'two or three short phrases');
+    else n.leverageKeys.forEach((k, j) => { if (typeof k !== 'string' || !k.trim() || k.split(/\s+/).length > 6 || /[{}]/.test(k)) err(where + '.leverageKeys[' + j + ']', 'a short phrase, six words at most'); });
+    if (typeof n.secret !== 'string' || !n.secret.trim()) err(where + '.leverageKeys', 'keys for a secret they do not have');
+  }
+  if (n.secretWeight !== undefined && !(Array.isArray(n.leverageKeys) && n.leverageKeys.length >= 2)) err(where + '.leverageKeys', 'a secret with a weight needs two or more keys');
+  if (n.mattersTo !== undefined) {
+    if (!Array.isArray(n.mattersTo) || !n.mattersTo.length) err(where + '.mattersTo', 'a list of npc ids');
+    else n.mattersTo.forEach((id, j) => { if (!isNpc(id)) err(where + '.mattersTo[' + j + ']', '"' + id + '" is not an NPC'); else if (id === n.id) err(where + '.mattersTo[' + j + ']', 'never themselves'); });
+  }
+  if (n.whenTold !== undefined && checkKeys(n.whenTold, [], where + '.whenTold', ['memory', 'crime', 'inquiry', 'news'])) {
+    if (!Object.keys(n.whenTold).length) err(where + '.whenTold', 'at least one of memory, crime, inquiry, news');
+    if (n.whenTold.crime !== undefined && typeof n.whenTold.crime !== 'boolean') err(where + '.whenTold.crime', 'true or false');
+    for (const k of ['memory', 'inquiry', 'news']) if (n.whenTold[k] !== undefined) checkStr(n.whenTold[k], where + '.whenTold.' + k, { noPlaceholders: true, maxSentences: 1 });
+    if ((n.whenTold.inquiry !== undefined || n.whenTold.news !== undefined) && n.whenTold.crime !== true) err(where + '.whenTold', 'an inquiry is only for a crime (crime: true)');
+  }
+  if (n.canRaise !== undefined && !(Number.isInteger(n.canRaise) && n.canRaise >= 0 && n.canRaise <= 1000)) err(where + '.canRaise', 'a whole number of dollars from 0 to 1000');
+  if (n.mercenary !== undefined && n.mercenary !== true) err(where + '.mercenary', 'true, or leave it out');
   // Wave 28: where they stand with a stranger before the story starts (Rel.startOf): trust -60..60, fear 0..30, whole numbers.
   if (n.start !== undefined) {
     if (checkKeys(n.start, [], where + '.start', ['trust', 'fear'])) {
@@ -1467,6 +1545,10 @@ const firstNames = npcs.filter((n) => n && typeof n.name === 'string').map((n) =
 firstNames.forEach((f) => { if (seenFirst.has(f)) err('TOWN_DATA.npcs', 'two NPCs share the first name "' + f + '"'); seenFirst.add(f); });
 for (const t of REQUIRED_TAGS) if (!tagSet.has(t)) err('TOWN_DATA.npcs', 'no NPC has the required tag "' + t + '"');
 if (connectedSecrets < Math.ceil(npcs.length / 2)) err('TOWN_DATA.npcs', 'only ' + connectedSecrets + ' secrets mention another NPC or a faction; need at least half');
+// Wave 29: blackmail is not meant to fund the game (the plan's decision 3): a demand takes $100 at most, raised for three people at most.
+const raised = npcs.filter(n => isObj(n) && Number.isInteger(n.canRaise) && n.canRaise > 100).map(n => n.id);
+if (raised.length > 3) err('TOWN_DATA.npcs', 'canRaise above 100 for ' + raised.length + ' people (' + raised.join(', ') + '); three at most');
+for (const n of npcs) if (isObj(n) && Number.isInteger(n.canRaise) && n.canRaise > 0 && Number.isInteger(n.age) && n.age < 18) err('TOWN_DATA.npcs', n.id + ' is under 18: canRaise is 0 for anyone under 18');
 
 // Factions
 if (factions.length !== 3) err('TOWN_DATA.factions', 'expected exactly 3 factions, found ' + factions.length);
@@ -1969,7 +2051,8 @@ function holders(t) {
 }
 // A grudge says what kind of answer it is (wave 4): a grudge answers in kind (World.grudgeKind).
 // Wave 27: report, someone telling their protector (World.plantReport; never a grudge's answer).
-const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban', 'report'];
+// Wave 29: tell and price, what a holder of something on the player does with it (World.plantHolders; never a grudge's answer either).
+const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban', 'report', 'tell', 'price'];
 function checkTemplates(list, name) {
   if (!Array.isArray(list) || list.length < 8) { err(name, 'needs at least 8 templates'); return; }
   const seen = new Set();
@@ -1978,7 +2061,15 @@ function checkTemplates(list, name) {
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
     const report = grudges && isObj(t) && t.kind === 'report';
-    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'].concat(report ? ['to'] : []) : ['forTags', 'notForTags', 'needs'])) return;
+    // Wave 29: a holder's tell or price (GRUDGE_TEMPLATES), a favour asked back (FAVOUR_TEMPLATES kind ask: World.owedAsk).
+    const held = grudges && isObj(t) && (t.kind === 'tell' || t.kind === 'price');
+    const ask = !grudges && isObj(t) && t.kind !== undefined;
+    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'].concat(report ? ['to'] : []) : ['forTags', 'notForTags', 'needs', 'kind'])) return;
+    if (ask && t.kind !== 'ask') err(where + '.kind', 'a favour template has no kind, or "ask" (a favour the player owes, asked back)');
+    if (held && t.about !== undefined) err(where + '.about', 'a ' + t.kind + ' answers what they hold, not an offence');
+    if (grudges && t.kind === 'tell' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'leverageSet' && e.id === '{leverageId}' && e.status === 'spent'))) err(where + '.effects', 'a tell spends the record: leverageSet { id: "{leverageId}", status: "spent" }');
+    if (grudges && t.kind === 'price' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'addObligation' && e.kind === 'blackmail' && e.amount === '{amount}' && e.leverageId === '{leverageId}' && e.npcId === '{npcId}'))) err(where + '.effects', 'a price names a blackmail of "{amount}" on "{leverageId}" for {npcId}');
+    if (ask && Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && (e.op === 'playerGold' || e.op === 'playerHp'))) err(where + '.effects', 'an ask asks: it gives the player nothing');
     // Wave 28: what a favour needs of the one who does it (World.templateFits, Rel.meets): { trust }, a whole number from 0 to 60.
     if (!grudges && t.needs !== undefined) {
       if (checkKeys(t.needs, [], where + '.needs', ['trust'])) {
@@ -1997,11 +2088,15 @@ function checkTemplates(list, name) {
     if (grudges && GRUDGE_KINDS.indexOf(t.kind) === -1) err(where + '.kind', 'one of ' + GRUDGE_KINDS.join(', ') + ', found ' + JSON.stringify(t.kind));
     if (grudges && t.kind === 'violence' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'playerHp'))) err(where + '.kind', 'violence hurts the player (a playerHp effect)');
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });
-    checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}'].concat(report ? ['{protector}'] : []), report ? ['{protector}'] : []);
+    const priced = grudges && t.kind === 'price';
+    checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}'].concat(report ? ['{protector}'] : [], priced ? ['{price}'] : []), (report ? ['{protector}'] : []).concat(priced ? ['{price}'] : []));
     if (typeof t.effect === 'string' && PLAYER_GEAR.test(t.effect)) err(where + '.effect', 'assumes the player has a phone or a vehicle');
-    checkDayOffset(t.dayOffset, where + '.dayOffset', report ? 1 : 2, report ? 2 : 5);
+    // A report comes in a day or two; a tell, a price or an ask in one to three days.
+    checkDayOffset(t.dayOffset, where + '.dayOffset', report || held || ask ? 1 : 2, report ? 2 : held || ask ? 3 : 5);
     if (typeof t.effect === 'string') { if (seen.has(t.effect)) err(where, 'duplicate template'); seen.add(t.effect); }
-    checkEffectList(t.effects, where + '.effects', { ph: true, min: 1, max: 4, protector: report });
+    PH_MORE = priced ? ['{price}'] : [];
+    checkEffectList(t.effects, where + '.effects', { ph: true, min: 1, max: 4, protector: report, price: priced });
+    PH_MORE = [];
     if (typeof t.public !== 'boolean') err(where + '.public', 'true when the town hears of it, else false');
     for (const k of ['forTags', 'notForTags']) {
       if (t[k] === undefined) continue;

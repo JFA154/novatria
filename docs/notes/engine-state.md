@@ -1139,3 +1139,103 @@ Wave A3 of `docs/RELATIONSHIPS_PLAN.md`. Tests:
   seats, dealer, rumour, favour, needs).
 - **`State.turnEvents()`** returns the turn's applied events (the
   ledger's).
+
+## Wave 29 (1 Nov 2026): what people hold, in State and Rel
+
+Wave A4 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 7, 8, 16 A4
+and 19.1 to 19.5). Tests: `tests/wave29-rel-hold.test.cjs`, examples 2, 6,
+8, 10, 11, 12 and 14 in `tests/relationships-examples.test.cjs`, the
+under-18 and coercion parts of `tests/relationships.test.cjs`.
+
+- **`state.leverage`** holds records `{ id: lev_<slug>_<n>, holder, over
+  ('player' or an id), about: { kind: secret | seen | loose_end }, text
+  (120 at most, the bookkeeper's or the action's words, never the secret
+  field), weight 1 to 3, since: { day, turn, via }, aware, playerKnows,
+  status (held, used, paid, spent, void: Rel.LEV_STATUSES; LEV_NEXT is
+  the only way it moves, paid then only to spent or void), log, demand?
+  ({ amount, dueDay, turn, obligationId?, paid?, paidDay? }), uses: [{ turn,
+  day, event }], knownBy: [{ npcId, turn }], mattersTo, key? }`. The engine
+  alone writes them: `leverageAdd` (an engine key, one record a holder,
+  over and key; a record's `text` is what the card and Journal show) and
+  the op `leverageSet` (`{ id, status?, aware?, playerKnows?, demand?,
+  use?, knownBy? (ids or 'mattersTo'), tell?, hidden? }`; `tell` with a
+  spent record over the player gives each new knower `told_anyway`).
+- **`state.known.secrets[npcId] = { turn, day, how }`** (`secretShown`, an
+  engine key: how is roll, trust, fear or rumour). The narrator having been
+  given a secret is the precondition of `learned_secret`, then or on a late
+  retry.
+- **Events wired to records** (`Rel.wireEvent`'s plan, applied in
+  `modelSocial`): `learned_secret` (the narrator had it, and two of the
+  person's `leverageKeys` are in the narration) makes the player's record,
+  aware unless private, weight `secretWeight`, mattering to `mattersTo`;
+  `caught_you_at` makes theirs over the player (Pipeline's, one other
+  witness, no news, never violence); `exposed` (telling Y what the player
+  holds over them, with a live record) spends it (`exposeTo`): Y's
+  weight-3 scar `exposed` (W -30, T -30), a `broke_word` too when Y had
+  paid, and `whenTold` when the one told is the police it matters to (a
+  weight-3 `noted` for the officer; for a crime an inquiry seed on
+  `Rel.rng('inquiry')`, one police clock segment and town news, never an
+  arrest); `came_clean` to whom a loose end's secret would be told voids
+  the record over the player (`cameClean`) and its blackmail lapses. A
+  true rumour with `leverageOver` gives its hearer a private record
+  (`rumourLeverage`, "You have something on Mavis Mangum now.").
+- **The obligation link inside `settle`.** A blackmail met is the
+  record over the player paid in the same step, and its onMet runs
+  `paid_silence` (an older save's copied `paid_back` for that person reads
+  as `paid_silence`): one payment, one event. Missed, the record is spent
+  and told to whom it matters (`told_anyway`, "Glenda Pryor told."). With
+  a standoff at the due day (`Rel.standoff`: each holds a live record over
+  the other, the player's aware), the blackmail is **lapsed**: no onMiss,
+  no onMet, "Glenda Pryor lets it drop."; `OBLIGATION_STATUSES` is open,
+  met, missed, lapsed, and lapsed counts as done everywhere a met or
+  missed one does (Journal "Dropped", `/recap` "· dropped").
+- **goldDelta.** A bookkeeper's positive goldDelta is refused while
+  someone present owes the player a demand (their payment seed brings it)
+  and on the turn of a backed ask at someone present (`opts.backed`, from
+  Pipeline: the engine's LEVERAGE line already said they hand over nothing
+  now).
+- **Favours owed.** `owedSettle` (`{ npcId, dir? }`, an op) clears what is
+  owed one way or both; the feed says "<Name> owes you one." / "owes you
+  again." / "is square with you." (`rel.owed` entries keep `{ dir, turn,
+  day, key, why }`).
+- **The feed queue.** `relFeed` (`feedLine`, `takeFeed`; App's State
+  listener prints them as quiet lines before the band lines): a spark
+  status reached prints its line unless the same one printed in the last
+  7 days (`rel.status = { name, day }`, the last printed); one lost in a
+  change (never by the morning's fading) prints "<Name> takes the hint.";
+  "afraid of what you know" prints once as it is reached; the leverage
+  lines ("knows you know", "has something on you", "has paid for your
+  silence", "will keep quiet", "told"). `quietly(fn)` (`relQuiet`) keeps a
+  load, an edit, a rewind, `relDay` and a clock set by hand silent;
+  `muted` as before. `clear()` empties the queue.
+- **`State.demandLine(x, day)`** ("Hollis Byrd: $300 for keeping quiet,
+  due Day 4 (1 day)") for `/recap`.
+- **Rel's wave-29 section** (after `guardianWord`): `SPARK_STATUS` gains
+  each status's spark threshold and "wants you"'s distrust cue; new are
+  `SPARK_LOST`, `LEVERAGE_WEIGHT`, `LEV_LIVE`, `LEV_STATUSES`, `LEV_NEXT`,
+  `LEV_ABOUT`, `INTIMATE_ASK`, `NIGHT_PLACES`, `NUMBER_WORDS`, `STOPWORDS`,
+  `WHEN_TOLD`;
+  `authored` (a content field: the record's own, else the save's town
+  copy, else the built-in town), `romanceEntry`, `sparkRate`, `welcomeOf`,
+  `romanceLiking` (liking from romance-class memories: caring is w -
+  wRom), `earnedDistrust`, `statusFor` (with hysteresis: the previous
+  status keeps its thresholds 5 back), `intimateGate`, `jealousyOf`,
+  `statusLine`; `priceIn`, `contentWords`, `overlap`, `keysOf`, `keysIn`,
+  `secretWeightOf`, `mattersToOf`, `whenToldOf`, `canRaise`, `leverageOf`,
+  `holdsOver`, `heldOverPlayer`, `policeBarred`, `standoff`, `references`
+  (two content words of the record's text, a threat phrase, or for a
+  secret one of its keys: "Then Bell hears your tapes."), `backedRecord`,
+  `backedRoll`, `leverageAnswer`, `leverageLines`, `demands`, and `kinOf`
+  exported. The recompute cache gains `wRom` and the bands `sp` (the spark
+  status) and `ov` (the override), and `levFear` (wave 26's field) is now
+  filled from the live records; `sparkStatus` reads `bands.sp`.
+  `protectorOf(n, ctx, { anyway })`: while the player holds an aware record
+  over them the police are barred (unless they are hard), so their report
+  goes to their content protector or nobody; a coercion's report goes
+  through anyway. `reasons(n, max)` leads with `leverageLines` (`{ text,
+  day, event, settled: 0, weight, leverage: id, line }`), the record's own
+  memory not told twice. The mercenary flag doubles money given to them on
+  liking and halves `blackmailed`'s; any weight-3 harm halves spark at
+  write time. `EFFECT_OPS` is 31 (owedSettle, leverageSet); `ENGINE_KEYS`
+  gains `leverageAdd` and `secretShown`; `SEED_ORIGINS` gains leverage,
+  inquiry, tell and price.

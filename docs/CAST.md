@@ -10,48 +10,48 @@ This file is generated from the data: after editing the cast or the places, run 
 
 A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door.
 
-- **Loretta Gaddis** (60, she/her), owner and bartender of the Low Water. Boss of Tammy Lott; boss of Lyman Coker; boss of Jodie Strayhorn. Usually: home (all day and night). `npc_loretta`
-- **Jodie Strayhorn** (29, she/her), new waitress at the Low Water. Employee of Loretta Gaddis. Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). Starts with a stranger at trust -25. `npc_jodie`
+- **Loretta Gaddis** (60, she/her), owner and bartender of the Low Water. Boss of Tammy Lott; boss of Lyman Coker; boss of Jodie Strayhorn. Usually: home (all day and night). Secret weight 2. `npc_loretta`
+- **Jodie Strayhorn** (29, she/her), new waitress at the Low Water. Employee of Loretta Gaddis. Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). Starts with a stranger at trust -25. Goes to Loretta Gaddis when leaned on. Can be interested in the player (spark rate 1.2; opens at knows 20). `npc_jodie`
 
 ## The Riverview Motor Court
 
 Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster.
 
-- **Lyman Coker** (70, he/him), night bartender at the Low Water. Employee of Loretta Gaddis; friend of Curtis Pruett. Usually: home (morning, afternoon), the Low Water (evening, night). `npc_lyman`
-- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: home (morning, night), Riverbend Trailer Park (afternoon), Pittman's Gas and Service (evening). Starts with a stranger at trust -15. `npc_leon`
-- **Curtis Pruett** (52, he/him), insurance man who runs the card game at the Low Water. Friend of Lyman Coker; husband of Lynette Pruett (lives elsewhere). Usually: home (morning), the Low Water (afternoon, evening, night). `npc_curtis`
-- **Boyd Teague** (50, he/him), stranger who has had Room 9 at the motor court a week. Usually: home (morning, evening, night), the Old Bridge (afternoon). Starts with a stranger at trust -40. Axes: guardedness -2. `npc_boyd`
+- **Lyman Coker** (70, he/him), night bartender at the Low Water. Employee of Loretta Gaddis; friend of Curtis Pruett. Usually: home (morning, afternoon), the Low Water (evening, night). Goes to Loretta Gaddis when leaned on. Secret weight 2. `npc_lyman`
+- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: home (morning, night), Riverbend Trailer Park (afternoon), Pittman's Gas and Service (evening). Starts with a stranger at trust -15. Goes to nobody when leaned on (a grudge instead). Mercenary. `npc_leon`
+- **Curtis Pruett** (52, he/him), insurance man who runs the card game at the Low Water. Friend of Lyman Coker; husband of Lynette Pruett (lives elsewhere). Usually: home (morning), the Low Water (afternoon, evening, night). A demand can take $200. Mercenary. Can be interested in the player (spark rate 1; opens at knows 10). `npc_curtis`
+- **Boyd Teague** (50, he/him), stranger who has had Room 9 at the motor court a week. Usually: home (morning, evening, night), the Old Bridge (afternoon). Starts with a stranger at trust -40. Axes: guardedness -2. Goes to nobody when leaned on (a grudge instead). `npc_boyd`
 
 ## Town Hall
 
 A two-story brick building with the mayor's office upstairs and the police department downstairs, one patrol car out front and a second up on blocks behind it.
 
-- **Marcus Bell** (50, he/him), chief of police. Boss of Travis Cagle; boss of Glenda Pryor; boss of Nikki Ballard; brother of Celeste Bell (lives elsewhere). The Town Police. Usually: home (morning, night), the Old Bridge (afternoon), Pittman's Gas and Service (evening). `npc_marcus`
+- **Marcus Bell** (50, he/him), chief of police. Boss of Travis Cagle; boss of Glenda Pryor; boss of Nikki Ballard; brother of Celeste Bell (lives elsewhere). The Town Police. Usually: home (morning, night), the Old Bridge (afternoon), Pittman's Gas and Service (evening). Goes to nobody when leaned on (a grudge instead). `npc_marcus`
 
 ## Byrd's Pawn
 
 A narrow storefront between two empty ones, its window crowded with chainsaws, guitars and fishing reels behind a security grille that never goes all the way up.
 
-- **Hollis Byrd** (65, he/him), owner of Byrd's Pawn and a member of the town council. Landlord of Nikki Ballard; father of Renee Byrd (lives elsewhere); father-in-law of Scott Lindell (lives elsewhere). The Night Run. Usually: home (morning, afternoon, evening), Purvis Landing (night). `npc_hollis`
+- **Hollis Byrd** (65, he/him), owner of Byrd's Pawn and a member of the town council. Landlord of Nikki Ballard; father of Renee Byrd (lives elsewhere); father-in-law of Scott Lindell (lives elsewhere). The Night Run. Usually: home (morning, afternoon, evening), Purvis Landing (night). Secret weight 3; a demand can take $300. Mercenary. `npc_hollis`
 
 ## Riverbend Trailer Park
 
 Thirty-odd trailers on the low ground downstream of the landing, some with flower boxes and some with blue tarps on the roofs, strung along a gravel loop that floods to the axles every spring.
 
-- **Colt Purvis** (22, he/him), deckhand on the Night Run. Nephew of Wade Purvis; friend of Trent Haskins; nephew of Lorna Purvis; son of Dale Purvis (lives elsewhere). The Night Run. Usually: home (morning, afternoon), Purvis Landing (evening), the Old Bridge (night). `npc_colt`
-- **Travis Cagle** (28, he/him), night-shift police officer. Employee of Marcus Bell; boyfriend of Shayla Rawls. The Town Police. Usually: Town Hall (morning), home (afternoon), the Bluff (evening), the Riverview Motor Court (night). `npc_travis`
+- **Colt Purvis** (22, he/him), deckhand on the Night Run. Nephew of Wade Purvis; friend of Trent Haskins; nephew of Lorna Purvis; son of Dale Purvis (lives elsewhere). The Night Run. Usually: home (morning, afternoon), Purvis Landing (evening), the Old Bridge (night). Goes to Wade Purvis when leaned on. Secret weight 3. Can be interested in the player (spark rate 1.2; opens at knows 0). `npc_colt`
+- **Travis Cagle** (28, he/him), night-shift police officer. Employee of Marcus Bell; boyfriend of Shayla Rawls. The Town Police. Usually: Town Hall (morning), home (afternoon), the Bluff (evening), the Riverview Motor Court (night). Goes to Marcus Bell when leaned on. Secret weight 3. Can be interested in the player (spark rate 1.2; opens at knows 0). `npc_travis`
 - **June Satterfield** (60, she/her), retired nurse who patches people up at her kitchen table. Wife of Burl Satterfield. Usually: home (morning, evening, night), Riverside Baptist Church (afternoon). `npc_june`
-- **Tyler Rasberry** (19, he/him), night clerk at the Riverview Motor Court. Employee of Mavis Mangum; cousin of Brianna Tolliver. Usually: home (morning, afternoon), the Riverview Motor Court (evening, night). `npc_tyler`
-- **Brianna Tolliver** (23, she/her), housekeeper at the Riverview Motor Court. Cousin of Tyler Rasberry; employee of Mavis Mangum. Usually: the Riverview Motor Court (morning, afternoon), home (evening, night). `npc_brianna`
-- **Shayla Rawls** (25, she/her), hairdresser who works out of her trailer at Riverbend. Girlfriend of Travis Cagle. Usually: home (all day and night). `npc_shayla`
-- **Dwight Spann** (49, he/him), timber foreman for Sturdivant Land and Timber. Employee of Carter Sturdivant. Sturdivant Land and Timber. Usually: Sturdivant House (morning), the Old Bridge (afternoon), Pittman's Gas and Service (evening), home (night). Starts with a stranger at trust -10. `npc_dwight`
-- **Burl Satterfield** (66, he/him), June's husband, who fixes outboard motors. Husband of June Satterfield; friend of Wiley Tackett (dead). Usually: Front Street (morning), Purvis Landing (afternoon), home (evening, night). `npc_burl`
+- **Tyler Rasberry** (19, he/him), night clerk at the Riverview Motor Court. Employee of Mavis Mangum; cousin of Brianna Tolliver. Usually: home (morning, afternoon), the Riverview Motor Court (evening, night). Goes to Mavis Mangum when leaned on. Secret weight 1. Mercenary. Can be interested in the player (spark rate 0.8; opens at knows 15). `npc_tyler`
+- **Brianna Tolliver** (23, she/her), housekeeper at the Riverview Motor Court. Cousin of Tyler Rasberry; employee of Mavis Mangum. Usually: the Riverview Motor Court (morning, afternoon), home (evening, night). Goes to Mavis Mangum when leaned on. `npc_brianna`
+- **Shayla Rawls** (25, she/her), hairdresser who works out of her trailer at Riverbend. Girlfriend of Travis Cagle. Usually: home (all day and night). Mercenary. Can be interested in the player (spark rate 1.5; opens at knows 0). `npc_shayla`
+- **Dwight Spann** (49, he/him), timber foreman for Sturdivant Land and Timber. Employee of Carter Sturdivant. Sturdivant Land and Timber. Usually: Sturdivant House (morning), the Old Bridge (afternoon), Pittman's Gas and Service (evening), home (night). Starts with a stranger at trust -10. Goes to Carter Sturdivant when leaned on. Secret weight 2. `npc_dwight`
+- **Burl Satterfield** (66, he/him), June's husband, who fixes outboard motors. Husband of June Satterfield; friend of Wiley Tackett (dead). Usually: Front Street (morning), Purvis Landing (afternoon), home (evening, night). Secret weight 1. `npc_burl`
 
 ## Purvis Landing
 
 A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and bass boats, beside the concrete public ramp that runs straight down into the water.
 
-- **Wade Purvis** (57, he/him), owner of Purvis Landing and boss of the Night Run. Uncle of Colt Purvis; husband of Lorna Purvis; brother of Dale Purvis (lives elsewhere). The Night Run. Usually: home (morning, afternoon, night), the Low Water (evening). `npc_wade`
+- **Wade Purvis** (57, he/him), owner of Purvis Landing and boss of the Night Run. Uncle of Colt Purvis; husband of Lorna Purvis; brother of Dale Purvis (lives elsewhere). The Night Run. Usually: home (morning, afternoon, night), the Low Water (evening). Goes to nobody when leaned on (a grudge instead). Secret weight 3. `npc_wade`
 - **Lorna Purvis** (55, she/her), Wade's wife, who runs the bait shop at Purvis Landing. Wife of Wade Purvis; aunt of Colt Purvis; boss of Micah Dees; sister-in-law of Dale Purvis (lives elsewhere). Usually: home (all day and night). `npc_lorna`
 
 ## Sturdivant House
@@ -59,21 +59,21 @@ A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and
 A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road.
 
 - **Vada Sturdivant** (80, she/her), widow who owns Sturdivant House and the bottomland downstream. Mother of Carter Sturdivant; boss of Odessa Fairley; landlady of Lamar Haskins; daughter of Amos Sturdivant (dead); wife of Harlan Voss (dead). Usually: home (morning, evening, night), Riverside Baptist Church (afternoon). Starts with a stranger at trust -10. `npc_vada`
-- **Carter Sturdivant** (45, he/him), head of Sturdivant Land and Timber, who holds half the town's paper. Son of Vada Sturdivant; boss of Dwight Spann; grandson of Amos Sturdivant (dead); son of Harlan Voss (dead). Sturdivant Land and Timber. Usually: Town Hall (morning), the Old Bridge (afternoon), the Low Water (evening), home (night). Starts with a stranger at trust -10. `npc_carter`
-- **Odessa Fairley** (66, she/her), housekeeper and companion to Vada Sturdivant. Employee of Vada Sturdivant; sister of Corinne Bolden (lives elsewhere). Usually: home (all day and night). Starts with a stranger at trust -10. `npc_odessa`
+- **Carter Sturdivant** (45, he/him), head of Sturdivant Land and Timber, who holds half the town's paper. Son of Vada Sturdivant; boss of Dwight Spann; grandson of Amos Sturdivant (dead); son of Harlan Voss (dead). Sturdivant Land and Timber. Usually: Town Hall (morning), the Old Bridge (afternoon), the Low Water (evening), home (night). Starts with a stranger at trust -10. Goes to nobody when leaned on (a grudge instead). Secret weight 3. Can be interested in the player (spark rate 1; opens at knows 10). `npc_carter`
+- **Odessa Fairley** (66, she/her), housekeeper and companion to Vada Sturdivant. Employee of Vada Sturdivant; sister of Corinne Bolden (lives elsewhere). Usually: home (all day and night). Starts with a stranger at trust -10. Goes to Vada Sturdivant when leaned on. `npc_odessa`
 
 ## The Mangum House (a home to find)
 
 A white frame house about a mile up the river road from Pittman's, on the left, with a carport full of engine parts and a porch light left on for whoever gets home last.
 
 - **Dewayne Mangum** (40, he/him), mechanic in the service bays at Pittman's. Employee of Royce Pittman; husband of Mavis Mangum; son-in-law of Inez Crocker (dead). Usually: Pittman's Gas and Service (morning, afternoon), Purvis Landing (evening), home (night). `npc_dewayne`
-- **Mavis Mangum** (41, she/her), night manager at the Riverview Motor Court. Wife of Dewayne Mangum; boss of Tyler Rasberry; boss of Brianna Tolliver; daughter of Inez Crocker (dead); employee of Stanley Wexler (lives elsewhere). Usually: home (morning, afternoon), the Riverview Motor Court (evening, night). `npc_mavis`
+- **Mavis Mangum** (41, she/her), night manager at the Riverview Motor Court. Wife of Dewayne Mangum; boss of Tyler Rasberry; boss of Brianna Tolliver; daughter of Inez Crocker (dead); employee of Stanley Wexler (lives elsewhere). Usually: home (morning, afternoon), the Riverview Motor Court (evening, night). Secret weight 3. `npc_mavis`
 
 ## The Pittman Place (a home to find)
 
 A brick ranch house up the bluff behind the station, with a basketball hoop over the garage, a bass boat on a trailer and the station's ledgers spread across the kitchen table.
 
-- **Royce Pittman** (56, he/him), owner of Pittman's Gas and Service and the swing vote on the town council. Boss of Dewayne Mangum; husband of Darlene Pittman; father of Kaylee Pittman; son of Clyde Pittman (dead). Usually: Pittman's Gas and Service (morning, evening), the Low Water (afternoon), home (night). `npc_royce`
+- **Royce Pittman** (56, he/him), owner of Pittman's Gas and Service and the swing vote on the town council. Boss of Dewayne Mangum; husband of Darlene Pittman; father of Kaylee Pittman; son of Clyde Pittman (dead). Usually: Pittman's Gas and Service (morning, evening), the Low Water (afternoon), home (night). Secret weight 3. `npc_royce`
 - **Darlene Pittman** (54, she/her), Royce's wife, who keeps the books at Pittman's. Wife of Royce Pittman; mother of Kaylee Pittman. Usually: home (morning, evening, night), Pittman's Gas and Service (afternoon). `npc_darlene`
 - **Kaylee Pittman** (16, she/her), Royce's daughter, who works the register after school. Daughter of Royce Pittman; daughter of Darlene Pittman; granddaughter of Clyde Pittman (dead). Usually: home (morning), Pittman's Gas and Service (afternoon, evening), the Water Tower (night). Away weekdays (morning, afternoon) at the county school in Clayburn. `npc_kaylee`
 
@@ -82,36 +82,36 @@ A brick ranch house up the bluff behind the station, with a basketball hoop over
 A small white house beside Riverside Baptist that the church owns, with a porch swing, a vegetable garden gone to seed and the church van parked on the grass.
 
 - **Ray Dees** (65, he/him), pastor of Riverside Baptist Church. Husband of Nadine Dees; grandfather of Micah Dees; father of Leah Dees (lives elsewhere). Usually: Riverside Baptist Church (morning, evening), Riverbend Trailer Park (afternoon), home (night). `npc_ray`
-- **Nadine Dees** (63, she/her), church secretary and pianist at Riverside Baptist. Wife of Ray Dees; grandmother of Micah Dees; mother of Leah Dees (lives elsewhere). Usually: Riverside Baptist Church (morning, afternoon), home (evening, night). `npc_nadine`
-- **Micah Dees** (17, he/him), Ray's grandson, who works the Purvis Landing bait shop. Grandson of Ray Dees; grandson of Nadine Dees; employee of Lorna Purvis; son of Leah Dees (lives elsewhere). Usually: home (morning, evening), Purvis Landing (afternoon, night). Away weekdays (morning, afternoon) at the county school in Clayburn. `npc_micah`
+- **Nadine Dees** (63, she/her), church secretary and pianist at Riverside Baptist. Wife of Ray Dees; grandmother of Micah Dees; mother of Leah Dees (lives elsewhere). Usually: Riverside Baptist Church (morning, afternoon), home (evening, night). Secret weight 3. `npc_nadine`
+- **Micah Dees** (17, he/him), Ray's grandson, who works the Purvis Landing bait shop. Grandson of Ray Dees; grandson of Nadine Dees; employee of Lorna Purvis; son of Leah Dees (lives elsewhere). Usually: home (morning, evening), Purvis Landing (afternoon, night). Away weekdays (morning, afternoon) at the county school in Clayburn. Secret weight 2. `npc_micah`
 
 ## The Lott Trailer (a home to find)
 
 A single-wide at the far end of the Riverbend loop, with a wind chime of bent spoons on the porch and a girl's pink bicycle chained to the steps that nobody rides now.
 
-- **Tammy Lott** (42, she/her), cook at the Low Water. Employee of Loretta Gaddis; mother of Austin Lott; mother of Amber Lott (dead). Usually: Riverside Cemetery (morning), the Low Water (afternoon, evening), home (night). Starts with a stranger at trust -15. `npc_tammy`
+- **Tammy Lott** (42, she/her), cook at the Low Water. Employee of Loretta Gaddis; mother of Austin Lott; mother of Amber Lott (dead). Usually: Riverside Cemetery (morning), the Low Water (afternoon, evening), home (night). Starts with a stranger at trust -15. Goes to Loretta Gaddis when leaned on. `npc_tammy`
 - **Austin Lott** (15, he/him), Tammy's son, Amber Lott's little brother. Son of Tammy Lott; brother of Amber Lott (dead). Usually: home (morning, night), Riverbend Trailer Park (afternoon), the Old Bridge (evening). Away weekdays (morning, afternoon) at the county school in Clayburn. Starts with a stranger at trust -15. `npc_austin`
 
 ## The Apartment over Byrd's (a home to find)
 
 Two rooms up an outside staircase above Byrd's Pawn, rented by the month, with a dripping window unit, a police radio on the counter and a view straight down into the alley where trucks stop after dark.
 
-- **Nikki Ballard** (31, she/her), day-shift police officer. Tenant of Hollis Byrd; employee of Marcus Bell. The Town Police. Usually: the River Road (morning), Town Hall (afternoon), home (evening, night). `npc_nikki`
+- **Nikki Ballard** (31, she/her), day-shift police officer. Tenant of Hollis Byrd; employee of Marcus Bell. The Town Police. Usually: the River Road (morning), Town Hall (afternoon), home (evening, night). Goes to Marcus Bell when leaned on. Secret weight 3. Can be interested in the player (spark rate 0.8; opens at knows 20). `npc_nikki`
 
 ## The Haskins Farm (a home to find)
 
 A tin-roofed farmhouse at the end of a gravel road north of town, with a grain truck under the shed, soybean stubble out to the tree line and a hand-painted sign by the mailbox that once said NO NEW BRIDGE and has been painted over.
 
-- **Virgil Odom** (72, he/him), retired state bridge inspector who fishes the pier. Father-in-law of Lamar Haskins; grandfather of Trent Haskins; father of Ruth Haskins (dead). Usually: home (morning, night), the Old Bridge (afternoon, evening). `npc_virgil`
-- **Lamar Haskins** (58, he/him), farmer and council member who leases Sturdivant land. Tenant of Vada Sturdivant; son-in-law of Virgil Odom; father of Trent Haskins; husband of Ruth Haskins (dead). Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). `npc_lamar`
-- **Trent Haskins** (24, he/him), Lamar's son, who drives the farm's grain truck. Friend of Colt Purvis; grandson of Virgil Odom; son of Lamar Haskins; son of Ruth Haskins (dead). The Night Run. Usually: home (morning), Pittman's Gas and Service (afternoon), Purvis Landing (evening, night). `npc_trent`
+- **Virgil Odom** (72, he/him), retired state bridge inspector who fishes the pier. Father-in-law of Lamar Haskins; grandfather of Trent Haskins; father of Ruth Haskins (dead). Usually: home (morning, night), the Old Bridge (afternoon, evening). Secret weight 2. `npc_virgil`
+- **Lamar Haskins** (58, he/him), farmer and council member who leases Sturdivant land. Tenant of Vada Sturdivant; son-in-law of Virgil Odom; father of Trent Haskins; husband of Ruth Haskins (dead). Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). Secret weight 3. Can be interested in the player (spark rate 0.6; opens at knows 30). `npc_lamar`
+- **Trent Haskins** (24, he/him), Lamar's son, who drives the farm's grain truck. Friend of Colt Purvis; grandson of Virgil Odom; son of Lamar Haskins; son of Ruth Haskins (dead). The Night Run. Usually: home (morning), Pittman's Gas and Service (afternoon), Purvis Landing (evening, night). Goes to Wade Purvis when leaned on. Secret weight 2. Can be interested in the player (spark rate 1; opens at knows 10). `npc_trent`
 
 ## The Overstreet House (a home to find)
 
 A neat yellow house on the rise behind Town Hall, with a flag on the porch, a scanner squawking in the front window and a chest freezer humming in the carport.
 
-- **Jolene Overstreet** (57, she/her), mayor and town clerk. Mother of Annette Overstreet; wife of Gerald Overstreet. Sturdivant Land and Timber. Usually: Town Hall (morning, afternoon), Riverside Baptist Church (evening), home (night). `npc_jolene`
-- **Annette Overstreet** (34, she/her), seventh-grade teacher at the county middle school. Daughter of Jolene Overstreet; daughter of Gerald Overstreet. Usually: home (morning, afternoon, night), Riverside Baptist Church (evening). Away weekdays (morning, afternoon) at the county school in Clayburn. `npc_annette`
+- **Jolene Overstreet** (57, she/her), mayor and town clerk. Mother of Annette Overstreet; wife of Gerald Overstreet. Sturdivant Land and Timber. Usually: Town Hall (morning, afternoon), Riverside Baptist Church (evening), home (night). Secret weight 3; a demand can take $300. `npc_jolene`
+- **Annette Overstreet** (34, she/her), seventh-grade teacher at the county middle school. Daughter of Jolene Overstreet; daughter of Gerald Overstreet. Usually: home (morning, afternoon, night), Riverside Baptist Church (evening). Away weekdays (morning, afternoon) at the county school in Clayburn. Secret weight 1. Can be interested in the player (spark rate 0.7; opens at knows 25). `npc_annette`
 - **Gerald Overstreet** (61, he/him), Jolene's husband, retired from the paper mill. Husband of Jolene Overstreet; father of Annette Overstreet. Usually: home (all day and night). `npc_gerald`
 
 ## The Gentry House (a home to find)
@@ -120,7 +120,7 @@ The oldest house in town, a gray two-story with a deep porch on the slope betwee
 
 - **Elbert Gentry** (88, he/him), the oldest man in town and on the town council, whose granddaddy ran the last ferry. Brother of Pearl Gentry; grandfather of Glenda Pryor; grandson of Asa Gentry (dead). Usually: Front Street (morning), the Low Water (afternoon), home (evening, night). `npc_elbert`
 - **Pearl Gentry** (79, she/her), columnist for the county weekly. Sister of Elbert Gentry; granddaughter of Asa Gentry (dead). Usually: Riverside Baptist Church (morning), Town Hall (afternoon), home (evening, night). `npc_pearl`
-- **Glenda Pryor** (40, she/her), police dispatcher and clerk at Town Hall. Employee of Marcus Bell; granddaughter of Elbert Gentry. The Town Police. Usually: Town Hall (morning, afternoon), home (evening, night). `npc_glenda`
+- **Glenda Pryor** (40, she/her), police dispatcher and clerk at Town Hall. Employee of Marcus Bell; granddaughter of Elbert Gentry. The Town Police. Usually: Town Hall (morning, afternoon), home (evening, night). Goes to Marcus Bell when leaned on. Secret weight 3. Can be interested in the player (spark rate 0.8; opens at knows 20). `npc_glenda`
 
 ## Elsewhere
 

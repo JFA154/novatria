@@ -65,7 +65,8 @@ const setup = page => page.evaluate(() => {
       if (CUE.test(line)) problems.push(`${n.id}: their person line carries a cue: ${line}`);
       for (const p of window.__packets) for (const l of p.text.split('\n')) {
         if (!l.includes(n.name) || /^UNDER 18: /.test(l)) continue;
-        const parts = /^PRESENT: /.test(l) || /^NPCS PRESENT: /.test(l) ? l.split(/; (?=[A-Z][a-z]+ [A-Z]|npc_)/).filter(x => x.includes(n.name)) : [l];
+        // Wave 29: an adult can carry a spark tag now, so every line that lists people is read one person at a time.
+        const parts = /^(PRESENT|NPCS PRESENT|OTHER KNOWN NPCS|NAMED IN THE NARRATION[^:]*|EVERYONE ELSE IN TOWN[^:]*): /.test(l) ? l.split(/; (?=[A-Z][a-z]+ [A-Z]|npc_)/).filter(x => x.includes(n.name)) : [l];
         for (const x of parts) if (CUE.test(x)) problems.push(`${n.id}: a ${p.kind} packet line carries a cue: ${x.slice(0, 200)}`);
       }
       const feed = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent).filter(t => t.includes(n.name));
@@ -198,13 +199,20 @@ s.test('a named target and two signals without the flag: the bookkeeper\'s flirt
     G.Pipeline.forceNextRoll(19);
     await G.Pipeline.submit('Tell me what you know.', { mode: 'say', to: 'npc_kaylee' });
     out.secret = [G.Pipeline.lastTurn.roll && G.Pipeline.lastTurn.roll.success, G.Pipeline.lastTurn.ctx.revealSecretFor || null];
-    // A leverage-backed ask at Micah rolls as usual (the record is wave 29's; the id is no reason to skip the die).
+    // A leverage-backed ask at Micah rolls as usual (the id is no reason to skip the die).
+    // Changed by design in wave 29 (A4): the record is real now (his secret shown, the dock light held over him), and the words use it.
     __put('loc_purvis_landing', ['npc_micah'], 3, 'evening');
     S.apply({ relSet: { npcId: 'npc_micah', f: 50 } });
-    M.queue('parse', { actionType: 'persuade', summary: 'Leans on Micah with the dock light', targets: ['npc_micah'], aboutIds: ['lev_micah_1'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
+    S.apply({ secretShown: [{ npcId: 'npc_micah', how: 'roll' }] });
+    S.apply({ leverageAdd: { holder: 'player', over: 'npc_micah', about: { kind: 'secret' }, text: 'flashes the dock light for Wade when a patrol car comes', weight: 2, mattersTo: ['npc_ray', 'npc_nadine'] } });
+    const rec = st.leverage.find(x => x.over === 'npc_micah');
+    const lr0 = st.player.reputation.town || 0;
+    M.queue('parse', { actionType: 'persuade', summary: 'Leans on Micah with the dock light', targets: ['npc_micah'], aboutIds: [rec.id], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
     G.Pipeline.forceNextRoll(11);
-    await G.Pipeline.submit('Lend me your truck tonight.', { mode: 'say', to: 'npc_micah' });
+    await G.Pipeline.submit('Lend me your truck tonight, or Wade hears about the dock light.', { mode: 'say', to: 'npc_micah' });
     out.lev = [G.Pipeline.lastTurn.roll ? G.Pipeline.lastTurn.roll.d20 : null, G.Pipeline.lastTurn.ctx.complied || null, R.complies(S.npc('npc_micah'), { actionType: 'talk', difficulty: 'easy' })];
+    out.levBacked = [rec.id, G.Pipeline.lastTurn.ctx.backed ? G.Pipeline.lastTurn.ctx.backed.id : null, R.canRaise(S.npc('npc_micah')), R.leverageAnswer(rec, S.npc('npc_micah'), { price: 100, rolled: true, success: true }).amount,
+      st.seeds.filter(sd => sd.origin && sd.origin.kind === 'report' && sd.origin.npcId === 'npc_micah' && sd.origin.why === 'threat').map(sd => sd.origin.protectors.slice().sort()), (st.player.reputation.town || 0) - lr0];
     return out;
   });
   await checked(page, 'Micah, Austin, Kaylee');
@@ -222,6 +230,11 @@ s.test('a named target and two signals without the flag: the bookkeeper\'s flirt
   assert.equal(r.secret[0], true, 'the intimidation worked');
   assert.ok(!(r.secret[1] || []).includes('npc_kaylee'), 'and opened no secret');
   assert.deepEqual(r.lev, [11, null, false], 'a lev_ id at Micah: the die is rolled, no compliance');
+  // Wave 29 (A4): it is a backed ask on his record, he can raise nothing ($0: no money from a minor), and the threat goes to his family and the chief.
+  assert.equal(r.levBacked[1], r.levBacked[0], 'backed by the record');
+  assert.deepEqual(r.levBacked.slice(2, 4), [0, 0], 'canRaise $0; a price named gets nothing');
+  assert.deepEqual(r.levBacked[4], [['npc_marcus', 'npc_nadine', 'npc_ray']], 'reported to his grandparents and the chief');
+  assert.ok(r.levBacked[5] <= -5, 'the town -5 for a threat at a minor: ' + r.levBacked[5]);
 });
 
 s.test('a romantic ask is never backed and never obeyed out of fear: "sleep with me or Bell hears about your tapes" to Glenda, and the same to an adult at fear 50, both refuse with the die still drawn, cost blackmail and crossed, plant a report and drop the town 10', async h => {
@@ -452,9 +465,9 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
   await install(page);
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, R = G.Rel, st = G.state;
-    // Jodie eligible for the test (the list itself is wave 29's).
-    G.State.town.romance = [{ npcId: 'npc_jodie', open: true, sparkRate: 1.2, opensAt: { knows: 0 }, faithful: false }];
-    const out = { eligibleAdult: R.eligible(S.npc('npc_jodie')) };
+    // Changed by design in wave 29 (A4): Jodie is eligible on the town's own shipped list (opens at knows-you 20), not a list the test made.
+    const out = { eligibleAdult: R.eligible(S.npc('npc_jodie')), listed: (G.State.town.romance || []).filter(x => x.npcId === 'npc_jodie').map(x => [x.sparkRate, x.opensAt.knows]) };
+    S.apply({ relSet: { npcId: 'npc_jodie', k: 40 } });
     st.player.age = 16;
     out.eligible16 = R.eligible(S.npc('npc_jodie'));
     __put('loc_pittmans', ['npc_jodie'], 2, 'morning');
@@ -465,6 +478,8 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
       lines.push({ young: p.includes('UNDER 18: The player is under 18: nobody in this town flirts with them or takes a flirt from them as anything but a kid talking.'), answer: p.find(l => l.startsWith('ROMANCE')) || null, yes: p.some(l => /says yes|fade to black|not tonight/.test(l)) });
     }
     out.lines = lines;
+    // Wave 29 (A4): the last ask was for the night (the intimate gate): refused, nothing intimate written, nothing logged as one.
+    out.intimate = [S.npc('npc_jodie').memories.filter(m => m.event === 'intimate').length, S.debugLog.filter(x => /intimate/.test(x.reason || '') && /npc_jodie/.test(x.reason || '') && x.kind !== 'rejected').length];
     out.jodie = [S.npc('npc_jodie').rel.s, S.npc('npc_jodie').memories.filter(m => m.event === 'flirted').length, R.sparkStatus(S.npc('npc_jodie'))];
     delete st.player.age;
     await __say('npc_jodie', 'Want to get a drink sometime?', { romantic: 'flirt' });
@@ -475,18 +490,20 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
     return out;
   });
   await checked(page, 'the young player');
-  assert.equal(r.eligibleAdult, true, 'an adult player: Jodie is on the test\'s list');
+  assert.equal(r.eligibleAdult, true, 'an adult player: Jodie is on the town\'s list');
+  assert.deepEqual(r.listed, [[1.2, 20]], 'the shipped row: rate 1.2, opens at 20');
   assert.equal(r.eligible16, false);
   for (const x of r.lines) {
     assert.equal(x.young, true, 'the under-18 player line every turn');
     assert.match(x.answer, /^ROMANCE \(decided by the engine\): Jodie Strayhorn isn't interested: she turns it aside\.$/, 'every welcome is no');
     assert.equal(x.yes, false, 'no intimacy answer');
   }
+  assert.deepEqual(r.intimate, [0, 0], '"Stay over at my place tonight." from a 16-year-old: refused, no intimate memory');
   assert.deepEqual(r.jodie, [0, 0, null], 'her spark stays 0; a flirt from a kid is no unwelcome flirt either');
   assert.equal(r.ageless[0], true);
   assert.deepEqual(r.ageless[1], ["UNDER 18: The player's age is not on record, so for romance they count as under 18: nobody in this town flirts with them or takes a flirt from them as one."]);
   assert.equal(r.ageless[2], false);
-  assert.equal(r.adult, true, 'an adult player: Jodie is eligible on the test\'s list (welcome is wave 29\'s)');
+  assert.equal(r.adult, true, 'an adult player: Jodie is eligible on the town\'s list');
 });
 
 s.test('fuzz: 300 random event strings and 50 random romantic parses over every id for 20 turns leave every minor at spark 0, with no status, no intimate memory and no cue in any packet', async h => {

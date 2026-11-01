@@ -829,3 +829,56 @@ live API.
   `MINOR_ROMANCE_PHRASES` (strong and weak) and `Api.minorPhraseHit` are
   the minor rule's phrase signal, read over the player's words whatever
   the parse said.
+
+## Wave 29 (1 Nov 2026): what people hold, in the packets
+
+Wave A4 of `docs/RELATIONSHIPS_PLAN.md`. No cached block changes: the style,
+town and cast blocks are as wave 28 left them (12,690 of 13,000 by the api
+suite's estimate). Everything here is per turn and only when it applies.
+
+- **The parser.** `packet.leverage` lists the live records the player holds
+  (`{ id, npcId, name, text, over, about }`, never the secret field), and
+  one line asks for the id in `aboutIds` when the player's words use it:
+  `WHAT THE PLAYER HOLDS (put the id in aboutIds when the player's words
+  use it, to threaten or to ask): lev_hollis_1: what you have on Hollis
+  Byrd: <text>`. `Pipeline.normaliseParse(raw, input)` keeps a `lev_` id
+  only for a live record the player holds and only when the input uses it
+  (`Rel.references`: two content words of the record's text, a threat
+  phrase, or one of the secret's own keys); a dropped id is a debug line,
+  so a stray one never makes a threat.
+- **The narrator.** Only on the turns they apply:
+  `ROMANCE (decided by the engine): <Name> is open to it: she flirts back,
+  her own way.` / `... isn't interested: she turns it aside.` / `... says
+  yes; fade to black, nothing explicit; pick up afterwards.` / `<Name>: not
+  tonight; she says so kindly.`; and a backed ask's `LEVERAGE:` line in the
+  present tense, in place of the OUTCOME lines (`LEVERAGE: Hollis Byrd
+  agrees to pay $300 by tomorrow evening; he pays nothing now.`, `...
+  refuses: "Tell them, then."`, `... calls the bluff and gives nothing.`,
+  `... says he already paid, and won't again.`, `... goes along with it;
+  he knows what you know.`, `... has no money to give; he pays nothing.`,
+  `... won't pay and won't be pushed; he makes it plain he will answer for
+  it.`). A secret is given as before (`secretsFor`); what was given is now
+  kept (`secretShown`).
+- **The bookkeeper.** `LEVERAGE (already applied by the engine: <Name>'s
+  answer, the threat and what it cost the player with them[; the money
+  comes tomorrow, by the engine]): record no social event for <id> and no
+  goldDelta from them.` and, beside wave 28's "turned it aside", `ROMANCE
+  (decided by the engine): <Name> was open to it, and the engine records
+  the flirt; record no flirt or compliment for it.` and `... said yes to
+  the night; the engine records it, and it is private; record nothing more
+  for it.` Its `learned_secret` is a record only when the narration shows
+  the secret (two of the person's `leverageKeys`); the record's text is the
+  bookkeeper's words.
+- **Stance, reasons and cues** (read by the bookkeeper's person rows now,
+  by wave 30's PRESENT line next): tags gain the spark statuses ("has
+  noticed you", "wants you", "using you", "sweet on you", "falling for
+  you") and the leverage tags ("you have something on each other", "has
+  something on you" once the player knows, "you have something on them",
+  dropped under "afraid of what you know"); `Rel.reasons` leads with what
+  is held (`Rel.leverageLines`); "wants you" from someone at trust -25 or
+  less cues "flirts back, keeps it light, doesn't trust you".
+- **The mock.** `mockParse` reads `packet.leverage` and names a record in
+  `aboutIds` when the input uses it (a talk or other becomes intimidate);
+  `mockBookkeep`'s `learned_secret` needs two of the keys in the narration
+  and takes its words from the narration's sentence that has one, never
+  the secret field.

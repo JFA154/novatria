@@ -26,7 +26,8 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
     out.shape = st.npcs.filter(n => !KEYS.every(k => k in n.rel)).map(n => n.id);
     out.alias = st.npcs.filter(n => n.attitude !== n.rel.w || R.tracksOf(n).w !== n.attitude).map(n => n.id);
     out.tracks = [R.TRACKS.slice(), Object.keys(R.tracksOf(st.npcs[0]))];
-    out.state = [st.leverage, st.known];
+    // Changed by design in wave 29 (A4): a secret loose end's person starts holding it over the player (the informant's record); nothing else is held.
+    out.state = [st.leverage.filter(x => !(x.over === 'player' && x.about.kind === 'loose_end' && st.player.looseEnds.some(le => le.kind === 'secret' && le.npcId === x.holder))), st.known, st.leverage.length === st.player.looseEnds.filter(le => le.kind === 'secret').length];
     // Changed by design in wave 28 (A3): socialEvents moved to RECORD_KEYS (the bookkeeper's, through its model rules); relSet and relDay stay the engine's.
     out.keys = ['socialEvents', 'relSet', 'relDay'].map(k => S.ENGINE_KEYS.includes(k) && !S.RECORD_KEYS.includes(k));
     out.ops = [S.EFFECT_OPS.length, S.EFFECT_OPS.includes('socialEvent'), Object.isFrozen(R.EVENTS) && Object.isFrozen(R.EVENTS.hit) && Object.isFrozen(R.CAPS.turn)];
@@ -76,9 +77,10 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   assert.deepEqual(r.shape, [], 'everyone has the record');
   assert.deepEqual(r.alias, [], 'attitude is liking, for everyone');
   assert.deepEqual(r.tracks, [['w', 't', 'f', 'k', 's'], ['w', 't', 'f', 'k', 's', 'owed']], 'five tracks and owed');
-  assert.deepEqual(r.state, [[], { secrets: {} }]);
+  assert.deepEqual(r.state, [[], { secrets: {} }, true]);
   assert.deepEqual(r.keys, [false, true, true], 'engine keys: the model cannot send them (socialEvents is the bookkeeper\'s since wave 28)');
-  assert.deepEqual(r.ops, [29, true, true], 'the effect ops are 29 with socialEvent; the tables are frozen');
+  // Changed by design in wave 29 (A4): owedSettle and leverageSet make 31.
+  assert.deepEqual(r.ops, [31, true, true], 'the effect ops are 31 with socialEvent; the tables are frozen');
   assert.deepEqual(r.written, [], 'liking starts as the town wrote it');
   assert.deepEqual(r.trust, [5, -5, -15, -10, -5, 0], 'Royce open, Tyler watchful, Marcus police and guarded, Wade a smuggler, Dewayne guarded, Loretta neither');
   assert.ok(r.loose.length && r.loose.every(x => x[0] && x[1]), 'a loose end\'s shift is in their start, with knows-you 30 (wave 27), nothing in everyday: ' + JSON.stringify(r.loose));
@@ -232,8 +234,11 @@ s.test('repeats and bounds: kind things diminish the same day and across days, h
     const out = {};
     // People with no pride, guardedness, nerve or grudge to scale anything.
     const adults = st.npcs.filter(n => G.presenceOf(n) === 'here' && n.status === 'free' && !R.isMinor(n));
-    const plain = adults.filter(n => (x => !x.p && !x.g && !x.n && !x.r && !x.hard && !x.mercenary)(R.axesOf(n)));
+    // Changed by design in wave 29 (A4): content marks five people mercenary (Curtis and Shayla were plain); the flag scales only money and
+    // blackmail, so they come last and are never the one given gifts.
+    const plain = adults.filter(n => (x => !x.p && !x.g && !x.n && !x.r && !x.hard)(R.axesOf(n))).sort((x, y) => R.axesOf(x).mercenary - R.axesOf(y).mercenary);
     const [a, b, c, d, e] = plain;
+    out.giftsPlain = !R.axesOf(c).mercenary;
     // Anyone else, for what no trait scales (everyday liking, knowing).
     const [f, g] = adults.filter(n => !plain.includes(n));
     out.people = plain.length;
@@ -275,7 +280,7 @@ s.test('repeats and bounds: kind things diminish the same day and across days, h
     out.knows = g.rel.k;
     return out;
   });
-  assert.ok(r.people >= 5, 'enough plain people: ' + r.people);
+  assert.ok(r.people >= 5 && r.giftsPlain, 'enough plain people: ' + r.people);
   assert.deepEqual(r.same, [[3, 2], [2, 2], [1, 2], [0, 2]], 'compliments the same day: 3, 2, 1, 0, and 2 of knowing each');
   assert.deepEqual(r.across, [7, 16, 0, 3], 'time together: 2 + 2 + 2 + 1 liking, 4 + 4 + 4 + 2 knowing; the second the same day adds no liking and the least knowing, 2');
   assert.deepEqual(r.gifts, [5, 5, 5, 1, 0], 'gifts: three days in full, then 1; a second the same day 0');
@@ -365,7 +370,8 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
     out.names = out.minors.map(id => S.npc(id).name.split(' ')[0]);
     out.eligible = [st().npcs.filter(n => R.eligible(n)).length, R.romanceOf().length];
     const [k, m, a] = out.minors;
-    const adult = 'npc_jodie';
+    // Changed by design in wave 29 (A4): Jodie is on the shipped romance list; Dewayne, an adult nobody listed, stands in for her.
+    const adult = 'npc_dewayne';
     const sparkOf = id => { const n = S.npc(id); return [n.rel.s, n.rel.start.s, n.rel.everyday.s, n.rel.fix.s].concat(n.memories.filter(x => x.d).map(x => x.d.s)); };
     const refusals = where => S.debugLog.filter(x => x.kind === 'rejected' && x.source === 'rel' && (!where || String(x.path).startsWith(where))).map(x => x.reason);
     // The model: it cannot send events at all; its attitudeChanges move liking only.
@@ -420,7 +426,8 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   });
   assert.deepEqual(r.minors, r.byData, 'the minors are the cast\'s under-18s');
   assert.deepEqual(r.names, ['Kaylee', 'Micah', 'Austin']);
-  assert.deepEqual(r.eligible, [0, 0], 'nobody is on a romance list yet');
+  // Changed by design in wave 29 (A4): the town ships its romance list, twelve adults.
+  assert.deepEqual(r.eligible, [12, 12], 'twelve on the romance list');
   assert.deepEqual(r.model[0], [], 'not refused: set aside');
   assert.match(r.model[1], /npc_kaylee is under 18 and this turn pointed something romantic at them: set aside for the minor rule/);
   assert.deepEqual(r.model[2], ['npc_kaylee'], 'the minor rule hears of it (Pipeline.minorTurn)');
@@ -428,16 +435,16 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   assert.equal(r.world[0], 0, 'the flirt applies, its spark held at 0');
   assert.match(r.world[1][0], /spark stays 0 for npc_micah: they are under 18/);
   assert.equal(r.world[2], 0);
-  assert.ok(r.world[3].some(x => /npc_micah: spark stays 0 \(under 18\)/.test(x)) && r.world[3].some(x => /npc_jodie: spark stays 0 \(not on the romance list\)/.test(x)), 'logged: ' + r.world[3].join(' | '));
+  assert.ok(r.world[3].some(x => /npc_micah: spark stays 0 \(under 18\)/.test(x)) && r.world[3].some(x => /npc_dewayne: spark stays 0 \(not on the romance list\)/.test(x)), 'logged: ' + r.world[3].join(' | '));
   assert.match(r.edit[0][0], /spark stays 0 for npc_austin: they are under 18/);
-  assert.match(r.edit[1][0], /spark stays 0 for npc_jodie: they are not on the town's romance list/);
+  assert.match(r.edit[1][0], /spark stays 0 for npc_dewayne: they are not on the town's romance list/);
   assert.deepEqual(r.edit[2], [{ id: 'npc_austin', fields: ['rel'] }], 'spark 0 is no change; trust lands');
   assert.equal(r.older, true);
   assert.match(r.cheat[0][0], /spark stays 0 for npc_kaylee/);
   assert.equal(r.cheat[1], 1);
   assert.equal(r.cheat[2], 30, 'the cheat moves liking');
   assert.deepEqual(r.upgrade, ['spark set to 0 for npc_kaylee: they are under 18']);
-  assert.deepEqual(r.import, [true, ['spark set to 0 for npc_micah: they are under 18', "spark set to 0 for npc_jodie: they are not on the town's romance list"]], 'still a minor by the live town; both imports zeroed and logged');
+  assert.deepEqual(r.import, [true, ["spark set to 0 for npc_dewayne: they are not on the town's romance list", 'spark set to 0 for npc_micah: they are under 18']], 'still a minor by the live town; both imports zeroed and logged (in cast order)');
   assert.deepEqual(r.player, [true, true, false]);
   assert.deepEqual(r.closed, [true, false]);
   for (const x of r.after) assert.ok(x.every(v => v === 0), JSON.stringify(r.after));

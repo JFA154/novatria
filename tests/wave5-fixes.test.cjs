@@ -80,7 +80,8 @@ s.test('Q2: a gift in Say mode with no listed word ("Twenty bucks. Buy yourself 
   const a0 = await page.evaluate(() => Game.State.npc('npc_hollis').attitude);
   const one = await sayToHollis(page, 'Twenty bucks. Buy yourself lunch.', { goldDelta: -20, attitudeChanges: [{ npcId: 'npc_hollis', delta: 5 }] });
   const two = await sayToHollis(page, 'Twenty more. Buy yourself supper.', { goldDelta: -20, attitudeChanges: [{ npcId: 'npc_hollis', delta: 5 }] });
-  assert.equal(one.att - a0, 5, 'the first gift warms');
+  // Changed by design in wave 29 (A4): Hollis is mercenary in content, and money given to him counts double on liking.
+  assert.equal(one.att - a0, 10, 'the first gift warms (doubled: Hollis is mercenary)');
   assert.equal(two.att, one.att, 'the second the same day does not');
   assert.match(two.gifts, /npc_hollis.*npc_hollis/);
 });

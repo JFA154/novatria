@@ -358,7 +358,10 @@ left alone).
 
 When someone you know crosses a line in how they feel about you, a quiet line
 says so after the turn: "Loretta Gaddis warms to you.", "... cools toward
-you." or "... won't forget that."
+you." or "... won't forget that." Quiet lines also say what people come to
+want of you, what they hold and what is owed ("Jodie Strayhorn is sweet on
+you.", "Hollis Byrd knows you know.", "Burl Satterfield owes you one."), each
+status line at most once a week a person.
 
 **People remember what you did for what it was.** The game itself sees a good
 deal and records it as what happened, not as a number: a blow in a fight, a
@@ -428,10 +431,50 @@ only noted ("said something that made me uncomfortable"). A hit or a threat
 on someone under 18 is reported the same way. A threat or blackmail inside a
 romantic ask, aimed at anyone, is coercion: no roll and nothing given, they
 refuse and leave or call for someone, and it is reported. If you are under
-18, or an older save has no age for you, nobody in town flirts with you. In
-this wave nobody in town takes a flirt from you as welcome yet ("isn't
-interested"), and an intimate scene between adults fades to black before
-anything explicit.
+18, or an older save has no age for you, nobody in town flirts with you or
+takes a flirt from you as one, and nothing intimate is ever answered yes. An
+intimate scene between adults fades to black before anything explicit.
+
+**What people hold: wanting, leverage and favours.** Twelve adults can be
+interested in you (the town's romance list: Jodie, Shayla, Travis, Curtis,
+Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt and Tyler), each at their
+own pace and once they know you well enough. The game decides before the
+story is told whether a flirt is welcome ("Shayla Rawls is open to it") or
+turned aside, and one turned aside costs a little, the next ones more. What
+builds is a spark apart from liking, and how they stand reads it against
+how much they really care (the flirts' own warmth not counted): "looks at you
+twice", "wants you", "sweet on you" (a spark and real liking), "using you" (a
+spark from someone who doesn't like you and has reason not to trust you, or
+cares only for money). A partner who sees you flirt with someone else cools.
+A night together needs everything at once: both of you adults, someone on
+the list who is open to you, a strong spark, liking, trust and knowing you;
+then it fades to black and they remember it, and one short is "not tonight",
+said kindly. A beating or worse halves a spark, and a spark fades in days
+unless it is fed.
+
+**Leverage** is knowing something about someone. A secret the narrator was
+given (a social roll that worked, or trust) counts only when the story shows
+it, two of its own words in the narration, and then you hold it ("Hollis
+Byrd knows you know."); a true rumour about someone is one too, held
+privately ("You have something on Mavis Mangum now."). Someone you hold
+something over is uneasy around you and won't go to the police about you. An
+intimidation that uses it in your own words needs no roll at all (the dice
+still turn over); name a price and they agree to pay it tomorrow, never on
+the spot, up to what they can raise ($100, Hollis and Jolene $300, Curtis
+$200, anyone under 18 nothing), unless they are hard (they refuse and talk
+or report it) or tough (they come for you). Once paid it is paid: a second
+demand only costs you. Tell anyway and it is spent: they hold it against you
+for good, the police bar lifts, and a crime told to the police it matters to
+sends the chief looking (an inquiry, never an arrest). It works the other
+way too: someone who catches you at something with nobody else there holds
+it over you, and so does your secret loose end's informant from the start.
+Pay their price and they keep quiet; miss it and they tell; hold something
+over them as well and neither of you moves ("Glenda Pryor lets it drop.").
+
+**Favours owed.** Two favours done for someone and they pay you back unasked
+within a few days, in cash only if they like and trust you ("Burl
+Satterfield is square with you."); a favour you owe someone, they ask for
+back, twice, and then hold it against you.
 
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
@@ -483,14 +526,19 @@ The Journal tab has five parts:
   days)") and what is paid so far, red once it is overdue. A missed debt,
   blackmail or undelivered letter stays here ("missed Day 7, still owed")
   until you make it good; it is struck through once it is settled
-  ("Settled", or "Settled late") or can no longer be.
+  ("Settled", or "Settled late") or can no longer be ("Dropped": a blackmail
+  in a standoff, or one you came clean about). What people owe you for
+  keeping quiet is here too ("Hollis Byrd: $300 for keeping quiet, due Day 4
+  (tomorrow)"), struck through, Settled, once their money comes.
 - **Notes**: the lines the bookkeeper writes each turn, with the day and
   phase.
 
 `/recap` (or Recap in the ⋯ list) prints the gist in the story with no API
 call, under the heading "Where things stand", one line each with its kind in
 bold: where and when, **Here**, **Open** (the threads you know), **Owed** (due
-days, missed ones still owed ("missed Day 7, still owed"), part payments),
+days, missed ones still owed ("missed Day 7, still owed"), part payments, and
+what people owe you for keeping quiet: "Hollis Byrd: $300 for keeping quiet,
+due Day 4 (1 day)"),
 **Warm to you** and **Cold to you** (three each, among people you have met, are
 tied to by a loose end, or who remember something of you; with the attitude
 word and at most one reason that fits the side: "your loose end: a debt", or
@@ -599,7 +647,7 @@ keep walking. Some come with a number and a day:
 | Loose end | What you owe | Due |
 |---|---|---|
 | A debt | $600 to the lender, $300 on the title-loan note, or the $400 card debt to Curtis Pruett, by the option you kept | three days after they come to collect |
-| A secret | $200 for the blackmailer's silence | two days after they name the price |
+| A secret | $200 for the blackmailer's silence (they hold what they know over you from the start; holding something over them too lets it drop, and coming clean to the chief ends it) | two days after they name the price |
 | The letter you promised to deliver | the letter itself, which is in your pocket from the start | four days after its addressee asks who sent you |
 | Any other promise | your word, kept in front of the person it is about | four or five days after they ask |
 
@@ -737,7 +785,15 @@ settled only the same day), and its kind decides the answer: violence by
 violence only from someone tough (Wade, Colt, Boyd, Leon, Dwight), else the
 police; someone afraid of you answers only with the police or talk. **A
 beating of someone tough is answered whatever they feel:** knock Wade down in
-front of his town and a few days later he gets you alone.
+front of his town and a few days later he gets you alone. What people hold
+has its own answers: someone with something on you who comes to hate you
+(liking -60) tells it to whoever it matters to, and one who cares only for
+money names a price once they don't much like you (a blackmail of $50 for
+each step of how much it weighs, due in two days); someone you have
+something on never sends the police after you while you hold it (unless
+they are hard), and while each of you has something on the other, neither
+plants a grudge or a report. A favour you owe is asked for back on its own
+clock.
 
 **Reports.** Someone you have frightened (fear 40 or more) because you
 threatened them, or because you hurt them and they don't like you, tells
@@ -1125,7 +1181,7 @@ happened to them.
 | `/rest` | Sleep until morning: 3 HP in a bed, 1 sleeping rough (see Time). The world ticks through the night. The recap follows | Narrator (and the bookkeeper when something due happens) |
 | `/wait <phase>` | Wait where you are until the start of morning, afternoon, evening or night | Narrator (and the bookkeeper when something due happens) |
 | `/fact <statement>` | Spend a story point to make a statement true in the world ("/fact the mechanic owes me a favour", "/fact Jodie grew up in Clayburn"): the narrator and the bookkeeper treat it as so from then on, and it is kept on the person's card as a protected memory (it never grows a grudge). What it says about how someone stands with you was so before you came: "owes me" puts them in your debt (one favour), "go back", "old friend" or "grew up with" means they know you, "trusts me" adds 15 of trust and "likes me" 10 of liking (to 40 at most); never fear. It is not a question: "/fact how to seduce Jodie" or anything ending in "?" is refused at no cost, with a pointer to asking someone in the story instead | Parser |
-| `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
+| `/recap` | Where and when you are, who is here, what is open, what you owe and are owed (what people owe you for keeping quiet among it), who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` (also `/undo 3`, `/undo all`) | Take back the last turn exactly, or that many (up to 20 steps, fewer only if they would pass about 8 MB); a turn and the ending it brought are one step, and so is a `/cheat time`, a `/cheat cash`, an edit, an update or a `/rewind`. The notice ends with how many more can be taken back ("You took back 3 turns. 2 more can be taken back."; "Nothing more can be taken back."). The history is kept in this browser (IndexedDB) for the game in the autosave, so it survives a reload: **Continue** and **Play here instead** bring it back (only its steps up to the turn the autosave was saved at); a new game, a loaded slot, an import or the previous autosave start it empty. Where IndexedDB is off or fails (some private windows, some browsers opening the file from disk) nothing is said and the history is for this page only, as before; a tab another tab has taken over never writes it. Asked for more than there is, it takes back what it can and says `/rewind` can strike the rest ("You took back 4 turns. Only 4 turns could be taken back exactly; /rewind 6 strikes earlier turns from the story (money and feelings stay)."). A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. With a hand open it takes back the turn that dealt it, free: "You took back the last turn; the hand is off the table." (see Cards) | None |
 | `/redo` (also `/redo 2`, `/redo all`) | Put back what `/undo` took back, in order ("You put back 2 turns. 1 more can be put back."). For this page only (a reload, a load or a new game empties it, and it is never kept with the undo history), and emptied by the next turn played (or a `/cheat time`, `/cheat cash`, edit, update or `/rewind`); a turn that fails, is refused or is taken back with its hand still open leaves it. A cheat armed before stays armed | None |
@@ -1269,6 +1325,13 @@ told you about: Dewayne's house.", "The clock matches the story."):
 A ban saved by an earlier build ends a day earlier than it did: since 30 Oct
 2026 "until day N" means welcome again on day N.
 
+What people hold (1 Nov 2026) needs no step: an older game loads with nobody
+holding anything over anyone and no secret shown yet; the romance list and
+what its people hold (how heavy a secret is, its words, what they can raise)
+come from the built-in town wherever the game's copy has none; a secret loose
+end tied before then holds nothing over you beyond the blackmail it already
+carries, and that blackmail, met, is silence paid for.
+
 Behind the scenes a save carries `state.meta.rulesVersion` (8 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
@@ -1367,7 +1430,11 @@ the town move:
   `giveItem`, `takeItem`, `addCondition`, `banFrom`, `playerPrice`,
   `addMemory`, `clockAdjust`, `threadUpdate`, `addObligation`,
   `settleObligation` and `addNews`. Placeholders (`{npc}`, `{npcId}`,
-  `{playerName}`) only in loose ends and templates.
+  `{playerName}`) only in loose ends and templates. Wave 29 adds
+  `owedSettle` (`{ npcId, dir? }`: a favour owed cleared, either way) and
+  `leverageSet` (`{ id, status?, aware?, playerKnows?, knownBy?, tell?,
+  use? }`: a leverage record's change; `id` may be `{leverageId}` in a
+  template).
 - `TOWN_DATA.events` (the council meeting: a day, phase, place, `attendees`,
   and `branches` of `{ when, text, effects }` with a `default`; the first
   branch whose `when` holds wins) and `TOWN_DATA.epilogue` (`onDay`,
@@ -1397,6 +1464,20 @@ the town move:
   everyone it names); grudge templates of kind `report`, with `to`
   (`police` or `family`), `about` (`threat` or `violence`), a 1 to 2 day
   `dayOffset` and `{protector}` / `{protectorId}`.
+- What people hold (wave 29): `TOWN_DATA.romance` (who can be interested in
+  the player: `{ npcId, open, sparkRate, opensAt: { knows }, faithful }`, adults
+  only; anyone not on it never has spark above 0), and on a person
+  `secretWeight` (1 to 3: how heavy their secret is to hold over them),
+  `leverageKeys` (the words that show it in a narration, two needed),
+  `mattersTo` (whom it would be told to), `whenTold` (`{ memory, crime,
+  inquiry, news }`: what the police do when it is told them), `canRaise`
+  (what they can pay for silence: $100 by default, at most three above 100,
+  $0 for anyone under 18) and `mercenary: true` (money counts double with
+  them, blackmail half, and they name prices). A true rumour's
+  `leverageOver` (the person a hearer holds it over). Grudge templates of
+  kind `tell` and `price` (what a holder does with what they hold: `{leverageId}`,
+  `{price}`, `{amount}`) and favour templates of kind `ask` (a favour the
+  player owes, asked back, by the holder's tags).
 
 After editing, run:
 
@@ -1508,7 +1589,7 @@ and keeps the newest 6, so the narrator always has its last turns; the
 narrator's cache lasts an hour instead of five minutes; and the casual example
 turns are eight, written in the packet's own format.
 
-And from the relationship plan (`docs/RELATIONSHIPS_PLAN.md`, waves 26 to 28):
+And from the relationship plan (`docs/RELATIONSHIPS_PLAN.md`, waves 26 to 29):
 the bookkeeper (SPEC.md section 10) no longer sends attitude deltas or
 memories. It names what a person will remember of the turn as an event
 (`socialEvents`, "npc_id event: the memory"), and the game decides what that
@@ -1520,6 +1601,15 @@ least hard to ask, and someone afraid of you does a small thing with no
 roll. Acceptance check 4 (three insults) holds with the numbers the events
 give: insults compound (-10, -15, -22), a humiliation in front of others is
 heavier, and the grudge comes at liking or trust -60.
+
+Wave 29 (what people hold) adds to SPEC.md section 8's seeds: besides the
+grudges and favours that grow from how someone feels, the engine plants seeds
+from what people hold (a payment for silence the day after it is agreed, a
+holder telling what they know or naming a price, an inquiry when a crime is
+told to the police) and from favours owed (paid back unasked, or asked for
+back), each on a dice stream of its own, so the shared dice and the clocks
+stay exactly as they were. A spark and a night together are the engine's to
+decide before narration, not the narrator's.
 
 ## Verified against the live API
 
