@@ -274,9 +274,11 @@ A welcome flirt adds 10 × the person's written `sparkRate`; time together with
 someone already at spark 10 adds 2; a rebuff takes 15; an unwelcome flirt takes
 5; any weight-3 harm halves it. Spark from a flirt fades on the five-day clock
 with no floor. **Welcome is decided by code before the narrator writes,** from
-the parser's new `romantic` flag: they are eligible (`TOWN_DATA.romance`, empty
-by default, adults only), knows-you is at least their `opensAt`, they are not at
-"against you" or "hates you", and they are not `faithful`. Liking is not
+the parser's new `romantic` field (`"flirt"`, or `"more"` for a proposal that
+goes past flirting: upstairs, the night, a kiss meant to lead somewhere): they
+are eligible (`TOWN_DATA.romance`, adults only), knows-you is at least their
+`opensAt`, they are not at "against you" or "hates you", and they are not
+`faithful`. Liking is not
 required, which is how "using you" happens. The narrator is told the answer for
 the turn ("Shayla Rawls is open to it: she flirts back, her own way"); the
 bookkeeper's version does not count. A jealous partner who sees it takes liking
@@ -291,9 +293,10 @@ you"; a status prints its feed line once per person per 7 days; the first
 unwelcome flirt per person costs liking 3, later ones 6; and the eligibility
 list ships with the twelve adults in the design's Appendix E (Jodie, Shayla,
 Travis, Curtis, Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt, Tyler),
-for the owner to edit. **`intimate` is in A,** engine-gated: the `romantic`
-flag, both adults (the player too), eligible, welcome, spark 50 or more,
-liking 40, trust 30 and knows 30. Code decides before narration and tells the
+for the owner to edit. **`intimate` is in A,** engine-gated: `romantic:
+"more"`, both adults (the player too; a player with no recorded age counts as
+under 18 for romance), eligible, welcome, spark 50 or more, liking 40, trust
+30 and knows 30. Code decides before narration and tells the
 narrator "yes, and fade to black" or "not tonight; she says so kindly"; the
 scene is recorded as a weight-3 scar memory with the spark, liking and knows
 effects in the table. A romantic ask is **never** backed by leverage and never
@@ -382,8 +385,9 @@ edit can make someone a minor, never an adult.
    romantic or sexual advance is unwelcome and alarming; she is uncomfortable,
    gets away or goes to her father; never warm, never flirtatious." It does not
    wait for the parser, so the parser is out of the safety path for narration.
-   The parser's `romantic` flag (13 to 14 properties, far from the grammar
-   limit) decides the mechanics below. For a player under 18, every welcome is
+   The parser's new `romantic` field (`null`, `"flirt"` or `"more"`; one
+   property and one small enum on a schema far from the grammar limit) decides
+   the mechanics below. For a player under 18, every welcome is
    no and the packet says nobody takes a flirt from them as anything but a kid
    talking.
 2. **After narration, with corroboration.** A bare flag (no named target, or a
@@ -972,8 +976,8 @@ Four pieces of tooling, none of which exists today, gate the numbers:
   Royce by Day 6 by honest events, and the same run with a staged kept word
   (nobody else present) does not; the brawler's Wade is never "afraid of you"
   and reaches "hates you" with its reason, with fights on Days 2, 4 and 6 only
-  and the bystanders back inside the design's stated distance of their start by
-  its stated day. An eight-day cut of each band runs in the suite as a CI
+  and the bystanders' liking at -12 ± 2 on Day 14 and -7 ± 2 on Day 21 (-13
+  for a grudging one). An eight-day cut of each band runs in the suite as a CI
   guard, so tuning cannot break them silently.
 - **The thirteen worked examples as tests**
   (`tests/relationships-examples.test.cjs`), each scripted through the mock in
@@ -1031,7 +1035,7 @@ Carried from the first integration plan and recommended as written: `attitudeDel
 To be added to the README's "Deliberate deviations from SPEC.md" as each wave lands:
 
 - **§3, the state model.** `attitude` becomes the stored alias of a derived liking; the NPC record gains `rel`; state gains `leverage`, `known`, and in B `ties` and `hearsay`; obligations gain the status `lapsed`.
-- **§10, the tool schemas.** `record_changes` loses `attitudeChanges`, `newMemories` and `memoriesSettled` and gains `socialEvents` (34 properties, 3 enums; the core fallback 11 fields); `parse_action` gains `romantic` (14). The ±25-a-turn attitude cap becomes per-track clamps (liking ±40, trust ±45, fear ±40, spark ±20; ±15 through the graph).
+- **§10, the tool schemas.** `record_changes` loses `attitudeChanges`, `newMemories` and `memoriesSettled` and gains `socialEvents` (34 properties, 3 enums; the core fallback 11 fields); `parse_action` gains `romantic` (14 properties, one small enum). The ±25-a-turn attitude cap becomes per-track clamps (liking ±40, trust ±45, fear ±40, spark ±20; ±15 through the graph).
 - **§7, dice.** The ±2 attitude modifier becomes a per-roll-type modifier (persuade by liking, deceive by trust, intimidate by fear), still inside the ±4 cap; code floors the parser's difficulty and lets an adult at fear 40, or a leverage-backed ask at weight 2, skip the roll with the d20 still drawn; a romantic ask never skips a roll and always fails.
 - **§8, the living world.** Grudges and favours read the tracks and typed memories; report, price, tell, inquiry and owed-favour seeds are new; the "feared" reputation tier the spec lists now exists; drift toward the written value is replaced by fading memories.
 - **Rule 7, content.** Kept, with a hand-written eligibility list for attraction, a fade-to-black rule in the narrator's cached block, and the minor guard.
@@ -1125,7 +1129,24 @@ ones; where they still differ, this page is the plan.
 - **The acceptance test**: the design rewrites it; the integration plan keeps
   its title and behaviours and changes two pins. This page recommends the
   integration plan's version (decision 1).
-- **The county sheriff** as the police fallback: the review names Hoyt
-  Bramlett; the integration plan reads the record from `docs/CAST.md`'s
-  Elsewhere list if there is one and otherwise posts a town-news line. Verify
-  the name against the cast when A3 is built.
+- **The county sheriff** as the police fallback is Hoyt Bramlett (`npc_hoyt`,
+  in `docs/CAST.md`'s Elsewhere list, at the courthouse in Clayburn): the
+  design's third version names him; the integration plan's "read the record if
+  there is one, else a town-news line" resolves to him, with the town-news
+  line "A deputy from Clayburn came by asking about you."
+- **The `romantic` field.** The integration plan adds a boolean and tells a
+  flirt from a proposal with a code phrase list; the design's third version
+  makes it `null | "flirt" | "more"`. This page takes the design's field (the
+  parser classifies better than a phrase list, and the schema is far from the
+  limit) and keeps the integration plan's phrase list as the backstop and as
+  the second signal for minors. The probe covers the field either way.
+- **Corroboration for minors**: the integration plan says "a named target plus
+  a second signal"; the design's third version says "a named target plus two
+  of three signals (the parser field, a bookkeeper romance event, a phrase
+  hit)". They are the same rule: the parser field is one of the signals, and a
+  bare field alone gives the light row.
+- **Two choices the design's third version made on its own, adopted:**
+  a coercion report always goes through, even when the player holds leverage
+  that would otherwise bar that person from the police; and a player with no
+  recorded age counts as under 18 for romance only, so an older save cannot
+  open spark until an age exists.
