@@ -328,8 +328,10 @@ s.test('wave 2: playerAt: the council meeting with the player in the room and Ro
     if (!ev) return null;
     const i = ev.branches.findIndex(b => b.when && b.when.playerAt);
     const b = ev.branches[i];
-    const n = Object.keys(b.when.attitudeAtLeast || {})[0] || null;
-    return { id: ev.id, day: ev.day, phase: ev.phase, loc: b.when.playerAt, name: Game.State.loc ? null : null, npc: n, at: n ? b.when.attitudeAtLeast[n] : null,
+    // Changed by design in wave 30: the friendly face reads liking through relAtLeast ({ npc_royce: { liking: 15 } }).
+    const n = Object.keys(b.when.relAtLeast || b.when.attitudeAtLeast || {})[0] || null;
+    const at = !n ? null : b.when.relAtLeast ? b.when.relAtLeast[n].liking : b.when.attitudeAtLeast[n];
+    return { id: ev.id, day: ev.day, phase: ev.phase, loc: b.when.playerAt, name: Game.State.loc ? null : null, npc: n, at,
       news: b.effects.find(e => e.op === 'addNews').text, twinNews: ev.branches[i + 1].effects.find(e => e.op === 'addNews').text };
   });
   assert.ok(branch, 'an event branch reads playerAt');

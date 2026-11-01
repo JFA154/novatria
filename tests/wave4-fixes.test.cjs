@@ -230,8 +230,9 @@ s.test('bug 7: a recap reason turns "I\'m", "I\'ve", "I\'d" and "I\'ll" into the
     for (let i = 0; i < 4; i++) S.apply({ effects: [{ op: 'attitudeDelta', npcId: she.id, delta: 15 }, { op: 'attitudeDelta', npcId: he.id, delta: -15 }] });
     return { text: G.Pipeline.recapText(), she: she.name, he: he.name };
   });
-  assert.match(r.text, new RegExp(`${r.she} \\([a-z]+, remembers she's sure you are good for the money\\)`), r.text);
-  assert.match(r.text, new RegExp(`${r.he} \\([a-z]+, remembers he's never trusted you\\)`), r.text);
+  // Changed by design in wave 30: the stance in words, then the reason (same grammar, no "remembers").
+  assert.match(r.text, new RegExp(`${r.she} \\([a-z ,']+: she's sure you are good for the money\\)`), r.text);
+  assert.match(r.text, new RegExp(`${r.he} \\([a-z ,']+: he's never trusted you\\)`), r.text);
   assert.doesNotMatch(r.text, /\b(she|he|they)'m\b|\bhe've\b|\bshe've\b/);
 });
 

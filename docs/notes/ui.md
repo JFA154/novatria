@@ -1722,3 +1722,90 @@ engine side: `docs/notes/engine-world.md`, Wave 20). Tests:
 
 ### Tests changed by design
 - `tests/wave19-betting-fixes.test.cjs` D9 (`typedBet`'s `after`).
+
+## Wave 30 (1 Nov 2026): what people show
+
+Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's section 16
+A5, design section 7). The number is never shown: where someone stands is
+words. Tests: `tests/wave30-rel-people.test.cjs`.
+
+### The People card
+- `UI.stanceChip(n, tags)`: `.stance` with the phrase (`.stance-phrase`) and
+  up to `tags` tags (`.stance-tag`, muted, "· " before each), `data-side`
+  good, mixed, bad or neutral (the phrase in the old meter's tones:
+  `--att-warm`, `--att-mild`, `--att-cold`, else `--muted`) and
+  `data-strong` for the strong phrases (`STRONG_STANCES`: hates you, in your
+  corner, loyal to you), bold. The row shows the chip with one tag in place
+  of the five-segment meter (the meter and `UI.attitudeLevel` are gone).
+- `UI.personStanding(s, n)` (an open card, not for someone absent or only
+  heard of) returns `{ node, fold, used }`: the chip with two tags, then up
+  to two reasons (`Rel.reasons(n, 8)`, a leverage line, a hidden tie's day,
+  a typed memory or a weight-2+ legacy one; never a protected line, never one
+  planted where the player has not seen them since: `seen === false` and
+  `state.seen[id].turn` not past its turn; "hates you" leads with its
+  unsettled weight-3 harm), each `Pipeline.reasonText`'s card form and meta
+  ("You called him a cheat in his own shop." `Day 2 · you apologised`;
+  hidden: "Cooler since Day 3. Hasn't said why."), then the other leverage
+  lines (`.pcard-lev`, with their day) and what is owed (`.pcard-owed`:
+  "Owes you one: …, Day 4", "You owe her one"). The visible block is
+  `aria-hidden`; a `.visually-hidden` sentence says it all once.
+- `.pcard-words-fold`, a `<details>` "More", closed by default and kept open
+  per person in memory (`wordsOpen`): a `dl.pcard-words` grid, two columns
+  (`repeat(2, minmax(0, 1fr))`, about 159px each at 375), each label above
+  its word (`Rel.words(track, v, prev)`): Likes you, Trusts you, Scared,
+  Knows you, and Interested only for an eligible adult with a spark status
+  (never anyone under 18, never with a player under 18).
+- Notes (`personNotes(s, n, skip)`) leave out the memories given as reasons
+  (`used`) and the unseen ones. Its comment's "last 20 turns" said what SPEC
+  says, not the code: `recent: 10` (the audit's disagreement; fixed).
+- Sort: "How they feel" (liking, then trust) in place of "Attitude".
+
+### The editor
+- "How they feel about you" is a fieldset of sliders (`FEEL_ROWS`): Likes
+  you and Trusts you -100 to 100, Scared and Knows you 0 to 100, each with an
+  `<output>` (`…-word`) and `aria-valuetext` giving the number and its word
+  ("+40 · a lot"); Interested (`interestMode`): a slider for an eligible
+  adult, at 0 and disabled for anyone under 18, left out when the player is
+  under 18 or they are not on the romance list. The form's names stay
+  `attitude`, `trust`, `fear`, `knows`, `spark`; Save lands each as a `fix`
+  (exact), and `editPerson`'s changed fields name the track ("trust").
+- Memories: every field of each line rides along (`editBase` copies them,
+  `newMemory` builds an added one: `{ turn, day, text, weight, event:
+  'noted' }`), so a save keeps `event`, `d`, `decay`, `key`, `settled`,
+  `seen` and the rest; each row shows what it was read-only (`memoryLabel`:
+  "insulted · fades in weeks"), and a new row has an event picker
+  (`EDIT_EVENTS`). Removing a memory pins the tracks where they stood.
+- What is held (`.pedit-levs`): each record with a delete button
+  (`.pedit-lev-del`); Save sends `voidLeverage`, applied by App.editPerson as
+  `leverageSet { status: 'void' }` in the same quiet step ("Edited Hollis
+  Byrd: what is held.").
+
+### The feed
+- `App.noteRel(s)` replaces the band lines: the turn's own lines
+  (`State.takeFeed`: knows you know, owes you, square, spark statuses) and a
+  band line per person from `State.relTouched()` (the bands each person had
+  when first written this turn): "won't forget that." (a first-hand weight-3
+  harm), "is afraid of you." / "gives you room.", the trust lines
+  (`TRUST_LINE`), "warms to you." / "cools toward you.", "lets some of it
+  go." Ranked by `State.FEED_RANK`, one a person, two a turn; the status
+  lines that carry their own once-a-week rule always print. Overnight
+  fading (relDay resets the baseline), `/undo` and edits print nothing.
+
+### /recap and Debug
+- `/recap`: Warm to you, Cold to you and Careful (`Pipeline.recapGroups`),
+  and Owed gains favours. See `docs/notes/transport.md`, Wave 30.
+- Debug: under each person `relDebug` (axes and hard/tough/mercenary, the
+  version they were brought to, start, everyday, fix, today, owed, each
+  memory's kind with what it still carries, the ask log); new sections
+  Leverage (each record, with the person's secret beside it), Secrets shown
+  and Gates (`Rel.GATES`).
+- Settings, Game: "Rewrite memories in the short form first"
+  (`rereadMemories`, off), read by Upgrade's version 9.
+
+### Tests changed by design
+- `tests/shell.test.cjs`: `cardInfo` reads the stance chip, not the meter;
+  "a card opens on tap" reads the insult as a dated reason, not a Notes line.
+- `tests/pipeline.test.cjs`: the editor's liking output ("+40 · a lot"), the
+  memories kept whole, and notes read from `.pcard-why` and `.pcard-notes`.
+- `tests/ui-fixes.test.cjs` (two): a weight-3 memory added, since "won't
+  forget that" is now a harm line, not a liking cut.

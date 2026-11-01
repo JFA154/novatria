@@ -251,11 +251,12 @@ s.test('bug 8 / N10 and coordinator 1: a recap reason agrees in number ("you are
       { op: 'attitudeDelta', npcId: d.id, delta: -40 - d.attitude }, { op: 'attitudeDelta', npcId: e.id, delta: 40 - e.attitude }] });
     return { text: G.Pipeline.recapText(), a: a.name, b: b.name, c: c.name, d: d.name, e: e.name, third: third.name };
   });
-  assert.ok(r.text.includes(`${r.a} (warm, remembers you are good for the money, he thinks)`), r.text);
-  assert.match(r.text, new RegExp(`${r.b} \\(cold, remembers you have a mean streak\\)`));
-  assert.match(r.text, new RegExp(`${r.c} \\(cold, remembers he thinks you were cheating at cards\\)`));
-  assert.ok(r.text.includes(`remembers ${r.third} told him what you are hiding`), r.text);
-  assert.ok(new RegExp(`${r.e} \\(warm\\)`).test(r.text), 'an insult is never the reason under Warm: ' + r.text);
+  // Changed by design in wave 30: the stance in words, then the reason in the player's words, with the same grammar.
+  assert.ok(r.text.includes(`${r.a} (warm to you: you are good for the money, he thinks)`), r.text);
+  assert.match(r.text, new RegExp(`${r.b} \\(against you: you have a mean streak\\)`));
+  assert.match(r.text, new RegExp(`${r.c} \\(against you: he thinks you were cheating at cards\\)`));
+  assert.ok(r.text.includes(`: ${r.third} told him what you are hiding`), r.text);
+  assert.ok(new RegExp(`${r.e} \\(warm to you\\)`).test(r.text), 'an insult is never the reason under Warm: ' + r.text);
   assert.ok(!/\byou (is|has|was)\b|\bhe think\b/.test(r.text), r.text);
 });
 

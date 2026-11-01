@@ -136,7 +136,9 @@ const TOWN_DATA = {
     id: "evt_...", day, phase, locationId, title,
     attendees: ["npc_..."],         // optional: free people there for that phase
     branches: [{ when: { flagsSet?, flagsUnset?, clockAtLeast?: { fac_x: n }, npcFree?,
-                         attitudeAtLeast?: { npc_x: n }, obligationStatus?: { obl_id: "met"|"missed" } },
+                         attitudeAtLeast?: { npc_x: n }, obligationStatus?: { obl_id: "met"|"missed" },
+                         relAtLeast?: { npc_x: { liking?, trust?, fear?, knows? } },  // wave 30: every track named
+                         relBelow?: { npc_x: { liking?, trust?, fear?, knows? } } },  // holds (spark not readable)
                  text, effects }],  // the first branch whose when all holds
     default: { text, effects }
   }],
@@ -147,8 +149,9 @@ const TOWN_DATA = {
 `requires` and `alt` (on a seed or a clock's `onComplete`): `requires: {
 npcFree?: [npcIds], npcAt?: { npcId: locationId }, flagsSet?: [keys],
 flagsUnset?: [keys], obligationOpen?: [ids] }` (World also reads
-`obligationStatus`, `clockAtLeast`, `attitudeAtLeast`, and since wave 5
-`attitudeBelow` and `threadOpen` there), `alt: {
+`obligationStatus`, `clockAtLeast`, `attitudeAtLeast`, since wave 5
+`attitudeBelow` and `threadOpen`, and since wave 30 `relAtLeast` and
+`relBelow` there), `alt: {
 text, effects? }`. When it fires and `requires` does not hold, the `alt`
 text and effects are used instead; with no `alt` it fires as a logged no-op.
 `clockAtLeast` counts every segment the faction has filled across its
@@ -292,6 +295,10 @@ state.leverage = [{                 // wave 26 (empty), filled since wave 29: wh
   uses: [{ turn, day, event }], knownBy: [{ npcId, turn }], mattersTo: ["npc_..."], key? }];
 state.known = { secrets: {} };      // wave 26 (empty), filled since wave 29: each secret the narrator was given,
                                     // { npcId: { turn, day, how: roll | trust | fear | rumour } }
+state.meta.rulesVersion             // 9 since wave 30 (Upgrade.MIGRATIONS); npc.rel.migrated: 9 once a person
+                                    // has been through version 9 (every memory typed: event and d)
+npc.memories[i].seen                // wave 30: false for a line planted where the player has not seen them
+                                    // since; the card keeps it back until state.seen[id].turn passes its turn
 ```
 
 ### Map
@@ -1783,3 +1790,37 @@ talking, I can direct it to one person or all."
      `tests/relationships-examples.test.cjs` (where the code differs from
      `docs/relationships/design.md` the code's numbers are pinned and the
      design says so).
+   - **Wave 30** (1 Nov 2026). A5, "What people show". The number is never
+     shown or sent: the People card's row is the stance in words with one
+     tag, tinted by side (`UI.stanceChip`); an open card gives two dated
+     reasons, how each was made good, a hidden tie's day only ("Cooler since
+     Day 3. Hasn't said why."), what is held and what is owed, and "More"
+     the tracks in words (Interested only for an eligible adult with a
+     status; `UI.personStanding`). The editor has four sliders and
+     Interested (each landing exactly), keeps every memory field, labels
+     each line's kind, picks an added one's, and deletes a record (void).
+     The feed ranks the band lines (`App.noteRel`, `State.FEED_RANK`,
+     `State.relTouched`): two a turn, one a person, harm first; fading,
+     undo and edits print none. `/recap` has Warm, Cold and Careful and owes
+     favours. The narrator's PRESENT line is `to you: <stance, tag> — <two
+     reasons> — plays it: <cue>` within 50 tokens (`Pipeline.toYou`,
+     `turnMemory`, `reasonText`, `holdsYouTo`), plus `open to a flirt` and
+     `holds you to:`; the cached blocks gain `Style.PEOPLE_NOTE` and the
+     example turns lose their numbers (12,970 of 13,000). Conditions read
+     `relAtLeast` and `relBelow` (`Rel.below`); the council weighs trust
+     (Royce: trust 30 and knows 25; the friendly face liking 15; bought,
+     trust 20; no fear branch) and the ending's Loretta liking 40. Rules
+     version 9, "People who remember" (`Upgrade.peopleRemember`, no call,
+     one quiet `relFill`): every older memory typed (the engine's own
+     strings first, `Upgrade.LEGACY_ENGINE_TEXTS`), liking exactly the old
+     attitude, trust and knows worked out, the old secret gate kept, the
+     informant's record, the content still to come copied; Settings' "Rewrite
+     memories in the short form first" runs version 2 before it. Tooling:
+     `tests/relationships-sim.cjs` (three playstyles over 21 days, `--assert`,
+     an eight-day cut in the suite), `tests/eval-classify.cjs` with an empty
+     `tests/eval/labelled.jsonl`, and `tests/fixtures/make-v8-save.cjs` (a
+     save made by the 56e69f5 build's own code). The live probe and the
+     labelled eval are still to run with the owner's key.
+     `docs/notes/ui.md`, `prompts.md`, `content.md`, `engine-state.md`,
+     `transport.md`; tests: `tests/wave30-rel-people.test.cjs`, example 3
+     whole in `tests/relationships-examples.test.cjs`.

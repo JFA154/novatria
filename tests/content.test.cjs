@@ -489,7 +489,11 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   assert.deepEqual([ev.id, ev.day, ev.phase, ev.locationId], ['evt_council_meeting', 6, 'evening', 'loc_town_hall']);
   const whens = ev.branches.map(b => b.when);
   assert.ok(whens.some(w => (w.flagsSet || []).includes('bridgeReportVoid')), 'the report thrown out');
-  assert.ok(whens.some(w => w.attitudeAtLeast && w.attitudeAtLeast.npc_royce >= 25), 'Royce trusts the player');
+  // Changed by design in wave 30: the council reads trust and how well Royce knows the player (relAtLeast), not liking alone; no fear branch.
+  assert.ok(whens.some(w => w.relAtLeast && w.relAtLeast.npc_royce && w.relAtLeast.npc_royce.trust >= 25 && w.relAtLeast.npc_royce.knows >= 25), 'Royce trusts the player');
+  assert.ok(whens.some(w => w.playerAt && w.relAtLeast && w.relAtLeast.npc_royce && w.relAtLeast.npc_royce.liking === 15), 'a friendly face in the room');
+  assert.ok(whens.some(w => (w.flagsSet || []).includes('royceBought') && w.relAtLeast && w.relAtLeast.npc_royce && w.relAtLeast.npc_royce.trust === 20), 'bought, with second thoughts');
+  assert.ok(!whens.some(w => w.attitudeAtLeast || (w.relAtLeast && Object.values(w.relAtLeast).some(c => c.fear !== undefined))), 'no attitude number and no fear branch');
   assert.ok(whens.some(w => w.obligationStatus && w.obligationStatus.obl_debt_npc_curtis), 'Curtis\'s debt');
   assert.ok(whens.some(w => (w.flagsSet || []).includes('royceBought')) && whens.some(w => (w.flagsSet || []).includes('royceTurned')), 'Carter\'s money and the Night Run\'s photographs');
   assert.ok(whens.some(w => w.clockAtLeast && w.clockAtLeast.fac_sturdivant), 'how close Carter is');
@@ -504,7 +508,8 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   assert.deepEqual(E.orFlagsSet, ['oldBridgeClosed', 'secondInspectionOrdered']);
   // Changed by design in wave 5: up to seven (the open-bridge ending settles the police both ways).
   assert.ok(E.branches.length >= 3 && E.branches.length <= 7);
-  assert.ok(E.branches.some(b => b.when.obligationStatus) && E.branches.some(b => b.when.attitudeAtLeast), 'endings read obligations and attitudes too');
+  // Wave 30: Loretta's ending reads her liking (relAtLeast { liking: 40 }).
+  assert.ok(E.branches.some(b => b.when.obligationStatus) && E.branches.some(b => b.when.relAtLeast && b.when.relAtLeast.npc_loretta && b.when.relAtLeast.npc_loretta.liking === 40), 'endings read obligations and attitudes too');
   // The validator refuses a branch that reads a flag nothing sets, and an op the engine does not have.
   const both = 'when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },';
   let r = validateEdited(h => once(h, both, both.replace('"royceTurned"', '"royceDanced"')));
@@ -576,8 +581,8 @@ const levers = (page, o) => page.evaluate(o => {
   const effects = [];
   for (const k of ['royceBought', 'royceTurned', 'bridgeReportVoid']) effects.push({ op: 'setFlag', key: k, value: (o.flags || []).includes(k) });
   for (const id of ['npc_jolene', 'npc_royce', 'npc_lamar', 'npc_hollis', 'npc_elbert']) effects.push({ op: 'npcStatus', npcId: id, status: (o.jailed || []).includes(id) ? 'arrested' : 'free' });
-  effects.push({ op: 'attitudeDelta', npcId: 'npc_royce', delta: (o.royce === undefined ? 10 : o.royce) - S.npc('npc_royce').attitude });
-  const r = S.apply({ effects: effects.filter(e => e.op !== 'attitudeDelta' || e.delta) });
+  // Wave 30: Royce's regard is liking, trust and how well he knows the player (relSet lands each exactly).
+  const r = S.apply({ effects, relSet: { npcId: 'npc_royce', w: o.royce === undefined ? 10 : o.royce, t: o.trust === undefined ? 5 : o.trust, k: o.knows === undefined ? 0 : o.knows } });
   return r.rejected.map(x => x.reason);
 }, o);
 
@@ -624,8 +629,10 @@ s.test('wave 2: the council meeting counts only members who are free (a councilm
   const pick = async o => { assert.deepEqual(await levers(page, o), []); return meetingPick(page); };
   const bought = await pick({ flags: ['royceBought'] });
   assert.equal(bought.flags, 'councilBackedDownstream+policeDissolutionPassed', 'Carter\'s money alone: downstream, police ended');
-  assert.equal((await pick({ flags: ['royceBought'], royce: 20 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who has warmed to the player abstains: a tie');
-  assert.equal((await pick({ flags: ['royceBought', 'royceTurned'], royce: 30 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who trusts the player tables it, bought or not');
+  // Wave 30: the bought branch reads trust 20, the talked-it-through branch trust 30 and knows 25.
+  assert.equal((await pick({ flags: ['royceBought'], royce: 20, trust: 20 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who has come to trust the player abstains: a tie');
+  assert.equal((await pick({ flags: ['royceBought'], royce: 40, trust: 5 })).flags, 'councilBackedDownstream+policeDissolutionPassed', 'warmth alone, bought: no second thoughts');
+  assert.equal((await pick({ flags: ['royceBought', 'royceTurned'], royce: 30, trust: 30, knows: 25 })).flags, 'bridgeVoteTabled+policeKept', 'a Royce who trusts the player tables it, bought or not');
   assert.equal((await pick({ flags: ['royceTurned'] })).flags, 'councilBackedInTown+policeDissolutionPassed', 'the photographs alone: in town');
   const out = await pick({ flags: ['royceBought'], jailed: ['npc_hollis'] });
   assert.equal(out.flags, 'councilBackedDownstream+policeKept', 'Hollis in the cell: downstream three to one, and the police vote ties');

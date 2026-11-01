@@ -173,14 +173,18 @@ or no dealer: no roll, a `CARD GAME: no game: …` line, no money.
 
 `Pipeline.recap()` / `recapText()` (no API call): `Day N (date), phase, at
 place.` / `Here:` / `Open:` threads with their summary / `Owed:` obligations
-with "due Day 7 (2 days)" / `Warm to you:` and `Cold to you:` (top 3 by
-attitude, with the latest memory) / `Heard:` last 3 rumours / `In town:` last
-2 news items. `/recap` prints it (`Pipeline.printRecap`, a notice with
-class `recap` and `white-space: pre-line`); `/rest` prints it after the
-narration. Quiet lines: "<Name> warms to you." / "<Name> won't forget that."
-when a known person's attitude crosses −60, −25, 25 or 60 on the
-bookkeeper's diff; "Resolved: <thread>. +1 Charm." when
-`player.progression` grows.
+with "due Day 7 (2 days)", what people owe for silence and favours either way
+/ `Warm to you:`, `Cold to you:` and `Careful:` (Pipeline.recapGroups, top 3
+each by the stance's side, with one reason that fits the side; corrected in
+wave 30) / `Heard:` last 3 rumours / `In town:` last 2 news items. `/recap`
+prints it (`Pipeline.printRecap`, a notice with class `recap` and
+`white-space: pre-line`); `/rest` prints it after the narration. Quiet lines
+(App.noteRel since wave 30): a band crossing on any track, not attitude cuts
+at −60, −25, 25 and 60 (that was before wave 26): "<Name> won't forget that."
+(a first-hand weight-3 harm), "... is afraid of you." / "... gives you room.",
+the trust lines, "<Name> warms to you." / "... cools toward you.", "... lets
+some of it go.", at most two a turn by `State.FEED_RANK`, one a person;
+"Resolved: <thread>. +1 Charm." when `player.progression` grows.
 
 ### Upgrade (R8, R9)
 
@@ -876,3 +880,35 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   positive goldDelta while that person is here: the engine's LEVERAGE
   answer said they hand over nothing now. A late bookkeeper (a retry after
   the turn) passes the same options, so the guard holds then too.
+
+## Wave 30 (1 Nov 2026)
+
+- No schema changes and no new call: the parser and the bookkeeper are as
+  wave 28 left them, so `tests/probe-grammar.cjs` needs nothing new (it is
+  still to run with the owner's key, as is the labelled eval).
+- **The narrator packet's PRESENT entries** carry `to you:` (no number),
+  `open to a flirt` and `holds you to:` in place of `attitude N (word)` and
+  `remembers:` (`docs/notes/prompts.md`, Wave 30). The packet stays a
+  per-turn block; the cached blocks grew by the people note, 12,671 to
+  12,970 estimated (casual), under the 13,000 `tests/api` holds.
+- **`/recap`** (`Pipeline.recapText`): Owed adds favours either way after
+  the money ("Burl Satterfield owes you one", "you owe Lorna Purvis one",
+  "… owes you big" at two); Warm to you and Cold to you are
+  `Pipeline.recapGroups`'s, by the stance's side, each with its stance and
+  one reason in the player's words that fits the side (a typed memory by
+  whether it harmed, an older line by `memorySense`; never hidden, never
+  leverage, never a protected line; a loose end's person "your loose end: a
+  debt"), and **Careful** follows them: someone mixed, using the player,
+  afraid of them or of what they know, or holding something over them, with
+  that word ("Glenda Pryor (has something on you)"), most afraid first. A
+  person whose attitude was written straight and not recomputed yet is read
+  as it will land (`standingNow`).
+- **The feed's band lines** are App.noteRel's now (`docs/notes/ui.md`, Wave
+  30); the section above is corrected.
+- **Upgrade**: version 9 runs inside `State.quietly`, so the update's feed
+  has only its summary notice; it is part of the update's single undo step.
+  With `rereadMemories` on, Update and Re-read call version 2's rewrite
+  first (one parser call, its usual cost) and version 9 then reads the
+  short lines.
+- The card's notes comment said "the last 20 turns" (SPEC.md 13's number);
+  the code reads 10 (`recent: 10`). The comment says 10 now.

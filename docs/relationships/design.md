@@ -1254,7 +1254,7 @@ Trait axes used below (Appendix A):
   - The police are no longer barred.
   - The liking route to a grudge needs two more humiliations. The trust route needs one caught lie.
 - **Behaviour.** The motel is "full" for one night, then charges 25% more for 3 days.
-- **Narrator (Day 6).** `Mavis Mangum ... to you: against you — told Dewayne about the garage money (Day 5); hit Dewayne at Pittman's (Day 3, made good) — plays it: polite as a locked door; wants you gone`
+- **Narrator (Day 6).** `Mavis Mangum ... to you: against you — told Dewayne about the garage money (Day 5); hit Dewayne at Pittman's (Day 3, made good) — plays it: polite as a locked door; wants you gone` (Wave 30's code: the reasons are joined by " / " and the cue's clauses by ", ", since "; " splits the packet's fields, and "wants you gone" is "would rather you left", since "wants you" is the spark status the minor check looks for.)
 - **Player sees.**
   - Day 4 night: "Mavis Mangum knows you know."
   - Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne." (Tier B. In tier A as wave 29 has it, the band line the morning after: "Mavis Mangum won't forget that.")
@@ -1272,18 +1272,18 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
     - `npc_royce kept_word: kept quiet when Elbert asked how I'd vote`.
     - All three preconditions are met: the asker is named; Elbert is present and is not the confider; the confidence is a day old.
     - W +5, T +18, K +2.
-  - **Tracks:** **W 29, T 32, K 46**. "in your corner".
-  - **Council:** trust 30 and familiarity 25 holds: tabled, police kept.
+  - **Tracks:** **W 29, T 32, K 46**. "in your corner". (Wave 30's code, pinned by `tests/relationships-examples.test.cjs` with one turn aimed at him an afternoon, has **W 26, T 32, K 32** on the morning of Day 6: the K +12 above is three turns a day. Trust, the number the vote reads, is the design's.)
+  - **Council:** trust 30 and familiarity 25 holds: tabled, police kept. (The condition is `relAtLeast: { npc_royce: { trust: 30, knows: 25 } }`: the code names the track `knows`.)
   - **The fake path no longer works.** A Day-1 confidence plus "Carter asked me and I told him nothing" on Day 2 fails twice: the confidence isn't a day old, and Carter isn't present. It is downgraded to `confided` (T +6), and the branch fails.
 - **(b) The drinking buddy.** Rounds on Days 2 to 4, four compliments, `spent_time` four days.
   - **Tracks:** **W 32, T 5**. "warm to you". (The morning after Day 5: the code closes Day 5 at W 36 and fades to 32 overnight.)
   - **Council:** only the "friendly face" branch, if the player is in the room.
   - Ten more nights of rounds keep him "warm to you": gifts then count +1 a night, and the everyday bucket stops at +15. Trust doesn't move.
 - **(c) The bully.** Engine `threatened` on Day 4 and Day 5.
-  - **Tracks:** **F 66** on Day 5, **55 by Tuesday evening**. **W -14, T -15**: "afraid of you".
-  - **Report:** threat-made fear fires whatever the liking. Royce's protector is the police: "Royce tells Chief Bell you've been leaning on him." Marcus takes **W -5, T -11.5** (police row, scaled by his guardedness, g -1).
+  - **Tracks:** **F 66** on Day 5, **55 by Tuesday evening**. **W -14, T -15**: "afraid of you". (The code: T -16 on Day 5, F 56 on Tuesday evening.)
+  - **Report:** threat-made fear fires whatever the liking. Royce's protector is the police: "Royce tells Chief Bell you've been leaning on him." Marcus takes **W -5, T -11.5** (police row, scaled by his guardedness, g -1). (The code's seed reads "Royce Pittman goes to Marcus Bell and says Tester has been leaning on them, and Marcus Bell writes it down."; Marcus's memory carries W -5, T -12.)
   - **Council:** the fear branch is out of this plan.
-- **Leverage on Royce** (his Carter secret, weight 3, keys "note on the station" and "truck stop") makes him "afraid of what you know". Royce isn't hard, so he would agree to a money demand within the default $100. His report can't go to the police, and he has no boss, so it becomes a gossip grudge. The vote still reads trust.
+- **Leverage on Royce** (his Carter secret, weight 3, keys "note on the station" and "truck stop") makes him "afraid of what you know". Royce isn't hard, so he would agree to a money demand within the default $100. His report can't go to the police, and he has no boss, so it becomes a gossip grudge. The vote still reads trust. (Wave 30's code: weight 3 is fear of what you know 30, as Mavis's in example 2, so he reads "you have something on them · uneasy around you"; the override, "afraid of what you know", starts at fear 40.)
 
 #### 4. Colt on the ground (B: kin cool, rivals warm)
 
@@ -1583,6 +1583,8 @@ to you: <stance>[; <tag>] — <reason> (Day N)[; <reason> (Day N)] — plays it:
 [holds you to: <noted fact>; <noted fact>]
 [<minor line>]                        // every turn a minor is present (2.7)
 ```
+
+(Wave 30's code: `to you: <stance>[, <tag>] — <reason> (Day N)[ / <reason> (Day N)] — plays it: <cue, clauses joined by ", ">`, then `; open to a flirt` and `; holds you to: <a> / <b>` as fields of the entry. "; " is the packet's field separator, so it never appears inside a field. The reasons are in the player's words ("you lifted his motor"), a hidden one is "cooler since Day N, for a reason of his own, keeps it to himself, never hint at it", and the cue's "wants you gone" is "would rather you left". The worked examples' narrator lines keep the design's punctuation.)
 
 **Per-turn lines, only when they apply:**
 
@@ -1919,6 +1921,7 @@ It asserts:
     - **-12 ± 2 on Day 14**;
     - **-7 ± 2 on Day 21**.
   - A grudging regular (r -2): **-13 ± 2 on Day 21**.
+  - **Corrected in wave 30, when the simulator was built.** A fight seen is not -8: wave 27's witness copy is one memory a scene with every blow seen added (-5, -5, -8: -18, as example 4 pins). On the same wound clock each band is the above × 18/8: **-44 ± 3 on Day 7, -27 ± 2 on Day 14, -17 ± 2 on Day 21**, and the grudging regular's **-30 ± 2 on Day 21** (`BRAWL` in `tests/relationships-sim.cjs`). The cast has nobody both grudging and not hard, so the simulator makes one (a town copy's axes at r -2). It fights Wade all three times, so one victim is checked: never "afraid of you", "hates you" with its reason by Day 7.
   - Their fear from the fights is under 10 by Day 12 and under 5 by Day 16.
 - Tuning changes the tables, and these bands must still hold.
 

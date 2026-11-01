@@ -202,8 +202,9 @@ reads it is other agents' work (checklist at the end).
   pills `stealth`.
 - `TOWN_DATA.events`: `evt_council_meeting`, day 6, evening, Town Hall, with
   seven branches and a default, first match wins: the report already thrown
-  out (tabled, police kept); Royce's attitude to the player at least 40 (he
-  tables it, keeps the police); both Carter's money and the photographs
+  out (tabled, police kept); Royce's attitude to the player at least 30 (he
+  tables it, keeps the police; since wave 30 his trust 30 and knows-you 25,
+  see Wave 30 below); both Carter's money and the photographs
   (Royce abstains, ties); the photographs alone (bridge in town, police
   dissolved at the end of the month); Curtis's debt `met` and Royce not
   bought (Curtis lets Royce's marker ride; tabled, kept); Carter's money
@@ -904,3 +905,38 @@ kind `ask`, and `{price}` among the placeholders. `docs/CAST.md`
 hidden), "Goes to nobody when leaned on", the secret's weight and what they
 can raise, "Mercenary.", and "Can be interested in the player (spark rate
 X; opens at knows N)".
+
+## Wave 30 (1 Nov 2026): the council weighs trust
+
+Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (design 6.2, "Council and epilogue
+conditions"; example 3). Ids, branch order and texts are unchanged; only
+the conditions moved.
+
+**The council** (`evt_council_meeting`), its six Royce branches, each as two
+copies (with and without Hollis free) as before:
+
+- "somebody to talk it through with" (tabled, the police kept):
+  `relAtLeast: { npc_royce: { trust: 30, knows: 25 } }` in place of
+  `attitudeAtLeast: { npc_royce: 30 }`. A beer-buyer at liking 36 and trust
+  5 no longer gets it; the confidant at trust 32 does, from anywhere.
+- the friendly face from the back row: `playerAt: "loc_town_hall"` and
+  `relAtLeast: { npc_royce: { liking: 15 } }` (the same 15, read as liking).
+- second thoughts after Carter bought him (`flagsSet: ["royceBought"]`):
+  `relAtLeast: { npc_royce: { trust: 20 } }` in place of liking 20.
+- There is no branch on fear: a bully who has Royce afraid gets nothing from
+  him, and `relBelow` is not used by the built-in town (it is there for a
+  town of the owner's own).
+
+**The ending**: the Loretta branch reads `relAtLeast: { npc_loretta: {
+liking: 40 } }`, the same 40 as liking.
+
+`attitudeAtLeast` still works and reads liking, so a town of one's own, or
+an older save's copy, plays as it did; Upgrade's version 9 gives an
+unfired built-in council and ending these conditions (never a town of the
+player's own). The note on the council above said "at least 40" for Royce
+against the code's 30 (the audit's disagreement); it now says 30 and points
+here.
+
+**The example turns.** The casual set's PRESENT entries and the literary
+one's mechanic carry no number: see `docs/notes/prompts.md`, Wave 30. The
+validator checks the new shape.

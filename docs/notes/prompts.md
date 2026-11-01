@@ -882,3 +882,63 @@ suite's estimate). Everything here is per turn and only when it applies.
   `mockBookkeep`'s `learned_secret` needs two of the keys in the narration
   and takes its words from the narration's sentence that has one, never
   the secret field.
+
+## Wave 30 (1 Nov 2026): what people show, to the narrator
+
+Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (design section 8). The narrator is
+never sent a number for how anyone feels.
+
+- **PRESENT.** `Pipeline.npcLine` drops `attitude N (word)` and the
+  `remembers:` field for `to you:` (`Pipeline.toYou`): the stance and its
+  first tag, up to two reasons in the player's words with their days
+  (`turnMemory`: "you lifted his motor (Day 2)", "you called him a cheat in
+  his own shop (Day 2, made good)"), joined by " / ", then `— plays it:`
+  and the cue (`Rel.cueText`, present tense: "civil and brief, sure of
+  herself around you"). Then, outside the cap, `open to a flirt` when
+  `Rel.welcomeOf(n).ok` (never anyone under 18) and `holds you to: …` (the
+  loose end's line, a story point, a claim the player made to them; at most
+  three, `holdsYouTo`). A brief line (someone in the background) is `to you:
+  <phrase>` only.
+- **The cap.** `TO_YOU_CAP` 50 tokens (`CHARS_PER_TOKEN` 3.5, so 175
+  characters) for the `to you` field. Over it, in this order: the second
+  reason goes, then the tag, then the cell's words in the cue (never all of
+  "plays it": its first clause stays), then the first reason is cut at a
+  word with its day kept, then it goes. No "; " inside the field (a reason's
+  own "; " becomes ", "), so the packet's field split holds.
+- **Hidden reasons.** A report that came through a hidden tie is `cooler
+  since Day 3, for a reason of his own, keeps it to himself, never hint at
+  it`: no name, no cause. Protected lines (the loose end, `/fact`) are never
+  reasons; they are what the person holds the player to.
+- **`Pipeline.turnMemory(n, m, player)`**: a memory in their words turned
+  to the player's ("called me a liar" → "you called him a liar"), with
+  `PERSON_ACTS` for the lines where the person acted (the engine's "found
+  Tester sleeping rough" → "he found you sleeping rough"), the player's name
+  or "the player" to "you"; the card's reasons and `/recap`'s read it too
+  ("Royce Pittman (warm to you: you fixed his fuel pump)").
+- **The cached blocks.** `Style.PEOPLE_NOTE`, after the guide and before
+  FADE_TO_BLACK: `Each person's "to you" is where they stand with the player
+  and why; "plays it" is how they carry it now: play it, never say it.
+  Nobody flirts back unless their line says "open to a flirt" or a turn line
+  says so, and nobody under 18 ever flirts or is flirted with. A reason "of
+  their own" is never hinted at.` KNOWLEDGE now says people know of the
+  player only what their "to you" reasons, what they hold you to and LOOSE
+  ENDS say. The casual example turns' PRESENT entries are in the new format
+  (`to you: cool to you, has something on you — you owe her four hundred
+  (Day 1) — plays it: civil and brief, sure of herself around you`, Dot
+  `… — plays it: looks twice, easy with you; open to a flirt`, strangers
+  `to you: doesn't know you — plays it: treats you like a stranger`), and
+  the literary one's mechanic is `Mechanic: gruff, short sentences, cool to
+  you.` The estimate (words × 1.4 for the style, town and cast blocks,
+  seed 12345): casual 12,671 before, **12,970** after; literary 11,759
+  before, 11,873 after; both under 13,000 (`tests/wave30-rel-people`,
+  `tests/api`). Two arrival entries and one example were shortened to fit.
+- **The validator** (`tests/validate-town.cjs`) reads the example turns'
+  new shape: the mechanic line ends in `cool to you.` or another "… you."
+  phrase, the PRESENT entries split on `); ` before a capitalised name, and
+  any `attitude N` in a context is an error.
+- **The bookkeeper and parser** are unchanged (their person rows have read
+  the stance since wave 28).
+- **Still to run with the owner's key**: the live probe
+  (`tests/probe-grammar.cjs`, no schema change since wave 28) and the
+  labelled eval (`tests/eval-classify.cjs`, against an empty
+  `tests/eval/labelled.jsonl` until playtest turns are labelled).

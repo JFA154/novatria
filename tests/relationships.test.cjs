@@ -66,7 +66,9 @@ const setup = page => page.evaluate(() => {
       for (const p of window.__packets) for (const l of p.text.split('\n')) {
         if (!l.includes(n.name) || /^UNDER 18: /.test(l)) continue;
         // Wave 29: an adult can carry a spark tag now, so every line that lists people is read one person at a time.
-        const parts = /^(PRESENT|NPCS PRESENT|OTHER KNOWN NPCS|NAMED IN THE NARRATION[^:]*|EVERYONE ELSE IN TOWN[^:]*): /.test(l) ? l.split(/; (?=[A-Z][a-z]+ [A-Z]|npc_)/).filter(x => x.includes(n.name)) : [l];
+        // Wave 30: and an adult's own entry that names the minor as kin ("employee: Micah Dees") is the adult's, not one about the minor: the minor's entry is the one that starts with them.
+        const listing = /^(PRESENT|NPCS PRESENT|OTHER KNOWN NPCS|NAMED IN THE NARRATION[^:]*|EVERYONE ELSE IN TOWN[^:]*): /;
+        const parts = listing.test(l) ? l.replace(listing, '').split(/; (?=[A-Z][a-z]+ [A-Z][a-z'-]+(?: [A-Z][a-z'-]+)? \(|npc_)/).filter(x => x.startsWith(n.name) || x.startsWith(n.id)) : [l];
         for (const x of parts) if (CUE.test(x)) problems.push(`${n.id}: a ${p.kind} packet line carries a cue: ${x.slice(0, 200)}`);
       }
       const feed = [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent).filter(t => t.includes(n.name));

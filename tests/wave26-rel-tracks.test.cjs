@@ -353,7 +353,8 @@ s.test('the stance: twelve phrases with five points of hysteresis, devoted needs
   assert.deepEqual(r.tags, [['wary of your temper'], ['and afraid of you'], ['uneasy around you'], []], 'outside the window the stance stands with a tag; uneasy is entered at 20 (fear 17, never higher, is calm)');
   assert.deepEqual(r.hard, ['against you', ['uneasy around you'], 39], 'a hard person: fear held at 39, no override');
   assert.deepEqual(r.know, [['afraid of what you know', []], ['afraid of you', ['you have something on them']]]);
-  assert.deepEqual(r.cue, ['polite as a locked door, wants you gone', 'agrees fast, won\'t meet your eye, keeps their distance', 'treats you like a stranger'], 'the override\'s clause leads; the cell\'s does not fit in twelve words');
+  // Changed by design in wave 30: "would rather you left" for the design's "wants you gone" (the minor checks read "wants you" as the spark status).
+  assert.deepEqual(r.cue, ['polite as a locked door, would rather you left', 'agrees fast, won\'t meet your eye, keeps their distance', 'treats you like a stranger'], 'the override\'s clause leads; the cell\'s does not fit in twelve words');
   for (const c of r.cue) assert.ok(c.split(/\s+/).length <= 12, c);
 });
 
@@ -438,7 +439,8 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   assert.ok(r.world[3].some(x => /npc_micah: spark stays 0 \(under 18\)/.test(x)) && r.world[3].some(x => /npc_dewayne: spark stays 0 \(not on the romance list\)/.test(x)), 'logged: ' + r.world[3].join(' | '));
   assert.match(r.edit[0][0], /spark stays 0 for npc_austin: they are under 18/);
   assert.match(r.edit[1][0], /spark stays 0 for npc_dewayne: they are not on the town's romance list/);
-  assert.deepEqual(r.edit[2], [{ id: 'npc_austin', fields: ['rel'] }], 'spark 0 is no change; trust lands');
+  // Changed by design in wave 30: an edit names the track it moved, so the pinned field reads 'trust', not 'rel'.
+  assert.deepEqual(r.edit[2], [{ id: 'npc_austin', fields: ['trust'] }], 'spark 0 is no change; trust lands');
   assert.equal(r.older, true);
   assert.match(r.cheat[0][0], /spark stays 0 for npc_kaylee/);
   assert.equal(r.cheat[1], 1);

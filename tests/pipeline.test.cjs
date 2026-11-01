@@ -253,7 +253,9 @@ s.test('fights cost 1-3 HP on a failure and 3 on a critical failure; 0 HP is a d
   assert.equal(t.t.roll.tier, 'failure');
   assert.equal(t.t.action.actionType, 'attack');
   assert.ok(t.hp >= 7 && t.hp <= 9, 'took 1 to 3 damage, hp ' + t.hp);
-  assert.match(await lastQuiet(page), new RegExp(`You take ${10 - t.hp} damage`));
+  // Wave 30: a band line for how someone now stands may follow it (liking over seven bands), so the damage line is the turn's, not always the last.
+  const quietNow = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].slice(-3).map(n => n.textContent));
+  assert.ok(quietNow.some(x => new RegExp(`You take ${10 - t.hp} damage`).test(x)), JSON.stringify(quietNow));
   await page.evaluate(() => Game.Pipeline.forceNextRoll(1));
   await sendText(page, `I punch ${b.name}`);
   assert.equal(await page.evaluate(() => Game.state.player.hp), t.hp - 3, 'critical failure costs 3');
@@ -588,9 +590,9 @@ s.test('the packet carries only relevant memories and one fresh rumour from a pr
   await sendText(page, `I ask ${x.name} about the river`);
   const packet = await lastPacket(page);
   const present = packet.split('\n').find(l => l.startsWith('PRESENT:'));
-  assert.match(present, /The player saved their granddaughter/);
-  assert.match(present, /A fresh small thing/);
-  assert.doesNotMatch(present, /Old trivia/);
+  // Changed by design in wave 30: the two reasons on the "to you" line, in the player's words with their day (the serious one, then the fresh one), never a third.
+  assert.match(present, /to you: [^;]* — you saved their granddaughter \(Day \d+\) \/ a fresh small thing \(Day \d+\) — plays it: /);
+  assert.doesNotMatch(present, /Old trivia|old trivia/);
   const line = packet.split('\n').find(l => l.startsWith('RUMOUR:'));
   assert.equal(line, `RUMOUR: ${x.name} might mention this, if it fits: "${rumour.text}"`, 'the text only, never its truth');
   assert.equal(await page.evaluate(id => Game.State.rumour(id).heard, rumour.id), true, 'the mock bookkeeper marked it heard');
@@ -1995,7 +1997,8 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   await page.fill(f('look'), 'A small, tired woman in a motel smock.');
   await page.fill(f('history'), 'She came down from Calder in the spring and took the night desk nobody else wanted.');
   await page.evaluate(sel => { const r = document.querySelector(sel); r.value = '40'; r.dispatchEvent(new Event('input', { bubbles: true })); }, f('attitude'));
-  assert.equal(await page.textContent(f('attitude-word')), '+40 · warm', 'the live word beside the slider');
+  // Changed by design in wave 30: the slider is "Likes" in "How they feel about you", its word the card's ("a lot").
+  assert.equal(await page.textContent(f('attitude-word')), '+40 · a lot', 'the live word beside the slider');
   await page.selectOption(f('relTo'), x.other.id);
   assert.ok(await page.isEnabled(f('relation')));
   await page.fill(f('relation'), 'wife');
@@ -2022,13 +2025,15 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
     ['Mavis Toler', 38, want, 'night clerk at the motor court', 'A small, tired woman in a motel smock.', 'She came down from Calder in the spring and took the night desk nobody else wanted.', 40, 'free', true, 'Get out of this town.', 'She skimmed the till for a year.']);
   assert.deepEqual(r.created, { turn: null, day: null, by: 'edit', relationToNpcId: x.other.id, relation: 'wife' });
   assert.deepEqual(r.home, { locationId: x.home, phases: x.who.free, revealed: true });
-  assert.deepEqual(r.memories, [{ turn, text: 'Tester paid back the twenty', weight: 3 }]);
+  // Wave 30: a memory added in the editor keeps its day and says what it was (noted, the picker's default: it moves nothing).
+  assert.deepEqual(r.memories, [{ turn, day: JSON.parse(pre).time.day, text: 'Tester paid back the twenty', weight: 3, event: 'noted', d: null }]);
   const fields = ['name', 'age', 'pronouns', 'role', 'look'].concat(voiceTurned ? ['voice'] : [], ['history', 'attitude', 'relation', 'home', 'status', 'memories', 'goal', 'secret']);
   assert.equal(await lastQuiet(page), `Edited Mavis Toler: ${fields.join(', ')}.`);
   assert.equal(await depth(), d0 + 1, 'one undo step');
   assert.deepEqual(await page.evaluate(() => [Game.state.meta.turn, Game.Api.Mock.calls.length]), [turn, 0], 'no turn and no API call');
   // The card: closed editor, its details open, the new record.
-  const shown = await page.evaluate(sel => { const c = document.querySelector(sel); return { edit: !!c.querySelector('.pedit'), open: !c.querySelector('.pcard-more').hidden, name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, look: c.querySelector('.pcard-look').textContent, notes: c.querySelector('.pcard-notes').textContent, focus: document.activeElement.classList.contains('pcard-edit') }; }, card);
+  const shown = await page.evaluate(sel => { const c = document.querySelector(sel); return { edit: !!c.querySelector('.pedit'), open: !c.querySelector('.pcard-more').hidden, name: c.querySelector('.pcard-name').textContent, pron: c.querySelector('.pcard-pron').textContent, role: c.querySelector('.pcard-role').textContent, look: c.querySelector('.pcard-look').textContent, notes: [...c.querySelectorAll('.pcard-why, .pcard-notes')].map(x => x.textContent).join(' '), focus: document.activeElement.classList.contains('pcard-edit') }; }, card);
+  // Wave 30: a serious memory is one of the card's reasons (in the player's words) rather than a note.
   assert.deepEqual(shown, { edit: false, open: true, name: 'Mavis Toler', pron: label, role: `Night clerk at the motor court · ${x.other.first}'s wife`, look: 'A small, tired woman in a motel smock.', notes: shown.notes, focus: true });
   assert.match(shown.notes, /paid back the twenty/);
   // The age beside the name, and the new history in the card's facts.
@@ -2094,7 +2099,8 @@ s.test('the narrator packet says what people can know about the player: came to 
   assert.equal(r.after, r.present + 1, 'right after PRESENT');
   // The rule itself (only their memories and what happened in front of them) now sits in the cached style block (Style.KNOWLEDGE).
   assert.equal(r.d1, `WHAT PEOPLE KNOW: ${r.name} came to ${r.town} today (day 1) and was a stranger here before that. Nobody here knew ${r.name} before.`);
-  assert.ok((await page.evaluate(() => Game.Style.systemPrompt())).includes('Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them'));
+  // Changed by design in wave 30: what they know is their "to you" reasons and what they hold the player to.
+  assert.ok((await page.evaluate(() => Game.Style.systemPrompt())).includes('Each person knows about the player only what their "to you" reasons, what they hold you to and LOOSE ENDS say and what happened in front of them'));
   assert.ok(r.d2.includes(' came to ' + r.town + ' yesterday (this is day 2) and'), r.d2);
   assert.ok(r.d4.includes(' came to ' + r.town + ' 3 days ago (this is day 4) and'), r.d4);
 });

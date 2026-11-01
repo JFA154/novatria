@@ -392,10 +392,12 @@ s.test('a known person whose attitude crosses a band after a turn gets a quiet l
   await sendText(page, 'I buy a cold drink and thank them');
   let quiet = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
   assert.ok(quiet.includes(`${who.name} warms to you.`), quiet.join(' | '));
-  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -20 }] }), who.id);
+  // Changed by design in wave 30: "won't forget that" is a new serious harm (a weight-3 grievance), outranking the band line ("cools toward you").
+  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -20 }], newMemories: [{ npcId: id, text: 'called me a liar in front of the whole room', weight: 3 }] }), who.id);
   await sendText(page, 'I tell them their coffee is terrible');
   quiet = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
   assert.ok(quiet.includes(`${who.name} won't forget that.`), quiet.join(' | '));
+  assert.ok(!quiet.slice(-2).includes(`${who.name} cools toward you.`), 'one line a person: the most important');
   // An edit is not a turn: no line.
   const n0 = quiet.length;
   await page.evaluate(id => Game.App.editPerson(id, { attitude: 80 }), who.id);
@@ -3151,7 +3153,8 @@ s.test('integration (playtest R7): the feed after a reload (Continue) and after 
   });
   await page.evaluate(id => {
     Game.Api.Mock.queue('parse', { actionType: 'other', summary: 'Works on the truck for hours', targets: [], needsRoll: false, timeCost: 'long' });
-    Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -20 }] });
+    // Wave 30: "won't forget that" is a new serious harm (weight 3).
+    Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -20 }], newMemories: [{ npcId: id, text: 'called me a liar in front of the whole room', weight: 3 }] });
   }, who.id);
   await T('I spend hours on the truck and tell them their coffee is terrible');
   // A roll, then a reroll to a natural 20: "Cheat: crit" before the roll, the story point after it, both before the narration.

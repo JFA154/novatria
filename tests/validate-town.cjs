@@ -762,8 +762,10 @@ function checkNpcList(list, where) {
 }
 // requires (CONTRACTS section 3): what must hold when a seed or a clock fires.
 function checkRequires(r, where) {
-  if (!checkKeys(r, [], where, ['npcFree', 'npcAt', 'flagsSet', 'flagsUnset', 'obligationOpen'])) return;
+  if (!checkKeys(r, [], where, ['npcFree', 'npcAt', 'flagsSet', 'flagsUnset', 'obligationOpen', 'relAtLeast', 'relBelow'])) return;
   if (!Object.keys(r).length) err(where, 'empty: say what must hold, or leave requires out');
+  if (r.relAtLeast !== undefined) checkRel(r.relAtLeast, where + '.relAtLeast');
+  if (r.relBelow !== undefined) checkRel(r.relBelow, where + '.relBelow');
   if (r.npcFree !== undefined) checkNpcList(r.npcFree, where + '.npcFree');
   if (r.npcAt !== undefined) {
     if (!isObj(r.npcAt) || !Object.keys(r.npcAt).length) err(where + '.npcAt', 'an object { npcId: locationId }');
@@ -783,9 +785,27 @@ function checkAlt(a, where, maxSentences, requires, ending) {
   checkText(a.text, where + '.text', { maxSentences: maxSentences, max: 400 });
   if (a.effects !== undefined) checkEffectList(a.effects, where + '.effects', { max: 5, ending: ending === true });
 }
+// relAtLeast / relBelow (wave 30): { npcId: { liking?, trust?, fear?, knows? } }, the canonical names only (the
+// engine also reads warmth and familiarity); spark is never readable by a town condition.
+const REL_RANGES = { liking: [-100, 100], trust: [-100, 100], fear: [0, 100], knows: [0, 100] };
+function checkRel(v, where) {
+  if (!isObj(v) || !Object.keys(v).length) { err(where, 'an object { npcId: { liking, trust, fear, knows } }'); return; }
+  for (const id of Object.keys(v)) {
+    if (!isNpc(id)) err(where, '"' + id + '" is not an NPC');
+    const c = v[id];
+    if (!isObj(c) || !Object.keys(c).length) { err(where + '.' + id, 'an object { liking, trust, fear, knows }: what they must be at'); continue; }
+    for (const k of Object.keys(c)) {
+      if (k === 'spark') { err(where + '.' + id + '.spark', 'spark is never readable by a town condition'); continue; }
+      if (!REL_RANGES[k]) { err(where + '.' + id + '.' + k, 'unknown track: liking, trust, fear or knows'); continue; }
+      if (!isInt(c[k]) || c[k] < REL_RANGES[k][0] || c[k] > REL_RANGES[k][1]) err(where + '.' + id + '.' + k, 'a whole number, ' + REL_RANGES[k][0] + ' to ' + REL_RANGES[k][1]);
+    }
+  }
+}
 // when (CONTRACTS section 11): an event branch's or the epilogue's conditions.
 function checkWhen(w, where) {
-  if (!checkKeys(w, [], where, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'obligationStatus', 'playerAt'])) return;
+  if (!checkKeys(w, [], where, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'relAtLeast', 'relBelow', 'obligationStatus', 'playerAt'])) return;
+  if (w.relAtLeast !== undefined) checkRel(w.relAtLeast, where + '.relAtLeast');
+  if (w.relBelow !== undefined) checkRel(w.relBelow, where + '.relBelow');
   if (!Object.keys(w).length) err(where, 'empty: a branch with no condition is the default');
   // playerAt: the player is at that place when it happens (the meeting with them in the room).
   if (w.playerAt !== undefined) {
@@ -2159,7 +2179,8 @@ const SPEC_EXAMPLE_WORDS = [32, 31, 25]; // narration word counts of the SPEC.md
 const EXAMPLE_SCENES = [
   { what: 'a creditor waiting in a bar who says what is owed', input: /\bbar\b/i, context: /^Seed due: /, narration: /\bowe\b/i },
   { what: 'a failed lock pick on an office door, watched by a kid', input: /\block\b.*\boffice\b/i, context: /^Stealth \d+ vs \d+ · Failure · Complication: .+\.$/, narration: /\bkid\b/i },
-  { what: 'a mechanic who keeps working and asks if you are buying', input: /\bmechanic\b/i, context: /^Mechanic: .*attitude [−-]?\d+\.$/, narration: /buying something\?/i }
+  // Wave 30: where he stands in words ("cool to you"), never a number.
+  { what: 'a mechanic who keeps working and asks if you are buying', input: /\bmechanic\b/i, context: /^Mechanic: .*\b(cool to you|[a-z' ,]+ you)\.$/, narration: /buying something\?/i }
 ];
 
 function properNouns(text) {
@@ -2186,7 +2207,8 @@ const CASUAL_COVERS = [
   { what: 'a failure with a complication', test: (c) => /^ROLL: \w+ \d+.* vs \d+ · Failure$/m.test(c) && /^COMPLICATION: (?!none)/m.test(c) },
   { what: 'an arrival', test: (c) => /^SINCE THE LAST TURN \(/m.test(c) },
   { what: 'something not carried', test: (c) => /^NOT CARRIED: /m.test(c) },
-  { what: 'two people present', test: (c) => (/^PRESENT: (.*)$/m.exec(c) || ['', ''])[1].split(/\)\); /).length >= 2 },
+  // Wave 30: a person's line ends ")", then "; " and the next one's two-word name with "(" and an age.
+  { what: 'two people present', test: (c) => (/^PRESENT: (.*)$/m.exec(c) || ['', ''])[1].split(/\); (?=[A-Z][a-z]+ [A-Z][a-z]+ \(\d)/).length >= 2 },
   { what: 'a due event', test: (c) => /^DUE EVENT: (?!none)/m.test(c) }
 ];
 function checkExamples(W) {
@@ -2261,6 +2283,8 @@ function checkExamples(W) {
       if (hits.length) err(where + '.' + part, 'uses a name or place from this town: ' + hits.join(', '));
     }
     if (/^as you\b/i.test(turn.narration)) err(where, 'narration starts with "As you"');
+    // Wave 30: the narrator hears where people stand in words ("to you: cool to you"), never a number.
+    if (/attitude [−-]?\d/.test(turn.context)) err(where, 'the context gives an attitude number: the packet says "to you: <stance>" now');
     // The casual style bans similes; its examples must not use one.
     if (W === 'EXAMPLE_TURNS_CASUAL' && /\b(like an?|as if)\b/i.test(turn.narration.replace(/"[^"]*"/g, ' '))) err(where, 'a simile in a casual example');
   });

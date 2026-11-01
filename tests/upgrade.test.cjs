@@ -69,13 +69,26 @@ async function writeOldAutosave(page, opts = {}) {
   await page.waitForFunction(() => window.Game && Game.App);
   return { ids: out.ids, env: JSON.parse(out.json) };
 }
-/* State JSON without the parts an update may change. */
+/* State JSON without the parts an update may change (wave 30: version 9,
+   "People who remember", rebuilds everyone's rel from their memories; their
+   attitude stays exactly as it was, and this still compares it). */
 function rest(json) {
   const st = typeof json === 'string' ? JSON.parse(json) : JSON.parse(JSON.stringify(json));
   delete st.meta.rulesVersion;
-  for (const n of st.npcs) delete n.memories;
+  for (const n of st.npcs) { delete n.memories; delete n.rel; }
   return JSON.stringify(st);
 }
+/* A memory as the earlier versions write it: version 9 adds what kind of
+   thing it was (event, d, decay, key, its day), never other words. */
+const plain = m => ({ turn: m.turn, text: m.text, weight: m.weight });
+const plainAll = list => (list || []).map(plain);
+// The rules version this build is at (wave 30: 9), and what version 9 says at the end of an update.
+const rulesNow = page => page.evaluate(() => Game.State.RULES_VERSION);
+// (A step that changes nothing is "People already remember why.", the way every other step says so.)
+const NINE = "(People now remember why: \\d+ (person's|people's) memories now carry what they did to how they feel\\.( \\d+ (person has|people have) something on you\\.)?( The council now weighs trust\\.)?|People already remember why\\.)";
+const esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The feed's summary: the steps before 9 exactly as written, then version 9's line.
+const withNine = text => new RegExp(`^${esc(text)} ${NINE}$`);
 const words = t => t.trim().split(/\s+/).length;
 const waitIdle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 
@@ -83,7 +96,10 @@ s.test('a new game is stamped with the current rules version; a save without one
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const fresh = await page.evaluate(() => ({ v: Game.state.meta.rulesVersion, current: Game.State.RULES_VERSION, read: Game.State.rulesVersion(Game.state), behind: Game.Upgrade.behind(Game.state) }));
-  assert.deepEqual(fresh, { v: 8, current: 8, read: 8, behind: false });
+  // Changed by design in wave 30: rules version 9 ("People who remember").
+  const V = await rulesNow(page);
+  assert.deepEqual(fresh, { v: V, current: V, read: V, behind: false });
+  assert.equal(V, 9);
   const { env } = await writeOldAutosave(page);
   assert.equal(await page.evaluate(st => Game.State.rulesVersion(st), env.state), 1, 'no rulesVersion reads as 1');
   await page.click('#btn-continue');
@@ -150,9 +166,10 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
   const mem = id => st.npcs.find(n => n.id === id).memories;
   const [a, b, c] = ids.map(mem);
 
-  // Person A: the loose end and the fact exactly as they were; the two "bridge vote" lines merged on turn 3; the weight-1 small talk gone.
-  assert.deepEqual(a.find(m => m.text.startsWith('Loose end with')), LOOSE);
-  assert.deepEqual(a.find(m => m.text.startsWith('Fact (a story point):')), FACT);
+  // Person A: the loose end and the fact exactly as they were (version 9 adds only what kind of thing they were); the two "bridge vote" lines merged on turn 3; the weight-1 small talk gone.
+  assert.deepEqual(plain(a.find(m => m.text.startsWith('Loose end with'))), LOOSE);
+  assert.deepEqual(plain(a.find(m => m.text.startsWith('Fact (a story point):'))), FACT);
+  assert.ok(a.every(m => typeof m.event === 'string' && m.d !== undefined), 'every line now says what it was (version 9)');
   const aOpen = a.filter(m => !/^(Loose end with|Fact \(a story point\):)/.test(m.text));
   assert.deepEqual(aOpen.map(m => [m.turn, m.weight]), [[3, 2], [7, 3], [11, 2]], 'A: merged on the earliest turn, weight 1 dropped: ' + JSON.stringify(a));
   assert.deepEqual(a.map(m => m.turn), [0, 3, 4, 7, 11], 'A: oldest first, protected lines in place');
@@ -165,13 +182,14 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
     assert.ok(m.weight >= 2 && m.weight <= 3);
   }
   assert.equal(b[2].text, 'punched me in the jaw outside the motel when I would not', 'the first twelve words');
-  // Everyone else's memories and every other field byte for byte.
-  for (const n of old.npcs) if (!ids.includes(n.id)) assert.deepEqual(mem(n.id), n.memories, n.id + ' untouched');
-  assert.equal(rest(after), rest(before), 'nothing but memories and the rules version changed');
-  assert.equal(st.meta.rulesVersion, 8, 'stamped');
-  // The feed: the running notice, then the summary (version 2, then version 3, which finds nothing to add, then version 4: the first morning needs no check, then version 5: nobody the game made up is in the story, then version 6: this game already has the whole cast).
+  // Everyone else's memories and every other field byte for byte (wave 30: their words; version 9 types them and rebuilds where people stand, attitude exactly as it was).
+  for (const n of old.npcs) if (!ids.includes(n.id)) assert.deepEqual(plainAll(mem(n.id)), plainAll(n.memories), n.id + ' untouched');
+  assert.equal(rest(after), rest(before), 'nothing but memories, where people stand (rel) and the rules version changed');
+  assert.equal(st.meta.rulesVersion, await rulesNow(page), 'stamped');
+  // The feed: the running notice, then the summary (version 2, then version 3, which finds nothing to add, then version 4: the first morning needs no check, then version 5: nobody the game made up is in the story, then version 6: this game already has the whole cast; then version 9).
   const notices = await page.$$eval('#feed .f-notice', ns => ns.map(n => n.textContent));
-  assert.deepEqual(notices.slice(-2), ['Updating this game to the latest rules...', 'Rewrote memories for 3 people: 17 memories became 13. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.']);
+  assert.equal(notices[notices.length - 2], 'Updating this game to the latest rules...');
+  assert.match(notices[notices.length - 1], withNine('Rewrote memories for 3 people: 17 memories became 13. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.'));
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length), 1, 'one call');
   // Autosaved, and the game stays loaded.
   const saved = await page.evaluate(k => JSON.parse(localStorage.getItem(k)).state, AUTOSAVE);
@@ -180,7 +198,8 @@ s.test('"Update this game" in mock mode: long memories become short ones, repeat
   // People: the card shows the short line, not the long one.
   await page.evaluate(id => { Game.UI.openPanel('people'); Game.UI.togglePerson(id); }, ids[1]);
   const card = (await page.textContent(`#panel-body [data-npc="${ids[1]}"]`)).toLowerCase();
-  assert.ok(card.includes('pulled a knife on me in the parking lot and said next'), card);
+  // Wave 30: a serious line is one of the card's reasons, in the player's words ("you pulled a knife on him ..."), else a note as remembered.
+  assert.ok(/pulled a knife on (me|him|her|them) in the parking lot and said next/.test(card), card);
   assert.ok(!card.includes('would not stop at a warning'), 'the long line is gone');
   // Continue works as before: the title screen no longer offers the update.
   await page.reload();
@@ -227,7 +246,7 @@ s.test('a queued mock error, or a refusal, leaves the state exactly as it was an
   // Still behind: it can be tried again and then works.
   const r3 = await page.evaluate(() => Game.App.updateGame());
   assert.equal(r3.ok, true);
-  assert.equal(await page.evaluate(() => Game.state.meta.rulesVersion), 8);
+  assert.equal(await page.evaluate(() => Game.state.meta.rulesVersion), await rulesNow(page));
 });
 
 s.test('Settings: the Game section is off with no game, notes an older game, and re-reads a current one; a re-read that changes nothing is not an undo step', async h => {
@@ -264,12 +283,12 @@ s.test('Settings: the Game section is off with no game, notes an older game, and
   await page.waitForSelector('#screen-game.active');
   await waitIdle(page);
   const r = await page.evaluate(i => ({ mems: Game.state.npcs.find(n => n.id === i).memories, v: Game.state.meta.rulesVersion, calls: Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length, depth: Game.State.undoDepth() }), id);
-  assert.equal(r.v, 8);
+  assert.equal(r.v, await rulesNow(page));
   assert.equal(r.calls, 1);
   assert.equal(r.mems.length, 3);
   assert.ok(r.mems.every(m => words(m.text) <= 12 && m.turn === 1), JSON.stringify(r.mems));
   assert.equal(r.depth, depth + 1, 'the re-read is one undo step');
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 1 person: 3 memories became 3. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.');
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine('Rewrote memories for 1 person: 3 memories became 3. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.'));
   // Again: everything is short already, nothing changes, and no undo step is added.
   const same = await stateJson(page);
   await page.click('#tb-settings');
@@ -318,7 +337,7 @@ s.test('Saves screen: a slot under older rules says so and has an Update action 
   await page.waitForSelector('#screen-game.active');
   await waitIdle(page);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 8);
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
   assert.equal(st.npcs.find(n => n.id === ids[1]).memories.length, 8, 'eight notable memories, under the cap');
   assert.equal(rest(st), rest(env.state));
   const slot = await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.slot.1')));
@@ -344,16 +363,20 @@ s.test('more than about 40 memories go out in several calls, split by person; a 
     const auto = Game.Upgrade.memoryPacket(st, free.slice(0, 5)).people.slice(1).map(p => ({ npcId: p.npcId, memories: [{ from: [1, 2], text: 'helped me out once', weight: 2 }] }));
     Game.Api.Mock.calls.length = 0;
     Game.Api.Mock.queue('rewriteMemories', { people: auto.concat([{ npcId: 'npc_nobody', memories: [] }]) });
-    const kept = JSON.stringify(free[0].memories);
+    // Wave 30: their words, turns and weights (version 9 then says what kind of thing each was).
+    const words = list => JSON.stringify(list.map(m => [m.turn, m.text, m.weight]));
+    const kept = words(free[0].memories);
     const res = await Game.Pipeline.updateGame();
-    return { groups, res, calls: Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length, firstSame: JSON.stringify(Game.state.npcs.find(n => n.id === free[0].id).memories) === kept, second: Game.state.npcs.find(n => n.id === free[1].id).memories, debug: Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason) };
+    return { groups, res, calls: Game.Api.Mock.calls.filter(c => c.method === 'rewriteMemories').length, firstSame: words(Game.state.npcs.find(n => n.id === free[0].id).memories) === kept, second: Game.state.npcs.find(n => n.id === free[1].id).memories, debug: Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason) };
   }, B);
   assert.deepEqual(r.groups.map(g => g.length), [5, 1], '40 memories, then the rest');
   assert.equal(r.calls, 2);
   assert.equal(r.res.ok, true);
   assert.equal(r.firstSame, true, 'missing from the reply: left as it was');
   // Changed by design in wave 5 (the fourth review's bug 6): the line keeps the newest day of the memories it came from.
-  assert.deepEqual(r.second, [{ turn: 12, day: 1, text: 'helped me out once', weight: 2 }]);
+  // Wave 30: version 9 then says what kind of thing it was (its words, turn, day and weight as the re-read left them).
+  assert.deepEqual(r.second.map(m => ({ turn: m.turn, day: m.day, text: m.text, weight: m.weight })), [{ turn: 12, day: 1, text: 'helped me out once', weight: 2 }]);
+  assert.equal(r.second[0].event, 'did_favour');
   assert.ok(r.debug.some(x => /missing from the reply/.test(x)) && r.debug.some(x => /npc_nobody, who was not asked about/.test(x)), r.debug.join(' | '));
   assert.equal(r.res.summaries[0].text, 'Rewrote memories for 5 people: 40 memories became 12.');
 });
@@ -421,20 +444,20 @@ s.test('the real provider: one structured-output call on the parser model at the
   assert.ok(!user.includes('Loose end with') && !user.includes('Fact (a story point)'), 'protected lines are not sent');
   const st = await page.evaluate(() => Game.state);
   const mem = id => st.npcs.find(n => n.id === id).memories;
-  assert.deepEqual(mem(ids[0]), [LOOSE, { turn: 3, text: 'Told me the bridge vote was rigged', weight: 2 }, FACT, { turn: 7, text: 'threatened to go to the police about the boat', weight: 3 }]);
+  assert.deepEqual(plainAll(mem(ids[0])), [LOOSE, { turn: 3, text: 'Told me the bridge vote was rigged', weight: 2 }, FACT, { turn: 7, text: 'threatened to go to the police about the boat', weight: 3 }]);
   const knife = mem(ids[1]);
   assert.equal(knife.length, 1, 'lines with no memory to come from are dropped: ' + JSON.stringify(knife));
   assert.equal(knife[0].turn, 12);
   assert.ok(knife[0].text.length <= 120, 'cut like a bookkeeper memory');
   assert.deepEqual(mem(ids[2]), [], 'nothing worth keeping');
-  assert.equal(st.meta.rulesVersion, 8);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Rewrote memories for 3 people: 17 memories became 3. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.');
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine('Rewrote memories for 3 people: 17 memories became 3. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.'));
   // The debug view shows the exchange.
   await sendText(page, '/debug');
   const dbg = await page.textContent('#panel-body');
   assert.match(dbg, /memories · via claude · HTTP 200 · request-id req_mem_1/);
   assert.match(dbg, /places · via claude · HTTP 200 · request-id req_places_2/);
-  assert.match(dbg, /rules v8/);
+  assert.match(dbg, new RegExp(`rules v${await rulesNow(page)}`));
 });
 
 /* Version 6's line for a save from before the full cast, and a place name
@@ -516,7 +539,7 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
       atHome: ['morning', 'afternoon', 'evening', 'night'].filter(p => Game.State.npcsAt(m.home.id, p).some(n => n.id === m.owner.id))
     };
   }, m);
-  assert.equal(r.v, 8, 'stamped 8');
+  assert.equal(r.v, await rulesNow(page), 'stamped with the current version');
   assert.deepEqual(r.calls.filter(c => c === 'rewriteMemories' || c === 'revealPlaces' || c === 'checkClock' || c === 'fixPeople'), ['revealPlaces'], 'a save at 2 runs versions 3 to 6 in one call (the first morning needs no clock check; nobody the game made up; the cast needs no call)');
   assert.ok(r.l, 'the owner\'s home in the cast is in the game');
   assert.equal(r.told, false, 'the house version 3 made from the story is folded into it: one place, not two');
@@ -528,7 +551,7 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   assert.deepEqual(r.l.revealed, { turn: 3, day: 1, byNpcId: null, ownerNpcId: m.owner.id, kind: 'home', visited: false, authored: true }, 'dated to the turn of the mention');
   assert.deepEqual(r.atHome, m.nowhere, 'the owner is home in every phase they were nowhere');
   assert.deepEqual(r.home, { locationId: m.home.id, phases: m.nowhere, revealed: true });
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes - 1)} ${m.place} is ${the(m.home.name)}. ${m.lived} ${ARC}`);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine(`Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes - 1)} ${m.place} is ${the(m.home.name)}. ${m.lived} ${ARC}`));
   // The map and the Places list show it, dashed; the homes nobody has told the player about stay off the map.
   await page.click('#tab-places');
   await page.waitForSelector('.map-svg');
@@ -542,7 +565,7 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   await page.click('#tb-settings');
   await page.click('#set-reread');
   await waitIdle(page);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.');
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why.');
   assert.equal(await stateJson(page), before, 'a re-read adds nothing twice');
   assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth);
   // /undo takes the update back: no place, no cast, no home, version 2 again.
@@ -552,22 +575,26 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
 });
 
-s.test('a save at version 1 runs version 2, 3, 4, 5, 6, 7 then 8; with nothing in the story to add, version 3 adds no place, version 6 adds the cast, version 7 fills in the town, version 8 finds the arc in place, and the game is stamped 8', async h => {
+// Changed by design in wave 30: the chain runs on to version 9.
+s.test('a save at version 1 runs version 2, 3, 4, 5, 6, 7, 8 then 9; with nothing in the story to add, version 3 adds no place, version 6 adds the cast, version 7 fills in the town, version 8 finds the arc in place, version 9 gives every memory its kind with liking as it was, and the game is stamped 9', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const m = await writeMentionSave(page, { version: 1, line: "Couldn't tell you. Ask around." });
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
+  const att0 = await page.evaluate(() => Object.fromEntries(Game.state.npcs.map(n => [n.id, n.attitude])));
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story'], [5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story'], [5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember']]);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 8);
+  assert.equal(st.meta.rulesVersion, 9);
+  for (const n of st.npcs) if (att0[n.id] !== undefined) assert.equal(n.attitude, att0[n.id], `${n.id}: liking exactly as it was`);
+  assert.ok(st.npcs.every(n => (n.memories || []).every(x => typeof x.event === 'string' && x.d !== undefined)), 'every memory says what it was');
   assert.equal(st.meta.castFixed, true);
   assert.equal(st.locations.length, m.castLocs, 'no place from the story; the cast\'s homes');
   assert.equal(st.locations.filter(l => !l.discovered && !l.away).length, m.homes, 'every home still to find');
   assert.equal(st.npcs.length, m.cast);
   assert.ok(!st.locations.some(l => l.revealed));
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes)} ${m.lived} ${ARC}`);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine(`Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes)} ${m.lived} ${ARC}`));
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method).filter(x => x === 'revealPlaces')), ['revealPlaces']);
 });
 
@@ -631,12 +658,12 @@ s.test('version 3 against the real provider: one structured-output call on the p
   const made = st.locations.filter(l => l.revealed);
   assert.deepEqual(made.map(l => l.id), [m.home.id], 'one place (the repeat and the existing place are refused), folded by version 6 into the owner\'s home in the cast');
   assert.equal(made[0].revealed.turn, 3);
-  assert.equal(st.meta.rulesVersion, 8);
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
   const dbg = await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join('\n'));
   assert.match(dbg, /nearId loc_nowhere is not a known place/);
   assert.match(dbg, /place not added \(placesRevealed\[1\]\): already a place/);
   assert.match(dbg, /place not added \(placesRevealed\[2\]\): already a place/);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes - 1)} ${m.place} is ${the(m.home.name)}. ${m.lived} ${ARC}`);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine(`Added 1 place people told you about: ${m.place}. The clock matches the story. People already match the story. ${castLine(m.cast - m.people, m.homes - 1)} ${m.place} is ${the(m.home.name)}. ${m.lived} ${ARC}`));
 });
 
 /* The owner's night at Dewayne's house, saved at rules version 3 with the
@@ -672,6 +699,8 @@ function noClock(json) {
   const st = typeof json === 'string' ? JSON.parse(json) : JSON.parse(JSON.stringify(json));
   delete st.time;
   delete st.meta.rulesVersion;
+  // Wave 30: version 9 gives every memory its kind and rebuilds where people stand (rel); their words, weights and attitudes stay.
+  for (const n of st.npcs || []) { delete n.rel; n.memories = plainAll(n.memories); }
   return JSON.stringify(st);
 }
 
@@ -685,7 +714,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   const after = await stateJson(page);
   const st = JSON.parse(after);
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true }, 'night again, late in it');
-  assert.equal(st.meta.rulesVersion, 8);
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
   assert.equal(noClock(after), noClock(before), 'everything else byte for byte');
   const r = await page.evaluate(() => ({
     calls: Game.Api.Mock.calls.map(c => c.method), packet: Game.Api.Mock.calls.filter(c => c.method === 'checkClock').pop().text,
@@ -698,7 +727,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.match(r.packet, /^CLOCK NOW: day 2, morning \(early in the phase; 0 of 3 short actions gone\)\n/);
   assert.ok(r.packet.indexOf('TURN 10 (day 1, night)') < r.packet.indexOf('TURN 11 (day 2, morning)\nPLAYER: Go to the back bedroom and let him lead'), 'oldest first');
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
-  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
+  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why.', 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
   assert.ok(r.narr.startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
@@ -716,19 +745,20 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
 });
 
-s.test('version 4: a save whose story matches its clock is left as it is and stamped 8; a reply that would move the clock forward is ignored; a re-read of a fixed clock changes nothing', async h => {
+s.test('version 4: a save whose story matches its clock is left as it is and stamped with the current version; a reply that would move the clock forward is ignored; a re-read of a fixed clock changes nothing', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const before = await writeNightSave(page, { last: 'The diner is loud with the breakfast crowd, and somebody is burning toast behind the counter.' });
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.'], [5, 'People match the story', 'People already match the story.'], [6, 'A full cast', 'The cast is complete.'], [7, 'A lived-in town', 'The town is already lived in.'], [8, 'An arc', ARC]]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.'], [5, 'People match the story', 'People already match the story.'], [6, 'A full cast', 'The cast is complete.'], [7, 'A lived-in town', 'The town is already lived in.'], [8, 'An arc', ARC], [9, 'People who remember', res.summaries.find(x => x.version === 9).text]]);
+  assert.match(res.summaries.find(x => x.version === 9).text, new RegExp(`^${NINE}$`));
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 2, phase: 'morning', shorts: 0 });
-  assert.equal(st.meta.rulesVersion, 8, 'stamped');
+  assert.equal(st.meta.rulesVersion, await rulesNow(page), 'stamped');
   assert.equal(noClock(st), noClock(before));
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.');
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine('The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.'));
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method)), ['checkClock']);
   // The clock never moves forward: a later phase on the same day is ignored...
   await page.evaluate(() => Game.Api.Mock.queue('checkClock', { behind: true, phase: 'evening', dayOffset: 0, reason: 'It is evening.' }));
@@ -811,8 +841,8 @@ s.test('version 4 against the real provider: one structured-output call on the p
   assert.ok(user.trim().endsWith(BEDROOM), 'the latest narration last');
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true });
-  assert.equal(st.meta.rulesVersion, 8);
-  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc.', 'Day 1 · Night']);
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
+  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why.', 'Day 1 · Night']);
   assert.match(await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | ')), /clock: day 2, morning -> day 1, night \(He is taking his boots off for bed; nobody has slept yet\.\)/);
 });
 
@@ -932,7 +962,7 @@ s.test('versions 5, 6 and 7 on a save at version 4: a tables-made "Mavis Toler",
   assert.deepEqual(await page.evaluate(() => Game.Upgrade.madeUp(Game.state).map(n => n.id)), ['npc_mavis_toler'], 'version 5 treats the cast as the town\'s own people');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true, JSON.stringify(res));
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember']]);
   const r = await page.evaluate(m => {
     const S = Game.State;
     return {
@@ -942,18 +972,18 @@ s.test('versions 5, 6 and 7 on a save at version 4: a tables-made "Mavis Toler",
       feed: document.querySelector('#feed .f-notice:last-child').textContent, cast: Game.Pipeline.castBlock(), ties: S.tiesOf(S.npc(m.owner.id)).has.map(x => [x.id, x.relation])
     };
   }, m);
-  assert.equal(r.v, 8, 'stamped 8');
+  assert.equal(r.v, await rulesNow(page), 'stamped with the current version');
   assert.equal(r.fixed, true, 'and the cast is fixed');
   assert.deepEqual(r.calls.filter(c => c === 'fixPeople'), ['fixPeople'], 'one call (version 6 makes none)');
   assert.ok(r.packet.includes('PERSON npc_mavis_toler (made by the game from random tables when the player first asked for them)\n  name: Mavis Toler\n  pronouns: he/him\n  role: Man\n'), r.packet);
   assert.ok(r.packet.includes("his wife Mavis is gonna be thrilled") && r.packet.includes('My wife Mavis works the night counter'), 'every narration that names her');
   assert.ok(r.packet.includes(`PEOPLE (everyone in the game): `) && r.packet.includes(`${m.owner.id} — ${m.owner.name} (he/him; `), 'everyone, with pronouns');
-  assert.equal(r.feed, `Fixed 1 person to match the story: Mavis Toler is ${m.owner.first}'s wife (she/her). ${castLine(m.cast - m.people + 1, m.homes - 1)} ${m.owner.first}'s house is ${the(m.home.name)}. Mavis Toler is now ${m.wife.name} (${m.owner.first}'s wife). ${m.lived} ${ARC}`);
+  assert.match(r.feed, withNine(`Fixed 1 person to match the story: Mavis Toler is ${m.owner.first}'s wife (she/her). ${castLine(m.cast - m.people + 1, m.homes - 1)} ${m.owner.first}'s house is ${the(m.home.name)}. Mavis Toler is now ${m.wife.name} (${m.owner.first}'s wife). ${m.lived} ${ARC}`));
   // One Mavis: the cast's, with what the old game knew about her.
   assert.equal(r.gone, true, 'the made-up record is gone');
   assert.equal(r.people, m.cast, 'exactly the cast');
   assert.deepEqual([r.n.name, r.n.pronouns, r.n.role, r.n.look], [m.wife.name, 'she', m.wife.role, m.wife.look], 'the cast\'s own record');
-  assert.deepEqual(r.n.memories, before.memories, 'her memories kept');
+  assert.deepEqual(plainAll(r.n.memories), plainAll(before.memories), 'her memories kept (version 9 adds what kind of thing each was)');
   assert.deepEqual([r.n.knownToPlayer, r.n.attitude], [true, before.attitude], 'met, and as she felt about the player');
   assert.deepEqual(r.n.home, { locationId: m.home.id, phases: m.wife.phases }, 'she lives where the cast says');
   assert.ok(r.ties.some(([id, rel]) => id === m.wife.id && rel === 'wife'), 'his wife: ' + JSON.stringify(r.ties));
@@ -971,7 +1001,7 @@ s.test('versions 5, 6 and 7 on a save at version 4: a tables-made "Mavis Toler",
   // A re-read finds everyone already right: nothing changes.
   const same = await stateJson(page);
   const res2 = await page.evaluate(() => Game.App.updateGame());
-  assert.deepEqual(res2.summaries.filter(x => x.version >= 5).map(x => x.text), ['People already match the story.', 'The cast is complete.', 'The town is already lived in.', ARC]);
+  assert.deepEqual(res2.summaries.filter(x => x.version >= 5).map(x => x.text), ['People already match the story.', 'The cast is complete.', 'The town is already lived in.', ARC, 'People already remember why.']);
   assert.equal(await stateJson(page), same);
   // /undo takes the update back: a man again, no cast, version 4.
   await sendText(page, '/undo');
@@ -994,7 +1024,7 @@ s.test('version 5 on the owner\'s actual case: the wife named once by her husban
   assert.match(turnLines[3], /^  TURN 5 \(day 1, afternoon\): .*my husband/);
   assert.match(r.packet, /PERSON npc_mavis_toler \(made by the game from random tables/);
   assert.equal(res.summaries.find(x => x.version === 5).text, `Fixed 1 person to match the story: Mavis Toler is ${m.owner.first}'s wife (she/her).`, 'his wife, she/her');
-  assert.equal(r.v, 8);
+  assert.equal(r.v, await rulesNow(page));
   // The real rule the model gets says so too.
   const sys = await page.evaluate(() => Game.Api.SYSTEM.people);
   assert.match(sys, /a stated relation outranks everything else/);
@@ -1032,7 +1062,7 @@ s.test('versions 6 and 7 on the owner\'s actual save: Mavis Toler is now the cas
   }, m);
   assert.equal(r.old, false, 'the old record is gone');
   assert.deepEqual([r.n.name, r.n.pronouns, r.n.role], [m.wife.name, 'she', m.wife.role]);
-  assert.deepEqual(r.n.memories, [{ turn: 4, text: 'woke me up knocking', weight: 2 }], 'her memories kept');
+  assert.deepEqual(plainAll(r.n.memories), [{ turn: 4, text: 'woke me up knocking', weight: 2 }], 'her memories kept (version 9 adds what kind of thing each was)');
   assert.equal(r.n.knownToPlayer, true, 'the player has met her');
   assert.equal(r.n.home.locationId, m.home.id, 'at the white house, the home the cast wrote');
   assert.equal(r.home, m.home.id, 'and so is her husband');
@@ -1059,10 +1089,10 @@ s.test('versions 5 and 6 on a save with nobody made up: no call, "People already
   await page.waitForSelector('#screen-game.active');
   await waitIdle(page);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 8);
+  assert.equal(st.meta.rulesVersion, await rulesNow(page));
   assert.equal(st.meta.castFixed, true);
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method)), [], 'no call');
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `People already match the story. ${castLine(m.cast - m.people, m.homes)} ${m.lived} ${ARC}`);
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine(`People already match the story. ${castLine(m.cast - m.people, m.homes)} ${m.lived} ${ARC}`));
   const T = await page.evaluate(() => Game.data.TOWN_DATA);
   assert.deepEqual(st.npcs.map(n => n.id).sort(), T.npcs.map(n => n.id).sort(), 'the whole cast');
   assert.deepEqual(st.locations.map(l => l.id).sort(), T.locations.map(l => l.id).sort(), 'every place');
@@ -1077,7 +1107,8 @@ s.test('versions 5 and 6 on a save with nobody made up: no call, "People already
     const n = st.npcs.find(x => x.id === o.id);
     const t = T.npcs.find(x => x.id === o.id);
     // Version 7 then fills in what the town data says and the old record lacks: an age, a presence, a history.
-    const strip = x => { const c = Object.assign({}, x); for (const k of ['relations', 'home', 'age', 'presence', 'history']) delete c[k]; return JSON.stringify(c); };
+    // Wave 30: version 9 then rebuilds where they stand (rel; their attitude stays) and says what kind of thing each memory was.
+    const strip = x => { const c = Object.assign({}, x); for (const k of ['relations', 'home', 'age', 'presence', 'history', 'rel']) delete c[k]; c.memories = plainAll(c.memories); return JSON.stringify(c); };
     assert.equal(strip(n), strip(o), 'unchanged: ' + o.id);
     assert.deepEqual([n.age, n.presence, n.history], [t.age, t.presence, t.history], 'lived in: ' + o.id);
     assert.deepEqual(n.relations, t.relations, 'relations: ' + o.id);
@@ -1235,8 +1266,9 @@ s.test('version 7 on a save at version 6: the dead, the far away and the places 
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true, JSON.stringify(res));
   const text = `Added ${m.absent.length} people the story names (${m.dead} dead, ${m.away} living elsewhere) and ${m.newPlaces.length} places (${m.inTown} in town, ${m.out} out of town). Filled in the ages and histories of ${m.kept} people and the history, details and hours of ${m.keptPlaces} places. ${m.name} is ${m.age}, the age a ${m.bg} starts at.`;
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[7, 'A lived-in town', text], [8, 'An arc', ARC]]);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), `${text} ${ARC}`);
+  assert.deepEqual(res.summaries.filter(x => x.version < 9).map(x => [x.version, x.title, x.text]), [[7, 'A lived-in town', text], [8, 'An arc', ARC]]);
+  assert.match(res.summaries.find(x => x.version === 9).text, new RegExp(`^${NINE}$`));
+  assert.match(await page.textContent('#feed .f-notice:last-child'), withNine(`${text} ${ARC}`));
   assert.deepEqual(await page.evaluate(() => Game.Api.Mock.calls.map(c => c.method)), [], 'no call: version 7 is the town data');
   const r = await page.evaluate(() => {
     const G = Game;
@@ -1255,7 +1287,7 @@ s.test('version 7 on a save at version 6: the dead, the far away and the places 
       dead: st.npcs.filter(n => G.presenceOf(n) === 'dead').map(n => [n.alive, n.status, !!n.died])
     };
   });
-  assert.equal(r.v, 8);
+  assert.equal(r.v, await rulesNow(page));
   assert.deepEqual(r.people, r.cast, 'everyone the town data has');
   assert.deepEqual(r.places, r.castPlaces, 'every place the town data has');
   assert.deepEqual([r.missing, r.bare], [[], []], 'everyone with an age, a history and a presence; every place with details, hours and a history');

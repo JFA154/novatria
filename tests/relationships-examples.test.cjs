@@ -12,7 +12,8 @@
    wave 29 (A4) adds the ones about what people hold: 2 (the garage money,
    its A part), 6 (Trent), 8 (Burl), 10 (Shayla and Jodie), 11 (Hollis),
    12 (Glenda's $200, three ways) and 14 (coercion fails; the minor variant
-   is tests/relationships.test.cjs's).
+   is tests/relationships.test.cjs's); wave 30 (A5) makes example 3 whole:
+   (a) the confidant and (c) the bully, each to the council.
    Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
@@ -258,6 +259,164 @@ s.test('example 3(b), Royce the drinking buddy (A): rounds, compliments and time
   }
 });
 
+/* Wave 30 (A5): example 3 whole. (b) is above; (a) the confidant and (c)
+   the bully play through to the council, which reads trust (the town's
+   relAtLeast), not beers and not fear. */
+const ex3 = page => page.evaluate(() => {
+  const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state;
+  M.delay = 0;
+  S.apply({ npcKnownToPlayer: ['npc_royce', 'npc_elbert'] });
+  window.__ex3 = {
+    put(loc, ids) {
+      S.apply({ playerLocationId: loc });
+      if (ids.length) S.apply({ visits: ids.map(id => ({ npcId: id, locationId: loc })) });
+      const others = S.npcsAt(loc).map(n => n.id).filter(id => !ids.includes(id));
+      if (others.length) S.apply({ visits: others.map(id => ({ npcId: id, locationId: 'loc_front_street' })) });
+    },
+    say(words, book, narration) {
+      M.queue('parse', { actionType: 'talk', summary: words, targets: ['npc_royce'], needsRoll: false, timeCost: 'instant', romantic: null });
+      if (narration) M.queue('narrate', { text: narration });
+      if (book) M.queue('bookkeep', book);
+      return G.Pipeline.submit(words, { mode: 'say', to: 'npc_royce' });
+    },
+    afternoon(d, ids) {
+      S.apply({ setTime: { day: d, phase: 'morning' } });
+      let k = 0;
+      while (st.time.phase !== 'afternoon' && k++ < 4) G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+      this.put('loc_low_water', ids || ['npc_royce']);
+    },
+    sleep() { const d = st.time.day; let k = 0; while (st.time.day === d && k++ < 6) G.Pipeline.passTime({ cost: st.time.phase === 'night' ? 'rest' : 'long', cause: st.time.phase === 'night' ? 'rest' : 'wait' }, st.time.phase === 'night' ? 'rest' : 'wait'); },
+    royce() { const n = S.npc('npc_royce'); const t = R.tracksOf(n); const s = R.stance(n); return { day: st.time.day, w: t.w, t: t.t, f: t.f, k: t.k, stance: s.phrase, tags: s.tags, mems: n.memories.map(m => m.event) }; },
+    // The council branch that holds, with the player at Town Hall or elsewhere.
+    council(at) {
+      const ev = G.data.TOWN_DATA.events.find(e => e.id === 'evt_council_meeting');
+      const i = ev.branches.findIndex(b => G.World.conditionsMet(b.when, at ? { playerAt: at } : { playerAway: true }));
+      const b = i >= 0 ? ev.branches[i] : ev.default;
+      return { royce: i >= 0 && !!b.when.relAtLeast && !!b.when.relAtLeast.npc_royce ? Object.assign({}, b.when.relAtLeast.npc_royce) : null, tabled: b.effects.some(e => e.key === 'bridgeVoteTabled'), text: b.text };
+    }
+  };
+});
+
+s.test('example 3(a), Royce the confidant (A): four afternoons, a confidence each way and a word kept with Elbert asking make him "in your corner" at trust 32, and the council is tabled on trust; the staged version is downgraded and the branch fails', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await ex3(page);
+  const r = await page.evaluate(async () => {
+    const x = window.__ex3;
+    for (let d = 2; d <= 5; d++) {
+      x.afternoon(d, d === 5 ? ['npc_royce', 'npc_elbert'] : null);
+      if (d === 4) await x.say('Carter wrote you a note about the station?', { socialEvents: ['npc_royce they_confided: told me about the note Carter wrote on the station', 'npc_royce confided: I told him why I really came to town'] });
+      else if (d === 5) await x.say('I would not say.', { socialEvents: ['npc_royce kept_word: kept quiet when Elbert asked how I\'d vote'] }, 'Elbert Gentry leans over from the card table. "So how\'s Royce going to vote?" he asks you. You say nothing, and Royce lets out a breath.');
+      else await x.say('Quiet afternoon.');
+      x.sleep();
+    }
+    return { day6: x.royce(), away: x.council(null), hall: x.council('loc_town_hall') };
+  });
+  // The design's W 29, T 32, K 46 assumes three turns aimed at him a day (K +12); with one an afternoon the code has
+  // W 26, T 32, K 32 on the morning of Day 6 (design.md says so). Trust, the number the vote reads, is the design's.
+  assert.deepEqual([r.day6.w, r.day6.t, r.day6.k], [26, 32, 32]);
+  assert.equal(r.day6.stance, 'in your corner');
+  assert.deepEqual(r.day6.mems, ['they_confided', 'confided', 'kept_word'], 'the kept word held: Elbert asked, with Royce there, a day after the confidence');
+  // The council: trust 30 and knows 25 holds, from anywhere: tabled, the police kept.
+  for (const c of [r.away, r.hall]) {
+    assert.deepEqual(c.royce, { trust: 30, knows: 25 });
+    assert.equal(c.tabled, true);
+    assert.match(c.text, /somebody to talk it through with/);
+  }
+  // The fake path: a Day-1 confidence, then "Carter asked me and I told him nothing" on Day 2 with nobody asking
+  // (the confidence not a day old, Carter not there): downgraded to confided (T +6), and the trust branch fails.
+  const page2 = await h.open();
+  await quickStart(page2, { kinds: [] });
+  await ex3(page2);
+  const f = await page2.evaluate(async () => {
+    const x = window.__ex3, S = Game.State;
+    S.apply({ setTime: { day: 1, phase: 'afternoon' } });
+    x.put('loc_low_water', ['npc_royce']);
+    await x.say('Carter wrote you a note about the station?', { socialEvents: ['npc_royce they_confided: told me about the note Carter wrote on the station'] });
+    x.sleep();
+    x.afternoon(2);
+    await x.say('Carter asked me and I told him nothing.', { socialEvents: ['npc_royce kept_word: Carter asked me and I told him nothing'] }, 'Royce Pittman nods slowly. "Carter asked me and I told him nothing," you say, and he lets out a breath.');
+    const day2 = x.royce();
+    for (let d = 3; d <= 5; d++) { x.sleep(); x.afternoon(d); await x.say('Quiet afternoon.'); }
+    x.sleep();
+    return { day2, day6: x.royce(), away: x.council(null), hall: x.council('loc_town_hall') };
+  });
+  assert.deepEqual(f.day2.mems, ['they_confided', 'confided'], 'kept_word downgraded');
+  assert.equal(f.day6.t, 13, 'trust 5 + 4 + 6, faded a little');
+  assert.ok(f.day6.t < 30 && f.day6.stance !== 'in your corner', JSON.stringify(f.day6));
+  assert.equal(f.away.royce, null, 'from elsewhere no Royce branch');
+  // From the back row, he is warm enough (liking 15) for the friendly face; that is all.
+  assert.deepEqual(f.hall.royce, { liking: 15 });
+});
+
+s.test('example 3(c), Royce the bully (A): threatened on Days 4 and 5 he is afraid of you, tells Chief Bell, who cools; the council has no fear branch; what the player knows about him frightens him, and the vote still reads trust', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await ex3(page);
+  const f0 = await feedCount(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state, x = window.__ex3;
+    const out = { days: [] };
+    for (const d of [4, 5]) {
+      S.apply({ setTime: { day: d, phase: 'morning' } });
+      x.put('loc_pittmans', ['npc_royce']);
+      M.queue('parse', { actionType: 'intimidate', summary: 'Threatens Royce over the vote', targets: ['npc_royce'], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' });
+      G.Pipeline.hooks.nextTier = 'success';
+      await G.Pipeline.submit('Vote the bridge down or I burn your pumps.');
+      out.days.push(x.royce());
+      if (d === 4) x.sleep();
+    }
+    x.sleep();
+    S.apply({ setTime: { day: 6, phase: 'evening' } });
+    out.tuesday = x.royce();
+    const sd = st.seeds.find(s => s.origin && s.origin.kind === 'report' && s.origin.npcId === 'npc_royce');
+    out.seed = sd ? { protectors: sd.origin.protectors, effect: sd.effect, due: sd.trigger.value } : null;
+    out.away = x.council(null);
+    out.hall = x.council('loc_town_hall');
+    for (let i = 0; i < 3 && sd && !sd.fired; i++) await G.Pipeline.submit('/rest');
+    out.fired = !!(sd && sd.fired);
+    const mem = S.npc('npc_marcus').memories.find(m => m.event === 'crossed');
+    out.marcus = mem ? { text: mem.text, w: mem.d.w, t: mem.d.t } : null;
+    return out;
+  });
+  const [d4, d5] = r.days;
+  assert.deepEqual([d4.w, d4.t, d4.f, d4.stance], [0, -4, 31, 'sizing you up']);
+  // Day 5: F 66, W -14, T -15 (the code: -16), "afraid of you"; one memory, merged.
+  assert.equal(d5.f, 66);
+  near(d5.w, -14, 'liking');
+  near(d5.t, -15, 'trust');
+  assert.equal(d5.stance, 'afraid of you');
+  assert.deepEqual(d5.mems, ['threatened']);
+  // Tuesday evening: 55 (the code: 56).
+  near(r.tuesday.f, 55, 'fear by Tuesday evening');
+  assert.equal(r.tuesday.stance, 'afraid of you');
+  // The report: threat-made fear fires whatever the liking; his protector is the police.
+  assert.deepEqual(r.seed && r.seed.protectors, ['npc_marcus']);
+  assert.equal(r.seed.effect, 'Royce Pittman goes to Marcus Bell and says Tester has been leaning on them, and Marcus Bell writes it down.');
+  assert.equal(r.fired, true);
+  // Marcus: W -5, T -11.5 (police row, scaled by his guardedness, g -1), rounded.
+  assert.deepEqual(r.marcus, { text: 'Royce Pittman came to me saying Tester has been leaning on them.', w: -5, t: -12 });
+  // The council: the fear branch is out of the plan. From elsewhere nothing of Royce's; at Town Hall not even the friendly face.
+  assert.equal(r.away.royce, null);
+  assert.equal(r.hall.royce, null);
+  // The feed: Day 4 the fear shows ("gives you room"); Day 5 the merged threat is one he won't forget, one line a person.
+  const feed = (await feedSince(page, f0)).filter(t => /^Royce Pittman /.test(t));
+  assert.deepEqual(feed.slice(0, 2), ['Royce Pittman gives you room.', 'Royce Pittman won\'t forget that.']);
+  // Leverage on Royce (his Carter secret, weight 3): fear of what you know 30, as Mavis's in example 2, so the code reads
+  // "you have something on them · uneasy around you" (the override, "afraid of what you know", is fear 40; design.md
+  // says so). The vote still reads trust.
+  const lev = await page.evaluate(() => {
+    const G = Game, S = G.State, R = G.Rel, x = window.__ex3;
+    S.apply({ relSet: { npcId: 'npc_royce', w: 10, t: 5, f: 0 } });
+    S.apply({ leverageAdd: { holder: 'player', over: 'npc_royce', about: { kind: 'secret' }, text: 'took Carter\'s note on the station and a cut of the truck stop', weight: 3, aware: true } });
+    const n = S.npc('npc_royce');
+    return { stance: R.stance(n), f: R.tracksOf(n).f, away: x.council(null) };
+  });
+  assert.equal(lev.f, 30);
+  assert.deepEqual(lev.stance.tags.slice(0, 2), ['you have something on them', 'uneasy around you'], JSON.stringify(lev.stance));
+  assert.equal(lev.away.royce, null, 'the vote still reads trust');
+});
+
 s.test('example 5, the surveyor who wasn\'t (A): a claim held, a lie logged, the lie caught: Marcus at W -10, T -50, "suspicious of you"; lies to him are very hard and his secret is shut', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
@@ -415,16 +574,16 @@ s.test('example 6, Trent: fond of you, doesn\'t trust you (A): three nights at t
   assert.equal(r.after[2], 0, 'no leverage');
   assert.equal(r.after[3], 'caught_you_at for npc_trent refused: more than one other person was there: no secret to hold', 'N8');
   assert.deepEqual(r.after[4], [false, false, false], 'no couch (trust under 0), no ramp warning (trust 30), his secret shut');
-  // "Stops taking your word" is wave 30's feed; no band crosses (warm to fond is still liking 25).
-  assert.deepEqual(r.feed5, []);
+  // Wave 30's feed: trust crosses into distrusts, "stops taking your word"; no liking band crosses (warm to fond is still liking 25).
+  assert.deepEqual(r.feed5, ['Trent Haskins stops taking your word.']);
   // Day 7: T +18 and the lie fading (forgiving): the design's T -6, W 30.
   near(r.d7[0].w, 30, 'Day 7 liking');
   near(r.d7[0].t, -6, 'Day 7 trust');
   assert.deepEqual([r.d7[0].w, r.d7[0].t], [28, -7]);
   assert.deepEqual(r.d7[1], ['warm to you']);
   assert.deepEqual(r.d7[2], ['kept_word'], 'Lamar named and present, not the confider, the confidence from Day 4');
-  // "Is willing to hear you out again" is wave 30's; the band line says he warms.
-  assert.deepEqual(r.feed7, ['Trent Haskins warms to you.']);
+  // Wave 30's feed: trust back out of distrusts, "is willing to hear you out again" (the old four-level band line said he warms; his liking stays warm).
+  assert.deepEqual(r.feed7, ['Trent Haskins is willing to hear you out again.']);
 });
 
 s.test('example 8, Burl: owes you, paid back unasked (A): two favours make him owe you big; he likes you under 25, so his payback is no cash, it comes due Day 6 and spends the debt', async h => {
@@ -461,8 +620,8 @@ s.test('example 8, Burl: owes you, paid back unasked (A): two favours make him o
   assert.equal(r.seed[0][4], true);
   assert.equal(r.after[0].owed, 0, 'square');
   assert.deepEqual(r.after[1], ['friendly']);
-  // The design's three lines, with the band line for Day 2's warmth between them.
-  assert.deepEqual(r.feed, ['Burl Satterfield owes you one.', 'Burl Satterfield warms to you.', 'Burl Satterfield owes you again.', 'Burl Satterfield is square with you.']);
+  // The design's lines, one a person a turn (wave 30): on Day 2 his warming outranks the favour, then he owes you again, then he is square.
+  assert.deepEqual(r.feed, ['Burl Satterfield warms to you.', 'Burl Satterfield owes you again.', 'Burl Satterfield is square with you.']);
 });
 
 s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark against caring; Shayla is using you, Travis sees a flirt and cools, Jodie is sweet on you and says not tonight, kindly', async h => {
@@ -534,8 +693,8 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
   // Travis sees the flirt (the jealousy rule): W -9, T -20, exactly the design's.
   assert.deepEqual([r.travis[0].w, r.travis[0].t], [-9, -20]);
   assert.deepEqual(r.travis[1], ['cool to you']);
-  // His band line is wave 27's for a harm memory crossing out of neutral; the design's "cools toward you" is wave 30's (design.md says so).
-  assert.ok(r.feed3.includes('Travis Cagle won\'t forget that.'), JSON.stringify(r.feed3));
+  // His band line is the design's "cools toward you" (wave 30: liking over seven bands; a weight-2 harm is not "won't forget that").
+  assert.ok(r.feed3.includes('Travis Cagle cools toward you.'), JSON.stringify(r.feed3));
   // By Day 4: the design's W 13, T -31, S 43 (the code's liking 11: the memories fade a little over the two days).
   near(r.d4[0].w, 13, 'Shayla\'s liking');
   near(r.d4[0].t, -31, 'Shayla\'s trust');

@@ -107,7 +107,7 @@ s.test('the narrator knows the story: loose ends from the other side (the credit
     n.metTurn = st.meta.turn;
     const p1 = G.Pipeline.narratorPacket({ action: { summary: 'x' }, revealSecretFor: [n.id] });
     const names = st.player.looseEnds.map(x => G.State.npc(x.npcId).name);
-    return { p0, p1, n: { name: n.name, look: n.look, goal: n.goal, secret: n.secret, traits: n.personality, attitude: n.attitude, word: G.State.attitudeWord(n.attitude) }, names, text: le.text, player: st.player.name };
+    return { p0, p1, n: { name: n.name, look: n.look, goal: n.goal, secret: n.secret, traits: n.personality, attitude: n.attitude, stance: G.Rel.stance(n).phrase, cue: G.Rel.cue(n) }, names, text: le.text, player: st.player.name };
   });
   const loose = line(r.p0, 'LOOSE ENDS');
   assert.ok(loose.startsWith(`LOOSE ENDS: ${r.n.name} is owed money by ${r.player} from before ${r.player} came here, and wants it (here now; ${r.player}'s own words: "${r.text}")`), loose);
@@ -119,8 +119,10 @@ s.test('the narrator knows the story: loose ends from the other side (the credit
   const low = t => t.charAt(0).toLowerCase() + t.slice(1).replace(/\.$/, '');
   assert.ok(mine.includes(`traits: ${r.n.traits.join(', ')}`), mine.slice(0, 300));
   assert.ok(mine.includes(`wants (never say this outright; it steers what they push for and dodge): ${low(r.n.goal)}`));
-  assert.ok(mine.includes(`attitude ${r.n.attitude} (${r.n.word})`));
-  assert.ok(mine.includes('remembers: tied to ' + r.player + ' by a debt (see LOOSE ENDS)'), 'the loose end memory is kept, from their side');
+  // Changed by design in wave 30: where they stand in words ("to you: <stance> — plays it: <cue>"), never the attitude number; the loose end is what they hold the player to.
+  assert.ok(mine.includes(`to you: ${r.n.stance}`) && mine.includes(`plays it: ${r.n.cue}`), mine.slice(0, 600));
+  assert.ok(!/attitude -?\d/.test(mine), 'no number');
+  assert.ok(mine.includes('holds you to: tied to ' + r.player + ' by a debt (see LOOSE ENDS)'), 'the loose end memory is kept, from their side');
   assert.ok(mine.includes('look: ' + low(r.n.look)), 'not met face to face yet: the look stays');
   assert.ok(!r.p0.toLowerCase().includes(low(r.n.secret).toLowerCase()), 'no secret without revealSecretFor');
   const mine1 = line(r.p1, 'PRESENT');

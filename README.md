@@ -327,11 +327,11 @@ them succeeds, once they trust you and know you (trust 40 and knows-you 30),
 or when a threat that worked has left them badly afraid of you (fear 60);
 nobody under 18 gives one up out of fear.
 
-The People tab lists who is here now, who you have met, with how they feel
-about you, where you last saw them and what they remember, then the people you
+The People tab lists who is here now, who you have met, with where they stand
+with you, where you last saw them and what they remember, then the people you
 have only heard of. A search box at the top (name, job, or a place you saw
 them or they live) stays put while the list scrolls, and the people you know
-can be sorted by last seen, attitude or name. Everyone has an age and pronouns
+can be sorted by last seen, how they feel or name. Everyone has an age and pronouns
 (he/him, she/her or they/them), shown beside their name on the card ("Mavis
 Mangum · 41", she/her), and the narrator gets the same age and pronouns right
 after each person's name, so the story and the sheet always agree. An open
@@ -356,12 +356,32 @@ of Dewayne Mangum, son of the late Inez Crocker", and Dewayne's card reads
 him." becomes "A woman with a bitter look about her."; words in quotes are
 left alone).
 
+**Where they stand, in words.** A card's row says where someone stands with
+you, never a number: "warm to you", "sizing you up", "suspicious of you",
+"afraid of you", "fond of you, doesn't trust you", tinted by the side it
+falls on (on yours, mixed, against you), with one thing more beside it
+("owes you", "uneasy around you", "has something on you"). Open the card and
+it says why: up to two things they remember, each with its day and how it
+was made good if it was ("You called him a cheat in his own shop. Day 2 ·
+you apologised"), what is held between you ("You know: runs the landing's
+cash through his pawn books."), what is owed either way, their ties and
+notes. Something they heard through someone you can't see shows only its
+day: "Cooler since Day 3. Hasn't said why." **More** opens each side of it
+in a word: Likes you, Trusts you, Scared, Knows you, and, for an adult on the
+romance list who has a status with you, Interested; never for anyone under
+18, and never when you are. Something said where you weren't stays off the
+card until you see them again.
+
 When someone you know crosses a line in how they feel about you, a quiet line
-says so after the turn: "Loretta Gaddis warms to you.", "... cools toward
-you." or "... won't forget that." Quiet lines also say what people come to
-want of you, what they hold and what is owed ("Jodie Strayhorn is sweet on
-you.", "Hollis Byrd knows you know.", "Burl Satterfield owes you one."), each
-status line at most once a week a person.
+says so after the turn, at most two a turn, the one that matters most first,
+one a person: "... won't forget that." (a serious harm, first-hand), "... is
+afraid of you." or "... gives you room.", "... stops taking your word." or
+"... takes you at your word now.", "Loretta Gaddis warms to you." or "...
+cools toward you.", "... lets some of it go." (an apology or amends that
+landed). Quiet lines also say what people come to want of you, what they hold
+and what is owed ("Jodie Strayhorn is sweet on you.", "Hollis Byrd knows you
+know.", "Burl Satterfield owes you one."), each status line at most once a
+week a person. Overnight fading, `/undo` and your own edits print none.
 
 **People remember what you did for what it was.** The game itself sees a good
 deal and records it as what happened, not as a number: a blow in a fight, a
@@ -479,10 +499,17 @@ back, twice, and then hold it against you.
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
 pronouns, or type `/edit Mavis`. The form has their name, age, pronouns, role,
-up to three traits, how they feel about you (-100 to 100), who they are to
-whom, their home, whether they are free, arrested, gone or dead, and what they
-remember about you; look, voice and history sit folded under their own
-heading, and their goal and secret under "Hidden from you". **Save** checks
+up to three traits, how they feel about you (four sliders, each with its word
+as you drag: likes you and trusts you from -100 to 100, scared and knows you
+from 0 to 100, and Interested only for an adult on the romance list, held at
+0 and shut for anyone under 18), who
+they are to whom, their home, whether they are free, arrested, gone or dead,
+and what they remember about you (each line keeps what it was, shown beside
+it, and a line you add picks what it was from a list); what is held between
+you can be deleted, and then it is gone for good. Look, voice and history sit
+folded under their own heading, and their goal and secret under "Hidden from
+you". A number you set stays exactly as set; deleting a memory leaves the
+numbers where they were. **Save** checks
 everything first (a name someone else has is refused with the reason, and the
 form stays as typed), changes only what you changed, and says so in the story
 ("Edited Mavis Mangum: pronouns, role, home."); Cancel or Escape leaves them
@@ -538,11 +565,16 @@ call, under the heading "Where things stand", one line each with its kind in
 bold: where and when, **Here**, **Open** (the threads you know), **Owed** (due
 days, missed ones still owed ("missed Day 7, still owed"), part payments, and
 what people owe you for keeping quiet: "Hollis Byrd: $300 for keeping quiet,
-due Day 4 (1 day)"),
+due Day 4 (1 day)", and favours either way: "Burl Satterfield owes you one",
+"you owe Lorna Purvis one"),
 **Warm to you** and **Cold to you** (three each, among people you have met, are
-tied to by a loose end, or who remember something of you; with the attitude
-word and at most one reason that fits the side: "your loose end: a debt", or
-"remembers you fixed the fuel pump"), **Heard** (the last three rumours) and
+tied to by a loose end, or who remember something of you; with where they
+stand and at most one reason that fits the side: "Royce Pittman (warm to you:
+you bought him a round)", "Mavis Mangum (against you: you told Dewayne about
+the garage money)", "your loose end: a debt"), **Careful** (three at most:
+someone mixed about you, fond but not trusting, using you, afraid of you or of
+what you know, or holding something over you: "Glenda Pryor (has something on
+you)"), **Heard** (the last three rumours) and
 **In town** (the last two news items, by day). Here and Open are always there,
 the rest only when they have something; long text is cut at a word with "…". It
 also shows after Continue and after `/rest` (there without In town when
@@ -742,9 +774,13 @@ Bell in the room. Be there and it happens in front of you (`/skip to Town Hall
 in the evening`, or a walk that gets you there as the evening starts; not a
 night slept through there); otherwise you hear it the next morning. What the
 council does depends on who has got to Royce Pittman, the swing vote, first,
-whether the bridge report still stands, how Royce feels about you, whether you
-are in the room (at 15 or more, seeing you in the back, he moves to table the
-bridge) and whether you paid Curtis Pruett. A member in the holding cell does
+whether the bridge report still stands, where Royce stands with you, whether
+you are in the room and whether you paid Curtis Pruett. It weighs trust, not
+beers: someone he trusts and who knows him (trust 30, knows you 25) has been
+somebody to talk it through with, and he moves to table the bridge wherever
+you are; liking alone (15 or more) only moves him when he sees you in the
+back; after Carter has bought him, second thoughts need trust 20. Frightening
+him buys nothing. A member in the holding cell does
 not vote, and every outcome settles the police vote too: one that keeps the
 police settles that story (Disbanding the police) at the meeting. Its
 Resolved line, its gain and the Journal's change come when you hear of the
@@ -1181,7 +1217,7 @@ happened to them.
 | `/rest` | Sleep until morning: 3 HP in a bed, 1 sleeping rough (see Time). The world ticks through the night. The recap follows | Narrator (and the bookkeeper when something due happens) |
 | `/wait <phase>` | Wait where you are until the start of morning, afternoon, evening or night | Narrator (and the bookkeeper when something due happens) |
 | `/fact <statement>` | Spend a story point to make a statement true in the world ("/fact the mechanic owes me a favour", "/fact Jodie grew up in Clayburn"): the narrator and the bookkeeper treat it as so from then on, and it is kept on the person's card as a protected memory (it never grows a grudge). What it says about how someone stands with you was so before you came: "owes me" puts them in your debt (one favour), "go back", "old friend" or "grew up with" means they know you, "trusts me" adds 15 of trust and "likes me" 10 of liking (to 40 at most); never fear. It is not a question: "/fact how to seduce Jodie" or anything ending in "?" is refused at no cost, with a pointer to asking someone in the story instead | Parser |
-| `/recap` | Where and when you are, who is here, what is open, what you owe and are owed (what people owe you for keeping quiet among it), who is warm or cold to you, what you heard (see Journal) | None |
+| `/recap` | Where and when you are, who is here, what is open, what you owe and are owed (what people owe you for keeping quiet and favours among it), who is warm, cold or careful with you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` (also `/undo 3`, `/undo all`) | Take back the last turn exactly, or that many (up to 20 steps, fewer only if they would pass about 8 MB); a turn and the ending it brought are one step, and so is a `/cheat time`, a `/cheat cash`, an edit, an update or a `/rewind`. The notice ends with how many more can be taken back ("You took back 3 turns. 2 more can be taken back."; "Nothing more can be taken back."). The history is kept in this browser (IndexedDB) for the game in the autosave, so it survives a reload: **Continue** and **Play here instead** bring it back (only its steps up to the turn the autosave was saved at); a new game, a loaded slot, an import or the previous autosave start it empty. Where IndexedDB is off or fails (some private windows, some browsers opening the file from disk) nothing is said and the history is for this page only, as before; a tab another tab has taken over never writes it. Asked for more than there is, it takes back what it can and says `/rewind` can strike the rest ("You took back 4 turns. Only 4 turns could be taken back exactly; /rewind 6 strikes earlier turns from the story (money and feelings stay)."). A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. With a hand open it takes back the turn that dealt it, free: "You took back the last turn; the hand is off the table." (see Cards) | None |
 | `/redo` (also `/redo 2`, `/redo all`) | Put back what `/undo` took back, in order ("You put back 2 turns. 1 more can be put back."). For this page only (a reload, a load or a new game empties it, and it is never kept with the undo history), and emptied by the next turn played (or a `/cheat time`, `/cheat cash`, edit, update or `/rewind`); a turn that fails, is refused or is taken back with its hand still open leaves it. A cheat armed before stays armed | None |
@@ -1302,6 +1338,7 @@ told you about: Dewayne's house.", "The clock matches the story."):
 | 5 (29 Oct 2026) | People match the story | Corrects anyone the game made up ("Mavis Toler", a man, whom the story calls Dewayne's wife) to what the characters say about them | One, none when nobody was made up |
 | 6 (29 Oct 2026) | A full cast | Adds every cast member and home the game lacks and folds each made-up person into the cast member they were (Mavis Toler is Mavis Mangum), with their memories and feelings; anyone nobody matches is kept and named | None |
 | 7 (29 Oct 2026) | A lived-in town | Fills in ages, histories, the dead, the people elsewhere, the new places and the places out of town, never over what the game has | None |
+| 9 (1 Nov 2026) | People who remember | Gives everyone's feelings about you their reasons: each memory gets the kind of thing it was and how long it lasts; trust, fear and how well they know you are worked out from them, and anyone who would have told you their secret still will; how much they like you stays exactly as it was. Someone who was holding your secret over you now has a record of it. A council or ending still to come weighs trust | None |
 
 - **An arc** (added 30 Oct 2026, rules version 8). Games from before this
   change have no calendar, council meeting, ending, ledger of what you owe or
@@ -1330,9 +1367,28 @@ holding anything over anyone and no secret shown yet; the romance list and
 what its people hold (how heavy a secret is, its words, what they can raise)
 come from the built-in town wherever the game's copy has none; a secret loose
 end tied before then holds nothing over you beyond the blackmail it already
-carries, and that blackmail, met, is silence paid for.
+carries (version 9 gives it its record), and that blackmail, met, is silence
+paid for.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (8 now; a save
+**People who remember** (version 9) is worked out from what the game already
+holds, with no call: the game's own lines ("knocked me down in a fight at the
+Low Water", "let the four hundred go past due, so I took the phone") are
+recognised as what they were before any line is read by its words, so a
+repo man's own line is never your theft. The feed says what it did ("People
+now remember why: 5 people's memories now carry what they did to how they
+feel. 1 person has something on you. The council now weighs trust."), and a
+game already up to date says "People already remember why." **What does not
+reach an older game:** a secret shown before the update (nobody holds it
+over anyone), jealousy and fear from before it, trust built by confidences
+before it (beyond the trust worked out from how much they liked you, and the
+secret anyone would have told you), and what you asked people before it (so
+a lie of yours the bookkeeper catches later needs one told after the update,
+or a claim on record). **Rewrite memories in the short form first**
+(Settings → Game, off by default) makes Update and Re-read run the memory
+rewrite (version 2's step, a call to the parser model, cents for the whole
+cast) before version 9, so very long old lines become short ones first.
+
+Behind the scenes a save carries `state.meta.rulesVersion` (9 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -1478,6 +1534,15 @@ the town move:
   kind `tell` and `price` (what a holder does with what they hold: `{leverageId}`,
   `{price}`, `{amount}`) and favour templates of kind `ask` (a favour the
   player owes, asked back, by the holder's tags).
+- Where people stand (wave 30), in an event's or the ending's `when` and in
+  a `requires`: `relAtLeast` and `relBelow`, `{ npcId: { liking, trust,
+  fear, knows } }` (liking and trust -100 to 100, fear and knows 0 to 100;
+  every track named must hold). The council reads them: Royce tables the vote with
+  `relAtLeast: { npc_royce: { trust: 30, knows: 25 } }`, gives the friendly
+  face from the back row at `{ liking: 15 }` with `playerAt`, and has second
+  thoughts after Carter bought him at `{ trust: 20 }`; the ending's Loretta
+  line is `{ liking: 40 }`. `attitudeAtLeast` still works and reads liking.
+  Spark is not readable by a condition, and there is no branch on fear.
 
 After editing, run:
 
@@ -1525,8 +1590,10 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 775 tests and takes about
-ten minutes.
+nothing else to install. The whole run is about 810 tests and takes about
+ten minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
+commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
+fails it with a message saying so; the CI checkout fetches it all).
 
 - `acceptance`: the twelve acceptance checks of SPEC.md section 14.
   `playtest`: a scripted 30+ turn game, the pacing reports, and the cost
@@ -1543,15 +1610,33 @@ ten minutes.
   for the card table, and `integration` for the seams between them.
 - `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
   milestone suites.
-- `wave26-rel-tracks`, `wave27-rel-engine` and `wave28-social-events` for
-  the relationship system by wave; `relationships` for its permanent checks
-  (the minor rule and coercion, the anchors, the fallbacks, a fuzz of the
-  wire); `relationships-examples` for the design's worked examples played
-  through.
+- `wave26-rel-tracks`, `wave27-rel-engine`, `wave28-social-events`,
+  `wave29-rel-hold` and `wave30-rel-people` for the relationship system by
+  wave (wave 30: the People card, the editor, the feed, `/recap`, the
+  narrator's "to you" line and the cached blocks, the council, rules version
+  9 on a save built by the 56e69f5 build's own code from
+  `tests/fixtures/make-v8-save.cjs`, and the simulator's eight-day guard);
+  `relationships` for its permanent checks (the minor rule and coercion, the
+  anchors, the fallbacks, a fuzz of the wire); `relationships-examples` for
+  the design's worked examples played through.
 - `tests/probe-grammar.cjs` is not a test file: it sends the bookkeeper's
   and the parser's schemas to the live API (`PROBE_DRY=1` builds the
   requests and stops before the network; `PROBE_MODELS=a,b` picks the
   models).
+- `tests/relationships-sim.cjs` is the 21-day simulator: three playstyles
+  (a round nightly for Royce and Curtis, Royce's confidant, a brawler at the
+  Low Water) played in mock mode, each person's tracks and stance printed
+  every morning. `node tests/relationships-sim.cjs beer --days 8` runs one;
+  `--assert` exits 1 when a band fails. Its eight-day cut runs in the suite.
+- `tests/eval-classify.cjs` is the labelled eval of the bookkeeper's acts and
+  the romantic-intent lines, against `tests/eval/labelled.jsonl`. It ships
+  empty: turn on Settings → Advanced → "Keep bookkeeper packets", play, press
+  **Export bookkeeper turns** in Debug, and label each line by hand with the
+  act a neutral witness would name (`"labels": [{ "npcId": "npc_royce",
+  "event": "insulted" }]`, an empty list for none; the script's header has the
+  whole shape). `EVAL_DRY=1` (or no key) builds every request and stops; with
+  `ANTHROPIC_API_KEY` set it reports exact accuracy, the neighbour
+  confusions, the romantic recall for minors and the cost.
 
 `.github/workflows/tests.yml` runs `node tests/run.cjs` on every push and pull
 request (Node 20, Playwright and Chromium installed outside the checkout).
@@ -1610,6 +1695,19 @@ told to the police) and from favours owed (paid back unasked, or asked for
 back), each on a dice stream of its own, so the shared dice and the clocks
 stay exactly as they were. A spark and a night together are the engine's to
 decide before narration, not the narrator's.
+
+Wave 30 (what people show) changes what is shown of the numbers. SPEC.md
+section 3's `attitude` stays on each person as the stored name for liking,
+beside the record of all six tracks (`rel`). The narrator (sections 6 and 10)
+is no longer sent "attitude -35": each person present has a "to you" line,
+where they stand and up to two dated reasons, then how they play it now
+("to you: cool to you, has something on you — you owe her four hundred
+(Day 1) — plays it: civil and brief"), at most about 50 tokens a person, and
+the example turn's "(Smith: gruff, short sentences, attitude −10.)" (section
+9) reads "cool to you" in the example sets. The People panel (section 11)
+shows that stance in words with its reasons, not a one-word attitude, and the
+editor sets four tracks, not one number. A council or ending that read
+attitude now reads trust where trust is the point.
 
 ## Verified against the live API
 

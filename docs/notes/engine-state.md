@@ -1239,3 +1239,94 @@ under-18 and coercion parts of `tests/relationships.test.cjs`.
   write time. `EFFECT_OPS` is 31 (owedSettle, leverageSet); `ENGINE_KEYS`
   gains `leverageAdd` and `secretShown`; `SEED_ORIGINS` gains leverage,
   inquiry, tell and price.
+
+## Wave 30 (1 Nov 2026): what people show, and rules version 9
+
+Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 10, 13.1,
+14 and 16 A5). Tests: `tests/wave30-rel-people.test.cjs`, example 3 in
+`tests/relationships-examples.test.cjs`, `tests/upgrade.test.cjs`.
+
+- **`RULES_VERSION` 9.** `MIGRATIONS` gains `{ version: 9, title: 'People
+  who remember', rerun: true, run: peopleRemember }`, no call.
+- **The turn's feed marks.** `freshLedger` gains `touched` (each person's
+  bands as they were at their first write of the turn, taken by `relWrite`
+  when not quiet), `harm3` and `settled`; `relTouched()` returns `{ turn,
+  touched, harm3: [ids], settled: [ids] }` for App.noteRel. `harm3` is a
+  new first-hand weight-3 harm from `socialEvent` (or an old-style memory of
+  weight 3 that reads as harm, from `remember`): never the person's own act,
+  a witness or secondhand copy, a memory that belongs to a live leverage
+  record (`leverageRec(id)` in `Rel.LEV_LIVE`), or the same fight growing
+  (the event and key already weight 3 before this write). `settled` is a
+  settlement that landed. `relDay` takes its baseline after the fading, so
+  a morning prints no band line. `feedLine(text, npcId, rank)` queues
+  objects with a rank from `FEED_RANK` (harm 1, theirs 2, yours 3, know 4,
+  fear 5, silence 6, trust 7, spark 8, liking 9, favour 10, settled 11).
+  `quietly` is exported (Upgrade runs version 9 in it).
+- **`editPerson`.** `EDIT_FIELDS` adds `trust`, `fear`, `knows` and
+  `spark`; each lands as a `fix` and is reported by its own name
+  (`Rel.TRACK_NAMES`), not `rel`. A memories change keeps every field the
+  form sent back, and keeps `seen: false` (typedFields); the tracks are
+  pinned where they stood, so removing a memory moves no number.
+- **`relFill`** (an engine key, Upgrade's version 9 only), in one apply:
+  `people: [{ npcId, rel, memories }]` (each memory checked as
+  `setMemories` does, `Rel.repair`, `Rel.recompute`; refused with "<id>:
+  liking would read N, not M; the update never moves how much anyone likes
+  the player" when the record would read another liking than its
+  attitude), `obligations` (the effects copied onto open ones), `seeds` (an
+  unfired loose end's), `branches` (the built-in council and ending, not
+  yet fired), `rumours` (`leverageOver`), `records` (a loose end's record,
+  through `leverageAdd` then `leverageSet` for its status, demand and
+  obligation id) and `heard` (`rumourLeverage` for a heard rumour that is
+  leverage).
+- **Upgrade's version 9** (`peopleRemember(st, api)`): with Settings'
+  `rereadMemories` on, version 2's rewrite runs first. Everyone already at
+  `rel.migrated === 9` with every memory typed is skipped; a game not behind
+  9 with every line typed is left alone ("People already remember why.").
+  For each person (`rememberPerson`): the start from the save's town copy,
+  else the cast, else the record (a loose end's person: `Town.LOOSE_END_
+  ATTITUDE` / `LOOSE_END_TRUST` and knows 30), everyday and fix reset; each
+  untyped memory typed by `LEGACY_ENGINE_TEXTS` first (25 regexes from the
+  56e69f5 writers: the knock-down, the arrest, sleeping rough, the rescue
+  and capture, the obligations' onMiss and onMet, the stand-up, the card
+  cheat, the favours' own lines, loose ends and facts; an `own` line is the
+  person's act, never the player's), then by `act`, then by words
+  (`legacyType`); `d` from the event's row (a witness copy's row for the
+  witness lines, `scale` from the regex), zero for protected lines, null for
+  `noted` by default or a `dNull` line; decay the larger of the row's class
+  and the old weight's (`WEIGHT_DECAY`); the d's scaled (0 to 2) so liking
+  lands on the old attitude, else liking 0 and trust and fear halved; owed
+  from unsettled favours; liking set exactly with `Rel.landTo`; trust
+  seeded from liking for someone with a serious good memory (`min(t + 0.8 ×
+  max(0, attitude - start), max(attitude, start.t, t))`); attitude 50 and a
+  good memory (the old secret gate) floors trust 40 and knows 30; knows
+  `clamp(Σ d.k + 5 + 3 × days since met + 30 for a loose end, 0, 60)`, never
+  below what it was. `contentFill` copies the built-in council and ending
+  branches (when they read relAtLeast and have not fired), the loose ends'
+  obligations and seeds whose effects equal 56e69f5's (`OLD_OBLIGATIONS`),
+  and `leverageOver`; `leverageFill` makes the informant's record (status
+  from the blackmail: none held, open used, met paid, missed spent) and the
+  heard rumours' records. All in one quiet `relFill`, one undo step with the
+  rest of the update. The feed: "People now remember why: 5 people's
+  memories now carry what they did to how they feel. 1 person has something
+  on you. The council now weighs trust." (each clause only when it holds).
+- **What B1 must know.**
+  - Hearsay notices print through `State.feedLine` (rank `theirs` 2 or a
+    new rank between harm and know: add it to `FEED_RANK`), so they take
+    their place in App.noteRel's two lines a turn; a person's band line from
+    hearsay comes from `relTouched` like any other write.
+  - `Rel.reasons` marks a memory with `secondhand.hidden === true` as
+    `hidden: true` and drops its text everywhere it is shown:
+    `Pipeline.reasonText` gives the narrator "cooler since Day N, for a
+    reason of his own, keeps it to himself, never hint at it" and the card
+    "Cooler since Day N. Hasn't said why."; the recap skips it.
+  - BETWEEN THEM (what two present people feel about each other) belongs in
+    the PRESENT entry after `holds you to:`, outside `TO_YOU_CAP`, or as a
+    line of its own after PRESENT; `toYou` must stay the only field that
+    says how they feel about the player.
+  - The card's Ties are a row of `UI.personFacts` (`dl.pcard-facts`, `dt`
+    "Ties", `dd[data-fact="ties"]`), built from `State.tiesOf(n).has`: each
+    "relation Name" with "(dead)" or "(lives elsewhere)", joined by "; ",
+    after Home or Buried and before History. They read the cast's relations,
+    not `rel`; B1's strain ("wife Mavis Mangum, strained since Day 5") is a
+    suffix on that tie's text there. Wave 30 left the row as it was; the
+    stance block sits above the facts.

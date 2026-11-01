@@ -329,7 +329,8 @@ s.test('panels show real state after Begin and never leak hidden fields', async 
     if (n.secret) assert.ok(!people.includes(n.secret), 'secret leaked: ' + n.id);
     if (n.goal) assert.ok(!people.includes(n.goal), 'goal leaked: ' + n.id);
   }
-  assert.match(people, /\b(hostile|cold|wary|neutral|friendly|warm|loyal)\b/);
+  // Changed by design in wave 30: where people stand, in the stance's words.
+  assert.match(people, /\b(Hates you|Against you|Suspicious of you|Cool to you|Sizing you up|Doesn't know you|Takes you at your word|Friendly|Fond of you, doesn't trust you|Warm to you|In your corner|Loyal to you|Afraid of you|Afraid of what you know)\b/);
 
   const journal = await panelText('journal');
   for (const t of st.threads.filter(x => x.knownToPlayer)) assert.ok(journal.includes(t.title));
@@ -659,7 +660,6 @@ s.test('player text is rendered as text, never as markup', async h => {
 });
 
 /* ----- People tab: person cards ----- */
-const ATT_LEVEL = { hostile: 1, cold: 1, wary: 2, neutral: 3, friendly: 4, warm: 5, loyal: 5 };
 const initialsOf = text => {
   const w = String(text).split(/\s+/).map(x => x.replace(/[^\p{L}\p{N}]/gu, '')).filter(x => x && !/^(the|a|an|and|of|at|in|on|for|from|with|to|jr|sr|ii|iii|iv)$/i.test(x));
   return (w.length > 1 ? [w[0], w[w.length - 1]] : w).map(x => x.charAt(0).toUpperCase()).join('');
@@ -700,16 +700,18 @@ const cardInfo = (page, id) => page.evaluate(id => {
     monoBg: getComputedStyle(c.querySelector('.mono')).backgroundColor,
     name: c.querySelector('.pcard-name').textContent,
     role: (c.querySelector('.pcard-role') || {}).textContent || '',
-    word: c.querySelector('.att-word').textContent,
-    att: c.querySelector('.att').dataset.att,
-    on: c.querySelectorAll('.att-meter i.on').length,
-    segs: c.querySelectorAll('.att-meter i').length,
+    // Wave 30: where they stand in words (UI.stanceChip), in place of the five-segment meter.
+    stance: c.querySelector('.pcard-head .stance .stance-phrase').textContent,
+    side: c.querySelector('.pcard-head .stance').dataset.side,
+    tags: [...c.querySelectorAll('.pcard-head .stance .stance-tag')].map(x => x.textContent),
     where: (c.querySelector('.pcard-where') || {}).textContent || null,
     expanded: head.getAttribute('aria-expanded'),
     controls: head.getAttribute('aria-controls') === more.id,
     moreVisible: !more.hidden && more.getBoundingClientRect().height > 0,
     look: (c.querySelector('.pcard-look') || {}).textContent || null,
     notes: [...c.querySelectorAll('.pcard-notes li')].map(li => li.textContent),
+    // Wave 30: the dated reasons under the stance (not leverage or Owed).
+    why: [...c.querySelectorAll('.pcard-why:not(.pcard-lev):not(.pcard-owed) li')].map(li => ({ text: li.firstChild.textContent, meta: (li.querySelector('.meta') || {}).textContent || '' })),
     text: c.innerText,
     all: c.textContent
   };
@@ -740,8 +742,9 @@ s.test('People: cards for the people met, with monogram, name, role and attitude
   // The role, then who they are to someone in the cast's own family ("Darlene's husband"), when there is such a tie.
   const note = await page.evaluate(id => Game.State.relationNote(Game.State.npc(id)), sc.a);
   assert.equal(a.role, na.role.charAt(0).toUpperCase() + na.role.slice(1) + (note ? ` · ${note}` : ''));
-  assert.equal(a.word, await page.evaluate(v => Game.State.attitudeWord(v), na.attitude));
-  assert.deepEqual([a.on, a.segs], [ATT_LEVEL[a.word], 5]);
+  // Changed by design in wave 30: the stance in words with one tag, in its side's tint, in place of the attitude word and meter.
+  const standing = id => page.evaluate(id => { const st = Game.Rel.stance(Game.State.npc(id)); return { stance: st.phrase.charAt(0).toUpperCase() + st.phrase.slice(1), side: st.side, tags: st.tags.slice(0, 1) }; }, id);
+  assert.deepEqual({ stance: a.stance, side: a.side, tags: a.tags }, await standing(sc.a));
   assert.equal(a.where, 'Here now');
   assert.equal(a.expanded, 'false');
   assert.ok(a.controls && !a.moreVisible, 'collapsed by default');
@@ -763,13 +766,18 @@ s.test('People: cards for the people met, with monogram, name, role and attitude
   await page.waitForSelector('#screen-game.active');
   await page.click('#tab-people');
   assert.equal((await cardInfo(page, sc.a)).monoBg, a.monoBg, 'same colour after a reload');
-  // Every attitude word fills its share of the five segments.
+  // Every liking band reads as its stance, in the tint of its side (wave 30: cold for against, mild for mixed, warm for on your side).
+  const sides = new Set();
   for (const v of [-80, -40, -10, 0, 10, 40, 80]) {
     await page.evaluate(([id, v]) => Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: id, delta: v - Game.State.npc(id).attitude }] }), [sc.a, v]);
     const x = await cardInfo(page, sc.a);
-    const word = await page.evaluate(v => Game.State.attitudeWord(v), v);
-    assert.deepEqual([x.word, x.att, x.on, x.segs], [word, word, ATT_LEVEL[word], 5], 'attitude ' + v);
+    const want = await standing(sc.a);
+    assert.deepEqual({ stance: x.stance, side: x.side, tags: x.tags }, want, 'liking ' + v);
+    const tint = await page.evaluate(id => { const c = document.querySelector(`#panel-body .pcard[data-npc="${id}"] .pcard-head .stance`); const css = getComputedStyle(document.documentElement); return { color: getComputedStyle(c).color, warm: css.getPropertyValue('--att-warm').trim(), cold: css.getPropertyValue('--att-cold').trim() }; }, sc.a);
+    sides.add(x.side);
+    assert.ok(tint.color && tint.color !== 'rgba(0, 0, 0, 0)', 'tinted');
   }
+  assert.ok(sides.has('good') && sides.has('bad'), 'both sides seen: ' + [...sides].join(', '));
   // Nothing hidden, in the visible text or in the closed cards.
   const all = await page.evaluate(() => { Game.UI.renderPanel(); return document.getElementById('panel-body').textContent; });
   const now = await page.evaluate(() => Game.state);
@@ -815,7 +823,10 @@ s.test('People: a card opens on tap with its look and notes, stays open across a
   assert.equal(a.expanded, 'true', 'still open after the turn');
   assert.ok(a.moreVisible && a.look === na.look);
   // The mock bookkeeper writes memories the way MEMORY_RULES asks: from their side ("insulted me").
-  assert.ok(a.notes.some(t => /^Remembers: insulted me, Day \d+$/.test(t)), a.notes.join(' | '));
+  // Changed by design in wave 30: a typed memory is a dated reason under the stance, said to the player
+  // ("You insulted her." · Day N), and Notes no longer repeats it.
+  assert.ok(a.why.some(w => /^You insulted (him|her|them)\.$/.test(w.text) && /^Day \d+$/.test(w.meta)), JSON.stringify(a.why));
+  assert.ok(!a.notes.some(t => /insulted me/.test(t)), a.notes.join(' | '));
   assert.ok(!a.notes.some(t => /Loose end with/.test(t)));
   // Leave: a is now Known, last seen here; most recently seen first; someone never seen has no location line.
   const scene = await page.evaluate(a => { const l = Game.State.loc(Game.state.player.locationId); return { id: l.id, name: l.name, exit: l.exits.map(id => Game.State.loc(id)).find(x => !x.closed && !Game.State.npcsAt(x.id).some(n => n.id === a)) }; }, sc.a);

@@ -785,7 +785,8 @@ const MODERN_EXAMPLES = [
   },
   {
     input: 'I ask the mechanic if he\'s heard anything about the bootleggers.',
-    context: 'Mechanic: gruff, short sentences, attitude −10.',
+    // Changed by design in wave 30: where he stands in words, never a number.
+    context: 'Mechanic: gruff, short sentences, cool to you.',
     narration: 'He doesn\'t come out from under the hood. "Heard plenty. Doesn\'t mean I repeat it." He wipes his hands on a rag and looks past you at the empty lot. "You buying something?"'
   }
 ];

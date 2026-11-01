@@ -767,8 +767,9 @@ s.test('the recap (f, B20): one line each in the agreed words (no heading: the U
   assert.match(lines[0], /^Day \d+ \(\w+ \d+ \w+\), \w+, at .+\.$/);
   assert.match(lines[1], /^Here: (.+, )*.+( and .+)?\.$/);
   assert.match(lines[2], /^Open: /);
-  assert.ok(lines.includes(`Warm to you: ${r.friend} (warm, remembers you fixed the fuel pump for him).`), r.full);
-  assert.ok(lines.includes(`Cold to you: ${r.enemy} (cold, your loose end: ${r.label.toLowerCase()}).`), r.full);
+  // Changed by design in wave 30: the stance in words, then the reason ("(warm to you: you fixed ...)"; a loose end's person "(against you, your loose end: ...)").
+  assert.ok(lines.includes(`Warm to you: ${r.friend} (warm to you: you fixed the fuel pump for him).`), r.full);
+  assert.ok(lines.includes(`Cold to you: ${r.enemy} (against you, your loose end: ${r.label.toLowerCase()}).`), r.full);
   assert.ok(!/Loose end with|"[^"]*me[^"]*"/.test(r.full), 'never a raw memory');
   assert.match(r.full, /In town: Day \d+: The council met .*…/);
   assert.ok(!r.full.includes('Where things stand'), 'the UI adds the heading');

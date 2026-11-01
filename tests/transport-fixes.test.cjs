@@ -598,9 +598,10 @@ s.test('/recap: where and when, who is here, open threads, what is owed with a c
   assert.match(lines[1], /^Here: /);
   assert.ok(text.includes(`Open: ${setup.thread}`), text);
   assert.ok(text.includes(`Owed: You owe ${setup.c} $400 · due Day 3 (2 days)`), text);
-  // Wave 2 (the coordinator's wording): the attitude word, then one reason read plainly (never the raw memory in quotes).
-  assert.match(text, new RegExp(`\nWarm to you: (.+, )?${setup.w} \\(warm, remembers you bought (him|her|them) a beer\\)[,.]`));
-  assert.match(text, new RegExp(`\nCold to you: (.+, )?${setup.c} \\(cold, remembers you called (him|her|them) a liar\\)[,.]`));
+  // Wave 2 (the coordinator's wording): one reason read plainly (never the raw memory in quotes). Changed by design in wave 30: the stance in words
+  // (and its tag), then the reason that fits the side ("Mavis Mangum (against you: you told Dewayne about the garage money)").
+  assert.match(text, new RegExp(`\nWarm to you: (.+, )?${setup.w} \\(warm to you(, [^:)]+)?: you bought (him|her|them) a beer\\)[,.]`));
+  assert.match(text, new RegExp(`\nCold to you: (.+, )?${setup.c} \\(against you(, [^:)]+)?: you called (him|her|them) a liar\\)[,.]`));
   assert.ok(!/Loose end with/.test(text), 'a loose end reads as one, not as the raw memory');
   assert.ok(text.includes(`Heard: "${setup.rumour.slice(0, 40)}`), text);
   assert.ok(text.includes('In town: Day 1: The bait shop flooded.'), text);
@@ -622,7 +623,10 @@ s.test('feed lines when an attitude crosses a band, both ways', async h => {
   assert.ok((await quiets(page)).includes(`${n.name} warms to you.`), (await quiets(page)).join(' | '));
   await page.evaluate(id => { Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: id, delta: -10 - Game.State.npc(id).attitude }] }); Game.Api.Mock.queue('bookkeep', { attitudeChanges: [{ npcId: id, delta: -25, reason: 'insulted' }] }); }, n.id);
   await sendText(page, `I insult ${n.name}`);
-  assert.ok((await quiets(page)).includes(`${n.name} won't forget that.`));
+  // Changed by design in wave 30: liking reads over seven bands, so a fall from cool to against them is "cools toward you"; "won't forget that"
+  // is a new serious harm (weight 3), which this insult is not.
+  assert.ok((await quiets(page)).includes(`${n.name} cools toward you.`), (await quiets(page)).join(' | '));
+  assert.ok(!(await quiets(page)).includes(`${n.name} won't forget that.`));
 });
 
 // ----- E. fights, secrets, the bookkeeper's context -----

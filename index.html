@@ -798,15 +798,29 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .pcard-role { font-size: 13px; line-height: 1.4; color: var(--muted); }
 .pcard:not(.open) .pcard-role { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .pcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 12px; line-height: 1.4; }
-.att { --tone: var(--muted); display: inline-flex; align-items: center; gap: 8px; color: var(--tone); white-space: nowrap; }
-.att[data-level="1"] { --tone: var(--att-cold); }
-.att[data-level="2"] { --tone: var(--att-cool); }
-.att[data-level="4"] { --tone: var(--att-mild); }
-.att[data-level="5"] { --tone: var(--att-warm); }
-.att[data-att="hostile"] .att-word, .att[data-att="loyal"] .att-word { font-weight: 600; }
-.att-meter { display: inline-flex; gap: 3px; }
-.att-meter i { width: 10px; height: 4px; border-radius: 2px; background: var(--border); }
-.att-meter i.on { background: var(--tone); }
+/* Wave 30: where someone stands, in words (UI.stanceChip): the phrase and
+   one tag, tinted by side (on the player's side warm, mixed mild, against
+   them cold, neither the muted tone); "hates you", "in your corner" and
+   "loyal to you" in bold. */
+.stance { --tone: var(--muted); display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; color: var(--tone); }
+.stance[data-side="good"] { --tone: var(--att-warm); }
+.stance[data-side="mixed"] { --tone: var(--att-mild); }
+.stance[data-side="bad"] { --tone: var(--att-cold); }
+.stance[data-strong] .stance-phrase { font-weight: 600; }
+.stance-tag { color: var(--muted); }
+.stance-tag::before { content: "· "; color: var(--faint); }
+.pcard-stance { margin: 12px 0 0; font-size: 14px; line-height: 1.5; }
+.pcard-stance .stance { font-size: 14px; }
+.pcard-why { margin: 4px 0 0; padding: 0; list-style: none; }
+.panel-body .pcard-why li { padding: 3px 0; border: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.pcard-why .meta { margin-left: 6px; color: var(--faint); white-space: nowrap; }
+.pcard-why li[data-kind="leverage"] { color: var(--text); }
+.pcard-words-fold { margin-top: 12px; }
+.pcard-words-fold > summary { min-height: var(--tap); display: flex; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+.pcard-words { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 4px 0 0; font-size: 13px; line-height: 1.4; }
+.pcard-word { min-width: 0; }
+.pcard-word dt { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-word dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .pcard-where { color: var(--faint); min-width: 0; }
 .pcard-where .nowrap { white-space: nowrap; }
 .pcard-where.here { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
@@ -1570,7 +1584,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost.</li></ul><p>About four API calls (none in the offline demo).</p></div>
+              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost;</li><li>gives what people remember about you its reasons: what kind of thing each memory was and how long it lasts, with how much they like you exactly as it was.</li></ul><p>About four API calls (none in the offline demo).</p></div>
+              <label class="check"><input type="checkbox" id="set-reread-memories" aria-describedby="set-reread-memories-hint"> Rewrite memories in the short form first</label>
+              <p class="hint" id="set-reread-memories-hint">When a game is brought up to "People who remember", the memories are first rewritten in the new short form (one call; off by default).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
             </div>
@@ -4819,7 +4835,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          when: { relAtLeast: { npc_royce: { trust: 30, knows: 25 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman, who has had somebody to talk it through with all week, stands up before the vote and moves to table the bridge site until the engineer answers questions in person, and Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns without looking at him.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4832,7 +4848,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { attitudeAtLeast: { npc_royce: 30 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          when: { relAtLeast: { npc_royce: { trust: 30, knows: 25 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
           text: "Royce Pittman, who has had somebody to talk it through with all week, moves to table the bridge site until the engineer answers questions in person; with Hollis Byrd's chair empty it ties two to two, the downstream site ties the same way, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4869,7 +4885,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { playerAt: "loc_town_hall", attitudeAtLeast: { npc_royce: 15 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          when: { playerAt: "loc_town_hall", relAtLeast: { npc_royce: { liking: 15 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman looks down the rows of folding chairs, finds you in the back, and stands up before the vote to move that the bridge site be tabled until the engineer answers questions in public; Hollis Byrd and Elbert Gentry carry it with him, three to two. On item four he votes with Elbert and Lamar Haskins to keep the police, three to two, and the mayor adjourns without looking at him.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4882,7 +4898,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { playerAt: "loc_town_hall", attitudeAtLeast: { npc_royce: 15 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          when: { playerAt: "loc_town_hall", relAtLeast: { npc_royce: { liking: 15 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
           text: "Royce Pittman looks down the rows of folding chairs, finds you in the back, and moves to table the bridge site until the engineer answers questions in public; with Hollis Byrd's chair empty it ties two to two, the downstream site ties the same way, and the bridge goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to one.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4895,7 +4911,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
+          when: { flagsSet: ["royceBought"], relAtLeast: { npc_royce: { trust: 20 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },
           text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts from the talks he has had this week, so he abstains on the bridge, and it ties two to two and goes over to the next meeting. On item four he votes with Elbert Gentry and Lamar Haskins to keep the police, three to two.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -4907,7 +4923,7 @@ const TOWN_DATA = {
           ]
         },
         {
-          when: { flagsSet: ["royceBought"], attitudeAtLeast: { npc_royce: 20 }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
+          when: { flagsSet: ["royceBought"], relAtLeast: { npc_royce: { trust: 20 } }, npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },
           text: "Royce Pittman has Carter Sturdivant's torn-up note in his pocket and too many second thoughts to use it, so he abstains on the bridge, and with Hollis Byrd's chair empty the downstream site passes two to one over Elbert Gentry. On item four he votes with Elbert and Lamar Haskins to keep the police, three to one.",
           effects: [
             { op: "setFlag", key: "councilVoted", value: true },
@@ -5221,7 +5237,7 @@ const TOWN_DATA = {
         ]
       },
       {
-        when: { flagsSet: ["oldBridgeClosed"], attitudeAtLeast: { npc_loretta: 40 }, npcFree: ["npc_loretta"] },
+        when: { flagsSet: ["oldBridgeClosed"], relAtLeast: { npc_loretta: { liking: 40 } }, npcFree: ["npc_loretta"] },
         text: "The barriers are up on the old bridge and the Low Water's Saturday lot is half empty, but Loretta Gaddis has kept the doors open through floods before and says she will keep them open through this. Carter Sturdivant has the closed bridge he paid for, the police are still in Town Hall for whatever that is worth, and there is a stool at the end of the bar Loretta keeps for somebody who stayed.",
         effects: [
           { op: "threadUpdate", threadId: "thr_bridge_vote", status: "failed", knownToPlayer: true, summary: "The state closed the old bridge, and every trip to the dry county is forty minutes round by the bypass now." },
@@ -6450,7 +6466,7 @@ const EXAMPLE_TURNS_LITERARY = [
   },
   {
     input: "I ask the mechanic if he's heard anything about the bootleggers.",
-    context: "Mechanic: gruff, short sentences, attitude −10.",
+    context: "Mechanic: gruff, short sentences, cool to you.",
     narration: "He doesn't come out from under the hood. \"Heard plenty. Doesn't mean I repeat it.\" He wipes his hands on a rag and looks past you at the empty lot. \"You buying something?\""
   }
 ];
@@ -6458,17 +6474,17 @@ const EXAMPLE_TURNS_LITERARY = [
 const EXAMPLE_TURNS_CASUAL = [
   {
     input: "\"I'll have your money by the weekend.\" (said to Charlene Voight)",
-    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; voice (a habit, not every line): dry, never raises her voice; wants (never say this outright; it steers what they push for and dodge): her four hundred back before the bank calls her note; attitude -20 (wary); remembers: owes me four hundred)\nPLAYER SAYS (to Charlene Voight): \"I'll have your money by the weekend.\"\nROLL: none.",
+    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; voice (a habit, not every line): dry, never raises her voice; wants (never say this outright; it steers what they push for and dodge): her four hundred back before the bank calls her note; to you: cool to you, has something on you — you owe her four hundred (Day 1) — plays it: civil and brief, sure of herself around you)\nPLAYER SAYS (to Charlene Voight): \"I'll have your money by the weekend.\"\nROLL: none.",
     narration: "Charlene doesn't look up from the register. \"Uh huh.\" She writes 400 on a strip of receipt paper, then a time, and slides it over. \"Noon on the weekend. After that I quit asking nice.\""
   },
   {
     input: "\"Anybody here need a hand with anything?\" (said to everyone)",
-    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; attitude 0 (neutral)); Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 5 (neutral))\nPLAYER SAYS (to everyone present): \"Anybody here need a hand with anything?\"\nROLL: none.",
+    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; to you: doesn't know you — plays it: treats you like a stranger); Hutch Bledsoe (61, he/him; fixes outboard motors; to you: sizing you up — plays it: watches what you do, not what you say)\nPLAYER SAYS (to everyone present): \"Anybody here need a hand with anything?\"\nROLL: none.",
     narration: "Dot keeps wiping the same table. Hutch looks you over from the end of the bar. \"Can you lift a motor? Ninety pounds, out of a boat and into my truck. Twenty bucks.\" Dot snorts. \"Get the twenty first. He pays in beer.\""
   },
   {
     input: "I try to get Ellis to tell me where Charlene keeps the bar's cash overnight.",
-    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; attitude 5 (neutral))\nACTION: presses Ellis to say where Charlene keeps the bar's cash overnight\nROLL: Charm 15 vs 12 · Success\nOUTCOME: the ask succeeded. It works.",
+    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; to you: doesn't know you — plays it: treats you like a stranger)\nACTION: presses Ellis to say where Charlene keeps the bar's cash overnight\nROLL: Charm 15 vs 12 · Success\nOUTCOME: the ask succeeded. It works.",
     narration: "Ellis glances at the door and drops his voice. \"Bank bag, under the ice machine, till she drives it to the bank at nine.\" He shakes his head at himself. \"You didn't get that from me.\""
   },
   {
@@ -6478,22 +6494,22 @@ const EXAMPLE_TURNS_CASUAL = [
   },
   {
     input: "I wait at the counter.",
-    context: "PRESENT: Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 10 (friendly)); Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary))\nSINCE THE LAST TURN (time moved on to evening): arrived here: Charlene Voight. The player has not acted in between.\nACTION: waits at the counter\nROLL: none.",
+    context: "PRESENT: Hutch Bledsoe (61, he/him; fixes outboard motors; to you: friendly — you lifted his motor (Day 2) — plays it: easy with you); Charlene Voight (58, she/her; owns the Tip Top; to you: cool to you, has something on you — plays it: civil and brief)\nSINCE THE LAST TURN (time moved on to evening): arrived here: Charlene Voight. The player has not acted in between.\nACTION: waits at the counter\nROLL: none.",
     narration: "The bell over the door goes and Charlene Voight walks in with a bank bag under her arm. She sees you and stops. Hutch suddenly has something to do in the back. \"Well,\" Charlene says. \"Saves me a trip.\""
   },
   {
     input: "I pull my gun on Ellis.",
-    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; attitude 5 (neutral))\nACTION: draws a gun on Ellis\nNOT CARRIED: a gun. The player has no gun and nothing like one; they cannot shoot anyone.\nROLL: none.",
+    context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; to you: doesn't know you — plays it: treats you like a stranger)\nACTION: draws a gun on Ellis\nNOT CARRIED: a gun. The player has no gun and nothing like one; they cannot shoot anyone.\nROLL: none.",
     narration: "Your hand goes to your belt and finds nothing there. Ellis sees that too. He backs behind the counter and picks up the phone. \"Out,\" he says. \"Or I call this in.\""
   },
   {
     input: "I order a coffee.",
-    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; attitude 15 (friendly))\nACTION: orders a coffee\nROLL: none\nDUE EVENT: Hutch Bledsoe left word that the johnboat the player asked about is for sale, three hundred cash (already true; work it into the scene naturally, not as an announcement).",
+    context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; to you: friendly, has noticed you — you tipped her well (Day 2) — plays it: looks twice, easy with you; open to a flirt)\nACTION: orders a coffee\nROLL: none\nDUE EVENT: Hutch Bledsoe left word that the johnboat the player asked about is for sale, three hundred cash (already true; work it into the scene naturally, not as an announcement).",
     narration: "Dot pours it and pushes the sugar over. \"Hutch came by asking for you. Says if you still want that johnboat, it's three hundred cash, and he won't hold it past tomorrow.\" She tops off your cup. \"It's a good boat.\""
   },
   {
     input: "I ask Charlene for another week.",
-    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary); remembers: owes me four hundred)\nACTION: asks Charlene for another week to pay\nROLL: Charm 8 vs 15 · Failure\nCOMPLICATION: someone who matters takes it personally\nOUTCOME: the ask failed.",
+    context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; to you: cool to you, has something on you — you owe her four hundred (Day 1) — plays it: civil and brief; holds you to: noon on the weekend)\nACTION: asks Charlene for another week to pay\nROLL: Charm 8 vs 15 · Failure\nCOMPLICATION: someone who matters takes it personally\nOUTCOME: the ask failed.",
     narration: "\"No.\" Charlene sets the glass down hard. \"The bank doesn't give me another week, so I don't give you one.\" She raises her voice so the whole room hears it. \"Four hundred, noon on the weekend, or don't come back in here.\""
   }
 ];
@@ -8153,8 +8169,13 @@ const State = (() => {
      and an ending; rumours carry their tellers and threads their rewards; a
      loose end still to come carries its obligation, a grudge or favour still
      to come its template's effects; the clock takes { cost, cause }: Upgrade
-     anArc). */
-  const RULES_VERSION = 8;
+     anArc). 9: "People who remember" (wave 30: every memory gets the kind
+     of thing it was and how long it lasts, trust, fear and knows-you are
+     worked out from them with liking exactly the old attitude, an open
+     secret stays open, the informant's hold on the player is a record, and
+     a council or ending still to come weighs trust: Upgrade peopleRemember,
+     relFill). */
+  const RULES_VERSION = 9;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -8180,7 +8201,9 @@ const State = (() => {
     // Wave 27: a turn spent with people, the ask log, a grudge's getting even, where someone stood before the player came.
     'relTurn', 'relAsk', 'relSettle', 'relStart',
     // Wave 29: a leverage record made (the engine's alone), the secrets the narrator was given.
-    'leverageAdd', 'secretShown'];
+    'leverageAdd', 'secretShown',
+    // Wave 30: rules version 9's people and content (Upgrade.peopleRemember).
+    'relFill'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -8232,7 +8255,8 @@ const State = (() => {
      reputation events gave this turn (held to World.REP_CAP); acts: the
      acts a caught_you_at was recorded for this turn (one record an act). */
   // Wave 28: events (the engine's this turn, for the bookkeeper's packet), model (the bookkeeper's counted against the caps).
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0, rel: {}, classes: {}, engine: {}, rep: 0, acts: {}, events: [], model: { per: {}, total: 0 } }; }
+  // Wave 30: touched (each person's bands as the turn found them), harm3 and settled (ids): what App.noteRel's feed lines read (relTouched).
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0, rel: {}, classes: {}, engine: {}, rep: 0, acts: {}, events: [], model: { per: {}, total: 0 }, touched: {}, harm3: {}, settled: {} }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -9490,6 +9514,8 @@ const State = (() => {
   function relWrite(n) {
     if (!isObj(n) || !current) return;
     const was = isObj(n.rel) && isObj(n.rel.bands) ? { sp: n.rel.bands.sp, ov: n.rel.bands.ov } : null;
+    // Wave 30: the bands as the turn found them, at the first change of the turn that is not quiet (App.noteRel reads them: relTouched).
+    if (!relQuiet && !muted) { syncLedger(); if (!Object.prototype.hasOwnProperty.call(ledger.touched, n.id)) ledger.touched[n.id] = isObj(n.rel) && isObj(n.rel.bands) ? Object.assign({}, n.rel.bands) : null; }
     n.rel = Rel.repair(n, townRec(n.id));
     const a = toInt(n.attitude);
     if (a !== null && (!Number.isInteger(n.rel.w) || clamp(a, -100, 100) !== n.rel.w)) n.rel = Rel.landTo(n, { w: clamp(a, -100, 100) }, 'fix', relCtx());
@@ -9506,10 +9532,21 @@ const State = (() => {
      (by a rebuff, a harm, an unwelcome flirt; never by fading) prints
      "<Name> takes the hint."; the fear of what the player knows prints
      once as it is reached. */
+  /* Wave 30: each line carries whom it is about and its rank (FEED_RANK,
+     the integration plan's 14.3), so App.noteRel can print one a person,
+     the most important first, two a turn. */
   const relFeed = [];
   let relQuiet = 0;
-  function feedLine(text) { if (text && current && !muted && !relQuiet) relFeed.push(String(text)); }
+  const FEED_RANK = Object.freeze({ harm: 1, theirs: 2, yours: 3, know: 4, fear: 5, silence: 6, trust: 7, spark: 8, liking: 9, favour: 10, settled: 11 });
+  function feedLine(text, npcId, rank) { if (text && current && !muted && !relQuiet) relFeed.push({ text: String(text), npcId: typeof npcId === 'string' ? npcId : null, rank: FEED_RANK[rank] || FEED_RANK.silence }); }
   function takeFeed() { const out = relFeed.slice(); relFeed.length = 0; return out; }
+  /* The turn's touched people (wave 30): { touched: { id: bands as the
+     turn found them }, harm3: [ids: a first-hand weight-3 harm this turn],
+     settled: [ids: a settlement landed] }, for App.noteRel. */
+  function relTouched() {
+    syncLedger();
+    return { turn: ledger.turn, touched: Object.assign({}, ledger.touched), harm3: Object.keys(ledger.harm3), settled: Object.keys(ledger.settled) };
+  }
   function relNotice(n, was) {
     if (relQuiet || muted || !n.knownToPlayer || n.alive === false) return;
     const b = isObj(n.rel.bands) ? n.rel.bands : {};
@@ -9517,10 +9554,10 @@ const State = (() => {
     if (was.sp !== undefined && b.sp !== undefined && b.sp !== was.sp) {
       const st = isObj(n.rel.status) ? n.rel.status : null;
       if (b.sp) {
-        if (!st || st.name !== b.sp || day - (Number(st.day) || 0) >= Rel.GATES.spark.statusDays) { n.rel.status = { name: b.sp, day }; feedLine(Rel.statusLine(n, b.sp)); }
-      } else if (was.sp) feedLine(Rel.statusLine(n, null));
+        if (!st || st.name !== b.sp || day - (Number(st.day) || 0) >= Rel.GATES.spark.statusDays) { n.rel.status = { name: b.sp, day }; feedLine(Rel.statusLine(n, b.sp), n.id, 'spark'); }
+      } else if (was.sp) feedLine(Rel.statusLine(n, null), n.id, 'spark');
     }
-    if (was.ov !== undefined && b.ov === 'know' && was.ov !== 'know') feedLine(`${n.name} is afraid of what you know.`);
+    if (was.ov !== undefined && b.ov === 'know' && was.ov !== 'know') feedLine(`${n.name} is afraid of what you know.`, n.id, 'know');
   }
   function relWriteAll() { for (const n of current.npcs) relWrite(n); }
   // Wave 29: a change that prints no feed line (a load, an edit, a rewind, the morning's fading, a clock set by hand).
@@ -9666,6 +9703,10 @@ const State = (() => {
     relWrite(n);
     const before = relNow(n);
     const netBefore = n.rel.net | 0;
+    // Wave 30: the serious harms already held (a fight's, a merged one's), so only a new one is "won't forget that".
+    const w3Key = m => `${m.key || m.text}|${m.event || ''}`;
+    const w3Before = new Set((n.memories || []).filter(m => isObj(m) && (m.weight | 0) >= 3 && Rel.harmful(m)).map(w3Key));
+    const fight3 = typeof e.fight === 'string' && (n.memories || []).some(m => isObj(m) && m.fight === e.fight && (m.weight | 0) >= 3);
     const secondhand = e.secondhand === true ? true : isObj(e.secondhand) ? { via: typeof e.secondhand.via === 'string' ? e.secondhand.via : undefined, hidden: e.secondhand.hidden === true } : false;
     const plan = Rel.applyEvent(n, {
       event: e.event, text, weight: e.weight, act: e.act, aboutId: e.aboutId || null, private: e.private === true, leverageId: typeof e.leverageId === 'string' ? e.leverageId : null,
@@ -9693,9 +9734,18 @@ const State = (() => {
     // Wave 29: favours owed, as the feed says them (design section 7.2).
     const netAfter = n.rel.net | 0;
     if (netAfter !== netBefore && n.knownToPlayer) {
-      if (netAfter > netBefore && netAfter > 0) feedLine(netBefore > 0 ? `${n.name} owes you again.` : `${n.name} owes you one.`);
-      else if (netAfter < netBefore && netAfter < 0) feedLine(`You owe ${n.name} one.`);
-      else if (netAfter === 0) feedLine(`${n.name} is square with you.`);
+      if (netAfter > netBefore && netAfter > 0) feedLine(netBefore > 0 ? `${n.name} owes you again.` : `${n.name} owes you one.`, n.id, 'favour');
+      else if (netAfter < netBefore && netAfter < 0) feedLine(`You owe ${n.name} one.`, n.id, 'favour');
+      else if (netAfter === 0) feedLine(`${n.name} is square with you.`, n.id, 'favour');
+    }
+    // Wave 30, the feed's marks (App.noteRel): a first-hand weight-3 harm ("won't forget that"), and a settlement that landed ("lets some of it go").
+    if (!relQuiet && !muted) {
+      // Not a memory of leverage still in use (its record's own lines say it: "is afraid of what you know"), not one held already, not the same fight again.
+      const pm = plan.memory;
+      const levId = pm && typeof pm.leverageId === 'string' ? pm.leverageId : typeof e.leverageId === 'string' ? e.leverageId : null;
+      const levLive = levId && leverageRec(levId) && Rel.LEV_LIVE.includes(leverageRec(levId).status);
+      if (pm && (pm.weight | 0) >= 3 && !pm.witness && !pm.secondhand && pm.act !== 'own' && !levLive && !fight3 && !w3Before.has(w3Key(pm)) && Rel.harmful(pm)) ledger.harm3[n.id] = true;
+      if (plan.settled) ledger.settled[n.id] = true;
     }
     const what = plan.memory ? `remembers "${plan.memory.text}" (weight ${plan.memory.weight}${plan.merged ? `, merged x${plan.memory.n}` : ''})` : 'everyday';
     // Who saw it: a lighter copy each, merged per scene (Rel.witnessEvent); never the laid up, never words said privately.
@@ -9896,8 +9946,8 @@ const State = (() => {
     const held = holder === 'player' ? them : npc(holder);
     const m = held && Array.isArray(held.memories) ? held.memories.slice().reverse().find(x => isObj(x) && x.turn === turn && x.event === rec.since.via && !x.leverageId) : null;
     if (m) m.leverageId = rec.id;
-    if (holder === 'player') feedLine(rec.aware ? `${them.name} knows you know.` : `You have something on ${them.name} now.`);
-    else if (playerKnows) feedLine(`${them.name} has something on you.`);
+    if (holder === 'player') feedLine(rec.aware ? `${them.name} knows you know.` : `You have something on ${them.name} now.`, them.id, 'yours');
+    else if (playerKnows) feedLine(`${them.name} has something on you.`, them.id, 'theirs');
     // The fear of what the player knows is part of the tracks (Rel.recompute's levFear).
     relWrite(them);
     return `${rec.id}: ${holder === 'player' ? `the player holds ${them.id}` : `${them.id} holds the player`} (weight ${weight}${rec.aware ? '' : ', they do not know'}${mattersTo.length ? `; it matters to ${mattersTo.join(', ')}` : ''})`;
@@ -9952,11 +10002,11 @@ const State = (() => {
     }
     // The feed (design section 7.2).
     if (them) {
-      if (rec.holder === 'player' && rec.status === 'paid' && was !== 'paid') feedLine(`${them.name} has paid for your silence.`);
-      if (rec.over === 'player' && rec.status === 'paid' && was !== 'paid') feedLine(`${them.name} will keep quiet.`);
-      if (rec.over === 'player' && rec.status === 'spent' && was !== 'spent') feedLine(`${them.name} told.`);
-      if (rec.over === 'player' && known && rec.status !== 'spent') feedLine(`${them.name} has something on you.`);
-      if (rec.holder === 'player' && e.aware === true && parts.includes('they know')) feedLine(`${them.name} knows you know.`);
+      if (rec.holder === 'player' && rec.status === 'paid' && was !== 'paid') feedLine(`${them.name} has paid for your silence.`, them.id, 'silence');
+      if (rec.over === 'player' && rec.status === 'paid' && was !== 'paid') feedLine(`${them.name} will keep quiet.`, them.id, 'silence');
+      if (rec.over === 'player' && rec.status === 'spent' && was !== 'spent') feedLine(`${them.name} told.`, them.id, 'silence');
+      if (rec.over === 'player' && known && rec.status !== 'spent') feedLine(`${them.name} has something on you.`, them.id, 'theirs');
+      if (rec.holder === 'player' && e.aware === true && parts.includes('they know')) feedLine(`${them.name} knows you know.`, them.id, 'yours');
       relWrite(them);
     }
     return parts.length ? `${rec.id}: ${parts.join('; ')}` : null;
@@ -10042,7 +10092,7 @@ const State = (() => {
     n.rel.owed = (Array.isArray(n.rel.owed) ? n.rel.owed : []).filter(o => isObj(o) && e.dir !== undefined && Math.sign(Number(o.dir) || 0) !== e.dir);
     relWrite(n);
     if (had === n.rel.owed.length) return `no-op: nothing owed ${e.dir === 1 ? 'to the player by' : e.dir === -1 ? 'by the player to' : 'between the player and'} ${n.id}`;
-    if (before !== 0 && (n.rel.net | 0) === 0 && n.knownToPlayer) feedLine(`${n.name} is square with you.`);
+    if (before !== 0 && (n.rel.net | 0) === 0 && n.knownToPlayer) feedLine(`${n.name} is square with you.`, n.id, 'favour');
     return `${n.id} owed ${before} -> ${n.rel.net | 0}`;
   }
 
@@ -10095,6 +10145,8 @@ const State = (() => {
     // Its day too (wave 4, playtest R5): how old a memory is never depends on how far back the log reaches.
     const line = Object.assign({ turn: s.meta.turn, day: s.time.day, text, weight: w }, model ? { model: true } : {}, act ? { act } : {});
     n.memories.push(Object.assign(line, { event: opts && typeof opts.event === 'string' && Rel.EVENTS[opts.event] ? opts.event : Rel.typeMemory(line), d: null }));
+    // Wave 30: a serious grievance is "won't forget that" in the feed (App.noteRel), as a typed one is.
+    if (w >= 3 && !relQuiet && !muted && act !== 'own' && !protectedMemory(line) && Rel.harmful(line)) { syncLedger(); ledger.harm3[n.id] = true; }
     // Past MEMORY_MAX (wave 27, Rel.evictIndex): witness copies first, then the shortest-lived; never a loose end's line or a fact.
     while (n.memories.length > MEMORY_MAX) n.memories.splice(Rel.evictIndex(n.memories), 1);
     if (typedBefore.some(x => !n.memories.includes(x))) relPin(n, keep);
@@ -10287,7 +10339,7 @@ const State = (() => {
        Pryor lets it drop." */
     if (status === 'lapsed') {
       const n = npc(o.npcId);
-      if (n && how === 'a standoff') feedLine(`${n.name} lets it drop.`);
+      if (n && how === 'a standoff') feedLine(`${n.name} lets it drop.`, n.id, 'silence');
       return `${o.id} lapsed${how ? ` (${how})` : ''}: it can no longer be`;
     }
     // Its own onMiss is running (wave 6): money it credits toward it (obligationPaid) never meets it.
@@ -11076,6 +11128,8 @@ const State = (() => {
     if (Number.isInteger(m.n) && m.n >= 1) out.n = m.n;
     for (const k of ['place', 'key', 'scene', 'leverageId', 'about', 'fight']) if (typeof m[k] === 'string' && m[k] && m[k].length <= 80) out[k] = m[k];
     for (const k of ['witness', 'private', 'seen']) if (m[k] === true) out[k] = true;
+    // Wave 30: planted off-screen and not seen yet (the People card keeps it back until the player has been in a scene with them since).
+    if (m.seen === false) out.seen = false;
     if (m.secondhand === true || isObj(m.secondhand)) out.secondhand = isObj(m.secondhand) ? deepCopy(m.secondhand) : true;
     return out;
   }
@@ -11156,7 +11210,8 @@ const State = (() => {
      move for. Memories edited with no track given leave every track where
      it was (pinned). */
   const EDIT_KEYS = ['npcId', 'name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'goal', 'secret', 'attitude', 'relationToNpcId', 'relation', 'homeLocationId', 'status', 'alive', 'memories', 'rel'];
-  const EDIT_FIELDS = ['name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'attitude', 'rel', 'relation', 'home', 'status', 'memories', 'goal', 'secret'];
+  // Wave 30: the tracks by name (trust, fear, knows, spark), so the quiet line reads "Edited Mavis Mangum: attitude, trust.".
+  const EDIT_FIELDS = ['name', 'age', 'pronouns', 'role', 'look', 'voice', 'history', 'personality', 'attitude', 'trust', 'fear', 'knows', 'spark', 'relation', 'home', 'status', 'memories', 'goal', 'secret'];
   const EDIT_MAX = Object.freeze({ name: 40, role: 60, look: 200, voice: 200, history: 400, goal: 200, secret: 300, relation: 30, trait: 30, traits: 3, memory: 400, age: 120 });
   /* Returns { id, fields, line }, or null when nothing changed. */
   function editPerson(e) {
@@ -11265,7 +11320,7 @@ const State = (() => {
     const land = {};
     if (liking !== undefined && liking !== n.attitude) { parts.push(`attitude ${n.attitude} -> ${liking}`); land.w = liking; fields.add('attitude'); }
     const others = Rel.TRACKS.filter(x => x !== 'w' && tracks[x] !== undefined && tracks[x] !== keep[x]);
-    if (others.length) { parts.push(...others.map(x => `${RELWORD[x]} ${keep[x]} -> ${tracks[x]}`)); for (const x of others) land[x] = tracks[x]; fields.add('rel'); }
+    if (others.length) { parts.push(...others.map(x => `${RELWORD[x]} ${keep[x]} -> ${tracks[x]}`)); for (const x of others) { land[x] = tracks[x]; fields.add(Rel.TRACK_NAMES[x]); } }
     if (relChanged) {
       if (relTo) {
         // A town person has no created record until the player gives them a relation.
@@ -12636,6 +12691,97 @@ const State = (() => {
       relPin(n, keep);
       return `${n.id} memories rewritten (${before} -> ${list.length})`;
     });
+    /* Wave 30, rules version 9 ("People who remember", Upgrade.peopleRemember;
+       the engine's alone): { people: [{ npcId, rel, memories }],
+       obligations: [{ id, onMiss?, onMet? }], seeds: [{ seedId, effects }],
+       branches: [{ eventId ('epilogue' for the ending), index, when }],
+       rumours: [{ id, leverageOver }], records: [{ holder, text, weight,
+       mattersTo, status, playerKnows, obligationId? }], heard: [rumour ids]
+       }. A person's rel and typed memories are written only when the tracks
+       they give read liking exactly the attitude the person has now: the
+       update never moves how much anyone likes the player (refused, by
+       name, otherwise). The rest is what the town's content now says,
+       copied into the save as arcFill does (only what still to come: an open
+       obligation, an unfired seed, the council and the ending before they
+       happen, for the built-in town only) and what the save already
+       implies (the informant's hold on the player; what a rumour heard
+       gives the player). result.relFill counts them. */
+    one('relFill', v => {
+      if (!isObj(v)) bad('must be an object');
+      const out = { people: 0, obligations: 0, seeds: 0, branches: 0, rumours: 0, records: 0, heard: 0 };
+      const list = k => (Array.isArray(v[k]) ? v[k] : []);
+      list('people').forEach((x, i) => run(`relFill.people[${i}]`, () => {
+        if (!isObj(x) || !isObj(x.rel)) bad('needs { npcId, rel, memories }');
+        const n = needNpc(x.npcId);
+        const mems = checkMemories(Array.isArray(x.memories) ? x.memories : [], false);
+        relWrite(n);
+        const want = n.attitude;
+        const rel = Rel.repair(Object.assign({}, n, { rel: deepCopy(x.rel) }), townRec(n.id));
+        const tmp = Object.assign({}, n, { rel, memories: mems });
+        const c = Rel.recompute(tmp, current.time.day, relCtx());
+        if (c.w !== want) bad(`${n.id}: liking would read ${c.w}, not ${want}; the update never moves how much anyone likes the player`);
+        n.memories = mems;
+        n.rel = Object.assign(rel, c);
+        relGuard(n, `relFill.${n.id}`);
+        relWrite(n);
+        out.people += 1;
+        return null;
+      }));
+      list('obligations').forEach((x, i) => run(`relFill.obligations[${i}]`, () => {
+        const o = isObj(x) ? obligationList().find(y => y.id === x.id) : null;
+        if (!o || o.status !== 'open') return null;
+        if (Array.isArray(x.onMiss)) o.onMiss = effectList(x.onMiss, 'onMiss');
+        if (Array.isArray(x.onMet)) o.onMet = effectList(x.onMet, 'onMet');
+        out.obligations += 1;
+        return `${o.id} does what its loose end now does`;
+      }));
+      list('seeds').forEach((x, i) => run(`relFill.seeds[${i}]`, () => {
+        const sd = isObj(x) ? seed(x.seedId) : null;
+        if (!sd || sd.fired || !Array.isArray(x.effects)) return null;
+        sd.effects = effectList(x.effects, `seed ${sd.id}`);
+        out.seeds += 1;
+        return `${sd.id} does what its loose end now does`;
+      }));
+      const builtIn = s.meta.townName === TOWN_DATA.name && isObj(town) && town !== TOWN_DATA;
+      list('branches').forEach((x, i) => run(`relFill.branches[${i}]`, () => {
+        if (!builtIn || !isObj(x) || !isObj(x.when) || !Number.isInteger(x.index)) return null;
+        const ending = x.eventId === 'epilogue';
+        if (ending ? !!s.flags.epilogueShown : (Array.isArray(s.eventsFired) && s.eventsFired.includes(x.eventId))) return null;
+        const ev = ending ? town.epilogue : (Array.isArray(town.events) ? town.events.find(e => isObj(e) && e.id === x.eventId) : null);
+        const b = isObj(ev) && Array.isArray(ev.branches) ? ev.branches[x.index] : null;
+        if (!isObj(b)) return null;
+        b.when = deepCopy(x.when);
+        out.branches += 1;
+        return `${x.eventId} branch ${x.index + 1} reads ${Object.keys(x.when).join(', ')}`;
+      }));
+      list('rumours').forEach((x, i) => run(`relFill.rumours[${i}]`, () => {
+        if (!isObj(x) || typeof x.leverageOver !== 'string') return null;
+        needNpc(x.leverageOver);
+        let any = false;
+        for (const r of [rumour(x.id), builtIn && Array.isArray(town.rumours) ? town.rumours.find(y => isObj(y) && y.id === x.id) : null]) if (isObj(r) && r.leverageOver === undefined) { r.leverageOver = x.leverageOver; any = true; }
+        if (any) out.rumours += 1;
+        return any ? `${x.id} is leverage over ${x.leverageOver}` : null;
+      }));
+      list('records').forEach((x, i) => run(`relFill.records[${i}]`, () => {
+        if (!isObj(x)) bad('must be an object');
+        const holder = needNpc(x.holder);
+        if (leverageList().some(r => isObj(r) && r.holder === holder.id && r.over === 'player' && isObj(r.about) && r.about.kind === 'loose_end')) return null;
+        const parts = [leverageAdd({ holder: holder.id, over: 'player', about: { kind: 'loose_end' }, text: x.text, weight: x.weight, mattersTo: x.mattersTo, playerKnows: x.playerKnows === true, via: 'loose_end' })];
+        const rec = leverageList().filter(r => isObj(r) && r.holder === holder.id && r.over === 'player').pop();
+        if (rec && typeof x.status === 'string' && x.status !== 'held') parts.push(leverageSet(Object.assign({ id: rec.id, status: x.status }, x.playerKnows === true ? { playerKnows: true } : {}, typeof x.obligationId === 'string' ? { demand: { obligationId: x.obligationId } } : {})));
+        out.records += 1;
+        return parts.filter(Boolean).join('; ');
+      }));
+      list('heard').forEach((id, i) => run(`relFill.heard[${i}]`, () => {
+        const r = rumour(id);
+        if (!r || !r.heard) return null;
+        const line = rumourLeverage(r);
+        if (line && !/^no-op/.test(line)) out.heard += 1;
+        return line;
+      }));
+      result.relFill = out;
+      return `people who remember: ${out.people} people, ${out.obligations} obligations, ${out.seeds} seeds, ${out.branches} branches, ${out.rumours} rumours, ${out.records + out.heard} records`;
+    });
     /* Wave 26: tracks set outright ({ npcId, w?, t?, f?, k?, s? }, or a
        list): each lands exactly, in fix (it never drifts). Spark above 0 is
        refused for anyone it cannot move for; a hard person's fear stops at
@@ -12677,6 +12823,8 @@ const State = (() => {
             moved += 1;
           }
           relWrite(n);
+          // Wave 30: what faded overnight is where the turn's feed lines start from (fading prints nothing).
+          if (Object.prototype.hasOwnProperty.call(ledger.touched, n.id) && isObj(n.rel.bands)) ledger.touched[n.id] = Object.assign({}, n.rel.bands);
         }
       } finally { relQuiet -= 1; }
       result.drifted = moved;
@@ -13635,7 +13783,11 @@ const State = (() => {
       const left = Number.isInteger(x.dueDay) ? x.dueDay - d : null;
       const when = left === null ? '' : `, due Day ${x.dueDay} (${left > 1 ? `${left} days` : left === 1 ? '1 day' : left === 0 ? 'today' : 'overdue'})`;
       return `${n.name}: ${money(x.amount)} for keeping quiet${when}`;
-    }
+    },
+    /* Wave 30: the feed's ranks and the turn's touched people (App.noteRel),
+       and a change that prints no feed line (Upgrade's version 9 runs in
+       it). */
+    FEED_RANK, relTouched, quietly
   };
 })();
 
@@ -13697,7 +13849,19 @@ const State = (() => {
    minorLine and playerMinorLine for the narrator) and reported through
    whoever looks out for the child (guardiansOf) or the law (reportTo, the
    town's policeFallback); MINOR_RULE holds its rows. Nobody is open to a
-   flirt yet: spark's welcome is wave 29's. */
+   flirt yet: spark's welcome is wave 29's.
+
+   Wave 30 (A5, "what people show"): the stance is what the player and the
+   narrator are given in place of the number. cueParts splits the cue into
+   its pieces (the override's lead, the cell, pity, the tag's, a "takes it
+   seriously") so the narrator's "to you" line can drop the cell's words
+   first (cueText), words(track, v, prev) says each track for the card's
+   "More", below() reads relBelow beside relAtLeast, and reasons() gives
+   each its memory's index, turn and whether it is harm, came through a
+   hidden tie (hidden: no name and no cause, ever), is a witness copy or was
+   planted where the player has not seen them since (unseen). A romance
+   line is never a reason for someone not eligible, and ROMANCE_TEXT keeps
+   it off anyone under 18 whatever its event. */
 const Rel = (() => {
   function deepFreeze(v) {
     if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) deepFreeze(v[k]); }
@@ -13954,7 +14118,8 @@ const Rel = (() => {
      list of clauses, so a cue can stop at a whole clause. */
   const CUES = deepFreeze({
     'hates you': ["won't share a room with you if they can help it", 'says it with their face'],
-    'against you': ['polite as a locked door', 'wants you gone'],
+    // Wave 30: "would rather you left" for the design's "wants you gone", which reads as the spark status "wants you" to the minor checks.
+    'against you': ['polite as a locked door', 'would rather you left'],
     contempt: ['talks past you'],
     'suspicious of you': ['checks every answer', 'gives nothing for free'],
     'cool to you': ['civil and brief', 'waits for you to leave'],
@@ -13973,8 +14138,12 @@ const Rel = (() => {
     'has something on you': ['sure of themselves around you'],
     'you have something on them': ['careful around you'],
     'you have something on each other': ['careful around you'],
-    seriously: ['takes you seriously']
+    seriously: ['takes you seriously'],
+    // Wave 30 (design section 10): pity, liking 25 while the player is hurt, broke or beaten.
+    pity: ['worries about you']
   });
+  // Wave 30: words that read as romance; a minor's reasons and what they hold the player to never carry them.
+  const ROMANCE_TEXT = /\b(flirt\w*|kiss\w*|wink\w*|dated?|dating|asked (me|him|her|them) out|pretty|cute|sweetheart|darling|beautiful|gorgeous|sexy|handsome|in love|crush)\b/i;
   // The harm a "talks past you" needs on top: words and honesty, never a hurt (exposed counts as harm).
   const CONTEMPT_EVENTS = Object.freeze(['insulted', 'pried', 'humiliated', 'lied_caught', 'broke_word', 'told_anyway', 'caught_you_at']);
   // What an onlooker takes (design section 4.3; wave 27): one class lighter, floor 0, one copy a scene.
@@ -15090,6 +15259,14 @@ const Rel = (() => {
     const c = tracksOf(n, ctx);
     return Object.keys(cond).every(k => !MEET_KEYS[k] || !Number.isFinite(cond[k]) || c[MEET_KEYS[k]] >= cond[k]);
   }
+  /* The other side of meets (wave 30: a town event's relBelow): every track
+     named is under its number. */
+  function below(n, cond, ctx) {
+    if (!isObj(n)) return false;
+    if (!isObj(cond)) return true;
+    const c = tracksOf(n, ctx);
+    return Object.keys(cond).every(k => !MEET_KEYS[k] || !Number.isFinite(cond[k]) || c[MEET_KEYS[k]] < cond[k]);
+  }
   // Who someone is to whom, both ways: [{ id, word, back }] (back: the other person's label for them).
   function kinOf(n, ctx) {
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
@@ -15713,25 +15890,57 @@ const Rel = (() => {
      spark status's clause first (never cut), then the cell's, then the
      first tag's, then "takes you seriously" (respected or feared in town,
      or trust 25) if it fits. Whole clauses only. */
-  function cue(n, ctx) {
+  /* Wave 30: the cue in its parts, so the narrator's line can drop the
+     cell's clause when it must (the integration plan's 10.1): lead (the
+     override's or the spark status's, never cut), cell (the stance's own,
+     or "talks past you" for contempt), pity ("worries about you": liking 25
+     while the player is hurt, broke or beaten; design section 10), tag (the
+     first tag's that has a clause) and seriously ("takes you seriously":
+     respected or feared in town, or trust 25), each a list of clauses in
+     their words ({them}, {they} filled). */
+  function playerLow(ctx) {
+    const p = ctx.s && isObj(ctx.s.player) ? ctx.s.player : null;
+    if (!p) return false;
+    const hurt = Number.isFinite(p.hp) && Number.isFinite(p.maxHp) && p.maxHp > 0 && p.hp < p.maxHp / 2;
+    const broke = Number.isFinite(p.gold) && p.gold < 10;
+    const beaten = (Array.isArray(p.conditions) ? p.conditions : []).some(c => isObj(c) && /^beaten\b/i.test(String(c.name || '')));
+    return hurt || broke || beaten;
+  }
+  function cueParts(n, ctx) {
     ctx = context(ctx);
     const st = stance(n, ctx);
+    const c = cacheOf(n, ctx);
     const pron = isObj(n) && n.pronouns === 'he' ? { them: 'him', they: 'he' } : isObj(n) && n.pronouns === 'she' ? { them: 'her', they: 'she' } : { them: 'them', they: 'they' };
+    const fill = list => (list || []).map(x => fillTemplate(x, pron));
     const sp = SPARK_STATUS.find(x => st.tags.includes(x.status));
     // Wave 29: "wants you" from someone who distrusts the player says so ("doesn't trust you").
-    const spCue = sp ? (sp.distrustCue && cacheOf(n, ctx).t <= GATES.spark.distrust ? sp.distrustCue : sp.cue) : [];
-    const lead = (st.override ? CUES[st.override] : spCue).map(x => fillTemplate(x, pron));
+    const spCue = sp ? (sp.distrustCue && c.t <= GATES.spark.distrust ? sp.distrustCue : sp.cue) : [];
+    const tag = st.tags.find(t => CUES[t] && !(sp && t === sp.status));
+    const tier = ctx.s && ctx.s === State.current ? State.reputationTier('town') : null;
+    return {
+      stance: st,
+      lead: fill(st.override ? CUES[st.override] : spCue),
+      cell: fill(st.contempt ? CUES.contempt : CUES[st.grid]),
+      pity: c.w >= 25 && playerLow(ctx) ? fill(CUES.pity) : [],
+      tag: tag ? fill(CUES[tag]) : [],
+      seriously: tier === 'respected' || tier === 'feared' || c.t >= 25 ? fill(CUES.seriously) : []
+    };
+  }
+  /* The parts as one cue, whole clauses only, at most CAPS.cueWords words:
+     the lead always (never cut), then the cell's (unless opts.noCell), the
+     pity, the tag's and "takes you seriously" while they fit. */
+  function cueText(parts, opts) {
     const words = x => x.split(/\s+/).filter(Boolean).length;
-    const out = lead.slice();
+    const out = parts.lead.slice();
     let used = out.reduce((a, x) => a + words(x), 0);
     const add = clauses => { for (const x of clauses || []) { if (used + words(x) > CAPS.cueWords) return; out.push(x); used += words(x); } };
-    add(st.contempt ? CUES.contempt : CUES[st.grid]);
-    const tag = st.tags.find(t => CUES[t] && !(sp && t === sp.status));
-    if (tag) add(CUES[tag]);
-    const tier = ctx.s === State.current ? State.reputationTier('town') : null;
-    if (tier === 'respected' || tier === 'feared' || cacheOf(n, ctx).t >= 25) add(CUES.seriously);
+    if (!(opts && opts.noCell)) add(parts.cell);
+    add(parts.pity);
+    add(parts.tag);
+    add(parts.seriously);
     return out.join(', ');
   }
+  function cue(n, ctx) { return cueText(cueParts(n, ctx)); }
   /* The memories that hold them where they are, biggest first: typed ones
      by what they still carry, then legacy lines by weight and how new they
      are. [{ text, day, event, settled, weight }]. */
@@ -15753,21 +15962,39 @@ const Rel = (() => {
       return { m, i, typed, size: q ? Math.abs(q.w) + Math.abs(q.t) + Math.abs(q.f) : 0 };
     });
     rows.sort((a, b) => (Number(b.typed) - Number(a.typed)) || (b.size - a.size) || (num(b.m.weight) - num(a.m.weight)) || (b.i - a.i));
-    const mems = rows.map(x => ({ text: x.m.text, day: dayOf(x.m, ctx, ctx.day), event: typeMemory(x.m), settled: settlements(x.m).length, weight: x.m.weight }));
+    /* Wave 30: what the card and the narrator need besides: the memory's
+       index and turn, whether it is a harm, whether it came through a tie
+       the town does not know (hidden: the narrator gets no cause and no
+       name; the card only the day) and whether it was planted off-screen
+       and not seen yet (seen false: the card keeps it back until the player
+       has been in a scene with them since). Spark reasons never for anyone
+       it cannot move for. */
+    const open = eligible(n, ctx);
+    // For someone under 18, never a line that reads as romance, whatever it was typed as (the narrator and the card read these).
+    const minor = isMinor(n, ctx);
+    const mems = rows.filter(x => (open || !ROMANCE_EVENTS.includes(x.m.event)) && !(minor && ROMANCE_TEXT.test(String(x.m.text || '')))).map(x => Object.assign({ text: x.m.text, day: dayOf(x.m, ctx, ctx.day), event: typeMemory(x.m), settled: settlements(x.m).length, weight: x.m.weight, i: x.i, turn: x.m.turn, harm: harmful(x.m) },
+      isObj(x.m.secondhand) && x.m.secondhand.hidden === true ? { hidden: true } : {}, x.m.seen === false ? { unseen: true } : {}, x.m.witness === true ? { witness: true } : {}));
     return lev.concat(mems).slice(0, cap);
   }
-  /* The card's word for one track (the People card's fold, wave 30). */
+  /* The card's words for each track, behind its "More" fold (wave 30,
+     design section 7.1): liking by its seven bands, trust by its three and
+     "completely" from 60, fear by its three, knows-you by four steps, and
+     what wanting reads as (the spark status's band; never shown for anyone
+     it cannot move for). */
   const WORDS = deepFreeze({
-    w: { hates: 'hates you', dislikes: 'dislikes you', cool: 'cool', neutral: 'neutral', friendly: 'friendly', warm: 'warm', devoted: 'devoted' },
-    t: { distrusts: "doesn't trust you", unsure: 'unsure of you', trusts: 'trusts you' },
-    f: { calm: 'no', uneasy: 'uneasy', afraid: 'scared' },
-    s: { none: null, noticed: 'looks twice', sweet: 'interested', wants: 'interested', falling: 'very' }
+    w: { hates: 'hates you', dislikes: 'no', cool: 'not much', neutral: 'either way', friendly: 'some', warm: 'a lot', devoted: 'completely' },
+    t: { distrusts: 'no', unsure: 'not yet', trusts: 'yes', full: 'completely' },
+    f: { calm: 'no', uneasy: 'a little', afraid: 'yes' },
+    k: [[10, 'barely'], [30, 'a little'], [60, 'well'], [101, 'very well']],
+    s: { none: null, noticed: 'a little', sweet: 'yes', wants: 'yes', falling: 'very much' }
   });
-  function words(track, v) {
+  // The word for a track's value; prev: the band it held (the hysteresis the stance reads).
+  function words(track, v, prev) {
     const x = toInt(v) || 0;
-    if (track === 'k') return x < 10 ? 'a stranger' : x < 30 ? 'by sight' : x < 60 ? 'yes' : 'well';
+    if (track === 'k') return (WORDS.k.find(([at]) => x < at) || WORDS.k[WORDS.k.length - 1])[1];
     if (!BANDS[track] || !WORDS[track]) return null;
-    return WORDS[track][band(track, x)];
+    if (track === 't' && x >= 60) return WORDS.t.full;
+    return WORDS[track][band(track, x, prev)];
   }
 
   // ----- dice and debug -----
@@ -15817,7 +16044,9 @@ const Rel = (() => {
     // Wave 29.
     SPARK_LOST, LEV_LIVE, LEV_STATUSES, LEV_NEXT, LEV_ABOUT, INTIMATE_ASK, NIGHT_PLACES, WHEN_TOLD, authored, romanceEntry, welcomeOf, intimateGate, earnedDistrust, statusFor, statusLine,
     priceIn, contentWords, overlap, keysOf, keysIn, secretWeightOf, mattersToOf, whenToldOf, canRaise, leverageOf, holdsOver, heldOverPlayer, policeBarred, standoff, references,
-    backedRecord, backedRoll, leverageAnswer, leverageLines, demands, jealousyOf, kinOf
+    backedRecord, backedRoll, leverageAnswer, leverageLines, demands, jealousyOf, kinOf,
+    // Wave 30.
+    ROMANCE_TEXT, below, cueParts, cueText, playerLow
   };
 })();
 
@@ -16546,6 +16775,8 @@ const Town = (() => {
       arr(c.npcFree).forEach(id => checkRef(w, 'npc', id));
       for (const [id, l] of Object.entries(isObj(c.npcAt) ? c.npcAt : {})) { checkRef(w, 'npc', id); checkRef(w, 'loc', l); }
       for (const id of Object.keys(isObj(c.attitudeAtLeast) ? c.attitudeAtLeast : {})) checkRef(w, 'npc', id);
+      // Wave 30: relAtLeast / relBelow { npcId: { liking, trust, fear, knows } }.
+      for (const k of ['relAtLeast', 'relBelow']) for (const [id, v] of Object.entries(isObj(c[k]) ? c[k] : {})) { checkRef(w, 'npc', id); if (!isObj(v)) e(`${w}.${k}.${id}: must be { liking, trust, fear, knows }`); }
       for (const id of Object.keys(isObj(c.clockAtLeast) ? c.clockAtLeast : {})) checkRef(w, 'fac', id);
       if (c.playerAt !== undefined) { if (typeof c.playerAt !== 'string') e(`${w}.playerAt: must be a place id`); else checkRef(w, 'loc', c.playerAt); }
       for (const k of ['flagsSet', 'flagsUnset', 'npcFree', 'obligationOpen']) if (c[k] !== undefined && !Array.isArray(c[k])) e(`${w}.${k}: must be a list`);
@@ -16811,7 +17042,9 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst };
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst,
+    // Wave 30: where a loose end's person starts (Upgrade's version 9 reads them).
+    LOOSE_END_ATTITUDE: Object.freeze(Object.assign({}, LOOSE_END_ATTITUDE)), LOOSE_END_TRUST };
 })();
 
 // ===== Module: World =====
@@ -17075,8 +17308,10 @@ const World = (() => {
      npcAt: { npcId: locationId } there now; flagsSet / flagsUnset: [keys];
      obligationOpen: [ids] still open; obligationStatus: { id: status };
      clockAtLeast: { factionId: n } (clockProgress); attitudeAtLeast:
-     { npcId: n }; attitudeBelow: { npcId: n } and threadOpen: [ids]
-     (wave 5); playerAt: locationId (the player is there when it is
+     { npcId: n } (liking, for older town copies); attitudeBelow: { npcId:
+     n } and threadOpen: [ids] (wave 5); relAtLeast and relBelow: {
+     npcId: { liking, trust, fear, knows } } (wave 30); playerAt:
+     locationId (the player is there when it is
      read: for a town event, the tick that fires it, after any walk into
      that phase). Nothing named, or no object: it holds. */
   function conditionsMet(c, opts) {
@@ -17093,6 +17328,12 @@ const World = (() => {
     for (const [id, n] of entries(c.attitudeAtLeast)) { const p = State.npc(id); if (!p || !(p.attitude >= Number(n))) return false; }
     // Wave 5: attitudeBelow { npcId: n } (they still hold it against the player) and threadOpen [ids] (a loose end not settled yet).
     for (const [id, n] of entries(c.attitudeBelow)) { const p = State.npc(id); if (!p || !(p.attitude < Number(n))) return false; }
+    /* Wave 30: relAtLeast / relBelow { npcId: { liking?, trust?, fear?,
+       knows? } } (warmth and familiarity read as liking and knows), every
+       track named at least or under its number (Rel.meets, Rel.below).
+       Spark is never readable here. */
+    for (const [id, cond] of entries(c.relAtLeast)) { const p = State.npc(id); if (!p || !isObj(cond) || !Rel.meets(p, cond)) return false; }
+    for (const [id, cond] of entries(c.relBelow)) { const p = State.npc(id); if (!p || !isObj(cond) || !Rel.below(p, cond)) return false; }
     // As it is, a status held for its news included (wave 7: State.threadNow).
     if (arr(c.threadOpen).some(id => { const t = State.thread(id); return !t || State.threadNow(t, 'status') !== 'open'; })) return false;
     for (const [id, n] of entries(c.clockAtLeast)) if (!(clockProgress(id) >= Number(n))) return false;
@@ -18739,7 +18980,7 @@ const Style = (() => {
      it sits in the cached style block (between the guide and the examples,
      byte-identical per style); the packet keeps only when the player came to
      town and who knew them before (Pipeline.knowledgeLine). */
-  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "remembers" list and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS. What the player carries and how much money they have is theirs alone to know: a person sees only what the player shows, hands over or says, and never knows or names the total the player has or has left.';
+  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "to you" reasons, what they hold you to and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS. What the player carries and how much money they have is theirs alone to know: a person sees only what the player shows, hands over or says, and never knows or names the total the player has or has left.';
   const STYLES = {
     casual: { guide: STYLE_GUIDE_CASUAL, examples: EXAMPLE_TURNS_CASUAL },
     literary: { guide: STYLE_GUIDE_LITERARY, examples: EXAMPLE_TURNS_LITERARY }
@@ -18781,11 +19022,17 @@ const Style = (() => {
      PEOPLE KNOW rules (13 words, about 18 tokens by the api test's
      estimate). Whether a scene is intimate at all is the engine's (wave 29). */
   const FADE_TO_BLACK = 'Intimate scenes fade to black before anything explicit: the next line is afterwards.';
+  /* Wave 30 (the integration plan's 10.3 and 19.7, the trimmed note): how
+     to read a person's "to you" line, the flirt rule and the hidden reason,
+     after the fade-to-black rule (about 87 tokens by the api test's
+     estimate; the LEVERAGE and BETWEEN THEM lines explain themselves per
+     turn). */
+  const PEOPLE_NOTE = 'Each person\'s "to you" is where they stand with the player and why; "plays it" is how they carry it now: play it, never say it. Nobody flirts back unless their line says "open to a flirt" or a turn line says so, and nobody under 18 ever flirts or is flirted with. A reason "of their own" is never hinted at.';
   function systemPrompt(style) {
     const k = pick(style === undefined ? current() : style);
     if (prompts[k] === undefined) {
       const ex = STYLES[k].examples.map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
-      prompts[k] = `${STYLES[k].guide}\n\n${FADE_TO_BLACK}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
+      prompts[k] = `${STYLES[k].guide}\n\n${PEOPLE_NOTE}\n\n${FADE_TO_BLACK}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
     }
     return prompts[k];
   }
@@ -19363,7 +19610,7 @@ const Style = (() => {
      rewrite note share these numbers with check(). */
   function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, FADE_TO_BLACK, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
+  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, FADE_TO_BLACK, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
     // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
     numberWords, NUMBER_WORD: NUMWORD,
     // Wave 12 (L7): "I bet he is lying" is a way of speaking, not a bet at cards.
@@ -21821,6 +22068,24 @@ const Api = (() => {
    past), and a grudge or favour seed not fired yet gets the effects of the
    template it was written from. Deterministic: no call.
 
+   Version 9, "People who remember" (wave 30, docs/RELATIONSHIPS_PLAN.md
+   section 6): every memory an older game holds gets the kind of thing it
+   was and how long it lasts (the engine's own lines first,
+   LEGACY_ENGINE_TEXTS, so the repo man's "took the phone" is never the
+   player's theft; then the kind of turn, the words, the sense), fitted so
+   how much each person likes the player is exactly the old attitude
+   (State's relFill refuses anything else); trust is seeded from the old
+   attitude for anyone with a serious good memory, anyone at 50 or more
+   still opens their secret, knows-you comes from the lines and the days
+   since meeting, favours owed from help still unsettled, spark 0. The
+   informant's hold on the player becomes a record, a rumour heard that
+   is leverage too; an open loose-end obligation or seed still to come
+   with the old effects does what the loose end does now, and the council
+   and the ending still to come read trust (the built-in town only).
+   Deterministic and quiet, no call (unless Settings' "Rewrite memories
+   first" runs version 2's re-read before it): one feed line says what
+   changed. A person already brought to 9 (rel.migrated) is skipped.
+
    Each step stamps the rules version as it completes and has a snapshot
    of its own (Pipeline.updateGame), so a failure at one step keeps the
    steps before it. A save from a newer build than this one (newer) is
@@ -22463,6 +22728,354 @@ const Upgrade = (() => {
     return res;
   }
 
+  // ----- version 9: people who remember -----
+  /* The engine's own memory lines in an older save (red-team item d): what
+     the 56e69f5 writers and content templates wrote, tried before any
+     typing by words, so an editor-stripped "took the phone" (the repo
+     man's own act) is never typed as the player's theft. Each: { re, event,
+     own (what they did to the player), scale (of the table's row), witness
+     (a lighter copy), dNull (it moves nothing), noRecord (no leverage
+     record after the fact), secondhand }. Earliest match wins. */
+  const LEGACY_ENGINE_TEXTS = Object.freeze([
+    { re: /^knocked me down in a fight at /i, event: 'beat_down' },
+    { re: /^saw .+ knock .+ down at /i, event: 'beat_down', witness: true },
+    { re: /^locked .+ up overnight for fighting/i, event: 'noted', own: true },
+    { re: /^found .+ (still )?sleeping rough at /i, event: 'noted', own: true },
+    { re: /^Found .+ beaten senseless and helped them/i, event: 'they_helped' },
+    { re: /^Beat .+ in a fight and dragged them to the cells/i, event: 'noted', own: true },
+    { re: /\blet the .+ go past due, so I took\b/i, event: 'broke_word', own: true },
+    { re: /\bwould not pay, so I told Chief Bell\b/i, event: 'broke_word', own: true },
+    { re: /\bwelshed on .+, and I made sure\b/i, event: 'broke_word', own: true },
+    { re: /\blet it go past due: /i, event: 'broke_word' },
+    { re: /\bpaid me two hundred dollars to keep quiet\b/i, event: 'paid_silence' },
+    { re: /\bpaid (the )?.+ in full( and on time|, but late)|\bpaid the four hundred from the card game\b|\bpaid off the title-loan note\b|\bpaid me back \$/i, event: 'paid_back' },
+    { re: /\bbrought me a letter\b|\bbrought my daughter home\b|\bcame around because my daddy asked\b|\bkept the promise\b/i, event: 'kept_word' },
+    { re: /^waited for .+ and they never came/i, event: 'broke_word', scale: 0.5 },
+    { re: /\bpromised to .+ and (never|has not)\b|\bmade me a promise and let the day go by\b/i, event: 'broke_word' },
+    { re: /^caught .+ sneaking around/i, event: 'caught_you_at', noRecord: true },
+    { re: /^caught .+ cheating at cards/i, event: 'cheated' },
+    { re: /^(lost \$\d[\d,]* to|took a pot off) .+ at cards/i, event: 'noted', dNull: true },
+    { re: /^Watched .+ fail badly/i, event: 'noted' },
+    { re: /^Pointed .+ toward somebody in town who could help them|^Told .+ the old story about the river|^Put .+ against a wall and hit them twice/, event: 'noted', own: true },
+    { re: /\bsays .+ was hanging around where things went missing|\breported .+ for putting hands on them/i, event: 'crossed', secondhand: true },
+    { re: /\btold me what .+ is hiding\b/i, event: 'told_anyway', secondhand: true },
+    { re: /\bvouched for .+ and said they were together all night\b/i, event: 'noted' },
+    { re: /^Loose end with /i, event: 'noted' },
+    { re: /^Fact \(a story point\):/i, event: 'noted' }
+  ].map(x => Object.freeze(x)));
+  /* What a loose end's obligation did in 56e69f5 (attitudeDelta and a
+     legacy line, before wave 27 made them events), by kind: the default and
+     each option's. An open obligation or a loose-end seed still to come
+     whose effects are exactly these (filled for its person) does what its
+     loose end does now. */
+  function freezeAll(v) {
+    if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) freezeAll(v[k]); }
+    return v;
+  }
+  const OLD_OBLIGATIONS = freezeAll({
+    debt: { obligation: {"onMiss":[{"op":"takeItem","name":"Prepaid phone"},{"op":"attitudeDelta","npcId":"{npcId}","delta":-15},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} let the four hundred go past due, so I took the phone as a start.","weight":3,"act":"own"},{"op":"addNews","text":"{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.","public":false}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} paid the four hundred in full and on time.","weight":2}]}, options: [{"onMiss":[{"op":"takeItem","name":"Prepaid phone"},{"op":"attitudeDelta","npcId":"{npcId}","delta":-15},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} let the six hundred go past due, so I took the phone as a start.","weight":3,"act":"own"},{"op":"addNews","text":"{npc} came looking for the six hundred dollars and took {playerName}'s phone as a down payment.","public":false}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} paid the six hundred in full and on time.","weight":2}]}, {"onMiss":[{"op":"obligationPaid","id":"{obligationId}","amount":150,"take":true},{"op":"takeItem","name":"Prepaid phone"},{"op":"attitudeDelta","npcId":"{npcId}","delta":-10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} let the title-loan note go past due, so I took what cash there was and the phone.","weight":3,"act":"own"},{"op":"addNews","text":"{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.","public":false}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} paid off the title-loan note, fees and all.","weight":2}]}, {"onMiss":[{"op":"banFrom","locationId":"loc_low_water","days":3,"byNpcId":"{npcId}"},{"op":"attitudeDelta","npcId":"{npcId}","delta":-20},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} welshed on four hundred dollars, and I made sure Loretta heard.","weight":3,"act":"own"},{"op":"addNews","text":"{npc} is telling everybody at the Low Water that {playerName} welshed on four hundred dollars, and Loretta Gaddis won't serve a welsher.","public":true}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} paid the four hundred from the card game, every dollar.","weight":2}]}] },
+    secret: { obligation: {"onMiss":[{"op":"addMemory","npcId":"npc_marcus","text":"{npc} told me what {playerName} is hiding.","weight":2},{"op":"attitudeDelta","npcId":"npc_marcus","delta":-10},{"op":"attitudeDelta","npcId":"{npcId}","delta":-10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} would not pay, so I told Chief Bell what {playerName} is hiding.","weight":3,"act":"own"},{"op":"addNews","text":"{npc} has been telling people what {playerName} is hiding.","public":true}],"onMet":[{"op":"addMemory","npcId":"{npcId}","text":"{playerName} paid me two hundred dollars to keep quiet.","weight":2}]}, options: [null, null, null] },
+    promise: { obligation: {"onMiss":[{"op":"attitudeDelta","npcId":"{npcId}","delta":-10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} made me a promise and let the day go by.","weight":2}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10}]}, options: [{"onMiss":[{"op":"addMemory","npcId":"npc_bernice","text":"{playerName} promised to put my letter in my daughter's hand and never did.","weight":2},{"op":"addNews","text":"The letter for {npc} is still in {playerName}'s pocket.","public":false}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":15},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} brought me a letter from home.","weight":3}]}, {"onMiss":[{"op":"addMemory","npcId":"npc_dale","text":"{playerName} promised to look in on my boy and never wrote.","weight":2}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"{npcId}","text":"{playerName} came around because my daddy asked them to.","weight":2}]}, {"onMiss":[{"op":"addMemory","npcId":"npc_bernice","text":"{playerName} promised to bring my daughter home and has not.","weight":2}],"onMet":[{"op":"attitudeDelta","npcId":"{npcId}","delta":10},{"op":"addMemory","npcId":"npc_bernice","text":"{playerName} brought my daughter home.","weight":3}]}] }
+  });
+  // The decay a line of this weight lasts at least (a serious old line outlasts a passing word).
+  const WEIGHT_DECAY = Object.freeze({ 1: 'mood', 2: 'slight', 3: 'wound' });
+  const DECAY_RANK = Object.freeze({ mood: 1, slight: 2, wound: 3, scar: 4, keeps: 5 });
+  function fillAll(v, vars) {
+    if (typeof v === 'string') return fillTemplate(v, vars);
+    if (Array.isArray(v)) return v.map(x => fillAll(x, vars));
+    if (isObj(v)) return Object.fromEntries(Object.keys(v).map(k => [k, fillAll(v[k], vars)]));
+    return v;
+  }
+  /* The kind of thing an older line was (integration plan 13.1 steps 3 and
+     4): the engine's own words first (LEGACY_ENGINE_TEXTS), then the kind
+     of turn it was made in (an attack, a theft, a threat; what they did to
+     the player), then its words (Rel.typeMemory), then its sense (a
+     grievance is crossed, a kindness a compliment). The text is read with
+     the player's name taken out, so a name never decides it. Returns {
+     event, own, scale, witness, dNull, noRecord, secondhand, by }. */
+  function legacyType(m, player) {
+    const text = String(m.text || '');
+    const hit = LEGACY_ENGINE_TEXTS.find(x => x.re.test(text));
+    if (hit) return Object.assign({ by: 'engine' }, hit, { re: undefined });
+    if (m.act === 'own') return { event: 'noted', own: true, by: 'act' };
+    const t = text.toLowerCase();
+    if (m.act === 'attack') return { event: /\b(beat|beaten|knock\w* (me )?(down|out))\b/.test(t) ? 'beat_down' : /\bshov\w*/.test(t) ? 'shoved' : 'hit', by: 'act' };
+    if (m.act === 'steal') return { event: 'stole_from', by: 'act' };
+    if (m.act === 'intimidate') return { event: 'threatened', by: 'act' };
+    // "called me a liar" is the player's insult, not a lie of theirs caught.
+    if (/\bcalled (me|us)\b/.test(t)) return { event: 'insulted', by: 'words' };
+    const words = Rel.typeMemory({ text: player ? text.split(player).join('the player') : text, weight: m.weight });
+    if (words !== 'noted') return { event: words, by: 'words' };
+    const sense = Pipeline.memorySense(text);
+    return sense < 0 ? { event: 'crossed', by: 'sense' } : sense > 0 ? { event: 'complimented', by: 'sense' } : { event: 'noted', by: 'none' };
+  }
+  /* A person's start as the town wrote them (the save's town copy, else the
+     live cast, else the record), with a loose end's liking, trust and
+     knows-you in it (they knew the player before). */
+  function startFor(st, n) {
+    const copy = State.town && Array.isArray(State.town.npcs) ? State.town.npcs.find(x => isObj(x) && x.id === n.id) : null;
+    const live = st.meta.townName === TOWN_DATA.name ? TOWN_DATA.npcs.find(x => x.id === n.id) : null;
+    const start = Rel.startOf(n, copy || live || n);
+    const les = (st.player.looseEnds || []).filter(le => isObj(le) && le.npcId === n.id);
+    for (const le of les) {
+      start.w = clamp(start.w + (Town.LOOSE_END_ATTITUDE[le.kind] || 0), -100, 100);
+      start.t = clamp(start.t + (Town.LOOSE_END_TRUST[le.kind] || 0), -100, 100);
+      start.k = Math.max(start.k, 30);
+    }
+    return { start, loose: les.length > 0 };
+  }
+  // The day someone was met (metTurn read against the log), else day 1.
+  function metDay(st, n) {
+    if (!Number.isInteger(n.metTurn)) return null;
+    const d = Rel.memoryDay({ turn: n.metTurn }, st);
+    return Number.isInteger(d) ? d : 1;
+  }
+  /* One person, as version 9 makes them (integration plan 13.1 steps 2 to
+     10): { rel, memories, typed (lines given a kind), owed } or null when
+     nothing is to be done. Liking is exactly their attitude now. */
+  function rememberPerson(st, n) {
+    const D = st.time.day;
+    const ctx = { s: st, town: State.town, day: D, turn: st.meta.turn };
+    const A = clamp(toInt(n.attitude) || 0, -100, 100);
+    const { start, loose } = startFor(st, n);
+    const rel = deepCopy(Rel.repair(n, null));
+    rel.start = start;
+    rel.everyday = Object.assign({}, rel.everyday, { w: 0, s: 0 });
+    rel.fix = Object.assign({}, rel.fix, { w: 0, s: 0 });
+    rel.migrated = 9;
+    const player = st.player.name;
+    const kept = [];
+    const fresh = [];
+    const memories = [];
+    let typed = 0;
+    let goodSerious = false;
+    const owed = [];
+    for (const m0 of Array.isArray(n.memories) ? n.memories : []) {
+      if (!isObj(m0)) continue;
+      const m = deepCopy(m0);
+      memories.push(m);
+      if (isObj(m.d) && Rel.EVENTS[m.event]) { kept.push(m); if (m.weight >= 2 && !Rel.harmful(m)) goodSerious = true; continue; }
+      const t = legacyType(m, player);
+      const row = Rel.EVENTS[t.event] || Rel.EVENTS.noted;
+      m.event = Rel.EVENTS[t.event] ? t.event : 'noted';
+      if (!Number.isInteger(m.day)) { const d = Rel.memoryDay(m, st); m.day = Number.isInteger(d) ? d : Math.max(1, D - 7); }
+      if (t.own) m.act = 'own';
+      if (t.witness) { m.witness = true; m.weight = Math.min(2, m.weight | 0 || 2); }
+      if (t.secondhand) m.secondhand = true;
+      const protectedLine = State.protectedMemory(m);
+      // A line nothing could type (no engine words, no act, no sense) moves nothing and is no claim: d null.
+      if (t.dNull || t.by === 'none') m.d = null;
+      else {
+        const w = t.witness && Rel.WITNESS[m.event] ? Rel.WITNESS[m.event] : row;
+        const sc = Number.isFinite(t.scale) ? t.scale : 1;
+        const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+        m.d = protectedLine ? { w: 0, t: 0, f: 0, k: 0, s: 0 } : { w: num(w.w) * sc, t: num(w.t) * sc, f: num(w.f) * sc, k: t.witness ? 0 : num(row.k), s: 0 };
+        const byWeight = WEIGHT_DECAY[clamp(m.weight | 0, 1, 3)];
+        m.decay = (DECAY_RANK[byWeight] || 0) > (DECAY_RANK[row.decay] || 0) && row.decay !== 'keeps' ? byWeight : row.decay;
+      }
+      if (!m.key) m.key = `m${m.turn | 0}-${n.id}`;
+      if (!protectedLine) typed += 1;
+      if ((m.weight | 0) >= 2 && !t.own && ((isObj(m.d) && num0(m.d.w) + num0(m.d.t) > 0) || Pipeline.memorySense(m.text) > 0)) goodSerious = true;
+      if (!t.own && ['did_favour', 'they_helped', 'rescued'].includes(m.event)) owed.push({ dir: Math.sign(Rel.EVENTS[m.event].owed), size: Math.abs(Rel.EVENTS[m.event].owed), key: m.key, day: m.day, turn: m.turn | 0, why: cleanText(m.text, 120) });
+      fresh.push(m);
+    }
+    // The fit: what the new lines still carry on liking, scaled so the memories and start come to the old number (x0 to x2); signs that disagree: no liking, half the trust and fear.
+    const ax = Rel.axesOf(n, ctx);
+    const tmp = () => Object.assign({}, n, { rel, memories });
+    const keptW = kept.reduce((a, m) => a + Rel.remainder(m, tmp(), D, ax, ctx).w, 0);
+    const newW = fresh.reduce((a, m) => a + (isObj(m.d) ? Rel.remainder(m, tmp(), D, ax, ctx).w : 0), 0);
+    const want = A - start.w - keptW;
+    let scale;
+    if (newW !== 0 && want !== 0 && Math.sign(newW) === Math.sign(want)) scale = clamp(want / newW, 0, 2);
+    else scale = null;
+    const two = x => Math.round(x * 100) / 100 || 0;
+    for (const m of fresh) {
+      if (!isObj(m.d)) continue;
+      if (scale === null) m.d = { w: 0, t: two(m.d.t * 0.5), f: two(m.d.f * 0.5), k: m.d.k, s: 0 };
+      else m.d = { w: two(m.d.w * scale), t: two(m.d.t * scale), f: two(m.d.f * scale), k: m.d.k, s: 0 };
+    }
+    // Owed favours from help still unsettled (rare in older saves).
+    const have = new Set((rel.owed || []).map(o => o && o.key));
+    rel.owed = (Array.isArray(rel.owed) ? rel.owed : []).concat(owed.filter(o => !have.has(o.key))).slice(-Rel.CAPS.owedEntries);
+    // Liking exactly the old number (the rest into everyday, past its bound into fix).
+    let next = Rel.landTo(tmp(), { w: A }, 'everyday', ctx);
+    Object.assign(rel, next);
+    // Trust seeded from the old attitude (a serious good memory: 0.8 of what they warmed, never past the liking), and the secret floor (the old gate: attitude 50).
+    const now = Rel.raw(tmp(), D, ctx);
+    const targets = {};
+    const tNow = Math.round(now.t);
+    let tWant = tNow;
+    if (goodSerious) tWant = Math.min(tNow + Math.round(0.8 * Math.max(0, A - start.w)), Math.max(A, start.t, tNow));
+    if (A >= 50) tWant = Math.max(tWant, Rel.GATES.secret.trust);
+    if (tWant !== tNow) targets.t = clamp(tWant, -100, 100);
+    // Knows-you: from the lines, meeting, the days since and a loose end (at most 60, never less than now).
+    const met = metDay(st, n);
+    const dk = memories.reduce((a, m) => a + (isObj(m.d) ? num0(m.d.k) : 0), 0);
+    let kWant = clamp(Math.round(dk + (met ? 5 + 3 * Math.max(0, D - met) : 0) + (loose ? 30 : 0)), 0, 60);
+    if (A >= 50) kWant = Math.max(kWant, Rel.GATES.secret.knows);
+    kWant = Math.max(kWant, Math.round(now.k));
+    if (kWant !== Math.round(now.k)) targets.k = kWant;
+    if (Object.keys(targets).length) { next = Rel.landTo(tmp(), targets, { t: 'fix', k: 'everyday' }, ctx); Object.assign(rel, next); }
+    // Liking once more, exactly (the trust and knows landing never moves it, but the fit is the promise).
+    next = Rel.landTo(tmp(), { w: A }, 'everyday', ctx);
+    Object.assign(rel, next);
+    rel.migrated = 9;
+    return { rel, memories, typed };
+  }
+  const num0 = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  /* Content copied into the save (step 12): an open loose-end obligation
+     and a loose-end seed still to come whose effects are exactly the old
+     ones do what the loose end does now; the council and the ending still
+     to come read the tracks (the built-in town only; a town of the
+     player's own is never touched); rumours carry leverageOver. */
+  function contentFill(st) {
+    const out = { obligations: [], seeds: [], branches: [], rumours: [] };
+    const p = st.player;
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const oldOf = (kind, at) => { const o = OLD_OBLIGATIONS[kind]; if (!o) return null; return at >= 0 && o.options[at] ? o.options[at] : o.obligation; };
+    const newOf = (kind, at) => {
+      const def = LOOSE_ENDS[kind];
+      if (!def) return null;
+      if (at < 0 && isObj(def.obligation)) return def.obligation;
+      const i = at >= 0 ? at : 0;
+      const opt = Array.isArray(def.options) ? def.options[i] : null;
+      if (isObj(opt) && isObj(opt.obligation)) return opt.obligation;
+      if (Array.isArray(def.obligations) && isObj(def.obligations[i])) return def.obligations[i];
+      return isObj(def.obligation) ? def.obligation : null;
+    };
+    const optionText = o => (typeof o === 'string' ? o : isObj(o) ? o.text : '');
+    for (const le of Array.isArray(p.looseEnds) ? p.looseEnds : []) {
+      if (!isObj(le) || !OLD_OBLIGATIONS[le.kind]) continue;
+      const n = st.npcs.find(x => x.id === le.npcId);
+      if (!n) continue;
+      const def = LOOSE_ENDS[le.kind];
+      const at = (Array.isArray(def.options) ? def.options : []).findIndex(o => optionText(o) === cleanText(le.text, 200));
+      const was = oldOf(le.kind, at);
+      const now = newOf(le.kind, at);
+      if (!was || !now) continue;
+      const vars = { npc: n.name, npcId: n.id, player: p.name, playerName: p.name, text: cleanText(le.text, 200) };
+      for (const o of (Array.isArray(p.obligations) ? p.obligations : []).filter(x => isObj(x) && x.status === 'open' && x.npcId === n.id)) {
+      const ov = Object.assign({ obligationId: o.id }, vars);
+        const fix = { id: o.id };
+        if (same(o.onMiss, fillAll(was.onMiss, ov)) && !same(was.onMiss, now.onMiss || [])) fix.onMiss = fillAll(now.onMiss || [], ov);
+        if (same(o.onMet, fillAll(was.onMet, ov)) && !same(was.onMet, now.onMet || [])) fix.onMet = fillAll(now.onMet || [], ov);
+        if (fix.onMiss || fix.onMet) out.obligations.push(fix);
+      }
+      const sd = le.seedId ? st.seeds.find(x => isObj(x) && x.id === le.seedId) : null;
+      if (sd && !sd.fired && Array.isArray(sd.effects)) {
+        let changed = false;
+        const effects = sd.effects.map(e => {
+          if (!isObj(e) || e.op !== 'addObligation') return e;
+          const f = Object.assign({}, e);
+          if (same(e.onMiss, fillAll(was.onMiss, vars)) && !same(was.onMiss, now.onMiss || [])) { f.onMiss = fillAll(now.onMiss || [], vars); changed = true; }
+          if (same(e.onMet, fillAll(was.onMet, vars)) && !same(was.onMet, now.onMet || [])) { f.onMet = fillAll(now.onMet || [], vars); changed = true; }
+          return f;
+        });
+        if (changed) out.seeds.push({ seedId: sd.id, effects });
+      }
+    }
+    if (st.meta.townName === TOWN_DATA.name && State.town && State.town !== TOWN_DATA) {
+      const T = TOWN_DATA;
+      const reads = w => isObj(w) && (isObj(w.relAtLeast) || isObj(w.relBelow));
+      const fromOld = w => isObj(w) && isObj(w.attitudeAtLeast);
+      const branches = (eventId, mine, theirs) => {
+        if (!isObj(mine) || !isObj(theirs) || !Array.isArray(mine.branches) || !Array.isArray(theirs.branches)) return;
+        mine.branches.forEach((b, i) => {
+          const t = theirs.branches[i];
+          if (isObj(b) && isObj(t) && b.text === t.text && fromOld(b.when) && reads(t.when) && !same(b.when, t.when)) out.branches.push({ eventId, index: i, when: deepCopy(t.when) });
+        });
+      };
+      for (const ev of Array.isArray(State.town.events) ? State.town.events : []) if (isObj(ev) && !(Array.isArray(st.eventsFired) && st.eventsFired.includes(ev.id))) branches(ev.id, ev, (T.events || []).find(x => x.id === ev.id));
+      if (!st.flags.epilogueShown) branches('epilogue', State.town.epilogue, T.epilogue);
+      for (const r of Array.isArray(T.rumours) ? T.rumours : []) {
+        if (typeof r.leverageOver !== 'string') continue;
+        const mine = st.rumours.find(x => isObj(x) && x.id === r.id);
+        const copy = Array.isArray(State.town.rumours) ? State.town.rumours.find(x => isObj(x) && x.id === r.id) : null;
+        if ((mine && mine.leverageOver === undefined) || (copy && copy.leverageOver === undefined)) out.rumours.push({ id: r.id, leverageOver: r.leverageOver });
+      }
+    }
+    return out;
+  }
+  /* Leverage the save already implies (step 11): each informant loose end's
+     hold on the player as a record, its status read from the obligation
+     (none yet: held, the player does not know of it; open: used; met:
+     paid; missed: spent); a rumour heard that content marks as leverage
+     over someone, the player's record (they do not know). Secrets shown in
+     earlier packets: nothing (no record of them exists). */
+  function leverageFill(st) {
+    const records = [];
+    const head = Rel.policeHead({ s: st, town: State.town });
+    const opts = (LOOSE_ENDS.secret && Array.isArray(LOOSE_ENDS.secret.options) ? LOOSE_ENDS.secret.options : []).map(o => (typeof o === 'string' ? o : isObj(o) ? o.text : ''));
+    for (const le of Array.isArray(st.player.looseEnds) ? st.player.looseEnds : []) {
+      if (!isObj(le) || le.kind !== 'secret' || !st.npcs.some(n => n.id === le.npcId)) continue;
+      if ((Array.isArray(st.leverage) ? st.leverage : []).some(x => isObj(x) && x.holder === le.npcId && x.over === 'player' && isObj(x.about) && x.about.kind === 'loose_end')) continue;
+      const at = opts.indexOf(cleanText(le.text, 200));
+      const o = (Array.isArray(st.player.obligations) ? st.player.obligations : []).filter(x => isObj(x) && x.npcId === le.npcId && x.kind === 'blackmail').pop();
+      const status = !o ? 'held' : o.status === 'open' ? 'used' : o.status === 'met' ? 'paid' : o.status === 'missed' ? 'spent' : o.status === 'lapsed' ? 'void' : 'held';
+      records.push(Object.assign({ holder: le.npcId, text: cleanText(le.text, 120), weight: at >= 0 ? Rel.LEVERAGE_WEIGHT.looseEnd[at] || 2 : 2, mattersTo: head ? [head] : [], status, playerKnows: !!o }, o ? { obligationId: o.id } : {}));
+    }
+    const live = st.meta.townName === TOWN_DATA.name ? (TOWN_DATA.rumours || []) : [];
+    const heard = st.rumours.filter(r => isObj(r) && r.heard && r.true !== false && (typeof r.leverageOver === 'string' || live.some(x => x.id === r.id && typeof x.leverageOver === 'string'))).map(r => r.id);
+    return { records, heard };
+  }
+  /* Version 9, "People who remember" (the integration plan's 13.1; no
+     call): for each person not dead, every memory gets the kind of thing it
+     was and how long it lasts, fitted so how much they like the player is
+     exactly the old attitude (relFill refuses anything else); trust is
+     seeded from the old attitude for anyone with a serious good memory,
+     and anyone at 50 or more (the old gate for their secret) keeps it open;
+     knows-you comes from the lines, meeting and the days since; favours
+     owed from help still unsettled; spark 0. Someone already brought up to
+     version 9 (rel.migrated) whose lines are all typed is skipped. The
+     informant's hold on the player becomes a record; the content still to
+     come is copied (contentFill). With Settings' "Rewrite memories in the
+     short form first" (rereadMemories) on, version 2's re-read runs before
+     it (the one call).
+     All quiet: one feed line says what changed. */
+  async function peopleRemember(st, api) {
+    const res = { people: 0, typed: 0, records: 0, branches: 0, calls: 0 };
+    let reread = false;
+    try { reread = Storage.settings().rereadMemories === true; } catch (e) { reread = false; }
+    if (reread) {
+      const r = await rewriteMemories(st, api);
+      res.calls += r.calls | 0;
+      res.reread = r.text;
+    }
+    const behindNine = State.rulesVersion(st) < 9;
+    const people = [];
+    for (const n of st.npcs) {
+      if (!isObj(n) || n.alive === false || presenceOf(n) === 'dead') continue;
+      const mems = Array.isArray(n.memories) ? n.memories.filter(isObj) : [];
+      const allTyped = mems.every(m => typeof m.event === 'string' && m.d !== undefined);
+      if (isObj(n.rel) && n.rel.migrated === 9 && allTyped) continue;
+      if (!behindNine && allTyped) continue;
+      const p = rememberPerson(st, n);
+      if (!p) continue;
+      people.push({ npcId: n.id, rel: p.rel, memories: p.memories });
+      if (p.typed) res.typed += 1;
+    }
+    const content = contentFill(st);
+    const lev = leverageFill(st);
+    const diff = { relFill: Object.assign({ people }, content, lev) };
+    if (!people.length && !content.obligations.length && !content.seeds.length && !content.branches.length && !content.rumours.length && !lev.records.length && !lev.heard.length) return Object.assign(res, { text: (res.reread ? `${res.reread} ` : '') + 'People already remember why.' });
+    const r = State.quietly(() => State.apply(diff));
+    if (r.rejected.length) throw new Error('the engine refused it: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+    const f = r.relFill || {};
+    res.people = f.people | 0;
+    res.records = (f.records | 0);
+    res.branches = f.branches | 0;
+    const count = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    const parts = [];
+    if (res.reread) parts.push(res.reread);
+    if (res.typed) parts.push(`People now remember why: ${count(res.typed, "person's memories now carry", "people's memories now carry")} what they did to how they feel.`);
+    const holding = (Array.isArray(st.leverage) ? st.leverage : []).filter(x => isObj(x) && x.over === 'player' && Rel.LEV_LIVE.includes(x.status)).length;
+    if (res.records && holding) parts.push(`${count(holding, 'person has', 'people have')} something on you.`);
+    if (res.branches) parts.push('The council now weighs trust.');
+    if (!res.typed && !(res.records && holding) && !res.branches) parts.push('People already remember why.');
+    res.text = parts.join(' ');
+    return res;
+  }
+
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
     Object.freeze({ version: 3, title: 'Places people told you about', rerun: true, run: revealPlaces }),
@@ -22470,9 +23083,12 @@ const Upgrade = (() => {
     Object.freeze({ version: 5, title: 'People match the story', rerun: true, run: matchStory }),
     Object.freeze({ version: 6, title: 'A full cast', rerun: true, run: fullCast }),
     Object.freeze({ version: 7, title: 'A lived-in town', rerun: true, run: livedInTown }),
-    Object.freeze({ version: 8, title: 'An arc', rerun: true, run: anArc })
+    Object.freeze({ version: 8, title: 'An arc', rerun: true, run: anArc }),
+    Object.freeze({ version: 9, title: 'People who remember', rerun: true, run: peopleRemember })
   ]);
-  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData };
+  return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData,
+    // Wave 30: version 9.
+    LEGACY_ENGINE_TEXTS, OLD_OBLIGATIONS, legacyType, rememberPerson, contentFill, leverageFill };
 })();
 
 // ===== Module: Pipeline =====
@@ -26307,9 +26923,15 @@ const Pipeline = (() => {
      they have met face to face (metTurn); traits and wants steer the
      person; the secret only with opts.secret (ctx.revealSecretFor: a social
      roll that landed on them, or attitude 50 and up). */
+  /* Wave 30 (the integration plan's 10.1): where they stand is "to you:
+     <stance>[, <tag>] — <reasons> — plays it: <cue>" (toYou, at most 50
+     tokens), then "open to a flirt" for an eligible adult a flirt would be
+     welcome with now (never a minor, never with a player under 18), then
+     "holds you to: ..." (what they hold the player to: a claim noted, the
+     loose end, a story point); in place of "attitude N (word); remembers:
+     ...". Never a number. brief: "to you: <stance>" only. */
   function npcLine(n, turn, brief, opts) {
     const o = opts || {};
-    const mems = brief ? [] : pickMemories(n.memories || [], turn, { w3: 3, w2: 2, w1: 1, recent: 10, cap: 5, looseEnds: true }).map(m => memoryText(m.text));
     const age = ageText(n.age);
     const parts = [(age ? `${age}, ` : '') + pronounLabel(n.pronouns), n.role];
     const rel = State.relationNote(n);
@@ -26328,8 +26950,13 @@ const Pipeline = (() => {
       if (traits.length) parts.push('traits: ' + traits.join(', '));
       if (typeof n.goal === 'string' && n.goal.trim()) parts.push('wants (never say this outright; it steers what they push for and dodge): ' + lowerFirst(n.goal.trim()).replace(/\.$/, ''));
     }
-    parts.push(`attitude ${n.attitude} (${State.attitudeWord(n.attitude)})`);
-    if (mems.length) parts.push('remembers: ' + mems.join(' / '));
+    if (brief) parts.push(`to you: ${Rel.stance(n).phrase}`);
+    else {
+      parts.push(toYou(n));
+      if (Rel.welcomeOf(n).ok) parts.push('open to a flirt');
+      const holds = holdsYouTo(n, turn);
+      if (holds.length) parts.push(`holds you to: ${holds.join(' / ')}`);
+    }
     if (!brief && o.secret && typeof n.secret === 'string' && n.secret.trim()) parts.push('secret (it can come out now, if the talk goes there): ' + lowerFirst(n.secret.trim()).replace(/\.$/, ''));
     return `${n.name} (${parts.join('; ')})`;
   }
@@ -28130,23 +28757,41 @@ const Pipeline = (() => {
     if (MEMORY_BAD.test(t)) return -1;
     return MEMORY_GOOD.test(t) ? 1 : 0;
   }
-  function recapReason(n, p, side) {
-    const le = (p.looseEnds || []).find(x => x.npcId === n.id && (!x.threadId || !State.thread(x.threadId) || State.thread(x.threadId).status === 'open'));
-    if (le) return `your loose end: ${lowerFirst(le.label || le.kind || 'a loose end')}`;
-    const fits = x => !side || memorySense(x.text) === (side === 'cold' ? -1 : 1);
-    const m = (n.memories || []).filter(x => (x.weight | 0) >= 2 && !State.protectedMemory(x) && fits(x)).slice(-1)[0];
-    if (!m) return '';
-    const pr = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
-    const names = [p.name].concat(String(p.name || '').split(/\s+/).filter(w => w.length >= 3)).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  /* Wave 30 (the integration plan's 10.5): a memory in the player's words,
+     the turning code the recap's reason had (recapGroups gives the recap
+     its reasons now), on its own. The player's name is
+     "you" with the verb that goes with it ("you were", "you have"), the
+     person's "I", "me" and "my" are him, her or them with agreeing verbs
+     ("he thinks"); a line about what the player did to them ("called me a
+     liar") is "you called him a liar", one about what they did ("caught
+     Tester in my truck's cab", "saw Tester hit Dewayne") is "he caught you
+     in his truck's cab", "she saw you hit Dewayne". Witness and secondhand
+     lines are already in SECONDHAND_TEXT's words. No "remembers", no full
+     stop; '' for nothing. */
+  // The kinds of memory where the person, not the player, did the thing (turnMemory).
+  const PERSON_ACTS = Object.freeze(['they_helped', 'they_confided', 'caught_you_at', 'told_anyway', 'learned_secret']);
+  function turnMemory(n, m, player) {
+    const pName = typeof player === 'string' ? player : isObj(player) ? player.name : State.current ? State.current.player.name : '';
+    const pr = PRONOUN_FORMS[isObj(n) ? n.pronouns : ''] || PRONOUN_FORMS.they;
+    // The player's name, then the bare "the player" a line may use for them (as the People card reads it).
+    const names = [pName].concat(String(pName || '').split(/\s+/).filter(w => w.length >= 3)).filter(Boolean).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).concat(['[Tt]he player']);
     // Curly apostrophes read as straight ones (wave 5, the fourth review's bug 7): "I’m sure" is "she's sure" too, "Tester’s" is "your".
-    let t = cleanText(String(m.text || ''), 300).replace(/[‘’]/g, "'").replace(/[.!]+$/, '');
+    let t = cleanText(String((isObj(m) ? m.text : m) || ''), 300).replace(/[‘’]/g, "'").replace(/[.!]+$/, '').replace(/^Fact \(a story point\):\s*/i, '');
+    if (!t) return '';
     // The player named as the one doing something: "you" with the verb that goes with it ("you were", "you have").
     const youVerb = (all, v) => `you ${PRESENT_VERB[v.toLowerCase()] || v}`;
+    const named = names.some(nm => new RegExp(`\\b${nm}\\b`).test(t));
     for (const nm of names) {
       t = t.replace(new RegExp(`\\b${nm}'s\\b`, 'g'), 'your');
       t = t.replace(new RegExp(`\\b${nm}\\s+([A-Za-z']+)\\b`, 'g'), youVerb);
       t = t.replace(new RegExp(`\\b${nm}\\b`, 'g'), 'you');
     }
+    // Wave 30: in their words a line that never names the player calls them "them" ("kept quiet about what I told them"): "you". A line that names the player keeps its "them" (someone else); "they never came" after the name is the player's.
+    const toYouWords = x => x.replace(/\bthey\b/g, 'you').replace(/\bthem\b/g, 'you').replace(/\btheir\b/g, 'your').replace(/\bthemselves\b/g, 'yourself');
+    if (!named) t = toYouWords(t);
+    // The engine's own lines (act own: "found Tester sleeping rough ... and told them to move along") write "them" for the player after the name.
+    else if (isObj(m) && m.act === 'own') t = t.replace(/^(.*?\byou(?:r)?\b)([\s\S]*)$/, (all, a, b) => a + toYouWords(b));
+    else t = t.replace(/\band they never came\b/g, 'and you never came');
     const mine = /\b(me|my|myself|I)\b/.test(t);
     // Their "I think" is "he thinks" (or "they think"): the verb after the swapped "I" agrees.
     const iVerb = (all, v) => {
@@ -28161,14 +28806,150 @@ const Pipeline = (() => {
       return `${pr.subj}${{ m: "'s", ve: "'s", d: "'d", ll: "'ll" }[k]}`;
     };
     const swap = x => x.replace(/\bI'(m|ve|d|ll)\b/gi, iContraction).replace(/\bI\s+([A-Za-z']+)\b/g, iVerb).replace(/\bmyself\b/g, pr.self).replace(/\bme\b/g, pr.obj).replace(/\bmy\b/g, pr.pos).replace(/\bI\b/g, pr.subj);
-    if (/^you\b/i.test(t)) return cutWords(`remembers ${swap(lowerFirst(t))}`, 120);
-    // What the player did to them ("called me a liar", "owes me $40 by Friday").
-    if (mine && /^[a-z]/.test(t)) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return cutWords(`remembers you ${swap(w.join(' '))}`, 120); }
-    // What they did about the player ("saw them hit the bartender", "locked you up").
-    if (/^[a-z]/.test(t)) return cutWords(`remembers ${pr.subj} ${t.replace(/\bthem\b/g, 'you')}`, 120);
-    // A name keeps its capital ("remembers Glenda Pryor told him ..."; wave 3, playtest N10); an ordinary first word does not.
+    if (/^you\b/i.test(t)) return swap(lowerFirst(t));
+    /* What the player did to them ("called me a liar", "owes me $40 by
+       Friday"); not when the player is named in it ("caught you in my cab":
+       that is theirs). Wave 30: a line that names nobody ("helped carry the
+       motor down to the ramp") is the player's too when its kind says the
+       player did it (a favour, a gift, a word), never what they saw, heard
+       or did themselves. */
+    const theirs = isObj(m) && (m.act === 'own' || m.witness || m.secondhand || PERSON_ACTS.includes(m.event));
+    const playerDid = isObj(m) && typeof m.event === 'string' && !theirs && !/^(saw|heard|watched|noticed|caught|found|locked|took|waited)\b/.test(t);
+    if ((mine || playerDid) && /^[a-z]/.test(t) && !named) { const w = t.split(/\s+/); w[0] = PRESENT_VERB[w[0]] || w[0]; return `you ${swap(w.join(' '))}`; }
+    // What they did about the player ("saw them hit the bartender", "locked you up", "caught you in my cab").
+    if (/^[a-z]/.test(t)) return `${pr.subj} ${swap(t)}`;
+    // A name keeps its capital ("Glenda Pryor told him ..."; wave 3, playtest N10); an ordinary first word does not.
     const ordinary = /^(The|A|An|He|She|They|It|We|This|That|These|Those|His|Her|Their|Its|My|Our|Your|Some|Someone|Somebody|Everyone|Everybody|Nobody|Once|When|After|Before|Last|Today|Yesterday)\b/.test(t);
-    return cutWords(`remembers ${ordinary ? lowerFirst(swap(t)) : swap(t)}`, 120);
+    return ordinary ? lowerFirst(swap(t)) : swap(t);
+  }
+
+  // ----- wave 30: where a person stands, in words -----
+  /* The narrator's "to you" field (the integration plan's 10.1): "to you:
+     <stance>[, <tag>][ — <reason> (Day N[, made good])[ / <reason> (Day
+     N)]] — plays it: <cue>". No "; " inside it (fields are joined with
+     "; "): reasons with " / ", the cue with ", ". At most TO_YOU_CAP tokens
+     (3.5 characters each), trimmed in order: the second reason, then the
+     tag, then the cell's clause of the cue (the status or override clause
+     is never cut); a first reason still too long is cut at a word. A
+     reason through a tie the town does not know (a report through a hidden
+     protector, secondhand.hidden) gives no cause and no name: "cooler since
+     Day 4, for a reason of her own, keeps it to herself, never hint at it". */
+  const TO_YOU_CAP = 50;
+  const CHARS_PER_TOKEN = 3.5;
+  /* One reason in words: { text (the narrator's, second person, no full
+     stop), card (the People card's sentence), day, meta (the card's "Day 3
+     · you apologised"), hidden }. */
+  const SETTLED_BY = { apologised: 'you apologised', paid_back: 'you paid it back', came_clean: 'you came clean', kept_word: 'you kept your word', did_favour: 'you made it up to them', got_even: 'they got even', settled: 'it was settled' };
+  function reasonText(n, r, opts) {
+    const pr = PRONOUN_FORMS[isObj(n) ? n.pronouns : ''] || PRONOUN_FORMS.they;
+    const day = Number.isInteger(r.day) ? r.day : null;
+    if (r.hidden) {
+      const cooler = r.harm !== false ? 'cooler' : 'warmer';
+      return { hidden: true, day, text: `${cooler} since Day ${day || '?'}, for a reason of ${pr.pos} own, keeps it to ${pr.self}, never hint at it`, card: `${capFirst(cooler)} since Day ${day || '?'}. Hasn't said why.`, meta: '' };
+    }
+    let text;
+    if (r.leverage) {
+      const line = String(r.line || '').replace(/\.$/, '');
+      const what = String(r.text || '').replace(/[.!]+$/, '');
+      text = /^You know: /.test(line) ? `you know: ${what}` : /^[A-Z]/.test(line) && r.event !== 'paid_silence' && r.event !== 'blackmailed' ? `has something on you: ${what}` : `${pr.subj} ${what}`;
+    }
+    const mem = isObj(n) && Array.isArray(n.memories) && Number.isInteger(r.i) ? n.memories[r.i] : null;
+    if (!r.leverage) text = turnMemory(n, isObj(mem) ? mem : { text: r.text, event: r.event }, opts && opts.player);
+    const by = mem ? Rel.settlements(mem).map(e => e.by).filter(b => b !== 'got_even').pop() : null;
+    const made = r.settled > 0;
+    const meta = [day ? `Day ${day}` : '', made && by ? SETTLED_BY[by] || 'made good' : ''].filter(Boolean).join(' · ');
+    return { hidden: false, day, text, card: r.leverage ? String(r.line || '') : `${capFirst(text)}.`, meta, made };
+  }
+  /* What the person holds the player to, outside the cap: their noted
+     lines (claims and facts the player gave them, not what they did to the
+     player), the loose end's line and a story point, at most three. */
+  function holdsYouTo(n, turn) {
+    const out = [];
+    for (const m of Array.isArray(n.memories) ? n.memories : []) {
+      if (!isObj(m)) continue;
+      if (/^Loose end with /i.test(m.text)) out.push(memoryText(m.text));
+      else if (/^Fact \(a story point\):/i.test(m.text)) out.push(cleanText(m.text.replace(/^Fact \(a story point\):\s*/i, ''), 120).replace(/[.]$/, ''));
+      // A noted claim the bookkeeper named (typed, d kept); an older line only typed noted by default is no claim.
+      else if (m.event === 'noted' && isObj(m.d) && m.act !== 'own' && !m.witness && !m.secondhand && !/\bat cards\b|^Watched /i.test(String(m.text || ''))) out.push(turnMemory(n, m));
+    }
+    // Someone under 18 holds the player to nothing that reads as romance.
+    return out.filter(Boolean).filter(x => !(Rel.isMinor(n) && Rel.ROMANCE_TEXT.test(x))).slice(-3).map(x => x.replace(/; /g, ', '));
+  }
+  function toYou(n, opts) {
+    const o = opts || {};
+    const parts = Rel.cueParts(n);
+    const st = parts.stance;
+    const tag = st.tags[0] || null;
+    // The loose end's line and a story point are what they hold the player to (holdsYouTo), not reasons.
+    const mems = Array.isArray(n.memories) ? n.memories : [];
+    const why = Rel.reasons(n, 4).filter(r => !(Number.isInteger(r.i) && State.protectedMemory(mems[r.i]))).slice(0, 2);
+    const said = why.map(r => reasonText(n, r, o)).map(r => ({ text: r.text.replace(/; /g, ', '), day: r.hidden ? '' : ` (Day ${r.day || '?'}${r.made ? ', made good' : ''})` }));
+    const reasons = said.map(r => r.text + r.day);
+    // Dropping the cell's words never leaves "plays it" empty: with nothing else to play, its first clause stays.
+    const cue = noCell => Rel.cueText(parts, { noCell }) || parts.cell[0] || Rel.cueText(parts);
+    const build = (rs, withTag, noCell) => `to you: ${st.phrase}${withTag && tag ? `, ${tag}` : ''}${rs.length ? ` — ${rs.join(' / ')}` : ''} — plays it: ${cue(noCell)}`;
+    const max = Math.floor(TO_YOU_CAP * CHARS_PER_TOKEN);
+    const tries = [[reasons, true, false], [reasons.slice(0, 1), true, false], [reasons.slice(0, 1), false, false], [reasons.slice(0, 1), false, true]];
+    for (const [rs, t, nc] of tries) { const line = build(rs, t, nc); if (line.length <= max) return line; }
+    // Still over: the first reason cut at a word (its day kept), else none.
+    const bare = build([], false, true);
+    const room = said.length ? max - bare.length - 3 - said[0].day.length : 0;
+    return room >= 20 ? build([cutWords(said[0].text, room).replace(/…$/, '') + said[0].day], false, true) : bare;
+  }
+  /* /recap's people (wave 30, the integration plan's 14.4): Warm (on the
+     player's side), Cold (against them) and Careful (mixed: fond but not
+     trusting, using the player, afraid of them or of what they know, or
+     holding something over them), at most three each, each with its stance
+     and, for Warm and Cold, one reason that fits the side ("Mavis Mangum
+     (against you: you told Dewayne about the garage money)"; a loose end's
+     person: "your loose end: a debt"). Returns { warm, cold, careful }. */
+  const CAREFUL_TAGS = ['using you', Rel.TAGS.leverage.theirs, Rel.TAGS.leverage.both];
+  /* Someone as they stand now: when their attitude was written straight (a
+     hand-edited save, a test) and nothing has recomputed them yet, a copy
+     with it landed (Rel.landTo, as State's next recompute will), so the
+     recap reads the number they have. */
+  function standingNow(n) {
+    const a = toInt(n.attitude);
+    if (!isObj(n.rel) || a === null || n.rel.w === a) return n;
+    const rel = Rel.landTo(n, { w: clamp(a, -100, 100) }, 'fix');
+    const tmp = Object.assign({}, n, { rel });
+    return Object.assign(tmp, { rel: Object.assign({}, rel, Rel.recompute(tmp)) });
+  }
+  function recapGroups(list, p) {
+    const out = { warm: [], cold: [], careful: [] };
+    const rows = [];
+    for (const n0 of list) {
+      const n = standingNow(n0);
+      const st = Rel.stance(n);
+      const c = Rel.tracksOf(n);
+      const tag = st.tags.find(x => CAREFUL_TAGS.includes(x));
+      const side = st.override || st.side === 'mixed' || tag ? 'careful' : st.side === 'good' ? 'warm' : st.side === 'bad' ? 'cold' : null;
+      if (side) rows.push({ n, st, c, side, tag });
+    }
+    // A reason that fits the side: a typed memory by what it did, a line that moves nothing by its sense (wave 3: never an insult under Warm).
+    const fits = (n, r, side) => {
+      const m = Number.isInteger(r.i) && Array.isArray(n.memories) ? n.memories[r.i] : null;
+      if (m && !isObj(m.d)) return memorySense(r.text) === (side === 'cold' ? -1 : 1);
+      return side === 'cold' ? r.harm : !r.harm;
+    };
+    const why = (n, st, side) => {
+      const le = (p.looseEnds || []).find(x => x.npcId === n.id && (!x.threadId || !State.thread(x.threadId) || State.thread(x.threadId).status === 'open'));
+      if (le) return { loose: true, text: `your loose end: ${lowerFirst(le.label || le.kind || 'a loose end')}` };
+      const mems = Array.isArray(n.memories) ? n.memories : [];
+      const r = Rel.reasons(n, 6).find(x => !x.hidden && !x.leverage && !(Number.isInteger(x.i) && State.protectedMemory(mems[x.i])) && fits(n, x, side)) || null;
+      return r ? { text: cutWords(reasonText(n, r, { player: p }).text, 110) } : null;
+    };
+    const entry = x => {
+      if (x.side === 'careful') return `${x.n.name} (${x.st.override || x.tag || x.st.phrase})`;
+      const t = x.st.tags[0] && !CAREFUL_TAGS.includes(x.st.tags[0]) ? `, ${x.st.tags[0]}` : '';
+      const r = why(x.n, x.st, x.side);
+      return `${x.n.name} (${x.st.phrase}${t}${r ? `${r.loose ? ', ' : ': '}${r.text}` : ''})`;
+    };
+    const by = (a, b) => (b.c.w - a.c.w) || (b.c.t - a.c.t);
+    out.warm = rows.filter(x => x.side === 'warm').sort(by).slice(0, 3).map(entry);
+    out.cold = rows.filter(x => x.side === 'cold').sort((a, b) => -by(a, b)).slice(0, 3).map(entry);
+    out.careful = rows.filter(x => x.side === 'careful').sort((a, b) => (b.c.f - a.c.f) || by(a, b)).slice(0, 3).map(entry);
+    return out;
   }
   /* Whether the story's ending has happened: its news item has been told
      (seen: its own turn was narrated; wave 3), not only fired (an ending
@@ -28210,15 +28991,16 @@ const Pipeline = (() => {
     const obls = State.obligations('owed');
     // Wave 29: what the player is owed for their silence ("Hollis Byrd: $300 for keeping quiet, due Day 4 (1 day)"), after what they owe.
     const silence = Rel.demands().map(x => State.demandLine(x, t.day)).filter(Boolean);
-    if (obls.length || silence.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).concat(silence).join('; ')}.`);
     // Only people the player has dealt with (wave 3): met face to face, tied to a loose end, or remembering something of them; never a stranger at their starting attitude.
     const dealt = n => Number.isInteger(n.metTurn) || (p.looseEnds || []).some(le => le.npcId === n.id) || (n.memories || []).some(m => (m.weight | 0) >= 2 && !State.protectedMemory(m));
     const known = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && presenceOf(n) === 'here' && dealt(n));
-    const person = side => n => { const why = recapReason(n, p, side); return `${n.name} (${State.attitudeWord(n.attitude)}${why ? `, ${why}` : ''})`; };
-    const warm = known.filter(n => n.attitude > 5).sort((a, b) => b.attitude - a.attitude).slice(0, 3);
-    const cold = known.filter(n => n.attitude < -5).sort((a, b) => a.attitude - b.attitude).slice(0, 3);
-    if (warm.length) out.push(`Warm to you: ${warm.map(person('warm')).join(', ')}.`);
-    if (cold.length) out.push(`Cold to you: ${cold.map(person('cold')).join(', ')}.`);
+    // Wave 30: favours owed either way ("Burl Satterfield owes you one"), after the money.
+    const favours = s.npcs.filter(n => n.knownToPlayer && n.alive !== false && isObj(n.rel) && (n.rel.net | 0) !== 0).map(n => ((n.rel.net | 0) >= 2 ? `${n.name} owes you big` : (n.rel.net | 0) >= 1 ? `${n.name} owes you one` : `you owe ${n.name} one`));
+    if (obls.length || silence.length || favours.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).concat(silence, favours).join('; ')}.`);
+    const g = recapGroups(known, p);
+    if (g.warm.length) out.push(`Warm to you: ${g.warm.join(', ')}.`);
+    if (g.cold.length) out.push(`Cold to you: ${g.cold.join(', ')}.`);
+    if (g.careful.length) out.push(`Careful: ${g.careful.join(', ')}.`);
     // The rumours heard last (by the day they were heard; the order heard within a day).
     const heard = s.rumours.filter(r => r.heard);
     const order = r => (Number.isInteger(r.heardDay) ? r.heardDay : -1);
@@ -28245,6 +29027,8 @@ const Pipeline = (() => {
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine, moneyNamed, openDayFrom, banBackDay,
     recap: recapText, recapText, printRecap,
+    // Wave 30: a memory's sense and its words for "you" (the card, the recap, the narrator's "to you"), and the line itself.
+    memorySense, turnMemory, toYou, reasonText, holdsYouTo, recapGroups, TO_YOU_CAP,
     CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
     npcLine, wouldKnow, knowledgeLine, timeTakes, clockText, dateText, weekdayOf, storySoFar, earlierLine, openLine, newsLine, TOWN_NEWER, looseEndsLine,
     ACTION_TYPES, NOTICES, hooks,
@@ -28352,7 +29136,9 @@ const Storage = (() => {
     persistAsked: false,
     tipSeen: false,
     // Wave 28: the Debug view's export of bookkeeper turns (Pipeline keeps the last 200 in memory while this is on).
-    keepPackets: false
+    keepPackets: false,
+    // Wave 30: rules version 9's update first rewrites memories in the short form (version 2's re-read, one call); off by default.
+    rereadMemories: false
   };
   /* Settings, "Quality": the models and effort each preset sets. A
      settings object that matches none of them is "custom". */
@@ -28396,7 +29182,7 @@ const Storage = (() => {
     if (pars && !(legacy && pars === V1_DEFAULTS.parserModel)) s.parserModel = pars;
     const allLow = isObj(raw.effort) && Object.keys(s.effort).every(k => raw.effort[k] === 'low' || raw.effort[k] === undefined);
     if (isObj(raw.effort) && !(legacy && allLow)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
-    for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed', 'persistAsked', 'tipSeen', 'keepPackets']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed', 'persistAsked', 'tipSeen', 'keepPackets', 'rereadMemories']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
     if (raw.theme === 'dark' || raw.theme === 'parchment') s.theme = raw.theme;
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;
     if (raw.narrationStyle === 'casual' || raw.narrationStyle === 'literary') s.narrationStyle = raw.narrationStyle;
@@ -28845,7 +29631,7 @@ const UI = (() => {
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
-    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn'];
 
   function init() {
@@ -29797,15 +30583,17 @@ const UI = (() => {
     const pick = words.length > 1 ? [words[0], words[words.length - 1]] : [words[0]];
     return pick.map(w => w.charAt(0).toUpperCase()).join('');
   }
-  /* Five-segment attitude meter: segments filled per State.attitudeWord, and
-     the tone (cold to warm) the meter and the word are drawn in. */
-  const ATTITUDE_LEVEL = { hostile: 1, cold: 1, wary: 2, neutral: 3, friendly: 4, warm: 5, loyal: 5 };
-  function attitudeMeter(word) {
-    const level = ATTITUDE_LEVEL[word] || 3;
-    const segs = [];
-    for (let i = 1; i <= 5; i++) segs.push(el('i', { class: i <= level ? 'on' : null }));
-    return el('span', { class: 'att', dataset: { att: word, level: String(level) } },
-      el('span', { class: 'att-meter', 'aria-hidden': 'true' }, segs), el('span', { class: 'att-word' }, word));
+  /* Wave 30 (the integration plan's 14.1): where someone stands, in words,
+     in place of the old five-segment meter: the stance phrase and one tag
+     ("Suspicious of you · using you"), in the side's tint (data-side good,
+     mixed, bad or neutral); "hates you", "in your corner" and "loyal to
+     you" in bold. */
+  const STRONG_STANCES = Object.freeze(['hates you', 'in your corner', 'loyal to you']);
+  function stanceChip(n, tags) {
+    const st = Rel.stance(n);
+    const shown = st.tags.slice(0, Number.isInteger(tags) ? tags : 1);
+    return el('span', { class: 'stance', dataset: Object.assign({ side: st.side, stance: st.phrase }, STRONG_STANCES.includes(st.phrase) ? { strong: '1' } : {}) },
+      el('span', { class: 'stance-phrase' }, capFirst(st.phrase)), shown.map(t => el('span', { class: 'stance-tag' }, t)));
   }
   function whereLine(s, n, isHere) {
     if (isHere) return el('span', { class: 'pcard-where here' }, 'Here now');
@@ -29835,13 +30623,16 @@ const UI = (() => {
     return [key, proper ? t : lowerFirst(t)];
   }
   /* Notes for an open card, newest first within each kind: what they told
-     the player, what they remember (weight 2+ or the last 20 turns), known
+     the player, what they remember (weight 2+ or the last 10 turns), known
      threads they are part of, and the loose end that ties them to the player. */
-  function personNotes(s, n) {
+  function personNotes(s, n, skip) {
     const notes = [];
     for (const r of s.rumours) if (r.heard && (r.heardFrom || r.sourceNpcId) === n.id) notes.push(['Told you', r.text]);
     const dayOf = turn => { for (let i = s.log.length - 1; i >= 0; i--) if (s.log[i].turn === turn) return s.log[i].day; return turn === 0 ? 1 : null; };
-    const mems = Pipeline.pickMemories(n.memories, s.meta.turn, { w3: 4, w2: 3, w1: 1, recent: 10, cap: 8 }).reverse();
+    // Wave 30: a memory the card gives as a reason is not said again here; one planted off-screen and not seen yet stays back too.
+    const seenAt = (s.seen || {})[n.id];
+    const hidden = m => m.seen === false && !(seenAt && Number.isInteger(seenAt.turn) && seenAt.turn > (m.turn | 0));
+    const mems = Pipeline.pickMemories((n.memories || []).filter(m => !(skip && skip.has(m)) && !hidden(m)), s.meta.turn, { w3: 4, w2: 3, w1: 1, recent: 10, cap: 8 }).reverse();
     for (const m of mems) {
       const [k, t] = plainMemory(s, m.text);
       const day = dayOf(m.turn);
@@ -29905,6 +30696,57 @@ const UI = (() => {
     for (const a of State.appointments(n.id)) out.push({ text: `Meeting you: ${a.place}, ${a.when}${a.detail ? ` (${a.detail})` : ''}`, hard: false, appt: a.seedId });
     return out;
   }
+  /* Wave 30 (the integration plan's 14.1, design section 7.1): where they
+     stand on an open card: the stance and up to two tags, two dated
+     reasons ("You called him a liar." "Day 3 · you apologised"; "hates
+     you" always with its reason; a report that came through a tie the town
+     does not know only its day, "Cooler since Day 3. Hasn't said why."; a
+     line planted off-screen only once the player has been in a scene with
+     them since), what is held between them (Rel.leverageLines), what is
+     owed either way, then a "More" fold with the tracks in words (Likes
+     you, Trusts you, Scared, Knows you, and Interested only for an
+     eligible adult with a spark status: never for anyone under 18, never
+     with a player under 18). A screen reader hears the stance, tags and
+     reasons as one sentence; the fold only when it is opened. Returns {
+     node, fold, used (the memories given as reasons) }. */
+  const wordsOpen = new Set();
+  function personStanding(s, n) {
+    const st = Rel.stance(n);
+    const mems = Array.isArray(n.memories) ? n.memories : [];
+    const seenAt = (s.seen || {})[n.id];
+    const visible = r => !r.unseen || (seenAt && Number.isInteger(seenAt.turn) && seenAt.turn > (r.turn | 0));
+    const worthy = r => r.leverage || r.hidden || (Number.isInteger(r.i) && isObj(mems[r.i]) && !State.protectedMemory(mems[r.i]) && (isObj(mems[r.i].d) || (mems[r.i].weight | 0) >= 2));
+    let why = Rel.reasons(n, 8).filter(visible).filter(worthy);
+    // "Hates you" always says why: its unsettled weight-3 harm first.
+    if (st.phrase === 'hates you') { const at = why.findIndex(r => r.harm && (r.weight | 0) >= 3); if (at > 0) why.unshift(why.splice(at, 1)[0]); }
+    why = why.slice(0, 2);
+    const used = new Set(why.filter(r => Number.isInteger(r.i)).map(r => mems[r.i]).filter(Boolean));
+    const words = why.map(r => Object.assign({ r }, Pipeline.reasonText(n, r, { player: s.player })));
+    const levShown = new Set(why.filter(r => r.leverage).map(r => `${r.leverage}|${r.line}`));
+    const lev = Rel.leverageLines(n).filter(x => !levShown.has(`${x.id}|${x.line}`));
+    const pr = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
+    const owed = (n.rel && Array.isArray(n.rel.owed) ? n.rel.owed : []).filter(o => isObj(o) && Number(o.dir)).map(o => {
+      const what = o.why ? Pipeline.turnMemory(n, { text: o.why, event: Number(o.dir) > 0 ? 'did_favour' : 'they_helped' }, s.player) : '';
+      return `${Number(o.dir) > 0 ? 'Owes you one' : `You owe ${pr.obj} one`}${what ? `: ${what}` : ''}${Number.isInteger(o.day) ? `, Day ${o.day}` : ''}`;
+    });
+    const tags = st.tags.slice(0, 2);
+    const sentence = [`${capFirst(st.phrase)}${tags.length ? `, ${tags.join(', ')}` : ''}.`].concat(words.map(w => `${w.card}${w.meta ? ` ${w.meta}.` : ''}`)).join(' ');
+    const item = w => el('li', { dataset: { kind: w.r.leverage ? 'leverage' : w.hidden ? 'hidden' : 'memory' } }, w.card, w.meta ? el('span', { class: 'meta' }, w.meta) : null);
+    const node = el('div', { class: 'pcard-stance', dataset: { stance: st.phrase } },
+      el('p', { class: 'visually-hidden' }, sentence),
+      el('div', { 'aria-hidden': 'true' }, stanceChip(n, 2), words.length ? el('ul', { class: 'pcard-why' }, words.map(item)) : null),
+      lev.length ? el('ul', { class: 'pcard-why pcard-lev' }, lev.map(x => el('li', { dataset: { kind: 'leverage', lev: x.id } }, x.line, Number.isInteger(x.day) ? el('span', { class: 'meta' }, `Day ${x.day}`) : null))) : null,
+      owed.length ? el('ul', { class: 'pcard-why pcard-owed' }, owed.map(t => el('li', { dataset: { kind: 'owed' } }, t))) : null);
+    const c = Rel.tracksOf(n);
+    const b = n.rel && isObj(n.rel.bands) ? n.rel.bands : {};
+    const rows = [['Likes you', 'likes', Rel.words('w', c.w, b.w)], ['Trusts you', 'trusts', Rel.words('t', c.t, b.t)], ['Scared', 'scared', Rel.words('f', c.f, b.f)], ['Knows you', 'knows', Rel.words('k', c.k)]];
+    // Interested: an eligible adult with a status only (Rel.eligible is false for anyone under 18 and with a player under 18).
+    if (Rel.eligible(n) && Rel.sparkStatus(n)) rows.push(['Interested', 'interested', Rel.words('s', c.s, b.s) || 'a little']);
+    const fold = el('details', { class: 'pcard-words-fold', open: wordsOpen.has(n.id), ontoggle: e => { if (e.target.open) wordsOpen.add(n.id); else wordsOpen.delete(n.id); } },
+      el('summary', null, 'More'),
+      el('dl', { class: 'pcard-words' }, rows.map(([k, key, v]) => el('div', { class: 'pcard-word', dataset: { word: key } }, el('dt', null, k), el('dd', null, v)))));
+    return { node, fold, used };
+  }
   function personCard(s, n, isHere) {
     const heard = heardOfOnly(s, n);
     const known = !!n.knownToPlayer || heard;
@@ -29913,7 +30755,9 @@ const UI = (() => {
     const status = n.alive === false ? 'dead' : (n.status && n.status !== 'free' ? n.status : '');
     const absent = presenceOf(n) !== 'here';
     const moreId = 'pmore-' + n.id;
-    const notes = personNotes(s, n);
+    // Wave 30: where they stand (not for someone absent or only heard of), and the memories it gives as reasons, which Notes leaves out.
+    const standing = !absent && !heard ? personStanding(s, n) : null;
+    const notes = personNotes(s, n, standing ? standing.used : null);
     const facts = personFacts(s, n, known);
     const edit = !!editing && editing.id === n.id;
     // Changing someone (pronouns, Edit) waits for a turn to end, and never happens in a read-only tab.
@@ -29934,15 +30778,17 @@ const UI = (() => {
             age ? el('span', { class: 'pcard-age', title: 'Age' }, `· ${age}`) : null,
             el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
           roleLine ? el('span', { class: 'pcard-role' }, roleLine) : null,
-          el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere)],
+          el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [stanceChip(n), whereLine(s, n, isHere)],
             absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: f.appt ? { flag: '1', appt: f.appt } : { flag: '1' } }, f.text)))),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'pcard-more', id: moreId, hidden: !open }, edit ? editForm(s, n) : [
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
+        standing ? standing.node : null,
         facts,
         notes.length ? [el('h4', { class: 'pcard-notes-h' }, 'Notes'),
           el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
-        !n.look && !notes.length && !facts ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null,
+        standing ? standing.fold : null,
+        !n.look && !notes.length && !facts && !standing ? el('p', { class: 'pcard-none' }, 'Nothing more yet.') : null,
         el('div', { class: 'pcard-fix' }, el('span', { class: 'pcard-fix-k' }, 'Pronouns'),
           el('span', { class: 'chips pcard-chips', role: 'group', 'aria-label': `Pronouns for ${name}` }, PRONOUNS.map(p => el('button', { type: 'button', class: 'chip pcard-pchip', 'aria-pressed': String(n.pronouns === p), dataset: { pron: p }, disabled: !!block, title: block || null, onclick: () => { if (canAct({ say: true })) App.setPronouns(n.id, p); } }, pronounLabel(p)))),
           el('button', { type: 'button', class: 'btn small pcard-edit', id: 'pedit-btn-' + n.id, 'aria-label': `Edit ${name}`, disabled: !!block, title: block || null, onclick: () => startEdit(n.id) }, 'Edit'))]));
@@ -29979,15 +30825,41 @@ const UI = (() => {
   const WEIGHTS = [[1, '1 small'], [2, '2 notable'], [3, '3 serious']];
   const EDIT_STATUSES = [['free', 'Free'], ['arrested', 'Arrested'], ['gone', 'Gone'], ['dead', 'Dead']];
   function hasCard(s, n) { return hasMet(s, n) || heardOfOnly(s, n); }
+  /* Wave 30 (the integration plan's 14.2): "How they feel about you", four
+     sliders (Likes is attitude, Trusts, Scared, Knows) and Interested
+     (0..100) for an eligible adult only (shown at 0 and off for anyone
+     under 18, left out when the player is under 18), each with its word
+     ("+40 · a lot"); what is set lands in fix (it never drifts). A memory
+     keeps every field it has through the form (day, act, event, d, decay,
+     settled, key, fight, witness, scene, secondhand, leverageId, about,
+     seen): the form edits only its words and weight, and shows what kind
+     of thing it was and how long it lasts ("hit · fades in weeks"); Add
+     picks what it was (EDIT_EVENTS: the table's change for it lands with
+     it), else it is noted. What is held between them can be deleted
+     (leverageSet void). */
+  const FEEL_ROWS = Object.freeze([['w', 'attitude', 'Likes', -100, 100], ['t', 'trust', 'Trusts', -100, 100], ['f', 'fear', 'Scared', 0, 100], ['k', 'knows', 'Knows', 0, 100]]);
+  const EDIT_EVENTS = Object.freeze([['noted', 'Just noted'], ['complimented', 'A kind word'], ['insulted', 'An insult'], ['did_favour', 'You did them a favour'], ['they_helped', 'They helped you'], ['crossed', 'You crossed them']]);
+  const DECAY_WORDS = Object.freeze({ mood: 'fades in a day or two', slight: 'fades in days', wound: 'fades in weeks', scar: 'fades slowly', keeps: 'stays' });
+  function memoryLabel(m) {
+    const ev = isObj(m) && typeof m.event === 'string' && Rel.EVENTS[m.event] ? m.event : Rel.typeMemory(m || {});
+    const cls = !isObj(m) || !isObj(m.d) ? 'keeps' : typeof m.decay === 'string' && DECAY_WORDS[m.decay] ? m.decay : (Rel.EVENTS[ev] || {}).decay || 'wound';
+    return `${ev.replace(/_/g, ' ')} · ${DECAY_WORDS[cls] || 'stays'}`;
+  }
+  // Interested on the form: 'on' for an eligible adult, 'off' (0, disabled) for anyone under 18, null (left out) when the player is under 18 or they are not on the romance list.
+  function interestMode(n) { if (Rel.playerMinor()) return null; if (Rel.isMinor(n)) return 'off'; return Rel.eligible(n) ? 'on' : null; }
   function editBase(n) {
     const c = isObj(n.created) ? n.created : {};
     const traits = (n.personality || []).slice(0, 3);
     while (traits.length < 3) traits.push('');
+    const tr = Rel.tracksOf(n);
+    const lev = Rel.holdsOver(n).concat(Rel.heldOverPlayer(n, undefined, true)).map(x => ({ id: x.id, line: x.holder === 'player' ? `You know: ${x.text}.` : `${n.name} has something on you: ${x.text}.`, status: x.status }));
     return {
       name: n.name, age: Number.isInteger(n.age) ? String(n.age) : '', pronouns: validPronouns(n.pronouns) || 'they', role: n.role || '', look: n.look || '', voice: n.voice || '', history: typeof n.history === 'string' ? n.history : '', traits,
-      attitude: n.attitude | 0, relTo: c.relationToNpcId || '', relation: c.relationToNpcId ? c.relation || '' : '',
+      attitude: n.attitude | 0, rel: { t: tr.t, f: tr.f, k: tr.k, s: interestMode(n) === 'on' ? tr.s : 0 }, relTo: c.relationToNpcId || '', relation: c.relationToNpcId ? c.relation || '' : '',
       home: n.home && n.home.locationId ? n.home.locationId : '', status: n.alive === false ? 'dead' : (n.status || 'free'),
-      memories: (n.memories || []).map(m => ({ turn: m.turn, text: m.text, weight: m.weight, model: m.model === true })),
+      // Every field a memory has, kept as it is (only the words and weight are edited).
+      memories: (n.memories || []).map(m => Object.assign(deepCopy(m), { model: m.model === true })),
+      leverage: lev, voidLeverage: [],
       goal: n.goal || '', secret: n.secret || '', hiddenOpen: false, moreOpen: false
     };
   }
@@ -30007,16 +30879,34 @@ const UI = (() => {
     };
     const others = s.npcs.filter(m => m.id !== id && (m.alive !== false || m.id === v.relTo)).slice().sort((a, b) => a.name.localeCompare(b.name));
     const places = s.locations.filter(l => l.discovered || l.id === v.home).slice().sort((a, b) => a.name.localeCompare(b.name));
-    const word = a => `${a > 0 ? '+' : ''}${a} · ${State.attitudeWord(a)}`;
-    const attOut = el('output', { class: 'pedit-att-word', id: fid('attitude-word'), for: fid('attitude') }, word(v.attitude));
-    const range = el('input', { class: 'pedit-range', id: fid('attitude'), name: 'attitude', type: 'range', min: '-100', max: '100', step: '1', value: String(v.attitude), 'aria-valuetext': word(v.attitude),
-      oninput: e => { const a = parseInt(e.target.value, 10) || 0; attOut.textContent = word(a); e.target.setAttribute('aria-valuetext', word(a)); } });
+    // Wave 30: how they feel, four sliders and Interested (FEEL_ROWS, interestMode), each with its word.
+    const word = (x, a) => `${(x === 'w' || x === 't') && a > 0 ? '+' : ''}${a} · ${Rel.words(x, a) || 'no'}`;
+    const vRel = isObj(v.rel) ? v.rel : { t: 0, f: 0, k: 0, s: 0 };
+    const slider = (x, name, label, min, max, value, extra) => {
+      const out = el('output', { class: 'pedit-att-word', id: fid(name + '-word'), for: fid(name) }, word(x, value));
+      const range = el('input', Object.assign({ class: 'pedit-range', id: fid(name), name, type: 'range', min: String(min), max: String(max), step: '1', value: String(value), 'aria-valuetext': word(x, value), dataset: { track: x },
+        oninput: e => { const a = parseInt(e.target.value, 10) || 0; out.textContent = word(x, a); e.target.setAttribute('aria-valuetext', word(x, a)); } }, extra || {}));
+      return el('div', { class: 'field pedit-feel-row', dataset: { track: x } }, el('label', { class: 'label', for: fid(name) }, label), el('div', { class: 'pedit-att' }, range, out));
+    };
+    const im = interestMode(n);
+    const feel = el('fieldset', { class: 'field pedit-feel' }, el('legend', { class: 'label' }, 'How they feel about you'),
+      FEEL_ROWS.map(([x, name, label, lo, hi]) => slider(x, name, label, lo, hi, x === 'w' ? v.attitude : vRel[x] | 0)),
+      im ? slider('s', 'spark', 'Interested', 0, 100, im === 'on' ? vRel.s | 0 : 0, im === 'off' ? { disabled: true, title: 'Nobody under 18 is ever interested in anyone, or anyone in them.' } : {}) : null);
+    // What is held between them, each with Delete (voided on Save).
+    const levs = (Array.isArray(v.leverage) ? v.leverage : []).filter(x => !(v.voidLeverage || []).includes(x.id));
+    const levBox = levs.length ? el('fieldset', { class: 'field pedit-levs' }, el('legend', { class: 'label' }, 'What is held between you'),
+      levs.map(x => el('div', { class: 'pedit-lev', dataset: { lev: x.id } }, el('span', null, `${x.line} (${x.status})`),
+        el('button', { type: 'button', class: 'btn small pedit-lev-del', 'aria-label': `Delete: ${x.line}`, onclick: () => editLeverage(x.id) }, 'Delete')))) : null;
     const relation = input('relation', v.relation, max.relation, { placeholder: 'wife, brother, boss', disabled: !v.relTo });
     const relTo = select('relTo', v.relTo, [['', 'Nobody']].concat(others.map(m => [m.id, m.name + (m.alive === false ? ' (dead)' : '')])),
       { onchange: e => { relation.disabled = !e.target.value; } });
     const mems = v.memories.map((m, i) => el('div', { class: 'pedit-mem', dataset: { i: String(i) } },
       el('label', { class: 'visually-hidden', for: fid('mem-' + i) }, `Memory ${i + 1}`),
       el('textarea', { class: 'input', id: fid('mem-' + i), rows: '2', maxlength: String(max.memory), value: m.text, dataset: { mem: 'text' }, placeholder: 'What they remember about you' }),
+      // Wave 30: what kind of thing it was and how long it lasts (read only), or for a new one, what it was.
+      m.isNew ? [el('label', { class: 'visually-hidden', for: fid('meme-' + i) }, `What memory ${i + 1} was`),
+        (() => { const e = el('select', { class: 'input pedit-mem-event', id: fid('meme-' + i), dataset: { mem: 'event' } }, EDIT_EVENTS.map(([val, label]) => el('option', { value: val }, label))); e.value = m.event || 'noted'; return e; })()]
+        : el('span', { class: 'pedit-mem-kind hint', dataset: { mem: 'kind' } }, memoryLabel(m)),
       el('label', { class: 'visually-hidden', for: fid('memw-' + i) }, `How much memory ${i + 1} matters`),
       (() => { const w = el('select', { class: 'input', id: fid('memw-' + i), dataset: { mem: 'weight' } }, WEIGHTS.map(([val, label]) => el('option', { value: String(val) }, label))); w.value = String(m.weight); return w; })(),
       el('button', { type: 'button', class: 'btn small pedit-mem-del', 'aria-label': `Remove memory ${i + 1}`, onclick: () => editMemories(list => list.splice(i, 1), i) }, 'Remove')));
@@ -30034,7 +30924,8 @@ const UI = (() => {
         field('history', 'History', area('history', v.history, max.history, 3), 'Where they come from and what happened to them: what the town knows.')),
       el('div', { class: 'field' }, el('span', { class: 'label', id: fid('traits') }, 'Personality'),
         el('div', { class: 'pedit-traits', role: 'group', 'aria-labelledby': fid('traits') }, [0, 1, 2].map(i => input('trait' + i, v.traits[i] || '', max.trait, { 'aria-label': `Trait ${i + 1}`, placeholder: ['stubborn', 'kind', 'nosy'][i] })))),
-      el('div', { class: 'field' }, el('label', { class: 'label', for: fid('attitude') }, 'Attitude to you'), el('div', { class: 'pedit-att' }, range, attOut)),
+      feel,
+      levBox,
       field('relTo', 'Related to', relTo),
       field('relation', 'Relation', relation, 'What they are to that person.'),
       field('home', 'Home', select('home', v.home, [['', 'Nowhere / off-screen']].concat(places.map(l => [l.id, l.name]))), 'Where they are whenever nothing else has them.'),
@@ -30043,7 +30934,7 @@ const UI = (() => {
       el('fieldset', { class: 'field pedit-mems' }, el('legend', { class: 'label' }, 'Memories'),
         mems.length ? mems : el('p', { class: 'empty' }, 'They remember nothing about you.'),
         el('button', { type: 'button', class: 'btn small pedit-add', disabled: full, title: full ? `At most ${State.MEMORY_MAX} memories` : null,
-          onclick: () => editMemories(list => list.push({ turn: State.current.meta.turn, text: '', weight: 2, model: false }), v.memories.length) }, 'Add a memory')),
+          onclick: () => editMemories(list => list.push({ turn: State.current.meta.turn, day: State.current.time.day, text: '', weight: 2, model: false, isNew: true, event: 'noted' }), v.memories.length) }, 'Add a memory')),
       el('details', { class: 'pedit-hidden', open: v.hiddenOpen === true },
         el('summary', null, 'Hidden from you: goal and secret'),
         el('p', { class: 'hint' }, "These are the game's secrets about this person. Reading them spoils the story."),
@@ -30060,16 +30951,35 @@ const UI = (() => {
     const was = (editing.draft || editing.base).memories;
     const st = form.querySelector('input[name="status"]:checked');
     const hidden = $('.pedit-hidden', form);
+    const prev = editing.draft || editing.base;
+    const num = (k, dflt) => { const x = form.querySelector(`[name="${k}"]`); if (!x) return dflt; const v = parseInt(x.value, 10); return Number.isFinite(v) ? v : dflt; };
+    const baseRel = isObj(prev.rel) ? prev.rel : { t: 0, f: 0, k: 0, s: 0 };
     return {
       name: val('name'), age: val('age'), pronouns: val('pronouns'), role: val('role'), look: val('look'), voice: val('voice'), history: val('history'),
       traits: [0, 1, 2].map(i => val('trait' + i)), attitude: parseInt(val('attitude'), 10) || 0,
+      rel: { t: num('trust', baseRel.t), f: num('fear', baseRel.f), k: num('knows', baseRel.k), s: num('spark', baseRel.s) },
       relTo: val('relTo'), relation: val('relation'), home: val('home'), status: st ? st.value : editing.base.status,
+      // Every field the memory had, with the words and weight as typed (wave 30: a new one also says what it was).
       memories: $$('.pedit-mem', form).map(row => {
         const m = was[+row.dataset.i] || {};
-        return { turn: m.turn, model: m.model === true, text: $('[data-mem="text"]', row).value, weight: parseInt($('[data-mem="weight"]', row).value, 10) || 1 };
+        const ev = $('[data-mem="event"]', row);
+        return Object.assign(deepCopy(m), { model: m.model === true, text: $('[data-mem="text"]', row).value, weight: parseInt($('[data-mem="weight"]', row).value, 10) || 1 }, ev ? { event: ev.value } : {});
       }),
+      leverage: prev.leverage || [], voidLeverage: (prev.voidLeverage || []).slice(),
       goal: val('goal'), secret: val('secret'), hiddenOpen: !!(hidden && hidden.open), moreOpen: !!($('.pedit-more', form) || {}).open
     };
+  }
+  /* A new memory as the engine keeps it (wave 30): noted moves nothing; any
+     other kind carries the table's change for it (d) and how long it
+     lasts, so the card gives it as a reason. */
+  function newMemory(m) {
+    const out = { turn: m.turn, text: m.text, weight: m.weight };
+    if (Number.isInteger(m.day)) out.day = m.day;
+    if (m.model) out.model = true;
+    const row = Rel.EVENTS[m.event];
+    if (!row || m.event === 'noted') return Object.assign(out, { event: 'noted', d: null });
+    const n = v => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    return Object.assign(out, { event: m.event, d: { w: n(row.w), t: n(row.t), f: n(row.f), k: n(row.k), s: 0 }, decay: row.decay, key: `m${m.turn}-edit` });
   }
   /* The editPerson fields for what differs from what the form opened with. */
   function editChanges(base, v) {
@@ -30080,15 +30990,39 @@ const UI = (() => {
     const traits = list => list.map(t => String(t || '').trim()).filter(Boolean);
     if (JSON.stringify(traits(v.traits)) !== JSON.stringify(traits(base.traits))) out.personality = traits(v.traits);
     if (v.attitude !== base.attitude) out.attitude = v.attitude;
+    // Wave 30: the other tracks set (trust, fear, knows; Interested only for an eligible adult), each only when it changed.
+    const vr = isObj(v.rel) ? v.rel : {};
+    const br = isObj(base.rel) ? base.rel : {};
+    const rel = {};
+    for (const x of ['t', 'f', 'k', 's']) if (Number.isInteger(vr[x]) && vr[x] !== br[x]) rel[x] = vr[x];
+    if (Object.keys(rel).length) out.rel = rel;
     if (v.relTo !== base.relTo) out.relationToNpcId = v.relTo || null;
     if (v.relTo && v.relation !== base.relation) out.relation = v.relation;
     if (v.home !== base.home) out.homeLocationId = v.home || null;
     if (v.status !== base.status) out.status = v.status;
-    // A memory left empty (a new one never written, or one cleared) is dropped.
-    const mems = list => list.filter(m => String(m.text || '').trim()).map(m => Object.assign({ turn: m.turn, text: m.text, weight: m.weight }, m.model ? { model: true } : {}));
-    const key = list => JSON.stringify(list.map(m => [m.turn, String(m.text).trim(), m.weight]));
-    if (key(mems(v.memories)) !== key(mems(base.memories))) out.memories = mems(v.memories);
+    // A memory left empty (a new one never written, or one cleared) is dropped; the rest keep every field they had (wave 30: day and act too).
+    const mems = list => list.filter(m => String(m.text || '').trim()).map(m => {
+      if (m.isNew) return newMemory(m);
+      const o = deepCopy(m);
+      delete o.isNew;
+      if (!o.model) delete o.model;
+      return o;
+    });
+    const key = list => JSON.stringify(list.map(m => [m.turn, String(m.text).trim(), m.weight, m.isNew ? m.event : null]));
+    if (key(v.memories.filter(m => String(m.text || '').trim())) !== key(base.memories.filter(m => String(m.text || '').trim()))) out.memories = mems(v.memories);
+    if (Array.isArray(v.voidLeverage) && v.voidLeverage.length) out.voidLeverage = v.voidLeverage.slice();
     return out;
+  }
+  /* Delete a line of what is held between them (wave 30): it is voided on Save. */
+  function editLeverage(id) {
+    const form = editing && $('.pedit', d.panelBody);
+    if (!form) return;
+    editing.draft = readForm(form);
+    if (!editing.draft.voidLeverage.includes(id)) editing.draft.voidLeverage.push(id);
+    const fresh = editForm(State.current, State.npc(editing.id));
+    form.replaceWith(fresh);
+    const b = $('.pedit-lev-del', fresh) || $('.pedit-save', fresh);
+    if (b) b.focus();
   }
   function editKey(e) {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelEdit(); return; }
@@ -31040,7 +31974,8 @@ const UI = (() => {
     if (none) none.hidden = !words.length || shown > 0;
     return shown;
   }
-  const SORTS = [['seen', 'Last seen'], ['attitude', 'Attitude'], ['name', 'Name']];
+  // Wave 30: the attitude key stays (a remembered sort survives), read as how they feel: liking, then trust.
+  const SORTS = [['seen', 'Last seen'], ['attitude', 'How they feel'], ['name', 'Name']];
   /* A condition's effect as the sheet says it, the way Grown says "+1
      Wits": "-1 might" is "−1 Might", "-1 all" is "−1 to all". Anything
      else reads as written. */
@@ -31059,6 +31994,20 @@ const UI = (() => {
   /* Wave 28: the Debug view's export of the bookkeeper turns Pipeline kept
      (Pipeline.bookTurnsJsonl), saved as a .jsonl file for labelling. */
   function keepOn() { try { return Storage.settings().keepPackets === true; } catch (e) { return false; } }
+  /* Wave 30: Debug's lines under a person: the axes and hard, the buckets
+     (start, everyday, fix, today), each memory's kind and what it still
+     carries, and the ask log. */
+  function relDebug(s, n) {
+    if (!isObj(n.rel)) return '';
+    const r = n.rel;
+    const ax = Rel.axesOf(n);
+    const fmt = o => (isObj(o) ? Rel.TRACKS.filter(x => o[x] !== undefined).map(x => `${x} ${Math.round(Number(o[x]) * 100) / 100 || 0}`).join(' ') : '-');
+    const left = m => { if (!isObj(m.d)) return ''; const q = Rel.remainder(m, n); return ` → now ${Rel.TRACKS.filter(x => q[x]).map(x => `${x} ${Math.round(q[x] * 10) / 10}`).join(' ') || 'nothing'}`; };
+    return `\n  axes p ${ax.p} g ${ax.g} n ${ax.n} r ${ax.r}${ax.hard ? ' · hard' : ''}${ax.tough ? ' · tough' : ''}${ax.mercenary ? ' · mercenary' : ''}${r.migrated ? ` · version ${r.migrated}` : ''}`
+      + `\n  start ${fmt(r.start)} · everyday ${fmt(r.everyday)} · fix ${fmt(r.fix)} · today ${isObj(r.today) ? `day ${r.today.day} ${JSON.stringify(r.today.ev || {})}` : '-'} · owed ${r.net | 0}`
+      + `\n  kinds: ${(n.memories || []).map(m => `${Rel.debugMemory(m)}${left(m)}`).join(' | ') || '-'}`
+      + `\n  asks: ${(Array.isArray(r.asks) ? r.asks : []).map(a => `t${a.turn} ${a.act}${a.ok === false ? ' (failed)' : ''}${a.confessed ? ' (confessed)' : ''}`).join(', ') || '-'}`;
+  }
   function exportBookTurns() {
     if (!keepOn() || !Pipeline.bookTurns.length) return null;
     const day = new Date().toISOString().slice(0, 10);
@@ -31131,7 +32080,7 @@ const UI = (() => {
       const seen = s.seen || {};
       const by = {
         seen: (a, b) => (b.t - a.t) || (a.i - b.i),
-        attitude: (a, b) => (b.n.attitude - a.n.attitude) || (b.t - a.t) || (a.i - b.i),
+        attitude: (a, b) => (b.n.attitude - a.n.attitude) || (Rel.tracksOf(b.n).t - Rel.tracksOf(a.n).t) || (b.t - a.t) || (a.i - b.i),
         name: (a, b) => npcLabel(a.n).localeCompare(npcLabel(b.n)) || (a.i - b.i)
       };
       const rest = people.filter(n => !hereIds.includes(n.id))
@@ -31284,7 +32233,11 @@ const UI = (() => {
       const due = (s.dueEvents || []).map(e => `${e.seedId} (fired turn ${e.firedTurn}, day ${e.firedDay}${e.npcId ? ', ' + e.npcId : ''}${e.bring ? ', comes to the player' : ''})\n  ${e.text}`).join('\n');
       const visits = (s.visits || []).map(v => `visit: ${v.npcId} at ${v.locationId} (day ${v.day} ${v.phase})`).join('\n');
       const seeds = s.seeds.map(sd => `[${World.seedStatus(sd)}] ${sd.id} @ ${sd.trigger.type} ${sd.trigger.value}${sd.notBeforeDay ? ' (not before day ' + sd.notBeforeDay + ')' : ''}${sd.origin ? ' · ' + sd.origin.kind + (sd.origin.npcId ? ' ' + sd.origin.npcId : '') : ''}\n  ${sd.effect}`).join('\n');
-      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''} · ${Rel.debugLine(n)}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}`).join('\n');
+      const npcs = s.npcs.map(n => `${n.name} [${n.id}] ${n.alive === false ? 'dead' : n.status} att ${n.attitude} (${State.attitudeWord(n.attitude)})${n.knownToPlayer ? ' known' : ''} · now ${World.whereIs(n.id) || 'off-screen'}${n.home ? ' · home ' + n.home.locationId : ''} · ${pronounLabel(n.pronouns)}${isObj(n.created) ? ` · made by ${n.created.by}${n.created.relationToNpcId ? ` (${n.created.relation || 'related'} of ${n.created.relationToNpcId})` : ''}${n.unnamed ? ', no name yet' : ''}` : ''} · ${Rel.debugLine(n)}\n  goal: ${n.goal}\n  secret: ${n.secret || '-'}\n  memories: ${n.memories.map(m => `(${m.weight}, t${m.turn}) ${m.text}`).join(' | ') || '-'}${relDebug(s, n)}`).join('\n');
+      // Wave 30: what is held between the player and the town, with the secret field side by side (never shown to the player), the secrets shown, and every gate.
+      const levs = (Array.isArray(s.leverage) ? s.leverage : []).filter(isObj).map(x => { const who = State.npc(x.holder === 'player' ? x.over : x.holder); return `${x.id} [${x.status}] ${x.holder} over ${x.over} (w${x.weight}${x.aware ? ', aware' : ''}${x.playerKnows ? ', player knows' : ''}${isObj(x.demand) ? `, demand ${JSON.stringify(x.demand)}` : ''}): ${x.text}\n  secret: ${who && who.secret ? who.secret : '-'}`; }).join('\n');
+      const secrets = Object.entries(isObj(s.known) && isObj(s.known.secrets) ? s.known.secrets : {}).map(([id, v]) => `${id}: ${JSON.stringify(v)}`).join('\n');
+      const gates = Object.entries(Rel.GATES).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n');
       const rumours = s.rumours.map(r => `${r.heard ? '[heard] ' : '[unheard] '}${r.true ? 'TRUE ' : 'FALSE'} ${r.id}${r.sourceNpcId ? ' from ' + r.sourceNpcId : ''}${r.heardFrom ? ', told by ' + r.heardFrom : ''}${Number.isInteger(r.addedTurn) ? ` · news (turn ${r.addedTurn}${r.factionId ? ', ' + r.factionId : ''})` : ''}: ${r.text}`).join('\n');
       const threads = s.threads.map(t => `[${t.status}${t.knownToPlayer ? ', known' : ', hidden'}] ${t.id}: ${t.title}\n  ${t.summary}`).join('\n');
       const chron = s.chronicle.map(c => `turns ${c.fromTurn}-${c.toTurn}: ${c.summary}`).join('\n');
@@ -31316,6 +32269,9 @@ const UI = (() => {
         el('h3', null, 'Seeds'), pre(seeds || '-'),
         el('h3', null, 'World events'), pre(events || 'none yet'),
         el('h3', null, 'NPCs (hidden)'), pre(npcs || '-'),
+        el('h3', null, 'Leverage'), pre(levs || 'none'),
+        el('h3', null, 'Secrets shown'), pre(secrets || 'none'),
+        el('h3', null, 'Gates'), pre(gates),
         el('h3', null, 'Rumours'), pre(rumours || '-'),
         el('h3', null, 'Threads'), pre(threads || '-'),
         el('h3', null, 'Chronicle'), pre(`${chron || 'none yet'}\n${logSpan}`),
@@ -32839,6 +33795,7 @@ const UI = (() => {
     d.setRemember.checked = s.rememberKey;
     d.setMock.checked = s.mockMode;
     d.setKeepPackets.checked = s.keepPackets === true;
+    d.setRereadMemories.checked = s.rereadMemories === true;
     fillModels();
     d.setRolls.checked = s.showRolls;
     d.setPermadeath.checked = s.permadeath;
@@ -32888,6 +33845,7 @@ const UI = (() => {
     const after = Storage.saveSettings({
       mockMode: d.setMock.checked,
       keepPackets: d.setKeepPackets.checked,
+      rereadMemories: d.setRereadMemories.checked,
       narratorModel: d.setNarratorModel.value.trim() || Storage.DEFAULTS.narratorModel,
       parserModel: d.setParserModel.value.trim() || Storage.DEFAULTS.parserModel,
       effort,
@@ -33486,7 +34444,8 @@ const UI = (() => {
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
     MOCK_OFF, READ_ONLY_NOTICE, pendingNotes, showRecap, canAct, runAction, travel: confirmTravel, cancelQueued,
     placeTypeLabel, placeLabel, placeUndo, expandedSize, effectText, compactComposer, runOn,
-    attitudeLevel: a => ATTITUDE_LEVEL[State.attitudeWord(a)] || 3,
+    // Wave 30: where someone stands, in words (the People card's chip and its standing block).
+    stanceChip, personStanding,
     get status() { return { stage: status.stage, queued: status.queued, text: d.turnStatus && !d.turnStatus.hidden ? d.turnStatusText.textContent : '' }; },
     get mapExpanded() { return mapExpanded; },
     get peopleQuery() { return peopleQuery; },
@@ -33859,32 +34818,68 @@ const App = (() => {
     if (attachNotes(s)) { Storage.autosave(); return true; }
     return false;
   }
-  /* After a turn, a quiet line for each person the player knows whose
-     attitude crossed a band ("Loretta Gaddis warms to you.", "Lyman Coker
-     won't forget that."). Loads, undos and edits only take note. */
-  let bands = { id: null, turn: -1, map: {} };
-  function noteBands(s) {
+  /* Wave 30 (the integration plan's 14.3, design section 7.2): the quiet
+     lines for how people stand, at most two a change, one a person (the
+     most important), the most important first. The engine's lines
+     (State.takeFeed: leverage, silence, a spark status, the fear of what
+     the player knows, favours owed) print with any change; after a turn,
+     for each person the turn touched (State.relTouched: known and alive),
+     the bands as the turn found them against now: a first-hand weight-3
+     harm ("won't forget that"), fear ("is afraid of you", "gives you
+     room"), trust both ways ("stops taking your word", "isn't sure of you
+     any more", "is willing to hear you out again", "takes you at your word
+     now"), liking over its seven bands ("warms to you", "cools toward
+     you"), and a settlement that landed ("lets some of it go"). Fading
+     (the morning is quiet), loads, undos and edits print nothing; the
+     bands' hysteresis stops flicker; no spark line names anyone under 18
+     (their spark never moves). */
+  const LIKING = Rel.BANDS.w.map(b => b[0]);
+  const TRUST_LINE = { 'unsure>distrusts': 'stops taking your word.', 'trusts>distrusts': 'stops taking your word.', 'trusts>unsure': "isn't sure of you any more.", 'distrusts>unsure': 'is willing to hear you out again.', 'unsure>trusts': 'takes you at your word now.', 'distrusts>trusts': 'takes you at your word now.' };
+  let relSeen = { id: null, turn: -1 };
+  function noteRel(s) {
     if (!s || State.muted || !Array.isArray(s.npcs)) return;
+    const R = State.FEED_RANK;
+    const items = State.takeFeed().filter(x => isObj(x) && x.text);
     const id = Storage.gameId(s);
-    const map = {};
-    for (const n of s.npcs) if (isObj(n) && n.knownToPlayer && n.alive !== false) map[n.id] = UI.attitudeLevel(n.attitude);
-    if (bands.id === id && s.meta.turn > bands.turn) {
-      for (const n of s.npcs) {
-        const was = bands.map[n.id];
-        const now = map[n.id];
-        if (was === undefined || now === undefined || was === now) continue;
-        UI.feed.quiet(now > was ? `${n.name} warms to you.` : now <= 2 ? `${n.name} won't forget that.` : `${n.name} cools toward you.`);
+    if (relSeen.id === id && s.meta.turn > relSeen.turn) {
+      const t = State.relTouched();
+      if (t.turn === s.meta.turn) {
+        for (const npcId of Object.keys(t.touched)) {
+          const n = State.npc(npcId);
+          if (!n || !n.knownToPlayer || n.alive === false || !isObj(n.rel) || !isObj(n.rel.bands)) continue;
+          const was = t.touched[npcId];
+          const now = n.rel.bands;
+          const line = (text, rank) => items.push({ text: `${n.name} ${text}`, npcId, rank });
+          if (t.harm3.includes(npcId)) line("won't forget that.", R.harm);
+          if (!isObj(was)) continue;
+          if (now.f !== was.f && now.f === 'afraid' && now.ov !== 'know') line('is afraid of you.', R.fear);
+          else if (now.f === 'uneasy' && was.f === 'calm') line('gives you room.', R.fear);
+          if (now.t !== was.t && TRUST_LINE[`${was.t}>${now.t}`]) line(TRUST_LINE[`${was.t}>${now.t}`], R.trust);
+          const a = LIKING.indexOf(was.w);
+          const b = LIKING.indexOf(now.w);
+          if (a >= 0 && b >= 0 && a !== b) line(b > a ? 'warms to you.' : 'cools toward you.', R.liking);
+          if (t.settled.includes(npcId)) line('lets some of it go.', R.settled);
+        }
       }
     }
-    bands = { id, turn: s.meta.turn, map };
+    relSeen = { id, turn: s.meta.turn };
+    // One line a person (the most important), then the two most important of those; a line about nobody in particular always prints.
+    const best = new Map();
+    const loose = [];
+    for (const x of items) {
+      if (!x.npcId) { loose.push(x); continue; }
+      const b = best.get(x.npcId);
+      if (!b || x.rank < b.rank) best.set(x.npcId, x);
+    }
+    const out = loose.concat(Array.from(best.values()).map((x, i) => ({ x, i })).sort((p, q) => (p.x.rank - q.x.rank) || (p.i - q.i)).slice(0, 2).map(y => y.x));
+    for (const x of out) UI.feed.quiet(x.text);
   }
   function boot() {
     Storage.init();
     UI.init();
     State.onChange(s => {
-      // Wave 29: the engine's quiet lines for how people stand (spark statuses, leverage, favours owed: State.takeFeed), then the band lines.
-      if (!State.muted) for (const t of State.takeFeed()) UI.feed.quiet(t);
-      noteBands(s);
+      // Wave 30: the quiet lines for how people stand, ranked (noteRel: the engine's, then the turn's band lines).
+      noteRel(s);
       attachNotes(s);
       Storage.autosave();
       UI.renderGame();
@@ -33976,7 +34971,7 @@ const App = (() => {
     const from = UI.screen;
     let r = null;
     // A loaded game is not a turn: no "warms to you" lines for what happened before it was loaded here.
-    bands = { id: null, turn: -1, map: {} };
+    relSeen = { id: null, turn: -1 };
     State.beginBatch();
     try {
       r = State.load(env.state, env.town);
@@ -34123,17 +35118,24 @@ const App = (() => {
     if (!n) return { ok: false, reason: 'missing' };
     const was = n.name;
     const snap = State.snapshot();
-    const r = State.apply({ editPerson: Object.assign({}, fields, { npcId }) }, { source: 'player' });
+    // Wave 30: a line of what is held between them deleted in the editor is voided in the same step (leverageSet).
+    const voids = Array.isArray(fields && fields.voidLeverage) ? fields.voidLeverage.filter(x => typeof x === 'string') : [];
+    const edit = Object.assign({}, fields, { npcId });
+    delete edit.voidLeverage;
+    const diff = Object.keys(edit).length > 1 ? { editPerson: edit } : {};
+    if (voids.length) diff.effects = voids.map(id => ({ op: 'leverageSet', id, status: 'void' }));
+    const r = State.quietly(() => State.apply(diff, { source: 'player' }));
     if (r.rejected.length) {
       State.restore(snap);
       const why = r.rejected[0].reason;
       UI.feed.notice(`${was} was not changed: ${why}.`);
       return { ok: false, reason: 'rejected', why };
     }
-    const e = (r.edited || [])[0];
+    const e = (r.edited || [])[0] || (voids.length ? { fields: [] } : null);
     if (!e || JSON.stringify(State.current) === snap) { State.restore(snap); return { ok: true, same: true, fields: [] }; }
-    UI.feed.quiet(`Edited ${State.npc(npcId).name}: ${e.fields.join(', ')}.`);
-    return { ok: true, fields: e.fields };
+    const done = e.fields.concat(voids.length ? ['what is held'] : []);
+    UI.feed.quiet(`Edited ${State.npc(npcId).name}: ${done.join(', ')}.`);
+    return { ok: true, fields: done };
   }
   /* The title screen (the menu's Title screen, Settings' Quit). Not with a
      hand on the table (wave 11, H1): the turn waits for the player's Draw

@@ -1,8 +1,10 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Waves 26 to 29 have landed; wave 28's
-live grammar probe is still to run** (`ANTHROPIC_API_KEY=… node
-tests/probe-grammar.cjs`). A1 (wave
+1 Nov 2026 · a plan being built. **Tier A has landed (waves 26 to 30). The
+live grammar probe and the labelled eval are still to run with the owner's
+key** (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`, and
+`tests/eval-classify.cjs` once `tests/eval/labelled.jsonl` holds labelled
+playtest turns). A1 (wave
 26, "The tracks under the number"): the `Rel` module, six tracks on every
 person under the `attitude` alias, `socialEvent`, `relSet` and `relDay`, with
 no number the game shows or stores changed (`docs/notes/engine-state.md`,
@@ -31,7 +33,15 @@ payment seed, the obligation link, the standoff, the police bar, tell and
 price, `whenTold`), and favours owed both ways (`docs/notes/prompts.md`,
 `transport.md`, `content.md`, `engine-state.md`, `engine-world.md`, Wave
 29; tests: `tests/wave29-rel-hold.test.cjs`, examples 2, 6, 8, 10, 11, 12
-and 14). A5 and B1 to B3 are still plans.
+and 14). A5 (wave 30, "What people show"): the stance in words on the People
+card with two dated reasons, what is held and owed and the tracks in words
+under "More", the editor's four sliders and Interested, the ranked feed,
+`/recap`'s Careful and favours, the narrator's `to you` line within 50
+tokens, the council reading trust, rules version 9 for older saves, the
+21-day simulator and the eval script (`docs/notes/ui.md`, `prompts.md`,
+`content.md`, `engine-state.md`, `transport.md`, Wave 30; tests:
+`tests/wave30-rel-people.test.cjs`, example 3 whole). B1 to B3 are still
+plans.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

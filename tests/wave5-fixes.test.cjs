@@ -616,7 +616,7 @@ s.test('Q12: an ending /cheat time reaches makes threads known and resolves them
   assert.ok(kinds.lastIndexOf('NARR') < kinds.indexOf('RESOLVED') && kinds.indexOf('RESOLVED') < kinds.indexOf('CLOSE'), 'the ending, then its Resolved lines, then the closing line: ' + kinds.join(' -> '));
 });
 
-s.test('D7: a failed theft reads in the recap as "remembers you tried to steal from him"', async h => {
+s.test('D7: a failed theft reads in the recap as "you tried to steal from him"', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const r = await page.evaluate(() => {
@@ -626,7 +626,8 @@ s.test('D7: a failed theft reads in the recap as "remembers you tried to steal f
     n.knownToPlayer = true;
     return Game.Pipeline.recapText().split('\n').filter(l => /Royce Pittman/.test(l)).join(' | ');
   });
-  assert.match(r, /remembers you tried to steal from him/);
+  // Changed by design in wave 30: the stance in words, then the reason ("(against you: you tried to steal from him)").
+  assert.match(r, /: you tried to steal from him\)/);
 });
 
 // Changed by design in wave 10: nobody is accused at cards any more; the player caught cheating is still put out on the street outside.
