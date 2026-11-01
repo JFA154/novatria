@@ -1838,3 +1838,16 @@ on planting: `docs/notes/engine-state.md`, Wave 22). World keeps it. Tests:
   (`appointmentVisits`); the lines are printed with the other catch-up lines.
   A clock set back changes nothing.
 - Exported: `appointmentsHere`, `settleAppointments`, `appointmentVisits`.
+
+## Wave 25 (1 Nov 2026): a narrated arrival is a visit
+
+- `Pipeline.noteArrivals(narration, locationId)` runs after
+  `noteIntroductions` on every narrated turn (the walk's destination when
+  there is one). Outside quoted speech, a cast member's full name (or a
+  first name unique in the cast, three letters or more) followed within three
+  words by an arrival (`ARRIVAL_VERBS`: slips/steps/walks/comes in, shows or
+  turns up, arrives, appears at the door, is at the door, knocks, joins you,
+  sits down beside you) makes `State.apply({ visits: [{ npcId, locationId }] })`
+  for this phase. Skipped: dead, not free (gone, arrested), laid up, unnamed,
+  or already in `npcsAt`. A refusal (the place closed) is a `rejected` debug
+  line; a placement an `arrival` one.

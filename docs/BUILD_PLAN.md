@@ -1587,3 +1587,17 @@ talking, I can direct it to one person or all."
      the affordability check being the whole guard on spending. README "What
      one turn can do", `docs/notes/engine-state.md`; test in
      `tests/wave21-night-clock.test.cjs`, the engine-state test follows.
+   - **Wave 25** (1 Nov 2026). The owner: "I can't talk to Jodie". The
+     story had Jodie say she would come to the player's room in ten minutes
+     and then wrote her slipping in, but the engine's scene had her on her
+     schedule, so the Say chips did not list her. `Pipeline.noteArrivals`
+     now reads each narration after the introductions: a cast member named
+     as the subject of an arrival outside quoted speech ("Jodie slips in",
+     "Curtis Pruett shows up at the door", "Royce knocks and lets himself
+     in") gets a `visits` entry for this phase where the player stands, so
+     they are in `npcsAt`, the parser's presence, the chips and the People
+     tab; never the dead, the gone, the arrested, the laid up or someone
+     already here; a debug line "walked in by the story" records it. The
+     bookkeeper's meeting rule also counts "I'll come by in ten minutes" as
+     a meeting at the player's place, now. Tests:
+     `tests/wave25-arrivals.test.cjs`.

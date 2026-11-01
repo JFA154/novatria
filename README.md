@@ -585,6 +585,16 @@ meeting, and nothing is said. `/undo` takes a meeting back with its turn;
 `/rewind` strikes one made on a struck turn. In the demo, saying "meet me at
 the Low Water tonight" to someone here has them agree.
 
+**Someone the story walks in is in the scene.** The narrator is told who is
+here and never invents anyone, but when the story has set it up (someone
+said they would come by in ten minutes) it writes the person walking in, and
+the game follows: "Jodie slips in with her hood dripping" puts Jodie in the
+room for the rest of that part of the day, in the Say chips and on the
+People tab, as a visit. Only someone who could come counts (not the dead,
+the gone, the arrested or the laid up), only outside quoted speech ("Curtis
+saw me come in" brings nobody), and only with the person's name as the one
+arriving.
+
 **Town news.** What the town does becomes news: a faction's plan coming off,
 the council meeting, a grudge or favour done in public, a fight in a public
 place, someone caught cheating at cards. On each new morning the news you have
