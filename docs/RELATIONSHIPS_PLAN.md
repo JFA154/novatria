@@ -702,36 +702,430 @@ most 3 memory handles per person and the open leverage ids.
 
 ## 5. Architecture
 
-TODO: filled from the revised integration plan.
+The integration appendix (its §0 to §11) has the function-by-function plan with
+line references. The shape of it:
+
+**A new module, `Rel`,** goes between State and Town (after State closes at
+about `index.html:12168`), on `window.Game` like the others, with a
+`// ===== Module: Rel =====` banner and a row in the build plan's module
+table. It is pure functions and frozen tables (`EVENTS`, `WIRE_EVENTS`,
+`ALIASES`, `DEDUPE`, `TRAIT_AXES`, `AXIS_EFFECTS`, `DECAY`, `CAPS`, `BANDS`,
+`STANCE_GRID`, `OVERRIDES`, `TAGS`, `SPARK_STATUS`, `CUES`, `WITNESS`,
+`SECONDHAND_TEXT`, `LEVERAGE_WEIGHT`, `GATES`, `UNWANTED_ADVANCE`; in B
+`TIE_KINDS`, `RELATION_KINDS`, `FACTORS`, `DELIVERY`). **It never writes.**
+State's ops call `Rel.applyEvent`, `Rel.recompute` and the other planners and
+write what they return, so "every mutation goes through `State.apply`" still
+holds. Dice, Pipeline, World and the UI read `Rel.tracksOf`, `Rel.stance`,
+`Rel.cue`, `Rel.reasons`, `Rel.gate`, `Rel.rollMod`, `Rel.difficultyFloor`,
+`Rel.complies`, `Rel.isMinor`, `Rel.eligible`, `Rel.romanceTurn`,
+`Rel.leverageAnswer`, `Rel.protectorOf` and `Rel.guardiansOf`. The GATES
+table holds every threshold as data, so Debug prints them and the README can
+quote them: one table to tune, which the audit asked for.
+
+**The record.** `n.rel = { start, everyday, fix, today, days, recent, asks,
+owed, cache }`, with the six tracks derived as `start + Σ remaining(memories)
++ everyday (each bucket held to ±15) + fix`, fear adding the derived leverage
+part and capping at 39 for hard people, spark forced to 0 for a minor, an
+under-18 player or anyone not eligible. `n.attitude` **stays on the record as
+the stored alias of liking**, rewritten by `relWrite` after every change, so
+every existing reader (Dice, `restQuality`, World's `attitudeAtLeast`, the
+cards code, `secretsFor`, the rumour pool, the mock, the recap, the UI, the
+validator, about a hundred tests) keeps reading it; a direct write to it from a
+test or a hand-edited save is folded into `fix` at the next recompute. The
+memory record gains `event`, `d` (the change as applied; `null` for a legacy or
+hand-added memory, which moves no track), `decay`, `place`, `key`, `fight`,
+`settled[]` (turn-stamped, at most two plus getting even), `n` (merges),
+`witness` and `scene`, `secondhand` (B), `leverageId`, `about` and `seen`.
+State gains `leverage[]`, `known.secrets` (the first persistent record that
+the player has been shown a secret, written the turn `secretsFor` puts it in
+the packet), and in B `ties` and `hearsay`; `player.obligations[].status`
+gains `lapsed` for the standoff and for coming clean.
+
+**`attitudeDelta` keeps today's exact meaning** and lands in `everyday.w`
+(overflow past ±15 goes to `fix`, so the number still reads `before + delta`).
+All 41 content and engine uses keep their numbers until a wave converts the
+ones whose number should come from the table (integration §4.6 lists every
+site). The three old bookkeeper fields leave the wire in A3 but **stay in
+`RECORD_KEYS` as a legacy path** for engine code, tests and old core replies; a
+legacy memory is typed for its kind with `d: null`, and from A2 a legacy delta
+or memory **yields** to an engine event for the same person in the same diff,
+so the mock's "attacked me, -20" on top of an engine `hit` counts once.
+
+**Ops.** `socialEvent` (an effect op, content and engine; A1), `socialEvents`
+(the bookkeeper's field: in `ENGINE_KEYS` through A2, moved to `RECORD_KEYS`
+in A3, which is what flips the mock through its existing `known(k)` guard),
+`relSet`, `relDay`, `relTurn`, `relAsk`, `relSettle`, `owedSettle`,
+`leverageAdd`, `leverageSet`, `secretShown`, `relFill` (Upgrade 9 only;
+refused unless the recomputed liking equals the record's attitude), and in B
+`tiesFill`, `hearsayDeliver`, `tieDelta`, `propagate`. `State.EFFECT_OPS` grows
+28 → 29 → 31 → 33, and the validator's `OPS` list and `tests/state.test.cjs`
+L980 follow in the same wave. **The editor's track edits land in `fix`**, not
+in `start` as the design wrote, because Upgrade 9 is `rerun: true` and rebuilds
+`start` from the town; `fix` never drifts either, which is what the design
+wanted.
+
+**Recompute** runs inside every op that touches a person (so a later op in
+the same diff reads the new alias), on the morning tick (`relDay`, replacing
+`driftAttitudes`), and after `setTime`, `rewind` and the load fill. Ages are
+whole days; a memory with no `day` uses `World.memoryDay`, else "a week ago".
+Caps are applied at event time and stored in `d`, never re-applied.
+**`/undo`** restores a snapshot, so everything comes back exactly.
+**`/rewind`** strikes everything stamped after the kept turn: memories (as
+today), settlements, owed entries, `asks`, `recent`, leverage records and their
+logs, `known.secrets`, hearsay and tie-log entries; `everyday`, `fix` and the
+across-days counters stay, like money, and the README's `/rewind` row says so.
+This is a change from today, where feelings are never rewound.
+
+**Engine events** reach state in two ways: resolve-time events (`hit`,
+`shoved`, `threatened`, `stole_from`, `caught_you_at`, the backed asks,
+`rescued`) apply in their own `State.apply` at resolve, as complication
+effects do today; turn-end events (`gift`, `bribed`, `flirted`, `spent_time`)
+ride in `opts.engineEvents` and are processed after the money fields and
+before the bookkeeper's `socialEvents`, so the class dedupe sees them. When the
+bookkeeper fails, the engine's facts are applied on their own, as today.
+
+**Dice stay deterministic.** Every new relationship draw (report, price,
+tell, owed-favour, inquiry and tough-answer seeds; backed, fear-ceilinged and
+coercion-refused asks) uses `Rel.rng(kind, npcId, day)`, an `Rng.create`
+sub-stream keyed by the game seed, the kind, the person and the day, the way
+the card code already does. When a roll is skipped, `Dice.burn()` consumes the
+d20 that would have been drawn (or the test hook's forced value), so the next
+real roll and the faction clocks land where they would have. A2 adds a
+draw-for-draw test: a seeded game with a forced report seed and ten turns
+matches the same game without it.
+
+**The wire.** `socialEvents` strings are read by a token-consuming parser
+(`Api.socialFromWire`): an npc id, an event word (aliases for spelling, tense,
+hyphens and spaces, then a unique five-letter stem; two-word forms like "kept
+word"), an optional about-id, `private`, in any order, with the colon optional
+and the text starting at the first non-token, so "meet at 10:30" in the text
+is safe. The schema goes from 41 properties and 4 enums to **34 and 3**; the
+core fallback from 13 fields to **11**; `parse_action` from 13 properties to
+**14** (one boolean, no enum; the parser has never been near the limit, and
+the 31 October refusals were the bookkeeper's). The bookkeeper's system prompt
+loses "Be conservative: small attitude shifts" and the `memoriesSettled`
+sentence and gains `EVENT_RULES` (22 glosses, about 420 estimated tokens) and
+`MEMORY_WORDS` (the wording rule and the good examples only), net about +164
+tokens uncached; `MEMORY_RULES` itself stays word for word for Upgrade's
+memory re-read, which a test pins, with a comment at both saying they diverge
+on purpose.
+
+---
 
 ## 6. Migration
 
-TODO: filled from the revised integration plan.
+**At load, with no version bump** (the pattern `fillPronouns` uses): every
+person without `rel` gets one with liking exactly their attitude, trust from
+the start rules, spark 0; `state.leverage` and `state.known` are created
+empty; any spark on a minor or a non-eligible person in an imported save is
+set to 0. The game plays as before, and memories stay untyped until the
+update.
+
+**Rules version 9 (A5), "People who remember"** (`Upgrade.peopleRemember`,
+rerun-safe, no API call, one `/undo` step with the rest), for each person who
+is not dead:
+
+1. **Start** from the save's town copy (or the live cast, or the record). A
+   loose-end person's `LOOSE_END_ATTITUDE` and trust and knows 30 move into
+   `start`, and the old delta leaves `everyday`, so liking does not move.
+2. **The engine's own strings first.** A frozen list of regexes built from the
+   `56e69f5` writers and the content templates ("knocked me down in a fight
+   at", "locked … up overnight for fighting", "Beat … in a fight and dragged
+   them to the cells", "let the … go past due, so I took", "paid me two
+   hundred dollars to keep quiet", "waited for … and they never came", "caught
+   … cheating at cards", "Loose end with", "Fact (a story point):" and the
+   rest) types each memory before any typing by words, so an editor-stripped
+   "took the phone" is the repo man's own act and never a theft by the player,
+   and the captured-defeat memory is `noted`, own, whether or not its separate
+   fix has landed.
+3. **Then by `act`, then by words**, then by the recap's sense regex; `day`
+   from `World.memoryDay`, else a week ago.
+4. **Fit to the old number.** The table values are scaled so that the
+   memories' remaining liking adds up to `attitude − start.w` (×0 to ×2; if
+   the signs disagree, liking 0 and trust and fear at half). **Liking equals
+   the old attitude exactly for every person**; `relFill` refuses the write
+   otherwise, and the wave's test asserts it.
+5. **Trust seeded from the old attitude**: anyone with a weight-2 or better
+   good memory gets `fix.t = 0.8 × max(0, attitude − start.w)`, so trust never
+   exceeds the liking that earned it. **The secret floor:** anyone whose secret
+   the old gate had open (attitude 50 with a good memory) gets trust at least
+   40 and knows at least 30, so nobody who would have told the player their
+   secret before the update stops after it.
+6. **Knows** from the typed memories, meeting, days since met and loose ends
+   (0..60). **Owed** from unsettled help memories. **Spark 0** for everyone.
+7. **Leverage:** each informant loose end becomes a record with its status
+   read from the obligation (none yet → held, `playerKnows: false`; open →
+   used; met → paid; missed → spent); a heard rumour now marked `leverageOver`
+   becomes a record with `aware: false`. Secrets shown in earlier narrator
+   packets become nothing: no record of them exists.
+8. **Content copied into the save:** open obligations and unfired loose-end
+   seeds whose effects equal the previous content get the new `socialEvent`
+   effects; the unfired built-in council and epilogue get their `relAtLeast`
+   branches, as `arcFill` did for the arc; rumours get `leverageOver`; a town
+   of the player's own is never touched.
+9. **The feed:** "People now remember why: 14 people's memories now carry
+   what they did to how they feel. 1 person has something on you." and "The
+   council now weighs trust." when it applies.
+
+The optional re-read: version 2's "Memories that matter" (`rewrite_memories`,
+no new schema, cents for 41 people) can be offered again before typing, so
+long old lines become short ones first. A new "type each memory" call would be
+a new schema and its own probe, and is not recommended.
+
+**Rules version 10 (B1), "A town that talks":** ties from both sides of every
+relation plus the built-in hand-written ties through `tiesFill` (never
+overwriting), `secretTies` copied, `hearsay` empty. Nothing that already
+happened is spread again. "People now feel for each other: 118 ties between 41
+people. What you do from now on reaches the people close to them."
+
+**What does not reach old saves**, documented in the README section: secrets
+revealed before the update; jealousy and fear from before it; trust built by
+confidences before it, beyond the seeded trust and the secret floor; and the
+ask log, so a bookkeeper `lied_caught` needs a lie told after the update or a
+`noted` claim.
+
+The README's "Updating an older game" table gains two rows (the integration
+appendix §13.3 has the wording), `State.RULES_VERSION` and the Upgrade header
+comment gain a paragraph each, and the "8 now" at `README.md:1156` changes.
+
+---
 
 ## 7. Waves
 
-TODO: filled from the revised integration plan.
+Eight waves: five for tier A, three for tier B. Every wave leaves the game
+playable and the suite green, and each one's scope, files, new tests (with
+their titles), edited tests (by file and line), docs and acceptance check are
+in the integration appendix §16. One wave, A3, ships only after the live
+grammar probe. Sizes are lines of `index.html` code, content and validator,
+new test lines, and existing tests edited.
+
+| Wave | Name | What it does | Size |
+|---|---|---|---|
+| **A1** (26) | The tracks under the number | A pure refactor: `Rel` with every table as data; `n.rel` with six tracks and the alias; recompute, fading, combined settlements, hysteresis; spark stored as 0 with `Rel.isMinor`, `Rel.eligible` and spark writes refused at every writer; `state.leverage` and `state.known` empty; the `socialEvent` op (the bookkeeper cannot send it yet); `relSet`, `relDay` keeping today's drift exactly; `attitudeDelta` and the legacy fields into everyday; the load fill and import guard; `Rel.rng` and `Dice.burn` unused. **Every number is identical and no existing test changes.** Acceptance: the suite is green with no edits, and Debug shows `att N · w t f k s · stance` with `w = att` for everyone. | 550 / 10 / 480 / **0** |
+| **A2** (27) | What the engine sees, people remember for what it was | Fights as one memory (`hit`, `shoved`, `beat_down` replacing it; the old weight-3 witness memories retired for lighter per-scene copies); `threatened`, `stole_from`, `gift`, `bribed`, `spent_time` and knows, obligations and appointments as kept and broken words, `cheated`, `rescued` from danger seeds, card wins and losses; dedupe by class and the legacy yield; fading replaces drift; getting even softens the memory; the 41 `attitudeDelta` sites converted or left as everyday; the typed engine memories (`/fact`, the captured defeat as own); the liking and fear dice modifiers, rescue, won't-sell; fear compliance with the burned d20; report seeds with protectors (hidden protector ties follow the hidden-tie rule) and the tough man's violence answer to a beating; town reputation from public events and the feared tier; `/rewind` stamps. Acceptance: knock Colt down at the landing and read one `beat_down`, two witness copies and reputation -5 in Debug; threaten Tyler twice and watch the drive change hands with no roll and a report seed to Mavis appear the next day. | 710 / 100 / 610 / ≈ 27 |
+| **A3** (28) | The bookkeeper names the act, and minors are protected before the story is told | The wire (34 properties, 3 enums; core 11; the tolerant parser; 22 words with their preconditions; caps keep the heaviest; settlement by words; memory handles in the packet); `EVENT_RULES` and `MEMORY_WORDS`; the mock flips to events; `parse_action.romantic` (14) with the mock's romance regex; **the whole minor guard**, the coercion rule on the fear path, the fade-to-black rule in the cached block; the trust gates (secret, couch, seats, Curtis, rumours, deceive dice, difficulty floors); favour gates and `needs`; `start` and `axes` overrides; the Debug export of bookkeeper turns for the eval; `tests/probe-grammar.cjs`; the permanent `tests/relationships.test.cjs`. **Ships only after the probe passes.** Acceptance: the probe passes on both bookkeeper models and the parser; in a live game a flirt at Kaylee sends her to her father, leaves weight-3 memories on Royce and Darlene, two report seeds and reputation -10; an insult to Royce and an apology show `insulted` settled by `apologised`. | 790 + 190 probe and export / 50 / 920 / ≈ 25 |
+| **A4** (29) | What people hold: wanting, leverage and favours | Spark with the shipped eligibility list, welcome before narration, statuses and cues, jealousy, `rebuffed`, `intimate` gated, the coercion rule on the leverage path; leverage in full: `known.secrets`, `learned_secret` with its keys, `caught_you_at` with its limits, backed asks with the reference check and the burned d20, the answers by hard and tough, the present-tense `LEVERAGE` line, `blackmailed` and `threatened_to_tell`, the payment seed, `paid_silence` and `told_anyway`, the obligation link inside `State.settle`, the `lapsed` standoff, coming clean, the police bar and its lift, tell and price templates, `whenTold` and inquiry seeds, the informant's record at game start, the Journal's "are owed"; favours owed with the cash guard and the ask-back chain. Acceptance: as the fired bookkeeper, win Hollis's secret with a roll and demand three hundred for his books: no roll, the LEVERAGE line in the packet, the money the next evening and the Journal line struck through; three mornings of flirting with Shayla reads "Suspicious of you · using you". | 1,020 / 210 / 980 / ≈ 6 |
+| **A5** (30) | What people show | The People card with its stance chip, two dated reasons, leverage lines and the "More" fold; the editor's sliders, Interested for eligible adults, leverage lines and the event picker; `noteRel` with its ranking and the collapsed overnight line; `/recap` Careful and Owed; the narrator's `to you` line with the 50-token cap, `open to a flirt`, `holds you to`, the hidden-reason wording; the parser row and rubric; both styles' example turns, `Style.KNOWLEDGE`, the trimmed format note and the validator's two regexes; `relAtLeast`/`relBelow` with the council and epilogue rewritten (no fear branch); the contempt and pity cues; **rules version 9**; the simulator, the eval script and the eight-day CI guard. Acceptance: update an old save and see every "Likes you" word match the old meter and every open secret still open; open Hollis's card on a 375-pixel phone with no horizontal scroll; `node tests/relationships-sim.cjs confidant --assert` passes. | 740 + 490 sim and eval / 120 / 640 / ≈ 40 |
+| **B1** (31) | The town is a graph | Ties from both sides of every relation plus about 40 hand-written ones; the factor table with the role limits; one-hop propagation at event time; absent victims through a witness; hearsay by kind of tie with the household rule and the collapsed overnight line; hidden ties with no-name narrator reasons and named-act cards; the arrest route; the hidden protector flag read from ties; **rules version 10**; Debug ties and hearsay. Acceptance: hit Dewayne at Pittman's in the morning, `/rest`, and read "Word got round: Mavis Mangum has heard about Pittman's." and her card at "cool to you" with the act dated. | 530 / 80 / 460 / ≈ 5 |
+| **B2** (32) | Ties that change | `exposed` moving ties by `SECRET_TIES` and the target learning who told; `badmouthed` and `vouched_for` on a successful persuade (two more wire words, so the probe is re-run as a precaution); `tieDelta` and `propagate`, with the templates' third-party deltas converted in place; BETWEEN THEM for known ties; tie words on the card. | 380 / 110 / 350 / ≈ 3 |
+| **B3** (33, optional) | Tuning | One pass over `EVENTS`, `AXIS_EFFECTS` and `GATES` after a playtest, **only once the labelled eval passes** and with the simulator's bands holding; richer report templates; a fourth simulator playstyle (blackmailer) if the playtest shows abuse. | 200 / 60 / 250 |
+
+| Tier | Code | Tooling | Content and validator | New test lines | Existing tests edited |
+|---|---|---|---|---|---|
+| A (26-30) | ≈ 3,810 | ≈ 680 | ≈ 490 | ≈ 3,630 | ≈ 98 |
+| B (31-33) | ≈ 1,110 | 0 | ≈ 250 | ≈ 1,060 | ≈ 8 |
+| All | ≈ 4,920 | ≈ 680 | ≈ 740 | ≈ 4,690 | ≈ 106 |
+
+Tier A is larger than the design's own estimate (2,500 to 3,000 lines in all)
+because the plan keeps the legacy paths, the load fill, an exact A1, the yield
+rule and the migration pre-pass, and because the delta review added the
+coercion rule, intimacy, the corroborated minor guard and the leverage guards.
+The edited-test count matches the audit's count of tests that pin today's
+numbers. B can wait on A's playtest.
+
+Each wave also gets its direction-change sub-bullet in the build plan under a
+new entry **11. People who remember**, its `docs/notes/<module>.md` wave entry,
+and its README changes (section 12).
+
+---
 
 ## 8. Before any tuning
 
-TODO: the live grammar probe, the labelled eval, the simulator, the worked examples as tests.
+Four pieces of tooling, none of which exists today, gate the numbers:
+
+- **The live grammar probe** (`tests/probe-grammar.cjs`, skipped by
+  `run.cjs`, about 150 lines; needs the owner's key and network, so it cannot
+  be run from this sandbox). It opens the game headless, builds a fixed
+  bookkeeper packet and a fixed parser packet ("I flirt with Jodie") with the
+  page's own packet builders, takes the exact request bodies and headers from
+  `Api`, and posts the new `record_changes` (34/3), the new core (11), the new
+  `parse_action` (14) and the `56e69f5` schema as a control, for each
+  bookkeeper and parser model in the presets. It passes when every request
+  returns 200, no reply mentions "grammar", the bookkeeper reply yields at
+  least one known event and `State.apply` of it rejects nothing. The owner
+  runs `ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`; the result goes
+  into the README's "Verified against the live API" and `docs/notes/prompts.md`.
+  **A3 does not ship until it passes.** If `record_changes` is refused, the
+  11-field core still records events; if the parser is refused, A3 waits
+  rather than shipping without `romantic`.
+- **The labelled eval** (`tests/eval-classify.cjs`, needs the owner's key).
+  At least 150 live turns exported with A3's Debug button, each labelled by
+  hand with the act a neutral witness would name, plus about 50 romantic-intent
+  lines including euphemism, Do mode and false friends ("thanks, sweetheart"
+  to Kaylee). It sends each packet with the real system prompt and schema,
+  parses the reply, applies the preconditions offline so refused events count
+  as the engine would, and reports exact accuracy, the neighbour-confusion rate
+  over the review's six neighbourhoods, invented events, misses, romantic
+  recall for lines aimed at minors (on the parser flag and on the phrase list,
+  separately and together) and cost (under $0.10 a run on the Thrifty model).
+  **The pass bar** (an owner decision, recommended): neighbour confusions
+  under 20% of emitted events, exact accuracy 75% or more, invented events 5%
+  or fewer, romantic recall for minors 98% or more, and no minor-related event
+  emitted for a minor. No gloss, event or axis is tuned before the first
+  passing report is recorded in `docs/notes/prompts.md`.
+- **The 21-day simulator** (`tests/relationships-sim.cjs`, headless, mock
+  mode, skipped by `run.cjs`). Three canned playstyles as scripts of
+  `Pipeline.submit` lines plus queued mock events, printing each involved
+  person's six tracks, stance and tags every morning; `--assert` exits 1 when a
+  band fails: the beer-buyer's Royce and Curtis never pass "warm to you" and
+  their trust never moves; the confidant reaches trust 30 and knows 25 with
+  Royce by Day 6 by honest events, and the same run with a staged kept word
+  (nobody else present) does not; the brawler's Wade is never "afraid of you"
+  and reaches "hates you" with its reason, with fights on Days 2, 4 and 6 only
+  and the bystanders back inside the design's stated distance of their start by
+  its stated day. An eight-day cut of each band runs in the suite as a CI
+  guard, so tuning cannot break them silently.
+- **The thirteen worked examples as tests**
+  (`tests/relationships-examples.test.cjs`), each scripted through the mock in
+  the wave its features land: the tracks within ±2 of the design's arithmetic,
+  the stance, tags, feed lines and narrator fragments exact. Where the code
+  and the design disagree, the code's number is pinned and the design appendix
+  corrected in the same wave.
+
+---
 
 ## 9. Risks
 
-TODO.
+| Risk | Likelihood / impact | Guard |
+|---|---|---|
+| Coercion is rewarded: leverage or fear buys sexual compliance (the delta review's blocker) | low after the rule / **severe** | A romantic ask turns off compliance and backed asks for everyone; refusal, `blackmailed` plus `crossed`, a report, reputation -10; permanent tests for adults and minors in `tests/relationships.test.cjs` |
+| The minor guard has a hole: a path that warms a minor, buys compliance, or sends a romance cue | low / **severe** | Decided before narration with the minor's line every turn they are present; overridden after; spark refused at every writer from A1; re-checked in every packet builder and the card; anchors on the live cast age that an import cannot strip; a permanent suite test with a 300-string fuzz and a roster pin; any failure blocks the suite |
+| False positives against the player: a kind word to Kaylee costs the full consequence row | low after corroboration / high | A bare flag gives a light row only; the heavy row needs a named target plus a second signal; the eval measures recall and false friends |
+| The live probe cannot be run, or fails | low / high | Both schemas are smaller than or equal to shapes known to pass; only A3 waits; the core fallback still records events; A3 waits rather than shipping without the flag |
+| Test churn: about 106 existing tests edited | certain / medium | A1 edits none; every edit is listed by wave, file and line; the legacy path and the yield rule keep about 25 queued-legacy call sites unchanged; pinned numbers become behaviour assertions where the number is no longer the point |
+| Classifier accuracy: 22 words, neighbour confusion | medium / medium | 22 of 41 events are engine-derived; preconditions catch staged events; the eval gates tuning; the Debug export builds the set |
+| The cached narrator block: about 48 tokens left after A5 (12,952 of 13,000) | medium / medium | Everything added is measured with the api test's own estimator; anything later comes out of the 48 or shortens two example entries; the api test fails at once if exceeded; A3's fade-to-black rule and A5's rewrite are measured against a draft before they land |
+| Leverage balance: a blackmail money pump, or frustration that "Wade makes it go away" | medium / medium | Demands capped at min(weight × $100, `canRaise`), `canRaise` $100 by default and raised for at most three people, paid is terminal, repeat uses compound harm, holders' reports spend their leverage; a full pass yields at most about $900; a blackmailer playstyle joins the simulator in B3 if the playtest shows abuse |
+| Rng drift in seeded tests and clocks | low / medium | Sub-streams for every new draw; the burned d20; the draw-for-draw test in A2 |
+| Old saves | medium / medium | The load fill keeps liking exact; Upgrade 9 refuses any write that moves liking, recognises the engine's own strings first, seeds trust and floors open secrets; what does not reach old saves is documented |
+| The design's arithmetic against the code in the thirteen examples | medium / low | ±2 tolerance; the code's number is pinned and the appendix corrected in the same wave |
+| Size: about 3,810 lines of A code against the design's 2,500 to 3,000 in all | certain / medium | Five shippable waves; the tooling is separate; B can wait |
+| Save size: typed memories, leverage, the ask log, B ties | low / low | About 250 KB worst case per snapshot; check the IndexedDB undo-stack limit in A1; hearsay capped at 60, asks at 8, recent at 4 |
+| The two separately queued bug fixes (the captured memory, the editor strip) | — / low | Not prerequisites: A2 replaces the captured memory with `noted`/own, A5's editor round-trip covers `day` and `act`, and the migration's pre-pass and day fallback tolerate both before or after the fixes |
+
+---
 
 ## 10. Open decisions for the owner
 
-TODO.
+Recommendations first. Everything not listed here is decided (section 3).
+
+1. **The SPEC acceptance test** "Insulting the same NPC three times" (`tests/acceptance.test.cjs` L198). Recommended: keep its title and its three behaviours, and change only the two pins that measure the old arithmetic (`attitude − 45` becomes "three insults compound: -10, -15, -22, at least 45 down"; the memory weights `[2, 3]` become one merged memory of weight 3), with the final check also asserting "hates you" with its reason. The design's "three insults to someone at pride +2, or four to anyone" becomes an extra test, not a rewrite.
+2. **The corroboration threshold for minors.** Recommended: a named target plus one second signal (a bookkeeper romance event, or a phrase hit). Requiring both signals would miss the euphemisms the eval exists to measure.
+3. **Is blackmail meant to fund the game?** Recommended: no. `canRaise` defaults to $100, at most three people above it.
+4. **What telling the police does to the target.** Recommended: the `whenTold` default (a weight-3 memory for the police member it matters to, and for a crime an inquiry seed that fills one police-clock segment); no automatic arrest.
+5. **Leverage in old saves.** Recommended: informant loose ends yes (the obligation is a recorded fact), heard rumours marked `leverageOver` yes with `aware: false`, secrets shown in earlier narrator packets no (nothing records them).
+6. **The labelled-eval pass bar.** Recommended as in section 8.
+7. **The optional memory re-read** during the version 9 update. Recommended: offer re-running version 2's "Memories that matter" as a Settings option; no new typing call.
+8. **What a relationship `/fact` buys.** Recommended: "owes me" → owed +1; "go back", "old friend", "grew up with" → knows at least 30; "trusts me" → trust +15, at most 40; "likes me" → liking +10, at most 40; all into `start`, never spark or fear; the memory stays a protected fact that moves no track and never feeds a grudge.
+9. **Curtis on the eligibility list.** He is separated. Recommended: keep him with `faithful: false`, noted in `docs/notes/content.md`.
+10. **The "using you" fallback wording** when distrust is not earned: "wants you" (recommended: one tag, and the card's trust word says the rest) or "wants you, doesn't trust you".
+11. **A clean, unseen steal that succeeds.** Recommended: no event at the time; a later bookkeeper "found out" after the logged steal.
+12. **The new obligation status `lapsed`** for the standoff and for coming clean, shown as "Dropped" in the Journal. Recommended: yes.
+
+Carried from the first integration plan and recommended as written: `attitudeDelta` lands in everyday; edited values never fade; `/rewind` takes back remembered feelings; the unfired built-in council in games already in progress gets the trust branches through version 9; a knock-down's witnesses keep a lighter copy rather than today's weight-3 memory.
+
+---
 
 ## 11. Deviations from SPEC.md
 
-TODO.
+To be added to the README's "Deliberate deviations from SPEC.md" as each wave lands:
+
+- **§3, the state model.** `attitude` becomes the stored alias of a derived liking; the NPC record gains `rel`; state gains `leverage`, `known`, and in B `ties` and `hearsay`; obligations gain the status `lapsed`.
+- **§10, the tool schemas.** `record_changes` loses `attitudeChanges`, `newMemories` and `memoriesSettled` and gains `socialEvents` (34 properties, 3 enums; the core fallback 11 fields); `parse_action` gains `romantic` (14). The ±25-a-turn attitude cap becomes per-track clamps (liking ±40, trust ±45, fear ±40, spark ±20; ±15 through the graph).
+- **§7, dice.** The ±2 attitude modifier becomes a per-roll-type modifier (persuade by liking, deceive by trust, intimidate by fear), still inside the ±4 cap; code floors the parser's difficulty and lets an adult at fear 40, or a leverage-backed ask at weight 2, skip the roll with the d20 still drawn; a romantic ask never skips a roll and always fails.
+- **§8, the living world.** Grudges and favours read the tracks and typed memories; report, price, tell, inquiry and owed-favour seeds are new; the "feared" reputation tier the spec lists now exists; drift toward the written value is replaced by fading memories.
+- **Rule 7, content.** Kept, with a hand-written eligibility list for attraction, a fade-to-black rule in the narrator's cached block, and the minor guard.
+- **The acceptance test** "Insulting the same NPC three times": see decision 1.
+
+---
 
 ## 12. Docs to update as each wave lands
 
-TODO.
+- **README.md**: People (how people take what you say; the card, the words
+  behind More, the feed lines quoted; fading; "What people hold": leverage,
+  the Journal's "are owed", favours; "Word gets around" in B; a new **"Nobody
+  under 18"** paragraph in plain words in A3), The story moves (Grudges and
+  favours: reports, protectors, getting even; Fights; Asking again), Journal,
+  `/recap` (Careful), Commands (`/fact`), "What one turn can do" (two events a
+  person, four a turn), "What a turn costs" (the bookkeeper system and both
+  schemas), "Updating an older game" (rows 9 and 10; what does not reach old
+  saves; the "8 now"), "Editing the town" (every new authored field: `start`,
+  `axes`, `secretWeight`, `canRaise`, `mattersTo`, `leverageKeys`, `whenTold`,
+  `protector`, `mercenary`, `romance`, `policeHead`, `policeFallback`,
+  rumours' `leverageOver`, seeds' `danger`, templates' `needs`,
+  `relAtLeast`/`relBelow`; B: `ties`, `secretTies`), "Running the tests" (the
+  new suites, the simulator, the eval, the probe), "Verified against the live
+  API" (the probe result), "Deliberate deviations" (section 11), and the stale
+  property counts at 1168-1170 and 1382.
+- **docs/BUILD_PLAN.md**: the NPC contract block (`rel`, the alias, the new
+  authored fields), the Game state block (`leverage`, `known`, `ties`,
+  `hearsay`), the `when` keys (`relAtLeast`, `relBelow`), the effect ops table
+  (`socialEvent`, `owedSettle`, `leverageSet`, `tieDelta`, `propagate`; "28"
+  becomes 29, 31, 33), the module table (`Rel`), `record_changes` and
+  `parse_action` at 290-305, and **Direction change 11, "People who
+  remember"** (the owner's words from this plan's opening) with a sub-bullet
+  per wave.
+- **docs/notes**: `engine-state.md` (the record, ops, recompute, leverage,
+  `lapsed`, Upgrade 9 and 10), `engine-world.md` (events at resolve, the tick,
+  seeds, sub-streams, hearsay), `prompts.md` (the wire, the rubric and the
+  fork, the mock, the flag, the narrator line, the cached budget, the probe
+  and eval results), `transport.md` (`cleanDiff`, the packet, `/rewind`),
+  `ui.md` (the card, the editor, the feed, recap, Debug), `content.md` (every
+  authored field, the ready-to-paste eligibility list, Appendix C and F
+  tables); and the two existing disagreements the audit found
+  (`transport.md:181`'s band cuts, the "20 turns" note).
+- **docs/API_NOTES.md** 234-254: the schema counts.
+- **docs/CAST.md**: regenerated by `tests/cast-doc.cjs`, which gains start
+  trust, axes, hard, protector and secret weight columns.
+- **This plan**: its status line at the top changes from "a plan, not a
+  build" to the waves that have landed.
+
+---
 
 ## 13. Where the appendices disagree with this page
 
-TODO.
+The appendices were written in sequence and each later one corrects earlier
+ones; where they still differ, this page is the plan.
+
+- **Names.** The module is `Rel` (the design's test sketch says
+  `Relationships.status`); the content condition keys are `liking` and `knows`
+  (the design's §6.2 still writes `warmth` and `familiarity`; `Rel.meets`
+  accepts both, the validator wants the canonical names); the narrator
+  fragment opens `to you:` (the first integration plan wrote `toward you:`).
+- **The design's Appendix F** calls `meetingRep` "a missed meeting". It is the
+  faction-reputation shift on first meeting a faction member, which lands in
+  everyday; the missed appointment at `index.html:14139` is the `broke_word`
+  at half strength.
+- **The editor's track edits** write to `fix` (the integration plan's choice),
+  not to `start` (the design's), because Upgrade 9 re-runs rebuild `start`.
+- **`intimate`** is in tier A, engine-gated (the design's third version and
+  the integration plan's §19.2); the design's second version put it in C.
+- **Contempt** is a cue on "against you", not the thirteenth phrase the
+  design's §10 first proposed.
+- **The eligibility list ships with twelve adults**; the design's second
+  version and the integration plan's §7 said "empty by default", superseded by
+  the delta review and the integration plan's §19.5.
+- **`learned_secret`'s precondition** is `state.known.secrets` plus the
+  narration overlapping the secret's `leverageKeys` (integration §19.4), not
+  "the secret was in this turn's packet" alone (design §2.6.1).
+- **The leverage answers**: the integration plan's §8.3 pride rule is
+  superseded by its §19.4 (tough refuse with violence; hard-not-tough refuse
+  with gossip or a report; everyone else complies).
+- **`stole_from`** from a clean, unseen success is no event at the time
+  (integration §1.5); the design's row implies otherwise.
+- **The standoff**: the design's second version had a gossip grudge; the third
+  and the integration plan suppress the grudge and the report while both
+  records are held.
+- **Counts.** The casual example set has nine PRESENT entries, not the
+  design's "ten". The glosses measure about 420 estimated tokens, not "about
+  350"; net +164 after removals. The cached block takes +281 of the 330-token
+  headroom, not the design's "about 235". Tier A is about 3,810 lines of code,
+  not the design's 2,500 to 3,000 in all. About 106 existing tests change,
+  not "about 30".
+- **The acceptance test**: the design rewrites it; the integration plan keeps
+  its title and behaviours and changes two pins. This page recommends the
+  integration plan's version (decision 1).
+- **The county sheriff** as the police fallback: the review names Hoyt
+  Bramlett; the integration plan reads the record from `docs/CAST.md`'s
+  Elsewhere list if there is one and otherwise posts a town-news line. Verify
+  the name against the cast when A3 is built.
