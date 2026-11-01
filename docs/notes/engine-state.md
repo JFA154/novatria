@@ -1091,3 +1091,51 @@ morning drifts only the everyday bucket. Tests:
 - Left for later waves: the bookkeeper's own events on the wire, the trust
   gates and floors (28); leverage, spark and owed asks (29); the card, the
   narrator's line, the feed's words and rules version 9 (30).
+
+## Wave 28 (1 Nov 2026): the bookkeeper's events, and nobody under 18
+
+Wave A3 of `docs/RELATIONSHIPS_PLAN.md`. Tests:
+`tests/wave28-social-events.test.cjs`, `tests/relationships.test.cjs`.
+
+- **`socialEvents` is a model key** (`RECORD_KEYS`; out of `ENGINE_KEYS`).
+  The three legacy keys stay readable. A model diff's events go to
+  `modelSocial(items, opts, result, run, no)` as a whole, since the caps
+  need every candidate: presence (here and not laid up); the minor rule (an
+  event naming romance for someone under 18, or any event for a minor the
+  turn's flag or phrase pointed at, is a no-op "set aside for the minor
+  rule" and lands in `result.minors`); `Rel.wireEvent`'s preconditions (a
+  refusal is rejected by name; a downgrade, such as `kept_word` without a
+  day-old confidence and an asker present to `confided`, applies as the
+  lighter event; `{ knows }` bumps the everyday bucket's knows-you only;
+  `learned_secret` waits for wave 29 as a no-op with a debug line);
+  `insulted` with two or more others here and not private is `humiliated`
+  (witnessed by them); the diminish and gift scaling (`opts.diminish`,
+  `opts.giftTo`); then the caps: two events a person and four a turn
+  (`ledger.model`), the heaviest kept (by weight, then |w| + |t|, then the
+  order sent), the rest no-ops with the reason. A model event of the same
+  dedupe class as one of the turn's engine events (`ledger.events`,
+  `opts.engineEvents`) gives way.
+- **Settlement by words.** An `apologised` that lands (a persuade or talk
+  aimed at them that worked, or liking above -25; else it only teaches
+  knows-you 2) settles the harm its memory names (the words after the colon
+  against the harm's text, `Rel`'s settleTarget), else the newest
+  unsettled harm of the last three days; a confession (`came_clean`) marks
+  the logged lie (`rel.asks[i].confessed`, `confessedTurn`).
+- **The ledger** gains `events` (every event this turn applied: `{ npcId,
+  event }`) and `model` (`{ per, total }`, the caps).
+- **The couch** (`restQuality`) reads `Rel.GATES.couch`: liking 25 and
+  trust 0, or owed 1 and liking above -25.
+- **A report seed's origin** keeps `fallback` (the law outside town took
+  it).
+- **`Rel`** gains the wave-28 section after `factOf`: `ABOUT_EVENTS`,
+  `WORDS_EVENTS`, `ROMANCE_EVENTS`, `MINOR_RULE`, `THREAT_PHRASES`,
+  `ASKS`, `difficultyFloor`, `lieWord`, `secretOpen`, `meets`,
+  `guardiansOf`, `policeFallback`, `reportTo`, `minorAge`, `minorLine`,
+  `playerMinorLine`, `romanceTurn`, `wireEvent`, `handles`, `wardWord`,
+  `guardianWord`. `rollMod` reads trust for a lie (+2 at trust 40, -1 at
+  -25, -2 at -50); `complies` is false for any romantic action; a flirt at
+  someone who dislikes the player marks `rel.unwelcomeOnce`. Every gate's
+  threshold is in `Rel.GATES` (wave 28's: deceive, floors, secret, couch,
+  seats, dealer, rumour, favour, needs).
+- **`State.turnEvents()`** returns the turn's applied events (the
+  ledger's).

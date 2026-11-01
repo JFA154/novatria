@@ -783,3 +783,31 @@ indices are unchanged; templates were edited in place or appended.
   word as the owed person's memory of a miss. `OPS` stays `State.EFFECT_OPS`
   (29). `tests/mentions.cjs` passes on every new string;
   `docs/CAST.md` is unchanged.
+
+## Wave 28 (1 Nov 2026): starts, the law outside town, what favours need
+
+Wave A3 of `docs/RELATIONSHIPS_PLAN.md`. Content ids, the loose ends'
+option order and template indices are unchanged; templates were appended.
+
+- **`start`** (trust, at most fear; design Appendix E) and **`axes`** on
+  ten people, the strangers' trust the design gives: Boyd -40 (axes g -2),
+  Jodie -25, Vada -10, Leon -15, Carter -10, Tammy -15, Austin -15, Odessa
+  -10, Dwight -10, Hoyt -15 (axes p +1, g +1). `docs/CAST.md` prints them
+  ("Starts with a stranger at trust -40. Axes: guardedness -2.").
+- **`TOWN_DATA.policeFallback: "npc_hoyt"`**: Sheriff Hoyt Bramlett in
+  Clayburn takes a report when the town has no police head free and here
+  (`Rel.reportTo`); with him gone too it is a line of town news ("A deputy
+  from Clayburn came by asking about <player>.").
+- **`GRUDGE_TEMPLATES`** appended: three report templates (`police` /
+  `advance`, `police` / `coercion`, `family` / `coercion`), each a weight-3
+  `crossed` for whoever hears it.
+- **`FAVOUR_TEMPLATES`** [4], [5] and [6] gain `needs` (`{ trust: 30 }`,
+  `{ trust: 40 }` for the alibi, `{ trust: 30 }`), read by
+  `World.templateFits` through `Rel.meets`; every favour also needs liking
+  50, trust 20 and a help of theirs to answer (`World.helpMemory`).
+- **The validator** (`tests/validate-town.cjs`) whitelists an NPC's `start`
+  (trust -60 to 60, fear 0 to 30) and `axes` (p, g, n, r, each -2 to 2),
+  `TOWN_DATA.policeFallback` (an away person who is the law, with a
+  `where`) and `romance` (never anyone under 18: "<id> is under 18: nobody
+  under 18 is ever on the romance list"), a favour template's `needs`
+  (trust 0 to 60), and the report kinds `advance` and `coercion`.

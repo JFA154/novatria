@@ -204,14 +204,26 @@ s.test('[4] Insulting the same NPC three times → attitude drops, their greetin
   const sc = await findScene(page, { minAtt: -15, maxAtt: 0, watchy: false });
   const x = sc.npcs.find(n => !touched.includes(n.id)) || sc.npcs[0];
   await place(page, sc.loc.id, sc.phase);
+  // Wave 28 (A3): said in front of two or more, an insult is a humiliation (-15, -22, -34), and three of them pass -60 at once.
+  // The others here step out for these turns, so the three are plain insults and the greeting can turn cold before any grudge.
+  await page.evaluate(([id, loc]) => {
+    const S = Game.State;
+    const away = Game.state.locations.find(l => l.id !== loc && !l.closed && l.discovered !== false);
+    const others = S.npcsAt(loc).map(n => n.id).filter(o => o !== id);
+    if (others.length) S.apply({ visits: others.map(o => ({ npcId: o, locationId: away.id })) });
+  }, [x.id, sc.loc.id]);
   const grudges = () => page.evaluate(id => Game.state.seeds.filter(sd => sd.origin && sd.origin.kind === 'grudge' && sd.origin.npcId === id), x.id);
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
-  assert.equal(n.attitude, x.attitude - 45, 'three insults, -15 each');
+  // Changed by design in wave 28 (A3; docs/RELATIONSHIPS_PLAN.md, decision 1): the bookkeeper names the insult and the engine compounds
+  // it, -10, -15, -22 (alone with them: a humiliation's -15, -22, -34 needs two or more watching), so three insults are at least 45 down.
+  assert.ok(n.attitude <= x.attitude - 45, `three insults compound: -10, -15, -22, at least 45 down (${x.attitude} -> ${n.attitude})`);
   // Changed by design (engine-state wave 1): the same words again merge into one memory (the heavier weight).
-  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3], 'remembered, and the repeats weigh more');
+  // Changed by design in wave 28 (A3): one merged memory, its weight up to 3.
+  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [3], 'remembered, and the repeats weigh more');
   await sendText(page, `I talk to ${x.name}`);
-  assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), 'the greeting turned cold');
+  const greeted = (await lastLog(page)).narration;
+  assert.ok(greeted.includes(`${x.name} gives you a cold look`), `the greeting turned cold (${x.name} at ${n.attitude}): ${greeted}`);
   assert.equal((await grudges()).length, 0, 'no grudge above -60');
   // Keep insulting until -60; the next world tick plants exactly one grudge.
   for (let i = 0; i < 4 && (await page.evaluate(id => Game.State.npc(id).attitude, x.id)) > -60; i++) await sendText(page, `I insult ${x.name}`);
@@ -230,6 +242,10 @@ s.test('[4] Insulting the same NPC three times → attitude drops, their greetin
   if (now) await place(page, now);
   await sendText(page, `I talk to ${x.name}`);
   assert.ok((await lastLog(page)).narration.includes(`${x.name} turns away and will not look at you`), 'hostile now');
+  // Wave 28 (decision 1): and where they stand reads "hates you", with its reason (the insults that hold them there).
+  const st = await page.evaluate(id => { const s = Game.Rel.stance(Game.State.npc(id)); return { phrase: s.phrase, why: s.why.map(w => w.text) }; }, x.id);
+  assert.equal(st.phrase, 'hates you');
+  assert.ok(st.why.some(t => /insulted/.test(t)), 'with its reason: ' + JSON.stringify(st.why));
 });
 
 // 5

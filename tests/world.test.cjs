@@ -317,17 +317,30 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   const sc = await findScene(page, { minAtt: -15, maxAtt: 20 });
   const x = sc.npcs[0];
   await place(page, sc.loc.id, sc.phase);
+  // Changed by design in wave 28 (A3): three humiliations in front of two or more pass -60 at once ("turns away"); the others here
+  // step out for these turns, so the three are plain insults and the greeting turns cold before any grudge.
+  const watching = await page.evaluate(([id, loc]) => {
+    const S = Game.State;
+    const away = Game.state.locations.find(l => l.id !== loc && !l.closed && l.discovered !== false);
+    const others = S.npcsAt(loc).map(n => n.id).filter(o => o !== id);
+    if (others.length) S.apply({ visits: others.map(o => ({ npcId: o, locationId: away.id })) });
+    return S.npcsAt(loc).map(n => n.id).filter(o => o !== id);
+  }, [x.id, sc.loc.id]);
   const rep0 = await page.evaluate(() => Game.state.player.reputation.town || 0);
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
-  assert.equal(n.attitude, x.attitude - 45);
+  // Changed by design in wave 28 (A3): the bookkeeper names the insult and the engine compounds it (-10, -15, -22.5, or a humiliation's
+  // -15, -22.5, -34 with two or more watching): at least 45 down, in one memory merged to weight 3.
+  assert.ok(n.attitude <= x.attitude - 45, `three insults compound: ${x.attitude} -> ${n.attitude}`);
   // Changed by design (engine-state wave 1): the same words again merge into one memory (the heavier weight).
-  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
+  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [3]);
   await sendText(page, `I talk to ${x.name}`);
-  assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), 'greeting turned cold');
+  assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), `greeting turned cold (${n.attitude})`);
   // Changed by design in wave 27 (A2): the town's standing moves on what is done in public as the engine sees it (an event in front of
   // two people, or news), no longer on every liking change; the demo's insults are words it does not type, so the town has not heard.
-  assert.equal(await page.evaluate(() => Game.state.player.reputation.town || 0), rep0, 'the town\'s standing did not drift with the insults');
+  // Changed by design in wave 28 (A3): an insult in front of two others is a humiliation, done in public: the town hears it (-2 each).
+  const shamed = watching.length >= 2;
+  assert.equal(await page.evaluate(() => Game.state.player.reputation.town || 0), rep0 - (shamed ? 6 : 0), shamed ? 'three humiliations in public, -2 each' : 'the town\'s standing did not drift with the insults');
   // Cold is not enough: a phase passes and nothing is planted.
   await onePhase(page);
   assert.equal((await feelings(page, x.id, 'grudge')).length, 0, 'no grudge above -60');
@@ -367,21 +380,23 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   assert.equal(await page.evaluate(id => Game.State.seed(id).fired, g[0].id), true);
 });
 
-s.test('a favour seed at attitude 60 or more, once the NPC remembers something the player did; not at 59, not unearned', async h => {
+// Changed by design in wave 28 (A3, Rel.GATES.favour): a favour needs liking 50 and trust 20, and a help of the player's to answer
+// (a typed did_favour here; "paid for their supper" as a line that moves nothing is no help it can read).
+s.test('a favour seed at liking 50 and trust 20, once the NPC remembers the player helping them; not at 49, not unearned', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { seed: 5 });
   await fast(page);
   await page.evaluate(() => Game.World.forceClockRoll(1));
   const [a, b] = await page.evaluate(() => Game.state.npcs.filter(n => n.status === 'free' && n.memories.length === 0 && n.attitude > -25).slice(0, 2).map(n => ({ id: n.id, name: n.name })));
   await page.evaluate(id => {
-    Game.World.forceAttitude(id, 59);
-    Game.State.apply({ newMemories: [{ npcId: id, text: 'The player paid for their supper', weight: 2 }] });
+    Game.State.apply({ socialEvents: [{ npcId: id, event: 'did_favour', text: 'paid for my supper when I was short' }] });
+    Game.State.apply({ relSet: { npcId: id, w: 49, t: 20 } });
   }, a.id);
-  await page.evaluate(id => Game.World.forceAttitude(id, 70), b.id); // warm, but nothing remembered
+  await page.evaluate(id => Game.State.apply({ relSet: { npcId: id, w: 70, t: 40 } }), b.id); // warm and trusting, but nothing remembered
   await onePhase(page);
-  assert.equal((await feelings(page, a.id, 'favour')).length, 0, 'none at 59');
+  assert.equal((await feelings(page, a.id, 'favour')).length, 0, 'none at 49');
   assert.equal((await feelings(page, b.id, 'favour')).length, 0, 'none without a memory of the player');
-  await page.evaluate(id => Game.World.forceAttitude(id, 60), a.id);
+  await page.evaluate(id => Game.State.apply({ relSet: { npcId: id, w: 50 } }), a.id);
   const day = (await time(page)).day;
   await onePhase(page);
   const f = await feelings(page, a.id, 'favour');

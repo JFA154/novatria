@@ -967,12 +967,42 @@ function checkEffect(e, where, opts) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead', 'policeFallback', 'romance']);
+/* Wave 28 (the list itself ships in wave 29): who spark can move for
+   (Rel.eligible), [{ npcId, open?, sparkRate?, opensAt?, faithful? }]. An
+   adult in town only: anyone under 18 by any anchor (age, the teen tags, or
+   no age and a role that reads as a teen) is refused, so the list can never
+   name a minor. */
+const TEEN_ROLE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
+if (T.romance !== undefined) {
+  if (!Array.isArray(T.romance)) err('TOWN_DATA.romance', 'a list of { npcId, open, sparkRate, opensAt, faithful }');
+  else T.romance.forEach((r, i) => {
+    const where = 'TOWN_DATA.romance[' + i + ']';
+    if (!checkKeys(r, ['npcId'], where, ['open', 'sparkRate', 'opensAt', 'faithful'])) return;
+    const n = npcById.get(r.npcId);
+    if (!n) { err(where + '.npcId', '"' + r.npcId + '" is not an NPC'); return; }
+    const tags = Array.isArray(n.tags) ? n.tags : [];
+    const minor = (Number.isInteger(n.age) && n.age < 18) || tags.indexOf('teen') !== -1 || tags.indexOf('teenager') !== -1 || (!Number.isInteger(n.age) && TEEN_ROLE.test((n.role || '') + ' ' + tags.join(' ')));
+    if (minor) err(where + '.npcId', r.npcId + ' is under 18: nobody under 18 is ever on the romance list');
+    if ((n.presence || 'here') !== 'here') err(where + '.npcId', r.npcId + ' does not live in town');
+    if (r.open !== undefined && typeof r.open !== 'boolean') err(where + '.open', 'true or false');
+    if (r.faithful !== undefined && typeof r.faithful !== 'boolean') err(where + '.faithful', 'true or false');
+    if (r.sparkRate !== undefined && !(typeof r.sparkRate === 'number' && r.sparkRate >= 0.5 && r.sparkRate <= 1.5)) err(where + '.sparkRate', 'a number from 0.5 to 1.5');
+    if (r.opensAt !== undefined && !(isObj(r.opensAt) ? Number.isInteger(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60 : Number.isInteger(r.opensAt) && r.opensAt >= 0 && r.opensAt <= 60)) err(where + '.opensAt', 'knows-you from 0 to 60 ({ knows } or a number)');
+  });
+}
 // Wave 27: the police head a report to the police goes to (Rel.policeHead): someone in town tagged police.
 if (T.policeHead !== undefined) {
   const ph = npcById.get(T.policeHead);
   if (!ph) err('TOWN_DATA.policeHead', '"' + T.policeHead + '" is not an NPC');
   else if ((ph.presence || 'here') !== 'here' || !(Array.isArray(ph.tags) && ph.tags.indexOf('police') !== -1)) err('TOWN_DATA.policeHead', T.policeHead + ' must live in town and be tagged police');
+}
+// Wave 28: the law outside town when the town's own cannot hear a report (Rel.policeFallback): someone who lives elsewhere, the law by tag or role, with where they are.
+if (T.policeFallback !== undefined) {
+  const fb = npcById.get(T.policeFallback);
+  const law = x => (Array.isArray(x.tags) && x.tags.some(t => ['police', 'sheriff', 'deputy'].indexOf(t) !== -1)) || /\b(police|sheriff|deputy|trooper)\b/i.test(x.role || '');
+  if (!fb) err('TOWN_DATA.policeFallback', '"' + T.policeFallback + '" is not an NPC');
+  else if ((fb.presence || 'here') !== 'away' || !law(fb) || !isStr(fb.where)) err('TOWN_DATA.policeFallback', T.policeFallback + ' must live elsewhere (with where), and be the law by tag or role');
 }
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
@@ -1237,7 +1267,22 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn', 'protector'])) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn', 'protector', 'start', 'axes'])) return;
+  // Wave 28: where they stand with a stranger before the story starts (Rel.startOf): trust -60..60, fear 0..30, whole numbers.
+  if (n.start !== undefined) {
+    if (checkKeys(n.start, [], where + '.start', ['trust', 'fear'])) {
+      if (!Object.keys(n.start).length) err(where + '.start', 'trust, fear or both');
+      if (n.start.trust !== undefined && !(Number.isInteger(n.start.trust) && n.start.trust >= -60 && n.start.trust <= 60)) err(where + '.start.trust', 'a whole number from -60 to 60');
+      if (n.start.fear !== undefined && !(Number.isInteger(n.start.fear) && n.start.fear >= 0 && n.start.fear <= 30)) err(where + '.start.fear', 'a whole number from 0 to 30');
+    }
+  }
+  // Wave 28: the four signed axes set by hand, in place of what the traits give (Rel.axesOf): pride p, guardedness g, nerve n, grudge-holding r, each -2..2.
+  if (n.axes !== undefined) {
+    if (checkKeys(n.axes, [], where + '.axes', ['p', 'g', 'n', 'r'])) {
+      if (!Object.keys(n.axes).length) err(where + '.axes', 'at least one of p, g, n, r');
+      for (const k of Object.keys(n.axes)) if (!(Number.isInteger(n.axes[k]) && n.axes[k] >= -2 && n.axes[k] <= 2)) err(where + '.axes.' + k, 'a whole number from -2 to 2');
+    }
+  }
   // Wave 27: whom they go to when the player frightens or hurts them (Rel.protectorOf): someone in town, a list, "nobody", or { npcId, hidden: true }.
   if (n.protector !== undefined) {
     const items = Array.isArray(n.protector) ? n.protector : [n.protector];
@@ -1933,11 +1978,18 @@ function checkTemplates(list, name) {
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
     const report = grudges && isObj(t) && t.kind === 'report';
-    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'].concat(report ? ['to'] : []) : ['forTags', 'notForTags'])) return;
+    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'].concat(report ? ['to'] : []) : ['forTags', 'notForTags', 'needs'])) return;
+    // Wave 28: what a favour needs of the one who does it (World.templateFits, Rel.meets): { trust }, a whole number from 0 to 60.
+    if (!grudges && t.needs !== undefined) {
+      if (checkKeys(t.needs, [], where + '.needs', ['trust'])) {
+        if (!(Number.isInteger(t.needs.trust) && t.needs.trust >= 0 && t.needs.trust <= 60)) err(where + '.needs.trust', 'a whole number from 0 to 60');
+      }
+    }
     // Wave 6: the offences a grudge template answers, when only some (a theft, a beating, an insult). Wave 27: a report says what it is about (a threat or violence) and whom it goes to (to).
     if (grudges && !report && t.about !== undefined && !(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['violence', 'theft', 'insult'].indexOf(k) !== -1))) err(where + '.about', 'a non-empty list of violence, theft or insult');
     if (report) {
-      if (!(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['threat', 'violence'].indexOf(k) !== -1))) err(where + '.about', 'a report says what it is about: threat or violence');
+      // Wave 28: and an advance on someone's child (World.minorAdvance), or a romantic ask pushed with a threat (World.coercion).
+      if (!(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['threat', 'violence', 'advance', 'coercion'].indexOf(k) !== -1))) err(where + '.about', 'a report says what it is about: threat, violence, advance or coercion');
       if (['police', 'family'].indexOf(t.to) === -1) err(where + '.to', 'police or family (a parent, a boss or anyone else)');
       if (!(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'socialEvent' && e.npcId === '{protectorId}'))) err(where + '.effects', 'a report gives the protector a socialEvent ({protectorId})');
       (Array.isArray(t.about) ? t.about : []).forEach((k) => reports.add(t.to + ':' + k));

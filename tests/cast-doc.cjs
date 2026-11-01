@@ -52,6 +52,16 @@ function render(D) {
     const days = WEEKDAYS.every(d => a.days.includes(d)) && a.days.length === 5 ? 'weekdays' : a.days.join(', ');
     return `Away ${days} (${(a.phases || []).join(', ')}) ${a.where}.`;
   };
+  // Wave 28: where someone stands with a stranger when it is written by hand (start: trust, fear) and the axes set by hand (pride, guardedness, nerve, grudge-holding).
+  const AXIS_NAMES = { p: 'pride', g: 'guardedness', n: 'nerve', r: 'grudge-holding' };
+  const signed = v => (v > 0 ? `+${v}` : `${v}`);
+  const startLine = n => {
+    const parts = [];
+    if (n.start && Number.isInteger(n.start.trust)) parts.push(`trust ${signed(n.start.trust)}`);
+    if (n.start && Number.isInteger(n.start.fear)) parts.push(`fear ${n.start.fear}`);
+    const axes = n.axes ? Object.keys(n.axes).map(k => `${AXIS_NAMES[k] || k} ${signed(n.axes[k])}`) : [];
+    return (parts.length ? `Starts with a stranger at ${parts.join(', ')}.` : '') + (axes.length ? `${parts.length ? ' ' : ''}Axes: ${axes.join(', ')}.` : '');
+  };
   const here = T.npcs.filter(n => presence(n) === 'here');
   const away = T.npcs.filter(n => presence(n) === 'away');
   const dead = T.npcs.filter(n => presence(n) === 'dead');
@@ -87,6 +97,8 @@ function render(D) {
       bits.push(`Usually: ${where(n)}.`);
       const aw = awayLine(n);
       if (aw) bits.push(aw);
+      const sl = startLine(n);
+      if (sl) bits.push(sl);
       out.push(`- ${bits.join(' ')} \`${n.id}\``);
     }
   }
@@ -102,6 +114,8 @@ function render(D) {
       if (t) bits.push(t);
       bits.push(`Lives: ${n.where}.`);
       if (n.reach) bits.push(`Reached by: ${n.reach}.`);
+      const sl = startLine(n);
+      if (sl) bits.push(sl);
       out.push(`- ${bits.join(' ')} \`${n.id}\``);
     }
   }

@@ -7,7 +7,9 @@
    What it covers, in order: the arrival; talking to three different people; a
    chain of moves through five or more places; a purchase; a failed roll with a
    complication (and the refused retry); a fight that costs HP; two insults; a
-   favour earned by /fact and persuasion that becomes a favour seed and fires;
+   favour earned by /fact, a favour done for them and talks where they open
+   up (wave 28: persuasion alone warms nobody), that becomes a favour seed
+   and fires;
    /rest, /skip, /look, /zoom, /fact and /undo; faction clocks left to run (one
    faction's dice forced to 6) until at least one completes; a chronicle entry
    after turn 10 and a second after turn 20.
@@ -233,14 +235,24 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   await turn(`/skip to ${plan.insult.locName} in the ${plan.insult.phase}`, 'skip');
   const insultAtt = await page.evaluate(id => Game.State.npc(id).attitude, plan.insult.id);
   await turn(`I insult ${plan.insult.name}`, 'insult');
+  const once = await page.evaluate(id => Game.State.npc(id).attitude, plan.insult.id);
   await turn(`I insult ${plan.insult.name} again, louder`, 'insult');
   const ins = await page.evaluate(id => Game.State.npc(id), plan.insult.id);
-  assert.equal(ins.attitude, insultAtt - 30, 'two insults, -15 each');
-  assert.deepEqual(ins.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
+  // Changed by design in wave 28 (A3): the demo's bookkeeper names the insult and the engine decides what it does: the person's pride
+  // scales it, two others watching make it a humiliation, and the second within three days compounds (x1.5) into the one memory.
+  assert.ok(once < insultAtt && insultAtt - once >= 5, `the first insult costs them (${insultAtt} -> ${once})`);
+  assert.ok(once - ins.attitude > insultAtt - once, `the second compounds (${insultAtt} -> ${once} -> ${ins.attitude})`);
+  const merged = ins.memories.filter(m => /insulted/.test(m.text));
+  assert.equal(merged.length, 1, 'one memory');
+  assert.ok(merged[0].weight >= 2 && merged[0].n === 2, 'merged, heavier: ' + JSON.stringify(merged.map(m => [m.event, m.weight, m.n])));
 
-  // ----- 6. a favour: a fact spent on them, then persuasion -----
+  // ----- 6. a favour: a fact spent on them, a favour done for them, then talks where they open up -----
+  // Changed by design in wave 28 (A3): a persuasion that works moves nobody by itself (the time together is the engine's), and a
+  // favour needs liking 50, trust 20 and a help of theirs to answer (World.helpMemory). The fact says they owe the player and trust
+  // them; one favour done for them (the bookkeeper's did_favour, played through the mock's queue) is the help; persuading them to
+  // talk about themselves that works is a confidence of theirs (the demo's they_confided) and warms them.
   const sp = await page.evaluate(() => Game.state.player.storyPoints);
-  await turn(`/fact ${plan.favour.name} owes me a favour`, 'fact');
+  await turn(`/fact ${plan.favour.name} owes me a favour, likes me and trusts me`, 'fact');
   assert.equal(await page.evaluate(() => Game.state.player.storyPoints), sp - 1, 'a story point spent');
   assert.ok(await page.evaluate(id => Game.State.npc(id).memories.some(m => m.weight === 3 && /^Fact/.test(m.text)), plan.favour.id), 'they remember it');
   await turn(`/skip to ${plan.favour.locName} in the ${plan.favour.phase}`, 'skip');
@@ -248,9 +260,15 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
   await page.evaluate(id => { if (!Game.State.npcsAt(Game.state.player.locationId).some(n => n.id === id)) Game.State.apply({ visits: [{ npcId: id, locationId: Game.state.player.locationId }] }); }, plan.favour.id);
   // The same ask pays less each time in one scene (diminishing returns), so each ask comes in a later phase:
   // the clock moves on (no turn, no tick) and the person is brought back over if their schedule took them away.
-  for (let i = 0; i < 8; i++) {
-    const att = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
-    if (att >= 60) break;
+  await page.evaluate(id => Game.Api.Mock.queue('bookkeep', { socialEvents: [`${id} did_favour: helped me get the truck started`] }), plan.favour.id);
+  await turn(`I help ${plan.favour.name} get the truck started`, 'help');
+  await turn(`I give ${plan.favour.name} $20 for the trouble`, 'gift');
+  const fits = () => page.evaluate(id => { const R = Game.Rel, c = R.tracksOf(Game.State.npc(id)); return { w: c.w, t: c.t, ok: c.w >= R.GATES.favour.liking && c.t >= R.GATES.favour.trust }; }, plan.favour.id);
+  const went = [];
+  for (let i = 0; i < 10; i++) {
+    const now = await fits();
+    went.push(`${now.w}/${now.t}`);
+    if (now.ok) break;
     if (i > 0) {
       await page.evaluate(id => {
         const P = ['morning', 'afternoon', 'evening', 'night'];
@@ -261,10 +279,10 @@ s.test(`a 30+ turn scripted playtest (seed ${SEED}): every system once, no rejec
       }, plan.favour.id);
     }
     await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
-    await turn(`I persuade ${plan.favour.name} to put in a good word for me`, 'persuade');
+    await turn(`I persuade ${plan.favour.name}: tell me about yourself`, 'persuade');
   }
-  const warm = await page.evaluate(id => Game.State.npc(id).attitude, plan.favour.id);
-  assert.ok(warm >= 60, 'warm enough for a favour: ' + warm);
+  const warm = await fits();
+  assert.ok(warm.ok, `warm enough for a favour, and trusting: liking ${warm.w}, trust ${warm.t} (${went.join(' ')})`);
 
   // Turn 25: the second chronicle entry.
   while ((await time()).turn < 25) await turn('I look around', 'look-action');
@@ -399,6 +417,7 @@ s.test('pacing report: clock completion days over 200 seeded runs of the world t
   assert.ok(all.length > 0 && stat(all).mean >= 5 && stat(all).mean <= 16, 'clocks complete within the first weeks');
 
   // Insults to a grudge, through real turns (mock bookkeeper: -15 an insult; State.apply clamps at ±25 a turn).
+  // Changed by design in wave 28 (A3): the mock names the insult and the engine compounds it (-10, -15, -22.5; a humiliation's -15 with two watching).
   await quickStart(page, { seed: 99 });
   await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.World.forceClockRoll(1); });
   const touched = await page.evaluate(() => Game.state.factions.flatMap(f => f.clocks.flatMap(c => c.onComplete.effects.filter(e => e.npcId).map(e => e.npcId))));
@@ -428,7 +447,7 @@ s.test('pacing report: clock completion days over 200 seeded runs of the world t
   const towns = await page.evaluate(() => Game.data.TOWN_DATA.npcs.map(n => n.attitude));
   const need = (a, to) => Math.max(0, Math.ceil((a - to) / 15));
   console.log(`        attitude: ${x.name} from ${x.attitude}: ${timeline.join(' -> ')} after ${insults} insults (cold at ${cold}, -60 at ${insults}); grudge planted on day ${plantedDay} at the next phase change, due day ${g.trigger.value}, narrated day ${told}`);
-  console.log(`          town starting attitudes ${Math.min(...towns)} to ${Math.max(...towns)}: ${Math.min(...towns.map(a => need(a, -25)))}-${Math.max(...towns.map(a => need(a, -25)))} insults to cold, ${Math.min(...towns.map(a => need(a, -60)))}-${Math.max(...towns.map(a => need(a, -60)))} to a grudge (mock, -15 each); with the bookkeeper's ±5 to ±15 guidance, 4 to 12 hostile acts from neutral`);
+  console.log(`          town starting attitudes ${Math.min(...towns)} to ${Math.max(...towns)}: ${Math.min(...towns.map(a => need(a, -25)))}-${Math.max(...towns.map(a => need(a, -25)))} insults to cold, ${Math.min(...towns.map(a => need(a, -60)))}-${Math.max(...towns.map(a => need(a, -60)))} to a grudge at a flat -15 each (the engine compounds them since wave 28, so it takes fewer)`);
 });
 
 /* Cost (README): the packets the mock was sent over a mixed session, measured,

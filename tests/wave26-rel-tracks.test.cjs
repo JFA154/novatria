@@ -27,6 +27,7 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
     out.alias = st.npcs.filter(n => n.attitude !== n.rel.w || R.tracksOf(n).w !== n.attitude).map(n => n.id);
     out.tracks = [R.TRACKS.slice(), Object.keys(R.tracksOf(st.npcs[0]))];
     out.state = [st.leverage, st.known];
+    // Changed by design in wave 28 (A3): socialEvents moved to RECORD_KEYS (the bookkeeper's, through its model rules); relSet and relDay stay the engine's.
     out.keys = ['socialEvents', 'relSet', 'relDay'].map(k => S.ENGINE_KEYS.includes(k) && !S.RECORD_KEYS.includes(k));
     out.ops = [S.EFFECT_OPS.length, S.EFFECT_OPS.includes('socialEvent'), Object.isFrozen(R.EVENTS) && Object.isFrozen(R.EVENTS.hit) && Object.isFrozen(R.CAPS.turn)];
     // Where people start: liking as the town wrote it (a loose end's person carries its shift on top), trust 5 x guardedness, -10 for the police and smugglers.
@@ -76,7 +77,7 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   assert.deepEqual(r.alias, [], 'attitude is liking, for everyone');
   assert.deepEqual(r.tracks, [['w', 't', 'f', 'k', 's'], ['w', 't', 'f', 'k', 's', 'owed']], 'five tracks and owed');
   assert.deepEqual(r.state, [[], { secrets: {} }]);
-  assert.deepEqual(r.keys, [true, true, true], 'engine keys: the model cannot send them');
+  assert.deepEqual(r.keys, [false, true, true], 'engine keys: the model cannot send them (socialEvents is the bookkeeper\'s since wave 28)');
   assert.deepEqual(r.ops, [29, true, true], 'the effect ops are 29 with socialEvent; the tables are frozen');
   assert.deepEqual(r.written, [], 'liking starts as the town wrote it');
   assert.deepEqual(r.trust, [5, -5, -15, -10, -5, 0], 'Royce open, Tyler watchful, Marcus police and guarded, Wade a smuggler, Dewayne guarded, Loretta neither');
@@ -120,7 +121,8 @@ s.test('socialEvent: a hit costs liking, trust and gives fear as one wound memor
       S.apply({ effects: [{ op: 'socialEvent', npcId: dw.id, event: 'slapped', text: 'x' }] }).rejected.map(x => x.reason)[0],
       S.apply({ effects: [{ op: 'socialEvent', npcId: dw.id, event: 'hit' }] }).rejected.map(x => x.reason)[0],
       S.apply({ effects: [{ op: 'socialEvent', npcId: dw.id, event: 'hit', text: 'x', d: { w: -60 } }] }).rejected.map(x => x.reason)[0],
-      S.apply({ socialEvents: [{ npcId: dw.id, event: 'hit', text: 'x' }] }, { source: 'model' }).rejected.map(x => x.reason)[0]
+      // Changed by design in wave 28 (A3): the model sends socialEvents now, but a hit is the engine's to record.
+      S.apply({ socialEvents: [{ npcId: dw.id, event: 'hit', text: 'x' }] }, { source: 'model', present: [dw.id] }).rejected.map(x => x.reason)[0]
     ];
     // Traits, on people of Rel's own making (Rel is pure: nothing is written).
     const ctx = { s: null, town: null, day: 3, turn: 5 };
@@ -150,7 +152,7 @@ s.test('socialEvent: a hit costs liking, trust and gives fear as one wound memor
   assert.match(r.refused[0], /unknown event "slapped"/);
   assert.match(r.refused[1], /needs text/);
   assert.match(r.refused[2], /d\.w must be a whole number within \+\/-50/);
-  assert.match(r.refused[3], /not allowed from the model/);
+  assert.match(r.refused[3], /hit is the engine's to record, never the bookkeeper's/);
   assert.deepEqual(r.pride, [-15, -10, -5, -10], 'pride +2 x1.5, 0, -2 x0.5; proud and earnest cancel');
   assert.deepEqual(r.guarded, [[-13, 9], [-10, 15], [-7, 21]], 'guardedness: losses x(1 - 0.15g), gains x(1 + 0.2g)');
   assert.deepEqual(r.nerve, [30, 20, 10], 'nerve: fear gains x(1 - 0.25n)');
@@ -367,7 +369,9 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
     const sparkOf = id => { const n = S.npc(id); return [n.rel.s, n.rel.start.s, n.rel.everyday.s, n.rel.fix.s].concat(n.memories.filter(x => x.d).map(x => x.d.s)); };
     const refusals = where => S.debugLog.filter(x => x.kind === 'rejected' && x.source === 'rel' && (!where || String(x.path).startsWith(where))).map(x => x.reason);
     // The model: it cannot send events at all; its attitudeChanges move liking only.
-    out.model = S.apply({ socialEvents: [{ npcId: k, event: 'flirted', text: 'winked at me at the register' }] }, { source: 'model', present: [k] }).rejected.map(x => x.reason);
+    // Changed by design in wave 28 (A3): it sends events now, and a flirt naming someone under 18 is set aside for the minor rule, never written.
+    const fl = S.apply({ socialEvents: [{ npcId: k, event: 'flirted', text: 'winked at me at the register' }] }, { source: 'model', present: [k] });
+    out.model = [fl.rejected.map(x => x.reason), fl.applied.join(' | '), fl.minors, S.npc(k).memories.length];
     S.apply({ attitudeChanges: [{ npcId: k, delta: 10 }] }, { source: 'model', present: [k] });
     // The world (content and the engine): a row's spark is held at 0 and logged; spark given outright is refused.
     const w1 = W.applyEffects([{ op: 'socialEvent', npcId: m, event: 'flirted', text: 'said something at the landing' }]);
@@ -417,7 +421,10 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   assert.deepEqual(r.minors, r.byData, 'the minors are the cast\'s under-18s');
   assert.deepEqual(r.names, ['Kaylee', 'Micah', 'Austin']);
   assert.deepEqual(r.eligible, [0, 0], 'nobody is on a romance list yet');
-  assert.match(r.model[0], /not allowed from the model/);
+  assert.deepEqual(r.model[0], [], 'not refused: set aside');
+  assert.match(r.model[1], /npc_kaylee is under 18 and this turn pointed something romantic at them: set aside for the minor rule/);
+  assert.deepEqual(r.model[2], ['npc_kaylee'], 'the minor rule hears of it (Pipeline.minorTurn)');
+  assert.equal(r.model[3], 0, 'nothing written for her');
   assert.equal(r.world[0], 0, 'the flirt applies, its spark held at 0');
   assert.match(r.world[1][0], /spark stays 0 for npc_micah: they are under 18/);
   assert.equal(r.world[2], 0);

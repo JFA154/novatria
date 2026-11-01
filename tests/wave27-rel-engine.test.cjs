@@ -109,9 +109,11 @@ s.test('the engine wins: its hit drops the bookkeeper\'s humiliated and threaten
     const two = S.apply({ socialEvents: [{ npcId: 'npc_royce', event: 'paid_back', text: 'paid the tab' }, { npcId: 'npc_royce', event: 'gift', text: 'and a tip' }] });
     out.payOnce = [S.npc('npc_royce').memories.map(m => m.event), two.applied.some(x => /a money event for them was already counted/.test(x))];
     // The demo's attack (-20, "attacked me") yields to the engine's hit.
+    // Changed by design in wave 28: the demo sends nothing for an attack now (the engine has it), so an older bookkeeper's legacy reply stands in for it here.
     const here = __put('loc_pittmans', ['npc_dewayne', 'npc_jodie'], st.time.day + 1, 'morning');
     const d0 = S.npc('npc_jodie').attitude;
     M.queue('parse', { actionType: 'attack', summary: 'Punches Jodie', targets: ['npc_jodie'], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' });
+    M.queue('bookkeep', { attitudeChanges: [{ npcId: 'npc_jodie', delta: -20 }], newMemories: [{ npcId: 'npc_jodie', text: 'attacked me', weight: 3 }] });
     G.Pipeline.hooks.nextTier = 'success';
     await G.Pipeline.submit('I punch Jodie Strayhorn');
     const j = S.npc('npc_jodie');

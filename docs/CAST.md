@@ -11,16 +11,16 @@ This file is generated from the data: after editing the cast or the places, run 
 A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door.
 
 - **Loretta Gaddis** (60, she/her), owner and bartender of the Low Water. Boss of Tammy Lott; boss of Lyman Coker; boss of Jodie Strayhorn. Usually: home (all day and night). `npc_loretta`
-- **Jodie Strayhorn** (29, she/her), new waitress at the Low Water. Employee of Loretta Gaddis. Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). `npc_jodie`
+- **Jodie Strayhorn** (29, she/her), new waitress at the Low Water. Employee of Loretta Gaddis. Usually: Pittman's Gas and Service (morning), home (afternoon, evening, night). Starts with a stranger at trust -25. `npc_jodie`
 
 ## The Riverview Motor Court
 
 Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster.
 
 - **Lyman Coker** (70, he/him), night bartender at the Low Water. Employee of Loretta Gaddis; friend of Curtis Pruett. Usually: home (morning, afternoon), the Low Water (evening, night). `npc_lyman`
-- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: home (morning, night), Riverbend Trailer Park (afternoon), Pittman's Gas and Service (evening). `npc_leon`
+- **Leon Varner** (47, he/him), repo man who buys bad debts for a title-loan outfit. Employee of Wendell Strunk (lives elsewhere). Usually: home (morning, night), Riverbend Trailer Park (afternoon), Pittman's Gas and Service (evening). Starts with a stranger at trust -15. `npc_leon`
 - **Curtis Pruett** (52, he/him), insurance man who runs the card game at the Low Water. Friend of Lyman Coker; husband of Lynette Pruett (lives elsewhere). Usually: home (morning), the Low Water (afternoon, evening, night). `npc_curtis`
-- **Boyd Teague** (50, he/him), stranger who has had Room 9 at the motor court a week. Usually: home (morning, evening, night), the Old Bridge (afternoon). `npc_boyd`
+- **Boyd Teague** (50, he/him), stranger who has had Room 9 at the motor court a week. Usually: home (morning, evening, night), the Old Bridge (afternoon). Starts with a stranger at trust -40. Axes: guardedness -2. `npc_boyd`
 
 ## Town Hall
 
@@ -44,7 +44,7 @@ Thirty-odd trailers on the low ground downstream of the landing, some with flowe
 - **Tyler Rasberry** (19, he/him), night clerk at the Riverview Motor Court. Employee of Mavis Mangum; cousin of Brianna Tolliver. Usually: home (morning, afternoon), the Riverview Motor Court (evening, night). `npc_tyler`
 - **Brianna Tolliver** (23, she/her), housekeeper at the Riverview Motor Court. Cousin of Tyler Rasberry; employee of Mavis Mangum. Usually: the Riverview Motor Court (morning, afternoon), home (evening, night). `npc_brianna`
 - **Shayla Rawls** (25, she/her), hairdresser who works out of her trailer at Riverbend. Girlfriend of Travis Cagle. Usually: home (all day and night). `npc_shayla`
-- **Dwight Spann** (49, he/him), timber foreman for Sturdivant Land and Timber. Employee of Carter Sturdivant. Sturdivant Land and Timber. Usually: Sturdivant House (morning), the Old Bridge (afternoon), Pittman's Gas and Service (evening), home (night). `npc_dwight`
+- **Dwight Spann** (49, he/him), timber foreman for Sturdivant Land and Timber. Employee of Carter Sturdivant. Sturdivant Land and Timber. Usually: Sturdivant House (morning), the Old Bridge (afternoon), Pittman's Gas and Service (evening), home (night). Starts with a stranger at trust -10. `npc_dwight`
 - **Burl Satterfield** (66, he/him), June's husband, who fixes outboard motors. Husband of June Satterfield; friend of Wiley Tackett (dead). Usually: Front Street (morning), Purvis Landing (afternoon), home (evening, night). `npc_burl`
 
 ## Purvis Landing
@@ -58,9 +58,9 @@ A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and
 
 A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road.
 
-- **Vada Sturdivant** (80, she/her), widow who owns Sturdivant House and the bottomland downstream. Mother of Carter Sturdivant; boss of Odessa Fairley; landlady of Lamar Haskins; daughter of Amos Sturdivant (dead); wife of Harlan Voss (dead). Usually: home (morning, evening, night), Riverside Baptist Church (afternoon). `npc_vada`
-- **Carter Sturdivant** (45, he/him), head of Sturdivant Land and Timber, who holds half the town's paper. Son of Vada Sturdivant; boss of Dwight Spann; grandson of Amos Sturdivant (dead); son of Harlan Voss (dead). Sturdivant Land and Timber. Usually: Town Hall (morning), the Old Bridge (afternoon), the Low Water (evening), home (night). `npc_carter`
-- **Odessa Fairley** (66, she/her), housekeeper and companion to Vada Sturdivant. Employee of Vada Sturdivant; sister of Corinne Bolden (lives elsewhere). Usually: home (all day and night). `npc_odessa`
+- **Vada Sturdivant** (80, she/her), widow who owns Sturdivant House and the bottomland downstream. Mother of Carter Sturdivant; boss of Odessa Fairley; landlady of Lamar Haskins; daughter of Amos Sturdivant (dead); wife of Harlan Voss (dead). Usually: home (morning, evening, night), Riverside Baptist Church (afternoon). Starts with a stranger at trust -10. `npc_vada`
+- **Carter Sturdivant** (45, he/him), head of Sturdivant Land and Timber, who holds half the town's paper. Son of Vada Sturdivant; boss of Dwight Spann; grandson of Amos Sturdivant (dead); son of Harlan Voss (dead). Sturdivant Land and Timber. Usually: Town Hall (morning), the Old Bridge (afternoon), the Low Water (evening), home (night). Starts with a stranger at trust -10. `npc_carter`
+- **Odessa Fairley** (66, she/her), housekeeper and companion to Vada Sturdivant. Employee of Vada Sturdivant; sister of Corinne Bolden (lives elsewhere). Usually: home (all day and night). Starts with a stranger at trust -10. `npc_odessa`
 
 ## The Mangum House (a home to find)
 
@@ -89,8 +89,8 @@ A small white house beside Riverside Baptist that the church owns, with a porch 
 
 A single-wide at the far end of the Riverbend loop, with a wind chime of bent spoons on the porch and a girl's pink bicycle chained to the steps that nobody rides now.
 
-- **Tammy Lott** (42, she/her), cook at the Low Water. Employee of Loretta Gaddis; mother of Austin Lott; mother of Amber Lott (dead). Usually: Riverside Cemetery (morning), the Low Water (afternoon, evening), home (night). `npc_tammy`
-- **Austin Lott** (15, he/him), Tammy's son, Amber Lott's little brother. Son of Tammy Lott; brother of Amber Lott (dead). Usually: home (morning, night), Riverbend Trailer Park (afternoon), the Old Bridge (evening). Away weekdays (morning, afternoon) at the county school in Clayburn. `npc_austin`
+- **Tammy Lott** (42, she/her), cook at the Low Water. Employee of Loretta Gaddis; mother of Austin Lott; mother of Amber Lott (dead). Usually: Riverside Cemetery (morning), the Low Water (afternoon, evening), home (night). Starts with a stranger at trust -15. `npc_tammy`
+- **Austin Lott** (15, he/him), Tammy's son, Amber Lott's little brother. Son of Tammy Lott; brother of Amber Lott (dead). Usually: home (morning, night), Riverbend Trailer Park (afternoon), the Old Bridge (evening). Away weekdays (morning, afternoon) at the county school in Clayburn. Starts with a stranger at trust -15. `npc_austin`
 
 ## The Apartment over Byrd's (a home to find)
 
@@ -135,7 +135,7 @@ Alive and living out of town. The narrator is told where they are and how they c
 - **Stanley Wexler** (63, he/him), owner of the Riverview Motor Court, who runs it by email from Calder. Boss of Mavis Mangum. Lives: Calder, where he owns two car washes and a laundromat besides the motor court. Reached by: by email; he answers within a day and never by phone. `npc_stanley`
 - **Calvin Ogletree** (44, he/him), a former river hand who has been in the county home since a beating. Brother of Bernice Ogletree (lives elsewhere). Lives: the county home in Clayburn, since the winter of 2021. Reached by: visiting hours every afternoon; he cannot use a phone. `npc_calvin`
 - **Bernice Ogletree** (50, she/her), Calvin's sister, who looks after him at the county home. Sister of Calvin Ogletree (lives elsewhere). Lives: Clayburn, in a rented duplex four blocks from the county home. Reached by: she has a phone and answers it; she sees her brother every Sunday. `npc_bernice`
-- **Hoyt Bramlett** (61, he/him), the county sheriff, at the courthouse in Clayburn. Lives: Clayburn, at the sheriff's office in the courthouse basement. Reached by: the sheriff's office line; a deputy comes when called, in an hour or two. `npc_hoyt`
+- **Hoyt Bramlett** (61, he/him), the county sheriff, at the courthouse in Clayburn. Lives: Clayburn, at the sheriff's office in the courthouse basement. Reached by: the sheriff's office line; a deputy comes when called, in an hour or two. Starts with a stranger at trust -15. Axes: pride +1, guardedness +1. `npc_hoyt`
 - **Phillip Sayle** (58, he/him), a doctor in Calder who examines old people for the courts. Lives: Calder, at a clinic for older patients near Calder Regional. Reached by: through his office, by appointment. `npc_phillip`
 - **Neal Haverty** (60, he/him), the Sturdivants' lawyer in Calder. Lives: Calder, in an office over the bank on the courthouse square. Reached by: his office phone; his paralegal returns calls. `npc_neal`
 - **Corinne Bolden** (70, she/her), Odessa's older sister, a retired school cook in Clayburn. Sister of Odessa Fairley. Lives: Clayburn, in the house she and Odessa grew up in, behind the courthouse. Reached by: Odessa drives over on her Sunday afternoons off; Corinne has a phone and a bad hip. `npc_corinne`

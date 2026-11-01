@@ -626,7 +626,8 @@ s.test('town data passes validation and every content constant has the contract 
       // Changed by design in wave 4 (playtest R6): a grudge template says what kind of answer it is (kind).
       // Changed by design (wave 6, the round-5 playtest's design note): a grudge template may say which offences it answers (about).
       // Changed by design in wave 27 (A2): a report template says whom it goes to (to: police or family).
-      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => ['dayOffset', 'effect', 'effects', 'public'].every(k => keys(t).includes(k)) && keys(t).every(k => ['dayOffset', 'effect', 'effects', 'public', 'forTags', 'notForTags', 'kind', 'about'].concat(t.kind === 'report' ? ['to'] : []).includes(k)) && t.effect.includes('{npc}'))
+      // Changed by design in wave 28 (A3): a favour template may say what it needs of the one who does it (needs: { trust }).
+      templates: D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => ['dayOffset', 'effect', 'effects', 'public'].every(k => keys(t).includes(k)) && keys(t).every(k => ['dayOffset', 'effect', 'effects', 'public', 'forTags', 'notForTags', 'kind', 'about', 'needs'].concat(t.kind === 'report' ? ['to'] : []).includes(k)) && t.effect.includes('{npc}'))
     };
   });
   assert.deepEqual(r.errors, []);
@@ -637,13 +638,15 @@ s.test('town data passes validation and every content constant has the contract 
   // the town's year, history and recent events; every place's details, hours and history, other names (aka), and away and distance out of town.
   // The calendar, the town events and the epilogue (CONTRACTS sections 1 and 11); weekdays a place is shut (closedOn).
   // Changed by design in wave 27 (A2): the police head a report to the police goes to (policeHead).
-  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance', 'calendar', 'events', 'epilogue', 'closedOn', 'policeHead'].includes(k);
+  // Changed by design in wave 28 (A3): the law outside town a report goes to when the town's own cannot hear it (policeFallback).
+  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance', 'calendar', 'events', 'epilogue', 'closedOn', 'policeHead', 'policeFallback'].includes(k);
   assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'history', 'locations', 'name', 'npcs', 'recent', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads', 'year']);
   for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'details', 'discovered', 'exits', 'history', 'hours', 'id', 'name', 'npcIdsBySchedule', 'type']);
   // The cast (docs/BUILD_PLAN.md, direction changes 8 and 9): an age, a presence, a history, relations and a home on everyone;
   // where they are and how to reach them for someone away, when they died (and where they lie) for the dead.
   // awayOn: the school-day absences (CONTRACTS section 1). Wave 27 (A2): protector, whom they go to when the player frightens or hurts them.
-  const extra = ['where', 'reach', 'died', 'buried', 'awayOn', 'protector'];
+  // Changed by design in wave 28 (A3): where they stand with a stranger written by hand (start: trust, fear) and the axes set by hand (axes).
+  const extra = ['where', 'reach', 'died', 'buried', 'awayOn', 'protector', 'start', 'axes'];
   for (const k of r.npcKeys) assert.deepEqual(k.filter(x => !extra.includes(x)), ['age', 'alive', 'attitude', 'factionId', 'goal', 'history', 'home', 'id', 'knownToPlayer', 'look', 'memories', 'name', 'personality', 'presence', 'pronouns', 'relations', 'role', 'secret', 'status', 'tags', 'voice']);
   for (const k of r.facKeys) assert.deepEqual(k, ['activeClock', 'clocks', 'goal', 'id', 'methods', 'name', 'relations']);
   // A completion may say what must hold and what happens instead (requires, alt: CONTRACTS section 3).

@@ -630,22 +630,38 @@ s.test('buying at a listed price never rolls and changes money and inventory', a
   assert.equal(await page.evaluate(() => Game.state.player.inventory.length), inv);
 });
 
-s.test('insults lower attitude, leave a memory and turn the greeting cold; persuasion warms on a success', async h => {
+// Changed by design in wave 28 (A3): the demo's bookkeeper names the act (insulted, apologised) and the engine decides what it does: the
+// insults compound into one memory (at least 45 down), and a persuasion that works warms them when it is an apology that lands (half the
+// insults' liking back); a plain one is time together, which a day the player hurt them does not count.
+s.test('insults lower attitude, leave a memory and turn the greeting cold; persuasion warms nobody by itself, an apology that lands does', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const sc = await findScene(page, { minAtt: -15, maxAtt: 20 });
   const x = sc.npcs[0];
   await place(page, sc.loc.id, sc.phase);
+  // Changed by design in wave 28 (A3): with two or more others watching an insult is a humiliation (-15, -22, -34), and three pass -60
+  // at once ("turns away"); the others here step out, so these are plain insults (-10, -15, -22) and the greeting is the cold one.
+  await page.evaluate(([id, loc]) => {
+    const S = Game.State;
+    const away = Game.state.locations.find(l => l.id !== loc && !l.closed && l.discovered !== false);
+    const others = S.npcsAt(loc).map(n => n.id).filter(o => o !== id);
+    if (others.length) S.apply({ visits: others.map(o => ({ npcId: o, locationId: away.id })) });
+  }, [x.id, sc.loc.id]);
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
-  assert.equal(n.attitude, x.attitude - 45);
+  assert.ok(n.attitude <= x.attitude - 45, `three insults compound: ${x.attitude} -> ${n.attitude}`);
   // Changed by design (engine-state wave 1): the same words again merge into one memory (the heavier weight).
-  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
+  assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [3]);
   await sendText(page, `I talk to ${x.name}`);
-  assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`));
+  assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), `cold at ${n.attitude}: ${(await lastLog(page)).narration}`);
+  const cold = await page.evaluate(id => Game.State.npc(id).attitude, x.id);
   await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
   await sendText(page, `I persuade ${x.name} to help me`);
-  assert.equal(await page.evaluate(id => Game.State.npc(id).attitude, x.id), x.attitude - 45 + 8);
+  assert.equal(await page.evaluate(id => Game.State.npc(id).attitude, x.id), cold, 'a plain persuasion the same day asks no warmth of the bookkeeper');
+  await page.evaluate(() => Game.Pipeline.forceNextRoll(19));
+  await sendText(page, `I persuade ${x.name} to forgive me, and say I am sorry`);
+  const warm = await page.evaluate(id => Game.State.npc(id).attitude, x.id);
+  assert.ok(warm >= cold + Math.floor((x.attitude - n.attitude) / 2), `the apology lands: ${cold} -> ${warm}`);
 });
 
 s.test('modern vocabulary: plausibility and the mock parser know bartenders and deputies; dragons stay out; cash labels follow TOWN_DATA.currency', async h => {
@@ -1461,7 +1477,9 @@ s.test('a successful social roll tells the narrator it works; a failed one that 
   await sendText(page, 'Please, give me a chance and hire me.');
   assert.equal((await turnInfo(page)).last.roll.tier, 'critical');
   assert.match(await lastPacket(page), /\nOUTCOME: the ask succeeded\. It works, and then some\. The person goes along with what the player asked, at least in part, whatever they said before/);
-  assert.match(await lastPacket(page, 'parse'), /attitude to the player -?\d+ on -100\.\.100/);
+  // Changed by design in wave 28 (A3): the parser sees where they stand in words, and how hard a lie to them is, not a number.
+  assert.match(await lastPacket(page, 'parse'), /toward the player: [a-z ,']+; lies to them: (normal|hard|very hard)/);
+  assert.doesNotMatch(await lastPacket(page, 'parse'), /attitude to the player -?\d+/);
   await sendText(page, '/undo');
   await page.evaluate(id => { Game.UI.setMode('say'); Game.UI.setAddressee(id); Game.Pipeline.forceNextRoll(1); }, a.id);
   await sendText(page, 'Please, give me a chance and hire me.');

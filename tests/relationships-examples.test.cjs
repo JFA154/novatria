@@ -7,7 +7,9 @@
    wave. Where the code's number differs from the design's the code's is
    pinned and design.md says so. Wave 27 (A2) starts the file with
    example 4 (Colt on the ground: its A part) and example 7 (Tyler: afraid
-   of you). Run with: node tests/run.cjs relationships-examples */
+   of you); wave 28 (A3) adds example 1 (Dewayne in his own bay), 3(b)
+   (the drinking buddy) and 5 (the surveyor who wasn't), their A parts.
+   Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
 
@@ -145,6 +147,141 @@ s.test('example 7, Tyler: afraid of you (A): threatened twice at the desk he is 
   assert.deepEqual(day4, [], 'Day 4: liking 5 to -5 stays in its band');
   const all = (await feedSince(page, f1)).filter(t => /won't forget|cools|warms/.test(t));
   assert.ok(all.includes('Tyler Rasberry won\'t forget that.'), JSON.stringify(all));
+});
+
+/* Wave 28 (A3): examples 1 (its A part), 3(b) and 5 (its A part), now that
+   the bookkeeper names the act and the engine reads trust. */
+s.test('example 1, Dewayne in his own bay (A): a hit over a tow bill in front of three, then an apology that lands and a gift for his safety glasses: "cool to you · uneasy around you"', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const put = (day, ids) => page.evaluate(([day, ids]) => {
+    const S = Game.State;
+    S.apply({ setTime: { day, phase: 'morning' } });
+    S.apply({ playerLocationId: 'loc_pittmans' });
+    S.apply({ visits: ids.map(id => ({ npcId: id, locationId: 'loc_pittmans' })) });
+    return S.npcsAt('loc_pittmans').map(n => n.id);
+  }, [day, ids]);
+  // Day 2 left him at knows-you 7, and the player knows him (the band line needs that).
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.State.apply({ relSet: { npcId: 'npc_dewayne', k: 7 }, npcKnownToPlayer: ['npc_dewayne'] }); });
+  const here = await put(3, ['npc_dewayne', 'npc_royce', 'npc_jodie', 'npc_lamar']);
+  const f0 = await feedCount(page);
+  const d3 = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel;
+    M.queue('parse', { actionType: 'attack', summary: 'Hits Dewayne over the tow bill', targets: ['npc_dewayne'], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit('I hit Dewayne over the tow bill');
+    const w = id => { const m = S.npc(id).memories.find(x => x.witness); return m ? [m.d.w, m.d.t, m.d.f] : null; };
+    return { tracks: R.tracksOf(S.npc('npc_dewayne')), stance: R.stance(S.npc('npc_dewayne')), royce: w('npc_royce'), jodie: w('npc_jodie'), lamar: w('npc_lamar') };
+  });
+  const day3 = (await feedSince(page, f0)).filter(t => /won't forget|cools|warms/.test(t));
+  for (const id of ['npc_dewayne', 'npc_royce', 'npc_jodie', 'npc_lamar']) assert.ok(here.includes(id), id + ' is at Pittman\'s');
+  // Dewayne (guarded, g -1; start trust -5): W -25, T -5 - 10 x 1.15 = -17, F 20, knowing 7 + 2 (and +1 for the turn aimed at him).
+  assert.deepEqual([d3.tracks.w, d3.tracks.t, d3.tracks.f], [-25, -17, 20]);
+  near(d3.tracks.k, 9, 'knowing');
+  assert.equal(d3.stance.phrase, 'against you');
+  assert.ok(d3.stance.tags.includes('uneasy around you'), '"against you · uneasy around you"');
+  // The witnesses, one lighter copy each: Royce (open, timid) W -5, T -4, F +10; Jodie (guarded) W -5, T -6, F +8; Lamar (worried) W -5, T -5, F +10.
+  assert.deepEqual(d3.royce, [-5, -4, 10]);
+  assert.deepEqual(d3.jodie, [-5, -6, 8]);
+  assert.deepEqual(d3.lamar, [-5, -5, 10]);
+  assert.ok(day3.includes('Dewayne Mangum won\'t forget that.'), JSON.stringify(day3));
+  // Day 4: the apology rolls charm and succeeds (it must land: he is at -25, not above it), then $40 for his safety glasses.
+  await put(4, ['npc_dewayne']);
+  const d4 = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel;
+    M.queue('parse', { actionType: 'persuade', summary: 'Apologises for the hit', targets: ['npc_dewayne'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit("I'm sorry about yesterday. I was out of line.", { mode: 'say', to: 'npc_dewayne' });
+    const hit = S.npc('npc_dewayne').memories.find(m => m.event === 'hit');
+    const settled = hit ? R.settlements(hit).map(x => x.by) : null;
+    await G.Pipeline.submit('I give Dewayne $40 for his safety glasses');
+    const n = S.npc('npc_dewayne');
+    return { tracks: R.tracksOf(n), stance: R.stance(n), settled, gift: n.memories.filter(m => m.event === 'gift').map(m => m.text) };
+  });
+  assert.deepEqual(d4.settled, ['apologised'], 'insulted is settled by apologised: the hit, softened');
+  assert.deepEqual(d4.gift, ['gave me $40'], 'the engine\'s gift');
+  // W -12 (the hit halved, a day faded) + 5 (the gift) + 2 (the apology) = -5; T -13 (the code: -14); F 17.
+  assert.equal(d4.tracks.w, -5);
+  near(d4.tracks.t, -13, 'trust');
+  assert.equal(d4.tracks.f, 17);
+  // Knowing: the design's 13; the code's 15 (the +1 for each turn aimed at him) is pinned.
+  near(d4.tracks.k, 13, 'knowing');
+  assert.equal(d4.tracks.k, 15);
+  // The design's "sizing you up" misses liking's own hysteresis: cool is left only above -1, so W -5 is still cool (design.md now says so).
+  assert.equal(d4.stance.phrase, 'cool to you');
+  assert.ok(d4.stance.tags.includes('uneasy around you'), 'fear 17 is still uneasy (entered at 20, left below 15)');
+});
+
+s.test('example 3(b), Royce the drinking buddy (A): rounds, compliments and time together make him warm to the player, never more, and his trust never moves', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state;
+    M.delay = 0;
+    const days = [], mornings = {};
+    const day = async (d, compliment, round) => {
+      S.apply({ setTime: { day: d, phase: 'morning' } });
+      mornings[d] = R.tracksOf(S.npc('npc_royce'));
+      S.apply({ playerLocationId: 'loc_pittmans' });
+      S.apply({ visits: [{ npcId: 'npc_royce', locationId: 'loc_pittmans' }] });
+      if (round) await G.Pipeline.submit('I hand Royce $5 for a round later');
+      if (compliment) { M.queue('bookkeep', { socialEvents: ['npc_royce complimented: liked my coffee'] }); await G.Pipeline.submit('Good coffee, Royce.', { mode: 'say', to: 'npc_royce' }); }
+      M.queue('parse', { actionType: 'talk', summary: 'Small talk', targets: ['npc_royce'], needsRoll: false, timeCost: 'instant' });
+      await G.Pipeline.submit('Slow morning?', { mode: 'say', to: 'npc_royce' });
+      G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+      const t = R.tracksOf(S.npc('npc_royce'));
+      days.push({ d, w: t.w, t: t.t, stance: R.stance(S.npc('npc_royce')).phrase, everyday: S.npc('npc_royce').rel.everyday.w });
+    };
+    for (let d = 2; d <= 5; d++) await day(d, true, d <= 4);
+    const night = days[days.length - 1];
+    for (let d = 6; d <= 15; d++) await day(d, false, true);
+    // The morning after the four days, the overnight fade taken (Day 5's own close is pinned too).
+    const four = Object.assign({}, mornings[6], { stance: night.stance, night: night.w });
+    return { four, after: days.slice(4), start: R.startOf(G.data.TOWN_DATA.npcs.find(n => n.id === 'npc_royce')) };
+  });
+  assert.deepEqual([r.start.w, r.start.t], [10, 5], 'Royce starts at W 10, T 5');
+  // Days 2 to 5: three rounds (gifts, Days 2 to 4), four compliments, four days of time together.
+  // The design's W 32 is the next morning; the code ends Day 5 at 36 and fades to it overnight.
+  near(r.four.w, 32, 'liking after four days');
+  assert.equal(r.four.night, 36, 'Day 5\'s close');
+  assert.equal(r.four.t, 5, 'trust doesn\'t move');
+  assert.equal(r.four.stance, 'warm to you');
+  for (const x of r.after) {
+    assert.equal(x.t, 5, `day ${x.d}: trust doesn't move`);
+    assert.equal(x.stance, 'warm to you', `day ${x.d}: still warm to you, never more`);
+    assert.ok(x.w < 60, `day ${x.d}: never devoted (${x.w})`);
+    assert.ok(x.everyday <= 15, 'the everyday bucket stops at 15');
+  }
+});
+
+s.test('example 5, the surveyor who wasn\'t (A): a claim held, a lie logged, the lie caught: Marcus at W -10, T -50, "suspicious of you"; lies to him are very hard and his secret is shut', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel;
+    M.delay = 0;
+    const put = d => { S.apply({ setTime: { day: d, phase: 'morning' } }); S.apply({ playerLocationId: 'loc_town_hall' }); S.apply({ visits: [{ npcId: 'npc_marcus', locationId: 'loc_town_hall' }] }); };
+    put(2);
+    M.queue('parse', { actionType: 'deceive', summary: 'Claims to be a state surveyor', targets: ['npc_marcus'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit("I'm a surveyor from the state.", { mode: 'say', to: 'npc_marcus' });
+    const m = S.npc('npc_marcus');
+    const day2 = { noted: m.memories.filter(x => x.event === 'noted').map(x => x.text), asks: m.rel.asks.map(a => a.act), tracks: R.tracksOf(m) };
+    put(3);
+    M.queue('parse', { actionType: 'talk', summary: 'Says they are checking the bridge again', targets: ['npc_marcus'], needsRoll: false, timeCost: 'instant' });
+    M.queue('narrate', '"You lied to me," Marcus Bell says. "There is no state surveyor by that name."');
+    M.queue('bookkeep', { socialEvents: ['npc_marcus lied_caught: no state surveyor by that name'] });
+    await G.Pipeline.submit('Just checking the bridge again.', { mode: 'say', to: 'npc_marcus' });
+    return { day2, tracks: R.tracksOf(m), stance: R.stance(m).phrase, lie: R.lieWord(m), floor: G.Pipeline.normaliseParse({ actionType: 'deceive', summary: 'x', targets: ['npc_marcus'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' }).difficulty, secret: R.secretOpen(m), dice: R.rollMod(m, 'deceive'), caught: m.memories.filter(x => x.event === 'lied_caught').map(x => x.text) };
+  });
+  assert.deepEqual(r.day2.noted, ['says they are a surveyor from the state'], 'the claim, held to the player');
+  assert.deepEqual(r.day2.asks, ['deceive'], 'the deceive is logged');
+  assert.deepEqual(r.caught, ['no state surveyor by that name'], 'the precondition is met: a logged lie');
+  // Marcus (start W -5, T -15; guarded, g -1: trust losses x1.15): W -10, T -15 - 30 x 1.15 = -50.
+  assert.deepEqual([r.tracks.w, r.tracks.t], [-10, -50]);
+  assert.equal(r.stance, 'suspicious of you');
+  assert.deepEqual([r.lie, r.floor, r.dice], ['very hard', 'very_hard', -2], 'lies to him are very hard, and -2 on the dice');
+  assert.equal(r.secret, false, 'his secret is shut');
 });
 
 s.run();

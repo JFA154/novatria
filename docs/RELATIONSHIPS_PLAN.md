@@ -1,6 +1,8 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Waves 26 and 27 have landed.** A1 (wave
+1 Nov 2026 · a plan being built. **Waves 26 to 28 have landed; wave 28's
+live grammar probe is still to run** (`ANTHROPIC_API_KEY=… node
+tests/probe-grammar.cjs`). A1 (wave
 26, "The tracks under the number"): the `Rel` module, six tracks on every
 person under the `attitude` alias, `socialEvent`, `relSet` and `relDay`, with
 no number the game shows or stores changed (`docs/notes/engine-state.md`,
@@ -11,7 +13,16 @@ the 41 `attitudeDelta` sites converted, the wave's gates, reports to
 protectors, public reputation and the feared tier (`docs/notes/
 engine-state.md` and `engine-world.md`, Wave 27; tests:
 `tests/wave27-rel-engine.test.cjs`, `tests/relationships-examples.test.cjs`).
-A3 to A5 and B1 to B3 are still plans.
+A3 (wave 28, "The bookkeeper names the act, and minors are protected before
+the story is told"): `socialEvents` on the wire in place of attitude deltas
+and memories (34 properties, three enums; the core 11), `romantic` on the
+parse (14), the model's rules (presence, preconditions, caps, settlement by
+words), the trust gates and favours by trust, the whole minor rule and
+coercion, fade to black, `start` and `axes` in the content, and the Debug
+export of bookkeeper turns (`docs/notes/prompts.md`, `transport.md`,
+`content.md`, `engine-state.md`, `engine-world.md`, Wave 28; tests:
+`tests/wave28-social-events.test.cjs`, `tests/relationships.test.cjs`).
+A4, A5 and B1 to B3 are still plans.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

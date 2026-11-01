@@ -348,7 +348,7 @@ s.test('/rewind strikes a seed planted on a struck turn, with its visits; one pl
   assert.ok(!r.night.includes('npc_royce'), 'Royce is back on his own schedule tonight');
 });
 
-s.test('the bookkeeper is told how to record a meeting (prompt only); record_changes is unchanged (41 properties, the same schema); the packet says a meeting today triggers on its place', async h => {
+s.test('the bookkeeper is told how to record a meeting (prompt only); record_changes is unchanged (34 properties since wave 28, the same newSeeds); the packet says a meeting today triggers on its place', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await start(page);
   const r = await page.evaluate(() => ({ rules: Game.Api.RECORD_RULES, sys: Game.Api.SYSTEM.bookkeeper, rc: JSON.stringify(Game.Api.SCHEMAS.record_changes), seeds: Object.keys(Game.Api.SCHEMAS.record_changes.properties.newSeeds.items.properties) }));
@@ -357,10 +357,12 @@ s.test('the bookkeeper is told how to record a meeting (prompt only); record_cha
     assert.ok(r.sys.includes(bit), 'in the system prompt: ' + bit);
   }
   const count = node => { let n = 0; const walk = x => { if (Array.isArray(x)) return x.forEach(walk); if (x && typeof x === 'object') { if (x.type === 'object' && x.properties) n += Object.keys(x.properties).length; Object.values(x).forEach(walk); } }; walk(node); return n; };
-  assert.equal(count(JSON.parse(r.rc)), 41);
+  // Changed by design in wave 28 (A3): socialEvents in place of attitudeChanges, newMemories and memoriesSettled, 34 properties; the
+  // meeting still rides on newSeeds, unchanged.
+  assert.equal(count(JSON.parse(r.rc)), 34);
   assert.deepEqual(r.seeds, ['effect', 'triggerType', 'triggerValue']);
-  // The exact schema the wave 21 build sent (the grammar limit: wave 17).
-  assert.equal(crypto.createHash('sha256').update(r.rc).digest('hex'), 'a5a714b4852db5e4966aa491a8b5ecf4eccf0d5f66cc5d26cbb114e6c44ad344');
+  // The exact schema the wave 28 build sends (the grammar limit: wave 17; the wave 21 build's was a5a714b4..., tests/probe-grammar.cjs's control).
+  assert.equal(crypto.createHash('sha256').update(r.rc).digest('hex'), '50a65324236c87614c99155350870325263d7751d0ddc6cad1bd2197968b6030');
   await sendText(page, 'I look around');
   assert.match(await lastText(page, 'bookkeep'), /^TURN \d+ · DAY 1, MORNING(?: \([a-z ]+\))?\. A new seed's day trigger is day 2 or later; a meeting agreed for later today triggers on its place \(location\)\./);
 });

@@ -755,3 +755,77 @@ keeps a meeting the bookkeeper records (`docs/notes/engine-state.md` and
   trigger). Words with no place or no time, or said to everyone, make no
   meeting. The demo's other "find me at ..." answers to a social roll stay
   talk, as before.
+
+## Wave 28 (1 Nov 2026): the bookkeeper names the act
+
+Wave A3 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 5, 6 and
+19.1 to 19.3). Tests: `tests/wave28-social-events.test.cjs`,
+`tests/relationships.test.cjs`, the examples in
+`tests/relationships-examples.test.cjs`; `tests/probe-grammar.cjs` for the
+live API.
+
+- **The grammar.** `record_changes` loses `attitudeChanges`, `newMemories`
+  and `memoriesSettled` for one `socialEvents: list(STR)` (first, with the
+  wire format and two examples in its description): 34 properties and three
+  enums counted with nested ones (41 and four before), 16 top-level fields.
+  `RECORD_CORE_FIELDS` is 11 (socialEvents, goldDelta, hpDelta, itemsGained,
+  itemsLost, playerLocationId, npcKnownToPlayer, rumoursHeard, npcFates,
+  obligationsSettled, journalEntry). `parse_action` gains `romantic`
+  (nullable, `"flirt"` or `"more"`): 14 fields. The shapes are smaller than
+  or one field off ones known to pass; the live probe is still to run
+  (README, "Verified against the live API").
+- **The wire.** `"npc_id event[ npc_about][ private]: the memory"`, read by
+  `Api.socialFromWire` (`recordFromWire` maps every line): tokens in any
+  order up to the first word that is none of them; the event by
+  `Rel.eventName` (case, spaces, hyphens, aliases, a unique five-letter
+  stem), a two- or three-word event ("kept word", "caught you at") only when
+  it names one exactly; an about-event with no id takes the first person
+  its memory names. A line no word names keeps `event: ''` and State.apply
+  refuses it by name. The three legacy keys stay readable in `RECORD_KEYS`
+  (an older reply, a test's queued one) but are no longer asked for.
+- **The rubric.** `EVENT_RULES` (about 330 words): the 22 events the
+  bookkeeper may send, each glossed in a few words with examples for the
+  hard ones, "as a neutral witness would name it", at most two a person and
+  four a turn, and the engine's list it must never send (a fight, a threat,
+  a theft or a cheat seen as it happened, money or a thing handed over, a
+  debt paid, a promise or a meeting kept or missed, a flirt, time spent
+  together). `MEMORY_WORDS` is the memory's form (under twelve words, from
+  their side, no scene detail). `RECORD_RULES` loses its memoriesSettled
+  sentence (an apology now settles by event). `SYSTEM.bookkeeper` is the
+  record line, `RECORD_RULES`, `PLACE_RULE`, "At most one per turn.",
+  `EVENT_RULES`, `MEMORY_WORDS`.
+- **The fork.** `MEMORY_RULES` (the Upgrade rewrite and `SYSTEM.memories`)
+  is unchanged word for word, with comments at both that it and
+  `MEMORY_WORDS` diverge on purpose: the rewrite still words old memories
+  for the legacy list, the bookkeeper now words an event's memory.
+- **The bookkeeper's packet.** Each person present gets their stance and,
+  from `Rel.handles`, their three newest memories as handles ("hitting me
+  over the tow bill (hit, Day 3)") to name an apology or a lie after; the
+  turn's engine events are listed under ALREADY APPLIED; FIGHT, ALREADY
+  RECORDED, TABLE STAKES, CARD GAME, the seat line and a new THE TABLE line
+  say "record no social event"; SAME ASK AGAIN asks for an event only if
+  they took it badly (pried or insulted).
+- **The parser.** Its packet's person rows carry "toward the player:
+  <stance>; lies to them: <normal|hard|very hard>"; DIFFICULTY says the
+  engine also sets a floor; a ROMANTIC rule says when `romantic` is "flirt"
+  (an advance, a come-on, asking out) or "more" (asking for the night, the
+  room, sex) and null otherwise. `Pipeline.normaliseParse` keeps
+  `romantic` and raises the difficulty to `Rel.difficultyFloor`.
+- **The narrator.** `UNDER 18: <Rel.minorLine>` for each minor present,
+  every turn, and the player's line when they are under 18 or have no age
+  on record, after the PRESENT group. The cached style block gains
+  `Style.FADE_TO_BLACK` ("Intimate scenes fade to black before anything
+  explicit: the next line is afterwards."), +13 words (+18 tokens by the
+  api suite's estimate: 12,690 of 13,000).
+- **The mock.** `mockBookkeep` flips through its `known('socialEvents')`
+  guard: the insult by its words (`insulted`), an apology that lands
+  (`apologised`, in the words of the newest unsettled harm), "you lied" in
+  the narration (`lied_caught`), "tell me about yourself" when the roll
+  worked (`they_confided`), a Say claim ("I'm a surveyor from the state":
+  `noted`), the secret the narrator was given (`learned_secret`); one event
+  a person. `Mock.bookkeep` runs its reply through `recordFromWire` like
+  the real one. `mockParse` sets `romantic` by `MOCK_ROMANCE` and
+  `MOCK_MORE`; a flirt the parse had as `other` is talk.
+  `MINOR_ROMANCE_PHRASES` (strong and weak) and `Api.minorPhraseHit` are
+  the minor rule's phrase signal, read over the player's words whatever
+  the parse said.

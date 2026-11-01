@@ -22,12 +22,14 @@ function roleOf(body) {
   if (body.max_tokens === 1) return 'prewarm';
   const sc = body.output_config && body.output_config.format && body.output_config.format.schema;
   if (sc && sc.properties && sc.properties.actionType) return 'parser';
-  if (sc && sc.properties && sc.properties.attitudeChanges) return 'bookkeeper';
+  // Changed by design in wave 28 (A3): the bookkeeper's schema carries socialEvents (attitudeChanges left the wire).
+  if (sc && sc.properties && sc.properties.socialEvents) return 'bookkeeper';
   return 'chronicle';
 }
 const USAGE = { input_tokens: 300, output_tokens: 80, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 const PARSE = { actionType: 'talk', summary: 'Asks about the tide', targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'instant', declaresWorldFact: false };
-const DIFF = { attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null };
+// Changed by design in wave 28 (A3): the bookkeeper's reply carries socialEvents in place of attitudeChanges and newMemories.
+const DIFF = { socialEvents: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null };
 const NARRATION = ['Rain needles the water. ', 'The old man spits into the river. ', '"Tide\'s wrong," he says.'];
 function message(text, opts) {
   opts = opts || {};
@@ -675,7 +677,7 @@ s.test('fights: the threat sets the difficulty, a partial costs 1 HP, a swing at
   assert.deepEqual(await page.evaluate(() => window.__arrest.map(a => a.npcId)), [cop]);
 });
 
-s.test('a successful social roll aimed at someone, or their attitude at 50 or more, lets the narrator hear their secret (ctx.revealSecretFor)', async h => {
+s.test('a successful social roll aimed at someone, or their trust at 40 and knowing the player at 30 (wave 28; their attitude at 50 or more before it), lets the narrator hear their secret (ctx.revealSecretFor)', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   await fast(page);
@@ -689,8 +691,12 @@ s.test('a successful social roll aimed at someone, or their attitude at 50 or mo
   await ask(19);
   await sendText(page, 'I ask nicely for help');
   assert.deepEqual(await page.evaluate(() => Game.Pipeline.lastTurn.ctx.revealSecretFor), [id]);
+  // Changed by design in wave 28 (A3, Rel.GATES.secret): liking alone no longer opens it; trust 40 and knowing the player 30 do.
   await page.evaluate(id => { Game.State.apply({ effects: [{ op: 'attitudeDelta', npcId: id, delta: 60 - Game.State.npc(id).attitude }] }); Game.Api.Mock.queue('parse', { actionType: 'talk', summary: 'Chats', targets: [id], needsRoll: false, timeCost: 'instant' }); }, id);
   await sendText(page, 'I chat with them');
+  assert.equal(await page.evaluate(() => Game.Pipeline.lastTurn.ctx.revealSecretFor || null), null, 'liking 60 alone keeps it shut');
+  await page.evaluate(id => { Game.State.apply({ relSet: { npcId: id, t: 40, k: 30 } }); Game.Api.Mock.queue('parse', { actionType: 'talk', summary: 'Chats', targets: [id], needsRoll: false, timeCost: 'instant' }); }, id);
+  await sendText(page, 'I chat with them again');
   assert.deepEqual(await page.evaluate(() => Game.Pipeline.lastTurn.ctx.revealSecretFor), [id]);
 });
 

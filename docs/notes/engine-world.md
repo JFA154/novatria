@@ -1915,3 +1915,44 @@ integration.md` section 16). World's side; State's is in
 - **`arrestPlayer`**'s memory is `noted` (own); `sleptRough`'s was already
   (own).
 - Exports: `plantReports`, `plantReport`, `toughAnswer`, `markDanger`.
+
+## Wave 28 (1 Nov 2026): reports for minors and coercion, favours by trust
+
+Wave A3 of `docs/RELATIONSHIPS_PLAN.md`.
+
+- **`World.minorAdvance(npcId)`** (Pipeline's `minorTurn`, after the
+  bookkeeper's apply, for a minor the full row fell on: a named target
+  with two signals): the minor's `unwanted_advance` (W -20, T -20, F +10,
+  weight 3; fear from it buys nothing), a weight-3 `crossed` for each
+  guardian (`Rel.guardiansOf`: parents, else family, else the police head;
+  in the guardian's words, "my daughter"), a report seed from each
+  guardian to the law (`Rel.reportTo`) on its own sub-stream
+  (`Rel.rng('minorReport', gid, day)`), town reputation -10 outside the
+  turn's cap of 5, and a news line when no law can hear it. A single signal
+  is the light row only: a `noted` of liking -3, "said something that made
+  me uncomfortable at <place>".
+- **`World.minorHarm(npcId, why)`**: a hit (`knockDown` and the fight) or
+  a threat on a minor reports to their guardians and the law the same way;
+  reputation -10 for violence, -5 for a threat. Minors are skipped by the
+  ordinary `plantReports`.
+- **`World.coercion(npcId, key)`**: a romantic ask with a threat behind it
+  (Pipeline's `coerce`: no roll, the die burned, nothing given; the
+  target's `blackmailed` and a weight-3 `crossed`) reports through their
+  protector (`Rel.protectorOf`, on `Rel.rng('coercion', ...)`, forced past
+  the usual conditions), else the law; reputation -10.
+- **`plantReport(n, why, day, opts)`** takes `{ rng, to, force, news }`;
+  `to.fallback` (the law outside town) is kept on the seed's origin, and
+  `reportEffects` gives an away fallback a memory and a news line ("A
+  deputy from Clayburn came by asking about <player>."). `World.lawFor` and
+  `fallbackNews` build them.
+- **Favours by trust.** `plantFeelings`' favour route is `favourFits(n)`
+  (liking 50 and trust 20, `Rel.GATES.favour`) with `helpMemory(n)`: the
+  newest unsettled first-hand memory of weight 2 or more of something the
+  player did for them (`HELP_EVENTS`: did_favour, rescued, defended,
+  kept_word, paid_back, gift, paid_silence; typed, or a legacy line by its
+  words). `templateFits` reads a template's `needs` through `Rel.meets`.
+- **Pipeline's trust gates** (the engine's side of them): `secretsFor`
+  opens a secret by `Rel.secretOpen` (trust 40, knows-you 30) or fear 60
+  after an intimidation that worked (never a minor's); `pickRumour` skips
+  anyone at trust -25 or below unless a gossip; the dealer deals nobody at
+  trust -40 or below and `cardPeople` seats nobody there.

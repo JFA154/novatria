@@ -323,7 +323,9 @@ said outright), your loose ends from the other person's side ("tied to you by
 a debt"), the town's open stories and what you owe, and the latest town news.
 So the man you owe money greets you as the man you owe money, from the first
 turn. Someone's secret reaches the narrator only after a social roll aimed at
-them succeeds, or once they like you (attitude 50 or more).
+them succeeds, once they trust you and know you (trust 40 and knows-you 30),
+or when a threat that worked has left them badly afraid of you (fear 60);
+nobody under 18 gives one up out of fear.
 
 The People tab lists who is here now, who you have met, with how they feel
 about you, where you last saw them and what they remember, then the people you
@@ -382,6 +384,54 @@ never anyone under 18) does a small thing you ask with no roll; the dice
 still turn over, so nothing else in the game shifts. A shop that is against
 you won't sell to you for three days, then charges you a quarter over; a bed,
 gas or a meal is never refused for more than one night.
+
+**How people take what you say.** What is said is the bookkeeper's to name,
+as a neutral witness would: an insult (a humiliation when two or more others
+hear it), an apology, a lie caught, a confidence shared or kept, a compliment,
+prying, help or a favour, a claim you made ("says she is a surveyor from the
+state"). It names one of 22 things and the memory in a few words, never a
+number, and the game checks each one before it counts: the person has to be
+here; a caught lie needs a lie or a claim of yours on record, a kept
+confidence one given a day before and someone else there who asked, an
+apology to land (a roll that worked, or they are not against you); anything
+else is written down as something smaller or not at all. At most two of
+these count for one person in a turn and four in all, the heaviest kept, and
+none ever stands in for what the game saw itself. An apology that lands
+softens what it names, or the latest harm of the last three days (liking
+halved, trust eased a quarter); one that does not land only shows them a
+little more of you. **Trust now decides things.** A lie to someone who distrusts you is harder (hard at trust
+-25, very hard at -50, and 1 or 2 off the dice), and one to someone who
+trusts you (40) goes down easier; anyone against you is at least hard to ask
+for anything. A couch for the night needs liking 25 and some trust (or that
+they owe you); a favour needs liking 50 and trust 20, and an alibi or a
+loaned ramp more trust still; nobody at trust -25 or below passes you a
+rumour (a gossip tells anyone), and at -40 or below nobody deals you in or
+sits at your table. The bookkeeper is told each person's stance toward you
+("sizing you up", "suspicious of you") and their latest few memories of
+you, to name an apology or a caught lie after; the parser is told the stance
+and how hard a lie to them is.
+
+**Nobody under 18.** Nobody under 18 is ever part of a romance, whatever the
+story or a model says, and the game decides this before the story is told.
+Every turn someone under 18 is in the scene, the narrator is told their age
+and that any romantic or sexual advance is unwelcome and alarming: they are
+uncomfortable and get away or go to their parent. A flirt or more aimed at
+them (the parser's flag, the words themselves, or the bookkeeper naming it,
+with two of those pointing at someone named) is an unwanted advance: they
+hold it against you as the worst kind of harm, and fear of you buys nothing
+from them; their parents (or, with none in town, Chief Bell) hold it against
+you too, each parent reports it to the police, and the town's opinion of you
+drops 10, outside the usual cap of 5. With the department gone the report
+goes to the sheriff in Clayburn ("A deputy from Clayburn came by asking about
+you."). One signal alone, a remark that might have been meant that way, is
+only noted ("said something that made me uncomfortable"). A hit or a threat
+on someone under 18 is reported the same way. A threat or blackmail inside a
+romantic ask, aimed at anyone, is coercion: no roll and nothing given, they
+refuse and leave or call for someone, and it is reported. If you are under
+18, or an older save has no age for you, nobody in town flirts with you. In
+this wave nobody in town takes a flirt from you as welcome yet ("isn't
+interested"), and an intimate scene between adults fades to black before
+anything explicit.
 
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
@@ -1042,10 +1092,12 @@ the money for it was. HP never reaches 0 from what it writes unless you
 attacked and the roll failed. If the bookkeeper fails, the story you read
 stands: a quiet line says what changed was not recorded yet, and it is asked
 once more in the background. What the game saw itself (a fight, a threat, a
-theft, a gift, a debt or a meeting) is recorded by the game and counts once:
-the bookkeeper's own numbers and memory for that person that turn give way
-to it, and in one turn nobody's liking moves more than 40, their trust 45 or
-their fear 40 from what happened to them.
+theft, a gift, a debt, a meeting or a flirt) is recorded by the game and
+counts once: the bookkeeper is told never to name it, and anything it names
+of the same kind for that person that turn gives way to it. It names at most
+two things for a person and four in all (see People), and in one turn
+nobody's liking moves more than 40, their trust 45 or their fear 40 from what
+happened to them.
 
 ## Settings
 
@@ -1222,10 +1274,13 @@ without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
 The bookkeeper's reply format gained three fields with this change (people
-hurt, arrested, gone or dead; memories a turn settled; obligations met), for
-45 properties against the API's grammar limit of 46. It passes the canned-API
-tests but has not been sent to the live API yet (see Verified against the
-live API).
+hurt, arrested, gone or dead; memories a turn settled; obligations met). Since
+wave 28 its people are one field, `socialEvents` (one line each, "npc_id
+event: the memory"), in place of the three it had for attitudes, memories and
+what a turn settled: 34 properties and 3 enums (41 and 4 before, the shape
+known to pass the API's grammar limit), with an 11-field core to fall back
+on; the parser's reply is 14 fields with `romantic`. Neither has been sent to
+the live API yet (see Verified against the live API).
 
 ## What a turn costs
 
@@ -1234,8 +1289,9 @@ cheapest. Prices are those in `docs/API_NOTES.md`: Opus 5.5 at $4 / $20 per
 million input / output tokens, Sonnet 5.5 at $2 / $10, both $0.20 for a
 cache read; Haiku 5.5 at $0.10 / $0.50.
 
-Every narration carries three cached system blocks: the style guide, the town
-and the cast. Together they are about 12,500 tokens by the api suite's
+Every narration carries three cached system blocks: the style guide (since
+wave 28 with the one-line fade-to-black rule, about 18 tokens), the town and
+the cast. Together they are about 12,700 tokens by the api suite's
 estimate of 1.4 tokens a word (it fails over 13,000), nearer 15,000 at 3.5
 characters a token. Read from the cache they cost about 0.3 cents a
 narration; writing them costs twice the input price on Opus, about 10 to 12
@@ -1253,15 +1309,15 @@ default models (tokens estimated at 3.5 characters each, output assumed):
 
 | Call | Input per turn | Output assumed |
 |---|---|---|
-| Parser | ~5,200 tokens (packet ~12,000 characters, system prompt 3,500, schema 2,700) | ~90 |
+| Parser | ~5,500 tokens (packet ~12,000 characters, system prompt 4,200, schema 3,000) | ~90 |
 | Narrator | ~2,000 tokens of packet (7,100 characters on average, at most 9,500) plus the cached blocks | ~120 |
-| Bookkeeper | ~4,400 tokens (packet ~6,700 characters, system prompt 2,900, schema 5,700) | ~180 |
+| Bookkeeper | ~4,700 tokens (packet ~6,900 characters, system prompt 4,700 with the events' rubric, schema 4,900) | ~180 |
 | Chronicle (every ten turns or so) | ~1,100 tokens | ~110 |
 
-- A warm turn is about **3.5 cents** with no thinking and about 4.2 cents with
+- A warm turn is about **3.7 cents** with no thinking and about 4.3 cents with
   some 150 thinking tokens a call; at medium effort the models often think
-  longer, so expect 4 to 5 cents. A hundred warm turns are about $3.60 to
-  $4.20 plus the cache writes.
+  longer, so expect 4 to 5 cents. A hundred warm turns are about $3.65 to
+  $4.25 plus the cache writes.
 - The first narration of a session, or the first after an hour away, adds
   the cache write: about 12 cents.
 - `/look`, `/rest`, `/wait` and `/skip` call only the narrator (plus the
@@ -1380,6 +1436,7 @@ node tests/run.cjs acceptance   # only files whose name contains "acceptance"
 TEST_FILTER='\[4\]' node tests/acceptance.test.cjs     # tests whose title matches
 PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playtest's story
 UI_SHOTS=/some/folder node tests/ui-fixes.test.cjs     # keep the screenshots the UI suite takes there
+ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs       # the live grammar probe (needs a key; not part of run.cjs)
 ```
 
 The tests drive the game in headless Chromium with Playwright, in mock mode,
@@ -1387,7 +1444,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 600 tests and takes about
+nothing else to install. The whole run is about 775 tests and takes about
 ten minutes.
 
 - `acceptance`: the twelve acceptance checks of SPEC.md section 14.
@@ -1405,6 +1462,15 @@ ten minutes.
   for the card table, and `integration` for the seams between them.
 - `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
   milestone suites.
+- `wave26-rel-tracks`, `wave27-rel-engine` and `wave28-social-events` for
+  the relationship system by wave; `relationships` for its permanent checks
+  (the minor rule and coercion, the anchors, the fallbacks, a fuzz of the
+  wire); `relationships-examples` for the design's worked examples played
+  through.
+- `tests/probe-grammar.cjs` is not a test file: it sends the bookkeeper's
+  and the parser's schemas to the live API (`PROBE_DRY=1` builds the
+  requests and stops before the network; `PROBE_MODELS=a,b` picks the
+  models).
 
 `.github/workflows/tests.yml` runs `node tests/run.cjs` on every push and pull
 request (Node 20, Playwright and Chromium installed outside the checkout).
@@ -1442,6 +1508,19 @@ and keeps the newest 6, so the narrator always has its last turns; the
 narrator's cache lasts an hour instead of five minutes; and the casual example
 turns are eight, written in the packet's own format.
 
+And from the relationship plan (`docs/RELATIONSHIPS_PLAN.md`, waves 26 to 28):
+the bookkeeper (SPEC.md section 10) no longer sends attitude deltas or
+memories. It names what a person will remember of the turn as an event
+(`socialEvents`, "npc_id event: the memory"), and the game decides what that
+does to their liking, trust, fear and how well they know you; the parser
+also says whether an action is romantic (`romantic`). The dice (SPEC.md
+section 7) read trust as well as liking: a lie is harder to someone who
+distrusts you and easier to someone who trusts you, anyone against you is at
+least hard to ask, and someone afraid of you does a small thing with no
+roll. Acceptance check 4 (three insults) holds with the numbers the events
+give: insults compound (-10, -15, -22), a humiliation in front of others is
+heavier, and the grudge comes at liking or trust -60.
+
 ## Verified against the live API
 
 **This round (30 Oct 2026) was not checked against the live API.** It was
@@ -1449,8 +1528,13 @@ verified in mock mode and against canned API replies served inside the
 browser (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`). Before
 relying on it with a key, a short live session should confirm:
 
-- the `record_changes` schema, now 45 properties, compiles (the API refused
-  47 in an earlier probe with "compiled grammar too large"; 46 passed);
+- the bookkeeper's `record_changes`, now 34 properties and 3 enums (with its
+  11-field core), and the parser's `parse_action`, now 14 fields with
+  `romantic`, compile (the API refused 47 properties in an earlier probe with
+  "compiled grammar too large"; 46 passed, and 41 since wave 17).
+  `ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs` posts the three and the
+  41-property control from before wave 28 to the Standard and Thrifty
+  models; it has not been run yet (it needs a key), and wave 28 waits on it;
 - the 1-hour cache is accepted as `cache_control: { "type": "ephemeral",
   "ttl": "1h" }` on the narrator's system blocks, and the usage reports the
   write under `cache_creation.ephemeral_1h_input_tokens` (on the second

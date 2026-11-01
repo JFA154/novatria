@@ -377,12 +377,15 @@ s.test('parse packet and mock parser: LAST TURN, present traits and wants, TIME 
   assert.deepEqual(r.schema.moveWhen.anyOf[0].enum, ['before', 'after']);
   assert.ok(r.schema.actionType.enum.includes('gamble'));
   assert.equal(r.schema.aboutIds.type, 'array');
-  for (const bit of ['LAST TURN is what the narrator said just before this', 'DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18)', 'STAT: might for force', 'moveWhen to "after"', 'goes in aboutIds, not targets', 'GAMBLE: betting or playing cards']) assert.ok(r.parserSys.includes(bit), 'parser rubric: ' + bit);
+  // Changed by design in wave 28 (A3): the rubric reads where the person stands, not a number (the engine also floors it: Rel.difficultyFloor).
+  for (const bit of ['LAST TURN is what the narrator said just before this', 'DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone who is against the player or hates them (the engine also sets a floor); very_hard (18)', 'STAT: might for force', 'moveWhen to "after"', 'goes in aboutIds, not targets', 'GAMBLE: betting or playing cards', 'ROMANTIC: romantic is "flirt"']) assert.ok(r.parserSys.includes(bit), 'parser rubric: ' + bit);
 });
 
+// Changed by design in wave 28 (A3): socialEvents for attitudeChanges, newMemories and memoriesSettled (34 properties, a core of 11); the
+// bookkeeper's memory words (MEMORY_WORDS) fork from MEMORY_RULES on purpose, and the rubric names events (EVENT_RULES).
 s.test('record_changes: the three newer fields, 41 properties counted the way the API compiles them (the shape known to pass the grammar limit; wave 17), additionalProperties false and every property required everywhere; the bookkeeper\'s rubric and memory rules', async h => {
   const page = await h.open({ viewport: LAPTOP });
-  const r = await page.evaluate(() => ({ schemas: Game.Api.SCHEMAS, sys: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES, record: Game.Api.RECORD_RULES, chron: Game.Api.SYSTEM.chronicle }));
+  const r = await page.evaluate(() => ({ schemas: Game.Api.SCHEMAS, sys: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES, words: Game.Api.MEMORY_WORDS, events: Game.Api.EVENT_RULES, record: Game.Api.RECORD_RULES, chron: Game.Api.SYSTEM.chronicle }));
   const walk = (node, where, out) => {
     if (Array.isArray(node)) return node.forEach((x, i) => walk(x, `${where}[${i}]`, out));
     if (!node || typeof node !== 'object') return;
@@ -397,22 +400,25 @@ s.test('record_changes: the three newer fields, 41 properties counted the way th
     const out = { props: 0, bad: [] };
     walk(sc, name, out);
     assert.deepEqual(out.bad, [], name);
-    if (name === 'record_changes') assert.equal(out.props, 41, 'record_changes: 41 counted with nested properties (45 was refused live on 31 Oct 2026)');
-    if (name === 'record_changes_core') assert.equal(out.props, 18, 'the core fallback: thirteen essentials, with their item objects');
+    if (name === 'record_changes') assert.equal(out.props, 34, 'record_changes: 34 counted with nested properties (41 passed live and 45 was refused on 31 Oct 2026)');
+    if (name === 'record_changes_core') assert.equal(out.props, 11, 'the core fallback: eleven essentials');
   }
   const rc = r.schemas.record_changes.properties;
   // Wave 17: fates and settled memories cross the wire as "npc_id: ..." strings (the grammar limit); Api.recordFromWire makes the engine's objects.
+  // Wave 28: the social events cross it the same way ("npc_id event: the memory", Api.socialFromWire); memoriesSettled left the wire.
   assert.equal(rc.npcFates.items.type, 'string');
   assert.match(rc.npcFates.description, /"npc_id: status".*arrested, gone \(left town for good\), dead or hurt/);
-  assert.equal(rc.memoriesSettled.items.type, 'string');
-  assert.match(rc.memoriesSettled.description, /"npc_id: the memory as their remembers list words it"/);
+  assert.equal(rc.socialEvents.items.type, 'string');
+  assert.match(rc.socialEvents.description, /"npc_id event\[ npc_about\]\[ private\]: the memory"/);
+  assert.ok(!('memoriesSettled' in rc) && !('attitudeChanges' in rc) && !('newMemories' in rc));
   assert.ok(!('enum' in rc.clockNudges.items.properties.delta) && !('enum' in rc.newSeeds.items.properties.triggerType), 'no enum on the clock delta or the trigger type');
   assert.equal(rc.obligationsSettled.items.type, 'string');
   assert.deepEqual(Object.keys(rc.newSeeds.items.properties), ['effect', 'triggerType', 'triggerValue']);
-  assert.deepEqual(Object.keys(rc.attitudeChanges.items.properties), ['npcId', 'delta']);
-  assert.ok(r.sys.includes(r.record) && r.sys.endsWith(r.rules));
-  for (const bit of ['itemsGained only for things the player now keeps', 'goldDelta only for money that changed hands', 'npcKnownToPlayer only for people the player met face to face', 'newSeeds is usually empty', 'status resolved only when the narration settles the thread for good', 'clockNudges only when the action plainly helps or hinders the aim of a faction\'s CLOCK', 'npcFates only when the narration shows it happening to someone present', 'memoriesSettled when this turn settles something', 'obligationsSettled: the id of an OPEN obligation']) assert.ok(r.record.includes(bit), 'rubric: ' + bit);
+  assert.ok(r.sys.includes(r.record) && r.sys.includes(r.events) && r.sys.endsWith(r.words) && !r.sys.includes(r.rules));
+  for (const bit of ['itemsGained only for things the player now keeps', 'goldDelta only for money that changed hands', 'npcKnownToPlayer only for people the player met face to face', 'newSeeds is usually empty', 'status resolved only when the narration settles the thread for good', 'clockNudges only when the action plainly helps or hinders the aim of a faction\'s CLOCK', 'npcFates only when the narration shows it happening to someone present', 'obligationsSettled: the id of an OPEN obligation']) assert.ok(r.record.includes(bit), 'rubric: ' + bit);
+  assert.ok(!r.record.includes('memoriesSettled when this turn settles something'), 'settling is by the events\' words now');
   for (const bit of ['what the player claimed about themselves', 'terms agreed, with the amount and the deadline kept', 'Someone who only saw something serious happen', 'neither is anything already on that person\'s remembers list']) assert.ok(r.rules.includes(bit), 'memory rules: ' + bit);
+  for (const bit of ['under twelve words', "'told me to fuck off'", "'says he is a surveyor from the state'", "'owes me $40 by Friday'"]) assert.ok(r.words.includes(bit), 'memory words: ' + bit);
   assert.ok(r.chron.startsWith("Summarise these turns for the narrator's memory, under 100 words, past tense, full names. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom. Skip scenery and small talk. End with 'Open:' and what is unresolved."));
 });
 
@@ -434,7 +440,10 @@ s.test('bookkeeper packet: present people with their last memories, factions wit
     return { p, n: n.id, f: { id: f.id, name: f.name, label: c.label, filled: c.filled, segments: c.segments }, t: st.threads[0], engine: { obl: typeof G.State.obligations === 'function', news: !!G.State.news } };
   });
   const present = line(r.p, 'NPCS PRESENT');
-  assert.ok(present.includes('remembers: second thing / third thing / fourth thing') && !present.includes('first thing'), present);
+  // Changed by design in wave 28 (A3): at most three handles on what they still hold, each with its event and day, and the stance in words.
+  assert.ok(present.includes('remembers: second thing (noted, Day 1) / third thing (noted, Day 1) / fourth thing (noted, Day 1)') && !present.includes('first thing'), present);
+  assert.match(present, new RegExp(`${r.n} — [^(]+\\([^)]*; stance: [a-z ,']+\\)`));
+  assert.doesNotMatch(present, /attitude -?\d/);
   assert.ok(line(r.p, 'FACTIONS').includes(`${r.f.id} — ${r.f.name}; clock "${r.f.label}" ${r.f.filled}/${r.f.segments}`), line(r.p, 'FACTIONS'));
   assert.ok(line(r.p, 'THREADS').includes(`${r.t.id} — ${r.t.title} (${r.t.status}; player does not know it yet): ${r.t.summary.split(/(?<=[.!?])\s/)[0].replace(/\.$/, '')}`));
   if (!r.engine.obl) assert.ok(r.p.includes(`\nOPEN OBLIGATIONS (obligationsSettled takes these ids): obl_debt_x — You owe them $40, due day 2 (Friday, tomorrow) [${r.n}]`), r.p.slice(-600));
@@ -501,22 +510,26 @@ s.test('mock bookkeeper: Say-mode insults by what they say, buying only where it
     out.price = { lighter: G.Tables.price('Lighter') };
     return out;
   }, fx);
-  const mem = x => x.newMemories.map(m => `${m.text}|${m.weight}`);
-  assert.deepEqual([r.liar.attitudeChanges, mem(r.liar)], [[{ npcId: r.n, delta: -15 }], ['called me a liar|2']]);
-  assert.deepEqual(mem(r.off), ['told me to fuck off|2']);
-  assert.deepEqual(r.wordInsult.newMemories, [], 'Say mode: the word "insult" is not an insult');
-  assert.deepEqual(mem(r.doInsult), ['insulted me|2'], 'Do mode: "I insult X" still is');
-  assert.deepEqual(r.sorry.memoriesSettled, [{ npcId: r.n, text: 'insulted me' }], 'an apology settles the grudge');
+  /* Changed by design in wave 28 (A3; the integration plan's 5.7): the demo sends events in the wire's words, "npc_x insulted: called me a
+     liar" (read back through Api.recordFromWire), never attitude numbers, memories or settled memories; and nothing at all for what the
+     engine records itself: a threat or a fight (the roll's), a theft (stole_from), a gift and a debt paid (gift, the obligation's paid_back). */
+  const ev = x => x.socialEvents.map(e => `${e.npcId === r.n ? 'n' : e.npcId === r.creditor ? 'creditor' : e.npcId} ${e.event}: ${e.text}`);
+  assert.deepEqual(ev(r.liar), ['n insulted: called me a liar']);
+  assert.ok(!('attitudeChanges' in r.liar) && !('newMemories' in r.liar) && !('memoriesSettled' in r.liar), 'no numbers and no memories');
+  assert.deepEqual(ev(r.off), ['n insulted: told me to fuck off']);
+  assert.deepEqual(r.wordInsult.socialEvents, [], 'Say mode: the word "insult" is not an insult');
+  assert.deepEqual(ev(r.doInsult), ['n insulted: insulted me'], 'Do mode: "I insult X" still is');
+  assert.deepEqual(ev(r.sorry), ['n apologised: insulted me'], 'an apology names the grudge it settles, in its words');
   assert.deepEqual([r.lighterHere.goldDelta, r.lighterHere.itemsGained], [-r.price.lighter, ['Lighter']], 'a lighter at the station');
   assert.deepEqual(r.knockout.npcFates, [{ npcId: r.n, status: 'hurt' }]);
-  assert.deepEqual(mem(r.knockout), ['attacked me|3']);
+  assert.deepEqual(r.knockout.socialEvents, [], 'the fight is the engine\'s (hit, shoved, the beat-down)');
   if (r.helps) assert.deepEqual(r.helps.r.clockNudges, [{ factionId: r.helps.fac, delta: 1 }]);
-  assert.deepEqual([r.pay.goldDelta, r.pay.obligationsSettled, r.pay.memoriesSettled], [-40, [r.oblId], [{ npcId: r.creditor, text: 'owes me $40 by Friday' }]]);
-  assert.deepEqual(mem(r.pay), ['paid me back $40|2']);
-  assert.deepEqual([r.give.itemsLost, mem(r.give)], [[r.knife.id], [`gave me ${/^[aeiou]/i.test(r.knife.name) ? 'an' : 'a'} ${r.knife.name.charAt(0).toLowerCase() + r.knife.name.slice(1)}|2`]]);
+  assert.deepEqual([r.pay.goldDelta, r.pay.obligationsSettled], [-40, [r.oblId]]);
+  assert.deepEqual(r.pay.socialEvents, [], 'paid back is the obligation\'s own event');
+  assert.deepEqual([r.give.itemsLost, r.give.socialEvents], [[r.knife.id], []], 'a gift is the engine\'s');
   assert.deepEqual(r.stealOk.itemsGained, ['Keys']);
-  // Changed by design in wave 5 (playtest D7): in their words, about the player.
-  assert.deepEqual(mem(r.stealBad), ['Tester tried to steal from me|3']);
+  // Changed by design in wave 5 (playtest D7): in their words, about the player. Wave 28: the engine's stole_from says it ("Tester tried to steal from me").
+  assert.deepEqual(r.stealBad.socialEvents, [], 'a theft is the engine\'s');
   assert.deepEqual([r.lighterBridge.goldDelta, r.lighterBridge.itemsGained], [null, []], 'nobody sells a lighter at the bridge');
   assert.ok(r.beer.goldDelta < 0 && r.beer.itemsGained.length === 0 && /^Had /.test(r.beer.journalEntry), 'a beer is had: ' + JSON.stringify(r.beer));
   assert.ok(r.food.goldDelta < 0 && r.food.hpDelta === 1 && /^Ate /.test(r.food.journalEntry), 'a meal eaten: ' + JSON.stringify(r.food));

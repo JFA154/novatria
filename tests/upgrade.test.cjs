@@ -407,9 +407,11 @@ s.test('the real provider: one structured-output call on the parser model at the
     for (const k of Object.keys(node)) walk(node[k], `${where}.${k}`);
   })(body.output_config.format.schema, 'schema');
   assert.deepEqual(bad, []);
-  const sys = await page.evaluate(() => ({ memories: Game.Api.SYSTEM.memories, book: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES }));
+  const sys = await page.evaluate(() => ({ memories: Game.Api.SYSTEM.memories, book: Game.Api.SYSTEM.bookkeeper, rules: Game.Api.MEMORY_RULES, words: Game.Api.MEMORY_WORDS }));
   assert.equal(body.system, sys.memories);
-  assert.ok(sys.book.endsWith(sys.rules) && sys.memories.includes(sys.rules), 'the bookkeeper\'s memory rules, word for word');
+  // Changed by design in wave 28 (A3): the re-read keeps MEMORY_RULES word for word; the bookkeeper, which names events now, has forked
+  // from it on purpose (MEMORY_WORDS: how the words after an event are written).
+  assert.ok(sys.memories.includes(sys.rules) && !sys.book.includes(sys.rules) && sys.book.endsWith(sys.words), 'the memory rules, word for word, in the re-read');
   // Wave 2: the prompt's cap is the re-read's own (Upgrade.PER_PERSON = State.MEMORY_MAX, 12), not the old 6.
   assert.ok(sys.memories.includes(`At most ${await page.evaluate(() => Game.Upgrade.PER_PERSON)} per person`), 'the prompt names the cap the re-read keeps');
   const user = body.messages[0].content;

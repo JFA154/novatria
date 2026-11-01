@@ -15,14 +15,16 @@ function roleOf(body) {
   if (body.stream) return 'narrator';
   const sc = body.output_config && body.output_config.format && body.output_config.format.schema;
   if (sc && sc.properties && sc.properties.actionType) return 'parser';
-  if (sc && sc.properties && sc.properties.attitudeChanges) return 'bookkeeper';
+  // Changed by design in wave 28 (A3): the bookkeeper's schema carries socialEvents (attitudeChanges left the wire).
+  if (sc && sc.properties && sc.properties.socialEvents) return 'bookkeeper';
   return 'chronicle';
 }
 
 // ----- canned responses -----
 const USAGE = { input_tokens: 300, output_tokens: 80, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 const PARSE = { actionType: 'talk', summary: 'Asks about the tide', targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'instant', declaresWorldFact: false };
-const DIFF = { attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null };
+// Changed by design in wave 28 (A3): the bookkeeper's reply carries socialEvents in place of attitudeChanges and newMemories.
+const DIFF = { socialEvents: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], journalEntry: null };
 const NARRATION = ['Rain needles the water. ', 'The old man spits into the river. ', '"Tide\'s wrong," he says.'];
 function message(text, opts) {
   opts = opts || {};
@@ -143,20 +145,23 @@ s.test('requests carry the four headers and a body the current API accepts, with
     }
     // bookkeeper: the root and the seven array item objects (placesRevealed too; npcFates and memoriesSettled are "npc_id: ..." strings
     // since wave 17, peopleRevealed is gone, the cast is fixed; newSeeds carries triggerType and triggerValue, no nested trigger).
-    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 8 : 1, `${r.role}: nested objects spelled out`);
+    // Changed by design in wave 28 (A3): attitudeChanges and newMemories left the wire for socialEvents (strings): the root and five.
+    assert.equal(out.objects.length, r.role === 'bookkeeper' ? 6 : 1, `${r.role}: nested objects spelled out`);
     // The API compiles the schema to a grammar with a size limit. On 31 Oct 2026 it refused 45 properties with six enums for every
     // turn ("The compiled grammar is too large"), so record_changes is held at the shape known to pass live: 41 properties, three
     // enums outside the nullables (wave 17). Adding a field anywhere in it needs another removed, or a live probe first.
+    // Changed by design in wave 28 (A3): socialEvents for the three legacy fields, 34 properties and three enums (tests/probe-grammar.cjs checks it live).
     if (r.role === 'bookkeeper') {
       let props = 0;
       let enums = 0;
       const count = node => { if (Array.isArray(node)) return node.forEach(count); if (node && typeof node === 'object') { if (node.type === 'object' && node.properties) props += Object.keys(node.properties).length; if (Array.isArray(node.enum) && node.type !== 'null') enums += 1; Object.values(node).forEach(count); } };
       count(r.body.output_config.format.schema);
-      assert.equal(props, 41, `record_changes has ${props} properties; 41 is the shape known to pass the API's grammar limit`);
-      assert.equal(enums, 4, `record_changes has ${enums} enums (weight, place type, place kind, and the nullable thread status)`);
+      assert.equal(props, 34, `record_changes has ${props} properties; 34 since wave 28 (41 was the shape known to pass the API's grammar limit)`);
+      assert.equal(enums, 3, `record_changes has ${enums} enums (place type, place kind, and the nullable thread status)`);
       const sch = r.body.output_config.format.schema.properties;
       assert.equal(sch.npcFates.items.type, 'string');
-      assert.equal(sch.memoriesSettled.items.type, 'string');
+      assert.equal(sch.socialEvents.items.type, 'string');
+      assert.ok(!('memoriesSettled' in sch) && !('attitudeChanges' in sch) && !('newMemories' in sch));
       assert.ok(!('peopleRevealed' in r.body.output_config.format.schema.properties));
     }
   }
@@ -313,7 +318,8 @@ s.test('a refusal shows the notice and restores the input (narrator stream and t
 
 s.test('a JSON reply cut off by max_tokens is retried once with double max_tokens', async h => {
   const { page, reqs, queue } = await openReal(h);
-  queue('bookkeeper', () => message('{"attitudeChanges": [{"npcId": "npc_ok', { stop: 'max_tokens' }), bookReply({ journalEntry: 'Asked about the tide.' }));
+  // Changed by design in wave 28 (A3): the cut-off reply is the new shape's (socialEvents in place of attitudeChanges).
+  queue('bookkeeper', () => message('{"socialEvents": ["npc_ok', { stop: 'max_tokens' }), bookReply({ journalEntry: 'Asked about the tide.' }));
   await sendText(page, 'I ask the ferryman about the tide');
   const books = reqs.filter(r => r.role === 'bookkeeper');
   assert.deepEqual(books.map(r => r.body.max_tokens), [4000, 8000]);

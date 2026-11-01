@@ -20,7 +20,8 @@ function roleOf(body) {
   if (body.stream) return 'narrator';
   const sc = body.output_config && body.output_config.format && body.output_config.format.schema;
   if (sc && sc.properties && sc.properties.actionType) return 'parser';
-  if (sc && sc.properties && sc.properties.attitudeChanges) return 'bookkeeper';
+  // Changed by design in wave 28 (A3): the bookkeeper's schema carries socialEvents (attitudeChanges left the wire).
+  if (sc && sc.properties && sc.properties.socialEvents) return 'bookkeeper';
   return 'chronicle';
 }
 const USAGE = { input_tokens: 300, output_tokens: 80, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
@@ -38,7 +39,8 @@ function sse(parts) {
   return { status: 200, contentType: 'text/event-stream', body: ev.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('') };
 }
 const PARSE = { actionType: 'talk', summary: 'Asks about the river', targets: [], aboutIds: [], destinationId: null, moveWhen: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'instant', declaresWorldFact: false };
-const FULL = { attitudeChanges: [], newMemories: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], npcFates: [], memoriesSettled: [], obligationsSettled: [], journalEntry: null };
+// Changed by design in wave 28 (A3): the full reply's fields (socialEvents in place of attitudeChanges, newMemories and memoriesSettled).
+const FULL = { socialEvents: [], goldDelta: null, hpDelta: null, itemsGained: [], itemsLost: [], conditionsAdded: [], playerLocationId: null, npcKnownToPlayer: [], threadUpdates: [], clockNudges: [], newSeeds: [], rumoursHeard: [], placesRevealed: [], npcFates: [], obligationsSettled: [], journalEntry: null };
 
 /* A live game against the route: every parser call answers PARSE, every
    narrator call a short scene, and the bookkeeper calls come from `book`,
@@ -60,23 +62,27 @@ async function openLive(h, book) {
 }
 const count = node => { let props = 0; const walk = x => { if (Array.isArray(x)) return x.forEach(walk); if (x && typeof x === 'object') { if (x.type === 'object' && x.properties) props += Object.keys(x.properties).length; Object.values(x).forEach(walk); } }; walk(node); return props; };
 
-s.test('the schema: 41 properties and four enums (the shape known to pass the grammar limit), fates and settled memories as "npc_id: ..." strings, a core schema of the thirteen essentials; the parser untouched', async h => {
+// Changed by design in wave 28 (A3): socialEvents ("npc_id event: the memory") in place of attitudeChanges, newMemories and memoriesSettled:
+// 34 properties and three enums, a core of eleven, the parser fourteen with romantic (tests/probe-grammar.cjs checks them live).
+s.test('the schema: 34 properties and three enums (smaller than the shape known to pass the grammar limit), fates and the social events as "npc_id ..." strings, a core schema of the eleven essentials; the parser gains romantic (fourteen)', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const r = await page.evaluate(() => ({ rc: Game.Api.SCHEMAS.record_changes, core: Game.Api.SCHEMAS.record_changes_core, fields: Game.Api.RECORD_CORE_FIELDS, parse: Game.Api.SCHEMAS.parse_action }));
-  assert.equal(count(r.rc), 41);
+  assert.equal(count(r.rc), 34);
   let enums = 0; const walk = x => { if (Array.isArray(x)) return x.forEach(walk); if (x && typeof x === 'object') { if (Array.isArray(x.enum)) enums += 1; Object.values(x).forEach(walk); } }; walk(r.rc);
-  assert.equal(enums, 4, 'weight, place type, place kind and the nullable thread status');
+  assert.equal(enums, 3, 'place type, place kind and the nullable thread status');
   assert.equal(r.rc.properties.npcFates.items.type, 'string');
-  assert.equal(r.rc.properties.memoriesSettled.items.type, 'string');
+  assert.equal(r.rc.properties.socialEvents.items.type, 'string');
+  assert.ok(!('memoriesSettled' in r.rc.properties));
   assert.deepEqual(r.rc.properties.clockNudges.items.properties.delta, { type: 'integer', description: '1 when the action helps the aim, -1 when it hinders it' });
   assert.equal(r.rc.properties.newSeeds.items.properties.triggerType.type, 'string');
   assert.ok(!('enum' in r.rc.properties.newSeeds.items.properties.triggerType));
-  assert.deepEqual(r.fields, ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'memoriesSettled', 'obligationsSettled', 'journalEntry']);
+  assert.deepEqual(r.fields, ['socialEvents', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'obligationsSettled', 'journalEntry']);
   assert.deepEqual(Object.keys(r.core.properties), r.fields);
   assert.deepEqual(r.core.required, r.fields);
   assert.equal(r.core.additionalProperties, false);
-  assert.equal(count(r.core), 18);
-  assert.equal(count(r.parse), 13);
+  assert.equal(count(r.core), 11);
+  assert.equal(count(r.parse), 14);
+  assert.deepEqual(r.parse.properties.romantic.anyOf, [{ type: 'string', enum: ['flirt', 'more'] }, { type: 'null' }]);
 });
 
 s.test('Api.recordFromWire: "npc_id: hurt" and "npc_id: text" become the engine\'s objects (a dash or a space does too), objects pass through, a clock delta is 1 or -1 and 0 is dropped, a core reply gets its missing fields empty, a string with no id is left for State.apply to reject', async h => {
@@ -87,7 +93,8 @@ s.test('Api.recordFromWire: "npc_id: hurt" and "npc_id: text" become the engine\
       strings: f({ npcFates: ['npc_wade: hurt', 'NPC_LYMAN - Dead', 'npc_carter gone', 'npc_royce: Arrested.'], memoriesSettled: ['npc_curtis: Loaned Joe $15; he owes me $30 tonight', 'npc_jodie — tipped me twenty for sitting with him'] }),
       objects: f({ npcFates: [{ npcId: 'npc_wade', status: 'hurt' }], memoriesSettled: [{ npcId: 'npc_curtis', text: 'owes me' }] }),
       clocks: f({ clockNudges: [{ factionId: 'fac_a', delta: 3 }, { factionId: 'fac_b', delta: -2 }, { factionId: 'fac_c', delta: 0 }, { factionId: 'fac_d', delta: 'x' }] }).clockNudges,
-      core: f({ attitudeChanges: [], newMemories: [], goldDelta: -4, hpDelta: null, itemsGained: [], itemsLost: [], playerLocationId: null, npcKnownToPlayer: [], rumoursHeard: [], npcFates: [], memoriesSettled: [], obligationsSettled: [], journalEntry: 'Paid.' }),
+      // Changed by design in wave 28 (A3): the core reply of eleven (socialEvents first).
+      core: f({ socialEvents: [], goldDelta: -4, hpDelta: null, itemsGained: [], itemsLost: [], playerLocationId: null, npcKnownToPlayer: [], rumoursHeard: [], npcFates: [], obligationsSettled: [], journalEntry: 'Paid.' }),
       junk: f({ npcFates: ['the old man is hurt'], memoriesSettled: ['nothing'] }),
       notObject: f(null)
     };
@@ -132,14 +139,15 @@ s.test('live: the API refusing the grammar (400 "compiled grammar is too large")
   const { page, reqs } = await openLive(h, (body, n) => {
     const sc = body.output_config.format.schema;
     if (Object.keys(sc.properties).length > 13) return error(400, 'invalid_request_error', GRAMMAR);
-    return message(JSON.stringify({ attitudeChanges: [], newMemories: [], goldDelta: -2, hpDelta: null, itemsGained: [], itemsLost: [], playerLocationId: null, npcKnownToPlayer: [], rumoursHeard: [], npcFates: [], memoriesSettled: [], obligationsSettled: [], journalEntry: 'Paid two dollars.' }));
+    return message(JSON.stringify({ socialEvents: [], goldDelta: -2, hpDelta: null, itemsGained: [], itemsLost: [], playerLocationId: null, npcKnownToPlayer: [], rumoursHeard: [], npcFates: [], obligationsSettled: [], journalEntry: 'Paid two dollars.' }));
   });
   const gold = await page.evaluate(() => Game.state.player.gold);
   await sendText(page, 'I ask about the river');
   const books = reqs.filter(x => x.role === 'bookkeeper');
   assert.equal(books.length, 2, 'the full schema, then the core');
-  assert.equal(count(books[0].body.output_config.format.schema), 41);
-  assert.deepEqual(Object.keys(books[1].body.output_config.format.schema.properties), ['attitudeChanges', 'newMemories', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'memoriesSettled', 'obligationsSettled', 'journalEntry']);
+  // Changed by design in wave 28 (A3): the full schema is 34 properties, and the core is 11 fields, socialEvents first.
+  assert.equal(count(books[0].body.output_config.format.schema), 34);
+  assert.deepEqual(Object.keys(books[1].body.output_config.format.schema.properties), ['socialEvents', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'obligationsSettled', 'journalEntry']);
   assert.equal(books[1].body.system, books[0].body.system, 'the same system prompt');
   const r = await page.evaluate(() => ({ gold: Game.state.player.gold, changes: Game.state.log[Game.state.log.length - 1].changes || null, journal: Game.state.journal[Game.state.journal.length - 1].text, api: Game.State.debugLog.filter(d => d.kind === 'api').map(d => d.reason), book: Game.State.debugLog.filter(d => d.kind === 'bookkeeper').map(d => d.reason) }));
   assert.equal(r.gold, gold - 2);
@@ -158,7 +166,7 @@ s.test('live: the API refusing the grammar (400 "compiled grammar is too large")
   for (let i = 0; i < 50 && r2.filter(x => x.role === 'bookkeeper').length < 2; i++) await new Promise(res => setTimeout(res, 100));
   const b2 = r2.filter(x => x.role === 'bookkeeper');
   assert.equal(b2.length, 2, 'the turn\'s call and the background retry, nothing else');
-  for (const b of b2) assert.equal(count(b.body.output_config.format.schema), 41, 'never the core schema for another 400');
+  for (const b of b2) assert.equal(count(b.body.output_config.format.schema), 34, 'never the core schema for another 400');
   await p2.waitForFunction(() => Game.State.debugLog.some(d => d.kind === 'bookkeeper' && /the retry failed too/.test(d.reason)), null, { timeout: 10000 });
   const q = await p2.evaluate(() => ({ changes: Game.state.log[Game.state.log.length - 1].changes || null, book: Game.State.debugLog.filter(d => d.kind === 'bookkeeper').map(d => d.reason) }));
   assert.equal(q.changes, 'not recorded');

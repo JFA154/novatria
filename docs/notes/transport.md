@@ -838,3 +838,28 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   the 120 s JSON timeout, Stop aborts it). The refusal and the fallback are
   both in the debug view's API errors. See `docs/notes/prompts.md` Wave 17
   for the schema itself.
+
+## Wave 28 (1 Nov 2026)
+
+- The bookkeeper's grammar fallback is unchanged in its rules; the core it
+  falls back to is 11 fields now (`docs/notes/prompts.md`, Wave 28). The
+  full schema is 34 properties and three enums, the parser's 14 fields.
+- `tests/probe-grammar.cjs` (not a `.test.` file): the page builds the
+  bookkeeper's packet from a mock turn (as kept for the Debug export) and
+  the parser's for "I flirt with Jodie", and the bodies and headers
+  (`Api.requestBody`, `Api.headers`); Node posts the new `record_changes`,
+  its core, the new `parse_action` and the 41-property control from
+  `56e69f5` to each model (`PROBE_MODELS`, default the Standard and
+  Thrifty presets' parser model at their effort) and prints the status,
+  request-id, stop reason, counts, the socialEvents the page reads and the
+  parser's romantic. It passes when all are 200, nothing mentions
+  "grammar", each record_changes reply has a known event and State.apply
+  of it (on a snapshot, restored) rejects nothing. `PROBE_DRY=1` builds
+  everything and stops before the network. Not run yet: it needs a key.
+- **Debug export of bookkeeper turns.** Settings, Advanced, "Keep
+  bookkeeper packets" (`keepPackets`, off by default): while on, the last
+  200 bookkeeper turns of the session are kept in memory
+  (`Pipeline.keepBookTurn`, `BOOK_TURNS_MAX`), and the Debug view's
+  "Export bookkeeper turns" saves them as JSONL (`Pipeline.bookTurnsJsonl`),
+  one `{ id: "pt-<date>-t<turn>", packet, labels: [], note }` a line in the
+  labelled eval's input shape, the note saying what the model sent.

@@ -254,3 +254,16 @@ against canned replies (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`).
   recorded. The lesson: a schema this size needs a live probe before any
   field is added, and the count alone is not the measure (enums and
   nullables weigh too).
+- **Wave 28 (1 Nov 2026): smaller, still to probe.** `attitudeChanges`,
+  `newMemories` and `memoriesSettled` gave way to one `socialEvents`, an
+  array of strings ("npc_dewayne apologised: hitting me over the tow
+  bill"; `Api.socialFromWire`): 34 properties and three enums, 16
+  top-level fields, with `record_changes_core` at the eleven essentials
+  (socialEvents, money, health, things gained and lost, where the player
+  is, who they met, rumours, fates, obligations, the journal line; 11
+  properties, no enums). `parse_action` gains a nullable `romantic`
+  ("flirt" or "more"): 14 fields. Both shapes are smaller than, or one
+  nullable enum beyond, ones known to pass; `tests/probe-grammar.cjs`
+  posts them and the 41-property control to the Standard and Thrifty
+  models (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`) and has not
+  been run yet.

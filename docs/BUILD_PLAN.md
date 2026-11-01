@@ -319,7 +319,16 @@ when their payment was. `record_changes` gains `npcFates: [{ npcId, status:
 2`), `memoriesSettled: [{ npcId, text }]` and `obligationsSettled: [id]`. A
 debt or blackmail is also met by a `goldDelta` that hands over the amount
 with the person present, an errand by an `itemsLost` of its `itemName`. The
-result adds `progressed` and `settled`.
+result adds `progressed` and `settled`. Since wave 28 the bookkeeper's
+people are `socialEvents: ["npc_id event[ npc_about][ private]: the
+memory"]` (`Api.socialFromWire` makes `{ npcId, event, aboutId, private,
+text }`) in place of `attitudeChanges`, `newMemories` and
+`memoriesSettled` (still read when sent): 22 events it may name, checked
+for presence and their preconditions (`Rel.wireEvent`), at most two a
+person and four a turn, the heaviest kept, the engine's own events this
+turn first; the model opts add `engineEvents`, `diminish`, `giftTo`,
+`speechTo` and `romance`, and the result `minors` (romance for someone
+under 18, set aside for the minor rule).
 
 ## Module responsibilities
 
@@ -1689,3 +1698,34 @@ talking, I can direct it to one person or all."
      `tests/wave27-rel-engine.test.cjs`,
      `tests/relationships-examples.test.cjs` (the design's examples 4 and
      7).
+   - **Wave 28** (1 Nov 2026). A3, "The bookkeeper names the act, and
+     minors are protected before the story is told". `record_changes`
+     sends `socialEvents` lines in place of attitude deltas and memories
+     (34 properties, three enums; the core 11), and `parse_action` a
+     nullable `romantic` (14); `EVENT_RULES` and `MEMORY_WORDS` are the
+     rubric, and `MEMORY_RULES` stays word for word for the Upgrade
+     rewrite. State applies the model's events as a whole (presence,
+     `Rel.wireEvent`'s preconditions and downgrades, the humiliation, the
+     caps, the engine's events first); an apology settles by its words.
+     Trust gates the dice for a lie, a difficulty floor, the secret, the
+     couch, the card seats and dealer, rumours and favours (liking 50,
+     trust 20, a help to answer; templates' `needs`). The minor rule is
+     the engine's, before narration: `Rel.romanceTurn` (the flag, the
+     phrase list, the bookkeeper's romance for a minor set aside), the
+     narrator's UNDER 18 line every turn, the light row on one signal and
+     the full row on a named target with two (`World.minorAdvance`: the
+     guardians, the reports to the police head or `TOWN_DATA.policeFallback`
+     (Sheriff Hoyt) or the news, reputation -10 outside the cap); a hit or
+     threat on a minor reports too (`World.minorHarm`); coercion (a
+     romantic ask with a threat) is refused with no roll and reported
+     (`World.coercion`); the player under 18 or with no age is never
+     flirted with; intimate scenes fade to black (the cached style block,
+     +18 tokens). Content: `start` and `axes` on ten people, three report
+     templates, favour `needs`; the validator and `docs/CAST.md` follow.
+     Debug can export the bookkeeper's turns as JSONL for the labelled eval
+     (Settings, Advanced, "Keep bookkeeper packets").
+     `tests/probe-grammar.cjs` checks the schemas live and has not been
+     run (it needs a key). `docs/notes/prompts.md`, `transport.md`,
+     `content.md`, `engine-state.md`, `engine-world.md`; tests:
+     `tests/wave28-social-events.test.cjs`, `tests/relationships.test.cjs`,
+     examples 1, 3(b) and 5 in `tests/relationships-examples.test.cjs`.

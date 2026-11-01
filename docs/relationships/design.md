@@ -1231,9 +1231,9 @@ Trait axes used below (Appendix A):
 - **Day 4.** The apology rolls charm and succeeds; it must land, because Dewayne is at -25, not above it. The engine adds `gift` ($40 for his safety glasses).
   - The hit's liking is halved to -12; its trust is eased by a quarter to -8; fear 20 has faded to 17.
   - Gift +5, apology +2.
-  - **Dewayne: W -5, T -13, F 17, K 13**: "sizing you up · uneasy around you". Fear 17 is still inside "uneasy", which is entered at 20 and left below 15.
+  - **Dewayne: W -5, T -13, F 17, K 13** (the code: K 15, with +1 for each turn aimed at him): "cool to you · uneasy around you". Fear 17 is still inside "uneasy", which is entered at 20 and left below 15. Liking has the same hysteresis: cool is entered at -6 and left only above -1, so W -5 is still cool, not "sizing you up" (corrected in wave 28, when the example became a test).
   - Mavis's copy is halved the next morning, to about **W -8**.
-- **Narrator (Day 4).** `Dewayne Mangum ... to you: sizing you up; uneasy around you — hit him in his bay over a tow bill (Day 3, apologised); paid for his glasses (Day 4) — plays it: watches what you do, not what you say; keeps a step back`
+- **Narrator (Day 4).** `Dewayne Mangum ... to you: cool to you; uneasy around you — hit him in his bay over a tow bill (Day 3, apologised); paid for his glasses (Day 4) — plays it: civil and brief; keeps a step back`
 - **Player sees.**
   - Day 3: "Dewayne Mangum won't forget that."
   - Day 4: "Word got round: Mavis Mangum has heard about Pittman's."
@@ -1276,7 +1276,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - **Council:** trust 30 and familiarity 25 holds: tabled, police kept.
   - **The fake path no longer works.** A Day-1 confidence plus "Carter asked me and I told him nothing" on Day 2 fails twice: the confidence isn't a day old, and Carter isn't present. It is downgraded to `confided` (T +6), and the branch fails.
 - **(b) The drinking buddy.** Rounds on Days 2 to 4, four compliments, `spent_time` four days.
-  - **Tracks:** **W 32, T 5**. "warm to you".
+  - **Tracks:** **W 32, T 5**. "warm to you". (The morning after Day 5: the code closes Day 5 at W 36 and fades to 32 overnight.)
   - **Council:** only the "friendly face" branch, if the player is in the room.
   - Ten more nights of rounds keep him "warm to you": gifts then count +1 a night, and the everyday bucket stops at +15. Trust doesn't move.
 - **(c) The bully.** Engine `threatened` on Day 4 and Day 5.
