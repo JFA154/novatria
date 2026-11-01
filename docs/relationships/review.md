@@ -520,3 +520,255 @@ Approve tier A once the ten changes below are in the design. Send B back for a s
 3. **Knobs from 10 to 4 signed axes:** pride, guardedness (SUSPICIOUS to OPEN), nerve (TIMID to HARD), grudge-holding (GRUDGING to FORGIVING). Drop MERCENARY, PRINCIPLED and LOYAL. Collapse decay to 3 classes, one fear clock and no trust half-speed.
 4. **Knows-you as an event-driven track.** Derive familiarity in code from the days met plus the turns aimed at them. It only gates the stranger cue, the secret and the trust cap, and it needs no column in the event table.
 5. **The card's 2×2 word grid, and half the stance grid.** Show the stance plus two dated reasons, with the tracks in Debug. Cut the 21 cells to about 10 phrases (5 liking bands × trusts or not, plus "hates you" and "doesn't know you").
+
+
+---
+
+# Part two: the delta review of the second design
+
+Reviewed 1 Nov 2026 against the second version of the design (the one that
+added spark, leverage and the minor guard; `design.md` in this folder is the
+third version, which folds this review's ten changes in), with code checks in
+`index.html`.
+
+- Section numbers (§) and example numbers refer to the second version; the third keeps the same numbering.
+- R1 to R10 are my required changes from v1. N1 to N13 are new findings.
+- The orchestrator's decisions were not re-argued, only checked.
+
+## Part 1: verification
+
+### The ten required changes
+
+| # | Change | Status | Evidence | Still wrong |
+|---|---|---|---|---|
+| R1 | Hidden-tie reasons without cause; card dates the act | **Landed** | §5.2, §8 Reasons, example 9 | A report through a hidden protector tie leaks the tie. Appendix F makes Wade Hollis's protector, and Hollis→Wade is hidden (Appendix B). A plain threat to Hollis puts "Hollis says you've been leaning on him" on Wade's card and in his narrator reason. That shows the Night Run link which *is* Hollis's secret. Route such reports through the hidden-tie rule. |
+| R2 | Airtight minor rule in A | **Landed, with holes** | §2.7, example 13, Appendix D | N1, N6, N7 |
+| R3 | Engine-derived events, dedupe by class, act classification, tolerant parser, eval | **Landed** | §3.1, §3.6, §3.8, Appendix D | `rescued` needs "a fight" in state. Fights are the player's own, so "help up the man you just beat" passes. Exclude danger the player caused. `caught_you_at` from any witnessed attack: N8. |
+| R4 | Guards on self-reported events; apology rules; report on threat fear | **Partial** | §3.2, §5.3, §6.2 | `kept_word` needs "another NPC present", not "someone asked". At the Low Water in the afternoon, Loretta, Elbert, Tammy or Curtis is always there, so a staged "Carter asked me and I told him nothing" passes. Scenario 3 below. |
+| R5 | Bounds: everyday, diminishing, devoted needs trust, witness copies, eviction, knows-you, hysteresis | **Landed** | §2.4, §3.3, §3.5, §5.1 | none |
+| R6 | Fear: hard cap, override window, protectors, role limits | **Landed** | §2.4, §6.2, §4.6, Appendix F | Six people are hard but not tough: Carter, Marcus, Loretta, Tammy, Nikki, Trent. §6.2 says they get "no compliance". §2.6.5 says they pay a blackmail unless proud. Pick one. A tough man's answer to a single public beat-down is missing (scenario 2). |
+| R7 | Hearsay by tie class; household; no hop 2 | **Landed** | §4.3 | none |
+| R8 | Feasibility plan | **Partial** | §5.1, Appendix F, §9 cost | Separate dice streams are named only for the report seed and the fear ceiling (§6.2). Leverage-backed no-roll asks skip the d20, which shifts the stream. Price, tell and owed seeds don't say which stream they use. The validator's `))` split (`validate-town.cjs:1946`), the `Mechanic: … attitude −10.` pin (1919) and the `Style.KNOWLEDGE` rewrite (it still says "remembers list") are not mentioned. |
+| R9 | Cues present-only; "won't sell" time-boxed | **Partial** | §8 cue table, §6.3 | The new packet line `LEVERAGE: Hollis Byrd will pay the $300 by tomorrow evening` is a future act. The narrator can have him pay now, the bookkeeper records `goldDelta +300`, and the seed pays again on Day 4. Refuse `goldDelta` from a target with a pending demand, and word the line "agrees to pay by tomorrow evening; pays nothing now". |
+| R10 | Executable examples, simulator, missing numbers | **Landed** | Appendix D, §3.1 Rep column, §3.4, §3.6 caps | The brawler band can't hold as specified (scenario 2). |
+
+**The orchestrator's decisions, as implemented: clean, with one exception.**
+
+| Decision | Where | Status |
+|---|---|---|
+| Trust cap dropped | §2.1 | clean |
+| Owed favours and knows-you kept, with guards | §6.2 favours and ask-back; §2.1 | clean |
+| Hop 2 and the loyalty blend dropped | §4.3, §4.6 | clean |
+| BETWEEN THEM for known ties only | §4.5 | clean |
+| Four axes plus the mercenary flag | §3.4, Appendix A | clean: I checked 18 people's traits against Appendix A and all match |
+| Council fear branch out | §9 | clean |
+| The card names the act | §5.2 | clean |
+| "12 phrases" | §2.4 vs §10 | **not clean:** §10's contempt variant ("has no use for you") makes a 13th phrase. Its rule, top negative memories that are "words or honesty, not harm", turns example 2's Mavis (top memory `exposed`) into "has no use for you" instead of the "against you" the example shows. Class `exposed` as harm, or exclude it. |
+
+### The three scenarios, re-run on the v2 tables
+
+**1. Beer-buyer: a round nightly at the Low Water.** v2 rules: a gift counts +5 for the first 3 to a person, then +1 each (slight class, kind floor 0); `spent_time` +2, +2, +2, then +1, into everyday held to ±15.
+
+| Person | Day 10 | Day 21 | Stance | Trust |
+|---|---|---|---|---|
+| Royce | W = 10 + 9.8 (gifts) + 13 (everyday) = **33** | about 33 (gifts steady at +7.7, everyday 15) | "warm to you" | stays 5 |
+| Curtis (mercenary ×2) | W **38** | about 36 | "warm to you" | stays 0 |
+
+The absurdity is gone. Nobody reaches the devoted row, and "loyal to you" can't appear without trust above 0.
+
+**2. Bar fight: Wade, Day 2 evening at the Low Water** (Loretta, Tammy, Lyman, Curtis and Carter present).
+
+- **Wade:** the beat-down replaces the hit memories. W -10 − 35 = **-45**, T **-25**, F 26 (hard, cap 39): "against you · uneasy around you". Day 10: **W -43** (scar, r -1, half-life 29.7 days); Day 21: **-40**. Not afraid, no police report. v1's absurdities are gone.
+- **Witnesses** take the beat-down row only, as example 4 does, one class lighter (wound) with floor 0: W -8 each; fear +9 for Loretta and Tammy (hard), +12 for the others. Day 10: Loretta -4.6, Tammy -6.1 (r -2); Day 14: -3.0 and -4.9.
+- **Overnight:** Lorna (factor 0.38) W -13, T -5; Colt (0.21) W -7; Boyd (hidden, -0.34) **+12**; Ray and Marcus 0, held by the role limits. About 9 people move and 1 warms.
+- **New problems:**
+  - **(a) Wade does nothing.** -45 is short of the -60 needed for a grudge. Nothing answers one public beat-down of the Night Run's boss, although §2.6.5 already says "Wade makes it go away" when blackmailed. **Fix:** a `beat_down` on a tough person plants a violence grudge whatever the liking.
+  - **(b) The simulator's brawler band is impossible.** Appendix D says "a fight every other night" and also "bystanders back within 5 of start by Day 14". Fights on Days 2, 4, …, 14 leave a regular at Σ -8 × 0.5^(age/10) ≈ **-38** on Day 14. Stop the fights at Day 6, or change the band.
+  - **(c) Five weight-3 leverage records.** `caught_you_at` gives each of the 5 witnesses a weight-3 record over the player (N8).
+
+**3. Stranger to the council (trust 30, knows-you 25 by Day 6 evening).**
+
+- **Honest path (example 3a): works, tight.** At the council, trust is 5 + 17.2 (`kept_word`, about 1 day old) + 5.5 (`confided`) + 3.3 (`they_confided`) = **31.0**.
+- **Fake path: still open.** Day 1: Royce confides anything (`they_confided` has no precondition). Day 2: a staged `kept_word` with Loretta present passes "another NPC present". That gives T 5 + 4 + 6 + 18 = **33**, with knows-you past 25, so the branch fires on Day 2. With the trust cap gone, this precondition is the only brake, and it doesn't hold in a bar.
+- **Fix (code-checkable):** the `kept_word` text must name an asker who is present this turn and is not the confider, and the `they_confided` must be at least a day old.
+
+## Part 2: attack on the new material
+
+**N1 (blocker). Coercion: backed or fear-backed asks give sexual compliance with no roll.**
+- **Evidence:**
+  - §2.6.5: a backed ask at weight 2 or more takes no roll, and "anyone else complies".
+  - §6.2: "an adult afraid of you does a small thing with no roll".
+  - §2.5: the `romantic` flag exists, but nothing connects it to either path.
+- **What happens:** "Sleep with me or Bell hears about your tapes" to Glenda parses as intimidate, with `lev_glenda_…` in `aboutIds` and `romantic: true`. The packet then says `LEVERAGE: Glenda Pryor will comply`, and the narrator writes coerced sex. Fear works the same way: an adult at fear 40 or more and a romantic ask.
+- **Fix:**
+  - A romantic ask is never backed and never fear-ceilinged, for anyone. It always fails.
+  - The narrator line says she refuses and what she does next.
+  - The event is `blackmailed` plus `crossed` at full. A report goes to the protector, and reputation takes -10, outside the cap.
+  - Add it to Appendix D for adults and minors.
+
+**N2 (serious). There is no fade-to-black rule, and A/B record nothing for an intimate scene.**
+- **Evidence:**
+  - A grep of `index.html` for fade, intimate, explicit, graphic and mature finds only CSS animations. SPEC rule 7 isn't in the narrator prompt at all today.
+  - v2 ships spark to 100, "open to a flirt" and "falling for you" in tier A.
+  - `intimate` is refused in A and B, so a narrated night together leaves no state (rule 8).
+- **Fix:**
+  - Add a cached-block rule, about 20 tokens: intimate scenes fade to black, and nothing explicit.
+  - **Owner decision** for A/B. Either code tells the narrator on a romantic turn that asks for more than a flirt ("not tonight; she says so kindly"), or the scene is recorded as `spent_time` plus a `noted` line.
+
+**N3 (serious). Flirt spam manufactures caring.**
+- **Evidence:**
+  - `flirted` gives W +4 (mood, half-life 2), at 1, ½ and ¼ a day.
+  - Steady-state liking from flirting alone is 7 / (1 − 0.5^0.5) ≈ **+24**.
+  - Shayla goes from W 5 to 29, at or above 25, and with spark 30 or more that is **"sweet on you"** ("lights up when you come in; remembers what you told her") from flirts alone.
+  - This undercuts §2.5's "wanting and caring are separated".
+- **Fix:** the caring thresholds of the statuses (liking 25 or 50) read liking *minus* romance-class contributions. Alternatively, only the first flirt of a day carries liking.
+
+**N4 (serious). "Using you" is a false positive for people distrustful from the start.**
+- **Evidence:** Jodie starts at T -25 (a start override; she is hiding).
+- **The walk:**
+  - Skip the favour.
+  - Knows-you reaches her `opensAt` of 20 by Day 4 (time +12, turns +12).
+  - Flirt three times a day on Days 4 and 5: S ≈ 40, W ≈ 13, T -25.
+  - That reads **"using you"** and "It isn't friendship" for a frightened runaway who has done nothing.
+- **Fix:** "using you" needs earned distrust (a first-hand harm or honesty memory) or the `mercenary` flag. Otherwise the status is "wants you, doesn't trust you". The wording is the owner's decision.
+
+**N5 (minor). The status feed line repeats.**
+- **Evidence:**
+  - Spark from a flirt fades with a 5-day half-life and no floor. "Using you" is entered at 40 and left below 35, so it lapses after about 1.5 unvisited days.
+  - Fading is silent, but every re-entry prints "Shayla Rawls is interested. It isn't friendship." again.
+  - `rel.bands.s` holds one value, while a status depends on three tracks.
+- **Fix:** a status prints its feed line once per person per 7 days. Specify how a status remembers its band.
+
+**N6 (serious). A false positive on the `romantic` flag is catastrophic for minors, and the flag's recall is untested.**
+- **Evidence:** §2.7 fires the full consequence row from one Haiku boolean, including on a Say to everyone with a minor present. Two ordinary turns trigger it:
+  - "Thanks, sweetheart" to Kaylee;
+  - "Darlene, you look lovely today" said to everyone, with Kaylee at the register.
+
+  Either one gives:
+  - W -20/-20 at weight 3 for Kaylee;
+  - weight-3 "came on to my daughter" memories for Royce and Darlene;
+  - two reports to Chief Bell;
+  - reputation -10.
+
+  Meanwhile a *missed* flag plus a bookkeeper `complimented` gives no consequence at all. Appendix D's mock parser always sets the flag, so neither error rate is measured.
+- **Fix:**
+  - The narrator-side minor line goes in **whenever a minor is present**, about 25 tokens. That takes the parser out of the safety path for narration.
+  - The heavy consequences need corroboration: the minor is a named target (not everyone-mode), and a second signal agrees (a bookkeeper romance event, or a code phrase list over the input).
+  - Add about 50 labelled romantic lines to the eval, including euphemism and Do mode ("ask what time she gets off", "I wink at Micah"). Set a recall target of 98% or more for lines aimed at minors.
+  - **Owner decision:** the corroboration threshold.
+
+**N7 (serious). The minor anchors can be stripped, and the guardians can be missing.**
+- **Evidence:**
+  - Cast age comes from `state.town`.
+  - The editor can't change tags, but a hand-edited import can change the town copy's age, the current age and the tags together.
+  - Saves from before the cast had ages may have none in the town copy.
+  - "Each parent or grandparent in town": if Tammy is arrested, gone or dead, Austin has nobody.
+  - If Marcus is arrested, or the council's police vote ends the department, reports "to Chief Bell" go nowhere.
+- **Fix:**
+  - Also anchor on the live `TOWN_DATA` age by id for the built-in town, using the existing read-time fallback (audit §7, pattern 3).
+  - Fail closed on any record with no age whose role reads as a teen.
+  - Guardian fallback: another adult with a family or household tie.
+  - Police fallback: the county sheriff, Hoyt Bramlett ("a deputy comes when called").
+
+**N8 (serious). `caught_you_at` arises from public acts.**
+- **Evidence:**
+  - §2.6.1 (engine): "a steal, sneak or attack seen by X". The default witnesses are everyone present.
+  - §2.6.3: violence gives weight 3.
+- **What happens:** one bar fight gives 5 records over the player. Curtis (mercenary, liking 10 or less after the fight) names a $150 price in 2 days, and any holder's report spends it. The player is blackmailed for something the whole bar saw.
+- **Fix:** only acts with at most one witness, never public or in the news, and never violence (that is already a memory and news). One record per act. Specify its `mattersTo`: the victim for theft, the police for a crime, nobody for a lie.
+
+**N9 (serious). Leverage can be fabricated, pumped and triggered by accident.**
+- **Fabrication.** The `learned_secret` precondition is that the secret was *in the packet*, not that the narration showed it. The packet carries it after every successful social roll aimed at X.
+  - **Fix:** code checks that the narration overlaps 2 or 3 content-written `leverageKeys` per secret ("garage account", "tapes", "cash book").
+- **Pump.** Weight-3 targets who comply:
+
+  | Who | Why they comply |
+  |---|---|
+  | Mavis, Royce, Glenda, Lamar, Nadine | pride 0 |
+  | Jolene, Travis | pride +1, but fear reaches 45 and 49 |
+  | Hollis | pride 0; demand cap $300 |
+
+  At the default `canRaise` of $200 that is about **$1,700** from one pass. Repeat demands on a `paid` record are unspecified.
+  - **Fix:** `paid` is terminal for demands, and the default `canRaise` is $100. **Owner decision:** is blackmail meant to fund the game?
+- **Accidental threats.** Once `lev_` ids are parser entities, Haiku can put `lev_hollis_1` in `aboutIds` for any ask of Hollis. That makes an unintended no-roll threat: W -15, T -20. (`aboutIds` already exists, `index.html:15372`.)
+  - **Fix:** a backed ask also needs the player's words to reference the record (overlap with its text, or a threat phrase), checked by code.
+- **Double count.** The blackmail obligation's payment is an obligation payment, so engine `paid_back` (+5/+10) fires as well as `paid_silence` (+5/+10). §3.6 removes duplicates only between the engine and the bookkeeper, not engine against engine. Example 12 counts one of them.
+  - **Fix:** `paid_silence` replaces `paid_back` for blackmail obligations.
+- Backed asks must still draw the d20 (R8). The `LEVERAGE:` line problem is in R9.
+
+**N10 (serious). Leverage consistency.**
+- **(a) Hard but not tough** against compliance: see R6.
+- **(b) Telling the police does nothing to the target.** `exposed` to Marcus about Hollis moves only tracks. **Owner decision:** add per-secret `whenTold` content (a clock nudge or an inquiry seed), or accept it.
+- **(c) Example 12 contradicts itself.** The standoff's gossip grudge has Glenda "talk around town about the player's story". That is telling. Make it a generic grudge, or have it spend her record and end the standoff.
+- **(d) The hidden protector tie leak:** see R1.
+
+**N11 (minor). Appendix D proves the code paths, not that a live parser and narrator hold.** Add:
+- the status cue strings to the step 8 regex: `flirts back|lights up when|stands close|for one reason|looks twice|open to it`;
+- the coercion case (N1);
+- an import that strips all three anchors (N7);
+- an unflagged kind remark to Kaylee producing no consequence;
+- the guardian-absent case;
+- parser recall (N6).
+
+**N12 (minor). §10's verdicts are honest.** Contempt adds a 13th phrase (Part 1). Missing from the list: guilt by association (time spent with Colt should cool Tammy: "you run with the Purvises"). Fine to defer, but list it. Optional: a parent notices repeated gifts or private time with their child.
+
+**N13 (minor). Spark loose ends.**
+- Appendix E says "default nobody" but lists 12 people, and example 10 and test 9 need Shayla and Jodie eligible. State what ships. Curtis is married ("separated"), against "married people left off".
+- "Sweet on you: small favours come easily" has no mechanic; say it is cue-only. Ineligible adults are handled (the unwelcome row), but with about 26 in-town adults ineligible, a flirty playstyle bleeds W -6 per flagged line. Consider -3 for the first unwelcome flirt per person.
+
+### Spot-check of examples 1, 3, 10 and 12
+
+| Ex | Check | Result |
+|---|---|---|
+| 1 | Dewayne T -5 − 11.5 = -17; Royce F 10, Jodie T -6, Lamar F 10; Mavis factor 0.29, giving W -12, T -14; Day 4 W -5, T -13, F 16.8, K 13; Mavis about -8 | **Correct.** One slip: with 5 points of hysteresis, fear 17 is still inside "uneasy" (left below 15), so the Day 4 line should carry "uneasy around you". |
+| 3 | (a) W 29.7, T 32.3, K 46; council T 31.0. (b) W 31 (±2). (c) F 31.25, then 26.3 + 40 = 66; W -14, T -15 | **Correct.** One slip: the report costs Marcus T -11.5 (g -1). Example 13 uses -11, but 3c says -10. |
+| 10 | Shayla W 12.9, T -30.9, S 43.5 ("using you"); Travis W -9, T -20; Jodie W 31, T -15.5, S 35.5 ("sweet on you") | **Correct** within ±2. |
+| 12 | Paid: W 10, T 0. Missed: Marcus T -17. Standoff: W -10, T -30, F 50 | **Arithmetic correct.** The faults are in the rules: `paid_back` double-counting (N9) and gossip as telling (N10c). |
+
+### Budgets
+
+**Cached block, about 235 of 330 tokens: plausible but optimistic. Measure before writing more.**
+- Not counted in the 235:
+  - the `Style.KNOWLEDGE` rewrite;
+  - the literary `Mechanic: … attitude −10.` example (pinned by `validate-town.cjs:1919`);
+  - the hidden-tie "never hint at it" wording;
+  - N2's fade-to-black rule.
+- The gate is words × 1.4 (`tests/api.test.cjs:174`), not the 3.5 characters a token the design used.
+- Expect 220 to 320. Run that test against a draft of the 10 rewritten entries first.
+- The fallback (shorten two entries) is fine.
+- The `))` split at `validate-town.cjs:1946` has to be rewritten at the same time.
+
+**`parse_action` from 13 to 14 properties: plausible, no measurement needed.** The parser schema is far below the record schema's 41 to 46 limit. Update the pin (`count(r.parse) === 13`, `wave17-grammar.test.cjs`). `aboutIds` already exists, so `lev_` ids need no schema change.
+
+## Part 3: verdict
+
+**Ready to write up as the plan, with these 10 changes.** v2 lands eight of my ten required changes cleanly. R4 and R9 are partial, and so is R8 at the edges. The orchestrator's decisions are implemented cleanly, apart from §10's 13th phrase. All three scenario absurdities are gone, and the four examples I spot-checked are arithmetically right. The new material carries one blocker, which is small to fix: blackmail and fear can give sexual compliance with no roll. It also brings a cluster of serious but local problems in leverage, spark and the minor guard's false positives. None needs a redesign. Fold these in, then hand the plan to implementation.
+
+**Required changes, most severe first:**
+
+1. **(blocker)** Romantic asks are never backed by leverage and never get the fear ceiling, for anyone. They always fail as coercion (`blackmailed` plus `crossed` at full, a report, reputation -10). Tested.
+2. The minor line goes to the narrator whenever a minor is present. The heavy consequences need corroboration: a named target plus a second signal. Romantic-intent lines join the eval with a recall target of 98% or more, and a phrase backstop in code.
+3. Minor status is also anchored on the live `TOWN_DATA` age by id, and fails closed on ageless teen-role records. Guardian and police fallbacks: another adult with a family or household tie, then the county sheriff.
+4. Add the fade-to-black rule to the cached block, and decide what a narrated intimate scene records in A and B (SPEC rules 7 and 8).
+5. `caught_you_at` only for acts with at most one witness, not public, never violence; specify its `mattersTo`. `rescued` excludes danger the player caused.
+6. `kept_word` needs a named asker present this turn (not the confider) and a `they_confided` at least a day old.
+7. Leverage:
+   - `learned_secret` needs narration overlap with content `leverageKeys`;
+   - a backed ask needs the player's words to reference the record;
+   - `paid` is terminal for demands, and the default `canRaise` is $100 (owner to confirm);
+   - `paid_silence` replaces `paid_back`;
+   - no `goldDelta` from a target with a pending demand, and the `LEVERAGE:` line is reworded;
+   - the d20 is drawn on backed asks;
+   - hard but not tough against compliance, resolved.
+8. Spark:
+   - the status caring thresholds exclude romance-class liking;
+   - "using you" needs earned distrust or the `mercenary` flag;
+   - one feed line per status per 7 days;
+   - state what eligibility list ships.
+9. Reports through a hidden protector tie follow the hidden-tie rule. Example 12's gossip-versus-standoff contradiction is fixed. Owner decides what telling the police does to the target. `exposed` is classed for the contempt variant, or the variant is dropped to keep 12 phrases.
+10. Simulator and dynamics:
+    - the brawler band is made satisfiable;
+    - a tough man answers one public beat-down with a violence grudge;
+    - every new seed and backed ask uses a separate dice stream;
+    - the validator's 1919 and 1946 and `Style.KNOWLEDGE` are rewritten;
+    - the cached block is measured.

@@ -65,7 +65,7 @@ Three constraints the audit measured, which shaped every decision below:
 | Constraint | Measured | Consequence |
 |---|---|---|
 | The bookkeeper's `record_changes` schema sits at the API's compiled-grammar limit | 41 properties and 4 enums pass; 47 properties were refused live (wave 17) | New per-person fields go in as **strings**, not nested objects, and the schema must shrink, not grow. A live probe with the owner's key gates the wave that changes it. |
-| The narrator's cached system blocks (style, town, cast) | 12,671 of the 13,000 estimated tokens `tests/api.test.cjs` allows, about **330 tokens of headroom** | Per-turn feelings stay out of the cached cast block. The rewrite of the example turns is budgeted (about 235 of the 330) and measured before it ships. |
+| The narrator's cached system blocks (style, town, cast) | 12,671 of the 13,000 estimated tokens `tests/api.test.cjs` allows, about **330 tokens of headroom** | Per-turn feelings stay out of the cached cast block. The rewrite of the example turns, the fade-to-black rule and the hidden-tie wording are expected to take 220 to 320 of the 330, and are measured with the test's own estimator (words × 1.4) against a draft before anything more is added. |
 | Old saves keep their own town copy (`State.town`) | Event thresholds, the epilogue and drift baselines are read from the save, not from `TOWN_DATA`; grudge and favour templates are resolved by index at fire time | Threshold changes reach old games only through a migration; templates are only ever appended. |
 
 Also found in passing and queued as two separate fixes, outside this plan: the
@@ -102,7 +102,9 @@ is a prerequisite.
   "falling for you"; "seeing you" and "old flame" wait for tier C. The
   narrator's cue says the difference: "wants you around for one reason;
   doesn't ask about your day" against "lights up when you come in; remembers
-  what you told her".
+  what you told her". Intimacy fades to black, by a rule in the narrator's
+  cached block, and is recorded only when code has decided, before narration,
+  that both are adults and it is welcome.
 - **Events, not deltas.** The bookkeeper stops sending numbers. It names what
   happened from a closed vocabulary, as strings ("npc_dewayne apologised:
   hitting me over the tow bill"). Of 41 events, code derives 22 from what it can
@@ -146,8 +148,10 @@ and the appendices follow them. They are not open.
 **From the owner (1 Nov):**
 
 1. **Spark ships in tier A,** on the same record as the other tracks, with
-   `flirted` and `rebuffed`. `intimate` (fade to black) stays in tier C and is
-   refused by code in A and B.
+   `flirted` and `rebuffed`. After the delta review, `intimate` (fade to
+   black) ships in A too, as an engine-gated event (section 4.3), so a
+   narrated night together persists in state; only the "seeing you" and "old
+   flame" statuses, lasting jealousy and households wait for tier C.
 2. **One spark track, statuses derived.** Caring is already stored as liking
    and trust and explained by memories; a second "affection" number would
    duplicate them and drift away from them. Every case the owner named (wants
@@ -236,8 +240,11 @@ hates ≤ -60, dislikes -25, cool -6, neutral -5..5, friendly 6, warm 25, devote
 | warm | fond of you, doesn't trust you | warm to you | in your corner |
 | devoted | fond of you, doesn't trust you | loyal to you (trust above 0), else warm to you | in your corner |
 
-"Hates you" needs an unsettled weight-3 harm behind it, else it reads "against
-you", and it is always shown with its reason. Overrides, checked first: fear 40
+"Hates you" needs an unsettled weight-3 harm behind it (being `exposed` counts
+as harm), else it reads "against you", and it is always shown with its reason.
+When the top negative memories are words or honesty rather than harm, "against
+you" keeps its phrase and takes the cue "talks past you": contempt is a cue,
+not a thirteenth phrase. Overrides, checked first: fear 40
 or more, only while liking is between -60 and 25, gives "afraid of what you
 know" when leverage the player holds is the largest share of the fear, else
 "afraid of you"; below -60 "hates you" stands with the tag "and afraid of you";
@@ -275,6 +282,23 @@ the turn ("Shayla Rawls is open to it: she flirts back, her own way"); the
 bookkeeper's version does not count. A jealous partner who sees it takes liking
 -15 and trust -10, scaled by pride.
 
+After the delta review: the caring thresholds of the statuses (liking 25 and
+50) read liking **minus** the romance-class contributions, so flirting alone
+never makes "sweet on you"; "using you" needs earned distrust (a first-hand
+harm or honesty memory the player caused) or the `mercenary` flag, else it
+reads "wants you" with the cue "flirts back; keeps it light; doesn't trust
+you"; a status prints its feed line once per person per 7 days; the first
+unwelcome flirt per person costs liking 3, later ones 6; and the eligibility
+list ships with the twelve adults in the design's Appendix E (Jodie, Shayla,
+Travis, Curtis, Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt, Tyler),
+for the owner to edit. **`intimate` is in A,** engine-gated: the `romantic`
+flag, both adults (the player too), eligible, welcome, spark 50 or more,
+liking 40, trust 30 and knows 30. Code decides before narration and tells the
+narrator "yes, and fade to black" or "not tonight; she says so kindly"; the
+scene is recorded as a weight-3 scar memory with the spark, liking and knows
+effects in the table. A romantic ask is **never** backed by leverage and never
+gets fear's no-roll compliance, for anyone, in any tier (section 4.4).
+
 ### 4.4 Leverage
 
 ```
@@ -286,41 +310,64 @@ state.leverage = [ { id, holder: "player" | npcId, over: npcId | "player",
 
 - **Gained by the player** with `learned_secret`, only when that person's
   secret was in this turn's narrator packet (a successful social roll aimed at
-  them, or the trust-40-and-knows-30 gate), or when a true rumour marked
-  `leverageOver` is heard. Anything else is refused. **Gained over the player**
-  with `caught_you_at`: a "someone saw you" complication, or a steal, sneak,
-  search, attack or lie that person saw. The informant loose end starts the game
+  them, or the trust-40-and-knows-30 gate) **and** the narration overlaps two
+  or three content-written `leverageKeys` for that secret ("garage account",
+  "tapes", "cash book"), or when a true rumour marked `leverageOver` is heard.
+  Anything else is refused and logged. **Gained over the player** with
+  `caught_you_at`, only for an act with at most one witness that is not public
+  and not in the news, never violence (a fight is already a memory and news);
+  one record per act, with `mattersTo` by kind: the victim for a theft, the
+  police for a crime, nobody for a lie. The informant loose end starts the game
   holding a record over the player, with `playerKnows: false`.
 - **Used** with `blackmailed` (a backed ask with a price) or
   `threatened_to_tell` (without one); both are engine events read from the
   parse, and both feed the fear clock and the report seed exactly as
-  `threatened` does. **Discharged** with `paid_silence` (the obligation met, or
-  the player's demand paid by its seed) or `told_anyway` (the obligation's
-  `onMiss`, a "tell" grudge, a report that spends it, or the player exposing a
-  paid-for secret, which also costs an engine `broke_word`).
+  `threatened` does. An ask is backed only when the player's own words
+  reference the record (an overlap with its text, or a threat phrase), so a
+  stray `lev_` id from the parser never makes a threat by accident. A romantic
+  ask is never backed. **Discharged** with `paid_silence` (the obligation met,
+  or the player's demand paid by its seed; it replaces `paid_back` for a
+  blackmail obligation, so nothing counts twice) or `told_anyway` (the
+  obligation's `onMiss`, a "tell" grudge, a report that spends it, or the
+  player exposing a paid-for secret, which also costs an engine `broke_word`).
+  `paid` is terminal for demands: a second demand on a paid record is
+  `threatened_to_tell` with no money, and costs the player.
 - **One story with the blackmail loose end.** The seed that names the $200
   price records `blackmailed` on the informant's side and creates
   `obl_blackmail_<npc>` as today; paying marks the record `paid` in the same
   apply (W +5, T +10, "Glenda Pryor will keep quiet."); missing is
   `told_anyway` ("Glenda Pryor told."). A standoff, when the player holds aware
-  leverage over the informant and the informant is not hard, lapses the
-  obligation with no `onMiss`: "Glenda Pryor lets it drop."
+  leverage over the informant and the informant is not hard, is mutual
+  deterrence: neither side's grudge or report is planted while both records
+  are held, and the obligation lapses with no `onMiss`: "Glenda Pryor lets it
+  drop."
 - **What it does.** While the player holds aware leverage over someone, their
-  fear gains a derived 10 × weight (halved at trust 40, halved again once paid).
-  A backed ask skips the roll at weight 2 or more, is easy at weight 1, normal
-  against a hard target, and always rolls against a minor. The answer is
-  decided by code at resolve time and told to the narrator ("LEVERAGE: Hollis
-  Byrd will pay the $300 by tomorrow evening, and hate it."): hard and tough
-  people don't pay and plant a violence grudge at once; pride +1 with fear under
-  40 refuses; anyone else complies within weight × $100 and their written
-  `canRaise`. The holder of leverage over you cannot be reported to the police
-  by you... and the person you hold it over cannot go to the police about you
-  until the record is spent or void; then the bar lifts and their grudge check
-  runs on the next tick.
+  fear gains a derived 10 × weight (halved at trust 40, halved again once
+  paid). A backed ask skips the roll at weight 2 or more, is easy at weight 1,
+  normal against a hard target, and always rolls against a minor; the d20 is
+  drawn either way, so the dice stream holds. The answer is decided by code at
+  resolve time and told to the narrator in the present tense ("LEVERAGE:
+  Hollis Byrd agrees to pay the $300 by tomorrow evening; pays nothing now"):
+  tough people (Wade, Colt, Boyd, Leon, Dwight) don't pay and plant a violence
+  grudge at once; hard people who are not tough (Carter, Marcus, Loretta,
+  Tammy, Nikki, Trent) refuse and plant a gossip grudge or a report to their
+  protector; pride +1 with fear under 40 refuses; everyone else complies, up to
+  weight × $100 and their written `canRaise`, which defaults to **$100** and is
+  raised by content for at most three people with money. The payment arrives by
+  seed, and `State.apply` refuses any `goldDelta` from a target with a pending
+  demand, so the narrator cannot have them pay twice. Someone the player holds
+  aware leverage over cannot go to the police about the player until the record
+  is spent or void (hard people excepted); then the bar lifts and their grudge
+  check runs on the next tick. Telling the police about someone runs that
+  secret's `whenTold` content hook; by default the police member it matters to
+  gets a weight-3 memory and, for a crime, an "inquiry" seed that fills one
+  segment of the police clock. No automatic arrest.
 - **What never leaks.** The record's text is the bookkeeper's words for what
   the narration showed, never the `secret` field. A record over the player
-  reaches the card and the narrator only once `playerKnows`. Weight, who it
-  matters to, `canRaise` and the answer before it happens stay hidden.
+  reaches the card and the narrator only once `playerKnows`. A report delivered
+  through a hidden protector tie (Hollis to Wade) follows the hidden-tie rule
+  on the card and in the narrator line, so it shows nothing of the tie. Weight,
+  who it matters to, `canRaise` and the answer before it happens stay hidden.
 
 ### 4.5 The minor guard
 
@@ -330,27 +377,39 @@ player of 16. A minor is anyone whose cast age in the save's town copy **or**
 current age is under 18, whichever is stricter, or who is tagged `teen`: an
 edit can make someone a minor, never an adult.
 
-1. **Before narration.** The parser's `romantic` flag (13 to 14 properties,
-   far from the grammar limit) with a minor among the targets puts a per-turn
-   line in the narrator packet: "Kaylee Pittman is 16: any romantic or sexual
-   advance is unwelcome and alarming; she is uncomfortable, gets away or goes
-   to her father; never warm, never flirtatious." For a player under 18, every
-   welcome is no and the packet says nobody takes a flirt from them as
-   anything but a kid talking.
-2. **After narration.** Whatever the bookkeeper reports for that minor (a
-   `complimented`, nothing at all) is replaced by the unwanted-advance row: W
-   -20, T -20, F +10, weight 3. That fear never buys compliance. The same fires
-   on any bookkeeper `flirted`, `rebuffed` or `intimate` naming a minor, flag
-   or no flag.
+1. **Before narration, every turn a minor is present,** the narrator packet
+   carries that minor's line (about 25 tokens): "Kaylee Pittman is 16: any
+   romantic or sexual advance is unwelcome and alarming; she is uncomfortable,
+   gets away or goes to her father; never warm, never flirtatious." It does not
+   wait for the parser, so the parser is out of the safety path for narration.
+   The parser's `romantic` flag (13 to 14 properties, far from the grammar
+   limit) decides the mechanics below. For a player under 18, every welcome is
+   no and the packet says nobody takes a flirt from them as anything but a kid
+   talking.
+2. **After narration, with corroboration.** A bare flag (no named target, or a
+   Say to everyone) gives the minor a light row: a weight-1 memory ("made me
+   uncomfortable at the register"), liking -3, knows +2, and nothing for
+   parents or police, so "thanks, sweetheart" cannot brand the player. The full
+   unwanted-advance row (W -20, T -20, F +10, weight 3) and the consequences
+   below need the minor as a named target (the Say chip, or a Do action aimed
+   at them) **and** a second signal: a bookkeeper romance event for that minor,
+   or a hit on a code phrase list over the input. The same full row fires on
+   any bookkeeper `flirted`, `rebuffed` or `intimate` naming a minor, flag or
+   no flag. Whatever the bookkeeper reports instead is discarded. That fear
+   never buys compliance.
 3. **Consequences without the graph.** Each parent or grandparent in town,
    found from the static relation labels tier A already has, takes `crossed` at
    full strength with a weight-3 memory from a template ("came on to my daughter
    at the register") and plants a report to Chief Bell at once, whatever their
-   liking. Town reputation -10, outside the per-turn cap.
-4. **No fear rewards from minors.** No no-roll compliance, no fear-opened
-   secrets, `canRaise` $0; any threat or violence aimed at a minor always
-   reports to each parent or grandparent and to Chief Bell, with town reputation
-   -5 or -10 outside the cap.
+   liking. Town reputation -10, outside the per-turn cap. A missing guardian
+   (arrested, gone, dead) means another adult with a family or household tie,
+   else Chief Bell alone; a missing Chief Bell means the county sheriff from
+   the Elsewhere list.
+4. **No fear or leverage rewards from minors.** No no-roll compliance, no
+   fear-opened secrets, `canRaise` $0, a leverage-backed ask always rolls; any
+   threat or violence aimed at a minor always reports to each parent or
+   grandparent and to Chief Bell, with town reputation -5 or -10 outside the
+   cap.
 5. **Spark cannot move.** Every write that would raise a minor's spark is
    refused and logged, from any source (model, world, edit, import, upgrade,
    cheat, `/fact`); an imported non-zero value is set to 0 at load; status
@@ -358,6 +417,14 @@ edit can make someone a minor, never an adult.
    bookkeeper packet builders each check age again; the Edit form has no
    Interested control for a minor; `validate-town.cjs` refuses a minor on the
    eligibility list.
+6. **Anchors that cannot all be stripped.** Minor status is checked against the
+   save's town copy, the current age, the `teen` tag **and** the live
+   `TOWN_DATA` age by id for the built-in town; a record with no age whose
+   role reads as a teen fails closed. The classification eval (section 8)
+   carries about 50 labelled romantic lines, including euphemism and Do mode
+   ("ask what time she gets off", "I wink at Micah"), with a recall target of
+   98% or more for lines aimed at minors, and the code phrase list is the
+   backstop.
 
 The permanent test (`tests/relationships.test.cjs`, Appendix D of the design)
 collects the minors from the data, never from names; asserts the set is exactly
@@ -366,9 +433,14 @@ each, a Say to everyone with a minor present, a bookkeeper `flirted` without the
 flag, threats and a hit at Austin, a leverage-backed ask at Micah, writes from
 every source, an `/edit` raising Micah's age, an import with `spark: 60`, a
 player of 16 flirting with Jodie, and 300 random event strings plus 50 random
-romantic parses over every id for 20 turns. **It fails if any record under 18
-by cast or current age has spark above 0, a spark status, or a romance cue in
-any packet.**
+romantic parses over every id for 20 turns. After the delta review it also
+drives a leverage-backed romantic ask and a fear-backed one at an adult and at
+a minor (both fail as coercion), an import that strips every anchor at once, an
+unflagged kind remark to Kaylee (no consequence), the guardian-absent case, and
+checks the status cue strings ("flirts back", "lights up when", "stands
+close", "for one reason", "looks twice", "open to it") against every packet.
+**It fails if any record under 18 by cast or current age has spark above 0, a
+spark status, or a romance cue in any packet.**
 
 ### 4.6 Events
 
@@ -383,9 +455,10 @@ public, its weight and fading class, and its dedupe class. The shape of it:
   a phase together with Say aimed at them, once a day; `humiliated` when an
   insult has two or more other witnesses; `paid_back`, `kept_word` and
   `broke_word` from obligations and appointments; `flirted`, `blackmailed` and
-  `threatened_to_tell` from the parse; `rescued` from state (a fight, a hurt
-  fate or a seed put them in danger); `paid_silence`, `told_anyway`,
-  `card_win`, `card_loss`.
+  `threatened_to_tell` from the parse; `intimate` from the parse and its gate;
+  `rescued` from state (a fight, a hurt fate or a seed put them in danger,
+  never danger the player caused); `paid_silence`, `told_anyway`, `card_win`,
+  `card_loss`.
 - **The bookkeeper names the rest**, about 22 words in A: `insulted`,
   `complimented`, `pried`, `apologised`, `confided`, `they_confided`,
   `kept_word` (a confidence kept), `came_clean`, `lied_caught`,
@@ -396,8 +469,9 @@ public, its weight and fading class, and its dedupe class. The shape of it:
   neutral witness would name it**; the trait axes carry how this person takes
   it, so personality is applied once, in code.
 - **Preconditions** (design §3.2): a kept confidence needs an unsettled
-  `they_confided` from that person and another NPC present who asked, once per
-  three days, else it is `confided`; `came_clean` pays only when it settles a
+  `they_confided` from that person at least a day old and a named asker present
+  this turn who is not the confider, once per three days, else it is
+  `confided`; `came_clean` pays only when it settles a
   caught lie or a logged deceive, and net trust over a lie and its confession is
   never positive; `lied_caught` needs a logged deceive or a `noted` claim;
   `exposed` needs a leverage record over Y; `defended` needs the aggressor
@@ -483,6 +557,16 @@ public, its weight and fading class, and its dedupe class. The shape of it:
   at `relAtLeast: { npc_royce: { trust: 30, knows: 25 } }`, the friendly face
   at `{ liking: 15 }` with `playerAt`, bought at `{ trust: 20 }`; Loretta's
   epilogue at `{ liking: 40 }`.
+- **Coercion and compliance.** A romantic ask is never backed by leverage and
+  never gets fear's no-roll ceiling, for anyone: it always fails, the narrator
+  is told they refuse and what they do next, and it is recorded as
+  `blackmailed` plus `crossed` at full, with a report to the protector and
+  town reputation -10 outside the cap. A `beat_down` on a tough person plants
+  a violence grudge whatever their liking: one public beating of Wade is
+  answered. Every new seed (report, price, tell, owed favour, inquiry) and every
+  backed or fear-ceilinged ask draws from its own `Rng.create` stream keyed by
+  the game seed, the person and the day, with the d20 still drawn, so seeded
+  tests and the faction clocks do not shift.
 - **Seeds.** The report seed fires in 1 to 2 days, on its own dice stream, when
   fear is 40 or more from the player's threats whatever the liking, when fear is
   40 from violence and liking is 0 or less, and always for a threat or violence
@@ -588,9 +672,13 @@ typical three-person turn is about even with today and a seven-person night at
 the Low Water is about 350. Cues describe present demeanour only, never what
 someone will do later. Through a hidden tie or a secret not yet open: `cooler
 since Day 4, for a reason of her own; keeps it to herself, never hint at it`,
-no cause and no name. Per-turn lines when they apply: `LEVERAGE: <answer>`, the
-flirt answer, the minor instruction, the under-18 player line, `BETWEEN THEM`
-for known ties. The parser gets the stance, the lie difficulty and the
+no cause and no name. Per-turn lines when they apply: `LEVERAGE: <answer>` in
+the present tense, the flirt or intimacy answer, the minor's line whenever a
+minor is present, the under-18 player line, `BETWEEN THEM` for known ties. The
+cached style block gains two short rules: intimate scenes fade to black, and
+nobody flirts back unless their line says "open to a flirt" or a turn line
+says so, and nobody under 18 is ever flirted with or flirts. The parser gets
+the stance, the lie difficulty and the
 player's leverage ids per present person; the bookkeeper gets the stance, at
 most 3 memory handles per person and the open leverage ids.
 
@@ -598,7 +686,7 @@ most 3 memory handles per person and the open leverage ids.
 
 | Feeling | Decision | Why |
 |---|---|---|
-| Contempt against hate | **Derived (A).** Liking -25 or less, fear under 10, and the top negative memories words or honesty rather than harm, give "has no use for you" in place of "against you", cue "talks past you" | One grid variant, no new number |
+| Contempt against hate | **Derived (A), cue only.** Liking -25 or less, fear under 10, and the top negative memories words or honesty rather than harm, keep the phrase "against you" and give the cue "talks past you" | A cue variant, not a thirteenth phrase, and no new number |
 | Pity or protectiveness toward the player | **Derived (A), cue only.** Liking 25 or more while the player is hurt, broke or beaten adds "worries about you" | The player's state is already in state |
 | Guilt on their side | **Dropped** | It needs NPCs making amends on their own, new content per person; the narrator can play remorse from the existing own-act memory |
 | Dependence | **Deferred to C**; partly visible through owed and repeated paid work | It needs a record of what the player provides over time |
@@ -607,6 +695,8 @@ most 3 memory handles per person and the open leverage ids.
 | Respect and standing | **Derived:** the town tier plus personal trust gives "takes you seriously"; SPEC's "feared" tier exists when 3 or more people are at fear 20 | Nothing new stored |
 | Envy, admiration | **Dropped** | No behaviour turns on them |
 | Shame about what you know | **Derived** from aware leverage | The record carries it |
+| Guilt by association (time spent with Colt cools Tammy) | **Deferred** | It needs the graph to read the player's company, not only the player's acts |
+| A parent noticing repeated gifts or private time with their child | **Deferred** | Worth a template once the graph is in; not a track |
 
 ---
 
