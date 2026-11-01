@@ -843,3 +843,37 @@ the bookkeeper's: `docs/notes/prompts.md`, Wave 22).
 - **`mergePlaces` / `mergePeople`** move an appointment's place and person.
 - `/undo` needs nothing new: the seed, its visits and the scene change are
   state.
+
+## Wave 26 (1 Nov 2026): what people ask of the player
+
+The owner wanted to track "what people asked me to do, by when". Tests:
+`tests/wave26-objectives.test.cjs` (the tab: `docs/notes/ui.md`, the
+bookkeeper's rule: `docs/notes/prompts.md`, Wave 26).
+
+- **`newSeeds` marks asks.** After `appointmentOf`, a seed from the model
+  (`source: 'model'`) that is no appointment goes through `askOf(seed)`
+  (exported): the person its words name first (`apptPerson`, wave 22: a full
+  name, or a first name nobody else in `npcs` has, never the player's own;
+  alive and not dead or gone) makes it an ask, `seed.ask = { npcId, dueDay?,
+  reward? }`. `dueDay` is a day trigger's day; `reward` is `askReward(text)`
+  (exported): the words after the first semicolon or dash ("$500 cash, and
+  deny knowing him if caught"), else a sum offered ("for $300 cash", "offers
+  $40"), else a threat to the end ("or else he tells the chief"), else a bare
+  sum; none: no `reward`. The applied line adds "; an ask: npc_carter by day
+  6". An engine seed is never an ask. Nothing changes in how a seed fires,
+  waits (`notBeforeDay`) or is struck (`/rewind`, wave 22).
+- **Read helpers.** `askWords(seed)`: for an ask (or any seed planted with
+  `hidden: false`, a plan the player was shown; none of the bookkeeper's are)
+  that has not fired and is no appointment: `{ seedId, npcId, name, effect,
+  said (the effect with "the player" and the player's name as "you" and
+  "your"), what (said after the asker's name), reward (in the same words),
+  dueDay, by ("by Day 6 (Tuesday)", "when you next see Travis Cagle", "at the
+  Low Water"; null for a clock trigger), dueIn ("in 5 days", "tomorrow",
+  "today", "overdue"; a day trigger's), seeNpcId, locationId, place, turn,
+  gone (the person is dead or gone) }`, else null. `asks(npcId?)`: those
+  words for every such seed (or one person's). `youWords(text)`: the same
+  "you" swap.
+- **`mergePeople`** moves an ask's person with the rest.
+- `/undo` and `/rewind` need nothing new: the ask is on its seed.
+- Left open: `LIMITS.modelSeedsPerTurn` is still 1, shared by asks, meetings
+  and other plans; seeds planted before this wave are not made asks.
