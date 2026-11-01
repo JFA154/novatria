@@ -1,0 +1,647 @@
+# People who remember: the relationship system plan
+
+1 Nov 2026 · a plan, not a build. Nothing in `index.html` changes with this
+document. It was written on the branch `claude/magical-dijkstra-wvs3pi`
+against `main` at `56e69f5`, and every line reference in it and in its
+appendices is to that commit.
+
+The owner's brief: "plan a complicated relationship system that isn't 2
+dimensional, what we have now is very basic." Then, before the write-up: spark
+(attraction) in the first build, wanting kept apart from caring, leverage (who
+has something on whom) as its own record, an airtight guard for anyone under
+18, and a plain list of what the design still does not model.
+
+**How this was made.** Four passes, each by its own agent, each read and
+reconciled here: an audit of the code as it stands (`docs/relationships/audit.md`),
+a design (`docs/relationships/design.md`, its second version), a red-team
+review of the first design with eighteen ranked findings
+(`docs/relationships/review.md`), and an engineering plan that maps the
+design onto the modules, the saves, the tests and the docs
+(`docs/relationships/integration.md`, its second version). The appendices
+carry the detail: the full event table, every threshold, the thirteen worked
+examples with their arithmetic, the per-wave list of tests that change. This
+page is the plan. **Where an appendix and this page disagree, this page wins**;
+the known disagreements are listed at the end.
+
+---
+
+## 1. What is thin today
+
+The audit (appendix, 15-line summary at its top) found one number doing
+everything:
+
+- **Each person holds one integer,** `attitude` (-100..100, toward the
+  player), and a list of up to 12 `memories` `{ turn, day, text, weight 1-3 }`.
+  Weight is the only intensity. Nothing stores whether a memory was good or
+  bad: `/recap` guesses with a regex, and a grudge's kind is guessed from `act`
+  or the words.
+- **That one number gates more than 20 unrelated behaviours,** with the cuts
+  scattered across Dice, State, World, Pipeline, Api, the content and the mock:
+  ±2 on social rolls past ±50; a secret opens at 50; a bed at 25; a rescue at
+  25; card seats above -25; Curtis deals at -10; table stakes at 0; Royce's
+  vote at 15, 20 and 30; Loretta's epilogue at 40; the recap at ±5. Royce at 30
+  opens the same doors whether the player is his confidant or his best customer,
+  even though the council branch is written as "somebody to talk it through
+  with all week".
+- **The bookkeeper picks the number** ("small attitude shifts (±5 to ±15)"),
+  so nearly everything lands near -10, the same for Loretta and for Mavis, and
+  the scale moves when the model does. It may move anyone's attitude, present
+  or not.
+- **Nothing connects people.** `relations` are static labels written on both
+  sides ("wife", "boss"). Hitting Dewayne does nothing to his wife Mavis unless
+  a template names her. The secrets that tie the town together (Loretta and
+  Royce, Tammy and Colt, Wade and Calvin Ogletree) move nobody's feelings.
+  Faction-to-faction numbers are written by clocks and read by nothing.
+- **Drift erases earned warmth.** Everyone moves 2 a day back to their written
+  value unless a weight-3 memory is under five days old or a loose end is open,
+  so a weight-2 kindness is gone in a week.
+- **Secrets are only text.** A successful roll sends a secret to the narrator
+  once, and then nothing remembers that the player knows it. The $200 blackmail
+  loose end is a money obligation with no record of what is being held over the
+  player. Desire is not stored at all.
+
+Three constraints the audit measured, which shaped every decision below:
+
+| Constraint | Measured | Consequence |
+|---|---|---|
+| The bookkeeper's `record_changes` schema sits at the API's compiled-grammar limit | 41 properties and 4 enums pass; 47 properties were refused live (wave 17) | New per-person fields go in as **strings**, not nested objects, and the schema must shrink, not grow. A live probe with the owner's key gates the wave that changes it. |
+| The narrator's cached system blocks (style, town, cast) | 12,671 of the 13,000 estimated tokens `tests/api.test.cjs` allows, about **330 tokens of headroom** | Per-turn feelings stay out of the cached cast block. The rewrite of the example turns is budgeted (about 235 of the 330) and measured before it ships. |
+| Old saves keep their own town copy (`State.town`) | Event thresholds, the epilogue and drift baselines are read from the save, not from `TOWN_DATA`; grudge and favour templates are resolved by index at fire time | Threshold changes reach old games only through a migration; templates are only ever appended. |
+
+Also found in passing and queued as two separate fixes, outside this plan: the
+"captured" defeat memory at `index.html:22143` carries no `act: 'own'`, so the
+captor's own act can seed a grudge against the player; and the People editor
+rebuilds every memory without its `day` and `act` (`25129`, `25227`). The
+migration below tolerates memories with or without those fields, so neither fix
+is a prerequisite.
+
+---
+
+## 2. The design in one page
+
+- **Six tracks per person, about the player:** liking and trust (-100..100);
+  fear, knows-you and spark (0..100); and owed favours (a short list, net -3..+3).
+  Respect is derived, not stored. Internally `w t f k s`; in content and the
+  docs `liking`, `trust`, `fear`, `knows`, `spark`.
+- **A leverage record per pair:** who has something on whom, what (the
+  narrated words, never the `secret` field), since when, and whether it has been
+  used, paid for, spent or voided. One shape in both directions. The $200
+  blackmail loose end becomes one story with it.
+- **A stance in twelve phrases, computed by code** from liking against trust,
+  with hysteresis: "hates you", "against you", "suspicious of you", "cool to
+  you", "sizing you up", "doesn't know you", "takes you at your word",
+  "friendly", "fond of you, doesn't trust you", "warm to you", "in your corner",
+  "loyal to you". Overrides for fear ("afraid of you", "afraid of what you
+  know") only while liking is between -60 and 25. One or two tags: "using you",
+  "sweet on you", "owes you big", "has something on you", "wary of your
+  temper". The People tab, `/recap` and the narrator all use the same words,
+  and every stance comes with its dated reasons.
+- **Wanting is spark; caring is liking and trust.** One stored spark track.
+  Code derives the statuses: "has noticed you", "wants you", "using you"
+  (spark high, liking and trust low), "sweet on you" (spark and liking up),
+  "falling for you"; "seeing you" and "old flame" wait for tier C. The
+  narrator's cue says the difference: "wants you around for one reason;
+  doesn't ask about your day" against "lights up when you come in; remembers
+  what you told her".
+- **Events, not deltas.** The bookkeeper stops sending numbers. It names what
+  happened from a closed vocabulary, as strings ("npc_dewayne apologised:
+  hitting me over the tow bill"). Of 41 events, code derives 22 from what it can
+  already see (rolls, money handed over, who was present, obligations, the
+  parse); the bookkeeper names about 22, most with a precondition code checks.
+  One table turns an event into changes on the tracks, scaled by four signed
+  trait axes (pride, guardedness, nerve, grudge-holding) read from each
+  person's two written traits. The schema goes from 41 properties to 34.
+- **Memories carry the cause.** Each keeps its event, what it did to each
+  track, and how fast it fades: four classes from a two-day mood to a
+  three-week scar. Making good (an apology that lands, paying back, owning up,
+  getting even) softens a memory, combines with other settlements, and never
+  deletes it. So the card can say why: "You told Dewayne about the garage
+  money. Day 5".
+- **Tier B: the town is a graph, one hop.** The 120 relation labels plus about
+  40 hand-written ties (the town's secrets) become directed ties with a liking
+  and a trust that can change. What the player does to someone reaches the
+  people tied to them, scaled by the kind of tie and how they feel about that
+  person; rivals warm. Word travels by kind of tie: spouse and household
+  overnight, other family and work by the next morning, friends within two
+  days. Hidden ties leave a dated, named clue and nothing else.
+- **New behaviour falls out.** Someone afraid of you does small things with no
+  roll, then tells their protector. Someone who likes you but doesn't trust you
+  helps with small things and lies about big ones. Someone you have something
+  on cannot go to the police until it is told, and then comes for you. Royce's
+  vote goes to whoever he trusts enough to talk it through with, not to whoever
+  bought the most beers.
+- **Nobody under 18, and no player under 18, ever has spark above 0 or a
+  romance cue, in any tier.** Code decides this before the narrator writes, and
+  a permanent test fails if it is ever otherwise.
+- **Recommendation: tier B, built as A then B.** C (fade-to-black intimacy,
+  households acting as one) waits.
+
+---
+
+## 3. Decisions made during planning
+
+These were made by the owner, or by the orchestrator within the owner's brief,
+and the appendices follow them. They are not open.
+
+**From the owner (1 Nov):**
+
+1. **Spark ships in tier A,** on the same record as the other tracks, with
+   `flirted` and `rebuffed`. `intimate` (fade to black) stays in tier C and is
+   refused by code in A and B.
+2. **One spark track, statuses derived.** Caring is already stored as liking
+   and trust and explained by memories; a second "affection" number would
+   duplicate them and drift away from them. Every case the owner named (wants
+   you but doesn't like you; wants you and doesn't trust you; falling for you;
+   devoted with no desire; an old flame who still wants you) is a spark level
+   read against liking and trust, and spark and liking already fade at
+   different speeds.
+3. **Leverage is a full per-pair record,** not a tag derived from "knows a
+   secret of yours". The design already models the NPC-to-NPC side of secrets;
+   the player's side without a record would be the one asymmetry left, and the
+   events are strings, so they cost no schema properties. It stands alone in
+   tier A without the tie graph.
+4. **The minor guard is decided before narration** and restated in full
+   (section 4.5).
+5. **What the tracks still don't carry** is a section of the design
+   (section 4.9 here), each feeling marked derived, deferred or dropped.
+
+**From the red-team review, adopted** (the review's required changes 1 to 7, 9,
+and the design parts of 8 and 10; the implementation parts went to the
+integration plan): hidden-tie reasons reach the narrator with no cause and no
+name; the physical and money events are engine-derived and duplicates are
+dropped by class; self-reported events need code-checkable preconditions; the
+dynamics are bounded (everyday ±15, diminishing time together, hysteresis, a
+fixed eviction order); fear is fixed (hard people cap at 39, the override only
+between -60 and 25, per-person protectors); hearsay travels by kind of tie, not
+by schedule; cues describe present demeanour only; "won't sell" expires;
+settlements combine and never lock.
+
+**The review's proposed cuts, decided:**
+
+| Cut proposed | Decision | Why |
+|---|---|---|
+| The owed-favours ledger | **Kept**, with guards: owed favours plant only non-cash templates, or the $100 cash work only at liking 25 or more and trust 0 or more; the ask-back chain ends in a `crossed`-class memory, not a broken word | The owner named it as a track |
+| Hop-2 propagation and the faction-loyalty blend | **Dropped** | Ornament by the review's count; one hop carries the Dewayne-to-Mavis behaviour the owner asked for. Trent's personal warmth no longer beats the Night Run's standing, and the design says so |
+| BETWEEN THEM lines to the narrator | **Kept for known ties only** | About 15 tokens, and no leak once hidden ties are excluded |
+| Ten trait knobs | **Replaced by four signed axes** plus a `mercenary` flag on five people (Hollis, Shayla, Tyler, Curtis, Leon) | Opposites cancel; 66 traits map cleanly |
+| Knows-you as a stored track | **Kept**, fed mostly by code (turns aimed at them, time together) plus at least +2 per event | The owner named it as a track |
+| The card's words grid | **Folded** behind "More"; the open card shows the stance, tags, two dated reasons and ties | The owner's taste: no stat-sheet feel |
+| The 21-cell stance grid | **Cut to 12 phrases** | Near-synonyms read as noise |
+
+**Decided by the orchestrator, recorded as decisions:** the trust cap (`20 +
+knows-you`) is dropped, since it only bound on days 1 and 2 and the event
+preconditions do its job; the People card may name the act behind a
+hidden-tie cooling without naming the tie ("Cooler since you shamed Royce at
+the counter, Day 4. Hasn't said why."); the optional council fear branch is out
+of this plan (two threats would have beaten four days of honest confidences);
+content-facing names are `liking` and `knows`, not "warmth" and "familiarity";
+the module is `Rel`.
+
+---
+
+## 4. The model
+
+The design appendix has every table. This section gives what a builder and a
+reviewer need to hold in their head.
+
+### 4.1 Tracks and how a person starts
+
+| Track | Scale | Meaning | Starts at |
+|---|---|---|---|
+| Liking `w` | -100..100 | Do they enjoy you? | the written `attitude`, unchanged (Wade -10, Ray 15, Mavis -5) |
+| Trust `t` | -100..100 | Will they believe you, rely on you, tell you things? Distrust is active disbelief | 5 × guardedness (-10..+10), -10 for police and smugglers; hand overrides on about four people (Boyd -40, Jodie -25, Vada -10, Leon -15) |
+| Fear `f` | 0..100 | Are they afraid of what you'll do, or of what you know? Fades fast; leverage feeds part of it | 0 |
+| Knows you `k` | 0..100 | How well they know you. Never fades | 0; a loose-end person 30 |
+| Spark `s` | 0..100 | Do they want you? Fades unless fed; 0 for anyone not on the eligibility list | 0 |
+| Owed | net -3..+3 | Favours outside the money obligations | none; Curtis shows "holding your marker" from the card-debt obligation itself |
+
+`n.attitude` stays on the record as a stored alias of liking, rewritten on every
+recompute, so `attitudeAtLeast` in old saves' town copies, the validator, the
+parser packet, the card code and about a hundred tests keep reading it (section
+6.1).
+
+### 4.2 The stance
+
+Bands with 5 points of hysteresis (enter at the edge, leave 5 back): liking
+hates ≤ -60, dislikes -25, cool -6, neutral -5..5, friendly 6, warm 25, devoted
+60; trust distrusts ≤ -25, unsure between, trusts ≥ 25.
+
+| Liking \ Trust | distrusts | unsure | trusts |
+|---|---|---|---|
+| hates | hates you | hates you | hates you |
+| dislikes | against you | against you | against you |
+| cool | suspicious of you | cool to you | takes you at your word |
+| neutral | suspicious of you | sizing you up (or doesn't know you: no memories and knows under 10) | takes you at your word |
+| friendly | suspicious of you | friendly | friendly |
+| warm | fond of you, doesn't trust you | warm to you | in your corner |
+| devoted | fond of you, doesn't trust you | loyal to you (trust above 0), else warm to you | in your corner |
+
+"Hates you" needs an unsettled weight-3 harm behind it, else it reads "against
+you", and it is always shown with its reason. Overrides, checked first: fear 40
+or more, only while liking is between -60 and 25, gives "afraid of what you
+know" when leverage the player holds is the largest share of the fear, else
+"afraid of you"; below -60 "hates you" stands with the tag "and afraid of you";
+above 25 the stance stays and "wary of your temper" is added. Hard people
+(nerve +1 or more, the `tough` tag, the three faction heads) never pass fear 39
+and never get the override.
+
+Tags, in order (the card shows two, the narrator one): leverage ("you have
+something on each other", "has something on you", "you have something on
+them"); spark status; fear ("and afraid of you", "wary of your temper"); debts
+("owes you big", "owes you", "you owe them", "holding your marker"); "uneasy
+around you" (fear 20 to 39).
+
+### 4.3 Spark
+
+Statuses, first match wins, with hysteresis, only for an eligible adult:
+
+| Status | When | Narrator cue | Feed line |
+|---|---|---|---|
+| falling for you | spark 60+, liking 50+, trust 25+ | "lights up when you come in; stands close; asks where you've been" | "Jodie Strayhorn is falling for you." |
+| sweet on you | spark 30+, liking 25+ | "lights up when you come in; remembers what you told her" | "Jodie Strayhorn is sweet on you." |
+| using you | spark 40+, liking under 25, trust -25 or less | "wants you around for one reason; doesn't ask about your day" | "Shayla Rawls is interested. It isn't friendship." |
+| wants you | spark 40+, liking under 25, trust above -25 | "flirts back; keeps it light; not sure she likes you" | "Curtis Pruett is interested." |
+| has noticed you | spark 20+ | "looks twice; finds a reason to stand near you" | "Jodie Strayhorn looks at you twice." |
+
+A welcome flirt adds 10 × the person's written `sparkRate`; time together with
+someone already at spark 10 adds 2; a rebuff takes 15; an unwelcome flirt takes
+5; any weight-3 harm halves it. Spark from a flirt fades on the five-day clock
+with no floor. **Welcome is decided by code before the narrator writes,** from
+the parser's new `romantic` flag: they are eligible (`TOWN_DATA.romance`, empty
+by default, adults only), knows-you is at least their `opensAt`, they are not at
+"against you" or "hates you", and they are not `faithful`. Liking is not
+required, which is how "using you" happens. The narrator is told the answer for
+the turn ("Shayla Rawls is open to it: she flirts back, her own way"); the
+bookkeeper's version does not count. A jealous partner who sees it takes liking
+-15 and trust -10, scaled by pride.
+
+### 4.4 Leverage
+
+```
+state.leverage = [ { id, holder: "player" | npcId, over: npcId | "player",
+  about: { kind: secret | seen | loose_end, npcId }, text, weight: 1-3,
+  since: { day, turn, via }, aware, playerKnows, status: held | used | paid | spent | void,
+  demand, uses: [...], knownBy: [...], mattersTo: [...] } ]
+```
+
+- **Gained by the player** with `learned_secret`, only when that person's
+  secret was in this turn's narrator packet (a successful social roll aimed at
+  them, or the trust-40-and-knows-30 gate), or when a true rumour marked
+  `leverageOver` is heard. Anything else is refused. **Gained over the player**
+  with `caught_you_at`: a "someone saw you" complication, or a steal, sneak,
+  search, attack or lie that person saw. The informant loose end starts the game
+  holding a record over the player, with `playerKnows: false`.
+- **Used** with `blackmailed` (a backed ask with a price) or
+  `threatened_to_tell` (without one); both are engine events read from the
+  parse, and both feed the fear clock and the report seed exactly as
+  `threatened` does. **Discharged** with `paid_silence` (the obligation met, or
+  the player's demand paid by its seed) or `told_anyway` (the obligation's
+  `onMiss`, a "tell" grudge, a report that spends it, or the player exposing a
+  paid-for secret, which also costs an engine `broke_word`).
+- **One story with the blackmail loose end.** The seed that names the $200
+  price records `blackmailed` on the informant's side and creates
+  `obl_blackmail_<npc>` as today; paying marks the record `paid` in the same
+  apply (W +5, T +10, "Glenda Pryor will keep quiet."); missing is
+  `told_anyway` ("Glenda Pryor told."). A standoff, when the player holds aware
+  leverage over the informant and the informant is not hard, lapses the
+  obligation with no `onMiss`: "Glenda Pryor lets it drop."
+- **What it does.** While the player holds aware leverage over someone, their
+  fear gains a derived 10 × weight (halved at trust 40, halved again once paid).
+  A backed ask skips the roll at weight 2 or more, is easy at weight 1, normal
+  against a hard target, and always rolls against a minor. The answer is
+  decided by code at resolve time and told to the narrator ("LEVERAGE: Hollis
+  Byrd will pay the $300 by tomorrow evening, and hate it."): hard and tough
+  people don't pay and plant a violence grudge at once; pride +1 with fear under
+  40 refuses; anyone else complies within weight × $100 and their written
+  `canRaise`. The holder of leverage over you cannot be reported to the police
+  by you... and the person you hold it over cannot go to the police about you
+  until the record is spent or void; then the bar lifts and their grudge check
+  runs on the next tick.
+- **What never leaks.** The record's text is the bookkeeper's words for what
+  the narration showed, never the `secret` field. A record over the player
+  reaches the card and the narrator only once `playerKnows`. Weight, who it
+  matters to, `canRaise` and the answer before it happens stay hidden.
+
+### 4.5 The minor guard
+
+Kaylee Pittman (16), Micah Dees (17) and Austin Lott (15) are the cast's
+minors; every Elsewhere and Gone record is an adult, and creation allows a
+player of 16. A minor is anyone whose cast age in the save's town copy **or**
+current age is under 18, whichever is stricter, or who is tagged `teen`: an
+edit can make someone a minor, never an adult.
+
+1. **Before narration.** The parser's `romantic` flag (13 to 14 properties,
+   far from the grammar limit) with a minor among the targets puts a per-turn
+   line in the narrator packet: "Kaylee Pittman is 16: any romantic or sexual
+   advance is unwelcome and alarming; she is uncomfortable, gets away or goes
+   to her father; never warm, never flirtatious." For a player under 18, every
+   welcome is no and the packet says nobody takes a flirt from them as
+   anything but a kid talking.
+2. **After narration.** Whatever the bookkeeper reports for that minor (a
+   `complimented`, nothing at all) is replaced by the unwanted-advance row: W
+   -20, T -20, F +10, weight 3. That fear never buys compliance. The same fires
+   on any bookkeeper `flirted`, `rebuffed` or `intimate` naming a minor, flag
+   or no flag.
+3. **Consequences without the graph.** Each parent or grandparent in town,
+   found from the static relation labels tier A already has, takes `crossed` at
+   full strength with a weight-3 memory from a template ("came on to my daughter
+   at the register") and plants a report to Chief Bell at once, whatever their
+   liking. Town reputation -10, outside the per-turn cap.
+4. **No fear rewards from minors.** No no-roll compliance, no fear-opened
+   secrets, `canRaise` $0; any threat or violence aimed at a minor always
+   reports to each parent or grandparent and to Chief Bell, with town reputation
+   -5 or -10 outside the cap.
+5. **Spark cannot move.** Every write that would raise a minor's spark is
+   refused and logged, from any source (model, world, edit, import, upgrade,
+   cheat, `/fact`); an imported non-zero value is set to 0 at load; status
+   derivation returns none before reading a number; the narrator, parser and
+   bookkeeper packet builders each check age again; the Edit form has no
+   Interested control for a minor; `validate-town.cjs` refuses a minor on the
+   eligibility list.
+
+The permanent test (`tests/relationships.test.cjs`, Appendix D of the design)
+collects the minors from the data, never from names; asserts the set is exactly
+those three today so a new minor fails until reviewed; drives a flagged flirt at
+each, a Say to everyone with a minor present, a bookkeeper `flirted` without the
+flag, threats and a hit at Austin, a leverage-backed ask at Micah, writes from
+every source, an `/edit` raising Micah's age, an import with `spark: 60`, a
+player of 16 flirting with Jodie, and 300 random event strings plus 50 random
+romantic parses over every id for 20 turns. **It fails if any record under 18
+by cast or current age has spark above 0, a spark status, or a romance cue in
+any packet.**
+
+### 4.6 Events
+
+Forty-one events. The design's §3.1 table gives each one's source (engine,
+bookkeeper, or both), its changes on every track, its reputation value when
+public, its weight and fading class, and its dedupe class. The shape of it:
+
+- **Engine-derived, from what code can see:** `hit`, `shoved` and `beat_down`
+  by attack roll tier (one fight is one memory; the third hit replaces it);
+  `threatened` by intimidate roll; `stole_from`; `gift` and `bribed` from the
+  existing gift check (bribed = a gift plus an ask that turn); `spent_time` from
+  a phase together with Say aimed at them, once a day; `humiliated` when an
+  insult has two or more other witnesses; `paid_back`, `kept_word` and
+  `broke_word` from obligations and appointments; `flirted`, `blackmailed` and
+  `threatened_to_tell` from the parse; `rescued` from state (a fight, a hurt
+  fate or a seed put them in danger); `paid_silence`, `told_anyway`,
+  `card_win`, `card_loss`.
+- **The bookkeeper names the rest**, about 22 words in A: `insulted`,
+  `complimented`, `pried`, `apologised`, `confided`, `they_confided`,
+  `kept_word` (a confidence kept), `came_clean`, `lied_caught`,
+  `betrayed_confidence`, `exposed` (about Y), `did_favour`, `they_helped`,
+  `defended` (against Z), `informed_on`, `crossed`, `rebuffed`, `noted`,
+  `learned_secret`, `caught_you_at`, `stole_from` and `cheated` when found out
+  later; in B also `badmouthed` and `vouched_for`. It classifies **the act as a
+  neutral witness would name it**; the trait axes carry how this person takes
+  it, so personality is applied once, in code.
+- **Preconditions** (design §3.2): a kept confidence needs an unsettled
+  `they_confided` from that person and another NPC present who asked, once per
+  three days, else it is `confided`; `came_clean` pays only when it settles a
+  caught lie or a logged deceive, and net trust over a lie and its confession is
+  never positive; `lied_caught` needs a logged deceive or a `noted` claim;
+  `exposed` needs a leverage record over Y; `defended` needs the aggressor
+  present and pays nothing to kin if the player provoked them; an apology must
+  land (a successful persuade, or liking above -25) and never resets
+  compounding; `private` applies to words events only.
+- **Repeats.** Kind things to the same person on the same day earn 1, ½, ¼,
+  then 0; `spent_time` and `gift` drop to a reduced value after three days per
+  person, so a nightly round makes regulars warm, never devoted. Harm repeated
+  within three days compounds ×1.5 then ×2.25, and the memories merge ("kept
+  insulting me") with the weight rising to 3. Per turn per person: liking ±40,
+  trust ±45, fear ±40, spark ±20; through the graph ±15.
+- **The wire.** `socialEvents` is a list of strings, `"npc_id event[ npc_about][
+  private]: what they would remember"`, read by a tolerant parser (an alias
+  table for spelling, tense, hyphens and spaces; tokens consumed in any order;
+  the colon optional; a missing about-id inferred from a cast name in the text;
+  a spurious one ignored). It replaces `attitudeChanges`, `newMemories` and
+  `memoriesSettled`: 41 properties and 4 enums become **34 and 3**; the core
+  fallback goes from 13 fields to 11. At most 2 events per person and 4 per
+  turn from the bookkeeper; over the cap, the heaviest are kept. An engine event
+  of a class drops the bookkeeper's events of that class for the same person
+  that turn, and engine violence also drops `humiliated` and `threatened` for
+  that victim.
+- **Traits.** Four signed axes, each trait giving -1, 0 or +1 to at most two,
+  clamped to ±2 per person: pride scales liking from words-bad, `humiliated`,
+  `shoved`, `blackmailed` and `rebuffed` by (1 + 0.25p) and settle factors by
+  (1 − 0.2p); guardedness sets start trust 5g and scales trust gains (1 + 0.2g)
+  and losses (1 − 0.15g); nerve scales fear gains (1 − 0.25n), and n ≥ 1 is
+  "hard"; grudge-holding scales harm half-lives by 2^(−r/2) and settle factors
+  by (1 + 0.15r). The `mercenary` flag doubles money's effect on liking and
+  halves blackmail's. Spark is never scaled by a trait.
+
+### 4.7 History and dynamics
+
+- **The memory record** gains `event`, `d` (the change as applied, per
+  track), `decay`, `settled` (a list), `secondhand`, `via`, `place`, `key`,
+  `sourceKey`, `leverageId` and `seen`. The tracks are `start + Σ remaining +
+  everyday` (each everyday bucket held to ±15) plus derived leverage fear,
+  recomputed inside every State op that touches a person and every morning
+  tick. At the 12-memory cap, eviction is secondhand first, then mood, slight,
+  wound, scar, kind before harm within a class; `noted` (at most 3), loose-end
+  memories and `/fact` lines are protected; an evicted remainder moves into
+  everyday so no number jumps.
+- **Fading.** `floor + (1 − floor) × 0.5^(age / halfLife)`: mood 2 days floor
+  0 (insults, compliments, prying, the liking part of a flirt); slight 5 days,
+  floor 0.2 for harm and 0 for kind (humiliation, threats, shoves, gifts,
+  rebuffs, spark from flirts); wound 10 days floor 0.4 (a hit, a theft, a
+  caught lie, crossing, a threat to tell, and the kind ones: a kept word, a
+  favour, being defended, a confidence); scar 21 days floor 0.6 (a beating, a
+  betrayed confidence, cheating, informing, a rescue, a blackmail). One fear
+  clock, half-life 4 days, floor 0, except leverage fear, which lasts while the
+  record does. Trust fades at the same speed as liking. Witness and secondhand
+  copies fade one class lighter, have no floor, and merge into one memory per
+  scene: bystanders recover, the people it happened to don't. Today's drift
+  (2 a day toward the written value) is gone; only the everyday bucket drifts,
+  2 a day toward 0 on days the player does not see the person.
+- **Settling** combines as `1 − (1−a)(1−b)`, at most two per memory plus
+  getting even, and nothing locks: an apology that lands 0.5 on liking and 0.25
+  on trust, never fear; paying back a debt 1.0 plus liking +5; coming clean 0.4
+  on trust; a kept word after a broken one 0.7 and 0.35; a favour "to make it up
+  to him" 0.5 and 0.25; their grudge coming due 0.4 on liking (replacing
+  today's flat +10). A weight-3 harm settled the same day it happened still
+  grows a grudge. Leverage memories are ended by their record, not by words.
+- **Thresholds that replace today's** (design §6.2 has the full table):
+  persuade and charm by liking (±1 at 30, ±2 at 60), deceive by trust (+2 at 40;
+  -1 at -25; -2 at -50), intimidate by fear (+1 at 20, +2 at 40, -1 against
+  anyone who likes you at 40), all inside the existing ±4 cap; code floors the
+  parser's difficulty (at least hard for any ask of someone against you; a lie
+  at trust -25 hard, at -50 very hard; hard people at least hard to intimidate)
+  and ceilings it (an adult at fear 40 does a small thing with no roll, the d20
+  still drawn so the dice stream holds); the secret gate is trust 40 and knows
+  30, or a successful roll aimed at them, or fear 60 after a successful
+  intimidation, never for a minor; grudges at liking -60 with an unsettled
+  weight-3 harm, or trust -60 with a first-hand betrayal, their kind from the
+  event class, limited to police or gossip at fear 40, and barred from the
+  police while the player holds aware leverage over them; favours at liking 50
+  and trust 20 with a weight-2 help memory, or owed +2 at any liking above -25;
+  the alibi needs trust 40, the ramp warning and the photo 30; a couch at liking
+  25 and trust 0, or owed and liking above -25; rescue at liking 25 or owed,
+  unless afraid of you; card seats at liking above -25 and trust above -40;
+  Curtis deals at liking -10 and trust above -40; a rumour at liking above -25
+  and trust above -25 unless tagged gossip; Royce's "talked it through" branch
+  at `relAtLeast: { npc_royce: { trust: 30, knows: 25 } }`, the friendly face
+  at `{ liking: 15 }` with `playerAt`, bought at `{ trust: 20 }`; Loretta's
+  epilogue at `{ liking: 40 }`.
+- **Seeds.** The report seed fires in 1 to 2 days, on its own dice stream, when
+  fear is 40 or more from the player's threats whatever the liking, when fear is
+  40 from violence and liking is 0 or less, and always for a threat or violence
+  at a minor; it goes to the protector (content, Appendix F of the design, with
+  defaults: a minor's parents plus Chief Bell, else a boss, else the police;
+  "nobody" becomes a grudge), who takes a `crossed`-class event and a templated
+  memory ("{npc} says you've been leaning on them"); a reporter holding
+  leverage spends it. A price seed: a `mercenary` holder at liking 10 or less
+  names $50 × weight, due in 2 days. The owed-favour seed spends the debt.
+  "You owe them": they ask after 5 days, again after 3 more, then take a
+  `crossed`-class memory.
+- **Shops.** A manager, owner, merchant, bartender or cashier at "against
+  you" or "hates you" won't sell for 3 days, then sells at 25% over. A bed,
+  gas or food is never refused for more than one night unless a grudge template
+  says so.
+
+### 4.8 The graph (tier B)
+
+- **Ties.** `state.ties["npc_mavis>npc_dewayne"] = { kind, w, t, hidden,
+  known, log: [{ day, turn, why }] }`. Every relation label becomes a directed
+  tie with defaults by kind (spouse 50/40, parent to child 70/30, child to
+  parent 50/40, sibling 40/30, friend 40/30, boss to employee 20/20, and so
+  on); about 40 hand-written ties override or add the town's secrets (Loretta
+  and Royce lovers 80/70 hidden; Tammy to Colt -90 hidden; Boyd to Wade -90/-90
+  hidden; Darlene to Royce 10/-40). Only people in town take part.
+- **One hop.** When the player does E to B, each A tied to B takes E's change
+  times a base factor by what B is to A (child 0.8, lover 0.7, spouse 0.6,
+  sibling or parent 0.5, friend 0.4, in-law 0.3, employee 0.25, boss 0.2, fellow
+  faction member 0.15, landlord 0.1), × (0.5 + 0.5 × A's liking for B / 100), a
+  teen victim ×1.25 for parents, saw it ×1.0 or heard ×0.75. If A's liking for
+  B is -20 or less the factor is A's liking for B / 200, negative: rivals warm,
+  except police over crimes and clergy over violence. Fear carries at half and
+  only for violence; spark and leverage never travel. Under 2 is dropped, 2 to 4
+  goes to everyday, 5 and up is a secondhand memory one class lighter.
+- **Who knows, and when.** Witnesses at once with the witness row (a hit: W
+  -5, T -5, F +8; a beating: W -8, T -6, F +12; a threat: W -3, F +5; an insult:
+  W -2; a defence or rescue: W +5, T +5; a cheat caught: T -10). Spouse and
+  household (a shared home **and** a family relation; never the motel or the
+  trailer park) overnight. Other family, boss and employee the next morning.
+  Friends, lovers and rivals at the next co-location or within 2 days, or the
+  next morning if it was town news. Hearsay lives in `state.hearsay` with the
+  turn it was made, expires after 4 days, and moves only people tied to the
+  person it happened to. One feed line overnight: "Word got round: Lorna, Colt
+  and Wade Purvis have heard about the landing."
+- **Ties change** in four ways: `exposed` about Y to X moves X's tie to Y by
+  the `SECRET_TIES` table (Dewayne to Mavis: liking -20, trust -45) and Y learns
+  who told; `badmouthed` and `vouched_for` move X's liking for Y by ∓10 / ±8
+  scaled by X's trust in the player, only on a successful persuade, once per
+  pair per day, ±20 in all; an arrest turns the victim's family in town against
+  the arresting officer (W -20, T -20); content `tieDelta` ops, and the grudge
+  and favour templates' hand-listed third-party deltas become `propagate` ops
+  along the ties. BETWEEN THEM and the card's "wife Mavis Mangum, strained
+  since Day 5" appear only for known ties the player was present for.
+
+### 4.9 What the player sees, and what the narrator is told
+
+**The People tab.** The list row shows the stance and one tag in one of three
+tints: "Shayla Rawls · 25 — Suspicious of you · using you". The open card shows
+the stance, up to two tags, two dated reasons ("You know about the landing's
+cash in his books. Day 2" / "He paid $300 to keep it quiet. Day 4"), leverage
+lines, owed, ties, then a "More" fold with the tracks in words (Likes you:
+hates you / no / not much / either way / some / a lot / completely; Trusts you:
+no / not yet / yes / completely; Scared: no / a little / yes; Knows you: barely
+/ a little / well / very well; Interested, only for an eligible adult with a
+status). Screen readers hear the stance, tags and reasons as one sentence. The
+Edit form has four sliders that write to `start` (so an edit holds and does not
+drift), Interested only for eligible adults, and an event picker (or `noted`)
+for an added memory; it round-trips every memory field.
+
+**The feed**, at most two lines a turn plus one collapsed overnight line, ranked:
+"Dewayne Mangum won't forget that." / "Glenda Pryor has something on you." /
+"Hollis Byrd knows you know." / "Hollis Byrd is afraid of what you know." /
+"Tyler Rasberry is afraid of you." / "Tyler Rasberry gives you room." /
+"Hollis Byrd has paid for your silence." / "Marcus Bell stops taking your
+word." / "Trent Haskins is willing to hear you out again." / "Royce Pittman
+takes you at your word now." / "Jodie Strayhorn is sweet on you." / "Shayla
+Rawls is interested. It isn't friendship." / "Loretta Gaddis warms to you." /
+"Burl Satterfield owes you one." / "Dewayne Mangum lets some of it go." /
+"Word got round: …". Fading prints nothing; hysteresis stops flicker; undo,
+loads and edits print nothing; no spark line ever names a minor.
+
+**`/recap`** keeps Warm and Cold, each name with its stance and one reason
+("Mavis Mangum (against you: you told Dewayne about the garage money)"), adds
+**Careful** for anyone mixed ("Trent Haskins (fond of you, doesn't trust you),
+Hollis Byrd (afraid of what you know)"), and folds favours and silence money
+into **Owed**.
+
+**The narrator.** In place of `attitude 5 (neutral); remembers: …`, each
+present person's line carries:
+
+```
+to you: <stance>[; <tag>] — <reason> (Day N)[; <reason> (Day N)] — plays it: <cue>
+[open to a flirt]
+[holds you to: <noted fact>; <noted fact>]
+```
+
+For example: `to you: fond of you, doesn't trust you; has something on you —
+caught you in his truck's cab (Day 5); drinks with you at the landing (3
+nights) — plays it: glad to see you; changes the subject or lies when pressed`.
+About 45 tokens a person, hard cap 50 (code trims the second reason, then the
+tag, then the cell's clause; the status or override clause is never cut), so a
+typical three-person turn is about even with today and a seven-person night at
+the Low Water is about 350. Cues describe present demeanour only, never what
+someone will do later. Through a hidden tie or a secret not yet open: `cooler
+since Day 4, for a reason of her own; keeps it to herself, never hint at it`,
+no cause and no name. Per-turn lines when they apply: `LEVERAGE: <answer>`, the
+flirt answer, the minor instruction, the under-18 player line, `BETWEEN THEM`
+for known ties. The parser gets the stance, the lie difficulty and the
+player's leverage ids per present person; the bookkeeper gets the stance, at
+most 3 memory handles per person and the open leverage ids.
+
+### 4.10 What the tracks still don't carry
+
+| Feeling | Decision | Why |
+|---|---|---|
+| Contempt against hate | **Derived (A).** Liking -25 or less, fear under 10, and the top negative memories words or honesty rather than harm, give "has no use for you" in place of "against you", cue "talks past you" | One grid variant, no new number |
+| Pity or protectiveness toward the player | **Derived (A), cue only.** Liking 25 or more while the player is hurt, broke or beaten adds "worries about you" | The player's state is already in state |
+| Guilt on their side | **Dropped** | It needs NPCs making amends on their own, new content per person; the narrator can play remorse from the existing own-act memory |
+| Dependence | **Deferred to C**; partly visible through owed and repeated paid work | It needs a record of what the player provides over time |
+| Jealousy aimed at the player | **Derived (A)** as witness rules; lasting jealousy along lover ties is **C** | The moment is cheap; lasting jealousy needs romance states |
+| Gratitude | **Derived:** owed plus liking | Already stored |
+| Respect and standing | **Derived:** the town tier plus personal trust gives "takes you seriously"; SPEC's "feared" tier exists when 3 or more people are at fear 20 | Nothing new stored |
+| Envy, admiration | **Dropped** | No behaviour turns on them |
+| Shame about what you know | **Derived** from aware leverage | The record carries it |
+
+---
+
+## 5. Architecture
+
+TODO: filled from the revised integration plan.
+
+## 6. Migration
+
+TODO: filled from the revised integration plan.
+
+## 7. Waves
+
+TODO: filled from the revised integration plan.
+
+## 8. Before any tuning
+
+TODO: the live grammar probe, the labelled eval, the simulator, the worked examples as tests.
+
+## 9. Risks
+
+TODO.
+
+## 10. Open decisions for the owner
+
+TODO.
+
+## 11. Deviations from SPEC.md
+
+TODO.
+
+## 12. Docs to update as each wave lands
+
+TODO.
+
+## 13. Where the appendices disagree with this page
+
+TODO.
