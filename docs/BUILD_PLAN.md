@@ -1528,3 +1528,47 @@ talking, I can direct it to one person or all."
      die that reaches the target, or the 20 when nothing less does (the
      owner, Tired at Charm -1: "Charm 19 - 2 = 17 vs 18 · Partial"). Tests:
      `tests/wave21-night-clock.test.cjs`; wave 6's forward-only test follows.
+   - **Wave 22** (1 Nov 2026). The owner, at Pittman's in the morning: Jodie
+     Strayhorn said "Low Water, back door, half past ten. Nobody's in before
+     eleven. Come by yourself and knock twice", the player went and
+     knocked, and the engine still had Jodie on her own schedule, so she was
+     not there and Loretta said "Nobody's back there right now." A meeting
+     someone agrees to in the story is now kept by the engine. Built by one
+     agent. Notes: the "Wave 22" sections of `docs/notes/engine-state.md`,
+     `docs/notes/engine-world.md` and `docs/notes/prompts.md`; tests:
+     `tests/wave22-appointments.test.cjs`, with `tests/pipeline.test.cjs`
+     following the bookkeeper packet's seed line. The bookkeeper is told
+     (prompt only: `record_changes` is unchanged, 41 properties) to record a
+     meeting as one seed, a location trigger with the place (a day trigger
+     for another day, the place named), the effect starting with the
+     person's full name and saying where and when. A seed planted through
+     `newSeeds` that names someone in the cast (a full name, or a first
+     name nobody else has; alive, in town, free) and a place is an
+     appointment (`seed.appointment = { npcId, locationId, day, phase,
+     phases, spot?, hour? }`): the time words give the phase ("half past
+     ten" and "before opening" the morning, "noon" the afternoon, "supper"
+     the evening, "last call" the night; an hour by 5-11, 12-16, 17-20 and
+     21-4; none: the rest of today, or the whole of a later day), the day
+     comes from a day trigger or "tomorrow", "tonight", a weekday, and a
+     time already past today is tomorrow's. The person is at the place for
+     those phases (visits, kept with the seed's id; a later day's at its
+     morning; a visit for a phase still to come now outlasts the clock's
+     step), and someone with the player whose meeting elsewhere is this
+     phase only leaves the scene (the next narration shows it). The
+     narrator hears "APPOINTMENTS: Jodie Strayhorn at the Low Water (back
+     door, half past ten) this morning, as agreed" until the player gets
+     there, the People card says "Meeting you: the Low Water, this morning
+     (back door, half past ten)", and the seed fires as a walk lands there
+     or a turn there begins in one of those phases (told in that
+     narration), at the end of a turn there, or as the last phase ends with
+     the player there. Missed: the seed goes, the person remembers "waited
+     for <player> at <place> and they never came" (weight 1) and is 3
+     colder, and a quiet line says "Jodie Strayhorn waited at the Low Water
+     and you never came."; a person who can no longer keep it drops it
+     quietly; `/cheat time` past one misses it the same way. `/undo` takes
+     a meeting back with its turn, and `/rewind` strikes a seed planted on
+     a struck turn (model seeds carry their turn now). The demo has someone
+     agree to "meet me at <place> <time words>" said to them in Say mode
+     ("Jodie Strayhorn nods. "The Low Water, tonight."") and its bookkeeper
+     records it. Left open: the demo's other "find me at ..." lines stay
+     talk, as before.

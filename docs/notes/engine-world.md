@@ -1789,3 +1789,52 @@ eleven leftovers (N1-N11), fixed as decided (the table's side:
   and at the draw "draw a card" / "draw a new card" as `{ draw: 1 }`.
 - **Tests changed by design**: `tests/wave19-betting-fixes.test.cjs` (D9:
   `typedBet`'s "raise it to 30" carries its `after`).
+
+## Wave 22 (1 Nov 2026): meetings are kept
+
+A meeting someone agrees to in the story is a seed with `appointment` (State,
+on planting: `docs/notes/engine-state.md`, Wave 22). World keeps it. Tests:
+`tests/wave22-appointments.test.cjs`.
+
+- **Its person is there.** Today's phases are placed as it is planted
+  (State); a later day's at that day's morning: `World.tick` step h,
+  `appointmentVisits(day)` (visits with the seed's id for the phases still to
+  come that day, through the visits op, so its "now or later today" rule
+  holds; someone not free, away or laid up is not placed). `npcsAt` reads the
+  visits, so the parser's NPCS PRESENT, the narrator's PRESENT and
+  DESTINATION, the Say chips and the People card all have them.
+- **It fires at its place, in one of its phases** (its trigger stays as the
+  bookkeeper gave it; a day trigger's meeting fires at its place too, never at
+  its day's morning, and `catchUp` passes over appointments):
+  - `appointmentsHere({ locationId, day, phase })`: Pipeline step 6, before
+    the due events are gathered, with where a walk lands (`dest`, its phase
+    and day) or where the turn begins (not on a walk to a shut door, an
+    arrest or an ending). It fires there and then, so the walk's narration
+    has it as a DUE EVENT with its person present.
+  - `triggerMet`: an appointment is met at its place, on its day, in one of
+    its phases, with its person able to keep it (free, in town, not laid up),
+    so `fireSeeds` (step 11, and before a narration of time passing) fires
+    one the player is at when a turn ends.
+  - `settleAppointments` (below): the player at the place as one of its
+    phases ends (a walk that got there as the time ran out, or a meeting
+    planted with the player already there).
+  `fire` treats it as its person's (`seedNpcId` returns the appointment's
+  person): their due event carries their id, and is dropped if they cannot
+  act on it. `dueSeeds` holds an appointment's due event for its place, a day
+  trigger's too (as a location seed's), and drops one still untold once the
+  phase after its last has passed (its moment has gone). Kept: nothing more
+  from the engine (a warm memory is the bookkeeper's, from the narration).
+- **Missed.** `settleAppointments(to, from, events)`: `World.tick` step h, for
+  every appointment not fired whose last phase is before the phase reached.
+  Its person cannot keep it (arrested, gone, dead, laid up) or its place is
+  gone: `seedsDropped`, a debug note, nothing said. The player at its place
+  as the phase that just ended (one of its phases) ends: it fires (kept).
+  Otherwise missed: `seedsDropped`, `addMemory` "waited for <player> at
+  <place> and they never came" (weight 1), `attitudeDelta` -3, and the tick's
+  notice "Jodie Strayhorn waited at the Low Water and you never came." (a
+  quiet line after the turn's narration, as a missed obligation's is).
+  `/cheat time` forward: `morningChores` settles each morning it passes, and
+  `catchUp` settles at the time it lands and places that day's meetings
+  (`appointmentVisits`); the lines are printed with the other catch-up lines.
+  A clock set back changes nothing.
+- Exported: `appointmentsHere`, `settleAppointments`, `appointmentVisits`.

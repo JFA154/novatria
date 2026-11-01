@@ -771,3 +771,75 @@ and `docs/notes/ui.md`, Wave 16).
   the divider and the quiet line "Clock set back to Day N · Phase. What has
   already happened stays in the story."; `World.catchUp` does not run, so
   nothing fires, and nothing told is untold.
+
+## Wave 22 (1 Nov 2026): meetings are kept
+
+The owner, at Pittman's in the morning: Jodie Strayhorn said "Low Water, back
+door, half past ten", the player went and knocked twice, and Jodie was not
+there (the engine had her on her own schedule). Tests:
+`tests/wave22-appointments.test.cjs` (World's side: `docs/notes/engine-world.md`,
+the bookkeeper's: `docs/notes/prompts.md`, Wave 22).
+
+- **`newSeeds` plants appointments.** A seed planted through `newSeeds`
+  carries `turn` (the turn it was planted on). `appointmentOf(seed)` (exported)
+  reads its effect: someone in the cast named first in it (their full name,
+  or a first name nobody else in `npcs` has, never the player's own first
+  name; alive and `free`) and a place (its location trigger, or, for a day
+  trigger, the place in town its words name first: its name, or another name
+  of its own with a capital or a possessive that no other place has). Either
+  missing, or a trigger of another type: a plain seed, as before (a location
+  seed still waits a day). Otherwise `seed.appointment = { npcId, locationId,
+  day, phase, phases, spot?, hour? }`:
+  - **phase** from the time words (the earliest named; past or habitual ones,
+    "last night", "yesterday morning", "every evening", are left out): morning
+    ("morning", "dawn", "breakfast", "first thing", "before opening"),
+    afternoon ("afternoon", "noon", "midday", "lunch"), evening ("evening",
+    "supper", "dinner", "sundown"), night ("tonight", "night", "last call",
+    "closing", "midnight"); an hour ("half past ten", "quarter to six",
+    "10:30", "21:00", "ten thirty", "six o'clock", "6 pm", "at six", "before
+    eleven") by 5-11 morning, 12-16 afternoon, 17-20 evening, 21-4 night. An
+    hour without a.m. or p.m. is read with the time of day named ("this
+    evening at seven" is 19, "tonight at ten" 22, "tonight at one" the small
+    hours) and, with none named, 1 to 4 is the afternoon ("at two"); when the
+    time of day and the hour fall in different phases ("tonight at eight")
+    both are covered. null when nothing is named.
+  - **day** from a day trigger, else "the day after tomorrow", "tomorrow",
+    "tonight" / "today" / "this morning" (today), a weekday (the next one,
+    today if it is today), else today. A day before today is no meeting.
+  - **phases**: the phase(s) named, else the rest of today from now, or the
+    whole of a later day. Today's phases already past are dropped; with none
+    left, a time named without a day is tomorrow's ("at half past ten" said
+    in the evening) and one with a day ("this morning" said in the evening)
+    is no meeting (a plain seed).
+  - **spot** ("the Low Water's back door", "the back door of the Low Water",
+    "the Low Water (back door)": up to three words) and **hour** (the words of
+    the hour as said) are kept for the words below.
+  A new appointment replaces the same person's that day still to come (its
+  visits from now on go). Its `notBeforeDay` is its day when that is later
+  than today, else none (so a location trigger may come today).
+- **Visits.** The visits op is `addVisit` now, shared: `{ npcId, locationId,
+  day?, phase?, seedId? }` (`seedId`: the appointment that placed it; kept on
+  the visit). `keepAppointment` places today's phases from now on as the seed
+  is planted (one the op refuses is left out). Someone present with the player
+  whose meeting is elsewhere stays in the scene while a later phase holds the
+  meeting; when this phase is its only one, they go now and `pendingScene`
+  gets them as `left` (cause `appointment`), so the next narration shows them
+  leaving. `advanceTime` keeps a visit for a phase still to come (it kept only
+  the phase reached before; every visit made before this wave was for now or
+  the next phase, so nothing else changes).
+- **`seedsDropped: [seedId]`** (engine key): a seed that will never fire (an
+  appointment missed, or one its person can no longer keep) goes, with the
+  visits it placed from now on (`dropSeed`).
+- **Read helpers.** `appointmentWords(seed)`: for an appointment still to come
+  (not fired, its person free, a phase of it not past) `{ seedId, npcId, name,
+  locationId, place ("the Low Water"), spot, hour, detail ("back door, half
+  past ten"), when ("this morning", "tonight", "tomorrow evening", "Friday
+  evening (Day 9)", "today") }`, else null. `appointments(npcId?)`: those
+  words for every such seed (or one person's).
+- **`/rewind`.** A seed with a `turn` later than the turn kept that has not
+  fired goes, with its visits (`result.rewound.seeds` counts them). A fired
+  one stays, as a due event does. A seed planted before this wave has no
+  `turn` and is never struck.
+- **`mergePlaces` / `mergePeople`** move an appointment's place and person.
+- `/undo` needs nothing new: the seed, its visits and the scene change are
+  state.

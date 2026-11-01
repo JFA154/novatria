@@ -712,3 +712,46 @@ name". Nobody in the scene can see the player's pocket.
   reply with string fates recorded, the fallback through a routed endpoint,
   another 400 still failing); `tests/api.test.cjs` and
   `tests/prompts-fixes.test.cjs` follow the shape.
+
+## Wave 22 (1 Nov 2026): meetings are kept
+
+The owner's Jodie said "Low Water, back door, half past ten" and was not there
+when the player came: the meeting lived only in the narration. The engine now
+keeps a meeting the bookkeeper records (`docs/notes/engine-state.md` and
+`docs/notes/engine-world.md`, Wave 22). Tests: `tests/wave22-appointments.test.cjs`.
+
+- **The bookkeeper (prompt only).** `RECORD_RULES` adds, after "newSeeds is
+  usually empty: ...": a meeting someone in the narration agrees to with the
+  player, later today or on a later day, is one seed: triggerType location
+  with that place's id as triggerValue (or triggerType day with the day number
+  when it is another day, with the place named in the effect), and the effect
+  starts with that person's full name and says where exactly and when ("Jodie
+  Strayhorn waits at the Low Water's back door at half past ten, before
+  opening"; "Curtis Pruett expects the player at the Low Water tomorrow
+  evening for the game"); one seed per meeting, none for a vague "see you
+  around". `record_changes` is unchanged (41 properties, the same schema to
+  the byte: the grammar limit, wave 17); the meeting rides on `newSeeds`'
+  effect, triggerType and triggerValue.
+- **The bookkeeper's packet.** Its first line said "Any new seed must trigger
+  on day N+1 or later", which ruled out a meeting today; it says "A new
+  seed's day trigger is day N+1 or later; a meeting agreed for later today
+  triggers on its place (location)." now (a plain location seed still waits a
+  day in the engine).
+- **The narrator.** One line, after OPEN, while a meeting is still to come
+  (`Pipeline.appointmentsLine`, from `State.appointments()`): "APPOINTMENTS:
+  Jodie Strayhorn at the Low Water (back door, half past ten) this morning,
+  as agreed" (several joined with "; "). The parenthesis is the spot and the
+  hour as the effect words them; either may be missing. Once the player gets
+  there the meeting is a DUE EVENT (its effect) in that narration and the line
+  is gone. Nothing else in the live narrator changes.
+- **The mock (demo only).** `mockMeeting(c)`: in Say mode, to one person who
+  is here, "meet me at <place> <time words>" (a place the player knows, by
+  name or another name, and time words such as "tonight", "tomorrow
+  evening", "at half past ten") with no roll or a roll that succeeded. The
+  demo narration answers with them agreeing (`mockMeetLine`: `Jodie Strayhorn
+  nods. "The Low Water, tonight."`) in place of their usual reply, and
+  `mockBookkeep` records one seed when the narration shows that line ("Jodie
+  Strayhorn meets <player> at the Low Water tonight, as agreed.", a location
+  trigger). Words with no place or no time, or said to everyone, make no
+  meeting. The demo's other "find me at ..." answers to a social roll stay
+  talk, as before.

@@ -1524,7 +1524,7 @@ s.test('night holds until the player sleeps: a run of short actions from evening
   const narr = await lastPacket(page);
   const clockOf = p => p.split('\n').find(l => / · Location: /.test(l)) || '';
   assert.ok(clockOf(narr).startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), clockOf(narr));
-  assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 1, NIGHT \(late; the player has not slept\)\. Any new seed must trigger on day 2 or later\./);
+  assert.match(await lastPacket(page, 'bookkeep'), /^TURN \d+ · DAY 1, NIGHT \(late; the player has not slept\)\. A new seed's day trigger is day 2 or later; a meeting agreed for later today triggers on its place \(location\)\./);
   assert.match(await lastPacket(page, 'parse'), /\nTIME: day 1 \(Thursday 8 October\), night \(late\)\n/);
   const schema = await page.evaluate(() => Game.Api.SCHEMAS.parse_action.properties.timeCost.description);
   assert.equal(schema, 'instant: talking, looking, a quick thing. short: minutes to half an hour (walking across town, a search, a chore, a short drive). long: an hour or more. rest: sleep until morning.');

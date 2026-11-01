@@ -566,6 +566,25 @@ arrest's narration tells nothing else; what was due waits for the next one. A
 walk's narration introduces the people where it ends, as they are when you get
 there, so the next turn tells nobody coming or going that it showed.
 
+**Meetings are kept.** When someone in the story agrees to meet you
+somewhere ("Low Water, back door, half past ten"), the bookkeeper records it
+and the engine keeps it: that person is at that place when they said (the
+time words make it a phase: half past ten is the morning, supper the
+evening, last call the night; with no time named, the rest of that day), and
+someone with you whose meeting elsewhere is in this phase and no later one
+leaves now (the next narration shows them going). The narrator
+is told of it until you get there ("APPOINTMENTS: Jodie Strayhorn at the Low
+Water (back door, half past ten) this morning, as agreed"), their People card
+says "Meeting you: the Low Water, this morning (back door, half past ten)",
+and when you walk in during that time the meeting is on in that narration. A
+meeting on a later day puts them there that morning. Let the time pass
+without going and they waited for nothing: they remember it, think a little
+less of you, and a quiet line says so ("Jodie Strayhorn waited at the Low
+Water and you never came."). Someone arrested, hurt or gone by then keeps no
+meeting, and nothing is said. `/undo` takes a meeting back with its turn;
+`/rewind` strikes one made on a struck turn. In the demo, saying "meet me at
+the Low Water tonight" to someone here has them agree.
+
 **Town news.** What the town does becomes news: a faction's plan coming off,
 the council meeting, a grudge or favour done in public, a fight in a public
 place, someone caught cheating at cards. On each new morning the news you have

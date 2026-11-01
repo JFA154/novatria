@@ -7810,7 +7810,7 @@ const State = (() => {
     'advanceTime', 'setTime', 'logEntry', 'seedsFired', 'chronicleEntry', 'weather', 'addLooseEnd', 'defeat',
     'clockFill', 'clockNext', 'dueAdd', 'dueDone', 'visits', 'npcHome', 'rumourToldBy', 'setMemories', 'fixPeople', 'editPerson', 'rulesVersion', 'sceneChange', 'sceneChangeDone',
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
-    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind'];
+    'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind', 'seedsDropped'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -8018,6 +8018,307 @@ const State = (() => {
       }
     }
     return out;
+  }
+  /* ----- appointments (wave 22) -----
+     The owner, at Pittman's in the morning: Jodie Strayhorn told the player
+     "Low Water, back door, half past ten", the player went and knocked
+     twice, and Jodie was not there: the engine still had her on her own
+     schedule, so the meeting lived only in the narration. A seed planted
+     through newSeeds (the bookkeeper's) whose effect names someone in the
+     cast (their full name, or a first name nobody else in it has; alive,
+     in town and free) and a place (its location trigger, or a day trigger
+     with a place named in its words) is an appointment:
+     seed.appointment = { npcId, locationId, day, phase, phases, spot?,
+     hour? }. phase is the time of day its words name (null for none);
+     phases are the phases it covers: that one (both, in day order, when a
+     time of day and an hour disagree: "this afternoon at five"), else the
+     rest of the day from now (today) or the whole day (a later day). spot
+     ("back door") and hour ("half past ten") are the words for it. The
+     person is there for those phases (visits: today's as it is planted,
+     a later day's when that day's morning comes, World.tick); World fires
+     the seed when the player is there in one of them and settles it once
+     they have passed (kept, or missed). A seed that names nobody in the
+     cast, or no place, is a plain seed as before. */
+  const APPT_HOUR = '(1[0-2]|0?[1-9]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)';
+  const APPT_AMPM = '(?:\\s*(a\\.?m\\.?|p\\.?m\\.?)(?![a-z]))';
+  const APPT_NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+  const APPT_HOURS = [
+    // "half past ten", "quarter to six", "twenty past nine"
+    { re: new RegExp(`\\b(half|quarter|twenty[- ]five|twenty|ten|five)(?: minutes)? (past|after|to|till|til|of) ${APPT_HOUR}(?![a-z])${APPT_AMPM}?`, 'i'), h: 3, ampm: 4, back: m => /^(?:to|till|til|of)$/i.test(m[2]) },
+    // "10:30", "21:00", "10.30 pm"
+    { re: new RegExp(`(?<![\\d$.])(2[0-3]|1\\d|0?\\d)[:.]([0-5]\\d)(?!\\d)${APPT_AMPM}?`, 'i'), h: 1, ampm: 3 },
+    // "ten thirty", "six o'clock", "6 pm", "six p.m."
+    { re: new RegExp(`\\b${APPT_HOUR} (?:thirty|fifteen|forty[- ]five|o'?clock)(?![a-z])${APPT_AMPM}?`, 'i'), h: 1, ampm: 2 },
+    { re: new RegExp(`\\b${APPT_HOUR}${APPT_AMPM}`, 'i'), h: 1, ampm: 2 },
+    // "at six", "before eleven", "around nine"
+    { re: new RegExp(`\\b(?:at|by|around|about|before|after|till|until|toward|towards) ${APPT_HOUR}(?![a-z0-9]|\\s*(?:of|hundred|thousand|grand|dollars|bucks|minutes|hours|days|weeks|months|years|miles|people|men|women|times|more|others)\\b)`, 'i'), h: 1 }
+  ];
+  // Times that are past or every day ("last night", "yesterday morning", "every evening") name no meeting.
+  const apptNotNow = t => t.replace(/\b(?:last|yesterday|the other|every)\s+(?:night|morning|afternoon|evening)s?\b|\byesterday\b|\bnights?\s+ago\b/g, ' ');
+  // The times of day the words name, as the phase each falls in (the earliest named counts).
+  const APPT_PHASE_WORDS = [
+    ['night', /\b(?:tonight|to-night|at night|night|last call|closing(?: time)?|midnight)\b/],
+    ['evening', /\b(?:evening|supper(?:time)?|dinner(?:time)?|sundown|sunset|dusk)\b/],
+    ['afternoon', /\b(?:afternoon|noon|midday|lunch(?:time)?)\b/],
+    ['morning', /\b(?:morning|dawn|daybreak|sunup|sunrise|breakfast|first thing|before (?:opening|it opens|they open|she opens|he opens|we open))\b/]
+  ];
+  // Words that end a spot ("the Low Water's back door at ...").
+  const APPT_STOP = new Set(['at', 'by', 'around', 'about', 'before', 'after', 'in', 'on', 'to', 'for', 'when', 'from', 'with', 'and', 'until', 'till', 'as', 'so', 'where', 'while', 'if', 'then', 'tonight', 'tomorrow', 'today', 'this', 'that', 'once', 'because', 'or', 'but', 'the', 'a', 'an', 'is', 'was', 'will', 'waits', 'waiting', 'expects', 'meets']);
+  const apptEsc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const apptLower = text => String(text || '').toLowerCase().replace(/[’‘]/g, "'");
+  // Where a word or name starts in lower-cased text, as a whole word; -1 when it is not there.
+  function apptAt(t, phrase) {
+    const m = new RegExp(`(^|[^a-z])${apptEsc(phrase)}(?![a-z])`).exec(t);
+    return m ? m.index + m[1].length : -1;
+  }
+  /* The hour the words name: { h (1-12, or 0-23 written so), ampm ('am',
+     'pm', or null), said (the words: "half past ten") }, or null. */
+  function apptHour(text) {
+    for (const x of APPT_HOURS) {
+      const m = x.re.exec(String(text || ''));
+      if (!m) continue;
+      const raw = String(m[x.h]).toLowerCase();
+      let h = APPT_NUM[raw] !== undefined ? APPT_NUM[raw] : parseInt(raw, 10);
+      if (!Number.isInteger(h) || h > 23) continue;
+      // "quarter to eleven" is in the ten o'clock hour.
+      if (x.back && x.back(m)) h = h === 1 ? 12 : h - 1;
+      const ampm = x.ampm && m[x.ampm] ? m[x.ampm].toLowerCase().replace(/\./g, '') : null;
+      return { h, ampm, said: m[0].trim().replace(/[.,;:]+$/, '') };
+    }
+    return null;
+  }
+  function apptPhaseWord(t) {
+    let best = null;
+    for (const [phase, re] of APPT_PHASE_WORDS) {
+      const m = re.exec(t);
+      if (m && (!best || m.index < best.i)) best = { phase, i: m.index };
+    }
+    return best ? best.phase : null;
+  }
+  /* The phase an hour falls in: 5-11 morning, 12-16 afternoon, 17-20
+     evening, 21-4 night. An hour without a.m. or p.m. is read with the
+     time of day the words name ("this evening at seven" is 19, "tonight at
+     one" the small hours); with none, 1 to 4 is the afternoon ("at two"). */
+  function apptHourPhase(hour, said) {
+    let h = hour.h;
+    if (hour.ampm === 'pm' && h < 12) h += 12;
+    else if (hour.ampm === 'am' && h === 12) h = 0;
+    else if (!hour.ampm && h >= 1 && h <= 12) {
+      if (said === 'night' && h === 12) h = 0;
+      else if (said === 'night' && h <= 4) { /* the small hours */ }
+      else if (said && said !== 'morning' && h < 12) h += 12;
+      else if (!said && h <= 4) h += 12;
+    }
+    return h >= 5 && h <= 11 ? 'morning' : h >= 12 && h <= 16 ? 'afternoon' : h >= 17 && h <= 20 ? 'evening' : 'night';
+  }
+  /* The day the words name: { day, explicit } ("tomorrow", "the day after
+     tomorrow", "tonight", "today", "this afternoon", a weekday: the next
+     one, today if it is today), or null. */
+  function apptDay(t, today) {
+    if (/\b(?:the )?day after tomorrow\b/.test(t)) return { day: today + 2 };
+    if (/\btomorrow\b/.test(t)) return { day: today + 1 };
+    if (/\b(?:tonight|to-night|today|this (?:morning|afternoon|evening)|later today|later on)\b/.test(t)) return { day: today, explicit: true };
+    const wd = WEEKDAYS.find(w => new RegExp(`\\b${w.toLowerCase()}s?\\b`).test(t));
+    if (wd) for (let d = today; d < today + 7; d++) if (weekday(d) === wd) return { day: d, explicit: true };
+    return null;
+  }
+  /* Who in the cast the words name first: a full name, or a first name
+     nobody else in it has (never the player's own first name). */
+  function apptPerson(text) {
+    const s = current;
+    const t = ' ' + apptLower(text);
+    const firsts = new Map();
+    for (const n of s.npcs) { const f = firstName(n).toLowerCase(); if (f) firsts.set(f, (firsts.get(f) || 0) + 1); }
+    const mine = String(s.player.name || '').trim().split(/\s+/)[0].toLowerCase();
+    let best = null;
+    for (const n of s.npcs) {
+      if (!n.name || n.unnamed) continue;
+      let i = apptAt(t, String(n.name).toLowerCase());
+      if (i < 0) {
+        const f = firstName(n).toLowerCase();
+        if (f.length >= 3 && firsts.get(f) === 1 && f !== mine) i = apptAt(t, f);
+      }
+      if (i >= 0 && (!best || i < best.i)) best = { n, i };
+    }
+    return best ? best.n : null;
+  }
+  /* A place's names the words may use: its name, and another name of its
+     own (a capital or a possessive) no other place has (as World's
+     revealNamedPlaces reads them), without "the". */
+  function apptNames(l) {
+    const bare = x => apptLower(x).replace(/^the\s+/, '').trim();
+    const own = x => /[A-Z]/.test(String(x).replace(/^the\s+/i, '')) || /'s\b|s'(?=\s|$)/.test(String(x).replace(/[’]/g, "'"));
+    const held = new Map();
+    for (const m of current.locations) for (const x of [m.name].concat(Array.isArray(m.aka) ? m.aka : [])) held.set(bare(x), (held.get(bare(x)) || 0) + 1);
+    return [l.name].concat((Array.isArray(l.aka) ? l.aka : []).filter(x => own(x) && held.get(bare(x)) === 1)).map(bare).filter(x => x.length >= 4);
+  }
+  // The place in town the words name first (a day trigger's meeting place).
+  function apptPlace(text) {
+    const t = ' ' + apptLower(text);
+    let best = null;
+    for (const l of current.locations) {
+      if (l.away === true) continue;
+      for (const x of apptNames(l)) {
+        const i = apptAt(t, x);
+        if (i >= 0 && (!best || i < best.i || (i === best.i && x.length > best.len))) best = { l, i, len: x.length };
+      }
+    }
+    return best ? best.l : null;
+  }
+  /* The spot at the place: "the Low Water's back door", "the back door of
+     the Low Water", "the Low Water (back door)"; up to three words. */
+  function apptSpot(text, l) {
+    const t = apptLower(text);
+    const timeWord = w => APPT_PHASE_WORDS.some(([, re]) => re.test(w)) || APPT_NUM[w] !== undefined || /^\d/.test(w);
+    for (const x of apptNames(l)) {
+      const i = apptAt(t, x);
+      if (i < 0) continue;
+      const after = t.slice(i + x.length);
+      const poss = /^'s?\s+([a-z][a-z -]*)/.exec(after);
+      if (poss) {
+        const out = [];
+        for (const w of poss[1].trim().split(/\s+/)) { if (APPT_STOP.has(w) || timeWord(w)) break; out.push(w); if (out.length === 3) break; }
+        if (out.length) return out.join(' ');
+      }
+      const before = /\bthe ((?:[a-z]+ ){0,2}[a-z]+) (?:of|behind|outside|beside) (?:the )?$/.exec(t.slice(0, i));
+      if (before && !before[1].split(' ').some(w => APPT_STOP.has(w) || timeWord(w) || w === 'player')) return before[1];
+      const par = /^\s*\(([^)]{2,40})\)/.exec(after);
+      if (par) return par[1].trim();
+    }
+    return null;
+  }
+  /* The appointment a seed is (above), or null. */
+  function appointmentOf(sd) {
+    const s = current;
+    const tr = isObj(sd) ? sd.trigger : null;
+    if (!isObj(tr) || (tr.type !== 'location' && tr.type !== 'day')) return null;
+    const n = apptPerson(sd.effect);
+    if (!n || n.alive === false || n.status !== 'free') return null;
+    const l = tr.type === 'location' ? (typeof tr.value === 'string' ? loc(tr.value) : null) : apptPlace(sd.effect);
+    if (!l || l.away === true || l.closed === true) return null;
+    const t = apptNotNow(apptLower(sd.effect));
+    const today = s.time.day;
+    const now = PHASES.indexOf(s.time.phase);
+    const named = tr.type === 'day' ? { day: toInt(tr.value), explicit: true } : apptDay(t, today);
+    let day = named && Number.isInteger(named.day) ? named.day : today;
+    if (day < today) return null;
+    const said = apptPhaseWord(t);
+    const hour = apptHour(t);
+    const phase = hour ? apptHourPhase(hour, said) : said;
+    let phases = phase ? PHASES.filter(p => p === phase || p === said) : PHASES.slice();
+    if (day === today) {
+      const left = phases.filter(p => PHASES.indexOf(p) >= now);
+      if (left.length) phases = left;
+      // "at half past ten", said in the evening, is tomorrow's; "this morning", said in the evening, is no meeting left to keep.
+      else if (named && named.explicit) return null;
+      else day = today + 1;
+    }
+    const out = { npcId: n.id, locationId: l.id, day, phase: phase || null, phases };
+    const spot = apptSpot(sd.effect, l);
+    if (spot) out.spot = spot;
+    if (hour) out.hour = hour.said;
+    return out;
+  }
+  /* The person keeps today's appointment: at its place for each phase it
+     covers from now on (the visits op; one it refuses is left out).
+     Returns the phases placed. A later day's come at its morning (World). */
+  function keepAppointment(sd) {
+    const s = current;
+    const ap = isObj(sd) ? sd.appointment : null;
+    const t = s.time;
+    if (!isObj(ap) || ap.day !== t.day) return [];
+    // Someone with the player now who is to meet them elsewhere: they stay in this scene while a later phase holds the meeting;
+    // when this phase is its only one, they go now, and the next narration shows them leaving (a change of scene).
+    const here = s.player.locationId;
+    const before = npcsAt(here).map(n => n.id);
+    const withPlayer = here !== ap.locationId && before.includes(ap.npcId);
+    const later = ap.phases.some(ph => PHASES.indexOf(ph) > PHASES.indexOf(t.phase));
+    const placed = [];
+    for (const ph of ap.phases) {
+      if (PHASES.indexOf(ph) < PHASES.indexOf(t.phase)) continue;
+      if (ph === t.phase && withPlayer && later) continue;
+      try { addVisit({ npcId: ap.npcId, locationId: ap.locationId, day: ap.day, phase: ph, seedId: sd.id }); placed.push(ph); } catch (err) { if (!(err instanceof Reject)) throw err; }
+    }
+    if (withPlayer && placed.includes(t.phase) && !npcsAt(here).some(n => n.id === ap.npcId)) {
+      const ps = isObj(s.pendingScene) && s.pendingScene.locationId === here ? s.pendingScene : null;
+      if (ps) {
+        ps.arrived = (Array.isArray(ps.arrived) ? ps.arrived : []).filter(x => x !== ap.npcId);
+        if (!Array.isArray(ps.left)) ps.left = [];
+        if (!ps.left.includes(ap.npcId)) ps.left.push(ap.npcId);
+      } else s.pendingScene = { locationId: here, day: t.day, phase: t.phase, arrived: [], left: [ap.npcId], cause: 'appointment', before };
+    }
+    return placed;
+  }
+  /* The visits op: { npcId, locationId, day?, phase?, seedId? } puts
+     someone in one place for one phase (npcsAt), and out of their
+     scheduled one. For now, or (wave 3) for the phase a walk lands in:
+     this phase or a later one today, or the morning after a night, so
+     someone who comes for the player at the end of a walk that crosses
+     into the next phase is there when they arrive (and stays, as visits
+     for the phase that has come do). seedId (wave 22): the appointment
+     that placed it, so the visit goes with its seed. */
+  function addVisit(v) {
+    const s = current;
+    if (!isObj(v)) bad('must be an object');
+    const n = needNpc(v.npcId);
+    const l = needLoc(v.locationId);
+    if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status}`);
+    if (l.away === true) bad(`${l.id} is out of town`);
+    if (l.closed) bad(`${l.id} is closed`);
+    let day = s.time.day;
+    let phase = s.time.phase;
+    if (v.phase !== undefined && v.phase !== null) {
+      if (!PHASES.includes(v.phase)) bad(`phase must be ${PHASES.join(', ')}`);
+      const d = v.day === undefined || v.day === null ? s.time.day : toInt(v.day);
+      const later = d === s.time.day ? PHASES.indexOf(v.phase) >= PHASES.indexOf(s.time.phase) : d === s.time.day + 1 && s.time.phase === 'night' && v.phase === PHASES[0];
+      if (!later) bad('a visit is for now or the phase a walk lands in');
+      day = d;
+      phase = v.phase;
+    }
+    if (!Array.isArray(s.visits)) s.visits = [];
+    // One visit per person and phase (wave 4): someone who came for the player now can be kept there for the phase the turn runs into too.
+    s.visits = s.visits.filter(x => !(x.npcId === n.id && x.day === day && x.phase === phase));
+    const entry = { npcId: n.id, locationId: l.id, day, phase };
+    if (typeof v.seedId === 'string' && seed(v.seedId)) entry.seedId = v.seedId;
+    s.visits.push(entry);
+    return `${n.id} at ${l.id} for day ${day} ${phase}`;
+  }
+  /* A seed out of the story (seedsDropped, a replaced appointment): gone,
+     with the visits it placed from now on. */
+  function dropSeed(sd) {
+    const s = current;
+    s.seeds = s.seeds.filter(x => x !== sd);
+    const at = s.time.day * PHASES.length + PHASES.indexOf(s.time.phase);
+    if (Array.isArray(s.visits)) s.visits = s.visits.filter(v => !(isObj(v) && v.seedId === sd.id && Number.isInteger(v.day) && v.day * PHASES.length + PHASES.indexOf(v.phase) >= at));
+  }
+  /* For the narrator, the People card and the feed: the words of an
+     appointment still to come (its seed not fired, its person free, a phase
+     of it not yet past). { seedId, npcId, name, locationId, place ("the Low
+     Water"), spot, hour, detail ("back door, half past ten"), when ("this
+     morning", "tonight", "tomorrow evening", "Friday evening (Day 9)",
+     "today") }. */
+  function appointmentWords(sd) {
+    const s = current;
+    const ap = isObj(sd) ? sd.appointment : null;
+    if (!s || !isObj(ap) || sd.fired) return null;
+    const n = npc(ap.npcId);
+    const l = loc(ap.locationId);
+    if (!n || !l || n.alive === false || n.status !== 'free') return null;
+    const phases = Array.isArray(ap.phases) ? ap.phases : [];
+    const last = phases[phases.length - 1];
+    if (!last || ap.day * PHASES.length + PHASES.indexOf(last) < s.time.day * PHASES.length + PHASES.indexOf(s.time.phase)) return null;
+    const ph = ap.phase;
+    const today = s.time.day;
+    let when;
+    if (ap.day === today) when = !ph ? 'today' : ph === 'night' ? 'tonight' : `this ${ph}`;
+    else if (ap.day === today + 1) when = ph ? `tomorrow ${ph}` : 'tomorrow';
+    else when = `${weekday(ap.day)}${ph ? ` ${ph}` : ''} (Day ${ap.day})`;
+    const detail = [ap.spot, ap.hour].filter(x => typeof x === 'string' && x).join(', ');
+    return { seedId: sd.id, npcId: n.id, name: n.name, locationId: l.id, place: String(l.name).replace(/^The /, 'the '), spot: ap.spot || null, hour: ap.hour || null, detail, when };
+  }
+  function appointments(npcId) {
+    if (!current) return [];
+    return current.seeds.filter(sd => isObj(sd.appointment) && (!npcId || sd.appointment.npcId === npcId)).map(appointmentWords).filter(Boolean);
   }
   function addNpc(raw) {
     if (!isObj(raw)) bad('npc must be an object');
@@ -9495,8 +9796,10 @@ const State = (() => {
     if (quality === 'rough') putCondition(Object.assign({}, STIFF, { untilDay: t.day }));
     if (newDay && t.noSleep === true) putCondition(Object.assign({}, TIRED));
     if (newDay) expireNow(t.day);
-    // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene).
-    if (steps && Array.isArray(current.visits)) current.visits = current.visits.filter(v => v.day === t.day && v.phase === t.phase);
+    // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene); one for a phase still
+    // to come stays for it (wave 22: an appointment's, made for later today).
+    const nowKey = t.day * PHASES.length + PHASES.indexOf(t.phase);
+    if (steps && Array.isArray(current.visits)) current.visits = current.visits.filter(v => isObj(v) && Number.isInteger(v.day) && PHASES.includes(v.phase) && v.day * PHASES.length + PHASES.indexOf(v.phase) >= nowKey);
     const out = { cost, from, to: { day: t.day, phase: t.phase }, phasesPassed: steps, healed, held };
     if (quality) out.quality = quality;
     if (cause) out.cause = cause;
@@ -10091,7 +10394,10 @@ const State = (() => {
     if (s.player.locationId === from.id) s.player.locationId = into.id;
     for (const v of s.visits || []) if (v.locationId === from.id) v.locationId = into.id;
     for (const k of Object.keys(s.seen || {})) if (isObj(s.seen[k]) && s.seen[k].locationId === from.id) s.seen[k].locationId = into.id;
-    for (const sd of s.seeds) if (isObj(sd.trigger) && sd.trigger.type === 'location' && sd.trigger.value === from.id) sd.trigger.value = into.id;
+    for (const sd of s.seeds) {
+      if (isObj(sd.trigger) && sd.trigger.type === 'location' && sd.trigger.value === from.id) sd.trigger.value = into.id;
+      if (isObj(sd.appointment) && sd.appointment.locationId === from.id) sd.appointment.locationId = into.id;
+    }
     for (const t of s.threads) t.linkedIds = Array.from(new Set(t.linkedIds.map(x => (x === from.id ? into.id : x))));
     if (s.pendingScene && s.pendingScene.locationId === from.id) s.pendingScene.locationId = into.id;
     if (Array.isArray(from.items) && from.items.length) into.items = (into.items || []).concat(from.items);
@@ -10129,6 +10435,7 @@ const State = (() => {
     for (const sd of s.seeds) {
       if (isObj(sd.origin) && sd.origin.npcId === from.id) sd.origin.npcId = into.id;
       if (isObj(sd.trigger) && sd.trigger.type === 'npc' && sd.trigger.value === from.id) sd.trigger.value = into.id;
+      if (isObj(sd.appointment) && sd.appointment.npcId === from.id) sd.appointment.npcId = into.id;
     }
     for (const ev of s.dueEvents || []) if (ev.npcId === from.id) ev.npcId = into.id;
     if (Array.isArray(s.visits)) {
@@ -10464,9 +10771,21 @@ const State = (() => {
       const cap = model ? LIMITS.modelSeedsPerTurn : LIMITS.seedsPerTurn;
       if (ledger.seeds >= cap) bad(`seed limit reached (${cap} per turn)`);
       const sd = normaliseSeed(raw, true);
+      // The turn it was planted on (wave 22): /rewind strikes it with that turn.
+      sd.turn = s.meta.turn;
+      // A meeting someone agreed to in the story (wave 22): an appointment the engine keeps.
+      const ap = appointmentOf(sd);
+      if (ap) {
+        // The same person's meeting that day, agreed before, is this one now (a time changed, or the meeting said again).
+        for (const old of s.seeds.filter(x => isObj(x.appointment) && !x.fired && x.appointment.npcId === ap.npcId && x.appointment.day === ap.day)) dropSeed(old);
+        sd.appointment = ap;
+        // It may come today (a location trigger waits a day otherwise), and not before its day.
+        if (ap.day > s.time.day) sd.notBeforeDay = ap.day; else delete sd.notBeforeDay;
+      }
       s.seeds.push(sd);
       ledger.seeds += 1;
-      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})`;
+      const placed = ap ? keepAppointment(sd) : [];
+      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})${ap ? `; an appointment: ${ap.npcId} at ${ap.locationId} on day ${ap.day} (${ap.phases.join(', ')})${placed.length ? `, there for ${placed.join(', ')}` : ''}` : ''}`;
     });
     each('rumoursHeard', id => {
       const r = rumour(id) || bad(`unknown rumour id "${id}"`);
@@ -10790,7 +11109,9 @@ const State = (() => {
        found again), else stays; a fight from those turns is over. The
        clock goes back to when the first struck turn was played (its
        input's time: its from, else its own), the start of that phase, and
-       a visit after it and an untold change of scene go. meta.turn keeps
+       a visit after it and an untold change of scene go, as does a seed the
+       bookkeeper planted on a struck turn that has not fired (wave 22: its
+       turn; an appointment with its visits). meta.turn keeps
        counting (the next turn is logged after the struck numbers), so what
        else carries a later turn (an obligation, a due event, a rumour, a
        defeat) keeps it, and an undo step kept from before the rewind is
@@ -10799,7 +11120,7 @@ const State = (() => {
        carried, attitudes, where the player is, rumours heard, clocks, loose
        ends and threads (a thread settled then stays settled, its gain
        kept). result.rewound: { struck, turn, day, phase, settled, people,
-       places }. */
+       places, seeds (how many seeds went) }. */
     one('rewind', v => {
       if (!isObj(v) || !Number.isInteger(v.turn) || v.turn < 0) bad('needs turn: the last turn kept');
       const T = v.turn;
@@ -10833,6 +11154,12 @@ const State = (() => {
       }
       const at = t.day * PHASES.length + PHASES.indexOf(t.phase);
       if (Array.isArray(s.visits)) s.visits = s.visits.filter(x => !(isObj(x) && Number.isInteger(x.day) && x.day * PHASES.length + PHASES.indexOf(x.phase) > at));
+      // A seed the bookkeeper planted on a struck turn that has not fired (wave 22: an appointment too, with its visits) goes.
+      const struckSeeds = s.seeds.filter(sd => isObj(sd) && later(sd.turn) && !sd.fired).map(sd => sd.id);
+      if (struckSeeds.length) {
+        s.seeds = s.seeds.filter(sd => !struckSeeds.includes(sd.id));
+        if (Array.isArray(s.visits)) s.visits = s.visits.filter(x => !(isObj(x) && struckSeeds.includes(x.seedId)));
+      }
       delete s.pendingScene;
       // People and places first named later: gone unless something else names them (their own record, the schedules, the seen marks and a place's exits back to it aside).
       const newPeople = s.npcs.filter(n => isObj(n.created) && later(n.created.turn));
@@ -10863,7 +11190,7 @@ const State = (() => {
       }
       // A home the cast wrote, found later: not found again.
       for (const l of newPlaces) if (l.revealed.authored === true && !drop.has(l.id)) { l.discovered = false; delete l.revealed; places.push(l.name); }
-      if (applyCtx) applyCtx.result.rewound = { struck: gone.length, turn: T, day: t.day, phase: t.phase, settled, people, places };
+      if (applyCtx) applyCtx.result.rewound = { struck: gone.length, turn: T, day: t.day, phase: t.phase, settled, people, places, seeds: struckSeeds.length };
       return `rewound to turn ${T}: ${gone.length} turn${gone.length === 1 ? '' : 's'} struck, the clock at day ${t.day} ${t.phase}${people.length ? `; gone: ${people.join(', ')}` : ''}${places.length ? `; places gone: ${places.join(', ')}` : ''}`;
     });
     each('npcHome', hm => {
@@ -10884,33 +11211,14 @@ const State = (() => {
       r.heardFrom = n.id;
       return `${r.id} heard from ${n.id}`;
     });
-    each('visits', v => {
-      if (!isObj(v)) bad('must be an object');
-      const n = needNpc(v.npcId);
-      const l = needLoc(v.locationId);
-      if (n.alive === false || n.status !== 'free') bad(`${n.id} is ${n.alive === false ? 'dead' : n.status}`);
-      if (l.away === true) bad(`${l.id} is out of town`);
-      if (l.closed) bad(`${l.id} is closed`);
-      /* For now, or (wave 3) for the phase a walk lands in: { day?, phase? },
-         this phase or a later one today, or the morning after a night, so
-         someone who comes for the player at the end of a walk that crosses
-         into the next phase is there when they arrive (and stays, as visits
-         for the phase that has come do). */
-      let day = s.time.day;
-      let phase = s.time.phase;
-      if (v.phase !== undefined && v.phase !== null) {
-        if (!PHASES.includes(v.phase)) bad(`phase must be ${PHASES.join(', ')}`);
-        const d = v.day === undefined || v.day === null ? s.time.day : toInt(v.day);
-        const later = d === s.time.day ? PHASES.indexOf(v.phase) >= PHASES.indexOf(s.time.phase) : d === s.time.day + 1 && s.time.phase === 'night' && v.phase === PHASES[0];
-        if (!later) bad('a visit is for now or the phase a walk lands in');
-        day = d;
-        phase = v.phase;
-      }
-      if (!Array.isArray(s.visits)) s.visits = [];
-      // One visit per person and phase (wave 4): someone who came for the player now can be kept there for the phase the turn runs into too.
-      s.visits = s.visits.filter(x => !(x.npcId === n.id && x.day === day && x.phase === phase));
-      s.visits.push({ npcId: n.id, locationId: l.id, day, phase });
-      return `${n.id} at ${l.id} for day ${day} ${phase}`;
+    each('visits', addVisit);
+    /* Wave 22: seeds that will never fire now (an appointment missed, or
+       one its person can no longer keep): out of the story, with the
+       visits they placed from now on. */
+    each('seedsDropped', id => {
+      const sd = seed(id) || bad(`unknown seed id "${id}"`);
+      dropSeed(sd);
+      return `${sd.id} dropped`;
     });
     one('chronicleEntry', c => {
       if (!isObj(c)) bad('must be an object');
@@ -11834,6 +12142,8 @@ const State = (() => {
     SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS, NOT_ACTIONS,
     season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, missedEventId, expireDaily, goodNamed, goodSource,
     absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory, newsWaits, MEMORY_ACTS,
+    // Wave 22: meetings agreed in the story (appointments() the ones still to come, with their words).
+    appointments, appointmentWords, appointmentOf,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, joinSnapshot, beginBatch, endBatch,
@@ -12876,6 +13186,12 @@ const Town = (() => {
         them (0 for someone it does not have), for anyone with no weight-3
         memory from the last DRIFT_QUIET_DAYS (5) days and no open loose
         end with the player.
+     h. Appointments (wave 22): a meeting agreed in the story (a seed with
+        appointment) whose last phase has passed is settled: kept (it fires)
+        when the player was at its place as that phase ended, dropped
+        quietly when its person can no longer keep it, else missed (the
+        person remembers waiting, -3, a quiet line). A new morning places
+        that day's meetings (visits).
 
    Seeds and due events (state.dueEvents):
      fireSeeds(ctx), Pipeline step 11, fires every unfired seed whose trigger
@@ -13028,8 +13344,10 @@ const World = (() => {
     return st().locations.some(l => PHASES.some(p => ((l.npcIdsBySchedule || {})[p] || []).includes(npcId)));
   }
   function looseEndOf(seedId) { return (st().player.looseEnds || []).find(le => le.seedId === seedId) || null; }
-  /* The NPC a seed is about: its origin, else the loose end that planted it. */
+  /* The NPC a seed is about: its origin, else the loose end that planted it
+     (wave 22: an appointment's person first). */
   function seedNpcId(sd) {
+    if (isObj(sd.appointment) && typeof sd.appointment.npcId === 'string') return sd.appointment.npcId;
     if (sd.origin && sd.origin.npcId) return sd.origin.npcId;
     const le = looseEndOf(sd.id);
     return le ? le.npcId : null;
@@ -13579,6 +13897,8 @@ const World = (() => {
       for (const c of ended) evs.push({ kind: 'condition', notice: `Condition over: ${c.name}${c.effect ? ` (${c.effect})` : ''}.` });
     }
     State.expireDaily(day);
+    // A meeting the jump passed (wave 22): missed, told under its day.
+    settleAppointments({ day, phase: PHASES[0] }, null, evs);
     for (const e of evs) if (e && typeof e.notice === 'string') fired.push({ id: `${e.kind}_d${day}`, morning: true, day, notice: e.notice });
   }
   function catchUp(at) {
@@ -13589,6 +13909,8 @@ const World = (() => {
     const order = [];
     if (from) for (let d = from.day + 1; d <= now.day; d++) order.push({ day: d, phase: PHASES[0], morning: true, rank: 0 });
     for (const sd of s.seeds) {
+      // An appointment fires at its place, not on its day's morning (wave 22).
+      if (isObj(sd.appointment)) continue;
       const d = isObj(sd.trigger) && sd.trigger.type === 'day' ? toInt(sd.trigger.value) : null;
       if (d !== null && ready(sd) && reached(d, PHASES[0], now)) order.push({ day: d, phase: PHASES[0], sd, rank: 1 });
     }
@@ -13608,6 +13930,11 @@ const World = (() => {
       }
       for (let i = k; i < fired.length; i++) fired[i].prog = earned();
     }
+    // Wave 22: a meeting whose phases the clock has passed today is missed; today's still to come are kept (visits).
+    const evs = [];
+    settleAppointments(now, null, evs);
+    for (const e of evs) if (e && typeof e.notice === 'string') fired.push({ id: `${e.kind}_d${now.day}`, morning: true, day: e.day || now.day, notice: e.notice, prog: earned() });
+    appointmentVisits(now.day);
     fireEpilogue(now, null, fired);
     return fired;
   }
@@ -13729,12 +14056,99 @@ const World = (() => {
       plantFeelings(to.day);                                            // e
       fireEvents(to, events);                                           // f
       if (morning) newMorning(to.day, events);                          // g
+      settleAppointments(to, info && info.from, events);                // h (wave 22): a meeting kept or missed
+      if (morning) appointmentVisits(to.day);                           //   and the day's meetings kept
     } finally { tickAt = null; tickCause = null; }
     return { phasesPassed: (info && info.phasesPassed) || 1, events };
   }
 
+  // ----- appointments (wave 22) -----
+  /* A meeting someone agreed to in the story (State.appointmentOf: a seed
+     with appointment { npcId, locationId, day, phase, phases }). Its person
+     is at its place for the phases it covers (visits: today's as it is
+     planted, a later day's here at that day's morning). It fires (its due
+     event: the meeting is on) when the player is there in one of those
+     phases: as a walk lands there or a turn there begins (appointmentsHere,
+     Pipeline step 6), at the end of a turn there (fireSeeds, step 11), or
+     as the last of them ends with the player there (settleAppointments).
+     Once they have all passed it is settled: kept, or missed. */
+  const apptKey = (day, phase) => day * PHASES.length + PHASES.indexOf(phase);
+  function pendingAppointments() { return arr((st() || {}).seeds).filter(sd => isObj(sd.appointment) && !sd.fired); }
+  function covers(ap, day, phase) { return ap.day === day && arr(ap.phases).includes(phase); }
+  // Its person can keep it that day: free, in town, not laid up.
+  function canKeep(ap, day) { const n = State.npc(ap.npcId); return isFree(n) && presenceOf(n) === 'here' && !State.laidUp(n, day); }
+  /* The day's meetings: each person at their place for the phases still to
+     come today (visits with the seed's id; a refused one is noted). */
+  function appointmentVisits(day) {
+    const s = st();
+    const now = apptKey(s.time.day, s.time.phase);
+    const v = [];
+    for (const sd of pendingAppointments()) {
+      const ap = sd.appointment;
+      if (ap.day !== day || ap.day !== s.time.day || !canKeep(ap, day)) continue;
+      for (const ph of arr(ap.phases)) if (apptKey(ap.day, ph) >= now) v.push({ npcId: ap.npcId, locationId: ap.locationId, day: ap.day, phase: ph, seedId: sd.id });
+    }
+    if (!v.length) return 0;
+    const r = State.apply({ visits: v }, W);
+    if (r.rejected.length) note(`appointment visits refused: ${r.rejected.map(x => x.reason).join('; ')}`, { kind: 'seed' });
+    return v.length - r.rejected.length;
+  }
+  /* The player is at a meeting's place in a phase it covers (at: {
+     locationId, day, phase }: where a walk lands, or where a turn begins):
+     it is kept, and fires now, so this narration tells it. Returns the ids. */
+  function appointmentsHere(at) {
+    const s = st();
+    if (!s || !isObj(at) || typeof at.locationId !== 'string' || !PHASES.includes(at.phase) || !Number.isInteger(at.day)) return [];
+    const fired = [];
+    for (const sd of pendingAppointments()) {
+      const ap = sd.appointment;
+      if (ap.locationId !== at.locationId || !covers(ap, at.day, at.phase) || !canKeep(ap, at.day)) continue;
+      if (fire(sd)) fired.push(sd.id);
+    }
+    return fired;
+  }
+  /* A meeting whose last phase has passed (to: the phase the clock has
+     reached; from: the phase that just ended, on a tick): kept if the
+     player was at its place as one of its phases ended (it fires: a walk
+     that got there as the time ran out); dropped with nothing said if its
+     person can no longer keep it (arrested, gone, dead, laid up); else
+     missed: the seed goes, the person remembers waiting (weight 1) and is
+     3 colder, and the player gets a quiet line ("Jodie Strayhorn waited at
+     the Low Water and you never came."). events: the tick's (a notice
+     each). Returns how many were missed. */
+  function settleAppointments(to, from, events) {
+    const s = st();
+    if (!s || !isObj(to)) return 0;
+    const at = apptKey(to.day, to.phase);
+    let missed = 0;
+    for (const sd of pendingAppointments()) {
+      const ap = sd.appointment;
+      const phases = arr(ap.phases);
+      if (phases.length && apptKey(ap.day, phases[phases.length - 1]) >= at) continue;
+      const n = State.npc(ap.npcId);
+      const l = State.loc(ap.locationId);
+      if (!l || !canKeep(ap, ap.day)) {
+        State.apply({ seedsDropped: [sd.id] }, W);
+        note(`${sd.id} dropped: ${ap.npcId} could not keep the meeting`, { kind: 'seed', seedId: sd.id });
+        continue;
+      }
+      if (isObj(from) && covers(ap, from.day, from.phase) && s.player.locationId === ap.locationId) { fire(sd); continue; }
+      State.apply({ seedsDropped: [sd.id] }, W);
+      applyEffects([
+        { op: 'addMemory', npcId: n.id, text: `waited for ${s.player.name} at ${placeIn(l)} and they never came`, weight: 1 },
+        { op: 'attitudeDelta', npcId: n.id, delta: -3 }
+      ]);
+      if (Array.isArray(events)) events.push({ kind: 'appointment', id: sd.id, day: ap.day, notice: `${n.name} waited at ${placeIn(l)} and you never came.` });
+      note(`${sd.id} missed: ${n.id} waited at ${l.id} and the player never came`, { kind: 'seed', seedId: sd.id });
+      missed += 1;
+    }
+    return missed;
+  }
+
   // ----- seeds and due events -----
   function triggerMet(sd, here, presentIds) {
+    // An appointment (wave 22) is met at its place, in a phase it covers, with its person able to keep it.
+    if (isObj(sd.appointment)) { const ap = sd.appointment; const t = st().time; return here === ap.locationId && covers(ap, t.day, t.phase) && canKeep(ap, t.day); }
     const tr = isObj(sd.trigger) ? sd.trigger : {};
     switch (tr.type) {
       case 'day': { const d = toInt(tr.value); return d !== null && st().time.day >= d; }
@@ -13874,7 +14288,12 @@ const World = (() => {
       if (ev.obligationId && obligations().some(o => o.id === ev.obligationId && o.status === 'met')) { drop.push(ev.seedId); continue; }
       // A place's event is told in that place: if the player has moved on, it waits for them to come back.
       const sd = State.seed(ev.seedId);
-      if (sd && isObj(sd.trigger) && sd.trigger.type === 'location' && (!anyOf(sd.trigger.value, v => v === here) || (ctx && ctx.leaving))) continue;
+      // A meeting (wave 22) not told by the phase after its last one: its moment has gone.
+      const ap = sd && isObj(sd.appointment) && arr(sd.appointment.phases).length ? sd.appointment : null;
+      if (ap && apptKey(day, phase) > apptKey(ap.day, ap.phases[ap.phases.length - 1]) + 1) { drop.push(ev.seedId); continue; }
+      // An appointment's place is its own (wave 22: a day trigger's meeting too).
+      const at = sd && isObj(sd.appointment) ? sd.appointment.locationId : sd && isObj(sd.trigger) && sd.trigger.type === 'location' ? sd.trigger.value : null;
+      if (at && (!anyOf(at, v => v === here) || (ctx && ctx.leaving))) continue;
       // Held for a later turn (ctx.hold): kept due, not told now.
       if (held(ev, sd)) continue;
       const item = { seedId: ev.seedId, text: ev.text, npcId: ev.npcId || null };
@@ -14167,6 +14586,7 @@ const World = (() => {
   return {
     MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, FEELING_COOLDOWN, GOT_EVEN, DRIFT_PER_DAY, DRIFT_QUIET_DAYS, FINE, CLOCK_ODDS, hooks, recent,
     tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, fillEffects, conditionsMet, clockProgress, fireEvents, catchUp, eventsOnArrival, eventsFired, arrestPlan,
+    appointmentsHere, settleAppointments, appointmentVisits,
     knockDown, arrestPlayer, feelingMark, oddsOf, sleptRough, ROUGH_NIGHTS, ROUGH_FINE, ROUGH_FORGIVEN, memoryKind, freshMemory, plantFeeling, townSeed, theThing,
     attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
     forceClockRoll, forceAttitude
@@ -14909,7 +15329,7 @@ const Api = (() => {
   const MEMORY_RULES = "A memory is only something this person would still hold against the player, thank them for, or hold them to later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared, what the player claimed about themselves (a name, a job, a story about why they are here), and terms agreed, with the amount and the deadline kept ('owes me $40 by Friday'). Someone who only saw something serious happen (a fight, a theft, a threat) can remember that too ('saw them hit the bartender'). Ordinary talk, questions, small talk and the mechanics of a scene are not memories, and neither is anything already on that person's remembers list. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside', 'says he is a surveyor from the state'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   /* The bookkeeper's field rubric (REVIEW section 2.6): what each field is
      for and what it is not for. */
-  const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
+  const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. A meeting someone in the narration agrees to with the player, later today or on a later day, is one seed: triggerType location with that place's id as triggerValue (or triggerType day with the day number when it is another day, with the place named in the effect), and the effect starts with that person's full name and says where exactly and when ('Jodie Strayhorn waits at the Low Water's back door at half past ten, before opening'; 'Curtis Pruett expects the player at the Low Water tomorrow evening for the game'); one seed per meeting, none for a vague 'see you around'. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"); the game (Texas hold'em or five-card draw) and who sits in (\"deal everyone in\", \"heads up\") may be named in the words, and the engine reads them from the input; \"I bet he is lying\" or \"I bet you ten bucks it rains tomorrow\" is a way of speaking, not gamble. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + RECORD_RULES + " " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
@@ -15764,6 +16184,36 @@ const Api = (() => {
     const line = !habit ? `${reply}.` : habit.split(/\s+/).length <= 2 ? `${reply}, ${habit}.` : `${capFirst(habit).replace(/[.!?]+$/, '')}. ${reply}.`;
     return `${n.name} says, "${line}"`;
   }
+  /* A meeting the player proposes in Say mode (wave 22, the demo's one
+     deterministic case): "meet me at <place> <time words>" said to someone
+     present, with no roll or a roll that succeeded. The demo narration has
+     them agree ("Jodie Strayhorn nods. "The Low Water, tonight.""), and the
+     demo bookkeeper records the seed (State makes it an appointment).
+     Returns { npc, place, when } or null. */
+  const MOCK_MEET = /\bmeet me (?:at|by|in|outside|behind|over at|down at|out at) (.+?)\s*[.!?]*\s*$/i;
+  function mockMeeting(c) {
+    const s = State.current;
+    const sp = c && c.speech;
+    if (!s || !isSay(sp) || !sp.to || sp.to === 'everyone' || (c.roll && !c.roll.success)) return null;
+    const m = MOCK_MEET.exec(String(c.input || '').replace(/[’‘]/g, "'"));
+    if (!m) return null;
+    const n = State.npc(sp.to);
+    if (!n || !(c.presentIds || State.npcsAt(s.player.locationId).map(x => x.id)).includes(n.id)) return null;
+    const rest = m[1].toLowerCase().replace(/^the\s+/, '');
+    let best = null;
+    for (const l of s.locations) {
+      if (!l.discovered || l.away === true) continue;
+      for (const name of [l.name].concat(Array.isArray(l.aka) ? l.aka : [])) {
+        const bare = String(name).toLowerCase().replace(/[’]/g, "'").replace(/^the\s+/, '');
+        if (bare.length >= 4 && rest.startsWith(bare) && !/^[a-z]/.test(rest.slice(bare.length)) && (!best || bare.length > best.len)) best = { l, len: bare.length };
+      }
+    }
+    if (!best) return null;
+    const when = rest.slice(best.len).replace(/^[\s,]+/, '').trim();
+    if (!when || !/\b(?:tonight|tomorrow|today|morning|afternoon|evening|night|noon|midday|supper|dinner|breakfast|dawn|o'?clock|half past|quarter|at (?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)|\d(?::\d\d)?\s*(?:am|pm))\b/.test(when)) return null;
+    return { npc: n, place: best.l, when };
+  }
+  function mockMeetLine(meet) { return `${meet.npc.name} nods. "${capFirst(String(meet.place.name).replace(/^The /, 'the '))}, ${meet.when}."`; }
   /* The next stretch of the day, for a time someone names. */
   const LATER = { morning: 'this afternoon', afternoon: 'this evening', evening: 'tonight', night: 'in the morning' };
   /* A place someone can point to: where their schedule has them next, if the
@@ -15817,7 +16267,9 @@ const Api = (() => {
       ? `${andList(to.map(n => n.name))} ${to.length > 1 ? 'hear' : 'hears'} you, and ${first.name} answers first.`
       : `${first.name} answers you first.`;
     const told = c.rumour && c.rumour.npcId === first.id ? `${first.name} mentions something: "${c.rumour.text}"` : null;
-    const answer = a.actionType === 'intimidate'
+    // "Meet me at the Low Water tonight" (wave 22): they agree, and the demo bookkeeper records the meeting.
+    const meet = mockMeeting(c);
+    const answer = meet && meet.npc.id === first.id ? mockMeetLine(meet) : a.actionType === 'intimidate'
       ? ((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`)
       : mockSays(first, c, key);
     const core = [opener, answer].concat(told ? [told] : []);
@@ -16487,6 +16939,11 @@ const Api = (() => {
     }
     // "Only record changes the narration actually shows": the rumour is heard when the narration tells it.
     if (c.rumour && first && c.rumour.npcId === first.id && String(c.narration || '').includes(c.rumour.text)) out.rumoursHeard = [c.rumour.id];
+    // A meeting the narration shows agreed (wave 22, the demo's "meet me at <place> <time>"): one seed, as the bookkeeper's prompt asks.
+    const meet = mockMeeting(c);
+    if (meet && String(c.narration || '').includes(mockMeetLine(meet))) {
+      out.newSeeds = [{ effect: `${meet.npc.name} meets ${s.player.name} at ${String(meet.place.name).replace(/^The /, 'the ')} ${meet.when}, as agreed.`, triggerType: 'location', triggerValue: meet.place.id }];
+    }
     return finish();
   }
   /* The chronicle, by rule, the way SYSTEM.chronicle asks for it: the day
@@ -21067,6 +21524,14 @@ const Pipeline = (() => {
     for (const o of State.obligations('owed')) items.push(obligationText(o, s));
     return items.length ? `OPEN: ${items.join('; ')}` : null;
   }
+  /* APPOINTMENTS (wave 22): the meetings agreed in the story still to come
+     (State.appointments), so the story keeps them before the player gets
+     there: "Jodie Strayhorn at the Low Water (back door, half past ten)
+     this morning, as agreed". Its person is at the place then (visits). */
+  function appointmentsLine() {
+    const list = State.appointments();
+    return list.length ? `APPOINTMENTS: ${list.map(a => `${a.name} at ${a.place}${a.detail ? ` (${a.detail})` : ''} ${a.when}, as agreed`).join('; ')}` : null;
+  }
   /* LOOSE ENDS: who the player's past ties them to, written from that
      person's side, with the player's own words. Those of a debt, an enemy
      or a secret knew of the player before (knowledgeLine); a lost one's or a
@@ -21355,7 +21820,7 @@ const Pipeline = (() => {
       `PRESENT: ${present.join('; ') || 'nobody'}.`,
       knowledgeLine(s)
     );
-    for (const line of [looseEndsLine(s, presentIds), openLine(s), newsLine()]) if (line) lines.push(line);
+    for (const line of [looseEndsLine(s, presentIds), openLine(s), appointmentsLine(), newsLine()]) if (line) lines.push(line);
     // This turn.
     const np = (ctx.notPresent || []).map(x => {
       if (x.reason === 'not_here') return `${x.label} (not here right now)`;
@@ -21545,7 +22010,7 @@ const Pipeline = (() => {
     if (ctx.walkAfter && !ctx.walkAfter.shut) engine.push(`the walk on to ${ctx.walkAfter.toId} once this is done (the engine moves the player there; record no playerLocationId)`);
     engine.push('time passing (never record time)');
     const lines = [
-      `TURN ${s.meta.turn} · ${State.clockLine(s.time)}. Any new seed must trigger on day ${s.time.day + 1} or later.`,
+      `TURN ${s.meta.turn} · ${State.clockLine(s.time)}. A new seed's day trigger is day ${s.time.day + 1} or later; a meeting agreed for later today triggers on its place (location).`,
       `PLAYER: ${p.name}; ${moneyLine(p.gold)} (goldDelta is in these units); hp ${p.hp}/${p.maxHp}; at ${l.id} (${l.name}); carrying ${p.inventory.map(i => `${i.id} (${i.name}${i.qty > 1 ? ' x' + i.qty : ''})`).join(', ') || 'nothing'}`,
       isSay(ctx.speech) ? `INPUT: "${ctx.input}"` : `INPUT: ${ctx.input || '(none)'}`,
       ...(isSay(ctx.speech)
@@ -21982,6 +22447,9 @@ const Pipeline = (() => {
       if (quiet && !opts.epilogue) World.fireSeeds({ turn: s.meta.turn, time: narrTime, locationId: s.player.locationId, movedFrom: ctx.location.id, presentNpcIds: State.npcsAt(s.player.locationId).map(n => n.id), targetIds: [] });
       // A walk that lands at a town event as it starts (wave 4, playtest R1): it happens as the player walks in, told in this narration.
       if (dest && !opts.epilogue && !(ctx.arrest && ctx.arrest.plan) && (dest.phase !== narrTime.phase || dest.day !== narrTime.day)) World.eventsOnArrival({ locationId: dest.id, day: dest.day, phase: dest.phase });
+      // A meeting agreed in the story (wave 22): the player at its place in a phase it covers, as a walk lands there or a turn there
+      // begins, keeps it; it fires now, so this narration tells it (its person is there: their visit).
+      if (!opts.epilogue && !(ctx.arrest && ctx.arrest.plan) && (dest || !leaving)) World.appointmentsHere(dest ? { locationId: dest.id, day: dest.day, phase: dest.phase } : { locationId: ctx.location.id, day: narrTime.day, phase: narrTime.phase });
       // An arrest this turn is all that happens next (wave 3): what else came due waits for the next narration.
       ctx.due = opts.epilogue ? [{ seedId: null, text: opts.epilogue.text, scene: true }] : ctx.arrest && ctx.arrest.plan ? []
         : World.dueSeeds({ turn: s.meta.turn, time: narrTime, locationId: dest ? dest.id : ctx.location.id, phase: dest ? dest.phase : undefined, day: dest ? dest.day : undefined, then: dest ? undefined : ctx.landing, presentNpcIds: dest ? State.npcsAt(dest.id, dest.phase, dest.day).map(n => n.id) : ctx.presentIds, targetIds: action.targets.slice(), mode: ctx.mode, leaving: leaving && !dest, max: quiet ? DUE_QUIET : undefined, hold: dueHold(ctx) }) || [];
@@ -24503,7 +24971,8 @@ const UI = (() => {
     return n.where ? `Lives elsewhere: ${n.where}` : 'Gone from town';
   }
   /* What is up with someone today, for their card: hurt, away for the day
-     (school), or a place they had you banned from. */
+     (school), a place they had you banned from, or a meeting with you still
+     to come (wave 22). */
   function personFlags(s, n) {
     const out = [];
     const day = s.time.day;
@@ -24521,6 +24990,8 @@ const UI = (() => {
       const l = State.loc(b.locationId);
       if (l) out.push({ text: `Banned you from ${placePhrase(l.name)} until Day ${Pipeline.banBackDay(b)}`, hard: true });
     }
+    // A meeting agreed in the story, still to come (wave 22): "Meeting you: the Low Water, this morning (back door, half past ten)".
+    for (const a of State.appointments(n.id)) out.push({ text: `Meeting you: ${a.place}, ${a.when}${a.detail ? ` (${a.detail})` : ''}`, hard: false, appt: a.seedId });
     return out;
   }
   function personCard(s, n, isHere) {
@@ -24553,7 +25024,7 @@ const UI = (() => {
             el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
           roleLine ? el('span', { class: 'pcard-role' }, roleLine) : null,
           el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere)],
-            absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: { flag: '1' } }, f.text)))),
+            absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: f.appt ? { flag: '1', appt: f.appt } : { flag: '1' } }, f.text)))),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'pcard-more', id: moreId, hidden: !open }, edit ? editForm(s, n) : [
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
