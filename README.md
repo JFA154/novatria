@@ -69,6 +69,15 @@ and the town's story reaches an ending by the third week.
    offers **Try again** (and **Open Settings** when the key or a model name
    is the trouble).
 
+**Content.** The game is written for adults and nothing is cleaned up:
+people swear, they are rude, and they say what they think of you to your
+face, in both narration styles. A sex scene is written on the page like any
+other scene, in the same plain words and at the same length (2 to 4
+sentences, ending where you have to answer); `/zoom` gives a scene the
+longer limit. It is only ever between adults who both want it: nobody under
+eighteen is ever in one, and anything forced is told as the crime it is. The
+narrator model keeps its own limits on how graphic it gets.
+
 ## Do and Say
 
 The switch at the left of the input box has two buttons.
@@ -1044,7 +1053,7 @@ once more in the background.
 | Quality | **Thrifty**: Sonnet 5.5 narrates, Haiku 5.5 reads your action and keeps the books, all at low effort; about 1 cent a turn. **Standard** (the default): Opus 5.5 narrates at medium effort, Sonnet 5.5 parses at low and keeps the books at medium; about 4 to 5 cents a turn once warm (see What a turn costs). **Best**: Opus 5.5 and Sonnet 5.5 at high effort (the parser at medium); slower and dearer. Settings that match none of these show as Custom. |
 | Advanced | The offline demo switch; the narrator model (writes the story, streamed) and the parser model (reads your action, records what changed after each turn as the bookkeeper, and writes the chronicle); the effort per role (narrator, parser, bookkeeper, chronicle: `low` / `medium` / `high`, sent as `output_config.effort`; higher means more thinking, slower and dearer). |
 | Show dice rolls | Shows the quiet roll line, e.g. `Wits 14 + 2 = 16 vs 15 · Success`. |
-| Narration style | **Casual** (the default): plain and direct, like someone running the game at the table, with short sentences, no similes and little scenery. **Literary**: the original style guide, tighter and more like a novel. Takes effect from the next narration. |
+| Narration style | **Casual** (the default): plain and direct, like someone running the game at the table, with short sentences, no similes and little scenery. **Literary**: the original style guide, tighter and more like a novel. Takes effect from the next narration. Both are written for adults: people swear and are rude where they would be, and a sex scene is written on the page like any other scene (see Content under How to play). |
 | Permadeath | Off by default. Off: at 0 HP you are robbed, captured, left in a gutter or rescued, chosen from the scene. On: the story ends. |
 | Theme | Dark or Parchment. The first load follows the system's light or dark setting. |
 | Text size | Small, Medium or Large reading text (16, 18 or 20 px). |
@@ -1415,7 +1424,11 @@ and templates carry their effects in code; the retry lock no longer stops a
 fight, and a success locks nothing (wave 2); the chronicle waits for 16 turns
 and keeps the newest 6, so the narrator always has its last turns; the
 narrator's cache lasts an hour instead of five minutes; and the casual example
-turns are eight, written in the packet's own format.
+turns are eight, written in the packet's own format. Wave 27 (1 Nov 2026): the
+owner wanted the game "a bit more vulgar and not too polite", so both style
+guides carry a CONTENT section (people swear, nothing is softened, a sex scene
+is written on the page, never anyone under eighteen), SPEC.md rule 7 and
+section 9 say the same, and four of the casual example turns swear.
 
 ## Verified against the live API
 

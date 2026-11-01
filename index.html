@@ -6103,6 +6103,13 @@ if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKG
    (none exists in the content above). The narrator's cached system prompt is
    built from one guide and its examples by Style.systemPrompt(). */
 const GOOD_TURN = 'WHAT A GOOD TURN DOES: something moves. Someone wants something and says it, or gives one concrete thing (a name, a place, a time, a price) or a plain reason they won\'t. Something can be refused, but not everything is. End on what the player has to answer.';
+/* The register (the owner, 1 Nov 2026: "make the game a bit more vulgar and
+   not too polite"; a sex scene had been "it happened, and after that").
+   Shared by both guides word for word (SPEC.md section 9 carries it too, so
+   the literary guide stays the spec word for word): people swear and are
+   rude, nothing is softened, and a sex scene is written on the page like any
+   other scene, between adults who both want it, never anyone under eighteen. */
+const CONTENT_RULE = 'CONTENT: Written for one adult player, so nothing is cleaned up. People here talk the way people in a hard-up river town talk: they swear, they are rude, and they say what they think of you to your face; nobody softens a line to be polite or tacks a kind word onto a hard one. Swearing is fine in the telling too. A sex scene is a scene like any other: write it on the page in the same plain words, what is done and what is said, with the same length rule as every turn. Never skip it, sum it up or cut to afterwards. Only between adults who both want it: nobody under eighteen is ever in one, and anything forced is written as the crime it is.';
 const STYLE_GUIDE_LITERARY = `You narrate a text RPG. Write like a sharp, economical novelist, not like an AI.
 
 LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first moment the player must respond.
@@ -6110,6 +6117,8 @@ LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first
 VOICE: Second person, present tense. Plain words. Concrete detail: what is seen, heard, done. Never tell the player how to feel.
 
 DIALOGUE: NPCs speak in their listed voice. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+
+${CONTENT_RULE}
 
 NEVER:
 - Act, speak, think or feel for the player character beyond what they typed.
@@ -6132,6 +6141,8 @@ LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first
 VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.
 
 DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. Do not reuse a phrase, opener or joke from LAST 3 TURNS. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+
+${CONTENT_RULE}
 
 NEVER:
 - Act, speak, think or feel for the player character beyond what they typed.
@@ -6174,7 +6185,7 @@ const EXAMPLE_TURNS_CASUAL = [
   {
     input: "\"Anybody here need a hand with anything?\" (said to everyone)",
     context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; attitude 0 (neutral)); Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 5 (neutral))\nPLAYER SAYS (to everyone present): \"Anybody here need a hand with anything?\"\nROLL: none.",
-    narration: "Dot keeps wiping the same table. Hutch looks you over from the end of the bar. \"Can you lift a motor? Ninety pounds, out of a boat and into my truck. Twenty bucks.\" Dot snorts. \"Get the twenty first. He pays in beer.\""
+    narration: "Dot keeps wiping the same table. Hutch looks you over from the end of the bar. \"Can you lift a motor? Ninety pounds, out of a boat and into my truck. Twenty bucks.\" Dot snorts. \"Get the twenty first. He's a cheap son of a bitch.\""
   },
   {
     input: "I try to get Ellis to tell me where Charlene keeps the bar's cash overnight.",
@@ -6189,12 +6200,12 @@ const EXAMPLE_TURNS_CASUAL = [
   {
     input: "I wait at the counter.",
     context: "PRESENT: Hutch Bledsoe (61, he/him; fixes outboard motors; attitude 10 (friendly)); Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary))\nSINCE THE LAST TURN (time moved on to evening): arrived here: Charlene Voight. The player has not acted in between.\nACTION: waits at the counter\nROLL: none.",
-    narration: "The bell over the door goes and Charlene Voight walks in with a bank bag under her arm. She sees you and stops. Hutch suddenly has something to do in the back. \"Well,\" Charlene says. \"Saves me a trip.\""
+    narration: "The bell over the door goes and Charlene Voight walks in with a bank bag under her arm. She sees you and stops. Hutch suddenly has something to do in the back. \"Well, shit,\" Charlene says. \"Saves me a trip.\""
   },
   {
     input: "I pull my gun on Ellis.",
     context: "PRESENT: Ellis Barlow (27, he/him; clerk at the feed store; attitude 5 (neutral))\nACTION: draws a gun on Ellis\nNOT CARRIED: a gun. The player has no gun and nothing like one; they cannot shoot anyone.\nROLL: none.",
-    narration: "Your hand goes to your belt and finds nothing there. Ellis sees that too. He backs behind the counter and picks up the phone. \"Out,\" he says. \"Or I call this in.\""
+    narration: "Your hand goes to your belt and finds nothing there. Ellis sees that too. He backs behind the counter and picks up the phone. \"Get the fuck out,\" he says. \"Or I call this in.\""
   },
   {
     input: "I order a coffee.",
@@ -6204,7 +6215,7 @@ const EXAMPLE_TURNS_CASUAL = [
   {
     input: "I ask Charlene for another week.",
     context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; attitude -20 (wary); remembers: owes me four hundred)\nACTION: asks Charlene for another week to pay\nROLL: Charm 8 vs 15 · Failure\nCOMPLICATION: someone who matters takes it personally\nOUTCOME: the ask failed.",
-    narration: "\"No.\" Charlene sets the glass down hard. \"The bank doesn't give me another week, so I don't give you one.\" She raises her voice so the whole room hears it. \"Four hundred, noon on the weekend, or don't come back in here.\""
+    narration: "\"Hell no.\" Charlene sets the glass down hard. \"The bank don't give me another week, so you don't get one.\" She raises her voice so the whole room hears it. \"Four hundred, noon on the weekend, or keep your ass out of my bar.\""
   }
 ];
 

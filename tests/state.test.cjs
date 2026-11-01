@@ -817,15 +817,19 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
   assert.equal(r.lit, block + '\n\n' + r.goodTurn);
   assert.ok(r.goodTurn.startsWith('WHAT A GOOD TURN DOES: something moves.') && r.cas.endsWith('\n\n' + r.goodTurn));
   assert.deepEqual(r.exLit, MODERN_EXAMPLES);
-  // Casual: the same sections, the same NEVER rules and banned list, a plain voice and more to avoid.
-  const SECTION = /^(LENGTH|VOICE|DIALOGUE|NEVER|BANNED PHRASES|Also avoid):/;
+  // Casual: the same sections, the same CONTENT and NEVER rules and banned list, a plain voice and more to avoid.
+  const SECTION = /^(LENGTH|VOICE|DIALOGUE|CONTENT|NEVER|BANNED PHRASES|Also avoid):/;
   const sections = g => g.split('\n').filter(l => SECTION.test(l)).map(l => l.split(':')[0]);
-  assert.deepEqual(sections(r.cas), ['LENGTH', 'VOICE', 'DIALOGUE', 'NEVER', 'BANNED PHRASES', 'Also avoid']);
+  assert.deepEqual(sections(r.cas), ['LENGTH', 'VOICE', 'DIALOGUE', 'CONTENT', 'NEVER', 'BANNED PHRASES', 'Also avoid']);
   assert.deepEqual(sections(r.cas), sections(r.lit));
   const never = g => g.split('\n').filter(l => l.startsWith('- '));
   assert.equal(never(r.lit).length, 7);
   assert.deepEqual(never(r.cas), never(r.lit), 'the same NEVER lines');
   const lineOf = (g, head) => g.split('\n').find(l => l.startsWith(head));
+  // The register (the owner, 1 Nov 2026): one CONTENT line, the same in both guides, that says people swear, a sex scene is written on the page, and nobody under eighteen is in one.
+  const content = lineOf(r.lit, 'CONTENT:');
+  assert.equal(lineOf(r.cas, 'CONTENT:'), content, 'the same CONTENT line');
+  for (const part of ['they swear', 'nobody softens a line to be polite', 'A sex scene is a scene like any other: write it on the page', 'Never skip it, sum it up or cut to afterwards', 'nobody under eighteen is ever in one']) assert.ok(content.includes(part), 'CONTENT says: ' + part);
   assert.equal(lineOf(r.cas, 'BANNED PHRASES:'), lineOf(r.lit, 'BANNED PHRASES:'), 'the full banned list');
   for (const b of r.banned) assert.ok(r.cas.includes(`"${b}"`), 'casual bans ' + b);
   assert.equal(lineOf(r.cas, 'LENGTH:'), lineOf(r.lit, 'LENGTH:'));
@@ -845,6 +849,8 @@ s.test('style guides: literary is SPEC section 9 word for word; casual keeps its
     assert.ok(t.narration.split(/\s+/).length <= 60, 'at most 60 words: ' + t.input);
   });
   for (const t of r.exLit.concat(r.exCas)) assert.ok(!sec.includes(t.narration), 'not the SPEC original: ' + t.input);
+  // The casual examples show the register: people swear where the person would (the owner, 1 Nov 2026).
+  assert.ok(r.exCas.filter(t => /\b(shit|fuck|hell|ass|damn|bitch)\b/i.test(t.narration)).length >= 3, 'the casual examples swear where the person would');
   const town = await page.evaluate(() => [Game.data.TOWN_DATA.name].concat(Game.data.TOWN_DATA.npcs.flatMap(n => n.name.split(' ')), Game.data.TOWN_DATA.locations.map(l => l.name.replace(/^The /, ''))));
   for (const t of r.exLit.concat(r.exCas)) for (const w of town) assert.ok(!(t.input + t.context + t.narration).includes(w), 'example names a person or place in this town: ' + w);
   // System prompts: one per style, each its guide then that style's examples only; casual by default.

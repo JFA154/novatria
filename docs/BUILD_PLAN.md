@@ -1643,3 +1643,29 @@ talking, I can direct it to one person or all."
      day after tomorrow, and its bookkeeper records it. Left open: the
      one-plan-a-turn cap (`modelSeedsPerTurn`) is shared by asks and
      meetings, and a game's seeds planted before this wave are not made asks.
+   - **Wave 27** (1 Nov 2026): the register. The owner: "How can we make the
+     game a bit more vulgar and not too polite? I had a sex scene and all it
+     was is, it happened, and after that..." Nothing in the narrator's
+     prompt said a word about language or sex, so the model fell back on its
+     own manners, and SPEC rule 7 said intimate scenes fade to black. Prompt
+     only (no engine change). Both style guides gain one CONTENT section,
+     between DIALOGUE and NEVER, the same line word for word
+     (`CONTENT_RULE`): written for one adult player, so nothing is cleaned
+     up; people swear, are rude and say what they think of you to your face,
+     nobody softens a line to be polite, and swearing is fine in the telling
+     too; a sex scene is a scene like any other, written on the page in the
+     same plain words under the same length rule, never skipped, summed up or
+     cut to afterwards; only between adults who both want it, nobody under
+     eighteen is ever in one, and anything forced is written as the crime it
+     is. SPEC.md carries it too: rule 7 now says sex is written on the page,
+     and section 9 has the CONTENT paragraph, so the literary guide is still
+     the spec word for word. Four of the eight casual example turns swear
+     where the person would ("He's a cheap son of a bitch", "Well, shit",
+     "Get the fuck out", "Hell no ... keep your ass out of my bar"); the
+     literary three are unchanged. `Style.check` is untouched: nothing in
+     code polices language. `tests/state.test.cjs` checks the CONTENT line
+     (present in both guides, identical, saying each of these things) and
+     that the casual examples swear. Notes: `docs/notes/prompts.md`, Wave 27.
+     Left open: the length rule stands, so a sex scene is 2 to 4 sentences
+     like any turn; `/zoom` gives it the longer limit. If the narrator model
+     still writes coy, the next lever is an example turn of such a scene.

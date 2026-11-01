@@ -1904,8 +1904,9 @@ for (const [where, k] of flagsRead) if (!flagsWritten.has(k)) err(where, 'reads 
 // 8. Modern: EXAMPLE_TURNS_LITERARY and EXAMPLE_TURNS_CASUAL in index.html, the
 //    narrator prompt's example turns for each narration style. The literary
 //    three keep the shape and length of SPEC.md section 9; the casual six to
-//    eight are written in the owner's casual voice (60 words at most each)
-//    with their context in the narrator packet's own field format, and
+//    eight are written in the owner's casual voice (60 words at most each;
+//    people swear where they would, wave 27) with their context in the
+//    narrator packet's own field format, and
 //    between them cover Say to one person and to everyone, a success that
 //    gives something concrete, a failure whose complication changes things,
 //    an arrival (SINCE THE LAST TURN), a thing not carried, two people

@@ -119,7 +119,7 @@ somewhere that does not exist: X" and the note says to use CAST and THE TOWN.
 
 ### Examples (E)
 
-`EXAMPLE_TURNS_CASUAL` is eight turns (35 to 43 words each) whose context is
+`EXAMPLE_TURNS_CASUAL` is eight turns (35 to 46 words each) whose context is
 written in the packet's own field format: Say to one person, Say to
 everyone with two people reacting, a success that gives something concrete,
 a failure whose complication changes things, an arrival (SINCE THE LAST
@@ -797,3 +797,48 @@ request only in the story's words; the owner wanted them tracked
   outboard part from <player> by Day 3 (Saturday); it will be worth
   <player>'s while.", a day trigger), unless a meeting took the turn's seed.
   Said to everyone, or other words: nothing asked.
+
+## Wave 27 (1 Nov 2026): the register
+
+The owner: "How can we make the game a bit more vulgar and not too polite? I
+had a sex scene and all it was is, it happened, and after that..." Neither
+style guide said anything about language or sex, so the narrator model fell
+back on its own manners, and SPEC.md rule 7 had intimate scenes fade to
+black. Prompt only: no engine, schema or `Style.check` change.
+
+- **`CONTENT_RULE`** (index.html, beside `GOOD_TURN`): one line, in both
+  guides word for word, between DIALOGUE and NEVER. It says: written for one
+  adult player, so nothing is cleaned up; people here talk the way people in
+  a hard-up river town talk (they swear, they are rude, they say what they
+  think of you to your face), nobody softens a line to be polite or tacks a
+  kind word onto a hard one, and swearing is fine in the telling too; a sex
+  scene is a scene like any other, written on the page in the same plain
+  words, what is done and what is said, under the same length rule as every
+  turn, never skipped, summed up or cut to afterwards; only between adults
+  who both want it, nobody under eighteen is ever in one, and anything forced
+  is written as the crime it is. About 130 words, so the cached style block
+  grows by about 180 tokens per style.
+- **SPEC.md** carries it: rule 7 reads "written for adults ... a sex scene is
+  written on the page like any other scene ... Never anyone under eighteen",
+  and section 9's code block has the CONTENT paragraph, so the literary
+  guide is still SPEC section 9 word for word (plus GOOD_TURN), as the state
+  test checks.
+- **The casual examples** show the register: four of the eight swear where
+  the person would. Dot on Hutch: "Get the twenty first. He's a cheap son of
+  a bitch."; Charlene walking in: "Well, shit," ... "Saves me a trip.";
+  Ellis facing an empty hand: "Get the fuck out," he says. "Or I call this
+  in."; Charlene's refusal: "Hell no." ... "The bank don't give me another
+  week, so you don't get one." ... "Four hundred, noon on the weekend, or
+  keep your ass out of my bar." The eight still cover what section 8 of
+  `tests/validate-town.cjs` asks (35 to 46 words each). The literary three
+  are unchanged (pinned to SPEC's scenes and lengths).
+- **Tests.** `tests/state.test.cjs`: the sections are LENGTH, VOICE,
+  DIALOGUE, CONTENT, NEVER, BANNED PHRASES, Also avoid; the CONTENT line is
+  the same in both guides and says each of the things above; at least three
+  casual examples swear. The NEVER count stays seven.
+- **Left open.** The LENGTH rule stands, so a sex scene is 2 to 4 sentences
+  like any turn, ending where the player has to answer; `/zoom <action>`
+  gives it the longer limit (6 sentences, 150 words). The narrator model
+  keeps its own ceiling on how graphic it gets whatever the prompt says. If
+  it still writes coy, the next lever is a casual example turn of such a
+  scene (the set may hold eight; one would have to go).
