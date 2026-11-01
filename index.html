@@ -653,6 +653,12 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   font-family: var(--ui-font); font-size: 13px; cursor: pointer;
 }
 .tabbar button:hover { background: var(--surface); color: var(--text); }
+.tabbar button { white-space: nowrap; overflow: hidden; }
+/* A tab row that does not fit its labels whole steps down (UI.fitTabs, wave 26): widths that follow the labels, then a smaller face. */
+.panel-tabs[data-fit]:not([data-fit="0"]) button, .tabbar[data-fit]:not([data-fit="0"]) button { flex: 1 1 auto; min-width: var(--tap); padding: 0 3px; }
+.panel-tabs[data-fit="2"] button, .panel-tabs[data-fit="3"] button, .panel-tabs[data-fit="4"] button,
+.tabbar[data-fit="2"] button, .tabbar[data-fit="3"] button, .tabbar[data-fit="4"] button { padding: 0 2px; font-size: 12px; letter-spacing: -.01em; }
+.panel-tabs[data-fit="5"] button, .tabbar[data-fit="5"] button { padding: 0 1px; font-size: 11px; letter-spacing: -.01em; }
 .input-row { position: relative; display: flex; gap: 8px; align-items: flex-end; }
 .input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
 .cmd-input {
@@ -1110,6 +1116,24 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .jr-due.late { color: var(--danger); }
 .jr-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .jr-people .chip { min-height: var(--tap); padding: 4px 12px; font-size: 13px; }
+/* Objectives (wave 26): each entry a summary that opens on its details (open by default on a laptop). */
+.obj-lede { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
+.panel-body .obj-sec h3 { display: flex; align-items: baseline; gap: 8px; }
+.panel-body .obj-list li { padding: 0; }
+.obj-d > summary { list-style: none; cursor: pointer; display: grid; gap: 2px; min-height: var(--tap); padding: 8px 22px 8px 0; position: relative; border-radius: 6px; }
+.obj-d > summary::-webkit-details-marker { display: none; }
+.obj-d > summary::after { content: ""; position: absolute; right: 6px; top: 16px; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.obj-d[open] > summary::after { transform: rotate(-135deg); top: 19px; }
+@media (hover: hover) { .obj-d > summary:hover { background: var(--surface-2); } }
+.obj-text { line-height: 1.45; }
+.obj-d:not([open]) .obj-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.obj-who { font-weight: 600; }
+.obj-gone { color: var(--muted); font-style: italic; }
+.obj-when { font-size: 13px; color: var(--accent); }
+.obj-when.late { color: var(--danger); }
+.obj-stakes { font-size: 13px; color: var(--muted); }
+.obj-more { margin: 0 0 10px; padding: 8px 0 0 10px; border-left: 2px solid var(--border); font-size: 13px; }
+.obj-more .jr-people { margin-top: 0; }
 .thread-status[data-status="resolved"] { color: var(--att-mild); }
 .thread-status[data-status="failed"] { color: var(--danger); }
 .people-tools { position: sticky; top: -16px; z-index: 3; margin: -16px -16px 12px; padding: 12px 16px 10px; background: var(--surface); border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
@@ -1240,8 +1264,6 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   #app.typing .tabrow, #app.typing .tabbar, #app.typing #demo-bar { display: none; }
   /* ⋯ stays in reach while typing: with the tab row gone it comes back beside the toggle, as on a laptop. */
   #app.typing #act-btn.desktop-only { display: inline-flex !important; }
-  /* Five panel tabs (Debug on) fit without cutting a word. */
-  .panel-tabs[data-count="5"] button { padding: 0 1px; font-size: 12px; letter-spacing: -.01em; }
   /* The creation summary of errors: the step's own message is on screen, so this one is for screen readers. */
   #cr-errsum { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
   .act-pop { min-width: min(260px, calc(100vw - 24px)); left: auto; right: 0; }
@@ -1440,6 +1462,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
                 <button type="button" data-open-tab="character" aria-controls="panel" aria-expanded="false">Character</button>
                 <button type="button" data-open-tab="people" aria-controls="panel" aria-expanded="false">People</button>
                 <button type="button" data-open-tab="journal" aria-controls="panel" aria-expanded="false">Journal</button>
+                <button type="button" data-open-tab="objectives" aria-controls="panel" aria-expanded="false">Objectives</button>
                 <button type="button" data-open-tab="places" aria-controls="panel" aria-expanded="false">Places</button>
               </nav>
               <button type="button" class="tab-act" id="act-btn-m" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
@@ -8320,6 +8343,93 @@ const State = (() => {
     if (!current) return [];
     return current.seeds.filter(sd => isObj(sd.appointment) && (!npcId || sd.appointment.npcId === npcId)).map(appointmentWords).filter(Boolean);
   }
+  /* ----- asks (wave 26) -----
+     The owner: "a side panel with something like 'Objectives' to track
+     what people asked me to do, by when". The bookkeeper records a favour
+     or a job someone asks of the player as one newSeeds seed (a day
+     trigger for its deadline, else an npc trigger with the person who
+     asked), the effect starting with that person's full name. A model seed
+     that is no appointment but names someone in the cast (apptPerson: a
+     full name, or a first name nobody else has; alive and not gone) is an
+     ask: seed.ask = { npcId, dueDay? (the day trigger's day), reward? (the
+     reward or the threat its words give) }. Nothing changes in how the
+     seed fires; the Objectives tab, the recap and the People card read it
+     (askWords) until it fires. */
+  // The reward or the threat in an ask's words: what follows a semicolon or a dash, else a sum offered, else "or else ...".
+  const ASK_PAY = /\b(?:in exchange for|in return for|for|offering|offers|offered|pays?|paying|will pay|promised?)\s+(\$\s?\d[\d,]*(?:\.\d\d)?(?:\s+(?:cash|in cash|up front|a week|apiece|a head))?)/i;
+  const ASK_THREAT = /\b((?:or else|otherwise|or (?:he|she|they)(?:'ll| will| would))\b.*)$/i;
+  function askReward(text) {
+    const t = cleanText(text, 400).replace(/[’]/g, "'");
+    const after = /[;—]\s*(.+)$/.exec(t) || /\s-\s(.+)$/.exec(t);
+    const pick = after ? after[1] : (ASK_PAY.exec(t) || [])[1] || (ASK_THREAT.exec(t) || [])[1] || (/\$\s?\d[\d,]*(?:\.\d\d)?/.exec(t) || [])[0] || '';
+    return cleanText(pick.replace(/[.!]+$/, ''), 160) || null;
+  }
+  /* The ask a seed is (above), or null: never an appointment (Meetings
+     has those), and never someone dead or gone. */
+  function askOf(sd) {
+    if (!isObj(sd) || typeof sd.effect !== 'string' || isObj(sd.appointment)) return null;
+    const n = apptPerson(sd.effect);
+    if (!n || n.alive === false || n.status === 'dead' || n.status === 'gone') return null;
+    const out = { npcId: n.id };
+    const tr = isObj(sd.trigger) ? sd.trigger : {};
+    const d = tr.type === 'day' ? toInt(tr.value) : null;
+    if (Number.isInteger(d)) out.dueDay = d;
+    const reward = askReward(sd.effect);
+    if (reward) out.reward = reward;
+    return out;
+  }
+  /* For the Objectives tab, the recap and the People card: the words of an
+     ask (or a plan the player was shown: a seed planted not hidden) that
+     has not fired. { seedId, npcId, name, effect, what (the effect after
+     the asker's name), reward, dueDay, by ("by Day 6 (Tuesday)", "when you
+     next see Travis Cagle", "at the Low Water"), dueIn ("in 3 days",
+     "tomorrow", "today", "overdue"; a day trigger's), seeNpcId, locationId,
+     place, turn, gone (the person is dead or left town) }, else null. */
+  // The player in an ask's words is "you" to the player ("asked the player to" is "asked you to"; "Tester's while" is "your while").
+  function toYou(text) {
+    let t = String(text || '');
+    const name = String(current && current.player.name || '').trim();
+    for (const nm of [name, 'the player'].filter(x => x.length >= 2)) {
+      const re = nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      t = t.replace(new RegExp(`\\b${re}['’]s\\b`, 'gi'), 'your').replace(new RegExp(`\\b${re}\\b`, 'gi'), 'you');
+    }
+    return t;
+  }
+  function askWords(sd) {
+    if (!current || !isObj(sd) || sd.fired || isObj(sd.appointment)) return null;
+    const ask = isObj(sd.ask) ? sd.ask : null;
+    if (!ask && sd.hidden !== false) return null;
+    const n = ask && typeof ask.npcId === 'string' ? npc(ask.npcId) : null;
+    const tr = isObj(sd.trigger) ? sd.trigger : {};
+    const today = current.time.day;
+    const said = toYou(sd.effect);
+    const out = { seedId: sd.id, npcId: n ? n.id : null, name: n ? n.name : null, effect: sd.effect, said, what: said, reward: ask && typeof ask.reward === 'string' ? toYou(ask.reward) : null,
+      dueDay: null, by: null, dueIn: null, seeNpcId: null, locationId: null, place: null, turn: Number.isInteger(sd.turn) ? sd.turn : null, gone: !!n && (n.alive === false || n.status === 'dead' || n.status === 'gone') };
+    if (n && said.startsWith(n.name)) out.what = said.slice(n.name.length).replace(/^[\s,:;—-]+/, '');
+    if (tr.type === 'day') {
+      const d = toInt(tr.value);
+      if (Number.isInteger(d)) {
+        out.dueDay = d;
+        out.by = `by Day ${d} (${weekday(d)})`;
+        const left = d - today;
+        out.dueIn = left > 1 ? `in ${left} days` : left === 1 ? 'tomorrow' : left === 0 ? 'today' : 'overdue';
+      }
+    } else if (tr.type === 'npc' && typeof tr.value === 'string' && npc(tr.value)) {
+      const m = npc(tr.value);
+      out.seeNpcId = m.id;
+      out.by = `when you next see ${m.name}`;
+    } else if (tr.type === 'location' && typeof tr.value === 'string' && loc(tr.value)) {
+      const l = loc(tr.value);
+      out.locationId = l.id;
+      out.place = String(l.name).replace(/^The /, 'the ');
+      out.by = `at ${out.place}`;
+    }
+    return out;
+  }
+  function asks(npcId) {
+    if (!current) return [];
+    return current.seeds.map(askWords).filter(a => a && (!npcId || a.npcId === npcId));
+  }
   function addNpc(raw) {
     if (!isObj(raw)) bad('npc must be an object');
     if (typeof raw.id !== 'string' || !ID_RE.npc.test(raw.id)) bad('npc id must look like npc_name');
@@ -10436,6 +10546,7 @@ const State = (() => {
       if (isObj(sd.origin) && sd.origin.npcId === from.id) sd.origin.npcId = into.id;
       if (isObj(sd.trigger) && sd.trigger.type === 'npc' && sd.trigger.value === from.id) sd.trigger.value = into.id;
       if (isObj(sd.appointment) && sd.appointment.npcId === from.id) sd.appointment.npcId = into.id;
+      if (isObj(sd.ask) && sd.ask.npcId === from.id) sd.ask.npcId = into.id;
     }
     for (const ev of s.dueEvents || []) if (ev.npcId === from.id) ev.npcId = into.id;
     if (Array.isArray(s.visits)) {
@@ -10783,10 +10894,13 @@ const State = (() => {
         // It may come today (a location trigger waits a day otherwise), and not before its day.
         if (ap.day > s.time.day) sd.notBeforeDay = ap.day; else delete sd.notBeforeDay;
       }
+      // Something someone asked of the player in the story (wave 26): the Objectives tab lists it until it fires.
+      const ask = !ap && model ? askOf(sd) : null;
+      if (ask) sd.ask = ask;
       s.seeds.push(sd);
       ledger.seeds += 1;
       const placed = ap ? keepAppointment(sd) : [];
-      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})${ap ? `; an appointment: ${ap.npcId} at ${ap.locationId} on day ${ap.day} (${ap.phases.join(', ')})${placed.length ? `, there for ${placed.join(', ')}` : ''}` : ''}`;
+      return `seed ${sd.id} planted (${sd.trigger.type} ${sd.trigger.value})${ap ? `; an appointment: ${ap.npcId} at ${ap.locationId} on day ${ap.day} (${ap.phases.join(', ')})${placed.length ? `, there for ${placed.join(', ')}` : ''}` : ''}${ask ? `; an ask: ${ask.npcId}${Number.isInteger(ask.dueDay) ? ` by day ${ask.dueDay}` : ''}` : ''}`;
     });
     each('rumoursHeard', id => {
       const r = rumour(id) || bad(`unknown rumour id "${id}"`);
@@ -12145,6 +12259,8 @@ const State = (() => {
     absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory, newsWaits, MEMORY_ACTS,
     // Wave 22: meetings agreed in the story (appointments() the ones still to come, with their words).
     appointments, appointmentWords, appointmentOf,
+    // Wave 26: what someone asked of the player in the story (asks() the ones not yet fired, with their words).
+    asks, askWords, askOf, askReward, youWords: toYou,
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, joinSnapshot, beginBatch, endBatch,
@@ -15330,7 +15446,7 @@ const Api = (() => {
   const MEMORY_RULES = "A memory is only something this person would still hold against the player, thank them for, or hold them to later: an insult, a threat, a lie caught, a favour, a flirt or a compliment that lands, a promise, a debt, a gift, a fight, a secret shared, what the player claimed about themselves (a name, a job, a story about why they are here), and terms agreed, with the amount and the deadline kept ('owes me $40 by Friday'). Someone who only saw something serious happen (a fight, a theft, a threat) can remember that too ('saw them hit the bartender'). Ordinary talk, questions, small talk and the mechanics of a scene are not memories, and neither is anything already on that person's remembers list. At most one memory per person per turn, written as a short plain line from that person's point of view, under twelve words, with no scene detail (good: 'flirted with me', 'told me to fuck off', 'lied about car trouble to get Dewayne outside', 'says he is a surveyor from the state'). Weight 1 small, 2 notable, 3 serious (a threat, a betrayal, a fight, real help).";
   /* The bookkeeper's field rubric (REVIEW section 2.6): what each field is
      for and what it is not for. */
-  const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. A meeting someone in the narration agrees to with the player, later today or on a later day, is one seed: triggerType location with that place's id as triggerValue (or triggerType day with the day number when it is another day, with the place named in the effect), and the effect starts with that person's full name and says where exactly and when ('Jodie Strayhorn waits at the Low Water's back door at half past ten, before opening'; 'Curtis Pruett expects the player at the Low Water tomorrow evening for the game'); one seed per meeting, none for a vague 'see you around'. Someone saying they will come to where the player is (\"I'll come by your room in ten minutes\") is a meeting at the player's place, now: triggerType location with the player's place as triggerValue, the effect naming them and 'now' or the time they said. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
+  const RECORD_RULES = "FIELDS: itemsGained only for things the player now keeps and carries (a drink drunk, a meal eaten or a night's room is not an item). goldDelta only for money that changed hands in the narration (an offer, a price named or a debt talked about is not a payment). npcKnownToPlayer only for people the player met face to face this turn, or whose name they heard while that person was there. newSeeds is usually empty: only a concrete later event the narration sets up, with its day, place or person. A meeting someone in the narration agrees to with the player, later today or on a later day, is one seed: triggerType location with that place's id as triggerValue (or triggerType day with the day number when it is another day, with the place named in the effect), and the effect starts with that person's full name and says where exactly and when ('Jodie Strayhorn waits at the Low Water's back door at half past ten, before opening'; 'Curtis Pruett expects the player at the Low Water tomorrow evening for the game'); one seed per meeting, none for a vague 'see you around'. Someone saying they will come to where the player is (\"I'll come by your room in ten minutes\") is a meeting at the player's place, now: triggerType location with the player's place as triggerValue, the effect naming them and 'now' or the time they said. A favour or a job someone in the narration asks of the player (something to fetch, find out, deliver, keep quiet about, say or do; an offer with a reward; a warning with a threat) is one seed too: triggerType day with its deadline's day number when it has one ('before the council vote' is the day THREADS or TOWN NEWS give for it; 'by Friday' is that day), else triggerType npc with that person's id as triggerValue (it comes due when the player next meets them); the effect starts with that person's full name and says what they asked, the reward or the threat, and the deadline in words ('Carter Sturdivant wants copies of the station's debts from Darlene Pittman's back office before the council vote on Day 6; $500 cash, and deny knowing him if caught'; 'Travis Cagle asked the player to say nothing about his parked cruiser and to report Boyd Teague's questions to him'); one seed per ask, none for small talk. threadUpdates: status resolved only when the narration settles the thread for good, failed only when it is lost for good, otherwise only a new summary, and knownToPlayer true when the player first learns of it. clockNudges only when the action plainly helps or hinders the aim of a faction's CLOCK as FACTIONS shows it, at most one. npcFates only when the narration shows it happening to someone present: arrested, gone (left town for good), dead, or hurt (beaten badly enough to be laid up for days). memoriesSettled when this turn settles something a present person remembers (a debt paid, a grudge made up, a promise kept): their id and the memory as their remembers list words it. obligationsSettled: the id of an OPEN obligation the narration shows being met (paid in full, the thing delivered, the errand done).";
   const SYSTEM = {
     parser: "You convert a player's free-text action into structured data for a game engine. Use only the entity ids provided. If the player refers to something not in the lists, use `new:<short description>`. Decide whether the outcome is uncertain enough to need a roll. Never narrate. LAST TURN is what the narrator said just before this: read a short reply (\"Deal.\", \"I'll take it\", \"fine, show me\") as the answer to what was just offered or asked there. If the player goes somewhere and then does something there, set destinationId to that place, actionType to what they do there and moveWhen to \"before\"; the engine moves them first. If they do something here and then go somewhere (\"ask her about the boat, then walk to the bridge\"), set actionType to what they do here, destinationId to the place and moveWhen to \"after\". Otherwise moveWhen is null. targets are who and what the action is aimed at; a person, place or thing the player only asks or talks about goes in aboutIds, not targets (\"ask the bartender about the mayor\": the bartender is the target, the mayor goes in aboutIds). Everyone who exists in this town is in the lists (EVERYONE ELSE IN TOWN has the people the player has not met): a person the player names or describes, by name, by job or by who they are to someone (\"Dewayne's wife\"), is one of those ids, and `new:` is never used for a person; never substitute a listed person who does not match, and when nobody listed fits, leave them out of targets. The MODE line says how to read the input: in do mode it is what the player does, and any speech in it is incidental to the action; in say mode it is only the player's exact spoken words to whoever MODE names, so actionType is talk, persuade, deceive or intimidate, targets include whoever is spoken to, and destinationId is null. In do mode, running off or leaving with no place named is a move: set destinationId to the listed place that fits best. ROLL: needsRoll is true only when the outcome is uncertain and failing would change something: a fight, sneaking, stealing, picking a lock, a lie, pressing someone for what they would rather not give, a risky climb or chase. Never roll walking somewhere, looking around, ordinary talk, a question someone has no reason to dodge, buying at a listed price, or anything the person is glad to do. DIFFICULTY: easy (8) when most people would manage it; normal (12) when it takes some skill or luck; hard (15) when a professional would sweat, when lying to a police officer, or when asking anything of someone at attitude -25 or below; very_hard (18) when it goes against what the person wants (their traits and wants are listed), their nature, or what they just refused in LAST TURN. The engine makes a success a success, so put the doubt into the difficulty, never into the outcome. STAT: might for force, fights, lifting, climbing, running and holding on; wits for noticing, searching, working something out, fixing things and keeping a cool head; charm for persuading, bargaining, flattering and most lies told face to face; stealth for sneaking, hiding, picking locks and pockets, and slipping something past someone. GAMBLE: betting or playing cards or dice for money where a game runs (a bar) is actionType gamble, with no roll (the engine deals the hand) and the stake in summary (\"bets $20 at cards\"); the game (Texas hold'em or five-card draw) and who sits in (\"deal everyone in\", \"heads up\") may be named in the words, and the engine reads them from the input; \"I bet he is lying\" or \"I bet you ten bucks it rains tomorrow\" is a way of speaking, not gamble. The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else (a knife to stab with, a gun, a car, a key, a tool), name it in missingItem, and use usesItemId only for a listed item.",
     bookkeeper: "You record what changed in the game world after this turn. Use only the ids provided. Only record changes the narration actually shows. Be conservative: small attitude shifts (±5 to ±15) unless something major happened. " + RECORD_RULES + " " + PLACE_RULE + " At most one per turn. " + MEMORY_RULES,
@@ -16215,6 +16331,24 @@ const Api = (() => {
     return { npc: n, place: best.l, when };
   }
   function mockMeetLine(meet) { return `${meet.npc.name} nods. "${capFirst(String(meet.place.name).replace(/^The /, 'the '))}, ${meet.when}."`; }
+  /* Something asked of the player (wave 26, the demo's one deterministic
+     case): "what do you want from me" or "what do you need" said in Say mode
+     to someone present, with no roll or a roll that succeeded. The demo
+     narration has them ask for the outboard part by the day after tomorrow
+     ("Royce Pittman wants the outboard part by Day 3."), and the demo
+     bookkeeper records the seed (State makes it an ask). Returns { npc, day,
+     thing } or null. */
+  const MOCK_ASK = /\bwhat (?:do|would) you (?:want|need)\b/i;
+  function mockAsk(c) {
+    const s = State.current;
+    const sp = c && c.speech;
+    if (!s || !isSay(sp) || !sp.to || sp.to === 'everyone' || (c.roll && !c.roll.success)) return null;
+    if (!MOCK_ASK.test(String(c.input || '').replace(/[’‘]/g, "'"))) return null;
+    const n = State.npc(sp.to);
+    if (!n || !(c.presentIds || State.npcsAt(s.player.locationId).map(x => x.id)).includes(n.id)) return null;
+    return { npc: n, day: s.time.day + 2, thing: 'the outboard part' };
+  }
+  function mockAskLine(ask) { return `${ask.npc.name} wants ${ask.thing} by Day ${ask.day}. "Bring it by ${State.weekday(ask.day)} and I'll make it worth your while."`; }
   /* The next stretch of the day, for a time someone names. */
   const LATER = { morning: 'this afternoon', afternoon: 'this evening', evening: 'tonight', night: 'in the morning' };
   /* A place someone can point to: where their schedule has them next, if the
@@ -16270,7 +16404,9 @@ const Api = (() => {
     const told = c.rumour && c.rumour.npcId === first.id ? `${first.name} mentions something: "${c.rumour.text}"` : null;
     // "Meet me at the Low Water tonight" (wave 22): they agree, and the demo bookkeeper records the meeting.
     const meet = mockMeeting(c);
-    const answer = meet && meet.npc.id === first.id ? mockMeetLine(meet) : a.actionType === 'intimidate'
+    // "What do you want from me?" (wave 26): they ask for something by a day, and the demo bookkeeper records it.
+    const asked = mockAsk(c);
+    const answer = meet && meet.npc.id === first.id ? mockMeetLine(meet) : asked && asked.npc.id === first.id ? mockAskLine(asked) : a.actionType === 'intimidate'
       ? ((first.attitude | 0) <= -25 ? `${first.name} has heard enough. "Get out of my sight."` : `${first.name} goes still. "Say that again."`)
       : mockSays(first, c, key);
     const core = [opener, answer].concat(told ? [told] : []);
@@ -16944,6 +17080,11 @@ const Api = (() => {
     const meet = mockMeeting(c);
     if (meet && String(c.narration || '').includes(mockMeetLine(meet))) {
       out.newSeeds = [{ effect: `${meet.npc.name} meets ${s.player.name} at ${String(meet.place.name).replace(/^The /, 'the ')} ${meet.when}, as agreed.`, triggerType: 'location', triggerValue: meet.place.id }];
+    }
+    // Something asked of the player that the narration shows (wave 26, the demo's "what do you want from me"): one seed, by its day.
+    const asked = mockAsk(c);
+    if (asked && !out.newSeeds.length && String(c.narration || '').includes(mockAskLine(asked))) {
+      out.newSeeds = [{ effect: `${asked.npc.name} wants ${asked.thing} from ${s.player.name} by Day ${asked.day} (${State.weekday(asked.day)}); it will be worth ${s.player.name}'s while.`, triggerType: 'day', triggerValue: String(asked.day) }];
     }
     return finish();
   }
@@ -23330,6 +23471,23 @@ const Pipeline = (() => {
     return !!(s.flags && s.flags.epilogueShown);
   }
   const ENDING_LINE = 'The story has reached an ending; you can keep playing.';
+  /* An ask in a few words (wave 26; State.askWords), for the recap and the
+     People card: its words up to the reward or the threat, cut short, and
+     when it comes due unless the words already say. opts.bare (the People
+     card, under the person's own name): without the name and the asking
+     ("asked you to", "wants"). */
+  const ASK_LEAD = /^(?:has\s+)?(?:asked|asks|wants|wanted|needs|needed|told)\s+you\s+to\s+|^(?:wants|wanted|needs|needed|asked for|asks for|is after)\s+/i;
+  function askShort(a, opts) {
+    const bare = !!(opts && opts.bare);
+    let t = String((bare ? a.what : a.said) || a.effect || '').split(/\s*[;—]\s*/)[0].replace(/[.!]+$/, '').trim();
+    if (bare) t = t.replace(ASK_LEAD, '');
+    t = cutWords(t, bare ? 100 : 140);
+    const said = Number.isInteger(a.dueDay) && new RegExp(`\\bDay ${a.dueDay}\\b`).test(t);
+    // "when you next see him" when the one to see is the one who asked (their name is already there).
+    const n = a.seeNpcId && a.seeNpcId === a.npcId ? State.npc(a.npcId) : null;
+    const by = n ? `when you next see ${(PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they).obj}` : a.by;
+    return `${t}${by && !said ? `, ${by}` : ''}${a.gone ? ' (no longer in town)' : ''}`;
+  }
   /* The recap, one line each (the UI adds the heading "Where things stand"
      and bolds what comes before the first colon): where and when; once the
      ending has happened, that line; Here and Open always; Owed, Warm to you,
@@ -23354,6 +23512,9 @@ const Pipeline = (() => {
     out.push(`Here: ${!labels.length ? 'nobody' : serial ? `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}` : andList(labels)}.`);
     const threads = s.threads.filter(x => x.status === 'open' && x.knownToPlayer);
     out.push(`Open: ${threads.length ? threads.map(x => `${x.title}${x.summary ? ` (${cutWords(sentenceOne(cleanText(x.summary, 400)), 220).replace(/\.$/, '')})` : ''}`).join('; ') : 'nothing'}.`);
+    // What people asked of the player in the story, not yet come due (wave 26; the Objectives tab has them in full).
+    const asks = State.asks().sort((a, b) => (b.turn | 0) - (a.turn | 0));
+    if (asks.length) out.push(`Asked of you: ${asks.map(askShort).join('; ')}.`);
     const obls = State.obligations('owed');
     if (obls.length) out.push(`Owed: ${obls.map(o => obligationLine(o, t.day)).join('; ')}.`);
     // Only people the player has dealt with (wave 3): met face to face, tied to a loose end, or remembering something of them; never a stranger at their starting attitude.
@@ -23387,7 +23548,7 @@ const Pipeline = (() => {
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine, moneyNamed, openDayFrom, banBackDay,
-    recap: recapText, recapText, printRecap,
+    recap: recapText, recapText, printRecap, askShort,
     CHRONICLE_AT, CHRONICLE_KEEP, STATUS_TEXT,
     npcLine, wouldKnow, knowledgeLine, timeTakes, clockText, dateText, weekdayOf, storySoFar, earlierLine, openLine, newsLine, TOWN_NEWER, looseEndsLine,
     ACTION_TYPES, NOTICES, hooks,
@@ -23921,7 +24082,9 @@ const Storage = (() => {
 /* All rendering. Every dynamic string goes in through el()/textContent. */
 const UI = (() => {
   const d = {};
-  const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['places', 'Places']];
+  const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['objectives', 'Objectives'], ['places', 'Places']];
+  // The shorter labels a narrow tab row falls back to (fitTabs): "Goals" first, then "You".
+  const TAB_SHORT = { objectives: 'Goals', character: 'You' };
   const mq = window.matchMedia('(max-width: 899px)');
   const isMobile = () => mq.matches;
   // A phone on its side: with the keyboard up the story has a strip about 200px tall, so the top bar steps aside too and Say is the picker in the input row (compactComposer).
@@ -24079,6 +24242,8 @@ const UI = (() => {
     });
     d.sayTo.addEventListener('change', e => { if (e.target.classList.contains('say-pick') && setAddressee(e.target.value)) focusComposer({ stay: true }); });
     $$('[data-open-tab]').forEach(b => b.addEventListener('click', () => { sheetOpener = b; openPanel(b.dataset.openTab); }));
+    // A tab row that comes on screen or changes width is fitted again (wave 26: fitTabs).
+    try { const ro = new ResizeObserver(fitTabsSoon); ro.observe(d.panelTabs); const bar = $('.tabbar'); if (bar) ro.observe(bar); } catch (e) { window.addEventListener('resize', fitTabsSoon); }
     // Panel / sheet
     d.panelClose.addEventListener('click', closeSheet);
     d.panelBody.addEventListener('focusin', () => { if (editing) requestAnimationFrame(keepFieldClear); });
@@ -24831,12 +24996,40 @@ const UI = (() => {
     const tabs = TABS.concat(debugOn ? [['debug', 'Debug']] : []);
     if (!tabs.some(t => t[0] === tab)) tab = 'character';
     d.panelTabs.dataset.count = String(tabs.length);
+    // Objectives with what is waiting on the player ("Objectives · 4", wave 26), on the panel's tabs and the phone's tab row alike.
+    const count = objectiveCount();
     d.panelTabs.replaceChildren(...tabs.map(([id, label]) => el('button', {
       type: 'button', role: 'tab', id: 'tab-' + id, 'aria-selected': String(id === tab), 'aria-controls': 'panel-body', tabindex: id === tab ? '0' : '-1',
-      dataset: { tab: id }, onclick: () => { tab = id; renderPanel(); }
+      dataset: { tab: id, label }, onclick: () => { tab = id; renderPanel(); }
     }, label)));
+    for (const b of $$('[data-open-tab]')) { const t = TABS.find(x => x[0] === b.dataset.openTab); if (t) b.dataset.label = t[1]; }
+    tabCount = count;
+    fitTabs();
     syncTabbar();
   }
+  /* Wave 26: a tab row that does not fit its labels whole (five tabs, or six
+     with Debug, in the laptop's 320px panel or across a 320px phone) steps
+     down until it does: 0 equal widths; 1 widths that follow the labels; 2
+     a smaller face; 3 "Goals" for Objectives; 4 "You" for Character; 5 the
+     smallest face. Measured where it is drawn (a row not on screen is
+     fitted when it shows: fitTabsSoon, from a ResizeObserver). */
+  let tabCount = 0;
+  const FIT_MAX = 5;
+  function tabLabel(id, label, level) {
+    const short = TAB_SHORT[id] && level >= (id === 'objectives' ? 3 : 4) ? TAB_SHORT[id] : label;
+    return id === 'objectives' && tabCount > 0 ? `${short} · ${tabCount}` : short;
+  }
+  function fitRow(row) {
+    if (!row) return;
+    const btns = $$('button', row).filter(b => b.dataset.label);
+    const set = lv => { row.dataset.fit = String(lv); for (const b of btns) { const t = tabLabel(b.dataset.tab || b.dataset.openTab, b.dataset.label, lv); if (b.textContent !== t) b.textContent = t; } };
+    if (!row.clientWidth) { set(Math.min(Number(row.dataset.fit) || 0, FIT_MAX)); return; }
+    const over = () => row.scrollWidth > row.clientWidth + 1 || btns.some(b => b.scrollWidth > b.clientWidth + 1);
+    for (let lv = 0; lv <= FIT_MAX; lv++) { set(lv); if (!over()) return; }
+  }
+  function fitTabs() { fitRow(d.panelTabs); fitRow($('.tabbar')); }
+  let fitFrame = 0;
+  function fitTabsSoon() { if (fitFrame) return; fitFrame = requestAnimationFrame(() => { fitFrame = 0; fitTabs(); }); }
   function onTabKey(e) {
     const tabs = $$('[role="tab"]', d.panelTabs);
     const i = tabs.indexOf(document.activeElement);
@@ -24856,7 +25049,7 @@ const UI = (() => {
   /* Where the focus was in the panel, so a re-render can put it back on the
      same control: its id, else its class and data-* attributes inside the
      nearest card, section or group that names itself. */
-  const FOCUS_KEYS = ['npc', 'loc', 'sort', 'pron', 'go', 'section', 'group', 'thread', 'faction', 'rumour', 'obligation', 'retry', 'settings'];
+  const FOCUS_KEYS = ['npc', 'loc', 'sort', 'pron', 'go', 'section', 'group', 'thread', 'faction', 'rumour', 'obligation', 'objective', 'retry', 'settings'];
   function focusKey(node) {
     if (!node || node === d.panelBody || !d.panelBody.contains(node)) return null;
     if (node.id) return '#' + CSS.escape(node.id);
@@ -24880,6 +25073,8 @@ const UI = (() => {
     const scroll = d.panelBody.dataset.tab === tab ? d.panelBody.scrollTop : 0;
     if (form && form.dataset.npc === editing.id) editing.draft = readForm(form);
     if (editing && (!s || State.muted || !State.npc(editing.id))) editing = null;
+    // The Objectives entries opened or shut by hand stay so through a redraw (wave 26).
+    if (d.panelBody.dataset.tab === 'objectives') for (const x of $$('details.obj-d', d.panelBody)) { const li = x.closest('[data-objective]'); if (li) objOpen.set(li.dataset.objective, x.open); }
     d.panelBody.replaceChildren();
     d.panelBody.dataset.tab = tab;
     d.panelBody.setAttribute('aria-labelledby', 'tab-' + tab);
@@ -25042,6 +25237,8 @@ const UI = (() => {
     }
     // A meeting agreed in the story, still to come (wave 22): "Meeting you: the Low Water, this morning (back door, half past ten)".
     for (const a of State.appointments(n.id)) out.push({ text: `Meeting you: ${a.place}, ${a.when}${a.detail ? ` (${a.detail})` : ''}`, hard: false, appt: a.seedId });
+    // Something they asked of the player, not yet come due (wave 26): "Asked you: the outboard part from you by Day 3 (Saturday)".
+    for (const a of State.asks(n.id)) out.push({ text: `Asked you: ${Pipeline.askShort(a, { bare: true })}`, hard: false, ask: a.seedId });
     return out;
   }
   function personCard(s, n, isHere) {
@@ -25074,7 +25271,7 @@ const UI = (() => {
             el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
           roleLine ? el('span', { class: 'pcard-role' }, roleLine) : null,
           el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [attitudeMeter(State.attitudeWord(n.attitude)), whereLine(s, n, isHere)],
-            absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: f.appt ? { flag: '1', appt: f.appt } : { flag: '1' } }, f.text)))),
+            absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: Object.assign({ flag: '1' }, f.appt ? { appt: f.appt } : {}, f.ask ? { ask: f.ask } : {}) }, f.text)))),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'pcard-more', id: moreId, hidden: !open }, edit ? editForm(s, n) : [
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
@@ -26139,6 +26336,124 @@ const UI = (() => {
   function newsOf() {
     return State.news.filter(x => isObj(x) && typeof x.text === 'string' && x.public !== false && x.seen !== false);
   }
+  /* ----- Objectives (wave 26) -----
+     The owner: "a side panel with something like 'Objectives' to track what
+     people asked me to do, by when, and details about the objectives (that
+     I know of)". Read from State on every draw: what people asked of the
+     player in the story (State.asks), the meetings agreed (State.appointments),
+     what they owe (State.obligations('owed')), the threads they know of and
+     their open loose ends; newest first in each. Nothing here is editable:
+     an entry leaves when the engine settles it (a seed fires, an obligation
+     is met, a thread resolves). count: what someone is waiting on the player
+     for (asks, meetings, owed), for the tab's label. */
+  function objectivesOf(s) {
+    const newest = (list, at) => list.map((x, i) => ({ x, i })).sort((a, b) => (at(b.x) - at(a.x)) || (b.i - a.i)).map(y => y.x);
+    const seedTurn = id => { const sd = s.seeds.find(x => x.id === id); return sd && Number.isInteger(sd.turn) ? sd.turn : -1; };
+    const asks = newest(State.asks(), a => (Number.isInteger(a.turn) ? a.turn : -1));
+    const meetings = newest(State.appointments(), a => seedTurn(a.seedId));
+    const owed = newest(State.obligations('owed').filter(isObj), o => (Number.isInteger(o.createdTurn) ? o.createdTurn : -1));
+    const looseThreads = new Set((s.player.looseEnds || []).map(le => isObj(le) && le.threadId).filter(Boolean));
+    const threads = s.threads.filter(t => t.status === 'open' && t.knownToPlayer && !looseThreads.has(t.id)).reverse();
+    const loose = (s.player.looseEnds || []).filter(le => {
+      if (!isObj(le)) return false;
+      const t = le.threadId ? State.thread(le.threadId) : null;
+      return !!State.npc(le.npcId) && (!t || t.status === 'open');
+    }).reverse();
+    return { asks, meetings, owed, threads, loose, count: asks.length + meetings.length + owed.length };
+  }
+  function objectiveCount() {
+    const s = State.current;
+    if (!s || State.muted) return 0;
+    try { return objectivesOf(s).count; } catch (e) { console.error(e); return 0; }
+  }
+  /* The entries opened or shut by hand (memory only; renderPanel reads them before a redraw): by default open on a laptop, shut on a phone. */
+  const objOpen = new Map();
+  /* One entry: a summary that opens (who in bold and what, the when line,
+     the stakes) and the details under it ([label, value] rows). */
+  function objItem(o) {
+    const open = objOpen.has(o.key) ? objOpen.get(o.key) : !isMobile();
+    return el('li', { class: 'obj', dataset: { objective: o.key, kind: o.kind } },
+      el('details', { class: 'obj-d', open },
+        el('summary', { class: 'obj-sum', dataset: { objective: o.key } },
+          el('span', { class: 'obj-text' }, o.who ? [el('strong', { class: 'obj-who' }, o.who), ' '] : null, o.text, o.gone ? el('span', { class: 'obj-gone' }, ' (no longer in town)') : null),
+          o.when ? el('span', { class: 'obj-when' + (o.late ? ' late' : '') }, o.when) : null,
+          o.stakes ? el('span', { class: 'obj-stakes' }, `Stakes: ${o.stakes}`) : null),
+        el('dl', { class: 'kv obj-more' }, o.more.filter(r => r && r[1]).map(([k, v]) => [el('dt', null, k), el('dd', null, v)]))));
+  }
+  /* A chip that opens someone's card (as the Journal's threads); with no card for them, their name when the entry's own words
+     name them (named: an ask, a meeting) or the player knows it, else how they would describe them. */
+  function objPerson(s, n, named) {
+    if (!n) return null;
+    if (!hasCard(s, n)) return n.knownToPlayer || named ? n.name : npcLabel(n);
+    return el('span', { class: 'jr-people' }, el('button', { type: 'button', class: 'chip', dataset: { npc: n.id }, onclick: () => showPerson(n.id) }, n.knownToPlayer ? n.name : npcLabel(n)));
+  }
+  /* When an ask was made: "Day 2 · Friday · Evening" (the turn's log entry),
+     with that turn's journal line, else what the player did or said then. */
+  function objAsked(s, turn) {
+    if (!Number.isInteger(turn)) return null;
+    const at = whenTurn(s, turn);
+    const note = s.journal.filter(j => j && j.turn === turn).map(j => j.text).pop();
+    const entry = s.log.find(e => e.turn === turn);
+    const did = !note && entry && entry.input ? `You: ${cutText(entry.input, 140)}` : null;
+    const when = at ? dayLabel(at.day, at.phase) : `Turn ${turn}`;
+    return [when, note || did].filter(Boolean).join(' — ');
+  }
+  function cutText(t, n) { t = String(t || '').trim(); return t.length > n ? `${t.slice(0, n - 1).replace(/\s+\S*$/, '')}…` : t; }
+  const OBL_KIND = { debt: 'Debt', blackmail: 'Blackmail', promise: 'Promise', errand: 'Errand', lodging: 'Lodging' };
+  function objSections(s) {
+    const day = s.time.day;
+    const all = objectivesOf(s);
+    const wd = d => (weekdayOf(d) ? ` (${weekdayOf(d)})` : '');
+    const due = d => { const n = d - day; return n > 1 ? `in ${n} days` : n === 1 ? 'due tomorrow' : n === 0 ? 'due today' : 'overdue'; };
+    const firstPart = t => String(t || '').split(/\s*[;—]\s*/)[0].replace(/[.!]+$/, '');
+    const asks = all.asks.map(a => {
+      const n = a.npcId ? State.npc(a.npcId) : null;
+      const sd = s.seeds.find(x => x.id === a.seedId);
+      const late = a.dueIn === 'overdue';
+      return objItem({ key: 'ask:' + a.seedId, kind: 'ask', who: a.name, text: firstPart(a.name ? a.what : a.said), gone: a.gone,
+        when: [a.by, a.dueIn ? (a.dueIn === 'today' ? 'due today' : a.dueIn === 'tomorrow' ? 'due tomorrow' : a.dueIn) : null].filter(Boolean).join(' · '), late, stakes: a.reward,
+        more: [['In full', a.said], ['Who', n ? objPerson(s, n, true) : null], ['Where', a.place ? capFirst(a.place) : null],
+          ['When', Number.isInteger(a.dueDay) ? `Day ${a.dueDay}${wd(a.dueDay)}` : a.by ? capFirst(a.by) : null],
+          ['Asked', sd ? objAsked(s, sd.turn) : null]] });
+    });
+    const meetings = all.meetings.map(a => {
+      const sd = s.seeds.find(x => x.id === a.seedId);
+      const ap = sd && isObj(sd.appointment) ? sd.appointment : null;
+      const l = State.loc(a.locationId);
+      return objItem({ key: 'meet:' + a.seedId, kind: 'meeting', who: a.name, text: `at ${a.place}, ${a.when}${a.detail ? ` (${a.detail})` : ''}`,
+        more: [['In full', sd ? State.youWords(sd.effect) : null], ['Who', objPerson(s, State.npc(a.npcId), true)],
+          ['Where', l ? `${l.name}${a.spot ? `, ${a.spot}` : ''}` : null],
+          ['When', ap ? `Day ${ap.day}${wd(ap.day)}, ${(ap.phases || []).join(' or ')}${a.hour ? ` (${a.hour})` : ''}` : null],
+          ['Agreed', sd ? objAsked(s, sd.turn) : null]] });
+    });
+    const owedIds = new Set(State.obligations('owed').map(o => o && o.id));
+    const owed = all.owed.map(o => {
+      const n = o.npcId ? State.npc(o.npcId) : null;
+      const missed = o.status === 'missed' && owedIds.has(o.id);
+      const d = Number.isInteger(o.dueDay) ? o.dueDay : null;
+      const paid = Number.isInteger(o.amount) && o.amount > 0 && (o.paid | 0) > 0 ? `${money(o.paid)} paid` : null;
+      const when = [d !== null ? `${missed ? 'was due' : 'by'} Day ${d}${wd(d)}` : null, missed ? 'missed, still owed' : d !== null ? due(d) : null, paid].filter(Boolean).join(' · ');
+      return objItem({ key: 'owe:' + (o.id || ''), kind: 'owed', text: obligationText(o).replace(/[.]$/, ''), when, late: missed || (d !== null && d < day),
+        more: [['Who', objPerson(s, n)], ['What', OBL_KIND[o.kind] || null],
+          ['Amount', Number.isInteger(o.amount) && o.amount > 0 ? `${money(o.amount)}${paid ? `, ${money(o.paid)} of it paid` : ''}` : null],
+          ['Thing', o.itemName || null], ['Due', d !== null ? `Day ${d}${wd(d)}` : null],
+          ['Since', Number.isInteger(o.createdDay) ? `Day ${o.createdDay}${wd(o.createdDay)}` : null]] });
+    });
+    const threads = all.threads.map(t => {
+      const met = (t.linkedIds || []).map(id => State.npc(id)).filter(n => n && hasCard(s, n));
+      return objItem({ key: 'thread:' + t.id, kind: 'thread', who: t.title, text: t.summary ? sentenceOf(t.summary) : '',
+        more: [['In full', t.summary || null], ['People', met.length ? el('span', { class: 'jr-people' }, met.map(n => el('button', { type: 'button', class: 'chip', dataset: { npc: n.id }, onclick: () => showPerson(n.id) }, n.knownToPlayer ? n.name : npcLabel(n)))) : null]] });
+    });
+    const loose = all.loose.map(le => {
+      const n = State.npc(le.npcId);
+      return objItem({ key: `loose:${le.kind}:${le.npcId}`, kind: 'loose', who: le.label || capFirst(le.kind || 'a loose end'), text: le.text || '',
+        more: [['In full', le.text || null], ['Who', n && hasCard(s, n) ? objPerson(s, n) : null]] });
+    });
+    const sec = (key, title, items) => (items.length ? el('section', { class: 'jr-sec obj-sec', dataset: { section: key }, 'aria-label': title }, el('h3', null, title, el('span', { class: 'people-count' }, String(items.length))), el('ul', { class: 'obj-list' }, items)) : null);
+    return { count: all.count, nodes: [sec('asks', 'Asked of you', asks), sec('meetings', 'Meetings', meetings), sec('owed', 'Owed', owed), sec('threads', 'Threads you know of', threads), sec('loose', 'Loose ends', loose)].filter(Boolean) };
+  }
+  // A thread's summary, its first sentence (the details have it all).
+  function sentenceOf(t) { const m = /^(.+?[.!?])(\s|$)/.exec(String(t || '').trim()); return m ? m[1] : String(t || '').trim(); }
   /* Open someone's card from elsewhere (the Journal's threads). */
   function showPerson(id) {
     openPerson = id;
@@ -26347,6 +26662,15 @@ const UI = (() => {
           const at = Number.isInteger(j.day) ? { day: j.day, phase: j.phase || null } : whenTurn(s, j.turn);
           return el('li', null, el('span', { class: 'jr-day' }, at ? dayLabel(at.day, at.phase) : `Turn ${j.turn}`), el('span', { class: 'jr-text' }, j.text));
         }, 'No entries yet.'))
+      ];
+    },
+    /* Objectives (wave 26): what the player knows they have to do, read
+       from State on every draw (objSections); nothing to edit. */
+    objectives(s) {
+      const o = objSections(s);
+      return [
+        el('p', { class: 'obj-lede' }, 'What you know of. The story keeps the rest.'),
+        o.nodes.length ? o.nodes : el('p', { class: 'empty' }, 'Nothing yet. When someone asks something of you, it shows here.')
       ];
     },
     places(s) {

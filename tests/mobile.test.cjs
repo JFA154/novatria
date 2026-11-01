@@ -104,7 +104,7 @@ for (const size of SIZES) {
     await page.click('#tb-menu');
     await check('game: menu');
     await page.click('#tb-menu');
-    for (const tab of ['character', 'people', 'journal', 'places']) {
+    for (const tab of ['character', 'people', 'journal', 'objectives', 'places']) {
       await page.click(`[data-open-tab="${tab}"]`);
       await page.waitForTimeout(300);
       await check('sheet: ' + tab);

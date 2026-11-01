@@ -54,7 +54,7 @@ s.test('laptop layout: 680px feed, 320px collapsible panel, 18px/1.6 reading tex
   assert.equal(Math.round(m.panelW), 320);
   assert.equal(m.size, '18px');
   assert.equal(m.lh, '28.8px');
-  assert.deepEqual(m.tabs, ['Character', 'People', 'Journal', 'Places']);
+  assert.deepEqual(m.tabs, ['Character', 'People', 'Journal', 'Objectives', 'Places']);
   assert.match(m.bar[0], /^Day 1 · Morning$/);
   assert.ok(m.bar[1].length > 0);
   assert.match(m.bar[2], /^10\/10$/);
@@ -84,7 +84,7 @@ s.test('loads at 375x740 with no horizontal overflow on any screen; 44px tap tar
   assert.deepEqual(small, [], 'tap targets under 44px');
   await page.click('[data-open-tab="character"]');
   await page.waitForTimeout(320);
-  for (const tabName of ['character', 'people', 'journal', 'places']) {
+  for (const tabName of ['character', 'people', 'journal', 'objectives', 'places']) {
     await page.click(`#tab-${tabName}`);
     assert.deepEqual(await overflowReport(page, 375), [], 'sheet ' + tabName);
   }
