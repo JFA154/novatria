@@ -1227,12 +1227,12 @@ Trait axes used below (Appendix A):
     - Royce: W -5, T -4, F +10.
     - Jodie: W -5, T -6, F +8.
     - Lamar: W -5, T -5, F +10.
-  - B: Mavis (spouse and household; overnight; 0.29): W -7, T -4, F +3. **W -12, T -14.** Memory: "heard you hit Dewayne Mangum at Pittman's".
+  - B: Mavis (spouse and household; overnight; 0.29): W -7, T -4, F +3. **W -12, T -14.** Memory: "heard you hit Dewayne Mangum at Pittman's". (Wave 31's code, pinned by `tests/relationships-examples.test.cjs`: exactly so, at the night tick, the memory "heard Tester hit Dewayne Mangum at Pittman's Gas and Service", weight 2; the next morning W -11. Royce, Dewayne's boss, saw it, so his witness copy carries his tie's share as well: W -9, T -6, F +12.)
 - **Day 4.** The apology rolls charm and succeeds; it must land, because Dewayne is at -25, not above it. The engine adds `gift` ($40 for his safety glasses).
   - The hit's liking is halved to -12; its trust is eased by a quarter to -8; fear 20 has faded to 17.
   - Gift +5, apology +2.
   - **Dewayne: W -5, T -13, F 17, K 13** (the code: K 15, with +1 for each turn aimed at him): "cool to you · uneasy around you". Fear 17 is still inside "uneasy", which is entered at 20 and left below 15. Liking has the same hysteresis: cool is entered at -6 and left only above -1, so W -5 is still cool, not "sizing you up" (corrected in wave 28, when the example became a test).
-  - Mavis's copy is halved the next morning, to about **W -8**.
+  - Mavis's copy is halved the next morning, to about **W -8**. (The code: the apology's settlement reaches her copy at the next night tick, the same 0.5 and 0.25; W -8 the morning after.)
 - **Narrator (Day 4).** `Dewayne Mangum ... to you: cool to you; uneasy around you — hit him in his bay over a tow bill (Day 3, apologised); paid for his glasses (Day 4) — plays it: civil and brief; keeps a step back`
 - **Player sees.**
   - Day 3: "Dewayne Mangum won't forget that."
@@ -1294,21 +1294,22 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - Lorna (aunt, 0.43): **W -18, T -6, F 19**: "cool to you".
   - Trent (friend, 0.32): **W -9, T -14, F 13**: "cool to you".
   - Dewayne: the witness row.
+  - (Wave 31's code, pinned by `tests/relationships-examples.test.cjs`: the numbers above took the beat-down's witness row alone; since wave 27 the copy holds every blow seen (-5, -5, -8), and the tie's share is of the fight's change in all (-35), so Lorna is **W -28, T -14, F 32**, "against you · uneasy around you", and Trent **W -19, T -22, F 24**, "cool to you · uneasy around you"; Dewayne, tied to nobody there, -18.)
 - **Wade** (other family, so the next morning; 0.32): **W -21, T -15**: "cool to you".
-- **Tammy** (hidden enemy tie -90, factor -0.34; town news, next morning): W +12, so **W 7**: "friendly".
+- **Tammy** (hidden enemy tie -90, factor -0.34; town news, next morning): W +12, so **W 7**: "friendly". (The code: W +11, one point less for the rounding of the two blows; within the test's 2. The fight made the news, so its blows reach everyone by the morning.)
 - **Austin** (-90): **W +12**.
 - Night Run reputation -5.
 - **Narrator (Tammy, Day 8).** `to you: friendly — warmer since Day 7, for a reason of her own; keeps it to herself, never hint at it — plays it: easy with you; small talk comes easy`
 - **Player sees.**
   - Day 7: "Colt Purvis won't forget that." / "Lorna Purvis cools toward you." (In tier A as wave 27 has it, the witness row alone takes Lorna from 5 to -13, "wary", and the band line names only people the player knows: a stranger at the dock gets none. `tests/relationships-examples.test.cjs` pins Colt's line.)
   - Day 8: the news line, then "Word got round: Wade Purvis, Tammy Lott and Austin Lott have heard about the landing."
-  - Tammy's card: "Friendly · Warmer since you put Colt Purvis down at the landing, Day 7. Hasn't said why."
+  - Tammy's card: "Friendly · Warmer since you put Colt Purvis down at the landing, Day 7. Hasn't said why." (The code names the place in full: "Warmer since you put Colt Purvis down at Purvis Landing, Day 7. Hasn't said why.")
 
 #### 5. The surveyor who wasn't (A, B)
 
 - **Situation.** Day 2: `npc_marcus noted: says she is a surveyor from the state`, and the deceive is logged. Day 3: `npc_marcus lied_caught: no state surveyor by that name` (precondition met).
 - **Marcus** (start W -5, T -15): **W -10, T -50**. "suspicious of you". Lies to him are very hard; his secret is shut.
-- **B: the department** (boss and employee, the next morning): Glenda T -4, Nikki T -3, Travis T -3, all into their everyday buckets. No memories, no lines. The trust route to a grudge needs a first-hand memory.
+- **B: the department** (boss and employee, the next morning): Glenda T -4, Nikki T -3, Travis T -3, all into their everyday buckets. No memories, no lines. The trust route to a grudge needs a first-hand memory. (Wave 31's code, pinned by `tests/relationships-examples.test.cjs`: exactly so. Wade Purvis, who would rather see the chief fooled, hears it too, a point or two into everyday.)
 - **Narrator.** `Marcus Bell ... to you: suspicious of you — no state surveyor by that name (Day 3); says she's a surveyor (claim) — plays it: checks every answer; gives nothing for free`
 - **Player sees.** "Marcus Bell stops taking your word."
 - **A second caught lie within 3 days** opens his "person of interest" grudge. Its third-party effects become `crossed`-class memories for Nikki and Travis.
@@ -1364,7 +1365,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 - **Situation.** After two nights, Loretta is at **W 26**. Day 4 (Sunday) morning at Pittman's counter, with Dewayne, Jodie and Lamar there: "Royce sold his vote to Carter." The bookkeeper sends `insulted`; with three witnesses, code makes it `humiliated`.
 - **Tracks.** Royce: **W -5**. Loretta (hidden lover tie, 0.47) hears at the next co-location, Monday afternoon: W -7, so **W 19**: "friendly" (below warm's exit at 20).
 - **Narrator.** `Loretta Gaddis ... to you: friendly — cooler since Day 4, for a reason of her own; keeps it to herself, never hint at it — plays it: easy with you; small talk comes easy`
-- **Player sees.** Monday: "Loretta Gaddis cools toward you." Her card: "Friendly · Cooler since you shamed Royce at the counter, Day 4. Hasn't said why."
+- **Player sees.** Monday: "Loretta Gaddis cools toward you." Her card: "Friendly · Cooler since you shamed Royce at the counter, Day 4. Hasn't said why." (Wave 31's code, pinned by `tests/relationships-examples.test.cjs`: exactly so, with "Word got round: Loretta Gaddis has heard about Pittman's." the same afternoon, and the card's act in full: "Cooler since you shamed Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said why." A heard copy fades from the day it was heard.)
 
 #### 10. Shayla: wants you, doesn't like or trust you (A: spark against caring)
 
@@ -1378,7 +1379,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - `npc_shayla lied_caught: never went through the academy with Travis`: W -5, T -30.
   - `pried` (Travis's phone): W -3, T -3.
   - Another welcome flirt: W +4, S +15.
-  - Travis sees it (the jealousy rule): **W -9, T -20**, "cool to you". (His band line in tier A as wave 29 has it: "Travis Cagle won't forget that.", a harm memory taking him out of neutral.)
+  - Travis sees it (the jealousy rule): **W -9, T -20**, "cool to you". (His band line in tier A as wave 29 has it: "Travis Cagle won't forget that.", a harm memory taking him out of neutral. Wave 31: he was there for the caught lie and the prying too, and his tie to her (a partner, 0.45) carries a share of them, so **W -11, T -33**, "suspicious of you", and the line "Travis Cagle stops taking your word.")
 - **Day 4 morning:** a flirt (S +15) and time together (S +2, W +2).
 - **Tracks by Day 4.** **W 13, T -31, S 43.** (The code: W 11, the memories fading a little over two days.)
 - **Stance.** Grid "suspicious of you". Status **"using you"**: spark 40 or more, liking under 25, trust -25 or less, and the distrust is earned (a caught lie, first-hand), as well as her `mercenary` flag. "Suspicious of you · using you".

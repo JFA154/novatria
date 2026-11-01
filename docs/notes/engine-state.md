@@ -1330,3 +1330,101 @@ Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 10, 13.1,
     not `rel`; B1's strain ("wife Mavis Mangum, strained since Day 5") is a
     suffix on that tie's text there. Wave 30 left the row as it was; the
     stance block sits above the facts.
+
+## Wave 31 (1 Nov 2026): the town is a graph, in State and Rel
+
+Wave B1 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 2.3, 2.4,
+11.3, 13.2 and 16 B1). Tests: `tests/wave31-town-ties.test.cjs`, examples 1,
+4 and 5 (B parts) and 9 in `tests/relationships-examples.test.cjs`
+(World's side: `docs/notes/engine-world.md`, Wave 31; content:
+`docs/notes/content.md`, Wave 31).
+
+- **`state.ties`** (`{ "a>b": a's tie to b }`): `{ kind (what b is to a:
+  Rel.TIE_KINDS), base: { w, t }, log: [{ turn, day, w, t, why, seen? }],
+  w, t (the cache: base plus the log, -100..100, Rel.tieNow), hidden,
+  known, knownTurn?, revealedBy?, why? }`, the log at most `Rel.TIE_LOG`
+  (8), the oldest folded into base. **`state.hearsay`** (at most
+  `Rel.DELIVERY.max`, 60: what was heard goes first, then the oldest): `{
+  id (hs<turn>_<who>_<n>), turn, npcId (who hears), aboutId (whom it
+  happened to), src (their memory's key), event, d (what carries), factor,
+  how, via ('overnight', 'morning', 'meet'), dueDay, duePhase, expires,
+  hidden, kind, text, act, weight, decay, place, placeName, day (the act's),
+  about ("about Pittman's"), fight?, owed?, settle? ({ by, w, t, f }: a
+  settlement for the copy), own? and ev? (an absent victim's own event),
+  deliveredTurn?, untold? }`. `newGame` makes both and fills the ties; the
+  load makes them empty where a save has none (no version bump: nothing
+  travels until rules version 10); `validateShape` checks both.
+- **Engine keys** (never effect ops; `EFFECT_OPS` stays 31): `tiesFill`
+  (true: every tie `Rel.tiesPlan` gives that the game lacks, never
+  overwriting; `result.tiesFill = { added, ties, people }`) and
+  `hearsayDeliver` (`{ day, phase }`: World's step i).
+- **`socialEvent`** takes a fourth argument (`{ noSpread }`: hearsay
+  delivered goes no further) and, after the witnesses, `spreadEvent`: when
+  the event travels (`Rel.spreads`: not one of `Rel.STAYS`, not secondhand,
+  not marked `spread: false`, as the jealousy and the minor rule's
+  guardians are), `Rel.propagate` gets who saw it (the witnesses given, or
+  everyone here not laid up when the victim is here), whether it made the
+  town's news (`public`), the source memory's key and the fight's, and what
+  it did (a fight: the change in all, so a beat-down after two hits adds
+  only what it added). The people here take theirs at once (`carryTo`, into
+  their witness copy of the scene: `m.tie = { src, via }`); the rest are
+  queued (`queueHearsay`; a fight that made news makes its earlier blows
+  news too). A settlement that landed (`Rel.applyEvent` now returns
+  `settledKey` and `settledEntry`) reaches whoever holds a copy of that
+  memory (`settleEvent`, `Rel.settleSpread`): at once if here, else the
+  same way. `ledger.graph` holds what the graph moved each person this
+  turn (`Rel.CAPS.graph`, 15 a track).
+- **`carryTo(a, item, scene, day)`** writes `Rel.carry`'s plan (a
+  settlement on their copy, a share added to a copy, everyday, or a
+  secondhand memory), with an owed favour for a rescue or defence of their
+  child or spouse and the favour's feed line (`owedLines`); `lastCarry`
+  says which.
+- **An absent victim** of the bookkeeper's (`modelSocial`): someone not
+  here is accepted when someone here is tied to them either way
+  (`carrierFor`: the one who would tell them soonest), and refused as
+  before ("<id> is not here, and nobody here is close enough to them to
+  tell them") otherwise, or when the event makes, spends or voids a
+  leverage record. `absentEvent` queues their own event (`own`, at
+  `FACTORS.heard`, by the carrier's tie) and gives the people here who are
+  tied to them the words only, at half (`ev.half`: a call, or talk behind
+  their back). An insult said of someone away is never a humiliation.
+- **The arrest route.** `npcStatus` takes `by` (an NPC: the officer); an
+  arrest of someone free and in town turns each of their family in town
+  against the officer (`arrestRoute`, `Rel.arrestTies`: a family word
+  either way; `tieLog` W -20, T -20, "Marcus Bell arrested Colt Purvis"),
+  `by` else the police head; a game with no ties yet moves none.
+  `tieLog(from, to, w, t, why, seen, known)` makes a tie the game lacks
+  (its kind from their relations, else other, at 0).
+- **Known ties.** `tiesKnown()` runs at the end of every apply that
+  changed anything: a hidden tie `Rel.tieRevealed` finds out (a
+  `revealedBy` rumour heard, a flag set, a record the player holds over
+  either of them whose words name the other) is marked `known` with
+  `knownTurn`.
+- **`/rewind`** strikes hearsay made on a struck turn, gives back what was
+  heard on one (its `deliveredTurn` and `untold` go), strikes tie-log lines
+  of struck turns (the cache recomputed) and hides a tie found out on one
+  again. `everyday` and `fix` stay, as before.
+- **`RULES_VERSION` 10**; `MIGRATIONS` gains `{ version: 10, title: 'A town
+  that talks', rerun: true, run: townTalks }` (Upgrade, quiet, no call):
+  `tiesFill`, nothing re-spread, "People now feel for each other: N ties
+  between M people. What you do from now on reaches the people close to
+  them." or "People already feel for each other.".
+- **Rel's wave-31 section** (after `words`): `TIE_KINDS`, `TIE_INVERSE`,
+  `RELATION_KINDS`, `FAMILY_KINDS`, `FACTORS`, `DELIVERY`, `STAYS`,
+  `VIOLENT`, `CRIMES`, `ARREST_TIE`, `TIE_LOG`, `DID_TEXT` (what the player
+  did, in the past tense: the card's act and a heard copy's words), and
+  `inTown`, `tieKey`, `tieOf`, `tieNow`, `kindOfWord`, `kindBetween`,
+  `contentList`, `tiesPlan`, `tieRevealed`, `hiddenBetween`, `household`
+  (one home that is not the motel or the trailer park, and a family word
+  either way; the rumour pool's `household` stays its own), `deliveryOf`,
+  `tieFactor`, `carried`, `spreads`, `dueOf`, `propagate`, `settleSpread`,
+  `copyOf`, `carry`, `hearsayDue`, `placeShort` ("Pittman's", "the
+  landing"), `hearsayLine`, `arrestTies`, `debugTie`, `debugHearsay`.
+  `protectorOf` reads a protector's hidden flag from the tie (theirs to the
+  protector) where the game has one, the content's `hidden` otherwise.
+  `reasons` keeps a secondhand memory hidden while the tie it came through
+  is (either way), dates a copy by the act it tells of (`secondhand.day`;
+  the copy fades from the day it was heard), and gives a hearsay copy's
+  `act`; `Pipeline.reasonText` turns it for the card ("Cooler since you
+  shamed Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said
+  why."; the narrator's stays nameless).

@@ -1809,3 +1809,25 @@ words. Tests: `tests/wave30-rel-people.test.cjs`.
   memories kept whole, and notes read from `.pcard-why` and `.pcard-notes`.
 - `tests/ui-fixes.test.cjs` (two): a weight-3 memory added, since "won't
   forget that" is now a harm line, not a liking cut.
+
+## Wave 31 (1 Nov 2026): the ties in Debug, and a hidden tie's act on the card
+
+Wave B1 of `docs/RELATIONSHIPS_PLAN.md`.
+
+- **Debug** gains **Ties** (`Rel.debugTie`, one a line: "npc_loretta>
+  npc_royce lover w 80 t 70 (hidden)", "(hidden, now known)" once found
+  out, then the log: "-20/-20 day 4 Marcus Bell arrested Colt Purvis") and
+  **Hearsay** (`Rel.debugHearsay`: "npc_mavis hears hit from npc_dewayne
+  overnight x0.29 · due day 3 night", "by morning", "when they meet", a
+  settlement as "apologised (settling m1-npc_dewayne)", "· heard turn N"
+  once heard), after Secrets shown. Never shown to the player.
+- **The card** (`Pipeline.reasonText`): a reason that came through a tie
+  the town does not know names the act and its day: "Cooler since you
+  shamed Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said
+  why."; a report through a hidden protector keeps only the day. A
+  secondhand reason is dated by the act it tells of.
+- **The feed.** "Word got round: ..." is the tick's notice (World's step i),
+  printed after the turn's divider like the tick's other notices; band
+  lines caused by hearsay come through `State.relTouched` as any other
+  change (the morning's fading retakes the baseline, so news heard in the
+  night with the morning in the same turn shows only in the one line).

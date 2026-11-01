@@ -40,8 +40,16 @@ under "More", the editor's four sliders and Interested, the ranked feed,
 tokens, the council reading trust, rules version 9 for older saves, the
 21-day simulator and the eval script (`docs/notes/ui.md`, `prompts.md`,
 `content.md`, `engine-state.md`, `transport.md`, Wave 30; tests:
-`tests/wave30-rel-people.test.cjs`, example 3 whole). B1 to B3 are still
-plans.
+`tests/wave30-rel-people.test.cjs`, example 3 whole). B1 (wave 31, "The
+town is a graph") has landed: ties from both sides of every relation, the
+town's own 62 (20 hidden) and fellows of a faction; one hop at event time
+with the factor table and the police and clergy limits; hearsay by the kind
+of tie with the household rule and one line a night; an absent victim told
+through whoever is tied to them; hidden ties with a nameless narrator reason
+and the act on the card; the arrest route; rules version 10; Debug's ties
+and hearsay (`docs/notes/engine-state.md`, `engine-world.md`, `content.md`,
+`ui.md`, Wave 31; tests: `tests/wave31-town-ties.test.cjs`, examples 1, 4
+and 5 (B) and 9). B2 and B3 are still plans.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

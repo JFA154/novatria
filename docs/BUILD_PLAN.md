@@ -132,6 +132,11 @@ const TOWN_DATA = {
   romance: [{ npcId, open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false }],
                                     // wave 29: who can be interested in the player (adults only; anyone
                                     // not listed never has spark above 0); the twelve of design Appendix E
+  ties: [{ from, to, kind?, w, t, hidden?, revealedBy?: { rumours?, flags? }, why? }],
+                                    // wave 31: how people feel about each other beyond their relations
+                                    // (every relation is a tie both ways already); an entry sets one side's
+                                    // liking and trust, or adds a tie (lover, enemy, payer, other); hidden
+                                    // needs revealedBy; one entry a direction (design Appendix B)
   events: [{                        // town events (World.fireEvents): the council meeting
     id: "evt_...", day, phase, locationId, title,
     attendees: ["npc_..."],         // optional: free people there for that phase
@@ -163,7 +168,7 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 |---|---|---|
 | `closeLocation` | `locationId` | `closed = true`; narrator told it is shut |
 | `openLocation` | `locationId` | `closed = false` |
-| `npcStatus` | `npcId`, `status` (`arrested` / `gone` / `dead` / `free`) | sets status; `dead` also sets `alive = false`; `arrested` moves them to the watch house in every phase; `gone` removes them from all schedules |
+| `npcStatus` | `npcId`, `status` (`arrested` / `gone` / `dead` / `free`), `by?` (wave 31: the officer, tagged police) | sets status; `dead` also sets `alive = false`; `arrested` moves them to the watch house in every phase, and (wave 31) turns their family in town against the officer (`by`, else the police head: a tie-log line of liking and trust -20); `gone` removes them from all schedules |
 | `npcMove` | `npcId`, `locationId`, `phases` (array or `"all"`) | rewrites that NPC's schedule |
 | `attitudeDelta` | `npcId`, `delta` | clamped to -100..100 |
 | `priceMultiplier` | `factor` | `state.flags.priceMultiplier *= factor` |
@@ -295,8 +300,16 @@ state.leverage = [{                 // wave 26 (empty), filled since wave 29: wh
   uses: [{ turn, day, event }], knownBy: [{ npcId, turn }], mattersTo: ["npc_..."], key? }];
 state.known = { secrets: {} };      // wave 26 (empty), filled since wave 29: each secret the narrator was given,
                                     // { npcId: { turn, day, how: roll | trust | fear | rumour } }
-state.meta.rulesVersion             // 9 since wave 30 (Upgrade.MIGRATIONS); npc.rel.migrated: 9 once a person
+state.meta.rulesVersion             // 10 since wave 31 (Upgrade.MIGRATIONS); npc.rel.migrated: 9 once a person
                                     // has been through version 9 (every memory typed: event and d)
+state.ties = { "npc_mavis>npc_dewayne": {   // wave 31: one person's tie to another (what B is to A)
+  kind,                             // spouse, child, parent, sibling, friend, boss, employee, lover, enemy, fellow, ...
+  base: { w, t }, log: [{ turn, day, w, t, why, seen? }],   // liking and trust: base + the log (8 at most)
+  w, t,                             // the cache of base + log
+  hidden, known, knownTurn?, revealedBy?, why? } };
+state.hearsay = [{                  // wave 31: the news of the player on its way along a tie (60 at most)
+  id, npcId, aboutId, src, event, d, factor, via: "overnight" | "morning" | "meet",
+  dueDay, duePhase, expires, turn, hidden, deliveredTurn?, untold?, settle?, own?, ev? }];
 npc.memories[i].seen                // wave 30: false for a line planted where the player has not seen them
                                     // since; the card keeps it back until state.seen[id].turn passes its turn
 ```
@@ -363,7 +376,7 @@ under 18, set aside for the minor rule).
 | `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complications that fit the action (`complication(ctx)`), the retry locks (`lockKey`, `isLocked`, `lockFor`, `lock`, `clearLocks`; a set in `meta.lastRollKey`), `threat(npc)` and `fightDamage(tier)` |
 | `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, the undo and redo stacks (`undoSteps`, `redoSteps`, `undoRecord`, `resumeUndo`), helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
-| `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, owed), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables) |
+| `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, owed), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables; wave 31: `tiesPlan`, `propagate`, `carry`, `settleSpread`, `household`, `deliveryOf`, `tieFactor`, `arrestTies`, `TIE_KINDS`, `RELATION_KINDS`, `FACTORS`, `DELIVERY`) |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
 | `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
 | `Style` | banned-phrase and length checks, hard and soft problems, invented names |
@@ -1824,3 +1837,33 @@ talking, I can direct it to one person or all."
      `docs/notes/ui.md`, `prompts.md`, `content.md`, `engine-state.md`,
      `transport.md`; tests: `tests/wave30-rel-people.test.cjs`, example 3
      whole in `tests/relationships-examples.test.cjs`.
+   - **Wave 31** (1 Nov 2026). B1, "The town is a graph". People have ties
+     to each other (`state.ties`, directed, what B is to A, liking and trust
+     as base plus a turn-stamped log): both sides of every relation with
+     their kind's defaults (`Rel.TIE_KINDS`, `RELATION_KINDS` through
+     `kinWord`), the town's own `TOWN_DATA.ties` (62, design Appendix B, 20
+     hidden with `revealedBy`) and fellows of a faction, for the people in
+     town (`Rel.tiesPlan`, the engine key `tiesFill`, at a new game and in
+     rules version 10). What the player does to someone reaches the people
+     tied to them, one hop (`Rel.propagate`, from `State.socialEvent` after
+     the witnesses): the factor by what the person is to them and how they
+     feel about them (`Rel.FACTORS`; a rival negative, never the police over
+     a crime nor clergy over violence; a teen's parents x1.25), saw it x1,
+     heard x0.75; under 2 nothing, 2 to 4 everyday, 5 up a secondhand
+     memory one class lighter (`Rel.carry`), at most 15 a turn through the
+     graph. Those here at once, into their witness copy; the rest as
+     `state.hearsay` by the kind of tie (`Rel.DELIVERY`: a spouse and the
+     household, one home not the motel or the trailer park, overnight;
+     family and work by the morning; the rest when they meet, in two days,
+     or by the morning for town news), delivered in World's step i (the
+     engine key `hearsayDeliver`, no Rng) with one line a night ("Word got
+     round: ..."). A settlement reaches the copies; an absent victim of the
+     bookkeeper's is told by whoever here is tied to them; an arrest turns
+     the family against the officer (`npcStatus` `by`). A tie the town does
+     not know gives the narrator no cause and the card the act and its day;
+     it is found out by a rumour, a flag or a record naming it, and a hidden
+     protector is read from the tie. Rules version 10, "A town that talks"
+     (`Upgrade.townTalks`, no call): the ties, nothing re-spread. Debug:
+     Ties and Hearsay. `docs/notes/engine-state.md`, `engine-world.md`,
+     `content.md`, `ui.md`; tests: `tests/wave31-town-ties.test.cjs`,
+     examples 1, 4 and 5 (B) and 9 in `tests/relationships-examples.test.cjs`.

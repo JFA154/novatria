@@ -609,7 +609,8 @@ s.test('a flirt aimed at Kaylee: the narrator is told before it writes, her fath
   assert.equal(r.kaylee.stance, 'suspicious of you');
   assert.equal(r.kaylee.complies, false, 'her fear buys nothing');
   assert.equal(k.s, 0, 'spark stays 0');
-  assert.ok(Math.abs(r.royce.w - -2) <= 2 && Math.abs(r.royce.t - -5) <= 2, 'Royce: W -2, T -5 (crossed, he is open): ' + JSON.stringify(r.royce));
+  // Wave 31: the kind remark he saw her get first reaches him through his tie to her (+3: a father, a teen), so W 1, not the design's -2.
+  assert.ok(Math.abs(r.royce.w - 1) <= 2 && Math.abs(r.royce.t - -5) <= 2, 'Royce: W 1, T -5 (the kind remark +3, then crossed; he is open): ' + JSON.stringify(r.royce));
   assert.ok(Math.abs(r.darlene.w - -12) <= 2 && Math.abs(r.darlene.t - -19) <= 2, 'Darlene: W -12, T -19 (crossed, she is guarded): ' + JSON.stringify(r.darlene));
   assert.deepEqual(r.memories, [[[3, 'Tester came on to my daughter at Pittman\'s Gas and Service']], [[3, 'Tester came on to my daughter at Pittman\'s Gas and Service']]]);
   assert.deepEqual(r.seeds.map(x => x[0]).sort(), ['npc_darlene', 'npc_royce'], 'two report seeds');

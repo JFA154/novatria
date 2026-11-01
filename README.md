@@ -365,8 +365,11 @@ it says why: up to two things they remember, each with its day and how it
 was made good if it was ("You called him a cheat in his own shop. Day 2 ·
 you apologised"), what is held between you ("You know: runs the landing's
 cash through his pawn books."), what is owed either way, their ties and
-notes. Something they heard through someone you can't see shows only its
-day: "Cooler since Day 3. Hasn't said why." **More** opens each side of it
+notes. Something they heard through someone the town doesn't know they are
+close to names what you did and when, and no more: "Cooler since you shamed
+Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said why." (a
+report that went that way shows only its day: "Cooler since Day 3. Hasn't
+said why."). **More** opens each side of it
 in a word: Likes you, Trusts you, Scared, Knows you, and, for an adult on the
 romance list who has a status with you, Interested; never for anyone under
 18, and never when you are. Something said where you weren't stays off the
@@ -495,6 +498,36 @@ over them as well and neither of you moves ("Glenda Pryor lets it drop.").
 within a few days, in cash only if they like and trust you ("Burl
 Satterfield is square with you."); a favour you owe someone, they ask for
 back, twice, and then hold it against you.
+
+**Word gets around.** People are tied to each other: every relation the cast
+has (a wife, a son, an uncle, a boss, a tenant), friends, people of one
+faction, and some the town doesn't know about. What you do to someone
+reaches the people close to them, once and no further: a wife or a husband,
+and anyone else of the family under the same roof, hears that night (the
+motel and the trailer park are not one roof); other family, a boss and the
+people they work for by the next morning; a friend, a lover or a rival the
+next time they see them, or within two days, or the next morning if it made
+the town's news. Hit Dewayne Mangum in his bay at Pittman's and Mavis, his
+wife, hears it that night: the next morning "Word got round: Mavis Mangum has
+heard about Pittman's.", and her card is "Cool to you", with what she heard
+and its day; apologise to him and that reaches her the next night too. How
+much carries depends on who it is to them (a child most, a landlord least)
+and how they feel about them: someone who can't stand the person you hurt
+warms to you for it (never the police over a crime, nor the pastor over a
+beating), and someone who saw it happen takes it at once, on top of what any
+bystander would. Small things go into how they feel without a memory and
+without a line; anything more is a memory one class lighter than the one the
+person it happened to keeps, and one line in the morning names who you know
+has heard ("Word got round: Lorna, Colt and Wade Purvis have heard about the
+landing.", up to three names, then "and others"). **A tie the town doesn't
+know about** carries it all the same and nobody says why: shame Royce
+Pittman at his own counter and Loretta Gaddis is cooler with you the next
+time she sees him, and her card says "Cooler since you shamed Royce Pittman
+at Pittman's Gas and Service, Day 4. Hasn't said why." That is a clue: who
+would care about Royce that much? A rumour heard or a secret you hold that
+names it shows you the tie, and from then on she is cooler for the reason
+she is. When someone in town is arrested, their family turns against the
+officer who did it.
 
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
@@ -1339,6 +1372,7 @@ told you about: Dewayne's house.", "The clock matches the story."):
 | 6 (29 Oct 2026) | A full cast | Adds every cast member and home the game lacks and folds each made-up person into the cast member they were (Mavis Toler is Mavis Mangum), with their memories and feelings; anyone nobody matches is kept and named | None |
 | 7 (29 Oct 2026) | A lived-in town | Fills in ages, histories, the dead, the people elsewhere, the new places and the places out of town, never over what the game has | None |
 | 9 (1 Nov 2026) | People who remember | Gives everyone's feelings about you their reasons: each memory gets the kind of thing it was and how long it lasts; trust, fear and how well they know you are worked out from them, and anyone who would have told you their secret still will; how much they like you stays exactly as it was. Someone who was holding your secret over you now has a record of it. A council or ending still to come weighs trust | None |
+| 10 (1 Nov 2026) | A town that talks | Ties between people (family, work, friends and the town's secrets) start to count: from now on what you do to someone reaches the people close to them, overnight for a husband or wife, by the next morning for family and work; nothing that already happened is spread again | None |
 
 - **An arc** (added 30 Oct 2026, rules version 8). Games from before this
   change have no calendar, council meeting, ending, ledger of what you owe or
@@ -1388,7 +1422,16 @@ or a claim on record). **Rewrite memories in the short form first**
 rewrite (version 2's step, a call to the parser model, cents for the whole
 cast) before version 9, so very long old lines become short ones first.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (9 now; a save
+**A town that talks** (version 10) makes the ties a new game starts with, for
+the people in town: both sides of every relation, the town's own ties (its
+secrets among them) and the people of one faction; a tie the game already
+has is never changed. Nothing that already happened is spread again: a fight
+from before the update reaches nobody new, and until the update nothing
+travels at all. The feed says "People now feel for each other: 121 ties
+between 40 people. What you do from now on reaches the people close to them."
+(a game already up to date: "People already feel for each other."). No call.
+
+Behind the scenes a save carries `state.meta.rulesVersion` (10 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 
@@ -1543,6 +1586,21 @@ the town move:
   thoughts after Carter bought him at `{ trust: 20 }`; the ending's Loretta
   line is `{ liking: 40 }`. `attitudeAtLeast` still works and reads liking.
   Spark is not readable by a condition, and there is no branch on fear.
+- How people feel about each other (wave 31): `TOWN_DATA.ties`, `[{ from,
+  to, kind?, w, t, hidden?, revealedBy?: { rumours?, flags? }, why? }]`.
+  Every relation in the cast is already a tie both ways with its kind's
+  liking and trust (`w`, `t`, -100 to 100: a parent toward a child 70/30, a
+  child toward a parent 50/40, a husband or wife 50/40, a boss toward an
+  employee 20/20, and so on); an entry for two people with a relation sets
+  one side's numbers, one for two without names its `kind` (`lover`,
+  `enemy`, `payer`, `friend`, `other` or any relation kind). `hidden: true`
+  is a tie the town does not know (news travels through it and nobody says
+  why), and it needs `revealedBy`: rumour ids that show it when heard, or
+  flag names that show it when set (a leverage record whose words name it
+  does too). One entry a direction; `why` says it in plain words, naming
+  only the cast. A clock's arrest may name its officer: `npcStatus` with
+  `by` (someone tagged police; else the police head), whose arrest turns the
+  family of the arrested against them.
 
 After editing, run:
 
@@ -1615,8 +1673,10 @@ fails it with a message saying so; the CI checkout fetches it all).
   wave (wave 30: the People card, the editor, the feed, `/recap`, the
   narrator's "to you" line and the cached blocks, the council, rules version
   9 on a save built by the 56e69f5 build's own code from
-  `tests/fixtures/make-v8-save.cjs`, and the simulator's eight-day guard);
-  `relationships` for its permanent checks (the minor rule and coercion, the
+  `tests/fixtures/make-v8-save.cjs`, and the simulator's eight-day guard),
+  `wave31-town-ties` (the ties, word getting round by the kind of tie, the
+  household rule, the police and clergy's limits, the arrest route, rules
+  version 10); `relationships` for its permanent checks (the minor rule and coercion, the
   anchors, the fallbacks, a fuzz of the wire); `relationships-examples` for
   the design's worked examples played through.
 - `tests/probe-grammar.cjs` is not a test file: it sends the bookkeeper's
@@ -1708,6 +1768,13 @@ the example turn's "(Smith: gruff, short sentences, attitude −10.)" (section
 shows that stance in words with its reasons, not a one-word attitude, and the
 editor sets four tracks, not one number. A council or ending that read
 attitude now reads trust where trust is the point.
+
+Wave 31 (the town is a graph) adds to SPEC.md section 3's state the ties
+between people (`ties`) and the news of the player on its way along them
+(`hearsay`), and to section 8's living world one hop of it: what you do to
+someone reaches the people tied to them, by the kind of tie and at most 15
+of liking and of trust a turn through it, without an API call and without a
+roll.
 
 ## Verified against the live API
 

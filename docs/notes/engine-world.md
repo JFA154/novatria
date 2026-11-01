@@ -2032,3 +2032,37 @@ the shared dice, the clocks and every older seed are draw for draw the same.
 - **World exports** `leverageAnswered`, `plantHolders`, `owedFavour`,
   `owedAsk`, `barLifted`, `betrayal`, `BETRAYALS`, `OWN_KINDS`,
   `plantFeelings`.
+
+## Wave 31 (1 Nov 2026): word gets round, step i
+
+Wave B1 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 11.1 and
+11.3). State's side: `docs/notes/engine-state.md`, Wave 31.
+
+- **Step i, `deliverHearsay(to, events)`**, after the appointments (h),
+  every tick: `State.apply({ hearsayDeliver: { day, phase } })`. An entry
+  is heard when its time comes (`Rel.hearsayDue`: the night tick of its day
+  for a spouse and the household, the next morning when it is already
+  night; the next morning for other family, a boss and an employee, and
+  for anything that made the town's news; the morning two days on for the
+  rest) or, for a friend, a lover, a rival and the rest, as soon as the
+  two share a place (who is where is worked out once a tick: `State.npcsAt`
+  for every place). Someone not in town waits; four days on it goes
+  unheard. It is written as `Rel.carry` plans it (the heard copy is dated
+  the tick's day: the clock is already at the end of a passage while its
+  ticks run), or, for an absent victim, as their own event at what hearing
+  it is worth. Nothing goes further, and no Rng is drawn.
+- **One line.** What gave someone a memory is told in one line for the
+  tick, held to the turn's end inside a turn as the tick's notices are;
+  what was heard in the night is told with the morning's, so a night's
+  sleep gives one line: "Word got round: Wade Purvis, Tammy Lott and Austin
+  Lott have heard about the landing." (`Rel.hearsayLine`: the people the
+  player knows, in the order it was done, up to three, then "and others";
+  one family name said once when everyone named shares it; strangers are
+  neither named nor counted). Small things into everyday make no line.
+- **The arrest route** is State's `npcStatus` with `by`; the three clock
+  alternatives where Nikki Ballard makes the arrest name her (`by:
+  "npc_nikki"`), the chief's take the police head.
+- **Fights**: `knockDown`'s beat-down is the town's news when public, and
+  its news makes the fight's earlier blows news for everyone they reach
+  (State's `queueHearsay`), so a fight reaches each person at once, by the
+  morning.

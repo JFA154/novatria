@@ -940,3 +940,46 @@ here.
 **The example turns.** The casual set's PRESENT entries and the literary
 one's mechanic carry no number: see `docs/notes/prompts.md`, Wave 30. The
 validator checks the new shape.
+
+## Wave 31 (1 Nov 2026): the town's ties
+
+Wave B1 of `docs/RELATIONSHIPS_PLAN.md` (design Appendix B; the integration
+plan's 12). Tests: `tests/wave31-town-ties.test.cjs`.
+
+- **`TOWN_DATA.ties`**, 62 entries: `{ from, to, kind?, w, t, hidden?,
+  revealedBy?: { rumours?, flags? }, why? }`. Every relation in the cast is
+  already a tie both ways with its kind's liking and trust (`Rel.TIE_KINDS`:
+  a husband or wife 50/40, a parent toward a child 70/30, a child toward a
+  parent 50/40, a sibling 40/30, a grandparent toward a grandchild 60/40,
+  an aunt or uncle toward a nephew 40/20, a cousin 30/20, a friend 40/30, a
+  boss toward an employee 20/20, an employee toward a boss 20/10, a
+  landlord or tenant 5/0, an in-law 20/10, fellows of a faction with no
+  other tie 10/10). 34 entries set one side of a relation's numbers
+  (Mavis→Dewayne 30/20, Dewayne→Mavis 50/60, Darlene→Royce 10/-40, and the
+  rest of Appendix B's overrides) and 28 add a tie the relations lack, by
+  kind (`lover`, `enemy`, `payer`, `other`), 20 of them hidden:
+  Loretta↔Royce lovers 80/70 and 70/60 and Darlene→Loretta -70/-60, which
+  the photographs' rumours reveal (`rum_royce_photos`, `rum_royce_revote`);
+  Tammy→Colt and Austin→Colt -90/-90 and Brianna→Colt (`rum_colt_pills`);
+  Wade↔Travis (`rum_travis_boat`); Carter↔Jolene (`rum_motel_envelope`);
+  Royce→Carter (`rum_royce_note`); Wade↔Micah (`rum_micah_landing`);
+  Odessa→Carter (`rum_odessa_offer`); Lamar→Carter (`rum_lamar_check`); and
+  five with a flag only (`boydCameForWade`, `royceOwesCurtis`,
+  `juneOverdoses`, `hollisTalking`, `burlMotors`) that nothing sets yet: a
+  story beat or the owner can set one, and a leverage record whose words
+  name the other person reveals any hidden tie. Ray→Wade -30/-40 and
+  Marcus↔Wade -40/-60 and -30/-50 are open enmities (the role limits keep
+  the pastor and the chief from warming when Wade is hurt). A kind not
+  given is the relation's. The `why` lines name only the cast.
+- **The arrest's officer.** The three clock alternatives where Nikki
+  Ballard arrests Trent, Hollis or Jolene name her (`npcStatus` with `by:
+  "npc_nikki"`); the chief's arrests take the police head.
+- **The validator** whitelists `ties` and checks each entry: both in the
+  cast and different, a kind of `Rel.TIE_KINDS` (read from index.html) or a
+  relation between them that gives it, liking and trust -100..100, a hidden
+  one's `revealedBy` (rumour ids the town has, flag names), one entry a
+  direction, `why` one sentence (the mentions check reads it too);
+  `npcStatus`'s `by` is someone tagged police, on an arrest only.
+- In a game the ties are for the people in town (free, alive, here): 121
+  between 40 people at a new game (Leon Varner has nobody in town; the
+  design's "118 between 41" was an estimate).

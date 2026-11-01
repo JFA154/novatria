@@ -147,7 +147,8 @@ s.test('socialEvent: a hit costs liking, trust and gives fear as one wound memor
   });
   assert.deepEqual([r.axes.p, r.axes.g, r.axes.n, r.axes.r, r.axes.hard], [0, -1, 0, 0, false]);
   assert.deepEqual(r.res[0], []);
-  assert.equal(r.res[1], 'effects[0]: socialEvent: npc_dewayne hit: liking 0 -> -25, trust -5 -> -17, fear 0 -> 20, knows 0 -> 2; remembers "hit me in my bay over a tow bill" (weight 3)');
+  // Wave 31: the line goes on with whom it reached through their ties (Royce here, his boss; Mavis, his wife, by tonight).
+  assert.ok(r.res[1].startsWith('effects[0]: socialEvent: npc_dewayne hit: liking 0 -> -25, trust -5 -> -17, fear 0 -> 20, knows 0 -> 2; remembers "hit me in my bay over a tow bill" (weight 3)'), r.res[1]);
   assert.deepEqual(r.after, [-25, { w: -25, t: -17, f: 20, k: 2, s: 0, owed: 0 }], 'W -25, T -5 - 10 x 1.15, F 20 (design example 1)');
   assert.deepEqual(r.mems, [{ event: 'hit', weight: 3, decay: 'wound', d: { w: -25, t: -12, f: 20, k: 2, s: 0 }, n: 1, key: `m${r.where[0]}-npc_dewayne`, place: r.where[1], text: 'hit me in my bay over a tow bill' }], 'one wound memory that keeps what it did');
   assert.equal(r.stance, 'w -25 t -17 f 20 k 2 s 0 · against you · uneasy around you');

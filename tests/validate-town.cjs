@@ -658,6 +658,8 @@ const OPS = {
 };
 // The fields an op may carry besides its required ones.
 const OPS_OPTIONAL = {
+  // Wave 31: by, the officer who makes an arrest (the arrest route turns the family against them).
+  npcStatus: ['by'],
   playerHp: ['allowDefeat'],
   giveItem: ['notes'],
   placeItem: ['notes', 'locationId'],
@@ -857,6 +859,12 @@ function checkEffect(e, where, opts) {
     case 'npcStatus':
       if (!isNpc(e.npcId)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
       if (NPC_STATUSES.indexOf(e.status) === -1) err(where, 'status "' + e.status + '" not one of ' + NPC_STATUSES.join('/'));
+      if (e.by !== undefined) {
+        const by = npcById.get(e.by);
+        if (!by) err(where + '.by', '"' + e.by + '" is not an NPC');
+        else if (e.status !== 'arrested') err(where + '.by', 'only an arrest has an officer who made it');
+        else if (!(Array.isArray(by.tags) && by.tags.indexOf('police') !== -1)) err(where + '.by', e.by + ' must be tagged police to make an arrest');
+      }
       break;
     case 'npcMove':
       if (!isNpc(e.npcId)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
@@ -1033,7 +1041,58 @@ function checkEffect(e, where, opts) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead', 'policeFallback', 'romance']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead', 'policeFallback', 'romance', 'ties']);
+/* Wave 31: how people feel about each other beyond their relations
+   (Rel.tiesPlan; design Appendix B): [{ from, to, kind?, w, t, hidden?,
+   revealedBy?: { rumours?, flags? }, why? }]. Both people in the cast and
+   different; a kind of the engine's (read from Rel.TIE_KINDS in the same
+   file), or none where a relation between them gives it; liking and trust
+   whole numbers -100..100; a hidden tie says what reveals it (a rumour the
+   town has, a flag name); one entry a direction; why in plain words. */
+const REL_TIE_KINDS = (() => {
+  const a = html.indexOf('const TIE_KINDS = deepFreeze({');
+  const b = a < 0 ? -1 : html.indexOf('\n  });', a);
+  if (a < 0 || b < 0) fatal('file', 'index.html has no TIE_KINDS table in its Rel module');
+  return [...html.slice(a, b).matchAll(/\b([a-z]+): \{ w: /g)].map(m => m[1]);
+})();
+if (T.ties !== undefined) {
+  if (!Array.isArray(T.ties)) err('TOWN_DATA.ties', 'a list of { from, to, kind?, w, t, hidden?, revealedBy?, why? }');
+  else {
+    const seen = new Set();
+    const related = (a, b) => [a, b].some((x, i) => { const y = i ? a : b; return x && Array.isArray(x.relations) && x.relations.some(r => isObj(r) && r.npcId === (y && y.id)); });
+    T.ties.forEach((t, i) => {
+      const where = 'TOWN_DATA.ties[' + i + ']';
+      if (!isObj(t)) { err(where, 'an object { from, to, kind?, w, t, hidden?, revealedBy?, why? }'); return; }
+      checkKeys(t, ['from', 'to', 'w', 't'], where, ['kind', 'hidden', 'revealedBy', 'why']);
+      const a = npcById.get(t.from);
+      const b = npcById.get(t.to);
+      if (!a) err(where + '.from', '"' + t.from + '" is not an NPC');
+      if (!b) err(where + '.to', '"' + t.to + '" is not an NPC');
+      if (t.from === t.to) err(where, 'a tie is between two people');
+      const key = t.from + '>' + t.to;
+      if (seen.has(key)) err(where, key + ' is written twice: one entry a direction');
+      seen.add(key);
+      if (t.kind !== undefined && REL_TIE_KINDS.indexOf(t.kind) === -1) err(where + '.kind', '"' + t.kind + '" is not a kind of tie (one of ' + REL_TIE_KINDS.join(', ') + ')');
+      if (t.kind === undefined && a && b && !related(a, b)) err(where + '.kind', 'no relation between them gives the kind: name one');
+      for (const k of ['w', 't']) if (!isInt(t[k]) || t[k] < -100 || t[k] > 100) err(where + '.' + k, 'a whole number, -100 to 100');
+      if (t.hidden !== undefined && typeof t.hidden !== 'boolean') err(where + '.hidden', 'true or false');
+      if (t.hidden === true && !isObj(t.revealedBy)) err(where + '.revealedBy', 'a hidden tie says what reveals it: { rumours?, flags? }');
+      if (t.revealedBy !== undefined) {
+        if (!checkKeys(t.revealedBy, [], where + '.revealedBy', ['rumours', 'flags'])) return;
+        if (!Object.keys(t.revealedBy).length) err(where + '.revealedBy', 'empty: a rumour or a flag');
+        if (t.revealedBy.rumours !== undefined) {
+          if (!Array.isArray(t.revealedBy.rumours) || !t.revealedBy.rumours.length) err(where + '.revealedBy.rumours', 'a non-empty list of rumour ids');
+          else t.revealedBy.rumours.forEach((id, j) => { if (kindOf(id) !== 'rumour') err(where + '.revealedBy.rumours[' + j + ']', '"' + id + '" is no rumour the town has'); });
+        }
+        if (t.revealedBy.flags !== undefined) {
+          if (!Array.isArray(t.revealedBy.flags) || !t.revealedBy.flags.length) err(where + '.revealedBy.flags', 'a non-empty list of flag names');
+          else t.revealedBy.flags.forEach((k, j) => { if (typeof k !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(k)) err(where + '.revealedBy.flags[' + j + ']', 'a flag name'); });
+        }
+      }
+      if (t.why !== undefined) checkText(t.why, where + '.why', { max: 160, maxSentences: 1 });
+    });
+  }
+}
 /* Wave 28 (the list itself ships in wave 29): who spark can move for
    (Rel.eligible), [{ npcId, open?, sparkRate?, opensAt?, faithful? }]. An
    adult in town only: anyone under 18 by any anchor (age, the teen tags, or

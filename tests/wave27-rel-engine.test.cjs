@@ -72,12 +72,15 @@ s.test('a fight is one memory: the second hit raises it, the third is a beat-dow
     assert.equal(cp.weight, 2);
     assert.equal(cp.lighter, true, 'it fades one class lighter');
     assert.equal(cp.text, 'saw Tester put Colt Purvis down at Purvis Landing');
-    assert.equal(cp.d.w, -18, `${w.id}: -5, -5, -8 seen`);
+    // Wave 31: Lorna (his aunt) and Trent (his friend) are tied to him, and their tie's share of the fight joins the same copy (example 4's B part).
+    assert.equal(cp.d.w, { npc_dewayne: -18, npc_lorna: -33, npc_trent: -29 }[w.id], `${w.id}: -5, -5, -8 seen, and for Lorna and Trent their tie's share`);
   }
   const lorna = r.watchers[0].copies[0].d;
-  assert.deepEqual([lorna.t, lorna.f], [-13, 28], 'Lorna (open: trust losses x0.85): trust -13, fear 8 + 8 + 12');
+  assert.deepEqual([lorna.t, lorna.f], [-19, 32], 'Lorna (open: trust losses x0.85): trust -13, fear 8 + 8 + 12 seen; her tie adds T -6, F +4');
   const trent = r.watchers[1].copies[0].d;
-  assert.equal(trent.f, 21, 'Trent is nervy too: fear x0.75 a time');
+  assert.equal(trent.f, 24, 'Trent is nervy too: fear x0.75 a time (21), and his tie adds 3');
+  const dewayne = r.watchers[2].copies[0].d;
+  assert.deepEqual([dewayne.w, dewayne.t], [-18, -19], 'Dewayne, tied to nobody there: the witness rows alone');
   assert.ok(r.grudge, 'a beat-down on someone tough is answered');
   assert.equal(r.grudge.why, 'tough');
   assert.equal(r.grudge.kind, 'violence');

@@ -69,12 +69,14 @@ s.test('example 4, Colt on the ground (A): three hits at the landing are one mem
   assert.ok(r.grudge.day >= 10 && r.grudge.day <= 12, 'due Day 10 to 12: ' + r.grudge.day);
   assert.equal(r.caught, false, 'done in front of three people and news: nobody gets a caught_you_at record');
   assert.equal(r.news, 1);
-  // The witnesses (A: the witness row, one copy each; the ties' share is tier B).
+  // The witnesses (A: the witness row, one copy each, -18 in liking: -5, -5, -8). Wave 31: Lorna (his aunt) and Trent (his friend)
+  // take their tie's share of the fight into the same copy too (the B part, below), so only Dewayne, with no tie to him, is at -18.
   for (const w of ['lorna', 'trent', 'dewayne']) {
     assert.equal(r[w].copies, 1, `${w}: one copy`);
-    assert.equal(r[w].tracks.w, (w === 'trent' ? 10 : w === 'lorna' ? 5 : 0) - 18, `${w}: liking -18 (-5, -5, -8)`);
-    assert.equal(r[w].stance, 'cool to you', `${w}: cool to you`);
+    if (w === 'dewayne') assert.equal(r[w].tracks.w, -18, 'dewayne: liking -18 (-5, -5, -8)');
+    else assert.ok(r[w].tracks.w < (w === 'trent' ? 10 : 5) - 18, `${w}: the witness rows and more`);
   }
+  assert.equal(r.dewayne.stance, 'cool to you');
   // What the player sees on Day 7 (the band lines; wave 30 brings the stance's own words).
   // The design's "Lorna Purvis cools toward you." needs her known to the player; here she is a stranger at the dock, so only Colt's line.
   const feed = (await feedSince(page, f0)).filter(t => /won't forget that|cools toward you|warms to you/.test(t));
@@ -186,7 +188,8 @@ s.test('example 1, Dewayne in his own bay (A): a hit over a tow bill in front of
   assert.equal(d3.stance.phrase, 'against you');
   assert.ok(d3.stance.tags.includes('uneasy around you'), '"against you · uneasy around you"');
   // The witnesses, one lighter copy each: Royce (open, timid) W -5, T -4, F +10; Jodie (guarded) W -5, T -6, F +8; Lamar (worried) W -5, T -5, F +10.
-  assert.deepEqual(d3.royce, [-5, -4, 10]);
+  // Wave 31: Royce is Dewayne's boss, and what his tie carries joins his copy (W -4, T -2, F +2: example 1's B part).
+  assert.deepEqual(d3.royce, [-9, -6, 12]);
   assert.deepEqual(d3.jodie, [-5, -6, 8]);
   assert.deepEqual(d3.lamar, [-5, -5, 10]);
   assert.ok(day3.includes('Dewayne Mangum won\'t forget that.'), JSON.stringify(day3));
@@ -690,11 +693,12 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
   assert.deepEqual(r.welcome, ['ROMANCE (decided by the engine): Shayla Rawls is open to it: she flirts back, her own way.'], 'welcome decided before narration');
   assert.equal(r.d2[0].s, 15, 'S +15');
   assert.ok(r.d2[1].includes('deceive'), 'the lie is logged');
-  // Travis sees the flirt (the jealousy rule): W -9, T -20, exactly the design's.
-  assert.deepEqual([r.travis[0].w, r.travis[0].t], [-9, -20]);
-  assert.deepEqual(r.travis[1], ['cool to you']);
-  // His band line is the design's "cools toward you" (wave 30: liking over seven bands; a weight-2 harm is not "won't forget that").
-  assert.ok(r.feed3.includes('Travis Cagle cools toward you.'), JSON.stringify(r.feed3));
+  // Travis sees the flirt (the jealousy rule): W -9, T -20, exactly the design's; and, wave 31, he was there when she caught the lie and the
+  // prying about his phone, so his tie to her (a partner, 0.45) carries a share of them too: W -2, T -13 more.
+  assert.deepEqual([r.travis[0].w, r.travis[0].t], [-11, -33]);
+  assert.deepEqual(r.travis[1], ['suspicious of you']);
+  // His line: the design's was "cools toward you"; with the lie he saw her catch his trust passes -25 too, and a trust band ranks above liking (wave 31).
+  assert.ok(r.feed3.includes('Travis Cagle stops taking your word.'), JSON.stringify(r.feed3));
   // By Day 4: the design's W 13, T -31, S 43 (the code's liking 11: the memories fade a little over the two days).
   near(r.d4[0].w, 13, 'Shayla\'s liking');
   near(r.d4[0].t, -31, 'Shayla\'s trust');
@@ -964,6 +968,194 @@ s.test('example 14, coercion fails (A): "Sleep with me, or Bell hears about your
   near(r.marcus[0], -5, 'Marcus\'s liking');
   near(r.marcus[1], -11.5, 'Marcus\'s trust');
   assert.deepEqual(r.marcus[2], [[3, 'Glenda Pryor says Tester tried to force them.']]);
+});
+
+/* Wave 31 (B1): the B parts of examples 1, 4 and 5, and example 9, now
+   that the town is a graph: what the player does reaches the people tied
+   to whom it happened to, those who saw it at once and the rest by the
+   kind of tie, and a tie the town does not know carries it without a word
+   of why. Time passes through the world's ticks here (/rest, /wait), so
+   the news travels as it would. */
+s.test('example 1, Dewayne in his own bay (B): Mavis, his wife under the same roof, hears that night and keeps her own copy; the morning tells the player in one line; his apology reaches her copy the next night', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state;
+    S.apply({ relSet: { npcId: 'npc_dewayne', k: 7 }, npcKnownToPlayer: ['npc_dewayne', 'npc_mavis'] });
+    __put('loc_pittmans', ['npc_dewayne', 'npc_royce', 'npc_jodie', 'npc_lamar'], 3, 'morning');
+    const m0 = __tr('npc_mavis');
+    M.queue('parse', { actionType: 'attack', summary: 'Hits Dewayne over the tow bill', targets: ['npc_dewayne'], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit('I hit Dewayne over the tow bill');
+    const q = st.hearsay.filter(x => x.npcId === 'npc_mavis').map(x => [x.via, x.factor, x.d, x.dueDay, x.duePhase]);
+    const royce = S.npc('npc_royce').memories.filter(m => m.witness).map(m => [m.d.w, m.d.t, m.d.f]);
+    __mark();
+    await G.Pipeline.submit('/rest');
+    const mv = S.npc('npc_mavis');
+    const day4 = { feed: __feed(), tracks: __tr('npc_mavis'), stance: __st('npc_mavis'), copy: mv.memories.filter(m => m.secondhand).map(m => [m.text, m.weight, m.day, m.secondhand.via]), why: R.reasons(mv, 2).map(x => [G.Pipeline.reasonText(mv, x).card, x.day]), time: [st.time.day, st.time.phase] };
+    // Day 4: the apology lands and the gift is given; the settling reaches her copy that night.
+    __put('loc_pittmans', ['npc_dewayne'], null);
+    M.queue('parse', { actionType: 'persuade', summary: 'Apologises for the hit', targets: ['npc_dewayne'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit("I'm sorry about yesterday. I was out of line.", { mode: 'say', to: 'npc_dewayne' });
+    await G.Pipeline.submit('I give Dewayne $40 for his safety glasses');
+    const settle = st.hearsay.filter(x => x.npcId === 'npc_mavis' && !Number.isInteger(x.deliveredTurn)).map(x => [x.event, x.via, x.settle, x.dueDay, x.duePhase]);
+    await G.Pipeline.submit('/rest');
+    return { m0, q, royce, day4, settle, day5: { tracks: __tr('npc_mavis'), stance: __st('npc_mavis'), settled: S.npc('npc_mavis').memories.filter(m => m.secondhand).map(m => R.settlements(m).map(e => [e.by, e.w, e.t])) } };
+  });
+  // Royce, Dewayne's boss, saw it: the witness row and his tie's share in one copy (W -5 - 4, T -4 - 2, F +10 + 2).
+  assert.deepEqual(r.royce, [[-9, -6, 12]]);
+  // Mavis (spouse and household, overnight; 0.6 x (0.5 + 0.5 x 30/100) x 0.75 = 0.29): W -7, T -4, F +3, that night.
+  assert.deepEqual(r.q, [['overnight', 0.29, { w: -7, t: -4, f: 3 }, 3, 'night']]);
+  assert.deepEqual([r.m0.w, r.m0.t], [-5, -10]);
+  // W -12, T -14 that night (the design's); the next morning W -11, the copy a night older.
+  near(r.day4.tracks.w, -12, 'Mavis\'s liking');
+  near(r.day4.tracks.t, -14, 'Mavis\'s trust');
+  assert.deepEqual([r.day4.tracks.w, r.day4.tracks.t, r.day4.tracks.f], [-11, -14, 3]);
+  assert.deepEqual(r.day4.stance, ['cool to you']);
+  assert.deepEqual(r.day4.copy, [['heard Tester hit Dewayne Mangum at Pittman\'s Gas and Service', 2, 3, 'npc_dewayne']]);
+  assert.deepEqual(r.day4.why, [['She heard you hit Dewayne Mangum at Pittman\'s Gas and Service.', 3]], 'her card: the act, dated');
+  assert.deepEqual(r.day4.time, [4, 'morning']);
+  assert.ok(r.day4.feed.includes('Word got round: Mavis Mangum has heard about Pittman\'s.'), JSON.stringify(r.day4.feed));
+  // The apology halves the hit's liking for Dewayne; the same reaches her copy overnight, so she is at about W -8.
+  assert.deepEqual(r.settle, [['apologised', 'overnight', { by: 'apologised', w: 0.5, t: 0.25, f: 0 }, 4, 'night']]);
+  assert.deepEqual(r.day5.settled, [[['apologised', 0.5, 0.25]]]);
+  near(r.day5.tracks.w, -8, 'Mavis\'s liking once the apology reached her');
+  assert.equal(r.day5.tracks.w, -8);
+  assert.deepEqual(r.day5.stance, ['cool to you']);
+});
+
+s.test('example 4, Colt on the ground (B): his aunt and his friend who saw it cool hard, his uncle by the morning; Tammy and Austin, who hate him without a word to anyone, warm, and nobody is told why', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state;
+    S.apply({ npcKnownToPlayer: ['npc_wade', 'npc_tammy', 'npc_austin', 'npc_lorna', 'npc_trent', 'npc_colt'] });
+    __put('loc_purvis_landing', ['npc_colt', 'npc_lorna', 'npc_trent', 'npc_dewayne'], 7, 'evening');
+    const t0 = Object.fromEntries(['npc_lorna', 'npc_trent', 'npc_wade', 'npc_tammy', 'npc_austin', 'npc_dewayne'].map(id => [id, __tr(id)]));
+    __mark();
+    for (let i = 0; i < 3; i++) {
+      M.queue('parse', { actionType: 'attack', summary: 'Hits Colt', targets: ['npc_colt'], needsRoll: true, stat: 'might', difficulty: 'normal', timeCost: 'instant' });
+      G.Pipeline.hooks.nextTier = 'success';
+      await G.Pipeline.submit('I hit Colt Purvis');
+    }
+    const d7 = { feed: __feed(), lorna: [__tr('npc_lorna'), __st('npc_lorna')], trent: [__tr('npc_trent'), __st('npc_trent')], dewayne: __tr('npc_dewayne'),
+      queued: ['npc_wade', 'npc_tammy', 'npc_austin'].map(id => st.hearsay.filter(x => x.npcId === id).map(x => [x.via, x.factor, x.hidden])) };
+    __mark();
+    await G.Pipeline.submit('/rest');
+    const tam = S.npc('npc_tammy');
+    return { t0, d7, d8: { feed: __feed(), wade: [__tr('npc_wade'), __st('npc_wade')], tammy: [__tr('npc_tammy'), __st('npc_tammy')], austin: [__tr('npc_austin'), __st('npc_austin')], card: R.reasons(tam, 2).map(x => G.Pipeline.reasonText(tam, x).card), toYou: G.Pipeline.toYou(tam), copy: tam.memories.filter(m => m.secondhand).map(m => [m.event, m.text, m.secondhand.hidden]) } };
+  });
+  // Lorna (aunt, 0.43) and Trent (friend, 0.32) saw it: the witness rows (-18 in liking) and the tie's share of the fight (-35 at the factor).
+  // The design's W -18 / W -9 counted the beat-down's witness row alone; the code's copy holds every blow's (wave 27), so: W -28 and W -19.
+  near(r.d7.lorna[0].w - r.t0.npc_lorna.w, -33, 'Lorna\'s liking, the code\'s');
+  assert.deepEqual([r.d7.lorna[0].w, r.d7.lorna[0].t, r.d7.lorna[0].f], [-28, -14, 32]);
+  assert.deepEqual(r.d7.lorna[1], ['against you', 'uneasy around you']);
+  assert.deepEqual([r.d7.trent[0].w, r.d7.trent[0].t, r.d7.trent[0].f], [-19, -22, 24]);
+  assert.deepEqual(r.d7.trent[1], ['cool to you', 'uneasy around you']);
+  assert.equal(r.d7.dewayne.w - r.t0.npc_dewayne.w, -18, 'Dewayne has no tie to Colt: the witness rows only');
+  // The rest hear by the next morning (the fight made the town's news): Wade at 0.32, Tammy and Austin at -0.34 through ties nobody knows.
+  assert.ok(r.d7.queued[0].every(x => x[0] === 'morning' && x[1] === 0.32 && !x[2]), JSON.stringify(r.d7.queued[0]));
+  for (const q of r.d7.queued.slice(1)) assert.ok(q.length && q.every(x => x[0] === 'morning' && x[1] === -0.34 && x[2] === true), JSON.stringify(q));
+  assert.ok(r.d7.feed.includes('Colt Purvis won\'t forget that.'), JSON.stringify(r.d7.feed));
+  // Day 8: Wade W -21, T -15 (the design's, within 2); Tammy W +12 to friendly; Austin +12.
+  near(r.d8.wade[0].w, -21, 'Wade\'s liking');
+  near(r.d8.wade[0].t, -15, 'Wade\'s trust');
+  assert.deepEqual(r.d8.wade[1], ['cool to you']);
+  near(r.d8.tammy[0].w - r.t0.npc_tammy.w, 12, 'Tammy warms');
+  near(r.d8.tammy[0].w, 7, 'Tammy\'s liking');
+  assert.deepEqual(r.d8.tammy[1], ['friendly']);
+  near(r.d8.austin[0].w - r.t0.npc_austin.w, 12, 'Austin warms');
+  assert.ok(r.d8.feed.includes('Word got round: Wade Purvis, Tammy Lott and Austin Lott have heard about the landing.'), JSON.stringify(r.d8.feed));
+  // Tammy's card names the act and its day, never the tie; the narrator gets no cause and no name.
+  assert.deepEqual(r.d8.copy, [['beat_down', 'heard Tester put Colt Purvis down at Purvis Landing', true]]);
+  assert.deepEqual(r.d8.card, ['Warmer since you put Colt Purvis down at Purvis Landing, Day 7. Hasn\'t said why.']);
+  assert.match(r.d8.toYou, /^to you: friendly — warmer since Day 7, for a reason of her own, keeps it to herself, never hint at it — plays it: /);
+  assert.doesNotMatch(r.d8.toYou, /Colt|landing|Purvis/);
+});
+
+s.test('example 5, the surveyor who wasn\'t (B): the chief\'s department hears of the caught lie by the next morning, a little trust each into everyday, with no memory and no line', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, M = G.Api.Mock, R = G.Rel, st = G.state;
+    S.apply({ npcKnownToPlayer: ['npc_marcus', 'npc_glenda', 'npc_nikki', 'npc_travis'] });
+    const put = d => { S.apply({ setTime: { day: d, phase: 'morning' } }); S.apply({ playerLocationId: 'loc_town_hall' }); const o = S.npcsAt('loc_town_hall').map(n => n.id).filter(id => id !== 'npc_marcus'); S.apply({ visits: [{ npcId: 'npc_marcus', locationId: 'loc_town_hall' }].concat(o.map(id => ({ npcId: id, locationId: 'loc_front_street' }))) }); return S.npcsAt('loc_town_hall').map(n => n.id); };
+    put(2);
+    M.queue('parse', { actionType: 'deceive', summary: 'Claims to be a state surveyor', targets: ['npc_marcus'], needsRoll: true, stat: 'charm', difficulty: 'normal', timeCost: 'instant' });
+    G.Pipeline.hooks.nextTier = 'success';
+    await G.Pipeline.submit("I'm a surveyor from the state.", { mode: 'say', to: 'npc_marcus' });
+    const here = put(3);
+    const dep = ['npc_glenda', 'npc_nikki', 'npc_travis'];
+    const t0 = dep.map(id => __tr(id).t);
+    M.queue('parse', { actionType: 'talk', summary: 'Says they are checking the bridge again', targets: ['npc_marcus'], needsRoll: false, timeCost: 'instant' });
+    M.queue('narrate', '"You lied to me," Marcus Bell says. "There is no state surveyor by that name."');
+    M.queue('bookkeep', { socialEvents: ['npc_marcus lied_caught: no state surveyor by that name'] });
+    __mark();
+    await G.Pipeline.submit('Just checking the bridge again.', { mode: 'say', to: 'npc_marcus' });
+    const q = st.hearsay.filter(x => dep.includes(x.npcId)).map(x => [x.npcId, x.via, x.dueDay]);
+    await G.Pipeline.submit('/rest');
+    return { here, q, drop: dep.map((id, i) => __tr(id).t - t0[i]), mems: dep.map(id => S.npc(id).memories.filter(m => m.secondhand).length), everyday: dep.map(id => S.npc(id).rel.everyday.t), feed: __feed(), marcus: [__tr('npc_marcus'), __st('npc_marcus')] };
+  });
+  assert.deepEqual(r.here, ['npc_marcus'], 'the chief alone at Town Hall');
+  assert.deepEqual([r.marcus[0].w, r.marcus[0].t], [-10, -49], 'his own (A), a night older');
+  assert.deepEqual(r.marcus[1], ['suspicious of you']);
+  // Boss and employees, the next morning: Glenda T -4, Nikki T -3, Travis T -3 (the design's), into everyday.
+  assert.deepEqual(r.q.map(x => x[0]).sort(), ['npc_glenda', 'npc_nikki', 'npc_travis']);
+  assert.ok(r.q.every(x => x[1] === 'morning' && x[2] === 4), JSON.stringify(r.q));
+  assert.deepEqual(r.drop, [-4, -3, -3]);
+  assert.deepEqual(r.everyday, [-4, -3, -3]);
+  assert.deepEqual(r.mems, [0, 0, 0], 'no memories');
+  assert.deepEqual(r.feed.filter(t => /Glenda|Nikki|Travis|Word got round/.test(t)), [], 'no lines: ' + JSON.stringify(r.feed));
+  assert.ok(r.feed.includes('Marcus Bell stops taking your word.'));
+});
+
+s.test('example 9, Loretta goes quiet (B): shaming Royce at the counter reaches her when she sees him next, through a tie nobody knows; her card names the act and its day, the narrator only that she is cooler for a reason of her own', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    S.apply({ npcKnownToPlayer: ['npc_loretta', 'npc_royce'] });
+    // After two nights she is at W 26.
+    S.apply({ relSet: { npcId: 'npc_loretta', w: 26 } });
+    // Day 4 (Sunday) morning at Pittman's counter, with Dewayne, Jodie and Lamar there.
+    const here = __put('loc_pittmans', ['npc_royce', 'npc_dewayne', 'npc_jodie', 'npc_lamar'], 4, 'morning');
+    await __say('npc_royce', 'Royce sold his vote to Carter.', {}, { socialEvents: ['npc_royce insulted: said I sold my vote to Carter'] });
+    const royce = [__tr('npc_royce'), S.npc('npc_royce').memories.filter(m => m.d).map(m => m.event)];
+    const q = st.hearsay.filter(x => x.npcId === 'npc_loretta').map(x => [x.via, x.factor, x.hidden, x.d.w]);
+    // The days go by (each /wait a turn of its own) until she and Royce share a place: Monday afternoon at the Low Water.
+    const steps = [];
+    for (const ph of ['afternoon', 'evening', 'night', 'morning', 'afternoon']) {
+      __mark();
+      await G.Pipeline.submit(`/wait ${ph}`);
+      const e = st.hearsay.find(x => x.npcId === 'npc_loretta');
+      steps.push({ at: [st.time.day, st.time.phase], w: __tr('npc_loretta').w, heard: !!(e && Number.isInteger(e.deliveredTurn)), feed: __feed() });
+    }
+    const lor = S.npc('npc_loretta');
+    return { here, royce, q, steps, stance: __st('npc_loretta'), toYou: G.Pipeline.toYou(lor), card: R.reasons(lor, 2).map(x => G.Pipeline.reasonText(lor, x).card), recap: G.Pipeline.recapText ? String(G.Pipeline.recapText()) : '' };
+  });
+  for (const id of ['npc_royce', 'npc_dewayne', 'npc_jodie', 'npc_lamar']) assert.ok(r.here.includes(id), id);
+  // Said in front of three, it is humiliated: Royce W -5.
+  assert.deepEqual(r.royce[1], ['humiliated']);
+  assert.equal(r.royce[0].w, -5);
+  // Loretta, his lover (hidden; 0.7 x 0.9 x 0.75 = 0.47): W -7, when they meet.
+  assert.deepEqual(r.q, [['meet', 0.47, true, -7]]);
+  const heard = r.steps.findIndex(x => x.heard);
+  assert.deepEqual(r.steps[heard].at, [5, 'afternoon'], 'Monday afternoon: ' + JSON.stringify(r.steps));
+  assert.ok(r.steps.slice(0, heard).every(x => x.w === 26), 'not before');
+  // W 19: friendly (below warm's exit at 20).
+  assert.equal(r.steps[heard].w, 19);
+  assert.deepEqual(r.stance, ['friendly']);
+  assert.ok(r.steps[heard].feed.includes('Loretta Gaddis cools toward you.'), JSON.stringify(r.steps[heard].feed));
+  assert.ok(r.steps[heard].feed.includes('Word got round: Loretta Gaddis has heard about Pittman\'s.'), JSON.stringify(r.steps[heard].feed));
+  assert.match(r.toYou, /^to you: friendly — cooler since Day 4, for a reason of her own, keeps it to herself, never hint at it — plays it: /);
+  assert.doesNotMatch(r.toYou, /Royce|Pittman|shame/);
+  assert.deepEqual(r.card, ['Cooler since you shamed Royce Pittman at Pittman\'s Gas and Service, Day 4. Hasn\'t said why.']);
+  assert.doesNotMatch(r.recap, /shamed Royce/, '/recap never gives a hidden reason');
 });
 
 s.run();
