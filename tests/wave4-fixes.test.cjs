@@ -490,16 +490,19 @@ s.test('R4: a due event that names a place in town the player has not found (Nad
   assert.ok(r.quiets.includes('Added to the map: The Parsonage.'), JSON.stringify(r.quiets));
 });
 
-s.test('R5: every memory made now carries its day, and attitudes drift back once no serious memory is newer than five days, however many turns are played', async h => {
+// Changed by design in wave 27 (A2: fading replaces the drift): a weight-3 line holds nothing; the everyday part of a change (up to 15)
+// drifts two a morning after a day the player did not see them, and what was beyond it (fix) stays. Someone the player never meets here.
+s.test('R5: every memory made now carries its day, and attitudes drift back once no serious memory is newer than five days (wave 27: the everyday part, on days unseen), however many turns are played', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   await fast(page);
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, st = G.state;
-    const n = st.npcs.find(x => x.status === 'free' && x.alive !== false && G.presenceOf(x) === 'here' && !x.memories.length);
+    const here = st.player.locationId;
+    const n = st.npcs.find(x => x.status === 'free' && x.alive !== false && G.presenceOf(x) === 'here' && !x.memories.length && ['morning', 'afternoon', 'evening', 'night'].every(ph => !S.npcsAt(here, ph).includes(x)));
     const base = (S.town.npcs.find(x => x.id === n.id) || {}).attitude || 0;
     S.apply({ newMemories: [{ npcId: n.id, text: 'got called a liar to my face', weight: 3 }] });
-    G.World.forceAttitude(n.id, base - 40);
+    S.apply({ effects: [{ op: 'attitudeDelta', npcId: n.id, delta: -40 }] });
     const day0 = st.time.day;
     const mem = n.memories.slice(-1)[0];
     const seen = [];
@@ -512,18 +515,17 @@ s.test('R5: every memory made now carries its day, and attitudes drift back once
     const m = st.npcs.find(x => x.status === 'free' && x.alive !== false && x.id !== n.id && G.presenceOf(x) === 'here' && !x.memories.length);
     const mb = (S.town.npcs.find(x => x.id === m.id) || {}).attitude || 0;
     m.memories.push({ turn: 1, text: 'punched me outside the bar', weight: 3 });
-    G.World.forceAttitude(m.id, mb - 20);
+    S.apply({ effects: [{ op: 'attitudeDelta', npcId: m.id, delta: mb - 20 - m.attitude }] });
+    delete st.seen[m.id];
     G.World.tick({ to: { day: st.time.day + 1, phase: 'morning' } });
-    return { day: mem.day, day0, seen, logStart: st.log[0].turn, old: m.attitude - mb };
+    return { day: mem.day, day0, seen, logStart: st.log[0].turn, old: m.attitude - mb, fix: n.rel.fix.w };
   });
   assert.equal(r.day, r.day0, 'the memory has its day');
   assert.ok(r.logStart > 1, 'the log has been trimmed past the memory');
-  // Held while it is newer than five days (DRIFT_QUIET_DAYS), back two a day from the fifth day on.
-  const quiet = r.seen.filter(([d]) => d < r.day0 + 5).map(x => x[1]);
-  assert.ok(quiet.length && quiet.every(x => x === -40), 'held while fresh: ' + JSON.stringify(r.seen));
-  const later = r.seen.filter(([d]) => d >= r.day0 + 5).map(x => x[1]);
-  assert.ok(later.length && later[later.length - 1] > -40, 'drifting back after: ' + JSON.stringify(r.seen));
-  assert.equal(r.old, -18, 'an undated memory older than the log does not hold the drift');
+  // Wave 27: no hold for a fresh weight-3 line; two back each morning after a day unseen, until the everyday part (15 of the 40) is gone.
+  assert.deepEqual(r.seen.map(x => x[1]), [-38, -36, -34, -32, -30, -28, -26, -25], 'drifting back from the first morning: ' + JSON.stringify(r.seen));
+  assert.equal(r.fix, -25, 'what was beyond the everyday bound never drifts');
+  assert.equal(r.old, -18, 'an undated memory older than the log holds nothing either');
 });
 
 s.test('R6: a grudge for violence answers with violence or the police, never with gossip; every grudge template says its kind', async h => {
@@ -547,7 +549,8 @@ s.test('R6: a grudge for violence answers with violence or the police, never wit
     }
     return { kinds: T.map(t => t.kind), gossipKind: T[gossip].kind, picks: [...picks], who: n && n.id };
   });
-  assert.ok(r.kinds.every(k => ['violence', 'police', 'gossip', 'money', 'ban'].includes(k)), JSON.stringify(r.kinds));
+  // Changed by design in wave 27 (A2): report, someone telling their protector (never a grudge's answer).
+  assert.ok(r.kinds.every(k => ['violence', 'police', 'gossip', 'money', 'ban', 'report'].includes(k)), JSON.stringify(r.kinds));
   assert.equal(r.gossipKind, 'gossip', '"has been talking to the police" is gossip');
   assert.ok(r.picks.length, 'grudges were planted for ' + r.who);
   assert.ok(r.picks.every(k => k === 'violence' || k === 'police'), JSON.stringify(r.picks));

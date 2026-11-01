@@ -1,10 +1,17 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Wave A1 (wave 26, "The tracks under the
-number") has landed**: the `Rel` module, six tracks on every person under the
-`attitude` alias, `socialEvent`, `relSet` and `relDay`, with no number the
-game shows or stores changed (`docs/notes/engine-state.md`, Wave 26; tests:
-`tests/wave26-rel-tracks.test.cjs`). A2 to A5 and B1 to B3 are still plans.
+1 Nov 2026 · a plan being built. **Waves 26 and 27 have landed.** A1 (wave
+26, "The tracks under the number"): the `Rel` module, six tracks on every
+person under the `attitude` alias, `socialEvent`, `relSet` and `relDay`, with
+no number the game shows or stores changed (`docs/notes/engine-state.md`,
+Wave 26; tests: `tests/wave26-rel-tracks.test.cjs`). A2 (wave 27, "What the
+engine sees, people remember for what it was"): the engine's typed events,
+witness copies, dedupe and the legacy yield, fading in place of the drift,
+the 41 `attitudeDelta` sites converted, the wave's gates, reports to
+protectors, public reputation and the feared tier (`docs/notes/
+engine-state.md` and `engine-world.md`, Wave 27; tests:
+`tests/wave27-rel-engine.test.cjs`, `tests/relationships-examples.test.cjs`).
+A3 to A5 and B1 to B3 are still plans.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

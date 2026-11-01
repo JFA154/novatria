@@ -189,21 +189,23 @@ s.test('a meeting on a later day: nobody moves today; that morning the person is
   assert.equal(await page.evaluate(() => Game.state.seeds.find(x => x.appointment).fired), true);
 });
 
-s.test('missed: the meeting\'s last phase passes without the player there; the seed goes, the person remembers waiting (weight 1) and is 3 colder, and a quiet line says so; /undo brings it all back', async h => {
+// Changed by design in wave 27 (A2): a missed meeting is a broken word at half, liking -4 (was -3) and trust -8 before traits (Jodie is guarded: -9).
+s.test('missed: the meeting\'s last phase passes without the player there; the seed goes, the person remembers waiting (weight 1) and is 3 colder (wave 27: a broken word at half, 4 colder and trusting them less), and a quiet line says so; /undo brings it all back', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await start(page);
   await bookSeed(page, { effect: JODIE, triggerType: 'location', triggerValue: 'loc_low_water' });
   await sendText(page, 'I look around');
-  const before = await page.evaluate(() => ({ att: Game.State.npc('npc_jodie').attitude, seed: Game.state.seeds.find(x => x.appointment).id }));
+  const before = await page.evaluate(() => ({ att: Game.State.npc('npc_jodie').attitude, trust: Game.Rel.tracksOf(Game.State.npc('npc_jodie')).t, seed: Game.state.seeds.find(x => x.appointment).id }));
   await sendText(page, '/wait afternoon');
   const r = await page.evaluate(() => ({
-    time: Game.state.time, seeds: Game.state.seeds.filter(x => x.appointment).length, att: Game.State.npc('npc_jodie').attitude,
+    time: Game.state.time, seeds: Game.state.seeds.filter(x => x.appointment).length, att: Game.State.npc('npc_jodie').attitude, trust: Game.Rel.tracksOf(Game.State.npc('npc_jodie')).t,
     mems: Game.State.npc('npc_jodie').memories, quiet: [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent), words: Game.State.appointments()
   }));
   assert.equal(r.time.phase, 'afternoon');
   assert.equal(r.seeds, 0, 'the seed is gone');
-  assert.equal(r.att, before.att - 3);
-  assert.deepEqual(r.mems.map(m => [m.text, m.weight]), [['waited for Tester at the Low Water and they never came', 1]]);
+  assert.equal(r.att, before.att - 4);
+  assert.equal(r.trust, before.trust - 9, 'trust -8, x1.15 for someone guarded');
+  assert.deepEqual(r.mems.map(m => [m.text, m.weight, m.event]), [['waited for Tester at the Low Water and they never came', 1, 'broke_word']]);
   assert.ok(r.quiet.includes('Jodie Strayhorn waited at the Low Water and you never came.'), JSON.stringify(r.quiet));
   assert.deepEqual(r.words, []);
   await sendText(page, 'I look around');
@@ -251,7 +253,7 @@ s.test('kept as the time runs out: the player at the place as its last phase end
   const r = await page.evaluate(() => {
     const S = Game.State;
     const out = {};
-    // Planted outside a turn with the player already there, then the morning ends: kept (it fires), no memory, no line.
+    // Planted outside a turn with the player already there, then the morning ends: kept (it fires), no line; wave 27: the kept word is its memory.
     S.apply({ beginTurn: true });
     S.apply({ newSeeds: [{ effect: 'Jodie Strayhorn waits at the Low Water this morning', triggerType: 'location', triggerValue: 'loc_low_water' }] }, { source: 'model' });
     const sd = Game.state.seeds.find(x => x.appointment);
@@ -272,7 +274,8 @@ s.test('kept as the time runs out: the player at the place as its last phase end
     return out;
   });
   assert.equal(r.kept.fired, true);
-  assert.equal(r.kept.mems, 0);
+  // Changed by design in wave 27 (A2): a meeting kept is a kept word, one memory (it was none).
+  assert.equal(r.kept.mems, 1);
   assert.equal(r.kept.due.length, 1, 'its due event waits to be told at the Low Water');
   assert.equal(r.words, 0, 'no appointment shown for someone arrested');
   assert.deepEqual(r.dropped, { gone: true, att: 0, mems: 0 });

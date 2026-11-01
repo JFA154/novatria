@@ -1652,6 +1652,8 @@ const TOWN_DATA = {
   setting: "Lockett's Ferry is a river town of about eight hundred people where the state highway drops off the bluff and crosses the Lusk River on a narrow green steel bridge built in 1938. The state line runs down the middle of the river, the county on the far side is dry and taxes cigarettes hard, and for as long as anyone can remember, cartons and cases have gone across at night, by johnboat from Purvis Landing or in pickups light enough for the bridge's five-ton limit. Now the state has rated the bridge critical and will pay for one new crossing, either here or five miles downstream on Sturdivant land, and the town council votes on the site next Tuesday. Carter Sturdivant wants it downstream, the Night Run wants the old bridge open and the river dark, and the three-officer police department needs an arrest big enough to stop the mayor disbanding it. Cell signal is patchy in the valley, one bar if you stand by the water tower on the hill, so business here is done face to face: at the bar, at the pumps, at the ramp. People tell stories about what the river takes, but nobody you would believe has ever seen anything in it but mud and catfish.",
   currency: { symbol: "$", name: "dollars" },
   startLocationIds: { gate: "loc_pittmans", docks: "loc_purvis_landing" },
+  // Wave 27: whom a report goes to when it goes to the police (Rel.policeHead; else the first police chief in the cast).
+  policeHead: "npc_marcus",
   year: 2026,
   // Day 1 is Thursday 8 October 2026 (CONTRACTS section 1): the weekday and the season come from here.
   calendar: { season: "autumn", startDate: "2026-10-08" },
@@ -2554,6 +2556,7 @@ const TOWN_DATA = {
       history: "Carter Sturdivant grew up in Sturdivant House, went to college in Calder and came home in 2014 to run the business when his father died in the timber woods. He lives with his mother and drives a new truck every two years. Half the notes and leases in town are in his company's name.",
       attitude: 10,
       relations: [{ npcId: "npc_vada", relation: "mother" }, { npcId: "npc_dwight", relation: "employee" }, { npcId: "npc_amos", relation: "grandfather" }, { npcId: "npc_harlan", relation: "father" }],
+      protector: "nobody",
       home: "loc_sturdivant_house",
       memories: [],
       alive: true,
@@ -2600,6 +2603,7 @@ const TOWN_DATA = {
       history: "Hollis Byrd has run the pawn shop on Front Street since 1988, raised his daughter Renee on his own in the apartment over it and has sat on the town council since 2002. He fishes off the landing at night and knows the price of everything in three counties. He has not spoken to Renee since 2023, and she did not ask him to her wedding.",
       attitude: 5,
       relations: [{ npcId: "npc_nikki", relation: "tenant" }, { npcId: "npc_renee", relation: "daughter" }, { npcId: "npc_scott", relation: "son-in-law" }],
+      protector: { npcId: "npc_wade", hidden: true },
       home: "loc_byrds_pawn",
       memories: [],
       alive: true,
@@ -2623,6 +2627,7 @@ const TOWN_DATA = {
       history: "Wade Purvis grew up at the landing and has run it since 1989, with Lorna beside him since they married in 1993. His younger brother Dale is in the state penitentiary, and Wade has looked out for Dale's boy Colt since he was fourteen. He drinks one beer at the Low Water every evening and is back at the landing by dark.",
       attitude: -10,
       relations: [{ npcId: "npc_lorna", relation: "wife" }, { npcId: "npc_colt", relation: "nephew" }, { npcId: "npc_dale", relation: "brother" }],
+      protector: "nobody",
       home: "loc_purvis_landing",
       memories: [],
       alive: true,
@@ -2646,6 +2651,7 @@ const TOWN_DATA = {
       history: "Colt Purvis was fourteen when his father Dale went to the state penitentiary, and he grew up between his uncle's landing and a trailer at Riverbend. He quit school at sixteen to work the boats for Wade. He gets a new tattoo every few months and talks about the truck he is going to buy.",
       attitude: 5,
       relations: [{ npcId: "npc_wade", relation: "uncle" }, { npcId: "npc_lorna", relation: "aunt" }, { npcId: "npc_trent", relation: "friend" }, { npcId: "npc_dale", relation: "father" }],
+      protector: "npc_wade",
       home: "loc_riverbend",
       memories: [],
       alive: true,
@@ -2669,6 +2675,7 @@ const TOWN_DATA = {
       history: "Marcus Bell left the Calder police for the chief's job in Lockett's Ferry in 2010, after a knee injury ended his patrol days. He lives in a room behind the station and calls his sister Celeste every Sunday night. The council has tried to cut his budget every year he has been here.",
       attitude: -5,
       relations: [{ npcId: "npc_travis", relation: "employee" }, { npcId: "npc_nikki", relation: "employee" }, { npcId: "npc_glenda", relation: "employee" }, { npcId: "npc_celeste", relation: "sister" }],
+      protector: "nobody",
       home: "loc_town_hall",
       memories: [],
       alive: true,
@@ -2692,6 +2699,7 @@ const TOWN_DATA = {
       history: "Travis Cagle grew up at Riverbend, played linebacker at the county school and joined the town police in 2019. He works nights, lives with Shayla Rawls in her trailer and spends his days off on the river in his bass boat.",
       attitude: 10,
       relations: [{ npcId: "npc_marcus", relation: "boss" }, { npcId: "npc_shayla", relation: "girlfriend" }],
+      protector: "npc_marcus",
       home: "loc_riverbend",
       memories: [],
       alive: true,
@@ -2784,6 +2792,7 @@ const TOWN_DATA = {
       history: "Tyler Rasberry finished at the county school in May and took the night desk at the motor court because it was the only job going. He shares a trailer at Riverbend with his cousin Brianna, who cleans the rooms he rents out, and plays games online on the motel wifi until dawn.",
       attitude: 5,
       relations: [{ npcId: "npc_mavis", relation: "boss" }, { npcId: "npc_brianna", relation: "cousin" }],
+      protector: "npc_mavis",
       home: "loc_riverbend",
       memories: [],
       alive: true,
@@ -2807,6 +2816,7 @@ const TOWN_DATA = {
       history: "Tammy Lott has cooked at the Low Water since 2010 and raised Amber and Austin on her own in the Lott Trailer. Since Amber died in August she has worked every shift Loretta will give her. She put up the cross by the Riverbend mailboxes and the sign in her front window.",
       attitude: -5,
       relations: [{ npcId: "npc_loretta", relation: "boss" }, { npcId: "npc_austin", relation: "son" }, { npcId: "npc_amber", relation: "daughter" }],
+      protector: "npc_loretta",
       home: "loc_lott_trailer",
       memories: [],
       alive: true,
@@ -2971,6 +2981,7 @@ const TOWN_DATA = {
       history: "Odessa Fairley grew up in Clayburn and has kept house for Vada Sturdivant since 1979, the year Amos Sturdivant died. She lives in the back bedroom of Sturdivant House, sings in the choir at Riverside Baptist and drives to see her sister Corinne on her Sunday afternoons off.",
       attitude: 0,
       relations: [{ npcId: "npc_vada", relation: "boss" }, { npcId: "npc_corinne", relation: "sister" }],
+      protector: "npc_vada",
       home: "loc_sturdivant_house",
       memories: [],
       alive: true,
@@ -2994,6 +3005,7 @@ const TOWN_DATA = {
       history: "Lyman Coker drove a log truck for thirty years until his lungs gave out, and has tended bar nights at the Low Water since 2015. He rents a room by the week at the motor court and plays cribbage with Curtis Pruett between customers.",
       attitude: 0,
       relations: [{ npcId: "npc_loretta", relation: "boss" }, { npcId: "npc_curtis", relation: "friend" }],
+      protector: "npc_loretta",
       home: "loc_motor_court",
       memories: [],
       alive: true,
@@ -3063,6 +3075,7 @@ const TOWN_DATA = {
       history: "Glenda Pryor grew up in the Gentry House with her grandfather Elbert and has dispatched for the town police since 2007. She knows every voice that calls the station and most of what they want. She keeps Elbert's medicines straight and drives him to his appointments in Calder.",
       attitude: 5,
       relations: [{ npcId: "npc_elbert", relation: "grandfather" }, { npcId: "npc_marcus", relation: "boss" }],
+      protector: "npc_marcus",
       home: "loc_gentry_house",
       memories: [],
       alive: true,
@@ -3086,6 +3099,7 @@ const TOWN_DATA = {
       history: "Nikki Ballard came from the police academy two years ago and is the department's only day officer. She rents the apartment over Byrd's Pawn from Hollis Byrd, runs five miles on the river road every morning and keeps to herself.",
       attitude: -5,
       relations: [{ npcId: "npc_marcus", relation: "boss" }, { npcId: "npc_hollis", relation: "landlord" }],
+      protector: "npc_marcus",
       home: "loc_byrd_apartment",
       memories: [],
       alive: true,
@@ -3202,6 +3216,7 @@ const TOWN_DATA = {
       history: "Trent Haskins drives the farm's grain truck and does whatever hauling anyone will pay for. He was two years ahead of Colt Purvis at the county school and has been his best friend since. His mother Ruth's death hit him hardest of the three men at the farm.",
       attitude: 10,
       relations: [{ npcId: "npc_lamar", relation: "father" }, { npcId: "npc_virgil", relation: "grandfather" }, { npcId: "npc_colt", relation: "friend" }, { npcId: "npc_ruth", relation: "mother" }],
+      protector: "npc_wade",
       home: "loc_haskins_farm",
       memories: [],
       alive: true,
@@ -3225,6 +3240,7 @@ const TOWN_DATA = {
       history: "Leon Varner has repossessed trucks and collected bad debts in the south end of the county for six years, for Wendell Strunk's title-loan office in Clayburn. He rents a room by the week at the motor court while he works through his list, and nobody is glad to see his tow truck.",
       attitude: -5,
       relations: [{ npcId: "npc_wendell", relation: "boss" }],
+      protector: "nobody",
       home: "loc_motor_court",
       memories: [],
       alive: true,
@@ -3271,6 +3287,7 @@ const TOWN_DATA = {
       history: "Boyd Teague checked into Room 9 at the motor court a week ago and paid two weeks in cash. Nobody in town knows where he came from or what he wants, and he has not said. He keeps to his room in the mornings and walks out on the old bridge every afternoon to look down at the landing.",
       attitude: -10,
       relations: [],
+      protector: "nobody",
       home: "loc_motor_court",
       memories: [],
       alive: true,
@@ -3294,6 +3311,7 @@ const TOWN_DATA = {
       history: "Jodie Strayhorn turned up at the Low Water three weeks ago asking for work, and Loretta hired her that night. She sleeps in the back room of the bar, works every shift she can get and says she is from up north when anyone asks.",
       attitude: -5,
       relations: [{ npcId: "npc_loretta", relation: "boss" }],
+      protector: "npc_loretta",
       home: "loc_low_water",
       memories: [],
       alive: true,
@@ -3340,6 +3358,7 @@ const TOWN_DATA = {
       history: "Brianna Tolliver grew up at Riverbend with her cousin Tyler, shares a trailer there with him and has cleaned rooms at the motor court since the spring. She is saving for a car and walks to work along the highway in the meantime.",
       attitude: 5,
       relations: [{ npcId: "npc_mavis", relation: "boss" }, { npcId: "npc_tyler", relation: "cousin" }],
+      protector: "npc_mavis",
       home: "loc_riverbend",
       memories: [],
       alive: true,
@@ -3386,6 +3405,7 @@ const TOWN_DATA = {
       history: "Dwight Spann has run a Sturdivant Land and Timber crew in the pine upriver for eighteen years, since Harlan Voss hired him. He lives alone in a trailer at Riverbend and goes up to Sturdivant House every morning for his orders.",
       attitude: -5,
       relations: [{ npcId: "npc_carter", relation: "boss" }],
+      protector: "npc_carter",
       home: "loc_riverbend",
       memories: [],
       alive: true,
@@ -4564,6 +4584,41 @@ const TOWN_DATA = {
       notBeforeDay: 3,
       fired: false,
       hidden: true
+    },
+    // Wave 27: someone in trouble the player can step in on (danger: the people its words name after the first, the one doing it,
+    // are in danger there for this phase and the next; a successful action aimed at them, or an attack on the one doing it, rescues them).
+    {
+      id: "seed_landing_short_count",
+      cause: "Colt Purvis is sure Trent Haskins shorted him on his cut of the last run across the river.",
+      effect: "Colt Purvis has Trent Haskins backed up against the ice machine outside the bait shop over a short count on the last run, one fist in his shirt, and nobody on the dock is stepping in.",
+      trigger: { type: "location", value: "loc_purvis_landing" },
+      notBeforeDay: 8,
+      requires: { npcFree: ["npc_colt", "npc_trent"] },
+      danger: true,
+      fired: false,
+      hidden: true
+    },
+    {
+      id: "seed_room_nine",
+      cause: "Boyd Teague is sure somebody has been into Room 9 while he is out at the bridge, and Tyler Rasberry has the keys.",
+      effect: "Boyd Teague has Tyler Rasberry by the collar against the motel office door, wanting to know who has been in Room 9, and Tyler cannot get a word out.",
+      trigger: { type: "location", value: "loc_motor_court" },
+      notBeforeDay: 9,
+      requires: { npcFree: ["npc_boyd", "npc_tyler"] },
+      danger: true,
+      fired: false,
+      hidden: true
+    },
+    {
+      id: "seed_riverbend_note",
+      cause: "Leon Varner has a title-loan note with Shayla Rawls's name on it and means to collect on it at her trailer.",
+      effect: "Leon Varner has Shayla Rawls backed against her own trailer step at Riverbend over a note he says she signed, and he will not let her go back inside.",
+      trigger: { type: "location", value: "loc_riverbend" },
+      notBeforeDay: 10,
+      requires: { npcFree: ["npc_leon", "npc_shayla"] },
+      danger: true,
+      fired: false,
+      hidden: true
     }
   ],
 
@@ -5307,7 +5362,7 @@ const TABLES = {
     { text: "{witness} takes it personally", tiers: ["failure"], kinds: ["social"], needsPerson: true,
       effects: [{ op: "attitudeDelta", npcId: "{witnessId}", delta: -5 }] },
     { text: "{witness} catches you at it", tiers: ["failure"], kinds: ["stealth"], needsPerson: true,
-      effects: [{ op: "addMemory", npcId: "{witnessId}", text: "caught {playerName} sneaking around {place}", weight: 2 }] },
+      effects: [{ op: "socialEvent", npcId: "{witnessId}", event: "caught_you_at", text: "caught {playerName} sneaking around {place}", weight: 2 }] },
     { text: "{witness} starts telling people about it", tiers: ["failure"], kinds: ["social", "physical"], needsPerson: true,
       effects: [{ op: "addRumour", rumour: { text: "The newcomer {playerName} has been making trouble at {place}.", true: true, sourceNpcId: "{witnessId}", heard: false } }] },
     { text: "{witness} reports it to the police", tiers: ["failure"], kinds: ["stealth", "physical"], needsPerson: true,
@@ -5542,13 +5597,11 @@ const LOOSE_ENDS = {
       missText: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.",
       onMiss: [
         { op: "takeItem", name: "Prepaid phone" },
-        { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
-        { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the four hundred go past due, so I took the phone as a start.", weight: 3, act: "own" },
+        { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -15 }, text: "{playerName} let the four hundred go past due, so I took the phone as a start.", weight: 3, act: "own" },
         { op: "addNews", text: "{npc} came looking for the four hundred dollars and took {playerName}'s phone as a start on it.", public: false }
       ],
       onMet: [
-        { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
-        { op: "addMemory", npcId: "{npcId}", text: "{playerName} paid the four hundred in full and on time.", weight: 2 }
+        { op: "socialEvent", npcId: "{npcId}", event: "paid_back", d: { w: 10 }, text: "{playerName} paid the four hundred in full and on time.", weight: 2 }
       ]
     },
     obligations: [
@@ -5560,13 +5613,11 @@ const LOOSE_ENDS = {
         missText: "{npc} came looking for the six hundred dollars and took {playerName}'s phone as a down payment.",
         onMiss: [
           { op: "takeItem", name: "Prepaid phone" },
-          { op: "attitudeDelta", npcId: "{npcId}", delta: -15 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the six hundred go past due, so I took the phone as a start.", weight: 3, act: "own" },
+          { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -15 }, text: "{playerName} let the six hundred go past due, so I took the phone as a start.", weight: 3, act: "own" },
           { op: "addNews", text: "{npc} came looking for the six hundred dollars and took {playerName}'s phone as a down payment.", public: false }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} paid the six hundred in full and on time.", weight: 2 }
+          { op: "socialEvent", npcId: "{npcId}", event: "paid_back", d: { w: 10 }, text: "{playerName} paid the six hundred in full and on time.", weight: 2 }
         ]
       },
       {
@@ -5578,13 +5629,11 @@ const LOOSE_ENDS = {
         onMiss: [
           { op: "obligationPaid", id: "{obligationId}", amount: 150, take: true },
           { op: "takeItem", name: "Prepaid phone" },
-          { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} let the title-loan note go past due, so I took what cash there was and the phone.", weight: 3, act: "own" },
+          { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -10 }, text: "{playerName} let the title-loan note go past due, so I took what cash there was and the phone.", weight: 3, act: "own" },
           { op: "addNews", text: "{npc} caught up with {playerName} about the title-loan note and took what cash there was, and the phone.", public: false }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} paid off the title-loan note, fees and all.", weight: 2 }
+          { op: "socialEvent", npcId: "{npcId}", event: "paid_back", d: { w: 10 }, text: "{playerName} paid off the title-loan note, fees and all.", weight: 2 }
         ]
       },
       {
@@ -5595,13 +5644,11 @@ const LOOSE_ENDS = {
         missText: "{npc} came looking for the four hundred dollars from the card game and went away without it, and now Loretta Gaddis won't serve {playerName} at the Low Water.",
         onMiss: [
           { op: "banFrom", locationId: "loc_low_water", days: 3, byNpcId: "{npcId}" },
-          { op: "attitudeDelta", npcId: "{npcId}", delta: -20 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} welshed on four hundred dollars, and I made sure Loretta heard.", weight: 3, act: "own" },
+          { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -20 }, text: "{playerName} welshed on four hundred dollars, and I made sure Loretta heard.", weight: 3, act: "own", public: true },
           { op: "addNews", text: "{npc} is telling everybody at the Low Water that {playerName} welshed on four hundred dollars, and Loretta Gaddis won't serve a welsher.", public: true }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} paid the four hundred from the card game, every dollar.", weight: 2 }
+          { op: "socialEvent", npcId: "{npcId}", event: "paid_back", d: { w: 10 }, text: "{playerName} paid the four hundred from the card game, every dollar.", weight: 2 }
         ]
       }
     ]
@@ -5653,14 +5700,12 @@ const LOOSE_ENDS = {
       text: "Pay {npc} two hundred dollars to keep your secret quiet.",
       missText: "{npc} did not get the two hundred dollars and has told Chief Bell what {playerName} is hiding, and comes by to say so.",
       onMiss: [
-        { op: "addMemory", npcId: "npc_marcus", text: "{npc} told me what {playerName} is hiding.", weight: 2 },
-        { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 },
-        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
-        { op: "addMemory", npcId: "{npcId}", text: "{playerName} would not pay, so I told Chief Bell what {playerName} is hiding.", weight: 3, act: "own" },
+        { op: "socialEvent", npcId: "npc_marcus", event: "told_anyway", d: { w: -10 }, text: "{npc} told me what {playerName} is hiding.", weight: 2 },
+        { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -10 }, text: "{playerName} would not pay, so I told Chief Bell what {playerName} is hiding.", weight: 3, act: "own" },
         { op: "addNews", text: "{npc} has been telling people what {playerName} is hiding.", public: true }
       ],
       onMet: [
-        { op: "addMemory", npcId: "{npcId}", text: "{playerName} paid me two hundred dollars to keep quiet.", weight: 2 }
+        { op: "socialEvent", npcId: "{npcId}", event: "paid_silence", text: "{playerName} paid me two hundred dollars to keep quiet.", weight: 2 }
       ]
     }
   },
@@ -5697,11 +5742,10 @@ const LOOSE_ENDS = {
       text: "Keep your word to {npc}.",
       missText: "{npc} finds {playerName} and asks, flat, what happened to the promise {playerName} made.",
       onMiss: [
-        { op: "attitudeDelta", npcId: "{npcId}", delta: -10 },
-        { op: "addMemory", npcId: "{npcId}", text: "{playerName} made me a promise and let the day go by.", weight: 2 }
+        { op: "socialEvent", npcId: "{npcId}", event: "broke_word", d: { w: -10 }, text: "{playerName} made me a promise and let the day go by.", weight: 2 }
       ],
       onMet: [
-        { op: "attitudeDelta", npcId: "{npcId}", delta: 10 }
+        { op: "socialEvent", npcId: "{npcId}", event: "kept_word", d: { w: 10 }, text: "{playerName} kept the promise they made me.", weight: 2 }
       ]
     },
     obligations: [
@@ -5720,8 +5764,7 @@ const LOOSE_ENDS = {
           { op: "addNews", text: "The letter for {npc} is still in {playerName}'s pocket.", public: false }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 15 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} brought me a letter from home.", weight: 3 }
+          { op: "socialEvent", npcId: "{npcId}", event: "kept_word", d: { w: 15 }, text: "{playerName} brought me a letter from home.", weight: 3 }
         ]
       },
       {
@@ -5734,8 +5777,7 @@ const LOOSE_ENDS = {
           { op: "addMemory", npcId: "npc_dale", text: "{playerName} promised to look in on my boy and never wrote.", weight: 2 }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
-          { op: "addMemory", npcId: "{npcId}", text: "{playerName} came around because my daddy asked them to.", weight: 2 }
+          { op: "socialEvent", npcId: "{npcId}", event: "kept_word", d: { w: 10 }, text: "{playerName} came around because my daddy asked them to.", weight: 2 }
         ]
       },
       {
@@ -5748,7 +5790,7 @@ const LOOSE_ENDS = {
           { op: "addMemory", npcId: "npc_bernice", text: "{playerName} promised to bring my daughter home and has not.", weight: 2 }
         ],
         onMet: [
-          { op: "attitudeDelta", npcId: "{npcId}", delta: 10 },
+          { op: "socialEvent", npcId: "{npcId}", event: "kept_word", d: { w: 10 }, text: "{playerName} kept their word to my mother and got me home.", weight: 2 },
           { op: "addMemory", npcId: "npc_bernice", text: "{playerName} brought my daughter home.", weight: 3 }
         ]
       }
@@ -5773,8 +5815,7 @@ const GRUDGE_TEMPLATES = [
     about: ["theft"],
     dayOffset: [2, 4],
     effects: [
-      { op: "addMemory", npcId: "npc_marcus", text: "{npc} says {playerName} was hanging around where things went missing.", weight: 2 },
-      { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 }
+      { op: "socialEvent", npcId: "npc_marcus", event: "crossed", d: { w: -10, t: -10 }, text: "{npc} says {playerName} was hanging around where things went missing.", weight: 2, secondhand: true }
     ],
     public: false,
     notForTags: ["police"]
@@ -5805,7 +5846,7 @@ const GRUDGE_TEMPLATES = [
     dayOffset: [2, 4],
     effects: [
       { op: "banFrom", locationId: "loc_low_water", days: 3, byNpcId: "npc_loretta" },
-      { op: "attitudeDelta", npcId: "npc_loretta", delta: -5 }
+      { op: "socialEvent", npcId: "npc_loretta", event: "crossed", d: { w: -5, t: -5 }, text: "{npc} kept on at me about {playerName} until I put their name on the list.", secondhand: true }
     ],
     public: true,
     notForTags: ["bartender", "teen", "police"]
@@ -5849,9 +5890,9 @@ const GRUDGE_TEMPLATES = [
     kind: "gossip",
     dayOffset: [2, 5],
     effects: [
-      { op: "attitudeDelta", npcId: "npc_wade", delta: -10 },
-      { op: "attitudeDelta", npcId: "npc_colt", delta: -10 },
-      { op: "attitudeDelta", npcId: "npc_trent", delta: -10 },
+      { op: "socialEvent", npcId: "npc_wade", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
+      { op: "socialEvent", npcId: "npc_colt", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
+      { op: "socialEvent", npcId: "npc_trent", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
       { op: "reputationDelta", key: "fac_nightrun", delta: -10 }
     ],
     public: false,
@@ -5862,8 +5903,8 @@ const GRUDGE_TEMPLATES = [
     kind: "gossip",
     dayOffset: [2, 5],
     effects: [
-      { op: "attitudeDelta", npcId: "npc_ray", delta: -10 },
-      { op: "attitudeDelta", npcId: "npc_nadine", delta: -10 },
+      { op: "socialEvent", npcId: "npc_ray", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} at Wednesday supper that {playerName} is not to be trusted", secondhand: true },
+      { op: "socialEvent", npcId: "npc_nadine", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} at Wednesday supper that {playerName} is not to be trusted", secondhand: true },
       { op: "reputationDelta", key: "town", delta: -5 }
     ],
     public: true,
@@ -5895,9 +5936,9 @@ const GRUDGE_TEMPLATES = [
     kind: "police",
     dayOffset: [2, 5],
     effects: [
-      { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 },
-      { op: "attitudeDelta", npcId: "npc_nikki", delta: -10 },
-      { op: "attitudeDelta", npcId: "npc_travis", delta: -10 },
+      { op: "socialEvent", npcId: "npc_marcus", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
+      { op: "socialEvent", npcId: "npc_nikki", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
+      { op: "socialEvent", npcId: "npc_travis", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
       { op: "reputationDelta", key: "fac_police", delta: -10 }
     ],
     public: false,
@@ -5908,7 +5949,7 @@ const GRUDGE_TEMPLATES = [
     kind: "gossip",
     dayOffset: [2, 5],
     effects: [
-      { op: "attitudeDelta", npcId: "npc_shayla", delta: -5 },
+      { op: "socialEvent", npcId: "npc_shayla", event: "crossed", d: { w: -5, t: -5 }, text: "heard from {npc} that the story {playerName} tells about where they came from does not add up", secondhand: true },
       { op: "reputationDelta", key: "town", delta: -5 }
     ],
     public: true,
@@ -5921,11 +5962,61 @@ const GRUDGE_TEMPLATES = [
     about: ["violence"],
     dayOffset: [2, 4],
     effects: [
-      { op: "addMemory", npcId: "npc_marcus", text: "{npc} reported {playerName} for putting hands on them.", weight: 2 },
-      { op: "attitudeDelta", npcId: "npc_marcus", delta: -10 }
+      { op: "socialEvent", npcId: "npc_marcus", event: "crossed", d: { w: -10, t: -10 }, text: "{npc} reported {playerName} for putting hands on them.", weight: 2, secondhand: true }
     ],
     public: false,
     notForTags: ["police"]
+  },
+  /* Wave 27: a report, someone the player has frightened or hurt telling
+     whoever looks out for them (World's plantReport, never a grudge's
+     template; added last: a seed keeps its template by index). to: whom it
+     goes to (police, or family for a parent, a boss or anyone else); about:
+     what it is about (a threat or violence). {protector} and {protectorId}
+     are that person; the engine runs the effects once for each protector,
+     with the template that suits them. */
+  {
+    effect: "{npc} tells {protector} that {player} has been leaning on them, and {protector} goes cold on {player}.",
+    kind: "report",
+    to: "family",
+    about: ["threat"],
+    dayOffset: [1, 2],
+    effects: [
+      { op: "socialEvent", npcId: "{protectorId}", event: "crossed", d: { w: -10, t: -10 }, text: "{npc} says {playerName} has been leaning on them.", secondhand: true }
+    ],
+    public: false
+  },
+  {
+    effect: "{npc} goes to {protector} and says {player} has been leaning on them, and {protector} writes it down.",
+    kind: "report",
+    to: "police",
+    about: ["threat"],
+    dayOffset: [1, 2],
+    effects: [
+      { op: "socialEvent", npcId: "{protectorId}", event: "crossed", d: { w: -5, t: -10 }, text: "{npc} came to me saying {playerName} has been leaning on them.", secondhand: true }
+    ],
+    public: false
+  },
+  {
+    effect: "{npc} tells {protector} that {player} put hands on them, and {protector} goes cold on {player}.",
+    kind: "report",
+    to: "family",
+    about: ["violence"],
+    dayOffset: [1, 2],
+    effects: [
+      { op: "socialEvent", npcId: "{protectorId}", event: "crossed", d: { w: -10, t: -10 }, text: "{npc} says {playerName} put hands on them.", secondhand: true }
+    ],
+    public: false
+  },
+  {
+    effect: "{npc} goes to {protector} about {player} putting hands on them, and {protector} writes it down.",
+    kind: "report",
+    to: "police",
+    about: ["violence"],
+    dayOffset: [1, 2],
+    effects: [
+      { op: "socialEvent", npcId: "{protectorId}", event: "crossed", d: { w: -5, t: -10 }, text: "{npc} came to me saying {playerName} put hands on them.", secondhand: true }
+    ],
+    public: false
   }
 ];
 
@@ -5955,7 +6046,7 @@ const FAVOUR_TEMPLATES = [
     effect: "{npc} tells {player} the name of somebody in town who can help with what {player} came here to do, and where to find them.",
     dayOffset: [3, 5],
     effects: [
-      { op: "addMemory", npcId: "{npcId}", text: "Pointed {playerName} toward somebody in town who could help them.", weight: 1 }
+      { op: "addMemory", npcId: "{npcId}", text: "Pointed {playerName} toward somebody in town who could help them.", weight: 1, act: "own" }
     ],
     public: false
   },
@@ -6030,7 +6121,7 @@ const FAVOUR_TEMPLATES = [
     effect: "{npc} tells {player} a story about the river from before {player} was born that turns out to bear on what {player} is after.",
     dayOffset: [3, 5],
     effects: [
-      { op: "addMemory", npcId: "{npcId}", text: "Told {playerName} the old story about the river, the true one.", weight: 1 }
+      { op: "addMemory", npcId: "{npcId}", text: "Told {playerName} the old story about the river, the true one.", weight: 1, act: "own" }
     ],
     public: false,
     forTags: ["elderly", "oldtimer", "records"]
@@ -6424,7 +6515,8 @@ function fillTemplate(tpl, vars) {
    "{place}" (a place's name) are filled from vars. An effect that still
    holds one of them afterwards (nobody to fill it with) is dropped, so
    State.apply never sees a placeholder. Returns a new list. */
-const FILL_SLOTS = ['npcId', 'npc', 'playerName', 'player', 'witnessId', 'witness', 'place'];
+// Wave 27: protectorId and protector, whom a report goes to (GRUDGE_TEMPLATES of kind report).
+const FILL_SLOTS = ['npcId', 'npc', 'playerName', 'player', 'witnessId', 'witness', 'place', 'protectorId', 'protector'];
 function fillPlaceholders(effects, vars) {
   vars = vars || {};
   const re = new RegExp(`\\{(${FILL_SLOTS.join('|')})\\}`, 'g');
@@ -6750,8 +6842,12 @@ const Dice = (() => {
     }
     return sum;
   }
-  /* Modifiers code applies: +2 fitting item held, +/-2 NPC attitude beyond
-     +/-50 on social rolls, each condition's own modifier to the stat. */
+  /* Modifiers code applies: +2 fitting item held, the relationship's share
+     on social rolls (wave 27, Rel.rollMod: liking +/-1 at 30 and +/-2 at 60
+     for persuade, charm, talk, buy, sell and give; fear +1 at 20, +2 at 40,
+     -1 against someone who likes the player at 40, for intimidate; a lie
+     keeps +/-2 beyond +/-50 until wave 28), each condition's own modifier
+     to the stat. */
   function modifiersFor(state, opts) {
     const mods = [];
     if (!state) return mods;
@@ -6761,8 +6857,8 @@ const Dice = (() => {
     const social = opts.social === true || (opts.social !== false && (stat === 'charm' || SOCIAL_ACTIONS.includes(opts.actionType)));
     if (social && opts.npcId) {
       const n = state.npcs.find(x => x.id === opts.npcId);
-      if (n && n.attitude > 50) mods.push({ label: 'attitude', value: 2 });
-      else if (n && n.attitude < -50) mods.push({ label: 'attitude', value: -2 });
+      const v = n ? Rel.rollMod(n, opts.actionType, { s: state }) : 0;
+      if (v) mods.push({ label: opts.actionType === 'intimidate' ? 'fear' : 'attitude', value: v });
     }
     for (const c of p.conditions || []) { const v = conditionAffects(c, stat, state.time.day); if (v) mods.push({ label: c.name, value: v }); }
     return mods;
@@ -7843,14 +7939,17 @@ const State = (() => {
     'addCast', 'recastPeople', 'mergePlaces', 'castSchedules', 'mergePeople', 'castFixed', 'livedIn', 'expireDaily', 'newsSeen', 'eventsFired',
     'fight', 'logUpdate', 'arcFill', 'giftGiven', 'cardsCheat', 'cardsWin', 'cardGame', 'rewind', 'seedsDropped',
     // Wave 26 (Rel): engine events for people (the bookkeeper's from wave 28), a track set outright, the morning's step.
-    'socialEvents', 'relSet', 'relDay'];
+    'socialEvents', 'relSet', 'relDay',
+    // Wave 27: a turn spent with people, the ask log, a grudge's getting even, where someone stood before the player came.
+    'relTurn', 'relAsk', 'relSettle', 'relStart'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
   const PROTECTED_MEMORIES = Object.freeze([/^Loose end with /i, /^Fact \(a story point\):/i]);
   function protectedMemory(m) { return !!m && PROTECTED_MEMORIES.some(re => re.test(String(m.text || ''))); }
   // Where an engine-planted seed came from (World reads it for grudges and favours).
-  const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background']);
+  // Wave 27: report, someone telling their protector what the player did (GRUDGE_TEMPLATES of kind report).
+  const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background', 'report']);
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
   /* Per-turn and per-game limits. The model* ones hold a bookkeeper's diff
      (source 'model') to what one turn can do; the engine is not held to them. */
@@ -7879,8 +7978,12 @@ const State = (() => {
   /* rel: what events moved each person this turn ({ npcId: { w, t, f, s } },
      the per-turn bounds, Rel.CAPS.turn); classes: the dedupe classes the
      engine recorded for each person this turn (wave 27 drops the
-     bookkeeper's duplicates by them). */
-  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0, rel: {}, classes: {} }; }
+     bookkeeper's duplicates by them); engine: the sign of liking each
+     engine event moved for each person this turn ({ npcId: [-1, 1] }: the
+     bookkeeper's legacy lines yield to them, wave 27); rep: the town
+     reputation events gave this turn (held to World.REP_CAP); acts: the
+     acts a caught_you_at was recorded for this turn (one record an act). */
+  function freshLedger(turn) { return { turn, attitude: {}, clocks: {}, seeds: 0, places: 0, people: 0, gold: 0, hp: 0, items: 0, fates: 0, rel: {}, classes: {}, engine: {}, rep: 0, acts: {} }; }
   function syncLedger() { if (current && ledger.turn !== current.meta.turn) ledger = freshLedger(current.meta.turn); }
 
   class Reject extends Error {}
@@ -8039,7 +8142,18 @@ const State = (() => {
       out.origin = { kind: raw.origin.kind };
       if (typeof raw.origin.npcId === 'string' && npc(raw.origin.npcId)) out.origin.npcId = raw.origin.npcId;
       if (Number.isInteger(raw.origin.template)) out.origin.template = raw.origin.template;
+      /* Wave 27: the memory a feeling or a report grew from (key: its
+         settlement when it comes due, relSettle), what a report is about
+         (why: threat, violence; a grudge planted for a beat-down on someone
+         tough: tough), and whom it goes to (protectors: their ids; hidden:
+         through a tie the town does not know). */
+      if (typeof raw.origin.key === 'string' && raw.origin.key.length <= 80) out.origin.key = raw.origin.key;
+      if (typeof raw.origin.why === 'string' && /^[a-z_]{1,20}$/.test(raw.origin.why)) out.origin.why = raw.origin.why;
+      if (Array.isArray(raw.origin.protectors)) { const ids = raw.origin.protectors.filter(id => typeof id === 'string' && npc(id)).slice(0, 4); if (ids.length) out.origin.protectors = ids; }
+      if (raw.origin.hidden === true) out.origin.hidden = true;
     }
+    // The turn an engine seed was planted on (wave 27: a report, the tough answer): /rewind strikes it with that turn, as it does the bookkeeper's.
+    if (!requireAhead && Number.isInteger(raw.turn) && raw.turn >= 0 && raw.turn <= current.meta.turn) out.turn = raw.turn;
     /* Engine seeds may carry effects applied when they fire, what must hold
        then (requires) and what happens instead (alt): CONTRACTS section 3,
        fired by World. Never the bookkeeper's. */
@@ -9186,10 +9300,46 @@ const State = (() => {
   }
   const RELWORD = Object.freeze({ w: 'liking', t: 'trust', f: 'fear', k: 'knows', s: 'spark' });
   const relChanges = (a, b) => Rel.TRACKS.filter(x => a[x] !== b[x]).map(x => `${RELWORD[x]} ${a[x]} -> ${b[x]}`);
+  /* Town reputation from an event done in public (wave 27; design section
+     2.8): held to World's REP_CAP a turn (ledger.rep), whatever moved it.
+     Returns the part that landed. */
+  const EVENT_REP_CAP = 5;
+  function townRep(d) {
+    const used = ledger.rep | 0;
+    const allowed = clamp(used + d, -EVENT_REP_CAP, EVENT_REP_CAP) - used;
+    if (!allowed) return 0;
+    ledger.rep = used + allowed;
+    EFFECTS.reputationDelta({ key: 'town', delta: allowed });
+    return allowed;
+  }
+  // A scene: the place, the day and the phase (witness copies merge by it).
+  function sceneKey() { return `${current.player.locationId}:${current.time.day}:${current.time.phase}`; }
   /* One event for one person (the socialEvent op, the socialEvents field):
      checked, planned by Rel.applyEvent, written. The dead remember nothing
-     (a no-op). Returns the applied line. */
-  function socialEvent(e, path) {
+     (a no-op). Returns the applied line.
+     Wave 27, the engine's fields: fight (the fight's key: one memory a
+     fight, Rel.applyEvent), witnesses ('present', 'none' or a list of ids:
+     who saw it; each who is here and not laid up takes Rel.witnessEvent's
+     copy, merged per scene), public (true: it made news; else two or more
+     witnesses make it public), rep (the town reputation it moves when
+     public, in place of the row's), secondhand (true, or { via, hidden }).
+     A public event moves the town's reputation by its row (townRep). Every
+     event records its dedupe class (ledger.classes) and the sign of its
+     liking (ledger.engine: the bookkeeper's legacy lines yield to it);
+     within one apply the first money-class event for a person wins. */
+  /* Dedupe by class (wave 27; the integration plan's 4.2): why the engine's
+     events this turn (ledger.classes) leave nothing for the bookkeeper's
+     event for this person: the same class, or what the class drops besides
+     (Rel.DEDUPE: violence drops humiliated and threatened, money kept_word
+     and did_favour, romance complimented and flirted, a humiliation an
+     insult). Returns the class, or null. */
+  function dedupeWhy(id, event) {
+    const classes = ledger.classes[id] || [];
+    const own = Rel.EVENTS[event] ? Rel.EVENTS[event].dedupe : null;
+    if (own && classes.includes(own)) return own;
+    return classes.find(c => Rel.DEDUPE[c] && Rel.DEDUPE[c].drops.includes(event)) || null;
+  }
+  function socialEvent(e, path, fromModel) {
     if (!isObj(e)) bad('must be an object');
     const n = needNpc(e.npcId);
     const row = typeof e.event === 'string' ? Rel.EVENTS[e.event] : null;
@@ -9197,12 +9347,31 @@ const State = (() => {
     const text = cleanText(e.text, 400);
     if (!text) bad('needs text: what they would remember');
     if (presenceOf(n) === 'dead') return `no-op: ${n.id} is dead and remembers nothing`;
+    // The bookkeeper's (wave 28 sends them; e.bookkeeper marks one as theirs until then): dropped when the engine already recorded its class.
+    const model = fromModel === true || e.bookkeeper === true;
+    const dup = model ? dedupeWhy(n.id, e.event) : null;
+    if (dup) {
+      pushDebug({ turn: current.meta.turn, kind: 'rejected', source: 'rel', path, reason: `the engine already recorded ${dup} for ${n.id} this turn: ${e.event} dropped` });
+      return `no-op: the engine already recorded ${dup} for ${n.id} this turn (${e.event} dropped)`;
+    }
     if (e.weight !== undefined && !(Number.isInteger(e.weight) && e.weight >= 1 && e.weight <= 3)) bad('weight must be 1, 2 or 3');
     if (e.act !== undefined && !MEMORY_ACTS.includes(e.act)) bad(`act must be one of ${MEMORY_ACTS.join(', ')}`);
     if (e.aboutId !== undefined && e.aboutId !== null) needNpc(e.aboutId);
     if (e.private !== undefined && typeof e.private !== 'boolean') bad('private must be true or false');
     if (e.decay !== undefined && !Object.prototype.hasOwnProperty.call(Rel.DECAY, e.decay)) bad(`decay must be one of ${Object.keys(Rel.DECAY).join(', ')}`);
     if (e.scale !== undefined && !(typeof e.scale === 'number' && e.scale >= 0.1 && e.scale <= 2)) bad('scale must be a number from 0.1 to 2');
+    if (e.fight !== undefined && !(typeof e.fight === 'string' && /^[a-z0-9_-]{1,60}$/i.test(e.fight))) bad('fight must be a fight key');
+    if (e.public !== undefined && typeof e.public !== 'boolean') bad('public must be true or false');
+    if (e.rep !== undefined && !(Number.isInteger(e.rep) && Math.abs(e.rep) <= 10)) bad('rep must be a whole number within +/-10');
+    if (e.secondhand !== undefined && typeof e.secondhand !== 'boolean' && !isObj(e.secondhand)) bad('secondhand must be true, false or { via, hidden }');
+    const seen = e.witnesses === undefined || e.witnesses === 'none' ? [] : e.witnesses === 'present' ? npcsAt(current.player.locationId).map(x => x.id)
+      : Array.isArray(e.witnesses) ? e.witnesses.filter(x => typeof x === 'string') : bad('witnesses must be "present", "none" or a list of ids');
+    // Engine against engine (the integration plan's 19.4): one payment is one event for a person within one apply.
+    if (row.dedupe === 'money' && applyCtx) {
+      const paid = applyCtx.money || (applyCtx.money = new Set());
+      if (paid.has(n.id)) { pushDebug({ turn: current.meta.turn, kind: 'rejected', source: 'rel', path, reason: `the engine already counted a money event for ${n.id} in this change: ${e.event} dropped` }); return `no-op: ${n.id} ${e.event}: a money event for them was already counted`; }
+      paid.add(n.id);
+    }
     let d;
     if (e.d !== undefined && e.d !== null) {
       if (!isObj(e.d)) bad('d must be an object of tracks (w, t, f, k, s)');
@@ -9216,22 +9385,57 @@ const State = (() => {
     }
     relWrite(n);
     const before = relNow(n);
+    const secondhand = e.secondhand === true ? true : isObj(e.secondhand) ? { via: typeof e.secondhand.via === 'string' ? e.secondhand.via : undefined, hidden: e.secondhand.hidden === true } : false;
     const plan = Rel.applyEvent(n, {
       event: e.event, text, weight: e.weight, act: e.act, aboutId: e.aboutId || null, private: e.private === true, leverageId: typeof e.leverageId === 'string' ? e.leverageId : null,
-      d, decay: e.decay, secondhand: e.secondhand === true, scale: e.scale
+      d, decay: e.decay, secondhand, scale: e.scale, fight: e.fight
     }, relCtx({ used: ledger.rel[n.id] }));
     for (const why of plan.refused) relRefused(path, why);
     n.rel = plan.rel;
     n.memories = plan.memories;
     ledger.rel[n.id] = plan.used;
-    if (row.dedupe) {
+    // What the engine recorded (the bookkeeper's own events record nothing: they never drop each other).
+    if (row.dedupe && !model) {
       const classes = ledger.classes[n.id] || (ledger.classes[n.id] = []);
       if (!classes.includes(row.dedupe)) classes.push(row.dedupe);
+    }
+    // The sign its liking moved (the row's, or the d given): what the bookkeeper's legacy lines for this person yield to.
+    if (!model) {
+      const sign = Math.sign(d && Number.isFinite(d.w) ? d.w : row.w);
+      const signs = ledger.engine[n.id] || (ledger.engine[n.id] = []);
+      if (!signs.includes(sign)) signs.push(sign);
     }
     relWrite(n);
     const moved = relChanges(before, relNow(n));
     const what = plan.memory ? `remembers "${plan.memory.text}" (weight ${plan.memory.weight}${plan.merged ? `, merged x${plan.memory.n}` : ''})` : 'everyday';
-    return `${n.id} ${e.event}: ${moved.join(', ') || 'no change'}; ${what}${plan.settled ? `; softens "${plan.settled}"` : ''}`;
+    // Who saw it: a lighter copy each, merged per scene (Rel.witnessEvent); never the laid up, never words said privately.
+    const extra = [];
+    const scene = sceneKey();
+    const place = loc(current.player.locationId);
+    const placeName = place ? String(place.name).replace(/^The /, 'the ') : 'town';
+    let watchers = 0;
+    if (e.private !== true && Rel.WITNESS[e.event]) {
+      for (const id of seen.filter((x, i, a) => a.indexOf(x) === i && x !== n.id)) {
+        const w = npc(id);
+        if (!w || presenceOf(w) === 'dead' || laidUp(w)) continue;
+        watchers += 1;
+        relWrite(w);
+        const wb = relNow(w);
+        const wp = Rel.witnessEvent(w, { event: e.event, victim: n.name, victimId: n.id, place: placeName, scene, player: current.player.name }, relCtx({ used: ledger.rel[w.id] }));
+        if (!wp || wp.kind === 'none') continue;
+        w.rel = wp.rel;
+        w.memories = wp.memories;
+        ledger.rel[w.id] = wp.used;
+        relWrite(w);
+        const wm = relChanges(wb, relNow(w));
+        if (wm.length || wp.memory) extra.push(`${w.id} saw it: ${wm.join(', ') || 'no change'}${wp.memory ? `; ${wp.merged ? 'adds to' : 'remembers'} "${wp.memory.text}"` : ''}`);
+      }
+    } else watchers = seen.filter(x => x !== n.id).length;
+    // Done in public (two or more saw it besides them, or it made news): the town's reputation moves by its row.
+    const pub = e.public === true || watchers >= 2;
+    const rep = Number.isInteger(e.rep) ? e.rep : row.rep;
+    if (pub && rep) { const got = townRep(rep); if (got) extra.push(`town reputation ${plusMinus(got)} (done in public)`); }
+    return `${n.id} ${e.event}: ${moved.join(', ') || 'no change'}; ${what}${plan.settled ? `; softens "${plan.settled}"` : ''}${extra.length ? `; ${extra.join('; ')}` : ''}`;
   }
 
   // ----- memories -----
@@ -9282,11 +9486,9 @@ const State = (() => {
     }
     // Its day too (wave 4, playtest R5): how old a memory is never depends on how far back the log reaches.
     const line = Object.assign({ turn: s.meta.turn, day: s.time.day, text, weight: w }, model ? { model: true } : {}, act ? { act } : {});
-    n.memories.push(Object.assign(line, { event: Rel.typeMemory(line), d: null }));
-    while (n.memories.length > MEMORY_MAX) {
-      const minW = Math.min(...n.memories.map(x => x.weight));
-      n.memories.splice(n.memories.findIndex(x => x.weight === minW), 1);
-    }
+    n.memories.push(Object.assign(line, { event: opts && typeof opts.event === 'string' && Rel.EVENTS[opts.event] ? opts.event : Rel.typeMemory(line), d: null }));
+    // Past MEMORY_MAX (wave 27, Rel.evictIndex): witness copies first, then the shortest-lived; never a loose end's line or a fact.
+    while (n.memories.length > MEMORY_MAX) n.memories.splice(Rel.evictIndex(n.memories), 1);
     if (typedBefore.some(x => !n.memories.includes(x))) relPin(n, keep);
     return `${n.id} remembers "${text}" (weight ${w})` + (merged ? ` (merged with "${merged.text}")` : '');
   }
@@ -9500,7 +9702,8 @@ const State = (() => {
   const ON_TIME_RE = /,?\s*\b(?:and\s+|but\s+)?(?:right\s+|just\s+)?(?:on time|ahead of time|before it was due|early)\b/i;
   function lateEffects(list) {
     if (!Array.isArray(list)) return list;
-    return list.map(e => (isObj(e) && e.op === 'addMemory' && typeof e.text === 'string' && ON_TIME_RE.test(e.text) ? Object.assign({}, e, { text: lateText(e.text) }) : e));
+    // A socialEvent's memory too (wave 27: the paid_back of a debt paid late).
+    return list.map(e => (isObj(e) && (e.op === 'addMemory' || e.op === 'socialEvent') && typeof e.text === 'string' && ON_TIME_RE.test(e.text) ? Object.assign({}, e, { text: lateText(e.text) }) : e));
   }
   function lateText(text) { return String(text).replace(ON_TIME_RE, ', but late'); }
   // ----- effects that run inside an apply -----
@@ -10052,7 +10255,17 @@ const State = (() => {
     const town = Number.isFinite(fl.priceMultiplier) && fl.priceMultiplier > 0 ? fl.priceMultiplier : 1;
     const own = Number.isFinite(fl.playerPriceMultiplier) && fl.playerPriceMultiplier > 0
       && !(Number.isInteger(fl.playerPriceUntilDay) && fl.playerPriceUntilDay < current.time.day) ? fl.playerPriceMultiplier : 1;
-    return Math.round(town * own * 100) / 100;
+    return Math.round(town * own * sellerMarkup() * 100) / 100;
+  }
+  /* Wave 27: a seller here who is against the player and has stopped
+     refusing them (flags['relPrice.<npcId>'], Pipeline's refuseSale)
+     charges a quarter over (Rel.GATES.wontSell.markup). */
+  function sellerMarkup() {
+    const fl = current.flags || {};
+    const ids = Object.keys(fl).filter(k => k.startsWith('relPrice.') && Number.isInteger(fl[k])).map(k => k.slice('relPrice.'.length));
+    if (!ids.length) return 1;
+    const here = npcsAt(current.player.locationId);
+    return here.some(n => ids.includes(n.id) && Rel.wontSell(n)) ? Rel.GATES.wontSell.markup : 1;
   }
   // ----- the calendar (CONTRACTS section 1) -----
   /* The town's calendar ({ season, startDate: "YYYY-MM-DD" }): this game's
@@ -10195,7 +10408,7 @@ const State = (() => {
       if (list.length) out.settled = list;
     }
     if (Number.isInteger(m.n) && m.n >= 1) out.n = m.n;
-    for (const k of ['place', 'key', 'scene', 'leverageId', 'about']) if (typeof m[k] === 'string' && m[k] && m[k].length <= 80) out[k] = m[k];
+    for (const k of ['place', 'key', 'scene', 'leverageId', 'about', 'fight']) if (typeof m[k] === 'string' && m[k] && m[k].length <= 80) out[k] = m[k];
     for (const k of ['witness', 'private', 'seen']) if (m[k] === true) out[k] = true;
     if (m.secondhand === true || isObj(m.secondhand)) out.secondhand = isObj(m.secondhand) ? deepCopy(m.secondhand) : true;
     return out;
@@ -10759,7 +10972,9 @@ const State = (() => {
     const model = source === 'model';
     let goldRefused = false; // an unaffordable payment: what it bought is refused too (review E3)
     let paid = 0; // money the player handed over this diff (settles a debt by play)
+    let handed = 0; // all of it (paid is what is left once the debts took theirs): a gift is money that moved (wave 27)
     const lostNames = []; // things the player gave up this diff (settles an errand by play)
+    const settledFor = new Set(); // whose obligations this diff paid toward or settled (that money is no gift)
     const allowed = source === 'model' ? RECORD_KEYS : RECORD_KEYS.concat(ENGINE_KEYS);
     for (const k of Object.keys(diff)) {
       if (!allowed.includes(k)) no(k, ENGINE_KEYS.includes(k) ? 'not allowed from the model' : 'unknown field');
@@ -10816,6 +11031,25 @@ const State = (() => {
       return r.line;
     });
 
+    /* Wave 27, the legacy yield (the integration plan's 4.3): a bookkeeper's
+       attitudeChanges and newMemories for someone the engine already gave an
+       event this turn (ledger.engine: a fight, a threat, a theft; or one
+       this diff will give: opts.engineEvents, a gift) yield to it. A liking
+       change of the same sign is dropped, and so is their memory, with a
+       debug line, so the demo's "attacked me, -20" on top of the engine's
+       hit counts once. */
+    const pending = model && opts && Array.isArray(opts.engineEvents) ? opts.engineEvents.filter(x => isObj(x) && typeof x.npcId === 'string' && Rel.EVENTS[x.event]) : [];
+    const engineSigns = id => {
+      const out = (ledger.engine[id] || []).slice();
+      for (const x of pending) if (x.npcId === id) { const sg = Math.sign(isObj(x.d) && Number.isFinite(x.d.w) ? x.d.w : Rel.EVENTS[x.event].w); if (!out.includes(sg)) out.push(sg); }
+      return out;
+    };
+    const yieldWhy = id => {
+      const evs = pending.filter(x => x.npcId === id).map(x => x.event);
+      const cls = (ledger.classes[id] || []).concat(evs.map(x => Rel.EVENTS[x].dedupe).filter(Boolean));
+      return cls.includes('violence') ? 'the fight' : cls.includes('money') ? 'the gift' : cls.includes('threat') ? 'the threat' : cls.includes('theft') ? 'the theft' : 'what happened';
+    };
+    const yields = (id, sign) => model && engineSigns(id).some(sg => sign === undefined || sg === sign);
     // 2. record_changes
     each('attitudeChanges', c => {
       if (!isObj(c)) bad('must be an object');
@@ -10823,6 +11057,7 @@ const State = (() => {
       const d = toInt(c.delta);
       if (d === null) bad('delta must be an integer');
       if (d === 0) return null;
+      if (yields(n.id, Math.sign(d))) { pushDebug({ turn: s.meta.turn, kind: 'rejected', source, path: 'attitudeChanges', reason: `the engine counted ${yieldWhy(n.id)} for ${n.id}: ${plusMinus(d)} dropped` }); return null; }
       const used = ledger.attitude[n.id] || 0;
       const allowedDelta = clamp(used + d, -LIMITS.attitudePerTurn, LIMITS.attitudePerTurn) - used;
       if (allowedDelta === 0) bad(`${n.id} attitude already moved ${LIMITS.attitudePerTurn} this turn`);
@@ -10836,9 +11071,11 @@ const State = (() => {
       const n = needNpc(m.npcId);
       const text = model ? shortMemory(m.text) : cleanText(m.text, 400);
       if (!text) bad('memory needs text');
+      if (yields(n.id)) { pushDebug({ turn: s.meta.turn, kind: 'rejected', source, path: 'newMemories', reason: `the engine counted ${yieldWhy(n.id)} for ${n.id}: "${text}" dropped` }); return null; }
       // The model's: one per person per turn, and one that says what an older one says merges into it.
       // The engine may say what kind of memory it is (wave 6: 'own', what they did to the player); the model's is the turn's.
-      return remember(n, text, clamp(toInt(m.weight) || 1, 1, 3), { model, merge: model, act: !model && MEMORY_ACTS.includes(m.act) ? m.act : actionType });
+      // Wave 27: and which event it is (event: a line the engine knows is noted, as the captured defeat's), else it is typed by its words.
+      return remember(n, text, clamp(toInt(m.weight) || 1, 1, 3), { model, merge: model, act: !model && MEMORY_ACTS.includes(m.act) ? m.act : actionType, event: !model && typeof m.event === 'string' && Rel.EVENTS[m.event] ? m.event : null });
     });
     one('goldDelta', v => {
       const d0 = toInt(v);
@@ -10856,7 +11093,7 @@ const State = (() => {
       const before = p.gold;
       p.gold = Math.min(p.gold + d, 1000000);
       if (model) ledger.gold += d;
-      if (d < 0) paid += -d;
+      if (d < 0) { paid += -d; handed += -d; }
       return `gold ${before} -> ${p.gold}` + (d !== d0 ? ` (${plusMinus(d0)} held to ${plusMinus(d)})` : '');
     });
     one('hpDelta', v => {
@@ -11055,6 +11292,8 @@ const State = (() => {
       if (f.status !== 'hurt') return EFFECTS.npcStatus({ npcId: n.id, status: f.status });
       n.hurtUntilDay = Math.max(Number.isInteger(n.hurtUntilDay) ? n.hurtUntilDay : 0, s.time.day + 2);
       s.visits = (s.visits || []).filter(v => v.npcId !== n.id);
+      // Hurt by someone else (wave 27): in need of help at home this phase and the next (Pipeline's rescued); never what the player did.
+      if (model && attacked !== n.id) { const h = homeOf(n); if (h) s.flags[`danger.${n.id}`] = `${s.time.day}|${s.time.phase}|${h.id}||${s.meta.turn}`; }
       return `${n.id} hurt: laid up at home through day ${n.hurtUntilDay - 1}, about again on day ${n.hurtUntilDay}`;
     });
     /* A memory this turn resolved: the first of the person's memories whose
@@ -11093,6 +11332,7 @@ const State = (() => {
         const give = Math.min(paid, o.amount - (o.paid | 0));
         if (give <= 0) continue;
         paid -= give;
+        settledFor.add(o.npcId);
         o.paid = (o.paid | 0) + give;
         if (o.paid >= o.amount) {
           // Paid in full: met (a missed one late; stillOwed is false once paid, so it is settled here directly).
@@ -11103,6 +11343,7 @@ const State = (() => {
       for (const o of obligations()) {
         if ((o.status === 'open' || o.status === 'missed') && o.kind === 'errand' && o.itemName && present.includes(o.npcId) && lostNames.some(nm => sameThing(nm, o.itemName))) {
           const wasMissed = o.status === 'missed';
+          settledFor.add(o.npcId);
           run(`settled.${o.id}`, () => settle(o, 'met', `handed over ${o.itemName}${wasMissed ? ', late' : ''}`, wasMissed));
         }
       }
@@ -11121,13 +11362,34 @@ const State = (() => {
         // Wave 5 (the fourth review's risk): said to everyone, only the one the roll was against (opts.asked) is refused, not everyone here.
         if (failedAsk && (asked ? asked === o.npcId : (targets.includes(o.npcId) || (present.length === 1 && present[0] === o.npcId)))) bad(`the player's ${actionType} with ${o.npcId} failed this turn: nothing with them is settled`);
       }
+      settledFor.add(o.npcId);
       return settle(o, 'met', 'in the story');
     });
+    /* Wave 27: the turn's engine events that ride the bookkeeper's apply
+       (opts.engineEvents, Pipeline's: a gift or a bribe), after the money
+       and the obligations above and before the model's events, so the
+       dedupe sees them. One marked handed counts only when money or a thing
+       actually moved this diff and none of it went toward what the player
+       owes them (that is a payment: the obligation's own event says what
+       they think); its words say what moved. */
+    if (opts && Array.isArray(opts.engineEvents)) {
+      opts.engineEvents.forEach((x, i) => run(`engineEvents[${i}]`, () => {
+        if (!isObj(x)) bad('must be an object');
+        let ev = x;
+        if (x.handed === true) {
+          if ((handed <= 0 && !lostNames.length) || settledFor.has(x.npcId)) return null;
+          const what = handed > 0 ? money(handed) : lostNames.map(nm => `${article(lowerFirst(nm))} ${lowerFirst(nm)}`).join(' and ');
+          ev = Object.assign({}, x, { text: cleanText(x.text, 200) || `gave me ${what}` });
+          delete ev.handed;
+        }
+        return socialEvent(ev, `engineEvents[${i}]`);
+      }));
+    }
     /* Wave 26: events for people (the engine's; the bookkeeper's from wave
        28), each as the socialEvent op takes it: after the money and the
        obligations above (an engine event sees what this diff paid) and
        before the effects. */
-    each('socialEvents', e => socialEvent(e, 'socialEvents'));
+    each('socialEvents', e => socialEvent(e, 'socialEvents', model));
 
     // 3. Effect ops
     each('effects', runEffect);
@@ -11213,6 +11475,9 @@ const State = (() => {
         if (!Number.isInteger(f.day) || !PHASES.includes(f.phase)) bad('needs day and phase');
         const l = needLoc(f.locationId);
         s.fight = { npcId: n.id, hits, day: f.day, phase: f.phase, locationId: l.id, turn: Number.isInteger(f.turn) ? f.turn : s.meta.turn };
+        // Wave 27: the fight's key (its one memory) and the town reputation it has cost so far (the heaviest blow's, once).
+        if (typeof f.key === 'string' && /^[a-z0-9_-]{1,60}$/i.test(f.key)) s.fight.key = f.key;
+        if (Number.isInteger(f.rep) && f.rep <= 0 && f.rep >= -10) s.fight.rep = f.rep;
         return `fight with ${n.id}: ${hits} hit${hits === 1 ? '' : 's'}`;
       });
     }
@@ -11700,27 +11965,137 @@ const State = (() => {
     });
     if (Array.isArray(relSets)) relSets.forEach((x, i) => relSetOne(`relSet[${i}]`, x));
     else if (relSets !== undefined) relSetOne('relSet', relSets);
-    /* Wave 26: the morning (World step g, every morning): for everyone, a
-       direct write to attitude folded in, then liking two a day back
-       toward the town's own number, exactly as the old drift did (not for
-       the dead, someone tied by an open loose end, or someone with a
-       weight-3 memory from the last five days: Rel.driftStep), then every
-       track recomputed for the new day. result.drifted counts who moved. */
+    /* The morning (World step g, every morning): for everyone, a direct
+       write to attitude folded in, then (wave 27: fading replaces the old
+       drift) the everyday bucket's liking and trust two a day back toward
+       0 for someone the player did not see on the day just ended and no
+       open loose end ties (Rel.driftStep), then every track recomputed for
+       the new day (memories fade by their age). result.drifted counts the
+       people whose everyday bucket moved. */
     one('relDay', v => {
       if (!Number.isInteger(v) || v < 1) bad('must be a day number');
       let moved = 0;
       for (const n of s.npcs) {
         if (!isObj(n)) continue;
         relWrite(n);
-        const step = Rel.driftStep(n, v, s, town || TOWN_DATA);
-        if (!step) continue;
-        n.rel = Rel.landTo(n, { w: n.attitude + step }, 'everyday', relCtx());
+        const step = Rel.driftStep(n, v, s);
+        if (step) {
+          n.rel.everyday.w = (Number(n.rel.everyday.w) || 0) + step.w;
+          n.rel.everyday.t = (Number(n.rel.everyday.t) || 0) + step.t;
+          moved += 1;
+        }
         relWrite(n);
-        moved += 1;
       }
       result.drifted = moved;
       return moved ? `attitudes drift for ${moved} people` : null;
     });
+    /* Wave 27: time spent with people. { aimed: [ids], quiet: [ids] }
+       (Pipeline, after the bookkeeper's apply or on its own when it
+       failed): each the turn's words or social action were aimed at, here,
+       learns the player a little (knows +1 a turn, at most
+       Rel.CAPS.kPerDayAimed a day), and the phase is marked as one spent
+       with them (rel.today.with), unless this turn already moved them
+       (quiet: an event, a liking change, an ask of theirs that failed).
+       { ended: { day, phase } } (World's tick, as a phase ends): everyone
+       that phase was spent with takes spent_time, once a day, unless the
+       player hurt them that day. */
+    one('relTurn', v => {
+      if (!isObj(v)) bad('must be an object');
+      const aimed = (Array.isArray(v.aimed) ? v.aimed : []).filter((x, i, a) => typeof x === 'string' && a.indexOf(x) === i);
+      const quiet = Array.isArray(v.quiet) ? v.quiet : [];
+      const parts = [];
+      const day = s.time.day;
+      const hurtOn = (n, d) => (n.memories || []).some(m => isObj(m) && m.day === d && !m.witness && Rel.harmful(m));
+      for (const id of aimed) {
+        const n = npc(id);
+        if (!n || presenceOf(n) === 'dead') continue;
+        relWrite(n);
+        const r = n.rel;
+        if (!isObj(r.today) || r.today.day !== day) r.today = { day, turn: s.meta.turn, ev: {} };
+        const k = r.today.kAimed | 0;
+        if (k < Rel.CAPS.kPerDayAimed) { r.today.kAimed = k + 1; r.everyday.k = clamp((Number(r.everyday.k) || 0) + 1, 0, 100); r.today.turn = s.meta.turn; parts.push(`${id} knows the player a little better`); }
+        if (!quiet.includes(id) && !hurtOn(n, day)) r.today.with = s.time.phase;
+        relWrite(n);
+      }
+      if (isObj(v.ended) && Number.isInteger(v.ended.day) && PHASES.includes(v.ended.phase)) {
+        for (const n of s.npcs) {
+          const r = isObj(n) && isObj(n.rel) ? n.rel : null;
+          if (!r || !isObj(r.today) || r.today.day !== v.ended.day || r.today.with !== v.ended.phase || presenceOf(n) === 'dead') continue;
+          delete r.today.with;
+          if ((r.today.ev && r.today.ev.spent_time) | 0 || hurtOn(n, v.ended.day)) continue;
+          parts.push(socialEvent({ npcId: n.id, event: 'spent_time', text: `spent time with ${p.name}` }, 'relTurn'));
+        }
+      }
+      return parts.length ? parts.join('; ') : null;
+    });
+    /* Wave 27: the ask log ({ npcId, act, ok, about }, or a list): what the
+       player tried on someone (a lie, a theft, a search, an attack: the
+       parse's), kept on their rel.asks (Rel.CAPS.asks, turn-stamped, so
+       /rewind strikes it) for the bookkeeper's preconditions (wave 28). A
+       clean theft nobody saw is only this. */
+    const ASK_ACTS = ['deceive', 'steal', 'search', 'attack', 'sneak'];
+    const asks = val('relAsk');
+    const askOne = (path, x) => run(path, () => {
+      if (!isObj(x)) bad('must be an object');
+      const n = needNpc(x.npcId);
+      if (!ASK_ACTS.includes(x.act)) bad(`act must be one of ${ASK_ACTS.join(', ')}`);
+      if (typeof x.ok !== 'boolean') bad('ok must be true or false');
+      relWrite(n);
+      const entry = { turn: s.meta.turn, day: s.time.day, act: x.act, ok: x.ok, about: cleanText(x.about, 120) };
+      n.rel.asks = (Array.isArray(n.rel.asks) ? n.rel.asks : []).concat([entry]).slice(-Rel.CAPS.asks);
+      return `${n.id} asks: ${x.act} ${x.ok ? 'worked' : 'failed'}${entry.about ? ` (${entry.about})` : ''}`;
+    });
+    if (Array.isArray(asks)) asks.forEach((x, i) => askOne(`relAsk[${i}]`, x));
+    else if (asks !== undefined) askOne('relAsk', asks);
+    /* Wave 27: a grudge come due (World's fire): { npcId, key | mark, by:
+       'got_even' }. The memory it grew from (its key, or the feeling's mark
+       World.feelingMark) is softened by getting even (Rel.SETTLE.got_even:
+       0.4 of its liking, turn-stamped); a line that moves nothing, or one
+       no longer held, gives today's +10 into everyday instead. */
+    one('relSettle', v => {
+      if (!isObj(v)) bad('must be an object');
+      const n = needNpc(v.npcId);
+      if (v.by !== 'got_even') bad('by must be got_even');
+      if (presenceOf(n) === 'dead') return `no-op: ${n.id} is dead`;
+      const list = Array.isArray(n.memories) ? n.memories : [];
+      const i = list.findIndex(m => isObj(m) && ((typeof v.key === 'string' && v.key && m.key === v.key) || (typeof v.mark === 'string' && v.mark && World.feelingMark(m) === v.mark)));
+      relWrite(n);
+      if (i >= 0 && isObj(list[i].d)) {
+        const r = Rel.settle(n, i, 'got_even', relCtx());
+        if (r.ok) {
+          const before = n.attitude;
+          n.memories = r.memories;
+          relWrite(n);
+          return `${n.id} got even: lets some of "${r.text}" go (${before} -> ${n.attitude})`;
+        }
+      }
+      const [before, after] = likingBy(n, World.GOT_EVEN);
+      return `${n.id} got even: ${before} -> ${after}`;
+    });
+    /* Wave 27: where someone stood before the player came (rel.start; it
+       never fades): { npcId, w?, t? (added), k? (at least), owed? (+1:
+       they owe the player one, -1: the player owes them), why? }, or a
+       list. A loose end tied at character creation (Town) and a story
+       point's fact (/fact) write it. */
+    const starts = val('relStart');
+    const startOne = (path, x) => run(path, () => {
+      if (!isObj(x)) bad('must be an object');
+      const n = needNpc(x.npcId);
+      for (const k of ['w', 't', 'k']) if (x[k] !== undefined && !(Number.isInteger(x[k]) && Math.abs(x[k]) <= 100)) bad(`${k} must be a whole number within +/-100`);
+      if (x.owed !== undefined && x.owed !== 1 && x.owed !== -1) bad('owed must be 1 or -1');
+      relWrite(n);
+      const before = relNow(n);
+      const st0 = n.rel.start;
+      if (x.w) st0.w = clamp((Number(st0.w) || 0) + x.w, -100, 100);
+      if (x.t) st0.t = clamp((Number(st0.t) || 0) + x.t, -100, 100);
+      if (Number.isInteger(x.k)) st0.k = Math.max(Number(st0.k) || 0, clamp(x.k, 0, 100));
+      if (x.owed) n.rel.owed = (Array.isArray(n.rel.owed) ? n.rel.owed : []).concat([{ dir: x.owed, size: 1, key: `start-${n.id}`, day: s.time.day, turn: s.meta.turn, why: cleanText(x.why, 120) }]).slice(-Rel.CAPS.owedEntries);
+      relWrite(n);
+      const moved = relChanges(before, relNow(n));
+      return `${n.id} as they were: ${moved.join(', ') || 'no change'}${x.owed ? `; owed ${plusMinus(x.owed)}` : ''}`;
+    });
+    if (Array.isArray(starts)) starts.forEach((x, i) => startOne(`relStart[${i}]`, x));
+    else if (starts !== undefined) startOne('relStart', starts);
     /* A person's record corrected to match the story (Upgrade version 5;
        the People card's pronoun chips and /pronouns). Everything is checked
        before anything changes; the id and memories stay. New pronouns turn
@@ -12480,12 +12855,22 @@ const State = (() => {
     if (!current || !isObj(x) || !x.eventId) return false;
     return (Array.isArray(current.dueEvents) ? current.dueEvents : []).some(d => d.eventId === x.eventId && !(isObj((seed(d.seedId) || {}).trigger) && seed(d.seedId).trigger.type === 'location'));
   }
+  /* Wave 27 (design section 2.8): the "feared" tier, for the town: 3 or
+     more people in town (alive, free, here) at fear 20 or more. */
+  const FEARED_PEOPLE = 3;
+  const FEARED_AT = 20;
+  function feared() {
+    if (!current) return false;
+    return current.npcs.filter(n => isObj(n) && n.alive !== false && n.status === 'free' && presenceOf(n) === 'here' && (n.presence === undefined || n.presence === 'here') && isObj(n.rel) && (Number(n.rel.f) || 0) >= FEARED_AT).length >= FEARED_PEOPLE;
+  }
   function reputationTier(key) {
     if (!current) return 'unknown';
     const v = current.player.reputation[key || 'town'] || 0;
+    // Wave 27: despised first, then feared (the town only), then the rest as before.
+    if (v <= -50) return 'despised';
+    if ((key || 'town') === 'town' && feared()) return 'feared';
     if (v >= 50) return 'respected';
     if (v >= 20) return 'known';
-    if (v <= -50) return 'despised';
     if (v <= -20) return 'disliked';
     if (Math.abs(v) >= 5) return 'noticed';
     return 'unknown';
@@ -12562,7 +12947,19 @@ const State = (() => {
    socialEvent, relSet, relDay, editPerson, the memory writers, the load
    fill) call it and write what it returns, so State.apply stays the only
    writer. In wave 26 nothing reads the stance but Debug and the tests:
-   every number the game shows or stores is what it was before. */
+   every number the game shows or stores is what it was before.
+
+   Wave 27 (A2, "what the engine sees, people remember for what it was"):
+   the engine's own events are typed (a fight is one memory, the third hit
+   a beat-down that replaces it; a threat, a theft, a gift, an obligation
+   kept or broken, a rescue, a cheat caught, the card seats), the people
+   who saw it get a lighter copy for the scene (witnessEvent), the morning
+   drifts only the everyday bucket on days the player did not see them
+   (driftStep), and the gates read the tracks: the dice (rollMod), fear's
+   no-roll compliance (complies), rescue on a defeat, the grudge, the
+   report to whoever looks out for them (protectorOf, policeHead,
+   reportWhy) and the shop that won't sell (wontSell). Every new draw is
+   rng's own stream. */
 const Rel = (() => {
   function deepFreeze(v) {
     if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) deepFreeze(v[k]); }
@@ -12838,24 +13235,28 @@ const Rel = (() => {
     hit: { w: -5, t: -5, f: 8 }, shoved: { w: -3, f: 3 }, beat_down: { w: -8, t: -6, f: 12 }, threatened: { w: -3, f: 5 }, insulted: { w: -2 }, humiliated: { w: -2 },
     defended: { w: 5, t: 5 }, rescued: { w: 5, t: 5 }, kept_word: { t: 3 }, cheated: { t: -10 }, lied_caught: { t: -5 }
   });
-  // Their words for it, from the event and the place, never the victim's (design section 5.4; wave 27).
+  /* Their words for it, from the event and the place, never the victim's
+     (design section 5.4; wave 27). {player} is the player's name, as every
+     memory names them (the People card says "you"). */
   const SECONDHAND_TEXT = deepFreeze({
-    seen: { hit: 'saw you hit {victim} at {place}', shoved: 'saw you shove {victim} at {place}', beat_down: 'saw you put {victim} down at {place}', threatened: 'saw you lean on {victim} at {place}',
-      insulted: 'heard you run {victim} down at {place}', humiliated: 'saw you shame {victim} at {place}', defended: 'saw you stand up for {victim} at {place}', rescued: 'saw you help {victim} at {place}',
-      kept_word: 'saw you keep your word to {victim}', cheated: 'saw you caught cheating {victim} at {place}', lied_caught: 'saw you caught lying to {victim}' },
-    heard: { hit: 'heard you hit {victim} at {place}', beat_down: 'heard you put {victim} down at {place}', humiliated: 'heard you shamed {victim} at {place}', threatened: 'heard you leaned on {victim} at {place}' }
+    seen: { hit: 'saw {player} hit {victim} at {place}', shoved: 'saw {player} shove {victim} at {place}', beat_down: 'saw {player} put {victim} down at {place}', threatened: 'saw {player} lean on {victim} at {place}',
+      insulted: 'heard {player} run {victim} down at {place}', humiliated: 'saw {player} shame {victim} at {place}', defended: 'saw {player} stand up for {victim} at {place}', rescued: 'saw {player} help {victim} at {place}',
+      kept_word: 'saw {player} keep their word to {victim}', cheated: 'saw {victim} catch {player} cheating at {place}', lied_caught: 'saw {player} caught lying to {victim}' },
+    heard: { hit: 'heard {player} hit {victim} at {place}', beat_down: 'heard {player} put {victim} down at {place}', humiliated: 'heard {player} shamed {victim} at {place}', threatened: 'heard {player} leaned on {victim} at {place}' }
   });
   // How much a leverage record weighs (wave 29): the informant loose end's options, what the player was caught at, a secret's default.
   const LEVERAGE_WEIGHT = deepFreeze({ looseEnd: [2, 2, 3], caught: { steal: 2, deceive: 2, attack: 3, sneak: 1, search: 1 }, secret: 2 });
   /* Every threshold the plan's gates read, as data (integration plan
-     section 9.3), with the wave each lands in. Nothing reads them in wave
-     26: the gates still read attitude where they always did. */
+     section 9.3), with the wave each lands in. Wave 27's are read now
+     (rollMod, complies, the rescue on a defeat, the grudge and the report
+     in World's step e, wontSell); the others still read attitude where
+     they always did until their wave. */
   const GATES = deepFreeze({
-    social: { wave: 27, liking: [[30, 1], [60, 2]] },
+    social: { wave: 27, liking: [[30, 1], [60, 2]], actions: ['persuade', 'talk', 'buy', 'sell', 'give'] },
     intimidate: { wave: 27, fear: [[20, 1], [40, 2]], likedAt: 40, liked: -1 },
     deceive: { wave: 28, trust: [[40, 2]], distrust: [[-25, -1], [-50, -2]] },
     floors: { wave: 28, ask: 'hard', lie: [[-25, 'hard'], [-50, 'very_hard']], intimidateHard: 'hard' },
-    compliance: { wave: 27, fear: 40 },
+    compliance: { wave: 27, fear: 40, actions: ['talk', 'persuade'], difficulties: ['easy', 'normal'] },
     secret: { wave: 28, trust: 40, knows: 30, fear: 60 },
     couch: { wave: 28, liking: 25, trust: 0, owedLiking: -25 },
     rescue: { wave: 27, liking: 25, owed: 1 },
@@ -12864,8 +13265,8 @@ const Rel = (() => {
     rumour: { wave: 28, liking: -25, trust: -25 },
     grudge: { wave: 27, liking: -60, trust: -60 },
     favour: { wave: 28, liking: 50, trust: 20, owed: 2, owedLiking: -25, cashLiking: 25, cashTrust: 0 },
-    report: { wave: 27, fear: 40, violenceLiking: 0 },
-    wontSell: { wave: 27, days: 3, markup: 1.25 },
+    report: { wave: 27, fear: 40, violenceLiking: 0, days: [1, 2] },
+    wontSell: { wave: 27, days: 3, essentialDays: 1, markup: 1.25, liking: -25, roles: ['manager', 'owner', 'merchant', 'bartender', 'cashier'] },
     needs: { wave: 28, alibi: 40, ramp: 30, photo: 30 },
     council: { wave: 30, royce: { trust: 30, knows: 25 }, friendly: { liking: 15 }, bought: { trust: 20 } },
     epilogue: { wave: 30, loretta: { liking: 40 } }
@@ -13307,6 +13708,37 @@ const Rel = (() => {
      move for, knows-you at least CAPS.kMin), then the memory (or everyday),
      what it settles, the owed ledger and the counters. Returns { rel,
      memories, d, memory, merged, settled, refused, used }. */
+  // A fight's blows, lightest first; a second blow of the same weight raises the fight's memory by this much (design section 3.1).
+  const FIGHT_RANK = Object.freeze({ shoved: 1, hit: 2, beat_down: 3 });
+  const FIGHT_RAISE = 1.4;
+  /* The same blow again in one fight (applyEvent's ev.fight): its memory's
+     part on liking, trust and fear raised to FIGHT_RAISE times (within the
+     turn's bounds and a hard person's fear), its words the newest, knowing
+     +CAPS.kMin; a lighter blow than the memory holds raises nothing. */
+  function raiseFight(n, rel, mems, at, ev, ctx, now, ax, count) {
+    const m = mems[at];
+    const same = m.event === ev.event;
+    const used = Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {});
+    const d = { w: 0, t: 0, f: 0, k: CAPS.kMin, s: 0 };
+    if (same) {
+      for (const x of ['w', 't', 'f']) {
+        const v = rnd(num(m.d[x]) * (FIGHT_RAISE - 1));
+        const cap = CAPS.turn[x];
+        d[x] = clamp(used[x] + v, -cap, cap) - used[x];
+        used[x] += d[x];
+      }
+      if (ax.hard && d.f > 0) { const room = Math.max(0, CAPS.hardFear - now.f); used.f -= d.f - Math.min(d.f, room); d.f = Math.min(d.f, room); }
+      m.d = { w: two(num(m.d.w) + d.w), t: two(num(m.d.t) + d.t), f: two(num(m.d.f) + d.f), k: num(m.d.k) + d.k, s: num(m.d.s) };
+      m.n = (num(m.n) || 1) + 1;
+      m.turn = ctx.turn;
+      m.day = ctx.day;
+      const text = cleanText(ev.text, 400);
+      if (text) m.text = text;
+    } else m.d = Object.assign({}, m.d, { k: num(m.d.k) + d.k });
+    rel.today.ev[ev.event] = count + 1;
+    rel.recent = list(rel.recent).concat([{ ev: ev.event, day: ctx.day, at: ctx.place || null, turn: ctx.turn }]).slice(-CAPS.recent);
+    return { rel, memories: mems, d, memory: m, merged: true, raised: same, settled: null, refused: [], used, weight: m.weight };
+  }
   function applyEvent(n, ev, ctx) {
     ctx = context(ctx);
     const row = EVENTS[ev.event];
@@ -13315,13 +13747,30 @@ const Rel = (() => {
     const turn = ctx.turn;
     const rel = copyRel(repair(n, townRecord(n.id, ctx)));
     const mems = deepCopy(list(n.memories));
-    const now = recompute(Object.assign({}, n, { rel }), day, ctx);
+    let now = recompute(Object.assign({}, n, { rel }), day, ctx);
     const ax = axesOf(n, ctx);
     const open = eligible(n, ctx);
     const refused = [];
     if (!isObj(rel.today) || rel.today.day !== day) rel.today = { day, turn, ev: {} };
     rel.today.turn = turn;
     const count = num(rel.today.ev[ev.event]);
+    /* One fight, one memory (wave 27): ev.fight keys a fight's memory. A
+       beat-down replaces every memory of its fight; a heavier blow than the
+       memory holds (a hit after a shove) replaces it; the same again raises
+       it x FIGHT_RAISE (a second hit), and a lighter one only teaches
+       knowing. */
+    const fightKey = typeof ev.fight === 'string' && ev.fight ? ev.fight : null;
+    if (fightKey && FIGHT_RANK[ev.event]) {
+      if (ev.event === 'beat_down') { for (let j = mems.length - 1; j >= 0; j--) if (mems[j].fight === fightKey) mems.splice(j, 1); }
+      else {
+        const at = mems.findIndex(m => m.fight === fightKey && isObj(m.d));
+        const was = at >= 0 ? FIGHT_RANK[mems[at].event] || 0 : 0;
+        if (at >= 0 && FIGHT_RANK[ev.event] > was) mems.splice(at, 1);
+        else if (at >= 0) return raiseFight(n, rel, mems, at, ev, ctx, now, ax, count);
+      }
+      // Where they stand without what it replaced (a hard person's fear room is read from this).
+      now = recompute(Object.assign({}, n, { rel, memories: mems }), day, ctx);
+    }
     // The row, or what the reduced days give.
     const base = { w: row.w, t: row.t, f: row.f, k: row.k, s: row.s };
     const across = CAPS.acrossDays[ev.event];
@@ -13343,7 +13792,7 @@ const Rel = (() => {
     const harm = d.w + d.t < 0 || (d.w + d.t === 0 && d.f > 0);
     let mergeAt = -1;
     if (harm && row.weight > 0) {
-      for (let j = mems.length - 1; j >= 0; j--) if (mems[j].event === ev.event && isObj(mems[j].d) && day - dayOf(mems[j], ctx, day) <= CAPS.mergeDays) { mergeAt = j; break; }
+      for (let j = mems.length - 1; j >= 0; j--) if (mems[j].event === ev.event && isObj(mems[j].d) && !mems[j].witness && day - dayOf(mems[j], ctx, day) <= CAPS.mergeDays) { mergeAt = j; break; }
       if (mergeAt >= 0) { const c = CAPS.compound[Math.min(num(mems[mergeAt].n) || 1, CAPS.compound.length - 1)]; d.w *= c; d.t *= c; d.f *= c; }
     } else if (!harm && (d.w > 0 || d.t > 0 || d.s > 0)) {
       // Knows-you too, down to CAPS.kMin: a second time together the same day teaches 2, not 4.
@@ -13378,6 +13827,7 @@ const Rel = (() => {
         for (const x of TRACKS) nd[x] = x === 'k' ? num(old.d.k) + d.k : two(q[x] + d[x]);
         memory = Object.assign(old, { turn, day, text, weight: Math.min(3, Math.max(weight, num(old.weight)) + 1), d: nd, n: (num(old.n) || 1) + 1 });
         if (Array.isArray(memory.settled)) memory.settled = memory.settled.map(e => Object.assign({}, e, { folded: true }));
+        if (fightKey) memory.fight = fightKey;
         merged = true;
       } else {
         memory = { turn, day, text, weight, event: ev.event, d: { w: d.w, t: d.t, f: d.f, k: d.k, s: d.s }, decay: typeof ev.decay === 'string' && DECAY[ev.decay] ? ev.decay : row.decay, key: `m${turn}-${n.id}`, n: 1 };
@@ -13386,12 +13836,15 @@ const Rel = (() => {
         if (typeof ev.aboutId === 'string' && ev.aboutId) memory.about = ev.aboutId;
         if (typeof ev.leverageId === 'string' && ev.leverageId) memory.leverageId = ev.leverageId;
         if (ev.private === true) memory.private = true;
+        // A secondhand memory (wave 27: a report's, a grudge's third party): true, or { via, hidden } when it came through a tie the town does not know.
         if (ev.secondhand === true) memory.secondhand = true;
+        else if (isObj(ev.secondhand)) memory.secondhand = Object.assign({}, typeof ev.secondhand.via === 'string' ? { via: ev.secondhand.via } : {}, ev.secondhand.hidden === true ? { hidden: true } : {});
+        if (fightKey) memory.fight = fightKey;
       }
-      // As remember() does for every new memory: weight-1 lines older than CAPS.staleTurns go, then past CAPS.memories the lightest, oldest first.
+      // As remember() does for every new memory: weight-1 lines older than CAPS.staleTurns go, then past CAPS.memories by evictIndex (wave 27: copies first, then the shortest-lived).
       const kept = mems.filter(x => x.weight > 1 || turn - x.turn <= CAPS.staleTurns);
       kept.push(memory);
-      while (kept.length > CAPS.memories) { const minW = Math.min(...kept.map(x => x.weight)); kept.splice(kept.findIndex(x => x.weight === minW), 1); }
+      while (kept.length > CAPS.memories) kept.splice(evictIndex(kept), 1);
       // What a typed one that went still carried stays, pinned into everyday below.
       evicted = mems.concat([memory]).filter(x => !kept.includes(x) && isObj(x.d));
       mems.length = 0;
@@ -13438,27 +13891,274 @@ const Rel = (() => {
     for (const m of mems) zero(m.d);
     return cleared ? { rel, memories: mems, cleared } : { rel: n.rel, memories: n.memories, cleared };
   }
-  /* The morning's step for one person in wave 26 (State's relDay): the old
-     drift exactly, two a day back toward the town's own number (the save's
-     town copy, else 0, which is start.w for anyone made since), except for
-     the dead, for someone tied by an open loose end and for someone with a
-     weight-3 memory from the last CAPS.quietDays days. Wave 27 moves it to
-     the everyday bucket alone. */
-  function heldHard(n, day, s) {
-    return list(n.memories).some(m => {
-      if (m.weight < 3) return false;
-      const d = memoryDay(m, s);
-      return d !== null && d > day - CAPS.quietDays;
-    });
+  /* The morning's step for one person (State's relDay, the morning of day):
+     wave 27 (A2), fading replaces the old drift. Memories fade by their
+     class on their own (recompute reads their age); what drifts is only the
+     everyday bucket, liking and trust each CAPS.everydayDrift back toward
+     0, and only when the player did not see them on the day just ended
+     (state.seen[id].day) and no open loose end ties them. fix (the editor,
+     relSet, a direct write) and knows-you never drift. Returns { w, t }
+     (the steps, signed) or null. */
+  function driftStep(n, day, s) {
+    if (!isObj(n) || n.alive === false || n.status === 'dead' || !isObj(n.rel) || !isObj(n.rel.everyday)) return null;
+    if (tiedByLooseEnd(n, s)) return null;
+    const seen = s && isObj(s.seen) && isObj(s.seen[n.id]) ? s.seen[n.id] : null;
+    if (seen && Number.isInteger(seen.day) && seen.day >= day - 1) return null;
+    const step = v => { const x = num(v); return x ? -Math.sign(x) * Math.min(CAPS.everydayDrift, Math.abs(x)) : 0; };
+    const out = { w: step(n.rel.everyday.w), t: step(n.rel.everyday.t) };
+    return out.w || out.t ? out : null;
   }
-  function driftStep(n, day, s, town) {
-    if (!isObj(n) || n.alive === false || n.status === 'dead') return 0;
-    const t = town || TOWN_DATA;
-    const rec = (t && Array.isArray(t.npcs) ? t.npcs : []).find(x => isObj(x) && x.id === n.id);
-    const b = rec && Number.isInteger(rec.attitude) ? clamp(rec.attitude, -100, 100) : 0;
-    if (n.attitude === b || tiedByLooseEnd(n, s) || heldHard(n, day, s)) return 0;
-    const gap = b - n.attitude;
-    return Math.sign(gap) * Math.min(CAPS.everydayDrift, Math.abs(gap));
+
+  // ----- wave 27: the engine's events, who saw them, and the gates -----
+  /* Where a memory stands when one has to go (the 12-memory cap, design
+     section 5.1 and the integration plan's 9.2): witness and secondhand
+     copies first, then by how long it lasts (mood, slight, wound, scar; a
+     line that moves nothing by its weight: 1 slight, 2 a wound, 3 a scar, so
+     a serious old line outlasts a passing one), kind before harm, oldest
+     first. Never a loose end's line or a fact, nor the newest CAPS.noted
+     noted lines. Returns the index to drop, or -1. */
+  const EVICT_RANK = Object.freeze({ mood: 1, slight: 2, wound: 3, scar: 4, keeps: 5 });
+  function evictIndex(mems) {
+    const noted = mems.map((m, i) => (isObj(m) && m.event === 'noted' && isObj(m.d) ? i : -1)).filter(i => i >= 0).slice(-CAPS.noted);
+    const rank = (m, i) => {
+      if (!isObj(m)) return [-1, 0, 0];
+      const light = m.witness || m.secondhand ? 0 : 1;
+      const cls = isObj(m.d) ? EVICT_RANK[classOf(m)] || 3 : [0, 2, 3, 4][clamp(toInt(m.weight) || 1, 1, 3)];
+      return [light, cls, harmful(m) ? 1 : 0, i];
+    };
+    let best = -1;
+    let key = null;
+    mems.forEach((m, i) => {
+      if (State.protectedMemory(m) || noted.includes(i)) return;
+      const k = rank(m, i);
+      if (!key || k[0] < key[0] || (k[0] === key[0] && (k[1] < key[1] || (k[1] === key[1] && (k[2] < key[2] || (k[2] === key[2] && k[3] < key[3])))))) { key = k; best = i; }
+    });
+    if (best < 0 && mems.length) { const minW = Math.min(...mems.map(m => num(m && m.weight))); best = mems.findIndex(m => num(m && m.weight) === minW); }
+    return best;
+  }
+  /* What an onlooker takes from something they saw the player do (the
+     witness row, design section 4.3): WITNESS's row as the person takes it
+     (guardedness on trust, nerve on fear, a hard person's fear held at
+     CAPS.hardFear, the turn's bounds), as one copy a scene: a second thing
+     seen in the same scene (ev.scene: place, day and phase) adds to the
+     copy already there. A first sight under 2 on every track is nothing;
+     2 to 4 goes into everyday (liking and trust; the fear of it passes
+     with the scene); 5 or more is the copy: a memory one class lighter than
+     the event with no floor (fade reads witness), weight 2 for a hit or a
+     beating seen, else 1, in SECONDHAND_TEXT's words. ev: { event, victim
+     (their name), victimId, place (its name), scene, player (the player's
+     name) }. Returns { rel, memories, d, memory, merged, kind ('memory',
+     'everyday' or 'none'), used } or null. */
+  function witnessEvent(n, ev, ctx) {
+    ctx = context(ctx);
+    const row = WITNESS[ev.event];
+    if (!row || !EVENTS[ev.event]) return null;
+    const rel = copyRel(repair(n, townRecord(n.id, ctx)));
+    const mems = deepCopy(list(n.memories));
+    const now = recompute(Object.assign({}, n, { rel }), ctx.day, ctx);
+    const ax = axesOf(n, ctx);
+    const d = { w: num(row.w), t: num(row.t), f: num(row.f) };
+    d.t *= d.t > 0 ? 1 + AXIS_EFFECTS.guarded.gain * ax.g : 1 + AXIS_EFFECTS.guarded.loss * ax.g;
+    if (d.f > 0) d.f *= 1 + AXIS_EFFECTS.nerve.fear * ax.n;
+    const used = Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {});
+    for (const x of ['w', 't', 'f']) { const v = rnd(d[x]); const cap = CAPS.turn[x]; d[x] = clamp(used[x] + v, -cap, cap) - used[x]; used[x] += d[x]; }
+    if (ax.hard && d.f > 0) { const room = Math.max(0, CAPS.hardFear - now.f); used.f -= d.f - Math.min(d.f, room); d.f = Math.min(d.f, room); }
+    const at = typeof ev.scene === 'string' ? mems.findIndex(m => isObj(m) && m.witness === true && m.scene === ev.scene && isObj(m.d)) : -1;
+    const size = Math.max(Math.abs(d.w), Math.abs(d.t), Math.abs(d.f));
+    const text = cleanText(fillTemplate(SECONDHAND_TEXT.seen[ev.event] || 'saw {player} with {victim} at {place}', { player: ev.player || 'the stranger', victim: ev.victim || 'someone', place: ev.place || 'town' }), 200);
+    const heavy = ev.event === 'hit' || ev.event === 'beat_down';
+    if (at >= 0) {
+      const m = mems[at];
+      m.d = { w: two(num(m.d.w) + d.w), t: two(num(m.d.t) + d.t), f: two(num(m.d.f) + d.f), k: num(m.d.k), s: num(m.d.s) };
+      m.n = (num(m.n) || 1) + 1;
+      // The heavier thing seen names the copy.
+      if (heavy || !EVENTS[m.event] || (EVENTS[ev.event].weight > EVENTS[m.event].weight)) { m.event = ev.event; m.decay = EVENTS[ev.event].decay; m.text = text; }
+      m.weight = Math.max(num(m.weight), heavy ? 2 : 1);
+      m.turn = ctx.turn;
+      return { rel, memories: mems, d, memory: m, merged: true, kind: 'memory', used };
+    }
+    if (size < 2) return { rel, memories: mems, d: { w: 0, t: 0, f: 0 }, memory: null, merged: false, kind: 'none', used: Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {}) };
+    if (size < 5) {
+      putEverydayHeld(rel, 'w', d.w);
+      putEverydayHeld(rel, 't', d.t);
+      return { rel, memories: mems, d: { w: d.w, t: d.t, f: 0 }, memory: null, merged: false, kind: 'everyday', used };
+    }
+    const memory = { turn: ctx.turn, day: ctx.day, text, weight: heavy ? 2 : 1, event: ev.event, d: { w: d.w, t: d.t, f: d.f, k: 0, s: 0 }, decay: EVENTS[ev.event].decay, key: `m${ctx.turn}-${n.id}-w`, n: 1, witness: true };
+    if (typeof ev.scene === 'string') memory.scene = ev.scene;
+    if (ctx.place) memory.place = ctx.place;
+    if (typeof ev.victimId === 'string') memory.about = ev.victimId;
+    const kept = mems.filter(x => x.weight > 1 || ctx.turn - x.turn <= CAPS.staleTurns);
+    kept.push(memory);
+    while (kept.length > CAPS.memories) kept.splice(evictIndex(kept), 1);
+    const evicted = mems.filter(x => !kept.includes(x) && isObj(x.d));
+    let out = rel;
+    if (evicted.length) out = landTo(Object.assign({}, n, { rel, memories: kept }), pinOf(recompute(Object.assign({}, n, { rel, memories: kept.concat(evicted) }), ctx.day, ctx), eligible(n, ctx)), 'everyday', ctx);
+    return { rel: out, memories: kept, d, memory, merged: false, kind: 'memory', used };
+  }
+  /* Whether a memory can grow a grudge (World's step e, design section
+     6.2): a line that moves nothing (an older save's, the bookkeeper's
+     legacy line) by today's rule (not what they did to the player); a typed
+     one only for a harm still unsettled, or settled the same day it was made
+     (an apology on the spot does not stop a weight-3 harm growing); never a
+     witness or secondhand copy, a loose end's line or a fact. */
+  function grudgeFit(m) {
+    if (!isObj(m) || m.act === 'own' || m.witness || m.secondhand || State.protectedMemory(m)) return false;
+    if (!isObj(m.d)) return true;
+    if (!harmful(m)) return false;
+    const day = Number.isInteger(m.day) ? m.day : null;
+    return settlements(m).every(e => e.by !== 'got_even' && day !== null && e.day === day);
+  }
+  /* The police head (design Appendix F): the town's policeHead (the save's
+     town copy, else the built-in town's), else the first police person
+     whose role says chief; free, in town and not laid up. An id or null. */
+  function policeHead(ctx) {
+    ctx = context(ctx);
+    const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
+    const named = ctx.town && typeof ctx.town.policeHead === 'string' ? ctx.town.policeHead : builtIn(ctx) && typeof TOWN_DATA.policeHead === 'string' ? TOWN_DATA.policeHead : null;
+    const police = x => isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || '')));
+    const head = (named && npcs.find(x => isObj(x) && x.id === named)) || npcs.find(x => police(x) && /\bchief\b/i.test(String(x.role || '')));
+    return head && available(head, ctx) ? head.id : null;
+  }
+  // Someone who can hear about it: alive, free, in town, not laid up.
+  function available(x, ctx) {
+    if (!isObj(x) || x.alive === false || x.status !== 'free' || (x.presence !== undefined && x.presence !== 'here')) return false;
+    return !(ctx.s === State.current && State.laidUp(x));
+  }
+  const GUARDIAN_WORDS = /^(father|mother|parent|dad|mom|grandfather|grandmother|grandparent|grandpa|grandma|stepfather|stepmother|guardian)$/i;
+  const WARD_WORDS = /^(son|daughter|child|grandson|granddaughter|grandchild|stepson|stepdaughter|ward)$/i;
+  const BOSS_WORDS = /^(boss|employer|foreman|manager)$/i;
+  /* Who someone goes to when the player has frightened or hurt them
+     (design section 4.6 and Appendix F): content's protector on the
+     person (the record, the save's town copy or the built-in town's: an
+     id, a list, "nobody", or { npcId, hidden: true } for a tie the town
+     does not know about), else a minor's parents or grandparents in town
+     and the police head, else a boss, else the police head. Someone who
+     cannot hear it (arrested, gone, dead, laid up, out of town) is passed
+     over. Returns { ids, hidden } , { nobody: true } (a faction head, a
+     loner: a grudge instead) or null (nobody to tell today). */
+  function protectorOf(n, ctx) {
+    ctx = context(ctx);
+    if (!isObj(n)) return null;
+    const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
+    const byId = id => npcs.find(x => isObj(x) && x.id === id) || null;
+    const ok = id => id !== n.id && available(byId(id), ctx);
+    const rec = townRecord(n.id, ctx);
+    const live = builtIn(ctx) ? (TOWN_DATA.npcs.find(x => x.id === n.id) || null) : null;
+    const own = [n, rec, live].find(x => isObj(x) && x.protector !== undefined && x.protector !== null);
+    const p = own ? own.protector : undefined;
+    if (p === 'nobody') return { nobody: true };
+    if (p !== undefined) {
+      const items = (Array.isArray(p) ? p : [p]).map(x => (typeof x === 'string' ? { npcId: x } : isObj(x) ? x : null)).filter(x => x && typeof x.npcId === 'string');
+      const ids = items.map(x => x.npcId).filter(ok);
+      if (ids.length) return { ids, hidden: items.some(x => x.hidden === true && ids.includes(x.npcId)) };
+    }
+    const kin = [];
+    for (const r of list(n.relations)) if (typeof r.npcId === 'string') kin.push({ id: r.npcId, word: String(r.relation || '') });
+    for (const x of npcs) for (const r of list(isObj(x) ? x.relations : null)) if (r.npcId === n.id) kin.push({ id: x.id, word: String(r.relation || ''), back: true });
+    const head = policeHead(ctx);
+    if (isMinor(n, ctx)) {
+      const guardians = kin.filter(k => (k.back ? WARD_WORDS : GUARDIAN_WORDS).test(k.word)).map(k => k.id).filter(ok);
+      const ids = guardians.concat(head && !guardians.includes(head) && head !== n.id ? [head] : []).filter((x, i, a) => a.indexOf(x) === i);
+      if (ids.length) return { ids, hidden: false };
+    }
+    const boss = kin.filter(k => !k.back && BOSS_WORDS.test(k.word)).map(k => k.id).find(ok);
+    if (boss) return { ids: [boss], hidden: false };
+    return head && head !== n.id ? { ids: [head], hidden: false } : null;
+  }
+  // The police, by tag or role (who takes a report as the law).
+  function isPoliceNpc(x) { return isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || ''))); }
+  /* Whether someone afraid of the player means to tell (design section
+     6.2's report seed): fear at GATES.report.fear or more, and it came from
+     the player's threats (whatever their liking), or from violence with
+     liking at GATES.report.violenceLiking or less. Returns { why: 'threat'
+     | 'violence', key (the memory it grew from) } or null. A hard person's
+     fear stops at 39, so they never report out of fear. */
+  function reportWhy(n, ctx) {
+    ctx = context(ctx);
+    if (!isObj(n)) return null;
+    const c = cacheOf(n, ctx);
+    if (c.f < GATES.report.fear) return null;
+    const ax = axesOf(n, ctx);
+    const part = { threat: 0, violence: 0 };
+    const key = { threat: null, violence: null };
+    for (const m of list(n.memories)) {
+      if (!isObj(m.d) || m.witness || m.secondhand || m.act === 'own') continue;
+      const r = EVENTS[m.event];
+      const cls = r && (r.dedupe === 'threat' || r.dedupe === 'violence') ? r.dedupe : null;
+      if (!cls) continue;
+      const f = remainder(m, n, ctx.day, ax, ctx).f;
+      if (f <= 0) continue;
+      part[cls] += f;
+      key[cls] = m.key || `m${m.turn | 0}-${n.id}`;
+    }
+    if (part.threat > 0 && part.threat >= part.violence) return { why: 'threat', key: key.threat };
+    if (part.violence > 0 && c.w <= GATES.report.violenceLiking) return { why: 'violence', key: key.violence };
+    return null;
+  }
+  /* The relationship's share of a roll (Dice, inside the +/-4 cap; design
+     section 6.2): an intimidation by fear (+1 at 20, +2 at 40, -1 against
+     someone who likes the player at 40 or more); a lie keeps the old
+     attitude rule until wave 28 reads trust (+/-2 beyond +/-50); every other
+     social roll (persuade, charm, talk, buy, sell, give) by liking, +/-1 at
+     30 and +/-2 at 60. Returns a whole number, 0 for nothing. */
+  function rollMod(n, actionType, ctx) {
+    if (!isObj(n)) return 0;
+    const c = tracksOf(n, ctx);
+    if (actionType === 'intimidate') {
+      let v = 0;
+      for (const [at, m] of GATES.intimidate.fear) if (c.f >= at) v = m;
+      if (c.w >= GATES.intimidate.likedAt) v += GATES.intimidate.liked;
+      return v;
+    }
+    if (actionType === 'deceive') return c.w > 50 ? 2 : c.w < -50 ? -2 : 0;
+    let v = 0;
+    for (const [at, m] of GATES.social.liking) { if (c.w >= at) v = m; if (c.w <= -at) v = -m; }
+    return v;
+  }
+  /* Fear's ceiling (design section 6.2): an adult afraid of the player
+     (fear 40 or more) who is not hard does a small thing (talk or persuade
+     at easy or normal) with no roll; never someone under 18, never a
+     romantic ask (wave 28's flag). Pipeline burns the d20 it skips. */
+  function complies(n, action, ctx) {
+    if (!isObj(n) || !isObj(action) || action.romantic === true) return false;
+    if (!GATES.compliance.actions.includes(action.actionType) || !GATES.compliance.difficulties.includes(action.difficulty || 'normal')) return false;
+    if (isMinor(n, ctx) || axesOf(n, ctx).hard) return false;
+    return tracksOf(n, ctx).f >= GATES.compliance.fear;
+  }
+  /* Someone who picks the player up when they are beaten senseless (the
+     defeat's rescue, design section 6.2): liking 25 or more, or a favour
+     they owe the player, unless they are afraid of the player. */
+  function rescues(n, ctx) {
+    if (!isObj(n)) return false;
+    const c = tracksOf(n, ctx);
+    if (!(c.w >= GATES.rescue.liking || c.owed >= GATES.rescue.owed)) return false;
+    return stance(n, ctx).phrase !== OVERRIDES.you;
+  }
+  /* A seller who will not serve the player (design section 6.3): a
+     manager, owner, merchant, bartender or cashier (tag or role) who is
+     against them or hates them (the liking band, with its hysteresis). */
+  function wontSell(n, ctx) {
+    if (!isObj(n)) return false;
+    const words = GATES.wontSell.roles;
+    const tags = Array.isArray(n.tags) ? n.tags.map(t => String(t).toLowerCase()) : [];
+    const seller = tags.some(t => words.includes(t)) || new RegExp(`\\b(${words.join('|')})s?\\b`, 'i').test(String(n.role || ''));
+    if (!seller) return false;
+    const c = cacheOf(n, ctx);
+    return (c.bands && (c.bands.w === 'hates' || c.bands.w === 'dislikes')) || tracksOf(n, ctx).w <= GATES.wontSell.liking;
+  }
+  /* What a story point's fact says about someone (/fact, the integration
+     plan's 9.6): "owes me" or "owes ... a favour" (owed +1), "go back",
+     "known ... for years", "old friend", "grew up with" (knows at least 30),
+     "trusts me" (trust +15, at most 40), "likes me" (liking +10, at most 40).
+     Never spark, never fear. Returns { owed?, knows?, trust?, liking? }. */
+  function factOf(statement) {
+    const t = String(statement || '').toLowerCase().replace(/[’]/g, "'");
+    const out = {};
+    if (/\bowes? me\b/.test(t) || /\bowes\b[^.]*\bfavou?r\b/.test(t)) out.owed = 1;
+    if (/\b(go(?:es)? (?:way )?back|known [^.]*\bfor years|old friends?|grew up (?:with|together))\b/.test(t)) out.knows = 30;
+    if (/\btrusts? me\b/.test(t)) out.trust = 15;
+    if (/\blikes? me\b/.test(t)) out.liking = 10;
+    return out;
   }
 
   // ----- what it reads as -----
@@ -13622,7 +14322,9 @@ const Rel = (() => {
     UNWANTED_ADVANCE, WORDS,
     tracksOf, startOf, fill, repair, axesOf, isFactionHead, isMinor, playerMinor, eligible, romanceOf, recompute, raw, remainder, fade, band, landTo, pinOf,
     applyEvent, settle, settleTarget, sparkGuard, driftStep, stance, sparkStatus, cue, reasons, words, typeMemory, kindOf, memoryDay, eventName, rng, fnv1a32,
-    debugLine, debugMemory
+    debugLine, debugMemory,
+    // Wave 27.
+    FIGHT_RANK, FIGHT_RAISE, evictIndex, witnessEvent, grudgeFit, policeHead, protectorOf, isPoliceNpc, reportWhy, rollMod, complies, rescues, wontSell, factOf, harmful, settlements
   };
 })();
 
@@ -14442,6 +15144,8 @@ const Town = (() => {
      (World.fireSeeds). dayOffset [a, b] is read as day numbers counted from
      day 1, so [3, 5] fires on day 3, 4 or 5 (never earlier than tomorrow). */
   const LOOSE_END_ATTITUDE = { debt: -10, enemy: -40, secret: -5, lost: 10, promise: 5 };
+  // What a loose end does to their trust (wave 27; the integration plan's 4.6, site 34), into their start with the liking.
+  const LOOSE_END_TRUST = Object.freeze({ debt: -10, enemy: -50, secret: -5, lost: 10, promise: 5 });
   function firstScheduledLocation(npcId) {
     const s = State.current;
     for (const p of PHASES) for (const l of s.locations) if (((l.npcIdsBySchedule || {})[p] || []).includes(npcId)) return l.id;
@@ -14560,10 +15264,15 @@ const Town = (() => {
       if (isObj(fu.alt)) follow.alt = fillAll(fu.alt);
       seedObj.effects = (seedObj.effects || []).concat([{ op: 'plantSeed', seed: follow }]);
     }
+    /* Where they stood before the player came (wave 27): the loose end's
+       liking and trust go into their start (rel.start, relStart), with
+       knows-you 30, so nothing fades or drifts it away; the liking reads as
+       before (Boyd -10 becomes -50). */
     const attitude = LOOSE_END_ATTITUDE[le.kind] || 0;
+    const trust = LOOSE_END_TRUST[le.kind] || 0;
     const r = State.apply({
+      relStart: { npcId: target.id, w: attitude, t: trust, k: 30 },
       effects: [
-        attitude ? { op: 'attitudeDelta', npcId: target.id, delta: attitude } : null,
         { op: 'plantSeed', seed: seedObj },
         { op: 'openThread', thread: { id: threadId, title: def.label, summary: `${text} (${target.name}, ${target.role})`, status: 'open', knownToPlayer: true, linkedIds: [target.id] } },
         ...onStart
@@ -14794,9 +15503,12 @@ const World = (() => {
     const playerName = typeof p === 'string' ? p : isObj(p) ? p.name : null;
     const w = ctx.witnessId ? State.npc(ctx.witnessId) : null;
     const l = ctx.locationId ? State.loc(ctx.locationId) : null;
+    // Wave 27: whom a report goes to ({protectorId}, {protector}).
+    const pr = ctx.protectorId ? State.npc(ctx.protectorId) : null;
     return fillPlaceholders(effects, {
       npcId: n ? n.id : null, npc: n ? n.name : null, playerName, player: playerName,
-      witnessId: w ? w.id : null, witness: w ? w.name : null, place: l ? placeIn(l) : null
+      witnessId: w ? w.id : null, witness: w ? w.name : null, place: l ? placeIn(l) : null,
+      protectorId: pr ? pr.id : null, protector: pr ? pr.name : null
     });
   }
   /* Town news: State's addNews op does the push;
@@ -15134,10 +15846,14 @@ const World = (() => {
     const mark = `[${feelingMark(m)}]`;
     return st().seeds.some(sd => isFeeling(sd) && sd.origin.npcId === n.id && String(sd.cause || '').includes(mark));
   }
-  /* The newest memory of at least minWeight that has not grown a feeling yet. */
-  function freshMemory(n, minWeight) {
+  /* The newest memory of at least minWeight that has not grown a feeling
+     yet. grudge (wave 27, design section 6.2): only one that can grow a
+     grudge (Rel.grudgeFit: a harm still unsettled, or settled the same day;
+     never a copy of something seen, a loose end's line or a fact). A
+     witness copy grows no favour either. */
+  function freshMemory(n, minWeight, grudge) {
     // Not what they did to the player (act 'own', wave 6: the round-5 playtest's R3).
-    const ms = (n.memories || []).filter(m => m.weight >= minWeight && m.act !== 'own' && !feelingPlanted(n, m));
+    const ms = (n.memories || []).filter(m => m.weight >= minWeight && m.act !== 'own' && !m.witness && !feelingPlanted(n, m) && (!grudge || Rel.grudgeFit(m)));
     return ms.length ? ms[ms.length - 1] : null;
   }
   /* The day the NPC's last feeling fired (its trigger day), or null. */
@@ -15194,36 +15910,58 @@ const World = (() => {
     const list = isFeeling(sd) ? templatesOf(sd.origin.kind) : null;
     return list && Number.isInteger(sd.origin.template) ? (list[sd.origin.template] || null) : null;
   }
-  function plantFeeling(n, kind, memory, day) {
+  /* opts (wave 27): rng (a draw of its own, Rel.rng, for the plants the
+     new rules add: the tough answer to a beat-down, a report that has
+     nobody to go to; today's plants keep the shared stream), kinds (only
+     these kinds of answer), prefer (a template filter tried first), why
+     (kept on the seed's origin: tough, nobody). A grudge's kind of answer
+     comes from what the memory is about (design section 6.2): violence by
+     violence if they are tough, else the police; a theft by the police,
+     gossip or money; words by gossip, a ban or money; someone afraid of
+     the player (fear 40) answers only with the police or gossip. A report
+     template (kind report) is never a grudge's. */
+  function plantFeeling(n, kind, memory, day, opts) {
     const s = st();
+    const o = opts || {};
+    const rng = o.rng || Rng;
     const list = templatesOf(kind);
     if (!Array.isArray(list) || !list.length) return null;
     // A template that fits them and that they have not used yet, if there is one.
     const used = s.seeds.filter(sd => sd.origin && sd.origin.kind === kind && sd.origin.npcId === n.id).map(sd => sd.origin.template);
     // A template that answers one kind of offence only (about; wave 6, the round-5 playtest's design note: the police told of things gone missing answer a theft, never a beating) answers nothing else.
     const about = kind === 'grudge' ? memoryKind(memory) : null;
-    const fit = list.map((t, i) => (isObj(t) && templateFits(t, n) && (!Array.isArray(t.about) || t.about.includes(about)) ? i : -1)).filter(i => i >= 0);
+    const fit = list.map((t, i) => (isObj(t) && t.kind !== 'report' && templateFits(t, n) && (!Array.isArray(t.about) || t.about.includes(about))
+      && (!Array.isArray(o.kinds) || o.kinds.includes(grudgeKind(t))) ? i : -1)).filter(i => i >= 0);
     if (!fit.length) return null;
     let idxs = fit.filter(i => !used.includes(i));
     if (!idxs.length) idxs = fit;
-    // What the memory is about picks the kind of answer (wave 3): a beating or a police report for violence, talk for an insult, the police or talk for a theft.
-    const want = GRUDGE_FOR[about];
+    // What the memory is about picks the kind of answer (wave 3; wave 27: violence by violence only from someone tough, else the police; fear 40 allows only the police or gossip).
+    const ax = kind === 'grudge' ? Rel.axesOf(n) : null;
+    let want = about === 'violence' ? (ax && ax.tough ? ['violence'] : ['police']) : GRUDGE_FOR[about];
+    if (ax && Rel.tracksOf(n).f >= Rel.GATES.compliance.fear) want = (want || GRUDGE_KINDS).filter(k => k === 'police' || k === 'gossip');
     const fitting = want ? idxs.filter(x => want.includes(grudgeKind(list[x]))) : [];
     if (fitting.length) idxs = fitting;
-    const i = Rng.pick(idxs);
+    else if (about === 'violence') { const old = idxs.filter(x => GRUDGE_FOR.violence.includes(grudgeKind(list[x]))); if (old.length) idxs = old; }
+    if (typeof o.prefer === 'function') { const pref = idxs.filter(x => o.prefer(list[x])); if (pref.length) idxs = pref; }
+    const i = rng.pick(idxs);
     const t = list[i];
     const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : [2, 5];
     const lo = clamp(toInt(off[0]) || 2, 1, 30);
     const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 30);
+    const origin = { kind, npcId: n.id, template: i };
+    if (typeof memory.key === 'string') origin.key = memory.key;
+    if (typeof o.why === 'string') origin.why = o.why;
     const seed = {
       id: uniqueId(`seed_${kind}_${n.id.slice(4)}`, id => !!State.seed(id)),
       cause: `${kind === 'grudge' ? 'Grudge' : 'Favour'} [${feelingMark(memory)}]: ${n.name} (attitude ${n.attitude}) remembers "${memory.text}"`,
       effect: fillTemplate(t.effect, { npc: n.name, player: s.player.name, playerName: s.player.name }),
-      trigger: { type: 'day', value: day + Rng.int(lo, hi) },
+      trigger: { type: 'day', value: day + rng.int(lo, hi) },
       fired: false,
       hidden: true,
-      origin: { kind, npcId: n.id, template: i }
+      origin
     };
+    // A plant the new rules add is struck with its turn by /rewind (the old ones never were).
+    if (o.rng) seed.turn = s.meta.turn;
     const r = applyEffects([{ op: 'plantSeed', seed }]);
     if (r.rejected.length) return null;
     note(`${n.id} plants a ${kind} seed (${seed.id}, day ${seed.trigger.value})`, { kind, npcId: n.id, seedId: seed.id });
@@ -15237,13 +15975,90 @@ const World = (() => {
       if (last !== null && day < last + FEELING_COOLDOWN) continue;
       let kind = null;
       let memory = null;
-      if (n.attitude <= GRUDGE_AT) { memory = freshMemory(n, 3); kind = memory ? 'grudge' : null; }
+      if (n.attitude <= GRUDGE_AT) { memory = freshMemory(n, 3, true); kind = memory ? 'grudge' : null; }
       else if (n.attitude >= FAVOUR_AT) { memory = freshMemory(n, 2); kind = memory ? 'favour' : null; }
       if (!kind) continue;
       const sd = plantFeeling(n, kind, memory, day);
       if (sd) planted.push(sd);
     }
+    planted.push(...plantReports(day));
     return planted;
+  }
+  /* Wave 27 (design section 6.2): someone the player has frightened goes to
+     whoever looks out for them. For each free person who means to tell
+     (Rel.reportWhy: fear 40 from the player's threats, whatever their
+     liking; or from violence, at liking 0 or less), once for the memory it
+     grew from: a report seed to their protector (Rel.protectorOf), due in
+     1 or 2 days, from a GRUDGE_TEMPLATES entry of kind report that suits
+     whom it goes to (to: police, or family for a parent, a boss or anyone
+     else) and what it is about (threat or violence). Someone with nobody
+     to tell (a faction head, a loner) holds it as a grudge instead: gossip,
+     or violence if they are tough (the feeling cooldown holds). Every draw
+     is the report's own (Rel.rng), so the dice and the clocks do not move.
+     Returns the seeds planted. */
+  function plantReports(day) {
+    const s = st();
+    const out = [];
+    for (const n of s.npcs.slice()) {
+      if (!isFree(n)) continue;
+      const why = Rel.reportWhy(n);
+      if (!why || !why.key) continue;
+      if (s.seeds.some(sd => sd.origin && sd.origin.npcId === n.id && sd.origin.key === why.key && (sd.origin.kind === 'report' || sd.origin.why === 'nobody'))) continue;
+      const sd = plantReport(n, why, day);
+      if (sd) out.push(sd);
+    }
+    return out;
+  }
+  function plantReport(n, why, day) {
+    const s = st();
+    const memory = (n.memories || []).find(m => isObj(m) && m.key === why.key) || null;
+    const pr = Rel.protectorOf(n);
+    const rng = Rel.rng('report', n.id, day);
+    if (pr && pr.nobody) {
+      if (!memory || hasOpenFeeling(n.id)) return null;
+      const last = lastFeelingDay(n.id);
+      if (last !== null && day < last + FEELING_COOLDOWN) return null;
+      return plantFeeling(n, 'grudge', memory, day, { rng, kinds: Rel.axesOf(n).tough ? ['violence'] : ['gossip'], why: 'nobody' });
+    }
+    if (!pr || !pr.ids.length) return null;
+    const first = State.npc(pr.ids[0]);
+    const to = Rel.isPoliceNpc(first) ? 'police' : 'family';
+    const fit = GRUDGE_TEMPLATES.map((t, i) => (isObj(t) && t.kind === 'report' && (!t.to || t.to === to) && (!Array.isArray(t.about) || t.about.includes(why.why)) ? i : -1)).filter(i => i >= 0);
+    if (!fit.length) return null;
+    const i = rng.pick(fit);
+    const t = GRUDGE_TEMPLATES[i];
+    const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : Rel.GATES.report.days;
+    const lo = clamp(toInt(off[0]) || 1, 1, 30);
+    const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 30);
+    const names = pr.ids.map(id => State.npc(id).name);
+    const seed = {
+      id: uniqueId(`seed_report_${n.id.slice(4)}`, id => !!State.seed(id)),
+      cause: `Report [${memory ? feelingMark(memory) : why.key}]: ${n.name} (fear ${Rel.tracksOf(n).f}) means to tell ${andList(names)}${memory ? ` that "${memory.text}"` : ''}`,
+      effect: fillTemplate(t.effect, { npc: n.name, player: s.player.name, playerName: s.player.name, protector: first.name }),
+      trigger: { type: 'day', value: day + rng.int(lo, hi) },
+      fired: false,
+      hidden: true,
+      origin: Object.assign({ kind: 'report', npcId: n.id, template: i, key: why.key, why: why.why, protectors: pr.ids.slice() }, pr.hidden ? { hidden: true } : {}),
+      turn: s.meta.turn
+    };
+    const r = applyEffects([{ op: 'plantSeed', seed }]);
+    if (r.rejected.length) return null;
+    note(`${n.id} plants a report to ${pr.ids.join(', ')} (${seed.id}, day ${seed.trigger.value}${pr.hidden ? ', through a tie nobody knows' : ''})`, { kind: 'report', npcId: n.id, seedId: seed.id });
+    return State.seed(seed.id) || seed;
+  }
+  /* Wave 27 (the integration plan's 19.6): a beat-down on someone tough is
+     answered with violence, whatever their liking: a violence grudge for
+     the beat-down's memory, planted at once (World.knockDown), on its own
+     draw (Rel.rng('toughAnswer')), unless a feeling of theirs is waiting or
+     the 7-day feeling cooldown holds. The beating itself first (forTags
+     tough), else any violence that fits. */
+  function toughAnswer(n, day) {
+    if (!isFree(n) || !Rel.axesOf(n).tough || hasOpenFeeling(n.id)) return null;
+    const last = lastFeelingDay(n.id);
+    if (last !== null && day < last + FEELING_COOLDOWN) return null;
+    const memory = (n.memories || []).slice().reverse().find(m => isObj(m) && m.event === 'beat_down' && isObj(m.d) && !m.witness);
+    if (!memory) return null;
+    return plantFeeling(n, 'grudge', memory, day, { rng: Rel.rng('toughAnswer', n.id, day), kinds: ['violence'], why: 'tough', prefer: t => arr(t.forTags).includes('tough') });
   }
 
   // ----- f. town events and the epilogue -----
@@ -15502,6 +16317,8 @@ const World = (() => {
       if (morning) newMorning(to.day, events);                          // g
       settleAppointments(to, info && info.from, events);                // h (wave 22): a meeting kept or missed
       if (morning) appointmentVisits(to.day);                           //   and the day's meetings kept
+      // Wave 27: the phase that ended, spent with someone, is time together (State's relTurn: spent_time, once a day).
+      if (info && isObj(info.from) && Number.isInteger(info.from.day) && PHASES.includes(info.from.phase)) State.apply({ relTurn: { ended: { day: info.from.day, phase: info.from.phase } } }, W);
     } finally { tickAt = null; tickCause = null; }
     return { phasesPassed: (info && info.phasesPassed) || 1, events };
   }
@@ -15578,9 +16395,9 @@ const World = (() => {
       }
       if (isObj(from) && covers(ap, from.day, from.phase) && s.player.locationId === ap.locationId) { fire(sd); continue; }
       State.apply({ seedsDropped: [sd.id] }, W);
+      // A broken word at half (wave 27): liking -4, trust -8, a weight-1 memory.
       applyEffects([
-        { op: 'addMemory', npcId: n.id, text: `waited for ${s.player.name} at ${placeIn(l)} and they never came`, weight: 1 },
-        { op: 'attitudeDelta', npcId: n.id, delta: -3 }
+        { op: 'socialEvent', npcId: n.id, event: 'broke_word', text: `waited for ${s.player.name} at ${placeIn(l)} and they never came`, weight: 1, scale: 0.5 }
       ]);
       if (Array.isArray(events)) events.push({ kind: 'appointment', id: sd.id, day: ap.day, notice: `${n.name} waited at ${placeIn(l)} and you never came.` });
       note(`${sd.id} missed: ${n.id} waited at ${l.id} and the player never came`, { kind: 'seed', seedId: sd.id });
@@ -15634,6 +16451,46 @@ const World = (() => {
       return e;
     }).filter(e => e !== null);
   }
+  // The mark of the memory a feeling grew from, as its cause carries it (feelingMark), or null.
+  function markOf(sd) { const m = /\[(m\d+:[a-z0-9_]*)\]/.exec(String(sd && sd.cause || '')); return m ? m[1] : null; }
+  /* A report come due (wave 27): each protector it goes to who can still
+     hear it takes the report template's effects for whom they are (to:
+     police for the police, family for anyone else; what it is about: the
+     seed's why), {protector} and {protectorId} filled; through a tie the
+     town does not know (origin.hidden), their memory is secondhand and
+     hidden (the card will say only "Hasn't said why"). */
+  function reportEffects(sd, n) {
+    const o = sd.origin || {};
+    for (const id of arr(o.protectors)) {
+      const pr = State.npc(id);
+      if (!isFree(pr)) continue;
+      const to = Rel.isPoliceNpc(pr) ? 'police' : 'family';
+      const tpl = GRUDGE_TEMPLATES.find(t => isObj(t) && t.kind === 'report' && t.to === to && (!Array.isArray(t.about) || t.about.includes(o.why))) || templateOf(sd);
+      if (!tpl) continue;
+      const fx = fillEffects(arr(tpl.effects), { npc: n, protectorId: pr.id }).map(e => (isObj(e) && e.op === 'socialEvent' && o.hidden === true ? Object.assign({}, e, { secondhand: { via: n.id, hidden: true } }) : e));
+      if (fx.length) applyEffects(fx);
+    }
+  }
+  /* A seed marked danger (wave 27: someone in trouble the player can step
+     in on) has fired: whoever it names after its first name (the one doing
+     it) is in danger at its place for this phase, and the one doing it is
+     noted with them (flags['danger.<npcId>'] = "day|phase|place|by|turn"),
+     so a successful action aimed at them there, this phase or the next,
+     rescues them (Pipeline: the player reads of it in the next narration
+     and steps in on the turn after). danger: true reads the names from its
+     words; an id or a list of ids names who is in danger. */
+  function markDanger(sd, text) {
+    const s = st();
+    const words = String(text || sd.effect || '');
+    const named = s.npcs.filter(x => isObj(x) && x.alive !== false && Town.nameMentions(words, x)).map(x => ({ id: x.id, at: words.indexOf(x.name.split(' ')[0]) })).sort((a, b) => a.at - b.at).map(x => x.id);
+    const given = typeof sd.danger === 'string' ? [sd.danger] : Array.isArray(sd.danger) ? sd.danger.filter(x => typeof x === 'string') : null;
+    const by = given ? named.find(id => !given.includes(id)) || null : named[0] || null;
+    const victims = given || named.slice(1);
+    // Where it happens: where the player is as it fires (a location trigger is met only there).
+    const where = s.player.locationId;
+    const fx = victims.filter(id => State.npc(id)).map(id => ({ op: 'setFlag', key: `danger.${id}`, value: `${s.time.day}|${s.time.phase}|${where}|${by || ''}|${s.meta.turn}` }));
+    if (fx.length) applyEffects(fx);
+  }
   function fire(sd, when) {
     const s = st();
     const dated = isObj(when) && Number.isInteger(when.day) ? { day: when.day, phase: when.phase } : {};
@@ -15645,12 +16502,15 @@ const World = (() => {
     const tpl = templateOf(sd);
     const met = live && conditionsMet(sd.requires);
     const alt = live && !met && isObj(sd.alt) ? sd.alt : null;
-    const text = met ? sd.effect : alt ? cleanText(alt.text, 400) : '';
+    // A report through a tie the town does not know (wave 27: Hollis to Wade) happens off-screen: no due event names it.
+    const quietReport = kind === 'report' && sd.origin.hidden === true;
+    const text = met ? (quietReport ? '' : sd.effect) : alt ? cleanText(alt.text, 400) : '';
     const r = State.apply({ seedsFired: [sd.id] }, W);
     if (r.rejected.some(x => x.path.startsWith('seedsFired'))) return false;
     // Its effects first, so the due event can name the obligation they made (dropped untold once that is met).
     let obligationId = null;
-    if (met || alt) {
+    if (met && kind === 'report') reportEffects(sd, n);
+    else if (met || alt) {
       const own = met ? (Array.isArray(sd.effects) ? sd.effects : tpl && Array.isArray(tpl.effects) ? tpl.effects : []) : arr(alt.effects);
       // Told to the player as its due event: its own news is not told again overnight (wave 3, the playtest's "seed news told twice").
       const filled = own.length ? sinceDay(fillEffects(own, { npc: n }), dated.day).map(e => (isObj(e) && e.op === 'addNews' ? Object.assign({}, dated, e, text ? { seen: true } : {}) : e)) : [];
@@ -15672,8 +16532,16 @@ const World = (() => {
       if (n && (looseEndOf(sd.id) || (isObj(sd.origin) && sd.origin.kind === 'loose_end'))) { ev.bring = true; diff.visits = [{ npcId: n.id, locationId: s.player.locationId }]; }
       State.apply(diff, W);
     }
+    // A seed marked danger (wave 27): the people it puts in danger are there to be helped this phase (Pipeline's rescued).
+    if (met && sd.danger !== undefined && sd.danger !== false) markDanger(sd, text);
+    // A meeting kept (wave 27): the player came, so it is a kept word.
+    if (met && n && isObj(sd.appointment) && s.player.locationId === sd.appointment.locationId) {
+      const l = State.loc(sd.appointment.locationId);
+      applyEffects([{ op: 'socialEvent', npcId: n.id, event: 'kept_word', text: `met ${s.player.name} at ${placeIn(l)} the way we said`, weight: 2 }]);
+    }
     if (met && n && (kind === 'grudge' || kind === 'favour')) {
-      if (kind === 'grudge') applyEffects([{ op: 'attitudeDelta', npcId: n.id, delta: GOT_EVEN }]);
+      // Getting even (wave 27): the memory it grew from is softened (relSettle; a line that moves nothing keeps today's +10).
+      if (kind === 'grudge') State.apply({ relSettle: Object.assign({ npcId: n.id, by: 'got_even' }, sd.origin.key ? { key: sd.origin.key } : {}, { mark: markOf(sd) }) }, W);
       // Told to the player as its due event too, so "Overnight in town" does not tell it again (wave 4, the third review's bug 4, playtest R3).
       if (publicNews) pushNews(text, Object.assign({ public: true, eventId: sd.id }, dated));
     }
@@ -15813,9 +16681,16 @@ const World = (() => {
   // ----- fights (the pipeline decides when to call these) -----
   function isPublicPlace(l) { return !!l && l.away !== true && !PRIVATE_TYPES.includes(l.type); }
   /* Three hits on one person in a scene: they go down. Hurt for two days
-     (State.apply npcFates hurt, when this build has it), a weight-3 memory
-     for them and for everyone watching, and town news in a public place.
-     Returns { text, npcId, hurt, witnesses } (text to narrate), or null. */
+     (State.apply npcFates hurt, when this build has it) and town news in a
+     public place. Wave 27: what they remember is the engine's beat_down,
+     which replaces the fight's memory (the fight's key, from state.fight),
+     and the people watching each take one lighter copy for the scene
+     (State's witness rows) in place of the old weight-3 memory; done in
+     public (news, or two watching), it costs the town reputation the
+     fight has not cost yet (the heaviest blow's, once: a beating's -5). A
+     beat-down on someone tough is answered with violence (toughAnswer).
+     Returns { text, npcId, hurt, witnesses, grudge } (text to narrate), or
+     null. */
   function knockDown(npcId) {
     const s = st();
     const n = s ? State.npc(npcId) : null;
@@ -15823,19 +16698,21 @@ const World = (() => {
     const l = State.loc(s.player.locationId);
     const place = placeIn(l);
     const witnesses = State.npcsAt(s.player.locationId).map(x => x.id).filter(id => id !== n.id);
+    const f = isObj(s.fight) && s.fight.npcId === n.id ? s.fight : null;
+    const key = f && typeof f.key === 'string' ? f.key : `f${s.meta.turn}-${n.id.slice(4)}`;
+    const cost = f && Number.isInteger(f.rep) ? f.rep : 0;
     let hurt = false;
     if (Array.isArray(State.RECORD_KEYS) && State.RECORD_KEYS.includes('npcFates')) {
       const r = State.apply({ npcFates: [{ npcId: n.id, status: 'hurt' }] }, { source: 'world', present: [n.id].concat(witnesses), rollSuccess: true, attacked: n.id });
       hurt = !r.rejected.length;
     }
-    State.apply({
-      newMemories: [{ npcId: n.id, text: `knocked me down in a fight at ${place}`, weight: 3 }]
-        .concat(witnesses.map(id => ({ npcId: id, text: `saw ${s.player.name} knock ${n.name} down at ${place}`, weight: 3 })))
-    }, Object.assign({ actionType: 'attack' }, W));
+    const pub = isPublicPlace(l);
+    State.apply({ socialEvents: [{ npcId: n.id, event: 'beat_down', text: `knocked me down in a fight at ${place}`, act: 'attack', fight: key, witnesses, public: pub, rep: Math.min(0, Rel.EVENTS.beat_down.rep - cost) }] }, W);
     // Town talk, but the player was there: the morning's news does not tell them their own fight.
-    if (isPublicPlace(l)) pushNews(`${s.player.name} knocked ${n.name} down in a fight at ${place}.`, { public: true, seen: true });
-    note(`${n.id} knocked down${hurt ? ', hurt for two days' : ''}; ${witnesses.length} saw it`, { kind: 'fight', npcId: n.id });
-    return { text: `${n.name} goes down hard and does not get back up.`, npcId: n.id, hurt, witnesses };
+    if (pub) pushNews(`${s.player.name} knocked ${n.name} down in a fight at ${place}.`, { public: true, seen: true });
+    const grudge = toughAnswer(n, s.time.day);
+    note(`${n.id} knocked down${hurt ? ', hurt for two days' : ''}; ${witnesses.length} saw it${grudge ? `; a tough answer planted (${grudge.id})` : ''}`, { kind: 'fight', npcId: n.id });
+    return { text: `${n.name} goes down hard and does not get back up.`, npcId: n.id, hurt, witnesses, grudge: grudge ? grudge.id : null };
   }
   /* A fight with the police there, or at the police station: the cells
      overnight. The player is moved to the police station, fined up to FINE
@@ -15968,7 +16845,8 @@ const World = (() => {
     if (weapons.length) diff.itemsLost = weapons.map(i => ({ id: i.id, qty: i.qty || 1 }));
     // The player by name (wave 4, the review's bug 8): plainMemory makes it "you".
     const took = weapons.length ? `, and took ${andList(weapons.map(i => theThing(i.name)))} off ${s.player.name}` : '';
-    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}${took}`, weight: 3, act: 'own' }];
+    // What he did to the player (wave 27: noted, own; it grows no grudge).
+    if (chief) diff.newMemories = [{ npcId: chief.id, text: `locked ${s.player.name} up overnight for fighting at ${plan.place}${took}`, weight: 3, act: 'own', event: 'noted' }];
     // A night in the cell is no night slept rough (wave 5, the fourth review's risk, playtest Q4): the count starts again.
     if (toInt(s.flags.roughNights)) diff.effects = [{ op: 'setFlag', key: 'roughNights', value: 0 }];
     State.apply(diff, W);
@@ -15984,6 +16862,9 @@ const World = (() => {
     if (st()) for (const n of st().npcs) o[n.id] = n.attitude;
     return o;
   }
+  /* Wave 27: only the factions' part (members' liking changes / REP_DIVISOR,
+     REP_CAP a turn). The town's standing moves on what was done in public
+     (State's socialEvent: two or more saw it, or it made news). */
   function driftReputation(before) {
     const s = st();
     if (!s || !isObj(before)) return {};
@@ -15992,7 +16873,6 @@ const World = (() => {
       if (!n.knownToPlayer || !Object.prototype.hasOwnProperty.call(before, n.id)) continue;
       const d = n.attitude - before[n.id];
       if (!d) continue;
-      sums.town = (sums.town || 0) + d;
       if (n.factionId && State.faction(n.factionId)) sums[n.factionId] = (sums[n.factionId] || 0) + d;
     }
     const out = {};
@@ -16032,6 +16912,7 @@ const World = (() => {
     tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, fillEffects, conditionsMet, clockProgress, fireEvents, catchUp, eventsOnArrival, eventsFired, arrestPlan,
     appointmentsHere, settleAppointments, appointmentVisits,
     knockDown, arrestPlayer, feelingMark, oddsOf, sleptRough, ROUGH_NIGHTS, ROUGH_FINE, ROUGH_FORGIVEN, memoryKind, freshMemory, plantFeeling, townSeed, theThing,
+    plantReports, plantReport, toughAnswer, markDanger,
     attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
     forceClockRoll, forceAttitude
   };
@@ -18354,7 +19235,8 @@ const Api = (() => {
             const owed = (first.memories || []).slice().reverse().find(x => !/^Loose end with /i.test(x.text) && /\b(owes? me|debt|money)\b/i.test(x.text));
             if (owed) out.memoriesSettled.push({ npcId: first.id, text: owed.text });
             // Paid back: remembered once, by the obligation's own onMet when it has a memory there, else here.
-            if (!(Array.isArray(owes.onMet) && owes.onMet.some(e => isObj(e) && e.op === 'addMemory' && e.npcId === first.id))) { feel(first, 10); remember(first, `paid me back ${money(amount)}`, 2); }
+            // Wave 27: or a socialEvent there (paid_back), which is that memory.
+            if (!(Array.isArray(owes.onMet) && owes.onMet.some(e => isObj(e) && (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === first.id))) { feel(first, 10); remember(first, `paid me back ${money(amount)}`, 2); }
             out.journalEntry = `Paid ${first.name} ${money(amount)}.`;
           } else if (owes) {
             // Part of it: the engine counts it toward the debt (the give is aimed at them).
@@ -20384,7 +21266,8 @@ const Pipeline = (() => {
     const a = ctx.action;
     const witness = a.targets.map(id => State.npc(id)).find(n => n && ctx.presentIds.includes(n.id));
     if (witness && Dice.SOCIAL_ACTIONS.includes(a.actionType)) {
-      State.apply({ newMemories: [{ npcId: witness.id, text: `Watched ${p.name} fail badly: ${lowerFirst(a.summary)}`, weight: 2 }] });
+      // Something they hold the player to (wave 27: noted; it moves no track).
+      State.apply({ newMemories: [{ npcId: witness.id, text: `Watched ${p.name} fail badly: ${lowerFirst(a.summary)}`, weight: 2, event: 'noted' }] });
       return `${witness.name} will remember this`;
     }
     const c = CONSEQUENCES[ctx.roll.stat] || CONSEQUENCES.wits;
@@ -20502,6 +21385,41 @@ const Pipeline = (() => {
     const times = isObj(g) && g.day === s.time.day && Array.isArray(g.ids) ? g.ids.filter(x => x === to).length : 0;
     ctx.giftTo = { npcId: to, times };
   }
+  /* A shop that is against the player (wave 27, design section 6.3; Rel.wontSell:
+     a manager, owner, merchant, bartender or cashier against them or hating
+     them): for a purchase this turn, the seller it is aimed at (else the
+     first seller here) will not sell for GATES.wontSell.days days from the
+     first time they refused (flags['relPrice.<npcId>']: that day), then
+     sells at a quarter over (State.priceFactor). A bed, gas or food is
+     never refused for more than one night. Told to the narrator and the
+     bookkeeper (cleanDiff drops the money and the goods). A seller no
+     longer against the player starts again. */
+  const ESSENTIALS = /\b(room|rooms|night|nights|bed|lodging|motel|gas|gasoline|fuel|diesel|fill (?:it|her|'er) up|tank|food|eat|meal|plate|sandwich|burger|breakfast|lunch|supper|dinner|biscuit|catfish|fries|soup|chili|coffee)\b/i;
+  function refuseSale(ctx) {
+    const s = State.current;
+    const a = ctx.action;
+    if (!a || !(ctx.bought || a.actionType === 'buy')) return;
+    const present = (ctx.presentIds || []).map(id => State.npc(id)).filter(Boolean);
+    const sellers = present.filter(n => Rel.GATES.wontSell.roles.some(r => (n.tags || []).includes(r) || new RegExp(`\\b${r}s?\\b`, 'i').test(String(n.role || ''))));
+    const seller = sellers.find(n => (a.targets || []).includes(n.id)) || sellers[0];
+    if (!seller) return;
+    const key = `relPrice.${seller.id}`;
+    const since = toInt(s.flags[key]);
+    if (!Rel.wontSell(seller)) { if (since !== null) State.apply({ effects: [{ op: 'setFlag', key, value: null }] }); return; }
+    const day = s.time.day;
+    if (since === null) State.apply({ effects: [{ op: 'setFlag', key, value: day }] });
+    const start = since === null ? day : since;
+    const essential = ESSENTIALS.test(`${ctx.input || ''} ${a.summary || ''}`);
+    const hold = essential ? Rel.GATES.wontSell.essentialDays : Rel.GATES.wontSell.days;
+    if (day - start < hold) {
+      ctx.noSale = seller.id;
+      ctx.narratorLines.push(`WON'T SELL: ${seller.name} is against ${s.player.name} and will not sell to them${essential ? ' tonight' : ''}; say so plainly. Nothing is bought.`);
+      ctx.bookLines.push(`NO SALE (the engine): ${seller.name} would not sell to the player; record no goldDelta and no itemsGained for a purchase.`);
+      return;
+    }
+    ctx.marked = seller.id;
+    ctx.narratorLines.push(`PRICE: ${seller.name} sells to ${s.player.name}, but charges a quarter over the usual price, and makes sure they notice.`);
+  }
   /* The first of these people the player owes something (an obligation still owed), or null. */
   function obligeeAmong(ids) {
     const owed = State.obligations('owed');
@@ -20585,6 +21503,25 @@ const Pipeline = (() => {
       const same = !!f && f.npcId === npcTarget && f.locationId === p.locationId && f.turn === s.meta.turn - 1;
       const hits = (same ? (f.hits | 0) : 0) + (roll.success ? 1 : 0);
       ctx.hits = { [npcTarget]: hits };
+      /* Wave 27: what they remember is the engine's (one memory a fight,
+         keyed by it): a clean hit (success) is hit, anything less shoved;
+         the second hit raises it, the third is the beat-down (knockDown).
+         The people watching take a lighter copy each; done in front of two
+         or more, it costs the town the fight's heaviest blow, once. */
+      const key = same && typeof f.key === 'string' ? f.key : `f${s.meta.turn}-${npcTarget.slice(4)}`;
+      let cost = same && Number.isInteger(f.rep) ? f.rep : 0;
+      if (!(roll.success && hits >= 3)) {
+        const target = State.npc(npcTarget);
+        const event = roll.tier === 'success' || roll.tier === 'critical' ? 'hit' : 'shoved';
+        const seen = ctx.presentIds.filter(id => id !== npcTarget && !State.laidUp(State.npc(id)));
+        const pub = seen.length >= 2;
+        const rep = pub ? Math.min(0, Rel.EVENTS[event].rep - cost) : 0;
+        const place = placeName(here());
+        const r = State.apply({ socialEvents: [{ npcId: npcTarget, event, text: event === 'hit' ? `hit me in a fight at ${place}` : `took a swing at me in a fight at ${place}`, act: 'attack', fight: key, witnesses: seen, public: pub, rep }] });
+        if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'fight', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+        if (pub) cost = Math.min(cost, Rel.EVENTS[event].rep);
+        if (target) ctx.bookLines.push(`FIGHT (already applied by the engine: what ${target.name} and the people watching make of it; record no attitude change or memory for the fight).`);
+      }
       if (roll.success && hits >= 3) {
         // They go down in this narration: told to the narrator (OUTCOME) and kept in the scene for it, though from now on they are laid up at home.
         const down = World.knockDown(npcTarget, { turn: s.meta.turn, locationId: p.locationId });
@@ -20595,7 +21532,7 @@ const Pipeline = (() => {
           ctx.bookLines.push(`KNOCKED DOWN BY THE ENGINE (already applied: hurt and laid up at home for two days, the memories, the news; record no npcFates for ${down.npcId}): ${down.text}`);
         }
         State.apply({ fight: null });
-      } else State.apply({ fight: { npcId: npcTarget, hits, day: t.day, phase: t.phase, locationId: p.locationId, turn: s.meta.turn } });
+      } else State.apply({ fight: { npcId: npcTarget, hits, day: t.day, phase: t.phase, locationId: p.locationId, turn: s.meta.turn, key, rep: cost } });
     }
     const l = here();
     const cop = State.npcsAt(l.id).find(isPolice) || null;
@@ -20664,6 +21601,20 @@ const Pipeline = (() => {
       return { locked: true };
     }
     const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, presentIds: ctx.presentIds.slice() };
+    /* Fear's ceiling (wave 27, Rel.complies): an adult afraid of the player
+       who is not hard does a small thing (talk or persuade, easy or normal)
+       with no roll. The d20 that would have been drawn is still used up
+       (Dice.burn), so the next roll and the clocks land where they would. */
+    const asked = npcTarget ? State.npc(npcTarget) : null;
+    if (asked && Rel.complies(asked, a)) {
+      Dice.burn();
+      ctx.complied = asked.id;
+      ctx.rollNpcId = asked.id;
+      ctx.narratorLines.push(`AFRAID (no roll): ${asked.name} is afraid of ${s.player.name} and goes along with it at once; play it as fear, never as goodwill.`);
+      ctx.bookLines.push(`NO ROLL (the engine: ${asked.name} is afraid of the player and did as asked): record what the narration shows them agreeing to or handing over.`);
+      State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${asked.id} complies out of fear (fear ${Rel.tracksOf(asked).f}): no roll, the d20 burned` });
+      return {};
+    }
     // How often this very ask (family and person) already worked here this phase: the next success earns less (Dice.diminishing).
     const before = key ? Dice.successes(key) : 0;
     const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
@@ -20683,8 +21634,91 @@ const Pipeline = (() => {
     complicationEffects(ctx, roll);
     storyPointFor(ctx, roll);
     if (attack) fight(ctx, roll, npcTarget);
+    rolledEvents(ctx, roll, npcTarget);
     if (roll.tier === 'critical_failure') ctx.consequence = lastingConsequence(ctx);
     return {};
+  }
+  /* What the engine sees in a roll (wave 27; the integration plan's 4.1),
+     applied at resolve as complications are: a threat (intimidate aimed at
+     someone here: threatened, as its row on a success, liking -10 and fear
+     +5 on a failure, liking -15 with two or more watching); a theft from
+     someone here (a failed or partial one is stole_from at half, a success
+     only when someone else saw it; a clean one nobody saw is only in their
+     ask log); caught at it (a failed or partial theft or sneak that exactly
+     one other person saw: caught_you_at for them, one record an act, never
+     a fight); a rescue (rescueOf); and the ask log (relAsk) for a lie, a
+     theft, a search or an attack aimed at someone. */
+  function rolledEvents(ctx, roll, npcTarget) {
+    const s = State.current;
+    const p = s.player;
+    const a = ctx.action;
+    const target = npcTarget ? State.npc(npcTarget) : null;
+    const place = placeName(here());
+    const others = ctx.presentIds.filter(id => id !== npcTarget && !State.laidUp(State.npc(id)));
+    const clean = roll.tier === 'success' || roll.tier === 'critical';
+    const events = [];
+    const asks = [];
+    if (target && a.actionType === 'intimidate') {
+      const crowd = others.length >= 2;
+      const d = roll.success ? (crowd ? { w: -15 } : undefined) : { w: crowd ? -15 : -10, t: 0, f: 5 };
+      events.push(Object.assign({ npcId: target.id, event: 'threatened', text: `threatened me at ${place}`, act: 'intimidate', witnesses: others, public: crowd }, d ? { d } : {}));
+    }
+    if (a.actionType === 'steal') {
+      if (target) {
+        if (!clean) events.push({ npcId: target.id, event: 'stole_from', text: `${p.name} tried to steal from me`, act: 'steal', scale: 0.5, public: others.length >= 2 });
+        else if (others.length) events.push({ npcId: target.id, event: 'stole_from', text: `${p.name} stole from me`, act: 'steal', public: others.length >= 2 });
+        asks.push({ npcId: target.id, act: 'steal', ok: roll.success, about: cleanText(a.summary, 120) });
+      }
+    }
+    // Caught at it by the one other person who saw (wave 27: the memory and the ask log; the leverage record is wave 29's).
+    const sneaky = a.actionType === 'steal' || a.actionType === 'sneak';
+    const watcher = others.length === 1 ? State.npc(others[0]) : !target && ctx.presentIds.length === 1 ? State.npc(ctx.presentIds[0]) : null;
+    if (sneaky && !clean && watcher && watcher.id !== npcTarget && !(watcher.memories || []).some(m => isObj(m) && m.event === 'caught_you_at' && m.turn === s.meta.turn)) {
+      events.push({ npcId: watcher.id, event: 'caught_you_at', text: a.actionType === 'steal' && target ? `caught ${p.name} trying to steal from ${target.name} at ${place}` : `caught ${p.name} sneaking around ${place}`, act: a.actionType });
+      asks.push({ npcId: watcher.id, act: a.actionType === 'steal' ? 'steal' : 'sneak', ok: false, about: cleanText(a.summary, 120) });
+    }
+    if (target && (a.actionType === 'deceive' || a.actionType === 'search' || a.actionType === 'attack')) asks.push({ npcId: target.id, act: a.actionType, ok: roll.success, about: cleanText(a.summary, 120) });
+    if (roll.success) events.push(...rescueOf(ctx, place));
+    if (!events.length && !asks.length) return;
+    const r = State.apply(Object.assign(events.length ? { socialEvents: events } : {}, asks.length ? { relAsk: asks } : {}));
+    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'rolled events', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    const told = events.filter(e => e.event !== 'caught_you_at').map(e => `${State.npc(e.npcId).name} (${e.event.replace(/_/g, ' ')})`);
+    if (told.length) ctx.bookLines.push(`ALREADY RECORDED BY THE ENGINE: ${told.join('; ')}: record no attitude change or memory for it.`);
+  }
+  /* A rescue (wave 27; design section 3.1): a successful action aimed at
+     someone in danger here (flags['danger.<id>'], World.markDanger: a seed
+     marked danger fired this phase or the last, or a hurt the bookkeeper
+     recorded from someone else), or an attack on the one putting them in
+     it, is rescued (liking +25, trust +15, owed +2, a scar-class memory),
+     with a lighter copy for the people watching. Never danger the player
+     made: not when the player had already gone for the victim or the one
+     doing it in this scene before the danger, and never for someone the
+     player is attacking. The danger is used up. Returns the events. */
+  function rescueOf(ctx, place) {
+    const s = State.current;
+    const a = ctx.action;
+    const p = s.player;
+    const fl = isObj(s.flags) ? s.flags : {};
+    const out = [];
+    const nowAt = PHASES.indexOf(s.time.phase);
+    for (const id of ctx.presentIds) {
+      const raw = fl[`danger.${id}`];
+      if (typeof raw !== 'string') continue;
+      const [day, phase, where, by, turn] = raw.split('|');
+      const at = PHASES.indexOf(phase);
+      if (toInt(day) !== s.time.day || at < 0 || nowAt - at < 0 || nowAt - at > 1 || where !== p.locationId) continue;
+      const aimed = a.targets.includes(id) && !(a.actionType === 'attack' && a.targets[0] === id);
+      const onAggressor = a.actionType === 'attack' && !!by && a.targets.includes(by);
+      if (!aimed && !onAggressor) continue;
+      // The player's own doing: they had already gone for either of them here before it began.
+      const since = toInt(turn) || 0;
+      const fought = [id, by].filter(Boolean).some(x => ((State.npc(x) || {}).memories || []).some(m => isObj(m) && isObj(m.d) && Rel.EVENTS[m.event] && Rel.EVENTS[m.event].dedupe === 'violence' && !m.witness && m.place === p.locationId && m.day === s.time.day && m.turn <= since));
+      if (fought) continue;
+      const aggressor = by ? State.npc(by) : null;
+      out.push({ npcId: id, event: 'rescued', text: `${p.name} stepped in for me${aggressor ? ` when ${aggressor.name} had me` : ''} at ${place}`, witnesses: ctx.presentIds.filter(x => x !== id && x !== by) });
+      State.apply({ effects: [{ op: 'setFlag', key: `danger.${id}`, value: null }] });
+    }
+    return out;
   }
 
   // ----- the card game -----
@@ -22264,13 +23298,14 @@ const Pipeline = (() => {
       const took = out.winners.includes(x.key);
       // What the seat took of the player's money: its share of the pot, of what the player put in.
       const fromPlayer = pot > 0 ? Math.floor((out.sides[0].in | 0) * (x.won | 0) / pot) : 0;
+      // Wave 27: the seat's liking moves as card_loss / card_win (everyday, the same -2 / +1); the line is a noted one, moving nothing.
       if (playerTook && !took && (x.in | 0) >= SEAT_MARK_MIN) {
-        mems.push({ npcId: n.id, text: `lost ${money(x.in)} to ${p.name} at cards at ${place}`, weight: 1 });
-        effects.push({ op: 'attitudeDelta', npcId: n.id, delta: -2 }, { op: 'setFlag', key: `cardsMark.${n.id}`, value: today });
+        mems.push({ npcId: n.id, text: `lost ${money(x.in)} to ${p.name} at cards at ${place}`, weight: 1, event: 'noted' });
+        effects.push({ op: 'socialEvent', npcId: n.id, event: 'card_loss', text: `lost ${money(x.in)} to ${p.name} at cards at ${place}`, d: { w: -2 } }, { op: 'setFlag', key: `cardsMark.${n.id}`, value: today });
         told.push({ id: n.id, name: n.name, lost: x.in });
       } else if (took && !playerTook && fromPlayer >= SEAT_MARK_MIN) {
-        mems.push({ npcId: n.id, text: `took a pot off ${p.name} at cards at ${place}`, weight: 1 });
-        effects.push({ op: 'attitudeDelta', npcId: n.id, delta: 1 }, { op: 'setFlag', key: `cardsMark.${n.id}`, value: today });
+        mems.push({ npcId: n.id, text: `took a pot off ${p.name} at cards at ${place}`, weight: 1, event: 'noted' });
+        effects.push({ op: 'socialEvent', npcId: n.id, event: 'card_win', text: `took a pot off ${p.name} at cards at ${place}`, d: { w: 1 } }, { op: 'setFlag', key: `cardsMark.${n.id}`, value: today });
         told.push({ id: n.id, name: n.name, took: true });
       }
     }
@@ -22737,9 +23772,9 @@ const Pipeline = (() => {
       const r = State.apply({
         // Caught with a marked deck (wave 4, the playtest's design note): the dealer keeps it.
         itemsLost: [{ id: deck.id, qty: deck.qty || 1 }],
-        newMemories: [{ npcId: dealer.id, text: `caught ${p.name} cheating at cards in ${place}`, weight: 3 }],
         // A ban ends before its untilDay (State.isBanned): three days is today and the two after (wave 3). The day he caught them: no game for a week (dealerRefusal).
-        effects: [{ op: 'attitudeDelta', npcId: dealer.id, delta: -20 }, { op: 'banFrom', locationId: l.id, days: CAUGHT_BAN_DAYS, byNpcId: dealer.id },
+        // Wave 27: cheated, with today's -20 (trust -30 from the row), the memory its own (weight 3); the others at the table see it.
+        effects: [{ op: 'socialEvent', npcId: dealer.id, event: 'cheated', text: `caught ${p.name} cheating at cards in ${place}`, weight: 3, d: { w: -20 }, witnesses: (ctx.presentIds || []).filter(id => id !== dealer.id), public: true }, { op: 'banFrom', locationId: l.id, days: CAUGHT_BAN_DAYS, byNpcId: dealer.id },
           { op: 'setFlag', key: `cardsCaught.${dealer.id}`, value: s.time.day },
           { op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true, seen: true }]
       });
@@ -23569,7 +24604,8 @@ const Pipeline = (() => {
     let dest = null;
     if (Storage.settings().permadeath) outcome = 'dead';
     else {
-      const friend = present.filter(n => n !== foe && n.attitude >= 25).sort((x, y) => y.attitude - x.attitude)[0];
+      // Wave 27 (Rel.rescues): liking 25 or more, or a favour they owe, unless they are afraid of the player.
+      const friend = present.filter(n => n !== foe && Rel.rescues(n)).sort((x, y) => y.attitude - x.attitude)[0];
       if (friend) { outcome = 'rescued'; npc = friend; }
       else if (watchy(foe) || PLACE_KINDS.watch.includes(l.type)) { outcome = 'captured'; npc = foe; dest = findPlace('watch'); }
       else if (p.gold > 0) { outcome = 'robbed'; npc = foe; }
@@ -23582,8 +24618,9 @@ const Pipeline = (() => {
       diff.conditionsAdded = [{ name: 'Beaten', effect: '-1 might', untilDay: s.time.day + 2 }];
       if (outcome === 'robbed' && lost > 0) diff.goldDelta = -lost;
       if (dest && dest.id !== l.id) diff.playerLocationId = dest.id;
-      if (npc && outcome === 'rescued') diff.newMemories = [{ npcId: npc.id, text: `Found ${p.name} beaten senseless and helped them`, weight: 2 }];
-      if (npc && outcome === 'captured') diff.newMemories = [{ npcId: npc.id, text: `Beat ${p.name} in a fight and dragged them to the cells`, weight: 3 }];
+      // Wave 27: the rescuer did the player a favour (they_helped, weight 2: the player owes them one); the captor's is what they did to the player (noted, own: no grudge grows from it).
+      if (npc && outcome === 'rescued') diff.socialEvents = [{ npcId: npc.id, event: 'they_helped', text: `Found ${p.name} beaten senseless and helped them`, weight: 2 }];
+      if (npc && outcome === 'captured') diff.newMemories = [{ npcId: npc.id, text: `Beat ${p.name} in a fight and dragged them to the cells`, weight: 3, act: 'own', event: 'noted' }];
     }
     State.apply(diff);
     // One long, and not a night without sleep (REVIEW E14); runTurn charges nothing else for the action.
@@ -23705,6 +24742,11 @@ const Pipeline = (() => {
     if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
     if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
     if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) { reject('playerLocationId', `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn`); delete clean.playerLocationId; }
+    // Wave 27: the seller would not sell (refuseSale): no money paid for it and nothing bought.
+    if (ctx.noSale) {
+      if (toInt(clean.goldDelta) < 0) { reject('goldDelta', `ignored: ${ctx.noSale} would not sell to the player`); delete clean.goldDelta; }
+      if (Array.isArray(clean.itemsGained)) clean.itemsGained = clean.itemsGained.filter(x => { const bought = State.goodNamed(typeof x === 'string' ? x : isObj(x) ? x.name : ''); if (bought) reject('itemsGained', `ignored: ${ctx.noSale} would not sell ${typeof x === 'string' ? x : x.name}`); return !bought; });
+    }
     // The same ask worked here before this phase (Dice.diminishing): a warmer attitude counts for less each time; another gift to the same person today, none at all.
     const gift = giftIn(ctx, clean);
     ctx.gift = gift ? gift.npcId : null;
@@ -23735,7 +24777,13 @@ const Pipeline = (() => {
     const offered = ctx.rumour ? State.rumour(ctx.rumour.id) : null;
     const wasHeard = !!(offered && offered.heard);
     const targets = ((ctx.action && ctx.action.targets) || []).filter(id => typeof id === 'string' && id.startsWith('npc_'));
-    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success), attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null, bought: !!ctx.bought, paying: !!ctx.paying, rolled: !!ctx.roll, asked: (ctx.roll && ctx.rollNpcId) || null });
+    /* Wave 27: the turn's own events that ride this apply (opts.engineEvents):
+       a gift, or a bribe when the turn's action was a persuade or a lie aimed
+       at them; State counts it only once money or a thing actually moved to
+       them, and the bookkeeper's legacy lines for them yield to it. */
+    const at = ctx.action || {};
+    const engineEvents = ctx.gift ? [{ npcId: ctx.gift, event: (at.actionType === 'persuade' || at.actionType === 'deceive') && (at.targets || []).includes(ctx.gift) ? 'bribed' : 'gift', handed: true }] : [];
+    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success) || !!ctx.complied, attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null, bought: !!ctx.bought, paying: !!ctx.paying, rolled: !!ctx.roll, asked: (ctx.roll && ctx.rollNpcId) || null, engineEvents });
     // A gift counts once it was handed over (the money or the thing went), and is no payment toward what they are owed.
     const handed = ctx.applied.applied.some(x => /^(goldDelta|itemsLost)/.test(x)) && !ctx.applied.applied.some(x => /^(paid|settled)\./.test(x));
     if (ctx.gift && handed) State.apply({ giftGiven: ctx.gift });
@@ -23750,6 +24798,27 @@ const Pipeline = (() => {
     // Someone other than its source told it: People lists it under the teller.
     if (offered && !wasHeard && offered.heard && offered.sourceNpcId !== ctx.rumour.npcId) State.apply({ rumourToldBy: [{ rumourId: offered.id, npcId: ctx.rumour.npcId }] });
     return ctx.applied;
+  }
+  /* Wave 27 (the integration plan's 4.1): the people a turn was spent with,
+     for State's relTurn: whoever the words were said to (Say, not to
+     everyone) or a social action was aimed at, here. Anyone the turn
+     already moved (their liking, or a new memory) is quiet: the turn was
+     about that, not time together. */
+  function turnTogether(ctx) {
+    const s = State.current;
+    // A card game, or an ask for table stakes, is the table's business (it changes no feeling), not time together.
+    if (!s || !ctx.action || !isObj(ctx.attStart) || ctx.stakes || ctx.gamble) return;
+    const a = ctx.action;
+    const here = ctx.presentIds || [];
+    const aimed = [];
+    if (isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' && here.includes(ctx.speech.to)) aimed.push(ctx.speech.to);
+    if (Dice.SOCIAL_ACTIONS.includes(a.actionType)) for (const id of a.targets || []) if (here.includes(id) && !aimed.includes(id)) aimed.push(id);
+    if (!aimed.length) return;
+    // A turn that moved them, or an ask of theirs that failed (a "no" is no time together), counts no time together.
+    const refused = ctx.roll && !ctx.roll.success ? (a.targets || []) : [];
+    const quiet = aimed.filter(id => { const n = State.npc(id); return !n || refused.includes(id) || n.attitude !== ctx.attStart[id] || (n.memories || []).length !== (ctx.memStart || {})[id]; });
+    const r = State.apply({ relTurn: { aimed, quiet } });
+    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'relTurn', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
   }
   /* A bookkeeper that failed (not a refusal, not a Stop): asked once more in
      the background. Its diff is applied when no turn is running, and only
@@ -23908,6 +24977,9 @@ const Pipeline = (() => {
       // Step 5. Resolve (the card game is played in code, at a table the player plays: wave 10).
       // Wave 18 (amendment 2): asking the dealer for table stakes is its own resolution (the engine's word rule, whatever the parser called it).
       const asked = ctx.replayCards ? null : stakesAsked(ctx);
+      // How everyone stood before the turn did anything to them (wave 27: a turn that moved someone is not also time spent with them).
+      ctx.attStart = World.attitudes();
+      ctx.memStart = Object.fromEntries(s.npcs.map(n => [n.id, (n.memories || []).length]));
       const resolved = asked ? stakesAsk(ctx, asked) : action.actionType === 'gamble' ? await gamble(ctx) : resolve(ctx);
       if (replaced()) return fail(snap, mark, null, {});
       if (resolved.locked) {
@@ -23920,6 +24992,7 @@ const Pipeline = (() => {
       if (replaced()) return fail(snap, mark, null, {});
       giftCheck(ctx);
       secretsFor(ctx);
+      refuseSale(ctx);
       // Step 6. Narrate, with any due events (step 11 of an earlier turn) and one fresh rumour.
       const narrTime = nowTime();
       const leaving = action.actionType === 'move' && !!action.destinationId && action.destinationId !== ctx.location.id;
@@ -23991,6 +25064,8 @@ const Pipeline = (() => {
           UI.feed.quiet(notRecorded.stopped ? NOTICES.bookStopped : notRecorded.refused ? refusedText('bookkeeper') : NOTICES.bookFailed);
         } else applyBookkeeping(ctx, diff);
       }
+      // A turn spent with someone (wave 27, relTurn): after the bookkeeper's apply, or on its own when it failed.
+      turnTogether(ctx);
       arriveIfLeftBehind(ctx);
       walkOn(ctx);
       // Caught cheating at cards: put out onto the street the narration named (wave 4: not the first exit, the motel).
@@ -24166,12 +25241,28 @@ const Pipeline = (() => {
     }
     const memory = `Fact (a story point): ${firstPerson(statement, p.name)}`;
     const npcIds = ctx.created.filter(c => c.kind === 'npc').map(c => c.id).concat(ctx.links.filter(c => c.kind === 'npc').map(c => c.id));
-    State.apply({
+    /* Wave 27 (the integration plan's 9.6): what the fact says about how they
+       stand with the player was so before the player came (relStart, never
+       spark or fear): "owes me" a favour owed, "go back" or "old friend"
+       knows-you at least 30, "trusts me" trust +15 (to 40 at most), "likes
+       me" liking +10 (to 40 at most). The memory itself is a fact: kept,
+       moving nothing, never a grudge. */
+    const said = Rel.factOf(statement);
+    const starts = npcIds.map(id => {
+      const c = Rel.tracksOf(State.npc(id));
+      const x = { npcId: id, why: statement };
+      if (said.owed) x.owed = 1;
+      if (said.knows) x.k = said.knows;
+      if (said.trust) x.t = clamp(40 - c.t, 0, said.trust);
+      if (said.liking) x.w = clamp(40 - c.w, 0, said.liking);
+      return x;
+    }).filter(x => x.owed || x.k || x.t || x.w);
+    State.apply(Object.assign({
       storyPointsDelta: -1,
-      newMemories: npcIds.map(id => ({ npcId: id, text: memory, weight: 3 })),
+      newMemories: npcIds.map(id => ({ npcId: id, text: memory, weight: 3, event: 'noted' })),
       npcKnownToPlayer: npcIds,
       journalEntry: `Fact: ${statement}`
-    });
+    }, starts.length ? { relStart: starts } : {}));
     const made = ctx.created.map(c => (c.kind === 'npc' ? `${c.name}, ${c.role}` : c.name));
     const text = `It is now true: ${statement}${made.length ? ` (New: ${made.join('; ')}.)` : ''}`;
     UI.feed.notice(`Story point spent (${p.storyPoints} left). ${text}`);

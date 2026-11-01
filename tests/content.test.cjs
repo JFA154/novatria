@@ -765,7 +765,8 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   for (const o of obls) {
     assert.ok(typeof o.missText === 'string' && o.missText.length > 20 && !/came looking:/.test(o.missText), JSON.stringify(o.missText));
     const owed = o.owedTo || '{npcId}';
-    assert.ok(o.onMiss.some(e => e.op === 'addMemory' && e.npcId === owed), 'the person owed remembers: ' + o.text);
+    // Changed by design in wave 27 (A2): a broken word is a socialEvent, a memory with what it did (or an addMemory where no number moves).
+    assert.ok(o.onMiss.some(e => (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === owed), 'the person owed remembers: ' + o.text);
   }
   const letter = D.LOOSE_ENDS.promise.obligations[0];
   assert.deepEqual([letter.kind, letter.owedTo], ['errand', 'npc_bernice']);
@@ -773,8 +774,9 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   assert.deepEqual(D.LOOSE_ENDS.promise.obligations.map(o => o.owedTo), ['npc_bernice', 'npc_dale', 'npc_bernice']);
   const black = D.LOOSE_ENDS.secret.obligation;
   assert.match(black.missText, /has told Chief Bell what \{playerName\} is hiding/);
-  assert.ok(black.onMiss.some(e => e.op === 'addMemory' && e.npcId === 'npc_marcus'), 'the chief knows');
-  assert.ok(D.LOOSE_ENDS.debt.obligations[1].onMiss.some(e => e.op === 'addMemory' && e.npcId === '{npcId}' && e.weight === 3), 'Leon remembers the title loan he collected');
+  // Changed by design in wave 27 (A2): the chief's memory is told_anyway, the collector's a broken word (own), each a socialEvent.
+  assert.ok(black.onMiss.some(e => (e.op === 'addMemory' || (e.op === 'socialEvent' && e.event === 'told_anyway')) && e.npcId === 'npc_marcus'), 'the chief knows');
+  assert.ok(D.LOOSE_ENDS.debt.obligations[1].onMiss.some(e => (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === '{npcId}' && e.weight === 3), 'Leon remembers the title loan he collected');
   let r = validateEdited(html => once(html, '        owedTo: "npc_bernice",\n        missText: "The letter for', '        missText: "The letter for'));
   assert.equal(r.status, 1);
   assert.match(r.stderr, /an errand is owed to whoever asked for it/);

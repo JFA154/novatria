@@ -30,10 +30,13 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
     out.keys = ['socialEvents', 'relSet', 'relDay'].map(k => S.ENGINE_KEYS.includes(k) && !S.RECORD_KEYS.includes(k));
     out.ops = [S.EFFECT_OPS.length, S.EFFECT_OPS.includes('socialEvent'), Object.isFrozen(R.EVENTS) && Object.isFrozen(R.EVENTS.hit) && Object.isFrozen(R.CAPS.turn)];
     // Where people start: liking as the town wrote it (a loose end's person carries its shift on top), trust 5 x guardedness, -10 for the police and smugglers.
+    // Changed by design in wave 27 (A2): a loose end's shift is part of where its person starts (rel.start: liking, trust LOOSE_END_TRUST, knows 30).
     const loose = st.player.looseEnds.map(le => le.npcId);
-    out.written = st.npcs.filter(n => { const t = T.npcs.find(x => x.id === n.id); return n.rel.start.w !== t.attitude || (!loose.includes(n.id) && n.attitude !== t.attitude); }).map(n => n.id);
-    out.trust = ['npc_royce', 'npc_tyler', 'npc_marcus', 'npc_wade', 'npc_dewayne', 'npc_loretta'].map(id => S.npc(id).rel.start.t);
-    out.loose = loose.map(id => { const n = S.npc(id); return [n.attitude === n.rel.start.w + n.rel.everyday.w + n.rel.fix.w, Math.abs(n.rel.everyday.w) <= 15]; });
+    const SHIFT = { debt: [-10, -10], enemy: [-40, -50], secret: [-5, -5], lost: [10, 10], promise: [5, 5] };
+    const shiftOf = id => { const le = st.player.looseEnds.find(x => x.npcId === id); return le ? SHIFT[le.kind] : [0, 0]; };
+    out.written = st.npcs.filter(n => { const t = T.npcs.find(x => x.id === n.id); return n.rel.start.w !== t.attitude + shiftOf(n.id)[0] || n.attitude !== t.attitude + shiftOf(n.id)[0]; }).map(n => n.id);
+    out.trust = ['npc_royce', 'npc_tyler', 'npc_marcus', 'npc_wade', 'npc_dewayne', 'npc_loretta'].map(id => S.npc(id).rel.start.t - shiftOf(id)[1]);
+    out.loose = loose.map(id => { const n = S.npc(id); return [n.attitude === n.rel.start.w + n.rel.everyday.w + n.rel.fix.w, n.rel.everyday.w === 0 && n.rel.start.k === 30]; });
     // attitudeDelta: exactly what it says, past the everyday bucket's bound (the rest in fix) and clamped at the edges as before.
     const n = S.npc('npc_royce');
     const a0 = n.attitude;
@@ -77,7 +80,7 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   assert.deepEqual(r.ops, [29, true, true], 'the effect ops are 29 with socialEvent; the tables are frozen');
   assert.deepEqual(r.written, [], 'liking starts as the town wrote it');
   assert.deepEqual(r.trust, [5, -5, -15, -10, -5, 0], 'Royce open, Tyler watchful, Marcus police and guarded, Wade a smuggler, Dewayne guarded, Loretta neither');
-  assert.ok(r.loose.length && r.loose.every(x => x[0] && x[1]), 'a loose end\'s shift is in the buckets, everyday within its bound: ' + JSON.stringify(r.loose));
+  assert.ok(r.loose.length && r.loose.every(x => x[0] && x[1]), 'a loose end\'s shift is in their start, with knows-you 30 (wave 27), nothing in everyday: ' + JSON.stringify(r.loose));
   const [s1, s2, s3, s4] = r.delta.steps;
   assert.deepEqual(s1, [`effects[0]: attitudeDelta: npc_royce attitude ${r.delta.a0} -> ${r.delta.a0 + 30}`, r.delta.a0 + 30, 15, 15], 'past the bound: 15 in everyday, the rest in fix');
   assert.deepEqual(s2.slice(1), [r.delta.a0 - 20, -15, -5]);
@@ -526,8 +529,12 @@ s.test('an older save loads with liking exactly its attitude and plays as before
     };
     const A = morning(save);
     const B = morning(old);
-    out.same = JSON.stringify(A) === JSON.stringify(B);
+    // Changed by design in wave 27 (A2: fading replaces the drift): only the everyday bucket drifts, on a day the player did not see them;
+    // a direct write in this build's save is fix (it never drifts), in the older save it was filled into everyday, so only c may differ.
+    out.same = JSON.stringify(A.filter(x => x[0] !== c.id)) === JSON.stringify(B.filter(x => x[0] !== c.id));
     out.moved = [a, b, c].map(n => [attitudes[old.npcs.findIndex(x => x.id === n.id)], B.find(x => x[0] === n.id)[1]]);
+    out.c = A.find(x => x[0] === c.id)[1];
+    out.unseen = [a, b, c].map(n => !(save.seen && save.seen[n.id] && save.seen[n.id].day === save.time.day));
     out.base = [a, b, c].map(n => (town.npcs.find(x => x.id === n.id) || {}).attitude || 0);
     return out;
   });
@@ -539,9 +546,11 @@ s.test('an older save loads with liking exactly its attitude and plays as before
   assert.deepEqual(r.trust, [], 'trust from the start rules');
   assert.equal(r.same, true, 'the older save plays exactly as the same save from this build');
   const [ma, mb, mc] = r.moved;
-  assert.deepEqual(ma, [r.base[0] + 37, r.base[0] + 35 - 4], 'two back toward the town in the morning, then the change');
-  assert.deepEqual(mb, [r.base[1] - 22, r.base[1] - 22 + 6], 'a fresh weight-3 memory holds the drift');
-  assert.deepEqual(mc, [-33, -33 + 2], 'a direct write drifts from where it was written');
+  const step = i => (r.unseen[i] ? 2 : 0);
+  assert.deepEqual(ma, [r.base[0] + 37, r.base[0] + 37 - step(0) - 4], 'the everyday part two back toward 0 on a morning after a day unseen, then the change');
+  assert.deepEqual(mb, [r.base[1] - 22, r.base[1] - 22 + step(1) + 6], 'a weight-3 line that moves nothing no longer holds it (wave 27)');
+  assert.deepEqual(mc, [-33, -33 + step(2)], 'a direct write in an older save was everyday, and drifts from where it was written');
+  assert.equal(r.c, -33, 'the same write in this build\'s save is fix: it never drifts');
   // And a turn plays, every alias still liking.
   await sendText(page, 'I look around');
   const ok = await page.evaluate(() => Game.state.npcs.every(n => n.attitude === n.rel.w && Number.isInteger(n.rel.t)));

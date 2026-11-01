@@ -177,7 +177,12 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `socialEvent` | `npcId`, `event` (one of `Rel.EVENTS`, the engine's rows too), `text` (what they would remember), `weight?`, `act?`, `aboutId?`, `private?`, `leverageId?`, `d?` (a part of the row, whole numbers within ±50), `decay?`, `secondhand?`, `scale?` (0.1..2) | wave 26: planned by `Rel.applyEvent` (traits, repeats, bounds), written by State: a typed memory or an everyday change, what it settles, owed favours; spark above 0 refused for anyone it cannot move for; a no-op for the dead |
 
 `State.EFFECT_OPS` is the list (29 with `placeItem`, `obligationPaid` and `socialEvent`),
-and `tests/validate-town.cjs` keeps the same list in `OPS`. Placeholders
+and `tests/validate-town.cjs` keeps the same list in `OPS`. Wave 27's
+`relSettle`, `relTurn`, `relAsk` and `relStart` are engine-only keys of
+`State.apply` (like `relSet` and `relDay`), not effect ops: content never
+writes them. `socialEvent` also takes `public?` from content (it made news:
+the town's reputation moves by the event's row) and, from the engine,
+`fight?`, `witnesses?` and `rep?`. Placeholders
 `{npcId}`, `{npc}`, `{playerName}` (also `{player}`, `{witnessId}`,
 `{witness}`, `{place}`, and an obligation's own `{obligationId}` in its
 `onMiss` and `onMet`) are filled by
@@ -1653,3 +1658,34 @@ talking, I can direct it to one person or all."
      with `w t f k s · stance`. `Rel.rng` and `Dice.burn` exist for wave
      27. `docs/notes/engine-state.md`; tests:
      `tests/wave26-rel-tracks.test.cjs`.
+   - **Wave 27** (1 Nov 2026). A2, "What the engine sees, people remember
+     for what it was". The engine's own events are typed: a fight is one
+     memory (`hit`, raised x1.4 by a second hit, replaced by the third's
+     `beat_down`; a swing that misses is `shoved`), `threatened` from an
+     intimidate roll, `stole_from` and `caught_you_at` from a theft or a
+     sneak, `gift` and `bribed` once money or a thing has moved (the
+     bookkeeper's apply, `opts.engineEvents`), `spent_time` and knows-you
+     (`relTurn`), kept and broken words from the loose ends' obligations
+     and the appointments, `cheated`, the card seats' `card_win` and
+     `card_loss`, `rescued` from a seed marked `danger` (never danger the
+     player made). The people who saw it take one lighter copy a scene (the
+     old weight-3 witness memories retired); the bookkeeper's events of a
+     class the engine recorded are dropped and its legacy
+     `attitudeChanges` and `newMemories` for that person yield. Fading
+     replaces the drift (only the everyday bucket drifts, on days unseen);
+     a grudge come due softens its memory (`relSettle`). The gates read the
+     tracks: the dice (`Rel.rollMod`), fear's no-roll compliance with the
+     d20 burned, rescue on a defeat, the grudge (an unsettled weight-3 harm;
+     a beat-down on someone tough is answered at once), the report to a
+     protector (content `protector`, `TOWN_DATA.policeHead`, four
+     `GRUDGE_TEMPLATES` of kind `report`; on `Rel.rng` sub-streams so the
+     dice and clocks do not shift), the shop that won't sell. Town
+     reputation moves on public events (`World.driftReputation` keeps only
+     the factions' part) and the town tier gains "feared". `/fact` writes a
+     relationship fact into `rel.start` (`relStart`, which the loose ends'
+     shift uses too). New engine-only keys (never effect ops; the 29 ops are
+     unchanged): `relTurn`, `relAsk`, `relSettle`, `relStart`.
+     `docs/notes/engine-state.md`, `engine-world.md`, `content.md`; tests:
+     `tests/wave27-rel-engine.test.cjs`,
+     `tests/relationships-examples.test.cjs` (the design's examples 4 and
+     7).

@@ -731,3 +731,55 @@ before this wave has the cast without the tag: the engine reads the
 built-in town's record for who plays (`cardPeople`). Nothing else changed in
 the cast data, so `docs/CAST.md` (which does not list tags) is unchanged and
 `node tests/cast-doc.cjs --check` and `node tests/validate-town.cjs` pass.
+
+## Wave 27 (1 Nov 2026): the engine's events in the content
+
+Wave A2 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 4.6 and 12).
+Content ids, the loose ends' option order, obligation ids and template
+indices are unchanged; templates were edited in place or appended.
+
+- **`LOOSE_ENDS` obligations**: every `attitudeDelta` plus memory is one
+  `socialEvent` with a `d` that keeps today's liking: a missed debt or
+  promise is `broke_word` (the debts' `-15`, `-10`, `-20`, weight 3, `act:
+  "own"`; the card debt's `public: true`, it is news), a debt paid is
+  `paid_back` (`+10`, weight 2; paid late it settles the broken word), a
+  promise or errand kept is `kept_word` (`+10`, the letter `+15` weight 3;
+  the default promise now has a memory: "{playerName} kept the promise they
+  made me."; the runaway's "got me home" for `{npcId}` beside Bernice's
+  line). The blackmail: Chief Bell's `told_anyway` (`-10`), the informant's
+  `broke_word` (`-10`, own), and a payment `paid_silence` (liking +5, trust
+  +10; the `{leverageId}` link is wave 29's). Memories that move no number
+  (Bernice's, Dale's) stay `addMemory`.
+- **The complication** "{witness} catches you at it" is `caught_you_at`;
+  "takes it personally" stays `attitudeDelta -5`.
+- **`GRUDGE_TEMPLATES`**: the third parties' `-10` / `-5` (Chief Bell in [0]
+  and [13], Loretta in [3], Wade, Colt and Trent in [7], Ray and Nadine in
+  [8], the department in [11], Shayla in [12]) are `crossed`,
+  `secondhand: true`, `d: { w, t }` with the same liking, in words of what
+  they heard. Appended [14] to [17]: `kind: "report"`, `to` (`family`,
+  `police`), `about` (`threat`, `violence`), `dayOffset: [1, 2]`, a
+  `crossed` for `{protectorId}` (family -10/-10, police -5/-10).
+- **`FAVOUR_TEMPLATES`** [2] and [10]: their self-memories are `act: "own"`
+  (noted). The favours' third-party `+5` / `+10` stay `attitudeDelta`.
+- **`protector`** on 18 people (design Appendix F): Hollis `{ npcId:
+  "npc_wade", hidden: true }`; Trent, Colt to Wade; Dwight to Carter; Odessa
+  to Vada; Tyler, Brianna to Mavis; Jodie, Lyman, Tammy to Loretta; Nikki,
+  Travis, Glenda to Marcus; Marcus, Wade, Carter, Boyd, Leon `"nobody"`. The
+  minors and everyone else take the defaults (`Rel.protectorOf`).
+  `TOWN_DATA.policeHead: "npc_marcus"`.
+- **Danger seeds** (3, `danger: true`, location triggers, everyone named in
+  `requires.npcFree`, late enough not to meet the early days):
+  `seed_landing_short_count` (Colt has Trent against the ice machine at
+  Purvis Landing, day 8 on), `seed_room_nine` (Boyd has Tyler by the collar
+  at the motor court, day 9 on), `seed_riverbend_note` (Leon has Shayla
+  against her trailer step, day 10 on). They were written for this wave: no
+  starting seed put someone in danger the player could step in on.
+- **The validator** (`tests/validate-town.cjs`) whitelists `protector`
+  (checked: an in-town person, a list, "nobody" or `{ npcId, hidden }`),
+  `policeHead` (in town, tagged police), seeds' `danger` (counted apart:
+  at most 4, besides the 5 to 8; a location trigger; the people named
+  free), the `report` kind with `to` and `about`, its 1 to 2 day offset,
+  `{protector}` and `{protectorId}`; a socialEvent's `public`; a broken
+  word as the owed person's memory of a miss. `OPS` stays `State.EFFECT_OPS`
+  (29). `tests/mentions.cjs` passes on every new string;
+  `docs/CAST.md` is unchanged.

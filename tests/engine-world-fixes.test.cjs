@@ -649,7 +649,9 @@ s.test('grudges: one per weight-3 memory, a template that fits the person, its e
   assert.ok(told.some(t => t === r.effect), 'a public template is news when it fires');
 });
 
-s.test('attitudes drift two a day back toward the town\'s own, except for someone with a fresh weight-3 memory or an open loose end; weather follows State.season()', async h => {
+// Changed by design in wave 27 (A2: fading replaces the drift): what drifts is the everyday part of liking, two a day back toward 0, on a
+// morning after a day the player did not see them; what was set outright (fix) never drifts, and a weight-3 line no longer holds anything.
+s.test('attitudes drift two a day back toward the town\'s own (wave 27: the everyday part, for someone the player did not see), except what was set outright or an open loose end; weather follows State.season()', async h => {
   const page = await h.open();
   await quickStart(page);
   const r = await page.evaluate(() => {
@@ -659,12 +661,14 @@ s.test('attitudes drift two a day back toward the town\'s own, except for someon
     const st = G.state;
     const loose = st.player.looseEnds.map(x => x.npcId);
     const free = st.npcs.filter(x => x.status === 'free' && !loose.includes(x.id) && !x.memories.length);
-    const [a, b, c] = free;
+    const [a, b, c, d] = free;
     const base = id => (S.town.npcs.find(x => x.id === id) || {}).attitude || 0;
-    W.forceAttitude(a.id, base(a.id) + 40);
+    S.apply({ effects: [{ op: 'attitudeDelta', npcId: a.id, delta: 40 }, { op: 'attitudeDelta', npcId: c.id, delta: -1 }, { op: 'attitudeDelta', npcId: d.id, delta: 10 }] });
     W.forceAttitude(b.id, base(b.id) - 40);
-    W.forceAttitude(c.id, base(c.id) - 1);
     S.apply({ newMemories: [{ npcId: b.id, text: 'broke my window', weight: 3 }] });
+    // Nobody seen today but d.
+    for (const x of [a, b, c]) delete st.seen[x.id];
+    st.seen[d.id] = { locationId: st.player.locationId, day: st.time.day, phase: st.time.phase, turn: st.meta.turn };
     const le = st.npcs.find(x => x.id === loose[0]);
     const leBefore = le ? le.attitude : null;
     const orig = S.season;
@@ -673,19 +677,23 @@ s.test('attitudes drift two a day back toward the town\'s own, except for someon
     W.tick({ to: { day: st.time.day + 1, phase: 'morning' } });
     S.season = orig;
     return {
-      a: S.npc(a.id).attitude - base(a.id), b: S.npc(b.id).attitude - base(b.id), c: S.npc(c.id).attitude - base(c.id),
+      a: S.npc(a.id).attitude - base(a.id), b: S.npc(b.id).attitude - base(b.id), c: S.npc(c.id).attitude - base(c.id), d: S.npc(d.id).attitude - base(d.id),
+      aBuckets: [a.rel.everyday.w, a.rel.fix.w],
       le: le ? [leBefore, S.npc(le.id).attitude] : null,
       weather: st.flags.weather, winter: G.data.TABLES.weather.winter
     };
   });
-  assert.equal(r.a, 38, 'two closer');
-  assert.equal(r.b, -40, 'a fresh grievance holds');
+  assert.equal(r.a, 38, 'two closer: the everyday part (15 of the 40) drifts, the rest is fix');
+  assert.deepEqual(r.aBuckets, [13, 25]);
+  assert.equal(r.b, -40, 'set outright: it never drifts (nor does a weight-3 line hold anything now)');
   assert.equal(r.c, 0, 'never past where they started');
+  assert.equal(r.d, 10, 'seen yesterday: no drift');
   if (r.le) assert.equal(r.le[1], r.le[0], 'an open loose end holds');
   assert.ok(r.winter.includes(r.weather), 'the weather is from State.season()');
 });
 
-s.test('knockDown: a weight-3 memory for them and everyone watching, news in a public place; arrestPlayer: the cells, a fine, the chief remembers, a due event', async h => {
+// Changed by design in wave 27 (A2): the one knocked down remembers a beat-down (weight 3); everyone watching takes one lighter copy for the scene.
+s.test('knockDown: a weight-3 memory for them (wave 27: the beat-down) and a lighter copy for everyone watching, news in a public place; arrestPlayer: the cells, a fine, the chief remembers, a due event', async h => {
   const page = await h.open();
   await quickStart(page);
   const sc = await findScene(page, { min: 2, notTypes: ['house', 'trailer', 'apartment', 'farm', 'bighouse'] });
@@ -696,7 +704,7 @@ s.test('knockDown: a weight-3 memory for them and everyone watching, news in a p
     const S = G.State;
     const st = G.state;
     const kd = W.knockDown(victim);
-    const mems = ids.map(id => (S.npc(id).memories || []).filter(m => m.weight === 3).map(m => m.text));
+    const mems = ids.map(id => (S.npc(id).memories || []).filter(m => (id === victim ? m.weight === 3 && m.event === 'beat_down' : m.witness === true && m.weight < 3)).map(m => m.text));
     const gold = st.player.gold;
     const ar = W.arrestPlayer();
     const chief = ar.chiefId && S.npc(ar.chiefId);
@@ -709,7 +717,7 @@ s.test('knockDown: a weight-3 memory for them and everyone watching, news in a p
     };
   }, [sc.npcs[0].id, sc.presentIds]);
   assert.ok(r.kd && r.kd.text.includes(r.name));
-  for (const m of r.mems) assert.ok(m.some(t => /knock|knocked/.test(t)), 'everyone here remembers it: ' + JSON.stringify(m));
+  for (const m of r.mems) assert.ok(m.length === 1 && m.some(t => /knock|knocked|put .* down/.test(t)), 'everyone here remembers it, once: ' + JSON.stringify(m));
   const told = await news(page);
   assert.ok(told.some(t => t.includes(`${r.player} knocked ${r.name} down`)), 'news in a public place');
   if (r.kd.hurt) assert.ok(Number.isInteger(r.hurt), 'hurt for two days when State has npcFates');

@@ -1851,3 +1851,67 @@ on planting: `docs/notes/engine-state.md`, Wave 22). World keeps it. Tests:
   for this phase. Skipped: dead, not free (gone, arrested), laid up, unnamed,
   or already in `npcsAt`. A refusal (the place closed) is a `rejected` debug
   line; a placement an `arrival` one.
+
+## Wave 27 (1 Nov 2026): what the engine sees
+
+Wave A2 of `docs/RELATIONSHIPS_PLAN.md` (scope: `docs/relationships/
+integration.md` section 16). World's side; State's is in
+`docs/notes/engine-state.md`, Wave 27. Tests:
+`tests/wave27-rel-engine.test.cjs`, `tests/relationships-examples.test.cjs`.
+
+- **`knockDown`** writes the engine's `beat_down` for the one knocked down
+  (replacing every memory of the fight, by `state.fight.key`) with the
+  people watching (`witnesses`): each takes one lighter copy for the scene
+  (State's witness rows); the old weight-3 memories for the victim and every
+  witness are gone. Done in a public place it is news and public: the town's
+  reputation moves by what the fight has not cost yet (`state.fight.rep`:
+  the heaviest blow's, once, so three hits and the beating cost 5). A
+  beat-down on someone tough is answered at once (`toughAnswer`): a
+  violence grudge for the beat-down's memory, the beating first (a template
+  with `forTags` tough), on `Rel.rng('toughAnswer', npcId, day)`, unless a
+  feeling of theirs is waiting or the 7-day cooldown holds; `result.grudge`.
+- **Step e** (`plantFeelings`): a grudge grows only from a memory
+  `Rel.grudgeFit` takes (a line that moves nothing by the old rule; a typed
+  one only for a harm still unsettled, or settled the same day; never a
+  witness or secondhand copy, a loose end's line or a fact; `freshMemory(n,
+  3, true)`); a witness copy grows no favour. `plantFeeling(n, kind, memory,
+  day, opts)` takes `{ rng, kinds, prefer, why }`; a grudge's kind of answer
+  is the memory's class (violence by violence only from someone tough, else
+  the police; theft by the police, gossip or money; words by gossip, a ban
+  or money); fear 40 leaves only the police or gossip; a `report` template
+  is never a grudge's. Today's liking-route plants still draw from the
+  shared stream (the same number of draws); every new plant draws from its
+  own and is stamped with its turn (`/rewind` strikes it). The seed's
+  origin keeps the memory's `key` and `why`.
+- **Reports** (`plantReports`, then `plantReport(n, why, day)`, at the end
+  of step e): someone `Rel.reportWhy` says means to tell, once for the
+  memory it grew from, plants a report seed (`origin.kind: 'report'`, `key`,
+  `why`, `protectors`, `hidden`; stamped with its turn) due in 1 or 2 days,
+  from a `GRUDGE_TEMPLATES` entry of kind `report` that suits whom it goes
+  to (`to`: police, or family) and what it is about (`about`: threat or
+  violence), all on `Rel.rng('report', npcId, day)`. "Nobody"
+  (`Rel.protectorOf`): a grudge instead (gossip, violence if tough), on the
+  same stream, subject to the cooldown. When it fires (`reportEffects`)
+  each protector still free takes the template for them, `{protector}` and
+  `{protectorId}` filled (`fillEffects` takes `protectorId`); through a
+  hidden tie the memory is `secondhand: { via, hidden: true }` and no due
+  event tells it.
+- **Getting even**: a grudge come due is `relSettle { npcId, key, mark, by:
+  'got_even' }` (State) in place of `attitudeDelta +10`.
+- **Danger** (`markDanger`): a seed with `danger` that fires marks the
+  people it names after the first (or the ids given) as in danger where the
+  player is, for this phase and the next (`flags['danger.<npcId>'] =
+  "day|phase|place|by|turn"`); Pipeline's rescue reads it. Three content
+  seeds carry it.
+- **Appointments**: a missed one is `socialEvent broke_word`, `scale: 0.5`,
+  weight 1 (liking -4, trust -8 before traits) in place of the memory and
+  -3; a kept one (`fire` with the player at its place) is `kept_word`.
+- **The morning** (step g): State's `relDay` moves only the everyday bucket
+  (`Rel.driftStep`), so `driftAttitudes`' note counts the people whose
+  small things drifted. `DRIFT_QUIET_DAYS` is kept but nothing reads it.
+- **`driftReputation`** moves only the factions (members' liking changes /
+  `REP_DIVISOR`, `REP_CAP` a turn); the town's standing moves on public
+  events in State.
+- **`arrestPlayer`**'s memory is `noted` (own); `sleptRough`'s was already
+  (own).
+- Exports: `plantReports`, `plantReport`, `toughAnswer`, `markDanger`.

@@ -1300,7 +1300,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 - Night Run reputation -5.
 - **Narrator (Tammy, Day 8).** `to you: friendly — warmer since Day 7, for a reason of her own; keeps it to herself, never hint at it — plays it: easy with you; small talk comes easy`
 - **Player sees.**
-  - Day 7: "Colt Purvis won't forget that." / "Lorna Purvis cools toward you."
+  - Day 7: "Colt Purvis won't forget that." / "Lorna Purvis cools toward you." (In tier A as wave 27 has it, the witness row alone takes Lorna from 5 to -13, "wary", and the band line names only people the player knows: a stranger at the dock gets none. `tests/relationships-examples.test.cjs` pins Colt's line.)
   - Day 8: the news line, then "Word got round: Wade Purvis, Tammy Lott and Austin Lott have heard about the landing."
   - Tammy's card: "Friendly · Warmer since you put Colt Purvis down at the landing, Day 7. Hasn't said why."
 
@@ -1343,13 +1343,13 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 - **Situation.** Day 4 night at the motel desk: "Give me the drive or I put you through that vending machine." The engine's `threatened` succeeds. It is a plain threat: the player has nothing on him.
 - **Tracks.**
   - Tyler (start W 5, T -5): **W -5, T -17, F 25**. "sizing you up · uneasy around you".
-  - Day 5, again, compounding ×1.5: **W -19, T -33, F 58**. "afraid of you".
+  - Day 5, again, compounding ×1.5: **W -19, T -33, F 59** (the merged memory keeps Day 4's fear as it faded, 21.0, plus 37.5 rounded to 38; wave 27's code, pinned by `tests/relationships-examples.test.cjs`). "afraid of you".
 - **Behaviour.**
   - The thumb drive: no roll (an adult afraid of you; the d20 is drawn on the ask's own stream).
-  - Report: threat-made fear, whatever the liking. His protector by default is his boss, Mavis: "Tyler Rasberry tells Mavis Mangum somebody's been leaning on him at the desk."
+  - Report: threat-made fear, whatever the liking. His protector by default is his boss, Mavis: "Tyler Rasberry tells Mavis Mangum somebody's been leaning on him at the desk." (Wave 27's template words: "Tyler Rasberry tells Mavis Mangum that <player> has been leaning on them, and Mavis Mangum goes cold on <player>."; her memory: "Tyler Rasberry says <player> has been leaning on them.")
   - Mavis takes W -10, T -13: **W -15, T -23**, "cool to you".
 - **Narrator.** `to you: afraid of you — threatened him over the clips (Day 4, Day 5) — plays it: agrees fast; won't meet your eye; keeps his distance`
-- **Player sees.** "Tyler Rasberry gives you room." / "Tyler Rasberry is afraid of you." Mavis's card, after the next scene with her: "Cool to you · Tyler says you've been leaning on him. Day 4".
+- **Player sees.** "Tyler Rasberry gives you room." / "Tyler Rasberry is afraid of you." Mavis's card, after the next scene with her: "Cool to you · Tyler says you've been leaning on him. Day 4". (Until wave 30's feed, the band line: Day 4 nothing crosses; Day 5 "Tyler Rasberry won't forget that.")
 
 #### 8. Burl: owes you, paid back unasked (A: the ledger, with its guard)
 

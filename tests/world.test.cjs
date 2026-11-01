@@ -317,6 +317,7 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   const sc = await findScene(page, { minAtt: -15, maxAtt: 20 });
   const x = sc.npcs[0];
   await place(page, sc.loc.id, sc.phase);
+  const rep0 = await page.evaluate(() => Game.state.player.reputation.town || 0);
   for (let i = 0; i < 3; i++) await sendText(page, `I insult ${x.name}`);
   const n = await page.evaluate(id => Game.State.npc(id), x.id);
   assert.equal(n.attitude, x.attitude - 45);
@@ -324,7 +325,9 @@ s.test('three insults turn an NPC cold; at -60 with a weight-3 memory they plant
   assert.deepEqual(n.memories.filter(m => /insulted/.test(m.text)).map(m => m.weight), [2, 3]);
   await sendText(page, `I talk to ${x.name}`);
   assert.ok((await lastLog(page)).narration.includes(`${x.name} gives you a cold look`), 'greeting turned cold');
-  assert.ok(await page.evaluate(() => Game.state.player.reputation.town < 0), 'reputation drifted down with the insults');
+  // Changed by design in wave 27 (A2): the town's standing moves on what is done in public as the engine sees it (an event in front of
+  // two people, or news), no longer on every liking change; the demo's insults are words it does not type, so the town has not heard.
+  assert.equal(await page.evaluate(() => Game.state.player.reputation.town || 0), rep0, 'the town\'s standing did not drift with the insults');
   // Cold is not enough: a phase passes and nothing is planted.
   await onePhase(page);
   assert.equal((await feelings(page, x.id, 'grudge')).length, 0, 'no grudge above -60');
@@ -397,8 +400,9 @@ s.test('location, npc and clock seeds fire at the right moment, wait for notBefo
   await fast(page);
   const dest = await page.evaluate(() => {
     const here = Game.State.loc(Game.state.player.locationId);
+    // A place where no other seed would fire now (wave 27's danger seeds wait for later days: notBeforeDay).
     const l = here.exits.map(id => Game.State.loc(id)).find(x => !x.closed && !/morning|afternoon|evening|night/i.test(x.name)
-      && !Game.state.seeds.some(sd => !sd.fired && sd.trigger.type === 'location' && sd.trigger.value === x.id));
+      && !Game.state.seeds.some(sd => !sd.fired && sd.trigger.type === 'location' && sd.trigger.value === x.id && !(sd.notBeforeDay > Game.state.time.day)));
     return { id: l.id, name: l.name };
   });
   await page.evaluate(() => Game.World.forceClockRoll(1));

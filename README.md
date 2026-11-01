@@ -358,6 +358,31 @@ When someone you know crosses a line in how they feel about you, a quiet line
 says so after the turn: "Loretta Gaddis warms to you.", "... cools toward
 you." or "... won't forget that."
 
+**People remember what you did for what it was.** The game itself sees a good
+deal and records it as what happened, not as a number: a blow in a fight, a
+threat, a theft, money or a thing handed over, a debt paid or let go, a
+promise kept or broken, a meeting kept or missed, being caught cheating at
+cards, stepping in when someone was in trouble, and the turns you spend
+talking to someone (once a day, a little warmer, and they get to know you).
+Each person takes it their own way (pride, how guarded they are, their nerve,
+how long they hold a grudge), and it changes more than whether they like you:
+whether they trust you, whether they are afraid of you, how well they know
+you. **A memory fades** by what it was: a sharp word in a couple of days, a
+shove or a gift in about a week, a blow or a theft over weeks but never all
+the way, a beating or a cheat for good. Fear fades in days. The small things
+too slight to remember drift back two a day on days you don't see them; what
+you set in the editor and what was true before you came never drift.
+**People who saw it** take a lighter copy, one for the whole scene however
+many blows they watched, which fades faster and leaves nothing behind: the
+people it happened to don't recover the way bystanders do. Something done in
+front of two people or more, or that makes the news, moves the town's opinion
+of you (at most 5 a turn), and when three people in town are afraid of you
+the town's word for you is **feared**. Someone afraid of you (not a hard man,
+never anyone under 18) does a small thing you ask with no roll; the dice
+still turn over, so nothing else in the game shifts. A shop that is against
+you won't sell to you for three days, then charges you a quarter over; a bed,
+gas or a meal is never refused for more than one night.
+
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
 pronouns, or type `/edit Mavis`. The form has their name, age, pronouns, role,
@@ -655,9 +680,33 @@ where things went missing), talk or money, an insult with talk, a ban or
 money. What someone did to you (a beating, a seizure, a night in the cell)
 starts no grudge of theirs. What is done in public becomes news. One
 feeling per offence: after one comes due, that person starts no other for a
-week, and a grudge that comes due leaves them less angry (they got even).
-Feelings with no fresh serious memory behind them for five days, and no open
-loose end with you, drift back 2 points a day toward where they started.
+week, and a grudge that comes due softens the memory it grew from (they got
+even: it weighs less from then on; an older memory that carries no numbers
+gives back 10). The serious memory has to be a harm still unsettled (or
+settled only the same day), and its kind decides the answer: violence by
+violence only from someone tough (Wade, Colt, Boyd, Leon, Dwight), else the
+police; someone afraid of you answers only with the police or talk. **A
+beating of someone tough is answered whatever they feel:** knock Wade down in
+front of his town and a few days later he gets you alone.
+
+**Reports.** Someone you have frightened (fear 40 or more) because you
+threatened them, or because you hurt them and they don't like you, tells
+whoever looks out for them within a day or two: a boss (Tyler goes to Mavis
+Mangum), their own (Trent and Colt to Wade Purvis, the police to Chief Bell,
+Odessa to Miss Vada), a minor's parents and the chief, else the police. That
+person cools on you (family or a boss: liking and trust -10; the police:
+liking -5, trust -10). Some go to someone nobody knows they would (Hollis
+Byrd tells Wade); then nothing names it and their card will only say they
+cooled. Faction heads and loners (Chief Bell, Wade, Carter, Boyd, Leon) have
+nobody to tell: for them it would be a grudge instead. Hard people (nerve, the
+tough, the heads) never get frightened enough to report in the first place.
+
+**People in trouble.** Now and then someone is in trouble where you are
+(Colt Purvis has Trent against the ice machine at the landing; Boyd Teague
+has Tyler by the collar at the motel; Leon Varner has Shayla at her trailer
+step). Step in and it works (a roll aimed at them, or at the one doing it,
+that succeeds, that phase or the next) and they owe you for it, and the people
+watching see it. It never counts when you started the trouble yourself.
 
 **Asking again.** A roll that fails can't be retried in the same place and
 phase: change something first (a different approach, something to offer,
@@ -674,8 +723,12 @@ police and anyone tough or armed are hard, the old, the young and the frail
 easy. A partial costs you 1 HP, a failure 1 to 3, a fumble 3. Three hits on
 one person in one fight (the same person and place, attack after attack,
 across a change of phase too; partials count) put them down in that turn's
-narration: they are hurt and laid up at home for two days, they and everyone
-who saw it remember, and in a public place it is news. Fight with the police
+narration: they are hurt and laid up at home for two days, and in a public
+place it is news. A fight is one memory for the one you fight: a clean hit,
+then a second that makes it worse, then the beating that replaces it (a swing
+that misses is a shove); everyone watching takes one lighter memory for the
+scene; in front of two people or more it costs your standing in town once,
+by its heaviest blow (a beating -5). Fight with the police
 there, or at Town Hall, and that narration has you taken in: a night in the
 holding cell, a fine of up to $50, any weapon or ammunition you carry taken
 off you (by what the thing is: a grease gun, gun oil, a butter knife, copper
@@ -988,7 +1041,11 @@ without a roll against them that succeeded. A thing bought is refused when
 the money for it was. HP never reaches 0 from what it writes unless you
 attacked and the roll failed. If the bookkeeper fails, the story you read
 stands: a quiet line says what changed was not recorded yet, and it is asked
-once more in the background.
+once more in the background. What the game saw itself (a fight, a threat, a
+theft, a gift, a debt or a meeting) is recorded by the game and counts once:
+the bookkeeper's own numbers and memory for that person that turn give way
+to it, and in one turn nobody's liking moves more than 40, their trust 45 or
+their fear 40 from what happened to them.
 
 ## Settings
 
@@ -1015,7 +1072,7 @@ once more in the background.
 | `/pass` (or **Wait**: the button beside the box while it is empty) | Say and do nothing for a few minutes and let the people here act, speak or react to your silence | Narrator, bookkeeper |
 | `/rest` | Sleep until morning: 3 HP in a bed, 1 sleeping rough (see Time). The world ticks through the night. The recap follows | Narrator (and the bookkeeper when something due happens) |
 | `/wait <phase>` | Wait where you are until the start of morning, afternoon, evening or night | Narrator (and the bookkeeper when something due happens) |
-| `/fact <statement>` | Spend a story point to make a statement true in the world ("/fact the mechanic owes me a favour", "/fact Jodie grew up in Clayburn"): the narrator and the bookkeeper treat it as so from then on, and it is kept on the person's card as a protected memory. It is not a question: "/fact how to seduce Jodie" or anything ending in "?" is refused at no cost, with a pointer to asking someone in the story instead | Parser |
+| `/fact <statement>` | Spend a story point to make a statement true in the world ("/fact the mechanic owes me a favour", "/fact Jodie grew up in Clayburn"): the narrator and the bookkeeper treat it as so from then on, and it is kept on the person's card as a protected memory (it never grows a grudge). What it says about how someone stands with you was so before you came: "owes me" puts them in your debt (one favour), "go back", "old friend" or "grew up with" means they know you, "trusts me" adds 15 of trust and "likes me" 10 of liking (to 40 at most); never fear. It is not a question: "/fact how to seduce Jodie" or anything ending in "?" is refused at no cost, with a pointer to asking someone in the story instead | Parser |
 | `/recap` | Where and when you are, who is here, what is open, what you owe, who is warm or cold to you, what you heard (see Journal) | None |
 | `/sheet` `/people` `/journal` `/places` | Open that panel | None |
 | `/undo` (also `/undo 3`, `/undo all`) | Take back the last turn exactly, or that many (up to 20 steps, fewer only if they would pass about 8 MB); a turn and the ending it brought are one step, and so is a `/cheat time`, a `/cheat cash`, an edit, an update or a `/rewind`. The notice ends with how many more can be taken back ("You took back 3 turns. 2 more can be taken back."; "Nothing more can be taken back."). The history is kept in this browser (IndexedDB) for the game in the autosave, so it survives a reload: **Continue** and **Play here instead** bring it back (only its steps up to the turn the autosave was saved at); a new game, a loaded slot, an import or the previous autosave start it empty. Where IndexedDB is off or fails (some private windows, some browsers opening the file from disk) nothing is said and the history is for this page only, as before; a tab another tab has taken over never writes it. Asked for more than there is, it takes back what it can and says `/rewind` can strike the rest ("You took back 4 turns. Only 4 turns could be taken back exactly; /rewind 6 strikes earlier turns from the story (money and feelings stay)."). A hand at cards taken back is dealt again the same way when you send the same line (by design, at draw and at hold'em), and a cheat that hand spent (`/cheat cards`, `/cheat win`) is armed again. With a hand open it takes back the turn that dealt it, free: "You took back the last turn; the hand is off the table." (see Cards) | None |
@@ -1271,6 +1328,19 @@ the town move:
 - Goods: `kind` (`good`, `service`, `drink` or `food`); only goods are
   carried. Complications: objects `{ text, tiers, kinds, needsPerson,
   notDay1, effects }`.
+- How people take things (wave 27): the `socialEvent` op (`{ npcId, event,
+  text, weight?, act?, d?, scale?, secondhand?, public? }`, an event of the
+  relationship table, `d` overriding the row within +/-50), which loose
+  ends' obligations and the grudge templates use for a word kept or broken
+  and what a third party hears. A person's `protector` (whom they go to when
+  you frighten or hurt them: an id, a list, `"nobody"`, or `{ npcId, hidden:
+  true }` for a tie the town does not know); `TOWN_DATA.policeHead` (whom a
+  report to the police goes to); a seed's `danger: true` (someone in trouble
+  the player can step in on: the people its words name after the first, the
+  one doing it; it needs a location trigger and `requires.npcFree` for
+  everyone it names); grudge templates of kind `report`, with `to`
+  (`police` or `family`), `about` (`threat` or `violence`), a 1 to 2 day
+  `dayOffset` and `{protector}` / `{protectorId}`.
 
 After editing, run:
 

@@ -989,3 +989,105 @@ changed. Tests: `tests/wave26-rel-tracks.test.cjs`.
   preconditions, and the minor's line before narration (28); the romance
   list, leverage records and owed asks (29); the card, the narrator's line,
   the feed and rules version 9 (30).
+
+## Wave 27 (1 Nov 2026): what the engine sees, people remember for what it was
+
+Wave A2 of `docs/RELATIONSHIPS_PLAN.md` (scope: `docs/relationships/
+integration.md` section 16). Numbers now change: fights, threats, thefts,
+gifts, obligations and appointments are the engine's typed events, and the
+morning drifts only the everyday bucket. Tests:
+`tests/wave27-rel-engine.test.cjs`, `tests/relationships-examples.test.cjs`
+(World's side: `docs/notes/engine-world.md`, Wave 27; content:
+`docs/notes/content.md`, Wave 27).
+
+- **`socialEvent`** (the op and the engine's `socialEvents`) takes, besides
+  wave 26's fields, `fight` (a fight's key: one memory a fight,
+  `Rel.applyEvent`), `witnesses` (`'present'`, `'none'` or ids: each who is
+  here, alive and not laid up takes `Rel.witnessEvent`'s copy, merged per
+  scene `loc:day:phase`; never for a private word), `public` (it made news;
+  else two or more watching make it public), `rep` (what it costs the town
+  when public, in place of the row's), and `secondhand` as `true` or `{ via,
+  hidden }`. A public event moves the town's reputation by its row
+  (`townRep`, held to 5 a turn by `ledger.rep`). Every engine event records
+  its dedupe class (`ledger.classes`) and the sign of its liking
+  (`ledger.engine`); within one apply the first money-class event for a
+  person wins (engine against engine), the rest are no-ops with a debug
+  line.
+- **Dedupe by class** (`dedupeWhy`): an event marked as the bookkeeper's
+  (`fromModel`, or `bookkeeper: true` until wave 28 sends them) is dropped
+  when the engine recorded its class for that person this turn, or a class
+  that drops it (`Rel.DEDUPE`: violence drops humiliated and threatened;
+  money kept_word and did_favour; romance complimented and flirted; words an
+  insult). The bookkeeper's events record no class.
+- **The legacy yield**: in a model diff, `attitudeChanges` of the same sign
+  as an engine event for that person this turn (`ledger.engine`, or one this
+  diff will give: `opts.engineEvents`) are dropped, and so are their
+  `newMemories`, each with a debug line ("the engine counted the fight for
+  npc_x").
+- **`opts.engineEvents`** (Pipeline: the gift or the bribe): processed after
+  the money, the payees and `obligationsSettled`, before `socialEvents`. One
+  marked `handed` counts only when money or a thing moved this diff
+  (`handed`, `lostNames`) and none of it went to an obligation of theirs
+  (`settledFor`); its words say what moved ("gave me $5").
+- **`newMemories`** from the engine may name their `event` (a noted line:
+  the captured defeat, the card seats, a fact, the failed-badly line);
+  `remember` takes `opts.event`.
+- **Eviction** past 12 (`Rel.evictIndex`, in `remember` and
+  `Rel.applyEvent`): witness and secondhand copies first, then by how long
+  a memory lasts (a typed one by its class; a line that moves nothing by
+  its weight: 1 slight, 2 a wound, 3 a scar), kind before harm, oldest
+  first; never a loose end's line, a fact or the newest three noted.
+- **Fights in `Rel.applyEvent`**: with `fight`, a beat-down removes the
+  fight's memories first; a heavier blow than the memory holds replaces it;
+  the same blow again raises it x1.4 (`raiseFight`, within the turn's
+  bounds and a hard person's 39); the person's standing is recomputed
+  without what was replaced (a hard man's fear room). A memory carries
+  `fight` (kept by `checkMemories`). `state.fight` keeps `key` and `rep`.
+- **`relDay`**: `Rel.driftStep(n, day, s)` gives the everyday bucket's
+  steps (liking and trust two toward 0) for someone the player did not see
+  on the day just ended (`state.seen[id].day`) and no open loose end ties;
+  everything else fades by its own age in `relWrite`. `fix` and knows-you
+  never drift; the weight-3 hold is gone.
+- **New engine keys** (never effect ops; `EFFECT_OPS` stays 29):
+  - `relTurn { aimed, quiet }` (Pipeline, after the bookkeeper or on its
+    own): knows +1 a turn aimed at someone (at most 3 a day, `rel.today.
+    kAimed`, into everyday), and `spent_time` once a day unless the turn
+    already moved them (`quiet`) or the player hurt them today.
+  - `relAsk { npcId, act, ok, about }` or a list: the ask log, `rel.asks`
+    (8, turn-stamped) for a lie, a theft, a search, an attack or a sneak.
+  - `relSettle { npcId, key | mark, by: 'got_even' }`: a grudge come due
+    softens its memory (`Rel.settle`, 0.4 of its liking); a line that moves
+    nothing, or none found, gives today's +10 into everyday.
+  - `relStart { npcId, w?, t?, k?, owed?, why? }` or a list: where someone
+    stood before the player came (`rel.start`; knows "at least"; `owed` a
+    turn-stamped entry). Town's loose ends (`LOOSE_END_ATTITUDE` with
+    `LOOSE_END_TRUST = { debt: -10, enemy: -50, secret: -5, lost: 10,
+    promise: 5 }` and knows 30, the liking as before: Boyd -10 to -50) and
+    `/fact` write it.
+- **`npcFates` hurt** from the bookkeeper on someone the player did not
+  attack marks them in danger at home for this phase and the next
+  (`flags['danger.<npcId>']`).
+- **`reputationTier('town')`**: despised, then **feared** (3 or more in
+  town at fear 20, `feared()`), then respected, known, disliked, noticed,
+  unknown.
+- **`priceFactor()`** includes `sellerMarkup()`: x1.25 while a seller here
+  is against the player and marked (`flags['relPrice.<npcId>']`, Pipeline's
+  `refuseSale`).
+- **Seeds**: `SEED_ORIGINS` gains `report`; `normaliseSeed` keeps an engine
+  seed's `origin.key`, `why`, `protectors`, `hidden` and its `turn` (so
+  `/rewind` strikes a report or a tough answer with its turn).
+- `lateEffects` makes a late socialEvent's words late too ("in full, but
+  late").
+- `/rewind` needs nothing new: every new writer stamps its turn (settled
+  entries, owed entries, asks, recent, the new seeds).
+- **Rel** gains `evictIndex`, `witnessEvent`, `grudgeFit`, `policeHead`,
+  `protectorOf`, `isPoliceNpc`, `reportWhy`, `rollMod`, `complies`,
+  `rescues`, `wontSell`, `factOf`, `FIGHT_RANK`, `FIGHT_RAISE`, and exports
+  `harmful` and `settlements`; `SECONDHAND_TEXT` names the player
+  (`{player}`); `GATES.social.actions`, `GATES.compliance.actions` and
+  `difficulties`, `GATES.report.days`, `GATES.wontSell` (`essentialDays`,
+  `liking`, `roles`).
+- **Dice** reads `Rel.rollMod` (a lie keeps the old rule until wave 28).
+- Left for later waves: the bookkeeper's own events on the wire, the trust
+  gates and floors (28); leverage, spark and owed asks (29); the card, the
+  narrator's line, the feed's words and rules version 9 (30).

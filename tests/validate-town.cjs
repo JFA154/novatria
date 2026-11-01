@@ -650,7 +650,7 @@ const OPS_OPTIONAL = {
   addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet'],
   obligationPaid: ['take'],
   addNews: ['factionId', 'public'],
-  socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale']
+  socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public']
 };
 /* The events a socialEvent may name and the fading classes it may give,
    read from the Rel module in the same file (its EVENTS table is one row a
@@ -938,8 +938,9 @@ function checkEffect(e, where, opts) {
       if (e.public !== undefined && typeof e.public !== 'boolean') err(where + '.public', 'true or false');
       break;
     case 'socialEvent':
-      // Wave 26: the person, an event of Rel.EVENTS (the engine's rows too), and what they would remember.
-      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      // Wave 26: the person, an event of Rel.EVENTS (the engine's rows too), and what they would remember. Wave 27: a report's {protectorId}; public (it is news: the town's reputation moves).
+      if (!npcRef(e.npcId, ph) && !(opts.protector === true && e.npcId === '{protectorId}')) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      if (e.public !== undefined && typeof e.public !== 'boolean') err(where + '.public', 'true or false');
       if (REL_EVENTS.indexOf(e.event) === -1) err(where + '.event', '"' + e.event + '" is not an event (one of ' + REL_EVENTS.join(', ') + ')');
       checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 2 });
       if (e.weight !== undefined && [1, 2, 3].indexOf(e.weight) === -1) err(where + '.weight', 'must be 1, 2 or 3');
@@ -966,7 +967,13 @@ function checkEffect(e, where, opts) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead']);
+// Wave 27: the police head a report to the police goes to (Rel.policeHead): someone in town tagged police.
+if (T.policeHead !== undefined) {
+  const ph = npcById.get(T.policeHead);
+  if (!ph) err('TOWN_DATA.policeHead', '"' + T.policeHead + '" is not an NPC');
+  else if ((ph.presence || 'here') !== 'here' || !(Array.isArray(ph.tags) && ph.tags.indexOf('police') !== -1)) err('TOWN_DATA.policeHead', T.policeHead + ' must live in town and be tagged police');
+}
 checkStr(T.name, 'TOWN_DATA.name', { noPlaceholders: true });
 if (typeof T.setting !== 'string' || T.setting.trim().length < 200) err('TOWN_DATA.setting', 'expected a one-paragraph string of some substance');
 else {
@@ -1230,7 +1237,21 @@ const seenLooks = new Set();
 let connectedSecrets = 0;
 npcs.forEach((n, i) => {
   const where = 'npcs[' + i + '](' + (n && n.id) + ')';
-  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn'])) return;
+  if (!checkKeys(n, ['id', 'name', 'pronouns', 'age', 'presence', 'role', 'factionId', 'tags', 'look', 'voice', 'personality', 'goal', 'secret', 'history', 'attitude', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status'], where, ['where', 'reach', 'died', 'buried', 'awayOn', 'protector'])) return;
+  // Wave 27: whom they go to when the player frightens or hurts them (Rel.protectorOf): someone in town, a list, "nobody", or { npcId, hidden: true }.
+  if (n.protector !== undefined) {
+    const items = Array.isArray(n.protector) ? n.protector : [n.protector];
+    if (n.protector === 'nobody') { /* a grudge instead */ }
+    else if (!items.length) err(where + '.protector', 'an npc id, a list of them, "nobody" or { npcId, hidden: true }');
+    else items.forEach((x, j) => {
+      const id = typeof x === 'string' ? x : isObj(x) ? x.npcId : null;
+      if (isObj(x) && Object.keys(x).some(k => k !== 'npcId' && k !== 'hidden')) err(where + '.protector[' + j + ']', 'only npcId and hidden');
+      if (isObj(x) && x.hidden !== undefined && typeof x.hidden !== 'boolean') err(where + '.protector[' + j + '].hidden', 'true or false');
+      if (!isNpc(id)) err(where + '.protector[' + j + ']', '"' + id + '" is not an NPC');
+      else if (id === n.id) err(where + '.protector[' + j + ']', 'nobody protects themself');
+      else if ((npcById.get(id).presence || 'here') !== 'here') err(where + '.protector[' + j + ']', id + ' does not live in town');
+    });
+  }
   // Out of town on some days (CONTRACTS section 1): school days for the teacher and the students.
   if (n.awayOn !== undefined) {
     const a = n.awayOn;
@@ -1473,7 +1494,12 @@ if (threads.length < 2 || threads.length > 3) err('TOWN_DATA.threads', 'expected
 threads.forEach((t, i) => checkThread(t, 'threads[' + i + '](' + (t && t.id) + ')', 'open'));
 
 // Seeds
-if (seeds.length < 5 || seeds.length > 8) err('TOWN_DATA.seeds', 'expected 5 to 8 seeds, found ' + seeds.length);
+// Wave 27: a seed marked danger (someone in trouble the player can step in on) is counted on its own: 3 or 4 of them, on top of the 5 to 8.
+const isDanger = (s) => isObj(s) && s.danger !== undefined;
+const plainSeeds = seeds.filter((s) => !isDanger(s));
+const dangerSeeds = seeds.filter(isDanger);
+if (plainSeeds.length < 5 || plainSeeds.length > 8) err('TOWN_DATA.seeds', 'expected 5 to 8 seeds (besides the danger ones), found ' + plainSeeds.length);
+if (dangerSeeds.length > 4) err('TOWN_DATA.seeds', 'at most 4 seeds marked danger, found ' + dangerSeeds.length);
 seeds.forEach((s, i) => {
   const where = 'seeds[' + i + '](' + (s && s.id) + ')';
   // notBeforeDay: a starting seed that waits (the engine's own field for loose-end seeds).
@@ -1482,10 +1508,23 @@ seeds.forEach((s, i) => {
     if (!isInt(copy.notBeforeDay) || copy.notBeforeDay < 2 || copy.notBeforeDay > 15) err(where + '.notBeforeDay', 'a day number, 2 to 15');
     delete copy.notBeforeDay;
   }
+  /* danger (wave 27): true (the people its words name after the first, the
+     one doing it, are in danger) or the ids of who is; it happens where its
+     location trigger is, to people who are there, and both are free then. */
+  if (isDanger(copy)) {
+    const d = copy.danger;
+    const ids = typeof d === 'string' ? [d] : Array.isArray(d) ? d : null;
+    if (d !== true && !(ids && ids.length && ids.every(isNpc))) err(where + '.danger', 'true, or the ids of who is in danger');
+    if (!copy.trigger || copy.trigger.type !== 'location') err(where + '.trigger', 'a danger seed happens somewhere: a location trigger');
+    const named = npcs.filter((n) => isObj(n) && typeof copy.effect === 'string' && copy.effect.indexOf(n.name) !== -1);
+    if (named.length < 2) err(where + '.effect', 'a danger seed names the one doing it and who is in danger, by their full names');
+    if (!copy.requires || !Array.isArray(copy.requires.npcFree) || named.some((n) => copy.requires.npcFree.indexOf(n.id) === -1)) err(where + '.requires', 'everyone it names must be free (requires.npcFree)');
+    delete copy.danger;
+  }
   checkSeed(copy, where, true);
 });
-const nonDaySeeds = seeds.filter((s) => s && s.trigger && s.trigger.type !== 'day').length;
-if (nonDaySeeds > 1) err('TOWN_DATA.seeds', 'at most one starting seed may use a non-day trigger, found ' + nonDaySeeds);
+const nonDaySeeds = plainSeeds.filter((s) => s && s.trigger && s.trigger.type !== 'day').length;
+if (nonDaySeeds > 1) err('TOWN_DATA.seeds', 'at most one starting seed may use a non-day trigger (besides the danger ones), found ' + nonDaySeeds);
 seeds.forEach((s, i) => {
   if (s && s.trigger && s.trigger.type === 'clock') err('seeds[' + i + '](' + s.id + ')', 'starting seeds use a day trigger, or one location/npc trigger');
   // A location seed on a start location would fire on arrival, before the player has done anything, unless it waits.
@@ -1762,11 +1801,13 @@ if (Array.isArray(BACKGROUNDS)) {
 if (!Array.isArray(FLAWS) || FLAWS.length !== 8) err('FLAWS', 'expected exactly 8 flaws');
 checkStrList(FLAWS, 'FLAWS', undefined, { maxSentences: 1, noPlaceholders: true });
 
-function checkPlaceholders(s, where, required) {
+// more: placeholders allowed besides {npc} and {player} (wave 27: a report's {protector}).
+function checkPlaceholders(s, where, required, more) {
   if (typeof s !== 'string') return;
+  const ok = ['{npc}', '{player}'].concat(more || []);
   const found = s.match(/\{[^}]*\}/g) || [];
-  found.forEach((p) => { if (p !== '{npc}' && p !== '{player}') err(where, 'unknown placeholder ' + p); });
-  if (/[{}]/.test(s.replace(/\{npc\}|\{player\}/g, ''))) err(where, 'stray brace');
+  found.forEach((p) => { if (ok.indexOf(p) === -1) err(where, 'unknown placeholder ' + p); });
+  if (/[{}]/.test(ok.reduce((x, p) => x.split(p).join(''), s))) err(where, 'stray brace');
   required.forEach((p) => { if (s.indexOf(p) === -1) err(where, 'must contain ' + p); });
 }
 function checkDayOffset(v, where, min, max) {
@@ -1848,7 +1889,8 @@ function checkObligation(ob, where) {
   if (ob.kind === 'errand' && (ob.owedTo === undefined || ob.owedTo === '{npcId}')) err(where + '.owedTo', 'an errand is owed to whoever asked for it, not to the person the thing is for: name them');
   // Whoever it is owed to remembers a miss: the person owed has a memory in onMiss.
   const owed = ob.owedTo === undefined ? '{npcId}' : ob.owedTo;
-  if (Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && e.op === 'addMemory' && e.npcId === owed)) err(where + '.onMiss', 'the person it is owed to (' + owed + ') remembers the miss: give them an addMemory');
+  // Wave 27: or a socialEvent for them (a broken word is a memory too).
+  if (Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === owed)) err(where + '.onMiss', 'the person it is owed to (' + owed + ') remembers the miss: give them an addMemory or a socialEvent');
   if (['debt', 'blackmail', 'promise', 'errand'].indexOf(ob.kind) === -1) err(where + '.kind', 'debt, blackmail, promise or errand');
   if (ob.kind === 'debt' || ob.kind === 'blackmail') {
     if (!isInt(ob.amount) || ob.amount < 20 || ob.amount > 2000) err(where + '.amount', 'a ' + ob.kind + ' names its amount in dollars, 20 to 2000');
@@ -1864,8 +1906,9 @@ function checkObligation(ob, where) {
   checkEffectList(ob.onMiss, where + '.onMiss', { ph: true, min: 1, max: 5 });
   checkEffectList(ob.onMet, where + '.onMet', { ph: true, max: 4 });
   // A missed debt or blackmail bites: money, a thing, health, a door or a price, not just a feeling.
+  // Wave 27: a socialEvent for someone besides the person owed (the chief told the secret) bites as their memory did.
   const BITES = ['playerGold', 'obligationPaid', 'playerHp', 'takeItem', 'banFrom', 'playerPrice', 'addCondition', 'addMemory'];
-  if ((ob.kind === 'debt' || ob.kind === 'blackmail') && Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && BITES.indexOf(e.op) !== -1)) err(where + '.onMiss', 'a missed ' + ob.kind + ' costs the player something (' + BITES.join(', ') + ')');
+  if ((ob.kind === 'debt' || ob.kind === 'blackmail') && Array.isArray(ob.onMiss) && !ob.onMiss.some((e) => isObj(e) && (BITES.indexOf(e.op) !== -1 || (e.op === 'socialEvent' && e.npcId !== owed)))) err(where + '.onMiss', 'a missed ' + ob.kind + ' costs the player something (' + BITES.join(', ') + ', or a socialEvent for someone else)');
 }
 
 // Grudges and favours (CONTRACTS sections 2 and 3): the text the narrator
@@ -1880,24 +1923,33 @@ function holders(t) {
     (!Array.isArray(t.notForTags) || !t.notForTags.some((g) => n.tags.indexOf(g) !== -1)));
 }
 // A grudge says what kind of answer it is (wave 4): a grudge answers in kind (World.grudgeKind).
-const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban'];
+// Wave 27: report, someone telling their protector (World.plantReport; never a grudge's answer).
+const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban', 'report'];
 function checkTemplates(list, name) {
   if (!Array.isArray(list) || list.length < 8) { err(name, 'needs at least 8 templates'); return; }
   const seen = new Set();
   const grudges = name === 'GRUDGE_TEMPLATES';
+  const reports = new Set();
   list.forEach((t, i) => {
     const where = name + '[' + i + ']';
-    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'] : ['forTags', 'notForTags'])) return;
-    // Wave 6: the offences a grudge template answers, when only some (a theft, a beating, an insult).
-    if (grudges && t.about !== undefined && !(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['violence', 'theft', 'insult'].indexOf(k) !== -1))) err(where + '.about', 'a non-empty list of violence, theft or insult');
+    const report = grudges && isObj(t) && t.kind === 'report';
+    if (!checkKeys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], where, grudges ? ['forTags', 'notForTags', 'about'].concat(report ? ['to'] : []) : ['forTags', 'notForTags'])) return;
+    // Wave 6: the offences a grudge template answers, when only some (a theft, a beating, an insult). Wave 27: a report says what it is about (a threat or violence) and whom it goes to (to).
+    if (grudges && !report && t.about !== undefined && !(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['violence', 'theft', 'insult'].indexOf(k) !== -1))) err(where + '.about', 'a non-empty list of violence, theft or insult');
+    if (report) {
+      if (!(Array.isArray(t.about) && t.about.length && t.about.every((k) => ['threat', 'violence'].indexOf(k) !== -1))) err(where + '.about', 'a report says what it is about: threat or violence');
+      if (['police', 'family'].indexOf(t.to) === -1) err(where + '.to', 'police or family (a parent, a boss or anyone else)');
+      if (!(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'socialEvent' && e.npcId === '{protectorId}'))) err(where + '.effects', 'a report gives the protector a socialEvent ({protectorId})');
+      (Array.isArray(t.about) ? t.about : []).forEach((k) => reports.add(t.to + ':' + k));
+    }
     if (grudges && GRUDGE_KINDS.indexOf(t.kind) === -1) err(where + '.kind', 'one of ' + GRUDGE_KINDS.join(', ') + ', found ' + JSON.stringify(t.kind));
     if (grudges && t.kind === 'violence' && !(Array.isArray(t.effects) && t.effects.some((e) => isObj(e) && e.op === 'playerHp'))) err(where + '.kind', 'violence hurts the player (a playerHp effect)');
     checkStr(t.effect, where + '.effect', { maxSentences: 1 });
-    checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}']);
+    checkPlaceholders(t.effect, where + '.effect', ['{npc}', '{player}'].concat(report ? ['{protector}'] : []), report ? ['{protector}'] : []);
     if (typeof t.effect === 'string' && PLAYER_GEAR.test(t.effect)) err(where + '.effect', 'assumes the player has a phone or a vehicle');
-    checkDayOffset(t.dayOffset, where + '.dayOffset', 2, 5);
+    checkDayOffset(t.dayOffset, where + '.dayOffset', report ? 1 : 2, report ? 2 : 5);
     if (typeof t.effect === 'string') { if (seen.has(t.effect)) err(where, 'duplicate template'); seen.add(t.effect); }
-    checkEffectList(t.effects, where + '.effects', { ph: true, min: 1, max: 4 });
+    checkEffectList(t.effects, where + '.effects', { ph: true, min: 1, max: 4, protector: report });
     if (typeof t.public !== 'boolean') err(where + '.public', 'true when the town hears of it, else false');
     for (const k of ['forTags', 'notForTags']) {
       if (t[k] === undefined) continue;
@@ -1912,6 +1964,8 @@ function checkTemplates(list, name) {
       if (wrong.length) err(where, 'a beating, but ' + wrong.map((n) => n.id).join(', ') + ' could hold it (exclude elderly, teen and police)');
     }
   });
+  // Wave 27: reports cover every protector and both offences.
+  if (grudges && reports.size) ['police:threat', 'police:violence', 'family:threat', 'family:violence'].forEach((k) => { if (!reports.has(k)) err(name, 'no report template for ' + k.replace(':', ' about ')); });
   // Everyone in town has at least one they can hold.
   npcs.filter((n) => n && (n.presence || 'here') === 'here').forEach((n) => {
     if (!list.some((t) => isObj(t) && holders(t).indexOf(n) !== -1)) err(name, n.id + ' can hold none of them');
