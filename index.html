@@ -22853,10 +22853,17 @@ const Pipeline = (() => {
     return runTurn({ input: '/look', mode: 'zoom', bookkeep: false, action: () => ({ actionType: 'look', summary: `${State.current.player.name} takes in the whole scene`, targets: [], needsRoll: false, timeCost: 'instant' }) });
   }
   function zoom(text) { return runTurn({ input: `/zoom ${text}`, parse: text, mode: 'zoom', speech: { mode: 'do' } }); }
+  /* A question or a how-to is not a fact (wave 23: the owner typed "/fact how to seduce Jodie" and it became a "fact" on her
+     card): refused at no cost, with what /fact is for. */
+  const NOT_A_FACT = /^(?:how|what|why|when|where|who|whom|which|can|could|should|would|is|are|am|do|does|did|will|tell me|any way|anyway)\b|\?\s*$/i;
   function fact(statement) {
     if (State.current.player.storyPoints < 1) {
       UI.feed.notice('You have no story points to spend. You earn them when a thread is resolved or on a natural 20.');
       return { ok: false, reason: 'no-points', restoreInput: true };
+    }
+    if (NOT_A_FACT.test(String(statement).trim())) {
+      UI.feed.notice('A fact is a statement to make true, not a question: /fact Jodie grew up in Clayburn, or /fact the mechanic owes me a favour. To find something out, ask someone in the story ("I ask Royce what he knows about Jodie").');
+      return { ok: false, reason: 'not-a-fact', restoreInput: true };
     }
     return runTurn({ input: `/fact ${statement}`, parse: statement, fact: statement, mode: 'normal' });
   }
@@ -28577,7 +28584,7 @@ const Commands = (() => {
     { name: '/pass', args: '', desc: 'Say nothing and see what they do', turn: true },
     { name: '/rest', args: '', desc: 'Sleep until morning and heal', turn: true },
     { name: '/wait', args: '<phase>', desc: 'Wait here until a phase', turn: true },
-    { name: '/fact', args: '<statement>', desc: 'Spend a story point on a fact', turn: true },
+    { name: '/fact', args: '<statement>', desc: 'Spend a story point to make a statement true', turn: true },
     { name: '/sheet', args: '', desc: 'Open the Character panel' },
     { name: '/people', args: '', desc: 'Open the People panel' },
     { name: '/journal', args: '', desc: 'Open the Journal panel' },
@@ -28634,7 +28641,7 @@ const Commands = (() => {
       case '/skip': return arg ? Pipeline.skip(arg) : usage('Skip to where, or when? Try /skip to the docks at night.');
       case '/rest': return Pipeline.rest();
       case '/wait': return Pipeline.wait(arg);
-      case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true. Try /fact the ferryman owes me a favour.');
+      case '/fact': return arg ? Pipeline.fact(arg) : usage('State the fact you want to be true (not a question). Try /fact the ferryman owes me a favour.');
       case '/pass': return Pipeline.pass();
       case '/reroll': return Pipeline.reroll(arg);
       case '/recap': {

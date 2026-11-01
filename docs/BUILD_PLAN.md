@@ -1572,3 +1572,10 @@ talking, I can direct it to one person or all."
      ("Jodie Strayhorn nods. "The Low Water, tonight."") and its bookkeeper
      records it. Left open: the demo's other "find me at ..." lines stay
      talk, as before.
+   - **Wave 23** (1 Nov 2026). The owner: "What can i use fact for? I
+     thought it was asking a question about a character" ("/fact how to
+     seduce Jodie" became a protected "fact" on her card and cost a point).
+     `/fact` now refuses a question or a how-to (a question word first, or a
+     "?" at the end) at no cost, with what a fact is for and a pointer to
+     asking someone in the story; the command list and the README row say
+     "make a statement true". Test in `tests/wave21-night-clock.test.cjs`.

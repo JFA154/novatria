@@ -103,4 +103,31 @@ s.test('/cheat success is a success even with a penalty and a hard target: the d
   }
 });
 
+s.test('/fact refuses a question or a how-to at no cost (the owner\'s "/fact how to seduce Jodie"), says what a fact is, and keeps the line in the box; a statement still spends the point', async h => {
+  const page = await h.open({ viewport: LAPTOP });
+  await quickStart(page);
+  await page.evaluate(() => { Game.Api.Mock.delay = 0; Game.State.apply({ storyPointsDelta: 3 }); });
+  const pts = await page.evaluate(() => Game.state.player.storyPoints);
+  const r = await page.evaluate(async () => {
+    const out = [];
+    for (const line of ['/fact how to seduce Jodie', '/fact Does Jodie like me?', '/fact what does Curtis want', '/fact tell me about Loretta']) {
+      const res = await Game.Pipeline.submit(line);
+      out.push({ line, ok: res.ok, reason: res.reason, box: document.getElementById('cmd').value, notice: [...document.querySelectorAll('#feed .f-notice')].pop().textContent, pts: Game.state.player.storyPoints, log: Game.state.log.length });
+      document.getElementById('cmd').value = '';
+    }
+    return out;
+  });
+  for (const x of r) {
+    assert.equal(x.ok, false, x.line); assert.equal(x.reason, 'not-a-fact', x.line);
+    assert.match(x.notice, /^A fact is a statement to make true, not a question: \/fact Jodie grew up in Clayburn/, x.line);
+    assert.equal(x.pts, pts, 'no point spent: ' + x.line);
+  }
+  const jodie = await page.evaluate(() => { const n = Game.state.npcs.find(x => /jodie/i.test(x.name)); return n.memories.map(m => m.text); });
+  assert.ok(!jodie.some(t => /seduce/i.test(t)), 'nothing on her card: ' + JSON.stringify(jodie));
+  await sendText(page, '/fact the mechanic owes me a favour');
+  const after = await page.evaluate(() => ({ pts: Game.state.player.storyPoints, last: Game.state.log[Game.state.log.length - 1].input }));
+  assert.equal(after.pts, pts - 1, 'a statement spends the point');
+  assert.equal(after.last, '/fact the mechanic owes me a favour');
+});
+
 s.run();
