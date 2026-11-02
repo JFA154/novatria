@@ -2066,3 +2066,31 @@ Wave B1 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 11.1 and
   its news makes the fight's earlier blows news for everyone they reach
   (State's `queueHearsay`), so a fight reaches each person at once, by the
   morning.
+
+## Wave 32 (1 Nov 2026): ties that change, in World
+
+Wave B2 of `docs/RELATIONSHIPS_PLAN.md`. State's side: `docs/notes/
+engine-state.md`'s Wave 31 entry has the ties and hearsay; what changed:
+
+- **A grudge's gossip goes along the ties.** Templates [7], [8] and [11]
+  carry a `propagate` op from `{npcId}` (World.fillEffects fills it with the
+  holder), so when the seed fires the word goes to the people tied to its
+  holder, each by their tie (State queues it; step i delivers it): Pearl
+  Gentry's Wednesday supper reaches her brother Elbert that night, not Ray
+  and Nadine Dees by name; the department is whoever the holder works with.
+- **Step i also brings an exposure home.** What the player told X about Y
+  reaches Y by the tie between them (`own` hearsay, Y's own `exposed` scar,
+  and the broken word when Y had paid): Mavis Mangum hears who told Dewayne
+  that night, and the morning's line says "Word got round: Mavis Mangum has
+  heard what you told Dewayne.". The memory is dated by the telling (the
+  entry's `day`; State's `hearsayDeliver` sets it back), so her reason says
+  Day 5 and it fades from then, as it did when it landed at once in tier A.
+- **A secret told can set something going**: a `secretTies` entry's seed is
+  planted hidden, due a day or two on (`Rel.rng('secretTie')`), and fires
+  on its day as any seed does.
+- **A clock can change a tie**: "Turn the swing vote" carries `tieDelta`
+  (Darlene Pittman's trust in Loretta Gaddis -20, the tie known).
+- **The town's standing** moves on what is done in public, as since wave
+  27: news travelling the ties, a tie's change and gossip passed along move
+  no reputation of their own (a gossip template's `reputationDelta` still
+  does).

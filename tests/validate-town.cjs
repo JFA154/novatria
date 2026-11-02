@@ -654,7 +654,10 @@ const OPS = {
   socialEvent: ['npcId', 'event', 'text'],
   // Wave 29: favours owed cleared (an owed favour's payback), and a leverage record's change (a tell spends it).
   owedSettle: ['npcId'],
-  leverageSet: ['id']
+  leverageSet: ['id'],
+  // Wave 32: a change in how one person feels about another, and what someone says travelling their ties.
+  tieDelta: ['fromId', 'toId', 'why'],
+  propagate: ['npcId', 'event']
 };
 // The fields an op may carry besides its required ones.
 const OPS_OPTIONAL = {
@@ -673,7 +676,9 @@ const OPS_OPTIONAL = {
   addNews: ['factionId', 'public'],
   socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public'],
   owedSettle: ['dir'],
-  leverageSet: ['status', 'aware', 'playerKnows', 'use', 'knownBy', 'tell']
+  leverageSet: ['status', 'aware', 'playerKnows', 'use', 'knownBy', 'tell'],
+  tieDelta: ['w', 't', 'known'],
+  propagate: ['factor', 'via', 'text']
 };
 // Wave 29: where a leverage record can go (Rel.LEV_STATUSES).
 const LEV_STATUSES = ['held', 'used', 'paid', 'spent', 'void'];
@@ -693,6 +698,12 @@ const REL_DECAY = (() => {
   return Object.keys(vm.runInNewContext('(' + m[1] + ')', { Infinity }, { filename: 'index.html#DECAY', timeout: 1000 }));
 })();
 const REL_TRACKS = ['w', 't', 'f', 'k', 's'];
+// Wave 32: the events that never travel the town's ties (Rel.STAYS, read from index.html).
+const REL_STAYS = (() => {
+  const m = /const STAYS = Object\.freeze\((\[[^\]]*\])\);/.exec(html);
+  if (!m) fatal('file', 'index.html has no STAYS list in its Rel module');
+  return vm.runInNewContext('(' + m[1].replace(/\n/g, ' ') + ')', {}, { filename: 'index.html#STAYS', timeout: 1000 });
+})();
 const opCounts = {};
 // Flags the content sets (setFlag) and the flags its conditions read
 // (requires, an event's when, the epilogue): a flag read is a flag set.
@@ -726,7 +737,8 @@ function checkEffectList(list, where, opts) {
   opts = opts || {};
   if (!Array.isArray(list)) { err(where, 'must be an array of effect ops'); return; }
   if (opts.min !== undefined && list.length < opts.min) err(where, 'needs at least ' + opts.min + ' effect op(s)');
-  if (opts.max !== undefined && list.length > opts.max) err(where, 'at most ' + opts.max + ' effect ops');
+  // Wave 32: a tie's change (tieDelta) rides along and does not count toward the most.
+  if (opts.max !== undefined && list.filter((e) => !(e && e.op === 'tieDelta')).length > opts.max) err(where, 'at most ' + opts.max + ' effect ops');
   list.forEach((e, i) => checkEffect(e, where + '[' + i + ']', opts));
 }
 
@@ -1011,6 +1023,25 @@ function checkEffect(e, where, opts) {
       if (e.factionId !== undefined && !isFac(e.factionId)) err(where + '.factionId', '"' + e.factionId + '" is not a faction');
       if (e.public !== undefined && typeof e.public !== 'boolean') err(where + '.public', 'true or false');
       break;
+    case 'tieDelta':
+      // Wave 32: two people of the cast, liking and trust whole numbers within +/-100 (at least one, or known), why in a few words.
+      if (!isNpc(e.fromId)) err(where + '.fromId', '"' + e.fromId + '" is not an NPC');
+      if (!isNpc(e.toId)) err(where + '.toId', '"' + e.toId + '" is not an NPC');
+      if (e.fromId === e.toId) err(where, 'a tie is between two people');
+      for (const k of ['w', 't']) if (e[k] !== undefined && (!isInt(e[k]) || Math.abs(e[k]) > 100)) err(where + '.' + k, 'a whole number within +/-100');
+      if (e.known !== undefined && typeof e.known !== 'boolean') err(where + '.known', 'true or false');
+      if (!e.w && !e.t && e.known !== true) err(where, 'needs w, t or known');
+      checkText(e.why, where + '.why', { max: 80, maxSentences: 1 });
+      break;
+    case 'propagate':
+      // Wave 32: from someone (or {npcId} in a template), an event that travels, at a factor; via now or by a kind of delivery; their words for it.
+      if (!npcRef(e.npcId, ph)) err(where, 'npcId "' + e.npcId + '" is not an NPC');
+      if (REL_EVENTS.indexOf(e.event) === -1) err(where + '.event', '"' + e.event + '" is not an event');
+      else if (REL_STAYS.indexOf(e.event) !== -1) err(where + '.event', e.event + ' does not travel the town\'s ties (Rel.STAYS)');
+      if (e.factor !== undefined && !(typeof e.factor === 'number' && e.factor >= 0.1 && e.factor <= 2)) err(where + '.factor', 'a number from 0.1 to 2');
+      if (e.via !== undefined && ['now', 'overnight', 'morning', 'meet'].indexOf(e.via) === -1) err(where + '.via', 'now, overnight, morning or meet');
+      if (e.text !== undefined) checkText(e.text, where + '.text', { ph, max: 200, maxSentences: 2 });
+      break;
     case 'socialEvent':
       // Wave 26: the person, an event of Rel.EVENTS (the engine's rows too), and what they would remember. Wave 27: a report's {protectorId}; public (it is news: the town's reputation moves).
       if (!npcRef(e.npcId, ph) && !(opts.protector === true && e.npcId === '{protectorId}')) err(where, 'npcId "' + e.npcId + '" is not an NPC');
@@ -1041,7 +1072,45 @@ function checkEffect(e, where, opts) {
 // ---------------------------------------------------------------------------
 // 5. TOWN_DATA
 // ---------------------------------------------------------------------------
-checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead', 'policeFallback', 'romance', 'ties']);
+checkKeys(T, ['name', 'setting', 'currency', 'startLocationIds', 'locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours'], 'TOWN_DATA', ['map', 'offstage', 'year', 'history', 'recent', 'calendar', 'events', 'epilogue', 'policeHead', 'policeFallback', 'romance', 'ties', 'secretTies']);
+/* Wave 32: what a secret told does between people (Rel.secretTiesFor;
+   design Appendix C): [{ secretOf, learnedBy, ties: [{ from, to, w?, t? }],
+   why, seed? }]. secretOf someone with a secret; learnedBy someone of the
+   cast who is not them (or a list); each tie two of the cast, liking and
+   trust whole numbers within +/-100, at least one; why in plain words; a
+   seed { effect, dayOffset } with an effect that names the cast. */
+if (T.secretTies !== undefined) {
+  if (!Array.isArray(T.secretTies)) err('TOWN_DATA.secretTies', 'a list of { secretOf, learnedBy, ties, why, seed? }');
+  else T.secretTies.forEach((x, i) => {
+    const where = 'TOWN_DATA.secretTies[' + i + ']';
+    if (!isObj(x)) { err(where, 'an object { secretOf, learnedBy, ties, why, seed? }'); return; }
+    checkKeys(x, ['secretOf', 'learnedBy', 'ties', 'why'], where, ['seed']);
+    const y = npcById.get(x.secretOf);
+    if (!y) err(where + '.secretOf', '"' + x.secretOf + '" is not an NPC');
+    else if (typeof y.secret !== 'string' || !y.secret.trim()) err(where + '.secretOf', x.secretOf + ' has no secret to tell');
+    const by = Array.isArray(x.learnedBy) ? x.learnedBy : [x.learnedBy];
+    by.forEach((id, j) => { if (!isNpc(id)) err(where + '.learnedBy' + (Array.isArray(x.learnedBy) ? '[' + j + ']' : ''), '"' + id + '" is not an NPC'); else if (id === x.secretOf) err(where + '.learnedBy', 'someone learns another\'s secret'); });
+    if (!Array.isArray(x.ties) || !x.ties.length) err(where + '.ties', 'a non-empty list of { from, to, w?, t? }');
+    else x.ties.forEach((t, j) => {
+      const w = where + '.ties[' + j + ']';
+      if (!checkKeys(t, ['from', 'to'], w, ['w', 't'])) return;
+      if (!isNpc(t.from)) err(w + '.from', '"' + t.from + '" is not an NPC');
+      if (!isNpc(t.to)) err(w + '.to', '"' + t.to + '" is not an NPC');
+      if (t.from === t.to) err(w, 'a tie is between two people');
+      if (t.w === undefined && t.t === undefined) err(w, 'liking (w), trust (t) or both');
+      for (const k of ['w', 't']) if (t[k] !== undefined && (!isInt(t[k]) || Math.abs(t[k]) > 100)) err(w + '.' + k, 'a whole number within +/-100');
+    });
+    checkText(x.why, where + '.why', { max: 80, maxSentences: 1 });
+    if (x.seed !== undefined) {
+      if (!checkKeys(x.seed, ['effect', 'dayOffset'], where + '.seed')) return;
+      checkText(x.seed.effect, where + '.seed.effect', { max: 400, maxSentences: 2 });
+      if (!mentionsCast(x.seed.effect, null)) err(where + '.seed.effect', 'names nobody in the cast');
+      const d = x.seed.dayOffset;
+      if (!Array.isArray(d) || d.length !== 2 || !isInt(d[0]) || !isInt(d[1]) || d[0] < 1 || d[1] < d[0] || d[1] > 10) err(where + '.seed.dayOffset', '[lo, hi]: whole days, 1 to 10');
+    }
+    if (T.secretTies.findIndex(z => isObj(z) && z.secretOf === x.secretOf && JSON.stringify(z.learnedBy) === JSON.stringify(x.learnedBy)) !== i) err(where, 'the same secret and listener twice');
+  });
+}
 /* Wave 31: how people feel about each other beyond their relations
    (Rel.tiesPlan; design Appendix B): [{ from, to, kind?, w, t, hidden?,
    revealedBy?: { rumours?, flags? }, why? }]. Both people in the cast and
@@ -1657,7 +1726,9 @@ factions.forEach((f, i) => {
     checkStr(c.onComplete.text, cw + '.onComplete.text', { sentences: 1, noPlaceholders: true });
     const effs = c.onComplete.effects;
     const checkCompletion = (list, w) => {
-      if (!Array.isArray(list) || list.length < 2 || list.length > 5) { err(w, 'needs 2 to 5 effect ops'); return; }
+      // Wave 32: a tie's change (tieDelta) does not count toward the five.
+      const counted = Array.isArray(list) ? list.filter((e) => !(e && e.op === 'tieDelta')).length : 0;
+      if (!Array.isArray(list) || counted < 2 || counted > 5) { err(w, 'needs 2 to 5 effect ops (a tieDelta besides)'); return; }
       list.forEach((e, ei) => checkEffect(e, w + '[' + ei + ']', { world: true }));
       if (new Set(list.map((e) => e && e.op)).size < 2) err(w, 'use at least 2 different ops so the town visibly changes');
       // Content note 2: every clock completion adds its own rumour, exactly one.

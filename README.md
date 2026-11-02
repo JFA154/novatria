@@ -529,6 +529,30 @@ names it shows you the tie, and from then on she is cooler for the reason
 she is. When someone in town is arrested, their family turns against the
 officer who did it.
 
+**Secrets between people.** What you hold over someone can change how
+others see them. Tell Dewayne Mangum what Mavis did with the garage money
+and his trust in her drops from 60 to 15 then and there; she hears who told
+him that night (a husband or wife and anyone under the same roof
+overnight, family and work by the next morning, anyone else when they next
+meet), takes it as the worst kind of harm, and turns against you: the
+motel she runs is suddenly full. The one you tell trusts you a little more
+for it, unless they love the person it is about (60 or more): then they
+take it out on you instead. A second secret about the same person to the
+same listener costs you their trust. Some secrets set something going
+(Tammy Lott, told whose pills killed her daughter, goes after Colt Purvis).
+**Badmouthing and vouching.** Run someone down to a listener, or speak up
+for them, and if the persuading works (the roll), the listener's liking for
+them moves: 10 against, 8 for, as far as the listener trusts you (all of it
+at trust 50, none at -50), once a day for the same two people and 20 in all
+from your words; badmouthing someone to a listener who likes them at 40 or
+more costs you 5 of the listener's liking instead. Either way they know you
+a little better. **What the narrator is told between two people.** When two
+people here have a tie you saw change, and the town knows of it, the
+narrator gets one line ("BETWEEN THEM: Dewayne Mangum and Mavis Mangum,
+strained since the garage money (Day 5).", two pairs at most); a tie the
+town doesn't know is never told. Their cards say it too: Dewayne's Ties
+read "wife Mavis Mangum, strained since Day 5".
+
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
 pronouns, or type `/edit Mavis`. The form has their name, age, pronouns, role,
@@ -623,6 +647,10 @@ finish), a **Standing** line for the town and for each faction,
 your goal and flaw, **Grown** (the threads you resolved and what each gave
 you, as its quiet line said), your conditions with what each does and how
 long it has left ("Tired (−1 to all) · until you rest") and what you carry.
+Standing keeps its words, and the town's moves only on what is done in
+public (a fight in front of two people or more, a grudge or favour done in
+public): word of it getting round the ties, what you say about someone to
+one person, and a change between two people move none of it.
 
 Story points: you start with 2 and hold at most 3. You earn one on a natural
 20 and the first time a thread resolves (setting a thread back to open and
@@ -1601,6 +1629,21 @@ the town move:
   only the cast. A clock's arrest may name its officer: `npcStatus` with
   `by` (someone tagged police; else the police head), whose arrest turns the
   family of the arrested against them.
+- Ties that change (wave 32): `TOWN_DATA.secretTies`, `[{ secretOf,
+  learnedBy, ties: [{ from, to, w?, t? }], why, seed? }]`: when the player
+  tells `learnedBy` what they hold over `secretOf` (who must have a secret),
+  each tie listed moves by liking `w` and trust `t` (whole numbers within
+  +/-100), known from then on; `why` is the few words the narrator gets
+  ("the garage money"); `seed: { effect, dayOffset: [lo, hi] }` is what it
+  sets going. One entry a secret and a listener. Effect ops: `tieDelta`
+  (`{ fromId, toId, w?, t?, known?, why }`: a change in how one person feels
+  about another, `why` 80 characters at most; a clock's completion may carry
+  one besides its five) and `propagate` (`{ npcId, event, factor?, via?,
+  text? }`: what someone says or does reaches the people tied to them, as if
+  the event had been done to them; `via` `now`, `overnight`, `morning` or
+  `meet`, else by each tie; `text` what they would remember). Three grudge
+  templates (the gossip at the landing, at Wednesday supper and in the
+  department) pass the word along their holder's ties this way.
 
 After editing, run:
 
@@ -1676,7 +1719,10 @@ fails it with a message saying so; the CI checkout fetches it all).
   `tests/fixtures/make-v8-save.cjs`, and the simulator's eight-day guard),
   `wave31-town-ties` (the ties, word getting round by the kind of tie, the
   household rule, the police and clergy's limits, the arrest route, rules
-  version 10); `relationships` for its permanent checks (the minor rule and coercion, the
+  version 10), `wave32-ties-change` (a secret told changing a tie and who
+  told reaching the one it was about, badmouthing and vouching, a grudge's
+  gossip along the ties, the town's standing, BETWEEN THEM);
+  `relationships` for its permanent checks (the minor rule and coercion, the
   anchors, the fallbacks, a fuzz of the wire); `relationships-examples` for
   the design's worked examples played through.
 - `tests/probe-grammar.cjs` is not a test file: it sends the bookkeeper's

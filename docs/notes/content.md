@@ -983,3 +983,50 @@ plan's 12). Tests: `tests/wave31-town-ties.test.cjs`.
 - In a game the ties are for the people in town (free, alive, here): 121
   between 40 people at a new game (Leon Varner has nobody in town; the
   design's "118 between 41" was an estimate).
+
+## Wave 32 (1 Nov 2026): what secrets told do between people
+
+Wave B2 of `docs/RELATIONSHIPS_PLAN.md` (design Appendix C). Tests:
+`tests/wave32-ties-change.test.cjs`.
+
+- **`TOWN_DATA.secretTies`**, 25 entries, one a secret and a listener: `{
+  secretOf, learnedBy, ties: [{ from, to, w?, t? }], why, seed? }`, the
+  Appendix C column "When told, tie change": Mavis's garage money told to
+  Dewayne (Dewayne→Mavis -20/-45, "the garage money"); Royce's offer to
+  Jolene; Loretta's Tuesdays to Kaylee (Kaylee→Royce -30/-40); Carter's
+  Dr. Sayle to Vada and to Odessa; Jolene's envelopes to Annette; Wade's
+  Calvin Ogletree to Jodie (-100/-100); Colt's pills to Tammy (Tammy→Colt
+  -100 and a seed, "Tammy Lott goes after Colt Purvis with a tire iron at
+  Riverbend, and it takes Lorna Purvis to pull her off him.", a day or two
+  on), to Austin and to Lorna (Lorna→Wade trust -40); Travis's money to
+  Nikki; Nikki's sheriff to Marcus and to Glenda; Glenda's tapes to Marcus;
+  Lamar's option to Vada; Trent's grain truck to Lamar and to Virgil;
+  Micah's dock light to Ray (with Ray→Wade -30) and to Nadine; Nadine's
+  books to Ray; Dwight's stakes to Lamar (with Lamar→Carter trust -40);
+  Annette's call to Jolene; Lyman's envelopes to Loretta; Burl's motors to
+  June; Virgil's call to Lamar. Hollis's and Tyler's rows have no tie change
+  (the design's "Wade learns who knows" and "none"). Read from the save's
+  town copy, else the built-in town's, as the romance list is: an older
+  game needs no copy.
+- **`tieDelta` in a clock.** The Night Run's "Turn the swing vote" (the
+  photographs of Royce and Loretta, both endings): `{ op: "tieDelta",
+  fromId: "npc_darlene", toId: "npc_loretta", t: -20, known: true, why: "the
+  photographs in Royce's truck" }`. The validator lets a completion carry
+  one tie change besides its five ops.
+- **The grudge templates' gossip** ([7] "tells everyone close to them that
+  {player} has been talking to the police", [8] Wednesday supper, [11] the
+  department) is `{ op: "propagate", npcId: "{npcId}", event: "crossed",
+  factor: 2, text: … }` in place of the fixed lists (Wade, Colt and Trent;
+  Ray and Nadine Dees; Marcus, Nikki and Travis), edited in place: their
+  indices and their reputation effects are kept, and [7] and [8]'s words
+  no longer name whom it reaches. The templates whose words name the one
+  told ([0] and [13] Chief Bell, [3] Loretta's list, [12] Shayla Rawls in
+  her chair) keep that person's row. A seed already planted keeps the
+  effects it copied (Upgrade 8).
+- **The validator** whitelists `secretTies` (secretOf someone with a secret,
+  learnedBy someone else of the cast, each tie two of the cast with liking
+  or trust within +/-100, `why` one sentence, a seed's effect naming the
+  cast with a `dayOffset` of 1 to 10 days) and checks the two ops
+  (`tieDelta`: two people, numbers, why; `propagate`: an event that travels,
+  read from `Rel.STAYS`, a factor 0.1 to 2, `via`, its text); `OPS` follows
+  `State.EFFECT_OPS` (33).

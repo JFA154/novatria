@@ -121,7 +121,7 @@ s.test('a model\'s events: only for people here, at most two a person and four a
     const here = __put('loc_pittmans', ['npc_royce', 'npc_dewayne', 'npc_jodie', 'npc_elbert'], 2, 'morning');
     out.here = here;
     S.apply({ beginTurn: true });
-    // Somebody not here; an engine-only word; a B-tier word; no event word; a lie with nothing on record.
+    // Somebody not here; an engine-only word; a word against someone (wave 32: taken); no event word; a lie with nothing on record.
     const a = __model(['npc_wade insulted: called me a liar', 'npc_royce hit: hit me', 'npc_royce badmouthed npc_carter: said Carter cheats', 'npc_royce glared at me', 'npc_dewayne lied_caught: lied about the truck']);
     out.refused = a.rejected.map(x => x.reason);
     // Three for Royce and two for Jodie and two for Elbert: two a person, four a turn, the heaviest kept (by weight, then by liking and trust).
@@ -172,12 +172,12 @@ s.test('a model\'s events: only for people here, at most two a person and four a
     return out;
   });
   for (const id of ['npc_royce', 'npc_dewayne', 'npc_jodie', 'npc_elbert']) assert.ok(r.here.includes(id), id + ' is here');
-  assert.equal(r.refused.length, 5, JSON.stringify(r.refused));
+  // Wave 32: badmouthed is on the wire now (knowing +2; with no persuade that worked it moves no tie), so four refused.
+  assert.equal(r.refused.length, 4, JSON.stringify(r.refused));
   assert.match(r.refused[0], /npc_wade is not here/);
   assert.match(r.refused[1], /hit is the engine's to record/);
-  assert.match(r.refused[2], /badmouthed waits for the town's ties \(tier B\)/);
-  assert.match(r.refused[3], /is no event the game knows/);
-  assert.match(r.refused[4], /no lie to them and no claim/);
+  assert.match(r.refused[2], /is no event the game knows/);
+  assert.match(r.refused[3], /no lie to them and no claim/);
   assert.deepEqual(r.caps.royce, ['pried', 'crossed'], 'two a person: crossed (weight 2), then the prying over the compliment (6 against 3)');
   assert.deepEqual(r.caps.elbert, ['did_favour', 'confided'], 'Elbert\'s two');
   assert.deepEqual(r.caps.jodie, [], 'four a turn: Jodie\'s lighter two are the ones over');
@@ -195,7 +195,7 @@ s.test('a model\'s events: only for people here, at most two a person and four a
   assert.ok(r.lie.back > 0 && r.lie.back < -r.lie.drop, 'owning up gives some back, never all: ' + r.lie.back);
   assert.deepEqual(r.lie.settled, ['came_clean']);
   assert.deepEqual(r.lie.royce, ['complimented'], 'a flirt the parse did not see is a compliment');
-  assert.equal(r.lie.dewayne, 0, 'exposed teaches only knowing in tier A');
+  assert.equal(r.lie.dewayne, 0, 'with nothing held over anyone, exposed teaches only knowing');
   assert.deepEqual(r.shamed.jodie, [['humiliated', false]], 'in front of two others: a humiliation');
   assert.deepEqual(r.shamed.royce, [['insulted', true]], 'said privately: an insult');
   assert.ok(r.shamed.watched > 0, 'the people watching saw it');

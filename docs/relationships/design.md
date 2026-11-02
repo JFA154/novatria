@@ -1257,9 +1257,9 @@ Trait axes used below (Appendix A):
 - **Narrator (Day 6).** `Mavis Mangum ... to you: against you — told Dewayne about the garage money (Day 5); hit Dewayne at Pittman's (Day 3, made good) — plays it: polite as a locked door; wants you gone` (Wave 30's code: the reasons are joined by " / " and the cue's clauses by ", ", since "; " splits the packet's fields, and "wants you gone" is "would rather you left", since "wants you" is the spark status the minor check looks for.)
 - **Player sees.**
   - Day 4 night: "Mavis Mangum knows you know."
-  - Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne." (Tier B. In tier A as wave 29 has it, the band line the morning after: "Mavis Mangum won't forget that.")
+  - Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne." (Tier B. In tier A as wave 29 has it, the band line the morning after: "Mavis Mangum won't forget that." Wave 32 shows both, the band line second. She hears it that night, his wife under one roof, and her memory of it is dated Day 5, the telling.)
   - Her card: "Against you" / "You told Dewayne about the garage money. Day 5" / "You knew: the garage money. Day 4 · told Dewayne, Day 5".
-  - Dewayne's card: "wife Mavis Mangum, strained since Day 5".
+  - Dewayne's card: "wife Mavis Mangum, strained since Day 5". The narrator, with the two of them there: `BETWEEN THEM: Dewayne Mangum and Mavis Mangum, strained since the garage money (Day 5).`
 
 #### 3. Royce, three ways (A: the council reads trust, not beers)
 
@@ -1415,7 +1415,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
 - **Report.** Threat-made fear fires it.
   - The police are barred (the player holds aware leverage), so it goes to his content protector, Wade: "Hollis Byrd tells Wade Purvis somebody has seen the landing's books, and who."
   - Wade takes W -10, T -10: **W -20, T -20**, "cool to you". (The code: W -18, T -18; his memory is the report template's, "Hollis Byrd says the player has been leaning on them.")
-  - Hollis→Wade is a hidden tie, so the hidden-tie rule applies. Wade's card: "Cooler since Day 3. Hasn't said why." Wade's narrator reason: `cooler since Day 3, for a reason of his own; keeps it to himself, never hint at it`. Nothing shows the Night Run link.
+  - Hollis→Wade is a hidden tie, so the hidden-tie rule applies. Wade's card: "Cooler since Day 3. Hasn't said why." Wade's narrator reason: `cooler since Day 3, for a reason of his own; keeps it to himself, never hint at it`. Nothing shows the Night Run link. (Wave 32's code, pinned by example 11 (B): Day 4, the day the report's seed has Hollis tell him, and the narrator's clauses joined by ", ". Once the flag `hollisTalking` reveals the tie, the reason is the report's own: "Hollis Byrd says you have been leaning on them." Neither card names the other, and the narrator never gets a BETWEEN THEM line for the two: nothing changed between them in front of the player.)
 - **Day 4 evening.** The payment seed: "Hollis slides an envelope under the grille. 'Merchandise.'" The engine moves +$300, then `paid_silence` (he paid: W -5). The record becomes `paid`, and the leverage fear halves to 15.
   - **W -8, T -17, F 28**: "cool to you · you have something on him". (Wave 29's code: **W -7, T -17, F 24**, the threat's own fear fading a day as well; "cool to you · you have something on them · uneasy around you".)
 - **A second demand** ("another three hundred, or …"). `paid` is terminal, so this is `threatened_to_tell` with no money, plus W -10, T -15, and the fear part goes back to 30. (Wave 29's code follows the integration plan's review: the row alone, W -15, T -17 (his openness), F +20; the leverage fear stays halved at 15; the line "LEVERAGE: Hollis Byrd says he already paid, and won't again.")

@@ -80,7 +80,8 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   assert.deepEqual(r.state, [[], { secrets: {} }, true]);
   assert.deepEqual(r.keys, [false, true, true], 'engine keys: the model cannot send them (socialEvents is the bookkeeper\'s since wave 28)');
   // Changed by design in wave 29 (A4): owedSettle and leverageSet make 31.
-  assert.deepEqual(r.ops, [31, true, true], 'the effect ops are 31 with socialEvent; the tables are frozen');
+  // Changed by design in wave 32 (B2): tieDelta and propagate make 33.
+  assert.deepEqual(r.ops, [33, true, true], 'the effect ops are 33 with socialEvent; the tables are frozen');
   assert.deepEqual(r.written, [], 'liking starts as the town wrote it');
   assert.deepEqual(r.trust, [5, -5, -15, -10, -5, 0], 'Royce open, Tyler watchful, Marcus police and guarded, Wade a smuggler, Dewayne guarded, Loretta neither');
   assert.ok(r.loose.length && r.loose.every(x => x[0] && x[1]), 'a loose end\'s shift is in their start, with knows-you 30 (wave 27), nothing in everyday: ' + JSON.stringify(r.loose));

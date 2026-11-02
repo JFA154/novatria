@@ -1,8 +1,9 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Tier A has landed (waves 26 to 30). The
-live grammar probe and the labelled eval are still to run with the owner's
-key** (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`, and
+1 Nov 2026 · a plan being built. **Tiers A and B have landed (waves 26 to
+32); B3 (tuning) waits for a playtest and a passing eval. The live grammar
+probe (again, since wave 32 widened the schema's description) and the
+labelled eval are still to run with the owner's key** (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`, and
 `tests/eval-classify.cjs` once `tests/eval/labelled.jsonl` holds labelled
 playtest turns). A1 (wave
 26, "The tracks under the number"): the `Rel` module, six tracks on every
@@ -49,7 +50,18 @@ through whoever is tied to them; hidden ties with a nameless narrator reason
 and the act on the card; the arrest route; rules version 10; Debug's ties
 and hearsay (`docs/notes/engine-state.md`, `engine-world.md`, `content.md`,
 `ui.md`, Wave 31; tests: `tests/wave31-town-ties.test.cjs`, examples 1, 4
-and 5 (B) and 9). B2 and B3 are still plans.
+and 5 (B) and 9). B2 (wave 32, "Ties that change") has landed: `exposed`
+moves the listener's tie by the town's `secretTies` and the one it was about
+hears who told by the tie between them; `badmouthed` and `vouched_for` on
+the wire, moving the listener's liking on a persuade that worked; the
+`tieDelta` and `propagate` ops (the grudge templates' gossip along the
+ties); BETWEEN THEM for the narrator and "strained since Day N" on the card,
+for known ties only (`docs/notes/content.md`, `engine-world.md`,
+`prompts.md`, Wave 32; tests: `tests/wave32-ties-change.test.cjs`, examples
+2 and 11 (B)). **Tiers A and B (waves 26 to 32) have landed.** The live
+grammar probe (to be run again: the schema's description gained the two
+words) and the labelled eval are still to be run with the owner's key; B3
+(tuning) is deliberately not done until a playtest and a passing eval.
 It was written on the branch `claude/magical-dijkstra-wvs3pi` against `main`
 at `56e69f5`, and every line reference in it and in its appendices is to that
 commit (wave 26 put `Rel` after State, so references below `index.html:12163`

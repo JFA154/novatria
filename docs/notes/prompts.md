@@ -942,3 +942,35 @@ never sent a number for how anyone feels.
   (`tests/probe-grammar.cjs`, no schema change since wave 28) and the
   labelled eval (`tests/eval-classify.cjs`, against an empty
   `tests/eval/labelled.jsonl` until playtest turns are labelled).
+
+## Wave 32 (1 Nov 2026): BETWEEN THEM, and two more words on the wire
+
+Wave B2 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 10.1 and 16
+B2). Tests: `tests/wave32-ties-change.test.cjs`.
+
+- **BETWEEN THEM.** After PRESENT (and the knowledge line), one line when
+  two people here have a tie the player saw change (a line of its log
+  marked seen: an exposure told in front of them, the player's words) and
+  the town knows the tie both ways: `BETWEEN THEM: Dewayne Mangum and Mavis
+  Mangum, strained since the garage money (Day 5).` (`Rel.betweenThem`:
+  strained when what changed took from it, closer when it added; two pairs
+  at most, the newest first, joined by "; "). A hidden tie is never told.
+  It is a per-turn line: the cached blocks are byte for byte as they were,
+  and the person's `to you` field still says only how they feel about the
+  player.
+- **`badmouthed` and `vouched_for`** are open on the wire (`WIRE_EVENTS`
+  keeps them as tier B; `Rel.wireEvent` no longer refuses that tier). The
+  schema's `socialEvents` description gains one sentence naming them ("Also
+  badmouthed or vouched_for with the other person's id, when the player ran
+  someone down to them or spoke up for someone"): a description-only
+  change, still 34 properties and 3 enums. `EVENT_RULES` is as it was (the
+  22 glosses of tier A). `PROBE_DRY=1 node tests/probe-grammar.cjs` builds
+  the requests with it; **the live probe should be re-run as a precaution**
+  with the owner's key.
+- **What the bookkeeper's words do now** (`Rel.wireEvent`): `exposed` to
+  someone who likes the one it is about at 60 or more is liking -8, not
+  trust +8 (the messenger); a word against or for someone gives the
+  listener knows +2, and on a persuade aimed at them that worked moves
+  their liking for the one named (`Rel.wordsTie`); badmouthing someone to a
+  listener who likes them at 40 or more costs the player 5 of the
+  listener's liking.

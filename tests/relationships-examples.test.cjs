@@ -13,7 +13,10 @@
    its A part), 6 (Trent), 8 (Burl), 10 (Shayla and Jodie), 11 (Hollis),
    12 (Glenda's $200, three ways) and 14 (coercion fails; the minor variant
    is tests/relationships.test.cjs's); wave 30 (A5) makes example 3 whole:
-   (a) the confidant and (c) the bully, each to the council.
+   (a) the confidant and (c) the bully, each to the council. Wave 31 (B1)
+   adds the B parts of 1, 4 and 5, and 9 (Loretta goes quiet); wave 32 (B2)
+   the B parts of 2 (the tie that changes) and 11 (the hidden tie the
+   report goes through).
    Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
@@ -527,8 +530,8 @@ s.test('example 2, the garage money (A): a charm roll and two of her keys in the
   assert.equal(r.mavis[2], false, 'exposed counts as harm: no contempt');
   assert.equal(r.mavis[3], false, 'the police are no longer barred');
   assert.deepEqual(r.mavis[4], [[3, 'scar', 'Tester told Dewayne Mangum what I was hiding: emptied Dewayne\'s garage account for Mama\'s note']]);
-  // Tier A has no "Word got round" (that is B); the band line is wave 27's.
-  assert.deepEqual(r.feed5, ['Mavis Mangum won\'t forget that.']);
+  // The band line is wave 27's; wave 32 adds the morning's "Word got round" (she hears who told by the tie: overnight, his wife).
+  assert.deepEqual(r.feed5.filter(t => !/^Word got round/.test(t)), ['Mavis Mangum won\'t forget that.']);
 });
 
 s.test('example 6, Trent: fond of you, doesn\'t trust you (A): three nights at the landing, then caught lying in the grain truck\'s cab in front of others is no leverage; kept quiet for him on Day 7, he is warm again', async h => {
@@ -773,8 +776,13 @@ s.test('example 11, Hollis Byrd: leverage gained and used (A): his books in the 
     out.undone = [__tr('npc_hollis').w === before.w, S.npc('npc_hollis').memories.some(m => m.event === 'threatened_to_tell')];
     __put('loc_town_hall', ['npc_marcus'], st.time.day, 'afternoon');
     await __say('npc_marcus', 'Hollis Byrd runs the landing cash through his books.', null, { socialEvents: ['npc_marcus exposed npc_hollis: told me Hollis runs the landing cash through his books'] });
-    out.told = [__tr('npc_hollis'), __st('npc_hollis'), R.policeBarred(S.npc('npc_hollis')), st.leverage[0].status, S.npc('npc_marcus').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.text]),
-      st.seeds.filter(sd => sd.origin && sd.origin.kind === 'inquiry').map(sd => sd.effect), S.npc('npc_hollis').memories.filter(m => m.turn === st.meta.turn).map(m => m.event)];
+    const marcusMems = S.npc('npc_marcus').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.text]);
+    const inquiry = st.seeds.filter(sd => sd.origin && sd.origin.kind === 'inquiry').map(sd => sd.effect);
+    // Wave 32: Hollis hears who told by the tie between them (none: by the morning).
+    out.queued = st.hearsay.filter(x => x.npcId === 'npc_hollis' && x.own).map(x => [x.event, x.via]);
+    await G.Pipeline.submit('/rest');
+    out.told = [__tr('npc_hollis'), __st('npc_hollis'), R.policeBarred(S.npc('npc_hollis')), st.leverage[0].status, marcusMems,
+      inquiry, S.npc('npc_hollis').memories.filter(m => m.leverageId === 'lev_hollis_1' && ['exposed', 'broke_word'].includes(m.event)).map(m => m.event)];
     return out;
   });
   // Day 2 (start W 5, T 5): the design's W 10, T 9, K 15, F 30.
@@ -820,6 +828,8 @@ s.test('example 11, Hollis Byrd: leverage gained and used (A): his books in the 
   assert.deepEqual(r.again[5], ['LEVERAGE: Hollis Byrd says he already paid, and won\'t again.']);
   assert.deepEqual(r.undone, [true, false], '/undo takes the second demand back');
   // Telling anyway: spent and broke_word; W -46, T -56, against you; the bar lifts; whenTold gives Marcus a weight-3 memory and the inquiry.
+  // Wave 32: Hollis hears who told the next morning (no tie between him and the chief), the night's fading taken.
+  assert.deepEqual(r.queued, [['exposed', 'morning'], ['broke_word', 'morning']]);
   near(r.told[0].w, -46, 'liking once told');
   near(r.told[0].t, -56, 'trust once told');
   assert.equal(r.told[1][0], 'against you');
@@ -1156,6 +1166,130 @@ s.test('example 9, Loretta goes quiet (B): shaming Royce at the counter reaches 
   assert.doesNotMatch(r.toYou, /Royce|Pittman|shame/);
   assert.deepEqual(r.card, ['Cooler since you shamed Royce Pittman at Pittman\'s Gas and Service, Day 4. Hasn\'t said why.']);
   assert.doesNotMatch(r.recap, /shamed Royce/, '/recap never gives a hidden reason');
+});
+
+// A person's Ties on their People card (the card opened), for the B examples of wave 32.
+const tiesOn = page => page.evaluate(() => {
+  window.__ties = id => {
+    Game.UI.openPanel('people');
+    Game.UI.togglePerson(id, true);
+    const dd = document.querySelector(`.pcard[data-npc="${id}"] .pcard-facts dd[data-fact="ties"]`);
+    const t = dd ? dd.textContent : null;
+    if (Game.UI.closePanel) Game.UI.closePanel();
+    return t;
+  };
+});
+
+s.test('example 2, the garage money (B): telling Dewayne moves his tie to Mavis from 50/60 to 30/15 in front of the player; she hears who told that night, under the same roof, and the morning says so; the narrator hears BETWEEN THEM and his card says "strained since Day 5"', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  await tiesOn(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = {};
+    S.apply({ npcKnownToPlayer: ['npc_mavis', 'npc_dewayne'] });
+    // Day 4 night at the motel desk, Mavis alone: the A part, the garage money held.
+    __put('loc_motor_court', ['npc_mavis'], 4, 'night');
+    const others = S.npcsAt('loc_motor_court').map(n => n.id).filter(id => id !== 'npc_mavis');
+    S.apply({ visits: others.map(id => ({ npcId: id, locationId: 'loc_front_street' })) });
+    G.Pipeline.forceNextRoll(17);
+    await __say('npc_mavis', 'Long night at the desk?', { actionType: 'persuade', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+      { socialEvents: ['npc_mavis learned_secret: emptied Dewayne\'s garage account for Mama\'s note'] },
+      'Mavis Mangum looks at the motel till a long time. "I emptied the garage account," she says. "All of it. For my mother\'s note on the house."');
+    out.card4 = __ties('npc_dewayne');
+    // Day 5 evening at the landing: the player tells Dewayne.
+    __put('loc_purvis_landing', ['npc_dewayne'], 5, 'evening');
+    const tie0 = R.tieNow(st.ties['npc_dewayne>npc_mavis']);
+    const m0 = __tr('npc_mavis');
+    await __say('npc_dewayne', 'Mavis emptied your garage account to pay off her mother\'s note.', null, { socialEvents: ['npc_dewayne exposed npc_mavis: told me Mavis spent the garage money'] });
+    const tie1 = st.ties['npc_dewayne>npc_mavis'];
+    out.tie = [[tie0.w, tie0.t], [R.tieNow(tie1).w, R.tieNow(tie1).t], tie1.known === true];
+    out.queued = st.hearsay.filter(x => x.npcId === 'npc_mavis' && x.own).map(x => [x.event, x.via, x.dueDay, x.duePhase]);
+    out.mavis5 = [__tr('npc_mavis').w - m0.w, __tr('npc_mavis').t - m0.t];
+    __mark();
+    await G.Pipeline.submit('/rest');
+    const mv = S.npc('npc_mavis');
+    out.day6 = { time: [st.time.day, st.time.phase], tracks: __tr('npc_mavis'), scar: mv.memories.filter(m => m.event === 'exposed').map(m => [m.weight, m.decay, m.d.w, m.d.t, m.day]), stance: __st('npc_mavis'), feed: __feed() };
+    // Day 6 morning at the motor court, the two of them there.
+    __put('loc_motor_court', ['npc_mavis', 'npc_dewayne'], null);
+    await __say('npc_mavis', 'Morning.', null, {});
+    out.between = G.Pipeline.lastTurn.packet.split('\n').filter(l => /^BETWEEN THEM/.test(l));
+    out.toYou = G.Pipeline.toYou(mv);
+    out.card6 = __ties('npc_dewayne');
+    return out;
+  });
+  assert.match(r.card4, /^wife Mavis Mangum; /, 'before: no word on the tie');
+  // B: Dewayne→Mavis 50/60 to 30/15 (the town's secretTies: -20, -45), in front of the player, so the town knows it.
+  assert.deepEqual(r.tie, [[50, 60], [30, 15], true]);
+  // She is not there: she hears who told by the tie between them, his wife under one roof, that night.
+  assert.deepEqual(r.mavis5, [0, 0]);
+  assert.deepEqual(r.queued, [['exposed', 'overnight', 5, 'night']]);
+  // Mavis by morning: W -30, T -39 (x1.3, guarded), a weight-3 scar dated by the telling; run alone W -35, T -49, F 0 (as in A).
+  assert.deepEqual(r.day6.time, [6, 'morning']);
+  assert.deepEqual(r.day6.scar, [[3, 'scar', -30, -39, 5]]);
+  assert.deepEqual(wtf(r.day6.tracks), [-35, -49, 0]);
+  assert.equal(r.day6.stance[0], 'against you');
+  // Day 6: "Word got round: Mavis Mangum has heard what you told Dewayne." (the band line beside it, wave 27's).
+  assert.deepEqual(r.day6.feed, ['Word got round: Mavis Mangum has heard what you told Dewayne.', 'Mavis Mangum won\'t forget that.']);
+  // The narrator: her reason dated Day 5; BETWEEN THEM for the two of them, one line.
+  assert.match(r.toYou, /^to you: against you — you told Dewayne Mangum what she was hiding: emptied Dewayne's garage account for Mama's note \(Day 5\) — plays it: polite as a locked door/);
+  assert.deepEqual(r.between, ['BETWEEN THEM: Dewayne Mangum and Mavis Mangum, strained since the garage money (Day 5).']);
+  // Dewayne's card: "wife Mavis Mangum, strained since Day 5".
+  assert.match(r.card6, /^wife Mavis Mangum, strained since Day 5; /);
+});
+
+s.test('example 11, Hollis Byrd (B): the report to Wade goes through a tie nobody knows, so his card has only the day and the narrator no cause, and nothing tells of the two of them; once Hollis is talking it is an ordinary reason', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  await tiesOn(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = {};
+    const wade = () => S.npc('npc_wade');
+    const why = () => ({ card: R.reasons(wade(), 2).map(x => G.Pipeline.reasonText(wade(), x).card), toYou: G.Pipeline.toYou(wade()), ties: [__ties('npc_hollis'), __ties('npc_wade')] });
+    S.apply({ npcKnownToPlayer: ['npc_hollis', 'npc_wade'] });
+    // The A part: his books on Day 2, $300 asked on Day 3; the report goes to Wade.
+    __put('loc_byrds_pawn', ['npc_hollis'], 2, 'afternoon');
+    G.Pipeline.forceNextRoll(16);
+    await __say('npc_hollis', 'What are these receipts for, really?', { actionType: 'persuade', needsRoll: true, stat: 'charm', difficulty: 'normal' },
+      { socialEvents: ['npc_hollis they_confided: told me how he runs the shop', 'npc_hollis learned_secret: runs the landing\'s cash through his pawn books'] },
+      '"I don\'t ask where, I ask how much," Hollis Byrd says, and slides over the landing\'s cash book. Every line of it is pawn sales.');
+    __put('loc_byrds_pawn', ['npc_hollis'], 3, 'afternoon');
+    await __say('npc_hollis', 'Three hundred, or the sheriff in Clayburn gets a copy of your books.', { actionType: 'intimidate', aboutIds: ['lev_hollis_1'] });
+    for (let i = 0; i < 3 && !wade().memories.length; i++) await G.Pipeline.submit('/rest');
+    out.tie = (k => [k.hidden, k.known])(st.ties['npc_hollis>npc_wade']);
+    out.mem = wade().memories.map(m => [m.event, m.day, m.secondhand]);
+    out.hidden = why();
+    // Both of them at the pawn shop: nothing between them for the narrator.
+    __put('loc_byrds_pawn', ['npc_hollis', 'npc_wade'], null);
+    await __say('npc_wade', 'Afternoon.', null, {});
+    out.packet = G.Pipeline.lastTurn.packet.split('\n').filter(l => /^BETWEEN THEM/.test(l) || /^PRESENT/.test(l)).map(l => (/^BETWEEN/.test(l) ? l : /Night Run's cash|runs the Night Run/.test(l)));
+    // The flag the tie is revealed by: Hollis is talking. The town knows it from the next change on.
+    S.apply({ effects: [{ op: 'setFlag', key: 'hollisTalking', value: true }] });
+    await __say('npc_wade', 'Hollis says hello.', null, {});
+    out.tie2 = (k => [k.hidden, k.known])(st.ties['npc_hollis>npc_wade']);
+    out.known = why();
+    out.between2 = G.Pipeline.lastTurn.packet.split('\n').filter(l => /^BETWEEN THEM/.test(l));
+    return out;
+  });
+  // Hollis→Wade 10/30, hidden (design appendix B), revealed by the flag hollisTalking.
+  assert.deepEqual(r.tie, [true, false]);
+  assert.deepEqual(r.mem, [['crossed', 4, { via: 'npc_hollis', hidden: true }]], 'the report, heard through the hidden tie');
+  // R1: the card has the day and no name, the narrator no cause (the code's Day 4: the day the seed has Hollis tell him; design.md says so).
+  assert.deepEqual(r.hidden.card, ['Cooler since Day 4. Hasn\'t said why.']);
+  assert.match(r.hidden.toYou, /^to you: cool to you — cooler since Day 4, for a reason of his own, keeps it to himself, never hint at it — plays it: /);
+  assert.doesNotMatch(r.hidden.toYou, /Hollis|Night Run|books|leaning/);
+  // Nothing shows the Night Run link: neither card names the other, and the narrator gets no BETWEEN THEM.
+  for (const t of r.hidden.ties) assert.doesNotMatch(t, /Hollis|Wade/);
+  assert.deepEqual(r.packet, [false], 'the PRESENT line, no BETWEEN THEM and no word of the cash: ' + JSON.stringify(r.packet));
+  // Once Hollis is talking the tie is known, and the reason is an ordinary one, dated.
+  assert.deepEqual(r.tie2, [true, true]);
+  assert.deepEqual(r.known.card, ['Hollis Byrd says you have been leaning on them.']);
+  assert.match(r.known.toYou, /^to you: cool to you — Hollis Byrd says you have been leaning on them \(Day 4\) — plays it: /);
+  // A tie the town knows now, but nothing changed on it in front of the player: still nothing between them.
+  assert.deepEqual(r.between2, []);
 });
 
 s.run();

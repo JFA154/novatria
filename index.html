@@ -1770,6 +1770,41 @@ const TOWN_DATA = {
     { from: "npc_austin", to: "npc_annette", kind: "other", w: 40, t: 40 },
     { from: "npc_annette", to: "npc_micah", kind: "other", w: 40, t: 30 }
   ],
+  /* Wave 32: what a secret told does between people (design Appendix C;
+     Rel.secretTiesFor, State's exposeTo). When the player tells learnedBy
+     what they hold over secretOf, each tie listed moves by w and t (liking,
+     trust) on a line of its log the player was there for, and the tie is
+     known; seed is what it sets going ({ effect, dayOffset }: a day or two
+     on). One entry a secret and a listener; the one the secret was about
+     hears who told by the tie between them. */
+  secretTies: [
+    { secretOf: "npc_mavis", learnedBy: "npc_dewayne", ties: [{ from: "npc_dewayne", to: "npc_mavis", w: -20, t: -45 }], why: "the garage money" },
+    { secretOf: "npc_royce", learnedBy: "npc_jolene", ties: [{ from: "npc_jolene", to: "npc_royce", t: -20 }], why: "Carter Sturdivant's offer on the station" },
+    { secretOf: "npc_loretta", learnedBy: "npc_kaylee", ties: [{ from: "npc_kaylee", to: "npc_royce", w: -30, t: -40 }], why: "her father and Loretta Gaddis" },
+    { secretOf: "npc_carter", learnedBy: "npc_vada", ties: [{ from: "npc_vada", to: "npc_carter", w: -40, t: -60 }], why: "Dr. Sayle and the timber loans" },
+    { secretOf: "npc_carter", learnedBy: "npc_odessa", ties: [{ from: "npc_odessa", to: "npc_carter", w: -30 }], why: "what Carter Sturdivant asked of Dr. Sayle" },
+    { secretOf: "npc_jolene", learnedBy: "npc_annette", ties: [{ from: "npc_annette", to: "npc_jolene", w: -20, t: -50 }], why: "the envelopes and the water fund" },
+    { secretOf: "npc_wade", learnedBy: "npc_jodie", ties: [{ from: "npc_jodie", to: "npc_wade", w: -100, t: -100 }], why: "what happened to Calvin Ogletree" },
+    { secretOf: "npc_colt", learnedBy: "npc_tammy", ties: [{ from: "npc_tammy", to: "npc_colt", w: -100 }], why: "the bottle Amber Lott died with",
+      seed: { effect: "Tammy Lott goes after Colt Purvis with a tire iron at Riverbend, and it takes Lorna Purvis to pull her off him.", dayOffset: [1, 2] } },
+    { secretOf: "npc_colt", learnedBy: "npc_austin", ties: [{ from: "npc_austin", to: "npc_colt", w: -100 }], why: "the bottle Amber Lott died with" },
+    { secretOf: "npc_colt", learnedBy: "npc_lorna", ties: [{ from: "npc_lorna", to: "npc_wade", t: -40 }], why: "what Wade Purvis let Colt Purvis do" },
+    { secretOf: "npc_travis", learnedBy: "npc_nikki", ties: [{ from: "npc_nikki", to: "npc_travis", t: -40 }], why: "Wade Purvis's money" },
+    { secretOf: "npc_nikki", learnedBy: "npc_marcus", ties: [{ from: "npc_marcus", to: "npc_nikki", w: -30, t: -60 }], why: "the sheriff and the case files" },
+    { secretOf: "npc_nikki", learnedBy: "npc_glenda", ties: [{ from: "npc_glenda", to: "npc_nikki", w: -30 }], why: "the sheriff and the case files" },
+    { secretOf: "npc_glenda", learnedBy: "npc_marcus", ties: [{ from: "npc_marcus", to: "npc_glenda", t: -30 }], why: "the tapes and the warning call" },
+    { secretOf: "npc_lamar", learnedBy: "npc_vada", ties: [{ from: "npc_vada", to: "npc_lamar", w: -40, t: -70 }], why: "Carter Sturdivant's option papers" },
+    { secretOf: "npc_trent", learnedBy: "npc_lamar", ties: [{ from: "npc_lamar", to: "npc_trent", w: -10, t: -40 }], why: "the liquor in the grain truck" },
+    { secretOf: "npc_trent", learnedBy: "npc_virgil", ties: [{ from: "npc_virgil", to: "npc_trent", t: -20 }], why: "the liquor in the grain truck" },
+    { secretOf: "npc_micah", learnedBy: "npc_ray", ties: [{ from: "npc_ray", to: "npc_micah", t: -20 }, { from: "npc_ray", to: "npc_wade", w: -30 }], why: "the dock light at the landing" },
+    { secretOf: "npc_micah", learnedBy: "npc_nadine", ties: [{ from: "npc_nadine", to: "npc_micah", t: -20 }], why: "the dock light at the landing" },
+    { secretOf: "npc_nadine", learnedBy: "npc_ray", ties: [{ from: "npc_ray", to: "npc_nadine", t: -40 }], why: "the church books" },
+    { secretOf: "npc_dwight", learnedBy: "npc_lamar", ties: [{ from: "npc_lamar", to: "npc_dwight", w: -30 }, { from: "npc_lamar", to: "npc_carter", t: -40 }], why: "the survey stakes" },
+    { secretOf: "npc_annette", learnedBy: "npc_jolene", ties: [{ from: "npc_jolene", to: "npc_annette", w: -10, t: -30 }], why: "the call to the state" },
+    { secretOf: "npc_lyman", learnedBy: "npc_loretta", ties: [{ from: "npc_loretta", to: "npc_lyman", t: -30 }], why: "the steamed envelopes" },
+    { secretOf: "npc_burl", learnedBy: "npc_june", ties: [{ from: "npc_june", to: "npc_burl", t: -20 }], why: "the money from Wade Purvis's motors" },
+    { secretOf: "npc_virgil", learnedBy: "npc_lamar", ties: [{ from: "npc_lamar", to: "npc_virgil", t: -20 }], why: "what Virgil Odom told Warren Pettit" }
+  ],
   year: 2026,
   // Day 1 is Thursday 8 October 2026 (CONTRACTS section 1): the weekday and the season come from here.
   calendar: { season: "autumn", startDate: "2026-10-08" },
@@ -4549,6 +4584,7 @@ const TOWN_DATA = {
             requires: { flagsUnset: ["councilVoted", "royceBought"] },
             effects: [
               { op: "setFlag", key: "royceTurned", value: true },
+              { op: "tieDelta", fromId: "npc_darlene", toId: "npc_loretta", t: -20, known: true, why: "the photographs in Royce's truck" },
               { op: "npcMove", npcId: "npc_royce", locationId: "loc_pittmans", phases: ["afternoon"] },
               { op: "factionRelation", a: "fac_sturdivant", b: "fac_nightrun", delta: -20 },
               { op: "clockAdjust", factionId: "fac_sturdivant", delta: -2 },
@@ -4564,6 +4600,7 @@ const TOWN_DATA = {
               text: "Somebody leaves photographs of Royce Pittman and Loretta Gaddis on the seat of Royce's truck, and Royce stops answering his phone and says he will not be pushed either way again.",
               effects: [
                 { op: "setFlag", key: "royceTurned", value: true },
+                { op: "tieDelta", fromId: "npc_darlene", toId: "npc_loretta", t: -20, known: true, why: "the photographs in Royce's truck" },
                 { op: "npcMove", npcId: "npc_royce", locationId: "loc_pittmans", phases: ["afternoon"] },
                 { op: "factionRelation", a: "fac_sturdivant", b: "fac_nightrun", delta: -20 },
                 { op: "clockAdjust", factionId: "fac_sturdivant", delta: -2 },
@@ -6096,25 +6133,24 @@ const GRUDGE_TEMPLATES = [
     notForTags: ["elderly", "teen", "police"]
   },
   {
-    effect: "{npc} spreads it around the landing that {player} has been talking to the police, and nobody in the Night Run will look at {player} after that.",
+    // Wave 32: the gossip goes along {npc}'s own ties (propagate), not to a fixed list.
+    effect: "{npc} tells everyone close to them that {player} has been talking to the police, and nobody in the Night Run will look at {player} after that.",
     kind: "gossip",
     dayOffset: [2, 5],
     effects: [
-      { op: "socialEvent", npcId: "npc_wade", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
-      { op: "socialEvent", npcId: "npc_colt", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
-      { op: "socialEvent", npcId: "npc_trent", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} has been talking to the police", secondhand: true },
+      { op: "propagate", npcId: "{npcId}", event: "crossed", factor: 2, text: "heard from {npc} that {playerName} has been talking to the police" },
       { op: "reputationDelta", key: "fac_nightrun", delta: -10 }
     ],
     public: false,
     notForTags: ["police", "elderly"]
   },
   {
-    effect: "{npc} tells everybody at Wednesday supper that {player} is not to be trusted, and Ray and Nadine Dees go cool on {player}.",
+    // Wave 32: the people close to {npc} hear it (propagate), not a fixed pair.
+    effect: "{npc} tells everybody at Wednesday supper that {player} is not to be trusted, and the people close to {npc} go cool on {player}.",
     kind: "gossip",
     dayOffset: [2, 5],
     effects: [
-      { op: "socialEvent", npcId: "npc_ray", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} at Wednesday supper that {playerName} is not to be trusted", secondhand: true },
-      { op: "socialEvent", npcId: "npc_nadine", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} at Wednesday supper that {playerName} is not to be trusted", secondhand: true },
+      { op: "propagate", npcId: "{npcId}", event: "crossed", factor: 2, text: "heard from {npc} at Wednesday supper that {playerName} is not to be trusted" },
       { op: "reputationDelta", key: "town", delta: -5 }
     ],
     public: true,
@@ -6142,13 +6178,12 @@ const GRUDGE_TEMPLATES = [
     forTags: ["police"]
   },
   {
+    // Wave 32: the department is whoever {npc} works with (propagate along their ties).
     effect: "{npc} tells the rest of the department that {player} is a person of interest, and every officer who passes takes a long look.",
     kind: "police",
     dayOffset: [2, 5],
     effects: [
-      { op: "socialEvent", npcId: "npc_marcus", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
-      { op: "socialEvent", npcId: "npc_nikki", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
-      { op: "socialEvent", npcId: "npc_travis", event: "crossed", d: { w: -10, t: -10 }, text: "heard from {npc} that {playerName} is a person of interest", secondhand: true },
+      { op: "propagate", npcId: "{npcId}", event: "crossed", factor: 2, text: "heard from {npc} that {playerName} is a person of interest" },
       { op: "reputationDelta", key: "fac_police", delta: -10 }
     ],
     public: false,
@@ -9967,6 +10002,12 @@ const State = (() => {
         const extra = [];
         if (isObj(p.record) && !/^no-op/.test(line)) extra.push(leverageAdd(Object.assign({}, p.record, { text: cleanText(c.raw.text, 120) || c.text })));
         if (typeof p.spend === 'string' && !/^no-op/.test(line)) extra.push(...exposeTo(n, p.aboutId, p.spend));
+        // Wave 32: a word for or against someone that moved the listener (Rel.wordsTie), on their tie, in front of the player.
+        if (isObj(p.tie) && !/^no-op/.test(line) && npc(p.tie.to)) {
+          const about = npc(p.tie.to);
+          tieLog(p.tie.from, p.tie.to, p.tie.w, 0, `what you said ${p.event === 'vouched_for' ? 'for' : 'about'} ${about.name}`, true, false, { words: true });
+          extra.push(`${p.tie.from}>${p.tie.to}: liking ${plusMinus(p.tie.w)} (the player's words)`);
+        }
         if (typeof p.voidRec === 'string' && !/^no-op/.test(line)) extra.push(...cameClean(p.voidRec));
         return line + note + (extra.length ? `; ${extra.join('; ')}` : '');
       });
@@ -9986,17 +10027,18 @@ const State = (() => {
   function hearsayList() { if (!Array.isArray(current.hearsay)) current.hearsay = []; return current.hearsay; }
   /* A change in a's tie to b (the arrest route; wave 32's exposure,
      badmouthing and tieDelta): a turn-stamped log line { turn, day, w, t,
-     why, seen }, the oldest folded into base past Rel.TIE_LOG. A tie the
-     game lacks is made (its kind from their relations, else other, at 0).
-     known: true makes it known. Returns the tie. */
-  function tieLog(from, to, w, t, why, seen, known) {
+     why, seen, ...extra (words: the player's words) }, the oldest folded
+     into base past Rel.TIE_LOG. A tie the game lacks is made (its kind from
+     their relations, else other, at 0). known: true makes it known.
+     Returns the tie. */
+  function tieLog(from, to, w, t, why, seen, known, extra) {
     const ties = tieMapOf();
     const k = Rel.tieKey(from, to);
     if (!isObj(ties[k])) ties[k] = { kind: Rel.kindBetween(npc(from), npc(to)) || 'other', base: { w: 0, t: 0 }, log: [], hidden: false, known: true };
     const tie = ties[k];
     if (!isObj(tie.base)) tie.base = { w: 0, t: 0 };
     if (!Array.isArray(tie.log)) tie.log = [];
-    if (w || t) tie.log.push(Object.assign({ turn: current.meta.turn, day: current.time.day, w: w | 0, t: t | 0, why: cleanText(why, 120) }, seen ? { seen: true } : {}));
+    if (w || t) tie.log.push(Object.assign({ turn: current.meta.turn, day: current.time.day, w: w | 0, t: t | 0, why: cleanText(why, 120) }, seen ? { seen: true } : {}, isObj(extra) ? extra : {}));
     while (tie.log.length > Rel.TIE_LOG) { const old = tie.log.shift(); tie.base.w = clamp((Number(tie.base.w) || 0) + (Number(old.w) || 0), -100, 100); tie.base.t = clamp((Number(tie.base.t) || 0) + (Number(old.t) || 0), -100, 100); }
     if (known === true && tie.known !== true) { tie.known = true; tie.knownTurn = current.meta.turn; }
     Object.assign(tie, Rel.tieNow(tie));
@@ -10305,10 +10347,51 @@ const State = (() => {
     const paid = rec.status === 'paid';
     const out = [leverageSet({ id: rec.id, status: 'spent', knownBy: [x.id] })].filter(Boolean);
     const p = current.player.name;
-    out.push(socialEvent({ npcId: y.id, event: 'exposed', aboutId: x.id, text: `${p} told ${x.name} what I was hiding: ${rec.text}`, d: { w: -30, t: -30 }, weight: 3, decay: 'scar', leverageId: rec.id }, 'exposed'));
-    if (paid) out.push(socialEvent({ npcId: y.id, event: 'broke_word', text: `${p} took my money to keep quiet and told anyway`, weight: 2, leverageId: rec.id }, 'exposed'));
+    // Wave 32: how X sees Y now (the town's secretTies: Dewayne's trust in Mavis 60 to 15), changed in front of the player, and what it sets going (seed).
+    for (const st of Rel.secretTiesFor(y.id, x.id, relCtx())) {
+      for (const t of st.ties) {
+        if (!isObj(t) || !npc(t.from) || !npc(t.to)) continue;
+        tieLog(t.from, t.to, toInt(t.w) || 0, toInt(t.t) || 0, st.why, true, true);
+        out.push(`${t.from}>${t.to}: ${[toInt(t.w) ? `liking ${plusMinus(toInt(t.w))}` : '', toInt(t.t) ? `trust ${plusMinus(toInt(t.t))}` : ''].filter(Boolean).join(', ')} (${cleanText(st.why, 80)})`);
+      }
+      if (isObj(st.seed)) out.push(secretSeed(y, x, st));
+    }
+    const yEvents = [{ event: 'exposed', aboutId: x.id, text: `${p} told ${x.name} what I was hiding: ${rec.text}`, d: { w: -30, t: -30 }, weight: 3, decay: 'scar', leverageId: rec.id }];
+    if (paid) yEvents.push({ event: 'broke_word', text: `${p} took my money to keep quiet and told anyway`, weight: 2, leverageId: rec.id });
+    const here = npcsAt(current.player.locationId).some(m => m.id === y.id);
+    if (here || !isObj(current.ties) || !Object.keys(current.ties).length) {
+      // Y is here to hear it, or a game with no ties yet (before rules version 10): at once, as wave 29 had it.
+      for (const ev of yEvents) out.push(socialEvent(Object.assign({ npcId: y.id }, ev), 'exposed'));
+    } else {
+      /* Wave 32 (design section 4.5): Y learns who told by the tie between
+         them (a husband or wife and the household overnight, family and work
+         by the morning, the rest when they meet; tied by nothing, by the
+         morning), and takes it as their own (World's step i). */
+      const ctx = relCtx();
+      const tie = Rel.tieOf(y.id, x.id, ctx) || Rel.tieOf(x.id, y.id, ctx);
+      const via = tie ? Rel.deliveryOf(y, x, tie, ctx) : 'morning';
+      queueHearsay(yEvents.map(ev => Object.assign({ npcId: y.id, aboutId: y.id, own: true, ev, event: ev.event, via, factor: 1, hidden: false, about: `what you told ${firstName(x)}`, day: current.time.day, expires: current.time.day + Rel.DELIVERY.expires },
+        Rel.dueOf(via, current.time.day, current.time.phase))));
+      out.push(`${y.id} will hear who told (${via})`);
+    }
     if (Rel.isPoliceNpc(x) && Array.isArray(rec.mattersTo) && rec.mattersTo.includes(x.id)) out.push(...whenTold(y, x, rec));
     return out;
+  }
+  /* What a secret told sets going (secretTies' seed: { effect, dayOffset }):
+     a hidden seed, due a day or two on (its own draw, Rel.rng), told when it
+     comes: Tammy Lott going after Colt Purvis. Returns the line. */
+  function secretSeed(y, x, st) {
+    const day = current.time.day;
+    const off = Array.isArray(st.seed.dayOffset) && st.seed.dayOffset.length ? st.seed.dayOffset : [1, 2];
+    const lo = clamp(toInt(off[0]) || 1, 1, 10);
+    const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 10);
+    const r = Rel.rng('secretTie', x.id, day);
+    let id = `seed_told_${x.id.slice(4)}_${y.id.slice(4)}`;
+    for (let k = 2; seed(id); k++) id = `seed_told_${x.id.slice(4)}_${y.id.slice(4)}_${k}`;
+    const sd = normaliseSeed({ id, cause: `Told: ${x.name} learned ${y.name}'s secret from ${current.player.name}`, effect: cleanText(fillTemplate(st.seed.effect, { npc: x.name, player: current.player.name, playerName: current.player.name }), 400),
+      trigger: { type: 'day', value: day + r.int(lo, hi) }, hidden: true, origin: { kind: 'town', npcId: x.id, key: `${x.id}>${y.id}` }, turn: current.meta.turn }, false);
+    current.seeds.push(sd);
+    return `${sd.id} planted (day ${sd.trigger.value})`;
   }
   /* A secret reaches the police it matters to (design section 2.6.5): the
      secret's whenTold ({ memory?, crime?, inquiry?, news? }), else the
@@ -10754,6 +10837,58 @@ const State = (() => {
       removeFromSchedules(n.id, ph);
       ph.forEach(p => addToSchedule(l, p, n.id));
       return `${n.id} at ${l.id} (${ph.join(', ')})`;
+    },
+    /* Wave 32 (the integration plan's 2.4): a change in how one person
+       feels about another, from content (a clock's completion: the
+       photographs of Royce and Loretta): { fromId, toId, w?, t? (whole
+       numbers within +/-100), known? (true: the town knows the tie now),
+       why (80 at most) }: a turn-stamped line on the tie's log (State's
+       tieLog), the tie made if the game lacks it. */
+    tieDelta(e) {
+      const a = needNpc(e.fromId);
+      const b = needNpc(e.toId);
+      if (a.id === b.id) bad('a tie is between two people');
+      for (const k of ['w', 't']) if (e[k] !== undefined && !(Number.isInteger(e[k]) && Math.abs(e[k]) <= 100)) bad(`${k} must be a whole number within +/-100`);
+      if (e.known !== undefined && typeof e.known !== 'boolean') bad('known must be true or false');
+      const why = cleanText(e.why, 80);
+      if (!why) bad('needs why: what changed between them, in a few words');
+      if (!e.w && !e.t && e.known !== true) bad('needs w, t or known');
+      const was = isObj(current.ties) && isObj(current.ties[Rel.tieKey(a.id, b.id)]) ? Rel.tieNow(current.ties[Rel.tieKey(a.id, b.id)]) : { w: 0, t: 0 };
+      const tie = tieLog(a.id, b.id, e.w | 0, e.t | 0, why, false, e.known === true);
+      const now = Rel.tieNow(tie);
+      return `${a.id}>${b.id}: liking ${was.w} -> ${now.w}, trust ${was.t} -> ${now.t}${e.known === true ? ', known' : ''} (${why})`;
+    },
+    /* Wave 32: what someone says or does reaches the people tied to them,
+       as if event had been done to them (a grudge's gossip, from its
+       holder): { npcId, event (Rel.EVENTS, one that travels), factor?
+       (0.1..2, times the row), via? ('now': heard at once; 'overnight',
+       'morning' or 'meet' for everyone; else by each tie), text? (what
+       they would remember, 200 at most) }. Rel.propagate plans it, one
+       hop; nobody is there to see it. */
+    propagate(e) {
+      const n = needNpc(e.npcId);
+      const row = typeof e.event === 'string' ? Rel.EVENTS[e.event] : null;
+      if (!row) bad(`unknown event "${e.event}"`);
+      if (!Rel.spreads({ event: e.event })) bad(`${e.event} does not travel (Rel.STAYS)`);
+      if (e.factor !== undefined && !(typeof e.factor === 'number' && e.factor >= 0.1 && e.factor <= 2)) bad('factor must be a number from 0.1 to 2');
+      if (e.via !== undefined && !['now', 'overnight', 'morning', 'meet'].includes(e.via)) bad('via must be now, overnight, morning or meet');
+      if (e.text !== undefined && typeof e.text !== 'string') bad('text must be words');
+      if (presenceOf(n) === 'dead') return `no-op: ${n.id} is dead`;
+      if (!isObj(current.ties) || !Object.keys(current.ties).length) return `no-op: the game has no ties yet`;
+      const f = Number.isFinite(e.factor) ? e.factor : 1;
+      const d = { w: row.w * f, t: row.t * f, f: (Number(row.f) || 0) * f };
+      const ctx = relCtx();
+      const plan = Rel.propagate(current, n.id, { event: e.event, present: [], weight: row.weight || 1, key: null, victim: n.name, player: current.player.name, placeName: 'town' }, d, ctx);
+      const text = cleanText(e.text, 200);
+      const items = plan.later.map(it => Object.assign(it, text ? { text } : {}, { about: `what ${firstName(n)} has been saying` }));
+      if (!items.length) return `${n.id} ${e.event}: it reaches nobody`;
+      if (e.via === 'now') {
+        const lines = items.map(it => carryTo(npc(it.npcId), it, null)).filter(Boolean);
+        return `${n.id} ${e.event} reaches ${lines.length ? lines.join('; ') : 'nobody'}`;
+      }
+      if (e.via) for (const it of items) Object.assign(it, { via: e.via }, Rel.dueOf(e.via, current.time.day, current.time.phase));
+      queueHearsay(items);
+      return `${n.id} ${e.event}: word will reach ${items.map(it => `${it.npcId} (${it.via})`).join(', ')}`;
     },
     /* Liking by delta, clamped to -100..100, exactly as before wave 26: it
        lands in the everyday bucket, and past its bound in fix (likingBy). */
@@ -13132,8 +13267,13 @@ const State = (() => {
         h.deliveredTurn = s.meta.turn;
         let line = null;
         let kind = 'memory';
-        if (h.own && isObj(h.ev)) line = socialEvent(Object.assign({}, h.ev, { npcId: a.id }), `hearsayDeliver.${h.id}`, true, { noSpread: true });
-        else { line = carryTo(a, h, null, Math.min(v.day, s.time.day)); kind = lastCarry; }
+        if (h.own && isObj(h.ev)) {
+          line = socialEvent(Object.assign({}, h.ev, { npcId: a.id }), `hearsayDeliver.${h.id}`, true, { noSpread: true });
+          // Wave 32: dated by the telling, as it was when it landed at once (what you told Dewayne on Day 5, heard that night, is Day 5's).
+          const late = Number.isInteger(h.day) ? (a.memories || []).filter(m => isObj(m) && m.turn === s.meta.turn && m.event === h.ev.event && Number.isInteger(m.day) && m.day > h.day && (m.leverageId || null) === (h.ev.leverageId || null)) : [];
+          for (const m of late) m.day = h.day;
+          if (late.length) relWrite(a);
+        } else { line = carryTo(a, h, null, Math.min(v.day, s.time.day)); kind = lastCarry; }
         if (line && !/^no-op/.test(line)) {
           parts.push(line);
           // To be told in the feed's one line (what made a memory: a small thing into everyday is no news to tell), at this tick, or what was heard in the night at the morning's.
@@ -14255,7 +14395,18 @@ const State = (() => {
    the police and clergy's limits); what carries is nothing, everyday or a
    secondhand memory (carry). A settlement reaches the copies others hold
    (settleSpread); an arrest turns the family against the officer
-   (arrestTies). No draw anywhere. */
+   (arrestTies). No draw anywhere.
+
+   Wave 32 (B2, "ties that change"): what the player says and does moves how
+   people feel about each other. Telling X what the player holds over Y
+   moves X's tie to Y by the town's secretTies (secretTiesFor), and Y hears
+   who told by the tie between them; a word against Y or for Y to X, on a
+   persuade that worked, moves X's liking for Y as far as X trusts the
+   player (wordsTie, WORDS_TIE); telling someone what they would rather not
+   know about someone they love costs liking, not trust (MESSENGER). What
+   the narrator and the card are told of it: BETWEEN THEM (betweenThem) and
+   "strained since Day N" (tieWords), only for a tie the town knows and the
+   player saw change. */
 const Rel = (() => {
   function deepFreeze(v) {
     if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) deepFreeze(v[k]); }
@@ -15893,7 +16044,7 @@ const Rel = (() => {
       if (o.romantic) return { refuse: 'the engine records the flirt (the parse saw it)' };
       name = 'complimented';
     } else if (!WIRE_EVENTS[name]) return { refuse: `${name} is the engine's to record, never the bookkeeper's` };
-    else if (WIRE_EVENTS[name] !== 'A') return { refuse: `${name} waits for the town's ties (tier B)` };
+    // Wave 32: tier B's words (badmouthed, vouched_for) are open now that the town has ties.
     const mems = list(n.memories);
     const asks = list(isObj(n.rel) ? n.rel.asks : null);
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
@@ -15943,6 +16094,24 @@ const Rel = (() => {
         if (!rec) return { knows: 2, why: 'the player holds nothing over them to tell' };
         out.spend = rec.id;
         if (mems.some(m => m.event === 'exposed' && m.about === y.id && !m.witness)) Object.assign(out, { d: { w: 0, t: -8 }, why: 'told them about the same person again' });
+        // Wave 32, the messenger (design section 4.5): someone who likes them at 60 or more takes it out on the one who told, liking -8 for the trust +8.
+        else { const tie = tieOf(n.id, y.id, ctx); if (tie && tieNow(tie).w >= MESSENGER.likedAt) Object.assign(out, { d: { w: MESSENGER.w, t: 0 }, why: 'the messenger: they like them too well' }); }
+        return out;
+      }
+      /* Wave 32: a word against someone or for them (design section 4.5):
+         knowing the player a little better (the row: knows +2) whatever
+         came of it; on a persuade aimed at them that worked, their liking
+         for the one named moves (tie: State logs it on their tie, seen);
+         badmouthing someone to a listener who likes them at 40 or more
+         costs the player 5 of the listener's liking instead. */
+      case 'badmouthed':
+      case 'vouched_for': {
+        const y = out.aboutId ? byId(out.aboutId) : null;
+        if (!y) return { knows: 2, why: 'nobody named to say it about' };
+        const plan = wordsTie(n, y.id, name, o, ctx);
+        if (plan && plan.cost) return Object.assign(out, { d: { w: plan.cost }, why: plan.why });
+        if (plan && plan.w) out.tie = { from: n.id, to: y.id, w: plan.w };
+        else if (plan && plan.why) out.why = plan.why;
         return out;
       }
       case 'betrayed_confidence': return confided.length ? out : down('crossed', 'they confided nothing to pass on');
@@ -16872,6 +17041,82 @@ const Rel = (() => {
     return `${h.npcId} hears ${what} from ${h.aboutId} ${by} x${h.factor !== undefined ? h.factor : 1}${h.hidden ? ' (hidden)' : ''} · due day ${h.dueDay} ${h.duePhase}${h.deliveredTurn ? ` · heard turn ${h.deliveredTurn}` : ''}`;
   }
 
+  // ----- wave 32 (B2): ties that change -----
+  /* A word against someone (badmouthed) or for them (vouched_for), on a
+     persuade aimed at the listener that worked (design section 4.5): the
+     listener's liking for them moves by this, times clamp((their trust in
+     the player + 50) / 100, 0, 1), once a pair a day and at most total in
+     all a tie from the player's words; badmouthing someone to a listener
+     who likes them at likedAt or more costs the player cost of the
+     listener's liking instead. */
+  const WORDS_TIE = deepFreeze({ badmouthed: -10, vouched_for: 8, total: 20, cost: -5, likedAt: 40 });
+  // The messenger (design section 4.5): what they would rather not know about someone they like at likedAt or more costs liking w, not the trust +8.
+  const MESSENGER = deepFreeze({ likedAt: 60, w: -8 });
+  // The town's secretTies for Y's secret told to X ([{ secretOf, learnedBy, ties: [{ from, to, w?, t? }], why, seed? }]: the save's town copy, else the built-in town's).
+  function secretTiesFor(yId, xId, ctx) {
+    return contentList('secretTies', ctx).filter(e => e.secretOf === yId && (Array.isArray(e.learnedBy) ? e.learnedBy.includes(xId) : e.learnedBy === xId) && Array.isArray(e.ties));
+  }
+  /* A word for or against Y said to X (wireEvent's plan; t: the turn): {
+     cost, why } badmouthing Y to someone who likes them well; { w } the tie's
+     change on a persuade aimed at X that worked; { why } nothing more (not
+     today again, or the 20 used). null: no roll that worked. */
+  function wordsTie(x, yId, event, t, ctx) {
+    ctx = context(ctx);
+    const tie = tieOf(x.id, yId, ctx);
+    const now = tie ? tieNow(tie) : { w: 0, t: 0 };
+    if (event === 'badmouthed' && now.w >= WORDS_TIE.likedAt) return { cost: WORDS_TIE.cost, why: 'they like them too well to hear it' };
+    const o = isObj(t) ? t : {};
+    const aimed = (Array.isArray(o.targets) && o.targets.includes(x.id)) || o.speechTo === x.id;
+    if (!(o.rollSuccess === true && o.actionType === 'persuade' && aimed)) return null;
+    const said = list(tie && tie.log).filter(e => e.words === true);
+    if (said.some(e => e.day === ctx.day)) return { why: 'once a day about the same person' };
+    const used = said.reduce((sum, e) => sum + num(e.w), 0);
+    const scale = clamp((tracksOf(x, ctx).t + 50) / 100, 0, 1);
+    const w = clamp(used + rnd(WORDS_TIE[event] * scale), -WORDS_TIE.total, WORDS_TIE.total) - used;
+    return w ? { w } : { why: 'the player\'s words about them have moved them as far as words will' };
+  }
+  // A tie the town knows (not hidden, or found out), both ways.
+  function knownBetween(a, b, ctx) { return !hiddenBetween(a, b, ctx); }
+  /* What the narrator is told about two people here (the integration
+     plan's 10.1): for at most two pairs of the present whose tie changed in
+     front of the player (a log line seen), the town knowing the tie both
+     ways, the newest first: "Dewayne Mangum and Mavis Mangum, strained
+     since the garage money (Day 5)" (strained when what changed took from
+     it, closer when it added). Never a hidden tie. */
+  function betweenThem(ids, ctx) {
+    ctx = context(ctx);
+    const out = [];
+    const done = new Set();
+    const ps = (Array.isArray(ids) ? ids : []).filter((x, i, a) => typeof x === 'string' && a.indexOf(x) === i);
+    for (const a of ps) for (const b of ps) {
+      if (a === b || done.has(`${b}>${a}`)) continue;
+      done.add(`${a}>${b}`);
+      if (!knownBetween(a, b, ctx)) continue;
+      const logs = [[a, b], [b, a]].flatMap(([x, y]) => { const t = tieOf(x, y, ctx); return list(t && t.log).filter(e => e.seen === true).map(e => Object.assign({ from: x, to: y }, e)); });
+      if (!logs.length) continue;
+      const last = logs.slice().sort((p, q) => (num(q.turn) - num(p.turn)) || (num(q.day) - num(p.day)))[0];
+      const x = npcIn(last.from, ctx);
+      const y = npcIn(last.to, ctx);
+      if (!x || !y) continue;
+      const sum = logs.reduce((acc, e) => acc + num(e.w) + num(e.t), 0);
+      out.push({ turn: num(last.turn), text: `${x.name} and ${y.name}, ${sum < 0 ? 'strained' : 'closer'} since ${last.why || 'what happened'} (Day ${last.day})` });
+    }
+    return out.sort((p, q) => q.turn - p.turn).slice(0, 2).map(e => e.text);
+  }
+  /* The card's word on a tie (design section 4.5: "wife Mavis Mangum,
+     strained since Day 5"): n's tie to otherId, known to the town both
+     ways, changed in front of the player. '' otherwise. */
+  function tieWords(n, otherId, ctx) {
+    ctx = context(ctx);
+    if (!isObj(n) || typeof otherId !== 'string' || !knownBetween(n.id, otherId, ctx)) return '';
+    const t = tieOf(n.id, otherId, ctx);
+    const seen = list(t && t.log).filter(e => e.seen === true);
+    if (!seen.length) return '';
+    const sum = seen.reduce((acc, e) => acc + num(e.w) + num(e.t), 0);
+    const last = seen[seen.length - 1];
+    return sum ? `${sum < 0 ? 'strained' : 'closer'} since Day ${last.day}` : '';
+  }
+
   // ----- dice and debug -----
   // FNV-1a over a string: the key of a sub-stream.
   function fnv1a32(str) {
@@ -16925,7 +17170,9 @@ const Rel = (() => {
     // Wave 31: the town is a graph.
     TIE_KINDS, TIE_INVERSE, RELATION_KINDS, FAMILY_KINDS, FACTORS, DELIVERY, STAYS, VIOLENT, CRIMES, ARREST_TIE, TIE_LOG, DID_TEXT,
     inTown, tieKey, tieOf, tieNow, kindOfWord, kindBetween, contentList, tiesPlan, tieRevealed, hiddenBetween, household, deliveryOf, tieFactor, carried, spreads, dueOf,
-    propagate, settleSpread, copyOf, carry, hearsayDue, placeShort, hearsayLine, arrestTies, debugTie, debugHearsay
+    propagate, settleSpread, copyOf, carry, hearsayDue, placeShort, hearsayLine, arrestTies, debugTie, debugHearsay,
+    // Wave 32: ties that change.
+    WORDS_TIE, MESSENGER, secretTiesFor, wordsTie, betweenThem, tieWords
   };
 })();
 
@@ -17667,6 +17914,8 @@ const Town = (() => {
       if (ef.threadId !== undefined) checkRef(w, 'thr', ef.threadId);
       if (ef.factionId !== undefined && ef.factionId !== null) checkRef(w, 'fac', ef.factionId);
       if (ef.op === 'factionRelation') { checkRef(w, 'fac', ef.a); checkRef(w, 'fac', ef.b); }
+      // Wave 32: a tie's change names its two people.
+      if (ef.op === 'tieDelta') { checkRef(w, 'npc', ef.fromId); checkRef(w, 'npc', ef.toId); }
       if (ef.op === 'reputationDelta' && ef.key !== 'town') checkRef(w, 'fac', ef.key);
       if (ef.op === 'plantSeed' && isObj(ef.seed)) {
         checkTrigger(w, ef.seed.trigger);
@@ -20707,7 +20956,7 @@ const Api = (() => {
        properties and three enums. The three still reach State.apply on the
        legacy path when an older core reply or the engine sends them. */
     record_changes: obj({
-      socialEvents: list(STR, 'What a person here will remember of this turn, one line each, "npc_id event[ npc_about][ private]: the memory", e.g. "npc_dewayne apologised: hitting me over the tow bill" or "npc_marcus noted: says she is a surveyor from the state"; usually none or one'),
+      socialEvents: list(STR, 'What a person here will remember of this turn, one line each, "npc_id event[ npc_about][ private]: the memory", e.g. "npc_dewayne apologised: hitting me over the tow bill" or "npc_marcus noted: says she is a surveyor from the state"; usually none or one. Also badmouthed or vouched_for with the other person\'s id, when the player ran someone down to them or spoke up for someone'),
       goldDelta: nullable(INT, "Change in the player's money, in whole units of the town's currency (negative when spending), or null"),
       hpDelta: nullable(INT, "Change in the player's HP, or null"),
       itemsGained: list(STR, 'Item names or ids the player now carries'),
@@ -28101,6 +28350,11 @@ const Pipeline = (() => {
       `PRESENT: ${present.join('; ') || 'nobody'}.`,
       knowledgeLine(s)
     );
+    /* Wave 32 (the integration plan's 10.1): how two people here are with
+       each other now, when the player saw it change and the town knows the
+       tie (Rel.betweenThem; never a hidden one), one line, two pairs at most. */
+    const between = Rel.betweenThem(presentIds);
+    if (between.length) lines.push(`BETWEEN THEM: ${between.join('; ')}.`);
     /* Wave 28 (the integration plan's 19.3): every turn someone under 18 is in
        the scene, their line, whatever the parse said (the parser is out of
        the safety path for narration); a player under 18, or with no age on
@@ -31603,7 +31857,8 @@ const UI = (() => {
     if (pres === 'away' && n.reach && known) rows.push(['Reach', n.reach]);
     const grave = pres === 'dead' && n.buried ? State.loc(n.buried) : null;
     if (grave) rows.push(['Buried', grave.name]);
-    const ties = State.tiesOf(n).has.map(x => { const m = State.npc(x.id); const pm = presenceOf(m); return `${x.relation || 'related to'} ${m.name}${pm === 'dead' ? ' (dead)' : pm === 'away' ? ' (lives elsewhere)' : ''}`; });
+    // Wave 32: a tie the player saw change, the town knowing it, says so ("wife Mavis Mangum, strained since Day 5"; Rel.tieWords).
+    const ties = State.tiesOf(n).has.map(x => { const m = State.npc(x.id); const pm = presenceOf(m); const words = Rel.tieWords(n, x.id); return `${x.relation || 'related to'} ${m.name}${pm === 'dead' ? ' (dead)' : pm === 'away' ? ' (lives elsewhere)' : ''}${words ? `, ${words}` : ''}`; });
     if (ties.length) rows.push(['Ties', ties.join('; ')]);
     if (known && typeof n.history === 'string' && n.history) rows.push(['History', n.history]);
     return rows.length ? el('dl', { class: 'kv pcard-facts' }, rows.map(([k, v]) => [el('dt', null, k), el('dd', { dataset: { fact: k.toLowerCase() } }, v)])) : null;

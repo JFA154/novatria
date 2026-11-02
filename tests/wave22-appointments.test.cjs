@@ -361,8 +361,10 @@ s.test('the bookkeeper is told how to record a meeting (prompt only); record_cha
   // meeting still rides on newSeeds, unchanged.
   assert.equal(count(JSON.parse(r.rc)), 34);
   assert.deepEqual(r.seeds, ['effect', 'triggerType', 'triggerValue']);
-  // The exact schema the wave 28 build sends (the grammar limit: wave 17; the wave 21 build's was a5a714b4..., tests/probe-grammar.cjs's control).
-  assert.equal(crypto.createHash('sha256').update(r.rc).digest('hex'), '50a65324236c87614c99155350870325263d7751d0ddc6cad1bd2197968b6030');
+  // The exact schema the build sends (the grammar limit: wave 17; the wave 21 build's was a5a714b4..., tests/probe-grammar.cjs's control;
+  // the wave 28 build's 50a65324...). Changed by design in wave 32 (B2): the socialEvents description names badmouthed and vouched_for,
+  // a description-only change (still 34 properties and three enums).
+  assert.equal(crypto.createHash('sha256').update(r.rc).digest('hex'), '6ec52fc3e16fdca267b6b36260e1cfcc1c0ed0c4bff51007a24a5857588f9eb2');
   await sendText(page, 'I look around');
   assert.match(await lastText(page, 'bookkeep'), /^TURN \d+ · DAY 1, MORNING(?: \([a-z ]+\))?\. A new seed's day trigger is day 2 or later; a meeting agreed for later today triggers on its place \(location\)\./);
 });

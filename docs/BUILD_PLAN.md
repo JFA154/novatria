@@ -137,6 +137,9 @@ const TOWN_DATA = {
                                     // (every relation is a tie both ways already); an entry sets one side's
                                     // liking and trust, or adds a tie (lover, enemy, payer, other); hidden
                                     // needs revealedBy; one entry a direction (design Appendix B)
+  secretTies: [{ secretOf, learnedBy, ties: [{ from, to, w?, t? }], why, seed?: { effect, dayOffset } }],
+                                    // wave 32: what telling learnedBy secretOf's secret does between people
+                                    // (design Appendix C); one entry a secret and a listener
   events: [{                        // town events (World.fireEvents): the council meeting
     id: "evt_...", day, phase, locationId, title,
     attendees: ["npc_..."],         // optional: free people there for that phase
@@ -196,8 +199,10 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `socialEvent` | `npcId`, `event` (one of `Rel.EVENTS`, the engine's rows too), `text` (what they would remember), `weight?`, `act?`, `aboutId?`, `private?`, `leverageId?`, `d?` (a part of the row, whole numbers within ±50), `decay?`, `secondhand?`, `scale?` (0.1..2) | wave 26: planned by `Rel.applyEvent` (traits, repeats, bounds), written by State: a typed memory or an everyday change, what it settles, owed favours; spark above 0 refused for anyone it cannot move for; a no-op for the dead |
 | `owedSettle` | `npcId`, `dir?` (1: they owed the player; -1: the player owed them; omitted: both) | wave 29: the favours owed that way cleared ("<Name> is square with you.") |
 | `leverageSet` | `id` (a `lev_` record, or `"{leverageId}"` in a template), `status?` (along `Rel.LEV_NEXT`), `aware?`, `playerKnows?`, `demand?`, `use?`, `knownBy?` (ids or `"mattersTo"`), `tell?`, `hidden?` | wave 29: a leverage record's change; `tell` with a spent record over the player gives each new knower `told_anyway`; a change the record cannot make is a no-op |
+| `tieDelta` | `fromId`, `toId`, `w?`, `t?` (whole numbers within ±100), `known?`, `why` (80 at most) | wave 32: a turn-stamped line on `fromId`'s tie to `toId` (made if the game lacks it); `known: true` makes a hidden tie known; a clock's completion may carry one besides its five ops |
+| `propagate` | `npcId` (or `"{npcId}"` in a template), `event` (one that travels: not `Rel.STAYS`), `factor?` (0.1..2), `via?` (`now`, `overnight`, `morning`, `meet`), `text?` | wave 32: `Rel.propagate` from that person along their ties as if the event had been done to them, one hop: queued as hearsay by each tie (or `via`), or `now` heard at once; the grudge templates' gossip ([7], [8], [11]) |
 
-`State.EFFECT_OPS` is the list (31 with `placeItem`, `obligationPaid`, `socialEvent`, and since wave 29 `owedSettle` and `leverageSet`),
+`State.EFFECT_OPS` is the list (33 with `placeItem`, `obligationPaid`, `socialEvent`, since wave 29 `owedSettle` and `leverageSet`, and since wave 32 `tieDelta` and `propagate`),
 and `tests/validate-town.cjs` keeps the same list in `OPS`. Wave 27's
 `relSettle`, `relTurn`, `relAsk` and `relStart` are engine-only keys of
 `State.apply` (like `relSet` and `relDay`), not effect ops: content never
@@ -1867,3 +1872,28 @@ talking, I can direct it to one person or all."
      Ties and Hearsay. `docs/notes/engine-state.md`, `engine-world.md`,
      `content.md`, `ui.md`; tests: `tests/wave31-town-ties.test.cjs`,
      examples 1, 4 and 5 (B) and 9 in `tests/relationships-examples.test.cjs`.
+   - **Wave 32** (1 Nov 2026). B2, "Ties that change". Telling X what the
+     player holds over Y (`exposed`) moves X's tie to Y by the town's
+     `TOWN_DATA.secretTies` (25, design Appendix C: Dewayne's trust in Mavis
+     60 to 15 for the garage money), in front of the player and known from
+     then on, with a seed where one is written (Tammy Lott after Colt
+     Purvis); X takes trust +8, or liking -8 when they like Y at 60 or more
+     (`Rel.MESSENGER`); Y hears who told by the tie between them (State's
+     `exposeTo` queues Y's own events: overnight for a spouse or the
+     household, by the morning otherwise; at once if Y is there; "Word got
+     round: Mavis Mangum has heard what you told Dewayne."). `badmouthed`
+     and `vouched_for` are open on the wire (the schema's description only):
+     on a persuade aimed at X that worked, X's liking for Y moves -10 or +8
+     times clamp((X's trust + 50) / 100, 0, 1), once a pair a day, 20 in all
+     from the player's words (`Rel.wordsTie`, `WORDS_TIE`); badmouthing Y to
+     someone who likes Y at 40 or more costs the player 5 of X's liking; K +2
+     either way. Ops 33: `tieDelta` (the photographs of Royce and Loretta:
+     Darlene's trust in Loretta -20, known) and `propagate` (the grudge
+     templates' gossip along the holder's ties, edited in place). The
+     narrator gets `BETWEEN THEM: <A> and <B>, strained since <why> (Day N).`
+     after PRESENT for two pairs at most whose tie the player saw change,
+     known ties only (`Rel.betweenThem`); the card's Ties say "wife Mavis
+     Mangum, strained since Day 5" (`Rel.tieWords`). The cached blocks are
+     unchanged. `docs/notes/content.md`, `engine-world.md`, `prompts.md`;
+     tests: `tests/wave32-ties-change.test.cjs`, examples 2 and 11 (B) in
+     `tests/relationships-examples.test.cjs`.

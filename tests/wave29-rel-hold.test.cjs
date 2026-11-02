@@ -491,12 +491,15 @@ s.test('telling the chief about Hollis\'s books gives Marcus a serious memory an
     out.told = __model([{ npcId: 'npc_marcus', event: 'exposed', aboutId: 'npc_hollis', text: 'told me Hollis runs the landing\'s cash through his books' }], ['npc_marcus']);
     out.marcus = S.npc('npc_marcus').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.text]);
     out.marcusT = __tr('npc_marcus').t - m0.t;
-    const h1 = __tr('npc_hollis');
-    out.hollis = { d: [h1.w - h0.w, h1.t - h0.t], fear: [h0.f, h1.f], mem: S.npc('npc_hollis').memories.filter(m => m.event === 'exposed').map(m => [m.weight, m.decay, m.about]) };
+    // Changed by design in wave 32 (B2): Hollis is not there, so he hears who told by the tie between them (none: by the morning).
+    out.queued = st.hearsay.filter(x => x.npcId === 'npc_hollis' && x.own).map(x => [x.event, x.via]);
     out.rec = st.leverage.map(x => [x.status, x.knownBy.map(k => k.npcId)]);
     const sd = st.seeds.find(x => x.origin && x.origin.kind === 'inquiry');
     out.seed = sd ? [sd.origin.npcId, sd.trigger.value - st.time.day, sd.effect, sd.effects.map(e => e.op)] : null;
     S.apply({ setTime: { day: sd.trigger.value, phase: 'morning' } });
+    S.apply({ hearsayDeliver: { day: st.time.day, phase: 'morning' } });
+    const h1 = __tr('npc_hollis');
+    out.hollis = { d: [h1.w - h0.w, h1.t - h0.t], fear: [h0.f, h1.f], mem: S.npc('npc_hollis').memories.filter(m => m.event === 'exposed').map(m => [m.weight, m.decay, m.about, m.day]) };
     W.fireSeeds({ turn: st.meta.turn, time: { day: st.time.day, phase: 'morning' }, locationId: st.player.locationId, presentNpcIds: [], targetIds: [] });
     out.clock = [c0, clock()];
     out.free = S.npc('npc_hollis').status;
@@ -509,7 +512,8 @@ s.test('telling the chief about Hollis\'s books gives Marcus a serious memory an
   assert.ok(r.marcus.some(m => m[0] === 'exposed'), 'and the telling itself');
   assert.ok(r.marcusT >= 6, 'trust +8 for being told (x his guardedness): ' + r.marcusT);
   assert.deepEqual(r.rec, [['spent', ['npc_marcus']]], 'the record spent, told to him');
-  assert.deepEqual(r.hollis.mem, [[3, 'scar', 'npc_marcus']], 'Hollis learns who told: a weight-3 scar');
+  assert.deepEqual(r.queued, [['exposed', 'morning']]);
+  assert.deepEqual(r.hollis.mem, [[3, 'scar', 'npc_marcus', 3]], 'Hollis learns who told: a weight-3 scar, dated by the telling');
   assert.ok(r.hollis.d[0] <= -28 && r.hollis.d[1] <= -26, 'liking -30, trust -30: ' + r.hollis.d);
   assert.ok(r.hollis.fear[1] < r.hollis.fear[0], 'the fear of what the player knew goes');
   assert.ok(r.seed && r.seed[0] === 'npc_marcus' && r.seed[1] >= 1 && r.seed[1] <= 2, 'an inquiry in a day or two: ' + JSON.stringify(r.seed));
