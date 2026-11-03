@@ -34,9 +34,6 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
-        with:
-          # The whole history: tests/fixtures/make-v8-save.cjs builds an older save from 56e69f5's index.html.
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
