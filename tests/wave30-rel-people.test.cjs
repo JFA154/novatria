@@ -6,14 +6,15 @@
    Owes you; every memory field kept, the event picker,
    a record deleted), the feed's ranked lines, /recap's Careful and Owed,
    the narrator's "to you" line and the cached block, the council reading
-   trust, rules version 9 on a save from before wave 26 (built from
-   56e69f5's own index.html: tests/fixtures/make-v8-save.cjs), and the
+   trust, rules version 9 on a save from before wave 26 (played in
+   56e69f5's own index.html, frozen in tests/fixtures/saves/v8.json
+   by tests/fixtures/make-saves.cjs; wave 39), and the
    eight-day cut of the simulator's bands (tests/relationships-sim.cjs).
    Run with: node tests/run.cjs wave30 */
 const assert = require('assert/strict');
 const { chromium } = require('playwright');
 const { suite, quickStart, sendText, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
-const { makeV8Save } = require('./fixtures/make-v8-save.cjs');
+const { loadSave } = require('./fixtures/make-saves.cjs');
 const sim = require('./relationships-sim.cjs');
 
 const s = suite('wave30-rel-people');
@@ -384,7 +385,8 @@ s.test('the council weighs trust: the confidant tables it, the drinking buddy on
 
 s.test('rules version 9: liking stays exactly the old attitude for everyone in an older game; the engine\'s own memories are recognised before the words ("took the phone" is never a theft by the player); anyone whose secret was open still opens it; the informant\'s hold on the player becomes a record; nothing is called', async h => {
   // A game saved by the 56e69f5 build (rules version 8), played there with the mock.
-  const old = await makeV8Save();
+  const env8 = loadSave(8);
+  const old = { env: env8, debtor: env8.fixture.debtor, rules: env8.fixture.rulesVersion };
   assert.equal(old.rules, 8);
   const page = await h.open({ viewport: LAPTOP });
   const before = await page.evaluate(env => {

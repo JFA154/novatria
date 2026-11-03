@@ -1,0 +1,6154 @@
+{
+ "fixture": {
+  "rulesVersion": 6,
+  "commit": "eb15c02",
+  "date": "2026-10-29T14:22:16+00:00",
+  "subject": "A full cast written by hand; the game never invents a person",
+  "script": "tests/fixtures/make-saves.cjs SCRIPT (seed 4242)",
+  "debtor": "npc_hollis",
+  "paid": 4,
+  "skipped": [
+   "the debt line with its act: unknown op \"addMemory\""
+  ],
+  "note": null
+ },
+ "kind": "novatria-save",
+ "saveVersion": 1,
+ "name": "Export",
+ "savedAt": "2026-10-29T14:22:16.000Z",
+ "summary": {
+  "player": "Tester",
+  "background": "Veteran",
+  "day": 4,
+  "phase": "morning",
+  "location": "The Low Water",
+  "turn": 8,
+  "town": "Lockett's Ferry"
+ },
+ "state": {
+  "version": 1,
+  "meta": {
+   "seed": 4242,
+   "turn": 8,
+   "createdAt": "2026-10-29T14:22:16.000Z",
+   "townName": "Lockett's Ferry",
+   "townVersion": 1,
+   "lastRollKey": null,
+   "rngCalls": 49,
+   "rulesVersion": 6,
+   "castFixed": true
+  },
+  "time": {
+   "day": 4,
+   "phase": "morning",
+   "shorts": 0
+  },
+  "flags": {
+   "priceMultiplier": 1,
+   "weather": "First frost, the pickups white with it at dawn",
+   "season": "autumn"
+  },
+  "player": {
+   "name": "Tester",
+   "background": "Veteran",
+   "backgroundId": "bg_veteran",
+   "goal": "Find out who sent the letter",
+   "flaw": "Can't pass a scratch-off ticket or a card game without buying in.",
+   "stats": {
+    "might": 2,
+    "wits": 0,
+    "charm": 0,
+    "stealth": 1
+   },
+   "hp": 10,
+   "maxHp": 10,
+   "gold": 136,
+   "inventory": [
+    {
+     "id": "item_folding_knife",
+     "name": "Folding knife",
+     "qty": 1,
+     "notes": "Kept sharp out of habit."
+    },
+    {
+     "id": "item_dog_tags",
+     "name": "Dog tags",
+     "qty": 1,
+     "notes": "Yours, and one from a friend who did not come home."
+    },
+    {
+     "id": "item_bottle_of_beer_at_the_low_water",
+     "name": "Bottle of beer at the Low Water",
+     "qty": 1,
+     "notes": ""
+    }
+   ],
+   "conditions": [],
+   "reputation": {
+    "town": 11,
+    "fac_sturdivant": 0,
+    "fac_police": 0,
+    "fac_nightrun": 0
+   },
+   "storyPoints": 2,
+   "locationId": "loc_low_water",
+   "looseEnds": [
+    {
+     "kind": "debt",
+     "label": "A debt",
+     "text": "I owe a man in this town more money than I can pay.",
+     "npcId": "npc_hollis",
+     "seedId": "seed_le_debt",
+     "threadId": "thr_le_debt",
+     "created": false
+    },
+    {
+     "kind": "enemy",
+     "label": "An enemy",
+     "text": "Someone I wronged has followed me here.",
+     "npcId": "npc_jodie",
+     "seedId": "seed_le_enemy",
+     "threadId": "thr_le_enemy",
+     "created": false
+    },
+    {
+     "kind": "secret",
+     "label": "A secret",
+     "text": "Someone here knows what I did before I came.",
+     "npcId": "npc_tyler",
+     "seedId": "seed_le_secret",
+     "threadId": "thr_le_secret",
+     "created": false
+    }
+   ]
+  },
+  "locations": [
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_pittmans",
+    "name": "Pittman's Gas and Service",
+    "type": "gas",
+    "map": {
+     "x": 250,
+     "y": 56,
+     "label": "Pittman's",
+     "anchor": "e"
+    },
+    "description": "Four pumps under a buzzing canopy where the state highway meets the river road, with a bus-stop sign bolted to the ice machine and a hand-lettered board out front that reads CRICKETS, NIGHT CRAWLERS, CARTONS. Out back, two open service bays smell of hot oil and tire rubber, and a radio plays gospel to whatever truck is up on the lift.",
+    "exits": [
+     "loc_motor_court",
+     "loc_town_hall",
+     "loc_byrds_pawn",
+     "loc_sturdivant_house",
+     "loc_mangum_house",
+     "loc_pittman_place"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_royce",
+      "npc_dewayne",
+      "npc_leon",
+      "npc_boyd",
+      "npc_jodie"
+     ],
+     "afternoon": [
+      "npc_dewayne",
+      "npc_darlene",
+      "npc_kaylee",
+      "npc_lamar",
+      "npc_trent"
+     ],
+     "evening": [
+      "npc_royce",
+      "npc_marcus",
+      "npc_travis",
+      "npc_kaylee",
+      "npc_leon",
+      "npc_dwight"
+     ],
+     "night": []
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_low_water",
+    "name": "The Low Water",
+    "type": "bar",
+    "map": {
+     "x": 184,
+     "y": 170,
+     "label": "Low Water",
+     "anchor": "s"
+    },
+    "description": "A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door. On weekends the gravel lot fills with car tags from the dry county, and the kitchen hatch at the back sends out catfish baskets and the smell of old fryer grease.",
+    "exits": [
+     "loc_motor_court",
+     "loc_town_hall",
+     "loc_byrds_pawn",
+     "loc_riverside_church",
+     "loc_old_bridge",
+     "loc_purvis_landing",
+     "loc_gentry_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_loretta"
+     ],
+     "afternoon": [
+      "npc_loretta",
+      "npc_royce",
+      "npc_tammy",
+      "npc_elbert",
+      "npc_curtis",
+      "npc_jodie"
+     ],
+     "evening": [
+      "npc_loretta",
+      "npc_carter",
+      "npc_wade",
+      "npc_tammy",
+      "npc_lyman",
+      "npc_curtis",
+      "npc_jodie"
+     ],
+     "night": [
+      "npc_loretta",
+      "npc_lyman",
+      "npc_curtis",
+      "npc_jodie"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_motor_court",
+    "name": "The Riverview Motor Court",
+    "type": "motel",
+    "map": {
+     "x": 118,
+     "y": 94,
+     "label": "Motor Court",
+     "anchor": "n"
+    },
+    "description": "Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster. The office smells of burnt coffee and air freshener, and a monitor on the counter shows the lot in four gray squares.",
+    "exits": [
+     "loc_pittmans",
+     "loc_low_water",
+     "loc_haskins_farm"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_lyman",
+      "npc_curtis",
+      "npc_brianna"
+     ],
+     "afternoon": [
+      "npc_lyman",
+      "npc_brianna"
+     ],
+     "evening": [
+      "npc_tyler",
+      "npc_mavis",
+      "npc_boyd"
+     ],
+     "night": [
+      "npc_tyler",
+      "npc_travis",
+      "npc_mavis",
+      "npc_leon",
+      "npc_boyd"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_riverside_church",
+    "name": "Riverside Baptist Church",
+    "type": "church",
+    "map": {
+     "x": 84,
+     "y": 142,
+     "label": "Church",
+     "anchor": "n"
+    },
+    "description": "A white clapboard church on the slope above Front Street, with a steeple that leans a little toward the river and a marquee sign out front that reads PRAY FOR OUR BRIDGE. Inside, the pews smell of lemon polish and old hymnals, and the fellowship hall out back keeps a coffee urn and a box of donated coats going all week.",
+    "exits": [
+     "loc_low_water",
+     "loc_riverbend",
+     "loc_sturdivant_house",
+     "loc_parsonage",
+     "loc_gentry_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_ray",
+      "npc_nadine",
+      "npc_elbert",
+      "npc_pearl"
+     ],
+     "afternoon": [
+      "npc_vada",
+      "npc_june",
+      "npc_nadine"
+     ],
+     "evening": [
+      "npc_ray",
+      "npc_jolene",
+      "npc_odessa",
+      "npc_annette"
+     ],
+     "night": []
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_town_hall",
+    "name": "Town Hall",
+    "type": "police",
+    "map": {
+     "x": 262,
+     "y": 146,
+     "label": "Town Hall",
+     "anchor": "e"
+    },
+    "description": "A two-story brick building with the mayor's office upstairs and the police department downstairs, one patrol car out front and a second up on blocks behind it. The station is a front counter, three desks and a single holding cell, and the window unit drips onto a box of unpaid parking tickets.",
+    "exits": [
+     "loc_pittmans",
+     "loc_byrds_pawn",
+     "loc_low_water",
+     "loc_old_bridge",
+     "loc_overstreet_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_carter",
+      "npc_jolene",
+      "npc_marcus",
+      "npc_travis",
+      "npc_glenda",
+      "npc_nikki"
+     ],
+     "afternoon": [
+      "npc_jolene",
+      "npc_pearl",
+      "npc_glenda",
+      "npc_nikki"
+     ],
+     "evening": [],
+     "night": [
+      "npc_marcus"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_byrds_pawn",
+    "name": "Byrd's Pawn",
+    "type": "pawn",
+    "map": {
+     "x": 222,
+     "y": 104,
+     "label": "Byrd's Pawn",
+     "anchor": "w"
+    },
+    "description": "A narrow storefront between two empty ones, its window crowded with chainsaws, guitars and fishing reels behind a security grille that never goes all the way up. Inside it smells of gun oil and stale smoke, and a glass counter of rings and phones sits under a hand-lettered sign that says NO REFUNDS NO STORIES.",
+    "exits": [
+     "loc_pittmans",
+     "loc_town_hall",
+     "loc_low_water",
+     "loc_byrd_apartment"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_hollis"
+     ],
+     "afternoon": [
+      "npc_hollis"
+     ],
+     "evening": [
+      "npc_hollis"
+     ],
+     "night": []
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_riverbend",
+    "name": "Riverbend Trailer Park",
+    "type": "trailerpark",
+    "map": {
+     "x": 40,
+     "y": 190,
+     "label": "Riverbend",
+     "anchor": "n"
+    },
+    "description": "Thirty-odd trailers on the low ground downstream of the landing, some with flower boxes and some with blue tarps on the roofs, strung along a gravel loop that floods to the axles every spring. Dogs bark on chains, a trampoline rusts in the middle of the loop, and a cross of plastic flowers is wired to the fence by the mailboxes.",
+    "exits": [
+     "loc_purvis_landing",
+     "loc_riverside_church",
+     "loc_lott_trailer"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_june",
+      "npc_colt",
+      "npc_tyler",
+      "npc_shayla",
+      "npc_burl"
+     ],
+     "afternoon": [
+      "npc_colt",
+      "npc_ray",
+      "npc_tyler",
+      "npc_travis",
+      "npc_austin",
+      "npc_leon",
+      "npc_shayla"
+     ],
+     "evening": [
+      "npc_june",
+      "npc_brianna",
+      "npc_shayla",
+      "npc_burl"
+     ],
+     "night": [
+      "npc_june",
+      "npc_brianna",
+      "npc_shayla",
+      "npc_dwight",
+      "npc_burl"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_purvis_landing",
+    "name": "Purvis Landing",
+    "type": "marina",
+    "map": {
+     "x": 102,
+     "y": 212,
+     "label": "Purvis Landing",
+     "anchor": "n"
+    },
+    "description": "A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and bass boats, beside the concrete public ramp where the river road runs straight down into the water. At night the dock lights stay off, and every morning the mud at the foot of the ramp is cut with fresh trailer tracks.",
+    "exits": [
+     "loc_low_water",
+     "loc_old_bridge",
+     "loc_riverbend"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_wade",
+      "npc_lorna"
+     ],
+     "afternoon": [
+      "npc_wade",
+      "npc_micah",
+      "npc_lorna",
+      "npc_burl"
+     ],
+     "evening": [
+      "npc_colt",
+      "npc_dewayne",
+      "npc_trent",
+      "npc_lorna"
+     ],
+     "night": [
+      "npc_hollis",
+      "npc_wade",
+      "npc_micah",
+      "npc_trent",
+      "npc_lorna"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_sturdivant_house",
+    "name": "Sturdivant House",
+    "type": "bighouse",
+    "map": {
+     "x": 60,
+     "y": 66,
+     "label": "Sturdivant House",
+     "anchor": "n"
+    },
+    "description": "A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road. At the end of the drive by the water tower you can get the town's one bar of cell signal, and there is usually a truck parked there with someone holding a phone up to the sky.",
+    "exits": [
+     "loc_pittmans",
+     "loc_riverside_church"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_vada",
+      "npc_odessa",
+      "npc_dwight"
+     ],
+     "afternoon": [
+      "npc_odessa"
+     ],
+     "evening": [
+      "npc_vada"
+     ],
+     "night": [
+      "npc_vada",
+      "npc_carter",
+      "npc_odessa"
+     ]
+    }
+   },
+   {
+    "discovered": true,
+    "closed": false,
+    "id": "loc_old_bridge",
+    "name": "The Old Bridge",
+    "type": "bridge",
+    "map": {
+     "x": 266,
+     "y": 212,
+     "label": "Old Bridge",
+     "anchor": "e"
+    },
+    "description": "A narrow green steel truss from 1938, two lanes and no shoulder, posted at five tons and rattling under every pickup that crosses toward the dry county. Halfway over, a sign on the rail marks the state line, and fishermen leave cut bait and beer cans on the concrete pier below the first span.",
+    "exits": [
+     "loc_town_hall",
+     "loc_low_water",
+     "loc_purvis_landing"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [
+      "npc_carter",
+      "npc_marcus",
+      "npc_virgil",
+      "npc_boyd",
+      "npc_dwight"
+     ],
+     "evening": [
+      "npc_austin",
+      "npc_virgil"
+     ],
+     "night": [
+      "npc_colt"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_mangum_house",
+    "name": "The Mangum House",
+    "type": "house",
+    "map": {
+     "x": 330,
+     "y": 118,
+     "label": "Mangum house",
+     "anchor": "w"
+    },
+    "description": "A white frame house about a mile up the river road from Pittman's, on the left, with a carport full of engine parts and a porch light left on for whoever gets home last. In the daytime it is dim and quiet, blackout curtains drawn over the bedroom where Mavis sleeps off the night shift.",
+    "exits": [
+     "loc_pittmans"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_mavis"
+     ],
+     "afternoon": [
+      "npc_mavis"
+     ],
+     "evening": [],
+     "night": [
+      "npc_dewayne"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_pittman_place",
+    "name": "The Pittman Place",
+    "type": "house",
+    "map": {
+     "x": 306,
+     "y": 30,
+     "label": "Pittman place",
+     "anchor": "w"
+    },
+    "description": "A brick ranch house up the bluff behind the station, with a basketball hoop over the garage, a bass boat on a trailer and the station's ledgers spread across the kitchen table. The curtains are always half shut, and from the back steps you can see every truck that stops at the pumps.",
+    "exits": [
+     "loc_pittmans"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_darlene",
+      "npc_kaylee"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_darlene"
+     ],
+     "night": [
+      "npc_royce",
+      "npc_darlene",
+      "npc_kaylee"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_parsonage",
+    "name": "The Parsonage",
+    "type": "house",
+    "map": {
+     "x": 30,
+     "y": 108,
+     "label": "Parsonage",
+     "anchor": "e"
+    },
+    "description": "A small white house beside Riverside Baptist that the church owns, with a porch swing, a vegetable garden gone to seed and the church van parked on the grass. Inside it smells of coffee and cough drops, and the front room is stacked with boxes of canned goods for the pantry.",
+    "exits": [
+     "loc_riverside_church"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_micah"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_nadine",
+      "npc_micah"
+     ],
+     "night": [
+      "npc_ray",
+      "npc_nadine"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_lott_trailer",
+    "name": "The Lott Trailer",
+    "type": "trailer",
+    "map": {
+     "x": 20,
+     "y": 158,
+     "label": "Lott trailer",
+     "anchor": "e"
+    },
+    "description": "A single-wide at the far end of the Riverbend loop, with a wind chime of bent spoons on the porch and a girl's pink bicycle chained to the steps that nobody rides now. A handmade sign taped inside the front window says JUSTICE FOR AMBER in marker.",
+    "exits": [
+     "loc_riverbend"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_tammy",
+      "npc_austin"
+     ],
+     "afternoon": [],
+     "evening": [],
+     "night": [
+      "npc_tammy",
+      "npc_austin"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_byrd_apartment",
+    "name": "The Apartment over Byrd's",
+    "type": "apartment",
+    "map": {
+     "x": 192,
+     "y": 76,
+     "label": "Apartment",
+     "anchor": "n"
+    },
+    "description": "Two rooms up an outside staircase above Byrd's Pawn, rented by the month, with a dripping window unit, a police radio on the counter and a view straight down into the alley where trucks stop after dark. The landlord's boxes of unclaimed merchandise still fill the hall closet.",
+    "exits": [
+     "loc_byrds_pawn"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [],
+     "evening": [
+      "npc_nikki"
+     ],
+     "night": [
+      "npc_nikki"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_haskins_farm",
+    "name": "The Haskins Farm",
+    "type": "farm",
+    "map": {
+     "x": 188,
+     "y": 40,
+     "label": "Haskins farm",
+     "anchor": "w"
+    },
+    "description": "A tin-roofed farmhouse at the end of a gravel road north of town, with a grain truck under the shed, soybean stubble out to the tree line and a hand-painted sign by the mailbox that once said NO NEW BRIDGE and has been painted over. The kitchen table is covered in seed bills and a county map with the downstream bridge route drawn on it in pencil.",
+    "exits": [
+     "loc_motor_court"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_virgil",
+      "npc_lamar",
+      "npc_trent"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_lamar"
+     ],
+     "night": [
+      "npc_virgil",
+      "npc_lamar"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_overstreet_house",
+    "name": "The Overstreet House",
+    "type": "house",
+    "map": {
+     "x": 310,
+     "y": 166,
+     "label": "Overstreet house",
+     "anchor": "s"
+    },
+    "description": "A neat yellow house on the rise behind Town Hall, with a flag on the porch, a scanner squawking in the front window and a chest freezer humming in the carport. The front room is full of the mayor's binders and council minutes, and somebody is always home.",
+    "exits": [
+     "loc_town_hall"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_annette",
+      "npc_gerald"
+     ],
+     "afternoon": [
+      "npc_annette",
+      "npc_gerald"
+     ],
+     "evening": [
+      "npc_gerald"
+     ],
+     "night": [
+      "npc_jolene",
+      "npc_annette",
+      "npc_gerald"
+     ]
+    }
+   },
+   {
+    "discovered": false,
+    "closed": false,
+    "id": "loc_gentry_house",
+    "name": "The Gentry House",
+    "type": "house",
+    "map": {
+     "x": 136,
+     "y": 140,
+     "label": "Gentry house",
+     "anchor": "e"
+    },
+    "description": "The oldest house in town, a gray two-story with a deep porch on the slope between the church and Front Street, built by the family that ran the ferry before there was a bridge. Photographs of the river in flood cover every wall, and three rocking chairs on the porch face the water.",
+    "exits": [
+     "loc_riverside_church",
+     "loc_low_water"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [],
+     "evening": [
+      "npc_elbert",
+      "npc_pearl",
+      "npc_glenda"
+     ],
+     "night": [
+      "npc_elbert",
+      "npc_pearl",
+      "npc_glenda"
+     ]
+    }
+   }
+  ],
+  "npcs": [
+   {
+    "tags": [
+     "bartender"
+    ],
+    "memories": [
+     {
+      "turn": 2,
+      "text": "bought me a beer at the bar",
+      "weight": 2,
+      "model": true
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_tammy",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_lyman",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_jodie",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_loretta",
+    "name": "Loretta Gaddis",
+    "pronouns": "she",
+    "role": "owner and bartender of the Low Water",
+    "factionId": null,
+    "look": "Rail-thin woman of sixty with frosted hair, reading glasses on a beaded chain and a bar towel over one shoulder.",
+    "voice": "Flat and unhurried; calls everybody 'hon', answers a question she doesn't like by asking what you're drinking, and never says a name out loud if she can point instead.",
+    "personality": [
+     "unflappable",
+     "loyal"
+    ],
+    "goal": "Keep the old bridge open, because half her trade drives over from the dry county and none of it will drive the long way round.",
+    "secret": "She has been seeing Royce Pittman on Tuesday afternoons for eleven years, and she is the reason he has not promised his vote to Carter Sturdivant.",
+    "home": {
+     "locationId": "loc_low_water",
+     "phases": [
+      "morning",
+      "afternoon",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "council",
+     "merchant"
+    ],
+    "memories": [
+     {
+      "turn": 1,
+      "text": "called me a liar in my own station",
+      "weight": 2,
+      "model": true
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_darlene",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_kaylee",
+      "relation": "daughter"
+     },
+     {
+      "npcId": "npc_dewayne",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_royce",
+    "name": "Royce Pittman",
+    "pronouns": "he",
+    "role": "owner of Pittman's Gas and Service and the swing vote on the town council",
+    "factionId": null,
+    "look": "Big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear.",
+    "voice": "Folksy and slippery; dodges a straight answer, now and then with a story about his daddy; once in a while hedges with 'now, I'm not saying'; laughs to fill a silence.",
+    "personality": [
+     "genial",
+     "cowardly"
+    ],
+    "goal": "Get out from under the note on his station without having to pick a side where anybody can see him do it.",
+    "secret": "Carter Sturdivant holds the note on the station and has offered to tear it up and give him the truck stop lease at the new interchange in return for a yes vote.",
+    "home": {
+     "locationId": "loc_pittman_place",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "owner",
+     "landowner"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_carter",
+      "relation": "son"
+     },
+     {
+      "npcId": "npc_odessa",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_lamar",
+      "relation": "tenant"
+     }
+    ],
+    "id": "npc_vada",
+    "name": "Vada Sturdivant",
+    "pronouns": "she",
+    "role": "widow who owns Sturdivant House and the bottomland downstream",
+    "factionId": null,
+    "look": "Small, straight-backed woman of eighty in a cardigan and pearls, with garden dirt under her nails and a cane she points with more than she leans on.",
+    "voice": "Crisp and formal, with an old schoolteacher's diction; calls grown men 'son', corrects your grammar mid-sentence, and answers questions about money by asking who your people are.",
+    "personality": [
+     "imperious",
+     "sentimental"
+    ],
+    "goal": "Keep the old bridge her father fought the state for in 1938, and keep the bottomland out of Carter's hands while she is alive.",
+    "secret": "The Sturdivant money started with her father running whiskey into the dry county, and Wade Purvis still brings her an envelope every month, which is why the landing lease has never gone up.",
+    "home": {
+     "locationId": "loc_sturdivant_house",
+     "phases": [
+      "morning",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "lender",
+     "landowner"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_vada",
+      "relation": "mother"
+     },
+     {
+      "npcId": "npc_dwight",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_carter",
+    "name": "Carter Sturdivant",
+    "pronouns": "he",
+    "role": "head of Sturdivant Land and Timber, who holds half the town's paper",
+    "factionId": "fac_sturdivant",
+    "look": "Trim, tanned man of forty-five in a quarter-zip pullover and pressed khakis, turning a truck key fob over and over in his fingers.",
+    "voice": "Fast and friendly, like a salesman closing; uses your first name too soon and too often, talks about 'the future of this town', and states every sum to the dollar.",
+    "personality": [
+     "ambitious",
+     "smooth"
+    ],
+    "goal": "Get the new bridge built downstream on Sturdivant bottomland, sell the state the right-of-way and own the truck stop at the new interchange.",
+    "secret": "He is two years behind on the family's timber loans, and he has asked a doctor in the city to find his mother Vada unfit so he can sign the bottomland over himself.",
+    "home": {
+     "locationId": "loc_sturdivant_house",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "council",
+     "mayor",
+     "records"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_gerald",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_annette",
+      "relation": "daughter"
+     }
+    ],
+    "id": "npc_jolene",
+    "name": "Jolene Overstreet",
+    "pronouns": "she",
+    "role": "mayor and town clerk",
+    "factionId": "fac_sturdivant",
+    "look": "Heavy-set woman in her fifties in a cardigan over a church T-shirt, with a lanyard of keys and a phone she keeps checking for a signal it never finds.",
+    "voice": "Brisk and procedural; cites ordinances by number, says 'that's a council matter' to shut a subject, and drops to a whisper to say anything kind.",
+    "personality": [
+     "officious",
+     "frightened"
+    ],
+    "goal": "Get the downstream bridge approved and the police department dissolved before the town's money runs out in January.",
+    "secret": "Carter Sturdivant pays her five hundred dollars a month in cash, handed over in the motel parking lot, and she used the first year of it to cover money missing from the water fund.",
+    "home": {
+     "locationId": "loc_overstreet_house",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "fence",
+     "merchant",
+     "lender"
+    ],
+    "memories": [
+     {
+      "turn": 0,
+      "text": "Loose end with Tester (a debt): I owe a man in this town more money than I can pay.",
+      "weight": 2
+     },
+     {
+      "turn": 7,
+      "text": "Tester let the six hundred go past due, so I took the phone as a start.",
+      "weight": 3
+     },
+     {
+      "turn": 7,
+      "text": "Tester let the six hundred go past due, so I took the phone as a start.",
+      "weight": 3
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": -35,
+    "relations": [
+     {
+      "npcId": "npc_nikki",
+      "relation": "tenant"
+     }
+    ],
+    "id": "npc_hollis",
+    "name": "Hollis Byrd",
+    "pronouns": "he",
+    "role": "owner of Byrd's Pawn",
+    "factionId": "fac_nightrun",
+    "look": "Stooped, pot-bellied man of sixty-five in suspenders and a fishing vest, with a jeweler's loupe on a cord and a toothpick that never leaves his mouth.",
+    "voice": "Slow and sideways, never a straight yes or no; calls everything 'merchandise', prices things before you ask, and says 'I don't ask where, I ask how much.'",
+    "personality": [
+     "sociable",
+     "greedy"
+    ],
+    "goal": "Sell the shop and retire to the coast before the bridge closes and the building is worth nothing.",
+    "secret": "He runs the Night Run's cash through his books as pawn sales, and the catalytic converters stacked behind the shop came off cars in three counties.",
+    "home": {
+     "locationId": "loc_byrds_pawn",
+     "phases": [
+      "morning",
+      "afternoon",
+      "evening"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "boatman",
+     "smuggler"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -10,
+    "relations": [
+     {
+      "npcId": "npc_lorna",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "nephew"
+     }
+    ],
+    "id": "npc_wade",
+    "name": "Wade Purvis",
+    "pronouns": "he",
+    "role": "owner of Purvis Landing and boss of the Night Run",
+    "factionId": "fac_nightrun",
+    "look": "Lean, sunburnt man in his fifties with a gray ponytail, a faded camouflage cap and the tip of one finger missing.",
+    "voice": "Quiet and dry; lets you talk yourself out, answers in river terms like stage, chop and slack water, and never says the word police, only 'the law'.",
+    "personality": [
+     "patient",
+     "ruthless"
+    ],
+    "goal": "Keep the old bridge open and the river unwatched after dark, and keep his nephew out of prison.",
+    "secret": "He knows Colt is selling pills on the side and has not stopped him, because Colt was there the night Wade beat a man half to death for cutting in on the run, and could send him to prison for it.",
+    "home": {
+     "locationId": "loc_purvis_landing",
+     "phases": [
+      "morning",
+      "afternoon",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "boatman",
+     "smuggler",
+     "dealer"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_wade",
+      "relation": "uncle"
+     },
+     {
+      "npcId": "npc_lorna",
+      "relation": "aunt"
+     },
+     {
+      "npcId": "npc_trent",
+      "relation": "friend"
+     }
+    ],
+    "id": "npc_colt",
+    "name": "Colt Purvis",
+    "pronouns": "he",
+    "role": "deckhand on the Night Run",
+    "factionId": "fac_nightrun",
+    "look": "Wiry kid of twenty-two in a sleeveless shirt and white rubber boots, with a fresh tattoo still peeling on his forearm.",
+    "voice": "Fast and jumpy; talks over you, calls men 'bro' and women 'ma'am', brags about money he doesn't have, and laughs at things that aren't funny.",
+    "personality": [
+     "reckless",
+     "boastful"
+    ],
+    "goal": "Make enough money to quit working for his uncle and buy a truck in his own name.",
+    "secret": "He sells pain pills bought across the river to people at Riverbend, and the bottle Amber Lott died with came from him.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "morning",
+      "afternoon"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "police",
+     "watch",
+     "chief"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_travis",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_nikki",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_glenda",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_marcus",
+    "name": "Marcus Bell",
+    "pronouns": "he",
+    "role": "chief of police",
+    "factionId": "fac_police",
+    "look": "Tall, heavy-shouldered man of fifty in a pressed uniform shirt gone tight at the buttons, with a shaved head and a limp he hides badly.",
+    "voice": "Courteous and relentless; says 'sir' and 'ma'am', asks the same question three different ways, and writes your answers in a pocket notebook while you watch him do it.",
+    "personality": [
+     "methodical",
+     "stubborn"
+    ],
+    "goal": "Make a bust big enough to save his department before the council votes to dissolve it, and prove the bridge report was bought.",
+    "secret": "He has known for months that Travis Cagle takes Night Run money and has let it go on, because he needs Travis on the payroll until the vote and on the witness stand after it.",
+    "home": {
+     "locationId": "loc_town_hall",
+     "phases": [
+      "morning",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "police",
+     "watch"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_shayla",
+      "relation": "girlfriend"
+     }
+    ],
+    "id": "npc_travis",
+    "name": "Travis Cagle",
+    "pronouns": "he",
+    "role": "night-shift police officer",
+    "factionId": "fac_police",
+    "look": "Thick-necked man of twenty-eight in a uniform with the sleeves rolled, a dip of tobacco in his lip and a new watch too nice for his pay.",
+    "voice": "Loud and buddy-buddy, all 'my man' and 'hoss'; talks about his boat, laughs before his own punchlines, and goes quiet the second anyone mentions money.",
+    "personality": [
+     "vain",
+     "jumpy"
+    ],
+    "goal": "Keep taking Wade Purvis's money until his boat is paid off, then get on with the county before anyone looks closely.",
+    "secret": "Wade Purvis pays him three hundred dollars a week to park at the motel during the runs, and he keeps Wade's texts on a second phone in case he ever needs to trade them.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "afternoon"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "priest",
+     "pastor",
+     "records"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 15,
+    "relations": [
+     {
+      "npcId": "npc_nadine",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "grandson"
+     }
+    ],
+    "id": "npc_ray",
+    "name": "Ray Dees",
+    "pronouns": "he",
+    "role": "pastor of Riverside Baptist Church",
+    "factionId": null,
+    "look": "Round-faced man of sixty-five in a short-sleeved white shirt and clip-on tie, with a hearing aid and a pocket full of peppermints.",
+    "voice": "Slow and warm, with a preacher's rhythm even at the gas pump; sometimes answers a hard question with a Bible story, and somehow gets the answer out of you instead.",
+    "personality": [
+     "kind",
+     "nosy"
+    ],
+    "goal": "Keep the Riverbend families housed and fed through the winter, and bury no more young people this year.",
+    "secret": "The church's new roof was paid for by an anonymous cash gift that he knows came from Wade Purvis, and he has preached against the Night Run every Sunday since without giving a dollar of it back.",
+    "home": {
+     "locationId": "loc_parsonage",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "healer",
+     "nurse"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_burl",
+      "relation": "husband"
+     }
+    ],
+    "id": "npc_june",
+    "name": "June Satterfield",
+    "pronouns": "she",
+    "role": "retired nurse who patches people up at her kitchen table",
+    "factionId": null,
+    "look": "Stout woman of sixty in scrub pants and a sweatshirt from a hospital that closed, with her gray hair in a clip and a canvas bag that rattles.",
+    "voice": "Blunt and clinical; asks what you took and how much before she asks your name, swears mildly, and never tells anyone not to worry.",
+    "personality": [
+     "unshockable",
+     "tired"
+    ],
+    "goal": "Keep Riverbend's people out of an emergency room forty miles away, and get the pills off the lot without anyone she knows going to prison.",
+    "secret": "She has reversed four overdoses at Riverbend this fall without reporting one, and three of the four told her they bought from Colt Purvis.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "morning",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "mechanic"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_royce",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_dewayne",
+    "name": "Dewayne Mangum",
+    "pronouns": "he",
+    "role": "mechanic in the service bays at Pittman's",
+    "factionId": null,
+    "look": "Short, broad man of forty with grease worked into every knuckle, safety glasses pushed up on a bald head and a shop rag in his back pocket.",
+    "voice": "Few words, all of them about engines; says 'mm-hm' for yes and 'well' for no, and talks to the truck he's working on more than to you.",
+    "personality": [
+     "careful",
+     "honest"
+    ],
+    "goal": "Save enough to buy the empty garage on Front Street and stop working out of Royce Pittman's bays.",
+    "secret": "On the morning of the bridge inspection he towed the engineer's rental car out of a ditch and watched Carter Sturdivant drive the man off to lunch, though the report says he spent the whole day under the spans.",
+    "home": {
+     "locationId": "loc_mangum_house",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "informant",
+     "clerk"
+    ],
+    "memories": [
+     {
+      "turn": 0,
+      "text": "Loose end with Tester (a secret): Someone here knows what I did before I came.",
+      "weight": 2
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_brianna",
+      "relation": "cousin"
+     }
+    ],
+    "id": "npc_tyler",
+    "name": "Tyler Rasberry",
+    "pronouns": "he",
+    "role": "night clerk at the Riverview Motor Court",
+    "factionId": null,
+    "look": "Gangly young man of nineteen with a patchy beard, a gaming headset round his neck and a phone with a cracked screen always in his hand.",
+    "voice": "Mumbles and deflects with internet jokes and never meets your eye, then turns precise the moment cash is on the counter: plates, times, room numbers.",
+    "personality": [
+     "observant",
+     "mercenary"
+    ],
+    "goal": "Save enough cash to leave Lockett's Ferry for good and never work another night shift.",
+    "secret": "The motel's parking-lot camera has caught Carter Sturdivant handing Jolene Overstreet an envelope every month since spring, and Tyler has copied the clips to a thumb drive he is trying to sell.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "morning",
+      "afternoon"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "cook"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_austin",
+      "relation": "son"
+     }
+    ],
+    "id": "npc_tammy",
+    "name": "Tammy Lott",
+    "pronouns": "she",
+    "role": "cook at the Low Water",
+    "factionId": null,
+    "look": "Hollow-eyed woman of forty-two in a hairnet and a stained Low Water T-shirt, with her daughter's name tattooed fresh on the inside of her wrist.",
+    "voice": "Hoarse and short; says exactly what she thinks in as few words as possible, swears at the grill, and goes very calm and polite when she is angriest.",
+    "personality": [
+     "grieving",
+     "relentless"
+    ],
+    "goal": "See whoever sold Amber the pills that killed her locked up or run out of town.",
+    "secret": "She took a tire iron to Colt Purvis's truck the week after the funeral, and Wade Purvis paid for the windshield himself and told her the next one would cost her more.",
+    "home": {
+     "locationId": "loc_lott_trailer",
+     "phases": [
+      "morning",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "clerk",
+     "manager"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_dewayne",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_tyler",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_brianna",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_mavis",
+    "name": "Mavis Mangum",
+    "pronouns": "she",
+    "role": "night manager at the Riverview Motor Court",
+    "factionId": null,
+    "look": "Small, sharp-faced woman of forty-one with dyed black hair scraped into a clip, a motel key ring on a coiled cord around her wrist and an unlit cigarette behind one ear.",
+    "voice": "Clipped and sour; tells you what a thing will cost her before she says yes or no, calls people mister or miss like a complaint, and jingles her keys when she wants you gone.",
+    "personality": [
+     "bitter",
+     "shrewd"
+    ],
+    "goal": "Keep the motor court open and her job with it, which means keeping the old bridge, and talk Dewayne out of the Front Street garage.",
+    "secret": "In the spring she emptied the account Dewayne was saving for the garage to pay off a note Sturdivant Land and Timber held on her late mother's house, and she has been putting it back out of the motel till one cash room at a time.",
+    "home": {
+     "locationId": "loc_mangum_house",
+     "phases": [
+      "morning",
+      "afternoon"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "bookkeeper"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_royce",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_kaylee",
+      "relation": "daughter"
+     }
+    ],
+    "id": "npc_darlene",
+    "name": "Darlene Pittman",
+    "pronouns": "she",
+    "role": "Royce's wife, who keeps the books at Pittman's",
+    "factionId": null,
+    "look": "Tall, careful woman in her fifties with a short silver bob, a blouse buttoned to the collar and a pencil she taps against her teeth while she adds.",
+    "voice": "Polite and exact; answers questions about Royce with figures instead of feelings, slips into talking about him in the past tense, and excuses herself to get back to the books.",
+    "personality": [
+     "proud",
+     "watchful"
+    ],
+    "goal": "Keep the station and the house out of Carter Sturdivant's hands, however Royce votes.",
+    "secret": "She has known about Royce and Loretta Gaddis for years and keeps a folder of dates and photographs in the station safe, to use the day Royce tries to sign anything without her.",
+    "home": {
+     "locationId": "loc_pittman_place",
+     "phases": [
+      "morning",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "teenager",
+     "cashier"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_royce",
+      "relation": "father"
+     },
+     {
+      "npcId": "npc_darlene",
+      "relation": "mother"
+     }
+    ],
+    "id": "npc_kaylee",
+    "name": "Kaylee Pittman",
+    "pronouns": "she",
+    "role": "Royce's daughter, who works the register after school",
+    "factionId": null,
+    "look": "Sixteen-year-old girl with a long brown ponytail, a softball team hoodie and nails painted the green of the station sign.",
+    "voice": "Deadpan; answers in as few words as she can get away with, then says out loud the one thing about you nobody else noticed.",
+    "personality": [
+     "bored",
+     "sharp"
+    ],
+    "goal": "Win a softball scholarship and get out of town before her parents stop pretending.",
+    "secret": "She drives her father's truck up to the water tower at night for signal, and she has seen Travis Cagle's patrol car parked dark behind the motor court every night the boats go across.",
+    "home": {
+     "locationId": "loc_pittman_place",
+     "phases": [
+      "morning",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "records",
+     "secretary"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_ray",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "grandson"
+     }
+    ],
+    "id": "npc_nadine",
+    "name": "Nadine Dees",
+    "pronouns": "she",
+    "role": "church secretary and pianist at Riverside Baptist",
+    "factionId": null,
+    "look": "Plump, bright-eyed woman of sixty-three in a holiday sweater whatever the season, with reading glasses pushed up into her curls.",
+    "voice": "Chirpy and thorough; reads records aloud in full, including the parts you did not ask for, and says bless you when she means go away.",
+    "personality": [
+     "fussy",
+     "kind"
+    ],
+    "goal": "Keep the church records straight and the fellowship hall pantry stocked through the winter.",
+    "secret": "For forty dollars a time she has changed names and dates in the baptism and membership books for people who needed a different past, and the torn-out pages are in a shoebox in the parsonage closet that Ray has never opened.",
+    "home": {
+     "locationId": "loc_parsonage",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "teenager",
+     "lookout"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_ray",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_nadine",
+      "relation": "grandmother"
+     },
+     {
+      "npcId": "npc_lorna",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_micah",
+    "name": "Micah Dees",
+    "pronouns": "he",
+    "role": "Ray's grandson, who works the Purvis Landing bait shop",
+    "factionId": null,
+    "look": "Lanky seventeen-year-old boy with a grown-out buzz cut, a church camp T-shirt and fish scales dried on his jeans.",
+    "voice": "Says yes ma'am and no sir on reflex, then mumbles the true answer right after, as if he hopes you missed it.",
+    "personality": [
+     "earnest",
+     "restless"
+    ],
+    "goal": "Pay for another month of his mother's treatment program in the city without his grandparents finding out where the money comes from.",
+    "secret": "Wade Purvis pays him fifty dollars a night to sit in the dark bait shop and flash the dock light twice when a patrol car comes down the river road.",
+    "home": {
+     "locationId": "loc_parsonage",
+     "phases": [
+      "morning",
+      "evening"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "teenager"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_tammy",
+      "relation": "mother"
+     }
+    ],
+    "id": "npc_austin",
+    "name": "Austin Lott",
+    "pronouns": "he",
+    "role": "Tammy's son, Amber Lott's little brother",
+    "factionId": null,
+    "look": "Skinny fifteen-year-old boy in a hand-me-down Army jacket, with a bike he never locks and his sister's name written on his sneakers in marker.",
+    "voice": "Says almost nothing to grown-ups, then asks one question too exact for his age, like what time somebody's truck usually leaves.",
+    "personality": [
+     "watchful",
+     "angry"
+    ],
+    "goal": "Prove that Colt Purvis sold Amber the pills and put the proof in front of someone who will act on it.",
+    "secret": "He has followed Colt on his bike for weeks and knows about the tackle box on the girder under the first span of the old bridge, but he will not tell anyone until he can hand it to the state police himself.",
+    "home": {
+     "locationId": "loc_lott_trailer",
+     "phases": [
+      "morning",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "housekeeper"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_vada",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_odessa",
+    "name": "Odessa Fairley",
+    "pronouns": "she",
+    "role": "housekeeper and companion to Vada Sturdivant",
+    "factionId": null,
+    "look": "Tall, gray-haired woman of sixty-six in a starched apron over a church dress, with a small silver cross at her throat and shoes that make no sound.",
+    "voice": "Soft and exact; says Miss Vada says when she means herself, and hums a hymn under her breath when she disapproves of what you just said.",
+    "personality": [
+     "discreet",
+     "stubborn"
+    ],
+    "goal": "Keep Miss Vada in her own house to the end, the way she promised her.",
+    "secret": "Carter has offered her five thousand dollars to tell the city doctor that Vada wanders at night and leaves the stove on, and she has not said no yet, because Sturdivant Land and Timber holds the note on her sister's house.",
+    "home": {
+     "locationId": "loc_sturdivant_house",
+     "phases": [
+      "morning",
+      "afternoon",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "bartender"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_curtis",
+      "relation": "friend"
+     }
+    ],
+    "id": "npc_lyman",
+    "name": "Lyman Coker",
+    "pronouns": "he",
+    "role": "night bartender at the Low Water",
+    "factionId": null,
+    "look": "Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube looped over his ears and a ledger of bar tabs in his shirt pocket.",
+    "voice": "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
+    "personality": [
+     "gloomy",
+     "honest"
+    ],
+    "goal": "Keep his regulars paid up and out of trouble, and keep the job long enough to never see the county home.",
+    "secret": "He reads every letter and package anyone leaves with him before he hands it over, and he has steamed open two envelopes Carter Sturdivant left at the bar for Jolene Overstreet.",
+    "home": {
+     "locationId": "loc_motor_court",
+     "phases": [
+      "morning",
+      "afternoon"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "oldtimer"
+    ],
+    "memories": [
+     {
+      "turn": 5,
+      "text": "kept quiet about what I told them and stood up for me",
+      "weight": 3,
+      "model": true
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 60,
+    "relations": [
+     {
+      "npcId": "npc_pearl",
+      "relation": "sister"
+     },
+     {
+      "npcId": "npc_glenda",
+      "relation": "granddaughter"
+     }
+    ],
+    "id": "npc_elbert",
+    "name": "Elbert Gentry",
+    "pronouns": "he",
+    "role": "the oldest man in town, whose granddaddy ran the last ferry",
+    "factionId": null,
+    "look": "Bent, bright-eyed man of eighty-eight in suspenders and a cap from the 1982 bass tournament, with a cane carved from a cypress knee.",
+    "voice": "Tells you the year of everything, and corrects other people's stories about the river with the date it really happened and who drowned.",
+    "personality": [
+     "sly",
+     "garrulous"
+    ],
+    "goal": "See the old bridge stand until he is buried, because his granddaddy lost the ferry to it and made his peace.",
+    "secret": "As a boy he rowed whiskey across the river for Vada Sturdivant's father, and the family Bible on his nightstand holds a page of names showing who the Sturdivants paid at the state highway department in 1938.",
+    "home": {
+     "locationId": "loc_gentry_house",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "records",
+     "writer"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_elbert",
+      "relation": "brother"
+     }
+    ],
+    "id": "npc_pearl",
+    "name": "Pearl Gentry",
+    "pronouns": "she",
+    "role": "columnist for the county weekly",
+    "factionId": null,
+    "look": "Tiny woman of seventy-nine in a lavender pantsuit, with a steno pad in her purse and a pencil stuck through her white bun.",
+    "voice": "Talks in newspaper headlines, asks for the spelling of your name before she asks anything else, and writes your answers down whether you like it or not.",
+    "personality": [
+     "nosy",
+     "fair"
+    ],
+    "goal": "Write the true story of the bridge vote before somebody from the city writes a wrong one.",
+    "secret": "She has kept every birth, marriage and death notice the town printed in fifty years, with the ones families paid her to leave out, and one of those is about Carter Sturdivant.",
+    "home": {
+     "locationId": "loc_gentry_house",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "dispatcher",
+     "informant"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_elbert",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_glenda",
+    "name": "Glenda Pryor",
+    "pronouns": "she",
+    "role": "police dispatcher and clerk at Town Hall",
+    "factionId": "fac_police",
+    "look": "Broad, freckled woman of forty with a dispatch headset pushed back in her red hair and a cardigan pocket full of pens.",
+    "voice": "Talks in radio shorthand out of habit, ten-four and what is your twenty, and repeats the last thing you said back to you as a question.",
+    "personality": [
+     "curious",
+     "loyal"
+    ],
+    "goal": "Keep her job, and her grandfather's medicine paid for, when the council votes on the police.",
+    "secret": "She tapes every call that comes into the station on a cassette recorder under the desk, including the one that warned Wade Purvis's people the chief was on his way to the ramp.",
+    "home": {
+     "locationId": "loc_gentry_house",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "police",
+     "watch"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_hollis",
+      "relation": "landlord"
+     }
+    ],
+    "id": "npc_nikki",
+    "name": "Nikki Ballard",
+    "pronouns": "she",
+    "role": "day-shift police officer",
+    "factionId": "fac_police",
+    "look": "Compact, sunburned woman of thirty-one with a tight braid, a vest one size too big and mirrored sunglasses she takes off to look at you.",
+    "voice": "Brisk and dry; asks for your ID before small talk, answers a joke with the single word noted, and never fills a silence.",
+    "personality": [
+     "disciplined",
+     "ambitious"
+    ],
+    "goal": "Keep a badge when the department dissolves, here or with the county.",
+    "secret": "She has already interviewed with the county sheriff and promised to bring him Chief Bell's case files if the council votes the department out.",
+    "home": {
+     "locationId": "loc_byrd_apartment",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "inspector",
+     "fisherman"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_lamar",
+      "relation": "son-in-law"
+     },
+     {
+      "npcId": "npc_trent",
+      "relation": "grandson"
+     }
+    ],
+    "id": "npc_virgil",
+    "name": "Virgil Odom",
+    "pronouns": "he",
+    "role": "retired state bridge inspector who fishes the pier",
+    "factionId": null,
+    "look": "Lean, stooped man of seventy-two in a faded state highway cap, with a rusty tape measure clipped to his belt and a bucket of cut bait.",
+    "voice": "Speaks in load ratings and rust, ends an opinion with that is not my opinion, that is steel, and taps whatever he leans on to listen to it.",
+    "personality": [
+     "precise",
+     "lonely"
+    ],
+    "goal": "Get someone to read his own inspection reports before the state tears down a bridge he says is good for twenty more years.",
+    "secret": "The consulting engineer Carter Sturdivant hired called him the week before the inspection to ask what the bridge would need to fail, and Virgil told him, and has been ashamed of it every day since.",
+    "home": {
+     "locationId": "loc_haskins_farm",
+     "phases": [
+      "morning",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "teacher"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_jolene",
+      "relation": "mother"
+     },
+     {
+      "npcId": "npc_gerald",
+      "relation": "father"
+     }
+    ],
+    "id": "npc_annette",
+    "name": "Annette Overstreet",
+    "pronouns": "she",
+    "role": "seventh-grade teacher at the county middle school",
+    "factionId": null,
+    "look": "Slight woman of thirty-four with short dark hair, chalk dust on one sleeve and a tote bag of ungraded papers she carries everywhere.",
+    "voice": "Patient and precise; explains things in numbered steps whether you asked or not, and checks with make sense? before she lets you go.",
+    "personality": [
+     "patient",
+     "principled"
+    ],
+    "goal": "Keep Austin Lott and the other Riverbend kids in school through the spring.",
+    "secret": "She is the one who called the state about the bridge after the school bus bounced on the first span, and she has never told anyone in town, least of all Jolene.",
+    "home": {
+     "locationId": "loc_overstreet_house",
+     "phases": [
+      "morning",
+      "afternoon",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "retired"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_jolene",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_annette",
+      "relation": "daughter"
+     }
+    ],
+    "id": "npc_gerald",
+    "name": "Gerald Overstreet",
+    "pronouns": "he",
+    "role": "Jolene's husband, retired from the paper mill",
+    "factionId": null,
+    "look": "Big, slow man of sixty-one in house slippers and a mill union jacket, with a police scanner clipped to his belt and turned up loud.",
+    "voice": "Starts half of what he says with scanner says, repeats every call he heard that day, and calls his wife the mayor even at supper.",
+    "personality": [
+     "gossipy",
+     "gentle"
+    ],
+    "goal": "Get Jolene to quit before whatever she is mixed up in comes out.",
+    "secret": "He found Jolene's envelope of cash in the chest freezer last spring, counted it and put it back, and he has written down every date it got fatter.",
+    "home": {
+     "locationId": "loc_overstreet_house",
+     "phases": [
+      "morning",
+      "afternoon",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "farmer",
+     "council"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_trent",
+      "relation": "son"
+     },
+     {
+      "npcId": "npc_virgil",
+      "relation": "father-in-law"
+     },
+     {
+      "npcId": "npc_vada",
+      "relation": "landlady"
+     }
+    ],
+    "id": "npc_lamar",
+    "name": "Lamar Haskins",
+    "pronouns": "he",
+    "role": "farmer and council member who leases Sturdivant land",
+    "factionId": null,
+    "look": "Thick, weathered man of fifty-eight in a seed company cap and mud-caked boots, with a farmer's tan that stops at his sleeves.",
+    "voice": "Slow and careful; talks in acres, bushels and inches of rain, and checks the sky before he answers anything hard.",
+    "personality": [
+     "practical",
+     "worried"
+    ],
+    "goal": "Get the downstream bridge built across the fields he leases, because Carter promised him a buyout that would clear his equipment loans.",
+    "secret": "He has already signed Carter's option papers on the lease, which he had no right to do while Vada is alive, and the check is sitting uncashed in his glove box.",
+    "home": {
+     "locationId": "loc_haskins_farm",
+     "phases": [
+      "morning",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "driver",
+     "smuggler"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_lamar",
+      "relation": "father"
+     },
+     {
+      "npcId": "npc_virgil",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "friend"
+     }
+    ],
+    "id": "npc_trent",
+    "name": "Trent Haskins",
+    "pronouns": "he",
+    "role": "Lamar's son, who drives the farm's grain truck",
+    "factionId": "fac_nightrun",
+    "look": "Broad, easygoing man of twenty-four in a sleeveless camo shirt and a feed-store cap turned backward, with a sunburned neck and a cooler always in reach.",
+    "voice": "Easy and friendly; calls everybody cuz, is always halfway out the door on some errand, and laughs off a question with gotta run.",
+    "personality": [
+     "easygoing",
+     "reckless"
+    ],
+    "goal": "Keep his father and his grandfather from finding out what the grain truck carries at night.",
+    "secret": "Twice a week he drives cases of liquor across the old bridge in the grain truck for Wade Purvis, a hundred pounds under the limit, and his own father's bridge vote would put him out of that work.",
+    "home": {
+     "locationId": "loc_haskins_farm",
+     "phases": [
+      "morning"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "collector",
+     "repo"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": -5,
+    "relations": [],
+    "id": "npc_leon",
+    "name": "Leon Varner",
+    "pronouns": "he",
+    "role": "repo man who buys bad debts for a title-loan outfit",
+    "factionId": null,
+    "look": "Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.",
+    "voice": "Polite and slow; calls you friend and works the late fees into every other sentence, the way another man would mention the weather.",
+    "personality": [
+     "patient",
+     "merciless"
+    ],
+    "goal": "Clear his list of overdue accounts in the county before the month is out, with fees.",
+    "secret": "He bought most of the debts on his list for a dime on the dollar from the lender Carter Sturdivant uses, and he would settle any of them for half if somebody pushed.",
+    "home": {
+     "locationId": "loc_motor_court",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "bookie",
+     "gambler"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_lyman",
+      "relation": "friend"
+     }
+    ],
+    "id": "npc_curtis",
+    "name": "Curtis Pruett",
+    "pronouns": "he",
+    "role": "insurance man who runs the card game at the Low Water",
+    "factionId": null,
+    "look": "Dapper man of fifty-two in a short-sleeved dress shirt and a bolo tie, with a pinky ring and a deck of cards he shuffles one-handed.",
+    "voice": "Puts odds on everything, offers to settle any argument with a bet, and never says a number without saying what it pays.",
+    "personality": [
+     "charming",
+     "calculating"
+    ],
+    "goal": "Win back the house his wife put him out of, one Friday game at a time.",
+    "secret": "He takes bets on the bridge vote from both sides, and Royce Pittman owes him eleven hundred dollars he lost on the game in October.",
+    "home": {
+     "locationId": "loc_motor_court",
+     "phases": [
+      "morning"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "enemy",
+     "parolee",
+     "stranger"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": -10,
+    "relations": [],
+    "id": "npc_boyd",
+    "name": "Boyd Teague",
+    "pronouns": "he",
+    "role": "stranger who has had Room 9 at the motor court a week",
+    "factionId": null,
+    "look": "Big, quiet man of fifty in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.",
+    "voice": "Says very little, all of it polite, and always uses a person's full name, first and last, as if he were reading it off a list.",
+    "personality": [
+     "patient",
+     "vindictive"
+    ],
+    "goal": "Settle an old account with someone in Lockett's Ferry, quietly, and be gone before the law notices him.",
+    "secret": "He is on parole from a prison two states over and left without his parole officer's permission, so one phone call would send him back.",
+    "home": {
+     "locationId": "loc_motor_court",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "enemy",
+     "waitress",
+     "stranger"
+    ],
+    "memories": [
+     {
+      "turn": 0,
+      "text": "Loose end with Tester (an enemy): Someone I wronged has followed me here.",
+      "weight": 2
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": -45,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_jodie",
+    "name": "Jodie Strayhorn",
+    "pronouns": "she",
+    "role": "new waitress at the Low Water",
+    "factionId": null,
+    "look": "Wiry woman of twenty-nine with bleached hair growing out dark, a Low Water apron and a fading bruise she covers with makeup.",
+    "voice": "Quick and bright with the customers, then flat and careful the second anyone asks where she is from, and she changes the subject to the specials.",
+    "personality": [
+     "guarded",
+     "resourceful"
+    ],
+    "goal": "Finish the business that brought her to Lockett's Ferry and leave before anyone learns her real name.",
+    "secret": "Jodie Strayhorn is not her name: she skipped bail in the next state over, and Loretta hired her because nobody at the Low Water has ever run a background check.",
+    "home": {
+     "locationId": "loc_low_water",
+     "phases": [
+      "afternoon",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "shopkeeper"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_wade",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "nephew"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "employee"
+     }
+    ],
+    "id": "npc_lorna",
+    "name": "Lorna Purvis",
+    "pronouns": "she",
+    "role": "Wade's wife, who runs the bait shop at Purvis Landing",
+    "factionId": null,
+    "look": "Round, cheerful woman of fifty-five in rubber clogs, with a fishing-lure earring in one ear and a tub of crickets on the counter beside her.",
+    "voice": "Bait-shop chatter about what is biting and where, and the moment you ask about Wade, a bright you would have to ask him.",
+    "personality": [
+     "cheerful",
+     "loyal"
+    ],
+    "goal": "Keep the landing, the shop and her husband out of court until they can sell up and go.",
+    "secret": "The man Wade beat half to death for cutting in on the run is alive in a nursing home at the county seat, and she sends his sister money every month out of the bait shop till.",
+    "home": {
+     "locationId": "loc_purvis_landing",
+     "phases": [
+      "morning",
+      "afternoon",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "maid"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_tyler",
+      "relation": "cousin"
+     }
+    ],
+    "id": "npc_brianna",
+    "name": "Brianna Tolliver",
+    "pronouns": "she",
+    "role": "housekeeper at the Riverview Motor Court",
+    "factionId": null,
+    "look": "Pale, thin young woman of twenty-three in a motel smock, with chipped nail polish and a hospital bracelet she has not cut off.",
+    "voice": "Soft and quick; apologizes before she says anything, sorry, sorry, and says thank you twice for anything at all.",
+    "personality": [
+     "shy",
+     "grateful"
+    ],
+    "goal": "Stay clean, keep the job and save enough for a used car that runs.",
+    "secret": "She is one of the four people June Satterfield brought back from an overdose this fall, and she still owes Colt Purvis forty dollars for the pills.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "hairdresser",
+     "informant"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_travis",
+      "relation": "boyfriend"
+     }
+    ],
+    "id": "npc_shayla",
+    "name": "Shayla Rawls",
+    "pronouns": "she",
+    "role": "hairdresser who works out of her trailer at Riverbend",
+    "factionId": null,
+    "look": "Pretty, round-faced woman of twenty-five in a hairdresser's smock, with a vape pen in one hand and two phones in the other.",
+    "voice": "Sweet and sticky; calls you sugar and asks three personal questions for every one you answer.",
+    "personality": [
+     "nosy",
+     "greedy"
+    ],
+    "goal": "Turn what she hears in her chair into enough cash to open a real salon at the county seat.",
+    "secret": "She found Travis's second phone and photographed every text on it, and she is deciding whether to sell the pictures to Chief Bell or to Wade Purvis.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "morning",
+      "afternoon",
+      "evening",
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "foreman"
+    ],
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_carter",
+      "relation": "boss"
+     }
+    ],
+    "id": "npc_dwight",
+    "name": "Dwight Spann",
+    "pronouns": "he",
+    "role": "timber foreman for Sturdivant Land and Timber",
+    "factionId": "fac_sturdivant",
+    "look": "Rangy man of forty-nine in a hi-vis vest over a flannel shirt, with a can of survey paint in his hand and sunflower-seed shells on his boots.",
+    "voice": "Few words and a lot of spat sunflower seeds; never says Carter, only Mr. Sturdivant, and answers anything else with that is above my pay.",
+    "personality": [
+     "dutiful",
+     "hard"
+    ],
+    "goal": "Keep his crew working through the winter by doing whatever Mr. Sturdivant asks.",
+    "secret": "On Carter's orders he moved the survey stakes for the downstream bridge fifty yards onto Vada's land the night before the state crew came.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "night"
+     ]
+    }
+   },
+   {
+    "tags": [
+     "outboard",
+     "retired"
+    ],
+    "memories": [
+     {
+      "turn": 3,
+      "text": "helped carry the outboard motor down to the ramp",
+      "weight": 2,
+      "model": true
+     }
+    ],
+    "alive": true,
+    "knownToPlayer": true,
+    "status": "free",
+    "attitude": 13,
+    "relations": [
+     {
+      "npcId": "npc_june",
+      "relation": "wife"
+     }
+    ],
+    "id": "npc_burl",
+    "name": "Burl Satterfield",
+    "pronouns": "he",
+    "role": "June's husband, who fixes outboard motors",
+    "factionId": null,
+    "look": "Wide, red-faced man of sixty-six in bib overalls, with a lineman's scarred hands and a bent outboard propeller he files smooth while he talks.",
+    "voice": "Talks too loud after forty years around power lines, says what's that? and then answers what he thought you said.",
+    "personality": [
+     "cheerful",
+     "stubborn"
+    ],
+    "goal": "Keep June from wearing herself out on everybody at Riverbend.",
+    "secret": "He rebuilt the motors on two of Wade Purvis's johnboats this fall for cash and told June the money came from his pension.",
+    "home": {
+     "locationId": "loc_riverbend",
+     "phases": [
+      "morning",
+      "evening",
+      "night"
+     ]
+    }
+   }
+  ],
+  "factions": [
+   {
+    "relations": {
+     "fac_police": -30,
+     "fac_nightrun": -50
+    },
+    "id": "fac_sturdivant",
+    "name": "Sturdivant Land and Timber",
+    "goal": "Get the old bridge closed and the new state bridge built five miles downstream on Sturdivant bottomland, then sell the state the right-of-way and put a truck stop at the new interchange.",
+    "methods": "Private loans and contracts for deed that can be called in on a week's notice, a mayor paid in cash, a bridge report bought from a consulting engineer, and a lawyer in the city.",
+    "clocks": [
+     {
+      "label": "Buy the swing vote",
+      "segments": 6,
+      "filled": 2,
+      "onComplete": {
+       "text": "Royce Pittman votes with the mayor, the council backs the downstream bridge site three to two, and the state puts the old bridge on its closure list.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "councilBackedDownstream",
+         "value": true
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -15
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_vote_downstream",
+          "text": "The council voted three to two for the downstream bridge, and Royce Pittman was the third vote.",
+          "true": true,
+          "sourceNpcId": "npc_loretta",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Pull the landing lease",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Carter Sturdivant refuses to renew the lease on Purvis Landing, a lawyer's notice goes up on the bait shop door, and Wade Purvis starts putting his boats in off the bank at Riverbend after dark.",
+       "effects": [
+        {
+         "op": "npcMove",
+         "npcId": "npc_wade",
+         "locationId": "loc_riverbend",
+         "phases": [
+          "night"
+         ]
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -20
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_vada_envelope",
+          "cause": "Vada Sturdivant has found out that Carter pulled the Purvis Landing lease, which ends an arrangement with Wade Purvis that she has never told her son about.",
+          "effect": "Vada Sturdivant, white with anger at her son, asks whoever is in front of her to carry a sealed envelope down to Wade Purvis and put it in his hand and nobody else's.",
+          "trigger": {
+           "type": "npc",
+           "value": "npc_vada"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_lease_pulled",
+          "text": "Carter Sturdivant pulled the lease on Purvis Landing, and Wade Purvis is putting his boats in off the bank at Riverbend now.",
+          "true": true,
+          "sourceNpcId": "npc_hollis",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Get the bridge posted closed",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "A state crew sets concrete barriers across both ends of the old bridge, and every trip to the dry county is now forty minutes round by the highway.",
+       "effects": [
+        {
+         "op": "closeLocation",
+         "locationId": "loc_old_bridge"
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 1.15
+        },
+        {
+         "op": "threadStatus",
+         "threadId": "thr_bridge_vote",
+         "status": "failed"
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_bridge_closed",
+          "text": "The state has put concrete barriers across the old bridge, and the drive to the dry county is forty minutes round by the highway now.",
+          "true": true,
+          "sourceNpcId": "npc_royce",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0
+   },
+   {
+    "relations": {
+     "fac_sturdivant": -30,
+     "fac_nightrun": -60
+    },
+    "id": "fac_police",
+    "name": "The Town Police",
+    "goal": "Make an arrest big enough to save the department before the council votes to dissolve it, and prove that the bridge report was bought.",
+    "methods": "Traffic stops at the bridge approach, a motel clerk paid twenty dollars a tip, sitting dark above the boat ramp, and leaning on anyone with an open warrant.",
+    "clocks": [
+     {
+      "label": "Catch a boat at the ramp",
+      "segments": 6,
+      "filled": 5,
+      "onComplete": {
+       "text": "Chief Bell catches Colt Purvis at the foot of the ramp at three in the morning with a johnboat full of cartons and a pocket full of pills, and the Night Run pulls its boats up on the bank.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_colt",
+         "status": "arrested"
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 0.9
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -15
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_colt_caught",
+          "text": "Chief Bell caught Colt Purvis at the ramp with a boat full of cartons and a pocket full of pills.",
+          "true": true,
+          "sourceNpcId": "npc_travis",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Flip the pawnbroker",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Chief Bell arrests Hollis Byrd over a stack of stolen catalytic converters behind the shop, and by morning Hollis is talking about whose cash goes through his books.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_hollis",
+         "status": "arrested"
+        },
+        {
+         "op": "closeLocation",
+         "locationId": "loc_byrds_pawn"
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_hollis_deal",
+          "cause": "Hollis Byrd, in the holding cell, wants to trade what he knows about the Night Run's money before Wade Purvis hears he is talking.",
+          "effect": "From the holding cell, Hollis Byrd calls out to anyone who comes into the station that he will say where the Night Run keeps its cash if they get word to his daughter in the city first.",
+          "trigger": {
+           "type": "location",
+           "value": "loc_town_hall"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_hollis_arrested",
+          "text": "Hollis Byrd is in the holding cell over a stack of stolen catalytic converters, and they say he is talking.",
+          "true": true,
+          "sourceNpcId": "npc_dewayne",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Prove the report was bought",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Chief Bell lays the motel camera footage and the engineer's lunch receipt in front of the council, and the state police take Jolene Overstreet out of Town Hall in handcuffs.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_jolene",
+         "status": "arrested"
+        },
+        {
+         "op": "setFlag",
+         "key": "bridgeReportVoid",
+         "value": true
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_sturdivant",
+         "delta": -30
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_mayor_arrested",
+          "text": "The state police walked Jolene Overstreet out of Town Hall in handcuffs, and it was over the bridge report.",
+          "true": true,
+          "sourceNpcId": "npc_ray",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0
+   },
+   {
+    "relations": {
+     "fac_sturdivant": -50,
+     "fac_police": -60
+    },
+    "id": "fac_nightrun",
+    "name": "The Night Run",
+    "goal": "Keep the old bridge open and the river unwatched after dark, so cartons and cases keep crossing into the dry county the way they have for sixty years.",
+    "methods": "Johnboats with no running lights, pickups kept under the weight limit, cash to the night-shift officer, and photographs of anyone who votes the wrong way.",
+    "clocks": [
+     {
+      "label": "Buy the night shift",
+      "segments": 6,
+      "filled": 5,
+      "onComplete": {
+       "text": "Travis Cagle stops patrolling after midnight altogether, the boats cross every night, and Wade Purvis is buying every carton and case Pittman's can order.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "riverUnwatched",
+         "value": true
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 1.1
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -10
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_night_shift_bought",
+          "text": "Nobody patrols after midnight any more, and Wade Purvis is buying every carton and case Pittman's can order.",
+          "true": true,
+          "sourceNpcId": "npc_dewayne",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Turn the swing vote",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Somebody leaves photographs of Royce Pittman and Loretta Gaddis on the seat of Royce's truck, and the next day he takes back his support for the downstream bridge and asks for a new vote.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "royceWantsRevote",
+         "value": true
+        },
+        {
+         "op": "npcMove",
+         "npcId": "npc_royce",
+         "locationId": "loc_pittmans",
+         "phases": [
+          "afternoon"
+         ]
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -20
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_royce_photos",
+          "text": "Somebody left photographs of Royce Pittman and Loretta Gaddis in his truck, and now he wants a new vote on the bridge.",
+          "true": true,
+          "sourceNpcId": "npc_tyler",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Get the chief out",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "After an anonymous call, the county sheriff finds three cartons and a bottle of pills under the seat of Chief Bell's truck, and the mayor suspends him and he leaves to stay with his sister in the city.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_marcus",
+         "status": "gone"
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -30
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_travis_phone",
+          "cause": "Travis Cagle knows the Night Run made the call that ended Chief Bell, and he is afraid of what Wade Purvis will ask of him next.",
+          "effect": "Travis Cagle, acting chief now and sweating through his shirt, asks to talk somewhere private and wants someone outside the department to keep his second phone, the one with Wade Purvis's texts on it.",
+          "trigger": {
+           "type": "npc",
+           "value": "npc_travis"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_chief_suspended",
+          "text": "The county sheriff found cartons and pills under the seat of Chief Bell's truck, and the mayor suspended him the same night.",
+          "true": true,
+          "sourceNpcId": "npc_jolene",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0
+   }
+  ],
+  "threads": [
+   {
+    "id": "thr_bridge_vote",
+    "title": "The bridge vote",
+    "summary": "The state has rated the old bridge critical and will pay for one new crossing, either in town or five miles downstream on Sturdivant bottomland. The council votes on the site this month, and Royce Pittman is the one vote nobody can count.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "fac_sturdivant",
+     "fac_nightrun",
+     "npc_carter",
+     "npc_royce",
+     "npc_vada",
+     "loc_old_bridge"
+    ]
+   },
+   {
+    "id": "thr_police_vote",
+    "title": "Disbanding the police",
+    "summary": "Mayor Jolene Overstreet wants to dissolve the three-officer police department and pay the county sheriff to patrol the town instead. Chief Bell has until the budget meeting to show the council what his department is worth.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "fac_police",
+     "fac_sturdivant",
+     "npc_marcus",
+     "npc_jolene",
+     "loc_town_hall"
+    ]
+   },
+   {
+    "id": "thr_riverbend_pills",
+    "title": "Pills at Riverbend",
+    "summary": "Two people at Riverbend have overdosed on pain pills since August, and one of them, nineteen-year-old Amber Lott, died. The chief says the pills come across the river; her mother says everybody knows who sells them.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "npc_tammy",
+     "npc_colt",
+     "npc_june",
+     "npc_marcus",
+     "loc_riverbend"
+    ]
+   },
+   {
+    "id": "thr_le_debt",
+    "title": "A debt",
+    "summary": "I owe a man in this town more money than I can pay. (Hollis Byrd, owner of Byrd's Pawn)",
+    "status": "open",
+    "knownToPlayer": true,
+    "linkedIds": [
+     "npc_hollis"
+    ]
+   },
+   {
+    "id": "thr_le_enemy",
+    "title": "An enemy",
+    "summary": "Someone I wronged has followed me here. (Jodie Strayhorn, new waitress at the Low Water)",
+    "status": "open",
+    "knownToPlayer": true,
+    "linkedIds": [
+     "npc_jodie"
+    ]
+   },
+   {
+    "id": "thr_le_secret",
+    "title": "A secret",
+    "summary": "Someone here knows what I did before I came. (Tyler Rasberry, night clerk at the Riverview Motor Court)",
+    "status": "open",
+    "knownToPlayer": true,
+    "linkedIds": [
+     "npc_tyler"
+    ]
+   }
+  ],
+  "seeds": [
+   {
+    "id": "seed_big_run",
+    "cause": "Wade Purvis has bought two hundred cartons and forty cases of liquor for the biggest run of the fall, and paid Travis Cagle to sit in the motel lot all night.",
+    "effect": "The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
+    "trigger": {
+     "type": "day",
+     "value": 3
+    },
+    "fired": true,
+    "hidden": true
+   },
+   {
+    "id": "seed_lease_letter",
+    "cause": "Carter Sturdivant has had a lawyer in the city write to Wade Purvis that the Purvis Landing lease will not be renewed at the new year.",
+    "effect": "Wade Purvis read the lawyer's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
+    "trigger": {
+     "type": "day",
+     "value": 4
+    },
+    "fired": true,
+    "hidden": true
+   },
+   {
+    "id": "seed_council_agenda",
+    "cause": "Jolene Overstreet has put the police budget on the next council agenda without telling Chief Bell.",
+    "effect": "A typed agenda taped to the Town Hall door lists the dissolution of the police department as item four, and Chief Bell has been seen standing in front of it with his notebook out.",
+    "trigger": {
+     "type": "day",
+     "value": 6
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_overdose",
+    "cause": "Colt Purvis has a new bottle of pills from across the river and is selling them at Riverbend for less than before.",
+    "effect": "June Satterfield brought a boy at Riverbend back from an overdose last night with the nasal spray she keeps in her purse and did not call it in; Tammy Lott is telling everyone at the Low Water that the pills were Colt Purvis's.",
+    "trigger": {
+     "type": "day",
+     "value": 7
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_engineer",
+    "cause": "The consulting engineer who wrote the bridge report has been asked to answer questions at the council meeting, and Carter Sturdivant does not want him answering any.",
+    "effect": "The engineer canceled his appearance at the council meeting by email, and Dewayne Mangum told the counter at Pittman's that he towed that man's rental car out of a ditch on the morning of the inspection.",
+    "trigger": {
+     "type": "day",
+     "value": 9
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_vada_doctor",
+    "cause": "Carter Sturdivant has asked a doctor in the city to find his mother unfit, so that he can sign the bottomland over to the state himself.",
+    "effect": "Carter brought a doctor up to Sturdivant House yesterday, and Vada Sturdivant threw them both out and drove herself to Riverside Baptist to ask Pastor Dees to witness a new will.",
+    "trigger": {
+     "type": "day",
+     "value": 11
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_tackle_box",
+    "cause": "Colt Purvis keeps his pills and his sales phone in a tackle box wedged on a girder under the first span of the old bridge, where his uncle never looks.",
+    "effect": "On a girder ledge under the first span, reachable from the riverbank, is a tackle box holding three pill bottles with a pharmacy label from across the river and a cheap prepaid phone full of texts from Riverbend numbers.",
+    "trigger": {
+     "type": "location",
+     "value": "loc_old_bridge"
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_le_debt",
+    "cause": "Loose end (A debt): I owe a man in this town more money than I can pay.",
+    "effect": "Hollis Byrd slides into the booth across from Tester uninvited, sets down a folded printout with Tester's name on it, and says the money is due in three days.",
+    "trigger": {
+     "type": "day",
+     "value": 4
+    },
+    "fired": true,
+    "hidden": true,
+    "origin": {
+     "kind": "loose_end",
+     "npcId": "npc_hollis"
+    }
+   },
+   {
+    "id": "seed_le_enemy",
+    "cause": "Loose end (An enemy): Someone I wronged has followed me here.",
+    "effect": "Jodie Strayhorn shows the night clerk at the Riverview Motor Court a photo of Tester and asks which room Tester has been sleeping in.",
+    "trigger": {
+     "type": "day",
+     "value": 5
+    },
+    "fired": false,
+    "hidden": true,
+    "origin": {
+     "kind": "loose_end",
+     "npcId": "npc_jodie"
+    }
+   },
+   {
+    "id": "seed_le_secret",
+    "cause": "Loose end (A secret): Someone here knows what I did before I came.",
+    "effect": "Tyler Rasberry catches Tester alone, repeats one true detail of Tester's secret, and names a price in cash for keeping it quiet.",
+    "trigger": {
+     "type": "day",
+     "value": 4
+    },
+    "fired": true,
+    "hidden": true,
+    "origin": {
+     "kind": "loose_end",
+     "npcId": "npc_tyler"
+    }
+   },
+   {
+    "id": "seed_favour_elbert",
+    "cause": "Favour: Elbert Gentry (attitude 60) remembers \"kept quiet about what I told them and stood up for me\"",
+    "effect": "Elbert Gentry sells Tester what they need at cost and tells them to keep quiet about the price.",
+    "trigger": {
+     "type": "day",
+     "value": 4
+    },
+    "fired": true,
+    "hidden": true,
+    "origin": {
+     "kind": "favour",
+     "npcId": "npc_elbert",
+     "template": 1
+    }
+   }
+  ],
+  "rumours": [
+   {
+    "id": "rum_lunch_inspection",
+    "text": "The engineer who condemned the bridge spent inspection day eating catfish at the Low Water with Carter Sturdivant, not under the spans.",
+    "true": true,
+    "sourceNpcId": "npc_loretta",
+    "heard": true
+   },
+   {
+    "id": "rum_motel_envelope",
+    "text": "The mayor meets Carter Sturdivant in the motel parking lot once a month after dark, and she never goes inside.",
+    "true": true,
+    "sourceNpcId": "npc_tyler",
+    "heard": false
+   },
+   {
+    "id": "rum_travis_boat",
+    "text": "Travis Cagle paid cash for a new bass boat this summer, and nobody buys a boat like that on a night-shift salary.",
+    "true": true,
+    "sourceNpcId": "npc_dewayne",
+    "heard": false
+   },
+   {
+    "id": "rum_colt_pills",
+    "text": "The pills at Riverbend come from Colt Purvis, and his uncle Wade either does not know or does not want to.",
+    "true": true,
+    "sourceNpcId": "npc_tammy",
+    "heard": false
+   },
+   {
+    "id": "rum_royce_note",
+    "text": "Royce Pittman owes the Sturdivants on the station, which is why he still will not say how he will vote.",
+    "true": true,
+    "sourceNpcId": "npc_hollis",
+    "heard": false
+   },
+   {
+    "id": "rum_vada_wont_sign",
+    "text": "Miss Vada will not sign the bottomland over for the new bridge, and Carter cannot sell it without her.",
+    "true": true,
+    "sourceNpcId": "npc_ray",
+    "heard": false
+   },
+   {
+    "id": "rum_police_budget",
+    "text": "The mayor wants to get rid of the police and hand the town to the county sheriff before Christmas.",
+    "true": true,
+    "sourceNpcId": "npc_travis",
+    "heard": false
+   },
+   {
+    "id": "rum_seventh_year",
+    "text": "Something in the deep hole under the old bridge pulls a swimmer down every seven years, and this is the seventh year.",
+    "true": false,
+    "sourceNpcId": "npc_wade",
+    "heard": false
+   },
+   {
+    "id": "rum_loretta_sold",
+    "text": "Loretta Gaddis has already sold the Low Water to the Sturdivants and is only waiting for the bridge to close to tell anyone.",
+    "true": false,
+    "sourceNpcId": "npc_jolene",
+    "heard": false
+   },
+   {
+    "id": "rum_june_license",
+    "text": "June Satterfield lost her nursing license for stealing pills from the hospital, and that is where the Riverbend pills come from.",
+    "true": false,
+    "sourceNpcId": "npc_colt",
+    "heard": false
+   }
+  ],
+  "log": [
+   {
+    "turn": 0,
+    "day": 1,
+    "phase": "morning",
+    "input": "",
+    "roll": null,
+    "narration": "Wind stripping the pecan trees into the water. You come in on foot by the road and stop at Pittman's Gas and Service, on the edge of Lockett's Ferry. Four pumps under a buzzing canopy where the state highway meets the river road, with a bus-stop sign bolted to the ice machine and a hand-lettered board out front that reads CRICKETS, NIGHT CRAWLERS, CARTONS. Out back, two open service bays smell of hot oil and tire rubber, and a radio plays gospel to whatever truck is up on the lift.\n\nYou notice a big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear. Not far off is a short, broad man of forty with grease worked into every knuckle, safety glasses pushed up on a bald head and a shop rag in his back pocket."
+   },
+   {
+    "turn": 1,
+    "day": 1,
+    "phase": "morning",
+    "input": "You are a liar and everybody knows it.",
+    "roll": null,
+    "narration": "Royce Pittman answers you first. Royce Pittman greets you with a nod. Dewayne Mangum, Leon Varner, Boyd Teague and Jodie Strayhorn look over.",
+    "mock": true,
+    "mode": "say",
+    "to": "npc_royce",
+    "toName": "Royce Pittman",
+    "toLabel": "Royce Pittman"
+   },
+   {
+    "turn": 2,
+    "day": 1,
+    "phase": "morning",
+    "input": "I buy a bottle of beer for Loretta.",
+    "roll": null,
+    "narration": "Loretta Gaddis hears you out. Loretta Gaddis mentions something: \"The engineer who condemned the bridge spent inspection day eating catfish at the Low Water with Carter Sturdivant, not under the spans.\"",
+    "mock": true,
+    "mode": "do"
+   },
+   {
+    "turn": 3,
+    "day": 1,
+    "phase": "morning",
+    "input": "I can give you a hand with that motor.",
+    "roll": null,
+    "narration": "Burl Satterfield answers you first. Burl Satterfield hears you out. Loretta Gaddis looks over.",
+    "mock": true,
+    "mode": "say",
+    "to": "npc_burl",
+    "toName": "Burl Satterfield",
+    "toLabel": "Burl Satterfield"
+   },
+   {
+    "turn": 4,
+    "day": 2,
+    "phase": "morning",
+    "input": "/rest",
+    "roll": null,
+    "narration": "You slept until morning, day 2. Burl Satterfield has left.",
+    "mock": true
+   },
+   {
+    "turn": 5,
+    "day": 2,
+    "phase": "morning",
+    "input": "I will not tell a soul.",
+    "roll": null,
+    "narration": "Elbert Gentry answers you first. Elbert Gentry greets you with a nod. Loretta Gaddis looks over.",
+    "mock": true,
+    "mode": "say",
+    "to": "npc_elbert",
+    "toName": "Elbert Gentry",
+    "toLabel": "Elbert Gentry"
+   },
+   {
+    "turn": 6,
+    "day": 2,
+    "phase": "morning",
+    "input": "You can count on me.",
+    "roll": null,
+    "narration": "Elbert Gentry answers you first. Elbert Gentry greets you with a nod. Loretta Gaddis looks over.",
+    "mock": true,
+    "mode": "say",
+    "to": "npc_elbert",
+    "toName": "Elbert Gentry",
+    "toLabel": "Elbert Gentry"
+   },
+   {
+    "turn": 7,
+    "day": 3,
+    "phase": "morning",
+    "input": "/rest",
+    "roll": null,
+    "narration": "You slept until morning, day 3. Elbert Gentry has left.",
+    "mock": true
+   },
+   {
+    "turn": 8,
+    "day": 4,
+    "phase": "morning",
+    "input": "/rest",
+    "roll": null,
+    "narration": "You slept until morning, day 4. The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
+    "mock": true
+   }
+  ],
+  "chronicle": [],
+  "journal": [
+   {
+    "turn": 0,
+    "text": "Arrived in Lockett's Ferry."
+   },
+   {
+    "turn": 2,
+    "text": "Bought bottle of beer at the Low Water for $4."
+   }
+  ],
+  "dueEvents": [
+   {
+    "seedId": "seed_lease_letter",
+    "text": "Wade Purvis read the lawyer's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
+    "firedTurn": 8,
+    "firedDay": 4
+   },
+   {
+    "seedId": "seed_le_debt",
+    "text": "Hollis Byrd slides into the booth across from Tester uninvited, sets down a folded printout with Tester's name on it, and says the money is due in three days.",
+    "firedTurn": 8,
+    "firedDay": 4,
+    "npcId": "npc_hollis",
+    "bring": true
+   },
+   {
+    "seedId": "seed_le_secret",
+    "text": "Tyler Rasberry catches Tester alone, repeats one true detail of Tester's secret, and names a price in cash for keeping it quiet.",
+    "firedTurn": 8,
+    "firedDay": 4,
+    "npcId": "npc_tyler",
+    "bring": true
+   },
+   {
+    "seedId": "seed_favour_elbert",
+    "text": "Elbert Gentry sells Tester what they need at cost and tells them to keep quiet about the price.",
+    "firedTurn": 8,
+    "firedDay": 4,
+    "npcId": "npc_elbert"
+   }
+  ],
+  "visits": [
+   {
+    "npcId": "npc_hollis",
+    "locationId": "loc_low_water",
+    "day": 4,
+    "phase": "morning"
+   },
+   {
+    "npcId": "npc_tyler",
+    "locationId": "loc_low_water",
+    "day": 4,
+    "phase": "morning"
+   }
+  ],
+  "seen": {
+   "npc_royce": {
+    "locationId": "loc_pittmans",
+    "day": 1,
+    "phase": "morning",
+    "turn": 1
+   },
+   "npc_dewayne": {
+    "locationId": "loc_pittmans",
+    "day": 1,
+    "phase": "morning",
+    "turn": 1
+   },
+   "npc_leon": {
+    "locationId": "loc_pittmans",
+    "day": 1,
+    "phase": "morning",
+    "turn": 1
+   },
+   "npc_boyd": {
+    "locationId": "loc_pittmans",
+    "day": 1,
+    "phase": "morning",
+    "turn": 1
+   },
+   "npc_jodie": {
+    "locationId": "loc_pittmans",
+    "day": 1,
+    "phase": "morning",
+    "turn": 1
+   },
+   "npc_loretta": {
+    "locationId": "loc_low_water",
+    "day": 4,
+    "phase": "morning",
+    "turn": 8
+   },
+   "npc_burl": {
+    "locationId": "loc_low_water",
+    "day": 1,
+    "phase": "morning",
+    "turn": 3
+   },
+   "npc_elbert": {
+    "locationId": "loc_low_water",
+    "day": 2,
+    "phase": "morning",
+    "turn": 6
+   },
+   "npc_hollis": {
+    "locationId": "loc_low_water",
+    "day": 4,
+    "phase": "morning",
+    "turn": 8
+   },
+   "npc_tyler": {
+    "locationId": "loc_low_water",
+    "day": 4,
+    "phase": "morning",
+    "turn": 8
+   }
+  }
+ },
+ "town": {
+  "name": "Lockett's Ferry",
+  "setting": "Lockett's Ferry is a river town of about eight hundred people where the state highway drops off the bluff and crosses the Lusk River on a narrow green steel bridge built in 1938. The state line runs down the middle of the river, the county on the far side is dry and taxes cigarettes hard, and for as long as anyone can remember, cartons and cases have gone across at night, by johnboat from Purvis Landing or in pickups light enough for the bridge's five-ton limit. Now the state has rated the bridge critical and will pay for one new crossing, either here or five miles downstream on Sturdivant land, and the town council votes on the site this month. Carter Sturdivant wants it downstream, the Night Run wants the old bridge open and the river dark, and the three-officer police department needs an arrest big enough to stop the mayor disbanding it. Cell signal is patchy in the valley, one bar if you stand by the water tower on the hill, so business here is done face to face: at the bar, at the pumps, at the ramp. People tell stories about what the river takes, but nobody you would believe has ever seen anything in it but mud and catfish.",
+  "currency": {
+   "symbol": "$",
+   "name": "dollars"
+  },
+  "startLocationIds": {
+   "gate": "loc_pittmans",
+   "docks": "loc_purvis_landing"
+  },
+  "map": {
+   "width": 360,
+   "height": 300,
+   "riverWidth": 34,
+   "river": "M0,226 C60,222 96,252 160,252 C224,252 280,232 360,244",
+   "riverLabel": {
+    "text": "Lusk River",
+    "x": 186,
+    "y": 255,
+    "rotate": -3
+   },
+   "bridges": [
+    "M266,216 L270,266"
+   ],
+   "roads": [
+    "M264,0 C262,22 254,38 250,56",
+    "M270,266 C271,280 272,290 273,300"
+   ],
+   "labels": [
+    {
+     "text": "to the state highway",
+     "x": 256,
+     "y": 17,
+     "anchor": "end"
+    },
+    {
+     "text": "dry county",
+     "x": 120,
+     "y": 288
+    }
+   ]
+  },
+  "locations": [
+   {
+    "id": "loc_pittmans",
+    "name": "Pittman's Gas and Service",
+    "type": "gas",
+    "map": {
+     "x": 250,
+     "y": 56,
+     "label": "Pittman's",
+     "anchor": "e"
+    },
+    "description": "Four pumps under a buzzing canopy where the state highway meets the river road, with a bus-stop sign bolted to the ice machine and a hand-lettered board out front that reads CRICKETS, NIGHT CRAWLERS, CARTONS. Out back, two open service bays smell of hot oil and tire rubber, and a radio plays gospel to whatever truck is up on the lift.",
+    "exits": [
+     "loc_motor_court",
+     "loc_town_hall",
+     "loc_byrds_pawn",
+     "loc_sturdivant_house",
+     "loc_mangum_house",
+     "loc_pittman_place"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_royce",
+      "npc_dewayne",
+      "npc_leon",
+      "npc_boyd",
+      "npc_jodie"
+     ],
+     "afternoon": [
+      "npc_dewayne",
+      "npc_darlene",
+      "npc_kaylee",
+      "npc_lamar",
+      "npc_trent"
+     ],
+     "evening": [
+      "npc_royce",
+      "npc_marcus",
+      "npc_travis",
+      "npc_kaylee",
+      "npc_leon",
+      "npc_dwight"
+     ],
+     "night": []
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_low_water",
+    "name": "The Low Water",
+    "type": "bar",
+    "map": {
+     "x": 184,
+     "y": 170,
+     "label": "Low Water",
+     "anchor": "s"
+    },
+    "description": "A cinderblock bar on Front Street with neon beer signs in the window, a pool table with a slow lean and a flood line drawn in marker beside the door. On weekends the gravel lot fills with car tags from the dry county, and the kitchen hatch at the back sends out catfish baskets and the smell of old fryer grease.",
+    "exits": [
+     "loc_motor_court",
+     "loc_town_hall",
+     "loc_byrds_pawn",
+     "loc_riverside_church",
+     "loc_old_bridge",
+     "loc_purvis_landing",
+     "loc_gentry_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_loretta"
+     ],
+     "afternoon": [
+      "npc_loretta",
+      "npc_royce",
+      "npc_tammy",
+      "npc_elbert",
+      "npc_curtis",
+      "npc_jodie"
+     ],
+     "evening": [
+      "npc_loretta",
+      "npc_carter",
+      "npc_wade",
+      "npc_tammy",
+      "npc_lyman",
+      "npc_curtis",
+      "npc_jodie"
+     ],
+     "night": [
+      "npc_loretta",
+      "npc_lyman",
+      "npc_curtis",
+      "npc_jodie"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_motor_court",
+    "name": "The Riverview Motor Court",
+    "type": "motel",
+    "map": {
+     "x": 118,
+     "y": 94,
+     "label": "Motor Court",
+     "anchor": "n"
+    },
+    "description": "Twelve rooms in a single-story L around a cracked parking lot, under a sign that says VACANCY in every season and a name that promises a view you only get from behind the dumpster. The office smells of burnt coffee and air freshener, and a monitor on the counter shows the lot in four gray squares.",
+    "exits": [
+     "loc_pittmans",
+     "loc_low_water",
+     "loc_haskins_farm"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_lyman",
+      "npc_curtis",
+      "npc_brianna"
+     ],
+     "afternoon": [
+      "npc_lyman",
+      "npc_brianna"
+     ],
+     "evening": [
+      "npc_tyler",
+      "npc_mavis",
+      "npc_boyd"
+     ],
+     "night": [
+      "npc_tyler",
+      "npc_travis",
+      "npc_mavis",
+      "npc_leon",
+      "npc_boyd"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_riverside_church",
+    "name": "Riverside Baptist Church",
+    "type": "church",
+    "map": {
+     "x": 84,
+     "y": 142,
+     "label": "Church",
+     "anchor": "n"
+    },
+    "description": "A white clapboard church on the slope above Front Street, with a steeple that leans a little toward the river and a marquee sign out front that reads PRAY FOR OUR BRIDGE. Inside, the pews smell of lemon polish and old hymnals, and the fellowship hall out back keeps a coffee urn and a box of donated coats going all week.",
+    "exits": [
+     "loc_low_water",
+     "loc_riverbend",
+     "loc_sturdivant_house",
+     "loc_parsonage",
+     "loc_gentry_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_ray",
+      "npc_nadine",
+      "npc_elbert",
+      "npc_pearl"
+     ],
+     "afternoon": [
+      "npc_vada",
+      "npc_june",
+      "npc_nadine"
+     ],
+     "evening": [
+      "npc_ray",
+      "npc_jolene",
+      "npc_odessa",
+      "npc_annette"
+     ],
+     "night": []
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_town_hall",
+    "name": "Town Hall",
+    "type": "police",
+    "map": {
+     "x": 262,
+     "y": 146,
+     "label": "Town Hall",
+     "anchor": "e"
+    },
+    "description": "A two-story brick building with the mayor's office upstairs and the police department downstairs, one patrol car out front and a second up on blocks behind it. The station is a front counter, three desks and a single holding cell, and the window unit drips onto a box of unpaid parking tickets.",
+    "exits": [
+     "loc_pittmans",
+     "loc_byrds_pawn",
+     "loc_low_water",
+     "loc_old_bridge",
+     "loc_overstreet_house"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_carter",
+      "npc_jolene",
+      "npc_marcus",
+      "npc_travis",
+      "npc_glenda",
+      "npc_nikki"
+     ],
+     "afternoon": [
+      "npc_jolene",
+      "npc_pearl",
+      "npc_glenda",
+      "npc_nikki"
+     ],
+     "evening": [],
+     "night": [
+      "npc_marcus"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_byrds_pawn",
+    "name": "Byrd's Pawn",
+    "type": "pawn",
+    "map": {
+     "x": 222,
+     "y": 104,
+     "label": "Byrd's Pawn",
+     "anchor": "w"
+    },
+    "description": "A narrow storefront between two empty ones, its window crowded with chainsaws, guitars and fishing reels behind a security grille that never goes all the way up. Inside it smells of gun oil and stale smoke, and a glass counter of rings and phones sits under a hand-lettered sign that says NO REFUNDS NO STORIES.",
+    "exits": [
+     "loc_pittmans",
+     "loc_town_hall",
+     "loc_low_water",
+     "loc_byrd_apartment"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_hollis"
+     ],
+     "afternoon": [
+      "npc_hollis"
+     ],
+     "evening": [
+      "npc_hollis"
+     ],
+     "night": []
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_riverbend",
+    "name": "Riverbend Trailer Park",
+    "type": "trailerpark",
+    "map": {
+     "x": 40,
+     "y": 190,
+     "label": "Riverbend",
+     "anchor": "n"
+    },
+    "description": "Thirty-odd trailers on the low ground downstream of the landing, some with flower boxes and some with blue tarps on the roofs, strung along a gravel loop that floods to the axles every spring. Dogs bark on chains, a trampoline rusts in the middle of the loop, and a cross of plastic flowers is wired to the fence by the mailboxes.",
+    "exits": [
+     "loc_purvis_landing",
+     "loc_riverside_church",
+     "loc_lott_trailer"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_june",
+      "npc_colt",
+      "npc_tyler",
+      "npc_shayla",
+      "npc_burl"
+     ],
+     "afternoon": [
+      "npc_colt",
+      "npc_ray",
+      "npc_tyler",
+      "npc_travis",
+      "npc_austin",
+      "npc_leon",
+      "npc_shayla"
+     ],
+     "evening": [
+      "npc_june",
+      "npc_brianna",
+      "npc_shayla",
+      "npc_burl"
+     ],
+     "night": [
+      "npc_june",
+      "npc_brianna",
+      "npc_shayla",
+      "npc_dwight",
+      "npc_burl"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_purvis_landing",
+    "name": "Purvis Landing",
+    "type": "marina",
+    "map": {
+     "x": 102,
+     "y": 212,
+     "label": "Purvis Landing",
+     "anchor": "n"
+    },
+    "description": "A bait shop on stilts, a fuel pump and a floating dock of aluminum johnboats and bass boats, beside the concrete public ramp where the river road runs straight down into the water. At night the dock lights stay off, and every morning the mud at the foot of the ramp is cut with fresh trailer tracks.",
+    "exits": [
+     "loc_low_water",
+     "loc_old_bridge",
+     "loc_riverbend"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_wade",
+      "npc_lorna"
+     ],
+     "afternoon": [
+      "npc_wade",
+      "npc_micah",
+      "npc_lorna",
+      "npc_burl"
+     ],
+     "evening": [
+      "npc_colt",
+      "npc_dewayne",
+      "npc_trent",
+      "npc_lorna"
+     ],
+     "night": [
+      "npc_hollis",
+      "npc_wade",
+      "npc_micah",
+      "npc_trent",
+      "npc_lorna"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_sturdivant_house",
+    "name": "Sturdivant House",
+    "type": "bighouse",
+    "map": {
+     "x": 60,
+     "y": 66,
+     "label": "Sturdivant House",
+     "anchor": "n"
+    },
+    "description": "A white two-story house with eight columns on the hill above town, its lawn mowed in stripes and its paint peeling on the side nobody sees from the road. At the end of the drive by the water tower you can get the town's one bar of cell signal, and there is usually a truck parked there with someone holding a phone up to the sky.",
+    "exits": [
+     "loc_pittmans",
+     "loc_riverside_church"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_vada",
+      "npc_odessa",
+      "npc_dwight"
+     ],
+     "afternoon": [
+      "npc_odessa"
+     ],
+     "evening": [
+      "npc_vada"
+     ],
+     "night": [
+      "npc_vada",
+      "npc_carter",
+      "npc_odessa"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_old_bridge",
+    "name": "The Old Bridge",
+    "type": "bridge",
+    "map": {
+     "x": 266,
+     "y": 212,
+     "label": "Old Bridge",
+     "anchor": "e"
+    },
+    "description": "A narrow green steel truss from 1938, two lanes and no shoulder, posted at five tons and rattling under every pickup that crosses toward the dry county. Halfway over, a sign on the rail marks the state line, and fishermen leave cut bait and beer cans on the concrete pier below the first span.",
+    "exits": [
+     "loc_town_hall",
+     "loc_low_water",
+     "loc_purvis_landing"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [
+      "npc_carter",
+      "npc_marcus",
+      "npc_virgil",
+      "npc_boyd",
+      "npc_dwight"
+     ],
+     "evening": [
+      "npc_austin",
+      "npc_virgil"
+     ],
+     "night": [
+      "npc_colt"
+     ]
+    },
+    "discovered": true,
+    "closed": false
+   },
+   {
+    "id": "loc_mangum_house",
+    "name": "The Mangum House",
+    "type": "house",
+    "map": {
+     "x": 330,
+     "y": 118,
+     "label": "Mangum house",
+     "anchor": "w"
+    },
+    "description": "A white frame house about a mile up the river road from Pittman's, on the left, with a carport full of engine parts and a porch light left on for whoever gets home last. In the daytime it is dim and quiet, blackout curtains drawn over the bedroom where Mavis sleeps off the night shift.",
+    "exits": [
+     "loc_pittmans"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_mavis"
+     ],
+     "afternoon": [
+      "npc_mavis"
+     ],
+     "evening": [],
+     "night": [
+      "npc_dewayne"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_pittman_place",
+    "name": "The Pittman Place",
+    "type": "house",
+    "map": {
+     "x": 306,
+     "y": 30,
+     "label": "Pittman place",
+     "anchor": "w"
+    },
+    "description": "A brick ranch house up the bluff behind the station, with a basketball hoop over the garage, a bass boat on a trailer and the station's ledgers spread across the kitchen table. The curtains are always half shut, and from the back steps you can see every truck that stops at the pumps.",
+    "exits": [
+     "loc_pittmans"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_darlene",
+      "npc_kaylee"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_darlene"
+     ],
+     "night": [
+      "npc_royce",
+      "npc_darlene",
+      "npc_kaylee"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_parsonage",
+    "name": "The Parsonage",
+    "type": "house",
+    "map": {
+     "x": 30,
+     "y": 108,
+     "label": "Parsonage",
+     "anchor": "e"
+    },
+    "description": "A small white house beside Riverside Baptist that the church owns, with a porch swing, a vegetable garden gone to seed and the church van parked on the grass. Inside it smells of coffee and cough drops, and the front room is stacked with boxes of canned goods for the pantry.",
+    "exits": [
+     "loc_riverside_church"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_micah"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_nadine",
+      "npc_micah"
+     ],
+     "night": [
+      "npc_ray",
+      "npc_nadine"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_lott_trailer",
+    "name": "The Lott Trailer",
+    "type": "trailer",
+    "map": {
+     "x": 20,
+     "y": 158,
+     "label": "Lott trailer",
+     "anchor": "e"
+    },
+    "description": "A single-wide at the far end of the Riverbend loop, with a wind chime of bent spoons on the porch and a girl's pink bicycle chained to the steps that nobody rides now. A handmade sign taped inside the front window says JUSTICE FOR AMBER in marker.",
+    "exits": [
+     "loc_riverbend"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_tammy",
+      "npc_austin"
+     ],
+     "afternoon": [],
+     "evening": [],
+     "night": [
+      "npc_tammy",
+      "npc_austin"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_byrd_apartment",
+    "name": "The Apartment over Byrd's",
+    "type": "apartment",
+    "map": {
+     "x": 192,
+     "y": 76,
+     "label": "Apartment",
+     "anchor": "n"
+    },
+    "description": "Two rooms up an outside staircase above Byrd's Pawn, rented by the month, with a dripping window unit, a police radio on the counter and a view straight down into the alley where trucks stop after dark. The landlord's boxes of unclaimed merchandise still fill the hall closet.",
+    "exits": [
+     "loc_byrds_pawn"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [],
+     "evening": [
+      "npc_nikki"
+     ],
+     "night": [
+      "npc_nikki"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_haskins_farm",
+    "name": "The Haskins Farm",
+    "type": "farm",
+    "map": {
+     "x": 188,
+     "y": 40,
+     "label": "Haskins farm",
+     "anchor": "w"
+    },
+    "description": "A tin-roofed farmhouse at the end of a gravel road north of town, with a grain truck under the shed, soybean stubble out to the tree line and a hand-painted sign by the mailbox that once said NO NEW BRIDGE and has been painted over. The kitchen table is covered in seed bills and a county map with the downstream bridge route drawn on it in pencil.",
+    "exits": [
+     "loc_motor_court"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_virgil",
+      "npc_lamar",
+      "npc_trent"
+     ],
+     "afternoon": [],
+     "evening": [
+      "npc_lamar"
+     ],
+     "night": [
+      "npc_virgil",
+      "npc_lamar"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_overstreet_house",
+    "name": "The Overstreet House",
+    "type": "house",
+    "map": {
+     "x": 310,
+     "y": 166,
+     "label": "Overstreet house",
+     "anchor": "s"
+    },
+    "description": "A neat yellow house on the rise behind Town Hall, with a flag on the porch, a scanner squawking in the front window and a chest freezer humming in the carport. The front room is full of the mayor's binders and council minutes, and somebody is always home.",
+    "exits": [
+     "loc_town_hall"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [
+      "npc_annette",
+      "npc_gerald"
+     ],
+     "afternoon": [
+      "npc_annette",
+      "npc_gerald"
+     ],
+     "evening": [
+      "npc_gerald"
+     ],
+     "night": [
+      "npc_jolene",
+      "npc_annette",
+      "npc_gerald"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   },
+   {
+    "id": "loc_gentry_house",
+    "name": "The Gentry House",
+    "type": "house",
+    "map": {
+     "x": 136,
+     "y": 140,
+     "label": "Gentry house",
+     "anchor": "e"
+    },
+    "description": "The oldest house in town, a gray two-story with a deep porch on the slope between the church and Front Street, built by the family that ran the ferry before there was a bridge. Photographs of the river in flood cover every wall, and three rocking chairs on the porch face the water.",
+    "exits": [
+     "loc_riverside_church",
+     "loc_low_water"
+    ],
+    "npcIdsBySchedule": {
+     "morning": [],
+     "afternoon": [],
+     "evening": [
+      "npc_elbert",
+      "npc_pearl",
+      "npc_glenda"
+     ],
+     "night": [
+      "npc_elbert",
+      "npc_pearl",
+      "npc_glenda"
+     ]
+    },
+    "discovered": false,
+    "closed": false
+   }
+  ],
+  "npcs": [
+   {
+    "id": "npc_loretta",
+    "name": "Loretta Gaddis",
+    "pronouns": "she",
+    "role": "owner and bartender of the Low Water",
+    "factionId": null,
+    "tags": [
+     "bartender"
+    ],
+    "look": "Rail-thin woman of sixty with frosted hair, reading glasses on a beaded chain and a bar towel over one shoulder.",
+    "voice": "Flat and unhurried; calls everybody 'hon', answers a question she doesn't like by asking what you're drinking, and never says a name out loud if she can point instead.",
+    "personality": [
+     "unflappable",
+     "loyal"
+    ],
+    "goal": "Keep the old bridge open, because half her trade drives over from the dry county and none of it will drive the long way round.",
+    "secret": "She has been seeing Royce Pittman on Tuesday afternoons for eleven years, and she is the reason he has not promised his vote to Carter Sturdivant.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_tammy",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_lyman",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_jodie",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_low_water",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_royce",
+    "name": "Royce Pittman",
+    "pronouns": "he",
+    "role": "owner of Pittman's Gas and Service and the swing vote on the town council",
+    "factionId": null,
+    "tags": [
+     "council",
+     "merchant"
+    ],
+    "look": "Big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear.",
+    "voice": "Folksy and slippery; dodges a straight answer, now and then with a story about his daddy; once in a while hedges with 'now, I'm not saying'; laughs to fill a silence.",
+    "personality": [
+     "genial",
+     "cowardly"
+    ],
+    "goal": "Get out from under the note on his station without having to pick a side where anybody can see him do it.",
+    "secret": "Carter Sturdivant holds the note on the station and has offered to tear it up and give him the truck stop lease at the new interchange in return for a yes vote.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_darlene",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_kaylee",
+      "relation": "daughter"
+     },
+     {
+      "npcId": "npc_dewayne",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_pittman_place",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_vada",
+    "name": "Vada Sturdivant",
+    "pronouns": "she",
+    "role": "widow who owns Sturdivant House and the bottomland downstream",
+    "factionId": null,
+    "tags": [
+     "owner",
+     "landowner"
+    ],
+    "look": "Small, straight-backed woman of eighty in a cardigan and pearls, with garden dirt under her nails and a cane she points with more than she leans on.",
+    "voice": "Crisp and formal, with an old schoolteacher's diction; calls grown men 'son', corrects your grammar mid-sentence, and answers questions about money by asking who your people are.",
+    "personality": [
+     "imperious",
+     "sentimental"
+    ],
+    "goal": "Keep the old bridge her father fought the state for in 1938, and keep the bottomland out of Carter's hands while she is alive.",
+    "secret": "The Sturdivant money started with her father running whiskey into the dry county, and Wade Purvis still brings her an envelope every month, which is why the landing lease has never gone up.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_carter",
+      "relation": "son"
+     },
+     {
+      "npcId": "npc_odessa",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_lamar",
+      "relation": "tenant"
+     }
+    ],
+    "home": "loc_sturdivant_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_carter",
+    "name": "Carter Sturdivant",
+    "pronouns": "he",
+    "role": "head of Sturdivant Land and Timber, who holds half the town's paper",
+    "factionId": "fac_sturdivant",
+    "tags": [
+     "lender",
+     "landowner"
+    ],
+    "look": "Trim, tanned man of forty-five in a quarter-zip pullover and pressed khakis, turning a truck key fob over and over in his fingers.",
+    "voice": "Fast and friendly, like a salesman closing; uses your first name too soon and too often, talks about 'the future of this town', and states every sum to the dollar.",
+    "personality": [
+     "ambitious",
+     "smooth"
+    ],
+    "goal": "Get the new bridge built downstream on Sturdivant bottomland, sell the state the right-of-way and own the truck stop at the new interchange.",
+    "secret": "He is two years behind on the family's timber loans, and he has asked a doctor in the city to find his mother Vada unfit so he can sign the bottomland over himself.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_vada",
+      "relation": "mother"
+     },
+     {
+      "npcId": "npc_dwight",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_sturdivant_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_jolene",
+    "name": "Jolene Overstreet",
+    "pronouns": "she",
+    "role": "mayor and town clerk",
+    "factionId": "fac_sturdivant",
+    "tags": [
+     "council",
+     "mayor",
+     "records"
+    ],
+    "look": "Heavy-set woman in her fifties in a cardigan over a church T-shirt, with a lanyard of keys and a phone she keeps checking for a signal it never finds.",
+    "voice": "Brisk and procedural; cites ordinances by number, says 'that's a council matter' to shut a subject, and drops to a whisper to say anything kind.",
+    "personality": [
+     "officious",
+     "frightened"
+    ],
+    "goal": "Get the downstream bridge approved and the police department dissolved before the town's money runs out in January.",
+    "secret": "Carter Sturdivant pays her five hundred dollars a month in cash, handed over in the motel parking lot, and she used the first year of it to cover money missing from the water fund.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_gerald",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_annette",
+      "relation": "daughter"
+     }
+    ],
+    "home": "loc_overstreet_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_hollis",
+    "name": "Hollis Byrd",
+    "pronouns": "he",
+    "role": "owner of Byrd's Pawn",
+    "factionId": "fac_nightrun",
+    "tags": [
+     "fence",
+     "merchant",
+     "lender"
+    ],
+    "look": "Stooped, pot-bellied man of sixty-five in suspenders and a fishing vest, with a jeweler's loupe on a cord and a toothpick that never leaves his mouth.",
+    "voice": "Slow and sideways, never a straight yes or no; calls everything 'merchandise', prices things before you ask, and says 'I don't ask where, I ask how much.'",
+    "personality": [
+     "sociable",
+     "greedy"
+    ],
+    "goal": "Sell the shop and retire to the coast before the bridge closes and the building is worth nothing.",
+    "secret": "He runs the Night Run's cash through his books as pawn sales, and the catalytic converters stacked behind the shop came off cars in three counties.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_nikki",
+      "relation": "tenant"
+     }
+    ],
+    "home": "loc_byrds_pawn",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_wade",
+    "name": "Wade Purvis",
+    "pronouns": "he",
+    "role": "owner of Purvis Landing and boss of the Night Run",
+    "factionId": "fac_nightrun",
+    "tags": [
+     "boatman",
+     "smuggler"
+    ],
+    "look": "Lean, sunburnt man in his fifties with a gray ponytail, a faded camouflage cap and the tip of one finger missing.",
+    "voice": "Quiet and dry; lets you talk yourself out, answers in river terms like stage, chop and slack water, and never says the word police, only 'the law'.",
+    "personality": [
+     "patient",
+     "ruthless"
+    ],
+    "goal": "Keep the old bridge open and the river unwatched after dark, and keep his nephew out of prison.",
+    "secret": "He knows Colt is selling pills on the side and has not stopped him, because Colt was there the night Wade beat a man half to death for cutting in on the run, and could send him to prison for it.",
+    "attitude": -10,
+    "relations": [
+     {
+      "npcId": "npc_lorna",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "nephew"
+     }
+    ],
+    "home": "loc_purvis_landing",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_colt",
+    "name": "Colt Purvis",
+    "pronouns": "he",
+    "role": "deckhand on the Night Run",
+    "factionId": "fac_nightrun",
+    "tags": [
+     "boatman",
+     "smuggler",
+     "dealer"
+    ],
+    "look": "Wiry kid of twenty-two in a sleeveless shirt and white rubber boots, with a fresh tattoo still peeling on his forearm.",
+    "voice": "Fast and jumpy; talks over you, calls men 'bro' and women 'ma'am', brags about money he doesn't have, and laughs at things that aren't funny.",
+    "personality": [
+     "reckless",
+     "boastful"
+    ],
+    "goal": "Make enough money to quit working for his uncle and buy a truck in his own name.",
+    "secret": "He sells pain pills bought across the river to people at Riverbend, and the bottle Amber Lott died with came from him.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_wade",
+      "relation": "uncle"
+     },
+     {
+      "npcId": "npc_lorna",
+      "relation": "aunt"
+     },
+     {
+      "npcId": "npc_trent",
+      "relation": "friend"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_marcus",
+    "name": "Marcus Bell",
+    "pronouns": "he",
+    "role": "chief of police",
+    "factionId": "fac_police",
+    "tags": [
+     "police",
+     "watch",
+     "chief"
+    ],
+    "look": "Tall, heavy-shouldered man of fifty in a pressed uniform shirt gone tight at the buttons, with a shaved head and a limp he hides badly.",
+    "voice": "Courteous and relentless; says 'sir' and 'ma'am', asks the same question three different ways, and writes your answers in a pocket notebook while you watch him do it.",
+    "personality": [
+     "methodical",
+     "stubborn"
+    ],
+    "goal": "Make a bust big enough to save his department before the council votes to dissolve it, and prove the bridge report was bought.",
+    "secret": "He has known for months that Travis Cagle takes Night Run money and has let it go on, because he needs Travis on the payroll until the vote and on the witness stand after it.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_travis",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_nikki",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_glenda",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_town_hall",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_travis",
+    "name": "Travis Cagle",
+    "pronouns": "he",
+    "role": "night-shift police officer",
+    "factionId": "fac_police",
+    "tags": [
+     "police",
+     "watch"
+    ],
+    "look": "Thick-necked man of twenty-eight in a uniform with the sleeves rolled, a dip of tobacco in his lip and a new watch too nice for his pay.",
+    "voice": "Loud and buddy-buddy, all 'my man' and 'hoss'; talks about his boat, laughs before his own punchlines, and goes quiet the second anyone mentions money.",
+    "personality": [
+     "vain",
+     "jumpy"
+    ],
+    "goal": "Keep taking Wade Purvis's money until his boat is paid off, then get on with the county before anyone looks closely.",
+    "secret": "Wade Purvis pays him three hundred dollars a week to park at the motel during the runs, and he keeps Wade's texts on a second phone in case he ever needs to trade them.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_shayla",
+      "relation": "girlfriend"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_ray",
+    "name": "Ray Dees",
+    "pronouns": "he",
+    "role": "pastor of Riverside Baptist Church",
+    "factionId": null,
+    "tags": [
+     "priest",
+     "pastor",
+     "records"
+    ],
+    "look": "Round-faced man of sixty-five in a short-sleeved white shirt and clip-on tie, with a hearing aid and a pocket full of peppermints.",
+    "voice": "Slow and warm, with a preacher's rhythm even at the gas pump; sometimes answers a hard question with a Bible story, and somehow gets the answer out of you instead.",
+    "personality": [
+     "kind",
+     "nosy"
+    ],
+    "goal": "Keep the Riverbend families housed and fed through the winter, and bury no more young people this year.",
+    "secret": "The church's new roof was paid for by an anonymous cash gift that he knows came from Wade Purvis, and he has preached against the Night Run every Sunday since without giving a dollar of it back.",
+    "attitude": 15,
+    "relations": [
+     {
+      "npcId": "npc_nadine",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "grandson"
+     }
+    ],
+    "home": "loc_parsonage",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_june",
+    "name": "June Satterfield",
+    "pronouns": "she",
+    "role": "retired nurse who patches people up at her kitchen table",
+    "factionId": null,
+    "tags": [
+     "healer",
+     "nurse"
+    ],
+    "look": "Stout woman of sixty in scrub pants and a sweatshirt from a hospital that closed, with her gray hair in a clip and a canvas bag that rattles.",
+    "voice": "Blunt and clinical; asks what you took and how much before she asks your name, swears mildly, and never tells anyone not to worry.",
+    "personality": [
+     "unshockable",
+     "tired"
+    ],
+    "goal": "Keep Riverbend's people out of an emergency room forty miles away, and get the pills off the lot without anyone she knows going to prison.",
+    "secret": "She has reversed four overdoses at Riverbend this fall without reporting one, and three of the four told her they bought from Colt Purvis.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_burl",
+      "relation": "husband"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_dewayne",
+    "name": "Dewayne Mangum",
+    "pronouns": "he",
+    "role": "mechanic in the service bays at Pittman's",
+    "factionId": null,
+    "tags": [
+     "mechanic"
+    ],
+    "look": "Short, broad man of forty with grease worked into every knuckle, safety glasses pushed up on a bald head and a shop rag in his back pocket.",
+    "voice": "Few words, all of them about engines; says 'mm-hm' for yes and 'well' for no, and talks to the truck he's working on more than to you.",
+    "personality": [
+     "careful",
+     "honest"
+    ],
+    "goal": "Save enough to buy the empty garage on Front Street and stop working out of Royce Pittman's bays.",
+    "secret": "On the morning of the bridge inspection he towed the engineer's rental car out of a ditch and watched Carter Sturdivant drive the man off to lunch, though the report says he spent the whole day under the spans.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_royce",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_mangum_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_tyler",
+    "name": "Tyler Rasberry",
+    "pronouns": "he",
+    "role": "night clerk at the Riverview Motor Court",
+    "factionId": null,
+    "tags": [
+     "informant",
+     "clerk"
+    ],
+    "look": "Gangly young man of nineteen with a patchy beard, a gaming headset round his neck and a phone with a cracked screen always in his hand.",
+    "voice": "Mumbles and deflects with internet jokes and never meets your eye, then turns precise the moment cash is on the counter: plates, times, room numbers.",
+    "personality": [
+     "observant",
+     "mercenary"
+    ],
+    "goal": "Save enough cash to leave Lockett's Ferry for good and never work another night shift.",
+    "secret": "The motel's parking-lot camera has caught Carter Sturdivant handing Jolene Overstreet an envelope every month since spring, and Tyler has copied the clips to a thumb drive he is trying to sell.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_brianna",
+      "relation": "cousin"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_tammy",
+    "name": "Tammy Lott",
+    "pronouns": "she",
+    "role": "cook at the Low Water",
+    "factionId": null,
+    "tags": [
+     "cook"
+    ],
+    "look": "Hollow-eyed woman of forty-two in a hairnet and a stained Low Water T-shirt, with her daughter's name tattooed fresh on the inside of her wrist.",
+    "voice": "Hoarse and short; says exactly what she thinks in as few words as possible, swears at the grill, and goes very calm and polite when she is angriest.",
+    "personality": [
+     "grieving",
+     "relentless"
+    ],
+    "goal": "See whoever sold Amber the pills that killed her locked up or run out of town.",
+    "secret": "She took a tire iron to Colt Purvis's truck the week after the funeral, and Wade Purvis paid for the windshield himself and told her the next one would cost her more.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_austin",
+      "relation": "son"
+     }
+    ],
+    "home": "loc_lott_trailer",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_mavis",
+    "name": "Mavis Mangum",
+    "pronouns": "she",
+    "role": "night manager at the Riverview Motor Court",
+    "factionId": null,
+    "tags": [
+     "clerk",
+     "manager"
+    ],
+    "look": "Small, sharp-faced woman of forty-one with dyed black hair scraped into a clip, a motel key ring on a coiled cord around her wrist and an unlit cigarette behind one ear.",
+    "voice": "Clipped and sour; tells you what a thing will cost her before she says yes or no, calls people mister or miss like a complaint, and jingles her keys when she wants you gone.",
+    "personality": [
+     "bitter",
+     "shrewd"
+    ],
+    "goal": "Keep the motor court open and her job with it, which means keeping the old bridge, and talk Dewayne out of the Front Street garage.",
+    "secret": "In the spring she emptied the account Dewayne was saving for the garage to pay off a note Sturdivant Land and Timber held on her late mother's house, and she has been putting it back out of the motel till one cash room at a time.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_dewayne",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_tyler",
+      "relation": "employee"
+     },
+     {
+      "npcId": "npc_brianna",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_mangum_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_darlene",
+    "name": "Darlene Pittman",
+    "pronouns": "she",
+    "role": "Royce's wife, who keeps the books at Pittman's",
+    "factionId": null,
+    "tags": [
+     "bookkeeper"
+    ],
+    "look": "Tall, careful woman in her fifties with a short silver bob, a blouse buttoned to the collar and a pencil she taps against her teeth while she adds.",
+    "voice": "Polite and exact; answers questions about Royce with figures instead of feelings, slips into talking about him in the past tense, and excuses herself to get back to the books.",
+    "personality": [
+     "proud",
+     "watchful"
+    ],
+    "goal": "Keep the station and the house out of Carter Sturdivant's hands, however Royce votes.",
+    "secret": "She has known about Royce and Loretta Gaddis for years and keeps a folder of dates and photographs in the station safe, to use the day Royce tries to sign anything without her.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_royce",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_kaylee",
+      "relation": "daughter"
+     }
+    ],
+    "home": "loc_pittman_place",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_kaylee",
+    "name": "Kaylee Pittman",
+    "pronouns": "she",
+    "role": "Royce's daughter, who works the register after school",
+    "factionId": null,
+    "tags": [
+     "teenager",
+     "cashier"
+    ],
+    "look": "Sixteen-year-old girl with a long brown ponytail, a softball team hoodie and nails painted the green of the station sign.",
+    "voice": "Deadpan; answers in as few words as she can get away with, then says out loud the one thing about you nobody else noticed.",
+    "personality": [
+     "bored",
+     "sharp"
+    ],
+    "goal": "Win a softball scholarship and get out of town before her parents stop pretending.",
+    "secret": "She drives her father's truck up to the water tower at night for signal, and she has seen Travis Cagle's patrol car parked dark behind the motor court every night the boats go across.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_royce",
+      "relation": "father"
+     },
+     {
+      "npcId": "npc_darlene",
+      "relation": "mother"
+     }
+    ],
+    "home": "loc_pittman_place",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_nadine",
+    "name": "Nadine Dees",
+    "pronouns": "she",
+    "role": "church secretary and pianist at Riverside Baptist",
+    "factionId": null,
+    "tags": [
+     "records",
+     "secretary"
+    ],
+    "look": "Plump, bright-eyed woman of sixty-three in a holiday sweater whatever the season, with reading glasses pushed up into her curls.",
+    "voice": "Chirpy and thorough; reads records aloud in full, including the parts you did not ask for, and says bless you when she means go away.",
+    "personality": [
+     "fussy",
+     "kind"
+    ],
+    "goal": "Keep the church records straight and the fellowship hall pantry stocked through the winter.",
+    "secret": "For forty dollars a time she has changed names and dates in the baptism and membership books for people who needed a different past, and the torn-out pages are in a shoebox in the parsonage closet that Ray has never opened.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_ray",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "grandson"
+     }
+    ],
+    "home": "loc_parsonage",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_micah",
+    "name": "Micah Dees",
+    "pronouns": "he",
+    "role": "Ray's grandson, who works the Purvis Landing bait shop",
+    "factionId": null,
+    "tags": [
+     "teenager",
+     "lookout"
+    ],
+    "look": "Lanky seventeen-year-old boy with a grown-out buzz cut, a church camp T-shirt and fish scales dried on his jeans.",
+    "voice": "Says yes ma'am and no sir on reflex, then mumbles the true answer right after, as if he hopes you missed it.",
+    "personality": [
+     "earnest",
+     "restless"
+    ],
+    "goal": "Pay for another month of his mother's treatment program in the city without his grandparents finding out where the money comes from.",
+    "secret": "Wade Purvis pays him fifty dollars a night to sit in the dark bait shop and flash the dock light twice when a patrol car comes down the river road.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_ray",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_nadine",
+      "relation": "grandmother"
+     },
+     {
+      "npcId": "npc_lorna",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_parsonage",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_austin",
+    "name": "Austin Lott",
+    "pronouns": "he",
+    "role": "Tammy's son, Amber Lott's little brother",
+    "factionId": null,
+    "tags": [
+     "teenager"
+    ],
+    "look": "Skinny fifteen-year-old boy in a hand-me-down Army jacket, with a bike he never locks and his sister's name written on his sneakers in marker.",
+    "voice": "Says almost nothing to grown-ups, then asks one question too exact for his age, like what time somebody's truck usually leaves.",
+    "personality": [
+     "watchful",
+     "angry"
+    ],
+    "goal": "Prove that Colt Purvis sold Amber the pills and put the proof in front of someone who will act on it.",
+    "secret": "He has followed Colt on his bike for weeks and knows about the tackle box on the girder under the first span of the old bridge, but he will not tell anyone until he can hand it to the state police himself.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_tammy",
+      "relation": "mother"
+     }
+    ],
+    "home": "loc_lott_trailer",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_odessa",
+    "name": "Odessa Fairley",
+    "pronouns": "she",
+    "role": "housekeeper and companion to Vada Sturdivant",
+    "factionId": null,
+    "tags": [
+     "housekeeper"
+    ],
+    "look": "Tall, gray-haired woman of sixty-six in a starched apron over a church dress, with a small silver cross at her throat and shoes that make no sound.",
+    "voice": "Soft and exact; says Miss Vada says when she means herself, and hums a hymn under her breath when she disapproves of what you just said.",
+    "personality": [
+     "discreet",
+     "stubborn"
+    ],
+    "goal": "Keep Miss Vada in her own house to the end, the way she promised her.",
+    "secret": "Carter has offered her five thousand dollars to tell the city doctor that Vada wanders at night and leaves the stove on, and she has not said no yet, because Sturdivant Land and Timber holds the note on her sister's house.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_vada",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_sturdivant_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_lyman",
+    "name": "Lyman Coker",
+    "pronouns": "he",
+    "role": "night bartender at the Low Water",
+    "factionId": null,
+    "tags": [
+     "bartender"
+    ],
+    "look": "Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube looped over his ears and a ledger of bar tabs in his shirt pocket.",
+    "voice": "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
+    "personality": [
+     "gloomy",
+     "honest"
+    ],
+    "goal": "Keep his regulars paid up and out of trouble, and keep the job long enough to never see the county home.",
+    "secret": "He reads every letter and package anyone leaves with him before he hands it over, and he has steamed open two envelopes Carter Sturdivant left at the bar for Jolene Overstreet.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_curtis",
+      "relation": "friend"
+     }
+    ],
+    "home": "loc_motor_court",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_elbert",
+    "name": "Elbert Gentry",
+    "pronouns": "he",
+    "role": "the oldest man in town, whose granddaddy ran the last ferry",
+    "factionId": null,
+    "tags": [
+     "oldtimer"
+    ],
+    "look": "Bent, bright-eyed man of eighty-eight in suspenders and a cap from the 1982 bass tournament, with a cane carved from a cypress knee.",
+    "voice": "Tells you the year of everything, and corrects other people's stories about the river with the date it really happened and who drowned.",
+    "personality": [
+     "sly",
+     "garrulous"
+    ],
+    "goal": "See the old bridge stand until he is buried, because his granddaddy lost the ferry to it and made his peace.",
+    "secret": "As a boy he rowed whiskey across the river for Vada Sturdivant's father, and the family Bible on his nightstand holds a page of names showing who the Sturdivants paid at the state highway department in 1938.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_pearl",
+      "relation": "sister"
+     },
+     {
+      "npcId": "npc_glenda",
+      "relation": "granddaughter"
+     }
+    ],
+    "home": "loc_gentry_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_pearl",
+    "name": "Pearl Gentry",
+    "pronouns": "she",
+    "role": "columnist for the county weekly",
+    "factionId": null,
+    "tags": [
+     "records",
+     "writer"
+    ],
+    "look": "Tiny woman of seventy-nine in a lavender pantsuit, with a steno pad in her purse and a pencil stuck through her white bun.",
+    "voice": "Talks in newspaper headlines, asks for the spelling of your name before she asks anything else, and writes your answers down whether you like it or not.",
+    "personality": [
+     "nosy",
+     "fair"
+    ],
+    "goal": "Write the true story of the bridge vote before somebody from the city writes a wrong one.",
+    "secret": "She has kept every birth, marriage and death notice the town printed in fifty years, with the ones families paid her to leave out, and one of those is about Carter Sturdivant.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_elbert",
+      "relation": "brother"
+     }
+    ],
+    "home": "loc_gentry_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_glenda",
+    "name": "Glenda Pryor",
+    "pronouns": "she",
+    "role": "police dispatcher and clerk at Town Hall",
+    "factionId": "fac_police",
+    "tags": [
+     "dispatcher",
+     "informant"
+    ],
+    "look": "Broad, freckled woman of forty with a dispatch headset pushed back in her red hair and a cardigan pocket full of pens.",
+    "voice": "Talks in radio shorthand out of habit, ten-four and what is your twenty, and repeats the last thing you said back to you as a question.",
+    "personality": [
+     "curious",
+     "loyal"
+    ],
+    "goal": "Keep her job, and her grandfather's medicine paid for, when the council votes on the police.",
+    "secret": "She tapes every call that comes into the station on a cassette recorder under the desk, including the one that warned Wade Purvis's people the chief was on his way to the ramp.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_elbert",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_gentry_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_nikki",
+    "name": "Nikki Ballard",
+    "pronouns": "she",
+    "role": "day-shift police officer",
+    "factionId": "fac_police",
+    "tags": [
+     "police",
+     "watch"
+    ],
+    "look": "Compact, sunburned woman of thirty-one with a tight braid, a vest one size too big and mirrored sunglasses she takes off to look at you.",
+    "voice": "Brisk and dry; asks for your ID before small talk, answers a joke with the single word noted, and never fills a silence.",
+    "personality": [
+     "disciplined",
+     "ambitious"
+    ],
+    "goal": "Keep a badge when the department dissolves, here or with the county.",
+    "secret": "She has already interviewed with the county sheriff and promised to bring him Chief Bell's case files if the council votes the department out.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_marcus",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_hollis",
+      "relation": "landlord"
+     }
+    ],
+    "home": "loc_byrd_apartment",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_virgil",
+    "name": "Virgil Odom",
+    "pronouns": "he",
+    "role": "retired state bridge inspector who fishes the pier",
+    "factionId": null,
+    "tags": [
+     "inspector",
+     "fisherman"
+    ],
+    "look": "Lean, stooped man of seventy-two in a faded state highway cap, with a rusty tape measure clipped to his belt and a bucket of cut bait.",
+    "voice": "Speaks in load ratings and rust, ends an opinion with that is not my opinion, that is steel, and taps whatever he leans on to listen to it.",
+    "personality": [
+     "precise",
+     "lonely"
+    ],
+    "goal": "Get someone to read his own inspection reports before the state tears down a bridge he says is good for twenty more years.",
+    "secret": "The consulting engineer Carter Sturdivant hired called him the week before the inspection to ask what the bridge would need to fail, and Virgil told him, and has been ashamed of it every day since.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_lamar",
+      "relation": "son-in-law"
+     },
+     {
+      "npcId": "npc_trent",
+      "relation": "grandson"
+     }
+    ],
+    "home": "loc_haskins_farm",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_annette",
+    "name": "Annette Overstreet",
+    "pronouns": "she",
+    "role": "seventh-grade teacher at the county middle school",
+    "factionId": null,
+    "tags": [
+     "teacher"
+    ],
+    "look": "Slight woman of thirty-four with short dark hair, chalk dust on one sleeve and a tote bag of ungraded papers she carries everywhere.",
+    "voice": "Patient and precise; explains things in numbered steps whether you asked or not, and checks with make sense? before she lets you go.",
+    "personality": [
+     "patient",
+     "principled"
+    ],
+    "goal": "Keep Austin Lott and the other Riverbend kids in school through the spring.",
+    "secret": "She is the one who called the state about the bridge after the school bus bounced on the first span, and she has never told anyone in town, least of all Jolene.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_jolene",
+      "relation": "mother"
+     },
+     {
+      "npcId": "npc_gerald",
+      "relation": "father"
+     }
+    ],
+    "home": "loc_overstreet_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_gerald",
+    "name": "Gerald Overstreet",
+    "pronouns": "he",
+    "role": "Jolene's husband, retired from the paper mill",
+    "factionId": null,
+    "tags": [
+     "retired"
+    ],
+    "look": "Big, slow man of sixty-one in house slippers and a mill union jacket, with a police scanner clipped to his belt and turned up loud.",
+    "voice": "Starts half of what he says with scanner says, repeats every call he heard that day, and calls his wife the mayor even at supper.",
+    "personality": [
+     "gossipy",
+     "gentle"
+    ],
+    "goal": "Get Jolene to quit before whatever she is mixed up in comes out.",
+    "secret": "He found Jolene's envelope of cash in the chest freezer last spring, counted it and put it back, and he has written down every date it got fatter.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_jolene",
+      "relation": "wife"
+     },
+     {
+      "npcId": "npc_annette",
+      "relation": "daughter"
+     }
+    ],
+    "home": "loc_overstreet_house",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_lamar",
+    "name": "Lamar Haskins",
+    "pronouns": "he",
+    "role": "farmer and council member who leases Sturdivant land",
+    "factionId": null,
+    "tags": [
+     "farmer",
+     "council"
+    ],
+    "look": "Thick, weathered man of fifty-eight in a seed company cap and mud-caked boots, with a farmer's tan that stops at his sleeves.",
+    "voice": "Slow and careful; talks in acres, bushels and inches of rain, and checks the sky before he answers anything hard.",
+    "personality": [
+     "practical",
+     "worried"
+    ],
+    "goal": "Get the downstream bridge built across the fields he leases, because Carter promised him a buyout that would clear his equipment loans.",
+    "secret": "He has already signed Carter's option papers on the lease, which he had no right to do while Vada is alive, and the check is sitting uncashed in his glove box.",
+    "attitude": 0,
+    "relations": [
+     {
+      "npcId": "npc_trent",
+      "relation": "son"
+     },
+     {
+      "npcId": "npc_virgil",
+      "relation": "father-in-law"
+     },
+     {
+      "npcId": "npc_vada",
+      "relation": "landlady"
+     }
+    ],
+    "home": "loc_haskins_farm",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_trent",
+    "name": "Trent Haskins",
+    "pronouns": "he",
+    "role": "Lamar's son, who drives the farm's grain truck",
+    "factionId": "fac_nightrun",
+    "tags": [
+     "driver",
+     "smuggler"
+    ],
+    "look": "Broad, easygoing man of twenty-four in a sleeveless camo shirt and a feed-store cap turned backward, with a sunburned neck and a cooler always in reach.",
+    "voice": "Easy and friendly; calls everybody cuz, is always halfway out the door on some errand, and laughs off a question with gotta run.",
+    "personality": [
+     "easygoing",
+     "reckless"
+    ],
+    "goal": "Keep his father and his grandfather from finding out what the grain truck carries at night.",
+    "secret": "Twice a week he drives cases of liquor across the old bridge in the grain truck for Wade Purvis, a hundred pounds under the limit, and his own father's bridge vote would put him out of that work.",
+    "attitude": 10,
+    "relations": [
+     {
+      "npcId": "npc_lamar",
+      "relation": "father"
+     },
+     {
+      "npcId": "npc_virgil",
+      "relation": "grandfather"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "friend"
+     }
+    ],
+    "home": "loc_haskins_farm",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_leon",
+    "name": "Leon Varner",
+    "pronouns": "he",
+    "role": "repo man who buys bad debts for a title-loan outfit",
+    "factionId": null,
+    "tags": [
+     "collector",
+     "repo"
+    ],
+    "look": "Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.",
+    "voice": "Polite and slow; calls you friend and works the late fees into every other sentence, the way another man would mention the weather.",
+    "personality": [
+     "patient",
+     "merciless"
+    ],
+    "goal": "Clear his list of overdue accounts in the county before the month is out, with fees.",
+    "secret": "He bought most of the debts on his list for a dime on the dollar from the lender Carter Sturdivant uses, and he would settle any of them for half if somebody pushed.",
+    "attitude": -5,
+    "relations": [],
+    "home": "loc_motor_court",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_curtis",
+    "name": "Curtis Pruett",
+    "pronouns": "he",
+    "role": "insurance man who runs the card game at the Low Water",
+    "factionId": null,
+    "tags": [
+     "bookie",
+     "gambler"
+    ],
+    "look": "Dapper man of fifty-two in a short-sleeved dress shirt and a bolo tie, with a pinky ring and a deck of cards he shuffles one-handed.",
+    "voice": "Puts odds on everything, offers to settle any argument with a bet, and never says a number without saying what it pays.",
+    "personality": [
+     "charming",
+     "calculating"
+    ],
+    "goal": "Win back the house his wife put him out of, one Friday game at a time.",
+    "secret": "He takes bets on the bridge vote from both sides, and Royce Pittman owes him eleven hundred dollars he lost on the game in October.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_lyman",
+      "relation": "friend"
+     }
+    ],
+    "home": "loc_motor_court",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_boyd",
+    "name": "Boyd Teague",
+    "pronouns": "he",
+    "role": "stranger who has had Room 9 at the motor court a week",
+    "factionId": null,
+    "tags": [
+     "enemy",
+     "parolee",
+     "stranger"
+    ],
+    "look": "Big, quiet man of fifty in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.",
+    "voice": "Says very little, all of it polite, and always uses a person's full name, first and last, as if he were reading it off a list.",
+    "personality": [
+     "patient",
+     "vindictive"
+    ],
+    "goal": "Settle an old account with someone in Lockett's Ferry, quietly, and be gone before the law notices him.",
+    "secret": "He is on parole from a prison two states over and left without his parole officer's permission, so one phone call would send him back.",
+    "attitude": -10,
+    "relations": [],
+    "home": "loc_motor_court",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_jodie",
+    "name": "Jodie Strayhorn",
+    "pronouns": "she",
+    "role": "new waitress at the Low Water",
+    "factionId": null,
+    "tags": [
+     "enemy",
+     "waitress",
+     "stranger"
+    ],
+    "look": "Wiry woman of twenty-nine with bleached hair growing out dark, a Low Water apron and a fading bruise she covers with makeup.",
+    "voice": "Quick and bright with the customers, then flat and careful the second anyone asks where she is from, and she changes the subject to the specials.",
+    "personality": [
+     "guarded",
+     "resourceful"
+    ],
+    "goal": "Finish the business that brought her to Lockett's Ferry and leave before anyone learns her real name.",
+    "secret": "Jodie Strayhorn is not her name: she skipped bail in the next state over, and Loretta hired her because nobody at the Low Water has ever run a background check.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_loretta",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_low_water",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_lorna",
+    "name": "Lorna Purvis",
+    "pronouns": "she",
+    "role": "Wade's wife, who runs the bait shop at Purvis Landing",
+    "factionId": null,
+    "tags": [
+     "shopkeeper"
+    ],
+    "look": "Round, cheerful woman of fifty-five in rubber clogs, with a fishing-lure earring in one ear and a tub of crickets on the counter beside her.",
+    "voice": "Bait-shop chatter about what is biting and where, and the moment you ask about Wade, a bright you would have to ask him.",
+    "personality": [
+     "cheerful",
+     "loyal"
+    ],
+    "goal": "Keep the landing, the shop and her husband out of court until they can sell up and go.",
+    "secret": "The man Wade beat half to death for cutting in on the run is alive in a nursing home at the county seat, and she sends his sister money every month out of the bait shop till.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_wade",
+      "relation": "husband"
+     },
+     {
+      "npcId": "npc_colt",
+      "relation": "nephew"
+     },
+     {
+      "npcId": "npc_micah",
+      "relation": "employee"
+     }
+    ],
+    "home": "loc_purvis_landing",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_brianna",
+    "name": "Brianna Tolliver",
+    "pronouns": "she",
+    "role": "housekeeper at the Riverview Motor Court",
+    "factionId": null,
+    "tags": [
+     "maid"
+    ],
+    "look": "Pale, thin young woman of twenty-three in a motel smock, with chipped nail polish and a hospital bracelet she has not cut off.",
+    "voice": "Soft and quick; apologizes before she says anything, sorry, sorry, and says thank you twice for anything at all.",
+    "personality": [
+     "shy",
+     "grateful"
+    ],
+    "goal": "Stay clean, keep the job and save enough for a used car that runs.",
+    "secret": "She is one of the four people June Satterfield brought back from an overdose this fall, and she still owes Colt Purvis forty dollars for the pills.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_mavis",
+      "relation": "boss"
+     },
+     {
+      "npcId": "npc_tyler",
+      "relation": "cousin"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_shayla",
+    "name": "Shayla Rawls",
+    "pronouns": "she",
+    "role": "hairdresser who works out of her trailer at Riverbend",
+    "factionId": null,
+    "tags": [
+     "hairdresser",
+     "informant"
+    ],
+    "look": "Pretty, round-faced woman of twenty-five in a hairdresser's smock, with a vape pen in one hand and two phones in the other.",
+    "voice": "Sweet and sticky; calls you sugar and asks three personal questions for every one you answer.",
+    "personality": [
+     "nosy",
+     "greedy"
+    ],
+    "goal": "Turn what she hears in her chair into enough cash to open a real salon at the county seat.",
+    "secret": "She found Travis's second phone and photographed every text on it, and she is deciding whether to sell the pictures to Chief Bell or to Wade Purvis.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_travis",
+      "relation": "boyfriend"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_dwight",
+    "name": "Dwight Spann",
+    "pronouns": "he",
+    "role": "timber foreman for Sturdivant Land and Timber",
+    "factionId": "fac_sturdivant",
+    "tags": [
+     "foreman"
+    ],
+    "look": "Rangy man of forty-nine in a hi-vis vest over a flannel shirt, with a can of survey paint in his hand and sunflower-seed shells on his boots.",
+    "voice": "Few words and a lot of spat sunflower seeds; never says Carter, only Mr. Sturdivant, and answers anything else with that is above my pay.",
+    "personality": [
+     "dutiful",
+     "hard"
+    ],
+    "goal": "Keep his crew working through the winter by doing whatever Mr. Sturdivant asks.",
+    "secret": "On Carter's orders he moved the survey stakes for the downstream bridge fifty yards onto Vada's land the night before the state crew came.",
+    "attitude": -5,
+    "relations": [
+     {
+      "npcId": "npc_carter",
+      "relation": "boss"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   },
+   {
+    "id": "npc_burl",
+    "name": "Burl Satterfield",
+    "pronouns": "he",
+    "role": "June's husband, who fixes outboard motors",
+    "factionId": null,
+    "tags": [
+     "outboard",
+     "retired"
+    ],
+    "look": "Wide, red-faced man of sixty-six in bib overalls, with a lineman's scarred hands and a bent outboard propeller he files smooth while he talks.",
+    "voice": "Talks too loud after forty years around power lines, says what's that? and then answers what he thought you said.",
+    "personality": [
+     "cheerful",
+     "stubborn"
+    ],
+    "goal": "Keep June from wearing herself out on everybody at Riverbend.",
+    "secret": "He rebuilt the motors on two of Wade Purvis's johnboats this fall for cash and told June the money came from his pension.",
+    "attitude": 5,
+    "relations": [
+     {
+      "npcId": "npc_june",
+      "relation": "wife"
+     }
+    ],
+    "home": "loc_riverbend",
+    "memories": [],
+    "alive": true,
+    "knownToPlayer": false,
+    "status": "free"
+   }
+  ],
+  "offstage": [
+   {
+    "name": "Amber Lott",
+    "about": "Tammy's daughter and Austin's sister, nineteen, who died of an overdose at Riverbend in August"
+   },
+   {
+    "name": "Dale Purvis",
+    "about": "Wade's younger brother and Colt's father, eight years into a sentence at the state penitentiary"
+   },
+   {
+    "name": "the bridge engineer",
+    "about": "the consulting engineer from the city who wrote the report that condemned the old bridge; he does not come back to town"
+   },
+   {
+    "name": "Renee Byrd",
+    "about": "Hollis's daughter, a dental hygienist in the city who has not spoken to him in three years"
+   },
+   {
+    "name": "the chief's sister",
+    "about": "Marcus Bell's sister, a nurse in the city and the only family he has left"
+   },
+   {
+    "name": "Leah Dees",
+    "about": "Ray and Nadine's daughter and Micah's mother, in a treatment program in the city since the summer"
+   },
+   {
+    "name": "Ruth Haskins",
+    "about": "Lamar's wife and Virgil's daughter, who died three winters ago"
+   },
+   {
+    "name": "the motor court's owner",
+    "about": "a man in the city who has not set foot on the lot in two years and runs it by email"
+   },
+   {
+    "name": "Vada's father",
+    "about": "the Sturdivant who ran whiskey across the river and fought the state for the bridge in 1938, long dead"
+   }
+  ],
+  "factions": [
+   {
+    "id": "fac_sturdivant",
+    "name": "Sturdivant Land and Timber",
+    "goal": "Get the old bridge closed and the new state bridge built five miles downstream on Sturdivant bottomland, then sell the state the right-of-way and put a truck stop at the new interchange.",
+    "methods": "Private loans and contracts for deed that can be called in on a week's notice, a mayor paid in cash, a bridge report bought from a consulting engineer, and a lawyer in the city.",
+    "clocks": [
+     {
+      "label": "Buy the swing vote",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Royce Pittman votes with the mayor, the council backs the downstream bridge site three to two, and the state puts the old bridge on its closure list.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "councilBackedDownstream",
+         "value": true
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -15
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_vote_downstream",
+          "text": "The council voted three to two for the downstream bridge, and Royce Pittman was the third vote.",
+          "true": true,
+          "sourceNpcId": "npc_loretta",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Pull the landing lease",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Carter Sturdivant refuses to renew the lease on Purvis Landing, a lawyer's notice goes up on the bait shop door, and Wade Purvis starts putting his boats in off the bank at Riverbend after dark.",
+       "effects": [
+        {
+         "op": "npcMove",
+         "npcId": "npc_wade",
+         "locationId": "loc_riverbend",
+         "phases": [
+          "night"
+         ]
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -20
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_vada_envelope",
+          "cause": "Vada Sturdivant has found out that Carter pulled the Purvis Landing lease, which ends an arrangement with Wade Purvis that she has never told her son about.",
+          "effect": "Vada Sturdivant, white with anger at her son, asks whoever is in front of her to carry a sealed envelope down to Wade Purvis and put it in his hand and nobody else's.",
+          "trigger": {
+           "type": "npc",
+           "value": "npc_vada"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_lease_pulled",
+          "text": "Carter Sturdivant pulled the lease on Purvis Landing, and Wade Purvis is putting his boats in off the bank at Riverbend now.",
+          "true": true,
+          "sourceNpcId": "npc_hollis",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Get the bridge posted closed",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "A state crew sets concrete barriers across both ends of the old bridge, and every trip to the dry county is now forty minutes round by the highway.",
+       "effects": [
+        {
+         "op": "closeLocation",
+         "locationId": "loc_old_bridge"
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 1.15
+        },
+        {
+         "op": "threadStatus",
+         "threadId": "thr_bridge_vote",
+         "status": "failed"
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_bridge_closed",
+          "text": "The state has put concrete barriers across the old bridge, and the drive to the dry county is forty minutes round by the highway now.",
+          "true": true,
+          "sourceNpcId": "npc_royce",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0,
+    "relations": {
+     "fac_police": -30,
+     "fac_nightrun": -50
+    }
+   },
+   {
+    "id": "fac_police",
+    "name": "The Town Police",
+    "goal": "Make an arrest big enough to save the department before the council votes to dissolve it, and prove that the bridge report was bought.",
+    "methods": "Traffic stops at the bridge approach, a motel clerk paid twenty dollars a tip, sitting dark above the boat ramp, and leaning on anyone with an open warrant.",
+    "clocks": [
+     {
+      "label": "Catch a boat at the ramp",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Chief Bell catches Colt Purvis at the foot of the ramp at three in the morning with a johnboat full of cartons and a pocket full of pills, and the Night Run pulls its boats up on the bank.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_colt",
+         "status": "arrested"
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 0.9
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -15
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_colt_caught",
+          "text": "Chief Bell caught Colt Purvis at the ramp with a boat full of cartons and a pocket full of pills.",
+          "true": true,
+          "sourceNpcId": "npc_travis",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Flip the pawnbroker",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Chief Bell arrests Hollis Byrd over a stack of stolen catalytic converters behind the shop, and by morning Hollis is talking about whose cash goes through his books.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_hollis",
+         "status": "arrested"
+        },
+        {
+         "op": "closeLocation",
+         "locationId": "loc_byrds_pawn"
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_hollis_deal",
+          "cause": "Hollis Byrd, in the holding cell, wants to trade what he knows about the Night Run's money before Wade Purvis hears he is talking.",
+          "effect": "From the holding cell, Hollis Byrd calls out to anyone who comes into the station that he will say where the Night Run keeps its cash if they get word to his daughter in the city first.",
+          "trigger": {
+           "type": "location",
+           "value": "loc_town_hall"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_hollis_arrested",
+          "text": "Hollis Byrd is in the holding cell over a stack of stolen catalytic converters, and they say he is talking.",
+          "true": true,
+          "sourceNpcId": "npc_dewayne",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Prove the report was bought",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Chief Bell lays the motel camera footage and the engineer's lunch receipt in front of the council, and the state police take Jolene Overstreet out of Town Hall in handcuffs.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_jolene",
+         "status": "arrested"
+        },
+        {
+         "op": "setFlag",
+         "key": "bridgeReportVoid",
+         "value": true
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_sturdivant",
+         "delta": -30
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_mayor_arrested",
+          "text": "The state police walked Jolene Overstreet out of Town Hall in handcuffs, and it was over the bridge report.",
+          "true": true,
+          "sourceNpcId": "npc_ray",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0,
+    "relations": {
+     "fac_sturdivant": -30,
+     "fac_nightrun": -60
+    }
+   },
+   {
+    "id": "fac_nightrun",
+    "name": "The Night Run",
+    "goal": "Keep the old bridge open and the river unwatched after dark, so cartons and cases keep crossing into the dry county the way they have for sixty years.",
+    "methods": "Johnboats with no running lights, pickups kept under the weight limit, cash to the night-shift officer, and photographs of anyone who votes the wrong way.",
+    "clocks": [
+     {
+      "label": "Buy the night shift",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Travis Cagle stops patrolling after midnight altogether, the boats cross every night, and Wade Purvis is buying every carton and case Pittman's can order.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "riverUnwatched",
+         "value": true
+        },
+        {
+         "op": "priceMultiplier",
+         "factor": 1.1
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -10
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_night_shift_bought",
+          "text": "Nobody patrols after midnight any more, and Wade Purvis is buying every carton and case Pittman's can order.",
+          "true": true,
+          "sourceNpcId": "npc_dewayne",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Turn the swing vote",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "Somebody leaves photographs of Royce Pittman and Loretta Gaddis on the seat of Royce's truck, and the next day he takes back his support for the downstream bridge and asks for a new vote.",
+       "effects": [
+        {
+         "op": "setFlag",
+         "key": "royceWantsRevote",
+         "value": true
+        },
+        {
+         "op": "npcMove",
+         "npcId": "npc_royce",
+         "locationId": "loc_pittmans",
+         "phases": [
+          "afternoon"
+         ]
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_sturdivant",
+         "b": "fac_nightrun",
+         "delta": -20
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_royce_photos",
+          "text": "Somebody left photographs of Royce Pittman and Loretta Gaddis in his truck, and now he wants a new vote on the bridge.",
+          "true": true,
+          "sourceNpcId": "npc_tyler",
+          "heard": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "label": "Get the chief out",
+      "segments": 6,
+      "filled": 0,
+      "onComplete": {
+       "text": "After an anonymous call, the county sheriff finds three cartons and a bottle of pills under the seat of Chief Bell's truck, and the mayor suspends him and he leaves to stay with his sister in the city.",
+       "effects": [
+        {
+         "op": "npcStatus",
+         "npcId": "npc_marcus",
+         "status": "gone"
+        },
+        {
+         "op": "factionRelation",
+         "a": "fac_police",
+         "b": "fac_nightrun",
+         "delta": -30
+        },
+        {
+         "op": "plantSeed",
+         "seed": {
+          "id": "seed_travis_phone",
+          "cause": "Travis Cagle knows the Night Run made the call that ended Chief Bell, and he is afraid of what Wade Purvis will ask of him next.",
+          "effect": "Travis Cagle, acting chief now and sweating through his shirt, asks to talk somewhere private and wants someone outside the department to keep his second phone, the one with Wade Purvis's texts on it.",
+          "trigger": {
+           "type": "npc",
+           "value": "npc_travis"
+          },
+          "fired": false,
+          "hidden": true
+         }
+        },
+        {
+         "op": "addRumour",
+         "rumour": {
+          "id": "rum_chief_suspended",
+          "text": "The county sheriff found cartons and pills under the seat of Chief Bell's truck, and the mayor suspended him the same night.",
+          "true": true,
+          "sourceNpcId": "npc_jolene",
+          "heard": false
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "activeClock": 0,
+    "relations": {
+     "fac_sturdivant": -50,
+     "fac_police": -60
+    }
+   }
+  ],
+  "threads": [
+   {
+    "id": "thr_bridge_vote",
+    "title": "The bridge vote",
+    "summary": "The state has rated the old bridge critical and will pay for one new crossing, either in town or five miles downstream on Sturdivant bottomland. The council votes on the site this month, and Royce Pittman is the one vote nobody can count.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "fac_sturdivant",
+     "fac_nightrun",
+     "npc_carter",
+     "npc_royce",
+     "npc_vada",
+     "loc_old_bridge"
+    ]
+   },
+   {
+    "id": "thr_police_vote",
+    "title": "Disbanding the police",
+    "summary": "Mayor Jolene Overstreet wants to dissolve the three-officer police department and pay the county sheriff to patrol the town instead. Chief Bell has until the budget meeting to show the council what his department is worth.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "fac_police",
+     "fac_sturdivant",
+     "npc_marcus",
+     "npc_jolene",
+     "loc_town_hall"
+    ]
+   },
+   {
+    "id": "thr_riverbend_pills",
+    "title": "Pills at Riverbend",
+    "summary": "Two people at Riverbend have overdosed on pain pills since August, and one of them, nineteen-year-old Amber Lott, died. The chief says the pills come across the river; her mother says everybody knows who sells them.",
+    "status": "open",
+    "knownToPlayer": false,
+    "linkedIds": [
+     "npc_tammy",
+     "npc_colt",
+     "npc_june",
+     "npc_marcus",
+     "loc_riverbend"
+    ]
+   }
+  ],
+  "seeds": [
+   {
+    "id": "seed_big_run",
+    "cause": "Wade Purvis has bought two hundred cartons and forty cases of liquor for the biggest run of the fall, and paid Travis Cagle to sit in the motel lot all night.",
+    "effect": "The Night Run took a full load across the river overnight; Chief Bell is down at Purvis Landing photographing fresh trailer tracks on the ramp, and Wade Purvis is watching him from the bait shop with a cup of coffee.",
+    "trigger": {
+     "type": "day",
+     "value": 3
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_lease_letter",
+    "cause": "Carter Sturdivant has had a lawyer in the city write to Wade Purvis that the Purvis Landing lease will not be renewed at the new year.",
+    "effect": "Wade Purvis read the lawyer's letter out loud at the Low Water last night and told Carter Sturdivant, in front of the whole bar, that the Sturdivants made their money on the same river.",
+    "trigger": {
+     "type": "day",
+     "value": 4
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_council_agenda",
+    "cause": "Jolene Overstreet has put the police budget on the next council agenda without telling Chief Bell.",
+    "effect": "A typed agenda taped to the Town Hall door lists the dissolution of the police department as item four, and Chief Bell has been seen standing in front of it with his notebook out.",
+    "trigger": {
+     "type": "day",
+     "value": 6
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_overdose",
+    "cause": "Colt Purvis has a new bottle of pills from across the river and is selling them at Riverbend for less than before.",
+    "effect": "June Satterfield brought a boy at Riverbend back from an overdose last night with the nasal spray she keeps in her purse and did not call it in; Tammy Lott is telling everyone at the Low Water that the pills were Colt Purvis's.",
+    "trigger": {
+     "type": "day",
+     "value": 7
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_engineer",
+    "cause": "The consulting engineer who wrote the bridge report has been asked to answer questions at the council meeting, and Carter Sturdivant does not want him answering any.",
+    "effect": "The engineer canceled his appearance at the council meeting by email, and Dewayne Mangum told the counter at Pittman's that he towed that man's rental car out of a ditch on the morning of the inspection.",
+    "trigger": {
+     "type": "day",
+     "value": 9
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_vada_doctor",
+    "cause": "Carter Sturdivant has asked a doctor in the city to find his mother unfit, so that he can sign the bottomland over to the state himself.",
+    "effect": "Carter brought a doctor up to Sturdivant House yesterday, and Vada Sturdivant threw them both out and drove herself to Riverside Baptist to ask Pastor Dees to witness a new will.",
+    "trigger": {
+     "type": "day",
+     "value": 11
+    },
+    "fired": false,
+    "hidden": true
+   },
+   {
+    "id": "seed_tackle_box",
+    "cause": "Colt Purvis keeps his pills and his sales phone in a tackle box wedged on a girder under the first span of the old bridge, where his uncle never looks.",
+    "effect": "On a girder ledge under the first span, reachable from the riverbank, is a tackle box holding three pill bottles with a pharmacy label from across the river and a cheap prepaid phone full of texts from Riverbend numbers.",
+    "trigger": {
+     "type": "location",
+     "value": "loc_old_bridge"
+    },
+    "fired": false,
+    "hidden": true
+   }
+  ],
+  "rumours": [
+   {
+    "id": "rum_lunch_inspection",
+    "text": "The engineer who condemned the bridge spent inspection day eating catfish at the Low Water with Carter Sturdivant, not under the spans.",
+    "true": true,
+    "sourceNpcId": "npc_loretta",
+    "heard": false
+   },
+   {
+    "id": "rum_motel_envelope",
+    "text": "The mayor meets Carter Sturdivant in the motel parking lot once a month after dark, and she never goes inside.",
+    "true": true,
+    "sourceNpcId": "npc_tyler",
+    "heard": false
+   },
+   {
+    "id": "rum_travis_boat",
+    "text": "Travis Cagle paid cash for a new bass boat this summer, and nobody buys a boat like that on a night-shift salary.",
+    "true": true,
+    "sourceNpcId": "npc_dewayne",
+    "heard": false
+   },
+   {
+    "id": "rum_colt_pills",
+    "text": "The pills at Riverbend come from Colt Purvis, and his uncle Wade either does not know or does not want to.",
+    "true": true,
+    "sourceNpcId": "npc_tammy",
+    "heard": false
+   },
+   {
+    "id": "rum_royce_note",
+    "text": "Royce Pittman owes the Sturdivants on the station, which is why he still will not say how he will vote.",
+    "true": true,
+    "sourceNpcId": "npc_hollis",
+    "heard": false
+   },
+   {
+    "id": "rum_vada_wont_sign",
+    "text": "Miss Vada will not sign the bottomland over for the new bridge, and Carter cannot sell it without her.",
+    "true": true,
+    "sourceNpcId": "npc_ray",
+    "heard": false
+   },
+   {
+    "id": "rum_police_budget",
+    "text": "The mayor wants to get rid of the police and hand the town to the county sheriff before Christmas.",
+    "true": true,
+    "sourceNpcId": "npc_travis",
+    "heard": false
+   },
+   {
+    "id": "rum_seventh_year",
+    "text": "Something in the deep hole under the old bridge pulls a swimmer down every seven years, and this is the seventh year.",
+    "true": false,
+    "sourceNpcId": "npc_wade",
+    "heard": false
+   },
+   {
+    "id": "rum_loretta_sold",
+    "text": "Loretta Gaddis has already sold the Low Water to the Sturdivants and is only waiting for the bridge to close to tell anyone.",
+    "true": false,
+    "sourceNpcId": "npc_jolene",
+    "heard": false
+   },
+   {
+    "id": "rum_june_license",
+    "text": "June Satterfield lost her nursing license for stealing pills from the hospital, and that is where the Riverbend pills come from.",
+    "true": false,
+    "sourceNpcId": "npc_colt",
+    "heard": false
+   }
+  ]
+ }
+}
