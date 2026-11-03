@@ -148,7 +148,7 @@ s.test('live: the API refusing the grammar (400 "compiled grammar is too large")
   // Changed by design in wave 28 (A3): the full schema is 34 properties, and the core is 11 fields, socialEvents first.
   assert.equal(count(books[0].body.output_config.format.schema), 34);
   assert.deepEqual(Object.keys(books[1].body.output_config.format.schema.properties), ['socialEvents', 'goldDelta', 'hpDelta', 'itemsGained', 'itemsLost', 'playerLocationId', 'npcKnownToPlayer', 'rumoursHeard', 'npcFates', 'obligationsSettled', 'journalEntry']);
-  assert.equal(books[1].body.system, books[0].body.system, 'the same system prompt');
+  assert.deepEqual(books[1].body.system, books[0].body.system, 'the same system prompt (wave 41: a cached block, so compared by value)');
   const r = await page.evaluate(() => ({ gold: Game.state.player.gold, changes: Game.state.log[Game.state.log.length - 1].changes || null, journal: Game.state.journal[Game.state.journal.length - 1].text, api: Game.State.debugLog.filter(d => d.kind === 'api').map(d => d.reason), book: Game.State.debugLog.filter(d => d.kind === 'bookkeeper').map(d => d.reason) }));
   assert.equal(r.gold, gold - 2);
   assert.equal(r.changes, null);
