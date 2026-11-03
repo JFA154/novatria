@@ -1671,6 +1671,52 @@ talking, I can direct it to one person or all."
      bookkeeper's meeting rule also counts "I'll come by in ten minutes" as
      a meeting at the player's place, now. Tests:
      `tests/wave25-arrivals.test.cjs`.
+   - **Wave 26** (1 Nov 2026). The owner: "It will be good to have a side
+     panel with something like 'Objectives' to track what people asked me to
+     do, by when, and details about the objectives (that I know of)." Their
+     chronicle: Carter Sturdivant offered $500 cash for copies of the
+     station's debts from Darlene Pittman's back office before the council
+     vote, and Travis Cagle asked the player to say nothing about his parked
+     cruiser and to report Boyd's questions; none of it was anywhere but the
+     story. Built by one agent. Notes: the "Wave 26" sections of
+     `docs/notes/engine-state.md`, `docs/notes/ui.md` and
+     `docs/notes/prompts.md`; tests: `tests/wave26-objectives.test.cjs`, with
+     `tests/shell.test.cjs` and `tests/mobile.test.cjs` following the fifth
+     tab. The bookkeeper is told (prompt only: `record_changes` is unchanged,
+     41 properties, the same schema) to record a favour or a job asked of the
+     player as one seed: a day trigger with its deadline's day, else an npc
+     trigger with the person who asked; the effect starting with that
+     person's full name and saying what they asked, the reward or the threat
+     and the deadline in words; the bookkeeper's TURN line numbers the week
+     ahead ("DAYS: Day 1 Thursday, ..., Day 8 Thursday."), so "before
+     Tuesday's vote" can be a day. A model seed that is no appointment and
+     names someone in the cast (wave 22's person matcher; alive and not gone)
+     is an ask: `seed.ask = { npcId, dueDay?, reward? }` (the day trigger's
+     day; the words after a semicolon or a dash, else a sum offered, else "or
+     else ..."). Nothing changes in how seeds fire. The side panel's fifth
+     tab, **Objectives** (after Journal, on the laptop and in the phone's tab
+     row), lists from State on every draw: Asked of you (`State.asks()`: who,
+     what, by when, the stakes; "(no longer in town)" for someone dead or
+     gone), Meetings (`State.appointments()`), Owed (open, and missed but
+     still owed, with the day, the status and what is paid), Threads you know
+     of and Loose ends, newest first, each section only when it has
+     something; each entry opens on its details (open by default on a
+     laptop): the whole text, the person, the place, the day and the turn it
+     was asked on with that turn's journal line. Its label counts asks,
+     meetings and owed ("Objectives · 4"). A tab row that does not fit its
+     labels whole steps down (`UI.fitTabs`): widths that follow the labels, a
+     smaller face, "Goals", then "You" for Character, then the smallest face
+     (a 320px phone in the test browser reads "Goals · N"), every tab at
+     least 44px wide. `/recap` adds "Asked of you:" after "Open:" and the
+     People card "Asked you:" under "Meeting you". The demo has someone asked
+     "what do you want from me" in Say mode ask for the outboard part by the
+     day after tomorrow, and its bookkeeper records it. Left open: the
+     one-plan-a-turn cap (`modelSeedsPerTurn`) is shared by asks and
+     meetings, and a game's seeds planted before this wave are not made asks.
+     Wave 26 was built twice in parallel, on main (this Objectives tab) and
+     on the relationship branch (its A1, under direction change 11 below);
+     the two met in one merge (3 Nov 2026), and the relationship waves keep
+     their numbers 26 to 32.
 11. **People who remember** (owner, 1 Nov 2026: "plan a complicated
     relationship system that isn't 2 dimensional, what we have now is very
     basic"). One number, `attitude`, decided more than twenty unrelated

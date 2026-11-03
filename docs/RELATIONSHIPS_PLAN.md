@@ -1,7 +1,8 @@
 # People who remember: the relationship system plan
 
 1 Nov 2026 · a plan being built. **Tiers A and B have landed (waves 26 to
-32); B3 (tuning) waits for a playtest and a passing eval. The live grammar
+32), and the branch is merged with main's Objectives tab (its wave 26, 3 Nov
+2026); B3 (tuning) waits for a playtest and a passing eval. The live grammar
 probe (again, since wave 32 widened the schema's description) and the
 labelled eval are still to run with the owner's key** (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`, and
 `tests/eval-classify.cjs` once `tests/eval/labelled.jsonl` holds labelled

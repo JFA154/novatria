@@ -756,6 +756,52 @@ keeps a meeting the bookkeeper records (`docs/notes/engine-state.md` and
   meeting. The demo's other "find me at ..." answers to a social roll stay
   talk, as before.
 
+## Wave 26 (1 Nov 2026): what people ask of the player
+
+The owner's chronicle had Carter Sturdivant's $500 job and Travis Cagle's
+request only in the story's words; the owner wanted them tracked
+("Objectives"). The engine now keeps an ask the bookkeeper records
+(`docs/notes/engine-state.md` and `docs/notes/ui.md`, Wave 26). Tests:
+`tests/wave26-objectives.test.cjs`.
+
+- **The bookkeeper (prompt only).** `RECORD_RULES` adds, after the meeting
+  rules: a favour or a job someone in the narration asks of the player
+  (something to fetch, find out, deliver, keep quiet about, say or do; an
+  offer with a reward; a warning with a threat) is one seed too: triggerType
+  day with its deadline's day number when it has one ('before the council
+  vote' is the day THREADS or TOWN NEWS give for it; 'by Friday' is that
+  day; DAYS on the TURN line numbers the weekdays), else triggerType npc with that person's id as triggerValue (it comes
+  due when the player next meets them); the effect starts with that person's
+  full name and says what they asked, the reward or the threat, and the
+  deadline in words ('Carter Sturdivant wants copies of the station's debts
+  from Darlene Pittman's back office before the council vote on Day 6; $500
+  cash, and deny knowing him if caught'; 'Travis Cagle asked the player to
+  say nothing about his parked cruiser and to report Boyd Teague's questions
+  to him'); one seed per ask, none for small talk. `record_changes` is
+  unchanged (41 properties, the same schema to the byte, checked by its
+  hash); the ask rides on `newSeeds`' effect, triggerType and triggerValue.
+  Merged with the relationship branch (3 Nov 2026), the schema is that
+  branch's wave 32 one (34 properties, socialEvents in place of
+  memoriesSettled and the rest; Wave 28 below), and the test pins its hash;
+  `RECORD_RULES` keeps the ask sentence and drops memoriesSettled's.
+- **The bookkeeper's packet.** THREADS already says "the council votes on
+  the site at its meeting on Tuesday evening", but nothing gave the
+  bookkeeper a weekday's day number. Its TURN line ends with the week ahead
+  now: "DAYS: Day 1 Thursday, Day 2 Friday, ..., Day 8 Thursday." (today and
+  the seven days after; left out for a game with no calendar).
+- **The narrator** is unchanged: an ask comes due as any seed does (a DUE
+  EVENT on its day, or when the player meets the person).
+- **The mock (demo only).** `mockAsk(c)`: in Say mode, to one person who is
+  here, "what do you want" or "what do you need" (also "what would you
+  want"), with no roll or a roll that succeeded. The demo narration answers
+  with them asking (`mockAskLine`: `Royce Pittman wants the outboard part by
+  Day 3. "Bring it by Saturday and I'll make it worth your while."`, the day
+  after tomorrow) in place of their usual reply, and `mockBookkeep` records
+  one seed when the narration shows that line ("Royce Pittman wants the
+  outboard part from <player> by Day 3 (Saturday); it will be worth
+  <player>'s while.", a day trigger), unless a meeting took the turn's seed.
+  Said to everyone, or other words: nothing asked.
+
 ## Wave 28 (1 Nov 2026): the bookkeeper names the act
 
 Wave A3 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 5, 6 and

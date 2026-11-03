@@ -1723,6 +1723,93 @@ engine side: `docs/notes/engine-world.md`, Wave 20). Tests:
 ### Tests changed by design
 - `tests/wave19-betting-fixes.test.cjs` D9 (`typedBet`'s `after`).
 
+## Wave 26 (1 Nov 2026): the Objectives tab
+
+The owner: "a side panel with something like 'Objectives' to track what
+people asked me to do, by when, and details about the objectives (that I know
+of)". Tests: `tests/wave26-objectives.test.cjs` (the engine's side:
+`docs/notes/engine-state.md`, Wave 26).
+
+### The tab (`PANELS.objectives`, `objSections`, `objectivesOf`)
+- `TABS` is Character, People, Journal, **Objectives**, Places (Debug after,
+  when on); the phone's tab row has the same five (`data-open-tab=
+  "objectives"`) and the ⋯ button.
+- It reads State on every draw, like the other tabs (`renderPanel` from
+  `renderGame`, which App runs on every `State.onChange`: a turn, `/undo`,
+  `/redo`, a load). A grey
+  line first, "What you know of. The story keeps the rest.", then five
+  sections (`section.jr-sec.obj-sec[data-section]`: asks, meetings, owed,
+  threads, loose), each only when it has something, with its count beside
+  the heading, newest first: asks by the seed's turn, meetings by their
+  seed's turn, owed by `createdTurn`, threads and loose ends in reverse order.
+  Nothing at all: "Nothing yet. When someone asks something of you, it shows
+  here."
+  - **Asked of you** (`State.asks()`): the person in bold, the effect after
+    their name up to the reward ("wants copies of the station's debts ...
+    before the council vote on Day 6"; "the player" is "you"), the when line
+    ("by Day 6 (Tuesday) · in 5 days", "· due tomorrow", "· due today",
+    "· overdue" in red; "when you next see Travis Cagle"; "at the Low
+    Water"), "Stakes: ..." when the words give a reward or a threat, and
+    " (no longer in town)" for someone dead or gone.
+  - **Meetings** (`State.appointments()`): "**Jodie Strayhorn** at the Low
+    Water, this morning (back door, half past ten)".
+  - **Owed** (`State.obligations('owed')`): the obligation's words, then
+    "by Day 3 (Saturday) · in 2 days · $150 paid" ("was due Day 3 (Saturday)
+    · missed, still owed" for a missed one still owed; red once the day is
+    past).
+  - **Threads you know of**: open and known, a loose end's thread left to
+    Loose ends; the title in bold and the summary's first sentence.
+  - **Loose ends**: the background's, while their person is in the cast and
+    their thread (if any) is open; the label in bold and the player's words.
+- **Details.** Each entry is a `details.obj-d` whose `summary.obj-sum` (a tap
+  tall) shows the lines above, the text clamped to two lines while shut; it
+  opens on a `dl.kv.obj-more`: In full (the whole effect, obligation or
+  summary), Who (a chip to their People card when the player has one, else
+  their name when the entry's words name them), Where, When (the day and its
+  weekday, or the meeting's phases and hour), Asked or Agreed (the turn it
+  was planted on, `whenTurn`: "Day 1 · Thursday · Morning", then that turn's
+  journal line, else "You: <what the player typed>"), and for a debt What,
+  Amount ("$600, $150 of it paid"), Due and Since. Open by default on a
+  laptop, shut on a phone; one opened or shut by hand stays so through a
+  redraw (`objOpen`, read from the DOM in `renderPanel` before it redraws;
+  memory only). Nothing here can be changed: no field, no button but the
+  person chips.
+- `FOCUS_KEYS` has `objective` (on the `li` and its summary), so a summary
+  that had the focus keeps it through a redraw.
+
+### The label and a narrow tab row (`tabLabel`, `fitRow`, `fitTabs`)
+- The label counts what someone is waiting on the player for, asks,
+  meetings and owed (`objectiveCount`): "Objectives · 4"; plain "Objectives"
+  at none. Threads and loose ends are not counted (the three loose ends would
+  make every new game read "· 3").
+- Both rows (`#panel-tabs`, `.tabbar`) step down until no label is cut and
+  nothing sticks out, measured where they are drawn: `data-fit` 0 equal
+  widths (as before); 1 widths that follow the labels, each at least 44px;
+  2 12px type; 3 "Goals" for Objectives; 4 "You" for Character; 5 11px. A row
+  not on screen (the laptop's collapsed panel, the phone's row while typing)
+  keeps its level and is fitted when it shows (a `ResizeObserver` on both,
+  `fitTabsSoon`). In the test browser: the laptop's panel reads "Objectives ·
+  N" at level 1 and "Goals · N" with Debug on; a 390 phone "Objectives · N";
+  a 320 phone "Goals · N" in both rows. The old phone rule for five tabs
+  (`.panel-tabs[data-count="5"]`, 12px) is gone: the levels do it.
+- `.tabbar button` has `white-space: nowrap; overflow: hidden` now, so a long
+  label is measured as cut rather than wrapped.
+
+### The People card and the recap
+- `personFlags` adds "Asked you: <the ask in short>" (`Pipeline.askShort`
+  with `bare`: without the name and the "asked you to" / "wants": "Asked you:
+  bring her a carton of Winstons, when you next see her") after "Meeting
+  you", one per open ask (`.pcard-flag[data-ask]`).
+- `/recap` adds "Asked of you: ..." after "Open:" when there is an ask, one
+  line, newest first, each the ask's words up to the reward cut at 140
+  characters, with ", <when>" unless the words already name its day
+  ("..., when you next see him"), and " (no longer in town)".
+
+### Tests changed by design
+- `tests/shell.test.cjs`: the laptop's tabs are Character, People, Journal,
+  Objectives, Places, and the phone's sheet is checked on the fifth tab too.
+- `tests/mobile.test.cjs`: the phone walk-through opens the Objectives sheet.
+
 ## Wave 30 (1 Nov 2026): what people show
 
 Wave A5 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's section 16

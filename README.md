@@ -51,8 +51,8 @@ and the town's story reaches an ending by the third week.
    or saying something (see below). Type `/`, or press the **⋯** button beside
    the switch (on a phone, at the end of the tab row above the input, or
    beside the switch while you type), for the commands. The side panel (on a
-   phone, the tab row above the input) has Character, People, Journal and
-   Places. After the first narration of your first game a three-line tip says
+   phone, the tab row above the input) has Character, People, Journal,
+   Objectives and Places. After the first narration of your first game a three-line tip says
    this again; × closes it.
 5. While a turn runs, a line above the input says what is happening
    ("Reading your action…", "Writing…", "Updating the town…") and **Send**
@@ -619,7 +619,9 @@ The Journal tab has five parts:
 
 `/recap` (or Recap in the ⋯ list) prints the gist in the story with no API
 call, under the heading "Where things stand", one line each with its kind in
-bold: where and when, **Here**, **Open** (the threads you know), **Owed** (due
+bold: where and when, **Here**, **Open** (the threads you know), **Asked of
+you** (what people asked of you in the story and when it comes due, one line,
+only when there is something; see Objectives), **Owed** (due
 days, missed ones still owed ("missed Day 7, still owed"), part payments, and
 what people owe you for keeping quiet: "Hollis Byrd: $300 for keeping quiet,
 due Day 4 (1 day)", and favours either way: "Burl Satterfield owes you one",
@@ -638,6 +640,37 @@ also shows after Continue and after `/rest` (there without In town when
 "Overnight in town" is just above it). Once the ending has been told, a second
 line says "The story has reached an ending; you can keep playing.", and the
 recap after `/rest` is just those two lines.
+
+## Objectives
+
+The Objectives tab, after Journal, keeps what you know you have to do, with a
+grey line at the top: "What you know of. The story keeps the rest." Its label
+counts what someone is waiting on you for ("Objectives · 4": things asked of
+you, meetings and what you owe). Where the tab row is too narrow for every
+label whole (a 320-pixel phone, or the laptop's panel with Debug on), the row
+first tightens and then says "Goals" instead (narrower still, "You" for
+Character). Five parts, each only when it has something, newest first:
+
+- **Asked of you**: a favour or a job someone asked of you in the story, as
+  the bookkeeper recorded it: who, what, by when ("by Day 6 (Tuesday) · in 5
+  days", "when you next see Travis Cagle", "at the Low Water") and the reward
+  or threat ("Stakes: $500 cash, and deny knowing him if caught"); "(no longer
+  in town)" when the person has died or left.
+- **Meetings**: a meeting agreed in the story and still to come ("Jodie
+  Strayhorn at the Low Water, this morning (back door, half past ten)").
+- **Owed**: what you owe and have not settled, with its day and how it
+  stands ("by Day 3 (Saturday) · in 2 days · $150 paid"; overdue in red).
+- **Threads you know of**: the open stories you know, title and summary.
+- **Loose ends**: your background's loose ends still open.
+
+Each entry opens (tap or click; on a laptop they start open) on its details:
+the whole text, the person (a button to their People card when you have
+one), the place, the day and, for something asked or agreed, the day and
+phase it was said with that turn's journal line (or your words then). Nothing
+here can be edited: an entry goes when the story settles it (what was asked
+comes due, a debt is paid, a thread resolves), and `/undo` brings it back
+with its turn. The People card says it too, under "Meeting you": "Asked you:
+the outboard part from you by Day 3 (Saturday)".
 
 ## Character
 
@@ -800,6 +833,17 @@ Water and you never came."). Someone arrested, hurt or gone by then keeps no
 meeting, and nothing is said. `/undo` takes a meeting back with its turn;
 `/rewind` strikes one made on a struck turn. In the demo, saying "meet me at
 the Low Water tonight" to someone here has them agree.
+
+**What people ask of you is kept.** When someone in the story asks you for
+something (to fetch, find out, deliver, keep quiet about, say or do
+something; an offer with a reward, a warning with a threat), the bookkeeper
+records it as a plan: due on its deadline's day when there is one ("before
+the council vote" is the day of the vote), else when you next meet the
+person who asked. It goes under **Asked of you** in the Objectives tab, in
+`/recap` and on their People card ("Asked you: …") until it comes due, when
+the story brings it up as it does any plan. In the demo, asking someone here
+"what do you want from me?" in Say mode has them ask for the outboard part by
+the day after tomorrow.
 
 **Someone the story walks in is in the scene.** The narrator is told who is
 here and never invents anyone, but when the story has set it up (someone
@@ -1238,7 +1282,8 @@ dealing, or the bar shut for the day, nothing is bet and no table is dealt.
 **What one turn can do.** The bookkeeper that records each turn is held to
 what a turn can do: $500 gained (what you hand over is held only by what
 you carry, so a payment the story shows counted out goes in full), 3 HP,
-two things gained, one new plan, a
+two things gained, one new plan (a job asked of you, a meeting or another
+later event), a
 condition of three days at most, and nobody dies, is arrested or leaves town
 without a roll against them that succeeded. A thing bought is refused when
 the money for it was. HP never reaches 0 from what it writes unless you
