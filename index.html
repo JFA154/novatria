@@ -13730,6 +13730,8 @@ const State = (() => {
     if (result.applied.length && !quiet) notify();
     return result;
   }
+  /* Wave 41: the one way into the debug log, for every module
+     (State.pushDebug): at most DEBUG_MAX entries, the oldest go first. */
   function pushDebug(entry) {
     debugLog.push(entry);
     if (debugLog.length > DEBUG_MAX) debugLog.splice(0, debugLog.length - DEBUG_MAX);
@@ -14218,9 +14220,20 @@ const State = (() => {
     return b;
   }
   // At most UNDO_MAX steps and about UNDO_BYTES (the oldest go first; the newest is always kept).
+  /* Wave 41: linear. The total is counted once, then each shift takes off
+     the oldest entry's bytes and adds back the town copy of the new oldest
+     when it was shared with the one taken off (stackBytes counts a shared
+     town string once, on the first entry that has it). */
   function capStack(list) {
     if (list.length > UNDO_MAX) list.splice(0, list.length - UNDO_MAX);
-    while (list.length > 1 && stackBytes(list) > UNDO_BYTES) list.shift();
+    let bytes = stackBytes(list);
+    while (list.length > 1 && bytes > UNDO_BYTES) {
+      const gone = list.shift();
+      bytes -= gone.json.length;
+      if (typeof gone.town === 'string') bytes -= gone.town.length;
+      const first = list[0];
+      if (typeof first.town === 'string' && first.town === gone.town) bytes += first.town.length;
+    }
   }
   // An entry back as the game (and its town copy).
   function useEntry(e) {
@@ -14442,12 +14455,15 @@ const State = (() => {
     undoDepth: () => undo.length,
     // Wave 16: several steps at once, /redo, and the stack kept in storage.
     UNDO_MAX, UNDO_BYTES, undoSteps, redoSteps, undoRecord, resumeUndo,
+    // Wave 41: capStack and stackBytes for tests (capStack works on the list it is given).
+    capStack, stackBytes,
     redoDepth: () => redo.length,
     undoBytes: () => stackBytes(undo),
     get undoGen() { return stackGen; },
     onUndo(fn) { undoListeners.push(fn); },
     onChange(fn) { listeners.push(fn); },
-    debugLog,
+    // Wave 41: pushDebug is how every module writes to debugLog (capped at DEBUG_MAX); never debugLog.push.
+    debugLog, pushDebug, DEBUG_MAX,
     npc, loc, faction, thread, threadNow, seed, rumour, entityById, npcsAt, reputationTier, attitudeWord,
     // Wave 28: the engine's events this turn ([{ npcId, event }], the bookkeeper's packet reads them).
     turnEvents() { syncLedger(); return (ledger.events || []).map(x => Object.assign({}, x)); },
@@ -21230,14 +21246,24 @@ const Style = (() => {
    transient failure is tried once more: HTTP 429/500/502/503/504/529, a
    network error, a timeout, a stream that ends before message_stop or
    carries an overloaded_error/api_error event, a body that is not JSON;
-   the wait is the retry-after header (at most 10 s) or 1.5 s. A reply cut
+   the wait is the retry-after header (at most 60 s since wave 41) or 1.5 s. A reply cut
    off by max_tokens is asked for once more with twice the limit, then
    fails: a truncated reply is never returned as finished. The narrator's
    max_tokens follows its effort (low 2000, medium 3000, high 6000). The
    narrator's three system blocks are cached for an hour (ttl 1h), so a
    cache write is priced at 2x input; prewarm() writes the cache in
    parallel with the parser when the last narration was over 50 minutes
-   ago. Usage from every attempt is counted, a retried one too. */
+   ago. Usage from every attempt is counted, a retried one too.
+   Wave 41: retry-after is honoured up to 60 s and counted down in the
+   status line (onWait; Stop ends the wait); an overloaded API (529, 503, a
+   mid-stream overloaded_error) gets two retries with a little jitter,
+   everything else one. A 404 that names the model asks GET /v1/models for
+   a current one of the same family and names it. A model with no price is
+   said to be uncounted (priceNote). A malformed SSE data line is logged,
+   and one that lost part of the reply makes the stream cut short. The
+   parser's and the bookkeeper's system prompts are cached too, and the
+   session's cache reads and writes are kept by role (usage.cache,
+   cacheLine). Every module writes the debug log through State.pushDebug. */
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const MODELS_ENDPOINT = 'https://api.anthropic.com/v1/models';
@@ -21246,8 +21272,16 @@ const Api = (() => {
   const NARRATOR_MAX_TOKENS = Object.freeze({ low: 2000, medium: 3000, high: 6000 }); // the narrator thinks more at a higher effort
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
-  const RETRY_AFTER_MAX_MS = 10000;
+  // Wave 41: retry-after is honoured up to a minute (it was 10 s, so a 429 asking for 30 s came back too early and failed the turn).
+  const RETRY_AFTER_MAX_MS = 60000;
   const RETRY_STATUSES = [429, 500, 502, 503, 504, 529];
+  /* Wave 41: an overloaded API (529, a 503, a mid-stream overloaded_error)
+     gets two retries, everything else one. RETRY.jitter: up to this many ms
+     added to an overloaded retry's wait, so many tabs do not come back at
+     once. RETRY.scale: tests shorten every retry wait by this factor (the
+     countdown still reads in the API's seconds). */
+  const RETRY_LIMITS = Object.freeze({ overloaded_error: 2 });
+  const RETRY = { jitter: 400, scale: 1 };
   /* Idle timeouts in ms: a stream gives up after this long with no byte (reset
      by every byte), a JSON call after this long in all; key: Settings' key
      check. Mutable for tests. */
@@ -21598,13 +21632,36 @@ const Api = (() => {
     if (err instanceof ApiError) return err;
     return new ApiError('network', FRIENDLY.network, { retryable: true, detail: String((err && err.message) || err) });
   }
-  /* A retry's wait; Stop cuts it short with ApiError 'aborted'. */
-  function pause(ms, gen) {
+  /* A retry's wait; Stop cuts it short with ApiError 'aborted'. Wave 41:
+     the listeners (onWait: the Pipeline's status line) hear { role,
+     seconds } as each second of it passes ("Busy; trying again in 23 s"),
+     then null when it is over, however it ends. RETRY.scale shortens the
+     real wait for tests; the seconds stay the API's. */
+  const waitFns = new Set();
+  function tellWait(ev) { for (const fn of Array.from(waitFns)) { try { fn(ev); } catch (e) { console.error(e); } } }
+  function pause(ms, gen, role) {
+    const scale = Number.isFinite(RETRY.scale) && RETRY.scale > 0 ? RETRY.scale : 1;
+    const sec = 1000 * scale;
+    const end = Date.now() + ms * scale;
     return new Promise((resolve, reject) => {
       let t = null;
-      const done = () => { clearTimeout(t); wakers.delete(done); if (gen !== abortGen) reject(abortedError()); else resolve(); };
-      t = setTimeout(done, ms);
+      let over = false;
+      const done = () => {
+        if (over) return;
+        over = true;
+        clearTimeout(t); wakers.delete(done);
+        if (role) tellWait(null);
+        if (gen !== abortGen) reject(abortedError()); else resolve();
+      };
+      const step = () => {
+        const left = end - Date.now();
+        if (left <= 0) return done();
+        if (role) tellWait({ role, seconds: Math.ceil(left / sec) });
+        // Wake when the seconds shown change (or at the end).
+        t = setTimeout(step, Math.max(1, ((left - 1) % sec) + 1));
+      };
       wakers.add(done);
+      step();
     });
   }
   function abort() {
@@ -21615,8 +21672,12 @@ const Api = (() => {
   }
 
   // ----- usage and the debug ring -----
-  function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cacheWrite1h: 0, cost: 0, priced: true, calls: 0 }; }
-  const usage = { turn: blankUsage(), session: blankUsage() };
+  /* Wave 41: unpriced lists the models that spent tokens with no entry in
+     PRICES (their cost is not counted: priceNote says so); usage.cache is
+     the session's cache reads and writes by role (the narrator's three
+     blocks, and the parser's and bookkeeper's system prompts). */
+  function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cacheWrite1h: 0, cost: 0, priced: true, calls: 0, unpriced: [] }; }
+  const usage = { turn: blankUsage(), session: blankUsage(), cache: {} };
   const responses = [];
   /* Cache writes by TTL: usage.cache_creation.ephemeral_1h_input_tokens and
      ephemeral_5m_input_tokens when the API breaks them down; otherwise the
@@ -21659,6 +21720,7 @@ const Api = (() => {
     const messages = Array.isArray(opts.messages) && opts.messages.length ? opts.messages.map(m => ({ role: m.role, content: String(m.content || '') })) : [{ role: 'user', content: String(opts.user || '') }];
     const body = { model: roleModel(role), max_tokens: max, messages };
     // The narrator's system prompt is cached for an hour: the style block, then any further blocks (the town, the cast), each its own cache breakpoint.
+    // Wave 41: the parser's and the bookkeeper's too (opts.cache with no blocks: their one system block).
     if (opts.system) body.system = opts.cache ? [opts.system].concat(Array.isArray(opts.blocks) ? opts.blocks.filter(b => typeof b === 'string' && b) : []).map(text => ({ type: 'text', text, cache_control: Object.assign({}, CACHE_CONTROL) })) : opts.system;
     body.output_config = { effort: roleEffort(role) };
     if (opts.schema) body.output_config.format = { type: 'json_schema', schema: opts.schema };
@@ -21681,15 +21743,36 @@ const Api = (() => {
     const h1 = u.cacheWrite1h !== undefined ? u.cacheWrite1h | 0 : Math.max(0, (u.cacheCreation | 0) - m5);
     return (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + m5 * p.input * 1.25 + h1 * p.input * 2) / 1e6;
   }
-  function record(model, raw) {
+  function record(model, raw, role) {
     const w = cacheWrites(raw);
     const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: w.all, cacheWrite1h: w.h1, cacheWrite5m: w.m5 };
     const spent = u.input + u.output + u.cacheRead + u.cacheCreation > 0;
     const c = costOf(model, u);
     for (const b of [usage.turn, usage.session]) {
       b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.cacheWrite1h = (b.cacheWrite1h | 0) + u.cacheWrite1h; b.calls += 1;
-      if (c === null) { if (spent) b.priced = false; } else b.cost += c;
+      if (c === null) {
+        if (spent) { b.priced = false; if (!Array.isArray(b.unpriced)) b.unpriced = []; if (!b.unpriced.includes(String(model))) b.unpriced.push(String(model)); }
+      } else b.cost += c;
     }
+    if (role && (u.cacheRead || u.cacheCreation)) {
+      const k = role === 'prewarm' ? 'narrator' : role;
+      const r = usage.cache[k] || (usage.cache[k] = { read: 0, write: 0 });
+      r.read += u.cacheRead; r.write += u.cacheCreation;
+    }
+  }
+  /* Wave 41: "no price known for claude-mystery-9: cost not counted", or ''
+     when every model that spent tokens has a price (b: usage.turn or
+     usage.session; the session by default). */
+  function priceNote(b) {
+    const x = b || usage.session;
+    const list = x && Array.isArray(x.unpriced) ? x.unpriced : [];
+    return list.length ? `no price known for ${list.join(', ')}: cost not counted` : '';
+  }
+  /* Wave 41: the session's cache reads and writes by role, one line
+     ("narrator read 700, write 700; parser read 1100, write 0"), or ''. */
+  function cacheLine() {
+    return ['narrator', 'parser', 'bookkeeper', 'chronicle'].concat(Object.keys(usage.cache).filter(k => !['narrator', 'parser', 'bookkeeper', 'chronicle'].includes(k)))
+      .filter(k => usage.cache[k]).map(k => `${k} read ${usage.cache[k].read}, write ${usage.cache[k].write}`).join('; ');
   }
   function remember(entry) {
     responses.push(Object.assign({ at: new Date().toISOString() }, deepCopy(entry)));
@@ -21704,7 +21787,7 @@ const Api = (() => {
       stopReason: info.stopReason || null, usage: info.usage || null, maxTokens: info.maxTokens || null,
       error: err ? { type: err.type, message: err.detail || err.message } : null, data: info.data === undefined ? null : info.data
     });
-    if (err) State.debugLog.push({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role, status: info.status || null, requestId: info.requestId || null, reason: `${err.type}: ${err.detail || err.message}` });
+    if (err) State.pushDebug({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role, status: info.status || null, requestId: info.requestId || null, reason: `${err.type}: ${err.detail || err.message}${info.note || ''}` });
   }
   function refusalOf(details) {
     const d = isObj(details) ? details : {};
@@ -23244,15 +23327,71 @@ const Api = (() => {
     throw err;
   }
   /* After a failed try: log it, then either throw (not retryable, Stop, or
-     the one retry already spent) or wait (retry-after, else 1.5 s) and let
-     the caller try again. tries.transient counts the retries spent. */
+     the retries already spent) or wait (retry-after, else 1.5 s) and let
+     the caller try again. tries.transient counts the retries spent.
+     Wave 41: two retries for an overloaded API (RETRY_LIMITS), the second
+     wait twice the first and both with a little jitter; retry-after up to
+     60 s, counted down in the status line (pause), and Stop ends the wait.
+     The debug entry of an HTTP failure that is retried says what the wait
+     was based on: the retry-after header, or the fixed wait when the page
+     could not read one (a browser reads it across origins only when the
+     API lists it in access-control-expose-headers). A 404 that names the
+     model asks GET /v1/models for a current one of the same family
+     (suggestModel). */
+  function retriesFor(err) { return RETRY_LIMITS[err && err.type] || 1; }
+  function retryWait(err, tries) {
+    if (err.type === 'bad_response' || err.type === 'broken_stream') return 0;
+    const after = Number.isFinite(err.retryAfterMs);
+    const base = after ? err.retryAfterMs : RETRY_DELAY_MS * (tries.transient + 1);
+    return base + (err.type === 'overloaded_error' ? Math.round(Math.random() * RETRY.jitter) : 0);
+  }
   async function failedTry(role, err, info, tries, gen) {
-    logCall(role, Object.assign({ error: err, data: err.logData }, info));
+    const again = err.type !== 'aborted' && gen === abortGen && !!err.retryable && tries.transient < retriesFor(err);
+    const wait = again ? retryWait(err, tries) : 0;
+    let note = '';
+    if (again && err.status && err.type !== 'bad_response') {
+      note = Number.isFinite(err.retryAfterMs) ? `; retry-after ${Math.round(err.retryAfterMs / 100) / 10} s, trying again` : `; no retry-after header the page could read, so the fixed ${Math.round(wait / 100) / 10} s wait, trying again`;
+    }
+    logCall(role, Object.assign({ error: err, data: err.logData, note }, info));
+    if (err.type === 'not_found_error' && gen === abortGen) await suggestModel(role, err);
     if (err.type === 'aborted' || gen !== abortGen) throw err.type === 'aborted' ? err : abortedError();
-    if (!err.retryable || tries.transient >= 1) throw err;
+    if (!again) throw err;
     tries.transient += 1;
-    if (err.type !== 'bad_response' && err.type !== 'broken_stream') await pause(Number.isFinite(err.retryAfterMs) ? err.retryAfterMs : RETRY_DELAY_MS, gen);
+    if (wait > 0) await pause(wait, gen, role);
     else if (gen !== abortGen) throw abortedError();
+  }
+  /* Wave 41: a 404 for a model the API does not know (a retired one): the
+     same GET /v1/models Check key makes (same headers, the key timeout),
+     and a current model of the same family (opus, sonnet, haiku) named in
+     the message and the debug view. When the list call fails or has no such
+     model, the message stays as it was. */
+  const FAMILY_RE = /\b(opus|sonnet|haiku)\b/i;
+  function modelFamily(id) { const m = FAMILY_RE.exec(String(id || '').replace(/-/g, ' ')); return m ? m[1].toLowerCase() : null; }
+  // GET /v1/models: one request for Check key and the retired-model check alike.
+  function getModels(key, w) { return fetch(MODELS_ENDPOINT, { method: 'GET', headers: headers(key), signal: w.signal }); }
+  async function listModels() {
+    const key = Storage.getApiKey();
+    if (!validKey(key)) return null;
+    const w = watch(TIMEOUTS.key);
+    try {
+      const res = await getModels(key, w);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data && data.data) ? data.data.map(m => m && typeof m.id === 'string' ? m.id : null).filter(Boolean) : null;
+    } catch (e) { return null; } finally { w.stop(); }
+  }
+  async function suggestModel(role, err) {
+    const model = String(err.model || '');
+    const detail = String(err.detail || '');
+    if (!model || !(detail.includes(model) || /\bmodel\b/i.test(detail))) return null;
+    const fam = modelFamily(model);
+    const ids = fam ? await listModels() : null;
+    const pick = ids ? ids.find(id => id !== model && modelFamily(id) === fam && !/-20\d{6}$/.test(id)) || ids.find(id => id !== model && modelFamily(id) === fam) : null;
+    if (!pick) return null;
+    err.suggestedModel = pick;
+    err.message = `The API does not know the model ${model} (it may have been retired). Try ${pick} in Settings.`;
+    State.pushDebug({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role, status: err.status || 404, requestId: err.requestId || null, reason: `not_found_error: ${model} is not a model the API knows; GET /v1/models lists ${pick} (the same family), named in the message` });
+    return pick;
   }
   function textOf(data) {
     const block = Array.isArray(data && data.content) ? data.content.find(b => b && b.type === 'text') : null;
@@ -23267,7 +23406,7 @@ const Api = (() => {
     const gen = abortGen;
     let maxTokens = MAX_TOKENS[role];
     for (let attempt = 1; ; attempt++) {
-      const body = requestBody(role, { system: opts.system, user: opts.user, schema: opts.schema, maxTokens });
+      const body = requestBody(role, { system: opts.system, user: opts.user, schema: opts.schema, maxTokens, cache: !!opts.cache });
       const fail = (type, extra) => new ApiError(type, FRIENDLY[type], Object.assign({ usage: total, model: body.model, retryable: false }, extra));
       const w = watch(TIMEOUTS.json);
       let res = null;
@@ -23310,16 +23449,31 @@ const Api = (() => {
      kicks the watch w (the idle timeout). A stream must end with
      message_stop: one that closes before it is broken (ApiError
      broken_stream, retryable). An error event throws; overloaded_error and
-     api_error are retryable. */
-  async function readStream(res, onDelta, w) {
-    const out = { text: '', stopReason: null, stopDetails: null, usage: {}, model: null, events: 0, complete: false };
+     api_error are retryable.
+     Wave 41: a data line that is not JSON is logged (role, the line cut to
+     200 characters, how many so far: out.malformed). When it was a text
+     delta or a JSON fragment (part of the reply may be gone), the stream
+     counts as cut short (broken_stream, retried once) even if
+     message_stop came. */
+  async function readStream(res, onDelta, w, role) {
+    const out = { text: '', stopReason: null, stopDetails: null, usage: {}, model: null, events: 0, complete: false, malformed: 0, lost: false };
     const blocks = {};
     const handle = block => {
       let data = '';
-      for (const line of block.split(/\r?\n/)) if (line.startsWith('data:')) data += line.slice(5).replace(/^ /, '');
+      let name = '';
+      for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith('data:')) data += line.slice(5).replace(/^ /, '');
+        else if (line.startsWith('event:')) name = line.slice(6).trim();
+      }
       if (!data || data === '[DONE]') return;
       let ev;
-      try { ev = JSON.parse(data); } catch (e) { return; }
+      try { ev = JSON.parse(data); } catch (e) {
+        out.malformed += 1;
+        const lost = name === 'content_block_delta' || /text_delta/.test(data) || /^\s*[{[]/.test(data);
+        if (lost) out.lost = true;
+        State.pushDebug({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role: role || 'narrator', status: null, requestId: null, reason: `malformed SSE data line ${out.malformed}${lost ? ' (part of the reply lost: the stream counts as cut short)' : ''}: ${data.slice(0, 200)}` });
+        return;
+      }
       out.events += 1;
       switch (ev.type) {
         case 'message_start':
@@ -23377,6 +23531,9 @@ const Api = (() => {
     if (!out.complete && out.stopReason !== 'refusal') {
       throw new ApiError('broken_stream', FRIENDLY.broken_stream, { retryable: true, detail: `the stream ended before message_stop${out.stopReason ? ` (stop_reason ${out.stopReason})` : ''}`, usage: out.usage, partial: out.text });
     }
+    if (out.lost && out.stopReason !== 'refusal') {
+      throw new ApiError('broken_stream', FRIENDLY.broken_stream, { retryable: true, detail: `${out.malformed} malformed SSE data line${out.malformed === 1 ? '' : 's'}: part of the reply was lost`, usage: out.usage, partial: out.text });
+    }
     return out;
   }
   function chronicleText(entries) {
@@ -23402,15 +23559,19 @@ const Api = (() => {
   let lastNarratorAt = null; // when the narrator cache was last written or read (ms), for prewarm()
   const Real = {
     name: 'claude',
-    parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
+    /* Wave 41: the parser's and the bookkeeper's system prompts (static, the
+       rubric in them; the packet is the user message) are one cached block
+       each, with the narrator's cache_control. Below the API's minimum
+       prefix nothing is cached and nothing else changes. */
+    parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action, cache: true }); },
     async bookkeep(packet) {
       const user = packet.text || JSON.stringify(packet);
       let r;
-      try { r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes }); } catch (err) {
+      try { r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes, cache: true }); } catch (err) {
         if (!grammarRefused(err)) throw err;
         // The API refused the full record as too large a grammar: once more with the essentials, so the turn is still recorded.
-        State.debugLog.push({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role: 'bookkeeper', status: err.status || 400, requestId: err.requestId || null, reason: 'the API refused the record_changes grammar as too large; asking again with the core fields only' });
-        r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes_core });
+        State.pushDebug({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role: 'bookkeeper', status: err.status || 400, requestId: err.requestId || null, reason: 'the API refused the record_changes grammar as too large; asking again with the core fields only' });
+        r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes_core, cache: true });
       }
       if (r && isObj(r.result)) r.result = recordFromWire(r.result);
       return r;
@@ -23449,13 +23610,13 @@ const Api = (() => {
             }
             out = { text: textOf(data), stopReason: data.stop_reason || null, stopDetails: data.stop_details || null, usage: data.usage || {}, model: data.model || null, events: 0, complete: true };
             if (onDelta && out.text) onDelta(out.text, out.text);
-          } else out = await readStream(res, onDelta, w);
+          } else out = await readStream(res, onDelta, w, 'narrator');
         } catch (err) {
           w.stop();
           const e = transportError(err, w);
           if (isObj(e.usage) && e.usage !== total) addRaw(total, e.usage);
           Object.assign(e, { usage: total, model: body.model, requestId: e.requestId || requestId });
-          if (e.retryable && tries.transient < 1) reset();
+          if (e.retryable && tries.transient < retriesFor(e)) reset();
           await failedTry('narrator', e, { attempt, status: e.status || (res && res.status) || null, requestId: e.requestId, maxTokens }, tries, gen);
           continue;
         }
@@ -23493,7 +23654,7 @@ const Api = (() => {
         ({ res, requestId } = await send('narrator', body, w));
         const data = await res.json();
         w.stop();
-        if (isObj(data.usage)) record(body.model, data.usage);
+        if (isObj(data.usage)) record(body.model, data.usage, 'prewarm');
         logCall('prewarm', { status: res.status, requestId, stopReason: data.stop_reason, usage: data.usage, maxTokens: 1, data: { text: textOf(data).slice(0, 200) } });
       } catch (err) {
         w.stop();
@@ -23511,7 +23672,7 @@ const Api = (() => {
     if (!validKey(key)) return { ok: false, status: null, message: FRIENDLY.bad_key };
     const w = watch(TIMEOUTS.key);
     try {
-      const res = await fetch(MODELS_ENDPOINT, { method: 'GET', headers: headers(key), signal: w.signal });
+      const res = await getModels(key, w);
       if (res.ok) return { ok: true, status: res.status, message: 'The key works.' };
       let payload = null;
       try { payload = await res.json(); } catch (e) { /* not JSON */ }
@@ -23537,16 +23698,19 @@ const Api = (() => {
     try {
       out = await Promise.race([p[method].apply(p, args), stopped]);
     } catch (err) {
-      if (err && err.usage && err.type !== 'aborted') record(err.model || roleModel(role), err.usage);
+      if (err && err.usage && err.type !== 'aborted') record(err.model || roleModel(role), err.usage, role);
       throw err;
     } finally { wakers.delete(cancel); }
-    if (out && out.usage) record(out.model || roleModel(role), out.usage);
+    if (out && out.usage) record(out.model || roleModel(role), out.usage, role);
     if (!out.logged) remember({ role, provider: p.name, data: out.refusal ? { refusal: out.refusal } : out.result });
     if (out.refusal) return { refused: true, role, category: out.refusal.category, explanation: out.refusal.explanation };
     return out.result;
   }
   return {
     ENDPOINT, MODELS_ENDPOINT, API_VERSION, MAX_TOKENS, NARRATOR_MAX_TOKENS, PRICES, RETRY_DELAY_MS, RETRY_AFTER_MAX_MS, RETRY_STATUSES, TIMEOUTS, CACHE_CONTROL, PREWARM_AFTER_MS, KEY_RE,
+    // Wave 41: retry limits and the test-shortened waits, the wait countdown, the price note, the cache by role, the model family.
+    RETRY, RETRY_LIMITS, priceNote, cacheLine, modelFamily,
+    onWait(fn) { if (typeof fn !== 'function') return () => {}; waitFns.add(fn); return () => waitFns.delete(fn); },
     SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, RECORD_RULES, PARSE_TYPES, RECORD_CORE_FIELDS, recordFromWire, grammarRefused,
     // Wave 28: the bookkeeper's events on the wire, its rubric, and the romance phrase lists (the mock parser's and the minor rule's).
     EVENT_RULES, MEMORY_WORDS, RECORD_EMPTY, socialFromWire, MOCK_ROMANCE, MOCK_MORE, MINOR_ROMANCE_PHRASES, minorPhraseHit,
@@ -23725,7 +23889,7 @@ const Upgrade = (() => {
     const due = known().filter(m => m.version > v);
     return due.length ? due : known().filter(m => m.rerun);
   }
-  function note(st, reason) { State.debugLog.push({ turn: st ? st.meta.turn : 0, kind: 'upgrade', reason }); }
+  function note(st, reason) { State.pushDebug({ turn: st ? st.meta.turn : 0, kind: 'upgrade', reason }); }
   const open = n => (n.memories || []).filter(m => !isProtected(m));
   /* A line that already follows the rules: short (SHORT_WORDS words, the
      bookkeeper's limit) and no longer than a memory may be. */
@@ -24840,10 +25004,31 @@ const Pipeline = (() => {
   const idleWaiters = [];
   /* Test and debug hook: force the next d20 (e.g. 20 for a critical). */
   const hooks = { nextD20: null };
+  let shownStage = 'idle'; // the last stage told to the status line (a retry's countdown comes back to it)
   function status(stage, message) {
+    shownStage = stage;
     if (typeof statusFn !== 'function') return;
     try { statusFn({ stage, message: message === undefined ? (STATUS_TEXT[stage] || '') : message }); } catch (e) { console.error(e); }
   }
+  /* Wave 41: while a call waits to try again (a 429 with retry-after, an
+     overloaded API), the status line counts it down ("Busy; trying again in
+     23 s", stage 'retry'), then goes back to the stage it showed. Stop
+     ends the wait like any other cancel. Nothing is shown when no turn
+     runs (a background bookkeeper retry). */
+  const retryText = secs => `Busy; trying again in ${secs} s`;
+  let retryShown = false;
+  Api.onWait(ev => {
+    if (typeof statusFn !== 'function') return;
+    if (ev && Number.isFinite(ev.seconds)) {
+      if (shownStage === 'idle' || (!busy && !acceptsQueue)) return;
+      retryShown = true;
+      try { statusFn({ stage: 'retry', message: retryText(ev.seconds), role: ev.role, seconds: ev.seconds }); } catch (e) { console.error(e); }
+    } else if (retryShown) {
+      retryShown = false;
+      const back = shownStage;
+      try { statusFn({ stage: back, message: STATUS_TEXT[back] || '' }); } catch (e) { console.error(e); }
+    }
+  });
   /* Resolves when no turn is running (at once if none is). */
   function whenIdle() { return busy ? new Promise(resolve => idleWaiters.push(resolve)) : Promise.resolve(); }
   /* A tab that lost the game to another tab (Storage.readOnly) plays
@@ -25128,7 +25313,7 @@ const Pipeline = (() => {
     const held = s.player.inventory.find(i => i.qty > 0 && carriedAs(i.name, a.missingItem));
     if (held) { if (!a.usesItemId) a.usesItemId = held.id; return null; }
     if ((here().items || []).some(i => carriedAs(i.name, a.missingItem))) return null;
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'missingItem', item: a.missingItem, reason: `the player has no ${a.missingItem}: the narrator and the bookkeeper were told it is not carried` });
+    State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'missingItem', item: a.missingItem, reason: `the player has no ${a.missingItem}: the narrator and the bookkeeper were told it is not carried` });
     return { name: a.missingItem };
   }
   const CANNOT = [[/\b(knife|blade|switchblade|pocketknife|machete|razor)\b/i, 'they cannot stab or cut anyone'], [/\b(gun|pistol|rifle|shotgun|revolver|handgun)\b/i, 'they cannot shoot anyone'], [/\b(car|truck|pickup|van)\b/i, 'they cannot drive anywhere, and if they go somewhere they go on foot'], [/\bkeys?\b/i, 'they cannot unlock anything with one']];
@@ -25192,7 +25377,7 @@ const Pipeline = (() => {
     for (const id of strArr(r.aboutIds, 120).filter((x, i, all) => /^lev_/.test(x) && all.indexOf(x) === i)) {
       const rec = State.current ? State.leverageRec(id) : null;
       const why = !rec || rec.holder !== 'player' || !Rel.LEV_LIVE.includes(rec.status) ? 'not a record the player holds' : !Rel.references(words, rec) ? 'the words did not use it' : null;
-      if (why) { if (State.current) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `lev id ignored: ${why} (${id})` }); continue; }
+      if (why) { if (State.current) State.pushDebug({ turn: State.current.meta.turn, kind: 'rel', text: `lev id ignored: ${why} (${id})` }); continue; }
       out.aboutIds.push(id);
     }
     /* Wave 28: the engine's floors on a roll aimed at someone (Rel.difficultyFloor;
@@ -25379,7 +25564,7 @@ const Pipeline = (() => {
     const missing = want.filter(id => !a.targets.includes(id));
     if (missing.length) fixed.push(`added the addressee ${missing.join(', ')}`);
     a.targets = want.concat(a.targets.filter(t => !want.includes(t)));
-    if (fixed.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'parse', reason: `say mode: ${fixed.join('; ')}` });
+    if (fixed.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'model', path: 'parse', reason: `say mode: ${fixed.join('; ')}` });
     return a;
   }
 
@@ -25395,7 +25580,7 @@ const Pipeline = (() => {
     const exit = here().exits.map(id => State.loc(id)).find(l => l && l.discovered && !isShut(l) && l.away !== true);
     if (!exit) return null;
     a.destinationId = exit.id;
-    State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'destinationId', reason: `a move with no place named: the engine sends the player out through ${exit.id}` });
+    State.pushDebug({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'destinationId', reason: `a move with no place named: the engine sends the player out through ${exit.id}` });
     return exit.id;
   }
 
@@ -25424,7 +25609,7 @@ const Pipeline = (() => {
     if (!d || isShut(d) || d.id === ctx.location.id || s.player.locationId !== ctx.location.id) return false;
     if ((ctx.roll && !ctx.roll.success) || s.player.hp <= 0 || s.player.dead) return false;
     if (State.apply({ playerLocationId: d.id }).rejected.length) return false;
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'playerLocationId', reason: `the bookkeeper left the player at ${ctx.location.id} after a move; the engine moved them to ${d.id}` });
+    State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'playerLocationId', reason: `the bookkeeper left the player at ${ctx.location.id} after a move; the engine moved them to ${d.id}` });
     return true;
   }
 
@@ -25761,7 +25946,7 @@ const Pipeline = (() => {
     if (!list.length) return;
     const r = State.apply({ effects: list });
     const done = r.applied.map(x => x.replace(/^effects\[\d+\]: /, ''));
-    State.debugLog.push({ turn: State.current.meta.turn, kind: 'complication', text: roll.complication, applied: done, rejected: r.rejected });
+    State.pushDebug({ turn: State.current.meta.turn, kind: 'complication', text: roll.complication, applied: done, rejected: r.rejected });
     if (done.length) ctx.complicationDone = done;
   }
   function storyPointFor(ctx, roll) {
@@ -25842,7 +26027,7 @@ const Pipeline = (() => {
         const rep = pub ? Math.min(0, Rel.EVENTS[event].rep - cost) : 0;
         const place = placeName(here());
         const r = State.apply({ socialEvents: [{ npcId: npcTarget, event, text: event === 'hit' ? `hit me in a fight at ${place}` : `took a swing at me in a fight at ${place}`, act: 'attack', fight: key, witnesses: seen, public: pub, rep }] });
-        if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'fight', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+        if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'fight', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
         // Wave 28: a blow at someone under 18 goes to their family and the law, once a fight (World.minorHarm).
         World.minorHarm(npcTarget, 'violence');
         if (pub) cost = Math.min(cost, Rel.EVENTS[event].rep);
@@ -25947,13 +26132,13 @@ const Pipeline = (() => {
           : prev ? [prev, `${word}: the last turn was said to them`] : walked.length === 1 ? [walked[0], `${word}: the last narration walked them in`] : null;
         const one = pick ? pick[0] : null;
         if (one) best = { id: one.id, how: pick[1] };
-        else State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: "${PRONOUN_OBJECT[k]}" ${fits.length ? `fits ${fits.length} people here` : 'fits nobody here'}: aimed at nobody` });
-      } else if (kinds.length > 1) State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: the words have ${kinds.map(k => PRONOUN_OBJECT[k]).join(' and ')}: aimed at nobody` });
+        else State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `romance target: "${PRONOUN_OBJECT[k]}" ${fits.length ? `fits ${fits.length} people here` : 'fits nobody here'}: aimed at nobody` });
+      } else if (kinds.length > 1) State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `romance target: the words have ${kinds.map(k => PRONOUN_OBJECT[k]).join(' and ')}: aimed at nobody` });
     }
     if (!best) return null;
     const was = Array.isArray(a.targets) && a.targets.length ? a.targets.join(', ') : 'nobody';
     a.targets = [best.id].concat((Array.isArray(a.targets) ? a.targets : []).filter(id => id !== best.id && !/^npc_/.test(String(id))));
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: ${best.id} (${best.how}; the parse had ${was})` });
+    State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `romance target: ${best.id} (${best.how}; the parse had ${was})` });
     return best.id;
   }
   function romanceStep(ctx) {
@@ -25971,7 +26156,7 @@ const Pipeline = (() => {
       a.targets = [r.roll.npcId].concat((a.targets || []).filter(id => id !== r.roll.npcId));
       ctx.romanceRoll = r.roll.npcId;
       const n = State.npc(r.roll.npcId);
-      State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `flirt roll: charm, ${r.roll.difficulty} against ${n.id} (${Rel.tuningOf(n).difficulty}${Rel.tuningOf(n).listed ? '' : ', not listed'}; spark ${Rel.tracksOf(n).s})` });
+      State.pushDebug({ turn: State.current.meta.turn, kind: 'rel', text: `flirt roll: charm, ${r.roll.difficulty} against ${n.id} (${Rel.tuningOf(n).difficulty}${Rel.tuningOf(n).listed ? '' : ', not listed'}; spark ${Rel.tracksOf(n).s})` });
     } else {
       // A flirt answered with no roll (too soon, a line to the room, a kid's, the night said yes to) rolls nothing, whatever the parser said.
       const at = (a.targets || []).find(id => (ctx.presentIds || []).includes(id));
@@ -25982,7 +26167,7 @@ const Pipeline = (() => {
     // Wave 33: a romantic move the engine could not place: nobody answers in the narrator's packet, and the bookkeeper may say who it was.
     if (r.romantic && !r.aimed.length) ctx.bookLines.push('ROMANCE (seen by the engine): a romantic move aimed at nobody it could name; if the narration shows who it was aimed at and they are here, send "npc_id flirted: ..." for them, and the engine decides how it lands.');
     const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
-    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.each.map(x => `${x.npcId} (${x.why}${x.room ? ', to the room' : ''})`).join(', ')}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
+    if (r.romantic || minors.length) State.pushDebug({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.each.map(x => `${x.npcId} (${x.why}${x.room ? ', to the room' : ''})`).join(', ')}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
     return r;
   }
   // Wave 29: who turned it aside, who was open to it, who said yes to the night; the engine records each (wave 34: told once the roll has decided).
@@ -26006,7 +26191,7 @@ const Pipeline = (() => {
     const tier = ctx.roll && ctx.rollNpcId === ctx.romanceRoll ? ctx.roll.tier : ctx.pressed ? 'failure' : null;
     ctx.narratorLines.push(...Rel.romanceRolled(r, tier));
     romanceBook(ctx);
-    State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `flirt landed: ${r.answers.map(id => `${id} ${r.welcome.includes(id) ? 'welcome' : r.flirts.some(f => f.npcId === id && f.ans.answer === 'no') ? 'no' : 'aside'}`).join(', ')}${tier ? ` (${tier})` : ' (no roll)'}` });
+    State.pushDebug({ turn: State.current.meta.turn, kind: 'rel', text: `flirt landed: ${r.answers.map(id => `${id} ${r.welcome.includes(id) ? 'welcome' : r.flirts.some(f => f.npcId === id && f.ans.answer === 'no') ? 'no' : 'aside'}`).join(', ')}${tier ? ` (${tier})` : ' (no roll)'}` });
   }
   /* Wave 28 (the integration plan's 19.1): a romantic ask pushed with a
      threat, an intimidation, a lev_ id or the target's fear is refused, for
@@ -26041,7 +26226,7 @@ const Pipeline = (() => {
         : [Object.assign({ npcId: n.id, event: 'blackmailed', text: `tried to push me into it with a threat at ${place}`, act: 'intimidate' }, rec ? { leverageId: rec.id } : {}),
           { npcId: n.id, event: 'crossed', weight: 3, text: `tried to force me at ${place}` }];
       const r = State.apply(Object.assign({ socialEvents: events }, rec ? { effects: [Object.assign({ op: 'leverageSet', id: rec.id, aware: true, use: 'blackmailed' }, rec.status === 'held' ? { status: 'used' } : {})] } : {}));
-      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'coercion', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+      if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'coercion', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
       const m = (n.memories || []).slice().reverse().find(x => isObj(x) && x.event === events[0].event && x.turn === s.meta.turn);
       // The report for a named target; the town's word once a turn, however many were pushed.
       World.coercion(n.id, m ? m.key : `m${s.meta.turn}-${n.id}`, { report: !c.room, rep });
@@ -26051,7 +26236,7 @@ const Pipeline = (() => {
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
     const idList = each.map(x => x.npcId).join(', ');
     ctx.bookLines.push(`COERCION (already applied by the engine: ${list} refused; what it cost the player with ${names.length > 1 ? 'each' : 'them'}, ${each.some(x => !x.room) ? 'the report' : 'the threat'} and the town's word): record no social event for ${idList}, no newSeeds for it (the engine has it), and nothing changes hands.`);
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `coercion refused for ${idList}: no roll, the d20 burned` });
+    State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `coercion refused for ${idList}: no roll, the d20 burned` });
     return {};
   }
   /* Wave 29 (the integration plan's 8.3 and 19.4): an ask backed by what
@@ -26079,7 +26264,7 @@ const Pipeline = (() => {
     let roll = null;
     if (!how.roll) {
       Dice.burn();
-      State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${n.id}: an ask backed by ${rec.id} (weight ${rec.weight}): no roll, the d20 burned` });
+      State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `${n.id}: an ask backed by ${rec.id} (weight ${rec.weight}): no roll, the d20 burned` });
     } else {
       const rollOpts = { stat: a.stat || (a.actionType === 'intimidate' ? 'might' : 'charm'), difficulty: how.difficulty || a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: n.id, actionType: a.actionType, presentIds: ctx.presentIds.slice() };
       roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
@@ -26107,14 +26292,14 @@ const Pipeline = (() => {
         effects: [{ op: 'playerGold', delta: ans.amount }, { op: 'leverageSet', id: rec.id, status: 'paid' }, { op: 'socialEvent', npcId: n.id, event: 'paid_silence', d: { w: -5, t: 0 }, text: `paid ${p.name} ${money(ans.amount)} to keep quiet`, leverageId: rec.id }] } });
     }
     const r = State.apply({ socialEvents: [{ npcId: n.id, event: ans.event, text: cleanText(text, 200), act: a.actionType === 'persuade' ? 'persuade' : 'intimidate', leverageId: rec.id }], effects });
-    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'leverage', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'leverage', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     const m = (n.memories || []).slice().reverse().find(x => isObj(x) && x.event === ans.event && x.turn === s.meta.turn);
     if (ans.grudge) World.leverageAnswered(n.id, ans.grudge === 'violence' ? 'violence' : 'talk', m ? m.key : null);
     // A threat at someone under 18 goes to their family and the law at once (wave 28).
     World.minorHarm(n.id, 'threat');
     ctx.narratorLines.push(ans.line);
     ctx.bookLines.push(`LEVERAGE (already applied by the engine: ${n.name}'s answer, the threat and what it cost the player with them${ans.answer === 'pays' ? '; the money comes tomorrow, by the engine' : ''}): record no social event for ${n.id}, no goldDelta from them and no newSeeds for the payment: the engine has it.`);
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${n.id}: backed by ${rec.id}, ${ans.event}, answer ${ans.answer}${ans.amount ? ` (${money(ans.amount)})` : ''}` });
+    State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `${n.id}: backed by ${rec.id}, ${ans.event}, answer ${ans.answer}${ans.amount ? ` (${money(ans.amount)})` : ''}` });
     return {};
   }
   function resolve(ctx) {
@@ -26176,7 +26361,7 @@ const Pipeline = (() => {
       ctx.rollNpcId = asked.id;
       ctx.narratorLines.push(`AFRAID (no roll): ${asked.name} is afraid of ${s.player.name} and goes along with it at once; play it as fear, never as goodwill.`);
       ctx.bookLines.push(`NO ROLL (the engine: ${asked.name} is afraid of the player and did as asked): record what the narration shows them agreeing to or handing over.`);
-      State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${asked.id} complies out of fear (fear ${Rel.tracksOf(asked).f}): no roll, the d20 burned` });
+      State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `${asked.id} complies out of fear (fear ${Rel.tracksOf(asked).f}): no roll, the d20 burned` });
       return {};
     }
     // How often this very ask (family and person) already worked here this phase: the next success earns less (Dice.diminishing).
@@ -26232,14 +26417,14 @@ const Pipeline = (() => {
     const r = Rel.rng('foundOut', n.id, day, turn);
     let due = null;
     for (let d = 1; d <= FOUND_OUT.days && due === null; d++) if (r.next() < FOUND_OUT.chance) due = day + d;
-    if (due === null) { State.debugLog.push({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they never notice` }); return null; }
+    if (due === null) { State.pushDebug({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they never notice` }); return null; }
     const words = `${n.name} noticed what went missing, and has a fair idea who took it.`;
     const seed = { id: `seed_found_${n.id.slice(4)}_${turn}`, cause: `Found out: ${n.name} notices the theft (${cleanText(ctx.action.summary || ctx.input, 120) || 'a theft'})`, effect: words,
       trigger: { type: 'day', value: due }, hidden: true, origin: { kind: 'found_out', npcId: n.id, key: `t${turn}-steal` }, turn,
       effects: [{ op: 'socialEvent', npcId: n.id, event: 'stole_from', text: `${s.player.name} stole from me`, act: 'steal' }, { op: 'addNews', text: words }] };
     const res = State.apply({ effects: [{ op: 'plantSeed', seed }] });
-    if (res.rejected.length) { State.debugLog.push({ turn, kind: 'rejected', source: 'engine', path: 'found out', reason: res.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return null; }
-    State.debugLog.push({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they notice on day ${due} (${seed.id})` });
+    if (res.rejected.length) { State.pushDebug({ turn, kind: 'rejected', source: 'engine', path: 'found out', reason: res.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return null; }
+    State.pushDebug({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they notice on day ${due} (${seed.id})` });
     return seed;
   }
   function rolledEvents(ctx, roll, npcTarget) {
@@ -26290,7 +26475,7 @@ const Pipeline = (() => {
         mattersTo: a.actionType === 'steal' && target ? [target.id] : head ? [head] : [], playerKnows: true, key: `t${s.meta.turn}-${a.actionType}`, via: 'caught_you_at' });
     }
     const r = State.apply(Object.assign(events.length ? { socialEvents: events } : {}, asks.length ? { relAsk: asks } : {}, levs.length ? { leverageAdd: levs } : {}));
-    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'rolled events', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'rolled events', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     // Wave 28: a threat at someone under 18 goes to their family and the law at once (World.minorHarm).
     if (events.some(e => e.event === 'threatened')) World.minorHarm(target.id, 'threat');
     const told = events.filter(e => e.event !== 'caught_you_at').map(e => `${State.npc(e.npcId).name} (${e.event.replace(/_/g, ' ')})`);
@@ -27924,7 +28109,7 @@ const Pipeline = (() => {
     }
     if (mems.length) {
       const r = State.apply({ newMemories: mems, effects });
-      if (r.rejected.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble seats', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+      if (r.rejected.length) State.pushDebug({ turn: State.current.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble seats', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     }
     return told;
   }
@@ -28157,7 +28342,7 @@ const Pipeline = (() => {
       : outcome === 'no' || outcome === 'fumble' ? [{ op: 'setFlag', key: `cardsAsked.${dealer.id}`, value: day }].concat(outcome === 'fumble' ? [{ op: 'attitudeDelta', npcId: dealer.id, delta: -5 }] : []) : [];
     if (effects.length) {
       const r = State.apply({ effects });
-      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'stakes', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+      if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'stakes', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     }
     UI.feed.quiet(line);
     const told = {
@@ -28267,7 +28452,7 @@ const Pipeline = (() => {
       const d = (amount | 0) - c.paid;
       if (d <= 0) return;
       const r = State.apply({ goldDelta: -d });
-      if (r.rejected.length) { State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble pay', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return; }
+      if (r.rejected.length) { State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble pay', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return; }
       c.paid += d;
       UI.showCash();
     };
@@ -28393,7 +28578,7 @@ const Pipeline = (() => {
           { op: 'setFlag', key: `cardsCaught.${dealer.id}`, value: s.time.day },
           { op: 'addNews', text: `${dealer.name} caught ${p.name} cheating at cards at ${place} and threw them out.`, public: true, seen: true }]
       });
-      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+      if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'gamble', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     }
     return {};
   }
@@ -28481,7 +28666,7 @@ const Pipeline = (() => {
     else if (why === 'refused') UI.feed.notice(NOTICES.handRefused);
     else {
       // The narrator failed after the showdown (wave 12, L5): there is nothing to try again, so the notice says what happened and how the hand stands, not "try again".
-      if (err) { console.warn('[Pipeline] the narrator failed after a hand', err); State.debugLog.push({ turn: State.current.meta.turn, kind: 'narrator', reason: `the narrator failed after the hand (${(err && (err.type || err.message)) || err}); told plainly` }); }
+      if (err) { console.warn('[Pipeline] the narrator failed after a hand', err); State.pushDebug({ turn: State.current.meta.turn, kind: 'narrator', reason: `the narrator failed after the hand (${(err && (err.type || err.message)) || err}); told plainly` }); }
       UI.feed.notice(NOTICES.handUntold(err instanceof Api.ApiError || !err, handOutcome(ctx.gamble)), 'error');
     }
     return { narration: text, node, mock: false, plain: true };
@@ -28563,8 +28748,8 @@ const Pipeline = (() => {
     }
     for (const id of ids) {
       const r = State.apply({ visits: [{ npcId: id, locationId: l.id }] });
-      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'arrival', reason: `${id} walked in by the story but could not be placed: ${r.rejected[0].reason}` });
-      else State.debugLog.push({ turn: s.meta.turn, kind: 'arrival', reason: `${id} walked in by the story: here at ${l.id} this phase` });
+      if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'arrival', reason: `${id} walked in by the story but could not be placed: ${r.rejected[0].reason}` });
+      else State.pushDebug({ turn: s.meta.turn, kind: 'arrival', reason: `${id} walked in by the story: here at ${l.id} this phase` });
     }
     return ids;
   }
@@ -29117,9 +29302,9 @@ const Pipeline = (() => {
       const hard = problems.filter(isHard);
       const soft = problems.filter(p => !isHard(p));
       // One debug entry per attempt: soft problems alone are only noted (the draft is kept).
-      if (soft.length && !hard.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: soft, soft: true, kept: true });
+      if (soft.length && !hard.length) State.pushDebug({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems: soft, soft: true, kept: true });
       if (hard.length) {
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems });
+        State.pushDebug({ turn: State.current.meta.turn, kind: 'style', attempt: 1, problems });
         // The hard problems lead the note; the soft ones ride along ("If you can, also fix").
         const note = Style.regenerationNote(problems);
         ctx.regenerated = note;
@@ -29128,18 +29313,18 @@ const Pipeline = (() => {
         let second = null;
         try {
           const res2 = await Api.narrate(Object.assign({ text: `${text}\n${note}`, base: text, draft: narration, note, context: ctx }, blocks), null);
-          if (isRefusal(res2)) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: 'the rewrite was refused; the first draft stands' });
+          if (isRefusal(res2)) State.pushDebug({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: 'the rewrite was refused; the first draft stands' });
           else { cutOff(res2); second = String((res2 && res2.text) || '').trim() || null; }
         } catch (err) {
           if (err && err.type === 'aborted') throw err;
-          State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: `the rewrite failed (${(err && (err.type || err.message)) || err}); the first draft stands` });
+          State.pushDebug({ turn: State.current.meta.turn, kind: 'style', attempt: 2, reason: `the rewrite failed (${(err && (err.type || err.message)) || err}); the first draft stands` });
         }
         UI.feed.rewriting(node, false);
         if (second) {
           narration = second;
           check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
           ctx.style.push(check);
-          if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
+          if (!check.ok) State.pushDebug({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
         } else ctx.rewriteFailed = true;
       }
       UI.feed.endNarration(node, narration);
@@ -29311,7 +29496,7 @@ const Pipeline = (() => {
     const s = State.current;
     if (!chronicleDue(s)) return null;
     const entries = deepCopy(s.log.slice(0, s.log.length - CHRONICLE_KEEP));
-    const skip = reason => { State.debugLog.push({ turn: s.meta.turn, kind: 'chronicle', reason }); return null; };
+    const skip = reason => { State.pushDebug({ turn: s.meta.turn, kind: 'chronicle', reason }); return null; };
     let summary;
     try { summary = await Api.chronicle(entries); } catch (err) { return skip(`chronicle failed: ${(err && (err.detail || err.message)) || err}`); }
     if (isRefusal(summary)) return skip('chronicle refused');
@@ -29396,7 +29581,7 @@ const Pipeline = (() => {
   function cleanDiff(ctx, diff) {
     const s = State.current;
     const clean = isObj(diff) ? Object.assign({}, diff) : {};
-    const reject = (path, reason) => State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path, reason });
+    const reject = (path, reason) => State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'model', path, reason });
     if (ctx.damage && toInt(clean.hpDelta) < 0) { reject('hpDelta', 'ignored: the engine already applied fight damage'); delete clean.hpDelta; }
     if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
     if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
@@ -29473,7 +29658,7 @@ const Pipeline = (() => {
     const events = romanceEvents(ctx);
     if (!events.length) return;
     const r = State.apply({ socialEvents: events });
-    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'flirts', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'flirts', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
   }
   /* Apply the bookkeeper's diff as model output, with this turn's context
      for State.apply (who was present, whether the roll succeeded, who was
@@ -29548,12 +29733,12 @@ const Pipeline = (() => {
         const ev = book ? { npcId: id, event: 'unwanted_advance', text: fillTemplate(R.advance, { player: s.player.name, place }) }
           : Object.assign({ npcId: id, text: fillTemplate(R.light.text, { place }) }, { event: R.light.event, d: Object.assign({}, R.light.d), weight: R.light.weight, decay: R.light.decay });
         const res = State.apply({ socialEvents: [ev] });
-        if (res.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'minor rule', reason: res.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+        if (res.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'minor rule', reason: res.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
         what = book ? 'the full row for them alone (a romance event from the bookkeeper)' : 'the light row';
       }
-      State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${id} is under 18: ${what} (${['named', 'flag', 'phrase'].filter(k => m[k]).concat(book ? ['bookkeeper'] : []).join(', ')})` });
+      State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `${id} is under 18: ${what} (${['named', 'flag', 'phrase'].filter(k => m[k]).concat(book ? ['bookkeeper'] : []).join(', ')})` });
     }
-    for (const id of named) if (!r.minors[id]) State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${id} is under 18 and not here: the bookkeeper's romance event for them dropped` });
+    for (const id of named) if (!r.minors[id]) State.pushDebug({ turn: s.meta.turn, kind: 'rel', text: `${id} is under 18 and not here: the bookkeeper's romance event for them dropped` });
   }
   /* Wave 27 (the integration plan's 4.1): the people a turn was spent with,
      for State's relTurn: whoever the words were said to (Say, not to
@@ -29574,7 +29759,7 @@ const Pipeline = (() => {
     const refused = ctx.roll && !ctx.roll.success ? (a.targets || []) : [];
     const quiet = aimed.filter(id => { const n = State.npc(id); return !n || refused.includes(id) || n.attitude !== ctx.attStart[id] || (n.memories || []).length !== (ctx.memStart || {})[id]; });
     const r = State.apply({ relTurn: { aimed, quiet } });
-    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'relTurn', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    if (r.rejected.length) State.pushDebug({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'relTurn', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
   }
   /* A bookkeeper that failed (not a refusal, not a Stop): asked once more in
      the background. Its diff is applied when no turn is running, and only
@@ -29595,14 +29780,14 @@ const Pipeline = (() => {
   function retryBookkeeper(s, turn, packet, ctx) {
     const game = gameKey(s);
     const stamp = entryStamp(s.log.find(e => e.turn === turn));
-    const drop = why => State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry came back ${why}; turn ${turn} stays not recorded` });
+    const drop = why => State.pushDebug({ turn, kind: 'bookkeeper', reason: `the retry came back ${why}; turn ${turn} stays not recorded` });
     (async () => {
       let diff;
       try { diff = await Api.bookkeep(packet); } catch (err) {
-        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry failed too (${(err && (err.type || err.message)) || err}); turn ${turn} stays not recorded` });
+        State.pushDebug({ turn, kind: 'bookkeeper', reason: `the retry failed too (${(err && (err.type || err.message)) || err}); turn ${turn} stays not recorded` });
         return;
       }
-      if (isRefusal(diff)) { State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry was refused; turn ${turn} stays not recorded` }); return; }
+      if (isRefusal(diff)) { State.pushDebug({ turn, kind: 'bookkeeper', reason: `the retry was refused; turn ${turn} stays not recorded` }); return; }
       while (busy) await whenIdle();
       const cur = State.current;
       if (!cur || gameKey(cur) !== game) { drop('after another game was loaded'); return; }
@@ -29612,7 +29797,7 @@ const Pipeline = (() => {
       if (cur.log[cur.log.length - 1] !== entry || cur.meta.turn !== turn) { drop('after a later turn'); return; }
       const late = isObj(diff) ? Object.assign({}, diff) : {};
       if (late.playerLocationId) {
-        State.debugLog.push({ turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: a late bookkeeper never moves the player' });
+        State.pushDebug({ turn, kind: 'rejected', source: 'model', path: 'playerLocationId', reason: 'ignored: a late bookkeeper never moves the player' });
         delete late.playerLocationId;
       }
       State.beginBatch();
@@ -29620,7 +29805,7 @@ const Pipeline = (() => {
         applyBookkeeping(ctx, late);
         State.apply({ logUpdate: { turn, changes: null } });
         UI.feed.quiet(NOTICES.bookLate);
-        State.debugLog.push({ turn, kind: 'bookkeeper', reason: `the retry recorded turn ${turn}` });
+        State.pushDebug({ turn, kind: 'bookkeeper', reason: `the retry recorded turn ${turn}` });
       } catch (err) { console.error(err); } finally { State.endBatch(); }
     })();
   }
@@ -29820,7 +30005,7 @@ const Pipeline = (() => {
         if (!notRecorded && isRefusal(diff)) notRecorded = { refused: true };
         if (notRecorded) {
           const why = notRecorded.stopped ? 'was stopped' : notRecorded.refused ? 'refused' : `failed: ${(notRecorded.error && (notRecorded.error.type ? `${notRecorded.error.type}: ` : '') + (notRecorded.error.detail || notRecorded.error.message)) || notRecorded.error}`;
-          State.debugLog.push({ turn: s.meta.turn, kind: 'bookkeeper', reason: `the bookkeeper ${why}; the narration stands and the turn's changes were not recorded` });
+          State.pushDebug({ turn: s.meta.turn, kind: 'bookkeeper', reason: `the bookkeeper ${why}; the narration stands and the turn's changes were not recorded` });
           UI.feed.quiet(notRecorded.stopped ? NOTICES.bookStopped : notRecorded.refused ? refusedText('bookkeeper') : NOTICES.bookFailed);
         } else {
           // Wave 28: kept for the eval's export while the setting is on.
@@ -30493,7 +30678,7 @@ const Pipeline = (() => {
       // Nothing changed (a re-read that kept every line): not worth an /undo step.
       const changed = JSON.stringify(State.current) !== snap || townJson() !== town0;
       if (!changed) State.restore(snap);
-      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${to}: ${text}` });
+      State.pushDebug({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${to}: ${text}` });
       UI.feed.notice(text);
       // The clock was set back (version 4): the feed starts the new day and phase.
       const t = State.current.time;
@@ -30505,14 +30690,14 @@ const Pipeline = (() => {
       if (summaries.length && step) { State.restore(step.state); restoreTown(step.town); }
       else { State.restore(snap); restoreTown(town0); }
       const kept = summaries.length ? ` ${Upgrade.NOTICES.kept(summaries.map(x => x.title))} ${summaries.map(x => x.text).join(' ')}` : '';
-      if (summaries.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${State.rulesVersion(State.current)} (kept ${summaries.map(x => x.version).join(', ')}): ${summaries.map(x => x.text).join(' ')}` });
+      if (summaries.length) State.pushDebug({ turn: State.current.meta.turn, kind: 'upgrade', reason: `rules ${from} -> ${State.rulesVersion(State.current)} (kept ${summaries.map(x => x.version).join(', ')}): ${summaries.map(x => x.text).join(' ')}` });
       if (err && err.refused) {
-        State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `refused${err.refusal && err.refusal.category ? ` (${err.refusal.category})` : ''}${step ? ` at version ${step.m.version}` : ''}` });
+        State.pushDebug({ turn: State.current.meta.turn, kind: 'upgrade', reason: `refused${err.refusal && err.refusal.category ? ` (${err.refusal.category})` : ''}${step ? ` at version ${step.m.version}` : ''}` });
         UI.feed.notice(summaries.length ? `${Upgrade.NOTICES.refusedStep(step ? step.m.title : '')}${kept}` : Upgrade.NOTICES.refused);
         return { ok: false, reason: 'refused', kept: summaries.map(x => x.version) };
       }
       if (!(err && err.type === 'aborted')) console.error(err);
-      State.debugLog.push({ turn: State.current.meta.turn, kind: 'upgrade', reason: `failed: ${(err && (err.type ? `${err.type}: ` : '') + (err.detail || err.message)) || err}${step ? ` (at version ${step.m.version})` : ''}` });
+      State.pushDebug({ turn: State.current.meta.turn, kind: 'upgrade', reason: `failed: ${(err && (err.type ? `${err.type}: ` : '') + (err.detail || err.message)) || err}${step ? ` (at version ${step.m.version})` : ''}` });
       const msg = err instanceof Api.ApiError ? err.message : `Something went wrong: ${(err && err.message) || err}.`;
       UI.feed.notice(summaries.length ? `${msg} ${Upgrade.NOTICES.failedStep(step ? step.m.title : '')}${kept}` : `${msg} ${Upgrade.NOTICES.failed}`, 'error');
       return { ok: false, reason: 'error', error: err && err.type, kept: summaries.map(x => x.version) };
@@ -34277,7 +34462,10 @@ const UI = (() => {
       const KNOWN_U = ['calls', 'input', 'output', 'cacheRead', 'cacheCreation', 'cost', 'priced'];
       const LABEL_U = { cacheWrite1h: '1-hour cache write' };
       const extraU = b => { const x = Object.keys(b).filter(k => !KNOWN_U.includes(k) && typeof b[k] === 'number').map(k => `${LABEL_U[k] || k} ${b[k]}`); return x.length ? ` (${x.join(', ')})` : ''; };
-      const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : ''}${extraU(b)}`;
+      // Wave 41: a model with no price says so ("no price known for <model>: cost not counted") where the cost would be.
+      const noPrice = b => (Api.priceNote ? Api.priceNote(b) : '') || 'a model with no price';
+      const fmtU = b => `${b.calls} calls, in ${b.input}, out ${b.output}, cache read ${b.cacheRead}, cache write ${b.cacheCreation}${b.priced ? `, $${b.cost.toFixed(4)}` : `, ${noPrice(b)}`}${extraU(b)}`;
+      const cacheRoles = Api.cacheLine ? Api.cacheLine() : '';
       const ttl = (() => { try { const b = Api.requestBody ? Api.requestBody('narrator', { system: 'x', cache: true }) : null; const cc = b && Array.isArray(b.system) && b.system[0] && b.system[0].cache_control; return cc ? JSON.stringify(cc) : 'unknown'; } catch (e) { return 'unknown'; } })();
       const news = newsOf(Object.assign({}, s, { news: Array.isArray(s.news) ? s.news : [] }));
       const allNews = (Array.isArray(s.news) ? s.news : []).map(n => `day ${n.day} ${n.phase || ''}${n.public === false ? ' (private)' : ''}${n.seen ? ' (seen)' : ''}${n.factionId ? ' · ' + n.factionId : ''}${n.epilogue ? ' · epilogue' : ''}: ${n.text}`).join('\n');
@@ -34304,7 +34492,7 @@ const UI = (() => {
         el('h3', null, 'Threads'), pre(threads || '-'),
         el('h3', null, 'Chronicle'), pre(`${chron || 'none yet'}\n${logSpan}`),
         el('h3', null, 'Rejected changes'), pre(rejects || 'none'),
-        el('h3', null, `API (${Api.providerName()})`), pre(`turn: ${fmtU(u.turn)}\nsession: ${fmtU(u.session)}\nsession cost: ${u.session.priced ? '$' + u.session.cost.toFixed(4) : 'not priced (a model with no price)'} over ${sessionTurns} turns\nnarrator cache: ${ttl}`),
+        el('h3', null, `API (${Api.providerName()})`), pre(`turn: ${fmtU(u.turn)}\nsession: ${fmtU(u.session)}\nsession cost: ${u.session.priced ? '$' + u.session.cost.toFixed(4) : `$${u.session.cost.toFixed(4)} (${noPrice(u.session)})`} over ${sessionTurns} turns\nnarrator cache: ${ttl}\ncache by role: ${cacheRoles || 'nothing read or written yet'}`),
         el('h3', null, 'API errors'), pre(apiErrors || 'none'),
         // Wave 28: the bookkeeper turns kept this session (Settings -> Advanced -> Keep bookkeeper packets), as JSONL for the labelled eval.
         el('h3', null, 'Bookkeeper turns'),
@@ -35802,7 +35990,8 @@ const UI = (() => {
   /* "This session: 23 turns · $0.61". */
   function sessionLine() {
     const u = Api.usage && Api.usage.session;
-    const cost = u ? (u.priced ? `$${u.cost.toFixed(2)}` : `$${u.cost.toFixed(2)} or more (a model with no price)`) : '$0.00';
+    // Wave 41: a model with no price is named: "$0.12 (no price known for claude-mystery-9: cost not counted)".
+    const cost = u ? (u.priced ? `$${u.cost.toFixed(2)}` : `$${u.cost.toFixed(2)} (${(Api.priceNote && Api.priceNote(u)) || 'a model with no price: cost not counted'})`) : '$0.00';
     return `This session: ${sessionTurns} ${sessionTurns === 1 ? 'turn' : 'turns'} · ${cost}`;
   }
   function renderPreset() {

@@ -173,7 +173,8 @@ s.test('a narration cut off by max_tokens is asked for again with twice the limi
   assert.equal(await stateJson(page), b2);
 });
 
-s.test('503 and a mid-stream overloaded_error are retried once; retry-after is honoured and capped at 10 s', async h => {
+// Changed by design in wave 41: retry-after is capped at 60 s (it was 10 s).
+s.test('503 and a mid-stream overloaded_error are retried once; retry-after is honoured and capped at 60 s', async h => {
   const { page, reqs, queue } = await openReal(h);
   queue('parser', errorReply(503, 'overloaded_error'));
   queue('narrator', narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }));
@@ -194,8 +195,8 @@ s.test('503 and a mid-stream overloaded_error are retried once; retry-after is h
   const ps = reqs.slice(n).filter(r => r.role === 'parser');
   const gap = ps[1].at - ps[0].at;
   assert.ok(gap >= 1900 && gap < 4500, 'waited about 2 s: ' + gap);
-  const capped = await page.evaluate(() => [Game.Api.retryAfterMs('60'), Game.Api.retryAfterMs('0.5'), Game.Api.retryAfterMs(null), Game.Api.retryAfterMs('soon'), Game.Api.RETRY_STATUSES]);
-  assert.deepEqual(capped, [10000, 500, null, null, [429, 500, 502, 503, 504, 529]]);
+  const capped = await page.evaluate(() => [Game.Api.retryAfterMs('60'), Game.Api.retryAfterMs('90'), Game.Api.retryAfterMs('0.5'), Game.Api.retryAfterMs(null), Game.Api.retryAfterMs('soon'), Game.Api.RETRY_STATUSES]);
+  assert.deepEqual(capped, [60000, 60000, 500, null, null, [429, 500, 502, 503, 504, 529]]);
 });
 
 s.test('the narrator\'s three blocks carry a one-hour TTL; a 1-hour write costs 2x input, a 5-minute one 1.25x; a dated model id still prices; a retried call counts both tries', async h => {
@@ -206,7 +207,9 @@ s.test('the narrator\'s three blocks carry a one-hour TTL; a 1-hour write costs 
   const narr = reqs.filter(r => r.role === 'narrator').pop();
   assert.equal(narr.body.system.length, 3);
   assert.ok(narr.body.system.every(b => b.cache_control && b.cache_control.type === 'ephemeral' && b.cache_control.ttl === '1h'));
-  for (const r of reqs.filter(x => x.role !== 'narrator')) assert.ok(!JSON.stringify(r.body).includes('cache_control'), r.role + ' caches nothing');
+  // Changed by design in wave 41: the parser and the bookkeeper cache their system prompt with the same cache_control; the chronicle caches nothing.
+  for (const r of reqs.filter(x => x.role === 'parser' || x.role === 'bookkeeper')) assert.deepEqual(r.body.system.map(b => b.cache_control), [{ type: 'ephemeral', ttl: '1h' }], r.role);
+  for (const r of reqs.filter(x => x.role === 'chronicle')) assert.ok(!JSON.stringify(r.body).includes('cache_control'), r.role + ' caches nothing');
   const u = await page.evaluate(() => JSON.parse(JSON.stringify(Game.Api.usage.turn)));
   const sonnet = 2 * (300 * 2 + 80 * 10) / 1e6;
   // Both narrator tries count: 500 + 1000 in, 42 + 50 out; 600 written for an hour, 100 for five minutes.

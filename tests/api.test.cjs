@@ -187,8 +187,11 @@ s.test({ toString: () => 'requests carry the four headers and a body the current
   const est = Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4);
   cachedMeasure.text = ` [cached blocks, words x 1.4: style ${Math.round(words(sys.narrator) * 1.4)}, town ${Math.round(words(sys.town) * 1.4)}, cast ${Math.round(words(sys.cast) * 1.4)}, total ${est} of 14,000; at 3.5 characters a token ${Math.round((sys.narrator.length + sys.town.length + sys.cast.length) / 3.5)}]`;
   assert.ok(est < 14000, 'cached blocks: ' + est + ' tokens');
-  assert.equal(parser.body.system, sys.parser);
-  assert.equal(book.body.system, sys.book);
+  // Changed by design in wave 41: the parser's and the bookkeeper's system prompts are one cached block each (the narrator's cache_control).
+  assert.deepEqual(parser.body.system, [{ type: 'text', text: sys.parser, cache_control: { type: 'ephemeral', ttl: '1h' } }]);
+  assert.deepEqual(book.body.system, [{ type: 'text', text: sys.book, cache_control: { type: 'ephemeral', ttl: '1h' } }]);
+  parser.body.system = parser.body.system[0].text;
+  book.body.system = book.body.system[0].text;
   assert.match(parser.body.system, /^You convert a player's free-text action into structured data for a game engine\./);
   assert.match(parser.body.system, /The player has only what INVENTORY lists and what ITEMS HERE shows: when the action needs anything else \(a knife to stab with, a gun, a car, a key, a tool\), name it in missingItem/);
   // The "nothing else" list leaves out what is carried (this background's socket set is a tool).
@@ -241,7 +244,8 @@ s.test('the narrator stream (thinking block, ping, text deltas, message_delta) s
   assert.equal(reqs.length, 3);
 });
 
-s.test('a 429 is retried once after about 1.5 s and then succeeds; 500 and 529 retry once and then fail', async h => {
+// Changed by design in wave 41: an overloaded API (529) gets two retries; a 500 still one.
+s.test('a 429 is retried once after about 1.5 s and then succeeds; 500 retries once and 529 twice, then fail', async h => {
   const { page, reqs, queue } = await openReal(h);
   queue('parser', errorReply(429, 'rate_limit_error', 'slow down'));
   await sendText(page, 'I ask the ferryman about the tide');
@@ -253,12 +257,12 @@ s.test('a 429 is retried once after about 1.5 s and then succeeds; 500 and 529 r
   const logged = await page.evaluate(() => Game.Api.responses.filter(x => x.role === 'parser').map(x => [x.status, x.requestId, x.error && x.error.type]));
   assert.deepEqual(logged[0], [429, 'req_parser_1', 'rate_limit_error']);
   // Two server errors in a row: one retry, then a clear message and the input kept.
-  for (const [status, type, text] of [[500, 'api_error', /internal error/], [529, 'overloaded_error', /overloaded/]]) {
+  for (const [status, type, text, tries] of [[500, 'api_error', /internal error/, 2], [529, 'overloaded_error', /overloaded/, 3]]) {
     const before = await stateJson(page);
     const n = reqs.length;
-    queue('narrator', errorReply(status, type), errorReply(status, type));
+    queue('narrator', ...Array.from({ length: tries }, () => errorReply(status, type)));
     await sendText(page, 'I ask about the boats');
-    assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser', 'narrator', 'narrator'], `${status}: retried once`);
+    assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser'].concat(Array(tries).fill('narrator')), `${status}: tried ${tries} times`);
     assert.equal(await page.inputValue('#cmd'), 'I ask about the boats');
     assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), text);
     assert.equal(await stateJson(page), before);
@@ -439,10 +443,12 @@ s.test('Api.chronicle summarises log entries with the parser model in plain text
   assert.match(c.body.messages[0].content, /TURN 1 \(day 1, morning\)\nPLAYER: I ask the ferryman about the tide\nNARRATION: Rain needles the water\./);
 });
 
-s.test('an error event inside the stream is surfaced and the input kept (after the one retry an overloaded stream gets)', async h => {
+// Changed by design in wave 41: an overloaded stream gets two retries (three tries in all).
+s.test('an error event inside the stream is surfaced and the input kept (after the two retries an overloaded stream gets)', async h => {
   const { page, queue } = await openReal(h);
   const before = await stateJson(page);
-  queue('narrator', narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }), narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } }));
+  const over = () => narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } });
+  queue('narrator', over(), over(), over());
   await sendText(page, 'I ask the ferryman about the tide');
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the tide');
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /overloaded right now/);
@@ -492,7 +498,7 @@ s.test('the cast is fixed with the API: a person the parser sends as new: is som
   assert.ok((await page.evaluate(() => Game.Pipeline.lastTurn.action.targets)).includes(c.wife.id), `${c.husband.first}'s wife is ${c.wife.id}`);
   assert.equal(await page.evaluate(() => Game.state.npcs.length), c.count, 'nobody new');
   const parser = reqs.slice(n0).find(r => r.role === 'parser');
-  assert.match(parser.body.system, /`new:` is never used for a person/);
+  assert.match(parser.body.system[0].text, /`new:` is never used for a person/); // a cached block since wave 41
   assert.ok(parser.body.messages[0].content.includes(`\nEVERYONE ELSE IN TOWN (not met yet; nobody else exists): `) && parser.body.messages[0].content.includes(`${c.wife.id} — ${c.wife.name} (she/her; ${c.wife.role}; wife of ${c.husband.name}`), 'the parser hears the whole cast');
   // The narrator: the style block, the town, then the cast, all cached; the cast line for Mavis gives her age, says whose wife she is and where she is.
   const narr = reqs.slice(n0).find(r => r.role === 'narrator');
