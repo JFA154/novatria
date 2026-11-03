@@ -360,7 +360,7 @@ s.test('the stance: twelve phrases with five points of hysteresis, devoted needs
   for (const c of r.cue) assert.ok(c.split(/\s+/).length <= 12, c);
 });
 
-s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, from every writer: model, world, edit, import, upgrade, cheat', async h => {
+s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible (wave 34: an adult only with a player under 18), from every writer: model, world, edit, import, upgrade, cheat', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const r = await page.evaluate(() => {
@@ -371,10 +371,16 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
     out.byData = G.data.TOWN_DATA.npcs.filter(n => n.age < 18).map(n => n.id);
     out.minors = st().npcs.filter(n => R.isMinor(n)).map(n => n.id);
     out.names = out.minors.map(id => S.npc(id).name.split(' ')[0]);
-    out.eligible = [st().npcs.filter(n => R.eligible(n)).length, R.romanceOf().length];
+    out.eligible = [st().npcs.filter(n => R.eligible(n)).length, st().npcs.length - out.minors.length, R.romanceOf().length];
     const [k, m, a] = out.minors;
-    // Changed by design in wave 29 (A4): Jodie is on the shipped romance list; Dewayne, an adult nobody listed, stands in for her.
+    /* Changed by design in wave 29 (A4): Jodie is on the shipped romance
+       list; Dewayne, an adult nobody listed, stands in for her. Changed by
+       design in wave 34: every adult is eligible, listed or not; the only
+       adult spark cannot move for is one with a player under 18, so the
+       player is 16 for the adult half (back to 30 below). */
     const adult = 'npc_dewayne';
+    st().player.age = 16;
+    out.adultOpen = R.eligible(S.npc(adult));
     const sparkOf = id => { const n = S.npc(id); return [n.rel.s, n.rel.start.s, n.rel.everyday.s, n.rel.fix.s].concat(n.memories.filter(x => x.d).map(x => x.d.s)); };
     const refusals = where => S.debugLog.filter(x => x.kind === 'rejected' && x.source === 'rel' && (!where || String(x.path).startsWith(where))).map(x => x.reason);
     // The model: it cannot send events at all; its attitudeChanges move liking only.
@@ -429,8 +435,9 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   });
   assert.deepEqual(r.minors, r.byData, 'the minors are the cast\'s under-18s');
   assert.deepEqual(r.names, ['Kaylee', 'Micah', 'Austin']);
-  // Changed by design in wave 29 (A4): the town ships its romance list, twelve adults.
-  assert.deepEqual(r.eligible, [12, 12], 'twelve on the romance list');
+  // Changed by design in wave 29 (A4): the town ships its romance list, twelve adults. Changed by design in wave 34: every adult is eligible; the list tunes twelve.
+  assert.deepEqual(r.eligible, [63, 63, 12], 'every adult eligible (66 less the three minors); twelve tuned on the romance list');
+  assert.equal(r.adultOpen, false, 'an adult with a player under 18: not eligible');
   assert.deepEqual(r.model[0], [], 'not refused: set aside');
   assert.match(r.model[1], /npc_kaylee is under 18 and this turn pointed something romantic at them: set aside for the minor rule/);
   assert.deepEqual(r.model[2], ['npc_kaylee'], 'the minor rule hears of it (Pipeline.minorTurn)');
@@ -438,9 +445,9 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   assert.equal(r.world[0], 0, 'the flirt applies, its spark held at 0');
   assert.match(r.world[1][0], /spark stays 0 for npc_micah: they are under 18/);
   assert.equal(r.world[2], 0);
-  assert.ok(r.world[3].some(x => /npc_micah: spark stays 0 \(under 18\)/.test(x)) && r.world[3].some(x => /npc_dewayne: spark stays 0 \(not on the romance list\)/.test(x)), 'logged: ' + r.world[3].join(' | '));
+  assert.ok(r.world[3].some(x => /npc_micah: spark stays 0 \(under 18\)/.test(x)) && r.world[3].some(x => /npc_dewayne: spark stays 0 \(the player is under 18 or has no age\)/.test(x)), 'logged: ' + r.world[3].join(' | '));
   assert.match(r.edit[0][0], /spark stays 0 for npc_austin: they are under 18/);
-  assert.match(r.edit[1][0], /spark stays 0 for npc_dewayne: they are not on the town's romance list/);
+  assert.match(r.edit[1][0], /spark stays 0 for npc_dewayne: the player is under 18 or has no age/);
   // Changed by design in wave 30: an edit names the track it moved, so the pinned field reads 'trust', not 'rel'.
   assert.deepEqual(r.edit[2], [{ id: 'npc_austin', fields: ['trust'] }], 'spark 0 is no change; trust lands');
   assert.equal(r.older, true);
@@ -448,7 +455,7 @@ s.test('spark stays 0 for Kaylee, Micah and Austin and for anyone not eligible, 
   assert.equal(r.cheat[1], 1);
   assert.equal(r.cheat[2], 30, 'the cheat moves liking');
   assert.deepEqual(r.upgrade, ['spark set to 0 for npc_kaylee: they are under 18']);
-  assert.deepEqual(r.import, [true, ["spark set to 0 for npc_dewayne: they are not on the town's romance list", 'spark set to 0 for npc_micah: they are under 18']], 'still a minor by the live town; both imports zeroed and logged (in cast order)');
+  assert.deepEqual(r.import, [true, ['spark set to 0 for npc_dewayne: the player is under 18 or has no age', 'spark set to 0 for npc_micah: they are under 18']], 'still a minor by the live town; both imports zeroed and logged (in cast order)');
   assert.deepEqual(r.player, [true, true, false]);
   assert.deepEqual(r.closed, [true, false]);
   for (const x of r.after) assert.ok(x.every(v => v === 0), JSON.stringify(r.after));

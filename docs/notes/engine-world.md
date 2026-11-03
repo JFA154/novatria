@@ -2130,3 +2130,64 @@ section 6.4.
   (alive, free, not here, not laid up). The owner's turn 96 ("two quick
   knocks, and Jodie slips in") places her with the code as it was: that
   turn was played before wave 25 shipped (wave 25 was made from it).
+
+## Wave 34 (3 Nov 2026): anyone can be won over, some the hard way
+
+The owner: "There is characters that will go from 0 to 100 easier than
+others. But everyone should be allowed to go to 100. Like if I try to
+romance dewayne who's straight, i can succeed, barely, but Jodie should be
+easier for example. You know. But everyone should have all 6. Romance and
+spark included." Tests: `tests/wave34-romance-difficulty.test.cjs`; the
+flirt rows of `tests/wave29-rel-hold.test.cjs`, `tests/wave33-romance-target.test.cjs`,
+examples 10, 14 and 15 of `tests/relationships-examples.test.cjs` force their
+rolls (`hooks.nextD20`, `hooks.nextTier`).
+
+- **Everyone over 18 is eligible** (`Rel.eligible`: not a minor, and an
+  adult player). The under-18 rules (`Rel.isMinor`, `Rel.playerMinor`, the
+  minor rule) are unchanged; with a player under 18 nobody is eligible.
+  `Rel.sparkGuard`, `pinOf`, the editor and imports follow `eligible`, so
+  an older save's spark on an adult nobody listed now stays.
+- **The list is tuning** (`Rel.tuningOf`, `Rel.ROMANCE_DEFAULTS`): `{
+  sparkRate, opensAt, difficulty, listed }` from the person's entry, else
+  rate 0.5, opens at knows 10, hard. `faithful: true` reads as very hard;
+  `open` is no longer read. `Rel.sparkRate` reads it (a welcome flirt's
+  spark is 10 x the rate, the row's `'rate'`).
+- **A flirt rolls** (`Rel.romanceTurn`, `Pipeline.romanceStep`, `resolve`,
+  `romanceLanded`). On a romantic turn at a named adult who knows the
+  player at least their `opensAt` (`Rel.welcomeOf`), the romance step sets
+  `roll: { npcId, stat: 'charm', difficulty }` and leaves the answer
+  pending; Pipeline makes it the turn's roll whatever the parser said
+  (`needsRoll`, charm, the difficulty, the person first in the targets;
+  debug `flirt roll: charm, hard against npc_dewayne (hard, not listed;
+  spark 0)`). The difficulty is `Rel.flirtDifficulty`: theirs, a step
+  easier at spark 20 and two at 40 (`Rel.ROMANCE_EASE`), never below easy.
+  The roll takes the liking modifier as a persuasion does (`rollOpts.actionType`
+  is `persuade` for it), skips fear's no-roll compliance, and a critical
+  failure gives no lasting condition (the awkward memory is its
+  consequence). After resolve `Pipeline.romanceLanded` hands the tier to
+  `Rel.romanceRolled`: critical, welcome with spark 15 x the rate;
+  success, welcome (the row); partial, turned aside kindly, nothing
+  written; failure, unwelcome (liking -3 the first time, -6 after, trust
+  -3, spark -5); critical failure, unwelcome at twice the liking and
+  weight 2, "came on to me and made it awkward" (`Rel.flirtAnswer`,
+  `Rel.flirtEventOf`). The same failed flirt pushed again (the retry lock,
+  `ctx.pressed`) is a no. Short of `opensAt`: no roll (a parse's
+  `needsRoll` is dropped), "turns it aside, kindly", and an event with
+  `soon: true` that `Rel.applyEvent` reads: the first marks
+  `rel.soonOnce` and changes nothing, later ones cost liking 1 in everyday,
+  no memory. A Say to everyone rolls nothing: each adult takes it lightly.
+  Coercion never rolls (resolve's coercion comes first; the romance step
+  sets no roll on a coerced turn).
+- **The night** (`Rel.intimateGate`, spark 50, liking 40, trust 30, knows
+  30, both adults): passed, "says yes; fade to black", no roll. Short, the
+  ask rolls as a flirt, and a welcome answer is "not tonight; she says so
+  kindly".
+- **The late flirt** (`Rel.wireEvent`, State's `lateFlirt`): State.apply's
+  opts carry the turn's `rollStat` and `rollTier`; a charm roll's tier
+  decides it, no charm roll is turned aside kindly with nothing written,
+  short of `opensAt` is the soon event. Its debug line names the tier.
+- **Merging** (`Rel.applyEvent`): a harm merges only into a harmful memory
+  of the same event, so an unwelcome flirt never folds into a welcome one.
+- **The cast line** "open to a flirt" now shows only for someone a flirt
+  would come easily to (`welcomeOf` ok and easy or normal now), so the
+  narrator does not play every adult as flirty.

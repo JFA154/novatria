@@ -345,7 +345,13 @@ the parser's new `romantic` field (`"flirt"`, or `"more"` for a proposal that
 goes past flirting: upstairs, the night, a kiss meant to lead somewhere): they
 are eligible (`TOWN_DATA.romance`, adults only), knows-you is at least their
 `opensAt`, they are not at "against you" or "hates you", and they are not
-`faithful`. Liking is not
+`faithful`. **Wave 34 changes that rule into a roll:** every adult is eligible
+(the list ships as tuning: `sparkRate`, `opensAt`, `difficulty`; anyone not
+listed 0.5, 10, hard); short of `opensAt` a flirt is turned aside kindly with
+no roll; past it the flirt is a charm roll at their difficulty (a step easier
+at spark 20, two at 40), and the tier decides: critical and success welcome,
+partial turned aside kindly, failure and critical failure unwelcome (the
+design's section 2.5). Liking is not
 required, which is how "using you" happens. The narrator is told the answer for
 the turn ("Shayla Rawls is open to it: she flirts back, her own way"); the
 bookkeeper's version does not count. A jealous partner who sees it takes liking
@@ -1088,7 +1094,7 @@ Recommendations first. Everything not listed here is decided (section 3).
 6. **The labelled-eval pass bar.** Recommended as in section 8.
 7. **The optional memory re-read** during the version 9 update. Recommended: offer re-running version 2's "Memories that matter" as a Settings option; no new typing call.
 8. **What a relationship `/fact` buys.** Recommended: "owes me" → owed +1; "go back", "old friend", "grew up with" → knows at least 30; "trusts me" → trust +15, at most 40; "likes me" → liking +10, at most 40; all into `start`, never spark or fear; the memory stays a protected fact that moves no track and never feeds a grudge.
-9. **Curtis on the eligibility list.** He is separated. Recommended: keep him with `faithful: false`, noted in `docs/notes/content.md`.
+9. **Curtis on the eligibility list.** He is separated. Recommended: keep him with `faithful: false`, noted in `docs/notes/content.md`. **Wave 34 (3 Nov 2026):** the list ships as tuning and everyone over 18 is eligible; Curtis keeps his entry at `difficulty: "normal"`, and `faithful` survives only as the old word for `very_hard`.
 10. **The "using you" fallback wording** when distrust is not earned: "wants you" (recommended: one tag, and the card's trust word says the rest) or "wants you, doesn't trust you".
 11. **A clean, unseen steal that succeeds.** Recommended: no event at the time; a later bookkeeper "found out" after the logged steal.
 12. **The new obligation status `lapsed`** for the standoff and for coming clean, shown as "Dropped" in the Journal. Recommended: yes.

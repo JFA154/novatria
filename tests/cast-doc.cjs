@@ -65,9 +65,10 @@ function render(D) {
   /* Wave 29: whom they go to when the player frightens or hurts them (a
      protector the town knows of; a hidden one is left out, it would spoil
      a secret), what their secret weighs as leverage and the most a demand
-     can take from them, the mercenary flag, and whether they can be
-     interested in the player (the romance list: spark rate, how well they
-     must know the player first). */
+     can take from them, the mercenary flag, and (wave 34) how they take to
+     the player's interest when the romance list tunes them: spark rate,
+     how well they must know the player first, how hard a flirt rolls.
+     Every adult can be interested; anyone not listed takes the defaults. */
   const name = id => { const m = T.npcs.find(x => x.id === id); return m ? m.name : id; };
   const romance = Array.isArray(T.romance) ? T.romance : [];
   const holdLine = n => {
@@ -82,7 +83,7 @@ function render(D) {
     else if (Number.isInteger(n.canRaise)) parts.push(`A demand can take $${n.canRaise}.`);
     if (n.mercenary === true) parts.push('Mercenary.');
     const r = romance.find(x => x && x.npcId === n.id);
-    if (r) parts.push(`Can be interested in the player (spark rate ${r.sparkRate}; opens at knows ${r.opensAt && Number.isInteger(r.opensAt.knows) ? r.opensAt.knows : 0}${r.faithful ? '; faithful' : ''}).`);
+    if (r) { const hard = (r.faithful === true ? 'very_hard' : r.difficulty || 'hard').replace('_', ' '); parts.push(`${hard[0].toUpperCase() + hard.slice(1)} to win over (spark rate ${r.sparkRate}; opens at knows ${r.opensAt && Number.isInteger(r.opensAt.knows) ? r.opensAt.knows : 10}).`); }
     return parts.join(' ');
   };
   const here = T.npcs.filter(n => presence(n) === 'here');
@@ -101,6 +102,8 @@ function render(D) {
   out.push(`Everyone the story can mention: ${T.npcs.length} people, every one written by hand in \`TOWN_DATA\` in \`index.html\`, with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. ${here.length} live in town, with a home and a place in every phase of the day; ${away.length} live elsewhere and ${dead.length} are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).`);
   out.push('');
   out.push(`The town has ${T.locations.length} places. ${onMap.length} are on the map from the start; ${undiscovered.length} are homes the player finds when someone tells them about one (they then show on the map as "heard of" until visited); ${outOfTown.length} are out of town, talked about and never gone to.`);
+  out.push('');
+  out.push(`Every adult can be won over (wave 34). The ${romance.length} the romance list tunes say how hard ("Easy to win over", "Normal to win over"); anyone else over 18 is hard (spark rate 0.5; opens at knows 10). Nobody under 18 ever is.`);
   out.push('');
   out.push('This file is generated from the data: after editing the cast or the places, run `node tests/cast-doc.cjs` (and `node tests/validate-town.cjs`). Looks, voices, goals and secrets are in `index.html` only, so this roster spoils nothing.');
   for (const h of homes) {

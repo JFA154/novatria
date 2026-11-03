@@ -1053,3 +1053,24 @@ example 15 of `tests/relationships-examples.test.cjs`.
 - **Haiku's wrong woman.** A parse target who is here is never second-
   guessed: Haiku's `["npc_brianna"]` for "her" still goes to Brianna. The
   Standard preset (Sonnet) named nobody, which the words now resolve.
+
+## Wave 34 (3 Nov 2026): anyone can be won over, some the hard way
+
+The `parse_action` and `record_changes` schemas do not change (no probe
+needed), and no parser text changes: the engine turns a romantic parse at an
+adult into a charm roll itself (`docs/notes/engine-world.md`). What the
+models hear:
+
+- **The narrator.** The ROMANCE line follows the roll's tier: "<Name> is
+  open to it: she flirts back, her own way" (critical or success), "<Name>
+  turns it aside, kindly" (partial, or too soon: no roll), "<Name> isn't
+  interested: she turns it aside" (failure or critical failure). It is
+  pushed after resolve, so the packet's roll line ("Charm 14 + 1 = 15 vs 15
+  · Success") and the answer agree. A Say to everyone with a flirt: each
+  adult "turns it aside, kindly" (nobody rolls). The cast line's "open to a
+  flirt" is now only for someone a flirt would come easily to (easy or
+  normal for them now), and `PEOPLE_NOTE` still says nobody flirts back
+  unless their line or a turn line says so.
+- **The bookkeeper.** The ROMANCE lines (turned it aside; was open to it;
+  said yes to the night) are pushed once the roll has decided. A late
+  `flirted` lands by the turn's charm roll, when there was one.

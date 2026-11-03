@@ -30,7 +30,13 @@ const setup = page => page.evaluate(() => {
     if (ids && ids.length) S.apply({ visits: ids.map(id => ({ npcId: id, locationId: locId })) });
     return S.npcsAt(locId).map(n => n.id);
   };
+  /* Wave 34: a flirt is a charm roll at the person's difficulty. The flirt
+     rows here are about what a welcome flirt (or an unwelcome one) does, so
+     __say forces its tier: window.__tier (success unless a test says
+     otherwise; null leaves it to the dice). */
+  window.__tier = 'success';
   window.__say = async (to, words, parse, book, narration) => {
+    if (parse && (parse.romantic === 'flirt' || parse.romantic === 'more') && window.__tier) G.Pipeline.hooks.nextTier = window.__tier;
     G.Api.Mock.queue('parse', Object.assign({ actionType: 'talk', summary: words, targets: to === 'everyone' ? G.State.npcsAt(G.state.player.locationId).map(n => n.id) : [to], needsRoll: false, timeCost: 'instant', romantic: null }, parse || {}));
     if (narration) G.Api.Mock.queue('narrate', { text: narration });
     if (book) G.Api.Mock.queue('bookkeep', book);
@@ -742,7 +748,12 @@ s.test('the first unwelcome flirt costs a little, the next ones more', async h =
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, R = G.Rel, st = G.state;
     const out = [];
-    // Annette opens at knowing the player 25: a stranger's flirt is unwelcome.
+    /* Annette opens at knowing the player 25. Changed by design in wave 34:
+       short of that a flirt is turned aside kindly with no roll
+       (tests/wave34-romance-difficulty.test.cjs); past it, a flirt whose
+       charm roll fails is unwelcome, and that is what this pins. */
+    S.apply({ relSet: { npcId: 'npc_annette', k: 25 } });
+    window.__tier = 'failure';
     for (const d of [2, 3, 4]) {
       __put('loc_overstreet_house', ['npc_annette'], d, 'evening');
       const t0 = __tr('npc_annette');

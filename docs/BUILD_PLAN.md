@@ -1964,3 +1964,29 @@ talking, I can direct it to one person or all."
      `engine-world.md`, design section 6.4 example 15; tests:
      `tests/wave33-romance-target.test.cjs`, example 15 in
      `tests/relationships-examples.test.cjs`.
+   - **Wave 34** (3 Nov 2026). The owner, seeing Tammy Lott's Edit form with
+     four sliders: "Yeah that's where it should be complicated. There is
+     characters that will go from 0 to 100 easier than others. But everyone
+     should be allowed to go to 100. Like if I try to romance dewayne who's
+     straight, i can succeed, barely, but Jodie should be easier for
+     example. You know. But everyone should have all 6. Romance and spark
+     included." Every adult is eligible (`Rel.eligible`; the under-18 rules
+     unchanged); `TOWN_DATA.romance` ships as tuning (`sparkRate`,
+     `opensAt`, `difficulty`; Jodie and Shayla easy, the other ten normal,
+     anyone unlisted rate 0.5, opens at 10, hard; `open` refused,
+     `faithful: true` read as very hard: `Rel.tuningOf`). A flirt at a named
+     adult past their `opensAt` is a charm roll at their difficulty, eased
+     a step at spark 20 and two at 40 (`Rel.flirtDifficulty`), decided at
+     resolve (`Pipeline.romanceLanded`, `Rel.romanceRolled`,
+     `Rel.flirtAnswer`): critical spark 15 x the rate, success the row,
+     partial turned aside kindly with no change, failure the unwelcome row,
+     critical failure double the liking and an awkward weight-2 memory;
+     short of `opensAt` no roll, the first free, then liking 1. The night
+     keeps its gate with no roll; the late flirt reads the turn's charm
+     roll. The Edit form has Interested for every adult. No schema change
+     (no probe). README People and Editing the town, `docs/notes/content.md`,
+     `prompts.md`, `engine-world.md`, design sections 2.5 and Appendix E,
+     `docs/RELATIONSHIPS_PLAN.md` 4.3 and decision 9, `docs/CAST.md`;
+     tests: `tests/wave34-romance-difficulty.test.cjs`, the flirt rows of
+     waves 26, 29, 30 and 33, examples 10, 14 and 15, and
+     `tests/relationships.test.cjs`'s eligibility checks.

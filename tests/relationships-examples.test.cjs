@@ -17,7 +17,10 @@
    adds the B parts of 1, 4 and 5, and 9 (Loretta goes quiet); wave 32 (B2)
    the B parts of 2 (the tie that changes) and 11 (the hidden tie the
    report goes through); wave 33 adds 15 (Jodie at the motor court: a kiss
-   aimed at "her", from the owner's own game).
+   aimed at "her", from the owner's own game). Wave 34: a flirt is a charm
+   roll at the person's difficulty, so the flirts here are forced to land
+   (__say's window.__tier, success unless a test says otherwise; the kiss
+   in 15 by hooks.nextTier), and 14 pins that coercion never rolls.
    Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
@@ -470,7 +473,10 @@ const kit = page => page.evaluate(() => {
     if (ids && ids.length) S.apply({ visits: ids.map(id => ({ npcId: id, locationId: locId })) });
     return S.npcsAt(locId).map(n => n.id);
   };
+  // Wave 34: a flirt rolls charm; its tier is forced (window.__tier; null leaves it to the dice).
+  window.__tier = 'success';
   window.__say = async (to, words, parse, book, narration) => {
+    if (parse && (parse.romantic === 'flirt' || parse.romantic === 'more') && window.__tier) G.Pipeline.hooks.nextTier = window.__tier;
     G.Api.Mock.queue('parse', Object.assign({ actionType: 'talk', summary: words, targets: [to], needsRoll: false, timeCost: 'instant', romantic: null }, parse || {}));
     if (narration) G.Api.Mock.queue('narrate', { text: narration });
     if (book) G.Api.Mock.queue('bookkeep', book);
@@ -651,6 +657,7 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
     await __say('npc_shayla', 'Travis and I went through the academy together.', { actionType: 'deceive', needsRoll: true, stat: 'charm', difficulty: 'normal' });
     await __say('npc_shayla', 'You do good work. You look good doing it, too.', { romantic: 'flirt' });
     out.welcome = G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l));
+    out.flirtRoll = [G.Pipeline.lastTurn.ctx.roll.stat, G.Pipeline.lastTurn.ctx.roll.difficulty, G.Pipeline.lastTurn.ctx.roll.tier];
     out.d2 = [__tr('npc_shayla'), S.npc('npc_shayla').rel.asks.map(a => a.act)];
     // And time together (spent_time).
     await __say('npc_shayla', 'Mind if I sit a while?');
@@ -691,10 +698,12 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
     out.more = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), jo.memories.slice(n0).map(m => m.event)];
     return out;
   });
-  assert.deepEqual(r.content, [{ npcId: 'npc_shayla', open: true, sparkRate: 1.5, opensAt: { knows: 0 }, faithful: false }, true, [5, 0]], 'Shayla: on the list, rate 1.5, opens at 0, mercenary; W 5, T 0');
+  // Changed by design in wave 34: the list is tuning (no open, no faithful); Shayla is easy.
+  assert.deepEqual(r.content, [{ npcId: 'npc_shayla', sparkRate: 1.5, opensAt: { knows: 0 }, difficulty: 'easy' }, true, [5, 0]], 'Shayla: on the list, rate 1.5, opens at 0, easy, mercenary; W 5, T 0');
   assert.equal(r.alone, false, 'Travis is at Town Hall');
   assert.deepEqual(r.haircut, [15, 0], 'the haircut is a purchase');
   assert.deepEqual(r.welcome, ['ROMANCE (decided by the engine): Shayla Rawls is open to it: she flirts back, her own way.'], 'welcome decided before narration');
+  assert.deepEqual(r.flirtRoll, ['charm', 'easy', 'success'], 'wave 34: by the charm roll, easy for her');
   assert.equal(r.d2[0].s, 15, 'S +15');
   assert.ok(r.d2[1].includes('deceive'), 'the lie is logged');
   // Travis sees the flirt (the jealousy rule): W -9, T -20, exactly the design's; and, wave 31, he was there when she caught the lie and the
@@ -950,8 +959,10 @@ s.test('example 14, coercion fails (A): "Sleep with me, or Bell hears about your
     const rep0 = st.player.reputation.town || 0;
     const m0 = __tr('npc_marcus');
     const c0 = st.meta.rngCalls;
+    // Nothing forced: coercion draws (and burns) the real die.
+    window.__tier = null;
     await __say('npc_glenda', 'Sleep with me, or Bell hears about your tapes.', { actionType: 'intimidate', aboutIds: ['lev_glenda_1'], romantic: 'more' });
-    out.turn = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^COERCION/.test(l)), st.meta.rngCalls - c0, G.Pipeline.lastTurn.ctx.coerced ? true : false];
+    out.turn = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^COERCION/.test(l)), st.meta.rngCalls - c0, G.Pipeline.lastTurn.ctx.coerced ? true : false, G.Pipeline.lastTurn.ctx.roll || null, G.Pipeline.lastTurn.ctx.romanceRoll || null];
     out.after = [__tr('npc_glenda'), __st('npc_glenda'), S.npc('npc_glenda').memories.filter(m => m.turn === st.meta.turn).map(m => [m.event, m.weight, m.leverageId || null]), st.leverage.map(x => [x.status, x.uses.map(u => u.event)])];
     out.seeds = st.seeds.filter(sd => sd.origin && sd.origin.npcId === 'npc_glenda').map(sd => [sd.origin.kind, sd.origin.why, sd.origin.protectors]);
     out.rep = (st.player.reputation.town || 0) - rep0;
@@ -967,6 +978,7 @@ s.test('example 14, coercion fails (A): "Sleep with me, or Bell hears about your
   assert.deepEqual(r.turn[0], ['COERCION (the engine: no roll, nothing given): Glenda Pryor refuses: she won\'t be pushed into that, and she leaves.']);
   assert.ok(r.turn[1] >= 1, 'the d20 is drawn');
   assert.equal(r.turn[2], true);
+  assert.deepEqual(r.turn.slice(3), [null, null], 'wave 34: coercion never rolls, though a flirt would');
   // blackmailed (the record used) plus crossed at full, both weight 3: W -32, T -52, F 45, exactly the design's.
   assert.deepEqual(wtf(r.after[0]), [-32, -52, 45]);
   assert.deepEqual(r.after[1], ['afraid of what you know']);
@@ -1321,9 +1333,11 @@ s.test('example 15, Jodie at the motor court (A): walked in by the story, then "
       const here = S.npcsAt(st.player.locationId).map(n => n.id);
       const s0 = __tr(J).s;
       const t0 = st.meta.turn;
+      // Wave 34: the kiss is a charm roll against her (easy); forced to succeed.
+      G.Pipeline.hooks.nextTier = 'success';
       await doTurn('I don\'t say anything, I lean in to kiss her', { romantic: 'flirt' }, kissed);
       const c = G.Pipeline.lastTurn.ctx;
-      out.days.push({ here, aimed: c.romance.aimed, lines: G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), ds: __tr(J).s - s0, s: __tr(J).s, st: __st(J),
+      out.days.push({ roll: c.roll ? [c.roll.stat, c.roll.difficulty, c.roll.tier] : null, here, aimed: c.romance.aimed, lines: G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), ds: __tr(J).s - s0, s: __tr(J).s, st: __st(J),
         others: here.filter(id => id !== J).filter(id => S.npc(id).memories.some(m => m.event === 'flirted' && m.turn > t0)) });
     }
     out.end = [__tr(J), __st(J), R.cue(S.npc(J)), S.npc(J).rel.wRom];
@@ -1335,11 +1349,12 @@ s.test('example 15, Jodie at the motor court (A): walked in by the story, then "
   for (const id of ['npc_jodie', 'npc_curtis', 'npc_brianna', 'npc_lyman']) assert.ok(d3.here.includes(id), id + ' here: ' + JSON.stringify(d3.here));
   for (const d of r.days) {
     assert.deepEqual(d.aimed, ['npc_jodie']);
+    assert.deepEqual(d.roll, ['charm', 'easy', 'success']);
     assert.deepEqual(d.lines, ['ROMANCE (decided by the engine): Jodie Strayhorn is open to it: she flirts back, her own way.']);
     assert.deepEqual(d.others, [], 'Curtis, Lyman and Brianna: no flirt');
   }
   assert.equal(d3.ds, 12, 'S +12 (10 x her rate 1.2)');
-  assert.deepEqual(r.days.map(d => d.s), [12, 22, 32, 39, 46], 'the design\'s mornings');
+  assert.deepEqual(r.days.map(d => d.s), [12, 22, 32, 39, 46], 'the design\'s mornings (wave 34: on five successful rolls)');
   assert.equal(r.days[2].st[1], 'has noticed you');
   const [tr, st, cue, wRom] = r.end;
   assert.ok(tr.w - wRom < 25 && tr.t <= -25, JSON.stringify(r.end));

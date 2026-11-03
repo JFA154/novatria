@@ -113,7 +113,8 @@ s.test('the task\'s variant of turn 96: the player already at the motor court in
 /* Jodie as the owner's save has her: his enemy loose end (start liking -45,
    trust -55), a threat of his on her record (the earned distrust), now
    liking -18, trust -37, knows 51: "suspicious of you", and open to a flirt
-   (knows 51 is past her opensAt 20; cool is not against him). */
+   (knows 51 is past her opensAt 20; cool is not against him). Wave 34: a
+   flirt with her is a charm roll, easy (her entry on the list). */
 const jodieAsSaved = page => page.evaluate(() => {
   const S = Game.State;
   S.apply({ relStart: [{ npcId: 'npc_jodie', w: -45, t: -55 }] });
@@ -122,7 +123,7 @@ const jodieAsSaved = page => page.evaluate(() => {
   return [__tr('npc_jodie'), __st('npc_jodie'), Game.Rel.welcomeOf(S.npc('npc_jodie'))];
 });
 
-s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say anything, I lean in to kiss her" parsed as a flirt at nobody is aimed at her alone (Brianna two doors down and Curtis get nothing); she is open to it, spark +12; three mornings and she has noticed you, five and she is using you', async h => {
+s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say anything, I lean in to kiss her" parsed as a flirt at nobody is aimed at her alone (Brianna two doors down and Curtis get nothing); the kiss rolls charm against her (easy) and, forced to succeed, she is open to it, spark +12; three mornings and she has noticed you, five and she is using you', async h => {
   const page = await start(h);
   const r0 = await turn96(page);
   assert.ok(r0.here.includes('npc_jodie') && r0.here.includes('npc_brianna'), JSON.stringify(r0.here));
@@ -137,9 +138,12 @@ s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say
       const t0 = G.state.meta.turn;
       const s0 = __tr('npc_jodie').s;
       __mark();
+      // Wave 34: the kiss is a charm roll; a 15 makes it a success (the suite forces dice so, hooks.nextD20).
+      G.Pipeline.forceNextRoll(15);
       await __do('I don\'t say anything, I lean in to kiss her', { romantic: 'flirt', targets: [], actionType: 'other' }, t97);
       const c = G.Pipeline.lastTurn.ctx;
       return {
+        roll: c.roll ? [c.roll.stat, c.roll.difficulty, c.roll.tier] : null,
         targets: G.Pipeline.lastTurn.action.targets, aimed: c.romance.aimed, lines: __romance(), dbg: __dbg('rel').filter(x => /^romance/.test(x)),
         jodie: __flirts('npc_jodie', t0 + 1).map(m => [m.text, m.d.s]), spark: __tr('npc_jodie').s - s0,
         others: ['npc_curtis', 'npc_brianna', 'npc_lyman'].map(id => __flirts(id, t0 + 1).length),
@@ -157,7 +161,8 @@ s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say
     return out;
   }, [TURN96, TURN97]);
   const d1 = r.days[0];
-  assert.deepEqual(d1.targets, ['npc_jodie'], 'the resolved target is the parse\'s now (the roll would follow it)');
+  assert.deepEqual(d1.targets, ['npc_jodie'], 'the resolved target is the parse\'s now (the roll follows it)');
+  assert.deepEqual(d1.roll, ['charm', 'easy', 'success'], 'wave 34: the kiss rolled charm against her, easy, though the parse said no roll');
   assert.deepEqual(d1.aimed, ['npc_jodie']);
   assert.deepEqual(d1.lines, ['ROMANCE (decided by the engine): Jodie Strayhorn is open to it: she flirts back, her own way.'], 'no line for Curtis, Lyman or Brianna');
   assert.ok(d1.dbg.includes('romance target: npc_jodie ("her": the last narration walked them in; the parse had nobody)'), JSON.stringify(d1.dbg));
@@ -170,9 +175,10 @@ s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say
     assert.deepEqual(d.aimed, ['npc_jodie']);
     assert.deepEqual(d.others, [0, 0, 0]);
     assert.equal(d.jodie.length, 1);
+    assert.deepEqual(d.roll, ['charm', 'easy', 'success'], 'easy is as easy as it gets: spark only eases a harder one');
   }
   /* Three mornings (12 a kiss, less what fades each night) leave her spark
-     at 32: "has noticed you", short of the 40 "using you" needs; the fourth
+     at 32 (wave 34: the path 12, 22, 32, 39, 46 holds, every kiss a success): "has noticed you", short of the 40 "using you" needs; the fourth
      is 39 and the fifth 46. Then: caring liking under 25, trust -25 or
      less, earned by the threat on her record: using you. */
   assert.equal(r.three[0].s, 32, JSON.stringify(r.three));
@@ -199,7 +205,7 @@ s.test('(b) a Say to everyone with a flirt still goes to everyone here: each adu
   assert.deepEqual(r.flirts, []);
 });
 
-s.test('(c) a romantic turn the parse aimed at nobody: the bookkeeper\'s flirt naming an adult here is the engine\'s flirt, late (welcome by her own gates); one naming someone not here is refused', async h => {
+s.test('(c) a romantic turn the parse aimed at nobody: the bookkeeper\'s flirt naming an adult here is the engine\'s flirt, late (wave 34: landed by the turn\'s charm roll); one naming someone not here is refused', async h => {
   const page = await start(h);
   await jodieAsSaved(page);
   const r = await page.evaluate(async () => {
@@ -210,7 +216,9 @@ s.test('(c) a romantic turn the parse aimed at nobody: the bookkeeper\'s flirt n
     const t0 = G.state.meta.turn;
     const s0 = __tr('npc_jodie').s;
     __mark();
-    await __do('I lean in and kiss her', { romantic: 'flirt', targets: [], actionType: 'other' }, 'She kisses you back.', { socialEvents: ['npc_jodie flirted: kissed me and I kissed back'] });
+    // Wave 34: the late flirt lands by the turn's charm roll (the parse rolled one; a 15, a success).
+    G.Pipeline.forceNextRoll(15);
+    await __do('I lean in and kiss her', { romantic: 'flirt', targets: [], actionType: 'other', needsRoll: true, stat: 'charm', difficulty: 'normal' }, 'She kisses you back.', { socialEvents: ['npc_jodie flirted: kissed me and I kissed back'] });
     const c = G.Pipeline.lastTurn.ctx;
     out.aimed = c.romance.aimed;
     out.lines = __romance();
@@ -234,7 +242,7 @@ s.test('(c) a romantic turn the parse aimed at nobody: the bookkeeper\'s flirt n
   assert.deepEqual(r.jodie, [['Tester flirted with me at the Riverview Motor Court', 12]], 'the engine\'s own flirt, welcome');
   assert.equal(r.spark, 12);
   assert.equal(r.brianna, 0);
-  assert.deepEqual(r.dbg, ['the bookkeeper named who the flirt was aimed at: npc_jodie, open to it (the engine\'s flirt, late)']);
+  assert.deepEqual(r.dbg, ['the bookkeeper named who the flirt was aimed at: npc_jodie, open to it (the charm roll: success) (the engine\'s flirt, late)']);
   assert.equal(r.shayla, 0, 'nothing for someone not here');
   assert.ok(r.refused.length >= 1, JSON.stringify(r.refused));
 });

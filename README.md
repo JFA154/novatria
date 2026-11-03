@@ -370,9 +370,9 @@ close to names what you did and when, and no more: "Cooler since you shamed
 Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said why." (a
 report that went that way shows only its day: "Cooler since Day 3. Hasn't
 said why."). **More** opens each side of it
-in a word: Likes you, Trusts you, Scared, Knows you, and, for an adult on the
-romance list who has a status with you, Interested; never for anyone under
-18, and never when you are. Something said where you weren't stays off the
+in a word: Likes you, Trusts you, Scared, Knows you, and, for an adult who
+has a status with you, Interested; never for anyone under 18, and never
+when you are. Something said where you weren't stays off the
 card until you see them again.
 
 When someone you know crosses a line in how they feel about you, a quiet line
@@ -458,13 +458,21 @@ refuse and leave or call for someone, and it is reported. If you are under
 takes a flirt from you as one, and nothing intimate is ever answered yes. An
 intimate scene between adults fades to black before anything explicit.
 
-**What people hold: wanting, leverage and favours.** Twelve adults can be
-interested in you (the town's romance list: Jodie, Shayla, Travis, Curtis,
-Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt and Tyler), each at their
-own pace and once they know you well enough. The game decides before the
-story is told whether a flirt is welcome ("Shayla Rawls is open to it") or
-turned aside, and one turned aside costs a little, the next ones more. A
-flirt goes to the one it was aimed at: "kiss her" is aimed at the one woman
+**What people hold: wanting, leverage and favours.** Everyone over 18 can be
+interested in you, and some are easier to win over than others: Jodie and
+Shayla are easy, the other ten on the town's romance list (Travis, Curtis,
+Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt and Tyler) normal, and
+everyone else hard, each at their own pace and once they know you well
+enough. A flirt rolls charm against how hard they are, easier as they warm
+to it (one step easier once there is a spark of 20, two at 40), and how
+well they like you helps or hurts the dice as it does when you persuade
+them: "Charm 14 + 1 = 15 vs 15 · Success". The roll decides before the
+story is told: a success and they are open to it ("Shayla Rawls is open to
+it"; a 20 sparks more), a near miss and they turn it aside, kindly, with
+nothing lost, a failure and they aren't interested, which costs a little,
+the next ones more (a 1 is awkward, and they remember it). Before they know
+you well enough a flirt is only turned aside, kindly, with no roll: the
+first time costs nothing. A flirt goes to the one it was aimed at: "kiss her" is aimed at the one woman
 in the room (or the one the story just walked in); a flirt the game cannot
 place goes to whoever the bookkeeper names, if they are there; and it never
 goes to everyone unless you say it to everyone. What
@@ -474,9 +482,9 @@ twice", "wants you", "sweet on you" (a spark and real liking), "using you" (a
 spark from someone who doesn't like you and has reason not to trust you, or
 cares only for money). A partner who sees you flirt with someone else cools.
 A night together needs everything at once: both of you adults, someone on
-the list who is open to you, a strong spark, liking, trust and knowing you;
-then it fades to black and they remember it, and one short is "not tonight",
-said kindly. A beating or worse halves a spark, and a spark fades in days
+someone who knows you well enough, a strong spark, liking, trust and knowing
+you; then it fades to black and they remember it, with no roll. One short
+rolls as a flirt, and if it lands it is "not tonight", said kindly. A beating or worse halves a spark, and a spark fades in days
 unless it is fed.
 
 **Leverage** is knowing something about someone. A secret the narrator was
@@ -562,8 +570,8 @@ open their card (anyone you have met, or heard of) and tap **Edit** beside the
 pronouns, or type `/edit Mavis`. The form has their name, age, pronouns, role,
 up to three traits, how they feel about you (four sliders, each with its word
 as you drag: likes you and trusts you from -100 to 100, scared and knows you
-from 0 to 100, and Interested only for an adult on the romance list, held at
-0 and shut for anyone under 18), who
+from 0 to 100, and Interested for every adult, held at 0 and shut for anyone
+under 18 and left out when you are under 18), who
 they are to whom, their home, whether they are free, arrested, gone or dead,
 and what they remember about you (each line keeps what it was, shown beside
 it, and a line you add picks what it was from a list); what is held between
@@ -1514,6 +1522,12 @@ already in an older game's story before then is not read again, so someone
 who kissed you back then may show no interest on their card; set
 "Interested" on the person's card (Edit) to where the story is.
 
+**Anyone can be won over, some the hard way** (3 Nov 2026) needs no step and
+changes no version: an older game's town copy reads its romance list as
+tuning from the next turn (an old `open: false` no longer shuts anyone out,
+an old `faithful: true` is very hard), every adult has Interested on the
+Edit form, and from then on a flirt rolls charm as People says.
+
 Behind the scenes a save carries `state.meta.rulesVersion` (10 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
@@ -1646,9 +1660,15 @@ the town move:
   everyone it names); grudge templates of kind `report`, with `to`
   (`police` or `family`), `about` (`threat` or `violence`), a 1 to 2 day
   `dayOffset` and `{protector}` / `{protectorId}`.
-- What people hold (wave 29): `TOWN_DATA.romance` (who can be interested in
-  the player: `{ npcId, open, sparkRate, opensAt: { knows }, faithful }`, adults
-  only; anyone not on it never has spark above 0), and on a person
+- What people hold (wave 29): `TOWN_DATA.romance` (wave 34: how easily each
+  adult is won over, `{ npcId, sparkRate, opensAt: { knows }, difficulty }`:
+  `sparkRate` 0.1 to 2 scales a welcome flirt's spark, `opensAt.knows` is
+  how well they must know the player before a flirt is taken as one,
+  `difficulty` (`easy`, `normal`, `hard`, `very_hard`) is the charm roll a
+  flirt makes with them; adults only. Every adult can be interested whether
+  listed or not; anyone not listed is rate 0.5, opens at knows 10, hard.
+  Add an entry for anyone to make them easier or harder. `open` is gone;
+  `faithful: true` still reads as `very_hard`), and on a person
   `secretWeight` (1 to 3: how heavy their secret is to hold over them),
   `leverageKeys` (the words that show it in a narration, two needed),
   `mattersTo` (whom it would be told to), `whenTold` (`{ memory, crime,

@@ -1030,3 +1030,46 @@ Wave B2 of `docs/RELATIONSHIPS_PLAN.md` (design Appendix C). Tests:
   (`tieDelta`: two people, numbers, why; `propagate`: an event that travels,
   read from `Rel.STAYS`, a factor 0.1 to 2, `via`, its text); `OPS` follows
   `State.EFFECT_OPS` (33).
+
+## Wave 34 (3 Nov 2026): anyone can be won over, some the hard way
+
+**The romance list is tuning** (`TOWN_DATA.romance`, before `policeHead`).
+Everyone over 18 can be interested in the player whether listed or not; an
+entry only says how easily. Anyone not listed: `sparkRate` 0.5, `opensAt`
+knows 10, `difficulty` "hard". `sparkRate` (0.1 to 2) scales a welcome
+flirt's spark (10 x the rate, 15 x on a critical); `opensAt.knows` (0 to 60)
+is how well they must know the player before a flirt is taken as one;
+`difficulty` (`easy`, `normal`, `hard`, `very_hard`) is the charm roll a
+flirt makes with them (8, 12, 15, 18), a step easier once their spark is 20
+and two at 40. `open` is gone (the validator refuses it); `faithful: true`
+still validates and reads as `very_hard` (with no `difficulty`, or with
+`difficulty: "very_hard"`). Jodie and Shayla are easy, the other ten
+normal; nobody's difficulty is inferred from relations, age or traits. The
+owner can add an entry for anyone to make them easier or harder (Dewayne at
+`"very_hard"`, say, or Royce at `"easy"`). Ready to paste:
+
+```js
+  romance: [
+    { npcId: "npc_jodie", sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: "easy" },
+    { npcId: "npc_shayla", sparkRate: 1.5, opensAt: { knows: 0 }, difficulty: "easy" },
+    { npcId: "npc_travis", sparkRate: 1.2, opensAt: { knows: 0 }, difficulty: "normal" },
+    { npcId: "npc_curtis", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_trent", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_nikki", sparkRate: 0.8, opensAt: { knows: 20 }, difficulty: "normal" },
+    { npcId: "npc_annette", sparkRate: 0.7, opensAt: { knows: 25 }, difficulty: "normal" },
+    { npcId: "npc_carter", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_lamar", sparkRate: 0.6, opensAt: { knows: 30 }, difficulty: "normal" },
+    { npcId: "npc_glenda", sparkRate: 0.8, opensAt: { knows: 20 }, difficulty: "normal" },
+    { npcId: "npc_colt", sparkRate: 1.2, opensAt: { knows: 0 }, difficulty: "normal" },
+    { npcId: "npc_tyler", sparkRate: 0.8, opensAt: { knows: 15 }, difficulty: "normal" }
+  ],
+```
+
+**The validator** (`tests/validate-town.cjs`): every key but `faithful`
+(`npcId`, `sparkRate`, `opensAt`, `difficulty`; `difficulty` may be left
+out for `faithful: true`), no duplicates, nobody under 18, `sparkRate` 0.1
+to 2, `difficulty` one of the four, `faithful: true` with any other
+difficulty refused, `open` refused ("open is gone (wave 34)"). `docs/CAST.md`
+(`tests/cast-doc.cjs`) says "Easy to win over (spark rate 1.2; opens at
+knows 20)" for a listed person, and its opening says everyone else over 18
+is hard.

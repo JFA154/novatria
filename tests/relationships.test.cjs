@@ -469,14 +469,18 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
     const G = Game, S = G.State, R = G.Rel, st = G.state;
     // Changed by design in wave 29 (A4): Jodie is eligible on the town's own shipped list (opens at knows-you 20), not a list the test made.
     const out = { eligibleAdult: R.eligible(S.npc('npc_jodie')), listed: (G.State.town.romance || []).filter(x => x.npcId === 'npc_jodie').map(x => [x.sparkRate, x.opensAt.knows]) };
+    // Changed by design in wave 34: every adult is eligible whether listed or not (Dewayne is on no list); the list only tunes.
+    out.unlisted = [(G.State.town.romance || []).some(x => x.npcId === 'npc_dewayne'), R.eligible(S.npc('npc_dewayne'))];
     S.apply({ relSet: { npcId: 'npc_jodie', k: 40 } });
     st.player.age = 16;
-    out.eligible16 = R.eligible(S.npc('npc_jodie'));
+    out.eligible16 = [R.eligible(S.npc('npc_jodie')), R.eligible(S.npc('npc_dewayne'))];
+    out.rolls = [];
     __put('loc_pittmans', ['npc_jodie'], 2, 'morning');
     const lines = [];
     for (const w of ['You have nice eyes.', 'Want to go on a date?', 'Wink. You look great.', 'Stay over at my place tonight.']) {
       await __say('npc_jodie', w, { romantic: /stay over/i.test(w) ? 'more' : 'flirt' });
       const p = window.__packets.filter(x => x.kind === 'narrate').pop().text.split('\n');
+      out.rolls.push(G.Pipeline.lastTurn.ctx.romanceRoll || null);
       lines.push({ young: p.includes('UNDER 18: The player is under 18: nobody in this town flirts with them or takes a flirt from them as anything but a kid talking.'), answer: p.find(l => l.startsWith('ROMANCE')) || null, yes: p.some(l => /says yes|fade to black|not tonight/.test(l)) });
     }
     out.lines = lines;
@@ -488,13 +492,15 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
     const p = window.__packets.filter(x => x.kind === 'narrate').pop().text.split('\n');
     out.ageless = [R.playerMinor(), p.filter(l => l.startsWith('UNDER 18: ')), R.eligible(S.npc('npc_jodie'))];
     st.player.age = 30;
-    out.adult = R.eligible(S.npc('npc_jodie'));
+    out.adult = [R.eligible(S.npc('npc_jodie')), R.eligible(S.npc('npc_dewayne'))];
     return out;
   });
   await checked(page, 'the young player');
   assert.equal(r.eligibleAdult, true, 'an adult player: Jodie is on the town\'s list');
   assert.deepEqual(r.listed, [[1.2, 20]], 'the shipped row: rate 1.2, opens at 20');
-  assert.equal(r.eligible16, false);
+  assert.deepEqual(r.unlisted, [false, true], 'wave 34: an adult nobody listed is eligible too');
+  assert.deepEqual(r.eligible16, [false, false], 'with a player under 18, nobody, listed or not');
+  assert.deepEqual(r.rolls, [null, null, null, null], 'and a kid\'s flirt never rolls');
   for (const x of r.lines) {
     assert.equal(x.young, true, 'the under-18 player line every turn');
     assert.match(x.answer, /^ROMANCE \(decided by the engine\): Jodie Strayhorn isn't interested: she turns it aside\.$/, 'every welcome is no');
@@ -505,7 +511,7 @@ s.test('a player under 18, or of no age on record: nobody\'s spark moves, every 
   assert.equal(r.ageless[0], true);
   assert.deepEqual(r.ageless[1], ["UNDER 18: The player's age is not on record, so for romance they count as under 18: nobody in this town flirts with them or takes a flirt from them as one."]);
   assert.equal(r.ageless[2], false);
-  assert.equal(r.adult, true, 'an adult player: Jodie is eligible on the town\'s list');
+  assert.deepEqual(r.adult, [true, true], 'an adult player: Jodie (listed) and Dewayne (not) are eligible');
 });
 
 s.test('fuzz: 300 random event strings and 50 random romantic parses over every id for 20 turns leave every minor at spark 0, with no status, no intimate memory and no cue in any packet', async h => {

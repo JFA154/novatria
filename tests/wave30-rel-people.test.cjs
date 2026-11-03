@@ -79,7 +79,7 @@ s.test('People: the stance and one tag on the row, two dated reasons and the lev
   assert.equal(hollis.open.hidden, 'true', 'the visible block is for the eye; a screen reader hears the sentence');
   assert.ok(hollis.open.sr.startsWith(`${st.phrase.charAt(0).toUpperCase() + st.phrase.slice(1)}, ${st.tags.slice(0, 2).join(', ')}. You know:`), hollis.open.sr);
   assert.ok(hollis.open.sr.includes(`You called him a cheat in his own shop. Day ${st.day} · you apologised.`), hollis.open.sr);
-  // More: closed until tapped; then the five words (Interested only for an eligible adult with a status: not Hollis), two columns at 375.
+  // More: closed until tapped; then the five words (Interested only for an adult with a status: wave 34 makes Hollis eligible, but his spark is 0, so not Hollis), two columns at 375.
   assert.equal(hollis.fold, true);
   assert.equal(hollis.foldOpen, false);
   await page.click('#panel-body .pcard[data-npc="npc_hollis"] .pcard-words-fold > summary');
@@ -123,7 +123,7 @@ s.test('People: the stance and one tag on the row, two dated reasons and the lev
   assert.deepEqual(await overflowReport(page, 375), [], 'still no horizontal scroll');
 });
 
-s.test('Edit: four sliders, and Interested only for an eligible adult, land exactly; removing a memory keeps the numbers; every memory field survives a save', async h => {
+s.test('Edit: four sliders, and Interested for every adult (wave 34), land exactly; removing a memory keeps the numbers; every memory field survives a save', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
   await put(page, 'loc_riverbend', ['npc_shayla'], 2, 'morning');
@@ -144,13 +144,16 @@ s.test('Edit: four sliders, and Interested only for an eligible adult, land exac
   assert.deepEqual([shay.t.w, shay.t.t, shay.t.f, shay.t.k, shay.t.s], [40, 30, 10, 50, 35], 'each lands exactly');
   assert.ok(shay.fix.t !== 0 && shay.fix.k !== 0, 'in fix: it never drifts');
   assert.equal((await quiets(page)).pop(), 'Edited Shayla Rawls: attitude, trust, fear, knows, spark.');
-  // Kaylee (16): Interested shown at 0 and off. Royce (an adult not on the list): no Interested.
+  // Kaylee (16): Interested shown at 0 and off. Changed by design in wave 34: every adult has Interested, Royce (an adult not on the list) too, and it lands.
   await page.evaluate(() => Game.UI.editPerson('npc_kaylee'));
   assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? [r.value, r.disabled] : null; }, f('npc_kaylee', 'spark')), ['0', true]);
   await page.click('#panel-body .pcard[data-npc="npc_kaylee"] .pedit-cancel');
   await page.evaluate(() => Game.UI.editPerson('npc_royce'));
-  assert.equal(await page.$(f('npc_royce', 'spark')), null, 'not on the romance list: no Interested');
-  await page.click('#panel-body .pcard[data-npc="npc_royce"] .pedit-cancel');
+  assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? [r.value, r.disabled] : null; }, f('npc_royce', 'spark')), ['0', false], 'every adult has Interested, listed or not');
+  await slide('npc_royce', 'spark', 15);
+  await page.click('#panel-body .pcard[data-npc="npc_royce"] .pedit-save');
+  assert.equal(await page.evaluate(() => Game.Rel.tracksOf(Game.State.npc('npc_royce')).s), 15, 'and it lands');
+  await page.evaluate(() => Game.State.apply({ relSet: { npcId: 'npc_royce', s: 0 } }));
   // Every memory field survives a save; removing one keeps the numbers; an added one says what it was.
   const full = await page.evaluate(() => {
     const G = Game, S = G.State;

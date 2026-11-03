@@ -1693,28 +1693,31 @@ const TOWN_DATA = {
   setting: "Lockett's Ferry is a river town of about eight hundred people where the state highway drops off the bluff and crosses the Lusk River on a narrow green steel bridge built in 1938. The state line runs down the middle of the river, the county on the far side is dry and taxes cigarettes hard, and for as long as anyone can remember, cartons and cases have gone across at night, by johnboat from Purvis Landing or in pickups light enough for the bridge's five-ton limit. Now the state has rated the bridge critical and will pay for one new crossing, either here or five miles downstream on Sturdivant land, and the town council votes on the site next Tuesday. Carter Sturdivant wants it downstream, the Night Run wants the old bridge open and the river dark, and the three-officer police department needs an arrest big enough to stop the mayor disbanding it. Cell signal is patchy in the valley, one bar if you stand by the water tower on the hill, so business here is done face to face: at the bar, at the pumps, at the ramp. People tell stories about what the river takes, but nobody you would believe has ever seen anything in it but mud and catfish.",
   currency: { symbol: "$", name: "dollars" },
   startLocationIds: { gate: "loc_pittmans", docks: "loc_purvis_landing" },
-  /* Wave 29: who can be interested in the player (Rel.eligible; design
-     Appendix E, for the owner to edit). Twelve adults, every one 18 or
-     older; nobody else's spark ever moves, and the validator refuses
-     anyone under 18 here. sparkRate scales a welcome flirt's spark (10 x
-     the rate); opensAt.knows is how well they must know the player before
-     a flirt is welcome; faithful: never to anyone but their partner.
-     Leaving married people and the old off is a default, not a rule:
-     Curtis is separated (Lynette put him out in December 2025) and stays
-     on. */
+  /* Wave 29, retuned in wave 34: how each person takes to the player's
+     interest (Rel.tuningOf; design Appendix E, for the owner to edit).
+     Every adult can be interested in the player whether listed here or
+     not (Rel.eligible: nobody under 18, and nobody at all for a player
+     under 18; the validator refuses anyone under 18 here). An entry only
+     makes someone easier or harder: sparkRate (0.1 to 2) scales a welcome
+     flirt's spark (10 x the rate); opensAt.knows is how well they must
+     know the player before a flirt is even taken as one; difficulty (easy,
+     normal, hard, very_hard) is the charm roll a flirt makes with them,
+     easier as they warm to it. Anyone not listed: sparkRate 0.5, opensAt
+     knows 10, hard (Rel.ROMANCE_DEFAULTS). faithful: true still reads as
+     very_hard. Curtis is separated (Lynette put him out in December 2025). */
   romance: [
-    { npcId: "npc_jodie", open: true, sparkRate: 1.2, opensAt: { knows: 20 }, faithful: false },
-    { npcId: "npc_shayla", open: true, sparkRate: 1.5, opensAt: { knows: 0 }, faithful: false },
-    { npcId: "npc_travis", open: true, sparkRate: 1.2, opensAt: { knows: 0 }, faithful: false },
-    { npcId: "npc_curtis", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
-    { npcId: "npc_trent", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
-    { npcId: "npc_nikki", open: true, sparkRate: 0.8, opensAt: { knows: 20 }, faithful: false },
-    { npcId: "npc_annette", open: true, sparkRate: 0.7, opensAt: { knows: 25 }, faithful: false },
-    { npcId: "npc_carter", open: true, sparkRate: 1.0, opensAt: { knows: 10 }, faithful: false },
-    { npcId: "npc_lamar", open: true, sparkRate: 0.6, opensAt: { knows: 30 }, faithful: false },
-    { npcId: "npc_glenda", open: true, sparkRate: 0.8, opensAt: { knows: 20 }, faithful: false },
-    { npcId: "npc_colt", open: true, sparkRate: 1.2, opensAt: { knows: 0 }, faithful: false },
-    { npcId: "npc_tyler", open: true, sparkRate: 0.8, opensAt: { knows: 15 }, faithful: false }
+    { npcId: "npc_jodie", sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: "easy" },
+    { npcId: "npc_shayla", sparkRate: 1.5, opensAt: { knows: 0 }, difficulty: "easy" },
+    { npcId: "npc_travis", sparkRate: 1.2, opensAt: { knows: 0 }, difficulty: "normal" },
+    { npcId: "npc_curtis", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_trent", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_nikki", sparkRate: 0.8, opensAt: { knows: 20 }, difficulty: "normal" },
+    { npcId: "npc_annette", sparkRate: 0.7, opensAt: { knows: 25 }, difficulty: "normal" },
+    { npcId: "npc_carter", sparkRate: 1.0, opensAt: { knows: 10 }, difficulty: "normal" },
+    { npcId: "npc_lamar", sparkRate: 0.6, opensAt: { knows: 30 }, difficulty: "normal" },
+    { npcId: "npc_glenda", sparkRate: 0.8, opensAt: { knows: 20 }, difficulty: "normal" },
+    { npcId: "npc_colt", sparkRate: 1.2, opensAt: { knows: 0 }, difficulty: "normal" },
+    { npcId: "npc_tyler", sparkRate: 0.8, opensAt: { knows: 15 }, difficulty: "normal" }
   ],
   // Wave 27: whom a report goes to when it goes to the police (Rel.policeHead; else the first police chief in the cast).
   policeHead: "npc_marcus",
@@ -9811,7 +9814,7 @@ const State = (() => {
   /* A refused spark write is logged where every refusal is (Debug's
      rejected changes), without failing what else the write did. */
   function relRefused(path, reason) { pushDebug({ turn: current ? current.meta.turn : 0, kind: 'rejected', source: 'rel', path, reason }); console.debug('[State.apply] refused', path, '-', reason); }
-  function sparkWhy(n) { return Rel.isMinor(n, relCtx()) ? 'they are under 18' : Rel.playerMinor(relCtx()) ? 'the player is under 18 or has no age' : 'they are not on the town\'s romance list'; }
+  function sparkWhy(n) { return Rel.isMinor(n, relCtx()) ? 'they are under 18' : 'the player is under 18 or has no age'; }
   /* Spark on someone it cannot move for, wherever it came in (an import,
      a memory list an upgrade or the editor wrote, a merge), set to 0 and
      logged (Rel.sparkGuard). */
@@ -9824,8 +9827,7 @@ const State = (() => {
   }
   /* Track values as the engine and the editor give them ({ w?, t?, f?, k?,
      s? }): whole numbers in each track's range; spark above 0 refused for
-     anyone it cannot move for (a minor, an under-18 player, anyone not on
-     the romance list); a hard person's fear held at Rel.CAPS.hardFear. */
+     anyone it cannot move for (a minor, an under-18 player); a hard person's fear held at Rel.CAPS.hardFear. */
   function relTargets(n, v, where) {
     if (!isObj(v)) bad(`${where} must be an object of tracks (w, t, f, k, s)`);
     const out = {};
@@ -9939,7 +9941,7 @@ const State = (() => {
     const secondhand = e.secondhand === true ? true : isObj(e.secondhand) ? { via: typeof e.secondhand.via === 'string' ? e.secondhand.via : undefined, hidden: e.secondhand.hidden === true } : false;
     const plan = Rel.applyEvent(n, {
       event: e.event, text, weight: e.weight, act: e.act, aboutId: e.aboutId || null, private: e.private === true, leverageId: typeof e.leverageId === 'string' ? e.leverageId : null,
-      d, decay: e.decay, secondhand, scale: e.scale, fight: e.fight
+      d, decay: e.decay, secondhand, scale: e.scale, fight: e.fight, soon: e.event === 'flirted' && e.soon === true && !model
     }, relCtx({ used: ledger.rel[n.id] }));
     for (const why of plan.refused) relRefused(path, why);
     n.rel = plan.rel;
@@ -10030,16 +10032,17 @@ const State = (() => {
      lie it owns up to (rel.asks). */
   /* Wave 33: the late engine flirt (Rel.wireEvent's plan, late: a romantic
      turn aimed at nobody, and the bookkeeper named who): written as the
-     engine writes its own (Pipeline.flirtEvent's words; the row welcome,
-     the unwelcome row otherwise), with the jealousy of whoever here saw it
-     (Rel.jealousyOf). */
+     engine writes its own (Rel.flirtEventOf, as Pipeline's flirtEvent;
+     wave 34: by the turn's charm roll, p.ans), with the jealousy of
+     whoever here saw it (Rel.jealousyOf). Turned aside kindly on a
+     partial or with no charm roll: nothing written. */
   function lateFlirt(n, p, path, present) {
     const place = loc(current.player.locationId);
     const placeName = place ? String(place.name).replace(/^The /, 'the ') : 'town';
-    const who = current.player.name;
-    const ev = p.welcome ? { npcId: n.id, event: 'flirted', text: `${who} flirted with me at ${placeName}` }
-      : { npcId: n.id, event: 'flirted', d: Object.assign({}, p.d), text: `${who} came on to me and I wasn't having it` };
-    pushDebug({ turn: current.meta.turn, kind: 'rel', text: `the bookkeeper named who the flirt was aimed at: ${n.id}, ${p.welcome ? 'open to it' : "isn't interested"} (the engine's flirt, late)` });
+    const ev = Rel.flirtEventOf(n, p.ans, current.player.name, placeName);
+    const said = p.ans.answer === 'welcome' ? 'open to it' : p.ans.answer === 'no' ? "isn't interested" : 'turned it aside, kindly';
+    pushDebug({ turn: current.meta.turn, kind: 'rel', text: `the bookkeeper named who the flirt was aimed at: ${n.id}, ${said}${p.ans.tier ? ` (the charm roll: ${p.ans.tier})` : ''} (the engine's flirt, late)` });
+    if (!ev) return `no-op: ${n.id} turned the flirt aside, kindly (the engine's flirt, late: nothing changes)`;
     const line = socialEvent(ev, path, false);
     const extra = [];
     if (!/^no-op/.test(line)) for (const j of Rel.jealousyOf(n, present, relCtx())) extra.push(socialEvent(j, `${path} jealousy`, false));
@@ -10054,6 +10057,8 @@ const State = (() => {
       rollSuccess: opts ? opts.rollSuccess : undefined, speechTo: opts && typeof opts.speechTo === 'string' ? opts.speechTo : null, romantic: !!(romance && romance.romantic),
       // Wave 33: whom the romance step aimed the turn at (none: a flirt the bookkeeper names someone here for is the engine's, late).
       aimed: romance && Array.isArray(romance.aimed) ? romance.aimed.filter(x => typeof x === 'string') : null,
+      // Wave 34: the turn's roll (its stat and tier): a late flirt lands by a charm roll.
+      rollStat: opts && typeof opts.rollStat === 'string' ? opts.rollStat : null, rollTier: opts && typeof opts.rollTier === 'string' ? opts.rollTier : null,
       // Wave 29: the turn's narration (a secret let slip is a record only when its words show it: Rel.wireEvent's learned_secret).
       narration: opts && typeof opts.narration === 'string' ? opts.narration : ''
     };
@@ -14452,8 +14457,9 @@ const State = (() => {
    -100..100) is what attitude always was; trust (t, -100..100) is whether
    they believe the player and rely on them; fear (f, 0..100) fades in days;
    knows-you (k, 0..100) never fades; spark (s, 0..100) is wanting, and stays
-   0 for anyone not on the town's romance list, for anyone under 18 and with
-   a player under 18 or of no recorded age; owed is a short list of favours
+   0 for anyone under 18 and with a player under 18 or of no recorded age
+   (wave 34: every adult else; the town's romance list only tunes how
+   easily); owed is a short list of favours
    outside the money obligations, net -3..+3.
 
    A person's n.rel holds where they stood before the player came (start:
@@ -14963,38 +14969,99 @@ const Rel = (() => {
     const p = ctx.s && isObj(ctx.s.player) ? ctx.s.player : null;
     return !p || !Number.isInteger(p.age) || p.age < 18;
   }
-  // The town's romance list ([{ npcId, open, sparkRate, opensAt, faithful }], wave 29): the save's copy, else the built-in town's.
+  // The town's romance list ([{ npcId, sparkRate, opensAt, difficulty }], wave 29; tuning only since wave 34): the save's copy, else the built-in town's.
   function romanceOf(ctx) {
     ctx = context(ctx);
     if (ctx.town && Array.isArray(ctx.town.romance)) return ctx.town.romance.filter(isObj);
     return builtIn(ctx) && Array.isArray(TOWN_DATA.romance) ? TOWN_DATA.romance.filter(isObj) : [];
   }
-  /* Spark can move for them: an adult, with an adult player, on the
-     romance list (wave 29: the town ships it with the twelve adults of the
-     design's Appendix E; the owner edits it). */
+  /* Spark can move for them: an adult, with an adult player. Wave 34 (the
+     owner: "everyone should be allowed to go to 100"): the romance list no
+     longer gates anyone; it is per-person tuning (tuningOf). */
   function eligible(n, ctx) {
     ctx = context(ctx);
-    if (!isObj(n) || isMinor(n, ctx) || playerMinor(ctx)) return false;
-    return romanceOf(ctx).some(r => r.npcId === n.id && r.open !== false);
+    return isObj(n) && !isMinor(n, ctx) && !playerMinor(ctx);
   }
   function romanceEntry(n, ctx) { return isObj(n) ? romanceOf(ctx).find(x => x.npcId === n.id) || null : null; }
-  function sparkRate(n, ctx) { const r = romanceEntry(n, ctx); return r && Number.isFinite(r.sparkRate) ? clamp(r.sparkRate, 0, 2) : 1; }
-  /* Whether a flirt is welcome now (design section 2.5; decided before the
-     narrator writes): eligible (an adult, an adult player, on the list),
-     knowing the player at least their opensAt, not against them or hating
-     them (the liking band, with its hysteresis), and not faithful to
-     someone. Liking is not needed: that is how "using you" happens.
-     Returns { ok, why }. */
+  /* Wave 34: how someone takes to the player's interest, their entry on
+     the list over the defaults (anyone not listed: rate 0.5, opens at
+     knows 10, hard). faithful: true (wave 29's word) reads as very_hard;
+     an old save's open: false is no longer read. Returns { sparkRate,
+     opensAt, difficulty, listed }. */
+  const ROMANCE_DEFAULTS = deepFreeze({ sparkRate: 0.5, opensAt: 10, difficulty: 'hard' });
+  // The spark at which a flirt eases two steps, and one (never below easy).
+  const ROMANCE_EASE = deepFreeze([[40, 2], [20, 1]]);
+  function tuningOf(n, ctx) {
+    const r = romanceEntry(n, ctx);
+    const D = ROMANCE_DEFAULTS;
+    if (!r) return { sparkRate: D.sparkRate, opensAt: D.opensAt, difficulty: D.difficulty, listed: false };
+    return {
+      sparkRate: Number.isFinite(r.sparkRate) ? clamp(r.sparkRate, 0.1, 2) : D.sparkRate,
+      opensAt: isObj(r.opensAt) && Number.isFinite(r.opensAt.knows) ? clamp(r.opensAt.knows, 0, 100) : D.opensAt,
+      difficulty: r.faithful === true ? 'very_hard' : DIFFS.includes(r.difficulty) ? r.difficulty : D.difficulty,
+      listed: true
+    };
+  }
+  function sparkRate(n, ctx) { return tuningOf(n, ctx).sparkRate; }
+  // A flirt's charm roll with them (wave 34): their difficulty, eased a step at spark 20 and two at 40, never below easy.
+  function flirtDifficulty(n, ctx) {
+    ctx = context(ctx);
+    const base = DIFFS.indexOf(tuningOf(n, ctx).difficulty);
+    const s = tracksOf(n, ctx).s;
+    const ease = (ROMANCE_EASE.find(([at]) => s >= at) || [0, 0])[1];
+    return DIFFS[Math.max(0, base - ease)];
+  }
+  /* Whether a flirt is taken as one now (design section 2.5; decided
+     before the narrator writes): eligible (an adult, an adult player) and
+     knowing the player at least their opensAt. Wave 34: it then rolls
+     charm at flirtDifficulty and the tier decides how it lands
+     (flirtAnswer, at resolve); short of opensAt it is turned aside,
+     kindly, with no roll. Liking is not needed (the dice read it, rollMod):
+     that is how "using you" happens. Returns { ok, why, soon?, difficulty? }. */
   function welcomeOf(n, ctx) {
     ctx = context(ctx);
-    if (!eligible(n, ctx)) return { ok: false, why: isObj(n) && isMinor(n, ctx) ? 'under 18' : playerMinor(ctx) ? 'the player is under 18 or has no age' : 'not on the romance list' };
-    const r = romanceEntry(n, ctx) || {};
-    const c = cacheOf(n, ctx);
-    const opens = isObj(r.opensAt) && Number.isFinite(r.opensAt.knows) ? r.opensAt.knows : 0;
-    if (c.k < opens) return { ok: false, why: `knows the player ${c.k}, opens at ${opens}` };
-    if (c.bands && (c.bands.w === 'hates' || c.bands.w === 'dislikes')) return { ok: false, why: 'against the player' };
-    if (r.faithful === true) return { ok: false, why: 'faithful' };
-    return { ok: true, why: null };
+    if (!eligible(n, ctx)) return { ok: false, why: isObj(n) && isMinor(n, ctx) ? 'under 18' : 'the player is under 18 or has no age' };
+    const opens = tuningOf(n, ctx).opensAt;
+    const k = cacheOf(n, ctx).k;
+    if (k < opens) return { ok: false, soon: true, why: `knows the player ${k}, opens at ${opens}` };
+    return { ok: true, why: null, difficulty: flirtDifficulty(n, ctx) };
+  }
+  /* How a flirt lands (wave 34), by the charm roll's tier (null: short of
+     their opensAt, no roll): critical, welcome with spark 15 x their rate
+     (liking +4, knows +2); success, welcome (the row: liking +4, knows +2,
+     spark 10 x the rate); partial, turned aside kindly, nothing changes;
+     failure, unwelcome (liking 3 the first time, 6 after; trust 3, spark
+     5); critical failure, unwelcome at twice the liking and a weight-2
+     memory, "came on to me and made it awkward". Too soon: turned aside
+     kindly, the first time free, liking 1 after (soon: applyEvent reads
+     it). Returns { answer: 'welcome' | 'aside' | 'no', tier, d?, weight?,
+     awkward?, soon? }. */
+  function flirtAnswer(n, tier, ctx) {
+    ctx = context(ctx);
+    if (!tier) return { answer: 'aside', tier: null, soon: true };
+    if (tier === 'critical') return { answer: 'welcome', tier, d: { s: Math.round(15 * sparkRate(n, ctx)) } };
+    if (tier === 'success') return { answer: 'welcome', tier };
+    if (tier === 'partial') return { answer: 'aside', tier };
+    const w = isObj(n) && isObj(n.rel) && n.rel.unwelcomeOnce === true ? -6 : -3;
+    if (tier === 'critical_failure') return { answer: 'no', tier, d: { w: 2 * w, t: -3, s: -5 }, weight: 2, awkward: true };
+    return { answer: 'no', tier: 'failure', d: { w, t: -3, s: -5 } };
+  }
+  // The narrator's words for an answer, after the name (wave 34).
+  function flirtWords(n, answer) {
+    const they = !PRONOUN_FORMS[n.pronouns] || n.pronouns === 'they';
+    const f = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
+    const s = they ? '' : 's';
+    return answer === 'welcome' ? ` is open to it: ${f.subj} flirt${s} back, ${f.det} own way.` : answer === 'aside' ? ` turn${s} it aside, kindly.` : ` isn't interested: ${f.subj} turn${s} it aside.`;
+  }
+  /* The engine's flirted event for an answer (Pipeline's, and State's late
+     flirt), or null when nothing changes (a partial). who: the player's
+     name; place: where it happened. */
+  function flirtEventOf(n, ans, who, place) {
+    if (!isObj(n) || !isObj(ans)) return null;
+    if (ans.answer === 'welcome') return Object.assign({ npcId: n.id, event: 'flirted', text: `${who} flirted with me at ${place}` }, ans.d ? { d: Object.assign({}, ans.d) } : {});
+    if (ans.answer === 'no') return Object.assign({ npcId: n.id, event: 'flirted', d: Object.assign({}, ans.d), text: ans.awkward ? `${who} came on to me and made it awkward` : `${who} came on to me and I wasn't having it` }, ans.weight ? { weight: ans.weight } : {});
+    if (ans.soon) return { npcId: n.id, event: 'flirted', soon: true, text: `${who} flirted with me before we knew each other` };
+    return null;
   }
 
   // ----- the record -----
@@ -15184,7 +15251,7 @@ const Rel = (() => {
   /* The cache relWrite keeps: { w, t, f, k, s, net, levFear, bands }.
      Liking and trust -100..100; fear 0..100 with its leverage share, a hard
      person's held to CAPS.hardFear; knows 0..100; spark 0 unless eligible
-     (a minor, a player under 18 or anyone not on the romance list); the
+     (a minor, or a player under 18; wave 34: no list gates it); the
      bands entered, read against the previous ones (n.rel.bands). */
   function recompute(n, day, ctx) {
     ctx = context(ctx);
@@ -15444,6 +15511,19 @@ const Rel = (() => {
     if (!isObj(rel.today) || rel.today.day !== day) rel.today = { day, turn, ev: {} };
     rel.today.turn = turn;
     const count = num(rel.today.ev[ev.event]);
+    /* Wave 34: a flirt too soon (short of their opensAt, Rel.flirtAnswer's
+       soon), turned aside kindly: the first time costs nothing and only
+       marks it (rel.soonOnce); later ones liking 1, everyday, no memory. */
+    if (ev.event === 'flirted' && ev.soon === true) {
+      const d = { w: 0, t: 0, f: 0, k: 0, s: 0 };
+      const used = Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {});
+      if (rel.soonOnce === true) {
+        d.w = clamp(used.w - 1, -CAPS.turn.w, CAPS.turn.w) - used.w;
+        used.w += d.w;
+        putEverydayHeld(rel, 'w', d.w);
+      } else rel.soonOnce = true;
+      return { rel, memories: mems, d, memory: null, merged: false, settled: null, settledKey: null, settledEntry: null, refused, used, weight: 0 };
+    }
     /* One fight, one memory (wave 27): ev.fight keys a fight's memory. A
        beat-down replaces every memory of its fight; a heavier blow than the
        memory holds (a hit after a shove) replaces it; the same again raises
@@ -15486,7 +15566,8 @@ const Rel = (() => {
     if (harm && wt0 >= 3 && now.s > 0 && !(d.s < 0)) d.s = -now.s / 2;
     let mergeAt = -1;
     if (harm && row.weight > 0) {
-      for (let j = mems.length - 1; j >= 0; j--) if (mems[j].event === ev.event && isObj(mems[j].d) && !mems[j].witness && day - dayOf(mems[j], ctx, day) <= CAPS.mergeDays) { mergeAt = j; break; }
+      // Wave 34: only into a harm of the same event (an unwelcome flirt never folds into a welcome one: the roll makes both common).
+      for (let j = mems.length - 1; j >= 0; j--) if (mems[j].event === ev.event && isObj(mems[j].d) && harmful(mems[j]) && !mems[j].witness && day - dayOf(mems[j], ctx, day) <= CAPS.mergeDays) { mergeAt = j; break; }
       if (mergeAt >= 0) { const c = CAPS.compound[Math.min(num(mems[mergeAt].n) || 1, CAPS.compound.length - 1)]; d.w *= c; d.t *= c; d.f *= c; }
     } else if (!harm && (d.w > 0 || d.t > 0 || d.s > 0)) {
       // Knows-you too, down to CAPS.kMin: a second time together the same day teaches 2, not 4.
@@ -15495,7 +15576,7 @@ const Rel = (() => {
       d.w *= c; d.t *= c; d.s *= c; d.k *= c;
     }
     // The bounds.
-    if (d.s > 0 && !open) refused.push(`${n.id}: spark stays 0 (${isMinor(n, ctx) ? 'under 18' : playerMinor(ctx) ? 'the player is under 18 or has no age' : 'not on the romance list'})`);
+    if (d.s > 0 && !open) refused.push(`${n.id}: spark stays 0 (${isMinor(n, ctx) ? 'under 18' : 'the player is under 18 or has no age'})`);
     if (!open) d.s = 0;
     const used = Object.assign({ w: 0, t: 0, f: 0, s: 0 }, isObj(ctx.used) ? ctx.used : {});
     for (const x of ['w', 't', 'f', 's']) {
@@ -16086,22 +16167,26 @@ const Rel = (() => {
      intimidation, a threat in the words, a lev_ id or the target's fear 40
      behind it: refused for anyone, the die burned, Pipeline.resolve), and
      each adult's answer with a flirt for a named adult (Pipeline sends it
-     in opts.engineEvents). Wave 29: welcome is decided here (welcomeOf:
-     eligible, knowing the player at least their opensAt, not against them,
-     not faithful): "<Name> is open to it: she flirts back, her own way"
-     and a welcome flirt (liking +4, knows +2, spark 10 x their sparkRate),
-     else "<Name> isn't interested: she turns it aside" and an unwelcome
-     one (the first costs liking 3, later ones 6; trust 3, spark 5). An ask
-     for the night (the parse's "more", INTIMATE_ASK in a flirt's words, or
-     a walk to a home or a motel room) at a named adult checks every gate
-     (intimateGate): yes ("says yes; fade to black") is the engine's
-     intimate; one gate short and welcome is "not tonight; she says so
-     kindly" and a welcome flirt; unwelcome is the refusal. A player under
-     18 (or of no age) is answered no every time, and no flirt is recorded.
-     Returns { romantic, aimed, minors, answers, welcome, flirts: [{ npcId,
-     d?, welcome }], intimate: [ids], coercion: { npcId, protectorHere } |
-     null, lines (the narrator's, each with its label) }. It writes
-     nothing. */
+     in opts.engineEvents). Wave 34 ("anyone can be won over, some the hard
+     way"): a flirt at a named adult who knows the player at least their
+     opensAt is a charm roll at their difficulty (welcomeOf,
+     flirtDifficulty: roll, which Pipeline makes the turn's roll whatever
+     the parser said), and the answer waits for it (pending; romanceRolled,
+     at resolve: "<Name> is open to it: she flirts back, her own way", "<Name>
+     turns it aside, kindly" or "<Name> isn't interested: she turns it
+     aside", by flirtAnswer). Short of their opensAt: turned aside kindly
+     with no roll. A line to the whole room is no flirt with anyone: each
+     adult takes it lightly, nothing recorded. An ask for the night (the
+     parse's "more", INTIMATE_ASK in a flirt's words, or a walk to a home
+     or a motel room) at a named adult checks every gate (intimateGate):
+     yes ("says yes; fade to black") is the engine's intimate, with no
+     roll; short of a gate it rolls as a flirt, and a welcome one is "not
+     tonight; she says so kindly". A player under 18 (or of no age) is
+     answered no every time, nothing rolled and no flirt recorded. Returns
+     { romantic, aimed, minors, answers, welcome, flirts: [{ npcId, ans }],
+     intimate: [ids], coercion: { npcId, protectorHere } | null, lines (the
+     narrator's, each with its label), pending: [{ npcId, more }], roll: {
+     npcId, stat, difficulty } | null }. It writes nothing. */
   function romanceTurn(t, ctx) {
     ctx = context(ctx);
     const o = isObj(t) ? t : {};
@@ -16117,7 +16202,7 @@ const Rel = (() => {
     // Wave 33: "a kiss lands on the one kissed": only a Say to everyone is open to the whole room.
     const open = everyone;
     const aimedAt = id => named(id) || open;
-    const out = { romantic, aimed: [], minors: {}, answers: [], welcome: [], flirts: [], intimate: [], coercion: null, lines: [] };
+    const out = { romantic, aimed: [], minors: {}, answers: [], welcome: [], flirts: [], intimate: [], coercion: null, lines: [], pending: [], roll: null };
     for (const id of present) {
       if (!isMinor(byId(id), ctx)) continue;
       out.minors[id] = { named: named(id), flag: !!romantic && aimedAt(id), phrase: o.phrase === true && aimedAt(id) };
@@ -16146,27 +16231,49 @@ const Rel = (() => {
     for (const id of out.aimed) {
       const n = byId(id);
       if (isMinor(n, ctx) || (out.coercion && out.coercion.npcId === id)) continue;
-      const { f, s } = forms(n);
       out.answers.push(id);
-      const no = () => say(n, ` isn't interested: ${f.subj} turn${s} it aside.`);
       // A kid flirting is answered no, every time, and nothing is recorded (the minor rule's other side).
-      if (playerMinor(ctx)) { no(); continue; }
-      const wel = welcomeOf(n, ctx);
-      if (more && named(id)) {
+      if (playerMinor(ctx)) { say(n, flirtWords(n, 'no')); continue; }
+      // Wave 34: a line to the whole room is no flirt with anyone: nobody rolls, each takes it lightly, nothing is recorded.
+      if (!named(id)) { say(n, flirtWords(n, 'aside')); continue; }
+      if (more) {
         const gate = intimateGate(n, ctx);
         if (gate.ok) { say(n, ' says yes; fade to black, nothing explicit; pick up afterwards.'); out.welcome.push(id); out.intimate.push(id); continue; }
-        if (gate.welcome) { say(n, `: not tonight; ${f.subj} say${s} so kindly.`); out.welcome.push(id); out.flirts.push({ npcId: id, welcome: true }); continue; }
       }
-      if (wel.ok) {
-        say(n, ` is open to it: ${f.subj} flirt${s} back, ${f.det} own way.`);
-        out.welcome.push(id);
-        if (named(id)) out.flirts.push({ npcId: id, welcome: true });
-        continue;
-      }
-      no();
-      if (named(id)) out.flirts.push({ npcId: id, welcome: false, d: { w: isObj(n.rel) && n.rel.unwelcomeOnce === true ? -6 : -3, t: -3, s: -5 } });
+      const wel = welcomeOf(n, ctx);
+      // Short of their opensAt: no roll, turned aside kindly (the first time free).
+      if (!wel.ok) { say(n, flirtWords(n, 'aside')); out.flirts.push({ npcId: id, ans: flirtAnswer(n, null, ctx) }); continue; }
+      out.pending.push({ npcId: id, more });
+      if (!out.roll) out.roll = { npcId: id, stat: 'charm', difficulty: wel.difficulty };
     }
     return out;
+  }
+  /* Wave 34: the answers the roll decides (Pipeline.resolve, after the
+     charm roll a flirt makes: romanceTurn's roll). r: romanceTurn's result
+     (it is filled in: lines, welcome, flirts); tier: the roll's (null: it
+     did not roll, the answer is turned aside, kindly; pressed: the same
+     failed flirt pushed again, the answer no). A night that fell short of
+     its gate and lands is "not tonight; she says so kindly", and a welcome
+     flirt. Returns the lines added. */
+  function romanceRolled(r, tier, ctx) {
+    ctx = context(ctx);
+    const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
+    const added = [];
+    for (const p of isObj(r) && Array.isArray(r.pending) ? r.pending : []) {
+      const n = npcs.find(x => isObj(x) && x.id === p.npcId);
+      if (!n) continue;
+      const ans = tier ? flirtAnswer(n, tier, ctx) : { answer: 'aside', tier: null };
+      const f = PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they;
+      const s = !PRONOUN_FORMS[n.pronouns] || n.pronouns === 'they' ? '' : 's';
+      const words = p.more && ans.answer === 'welcome' ? `: not tonight; ${f.subj} say${s} so kindly.` : flirtWords(n, ans.answer);
+      const line = `ROMANCE (decided by the engine): ${n.name}${words}`;
+      r.lines.push(line);
+      added.push(line);
+      if (ans.answer === 'welcome') r.welcome.push(n.id);
+      if (ans.answer !== 'aside') r.flirts.push({ npcId: n.id, ans });
+    }
+    r.pending = [];
+    return added;
   }
   /* The bookkeeper's event for one person, against what the engine knows
      (design section 3.2; the integration plan's 5.4). ev: { event, text,
@@ -16184,15 +16291,16 @@ const Rel = (() => {
     if (name === 'flirted') {
       /* Wave 33: a romantic turn the engine could aim at nobody (o.aimed, the
          romance step's, empty): the bookkeeper naming someone here who is an
-         adult is the engine's flirt, late. Welcome is decided now, as the
-         romance step decides it (welcomeOf); State writes it as the
-         engine's own (the row, or the unwelcome one). */
+         adult is the engine's flirt, late. Wave 34: it lands by the turn's
+         charm roll (o.rollStat, o.rollTier: flirtAnswer), short of their
+         opensAt it is turned aside kindly (the first time free), and with
+         no charm roll this turn it is turned aside kindly, nothing changed.
+         State writes it as the engine's own (Rel.flirtEventOf). */
       const aimed = Array.isArray(o.aimed) ? o.aimed : null;
       if (o.romantic && aimed && !aimed.length && Array.isArray(o.present) && o.present.includes(n.id) && !isMinor(n, ctx) && !playerMinor(ctx)) {
         const wel = welcomeOf(n, ctx);
-        const late = { event: 'flirted', late: true, welcome: wel.ok, aboutId: null, private: false, why: 'the bookkeeper named who the flirt was aimed at' };
-        if (!wel.ok) late.d = { w: isObj(n.rel) && n.rel.unwelcomeOnce === true ? -6 : -3, t: -3, s: -5 };
-        return late;
+        const ans = !wel.ok ? flirtAnswer(n, null, ctx) : o.rollStat === 'charm' && typeof o.rollTier === 'string' ? flirtAnswer(n, o.rollTier, ctx) : { answer: 'aside', tier: null };
+        return { event: 'flirted', late: true, ans, welcome: ans.answer === 'welcome', aboutId: null, private: false, why: 'the bookkeeper named who the flirt was aimed at' };
       }
       if (o.romantic) return { refuse: aimed && !aimed.length ? 'the flirt was aimed at nobody here the engine can take it for' : 'the engine records the flirt (the parse saw it)' };
       name = 'complimented';
@@ -17325,7 +17433,9 @@ const Rel = (() => {
     inTown, tieKey, tieOf, tieNow, kindOfWord, kindBetween, contentList, tiesPlan, tieRevealed, hiddenBetween, household, deliveryOf, tieFactor, carried, spreads, dueOf,
     propagate, settleSpread, copyOf, carry, hearsayDue, placeShort, hearsayLine, arrestTies, debugTie, debugHearsay,
     // Wave 32: ties that change.
-    WORDS_TIE, MESSENGER, secretTiesFor, wordsTie, betweenThem, tieWords
+    WORDS_TIE, MESSENGER, secretTiesFor, wordsTie, betweenThem, tieWords,
+    // Wave 34: anyone can be won over, some the hard way.
+    ROMANCE_DEFAULTS, ROMANCE_EASE, tuningOf, sparkRate, flirtDifficulty, flirtAnswer, flirtWords, flirtEventOf, romanceRolled
   };
 })();
 
@@ -25669,18 +25779,51 @@ const Pipeline = (() => {
     ctx.romance = Rel.romanceTurn({ action: a, speech: ctx.speech, presentIds: ctx.presentIds || [], input: ctx.input, phrase: Api.minorPhraseHit(ctx.input) });
     const r = ctx.romance;
     ctx.narratorLines.push(...r.lines);
-    // Wave 29: who turned it aside, who was open to it, who said yes to the night; the engine records each.
+    /* Wave 34: a flirt at an adult who knows the player well enough is a
+       charm roll at their difficulty, whatever the parser said (the roll
+       follows them: they lead the targets); resolve rolls it and
+       romanceLanded decides the answers. Coercion never rolls. */
+    if (r.roll && !r.coercion) {
+      Object.assign(a, { needsRoll: true, stat: r.roll.stat, difficulty: r.roll.difficulty });
+      a.targets = [r.roll.npcId].concat((a.targets || []).filter(id => id !== r.roll.npcId));
+      ctx.romanceRoll = r.roll.npcId;
+      const n = State.npc(r.roll.npcId);
+      State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `flirt roll: charm, ${r.roll.difficulty} against ${n.id} (${Rel.tuningOf(n).difficulty}${Rel.tuningOf(n).listed ? '' : ', not listed'}; spark ${Rel.tracksOf(n).s})` });
+    } else {
+      // A flirt answered with no roll (too soon, a line to the room, a kid's, the night said yes to) rolls nothing, whatever the parser said.
+      const at = (a.targets || []).find(id => (ctx.presentIds || []).includes(id));
+      if (!r.coercion && a.needsRoll && at && r.answers.includes(at)) a.needsRoll = false;
+      ctx.narratorLines.push(...Rel.romanceRolled(r, null));
+      romanceBook(ctx);
+    }
+    // Wave 33: a romantic move the engine could not place: nobody answers in the narrator's packet, and the bookkeeper may say who it was.
+    if (r.romantic && !r.aimed.length) ctx.bookLines.push('ROMANCE (seen by the engine): a romantic move aimed at nobody it could name; if the narration shows who it was aimed at and they are here, send "npc_id flirted: ..." for them, and the engine decides how it lands.');
+    const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
+    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
+    return r;
+  }
+  // Wave 29: who turned it aside, who was open to it, who said yes to the night; the engine records each (wave 34: told once the roll has decided).
+  function romanceBook(ctx) {
+    const r = ctx.romance;
     const names = ids => ids.map(id => State.npc(id).name).join(', ');
     const no = r.answers.filter(id => !r.welcome.includes(id));
     const open = r.welcome.filter(id => !r.intimate.includes(id));
     if (no.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(no)} turned it aside; record no flirt or compliment for it.`);
     if (open.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(open)} ${open.length > 1 ? 'were' : 'was'} open to it, and the engine records the flirt; record no flirt or compliment for it, and no newSeeds for it.`);
     if (r.intimate.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(r.intimate)} said yes to the night; the engine records it, and it is private; record nothing more for it, and no newSeeds for it.`);
-    // Wave 33: a romantic move the engine could not place: nobody answers in the narrator's packet, and the bookkeeper may say who it was.
-    if (r.romantic && !r.aimed.length) ctx.bookLines.push('ROMANCE (seen by the engine): a romantic move aimed at nobody it could name; if the narration shows who it was aimed at and they are here, send "npc_id flirted: ..." for them, and the engine decides how it lands.');
-    const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
-    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
-    return r;
+  }
+  /* Wave 34: after resolve, the flirt's answers by the charm roll
+     (Rel.romanceRolled): the roll's tier; the same failed flirt pushed
+     again (ctx.pressed: no new roll) is a no; no roll at all (a table's
+     own resolution) is turned aside, kindly. The narrator and the
+     bookkeeper are told. */
+  function romanceLanded(ctx) {
+    const r = ctx.romance;
+    if (!r || !ctx.romanceRoll) return;
+    const tier = ctx.roll && ctx.rollNpcId === ctx.romanceRoll ? ctx.roll.tier : ctx.pressed ? 'failure' : null;
+    ctx.narratorLines.push(...Rel.romanceRolled(r, tier));
+    romanceBook(ctx);
+    State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `flirt landed: ${r.answers.map(id => `${id} ${r.welcome.includes(id) ? 'welcome' : r.flirts.some(f => f.npcId === id && f.ans.answer === 'no') ? 'no' : 'aside'}`).join(', ')}${tier ? ` (${tier})` : ' (no roll)'}` });
   }
   /* Wave 28 (the integration plan's 19.1): a romantic ask pushed with a
      threat, an intimidation, a lev_ id or the target's fear is refused, for
@@ -25821,13 +25964,15 @@ const Pipeline = (() => {
       }
       return { locked: true };
     }
-    const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: a.actionType, presentIds: ctx.presentIds.slice() };
+    // Wave 34: a flirt's charm roll takes the liking modifier as a persuasion does (Rel.rollMod), whatever the parse called the action.
+    const flirt = !!ctx.romanceRoll && npcTarget === ctx.romanceRoll;
+    const rollOpts = { stat: a.stat || 'wits', difficulty: a.difficulty || 'normal', usesItemId: a.usesItemId, npcId: npcTarget, actionType: flirt ? 'persuade' : a.actionType, presentIds: ctx.presentIds.slice() };
     /* Fear's ceiling (wave 27, Rel.complies): an adult afraid of the player
        who is not hard does a small thing (talk or persuade, easy or normal)
        with no roll. The d20 that would have been drawn is still used up
        (Dice.burn), so the next roll and the clocks land where they would. */
     const asked = npcTarget ? State.npc(npcTarget) : null;
-    if (asked && Rel.complies(asked, a)) {
+    if (asked && !flirt && Rel.complies(asked, a)) {
       Dice.burn();
       ctx.complied = asked.id;
       ctx.rollNpcId = asked.id;
@@ -25844,7 +25989,7 @@ const Pipeline = (() => {
        them, and only with them. Wave 6 (the fifth review's risk): said to
        everyone, the one of them the player owes (an open obligation), when
        there is one among them, not just the first. */
-    ctx.rollNpcId = obligeeAmong(a.targets.filter(t => ctx.presentIds.includes(t))) || npcTarget || null;
+    ctx.rollNpcId = flirt ? npcTarget : obligeeAmong(a.targets.filter(t => ctx.presentIds.includes(t))) || npcTarget || null;
     lockAfter(roll, key, exempt);
     if (roll.success && before > 0 && npcTarget && Dice.SOCIAL_FAMILIES.includes(Dice.family(a.actionType))) {
       ctx.diminish = { npcId: npcTarget, times: before, factor: Dice.diminishing(before) };
@@ -25856,7 +26001,8 @@ const Pipeline = (() => {
     storyPointFor(ctx, roll);
     if (attack) fight(ctx, roll, npcTarget);
     rolledEvents(ctx, roll, npcTarget);
-    if (roll.tier === 'critical_failure') ctx.consequence = lastingConsequence(ctx);
+    // A flirt's critical failure is its own lasting consequence (the awkward memory: Rel.flirtAnswer).
+    if (roll.tier === 'critical_failure' && !flirt) ctx.consequence = lastingConsequence(ctx);
     return {};
   }
   /* What the engine sees in a roll (wave 27; the integration plan's 4.1),
@@ -28383,7 +28529,9 @@ const Pipeline = (() => {
     if (brief) parts.push(`to you: ${Rel.stance(n).phrase}`);
     else {
       parts.push(toYou(n));
-      if (Rel.welcomeOf(n).ok) parts.push('open to a flirt');
+      // Wave 34: every adult can be won over, but only one a flirt would come easily to (easy or normal now, Rel.flirtDifficulty) carries it.
+      const wel = Rel.welcomeOf(n);
+      if (wel.ok && (wel.difficulty === 'easy' || wel.difficulty === 'normal')) parts.push('open to a flirt');
       const holds = holdsYouTo(n, turn);
       if (holds.length) parts.push(`holds you to: ${holds.join(' / ')}`);
     }
@@ -29058,13 +29206,14 @@ const Pipeline = (() => {
     ctx.bookOpts = { diminish: dim || null, giftTo: ctx.gift || null, engineEvents };
     return clean;
   }
-  /* A flirt, as the engine records it (Rel.romanceTurn's): welcome, the
-     row (liking +4, knows +2, spark 10 x their sparkRate); unwelcome,
-     liking 3 the first time, 6 after, trust 3, spark 5. */
+  /* A flirt, as the engine records it (Rel.romanceTurn's, landed by the
+     charm roll since wave 34: Rel.flirtAnswer, Rel.flirtEventOf): welcome,
+     the row (liking +4, knows +2, spark 10 x their sparkRate; 15 x on a
+     critical); unwelcome, liking 3 the first time, 6 after, trust 3, spark
+     5 (the liking doubled and weight 2 on a critical failure); too soon,
+     the first free and liking 1 after. null: nothing changes. */
   function flirtEvent(f) {
-    const p = State.current.player.name;
-    if (f.welcome) return { npcId: f.npcId, event: 'flirted', text: `${p} flirted with me at ${placeName(here())}` };
-    return { npcId: f.npcId, event: 'flirted', d: f.d, text: `${p} came on to me and I wasn't having it` };
+    return Rel.flirtEventOf(State.npc(f.npcId), f.ans, State.current.player.name, placeName(here()));
   }
   /* Wave 29: the turn's romance events (Rel.romanceTurn): each flirt, with
      the jealousy of whoever saw it (Rel.jealousyOf: a partner by label, or
@@ -29076,7 +29225,9 @@ const Pipeline = (() => {
     if (!r) return [];
     const out = [];
     for (const f of Array.isArray(r.flirts) ? r.flirts : []) {
-      out.push(flirtEvent(f));
+      const ev = flirtEvent(f);
+      if (!ev) continue;
+      out.push(ev);
       const n = State.npc(f.npcId);
       if (n) out.push(...Rel.jealousyOf(n, ctx.presentIds || []));
     }
@@ -29117,7 +29268,7 @@ const Pipeline = (() => {
     ctx.flirtsDone = true;
     ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success) || !!ctx.complied, attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null, bought: !!ctx.bought, paying: !!ctx.paying, rolled: !!ctx.roll, asked: (ctx.roll && ctx.rollNpcId) || null,
       engineEvents: Array.isArray(bo.engineEvents) ? bo.engineEvents : [], diminish: bo.diminish || null, giftTo: bo.giftTo || null, speechTo: isSay(ctx.speech) && ctx.speech.to !== 'everyone' ? ctx.speech.to : null, romance: ctx.romance || null,
-      narration: ctx.narration || '', backed: ctx.backed ? ctx.backed.npcId : null });
+      narration: ctx.narration || '', backed: ctx.backed ? ctx.backed.npcId : null, rollStat: ctx.roll ? ctx.roll.stat : null, rollTier: ctx.roll ? ctx.roll.tier : null });
     // A gift counts once it was handed over (the money or the thing went), and is no payment toward what they are owed.
     const handed = ctx.applied.applied.some(x => /^(goldDelta|itemsLost)/.test(x)) && !ctx.applied.applied.some(x => /^(paid|settled)\./.test(x));
     if (ctx.gift && handed) State.apply({ giftGiven: ctx.gift });
@@ -29366,6 +29517,8 @@ const Pipeline = (() => {
         UI.feed.notice(NOTICES.locked);
         return r;
       }
+      // Wave 34: how the flirt landed, by the charm roll it made (romanceLanded).
+      romanceLanded(ctx);
       await createDeferred(ctx);
       if (replaced()) return fail(snap, mark, null, {});
       giftCheck(ctx);
@@ -32349,7 +32502,7 @@ const UI = (() => {
     const cls = !isObj(m) || !isObj(m.d) ? 'keeps' : typeof m.decay === 'string' && DECAY_WORDS[m.decay] ? m.decay : (Rel.EVENTS[ev] || {}).decay || 'wound';
     return `${ev.replace(/_/g, ' ')} · ${DECAY_WORDS[cls] || 'stays'}`;
   }
-  // Interested on the form: 'on' for an eligible adult, 'off' (0, disabled) for anyone under 18, null (left out) when the player is under 18 or they are not on the romance list.
+  // Interested on the form: 'on' for every adult (wave 34: Rel.eligible, listed or not), 'off' (0, disabled) for anyone under 18, null (left out) when the player is under 18.
   function interestMode(n) { if (Rel.playerMinor()) return null; if (Rel.isMinor(n)) return 'off'; return Rel.eligible(n) ? 'on' : null; }
   function editBase(n) {
     const c = isObj(n.created) ? n.created : {};

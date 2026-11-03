@@ -52,7 +52,7 @@ Marked by the numbers in `review.md` part two: R is its re-check of the first re
   - The caring thresholds read liking minus romance-class liking.
   - "Using you" needs earned distrust or the `mercenary` flag.
   - A status prints its feed line once per person per 7 days (`rel.status`).
-  - The eligibility list ships with the 12 adults in Appendix E.
+  - The eligibility list ships with the 12 adults in Appendix E. (Wave 34: every adult is eligible; the list ships as tuning, Appendix E.)
   - "Small favours come easily" is cue-only.
   - The first unwelcome flirt per person costs W -3.
 - **[R1, N10b, N10c, the 13th phrase]**
@@ -262,7 +262,7 @@ state.leverage = [ ... ]                         // per pair, both directions (2
 - **Trust:** 5 × guardedness (Appendix A; -10 to +10). Then -10 for police (tag or role) and smugglers. Optional `start` overrides: Boyd -40, Jodie -25, Vada -10, Leon -15.
 - **Fear:** 0.
 - **Knows you:** 0. A loose-end person starts at 30.
-- **Spark:** 0. Only people on the eligibility list (Appendix E, empty by default) can ever go above 0.
+- **Spark:** 0. Only an eligible adult can ever go above 0 (wave 34: every adult with an adult player; Appendix E tunes how easily).
 - **Loose ends:** the informant starts holding a leverage record over the player (2.6.4). Curtis shows "holding your marker" from the obligation itself.
 
 ### 2.3 What each track controls, mechanically
@@ -367,7 +367,7 @@ Contempt is not a 13th phrase. "Against you" takes the cue "talks past you" when
 
 **What feeds spark:**
 
-- A welcome `flirted`: +10 × the person's `sparkRate`.
+- A welcome `flirted`: +10 × the person's `sparkRate` (+15 × on a critical, wave 34).
 - `spent_time` with someone already at spark 10 or more: +2.
 - `intimate`: +15.
 
@@ -379,15 +379,19 @@ Contempt is not a 13th phrase. "Against you" takes the cue "talks past you" when
 
 **Fading:** spark from flirts fades on the slight clock with no floor (half-life 5 days); spark from intimacy fades on the scar clock.
 
-**Welcome.** The parser sets `romantic: "flirt"` or `"more"`. Code decides before the narrator writes, and all of these must hold:
+**Welcome: the roll (wave 34).** The owner: "everyone should be allowed to go to 100", some the hard way. The parser sets `romantic: "flirt"` or `"more"`. Code decides before the narrator writes:
 
-1. They pass eligibility (2.7).
-2. Knows-you is at least their `opensAt`.
-3. They are not at "against you" or "hates you".
-4. They are not `faithful` to a partner.
-5. The turn is not coercion (below).
+1. The turn is not coercion (below): coercion never rolls.
+2. They pass eligibility (2.7): an adult, with an adult player. Every adult does; nobody under 18 ever does.
+3. Knows-you is at least their `opensAt`. Short of it there is no roll: "`<Name>` turns it aside, kindly", the first time per person free, later ones W -1.
+4. Then the flirt is a **charm roll**, whatever the parser said: the person's `difficulty` (Appendix E; hard for anyone not listed), a step easier at spark 20 and two at 40, never below easy, with the liking modifier as for a persuasion (6.2). The tier decides it:
+   - critical: welcome, S +15 × `sparkRate`, W +4, K +2;
+   - success: welcome (the row: S +10 × `sparkRate`, W +4, K +2);
+   - partial: "`<Name>` turns it aside, kindly": nothing changes;
+   - failure: unwelcome: W -3 the first time per person (N13), then -6; T -3; S -5;
+   - critical failure: unwelcome at twice the liking, and a weight-2 memory, "came on to me and made it awkward".
 
-Liking is not required. The narrator is told the answer for that turn: "Shayla Rawls is open to it: she flirts back, her own way", or "Annette Overstreet isn't interested: she turns it aside". An unwelcome flirt costs W -3 the first time per person (N13), then -6 each time after.
+Liking is not required (the dice read it), and nobody is against-you-closed or faithful-closed any more: `faithful: true` is `very_hard`. The narrator is told the answer for that turn: "Shayla Rawls is open to it: she flirts back, her own way", "Dewayne Mangum turns it aside, kindly", or "Annette Overstreet isn't interested: she turns it aside". A line said to everyone rolls nothing: each adult takes it lightly.
 
 **Intimacy is in tier A and fades to black (N2).**
 
@@ -395,13 +399,12 @@ Liking is not required. The narrator is told the answer for that turn: "Shayla R
 - **The gate**, decided by code before narration, needs all of these:
   - `romantic: "more"`;
   - both adults, the player too (2.7);
-  - eligible, and a flirt would be welcome now;
+  - eligible, and knowing the player at least their `opensAt` (no roll: wave 34);
   - spark 50 or more, liking 40 or more, trust 30 or more, knows-you 30 or more;
   - not coercion.
   - Money never helps: a gift the same turn adds nothing to the gate.
 - **Yes:** the narrator gets "`<Name>` says yes; fade to black." The engine records `intimate` (W +10, T +5, K +15, S +15, weight 3, scar). It is private: no witnesses, no news, no reputation.
-- **No, but a flirt would be welcome:** "`<Name>` says not tonight, kindly." The turn counts as a welcome flirt.
-- **No, and a flirt wouldn't be welcome:** the person's own refusal ("`<Name>` isn't interested: she turns it aside").
+- **No:** the ask rolls as a flirt (wave 34). Welcome: "`<Name>` says not tonight, kindly." The turn counts as a welcome flirt. A partial is turned aside, kindly; a failure is the person's own refusal ("`<Name>` isn't interested: she turns it aside").
 - **The cached block carries the rule:** "Intimate scenes fade to black: nothing explicit; cut to afterwards."
 - Tier C keeps only "seeing you", "old flame", lasting jealousy along lover ties, households and dependence.
 
@@ -421,7 +424,7 @@ For anyone, in any tier, coercion is handled like this:
 5. Town reputation -10, outside the cap.
 6. If the target is a minor, the minor rule applies as well (2.7).
 
-**Eligibility ships** with the 12 adults in Appendix E, and the owner edits the list. Leaving married people off is a default, not a rule: Curtis is separated and stays on.
+**Eligibility ships** with the 12 adults in Appendix E, and the owner edits the list. Leaving married people off is a default, not a rule: Curtis is separated and stays on. **Wave 34:** every adult is eligible; the list is per-person tuning (Appendix E), and the owner adds an entry for anyone to make them easier or harder.
 
 ### 2.6 Leverage: who has something on whom
 
@@ -1951,30 +1954,32 @@ It asserts:
 - Targets: recall of 98% or more for lines aimed at minors, and zero full rows on the kind remarks.
 - A run on Haiku 5.5 costs under $0.10.
 
-## Appendix E: romance eligibility (content; ships as below, the owner edits it)
+## Appendix E: romance tuning (content; ships as below, the owner edits it)
 
 `TOWN_DATA.romance`:
 
 ```
-[ { npcId, open: true, sparkRate: 0.5..1.5, opensAt: { knows }, faithful: false } ]
+[ { npcId, sparkRate: 0.1..2, opensAt: { knows }, difficulty: "easy" | "normal" | "hard" | "very_hard" } ]
 ```
 
-**This list ships with the game** (N13). Anyone not on it can never have spark above 0. Adults only, every one 18 or older by `docs/CAST.md`:
+**Wave 34: every adult can be interested; this list only says how easily** (N13 shipped it as the gate; the owner: "everyone should be allowed to go to 100"). Anyone not on it: `sparkRate` 0.5, `opensAt` knows 10, `difficulty` hard. `open` is gone; `faithful: true` reads as very_hard. Nobody's difficulty is read from relations, age or traits: it is content the owner edits, and the owner can add an entry for anyone. Adults only, every one 18 or older by `docs/CAST.md`:
 
-| Person | sparkRate | opensAt (knows you) | Note |
-|---|---|---|---|
-| Jodie Strayhorn (29) | 1.2 | 20 | |
-| Shayla Rawls (25) | 1.5 | 0 | not faithful to Travis |
-| Travis Cagle (28) | 1.2 | 0 | |
-| Curtis Pruett (52) | 1.0 | 10 | married but separated: Lynette put him out in December 2025 |
-| Trent Haskins (24) | 1.0 | 10 | |
-| Nikki Ballard (31) | 0.8 | 20 | |
-| Annette Overstreet (34) | 0.7 | 25 | |
-| Carter Sturdivant (45) | 1.0 | 10 | |
-| Lamar Haskins (58) | 0.6 | 30 | widowed |
-| Glenda Pryor (40) | 0.8 | 20 | |
-| Colt Purvis (22) | 1.2 | 0 | |
-| Tyler Rasberry (19) | 0.8 | 15 | |
+| Person | sparkRate | opensAt (knows you) | difficulty | Note |
+|---|---|---|---|---|
+| Jodie Strayhorn (29) | 1.2 | 20 | easy | |
+| Shayla Rawls (25) | 1.5 | 0 | easy | not faithful to Travis |
+| Travis Cagle (28) | 1.2 | 0 | normal | |
+| Curtis Pruett (52) | 1.0 | 10 | normal | married but separated: Lynette put him out in December 2025 |
+| Trent Haskins (24) | 1.0 | 10 | normal | |
+| Nikki Ballard (31) | 0.8 | 20 | normal | |
+| Annette Overstreet (34) | 0.7 | 25 | normal | |
+| Carter Sturdivant (45) | 1.0 | 10 | normal | |
+| Lamar Haskins (58) | 0.6 | 30 | normal | widowed |
+| Glenda Pryor (40) | 0.8 | 20 | normal | |
+| Colt Purvis (22) | 1.2 | 0 | normal | |
+| Tyler Rasberry (19) | 0.8 | 15 | normal | |
+
+Five successful flirts, one a day (the code's numbers, `tests/wave34-romance-difficulty.test.cjs`): Jodie (easy, rate 1.2) at spark 12, 22, 32, 39, 46; Dewayne Mangum, on no list (hard, rate 0.5), at 5, 9, 13, 16, 19, every roll still against 15.
 
 - Leaving married people and the elderly off is a **default**, not a rule. Curtis is on because he is separated.
 - The Royce and Loretta affair is a tie between them (B), not eligibility toward the player.

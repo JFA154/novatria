@@ -1162,19 +1162,24 @@ if (T.ties !== undefined) {
     });
   }
 }
-/* Wave 28 (the list itself ships in wave 29): who spark can move for
-   (Rel.eligible), [{ npcId, open?, sparkRate?, opensAt?, faithful? }]. An
-   adult in town only: anyone under 18 by any anchor (age, the teen tags, or
-   no age and a role that reads as a teen) is refused, so the list can never
-   name a minor. */
+/* Wave 28 (the list itself ships in wave 29; tuning only since wave 34):
+   how each listed adult takes to the player's interest (Rel.tuningOf),
+   [{ npcId, sparkRate, opensAt, difficulty, faithful? }]. Every adult can
+   be interested whether listed or not; an entry makes them easier or
+   harder. open is gone (wave 34: nobody is closed off); faithful: true is
+   the old word for difficulty very_hard. An adult in town only: anyone
+   under 18 by any anchor (age, the teen tags, or no age and a role that
+   reads as a teen) is refused, so the list can never name a minor. */
 const TEEN_ROLE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
 if (T.romance !== undefined) {
-  if (!Array.isArray(T.romance)) err('TOWN_DATA.romance', 'a list of { npcId, open, sparkRate, opensAt, faithful }');
+  if (!Array.isArray(T.romance)) err('TOWN_DATA.romance', 'a list of { npcId, sparkRate, opensAt, difficulty }');
   else T.romance.forEach((r, i) => {
     const where = 'TOWN_DATA.romance[' + i + ']';
-    if (!isObj(r)) { err(where, 'an object { npcId, open, sparkRate, opensAt, faithful }'); return; }
+    if (!isObj(r)) { err(where, 'an object { npcId, sparkRate, opensAt, difficulty }'); return; }
     // Wave 29: every field written out (design Appendix E's block), each person once; who it names is checked whatever is missing.
-    checkKeys(r, ['npcId', 'open', 'sparkRate', 'opensAt', 'faithful'], where);
+    // Wave 34: open is no longer a word (everyone over 18 can be interested); faithful may stand for very_hard.
+    if ('open' in r) err(where + '.open', 'open is gone (wave 34): everyone over 18 can be interested; set difficulty (easy, normal, hard, very_hard) to make them easier or harder');
+    checkKeys(r, ['npcId', 'sparkRate', 'opensAt'].concat(r.faithful === true ? [] : ['difficulty']), where, ['difficulty', 'faithful', 'open']);
     if (T.romance.findIndex(x => isObj(x) && x.npcId === r.npcId) !== i) err(where + '.npcId', r.npcId + ' is on the list twice');
     const n = npcById.get(r.npcId);
     if (!n) { err(where + '.npcId', '"' + r.npcId + '" is not an NPC'); return; }
@@ -1182,9 +1187,10 @@ if (T.romance !== undefined) {
     const minor = (Number.isInteger(n.age) && n.age < 18) || tags.indexOf('teen') !== -1 || tags.indexOf('teenager') !== -1 || (!Number.isInteger(n.age) && TEEN_ROLE.test((n.role || '') + ' ' + tags.join(' ')));
     if (minor) err(where + '.npcId', r.npcId + ' is under 18: nobody under 18 is ever on the romance list');
     if ((n.presence || 'here') !== 'here') err(where + '.npcId', r.npcId + ' does not live in town');
-    if (r.open !== undefined && typeof r.open !== 'boolean') err(where + '.open', 'true or false');
     if (r.faithful !== undefined && typeof r.faithful !== 'boolean') err(where + '.faithful', 'true or false');
-    if (r.sparkRate !== undefined && !(typeof r.sparkRate === 'number' && r.sparkRate >= 0.5 && r.sparkRate <= 1.5)) err(where + '.sparkRate', 'a number from 0.5 to 1.5');
+    if (r.difficulty !== undefined && ['easy', 'normal', 'hard', 'very_hard'].indexOf(r.difficulty) === -1) err(where + '.difficulty', 'easy, normal, hard or very_hard');
+    if (r.faithful === true && r.difficulty !== undefined && r.difficulty !== 'very_hard') err(where + '.faithful', 'faithful: true means difficulty very_hard; leave one of them out');
+    if (r.sparkRate !== undefined && !(typeof r.sparkRate === 'number' && r.sparkRate >= 0.1 && r.sparkRate <= 2)) err(where + '.sparkRate', 'a number from 0.1 to 2');
     if (r.opensAt !== undefined && !(isObj(r.opensAt) && Object.keys(r.opensAt).length === 1 && Number.isInteger(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60)) err(where + '.opensAt', '{ knows } from 0 to 60 (how well they must know the player)');
   });
 }
