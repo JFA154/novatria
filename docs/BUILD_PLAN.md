@@ -1608,7 +1608,7 @@ talking, I can direct it to one person or all."
      `docs/notes/engine-world.md` and `docs/notes/prompts.md`; tests:
      `tests/wave22-appointments.test.cjs`, with `tests/pipeline.test.cjs`
      following the bookkeeper packet's seed line. The bookkeeper is told
-     (prompt only: `record_changes` is unchanged, 41 properties) to record a
+     (prompt only: `record_changes` was unchanged on main, 41 properties; since the merge with the relationship branch it is wave 32's, 34 properties) to record a
      meeting as one seed, a location trigger with the place (a day trigger
      for another day, the place named), the effect starting with the
      person's full name and saying where and when. A seed planted through
@@ -1683,7 +1683,7 @@ talking, I can direct it to one person or all."
      `docs/notes/prompts.md`; tests: `tests/wave26-objectives.test.cjs`, with
      `tests/shell.test.cjs` and `tests/mobile.test.cjs` following the fifth
      tab. The bookkeeper is told (prompt only: `record_changes` is unchanged,
-     41 properties, the same schema) to record a favour or a job asked of the
+     41 properties, the same schema; 34 since the merge with the relationship branch) to record a favour or a job asked of the
      player as one seed: a day trigger with its deadline's day, else an npc
      trigger with the person who asked; the effect starting with that
      person's full name and saying what they asked, the reward or the threat

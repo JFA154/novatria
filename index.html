@@ -25576,8 +25576,8 @@ const Pipeline = (() => {
     const no = r.answers.filter(id => !r.welcome.includes(id));
     const open = r.welcome.filter(id => !r.intimate.includes(id));
     if (no.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(no)} turned it aside; record no flirt or compliment for it.`);
-    if (open.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(open)} ${open.length > 1 ? 'were' : 'was'} open to it, and the engine records the flirt; record no flirt or compliment for it.`);
-    if (r.intimate.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(r.intimate)} said yes to the night; the engine records it, and it is private; record nothing more for it.`);
+    if (open.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(open)} ${open.length > 1 ? 'were' : 'was'} open to it, and the engine records the flirt; record no flirt or compliment for it, and no newSeeds for it.`);
+    if (r.intimate.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(r.intimate)} said yes to the night; the engine records it, and it is private; record nothing more for it, and no newSeeds for it.`);
     const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
     if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
     return r;
@@ -25609,7 +25609,7 @@ const Pipeline = (() => {
     if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'coercion', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
     const m = (n.memories || []).slice().reverse().find(x => isObj(x) && x.event === 'blackmailed' && x.turn === s.meta.turn);
     World.coercion(n.id, m ? m.key : `m${s.meta.turn}-${n.id}`);
-    ctx.bookLines.push(`COERCION (already applied by the engine: ${n.name} refused; what it cost the player with them, their report and the town's word): record no social event for ${n.id}, and nothing changes hands.`);
+    ctx.bookLines.push(`COERCION (already applied by the engine: ${n.name} refused; what it cost the player with them, their report and the town's word): record no social event for ${n.id}, no newSeeds for it (the engine has the report), and nothing changes hands.`);
     State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `coercion refused for ${n.id}: no roll, the d20 burned` });
     return {};
   }
@@ -25672,7 +25672,7 @@ const Pipeline = (() => {
     // A threat at someone under 18 goes to their family and the law at once (wave 28).
     World.minorHarm(n.id, 'threat');
     ctx.narratorLines.push(ans.line);
-    ctx.bookLines.push(`LEVERAGE (already applied by the engine: ${n.name}'s answer, the threat and what it cost the player with them${ans.answer === 'pays' ? '; the money comes tomorrow, by the engine' : ''}): record no social event for ${n.id} and no goldDelta from them.`);
+    ctx.bookLines.push(`LEVERAGE (already applied by the engine: ${n.name}'s answer, the threat and what it cost the player with them${ans.answer === 'pays' ? '; the money comes tomorrow, by the engine' : ''}): record no social event for ${n.id}, no goldDelta from them and no newSeeds for the payment: the engine has it.`);
     State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `${n.id}: backed by ${rec.id}, ${ans.event}, answer ${ans.answer}${ans.amount ? ` (${money(ans.amount)})` : ''}` });
     return {};
   }
@@ -30322,7 +30322,7 @@ const Pipeline = (() => {
   }
   /* The recap, one line each (the UI adds the heading "Where things stand"
      and bolds what comes before the first colon): where and when; once the
-     ending has happened, that line; Here and Open always; Owed, Warm to you,
+     ending has happened, that line; Here and Open always, Asked of you when someone has; Owed, Warm to you, Careful (mixed feelings),
      Cold to you, Heard and In town when there is something. opts.brief (the
      recap after a night's sleep): once the story has ended, only the first
      two lines, not the same list every morning. */

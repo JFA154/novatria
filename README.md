@@ -1736,8 +1736,8 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 810 tests and takes about
-ten minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
+nothing else to install. The whole run is about 836 tests and takes fifteen to
+twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
 
@@ -1756,6 +1756,9 @@ fails it with a message saying so; the CI checkout fetches it all).
   for the card table, and `integration` for the seams between them.
 - `shell`, `state`, `pipeline`, `api`, `world`, `map` and `settings`: the
   milestone suites.
+- `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
+  meetings kept, narrated arrivals and the Objectives tab (main's own wave
+  26, built alongside the relationship branch's);
 - `wave26-rel-tracks`, `wave27-rel-engine`, `wave28-social-events`,
   `wave29-rel-hold` and `wave30-rel-people` for the relationship system by
   wave (wave 30: the People card, the editor, the feed, `/recap`, the
