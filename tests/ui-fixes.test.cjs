@@ -737,18 +737,19 @@ s.test('two tabs: when another tab writes the autosave this one goes read only w
   await b.waitForFunction(() => !document.getElementById('tab-bar').hidden);
 });
 
-s.test('the CSP: present, API-only connect-src, Google fonts only, and the game still runs from file:// (fonts blocked in tests)', async h => {
+s.test('the CSP: present, API-only connect-src, the inline font only (wave 46), and the game still runs from file://', async h => {
   const html = fs.readFileSync(GAME_PATH, 'utf8');
   const m = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html);
   assert.ok(m, 'a CSP meta');
   const csp = Object.fromEntries(m[1].split(';').map(x => x.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
   assert.deepEqual(csp['connect-src'], ['https://api.anthropic.com']);
-  assert.deepEqual(csp['font-src'], ['https://fonts.gstatic.com']);
-  assert.ok(csp['style-src'].includes('https://fonts.googleapis.com'), 'the font stylesheet may load');
-  assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<link rel="stylesheet"'), 'before the font link');
+  // Wave 46: the font is inline (data:), so no Google host is listed.
+  assert.deepEqual(csp['font-src'], ['data:']);
+  assert.deepEqual(csp['style-src'], ["'unsafe-inline'"]);
+  assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<link'), 'before any link');
   const violations = [];
   const page = await open(h);
-  page.on('console', msg => { if (/Content Security Policy/i.test(msg.text()) && !/fonts\.g/.test(msg.text())) violations.push(msg.text()); });
+  page.on('console', msg => { if (/Content Security Policy/i.test(msg.text())) violations.push(msg.text()); });
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await quickStart(page);
@@ -2967,7 +2968,8 @@ s.test('wave 6, item 4: a line pasted or handed back to the box shows whole: the
     // Handed back (a failed turn, the queued line's ×): into an empty box, Wait → Send, every line shown.
     for (let n = 40; n <= 90; n += 2) {
       await page.fill('#cmd', '');
-      const r = await page.evaluate(t => { Game.UI.restoreAction(t); const ta = document.getElementById('cmd'); return { cut: ta.scrollHeight > ta.clientHeight + 1, label: document.getElementById('send').textContent }; }, TEXT.slice(0, n));
+      // Wave 46: the font is inline, so Literata (wider than Georgia) is the measure: 88 characters are five lines at 375, past the box's four-line cap, where it scrolls by design (as the typed loop above allows).
+      const r = await page.evaluate(t => { Game.UI.restoreAction(t); const ta = document.getElementById('cmd'); const lh = parseFloat(getComputedStyle(ta).lineHeight); return { cut: ta.scrollHeight > ta.clientHeight + 1 && ta.clientHeight < lh * 4, label: document.getElementById('send').textContent }; }, TEXT.slice(0, n));
       assert.deepEqual(r, { cut: false, label: 'Send' }, `${vp.width}, handed back, ${n} characters`);
     }
     if (vp === PHONE) {

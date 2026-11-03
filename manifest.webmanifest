@@ -1,0 +1,14 @@
+{
+  "name": "Lockett's Ferry",
+  "short_name": "Lockett's Ferry",
+  "description": "A one-town text RPG: type what you do, and the town keeps moving with or without you.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#17130f",
+  "theme_color": "#17130f",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

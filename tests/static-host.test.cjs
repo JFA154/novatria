@@ -119,7 +119,7 @@ s.test('over http:// a mock game plays two turns: no page error, no CSP violatio
   assert.deepEqual(consoleCsp, [], 'no CSP violation in the console');
   assert.ok(served.includes('/index.html'), 'the page came from the server');
   const local = requested.filter(u => u.startsWith(base + '/')).map(u => new URL(u).pathname);
-  assert.deepEqual([...new Set(local)], ['/index.html'], 'the page asks its host for nothing but itself');
+  assert.deepEqual([...new Set(local)].filter(p => !['/manifest.webmanifest', '/icon-192.png', '/icon-512.png'].includes(p)), ['/index.html'], 'the page asks its host for nothing but itself, its manifest and its icons (wave 46)');
 });
 
 (async () => {

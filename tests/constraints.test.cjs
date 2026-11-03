@@ -1,7 +1,8 @@
 'use strict';
 /* docs/BUILD_PLAN.md "Deliverable and hard constraints": one self-contained
-   index.html with inline CSS and plain scripts, nothing external but the one
-   Google Fonts stylesheet, no module syntax, no globals but Game, and it runs
+   index.html with inline CSS and plain scripts, nothing external (wave 46:
+   the font is inline; the manifest and touch icon are optional files beside
+   it for a host), no module syntax, no globals but Game, and it runs
    from file:// with every other request blocked. The only network call in the
    code is the Claude API endpoint.
    Run with: node tests/run.cjs constraints */
@@ -11,14 +12,12 @@ const assert = require('assert/strict');
 const { suite, quickStart, sendText, ROOT, GAME_PATH, GAME_URL } = require('./helpers.cjs');
 
 const s = suite('constraints');
-const FONT = /^https:\/\/fonts\.googleapis\.com\/css2\?family=Literata/;
 
-s.test('index.html is one self-contained file: inline CSS and classic scripts, one font link, no modules', async () => {
+s.test('index.html is one self-contained file: inline CSS and classic scripts, no stylesheet link, no modules', async () => {
   const html = fs.readFileSync(GAME_PATH, 'utf8');
+  // Wave 46: the font is inline; the only links are the manifest and the touch icon, beside the page.
   const links = [...html.matchAll(/<link\b[^>]*>/gi)].map(m => m[0]);
-  assert.equal(links.length, 1, 'one <link>: ' + links.join(' '));
-  assert.match(links[0], /rel="stylesheet"/);
-  assert.match(links[0].match(/href="([^"]+)"/)[1].replace(/&amp;/g, '&'), FONT, 'and it is the Literata font');
+  assert.deepEqual(links, ['<link rel="manifest" href="manifest.webmanifest">', '<link rel="apple-touch-icon" href="icon-192.png">'], 'links: ' + links.join(' '));
   const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)].map(m => m[1].trim());
   assert.ok(scripts.length >= 1);
   assert.deepEqual(scripts.filter(a => a !== ''), [], 'no src, type="module" or other attributes on <script>');
@@ -41,7 +40,7 @@ s.test('index.html is one self-contained file: inline CSS and classic scripts, o
   assert.ok(!fs.existsSync(path.join(ROOT, 'package.json')), 'no package.json');
 });
 
-s.test('it runs from file:// with the network blocked: only the font is ever requested, and a turn plays', async h => {
+s.test('it runs from file:// with the network blocked: nothing outside is ever requested, and a turn plays', async h => {
   const requested = [];
   const page = await h.open({
     route: route => {
@@ -57,7 +56,7 @@ s.test('it runs from file:// with the network blocked: only the font is ever req
   await sendText(page, '/rest');
   assert.equal(await page.evaluate(() => Game.state.meta.turn), 2, 'turns play offline in mock mode');
   const outside = requested.filter(u => !/^(file|blob|data):/.test(u));
-  assert.ok(outside.every(u => FONT.test(u)), 'nothing but the font: ' + outside.join(' '));
+  assert.deepEqual(outside, [], 'nothing outside (wave 46: not even the font): ' + outside.join(' '));
   // The one global, frozen.
   const g = await page.evaluate(() => ({ frozen: Object.isFrozen(window.Game), own: Object.keys(window).filter(k => /^(TOWN_DATA|TABLES|State|Pipeline|Api|UI|App|World)$/.test(k)) }));
   assert.equal(g.frozen, true);
