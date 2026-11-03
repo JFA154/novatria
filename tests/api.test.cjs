@@ -106,7 +106,9 @@ function walkSchema(node, where, out) {
   for (const k of Object.keys(node)) walkSchema(node[k], `${where}.${k}`, out);
 }
 
-s.test('requests carry the four headers and a body the current API accepts, with model and max_tokens per role', async h => {
+// Wave 42: the title reads the cached blocks' measures once the test has taken them, so they print in its PASS line.
+const cachedMeasure = { text: '' };
+s.test({ toString: () => 'requests carry the four headers and a body the current API accepts, with model and max_tokens per role' + cachedMeasure.text }, async h => {
   const { page, reqs, fx } = await openReal(h);
   await sendText(page, 'I ask the ferryman about the tide');
   assert.deepEqual(reqs.map(r => r.role), ['parser', 'narrator', 'bookkeeper']);
@@ -173,10 +175,18 @@ s.test('requests carry the four headers and a body the current API accepts, with
   assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
-  // Cached text stays small: about 1.4 tokens a word, under 13,000 for the three blocks (README, "Costs"; 12,000 before the
-  // casual style's eight packet-format examples and the WHAT PEOPLE KNOW rules moved into the style block).
+  // Cached text stays small: about 1.4 tokens a word, under 14,000 for the three blocks (README, "What a turn costs").
+  // The limit is a cost choice, not an API limit. Every narration reads the blocks from the cache at $0.20 per million tokens
+  // on Opus 5.5 and on Sonnet 5.5 alike, so 1,000 more cached tokens cost 0.02 cents a narration; the cache is written once an
+  // hour at twice the input price, so the same 1,000 tokens add 0.8 cents to each hourly write on Opus 5.5 ($8 per million) and
+  // 0.4 cents on Sonnet 5.5 ($4 per million). Wave 42 cut repetition (about 12,970 to 12,600) and raised the limit from 13,000
+  // (12,000 before the casual examples and the WHAT PEOPLE KNOW rules joined the style block). The room left, about 1,400
+  // tokens, costs at most about 0.03 cents a narration and about 1.1 cents (Opus) or 0.6 cents (Sonnet) an hourly write once a
+  // future rule or cast member uses it. The measures print in this test's PASS line.
   const words = t => t.split(/\s+/).filter(Boolean).length;
-  assert.ok((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4 < 13000, 'cached blocks: ' + Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4) + ' tokens');
+  const est = Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4);
+  cachedMeasure.text = ` [cached blocks, words x 1.4: style ${Math.round(words(sys.narrator) * 1.4)}, town ${Math.round(words(sys.town) * 1.4)}, cast ${Math.round(words(sys.cast) * 1.4)}, total ${est} of 14,000; at 3.5 characters a token ${Math.round((sys.narrator.length + sys.town.length + sys.cast.length) / 3.5)}]`;
+  assert.ok(est < 14000, 'cached blocks: ' + est + ' tokens');
   assert.equal(parser.body.system, sys.parser);
   assert.equal(book.body.system, sys.book);
   assert.match(parser.body.system, /^You convert a player's free-text action into structured data for a game engine\./);

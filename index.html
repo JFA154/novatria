@@ -6571,7 +6571,7 @@ LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first
 
 VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.
 
-DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. Do not reuse a phrase, opener or joke from LAST 3 TURNS. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
+DIALOGUE: NPCs speak in their listed voice, but a listed habit is a flavour, not a script: it shows up now and then, never in every line and never two turns running. People interrupt, dodge questions, lie, change the subject. Prefer a line of dialogue over a line of description.
 
 NEVER:
 - Act, speak, think or feel for the player character beyond what they typed.
@@ -6607,12 +6607,12 @@ const EXAMPLE_TURNS_LITERARY = [
 
 const EXAMPLE_TURNS_CASUAL = [
   {
-    input: "\"I'll have your money by the weekend.\" (said to Charlene Voight)",
+    input: "\"I'll have your money by the weekend.\"",
     context: "PRESENT: Charlene Voight (58, she/her; owns the Tip Top; voice (a habit, not every line): dry, never raises her voice; wants (never say this outright; it steers what they push for and dodge): her four hundred back before the bank calls her note; to you: cool to you, has something on you — you owe her four hundred (Day 1) — plays it: civil and brief, sure of herself around you)\nPLAYER SAYS (to Charlene Voight): \"I'll have your money by the weekend.\"\nROLL: none.",
     narration: "Charlene doesn't look up from the register. \"Uh huh.\" She writes 400 on a strip of receipt paper, then a time, and slides it over. \"Noon on the weekend. After that I quit asking nice.\""
   },
   {
-    input: "\"Anybody here need a hand with anything?\" (said to everyone)",
+    input: "\"Anybody here need a hand with anything?\"",
     context: "PRESENT: Dot Fenwick (34, she/her; waitress at the Tip Top; to you: doesn't know you — plays it: treats you like a stranger); Hutch Bledsoe (61, he/him; fixes outboard motors; to you: sizing you up — plays it: watches what you do, not what you say)\nPLAYER SAYS (to everyone present): \"Anybody here need a hand with anything?\"\nROLL: none.",
     narration: "Dot keeps wiping the same table. Hutch looks you over from the end of the bar. \"Can you lift a motor? Ninety pounds, out of a boat and into my truck. Twenty bucks.\" Dot snorts. \"Get the twenty first. He pays in beer.\""
   },
@@ -20539,14 +20539,21 @@ const World = (() => {
    system prompt, in one of two styles (Settings.narrationStyle: casual, the
    default, or literary). Every problem is hard or soft (check().hard says
    whether any is hard): Pipeline step 7 rewrites once with
-   regenerationNote() for a hard problem and logs the soft ones. */
+   regenerationNote() for a hard problem and logs the soft ones.
+   Wave 42: the cached style block says the cash rule once (the NEVER line;
+   KNOWLEDGE keeps only what the player carries is theirs), and the two Say
+   examples' inputs no longer repeat whom PLAYER SAYS names; the casual
+   DIALOGUE line leaves "do not reuse a phrase from LAST 3 TURNS" to the
+   packet's VARIETY line, which says it every turn. */
 const Style = (() => {
   const EXAMPLES_INTRO = 'EXAMPLES (from a different town; none of these people or places exist in this game):';
   /* The rule half of the packet's WHAT PEOPLE KNOW line. It never changes, so
      it sits in the cached style block (between the guide and the examples,
      byte-identical per style); the packet keeps only when the player came to
-     town and who knew them before (Pipeline.knowledgeLine). */
-  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "to you" reasons, what they hold you to and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS. What the player carries and how much money they have is theirs alone to know: a person sees only what the player shows, hands over or says, and never knows or names the total the player has or has left.';
+     town and who knew them before (Pipeline.knowledgeLine).
+     Wave 42: its last clause (nobody knows or names the total) left it: the
+     guide's NEVER line says it. */
+  const KNOWLEDGE = 'WHAT PEOPLE KNOW: the player is new in town (the packet says since when). Each person knows about the player only what their "to you" reasons, what they hold you to and LOOSE ENDS say and what happened in front of them (STORY SO FAR, EARLIER, LAST 3 TURNS). Nobody else met them, heard of them or was warned about them before they came, and nothing about them happened "last night" or "a while ago" that the story does not show. Anyone may have heard the TOWN NEWS. What the player carries and how much money they have is theirs alone to know: a person sees only what the player shows, hands over or says.';
   const STYLES = {
     casual: { guide: STYLE_GUIDE_CASUAL, examples: EXAMPLE_TURNS_CASUAL },
     literary: { guide: STYLE_GUIDE_LITERARY, examples: EXAMPLE_TURNS_LITERARY }
@@ -24740,7 +24747,10 @@ const Upgrade = (() => {
    when the turn ends. A bookkeeper that fails keeps the narration: the
    engine's own changes stand, the log entry says changes 'not recorded',
    and the bookkeeper is asked once more in the background. The chronicle
-   runs after the turn is logged and saved. */
+   runs after the turn is logged and saved.
+   Wave 42: the town and cast blocks lose what repeats itself (castTies,
+   castHistory, the place ids, the NOT IN TOWN head's restatement), so the
+   three cached blocks have room under tests/api.test.cjs's budget. */
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
@@ -24898,9 +24908,35 @@ const Pipeline = (() => {
      edit, a merge, an arrest or a death). */
   const CAST_HEAD = 'CAST (everyone who exists in this town; never invent anyone else):';
   const CAST_RULE = 'Anyone a character mentions (a wife, a husband, a brother, a boss, a friend, a neighbor, a customer) is one of the people above or does not exist: never make up a relative, a worker or a stranger, and never give someone a family the list does not show. People not in PRESENT can be talked about, but they never appear in the scene unless the packet lists them.';
-  const ABSENT_HEAD = 'NOT IN TOWN (they can be talked about, but they never appear): the dead and the people who live elsewhere, one a line. Nobody here sees them; anyone may mention them, the way people talk about the dead and the far away.';
+  // Wave 42: the head no longer says twice that they are talked about and never seen, nor that each has a line.
+  const ABSENT_HEAD = 'NOT IN TOWN (they can be talked about, but they never appear): the dead and the people who live elsewhere.';
   /* "Mavis Mangum (41, she/her" without the closing: the name, then the age and pronouns. */
   function nameHead(n) { const a = ageText(n.age); return `${n.name}${n.unnamed ? ' (no name yet)' : ''} (${a ? `${a}, ` : ''}${pronounLabel(n.pronouns)}`; }
+  /* Wave 42: the cast block's ties say a relation once for everyone it
+     covers ("boss of Tammy Lott, Lyman Coker and Jodie Strayhorn", "son of
+     Vada Sturdivant and the late Harlan Voss"), in the order tieWords has
+     them; tieWords itself (the parser's packet) is unchanged. */
+  function castTies(n) {
+    const groups = [];
+    for (const x of byRank(State.tiesOf(n).isTo).slice(0, 4)) {
+      const rel = x.relation || 'related';
+      const g = groups.find(o => o.rel === rel);
+      const name = tieName(State.npc(x.id));
+      if (g) g.names.push(name); else groups.push({ rel, names: [name] });
+    }
+    const and = a => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a[0]);
+    return groups.map(g => `${g.rel} of ${and(g.names)}`).join(', ');
+  }
+  /* Wave 42: a history follows its person's line without a label, and one
+     that opens with the full name the line starts with opens with "He" or
+     "She" instead (they/them keep the name: "They has run" would not read). */
+  function castHistory(n) {
+    const h = String(n.history || '');
+    if (!h) return '';
+    const p = { he: 'He', she: 'She' }[n.pronouns];
+    const rest = h.startsWith(n.name + ' ') ? h.slice(n.name.length + 1) : null;
+    return ' ' + (p && rest && /^[a-z]/.test(rest) ? `${p} ${rest}` : h);
+  }
   function castBlock(st) {
     const s = st || State.current;
     if (!s) return '';
@@ -24909,12 +24945,12 @@ const Pipeline = (() => {
     for (const n of s.npcs) {
       if (presenceOf(n) !== 'here') { absent.push(n); continue; }
       const parts = [n.role || 'townsfolk'];
-      const ties = tieWords(n);
+      const ties = castTies(n);
       if (ties) parts.push(ties);
       const where = usualPlaces(n, s);
       if (where) parts.push(where);
       if (n.status === 'arrested') parts.push('under arrest, in the cell at the police station');
-      lines.push(`${n.id} — ${nameHead(n)}; ${parts.join('; ')})${n.history ? ` History: ${n.history}` : ''}`);
+      lines.push(`${n.id} — ${nameHead(n)}; ${parts.join('; ')})${castHistory(n)}`);
     }
     lines.push(CAST_RULE);
     // The dead and the far away, from their own records; an older game's offstage names that are not records yet, after them.
@@ -24924,14 +24960,14 @@ const Pipeline = (() => {
       lines.push(ABSENT_HEAD);
       for (const n of absent) {
         const parts = [n.role || 'townsfolk'];
-        const ties = tieWords(n);
+        const ties = castTies(n);
         if (ties) parts.push(ties);
         if (presenceOf(n) === 'dead') parts.push(n.died ? `dead: ${n.died}` : 'dead');
         else {
           parts.push(n.where ? `lives elsewhere: ${n.where}` : 'gone from town');
           if (n.reach) parts.push(`reached by: ${n.reach}`);
         }
-        lines.push(`${n.id} — ${nameHead(n)}; ${parts.join('; ')})${n.history ? ` History: ${n.history}` : ''}`);
+        lines.push(`${n.id} — ${nameHead(n)}; ${parts.join('; ')})${castHistory(n)}`);
       }
       for (const o of off) lines.push(`${o.name}: ${o.about}.`);
     }
@@ -24956,9 +24992,10 @@ const Pipeline = (() => {
     const places = s.locations.filter(l => l.away !== true && (l.history || l.hours));
     // Hours that say nothing ("A private home", "Always open") are left out.
     const hours = h => (h && !/^(a private home|always open)\.?$/i.test(String(h).trim()) ? `Open: ${h}.` : '');
-    if (places.length) lines.push(`PLACES (how each came to be; when it is open): ${places.map(l => `${l.id} — ${l.name}: ${[l.history, hours(l.hours)].filter(Boolean).join(' ')}`).join(' | ')}`);
+    // Wave 42: places by name alone; the narrator's packets never give it an id.
+    if (places.length) lines.push(`PLACES (how each came to be; when it is open): ${places.map(l => `${l.name}: ${[l.history, hours(l.hours)].filter(Boolean).join(' ')}`).join(' | ')}`);
     const away = s.locations.filter(l => l.away === true);
-    if (away.length) lines.push(`OUT OF TOWN (talked about, never a scene; the story stays in ${s.meta.townName || 'town'}): ${away.map(l => `${l.id} — ${l.name} (${l.distance || 'out of town'}): ${l.history || sentenceOne(l.description)}`).join(' | ')}`);
+    if (away.length) lines.push(`OUT OF TOWN (talked about, never a scene; the story stays in ${s.meta.townName || 'town'}): ${away.map(l => `${l.name} (${l.distance || 'out of town'}): ${l.history || sentenceOne(l.description)}`).join(' | ')}`);
     // Clocks complete and votes are held after this was written: the message's news is the newer word.
     lines.push(TOWN_NEWER);
     return lines.join('\n');
