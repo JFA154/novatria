@@ -40,9 +40,9 @@
      report for the night; with Tyler threatened to fear 40 from Day 7, and
      with his secret held from Day 3, the night never opens and compliance
      never fires, each also asking the night as a walk to the motor court
-     (a motel). Two of those bands wait on wave 40 (the walk is no ask, so
-     fear never makes it coercion, and intimateGate reads neither fear nor
-     leverage): PENDING, skipped unless --pending.
+     (a motel). Both hold since wave 40 (coercion is decided by fear,
+     leverage and threats at every named target, however the line is put,
+     and intimateGate reads fear and a held record too).
    - blackmailer: every adult whose secret can be shown (two leverageKeys)
      talked round three an evening (Days 1 to 7, the secret let slip, the
      bookkeeper's learned_secret), $300 demanded of each the evening it is
@@ -512,9 +512,9 @@ function romanceBands(run, variant, last, at, check, pending) {
   if (variant === 'fear') {
     check(pushed.length > 0 && asks.every(a => !a.night), `the night never opens at fear 40 by threats (fear before each ask for the night: ${listOf(asks.filter(a => a.kind !== 'flirt').map(a => a.before.f))})`);
     check(pushed.filter(a => a.kind !== 'move').every(a => a.answer === 'coerced'), `a Say at fear 40 or more is refused as coercion (${listOf(pushed.filter(a => a.kind !== 'move').map(a => a.answer))})`);
-    pending(pushed.every(a => a.answer === 'coerced'), `at fear 40 or more every romantic line is coercion, the walk to a motel room too (the walk: ${listOf(pushed.filter(a => a.kind === 'move').map(a => a.answer))})`, 'wave 40');
+    check(pushed.every(a => a.answer === 'coerced'), `at fear 40 or more every romantic line is coercion, the walk to a motel room too (the walk: ${listOf(pushed.filter(a => a.kind === 'move').map(a => a.answer))})`);
   } else {
-    pending(pushed.length > 0 && pushed.every(a => !a.night), `the night never opens with a record held over them (the night: ${nights.length ? `Day ${nights[0].day}, by the ${nights[0].kind === 'move' ? 'walk' : 'Say'}` : 'never'})`, 'wave 40');
+    check(pushed.length > 0 && pushed.every(a => !a.night), `the night never opens with a record held over them (the night: ${nights.length ? `Day ${nights[0].day}, by the ${nights[0].kind === 'move' ? 'walk' : 'Say'}` : 'never'})`);
   }
 }
 

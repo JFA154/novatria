@@ -14,7 +14,7 @@
      person, repeat demands compounding into grudges and reports, a
      holder's report spending what they hold, Royce's police bar lifting
      after the day his record is spent.
-   A band marked pending waits on another wave (wave 40's coercion fix,
+   A band marked pending waits on the owner's B3 tuning (the plan's $900 figure,
    the owner's B3 tuning): it is printed, and asserted only with
    SIM_PENDING=1, so the coordinator can turn it on once that lands.
    Mock mode. Run with: node tests/run.cjs relationships-sim-guard */
