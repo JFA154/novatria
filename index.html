@@ -8354,8 +8354,8 @@ const State = (() => {
   /* Wave 29: leverage (a demand's payment coming), inquiry (the police
      looking into a secret they were told), tell (a holder telling what
      they have on the player), price (a holder naming a price for keeping
-     quiet). */
-  const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background', 'report', 'leverage', 'inquiry', 'tell', 'price']);
+     quiet). Wave 40: found_out (someone noticing a clean theft nobody saw, Pipeline.foundOut). */
+  const SEED_ORIGINS = Object.freeze(['grudge', 'favour', 'loose_end', 'clock', 'town', 'background', 'report', 'leverage', 'inquiry', 'tell', 'price', 'found_out']);
   const DEFEAT_OUTCOMES = ['robbed', 'captured', 'gutter', 'rescued', 'dead'];
   /* Per-turn and per-game limits. The model* ones hold a bookkeeper's diff
      (source 'model') to what one turn can do; the engine is not held to them. */
@@ -14585,7 +14585,16 @@ const State = (() => {
    caring liking; the night reads romance 40 in place of liking 40. Spark
    and romance are both the guard's (ROMANTIC, sparkGuard): 0, and refused
    at every writer, for anyone under 18 and with a player under 18. The
-   favours owed can be set by hand (owedTo, the Edit form's Owes you). */
+   favours owed can be set by hand (owedTo, the Edit form's Owes you).
+
+   Wave 40 ("however the line is put"): coercion (romanceTurn) reads every
+   named target, whatever the parser called the action: a romantic line
+   at someone at fear 40 or more, or over whom the player holds a live
+   record (aware, or named or used by the words), is refused as coerced
+   when it is a walk to a motel room, a give or a use as much as a talk;
+   a threatening romantic line to the whole room is refused by every
+   adult there. intimateGate counts fear and any held record short, so
+   the night never opens through them for any caller. */
 const Rel = (() => {
   function deepFreeze(v) {
     if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Object.keys(v)) deepFreeze(v[k]); }
@@ -16267,7 +16276,10 @@ const Rel = (() => {
      tonight; she says so kindly". A player under 18 (or of no age) is
      answered no every time, nothing rolled and no flirt recorded. Returns
      { romantic, aimed, minors, answers, welcome, flirts: [{ npcId, ans }],
-     intimate: [ids], coercion: { npcId, protectorHere } | null, lines (the
+     intimate: [ids], coercion: { npcId, protectorHere, why, leverageId?,
+     room, each: [{ npcId, protectorHere, why ('threat', 'leverage' or
+     'fear'), leverageId?, room? }] (wave 40: everyone pushed; the first
+     leads) } | null, lines (the
      narrator's, each with its label), pending: [{ npcId, more }], roll: {
      npcId, stat, difficulty } | null }. It writes nothing. */
   function romanceTurn(t, ctx) {
@@ -16293,28 +16305,61 @@ const Rel = (() => {
     if (!romantic) return out;
     out.aimed = present.filter(aimedAt);
     const forms = n => { const they = !PRONOUN_FORMS[n.pronouns] || n.pronouns === 'they'; return { f: PRONOUN_FORMS[n.pronouns] || PRONOUN_FORMS.they, s: they ? '' : 's' }; };
-    const first = present.find(named);
-    const target = first ? byId(first) : null;
-    if (target) {
-      const pushed = a.actionType === 'intimidate' || THREAT_PHRASES.test(String(o.input || '').replace(/[’]/g, "'"))
-        || (Array.isArray(a.aboutIds) && a.aboutIds.some(x => /^lev_/.test(String(x))))
-        || (ASKS.includes(a.actionType) && tracksOf(target, ctx).f >= GATES.compliance.fear);
-      if (pushed) {
-        const pr = protectorOf(target, ctx);
-        const by = pr && Array.isArray(pr.ids) ? pr.ids.find(x => present.includes(x)) || null : null;
-        const { f, s } = forms(target);
-        out.coercion = { npcId: target.id, protectorHere: by };
-        out.lines.push(`COERCION (the engine: no roll, nothing given): ${target.name} refuses: ${f.subj} won't be pushed into that, and ${f.subj} ${by ? `call${s} for ${byId(by).name}` : `leave${s}`}.`);
-      }
+    /* Wave 40 ("however the line is put"): coercion no longer waits on the
+       action type, and every named target is checked, not only the first
+       (pushedBy): a live record of the player's over them that the words
+       name (a lev_ id) or use (references), a threat in the words or an
+       intimidation, any lev_ id, an aware live record over them, or their
+       fear at GATES.compliance.fear (leverage's share included), whatever
+       the parser called the action (a walk to a motel room, a give, a
+       use). A threatening line to the whole room (a Say to everyone) is
+       refused as coerced by every adult here (room: the threat row for
+       each, one hit to the town; someone under 18 keeps the minor rule's
+       row). */
+    const input = String(o.input || '').replace(/[’]/g, "'");
+    const threat = a.actionType === 'intimidate' || THREAT_PHRASES.test(input);
+    const levIds = (Array.isArray(a.aboutIds) ? a.aboutIds : []).map(String).filter(x => /^lev_/.test(x));
+    const usedOver = n => holdsOver(n, ctx).find(x => levIds.includes(x.id)) || holdsOver(n, ctx).find(x => references(input, x, ctx)) || null;
+    const pushedBy = n => {
+      const used = usedOver(n);
+      if (used) return { why: 'leverage', leverageId: used.id };
+      if (threat) return { why: 'threat' };
+      if (levIds.length || holdsOver(n, ctx, true).length) return { why: 'leverage' };
+      return tracksOf(n, ctx).f >= GATES.compliance.fear ? { why: 'fear' } : null;
+    };
+    const each = [];
+    for (const id of present.filter(named)) {
+      const target = byId(id);
+      const p = pushedBy(target);
+      if (!p) continue;
+      const pr = protectorOf(target, ctx);
+      const by = pr && Array.isArray(pr.ids) ? pr.ids.find(x => present.includes(x)) || null : null;
+      const { f, s } = forms(target);
+      each.push(Object.assign({ npcId: target.id, protectorHere: by, why: p.why }, p.leverageId ? { leverageId: p.leverageId } : {}));
+      out.lines.push(`COERCION (the engine: no roll, nothing given): ${target.name} refuses: ${f.subj} won't be pushed into that, and ${f.subj} ${by ? `call${s} for ${byId(by).name}` : `leave${s}`}.`);
     }
+    if (everyone && (threat || levIds.length)) {
+      const adults = present.filter(id => !isMinor(byId(id), ctx));
+      for (const id of adults) {
+        const used = usedOver(byId(id));
+        each.push(Object.assign({ npcId: id, protectorHere: null, why: used ? 'leverage' : 'threat', room: true }, used ? { leverageId: used.id } : {}));
+      }
+      const names = adults.map(id => byId(id).name);
+      if (names.length) out.lines.push(`COERCION (the engine: no roll, nothing given): ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} refuse` : `${names[0]} refuses`}: nobody here will be pushed into that, and nobody goes along with it.`);
+    }
+    // One record for the turn: the first one pushed leads it (resolve, the debug line and older readers take npcId); each holds every one.
+    if (each.length) out.coercion = Object.assign({}, each[0], { each, room: each.some(x => x.room) });
+    const coercedIds = each.map(x => x.npcId);
     // An ask for the night: the parse's "more", the words of one, or a walk to a home or a motel room.
     const dest = typeof a.destinationId === 'string' && ctx.s && Array.isArray(ctx.s.locations) ? ctx.s.locations.find(l => isObj(l) && l.id === a.destinationId) : null;
     const more = romantic === 'more' || INTIMATE_ASK.test(String(o.input || '')) || !!(dest && NIGHT_PLACES.includes(dest.type));
     const say = (n, words) => out.lines.push(`ROMANCE (decided by the engine): ${n.name}${words}`);
     for (const id of out.aimed) {
       const n = byId(id);
-      if (isMinor(n, ctx) || (out.coercion && out.coercion.npcId === id)) continue;
+      if (isMinor(n, ctx) || coercedIds.includes(id)) continue;
       out.answers.push(id);
+      // Wave 40: a turn that pushed anyone opens nothing for anyone else it named: turned aside, kindly, no roll and no night.
+      if (out.coercion && named(id)) { say(n, flirtWords(n, 'aside')); continue; }
       // A kid flirting is answered no, every time, and nothing is recorded (the minor rule's other side).
       if (playerMinor(ctx)) { say(n, flirtWords(n, 'no')); continue; }
       // Wave 34: a line to the whole room is no flirt with anyone: nobody rolls, each takes it lightly, nothing is recorded.
@@ -16693,7 +16738,10 @@ const Rel = (() => {
      integration plan's 19.2): both adults (the player too), eligible and
      the flirt welcome, spark 50, romance 40 (wave 35; liking 40 before),
      trust 30, knows 30. Money never
-     helps. Returns { ok, welcome, short: [what fell short] }. */
+     helps. Wave 40: nor does fear or leverage, a second barrier behind
+     romanceTurn's coercion for any caller: fear at GATES.compliance.fear
+     or more, or any live record the player holds over them (aware or
+     not), is short. Returns { ok, welcome, short: [what fell short] }. */
   function intimateGate(n, ctx) {
     ctx = context(ctx);
     const short = [];
@@ -16701,6 +16749,8 @@ const Rel = (() => {
     if (!wel.ok) short.push(wel.why);
     const c = tracksOf(n, ctx);
     const G = GATES.intimate;
+    if (c.f >= GATES.compliance.fear) short.push(`fear ${c.f} at ${GATES.compliance.fear} or more`);
+    if (holdsOver(n, ctx).length) short.push('the player holds something over them');
     if (c.s < G.spark) short.push(`spark ${c.s} under ${G.spark}`);
     if (c.m < G.romance) short.push(`romance ${c.m} under ${G.romance}`);
     if (c.t < G.trust) short.push(`trust ${c.t} under ${G.trust}`);
@@ -19542,11 +19592,19 @@ const World = (() => {
      "nobody" is a grudge whatever is waiting; with nobody to hear it, the
      law), on Rel.rng('coercion', npcId, day), and the town -10. The
      events (blackmailed and crossed) are Pipeline's, at resolve. key: the
-     memory the report is about. */
-  function coercion(npcId, key) {
+     memory the report is about. Wave 40: o.report false plants no report
+     (a threat to the whole room), o.rep false leaves the town alone (it
+     is hit once a turn, however many were pushed). */
+  function coercion(npcId, key, o) {
     const s = st();
     const n = State.npc(npcId);
     if (!n) return null;
+    o = o || {};
+    if (o.report === false) {
+      if (o.rep !== false) applyEffects([{ op: 'reputationDelta', key: 'town', delta: Rel.MINOR_RULE.rep.coercion }]);
+      note(`${n.id} was pushed with a romantic line to the room: the threat row, no report; town ${o.rep !== false ? Rel.MINOR_RULE.rep.coercion : 'already hit'}`, { kind: 'coercion', npcId: n.id });
+      return null;
+    }
     const day = s.time.day;
     // A coercion's report goes through whatever the player holds over them (wave 29: the police bar does not stop it).
     const pr = Rel.protectorOf(n, undefined, { anyway: true });
@@ -19554,8 +19612,8 @@ const World = (() => {
     const opts = { rng: Rel.rng('coercion', n.id, day), force: true, news: law.news };
     if (!pr || (!pr.nobody && !(pr.ids || []).length)) opts.to = { ids: law.ids, fallback: law.fallback };
     const sd = isFree(n) ? plantReport(n, { why: 'coercion', key }, day, opts) : null;
-    applyEffects([{ op: 'reputationDelta', key: 'town', delta: Rel.MINOR_RULE.rep.coercion }]);
-    note(`${n.id} was pushed with a romantic ask: ${sd ? `${sd.origin && sd.origin.kind === 'report' ? 'a report' : 'a grudge'} (${sd.id})` : 'nothing planted'}; town ${Rel.MINOR_RULE.rep.coercion}`, { kind: 'coercion', npcId: n.id });
+    if (o.rep !== false) applyEffects([{ op: 'reputationDelta', key: 'town', delta: Rel.MINOR_RULE.rep.coercion }]);
+    note(`${n.id} was pushed with a romantic ask: ${sd ? `${sd.origin && sd.origin.kind === 'report' ? 'a report' : 'a grudge'} (${sd.id})` : 'nothing planted'}; town ${o.rep !== false ? Rel.MINOR_RULE.rep.coercion : 'already hit'}`, { kind: 'coercion', npcId: n.id });
     return sd;
   }
   /* Wave 27 (the integration plan's 19.6): a beat-down on someone tough is
@@ -25887,7 +25945,7 @@ const Pipeline = (() => {
     // Wave 33: a romantic move the engine could not place: nobody answers in the narrator's packet, and the bookkeeper may say who it was.
     if (r.romantic && !r.aimed.length) ctx.bookLines.push('ROMANCE (seen by the engine): a romantic move aimed at nobody it could name; if the narration shows who it was aimed at and they are here, send "npc_id flirted: ..." for them, and the engine decides how it lands.');
     const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
-    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
+    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.each.map(x => `${x.npcId} (${x.why}${x.room ? ', to the room' : ''})`).join(', ')}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
     return r;
   }
   // Wave 29: who turned it aside, who was open to it, who said yes to the night; the engine records each (wave 34: told once the roll has decided).
@@ -25921,27 +25979,42 @@ const Pipeline = (() => {
      29's) and crossed at full and weight 3 on them, a report to whoever
      looks out for them (World.coercion: always, "nobody" a grudge), the town
      -10 outside the turn's cap. Someone under 18 takes the minor rule on
-     top, after narration (minorTurn). */
+     top, after narration (minorTurn). Wave 40: every one pushed
+     (romance.coercion.each), on one burned d20 and one hit to the town:
+     a named target as above (blackmailed carries the record the words
+     named or used); a threat to the whole room (room) is the threat row
+     for each adult here (threatened at its weight; blackmailed and crossed
+     only where a record was named), with no report of its own. */
   function coerce(ctx) {
     const s = State.current;
-    const n = State.npc(ctx.romance.coercion.npcId);
-    if (!n) return {};
+    const each = (ctx.romance.coercion.each || [ctx.romance.coercion]).filter(x => State.npc(x.npcId));
+    if (!each.length) return {};
     Dice.burn();
-    ctx.coerced = n.id;
-    ctx.rollNpcId = n.id;
+    ctx.coerced = each[0].npcId;
+    ctx.coercedIds = each.map(x => x.npcId);
+    ctx.rollNpcId = each[0].npcId;
     const place = placeName(here());
     // Wave 29 (the integration plan's 19.1): a record the player named is the threat it was: blackmailed carries it, and it is used, never backed.
     const ids = Array.isArray(ctx.action && ctx.action.aboutIds) ? ctx.action.aboutIds : [];
-    const rec = Rel.holdsOver(n).find(x => ids.includes(x.id)) || null;
-    const r = State.apply(Object.assign({ socialEvents: [
-      Object.assign({ npcId: n.id, event: 'blackmailed', text: `tried to push me into it with a threat at ${place}`, act: 'intimidate' }, rec ? { leverageId: rec.id } : {}),
-      { npcId: n.id, event: 'crossed', weight: 3, text: `tried to force me at ${place}` }
-    ] }, rec ? { effects: [Object.assign({ op: 'leverageSet', id: rec.id, aware: true, use: 'blackmailed' }, rec.status === 'held' ? { status: 'used' } : {})] } : {}));
-    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'coercion', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
-    const m = (n.memories || []).slice().reverse().find(x => isObj(x) && x.event === 'blackmailed' && x.turn === s.meta.turn);
-    World.coercion(n.id, m ? m.key : `m${s.meta.turn}-${n.id}`);
-    ctx.bookLines.push(`COERCION (already applied by the engine: ${n.name} refused; what it cost the player with them, their report and the town's word): record no social event for ${n.id}, no newSeeds for it (the engine has the report), and nothing changes hands.`);
-    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `coercion refused for ${n.id}: no roll, the d20 burned` });
+    let rep = true;
+    for (const c of each) {
+      const n = State.npc(c.npcId);
+      const rec = Rel.holdsOver(n).find(x => x.id === c.leverageId || ids.includes(x.id)) || null;
+      const events = c.room && !rec ? [{ npcId: n.id, event: 'threatened', text: `tried to push everyone into it with a threat at ${place}`, act: 'intimidate' }]
+        : [Object.assign({ npcId: n.id, event: 'blackmailed', text: `tried to push me into it with a threat at ${place}`, act: 'intimidate' }, rec ? { leverageId: rec.id } : {}),
+          { npcId: n.id, event: 'crossed', weight: 3, text: `tried to force me at ${place}` }];
+      const r = State.apply(Object.assign({ socialEvents: events }, rec ? { effects: [Object.assign({ op: 'leverageSet', id: rec.id, aware: true, use: 'blackmailed' }, rec.status === 'held' ? { status: 'used' } : {})] } : {}));
+      if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'coercion', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+      const m = (n.memories || []).slice().reverse().find(x => isObj(x) && x.event === events[0].event && x.turn === s.meta.turn);
+      // The report for a named target; the town's word once a turn, however many were pushed.
+      World.coercion(n.id, m ? m.key : `m${s.meta.turn}-${n.id}`, { report: !c.room, rep });
+      rep = false;
+    }
+    const names = each.map(x => State.npc(x.npcId).name);
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+    const idList = each.map(x => x.npcId).join(', ');
+    ctx.bookLines.push(`COERCION (already applied by the engine: ${list} refused; what it cost the player with ${names.length > 1 ? 'each' : 'them'}, ${each.some(x => !x.room) ? 'the report' : 'the threat'} and the town's word): record no social event for ${idList}, no newSeeds for it (the engine has it), and nothing changes hands.`);
+    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `coercion refused for ${idList}: no roll, the d20 burned` });
     return {};
   }
   /* Wave 29 (the integration plan's 8.3 and 19.4): an ask backed by what
@@ -26103,6 +26176,35 @@ const Pipeline = (() => {
      one other person saw: caught_you_at for them, one record an act, never
      a fight); a rescue (rescueOf); and the ask log (relAsk) for a lie, a
      theft, a search or an attack aimed at someone. */
+  /* Wave 40 (RELATIONSHIPS_PLAN section 10, decision 11): a clean theft
+     from someone that nobody saw is no event at the time, but they may
+     notice later. Each of the next FOUND_OUT.days days is a FOUND_OUT.chance
+     on Rel.rng('foundOut', npcId, day, turn) (its own stream: the shared
+     dice and every other seed draw the same), drawn now; the first day
+     that comes up plants a hidden day seed (origin found_out). When it
+     fires: their stole_from (the theft row at its own weight), the effect
+     told to the player as a due event, and its news line in the Journal
+     ("<Name> noticed what went missing, and has a fair idea who took
+     it."). Nothing comes up: they never notice. No report seed of its
+     own (the report templates are about threats and violence). */
+  const FOUND_OUT = Object.freeze({ days: 3, chance: 0.4 });
+  function foundOut(ctx, n) {
+    const s = State.current;
+    const day = s.time.day;
+    const turn = s.meta.turn;
+    const r = Rel.rng('foundOut', n.id, day, turn);
+    let due = null;
+    for (let d = 1; d <= FOUND_OUT.days && due === null; d++) if (r.next() < FOUND_OUT.chance) due = day + d;
+    if (due === null) { State.debugLog.push({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they never notice` }); return null; }
+    const words = `${n.name} noticed what went missing, and has a fair idea who took it.`;
+    const seed = { id: `seed_found_${n.id.slice(4)}_${turn}`, cause: `Found out: ${n.name} notices the theft (${cleanText(ctx.action.summary || ctx.input, 120) || 'a theft'})`, effect: words,
+      trigger: { type: 'day', value: due }, hidden: true, origin: { kind: 'found_out', npcId: n.id, key: `t${turn}-steal` }, turn,
+      effects: [{ op: 'socialEvent', npcId: n.id, event: 'stole_from', text: `${s.player.name} stole from me`, act: 'steal' }, { op: 'addNews', text: words }] };
+    const res = State.apply({ effects: [{ op: 'plantSeed', seed }] });
+    if (res.rejected.length) { State.debugLog.push({ turn, kind: 'rejected', source: 'engine', path: 'found out', reason: res.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') }); return null; }
+    State.debugLog.push({ turn, kind: 'rel', text: `${n.id}: a clean theft nobody saw; they notice on day ${due} (${seed.id})` });
+    return seed;
+  }
   function rolledEvents(ctx, roll, npcTarget) {
     const s = State.current;
     const p = s.player;
@@ -26122,6 +26224,8 @@ const Pipeline = (() => {
       if (target) {
         if (!clean) events.push({ npcId: target.id, event: 'stole_from', text: `${p.name} tried to steal from me`, act: 'steal', scale: 0.5, public: others.length >= 2 });
         else if (others.length) events.push({ npcId: target.id, event: 'stole_from', text: `${p.name} stole from me`, act: 'steal', public: others.length >= 2 });
+        // Wave 40 (decision 11): a clean one nobody saw may be found out in the days after (foundOut).
+        else foundOut(ctx, target);
         asks.push({ npcId: target.id, act: 'steal', ok: roll.success, about: cleanText(a.summary, 120) });
       }
     }
