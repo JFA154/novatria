@@ -1943,3 +1943,24 @@ talking, I can direct it to one person or all."
      unchanged. `docs/notes/content.md`, `engine-world.md`, `prompts.md`;
      tests: `tests/wave32-ties-change.test.cjs`, examples 2 and 11 (B) in
      `tests/relationships-examples.test.cjs`.
+   - **Wave 33** (3 Nov 2026). The owner: "You didn't add the 6th one which
+     is spark … In my save, jodie and I kissed … but she doesn't like me at
+     all." Jodie Strayhorn, his enemy loose end, had walked into his motel
+     room by the story; "I don't say anything, I lean in to kiss her" was
+     parsed as a flirt aimed at nobody (Sonnet) or at Brianna (Haiku), and
+     a flirt aimed at nobody went to everyone here (`Rel.romanceTurn`'s
+     `open`): "Curtis Pruett is open to it". Now only a Say to everyone
+     fans out; `Pipeline.romanceTarget` reads the words first (a person
+     here named, else a pronoun that fits one person here, or the one the
+     last turn was said to or the last narration walked in) and puts them
+     in the parse's targets, the minor rule reading the same; a turn still
+     aimed at nobody tells the bookkeeper so, and its `flirted` for an adult
+     here is the engine's flirt, late (`Rel.wireEvent`, State's
+     `lateFlirt`: welcome by `Rel.welcomeOf` then). Arrivals gain "is
+     here", "in the doorway", "comes through the door", "pushes the door
+     open", and a first name unique among those who could walk in. The
+     owner's turn 96 places Jodie with the code as it is (that turn predates
+     wave 25). README People and Updating, `docs/notes/prompts.md`,
+     `engine-world.md`, design section 6.4 example 15; tests:
+     `tests/wave33-romance-target.test.cjs`, example 15 in
+     `tests/relationships-examples.test.cjs`.

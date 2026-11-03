@@ -1487,6 +1487,21 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - Ray and Nadine each take `crossed` and report to Chief Bell. Town reputation is -20 in all.
 - **Player sees.** "Glenda Pryor won't forget that." (and Micah's version). Glenda's card: "Afraid of what you know" / "You tried to force her with the tapes. Day 6".
 
+#### 15. Jodie at the motor court: a kiss aimed at "her" (A: the romance step finds its target)
+
+From the owner's own game (wave 33). The owner: "In my save, jodie and I kissed … but she doesn't like me at all."
+
+- **Situation.** Day 3 morning. Jodie Strayhorn (29, on the romance list: `sparkRate` 1.2, `opensAt: { knows: 20 }`) is the player's enemy loose end: she started at W -45, T -55, and a threat of the player's is on her record ("threatened to tell the police chief"). Now she is at **W -18, T -37, K 51, S 0**: "suspicious of you". At Pittman's she agrees to come to his room at the Riverview Motor Court (a meeting seed). He walks back; the narration: "Brianna's cleaning cart sits two doors down, and Curtis Pruett is smoking under the overhang outside his room. About ten minutes later there are two quick knocks, and Jodie slips in with her hood dripping."
+- **The arrival.** "Jodie slips in" (outside the quoted "Curtis saw me come in") is a narrated arrival (wave 25): a visit for this phase at the motor court, so she is present with Curtis, Lyman and Brianna. In the owner's game that turn was played before wave 25 shipped, so she was never placed; the code places her now.
+- **The kiss.** In Do mode: "I don't say anything, I lean in to kiss her." The live parser said `romantic: "flirt"` with `targets: []` (Sonnet) or `["npc_brianna"]` (Haiku).
+  - Before wave 33 a romantic line that named nobody here was aimed at everyone here: "Curtis Pruett is open to it", "Lyman Coker isn't interested". Now only a Say to everyone is.
+  - The words decide first (`Pipeline.romanceTarget`): nobody here is named, and "her" fits two women here, Jodie and Brianna. The last narration walked Jodie in, so "her" is Jodie: `romance target: npc_jodie ("her": the last narration walked them in; the parse had nobody)`. She goes into the parse's targets (the roll follows her too).
+  - She is open to it: K 51 is past her 20, and cool is not against him. The narrator's one line: `ROMANCE (decided by the engine): Jodie Strayhorn is open to it: she flirts back, her own way.` Curtis, Lyman and Brianna get no line and no flirt.
+  - The engine records `flirted` for her: W +4, K +2, **S +12** (10 x 1.2).
+- **If the words cannot place it.** With nothing to choose between two women, the move is aimed at nobody: no answer, no flirt, and the bookkeeper is told "a romantic move aimed at nobody it could name". If it then sends `npc_jodie flirted: ...`, the engine takes that as its own flirt, late, decided by her gates then (welcome: the row; else the unwelcome one). Someone not here named that way is refused.
+- **Over the mornings.** One kiss a morning: by the third her spark is 32 ("has noticed you"), the fourth 39, the fifth **46**. With her caring liking far under 25 and her trust at -33, distrust the player earned with the threat, she reads **"Suspicious of you · using you"**: she wants him around for one reason and doesn't ask about his day.
+- **The owner's own game.** The kiss there is already in the story and is not read again; the person's card (Edit) can set "Interested" to where the story is.
+
 ## 7. What the player sees
 
 ### 7.1 The People card (laid out for 375px)

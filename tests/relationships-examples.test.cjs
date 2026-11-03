@@ -16,7 +16,8 @@
    (a) the confidant and (c) the bully, each to the council. Wave 31 (B1)
    adds the B parts of 1, 4 and 5, and 9 (Loretta goes quiet); wave 32 (B2)
    the B parts of 2 (the tie that changes) and 11 (the hidden tie the
-   report goes through).
+   report goes through); wave 33 adds 15 (Jodie at the motor court: a kiss
+   aimed at "her", from the owner's own game).
    Run with: node tests/run.cjs relationships-examples */
 const assert = require('assert/strict');
 const { suite, quickStart } = require('./helpers.cjs');
@@ -1290,6 +1291,60 @@ s.test('example 11, Hollis Byrd (B): the report to Wade goes through a tie nobod
   assert.match(r.known.toYou, /^to you: cool to you — Hollis Byrd says you have been leaning on them \(Day 4\) — plays it: /);
   // A tie the town knows now, but nothing changed on it in front of the player: still nothing between them.
   assert.deepEqual(r.between2, []);
+});
+
+s.test('example 15, Jodie at the motor court (A): walked in by the story, then "I lean in to kiss her" parsed as a flirt at nobody is aimed at her alone; she is open to it, S +12; by the fifth morning she is "Suspicious of you · using you"', async h => {
+  const page = await h.open();
+  await quickStart(page, { kinds: [] });
+  await kit(page);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, R = G.Rel, st = G.state;
+    const out = { days: [] };
+    const J = 'npc_jodie';
+    const doTurn = (words, parse, text) => {
+      G.Api.Mock.queue('parse', Object.assign({ actionType: 'other', summary: words, targets: [], needsRoll: false, timeCost: 'instant', romantic: null }, parse));
+      G.Api.Mock.queue('narrate', { text });
+      G.Api.Mock.queue('bookkeep', {});
+      return G.Pipeline.submit(words, { mode: 'do' });
+    };
+    const walk = 'You walk the highway back and let yourself into Room 6. Brianna\'s cleaning cart sits two doors down, and Curtis Pruett is smoking under the overhang outside his room. About ten minutes later there are two quick knocks, and Jodie slips in with her hood dripping. She stays by the door. "Curtis saw me come in, so we don\'t have long. You wanted to talk, so talk."';
+    const kissed = 'She doesn\'t pull back. For a second she kisses you back, then she pushes off and opens the door. "Two o\'clock, back door of the Low Water."';
+    S.apply({ npcKnownToPlayer: [J, 'npc_curtis', 'npc_brianna', 'npc_lyman'] });
+    // His enemy loose end: start W -45, T -55; a threat of his on her record; now W -18, T -37, K 51.
+    S.apply({ relStart: [{ npcId: J, w: -45, t: -55 }] });
+    S.apply({ socialEvents: [{ npcId: J, event: 'threatened', text: 'threatened to tell the police chief', weight: 2 }] });
+    S.apply({ relSet: { npcId: J, w: -18, t: -37, k: 51 } });
+    out.start = [__tr(J), __st(J)];
+    for (let d = 3; d <= 7; d++) {
+      __put('loc_pittmans', [], d, 'morning');
+      await doTurn('we make it successfully to my room', { actionType: 'move', destinationId: 'loc_motor_court', timeCost: 'short' }, walk);
+      const here = S.npcsAt(st.player.locationId).map(n => n.id);
+      const s0 = __tr(J).s;
+      const t0 = st.meta.turn;
+      await doTurn('I don\'t say anything, I lean in to kiss her', { romantic: 'flirt' }, kissed);
+      const c = G.Pipeline.lastTurn.ctx;
+      out.days.push({ here, aimed: c.romance.aimed, lines: G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), ds: __tr(J).s - s0, s: __tr(J).s, st: __st(J),
+        others: here.filter(id => id !== J).filter(id => S.npc(id).memories.some(m => m.event === 'flirted' && m.turn > t0)) });
+    }
+    out.end = [__tr(J), __st(J), R.cue(S.npc(J)), S.npc(J).rel.wRom];
+    return out;
+  });
+  assert.deepEqual([r.start[0].w, r.start[0].t, r.start[0].k, r.start[0].s], [-18, -37, 51, 0]);
+  assert.equal(r.start[1][0], 'suspicious of you');
+  const d3 = r.days[0];
+  for (const id of ['npc_jodie', 'npc_curtis', 'npc_brianna', 'npc_lyman']) assert.ok(d3.here.includes(id), id + ' here: ' + JSON.stringify(d3.here));
+  for (const d of r.days) {
+    assert.deepEqual(d.aimed, ['npc_jodie']);
+    assert.deepEqual(d.lines, ['ROMANCE (decided by the engine): Jodie Strayhorn is open to it: she flirts back, her own way.']);
+    assert.deepEqual(d.others, [], 'Curtis, Lyman and Brianna: no flirt');
+  }
+  assert.equal(d3.ds, 12, 'S +12 (10 x her rate 1.2)');
+  assert.deepEqual(r.days.map(d => d.s), [12, 22, 32, 39, 46], 'the design\'s mornings');
+  assert.equal(r.days[2].st[1], 'has noticed you');
+  const [tr, st, cue, wRom] = r.end;
+  assert.ok(tr.w - wRom < 25 && tr.t <= -25, JSON.stringify(r.end));
+  assert.deepEqual(st.slice(0, 2), ['suspicious of you', 'using you'], '"Suspicious of you · using you"');
+  assert.equal(cue, 'wants you around for one reason, doesn\'t ask about your day');
 });
 
 s.run();

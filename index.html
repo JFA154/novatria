@@ -10028,6 +10028,23 @@ const State = (() => {
      refused. What is kept goes through socialEvent as the model's (an
      engine event of its class this turn drops it); a confession marks the
      lie it owns up to (rel.asks). */
+  /* Wave 33: the late engine flirt (Rel.wireEvent's plan, late: a romantic
+     turn aimed at nobody, and the bookkeeper named who): written as the
+     engine writes its own (Pipeline.flirtEvent's words; the row welcome,
+     the unwelcome row otherwise), with the jealousy of whoever here saw it
+     (Rel.jealousyOf). */
+  function lateFlirt(n, p, path, present) {
+    const place = loc(current.player.locationId);
+    const placeName = place ? String(place.name).replace(/^The /, 'the ') : 'town';
+    const who = current.player.name;
+    const ev = p.welcome ? { npcId: n.id, event: 'flirted', text: `${who} flirted with me at ${placeName}` }
+      : { npcId: n.id, event: 'flirted', d: Object.assign({}, p.d), text: `${who} came on to me and I wasn't having it` };
+    pushDebug({ turn: current.meta.turn, kind: 'rel', text: `the bookkeeper named who the flirt was aimed at: ${n.id}, ${p.welcome ? 'open to it' : "isn't interested"} (the engine's flirt, late)` });
+    const line = socialEvent(ev, path, false);
+    const extra = [];
+    if (!/^no-op/.test(line)) for (const j of Rel.jealousyOf(n, present, relCtx())) extra.push(socialEvent(j, `${path} jealousy`, false));
+    return `${line} (the engine's flirt, late: the bookkeeper named who it was aimed at)${extra.length ? `; ${extra.join('; ')}` : ''}`;
+  }
   function modelSocial(items, opts, result, run, no) {
     const s = current;
     const present = opts && Array.isArray(opts.present) ? opts.present.filter(x => typeof x === 'string') : [];
@@ -10035,6 +10052,8 @@ const State = (() => {
     const turn = {
       present, targets: opts && Array.isArray(opts.targets) ? opts.targets.filter(x => typeof x === 'string') : [], actionType: opts && typeof opts.actionType === 'string' ? opts.actionType : null,
       rollSuccess: opts ? opts.rollSuccess : undefined, speechTo: opts && typeof opts.speechTo === 'string' ? opts.speechTo : null, romantic: !!(romance && romance.romantic),
+      // Wave 33: whom the romance step aimed the turn at (none: a flirt the bookkeeper names someone here for is the engine's, late).
+      aimed: romance && Array.isArray(romance.aimed) ? romance.aimed.filter(x => typeof x === 'string') : null,
       // Wave 29: the turn's narration (a secret let slip is a record only when its words show it: Rel.wireEvent's learned_secret).
       narration: opts && typeof opts.narration === 'string' ? opts.narration : ''
     };
@@ -10104,6 +10123,7 @@ const State = (() => {
           return `${n.id} ${c.raw.event}: knows +${p.knows} only (${p.why})`;
         }
         if (c.carrier) return absentEvent(n, p, c, present) + note;
+        if (p.late) return lateFlirt(n, p, c.path, present);
         const others = p.event === 'humiliated' ? present.filter(id => id !== n.id) : undefined;
         const line = socialEvent(Object.assign({ npcId: n.id, event: p.event, text: c.text }, p.aboutId ? { aboutId: p.aboutId } : {}, p.private ? { private: true } : {}, isObj(p.d) ? { d: p.d } : {},
           Number.isFinite(p.scale) || Number.isFinite(c.scale) ? { scale: clamp((Number.isFinite(p.scale) ? p.scale : 1) * (Number.isFinite(c.scale) ? c.scale : 1), 0.1, 2) } : {}, others ? { witnesses: others } : {}), c.path, true);
@@ -16057,8 +16077,12 @@ const Rel = (() => {
      For each minor here: whether they are a named target (the Say chip, or
      a target of a Do action; never Say to everyone) and which signals point
      at them (the flag, the phrase list; the bookkeeper's is read after
-     narration). On a romantic turn: who it was aimed at (the targets here,
-     else everyone here), whether it is coercion (a romantic ask with an
+     narration). On a romantic turn: who it was aimed at (the targets here;
+     everyone here only on a Say to everyone. Wave 33: a Do, or a Say to
+     one person, that names nobody here is aimed at nobody: no answer, no
+     flirt, nothing fanned out to the room; Pipeline.romanceTarget has
+     already read the words for a name or a pronoun), whether it is
+     coercion (a romantic ask with an
      intimidation, a threat in the words, a lev_ id or the target's fear 40
      behind it: refused for anyone, the die burned, Pipeline.resolve), and
      each adult's answer with a flirt for a named adult (Pipeline sends it
@@ -16090,7 +16114,8 @@ const Rel = (() => {
     const everyone = isSay(sp) && sp.to === 'everyone';
     const targets = (Array.isArray(a.targets) ? a.targets : []).filter(id => present.includes(id));
     const named = id => !everyone && ((isSay(sp) && sp.to === id) || targets.includes(id));
-    const open = everyone || !present.some(named);
+    // Wave 33: "a kiss lands on the one kissed": only a Say to everyone is open to the whole room.
+    const open = everyone;
     const aimedAt = id => named(id) || open;
     const out = { romantic, aimed: [], minors: {}, answers: [], welcome: [], flirts: [], intimate: [], coercion: null, lines: [] };
     for (const id of present) {
@@ -16157,7 +16182,19 @@ const Rel = (() => {
     let name = isObj(ev) && typeof ev.event === 'string' ? ev.event : '';
     if (!EVENTS[name]) return { refuse: `"${(isObj(ev) && ev.event) || ''}" is no event the game knows` };
     if (name === 'flirted') {
-      if (o.romantic) return { refuse: 'the engine records the flirt (the parse saw it)' };
+      /* Wave 33: a romantic turn the engine could aim at nobody (o.aimed, the
+         romance step's, empty): the bookkeeper naming someone here who is an
+         adult is the engine's flirt, late. Welcome is decided now, as the
+         romance step decides it (welcomeOf); State writes it as the
+         engine's own (the row, or the unwelcome one). */
+      const aimed = Array.isArray(o.aimed) ? o.aimed : null;
+      if (o.romantic && aimed && !aimed.length && Array.isArray(o.present) && o.present.includes(n.id) && !isMinor(n, ctx) && !playerMinor(ctx)) {
+        const wel = welcomeOf(n, ctx);
+        const late = { event: 'flirted', late: true, welcome: wel.ok, aboutId: null, private: false, why: 'the bookkeeper named who the flirt was aimed at' };
+        if (!wel.ok) late.d = { w: isObj(n.rel) && n.rel.unwelcomeOnce === true ? -6 : -3, t: -3, s: -5 };
+        return late;
+      }
+      if (o.romantic) return { refuse: aimed && !aimed.length ? 'the flirt was aimed at nobody here the engine can take it for' : 'the engine records the flirt (the parse saw it)' };
       name = 'complimented';
     } else if (!WIRE_EVENTS[name]) return { refuse: `${name} is the engine's to record, never the bookkeeper's` };
     // Wave 32: tier B's words (badmouthed, vouched_for) are open now that the town has ties.
@@ -25566,8 +25603,69 @@ const Pipeline = (() => {
      resolve (coercion), applyBookkeeping (the unwelcome flirts, the model's
      rules for minors) and minorTurn. The line for anyone under 18 in the
      scene is narratorPacket's own, every turn. */
+  /* Wave 33 ("a kiss lands on the one kissed"): on a romantic parse that
+     names nobody here (the parser read "kiss her" as aimed at nobody, or at
+     someone not in the scene), the words decide before the romance step
+     does: a person here named in them (their full name, or a first name
+     unique among the people here), else a pronoun (her or she, him or he,
+     them or they) that fits exactly one person here (the Say addressee
+     first), else nobody. The one found goes into the parse's targets, so
+     the roll and the rest of the turn follow it. A pronoun two or more
+     people here share goes to the one the last turn was said to, else the
+     one the last narration walked in ("Jodie slips in": the owner's scene,
+     with Brianna at her cart two doors down), else nobody; so does a line
+     with two kinds of pronoun. Nobody: the bookkeeper may still name who it
+     was (Rel.wireEvent's late flirt). Returns the id or null. */
+  const ROMANCE_PRONOUNS = Object.freeze({ she: /\b(?:her|she|hers|herself)\b/i, he: /\b(?:him|he|his|himself)\b/i, they: /\b(?:them|they|themself|themselves)\b/i });
+  function romanceTarget(ctx) {
+    const s = State.current;
+    const a = ctx.action;
+    if (!s || !isObj(a) || !(a.romantic === 'flirt' || a.romantic === 'more' || a.romantic === true)) return null;
+    const here = (ctx.presentIds || []).filter(id => State.npc(id));
+    const sp = ctx.speech;
+    if (isSay(sp) && (sp.to === 'everyone' || here.includes(sp.to))) return null;
+    if ((Array.isArray(a.targets) ? a.targets : []).some(id => here.includes(id))) return null;
+    const input = String(ctx.input || '').replace(/[’]/g, "'");
+    const t = input.toLowerCase();
+    const people = here.map(id => State.npc(id)).filter(n => typeof n.name === 'string' && n.name);
+    const firstOf = n => n.name.toLowerCase().split(/\s+/)[0];
+    const at = w => { const m = new RegExp(`(^|[^a-z])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`).exec(t); return m ? m.index + m[1].length : -1; };
+    let best = null;
+    for (const n of people) {
+      let pos = at(n.name.toLowerCase());
+      const f = firstOf(n);
+      if (pos < 0 && f.length >= 3 && people.filter(m => firstOf(m) === f).length === 1) pos = at(f);
+      if (pos >= 0 && (!best || pos < best.pos)) best = { id: n.id, pos, how: 'named in the words' };
+    }
+    if (!best) {
+      const kinds = Object.keys(ROMANCE_PRONOUNS).filter(k => ROMANCE_PRONOUNS[k].test(input));
+      if (kinds.length === 1) {
+        const k = kinds[0];
+        const fits = people.filter(n => (PRONOUNS.includes(n.pronouns) ? n.pronouns : 'they') === k);
+        // Two or more it fits: the one the last turn was said to, else the one the last narration walked in ("Jodie slips in"), if only one.
+        const last = Array.isArray(s.log) && s.log.length ? s.log[s.log.length - 1] : null;
+        const prev = isObj(last) && last.mode === 'say' ? fits.find(n => n.id === last.to) : null;
+        const outside = isObj(last) && typeof last.narration === 'string' ? last.narration.replace(/"[^"]*"/g, ' ').replace(/“[^”]*”/g, ' ') : '';
+        const walked = fits.length > 1 && outside ? fits.filter(n => [n.name].concat(firstOf(n).length >= 3 && people.filter(m => firstOf(m) === firstOf(n)).length === 1 ? [n.name.split(/\s+/)[0]] : []).some(nm => arrivalRe(nm).test(outside))) : [];
+        const word = `"${PRONOUN_OBJECT[k]}"`;
+        const kind = k === 'they' ? 'person' : k === 'she' ? 'woman' : 'man';
+        const to = isSay(sp) ? fits.find(n => n.id === sp.to) : null;
+        const pick = to ? [to, `${word} is the one the words are said to`] : fits.length === 1 ? [fits[0], `${word} is the one ${kind} here`]
+          : prev ? [prev, `${word}: the last turn was said to them`] : walked.length === 1 ? [walked[0], `${word}: the last narration walked them in`] : null;
+        const one = pick ? pick[0] : null;
+        if (one) best = { id: one.id, how: pick[1] };
+        else State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: "${PRONOUN_OBJECT[k]}" ${fits.length ? `fits ${fits.length} people here` : 'fits nobody here'}: aimed at nobody` });
+      } else if (kinds.length > 1) State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: the words have ${kinds.map(k => PRONOUN_OBJECT[k]).join(' and ')}: aimed at nobody` });
+    }
+    if (!best) return null;
+    const was = Array.isArray(a.targets) && a.targets.length ? a.targets.join(', ') : 'nobody';
+    a.targets = [best.id].concat((Array.isArray(a.targets) ? a.targets : []).filter(id => id !== best.id && !/^npc_/.test(String(id))));
+    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `romance target: ${best.id} (${best.how}; the parse had ${was})` });
+    return best.id;
+  }
   function romanceStep(ctx) {
     const a = ctx.action || {};
+    romanceTarget(ctx);
     ctx.romance = Rel.romanceTurn({ action: a, speech: ctx.speech, presentIds: ctx.presentIds || [], input: ctx.input, phrase: Api.minorPhraseHit(ctx.input) });
     const r = ctx.romance;
     ctx.narratorLines.push(...r.lines);
@@ -25578,8 +25676,10 @@ const Pipeline = (() => {
     if (no.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(no)} turned it aside; record no flirt or compliment for it.`);
     if (open.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(open)} ${open.length > 1 ? 'were' : 'was'} open to it, and the engine records the flirt; record no flirt or compliment for it, and no newSeeds for it.`);
     if (r.intimate.length) ctx.bookLines.push(`ROMANCE (decided by the engine): ${names(r.intimate)} said yes to the night; the engine records it, and it is private; record nothing more for it, and no newSeeds for it.`);
+    // Wave 33: a romantic move the engine could not place: nobody answers in the narrator's packet, and the bookkeeper may say who it was.
+    if (r.romantic && !r.aimed.length) ctx.bookLines.push('ROMANCE (seen by the engine): a romantic move aimed at nobody it could name; if the narration shows who it was aimed at and they are here, send "npc_id flirted: ..." for them, and the engine decides how it lands.');
     const minors = Object.keys(r.minors).filter(id => r.minors[id].flag || r.minors[id].phrase);
-    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
+    if (r.romantic || minors.length) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `romance: ${r.romantic || 'no flag'}${r.aimed.length ? ` at ${r.aimed.join(', ')}` : r.romantic ? ' aimed at nobody it could name' : ''}${r.coercion ? `; coercion on ${r.coercion.npcId}` : ''}${minors.length ? `; under 18: ${minors.map(id => `${id} (${['named', 'flag', 'phrase'].filter(k => r.minors[id][k]).join(', ')})`).join(', ')}` : ''}` });
     return r;
   }
   /* Wave 28 (the integration plan's 19.1): a romantic ask pushed with a
@@ -28056,11 +28156,16 @@ const Pipeline = (() => {
      door", "Royce knocks and lets himself in") makes a visit for this phase
      where the player is. Not for the dead, the gone, the arrested, the laid
      up or someone already here, and not from reported speech ("Curtis saw
-     me come in": Curtis is not the one arriving). */
-  const ARRIVAL_VERBS = "(?:slips?|steps?|walks?|comes?|ducks?|pushes|lets? (?:her|him|them)self|eases) (?:back )?in(?:to the room| the door|side)?\\b|(?:comes?|walks?|shows?|turns?) up\\b|arrives?\\b|appears? (?:in|at) the door(?:way)?\\b|(?:is|stands) (?:at|in) the door(?:way)?\\b|knocks?(?: twice| once| on the door)?\\b|joins? you\\b|sits? down (?:next to|beside|across from) you\\b";
+     me come in": Curtis is not the one arriving). Wave 33: "Jodie's here",
+     "is in the doorway", "comes through the door", "pushes the door open"
+     count too, and a first name is read as theirs when nobody else who
+     could walk in has it (a namesake dead, gone or here does not matter). */
+  const ARRIVAL_VERBS = "(?:slips?|steps?|walks?|comes?|ducks?|pushes|lets? (?:her|him|them)self|eases) (?:back )?in(?:to the room| the door|side)?\\b|(?:comes?|walks?|shows?|turns?) up\\b|arrives?\\b|appears? (?:in|at) the door(?:way)?\\b|(?:is|stands) (?:at|in) the door(?:way)?\\b|knocks?(?: twice| once| on the door)?\\b|joins? you\\b|sits? down (?:next to|beside|across from) you\\b"
+    // Wave 33: someone simply there, or through the door.
+    + "|(?:is|'s) (?:here|inside|in the room|in the doorway)\\b|(?:comes?|walks?|steps?) through the door\\b|pushes? the door open\\b|lets? (?:her|him|them)self in\\b";
   const ARRIVAL_RE_CACHE = new Map();
   function arrivalRe(name) {
-    if (!ARRIVAL_RE_CACHE.has(name)) ARRIVAL_RE_CACHE.set(name, new RegExp("(^|[^A-Za-z'\"])" + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "(?:[,\\s]+[a-z'-]+){0,5}[,\\s]+(?:" + ARRIVAL_VERBS + ")", 'i'));
+    if (!ARRIVAL_RE_CACHE.has(name)) ARRIVAL_RE_CACHE.set(name, new RegExp("(^|[^A-Za-z'\"])" + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "(?:(?:[,\\s]+[a-z'-]+){0,5}[,\\s]+(?:" + ARRIVAL_VERBS + ")|['\u2019]s (?:here|inside|in the room|in the doorway)\\b)", 'i'));
     return ARRIVAL_RE_CACHE.get(name);
   }
   function noteArrivals(narration, locationId) {
@@ -28071,11 +28176,12 @@ const Pipeline = (() => {
     const here = new Set(State.npcsAt(l.id).map(n => n.id));
     // Reported speech is not an arrival: look only outside quotes.
     const outside = narration.replace(/"[^"]*"/g, ' ').replace(/“[^”]*”/g, ' ');
+    // Wave 33: a first name counts when it is unique among the people who could walk in (a namesake dead, gone or here is no one arriving).
+    const could = s.npcs.filter(n => !here.has(n.id) && n.alive !== false && n.status === 'free' && !n.unnamed && !State.laidUp(n));
     const first = {};
-    for (const n of s.npcs) { const f = String(n.name || '').split(/\s+/)[0]; first[f] = (first[f] || 0) + 1; }
+    for (const n of could) { const f = String(n.name || '').split(/\s+/)[0]; first[f] = (first[f] || 0) + 1; }
     const ids = [];
-    for (const n of s.npcs) {
-      if (here.has(n.id) || n.alive === false || n.status !== 'free' || n.unnamed || State.laidUp(n)) continue;
+    for (const n of could) {
       const f = String(n.name || '').split(/\s+/)[0];
       const names = [n.name].concat(f && f.length >= 3 && first[f] === 1 ? [f] : []).filter(Boolean);
       if (names.some(nm => arrivalRe(nm).test(outside))) ids.push(n.id);
@@ -29049,8 +29155,10 @@ const Pipeline = (() => {
     const place = placeName(here());
     const R = Rel.MINOR_RULE;
     for (const id of Object.keys(r.minors)) {
-      const m = r.minors[id];
+      const m = Object.assign({}, r.minors[id]);
       const book = named.has(id);
+      // Wave 33: a romantic parse the engine could aim at nobody, and the bookkeeper's romance event names them: the parse's flag is theirs too (as it was when the flag went to everyone here).
+      if (book && !m.flag && r.romantic && Array.isArray(r.aimed) && !r.aimed.length) m.flag = true;
       const signals = (m.flag ? 1 : 0) + (m.phrase ? 1 : 0) + (book ? 1 : 0);
       const n = State.npc(id);
       if (!signals || !n) continue;

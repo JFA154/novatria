@@ -2094,3 +2094,39 @@ engine-state.md`'s Wave 31 entry has the ties and hearsay; what changed:
   27: news travelling the ties, a tie's change and gossip passed along move
   no reputation of their own (a gossip template's `reputationDelta` still
   does).
+
+## Wave 33 (3 Nov 2026): a kiss lands on the one kissed
+
+The owner: "You didn't add the 6th one which is spark … In my save, jodie
+and I kissed … but she doesn't like me at all." Tests:
+`tests/wave33-romance-target.test.cjs`; example 15 in
+`tests/relationships-examples.test.cjs` and `docs/relationships/design.md`
+section 6.4.
+
+- **No fan-out** (`Rel.romanceTurn`): `open` is a Say to everyone and
+  nothing else. A Do, or a Say to one person, that names nobody here is
+  aimed at nobody: no answer, no flirt, no minor flag or phrase pointed at
+  anyone. The debug line reads `romance: flirt aimed at nobody it could
+  name`.
+- **The target from the words** (`Pipeline.romanceTarget`, before
+  `Rel.romanceTurn`): see `docs/notes/prompts.md`. The minor rule reads the
+  same targets, so "I wink at her" with Kaylee the only woman here makes
+  her a named target.
+- **The late engine flirt** (`Rel.wireEvent`, State's `modelSocial` and
+  `lateFlirt`): the romance step's aimed list rides in `opts.romance`
+  (`turn.aimed`); with it empty on a romantic turn, a bookkeeper `flirted`
+  for an adult here is written as the engine's (not as the model's, so its
+  class dedupes the bookkeeper's compliment), welcome by `Rel.welcomeOf`
+  then (the row: liking +4, knows +2, spark 10 x `sparkRate`) or unwelcome
+  (liking -3 the first time, -6 after; trust -3, spark -5), with the
+  jealousy of whoever saw it. A minor named that way is set aside for the
+  minor rule as before; the parse's flag counts as theirs too, so with the
+  bookkeeper's event that is two signals: the full row for them alone, as
+  when the flag went to everyone here.
+- **Arrivals** (`Pipeline.noteArrivals`): "Jodie's here", "is inside", "in
+  the room", "in the doorway", "comes/walks/steps through the door",
+  "pushes the door open" and "lets herself in" are arrivals, and a first
+  name counts when it is unique among the people who could walk in
+  (alive, free, not here, not laid up). The owner's turn 96 ("two quick
+  knocks, and Jodie slips in") places her with the code as it was: that
+  turn was played before wave 25 shipped (wave 25 was made from it).

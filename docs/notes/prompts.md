@@ -1020,3 +1020,36 @@ B2). Tests: `tests/wave32-ties-change.test.cjs`.
   their liking for the one named (`Rel.wordsTie`); badmouthing someone to a
   listener who likes them at 40 or more costs the player 5 of the
   listener's liking.
+
+## Wave 33 (3 Nov 2026): a kiss lands on the one kissed
+
+The owner's save: "I don't say anything, I lean in to kiss her", with Jodie
+Strayhorn just walked in by the story and Curtis Pruett and Brianna Tolliver
+at the motor court too. The live parser said `romantic: "flirt"` with
+`targets: []` (Sonnet) or `["npc_brianna"]` (Haiku). No schema or prompt
+text changed for the parser: the engine reads the words itself
+(`Pipeline.romanceTarget`). Tests: `tests/wave33-romance-target.test.cjs`,
+example 15 of `tests/relationships-examples.test.cjs`.
+
+- **Before the romance step.** A romantic parse that names nobody here: a
+  person here named in the input (full name, or a first name unique among
+  the people here), else a pronoun (her/she, him/he, them/they) that fits
+  one person here; two or more it fits go to the Say addressee, the one
+  the last turn was said to, or the one the last narration walked in
+  ("Jodie slips in"), if only one; else nobody. The one found goes into
+  the parse's targets; a debug line says why (`romance target: npc_jodie
+  ("her": the last narration walked them in; the parse had nobody)`).
+- **The narrator.** A romantic line aimed at nobody gets no ROMANCE line at
+  all: the fan-out ("Curtis Pruett is open to it", "Lyman Coker isn't
+  interested") is only for a Say to everyone.
+- **The bookkeeper.** On a romantic turn aimed at nobody it hears one more
+  line: `ROMANCE (seen by the engine): a romantic move aimed at nobody it
+  could name; if the narration shows who it was aimed at and they are here,
+  send "npc_id flirted: ..." for them, and the engine decides how it
+  lands.` Its `flirted` for an adult here is then the engine's own flirt,
+  late (`Rel.wireEvent`, State's `lateFlirt`): welcome decided then by
+  their gates. On any other romantic turn its `flirted` is refused as
+  before, and on a turn with no flag it is still a compliment.
+- **Haiku's wrong woman.** A parse target who is here is never second-
+  guessed: Haiku's `["npc_brianna"]` for "her" still goes to Brianna. The
+  Standard preset (Sonnet) named nobody, which the words now resolve.

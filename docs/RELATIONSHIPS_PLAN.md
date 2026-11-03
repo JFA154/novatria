@@ -2,7 +2,11 @@
 
 1 Nov 2026 · a plan being built. **Tiers A and B have landed (waves 26 to
 32), and the branch is merged with main's Objectives tab (its wave 26, 3 Nov
-2026); B3 (tuning) waits for a playtest and a passing eval. The live grammar
+2026); wave 33 (3 Nov 2026, from the owner's own save) makes a flirt land
+on the one it was aimed at: no fan-out to the room but a Say to everyone,
+the target read from the words ("kiss her"), and a flirt the parse could
+not place taken from the bookkeeper as the engine's (design section 6.4,
+example 15). B3 (tuning) waits for a playtest and a passing eval. The live grammar
 probe (again, since wave 32 widened the schema's description) and the
 labelled eval are still to run with the owner's key** (`ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs`, and
 `tests/eval-classify.cjs` once `tests/eval/labelled.jsonl` holds labelled

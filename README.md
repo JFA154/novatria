@@ -463,7 +463,11 @@ interested in you (the town's romance list: Jodie, Shayla, Travis, Curtis,
 Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt and Tyler), each at their
 own pace and once they know you well enough. The game decides before the
 story is told whether a flirt is welcome ("Shayla Rawls is open to it") or
-turned aside, and one turned aside costs a little, the next ones more. What
+turned aside, and one turned aside costs a little, the next ones more. A
+flirt goes to the one it was aimed at: "kiss her" is aimed at the one woman
+in the room (or the one the story just walked in); a flirt the game cannot
+place goes to whoever the bookkeeper names, if they are there; and it never
+goes to everyone unless you say it to everyone. What
 builds is a spark apart from liking, and how they stand reads it against
 how much they really care (the flirts' own warmth not counted): "looks at you
 twice", "wants you", "sweet on you" (a spark and real liking), "using you" (a
@@ -1503,6 +1507,12 @@ from before the update reaches nobody new, and until the update nothing
 travels at all. The feed says "People now feel for each other: 121 ties
 between 40 people. What you do from now on reaches the people close to them."
 (a game already up to date: "People already feel for each other."). No call.
+
+**A kiss lands on the one kissed** (3 Nov 2026) needs no step and changes no
+version: from the next turn a flirt finds its target as People says. A kiss
+already in an older game's story before then is not read again, so someone
+who kissed you back then may show no interest on their card; set
+"Interested" on the person's card (Edit) to where the story is.
 
 Behind the scenes a save carries `state.meta.rulesVersion` (10 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
