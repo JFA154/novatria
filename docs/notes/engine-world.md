@@ -2191,3 +2191,18 @@ rolls (`hooks.nextD20`, `hooks.nextTier`).
 - **The cast line** "open to a flirt" now shows only for someone a flirt
   would come easily to (`welcomeOf` ok and easy or normal now), so the
   narrator does not play every adult as flirty.
+
+## Wave 35 (3 Nov 2026): romance is its own track
+
+The owner: "I want 6 sliders with spark too.", then "Romance and spark are
+different.", then "Do it 7 then, the more detailed the better." Tests: `tests/wave35-romance-track.test.cjs` (g); `tests/wave29-rel-hold.test.cjs`'s favours owed rows unchanged.
+
+- **The favour seeds read a hand-set ledger.** `World.owedFavour` (net 2,
+  liking above -25) and `World.owedAsk` (after 5 days, again 3 later, then
+  crossed) read `rel.owed` as they did; an entry set by hand on the Edit
+  form or by `relSet { owed }` (`why: 'set by hand'`, its day the edit's)
+  plants the payback or the ask-back like any other.
+- **Jealousy** (`Rel.jealousyOf`, run where World and Pipeline ran it): a
+  witness at spark 30 takes romance -5 as well as spark -5.
+- **The morning** (`relDay`): everyday romance drifts 1 a day toward 0 for
+  someone the player did not see, beside liking and trust's 2.

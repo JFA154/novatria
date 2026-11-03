@@ -1918,3 +1918,28 @@ Wave B1 of `docs/RELATIONSHIPS_PLAN.md`.
   lines caused by hearsay come through `State.relTouched` as any other
   change (the morning's fading retakes the baseline, so news heard in the
   night with the morning in the same turn shows only in the one line).
+
+## Wave 35 (3 Nov 2026): seven sliders, seven words
+
+The owner: "I want 6 sliders with spark too.", then "Romance and spark are
+different.", then "Do it 7 then, the more detailed the better." Tests:
+`tests/wave35-romance-track.test.cjs` (a) and (c), `tests/wave30-rel-people.test.cjs`.
+
+- **The Edit form** (`FEEL_ROWS`, `ROMANCE_ROWS`, `OWED_ROW`, `interestMode`):
+  Likes, Trusts, Scared, Knows, Spark (wave 30's Interested, relabelled),
+  Romance, Owes you. Spark and Romance are on for every adult, shown at 0
+  and disabled for anyone under 18, left out when the player is under 18;
+  Owes you (-3..3, "+1 · owes you one") is there for everyone, minors
+  included (favours are not romance). `editBase`, `readForm` and
+  `editChanges` carry `m` and `owed`; each lands exactly (`fix`, or the
+  ledger's one entry); `/undo` takes a save back. The word box
+  (`.pedit-att-word`) may wrap at 9.5em so "head over heels" and "you owe
+  them a lot" leave the range wide at 375 pixels.
+- **The card's More** (`personStanding`): all seven words for an adult
+  whatever the values (Likes you, Trusts you, Scared, Knows you, Spark,
+  Romance, Owes); for a minor and with the player under 18 the five that
+  apply (no Spark, no Romance). `Rel.words('s')` reads no / a little / yes
+  / very much, `Rel.words('m')` no / a little / some / a lot / head over
+  heels, `Rel.words('owed', net)` owes you a lot / owes you one / even /
+  you owe them one / you owe them a lot. Two columns at 375, as before.
+- **Debug** prints the seven on each person's line.

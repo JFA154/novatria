@@ -2,7 +2,8 @@
 /* Wave 30 (A5 of docs/RELATIONSHIPS_PLAN.md, "What people show"; the
    integration plan's 16 A5): the People card (the stance chip, two dated
    reasons, what is held between them, the words behind "More"), the editor
-   (four sliders and Interested, every memory field kept, the event picker,
+   (four sliders and Interested; wave 35: seven, with Spark, Romance and
+   Owes you; every memory field kept, the event picker,
    a record deleted), the feed's ranked lines, /recap's Careful and Owed,
    the narrator's "to you" line and the cached block, the council reading
    trust, rules version 9 on a save from before wave 26 (built from
@@ -79,12 +80,16 @@ s.test('People: the stance and one tag on the row, two dated reasons and the lev
   assert.equal(hollis.open.hidden, 'true', 'the visible block is for the eye; a screen reader hears the sentence');
   assert.ok(hollis.open.sr.startsWith(`${st.phrase.charAt(0).toUpperCase() + st.phrase.slice(1)}, ${st.tags.slice(0, 2).join(', ')}. You know:`), hollis.open.sr);
   assert.ok(hollis.open.sr.includes(`You called him a cheat in his own shop. Day ${st.day} · you apologised.`), hollis.open.sr);
-  // More: closed until tapped; then the five words (Interested only for an adult with a status: wave 34 makes Hollis eligible, but his spark is 0, so not Hollis), two columns at 375.
+  /* More: closed until tapped; then the words, two columns at 375.
+     Changed by design in wave 35 (the owner: "the more detailed the
+     better"): all seven for an adult whatever their values, Hollis (spark
+     and romance 0) too. */
   assert.equal(hollis.fold, true);
   assert.equal(hollis.foldOpen, false);
   await page.click('#panel-body .pcard[data-npc="npc_hollis"] .pcard-words-fold > summary');
   const words = (await card('npc_hollis')).words;
-  assert.deepEqual(words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you']);
+  assert.deepEqual(words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you', 'Spark', 'Romance', 'Owes']);
+  assert.deepEqual(words.slice(4).map(w => w[1]), ['no', 'no', 'even'], 'nothing wanted, nothing felt, nothing owed');
   const tr = await page.evaluate(() => Game.Rel.tracksOf(Game.State.npc('npc_hollis')));
   assert.equal(words[2][1], tr.f >= 40 ? 'yes' : tr.f >= 20 ? 'a little' : 'no', 'scared, in words');
   const grid = await page.evaluate(() => [...document.querySelectorAll('#panel-body .pcard[data-npc="npc_hollis"] .pcard-word')].map(w => { const r = w.getBoundingClientRect(); const dt = w.querySelector('dt').getBoundingClientRect(); const dd = w.querySelector('dd').getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), below: dd.top >= dt.bottom - 1 }; }));
@@ -103,36 +108,41 @@ s.test('People: the stance and one tag on the row, two dated reasons and the lev
   assert.ok(kay, 'Kaylee has a card');
   await page.click('#panel-body .pcard[data-npc="npc_kaylee"] .pcard-words-fold > summary');
   kay = await card('npc_kaylee');
-  assert.deepEqual(kay.words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you'], 'never Interested for anyone under 18');
+  // Wave 35: the five that apply (favours owed are not romance); never Spark or Romance for anyone under 18.
+  assert.deepEqual(kay.words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you', 'Owes'], 'never Spark or Romance for anyone under 18');
   assert.ok(!/interested|sweet on you|looks at you twice|wants you|using you|falling for you|open to a flirt/i.test(kay.text), kay.text);
   assert.ok(!/kept my brother|kept (her|your) brother/.test(kay.text), 'not seen yet: kept back');
   // She is at school until evening; then she comes by and the player sees her.
   await page.evaluate(() => { const S = Game.State; S.apply({ setTime: { day: Game.state.time.day, phase: 'evening' } }); S.apply({ visits: [{ npcId: 'npc_kaylee', locationId: Game.state.player.locationId }] }); S.apply({ beginTurn: true }); S.apply({ logEntry: { input: 'I nod to Kaylee', roll: null, narration: 'Kaylee nods back.' } }); Game.UI.renderPanel(); });
   kay = await card('npc_kaylee');
   assert.ok(/kept (her|your) brother out of trouble/.test(kay.text), 'seen since: shown ' + kay.text);
-  // An eligible adult with a status: Interested is there; with the player under 18, never.
+  // An eligible adult with a status: Spark says it (wave 35: Spark and Romance, its own word); with the player under 18, never.
   await page.evaluate(() => Game.UI.togglePerson('npc_shayla'));
   await page.click('#panel-body .pcard[data-npc="npc_shayla"] .pcard-words-fold > summary');
   let shay = await card('npc_shayla');
-  assert.deepEqual(shay.words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you', 'Interested']);
+  assert.deepEqual(shay.words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you', 'Spark', 'Romance', 'Owes']);
   assert.equal(shay.words[4][1], 'a little');
   assert.deepEqual(shay.row.tags, ['has noticed you']);
   await page.evaluate(() => { Game.state.player.age = 16; Game.State.apply({ relDay: Game.state.time.day }); Game.UI.renderPanel(); });
   shay = await card('npc_shayla');
-  assert.ok(!shay.words.some(w => w[0] === 'Interested') && !shay.row.tags.includes('has noticed you'), 'a player under 18: nothing about wanting');
+  assert.ok(!shay.words.some(w => w[0] === 'Spark' || w[0] === 'Romance') && !shay.row.tags.includes('has noticed you'), 'a player under 18: nothing about wanting');
+  assert.deepEqual(shay.words.map(w => w[0]), ['Likes you', 'Trusts you', 'Scared', 'Knows you', 'Owes'], 'the five that apply');
   assert.deepEqual(await overflowReport(page, 375), [], 'still no horizontal scroll');
 });
 
-s.test('Edit: four sliders, and Interested for every adult (wave 34), land exactly; removing a memory keeps the numbers; every memory field survives a save', async h => {
+s.test('Edit: seven sliders (wave 35: Spark and Romance for every adult, Owes you for everyone), land exactly; removing a memory keeps the numbers; every memory field survives a save', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page, { kinds: [] });
   await put(page, 'loc_riverbend', ['npc_shayla'], 2, 'morning');
   await page.evaluate(() => Game.State.apply({ npcKnownToPlayer: ['npc_shayla', 'npc_kaylee', 'npc_royce', 'npc_hollis'] }));
   const f = (id, k) => `#pe-${k}-${id}`;
   const slide = (id, k, v) => page.evaluate(([sel, v]) => { const r = document.querySelector(sel); r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); }, [f(id, k), v]);
-  // Shayla: an eligible adult, every slider and Interested.
+  // Shayla: an eligible adult, every slider (wave 35: seven, in this order).
   await page.evaluate(() => { Game.UI.openPanel('people'); Game.UI.editPerson('npc_shayla'); });
-  for (const [k, v] of [['attitude', 40], ['trust', 30], ['fear', 10], ['knows', 50], ['spark', 35]]) await slide('npc_shayla', k, v);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#panel-body .pedit-feel-row')].map(r => r.querySelector('label').textContent)), ['Likes', 'Trusts', 'Scared', 'Knows', 'Spark', 'Romance', 'Owes you']);
+  for (const [k, v] of [['attitude', 40], ['trust', 30], ['fear', 10], ['knows', 50], ['spark', 35], ['romance', 25], ['owed', 1]]) await slide('npc_shayla', k, v);
+  assert.equal(await page.textContent(f('npc_shayla', 'romance-word')), '25 · a little');
+  assert.equal(await page.textContent(f('npc_shayla', 'owed-word')), '+1 · owes you one');
   assert.equal(await page.textContent(f('npc_shayla', 'attitude-word')), '+40 · a lot');
   assert.equal(await page.getAttribute(f('npc_shayla', 'attitude'), 'aria-valuetext'), '+40 · a lot');
   assert.equal(await page.textContent(f('npc_shayla', 'trust-word')), '+30 · yes');
@@ -141,12 +151,15 @@ s.test('Edit: four sliders, and Interested for every adult (wave 34), land exact
   assert.equal(await page.textContent('#panel-body .pedit-feel legend'), 'How they feel about you');
   await page.click('#panel-body .pcard[data-npc="npc_shayla"] .pedit-save');
   const shay = await page.evaluate(() => ({ t: Game.Rel.tracksOf(Game.State.npc('npc_shayla')), fix: Game.State.npc('npc_shayla').rel.fix }));
-  assert.deepEqual([shay.t.w, shay.t.t, shay.t.f, shay.t.k, shay.t.s], [40, 30, 10, 50, 35], 'each lands exactly');
-  assert.ok(shay.fix.t !== 0 && shay.fix.k !== 0, 'in fix: it never drifts');
-  assert.equal((await quiets(page)).pop(), 'Edited Shayla Rawls: attitude, trust, fear, knows, spark.');
+  assert.deepEqual([shay.t.w, shay.t.t, shay.t.f, shay.t.k, shay.t.s, shay.t.m, shay.t.owed], [40, 30, 10, 50, 35, 25, 1], 'each lands exactly');
+  assert.ok(shay.fix.t !== 0 && shay.fix.k !== 0 && shay.fix.m === 25, 'in fix: it never drifts');
+  assert.equal((await quiets(page)).pop(), 'Edited Shayla Rawls: attitude, trust, fear, knows, spark, romance, owed.');
   // Kaylee (16): Interested shown at 0 and off. Changed by design in wave 34: every adult has Interested, Royce (an adult not on the list) too, and it lands.
   await page.evaluate(() => Game.UI.editPerson('npc_kaylee'));
   assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? [r.value, r.disabled] : null; }, f('npc_kaylee', 'spark')), ['0', true]);
+  // Wave 35: Romance the same; Owes you open to her (favours are not romance).
+  assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? [r.value, r.disabled] : null; }, f('npc_kaylee', 'romance')), ['0', true]);
+  assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? r.disabled : null; }, f('npc_kaylee', 'owed')), false);
   await page.click('#panel-body .pcard[data-npc="npc_kaylee"] .pedit-cancel');
   await page.evaluate(() => Game.UI.editPerson('npc_royce'));
   assert.deepEqual(await page.evaluate(sel => { const r = document.querySelector(sel); return r ? [r.value, r.disabled] : null; }, f('npc_royce', 'spark')), ['0', false], 'every adult has Interested, listed or not');
@@ -190,7 +203,7 @@ s.test('Edit: four sliders, and Interested for every adult (wave 34), land exact
   await page.click('#panel-body .pcard[data-npc="npc_royce"] .pedit-save');
   const added = await page.evaluate(() => Game.State.npc('npc_royce').memories[1]);
   assert.equal(added.event, 'insulted');
-  assert.deepEqual(added.d, { w: -10, t: 0, f: 0, k: 2, s: 0 });
+  assert.deepEqual(added.d, { w: -10, t: 0, f: 0, k: 2, s: 0, m: 0 });
   assert.equal(added.decay, 'mood');
   await page.evaluate(() => Game.UI.editPerson('npc_royce'));
   assert.equal(await page.textContent('#panel-body .pedit-mem[data-i="1"] .pedit-mem-kind'), 'insulted · fades in a day or two');

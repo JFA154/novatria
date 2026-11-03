@@ -163,8 +163,12 @@ is a prerequisite.
   "sweet on you", "owes you big", "has something on you", "wary of your
   temper". The People tab, `/recap` and the narrator all use the same words,
   and every stance comes with its dated reasons.
-- **Wanting is spark; caring is liking and trust.** One stored spark track.
-  Code derives the statuses: "has noticed you", "wants you", "using you"
+- **Wanting is spark; caring that way is romance** (wave 35, 3 Nov 2026: the
+  owner, "Romance and spark are different"; it was one stored spark track,
+  caring read from liking and trust). Two stored tracks, spark and romance;
+  romance grows out of wanting plus substance (time, confidences, favours,
+  standing up for them) and fades over weeks. Code derives the statuses
+  from both: "has noticed you", "wants you", "using you"
   (spark high, liking and trust low), "sweet on you" (spark and liking up),
   "falling for you"; "seeing you" and "old flame" wait for tier C. The
   narrator's cue says the difference: "wants you around for one reason;
@@ -225,7 +229,13 @@ and the appendices follow them. They are not open.
    you but doesn't like you; wants you and doesn't trust you; falling for you;
    devoted with no desire; an old flame who still wants you) is a spark level
    read against liking and trust, and spark and liking already fade at
-   different speeds.
+   different speeds. **Reversed by the owner on 3 Nov 2026 (wave 35):** "I
+   want 6 sliders with spark too." and "Romance and spark are different."
+   Romance (`m`) is a second stored track beside spark; the statuses read
+   spark and romance, the night reads romance 40 in place of liking 40, and
+   the Edit form sets both (then, "Do it 7 then, the more detailed the
+   better": seven sliders with Owes you, and the card's More shows every
+   track in words). Section 4.3 and the design's 2.5 say how.
 3. **Leverage is a full per-pair record,** not a tag derived from "knows a
    secret of yours". The design already models the NPC-to-NPC side of secrets;
    the player's side without a record would be the one asymmetry left, and the
@@ -283,7 +293,8 @@ reviewer need to hold in their head.
 | Trust `t` | -100..100 | Will they believe you, rely on you, tell you things? Distrust is active disbelief | 5 × guardedness (-10..+10), -10 for police and smugglers; hand overrides on about four people (Boyd -40, Jodie -25, Vada -10, Leon -15) |
 | Fear `f` | 0..100 | Are they afraid of what you'll do, or of what you know? Fades fast; leverage feeds part of it | 0 |
 | Knows you `k` | 0..100 | How well they know you. Never fades | 0; a loose-end person 30 |
-| Spark `s` | 0..100 | Do they want you? Fades unless fed; 0 for anyone not on the eligibility list | 0 |
+| Spark `s` | 0..100 | Do they want you? Fades unless fed; 0 for anyone not on the eligibility list (wave 34: anyone under 18, and everyone with a player under 18) | 0 |
+| Romance `m` | 0..100 | Wave 35: do they care about you that way? Grows out of wanting plus substance, fades over weeks; 0 under the same rule as spark | 0 |
 | Owed | net -3..+3 | Favours outside the money obligations | none; Curtis shows "holding your marker" from the card-debt obligation itself |
 
 `n.attitude` stays on the record as a stored alias of liking, rewritten on every
@@ -327,7 +338,20 @@ around you" (fear 20 to 39).
 
 ### 4.3 Spark
 
-Statuses, first match wins, with hysteresis, only for an eligible adult:
+**Wave 35 (3 Nov 2026), the owner: "Romance and spark are different."**
+Romance is its own stored track (`m`), and the statuses read spark and
+romance: falling for you, romance 60 and spark 40; sweet on you, romance
+30; using you, spark 40, romance under 20, trust -25 or less with earned
+distrust or `mercenary`; wants you, spark 40, romance under 20; has noticed
+you, spark 20. A welcome flirt adds romance 2; time together 3, a
+confidence 4 (3 the player's), a favour 4, standing up for them 8, a rescue
+12, a word kept 5, each only at spark 20 or more; the night 10; a rebuff
+takes 10, a caught lie or a broken word 8, a betrayed confidence 20; a
+weight-3 harm halves it; it fades on a 14-day clock. The night needs spark
+50, romance 40, trust 30, knows 30. The table below is wave 29's, kept as
+history; the caring thresholds after it are replaced by romance.
+
+Statuses (wave 29), first match wins, with hysteresis, only for an eligible adult:
 
 | Status | When | Narrator cue | Feed line |
 |---|---|---|---|
@@ -359,7 +383,8 @@ bookkeeper's version does not count. A jealous partner who sees it takes liking
 
 After the delta review: the caring thresholds of the statuses (liking 25 and
 50) read liking **minus** the romance-class contributions, so flirting alone
-never makes "sweet on you"; "using you" needs earned distrust (a first-hand
+never makes "sweet on you" (wave 35: romance in their place, which a flirt
+grows only a little, so it still never does); "using you" needs earned distrust (a first-hand
 harm or honesty memory the player caused) or the `mercenary` flag, else it
 reads "wants you" with the cue "flirts back; keeps it light; doesn't trust
 you"; a status prints its feed line once per person per 7 days; the first
@@ -368,8 +393,8 @@ list ships with the twelve adults in the design's Appendix E (Jodie, Shayla,
 Travis, Curtis, Trent, Nikki, Annette, Carter, Lamar, Glenda, Colt, Tyler),
 for the owner to edit. **`intimate` is in A,** engine-gated: `romantic:
 "more"`, both adults (the player too; a player with no recorded age counts as
-under 18 for romance), eligible, welcome, spark 50 or more, liking 40, trust
-30 and knows 30. Code decides before narration and tells the
+under 18 for romance), eligible, welcome, spark 50 or more, liking 40 (wave
+35: romance 40), trust 30 and knows 30. Code decides before narration and tells the
 narrator "yes, and fade to black" or "not tonight; she says so kindly"; the
 scene is recorded as a weight-3 scar memory with the spark, liking and knows
 effects in the table. A romantic ask is **never** backed by leverage and never

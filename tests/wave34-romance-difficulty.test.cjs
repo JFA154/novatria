@@ -98,7 +98,8 @@ s.test('(a) an unlisted adult can be won over, the hard way: Dewayne is hard, a 
     out.again = __tr(D).w - t0.w;
     return out;
   });
-  assert.deepEqual(r.tuning, { sparkRate: 0.5, opensAt: 10, difficulty: 'hard', listed: false }, 'the defaults for anyone not listed');
+  // Wave 35: romanceRate, defaulting to the sparkRate.
+  assert.deepEqual(r.tuning, { sparkRate: 0.5, romanceRate: 0.5, opensAt: 10, difficulty: 'hard', listed: false }, 'the defaults for anyone not listed');
   assert.equal(r.listed, false, 'Dewayne is on no list');
   assert.equal(r.eligible, true, 'every adult is eligible');
   assert.deepEqual(r.welcome, { ok: true, why: null, difficulty: 'hard' });
@@ -160,7 +161,7 @@ s.test('(b) Jodie is easy and rate 1.2: the same flirts land for 12 a success an
     out.fumble = Object.assign(await __say('npc_royce', 'Those overalls do something for you.', { romantic: 'flirt' }), { dw: __tr('npc_royce').w - w0, mems: __flirts('npc_royce', turn).map(m => [m.text, m.weight]), cond: st.player.conditions.length });
     return out;
   });
-  assert.deepEqual(r.tuning, { sparkRate: 1.2, opensAt: 20, difficulty: 'easy', listed: true });
+  assert.deepEqual(r.tuning, { sparkRate: 1.2, romanceRate: 1.2, opensAt: 20, difficulty: 'easy', listed: true });
   assert.equal(r.shayla.difficulty, 'easy', 'Shayla is easy');
   assert.equal(r.curtis.difficulty, 'normal', 'the other ten listed are normal');
   assert.deepEqual(r.rolls[J], ['easy', 'easy', 'easy', 'easy', 'easy']);
@@ -253,7 +254,7 @@ s.test('(e) faithful: true reads as very hard; the validator takes it and refuse
     out.turn = (await __say('npc_royce', 'You ever get lonely out here?', { romantic: 'flirt' })).roll;
     return out;
   });
-  assert.deepEqual(r.tuning, { sparkRate: 1, opensAt: 0, difficulty: 'very_hard', listed: true });
+  assert.deepEqual(r.tuning, { sparkRate: 1, romanceRate: 1, opensAt: 0, difficulty: 'very_hard', listed: true });
   assert.equal(r.eligible, true, 'faithful is hard, not closed');
   assert.deepEqual(r.turn, ['charm', 'very_hard', 'success']);
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -369,12 +370,13 @@ s.test('(h) the night keeps its gate with no roll; short of it the ask rolls as 
     const G = Game, S = G.State, st = G.state;
     const out = {};
     S.apply({ npcKnownToPlayer: [J, 'npc_shayla'] });
-    S.apply({ relSet: { npcId: J, s: 55, w: 45, t: 35, k: 35 } });
+    // Changed by design in wave 35: the night reads romance 40 where it read liking 40.
+    S.apply({ relSet: { npcId: J, s: 55, m: 45, w: 45, t: 35, k: 35 } });
     __put('loc_low_water', [J], 6, 'night');
     const c0 = st.meta.rngCalls;
     out.yes = await __say(J, 'Stay with me tonight.', { romantic: 'more' });
     out.yesRng = st.meta.rngCalls - c0;
-    S.apply({ relSet: { npcId: 'npc_shayla', s: 55, w: 45, t: 25, k: 35 } });
+    S.apply({ relSet: { npcId: 'npc_shayla', s: 55, m: 45, w: 45, t: 25, k: 35 } });
     __put('loc_riverbend', ['npc_shayla'], 6, 'night');
     __roll('success');
     out.kind = await __say('npc_shayla', 'Come back to my room tonight.', { romantic: 'more' });

@@ -1990,3 +1990,28 @@ talking, I can direct it to one person or all."
      tests: `tests/wave34-romance-difficulty.test.cjs`, the flirt rows of
      waves 26, 29, 30 and 33, examples 10, 14 and 15, and
      `tests/relationships.test.cjs`'s eligibility checks.
+   - **Wave 35** (3 Nov 2026). The owner: "I want 6 sliders with spark
+     too.", then "Romance and spark are different.", then "Do it 7 then,
+     the more detailed the better." Romance is a stored track (`m`, 0..100;
+     `Rel.TRACKS` is `w t f k s m`) under the same guard as spark (0, and
+     refused at every writer, for anyone under 18 and with a player under
+     18; `Rel.sparkGuard` holds both). The table's `m` column grows it out
+     of wanting plus substance (a flirt +2; time, confidences, favours, a
+     defence, a rescue, a word kept only at spark 20 or more; the night
+     +10; a rebuff, a caught lie, a broken word, a betrayed confidence
+     down; weight-3 harm halves it), x `romanceRate` (the `sparkRate` by
+     default); it fades on a 14-day clock. The statuses read spark and
+     romance in place of wave 29's caring liking; the night reads romance
+     40 in place of liking 40. The Edit form has seven sliders (Likes,
+     Trusts, Scared, Knows, Spark, Romance, Owes you: the favours' net set
+     by hand as one ledger entry, for everyone); the card's More shows all
+     seven words for an adult, five for a minor or with a player under 18;
+     Debug prints the seven. The design's decision to derive caring
+     (design 2.5, plan decision 2) is reversed by the owner. Loads fill
+     romance at 0, no version bump. No schema change. README People,
+     Editing people and Updating, `docs/notes/engine-state.md`, `ui.md`,
+     `prompts.md`, `engine-world.md`, design 2.1, 2.5 and 10,
+     `docs/RELATIONSHIPS_PLAN.md` 2, 3, 4.1 and 4.3; tests:
+     `tests/wave35-romance-track.test.cjs`, waves 26, 29, 30, 33 and 34,
+     examples 10 and 15, and `tests/relationships.test.cjs` (its checks
+     and fuzz carry `rel.m`).

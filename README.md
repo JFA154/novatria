@@ -370,9 +370,10 @@ close to names what you did and when, and no more: "Cooler since you shamed
 Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said why." (a
 report that went that way shows only its day: "Cooler since Day 3. Hasn't
 said why."). **More** opens each side of it
-in a word: Likes you, Trusts you, Scared, Knows you, and, for an adult who
-has a status with you, Interested; never for anyone under 18, and never
-when you are. Something said where you weren't stays off the
+in a word, all seven for an adult: Likes you, Trusts you, Scared, Knows
+you, Spark, Romance and Owes ("owes you one", "even", "you owe them a
+lot"); for anyone under 18, and for everyone when you are, the five that
+apply, never Spark or Romance. Something said where you weren't stays off the
 card until you see them again.
 
 When someone you know crosses a line in how they feel about you, a quiet line
@@ -475,17 +476,29 @@ you well enough a flirt is only turned aside, kindly, with no roll: the
 first time costs nothing. A flirt goes to the one it was aimed at: "kiss her" is aimed at the one woman
 in the room (or the one the story just walked in); a flirt the game cannot
 place goes to whoever the bookkeeper names, if they are there; and it never
-goes to everyone unless you say it to everyone. What
-builds is a spark apart from liking, and how they stand reads it against
-how much they really care (the flirts' own warmth not counted): "looks at you
-twice", "wants you", "sweet on you" (a spark and real liking), "using you" (a
-spark from someone who doesn't like you and has reason not to trust you, or
-cares only for money). A partner who sees you flirt with someone else cools.
-A night together needs everything at once: both of you adults, someone on
-someone who knows you well enough, a strong spark, liking, trust and knowing
-you; then it fades to black and they remember it, with no roll. One short
-rolls as a flirt, and if it lands it is "not tonight", said kindly. A beating or worse halves a spark, and a spark fades in days
-unless it is fed.
+goes to everyone unless you say it to everyone.
+
+Wanting and caring are two things. A **spark** is wanting you; **romance**
+is caring about you that way, and each is kept on its own. A flirt is
+mostly spark (romance only a little); romance grows out of wanting plus
+substance: time together, a confidence either way, a favour, standing up
+for them, getting them out of trouble, a word kept, each counting only
+once they have noticed you (a spark of 20), so flirting alone never makes
+anyone sweet on you, and kindness to someone who doesn't want you is just
+kindness. Turning them down, a lie they catch, a broken word or a
+confidence betrayed costs romance, and it fades over weeks where a spark
+fades in days. How they stand reads both: "looks at you twice" (a spark),
+"wants you" (a strong spark and little romance), "using you" (the same
+from someone who has reason not to trust you, or cares only for money),
+"sweet on you" (romance), "falling for you" (a lot of romance and a strong
+spark). A partner who sees you flirt with someone else cools, and someone
+who wanted you loses a little of both. A night together needs everything
+at once: both of you adults, someone who knows you well enough, a strong
+spark, romance, trust and knowing you; then it fades to black and they
+remember it, with no roll. One short rolls as a flirt, and if it lands it
+is "not tonight", said kindly. A beating or worse halves a spark and a
+romance, and a spark fades in days unless it is fed. Nobody under 18 has
+either, ever, and with you under 18 nobody does.
 
 **Leverage** is knowing something about someone. A secret the narrator was
 given (a social roll that worked, or trust) counts only when the story shows
@@ -568,10 +581,11 @@ read "wife Mavis Mangum, strained since Day 5".
 **Editing people.** Anything else wrong about someone, you can fix yourself:
 open their card (anyone you have met, or heard of) and tap **Edit** beside the
 pronouns, or type `/edit Mavis`. The form has their name, age, pronouns, role,
-up to three traits, how they feel about you (four sliders, each with its word
-as you drag: likes you and trusts you from -100 to 100, scared and knows you
-from 0 to 100, and Interested for every adult, held at 0 and shut for anyone
-under 18 and left out when you are under 18), who
+up to three traits, how they feel about you (seven sliders, each with its
+word as you drag: Likes and Trusts from -100 to 100, Scared and Knows from 0
+to 100, Spark and Romance from 0 to 100 for every adult, held at 0 and shut
+for anyone under 18 and left out when you are under 18, and Owes you from
+-3 to 3, the favours between you, for everyone), who
 they are to whom, their home, whether they are free, arrested, gone or dead,
 and what they remember about you (each line keeps what it was, shown beside
 it, and a line you add picks what it was from a list); what is held between
@@ -1520,13 +1534,19 @@ between 40 people. What you do from now on reaches the people close to them."
 version: from the next turn a flirt finds its target as People says. A kiss
 already in an older game's story before then is not read again, so someone
 who kissed you back then may show no interest on their card; set
-"Interested" on the person's card (Edit) to where the story is.
+Spark (then "Interested") on the person's card (Edit) to where the story is.
 
 **Anyone can be won over, some the hard way** (3 Nov 2026) needs no step and
 changes no version: an older game's town copy reads its romance list as
 tuning from the next turn (an old `open: false` no longer shuts anyone out,
 an old `faithful: true` is very hard), every adult has Interested on the
 Edit form, and from then on a flirt rolls charm as People says.
+
+**Romance is its own track** (3 Nov 2026) needs no step and changes no
+version: an older game loads with romance 0 for everyone and everything
+else as it was. Someone who was "sweet on you" by the old reading (a spark
+and real liking) may read "wants you" or "has noticed you" until romance
+grows; set Romance on their card (Edit) to where the story is.
 
 Behind the scenes a save carries `state.meta.rulesVersion` (10 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
@@ -1662,7 +1682,8 @@ the town move:
   `dayOffset` and `{protector}` / `{protectorId}`.
 - What people hold (wave 29): `TOWN_DATA.romance` (wave 34: how easily each
   adult is won over, `{ npcId, sparkRate, opensAt: { knows }, difficulty }`:
-  `sparkRate` 0.1 to 2 scales a welcome flirt's spark, `opensAt.knows` is
+  `sparkRate` 0.1 to 2 scales a welcome flirt's spark (and, wave 35, what
+  grows romance, unless an optional `romanceRate` 0.1 to 2 says otherwise), `opensAt.knows` is
   how well they must know the player before a flirt is taken as one,
   `difficulty` (`easy`, `normal`, `hard`, `very_hard`) is the charm roll a
   flirt makes with them; adults only. Every adult can be interested whether

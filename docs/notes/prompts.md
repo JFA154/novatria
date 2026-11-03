@@ -1074,3 +1074,20 @@ models hear:
 - **The bookkeeper.** The ROMANCE lines (turned it aside; was open to it;
   said yes to the night) are pushed once the roll has decided. A late
   `flirted` lands by the turn's charm roll, when there was one.
+
+## Wave 35 (3 Nov 2026): romance is its own track, to the narrator
+
+The owner: "I want 6 sliders with spark too.", then "Romance and spark are
+different.", then "Do it 7 then, the more detailed the better."
+
+- **No packet changes shape.** The narrator still gets one tag a person
+  (the stance's first), and a status is one of the same five with the same
+  cues; what reaches each status is now spark and romance
+  (`Rel.SPARK_STATUS`), so "sweet on you" now means romance, never a spark
+  with liking. The cue regex the permanent test reads is unchanged.
+- **The schemas do not change.** The bookkeeper names acts (`they_confided`,
+  `did_favour`, `defended`, `rebuffed`...); what they do to romance is the
+  engine's table. A `d` the bookkeeper cannot send is unchanged; the
+  engine's own `d` may carry `m`.
+- **The night**: "says yes; fade to black" now needs romance 40 in place of
+  liking 40; the words are as before.

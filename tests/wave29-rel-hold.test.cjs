@@ -554,12 +554,20 @@ s.test('wanting against caring: Shayla is using you, Jodie is sweet on you at al
     S.apply({ setTime: { day: 3, phase: 'evening' } });
     __model([{ npcId: 'npc_jodie', event: 'did_favour', text: 'fixed the lock on her door' }], ['npc_jodie']);
     S.apply({ relSet: { npcId: 'npc_jodie', w: 28 } });
+    // Changed by design in wave 35: those favours came before any spark, so they grew no romance (romance grows out of wanting plus substance).
+    out.jodieEarly = R.tracksOf(S.npc('npc_jodie')).m;
     for (const d of [3, 4, 5, 6]) {
       __put('loc_low_water', ['npc_jodie'], d, 'evening');
       await __say('npc_jodie', 'You have a nice smile.', { romantic: 'flirt' });
+      // Wave 35: once she has noticed (spark 20), substance grows romance: she confides, and (a turn later) the player does her a favour.
+      if (d >= 4) {
+        __model([{ npcId: 'npc_jodie', event: 'they_confided', text: `told me about her brother, night ${d}` }], ['npc_jodie']);
+        await __say('npc_jodie', 'Anything I can do?');
+        __model([{ npcId: 'npc_jodie', event: 'did_favour', text: `walked me to my car, night ${d}` }], ['npc_jodie']);
+      }
     }
     const jo = S.npc('npc_jodie');
-    out.jodie = { tr: R.tracksOf(jo), caring: R.tracksOf(jo).w - jo.rel.wRom, phrase: R.stance(jo).phrase, sp: R.sparkStatus(jo), cue: R.cue(jo) };
+    out.jodie = { tr: R.tracksOf(jo), phrase: R.stance(jo).phrase, sp: R.sparkStatus(jo), cue: R.cue(jo) };
     // Unfed, spark fades: a week on.
     S.apply({ setTime: { day: 12, phase: 'morning' } });
     S.apply({ relDay: 12 });
@@ -574,7 +582,9 @@ s.test('wanting against caring: Shayla is using you, Jodie is sweet on you at al
   assert.deepEqual(r.shayla.tags, ['using you'], '"Suspicious of you · using you"');
   assert.match(r.shayla.cue, /^wants you around for one reason, doesn't ask about your day/);
   assert.equal(r.jodie.sp, 'sweet on you', JSON.stringify(r.jodie));
-  assert.ok(r.jodie.caring >= 25, 'caring liking: ' + r.jodie.caring);
+  // Changed by design in wave 35: romance, its own track, in place of caring liking.
+  assert.equal(r.jodieEarly, 0, 'favours before any spark grow no romance');
+  assert.ok(jo.m >= 30 && sh.m < 20, `romance: Jodie ${jo.m}, Shayla ${sh.m}`);
   assert.match(r.jodie.cue, /^lights up when you come in, remembers what you told her/);
   assert.deepEqual(r.travis.mem, ['flirted with Shayla Rawls in front of me'], 'her boyfriend saw it');
   assert.ok(r.travis.d[0] <= -15 && r.travis.d[1] <= -8, 'W -15 x (1 + 0.25 pride), T -10: ' + r.travis.d);
@@ -649,7 +659,7 @@ s.test('favours owed: two favours plant a payback with no cash unless they like 
   assert.equal(r.after, 0, 'and he lets it go');
 });
 
-s.test('flirting alone never makes someone sweet on you: the flirts\' own warmth doesn\'t count toward caring', async h => {
+s.test('flirting alone never makes someone sweet on you: a flirt grows romance only a little (wave 35: romance is its own track)', async h => {
   const page = await start(h);
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, R = G.Rel, st = G.state;
@@ -660,18 +670,26 @@ s.test('flirting alone never makes someone sweet on you: the flirts\' own warmth
       __put('loc_low_water', ['npc_jodie'], d, 'evening');
       await __say('npc_jodie', 'You look nice tonight.', { romantic: 'flirt' });
       const jo = S.npc('npc_jodie');
-      out.push([d, R.tracksOf(jo).w, R.tracksOf(jo).w - jo.rel.wRom, R.tracksOf(jo).s, R.sparkStatus(jo)]);
+      out.push([d, R.tracksOf(jo).w, R.tracksOf(jo).m, R.tracksOf(jo).s, R.sparkStatus(jo)]);
     }
-    // A real kindness and she is.
-    __model([{ npcId: 'npc_jodie', event: 'did_favour', text: 'drove her to Clayburn' }], ['npc_jodie']);
+    /* Real kindness, now that she wants the player (changed by design in
+       wave 35: romance grows from substance with spark up; one favour is
+       not enough, three evenings of it are). */
+    for (const d of [6, 7, 8]) {
+      __put('loc_low_water', ['npc_jodie'], d, 'evening');
+      await __say('npc_jodie', 'How was your day?');
+      __model([{ npcId: 'npc_jodie', event: 'they_confided', text: `told me what she is saving for, day ${d}` }], ['npc_jodie']);
+      await __say('npc_jodie', 'Need a ride?');
+      __model([{ npcId: 'npc_jodie', event: 'did_favour', text: `drove her to Clayburn, day ${d}` }], ['npc_jodie']);
+    }
     const jo = S.npc('npc_jodie');
-    out.push(['favour', R.tracksOf(jo).w, R.tracksOf(jo).w - jo.rel.wRom, R.tracksOf(jo).s, R.sparkStatus(jo)]);
+    out.push(['kindness', R.tracksOf(jo).w, R.tracksOf(jo).m, R.tracksOf(jo).s, R.sparkStatus(jo)]);
     return out;
   });
   for (const x of r.slice(0, -1)) assert.notEqual(x[4], 'sweet on you', 'flirts alone: ' + JSON.stringify(x));
   assert.ok(r.slice(0, -1).some(x => x[1] >= 25 && x[3] >= 30), 'though liking passed 25 and spark 30: ' + JSON.stringify(r));
-  assert.ok(r.slice(0, -1).every(x => x[2] < 25), 'caring liking stays under 25');
-  assert.equal(r[r.length - 1][4], 'sweet on you', 'a favour, and she is: ' + JSON.stringify(r[r.length - 1]));
+  assert.ok(r.slice(0, -1).every(x => x[2] < 20), 'romance stays under 20 on flirts alone: ' + JSON.stringify(r));
+  assert.equal(r[r.length - 1][4], 'sweet on you', 'kindness with spark up, and she is: ' + JSON.stringify(r[r.length - 1]));
 });
 
 s.test('Jodie, guarded from the start and wronged by nobody, wants you; she is never using you', async h => {
@@ -778,7 +796,8 @@ s.test('fade to black: with every gate met the narrator is told yes and to fade 
       await __say(id, words, { romantic: 'more' });
       return G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE|^UNDER 18/.test(l));
     };
-    S.apply({ relSet: { npcId: 'npc_jodie', s: 55, w: 45, t: 35, k: 35 } });
+    // Changed by design in wave 35: the night reads romance 40 where it read liking 40.
+    S.apply({ relSet: { npcId: 'npc_jodie', s: 55, m: 45, w: 45, t: 35, k: 35 } });
     out.gate = R.intimateGate(S.npc('npc_jodie'));
     out.yes = await ask('npc_jodie', 'loc_low_water', 'Stay with me tonight.');
     const m = S.npc('npc_jodie').memories.filter(x => x.event === 'intimate');
@@ -786,7 +805,7 @@ s.test('fade to black: with every gate met the narrator is told yes and to fade 
     out.noFlirt = S.npc('npc_jodie').memories.filter(x => x.event === 'flirted' && x.turn === st.meta.turn).length;
     out.style = G.Style.systemPrompt('casual').includes('Intimate scenes fade to black');
     // One gate short (trust 25): not tonight, kindly, and a welcome flirt.
-    S.apply({ relSet: { npcId: 'npc_shayla', s: 55, w: 45, t: 25, k: 35 } });
+    S.apply({ relSet: { npcId: 'npc_shayla', s: 55, m: 45, w: 45, t: 25, k: 35 } });
     out.short = R.intimateGate(S.npc('npc_shayla')).short;
     out.no = await ask('npc_shayla', 'loc_riverbend', 'Come back to my room tonight.');
     out.noMem = S.npc('npc_shayla').memories.filter(x => x.turn === st.meta.turn).map(x => x.event);

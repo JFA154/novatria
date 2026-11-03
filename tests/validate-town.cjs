@@ -697,7 +697,8 @@ const REL_DECAY = (() => {
   if (!m) fatal('file', 'index.html has no DECAY table in its Rel module');
   return Object.keys(vm.runInNewContext('(' + m[1] + ')', { Infinity }, { filename: 'index.html#DECAY', timeout: 1000 }));
 })();
-const REL_TRACKS = ['w', 't', 'f', 'k', 's'];
+// Wave 35: romance (m) is its own track.
+const REL_TRACKS = ['w', 't', 'f', 'k', 's', 'm'];
 // Wave 32: the events that never travel the town's ties (Rel.STAYS, read from index.html).
 const REL_STAYS = (() => {
   const m = /const STAYS = Object\.freeze\((\[[^\]]*\])\);/.exec(html);
@@ -809,7 +810,7 @@ function checkRel(v, where) {
     const c = v[id];
     if (!isObj(c) || !Object.keys(c).length) { err(where + '.' + id, 'an object { liking, trust, fear, knows }: what they must be at'); continue; }
     for (const k of Object.keys(c)) {
-      if (k === 'spark') { err(where + '.' + id + '.spark', 'spark is never readable by a town condition'); continue; }
+      if (k === 'spark' || k === 'romance') { err(where + '.' + id + '.' + k, k + ' is never readable by a town condition'); continue; }
       if (!REL_RANGES[k]) { err(where + '.' + id + '.' + k, 'unknown track: liking, trust, fear or knows'); continue; }
       if (!isInt(c[k]) || c[k] < REL_RANGES[k][0] || c[k] > REL_RANGES[k][1]) err(where + '.' + id + '.' + k, 'a whole number, ' + REL_RANGES[k][0] + ' to ' + REL_RANGES[k][1]);
     }
@@ -1059,7 +1060,7 @@ function checkEffect(e, where, opts) {
       if (e.d !== undefined) {
         if (!isObj(e.d) || !Object.keys(e.d).length) err(where + '.d', 'an object of tracks (w, t, f, k, s)');
         else for (const k of Object.keys(e.d)) {
-          if (REL_TRACKS.indexOf(k) === -1) err(where + '.d', 'unknown track "' + k + '" (w, t, f, k, s)');
+          if (REL_TRACKS.indexOf(k) === -1) err(where + '.d', 'unknown track "' + k + '" (w, t, f, k, s, m)');
           else checkDelta(e.d[k], where + '.d.' + k, 50);
           // Spark never moves from content: the romance list decides it (wave 29), and nobody under 18 is ever on it.
           if (k === 's' && e.d.s > 0) err(where + '.d.s', 'spark is never given by content');
@@ -1164,7 +1165,9 @@ if (T.ties !== undefined) {
 }
 /* Wave 28 (the list itself ships in wave 29; tuning only since wave 34):
    how each listed adult takes to the player's interest (Rel.tuningOf),
-   [{ npcId, sparkRate, opensAt, difficulty, faithful? }]. Every adult can
+   [{ npcId, sparkRate, opensAt, difficulty, faithful?, romanceRate? }]
+   (wave 35: romanceRate, what romance's gains are scaled by, the sparkRate
+   when left out). Every adult can
    be interested whether listed or not; an entry makes them easier or
    harder. open is gone (wave 34: nobody is closed off); faithful: true is
    the old word for difficulty very_hard. An adult in town only: anyone
@@ -1179,7 +1182,7 @@ if (T.romance !== undefined) {
     // Wave 29: every field written out (design Appendix E's block), each person once; who it names is checked whatever is missing.
     // Wave 34: open is no longer a word (everyone over 18 can be interested); faithful may stand for very_hard.
     if ('open' in r) err(where + '.open', 'open is gone (wave 34): everyone over 18 can be interested; set difficulty (easy, normal, hard, very_hard) to make them easier or harder');
-    checkKeys(r, ['npcId', 'sparkRate', 'opensAt'].concat(r.faithful === true ? [] : ['difficulty']), where, ['difficulty', 'faithful', 'open']);
+    checkKeys(r, ['npcId', 'sparkRate', 'opensAt'].concat(r.faithful === true ? [] : ['difficulty']), where, ['difficulty', 'faithful', 'open', 'romanceRate']);
     if (T.romance.findIndex(x => isObj(x) && x.npcId === r.npcId) !== i) err(where + '.npcId', r.npcId + ' is on the list twice');
     const n = npcById.get(r.npcId);
     if (!n) { err(where + '.npcId', '"' + r.npcId + '" is not an NPC'); return; }
@@ -1191,6 +1194,7 @@ if (T.romance !== undefined) {
     if (r.difficulty !== undefined && ['easy', 'normal', 'hard', 'very_hard'].indexOf(r.difficulty) === -1) err(where + '.difficulty', 'easy, normal, hard or very_hard');
     if (r.faithful === true && r.difficulty !== undefined && r.difficulty !== 'very_hard') err(where + '.faithful', 'faithful: true means difficulty very_hard; leave one of them out');
     if (r.sparkRate !== undefined && !(typeof r.sparkRate === 'number' && r.sparkRate >= 0.1 && r.sparkRate <= 2)) err(where + '.sparkRate', 'a number from 0.1 to 2');
+    if (r.romanceRate !== undefined && !(typeof r.romanceRate === 'number' && r.romanceRate >= 0.1 && r.romanceRate <= 2)) err(where + '.romanceRate', 'a number from 0.1 to 2');
     if (r.opensAt !== undefined && !(isObj(r.opensAt) && Object.keys(r.opensAt).length === 1 && Number.isInteger(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60)) err(where + '.opensAt', '{ knows } from 0 to 60 (how well they must know the player)');
   });
 }

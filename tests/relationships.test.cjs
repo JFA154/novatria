@@ -9,7 +9,8 @@
    row; a named target and two signals is the full row with the guardians,
    the reports and the town; a romantic ask pushed with fear or a threat
    is refused for anyone; a threat or a blow at a minor goes to their
-   family and the law; spark never moves, from any writer, and no packet
+   family and the law; spark and romance (wave 35: its own track) never
+   move, from any writer, and no packet
    ever carries a romance cue for a minor. Mock mode.
    Run with: node tests/run.cjs relationships.test */
 const assert = require('assert/strict');
@@ -58,6 +59,9 @@ const setup = page => page.evaluate(() => {
     for (const n of minors) {
       if (n.rel.s > 0 || n.rel.start.s || n.rel.everyday.s || n.rel.fix.s) problems.push(`${n.id}: spark ${n.rel.s}`);
       if (n.memories.some(m => m.d && m.d.s > 0)) problems.push(`${n.id}: a memory with spark`);
+      // Wave 35: romance, its own track, the same.
+      if (n.rel.m > 0 || n.rel.start.m || n.rel.everyday.m || n.rel.fix.m || R.tracksOf(n).m) problems.push(`${n.id}: romance ${n.rel.m}`);
+      if (n.memories.some(m => m.d && m.d.m > 0)) problems.push(`${n.id}: a memory with romance`);
       if (n.memories.some(m => m.event === 'intimate')) problems.push(`${n.id}: an intimate memory`);
       if (R.sparkStatus(n)) problems.push(`${n.id}: spark status ${R.sparkStatus(n)}`);
       if (R.stance(n).tags.some(t => R.SPARK_STATUS.some(x => x.status === t))) problems.push(`${n.id}: a spark tag`);
@@ -103,8 +107,8 @@ s.test('nobody under 18 ever carries spark, a spark status or a romance cue, and
     assert.doesNotMatch(run.stdout + run.stderr, /npc_jodie is under 18/);
   } finally { fs.unlinkSync(tmp); }
   // 2. A new game: spark 0 and no status for every minor.
-  const fresh = await page.evaluate(() => Game.state.npcs.filter(n => Game.Rel.isMinor(n)).map(n => [n.id, n.rel.s, Game.Rel.sparkStatus(n)]));
-  assert.deepEqual(fresh.sort(), [['npc_austin', 0, null], ['npc_kaylee', 0, null], ['npc_micah', 0, null]]);
+  const fresh = await page.evaluate(() => Game.state.npcs.filter(n => Game.Rel.isMinor(n)).map(n => [n.id, n.rel.s, Game.Rel.sparkStatus(n), n.rel.m]));
+  assert.deepEqual(fresh.sort(), [['npc_austin', 0, null, 0], ['npc_kaylee', 0, null, 0], ['npc_micah', 0, null, 0]], 'spark, status and (wave 35) romance');
   // 3. The line whenever a minor is present, flagged or not.
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, M = G.Api.Mock, st = G.state;
@@ -369,8 +373,11 @@ s.test('an import that strips the town copy\'s age, the current age and the tags
     const tk = town.npcs.find(x => x.id === 'npc_kaylee');
     delete tk.age; tk.tags = []; tk.role = 'works the register at the station';
     k.rel.s = 60; k.rel.fix.s = 60;
+    // Wave 35: and romance on the import, the same.
+    k.rel.m = 55; k.rel.fix.m = 55; k.rel.everyday.m = 5;
     S.load(old, town);
     out.kaylee = [R.isMinor(S.npc('npc_kaylee')), S.npc('npc_kaylee').rel.s, R.minorAge(S.npc('npc_kaylee'))];
+    out.kayleeM = [S.npc('npc_kaylee').rel.m, S.npc('npc_kaylee').rel.fix.m, S.npc('npc_kaylee').rel.everyday.m];
     out.closed = R.isMinor({ id: 'npc_test_q', role: 'a high school student', tags: [] }, { s: null, town: null });
     S.apply({ editPerson: { npcId: 'npc_micah', age: 18 } }, { source: 'player' });
     out.micah = [S.npc('npc_micah').age, R.isMinor(S.npc('npc_micah')), R.complies(S.npc('npc_micah'), { actionType: 'talk', difficulty: 'easy' })];
@@ -383,6 +390,16 @@ s.test('an import that strips the town copy\'s age, the current age and the tags
     S.apply({ setMemories: [{ npcId: 'npc_austin', memories: [{ turn: 0, day: 1, text: 'brought me a soda', weight: 1, event: 'flirted', d: { w: 4, t: 0, f: 0, k: 2, s: 9 } }] }] });
     out.refused = refused;
     out.austin = [S.npc('npc_austin').rel.s, S.npc('npc_austin').memories.map(m => m.d && m.d.s)];
+    // Wave 35: a write to a minor's romance, from every source.
+    const romance = [];
+    const addM = r => romance.push(r.rejected.map(x => x.reason).join(' | '));
+    addM(S.apply({ socialEvents: [{ npcId: 'npc_austin', event: 'they_confided', text: 'told me about his dad', d: { m: 10 } }] }));
+    addM(W.applyEffects([{ op: 'socialEvent', npcId: 'npc_austin', event: 'defended', text: 'stood up for me', d: { m: 10 } }]));
+    addM(S.apply({ relSet: { npcId: 'npc_austin', m: 5 } }));
+    addM(S.apply({ editPerson: { npcId: 'npc_austin', rel: { m: 5 } } }, { source: 'player' }));
+    S.apply({ setMemories: [{ npcId: 'npc_austin', memories: [{ turn: 0, day: 1, text: 'brought me a soda', weight: 1, event: 'flirted', d: { w: 4, t: 0, f: 0, k: 2, s: 0, m: 9 } }] }] });
+    out.romance = romance;
+    out.austinM = [S.npc('npc_austin').rel.m, S.npc('npc_austin').memories.map(m => m.d && m.d.m)];
     return out;
   });
   await checked(page, 'anchors and writes');
@@ -392,6 +409,10 @@ s.test('an import that strips the town copy\'s age, the current age and the tags
   assert.equal(r.refused.length, 4);
   for (const x of r.refused) assert.match(x, /spark stays 0 for npc_austin: they are under 18/);
   assert.deepEqual(r.austin, [0, [0]], 'the upgrade\'s own write zeroed too');
+  assert.deepEqual(r.kayleeM, [0, 0, 0], 'her imported romance set to 0 at load');
+  assert.equal(r.romance.length, 4);
+  for (const x of r.romance) assert.match(x, /romance stays 0 for npc_austin: they are under 18/);
+  assert.deepEqual(r.austinM, [0, [0]], 'romance in a memory written for him zeroed too');
 });
 
 s.test('with Tammy gone, Austin\'s guardian is another adult of his family, else Chief Bell; with the chief arrested, the county sheriff hears, else the town does', async h => {
@@ -558,13 +579,13 @@ s.test('fuzz: 300 random event strings and 50 random romantic parses over every 
       const c = window.__check();
       if (c.problems.length) return { problems: c.problems, at: t, strings, parses };
     }
-    return { problems: [], strings, parses, turns: turns.length, minors: st.npcs.filter(n => R.isMinor(n)).map(n => [n.id, n.rel.s, R.sparkStatus(n)]) };
+    return { problems: [], strings, parses, turns: turns.length, minors: st.npcs.filter(n => R.isMinor(n)).map(n => [n.id, n.rel.s, R.sparkStatus(n), n.rel.m]) };
   });
   assert.deepEqual(r.problems, [], JSON.stringify(r).slice(0, 2000));
   assert.ok(r.strings >= 300, 'at least 300 event strings: ' + r.strings);
   assert.equal(r.parses, 50, '50 random parses');
   assert.equal(r.turns, 20);
-  assert.deepEqual(r.minors.map(x => [x[1], x[2]]), [[0, null], [0, null], [0, null]]);
+  assert.deepEqual(r.minors.map(x => [x[1], x[2], x[3]]), [[0, null, 0], [0, null, 0], [0, null, 0]], 'spark, status and (wave 35) romance');
   await checked(page, 'after the fuzz');
 });
 
@@ -615,6 +636,7 @@ s.test('a flirt aimed at Kaylee: the narrator is told before it writes, her fath
   assert.equal(r.kaylee.stance, 'suspicious of you');
   assert.equal(r.kaylee.complies, false, 'her fear buys nothing');
   assert.equal(k.s, 0, 'spark stays 0');
+  assert.equal(k.m, 0, 'romance stays 0 (wave 35)');
   // Wave 31: the kind remark he saw her get first reaches him through his tie to her (+3: a father, a teen), so W 1, not the design's -2.
   assert.ok(Math.abs(r.royce.w - 1) <= 2 && Math.abs(r.royce.t - -5) <= 2, 'Royce: W 1, T -5 (the kind remark +3, then crossed; he is open): ' + JSON.stringify(r.royce));
   assert.ok(Math.abs(r.darlene.w - -12) <= 2 && Math.abs(r.darlene.t - -19) <= 2, 'Darlene: W -12, T -19 (crossed, she is guarded): ' + JSON.stringify(r.darlene));

@@ -1462,3 +1462,65 @@ Wave B1 of `docs/RELATIONSHIPS_PLAN.md` (the integration plan's 2.3, 2.4,
   `act`; `Pipeline.reasonText` turns it for the card ("Cooler since you
   shamed Royce Pittman at Pittman's Gas and Service, Day 4. Hasn't said
   why."; the narrator's stays nameless).
+
+## Wave 35 (3 Nov 2026): romance is its own track, in State and Rel
+
+The owner: "I want 6 sliders with spark too.", then "Romance and spark are
+different.", then "Do it 7 then, the more detailed the better." Tests:
+`tests/wave35-romance-track.test.cjs`; changed by design: `wave26-rel-tracks`
+(the track list, a memory's `d`, the Debug line), `wave29-rel-hold`
+(wanting against romance, flirting alone, the night), `wave30-rel-people`
+(seven words and seven sliders), `wave33-romance-target`,
+`wave34-romance-difficulty` (`romanceRate`, the night), examples 10 and 15
+of `relationships-examples`, and `relationships.test.cjs` (its checks and
+fuzz carry `rel.m`).
+
+- **The track.** `Rel.TRACKS` is `w t f k s m`; `m` (romance, 0..100; `r`
+  is the grudge axis's) sits in `rel.start`, `rel.everyday`, `rel.fix`,
+  the cache and a typed memory's `d`; `Rel.TRACK_NAMES.m` is `romance`,
+  `RANGE.m` `[0, 100]`, `CAPS.turn.m` 20. `Rel.ROMANTIC` (`s`, `m`) is what
+  the guard holds. A load fills it at 0 (`Rel.repair`, no rules-version
+  bump); the shape check and `coerceNumbers` read `rel.m`.
+- **What moves it** (`Rel.EVENTS`' `m` column, `mAt`): a welcome flirt +2
+  (an unwelcome one's `d` gives `m: 0`); `spent_time` +3, `they_confided`
+  +4, `confided` +3, `did_favour` +4, `defended` +8, `rescued` +12,
+  `kept_word` +5 only while spark is 20 or more (`mAt: 20`; a `d.m` given
+  outright is as given); `intimate` +10; `rebuffed` -10, `lied_caught` -8,
+  `broke_word` -8, `betrayed_confidence` -20; the rows that halve spark
+  halve romance (`'halves'`), and any weight-3 harm halves it at write
+  time. Gains x `Rel.romanceRate` (`tuningOf(n).romanceRate`: the entry's
+  `romanceRate`, else its `sparkRate`; 0.5 unlisted); never a trait. The
+  jealousy witness rule takes `m: -5` with `s: -5` (`GATES.jealousy.other`).
+- **Fading.** A memory's romance fades on the bond clock
+  (`Rel.ROMANCE_CLOCK`, 14 days, floor 0; `intimate` on the scar clock);
+  settlements never touch it. `Rel.driftStep` returns `{ w, t, m }`:
+  everyday romance drifts 1 a day toward 0 (`CAPS.everydayRomanceDrift`)
+  on days the player did not see them; State's `relDay` applies it.
+- **The statuses** (`SPARK_STATUS`, `Rel.statusFor({ t, s, m })`, wave
+  29's `wRom`, `romanceLiking` and caring liking gone): falling for you
+  (romance 60, spark 40), sweet on you (romance 30), using you (spark 40,
+  romance under 20, trust -25 or less and earned distrust or the
+  mercenary flag), wants you (spark 40, romance under 20), has noticed you
+  (spark 20); first match, hysteresis 5, the 7-day feed rule as before.
+  `BANDS.s` (none, noticed, wants, burning) and `BANDS.m` (none, little,
+  some, lot, heels) are for the card's words now; the cache's `bands.m`.
+- **The night** (`GATES.intimate`): spark 50, romance 40, trust 30, knows
+  30 (liking no longer read); `Rel.intimateGate` names "romance 35 under
+  40".
+- **The guard.** `Rel.sparkGuard` zeroes both tracks (`tracks` names
+  which; State's log line "romance set to 0 for npc_kaylee: ..."); refused
+  at every writer: `relTargets` ("romance stays 0 for ..."), a
+  `socialEvent`'s `d.m`, `Rel.applyEvent` (logged "npc_x: romance stays 0
+  (under 18)"), `landTo` and `pinOf` skip it for anyone not eligible,
+  `editPerson` drops it.
+- **Owes you by hand** (`Rel.owedTo`, State's `relOwed`): `relSet` and
+  `editPerson` take `owed` (-3..3); the ledger reads exactly that net
+  after one entry `{ dir, size, key: fix-<turn>-<npcId>-o, day, turn,
+  why: 'set by hand' }` (room made under `CAPS.owedEntries`; nothing when
+  it already reads it). `World.owedFavour` and `owedAsk` read it as any
+  entry. `relChanges(a, b, withOwed)`: relSet's line names owed;
+  `socialEvent` lines are as they were.
+- **Edit and Debug.** `EDIT_FIELDS` gains `romance` and `owed` (the quiet
+  line "Edited Curtis Pruett: spark, romance, owed."). `Rel.debugLine` is
+  the seven: "w 5 t -5 f 0 k 0 s 0 m 0 owed 0 · ..."; `debugMemory`
+  shows `m`.

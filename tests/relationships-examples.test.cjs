@@ -637,7 +637,7 @@ s.test('example 8, Burl: owes you, paid back unasked (A): two favours make him o
   assert.deepEqual(r.feed, ['Burl Satterfield warms to you.', 'Burl Satterfield owes you again.', 'Burl Satterfield is square with you.']);
 });
 
-s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark against caring; Shayla is using you, Travis sees a flirt and cools, Jodie is sweet on you and says not tonight, kindly', async h => {
+s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark against romance (wave 35); Shayla is using you, Travis sees a flirt and cools, Jodie is sweet on you and says not tonight, kindly', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   await kit(page);
@@ -680,19 +680,27 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
     __mark();
     const J = 'npc_jodie';
     out.jstart = wtfStart(S.npc(J));
-    for (let d = 2; d <= 6; d++) {
+    /* Changed by design in wave 35 (romance is its own track, and grows out
+       of wanting plus substance): the kindness before she has noticed the
+       player (spark 20) grows no romance, so the contrast runs to Day 8:
+       flirts from Day 4 (she opens at knowing the player 20), and the
+       favours and confidences that come once she wants the player. */
+    out.jdays = [];
+    for (let d = 2; d <= 8; d++) {
       __put('loc_low_water', [J], d, 'evening');
-      const book = { 3: ['npc_jodie did_favour: covered her shift'], 4: ['npc_jodie they_confided: told me about her uncle'], 5: ['npc_jodie did_favour: brought her mother\'s letter'], 6: ['npc_jodie did_favour: fixed the lock on her door'] }[d];
+      const book = { 3: ['npc_jodie did_favour: covered her shift'], 4: ['npc_jodie they_confided: told me about her uncle'], 5: ['npc_jodie did_favour: brought her mother\'s letter'], 6: ['npc_jodie did_favour: fixed the lock on her door', 'npc_jodie they_confided: told me what she is saving for'],
+        7: ['npc_jodie they_confided: told me about the man in Clayburn', 'npc_jodie confided: told her about my father'], 8: ['npc_jodie did_favour: drove her mother to the clinic', 'npc_jodie they_confided: told me she wants to leave town'] }[d];
       await __say(J, 'Slow night?');
-      await __say(J, 'How was the night?', null, book ? { socialEvents: book } : null);
       if (d >= 4) await __say(J, 'You have a good laugh.', { romantic: 'flirt' });
+      await __say(J, 'How was the night?', null, book ? { socialEvents: book } : null);
       G.Pipeline.passTime({ cost: 'long', cause: 'wait' }, 'wait');
+      out.jdays.push([d, __tr(J).s, __tr(J).m]);
     }
     const jo = S.npc(J);
-    out.jodie = [__tr(J), __st(J), __tr(J).w - jo.rel.wRom, R.cue(jo)];
+    out.jodie = [__tr(J), __st(J), __tr(J).m, R.cue(jo)];
     out.jfeed = __feed().filter(x => /sweet on you/.test(x));
-    // Day 6 night: she is asked to stay.
-    __put('loc_low_water', [J], 6, 'night');
+    // Day 8 night (wave 35; Day 6 before): she is asked to stay.
+    __put('loc_low_water', [J], 8, 'night');
     const n0 = jo.memories.length;
     await __say(J, 'Stay with me tonight.', { romantic: 'more' });
     out.more = [G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), jo.memories.slice(n0).map(m => m.event)];
@@ -720,15 +728,20 @@ s.test('example 10, Shayla wants you and Jodie is sweet on you (A): spark agains
   assert.deepEqual(r.d4[1], ['suspicious of you', 'using you'], '"Suspicious of you · using you"');
   assert.equal(r.d4[2], 'wants you around for one reason, doesn\'t ask about your day');
   assert.deepEqual(r.feed4.filter(x => /interested/.test(x)), ['Shayla Rawls is interested. It isn\'t friendship.']);
-  // Jodie (start W -5, T -25): the design's W 39, caring liking 30, T -11, S 35; the code's spark is 38 (design.md says so).
+  /* Jodie (start W -5, T -25). Changed by design in wave 35 (design.md
+     example 10 says so): romance in place of caring liking. The favour on
+     Day 3 and the confidence on Day 4 come before she has noticed the
+     player and grow none; from Day 6 (spark 26) every kindness does:
+     romance 0, 0, 0, 2, 18, 32, 47 over Days 2 to 8, spark 47, the same
+     as Shayla's near enough, and she is sweet on the player where Shayla
+     is using them. */
   assert.deepEqual(r.jstart, [-5, -25]);
-  near(r.jodie[0].w, 39, 'Jodie\'s liking');
-  near(r.jodie[0].t, -11, 'Jodie\'s trust');
-  assert.deepEqual([r.jodie[0].w, r.jodie[0].t, r.jodie[0].s, r.jodie[2]], [39, -12, 38, 30]);
-  assert.deepEqual(r.jodie[1].slice(0, 2), ['warm to you', 'sweet on you']);
+  assert.deepEqual(r.jdays, [[2, 0, 0], [3, 0, 0], [4, 0, 0], [5, 14, 2], [6, 26, 18], [7, 38, 32], [8, 47, 47]], 'day, spark, romance');
+  assert.deepEqual([r.jodie[0].w, r.jodie[0].t, r.jodie[0].s, r.jodie[2]], [66, 1, 47, 47]);
+  assert.deepEqual(r.jodie[1].slice(0, 2), ['loyal to you', 'sweet on you']);
   assert.equal(r.jodie[3], 'lights up when you come in, remembers what you told her');
   assert.deepEqual(r.jfeed, ['Jodie Strayhorn is sweet on you.']);
-  // Asked to stay: the gate fails (spark under 50, liking under 40, trust under 30); a welcome flirt is all that is recorded.
+  // Asked to stay: the gate fails (spark under 50, trust under 30; wave 35: romance 47 is past its 40); nothing intimate is recorded.
   assert.deepEqual(r.more[0], ['ROMANCE (decided by the engine): Jodie Strayhorn: not tonight; she says so kindly.']);
   assert.ok(!r.more[1].includes('intimate'), JSON.stringify(r.more[1]));
 });
@@ -1340,7 +1353,7 @@ s.test('example 15, Jodie at the motor court (A): walked in by the story, then "
       out.days.push({ roll: c.roll ? [c.roll.stat, c.roll.difficulty, c.roll.tier] : null, here, aimed: c.romance.aimed, lines: G.Pipeline.lastTurn.packet.split('\n').filter(l => /^ROMANCE/.test(l)), ds: __tr(J).s - s0, s: __tr(J).s, st: __st(J),
         others: here.filter(id => id !== J).filter(id => S.npc(id).memories.some(m => m.event === 'flirted' && m.turn > t0)) });
     }
-    out.end = [__tr(J), __st(J), R.cue(S.npc(J)), S.npc(J).rel.wRom];
+    out.end = [__tr(J), __st(J), R.cue(S.npc(J))];
     return out;
   });
   assert.deepEqual([r.start[0].w, r.start[0].t, r.start[0].k, r.start[0].s], [-18, -37, 51, 0]);
@@ -1356,8 +1369,9 @@ s.test('example 15, Jodie at the motor court (A): walked in by the story, then "
   assert.equal(d3.ds, 12, 'S +12 (10 x her rate 1.2)');
   assert.deepEqual(r.days.map(d => d.s), [12, 22, 32, 39, 46], 'the design\'s mornings (wave 34: on five successful rolls)');
   assert.equal(r.days[2].st[1], 'has noticed you');
-  const [tr, st, cue, wRom] = r.end;
-  assert.ok(tr.w - wRom < 25 && tr.t <= -25, JSON.stringify(r.end));
+  // Changed by design in wave 35: romance in place of caring liking; five kisses and nothing else leave it under 20 (+2 x 1.2 a kiss, fading on the bond clock).
+  const [tr, st, cue] = r.end;
+  assert.ok(tr.m > 0 && tr.m < 20 && tr.t <= -25, JSON.stringify(r.end));
   assert.deepEqual(st.slice(0, 2), ['suspicious of you', 'using you'], '"Suspicious of you · using you"');
   assert.equal(cue, 'wants you around for one reason, doesn\'t ask about your day');
 });

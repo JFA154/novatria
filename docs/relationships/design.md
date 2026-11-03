@@ -232,10 +232,10 @@ Takeaway: sourced, decaying contributions plus hooks; a closed set of social act
 
 ```
 npc.rel = {
-  start:   { w: 5, t: -10, f: 0, k: 0, s: 0 },   // from TOWN_DATA; editor track edits write here (5.1)
-  w, t, f, k, s,                                 // derived: start + memories + everyday (+ leverage fear), recomputed by code
+  start:   { w: 5, t: -10, f: 0, k: 0, s: 0, m: 0 },   // from TOWN_DATA; editor track edits write here (5.1)
+  w, t, f, k, s, m,                              // derived: start + memories + everyday (+ leverage fear), recomputed by code
   owed:    [ { dir: +1, size: 2, key: "m41", day: 7, turn: 52 } ],  // +1 they owe you, -1 you owe them
-  everyday:{ w: 0, t: 0, k: 0, s: 0 },           // small things not worth a memory; each held to ±15
+  everyday:{ w: 0, t: 0, k: 0, s: 0, m: 0 },     // small things not worth a memory; each held to ±15
   bands:   { w: "warm", t: "unsure", f: "uneasy" },  // with hysteresis (2.4)
   status:  { now: "sweet on you", printed: "sweet on you", printedDay: 6 },  // spark status with hysteresis; feed line once per 7 days (2.5)
   romance: null,                                 // tier C ("seeing you", "old flame")
@@ -251,7 +251,8 @@ state.leverage = [ ... ]                         // per pair, both directions (2
 | **Fear** `f` | 0..100 | Are they afraid of what you'll do, or of what you know? It fades fast. Leverage feeds part of it. |
 | **Knows you** `k` | 0..100 | How well they know you. It never fades. Mostly code feeds it (turns aimed at them, time together), and every event adds at least +2. |
 | **Spark** `s` | 0..100 | Do they want you? It fades unless it is fed. It is held at 0 for anyone not eligible (2.7). |
-| **Owed** | favours, net -3..+3 | Who owes whom, apart from money. |
+| **Romance** `m` | 0..100 | Do they care about you that way? Wave 35 (3 Nov 2026, the owner: "Romance and spark are different"): stored on its own; it grows out of wanting plus substance and fades over weeks (2.5). Held at 0 for anyone not eligible, as spark is (2.7). `r` is the grudge axis's, so the key is `m`. |
+| **Owed** | favours, net -3..+3 | Who owes whom, apart from money. Wave 35: the Edit form can set the net by hand (one ledger entry). |
 
 - **No trust cap.** v1's cap of `20 + k` only bound on days 1 and 2 (F6). The preconditions in 3.2 stop the staged gains it was meant to stop.
 - **Respect is derived, not stored** (2.8).
@@ -327,7 +328,39 @@ Contempt is not a 13th phrase. "Against you" takes the cue "talks past you" when
 
 ### 2.5 Spark: wanting against caring (decision)
 
-**Decision: one stored spark track, statuses derived by code.**
+**Reversed by the owner, 3 Nov 2026 (wave 35).** "I want 6 sliders with
+spark too." and then "Romance and spark are different." Spark (wanting)
+and romance (caring about someone that way) are two stored tracks; the
+decision below, one stored spark track with caring derived from liking and
+trust, is kept as history. What replaces it:
+
+- **Romance `m`** (0..100) is stored in `start`, `everyday`, `fix`, the
+  cache and each memory's part, as spark is, and under the same guard
+  (2.7).
+- **What grows it:** a welcome flirt +2 (spark stays the flirt's main
+  effect); time together +3, a confidence they make +4, one the player
+  makes +3, a favour +4, standing up for them +8, a rescue +12, a word kept
+  +5, each only while spark is 20 or more (romance grows out of wanting
+  plus substance); `intimate` +10. Gains x the person's `romanceRate`
+  (Appendix E; their `sparkRate` when it is not given); never a trait.
+- **What lowers it:** `rebuffed` -10, a caught lie -8, a broken word -8, a
+  betrayed confidence -20; any weight-3 harm halves it as it halves spark;
+  a jealous onlooker (3.1) -5 with spark -5.
+- **Fading:** on the bond clock, half-life 14 days, floor 0 (a night
+  together on the scar clock); everyday romance drifts 1 a day on days
+  unseen.
+- **The statuses read both** (first match, 5 points of hysteresis, the
+  7-day feed rule as below): falling for you, romance 60 and spark 40;
+  sweet on you, romance 30; using you, spark 40, romance under 20, trust
+  -25 or less with earned distrust or `mercenary`; wants you, spark 40,
+  romance under 20; has noticed you, spark 20. Cues and feed lines are the
+  table's below. Caring liking (N3) is gone: flirting alone still never
+  makes anyone sweet on the player, because a flirt grows romance only a
+  little.
+- **The night** reads romance 40 where it read liking 40 (spark 50,
+  romance 40, trust 30, knows 30).
+
+**Decision (wave 29, reversed in wave 35): one stored spark track, statuses derived by code.**
 
 - Caring is already stored as liking and trust: sourced, fading and explained by memories. A second "affection" number would duplicate them and drift away from them.
 - Every case the owner named is a spark level read against liking and trust:
@@ -351,10 +384,10 @@ Contempt is not a 13th phrase. "Against you" takes the cue "talks past you" when
 |---|---|---|---|
 | seeing you *(C)* | romance `involved` | "easy and close with you; careful in front of others" | "You're seeing Jodie Strayhorn." |
 | old flame *(C)* | romance `over` | spark 40+: "still wants you; won't say so". Under 40: "polite; doesn't stand close any more" | "Things with Jodie Strayhorn are over." |
-| falling for you | spark 60+, caring liking 50+, trust 25+ | "lights up when you come in; stands close; asks where you've been" | "Jodie Strayhorn is falling for you." |
-| sweet on you | spark 30+, caring liking 25+ | "lights up when you come in; remembers what you told her" | "Jodie Strayhorn is sweet on you." |
-| using you | spark 40+, liking under 25, trust -25 or less, with earned distrust or `mercenary` | "wants you around for one reason; doesn't ask about your day" | "Shayla Rawls is interested. It isn't friendship." |
-| wants you | spark 40+, liking under 25, otherwise | trust -25 or less: "flirts back; keeps it light; doesn't trust you". Otherwise: "flirts back; keeps it light; not sure she likes you" | "Curtis Pruett is interested." |
+| falling for you | wave 35: romance 60+, spark 40+ (was spark 60+, caring liking 50+, trust 25+) | "lights up when you come in; stands close; asks where you've been" | "Jodie Strayhorn is falling for you." |
+| sweet on you | wave 35: romance 30+ (was spark 30+, caring liking 25+) | "lights up when you come in; remembers what you told her" | "Jodie Strayhorn is sweet on you." |
+| using you | spark 40+, romance under 20 (wave 35; was liking under 25), trust -25 or less, with earned distrust or `mercenary` | "wants you around for one reason; doesn't ask about your day" | "Shayla Rawls is interested. It isn't friendship." |
+| wants you | spark 40+, romance under 20 (wave 35; was liking under 25), otherwise | trust -25 or less: "flirts back; keeps it light; doesn't trust you". Otherwise: "flirts back; keeps it light; not sure she likes you" | "Curtis Pruett is interested." |
 | has noticed you | spark 20+, none of the above | "looks twice; finds a reason to stand near you" | "Jodie Strayhorn looks at you twice." |
 
 **"Sweet on you" and "falling for you" are cue-only.** They change how the person is played, not what code lets them do. Favours still follow the favour rule (6.2).
@@ -400,7 +433,7 @@ Liking is not required (the dice read it), and nobody is against-you-closed or f
   - `romantic: "more"`;
   - both adults, the player too (2.7);
   - eligible, and knowing the player at least their `opensAt` (no roll: wave 34);
-  - spark 50 or more, liking 40 or more, trust 30 or more, knows-you 30 or more;
+  - spark 50 or more, romance 40 or more (wave 35; liking 40 before), trust 30 or more, knows-you 30 or more;
   - not coercion.
   - Money never helps: a gift the same turn adds nothing to the gate.
 - **Yes:** the narrator gets "`<Name>` says yes; fade to black." The engine records `intimate` (W +10, T +5, K +15, S +15, weight 3, scar). It is private: no witnesses, no news, no reputation.
@@ -1403,6 +1436,7 @@ Royce starts at W 10, T 5. He is at the Low Water in the afternoons, as is Elber
   - Feed: "Jodie Strayhorn is sweet on you."
   - **Day 6 night,** the player asks her to stay (`romantic: "more"`). The gate fails on spark (35, under 50), liking (39, under 40) and trust (-11, under 30). The narrator is told "Jodie Strayhorn says not tonight, kindly." (the code's line: `ROMANCE (decided by the engine): Jodie Strayhorn: not tonight; she says so kindly.`). The turn counts as a welcome flirt, and nothing more is recorded.
   - Shayla and Jodie are at almost the same spark. Earned distrust and caring separate them, and the cue says so.
+  - **Wave 35 (3 Nov 2026), romance its own track.** The Day 3 favour and the Day 4 confidence come before she has noticed the player (spark 20), so they grow no romance; the example runs to Day 8 (flirts from Day 4; favours and confidences on Days 6 to 8, one more each night), and the code pins day by day spark 0, 0, 0, 14, 26, 38, 47 and romance 0, 0, 0, 2, 18, 32, 47: **W 66, T 1, S 47, romance 47**, "loyal to you · sweet on you" (romance 30 or more). Shayla, at almost the same spark, has romance under 20: "using you". Asked to stay on Day 8 night she says not tonight (spark 47 under 50, trust 1 under 30; romance 47 is past its 40).
 
 #### 11. Hollis Byrd: leverage gained and used (A)
 
@@ -1732,6 +1766,7 @@ to you: <stance>[; <tag>] — <reason> (Day N)[; <reason> (Day N)] — plays it:
 | **Guilt by association** (time spent with Colt cools Tammy: "you run with the Purvises") | **Deferred** (N12). | It needs the graph plus a co-presence count per pair. It fits after B ships. |
 | **A parent notices repeated private time or gifts with their child** | **Deferred** (N12). | It is safe without it: the minor guard already covers advances. It needs a per-pair private-time count. It is worth adding once the eval shows how often players do it. |
 | **Gratitude** | **Derived:** owed plus liking. | Already stored. |
+| **Romantic feeling** (caring about the player that way) | **Stored, wave 35** (3 Nov 2026): the owner reversed the derived reading ("Romance and spark are different"); romance `m` beside spark (2.5). | The owner wants it set and seen on its own, a slider of its own. |
 | **Respect / standing** | **Derived** (2.8). | Town tier plus trust. |
 | **Envy, admiration** | **Dropped.** | No behaviour turns on them. |
 | **Shame about what you know** | **Derived** from aware leverage. | The record carries it. |

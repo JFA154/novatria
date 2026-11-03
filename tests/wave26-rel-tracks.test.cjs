@@ -76,7 +76,8 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   });
   assert.deepEqual(r.shape, [], 'everyone has the record');
   assert.deepEqual(r.alias, [], 'attitude is liking, for everyone');
-  assert.deepEqual(r.tracks, [['w', 't', 'f', 'k', 's'], ['w', 't', 'f', 'k', 's', 'owed']], 'five tracks and owed');
+  // Changed by design in wave 35: romance (m) is its own track beside spark.
+  assert.deepEqual(r.tracks, [['w', 't', 'f', 'k', 's', 'm'], ['w', 't', 'f', 'k', 's', 'm', 'owed']], 'six tracks and owed');
   assert.deepEqual(r.state, [[], { secrets: {} }, true]);
   assert.deepEqual(r.keys, [false, true, true], 'engine keys: the model cannot send them (socialEvents is the bookkeeper\'s since wave 28)');
   // Changed by design in wave 29 (A4): owedSettle and leverageSet make 31.
@@ -98,7 +99,8 @@ s.test('the tracks under the number: rel with six tracks on every person, attitu
   // Debug: every person's line carries the tracks, liking equal to attitude, and the stance.
   await sendText(page, '/debug');
   const dbg = await page.innerText('#panel-body');
-  const lines = [...dbg.matchAll(/ att (-?\d+) \([a-z]+\).* · w (-?\d+) t (-?\d+) f (\d+) k (\d+) s (\d+) · ([a-z',  ]+)/g)];
+  // Changed by design in wave 35: the seven (romance m and favours owed after spark).
+  const lines = [...dbg.matchAll(/ att (-?\d+) \([a-z]+\).* · w (-?\d+) t (-?\d+) f (\d+) k (\d+) s (\d+) m \d+ owed -?\d+ · ([a-z',  ]+)/g)];
   const count = await page.evaluate(() => Game.state.npcs.length);
   assert.equal(lines.length, count, 'one line a person');
   assert.ok(lines.every(m => m[1] === m[2]), 'w is att');
@@ -150,9 +152,10 @@ s.test('socialEvent: a hit costs liking, trust and gives fear as one wound memor
   assert.deepEqual(r.res[0], []);
   // Wave 31: the line goes on with whom it reached through their ties (Royce here, his boss; Mavis, his wife, by tonight).
   assert.ok(r.res[1].startsWith('effects[0]: socialEvent: npc_dewayne hit: liking 0 -> -25, trust -5 -> -17, fear 0 -> 20, knows 0 -> 2; remembers "hit me in my bay over a tow bill" (weight 3)'), r.res[1]);
-  assert.deepEqual(r.after, [-25, { w: -25, t: -17, f: 20, k: 2, s: 0, owed: 0 }], 'W -25, T -5 - 10 x 1.15, F 20 (design example 1)');
-  assert.deepEqual(r.mems, [{ event: 'hit', weight: 3, decay: 'wound', d: { w: -25, t: -12, f: 20, k: 2, s: 0 }, n: 1, key: `m${r.where[0]}-npc_dewayne`, place: r.where[1], text: 'hit me in my bay over a tow bill' }], 'one wound memory that keeps what it did');
-  assert.equal(r.stance, 'w -25 t -17 f 20 k 2 s 0 · against you · uneasy around you');
+  // Wave 35: romance (m) beside spark, 0 here.
+  assert.deepEqual(r.after, [-25, { w: -25, t: -17, f: 20, k: 2, s: 0, m: 0, owed: 0 }], 'W -25, T -5 - 10 x 1.15, F 20 (design example 1)');
+  assert.deepEqual(r.mems, [{ event: 'hit', weight: 3, decay: 'wound', d: { w: -25, t: -12, f: 20, k: 2, s: 0, m: 0 }, n: 1, key: `m${r.where[0]}-npc_dewayne`, place: r.where[1], text: 'hit me in my bay over a tow bill' }], 'one wound memory that keeps what it did');
+  assert.equal(r.stance, 'w -25 t -17 f 20 k 2 s 0 m 0 owed 0 · against you · uneasy around you');
   assert.match(r.refused[0], /unknown event "slapped"/);
   assert.match(r.refused[1], /needs text/);
   assert.match(r.refused[2], /d\.w must be a whole number within \+\/-50/);

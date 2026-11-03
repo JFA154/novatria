@@ -155,9 +155,9 @@ s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say
       __put('loc_pittmans', [], d, 'morning');
       await __do('we make it successfully to my room', { actionType: 'move', destinationId: 'loc_motor_court', timeCost: 'short' }, t96);
       out.days.push(Object.assign({ here: __here().includes('npc_jodie') }, await kiss()));
-      if (d === 5) out.three = [__tr('npc_jodie'), __st('npc_jodie'), S.npc('npc_jodie').rel.wRom];
+      if (d === 5) out.three = [__tr('npc_jodie'), __st('npc_jodie')];
     }
-    out.end = [__tr('npc_jodie'), __st('npc_jodie'), S.npc('npc_jodie').rel.wRom];
+    out.end = [__tr('npc_jodie'), __st('npc_jodie')];
     return out;
   }, [TURN96, TURN97]);
   const d1 = r.days[0];
@@ -179,13 +179,15 @@ s.test('(a) the owner\'s scene: Jodie walked in by the story, then "I don\'t say
   }
   /* Three mornings (12 a kiss, less what fades each night) leave her spark
      at 32 (wave 34: the path 12, 22, 32, 39, 46 holds, every kiss a success): "has noticed you", short of the 40 "using you" needs; the fourth
-     is 39 and the fifth 46. Then: caring liking under 25, trust -25 or
-     less, earned by the threat on her record: using you. */
+     is 39 and the fifth 46. Then (changed by design in wave 35: romance in
+     place of caring liking): romance under 20 (five kisses and nothing
+     else, +2 x 1.2 each, fading on the bond clock), trust -25 or less,
+     earned by the threat on her record: using you. */
   assert.equal(r.three[0].s, 32, JSON.stringify(r.three));
   assert.deepEqual(r.three[1].slice(0, 2), ['suspicious of you', 'has noticed you'], JSON.stringify(r.three));
-  const [tr, st, wRom] = r.end;
+  const [tr, st] = r.end;
   assert.equal(tr.s, 46, JSON.stringify(r.end));
-  assert.ok(tr.w - wRom < 25 && tr.t <= -25, JSON.stringify(r.end));
+  assert.ok(tr.m > 0 && tr.m < 20 && tr.t <= -25, JSON.stringify(r.end));
   assert.deepEqual(st.slice(0, 2), ['suspicious of you', 'using you'], JSON.stringify(r.end));
 });
 
