@@ -1,0 +1,86 @@
+# Wave 36: the nightly run. The whole suite serial (node tests/run.cjs -j 1,
+# each file's output streamed as it runs), then the 21-day relationship
+# simulator with its bands asserted (node tests/relationships-sim.cjs
+# --assert: the Day 14 and Day 21 bands included; tests.yml only runs the
+# eight-day cut inside tests/wave30-rel-people.test.cjs). Same Playwright
+# pin, install and cache as tests.yml. Off-peak: 04:17 UTC, and by hand.
+name: nightly
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  PLAYWRIGHT_VERSION: 1.63.0
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history: tests/fixtures/make-v8-save.cjs builds an older save from 56e69f5's index.html.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cache Playwright and Chromium
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ${{ runner.temp }}/pw/node_modules
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+      - name: Install Playwright and Chromium (outside the checkout)
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          mkdir -p pw && cd pw
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx --no-install playwright install-deps chromium
+          else
+            npm init -y > /dev/null
+            npm i --no-save "playwright@${PLAYWRIGHT_VERSION}"
+            npx --no-install playwright install --with-deps chromium
+          fi
+          node -e "console.log('playwright', require('playwright/package.json').version)"
+      - name: The whole suite, serial
+        shell: bash
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+          UI_SHOTS: ${{ runner.temp }}/shots
+        run: node tests/run.cjs -j 1 2>&1 | tee "${{ runner.temp }}/run.log"
+      - name: The 21-day relationship simulator, bands asserted
+        if: success() || failure()
+        shell: bash
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node tests/relationships-sim.cjs --assert 2>&1 | tee "${{ runner.temp }}/sim.log"
+      - name: Time per file
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Nightly: time per file, slowest first"
+            echo '```'
+            sed -n '/^Time per file, slowest first:/,$p' "${{ runner.temp }}/run.log" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-logs
+          path: |
+            ${{ runner.temp }}/run.log
+            ${{ runner.temp }}/sim.log
+            ${{ runner.temp }}/shots/
+          if-no-files-found: ignore
+          retention-days: 14

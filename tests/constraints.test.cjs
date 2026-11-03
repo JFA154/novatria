@@ -64,4 +64,38 @@ s.test('it runs from file:// with the network blocked: only the font is ever req
   assert.deepEqual(g.own, []);
 });
 
+/* Wave 36: a byte budget for the one file. index.html is about 2.49 MB
+   today; the budget is 3.25 MB because an inline font of about 150 KB is
+   coming in another wave (the Google Fonts link replaced by a data: URI),
+   which leaves room for that and for ordinary growth while still catching a
+   runaway (a duplicated town, a pasted log, a base64 blob by mistake). */
+const BYTE_BUDGET = 3250000; // bytes, decimal MB as the 2.49 MB above (2,489,949 bytes in Nov 2026)
+s.test('index.html stays inside its byte budget (3.25 MB)', async () => {
+  const bytes = fs.statSync(GAME_PATH).size;
+  assert.ok(bytes <= BYTE_BUDGET, `index.html is ${(bytes / 1e6).toFixed(2)} MB (${bytes} bytes), over the ${BYTE_BUDGET / 1e6} MB budget`);
+});
+
+/* Wave 36: the inline script compiles, and a syntax error names its line in
+   index.html (the script's text is placed at its own line: blank lines
+   before it keep the numbers the file's). */
+s.test('the inline script compiles: a syntax error names its line in index.html', async () => {
+  const vm = require('vm');
+  const html = fs.readFileSync(GAME_PATH, 'utf8');
+  const blocks = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+  assert.ok(blocks.length >= 1, 'an inline script');
+  for (const m of blocks) {
+    const start = m.index + m[0].indexOf('>') + 1;
+    const line = html.slice(0, start).split('\n').length;
+    const src = '\n'.repeat(line - 1) + m[1];
+    try { new vm.Script(src, { filename: 'index.html' }); }
+    catch (e) {
+      const at = /index\.html:(\d+)/.exec(String(e.stack)) || [];
+      throw new Error(`the inline script starting at index.html:${line} does not compile: ${e.message} (index.html:${at[1] || '?'})`);
+    }
+  }
+  // The check itself names the line: a broken copy fails at the line broken.
+  const broken = '\n'.repeat(41) + 'var ok = 1;\nvar = ;\n';
+  assert.throws(() => new vm.Script(broken, { filename: 'index.html' }), e => /index\.html:43/.test(String(e.stack)));
+});
+
 s.run();
