@@ -4,6 +4,7 @@
 # --assert: the Day 14 and Day 21 bands included; tests.yml only runs the
 # eight-day cut inside tests/wave30-rel-people.test.cjs). Same Playwright
 # pin, install and cache as tests.yml. Off-peak: 04:17 UTC, and by hand.
+# Wave 50: node tools/build.cjs --check first, as in tests.yml.
 name: nightly
 
 on:
@@ -27,6 +28,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # Wave 50: index.html is built from src/ (node tools/build.cjs); fail
+      # fast, before the install, when the two disagree.
+      - name: index.html matches a fresh build of src/
+        run: node tools/build.cjs --check
       - name: Cache Playwright and Chromium
         id: pw-cache
         uses: actions/cache@v4

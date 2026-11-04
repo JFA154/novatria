@@ -9,6 +9,8 @@
 # the newer run cancels the older; the run log and any screenshots
 # ($UI_SHOTS, tests/ui-fixes.test.cjs) are uploaded when a shard fails.
 # The full serial run and the 21-day simulator are in nightly.yml.
+# Wave 50: first, node tools/build.cjs --check (index.html equals a fresh
+# build of src/; about a second, in every shard).
 name: tests
 
 on:
@@ -37,6 +39,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # Wave 50: index.html is built from src/ (node tools/build.cjs); fail
+      # fast, before the install, when the two disagree.
+      - name: index.html matches a fresh build of src/
+        run: node tools/build.cjs --check
       - name: Cache Playwright and Chromium
         id: pw-cache
         uses: actions/cache@v4

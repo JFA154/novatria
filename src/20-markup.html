@@ -1,0 +1,418 @@
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Wave 45: the first thing Tab reaches on the game screen; it takes the focus to the box (or the story, when the box cannot be used). -->
+  <a class="skip-link" id="skip-link" href="#cmd" hidden>Skip to the story</a>
+  <div id="banner" class="banner" role="alert" hidden>
+    <span id="banner-text"></span>
+    <button type="button" class="btn ghost small" id="banner-close">Dismiss</button>
+  </div>
+
+  <!-- ===== Title ===== -->
+  <section id="screen-title" class="screen active" aria-labelledby="title-name">
+    <div class="page">
+      <div class="page-inner title-wrap">
+        <p class="eyebrow">A one-town text RPG</p>
+        <h1 id="title-name" class="title-name" tabindex="-1">Novatria</h1>
+        <p id="title-tagline" class="title-tagline"></p>
+        <div class="menu-list" id="menu-list">
+          <button type="button" class="btn primary" id="btn-new">New game</button>
+          <!-- With an autosave, this group comes first and Continue is the primary button (UI.renderTitle). -->
+          <div class="continue-group" id="continue-group">
+            <div class="menu-row">
+              <button type="button" class="btn" id="btn-continue" aria-describedby="continue-sub">Continue</button>
+              <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
+            </div>
+            <p class="title-note" id="continue-sub" hidden></p>
+            <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
+            <p class="title-note warn" id="title-newer-note" hidden>Saved by a newer version; it may not play right here.</p>
+          </div>
+          <div class="title-broken" id="title-broken" role="alert" hidden>
+            <p id="title-broken-text"></p>
+            <button type="button" class="btn small" id="btn-broken-download">Download it</button>
+          </div>
+          <button type="button" class="btn" id="btn-load">Load</button>
+          <button type="button" class="btn" id="btn-settings">Settings</button>
+        </div>
+        <p class="status-chip" id="title-mode" data-mode="demo"><span id="title-mode-text"></span><button type="button" class="link-btn" id="title-mode-act" hidden></button></p>
+        <div class="title-foot">
+          <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
+          <span class="build-line" id="title-build"></span>
+        </div>
+        <div class="title-about">
+          <p id="title-setting" class="title-setting"></p>
+          <details class="title-more" id="title-more">
+            <summary>More about the town</summary>
+            <p id="title-setting-more" class="title-setting"></p>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Character creation ===== -->
+  <section id="screen-create" class="screen create" aria-labelledby="create-title">
+    <div class="page" id="create-scroll">
+      <div class="page-inner">
+        <!-- First launch with no key: how to play, before anything else. -->
+        <div id="create-mode-view" hidden>
+          <header class="page-head">
+            <h1 class="page-title" id="mode-title" tabindex="-1">How do you want to play?</h1>
+            <p class="muted">Claude writes the story from what you type. You can also try the game offline first.</p>
+          </header>
+          <div class="choice-grid mode-grid" role="group" aria-label="How to play">
+            <button type="button" class="choice" id="choose-claude" aria-expanded="false" aria-controls="mode-key">
+              <span class="choice-title">Play with Claude (paste your API key)</span>
+              <span class="choice-sub">Claude narrates every turn. You need an Anthropic API key; at the Standard quality a turn costs about 4 to 5 cents, and a whole three-week game about $15 to $25 (Thrifty is about a quarter of that).</span>
+            </button>
+            <button type="button" class="choice" id="choose-demo">
+              <span class="choice-title">Try the offline demo (canned replies)</span>
+              <span class="choice-sub">No key and no API calls. The replies are canned, so the story barely moves, but the controls, dice and town all work.</span>
+            </button>
+          </div>
+          <div class="card mode-key" id="mode-key" hidden>
+            <!-- Wave 44: how to get a key, step by step, for someone who has never used the Console. -->
+            <p class="key-steps-h" id="key-steps-h">Getting a key (a few minutes, once):</p>
+            <ol class="key-steps" id="key-steps" aria-labelledby="key-steps-h">
+              <li>Make an account at <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>.</li>
+              <li>Add some credit under Settings → Billing.</li>
+              <li>Set a monthly spend limit under Settings → Limits, so the game can never cost more.</li>
+              <li>Create a key under Settings → API keys, copy it and paste it below.</li>
+            </ol>
+            <p class="hint" id="key-preset-note">The game starts on Standard quality; Settings has Thrifty for less.</p>
+            <label class="label" for="mode-key-input">Anthropic API key</label>
+            <input class="input" id="mode-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+            <label class="check"><input type="checkbox" id="mode-remember"> Remember on this device</label>
+            <p class="hint">Remember keeps the key in this browser after it closes, where other files you open from this computer could read it. Unticked, it is forgotten when this tab closes.</p>
+            <p class="err" id="mode-key-err" role="alert"></p>
+            <div class="row-btns"><button type="button" class="btn primary" id="mode-key-go">Continue</button></div>
+          </div>
+          <div class="screen-actions">
+            <button type="button" class="btn" id="mode-cancel">Back to title</button>
+          </div>
+        </div>
+        <div id="create-form-view">
+          <header class="page-head">
+            <h1 class="page-title" id="create-title" tabindex="-1">Who are you?</h1>
+            <p class="step-count mobile-only" id="cr-count"></p>
+          </header>
+          <div class="cr-random"><button type="button" class="btn small" id="cr-random">Random character</button></div>
+          <div id="create-steps"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn desktop-only" id="cr-cancel">Back to title</button>
+            <button type="button" class="btn mobile-only" id="cr-back">Back</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary mobile-only" id="cr-next">Next</button>
+            <button type="button" class="btn primary desktop-only" id="cr-review">Review character</button>
+            <p class="cr-errsum" id="cr-errsum" role="alert"></p>
+          </div>
+        </div>
+        <div id="create-summary-view" hidden>
+          <header class="page-head">
+            <h1 class="page-title" id="summary-title" tabindex="-1">Ready to begin</h1>
+            <p class="muted">This is who walks into town. Your loose ends are now people in it.</p>
+          </header>
+          <div id="summary-card" class="card summary"></div>
+          <div class="screen-actions">
+            <button type="button" class="btn" id="cr-edit">Back to edit</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn primary" id="cr-begin">Begin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Game ===== -->
+  <section id="screen-game" class="screen" aria-labelledby="game-title">
+    <h1 class="visually-hidden" id="game-title" tabindex="-1">The story</h1>
+    <header class="topbar">
+      <div class="tb-main">
+        <span class="tb-time"><span class="tb-wd" id="tb-wd"></span><span id="tb-time"></span></span>
+        <span class="tb-next" id="tb-next" hidden></span>
+        <span class="tb-loc" id="tb-loc"></span>
+        <span class="tb-stat tb-hp">HP <b id="tb-hp"></b></span>
+        <span class="tb-stat tb-gold"><b id="tb-gold"></b><span id="tb-gold-unit"> gold</span></span>
+        <button type="button" class="tb-cost" id="tb-cost" hidden></button>
+      </div>
+      <div class="tb-actions">
+        <button type="button" class="btn ghost desktop-only" id="tb-save">Save</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-settings">Settings</button>
+        <button type="button" class="btn ghost desktop-only" id="tb-panel" aria-pressed="true" aria-controls="panel">Panel</button>
+        <button type="button" class="btn ghost mobile-only" id="tb-menu" aria-haspopup="true" aria-expanded="false" aria-controls="menu-pop">Menu</button>
+      </div>
+    </header>
+    <div class="popover" id="menu-pop" role="menu" aria-label="Menu" hidden>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="saves">Save / Load</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="settings">Settings</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="actions">Actions and commands</button>
+      <button type="button" class="btn ghost" role="menuitem" data-menu="title">Title screen</button>
+    </div>
+    <div class="bar-note" id="demo-bar" hidden>
+      <span id="demo-bar-text">Offline demo: replies are canned.</span>
+      <button type="button" class="btn small ghost" id="demo-bar-act">Add key</button>
+      <button type="button" class="bar-x" id="demo-bar-close" aria-label="Hide this note">&#215;</button>
+    </div>
+    <div class="bar-note warn" id="tab-bar" role="alert" hidden>
+      <span id="tab-bar-text">This game is open in another tab, so this tab is read-only.</span>
+      <button type="button" class="btn small" id="tab-bar-take">Play here instead</button>
+    </div>
+    <div class="game-body" id="game-body">
+      <main class="story" aria-labelledby="game-title">
+        <div class="feed-area">
+          <div class="feed-scroll" id="feed-scroll">
+            <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <!-- Outside the live region, laid over the newest input line (UI.placeUndo). -->
+            <div class="undo-row" id="undo-row" hidden><button type="button" class="f-undo" id="undo-btn" title="Take back the last turn (/undo)" aria-label="Undo the last turn">Undo</button></div>
+            <div class="feed-after" id="feed-after"></div>
+          </div>
+          <button type="button" class="new-btn" id="new-btn" hidden>&#8595; New</button>
+        </div>
+        <div class="composer">
+          <div class="composer-inner">
+            <div class="tabrow">
+              <nav class="tabbar" aria-label="Open a panel">
+                <button type="button" data-open-tab="character" aria-controls="panel" aria-expanded="false">Character</button>
+                <button type="button" data-open-tab="people" aria-controls="panel" aria-expanded="false">People</button>
+                <button type="button" data-open-tab="journal" aria-controls="panel" aria-expanded="false">Journal</button>
+                <button type="button" data-open-tab="objectives" aria-controls="panel" aria-expanded="false">Objectives</button>
+                <button type="button" data-open-tab="places" aria-controls="panel" aria-expanded="false">Places</button>
+              </nav>
+              <button type="button" class="tab-act" id="act-btn-m" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
+            </div>
+            <div class="popover act-pop" id="act-pop" role="menu" aria-label="Actions and commands" hidden></div>
+            <div class="say-to" id="say-to" role="group" aria-label="Say it to" hidden></div>
+            <div class="turn-status" id="turn-status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line">&#215;</button></span></div>
+            <!-- Wave 45: the status line read out (politely). It is always on the page, so a line shown after it was hidden is still announced; the visible line above holds the × button. -->
+            <span class="visually-hidden" id="turn-status-live" role="status" aria-live="polite" aria-atomic="true"></span>
+            <div class="input-row">
+              <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
+              <div class="mode-toggle" role="group" aria-label="Do or say">
+                <button type="button" class="mode-btn" id="mode-do" data-mode="do" aria-pressed="true">Do</button>
+                <button type="button" class="mode-btn" id="mode-say" data-mode="say" aria-pressed="false">Say</button>
+              </div>
+              <button type="button" class="btn act-btn desktop-only" id="act-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="act-pop" aria-label="Actions and commands" title="Actions and commands">&#8943;</button>
+              <div class="input-wrap">
+                <textarea id="cmd" class="cmd-input" rows="1" enterkeyhint="send" autocomplete="off" spellcheck="true"
+                  aria-label="Your action" aria-autocomplete="list" aria-controls="ac" aria-expanded="false"
+                  placeholder="What do you do? (/ or &#8943; for commands)"></textarea>
+              </div>
+              <button type="button" class="btn primary send-btn" id="send">Send</button>
+            </div>
+          </div>
+        </div>
+      </main>
+      <aside class="panel" id="panel" aria-label="Side panel">
+        <div class="panel-grip" aria-hidden="true"></div>
+        <div class="panel-head">
+          <div class="panel-tabs" id="panel-tabs" role="tablist"></div>
+          <button type="button" class="btn ghost panel-close" id="panel-close" aria-label="Close panel">&#215;</button>
+        </div>
+        <div class="panel-body" id="panel-body" role="tabpanel"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== Settings ===== -->
+  <section id="screen-settings" class="screen" aria-labelledby="settings-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head"><h1 class="page-title" id="settings-title" tabindex="-1">Settings</h1></header>
+        <p class="session-line" id="session-line"></p>
+        <form id="settings-form" autocomplete="off" novalidate>
+          <fieldset class="group">
+            <legend>Claude API</legend>
+            <div class="field">
+              <label class="label" for="set-key">API key</label>
+              <input class="input" id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+              <div class="key-row">
+                <button type="button" class="btn small" id="set-check-key">Check key</button>
+                <span class="key-status" id="key-status" role="status"></span>
+              </div>
+              <label class="check"><input type="checkbox" id="set-remember" aria-describedby="remember-warn"> Remember on this device</label>
+              <p class="warn-note" id="remember-warn">A remembered key stays in this browser, and other HTML files you open from this computer in the same browser can read it. Tick this only on your own device.</p>
+              <p class="hint">Unticked, the key is forgotten when this tab closes. It is never written into exported saves.</p>
+            </div>
+            <div class="field">
+              <span class="label" id="preset-label">Quality</span>
+              <div class="preset-grid" role="radiogroup" aria-labelledby="preset-label">
+                <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="thrifty"> Thrifty</span><span class="choice-sub">Sonnet writes, Haiku keeps the books, all at low effort. About 1¢ a turn.</span></label>
+                <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="standard"> Standard</span><span class="choice-sub">Opus writes, Sonnet keeps the books. About <span class="nowrap">4–5¢</span> a turn once warm.</span></label>
+                <label class="choice"><span class="choice-title"><input type="radio" name="set-preset" value="best"> Best</span><span class="choice-sub">Opus and Sonnet at high effort. Slower, about twice Standard.</span></label>
+              </div>
+              <p class="hint" id="preset-custom" hidden>Custom: your own models or effort (under Advanced).</p>
+            </div>
+            <details class="disclosure" id="set-advanced">
+              <summary>Advanced</summary>
+              <div class="field">
+                <label class="check"><input type="checkbox" id="set-mock"> Offline demo: canned replies, no API calls</label>
+                <label class="check"><input type="checkbox" id="set-keep-packets" aria-describedby="keep-packets-hint"> Keep bookkeeper packets</label>
+                <p class="hint" id="keep-packets-hint">Keeps this session's last 200 bookkeeper turns in memory, for the Debug view's "Export bookkeeper turns" (labelling them for the event eval). Nothing is saved or sent.</p>
+              </div>
+              <div class="field two">
+                <div>
+                  <label class="label" for="set-narrator-model">Narrator model</label>
+                  <input class="input" id="set-narrator-model" spellcheck="false">
+                </div>
+                <div>
+                  <label class="label" for="set-parser-model">Parser model</label>
+                  <input class="input" id="set-parser-model" spellcheck="false">
+                </div>
+              </div>
+              <div class="field">
+                <span class="label">Effort</span>
+                <div class="effort-grid">
+                  <div><label for="set-effort-narrator">Narrator</label><select class="input" id="set-effort-narrator" data-effort="narrator"><option>low</option><option>medium</option><option>high</option></select></div>
+                  <div><label for="set-effort-parser">Parser</label><select class="input" id="set-effort-parser" data-effort="parser"><option>low</option><option>medium</option><option>high</option></select></div>
+                  <div><label for="set-effort-bookkeeper">Bookkeeper</label><select class="input" id="set-effort-bookkeeper" data-effort="bookkeeper"><option>low</option><option>medium</option><option>high</option></select></div>
+                  <div><label for="set-effort-chronicle">Chronicle</label><select class="input" id="set-effort-chronicle" data-effort="chronicle"><option>low</option><option>medium</option><option>high</option></select></div>
+                </div>
+                <p class="hint">The narrator writes the story. The parser reads what you type. The bookkeeper records what changed after each turn. The chronicle sums up every ten turns.</p>
+              </div>
+              <p class="hint build-line" id="set-build"></p>
+            </details>
+          </fieldset>
+          <fieldset class="group" id="set-spending" tabindex="-1">
+            <legend>Spending</legend>
+            <p class="session-line spend-line" id="spend-line"></p>
+            <p class="hint" id="spend-pace"></p>
+            <div class="field">
+              <span class="label" id="ceiling-label">Pause and ask at</span>
+              <div class="seg" role="radiogroup" aria-labelledby="ceiling-label">
+                <label><input type="radio" name="set-ceiling" value="off"> Off</label>
+                <label><input type="radio" name="set-ceiling" value="5"> $5</label>
+                <label><input type="radio" name="set-ceiling" value="10"> $10</label>
+                <label><input type="radio" name="set-ceiling" value="20"> $20</label>
+                <label><input type="radio" name="set-ceiling" value="custom"> Custom</label>
+              </div>
+              <div class="ceiling-custom" id="ceiling-custom" hidden>
+                <label class="label" for="set-ceiling-amount">Amount in dollars</label>
+                <input class="input" id="set-ceiling-amount" type="number" min="0.01" max="10000" step="0.01" inputmode="decimal">
+              </div>
+              <p class="hint">When this game's cost reaches it, the story says so once and asks before the next turn runs. Off by default.</p>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Play</legend>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="set-rolls"> Show dice rolls in the story</label>
+              <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath</label>
+            </div>
+            <div class="field">
+              <span class="label">Narration style</span>
+              <div class="seg" role="radiogroup" aria-label="Narration style">
+                <label><input type="radio" name="set-style" value="casual"> Casual</label>
+                <label><input type="radio" name="set-style" value="literary"> Literary</label>
+              </div>
+              <p class="hint">Casual: plain and direct, like someone running the game at the table. Literary: tighter and more like a novel.</p>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Display</legend>
+            <div class="field">
+              <span class="label">Theme</span>
+              <div class="seg">
+                <label><input type="radio" name="set-theme" value="dark"> Dark</label>
+                <label><input type="radio" name="set-theme" value="parchment"> Parchment</label>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Text size</span>
+              <div class="seg">
+                <label><input type="radio" name="set-size" value="S"> Small</label>
+                <label><input type="radio" name="set-size" value="M"> Medium</label>
+                <label><input type="radio" name="set-size" value="L"> Large</label>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Game</legend>
+            <div class="field">
+              <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
+              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost;</li><li>gives what people remember about you its reasons: what kind of thing each memory was and how long it lasts, with how much they like you exactly as it was.</li></ul><p>About four API calls (none in the offline demo).</p></div>
+              <label class="check"><input type="checkbox" id="set-reread-memories" aria-describedby="set-reread-memories-hint"> Rewrite memories in the short form first</label>
+              <p class="hint" id="set-reread-memories-hint">When a game is brought up to "People who remember", the memories are first rewritten in the new short form (one call; off by default).</p>
+              <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
+              <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
+            </div>
+          </fieldset>
+          <!-- Wave 44: what this browser keeps, and a way to take it back. -->
+          <fieldset class="group" id="set-device">
+            <legend>This device</legend>
+            <div class="field">
+              <button type="button" class="btn" id="set-forget-key" aria-describedby="set-forget-hint">Forget key</button>
+              <p class="hint" id="set-forget-hint">Takes the API key out of this browser, remembered or not. Your games and settings stay. New game asks again how you want to play.</p>
+              <p class="device-status" id="set-forget-status" role="status"></p>
+            </div>
+            <div class="field">
+              <button type="button" class="btn danger wrap" id="set-wipe" aria-describedby="set-wipe-hint">Delete all game data on this device</button>
+              <p class="hint" id="set-wipe-hint">Deletes the autosaves, the save slots, the undo history, your settings and the API key from this browser, and starts again at the title screen. Files you exported are not touched.</p>
+            </div>
+          </fieldset>
+        </form>
+        <div class="screen-actions">
+          <button type="button" class="btn" id="settings-quit" hidden>Quit to title</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="settings-done">Done</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Saves ===== -->
+  <section id="screen-saves" class="screen" aria-labelledby="saves-title">
+    <div class="page">
+      <div class="page-inner">
+        <header class="page-head">
+          <h1 class="page-title" id="saves-title" tabindex="-1">Saved games</h1>
+          <p class="muted">One autosave after every turn, plus three named slots in this browser.</p>
+        </header>
+        <div class="field" id="save-name-field">
+          <label class="label" for="save-name">Name for a new save</label>
+          <input class="input" id="save-name" maxlength="40">
+        </div>
+        <div id="slot-list"></div>
+        <div class="group">
+          <h2 class="group-title">Move a game between devices</h2>
+          <p class="muted">Export writes a .json file with the game and its town. Your API key is never included.</p>
+          <p class="saves-export-note" id="last-export"></p>
+          <div class="row-btns" style="margin-bottom:12px">
+            <button type="button" class="btn" id="btn-export">Export current game</button>
+            <button type="button" class="btn" id="btn-import">Import from file</button>
+            <input type="file" id="import-file" accept=".json,application/json" hidden>
+          </div>
+          <p class="err" id="saves-error" role="alert"></p>
+        </div>
+        <div class="screen-actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn primary" id="saves-done">Back</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="ask" class="ask" aria-labelledby="ask-title" aria-describedby="ask-text">
+    <div class="ask-in">
+      <h2 id="ask-title"></h2>
+      <p id="ask-text"></p>
+      <div class="row-btns">
+        <button type="button" class="btn" id="ask-no">Cancel</button>
+        <button type="button" class="btn primary" id="ask-yes">OK</button>
+      </div>
+    </div>
+  </dialog>
+</div>
+<script>
+(function () {
+'use strict';
+
+/* ==========================================================================
+   CONTENT: the town of Lockett's Ferry (present day) and the character-creation data
+   (TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES,
+   FAVOUR_TEMPLATES), following docs/BUILD_PLAN.md "Shared data contract".
+   This block is meant to be edited by hand. After editing, run
+   node tests/validate-town.cjs: it reads the text between the BEGIN and END
+   CONTENT markers and checks every field and cross-reference.
+   ========================================================================== */

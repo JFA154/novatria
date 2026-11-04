@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-size="M">
+<head>
+<meta charset="utf-8">
+<!-- Defence in depth: the page may talk only to the Anthropic API and load only
+     its own inline code and font (wave 46: no Google host) and, on a host, its
+     manifest and icons. Another page cannot run code here or send the key away. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; connect-src https://api.anthropic.com; img-src 'self' data: blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lockett&#39;s Ferry">
+<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4ecda" media="(prefers-color-scheme: light)">
+<title>One-Town Text RPG</title>
+<!-- Wave 46: Add to Home Screen installs the game (a host serves these two
+     files beside index.html; from file:// the browser ignores them). -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+/* Pick theme and text size before first paint: the saved setting, else the OS
+   colour-scheme preference. Creates no globals. */
+(function () {
+  'use strict';
+  var theme = null, size = null;
+  try {
+    var saved = JSON.parse(window.localStorage.getItem('novatria.settings') || 'null');
+    if (saved) { theme = saved.theme; size = saved.textSize; }
+  } catch (e) { /* storage blocked: use defaults */ }
+  if (theme !== 'dark' && theme !== 'parchment') {
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'parchment' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  if (size === 'S' || size === 'M' || size === 'L') document.documentElement.setAttribute('data-size', size);
+})();
+</script>
+<style>
