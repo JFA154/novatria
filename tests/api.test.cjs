@@ -126,7 +126,7 @@ s.test({ toString: () => 'requests carry the four headers and a body the current
     assert.ok(!JSON.stringify(r.body).includes('"tool_choice"') && !JSON.stringify(r.body).includes('"budget_tokens"'));
     assert.equal(r.body.messages.length, 1);
     assert.equal(r.body.messages[0].role, 'user');
-    assert.equal(r.body.output_config.effort, { parser: 'low', narrator: 'medium', bookkeeper: 'medium', chronicle: 'medium' }[r.role], r.role + ' effort');
+    assert.equal(r.body.output_config.effort, { parser: 'low', narrator: 'medium', bookkeeper: 'high', chronicle: 'medium' }[r.role], r.role + ' effort (wave 53: the bookkeeper at high)');
   }
   const [parser, narrator, book] = reqs;
   assert.equal(parser.body.model, 'claude-sonnet-5-5');

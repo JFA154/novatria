@@ -420,7 +420,7 @@ s.test('the real provider: one structured-output call on the parser model at the
   assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
   assert.equal(body.max_tokens, 8000);
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
-  assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
+  assert.equal(body.output_config.effort, 'high', "the bookkeeper's effort (high since wave 53)");
   assert.equal(body.output_config.format.type, 'json_schema');
   assert.equal(body.messages.length, 1);
   assert.equal(body.messages[0].role, 'user');
@@ -633,7 +633,7 @@ s.test('version 3 against the real provider: one structured-output call on the p
   const body = reqs[0];
   assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
   assert.equal(body.max_tokens, 6000);
-  assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
+  assert.equal(body.output_config.effort, 'high', "the bookkeeper's effort (high since wave 53)");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
   const bad = [];
   (function walk(node, where) {
@@ -827,7 +827,7 @@ s.test('version 4 against the real provider: one structured-output call on the p
   const body = reqs[1];
   assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
   assert.equal(body.max_tokens, 3000);
-  assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
+  assert.equal(body.output_config.effort, 'high', "the bookkeeper's effort (high since wave 53)");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
   assert.equal(body.output_config.format.type, 'json_schema');
   const schema = body.output_config.format.schema;
@@ -1169,7 +1169,7 @@ s.test('version 5 against the real provider: one structured-output call on the p
   const body = reqs[0];
   assert.equal(body.model, 'claude-sonnet-5-5', 'the parser model');
   assert.equal(body.max_tokens, 6000);
-  assert.equal(body.output_config.effort, 'medium', "the bookkeeper's effort");
+  assert.equal(body.output_config.effort, 'high', "the bookkeeper's effort (high since wave 53)");
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
   const bad = [];
   (function walk(node, where) {

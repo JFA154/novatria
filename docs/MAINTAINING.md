@@ -283,6 +283,13 @@ default models (tokens estimated at 3.5 characters each, output assumed):
   rewrite on their own. The first draft stays on screen, dimmed, until the
   rewrite is in (and stays if it fails).
 - Thrifty is about 1 cent a turn; Best costs more for the extra thinking.
+- Since wave 53 the bookkeeper thinks at high effort in Thrifty and
+  Standard (the labelled eval: 93 to 94% of its social events named
+  exactly, against 23% for Haiku at low and 73% for Sonnet at medium).
+  Measured on the eval's 216 calls, cached as the game caches: Sonnet's
+  bookkeeper about 1.09 cents a call at high (0.98 at medium), so a
+  Standard turn about 4.8 cents; Haiku's 0.08 cents (0.05 at low), so
+  Thrifty stays about 1 cent.
 - Measured live on 4 Nov 2026 (wave 52): a scripted twelve-turn game on
   Standard, 32 calls, $0.67 in all, no narration rewritten. `/rest` was 2.6
   cents. The Debug tab shows the real token counts and cost for the turn and

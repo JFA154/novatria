@@ -2106,3 +2106,13 @@ talking, I can direct it to one person or all."
      guard held live, and the labelled eval ran (Haiku far below the bar).
      Check key says a refused key and no connection look the same from a
      browser.
+
+   - **Wave 53**: the bookkeeper's social events, measured and tuned on the
+     labelled eval (the owner: "the cheapest but also the highest %
+     possible"). The lever was effort, not the model: at high effort Haiku
+     5.5 names 93% of its events exactly (24% at low) and Sonnet 5.5 95%
+     (73% at medium), with the rubric rewritten to say what each word is
+     not (v7). Thrifty and Standard book at high effort (settings version
+     3 moves a player on either preset); no preset's models changed and
+     Opus is not needed. The bookkeeper's packet marks a minor present
+     ("UNDER 18 (16)"), which wave 52 had put in the parser's only.

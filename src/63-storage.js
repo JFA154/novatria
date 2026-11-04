@@ -17,7 +17,10 @@
    save with its town inline is read as before. Out of room (a QuotaExceededError, here or
    in IndexedDB): the feed says so once ("This device is out of room for
    saves; export your game."), the game plays on, and the autosave is kept
-   before the previous autosave (the previous one goes to make room). */
+   before the previous autosave (the previous one goes to make room).
+   Wave 53: settings version 3; the bookkeeper's effort is high in Thrifty
+   and Standard (V2_PRESETS: a version 2 setting that was exactly one of
+   them moves to the new one). */
 const Storage = (() => {
   const PREFIX = 'novatria.';
   const KEYS = { settings: PREFIX + 'settings', apiKey: PREFIX + 'apiKey', autosave: PREFIX + 'autosave', prev: PREFIX + 'autosave.prev', slot: n => PREFIX + 'slot.' + n, town: h => PREFIX + 'town.' + h };
@@ -40,13 +43,22 @@ const Storage = (() => {
      'claude'); entering a key turns it off (UI). lastExportAt (ISO) feeds
      "Last exported" on the Saves screen; persistAsked: navigator.storage
      .persist() was asked for once; tipSeen: the first-turn tip was shown. */
-  const SETTINGS_VERSION = 2;
+  const SETTINGS_VERSION = 3;
   const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
+  /* Wave 53: the labelled eval measured the bookkeeper's effort as the
+     lever (Haiku 5.5: 23% exact at low, 94% at high; Sonnet 5.5: 73% at
+     medium, 93% at high), so Thrifty and Standard now book at high. Settings
+     saved under version 2 that were exactly one of these two presets move
+     to the new one; any other effort set is the player's and is kept. */
+  const V2_PRESETS = [
+    { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5', effort: { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' } },
+    { narratorModel: 'claude-opus-5-5', parserModel: 'claude-sonnet-5-5', effort: { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' } }
+  ];
   const DEFAULTS = {
     settingsVersion: SETTINGS_VERSION,
     narratorModel: 'claude-opus-5-5',
     parserModel: 'claude-sonnet-5-5',
-    effort: { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' },
+    effort: { narrator: 'medium', parser: 'low', bookkeeper: 'high', chronicle: 'medium' },
     showRolls: true,
     permadeath: false,
     theme: null, // null: follow prefers-color-scheme
@@ -70,7 +82,7 @@ const Storage = (() => {
   /* Settings, "Quality": the models and effort each preset sets. A
      settings object that matches none of them is "custom". */
   const PRESETS = {
-    thrifty: { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5', effort: { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' } },
+    thrifty: { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5', effort: { narrator: 'low', parser: 'low', bookkeeper: 'high', chronicle: 'low' } },
     standard: { narratorModel: DEFAULTS.narratorModel, parserModel: DEFAULTS.parserModel, effort: Object.assign({}, DEFAULTS.effort) },
     best: { narratorModel: 'claude-opus-5-5', parserModel: 'claude-sonnet-5-5', effort: { narrator: 'high', parser: 'medium', bookkeeper: 'high', chronicle: 'high' } }
   };
@@ -117,13 +129,16 @@ const Storage = (() => {
   function cleanSettings(raw) {
     const s = deepCopy(DEFAULTS);
     if (!isObj(raw)) return s;
-    const legacy = !(typeof raw.settingsVersion === 'number' && raw.settingsVersion >= SETTINGS_VERSION);
+    const version = typeof raw.settingsVersion === 'number' ? raw.settingsVersion : 1;
+    const legacy = version < 2;
     const narr = typeof raw.narratorModel === 'string' ? raw.narratorModel.trim() : '';
     const pars = typeof raw.parserModel === 'string' ? raw.parserModel.trim() : '';
     if (narr && !(legacy && narr === V1_DEFAULTS.narratorModel)) s.narratorModel = narr;
     if (pars && !(legacy && pars === V1_DEFAULTS.parserModel)) s.parserModel = pars;
     const allLow = isObj(raw.effort) && Object.keys(s.effort).every(k => raw.effort[k] === 'low' || raw.effort[k] === undefined);
     if (isObj(raw.effort) && !(legacy && allLow)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
+    // Wave 53: version 2's Thrifty or Standard, exactly, takes the bookkeeper's new effort.
+    if (version === 2 && isObj(raw.effort) && V2_PRESETS.some(p => p.narratorModel === s.narratorModel && p.parserModel === s.parserModel && Object.keys(p.effort).every(k => p.effort[k] === s.effort[k]))) s.effort.bookkeeper = 'high';
     for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed', 'persistAsked', 'tipSeen', 'keepPackets', 'rereadMemories']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
     if (raw.theme === 'dark' || raw.theme === 'parchment') s.theme = raw.theme;
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;

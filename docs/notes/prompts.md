@@ -1198,3 +1198,132 @@ cast line ids (about 185 tokens) and the doubled cash rule.
 - romantic recall for minors: parser 97.6%, phrase list 95.2%, either 97.6%; false friends read as romantic 4 of 17
 - confusions (label -> sent): nothing -> noted 23; confided -> noted 5; came_clean -> noted 5; lied_caught -> noted 5; flirted -> noted 5; insulted -> noted 4; complimented -> noted 4; pried -> noted 4; apologised -> noted 4; kept_word -> noted 4; betrayed_confidence -> noted 4; crossed -> noted 4; rebuffed -> noted 4; bribed -> noted 4; they_confided -> confided 3; exposed -> noted 3; defended -> noted 3; informed_on -> noted 3; cheated -> noted 3; vouched_for -> noted 3; nothing -> insulted 2; did_favour -> they_helped 2; did_favour -> noted 2; they_helped -> noted 2; learned_secret -> noted 2; cheated -> insulted 2; badmouthed -> noted 2; gift -> noted 2; flirted -> rebuffed 2; insulted -> insulted 1; pried -> insulted 1; they_confided -> noted 1; came_clean -> complimented 1; they_helped -> did_favour 1; defended -> confided 1; informed_on -> insulted 1; rebuffed -> kept_word 1; noted -> noted 1; learned_secret -> confided 1; stole_from -> insulted 1; stole_from -> noted 1; flirted -> insulted 1; spent_time -> complimented 1; spent_time -> noted 1; complimented -> learned_secret 1; nothing -> pried 1
 - cost: $0.2433 (2136199 tokens in, 59345 out)
+
+## Wave 53 (4 Nov 2026): the bookkeeper's effort, and a rubric that says what each word is not
+
+The owner: "the cheapest but also the highest % possible". Measured with
+`node tests/eval-classify.cjs --only=bookkeeper` on the 216 rows (115
+expected labels after the fixes below); exact is of emitted events,
+missed of expected labels; the cost is a run of 216 bookkeeper calls at the
+page's prices with the system prompt cached as the game caches it.
+
+| rubric | model | effort | emitted | exact | invented | missed | minor events | cost a run |
+|---|---|---|---|---|---|---|---|---|
+| v2 | Haiku 5.5 | low | 83 | 20.5% | 77.1% | 97 | 24 | $0.10 |
+| v2 | Opus 5.5 | medium | 124 | 80.6% | 17.7% | 20 | 0 | $4.36 |
+| v2 | Haiku 5.5 | high | 98 | 83.7% | 16.3% | 35 | 0 | $0.16 |
+| v3 | Haiku 5.5 | low | 87 | 23.0% | 75.9% | 97 | 15 | $0.10 |
+| v3 | Sonnet 5.5 | medium | 86 | 75.6% | 24.4% | 53 | 0 | $2.06 |
+| v5 | Sonnet 5.5 | medium | 133 | 75.2% | 24.8% | 22 | 0 | $2.11 |
+| v6 | Sonnet 5.5 | high | 122 | 92.6% | 7.4% | 11 | 0 | $2.35 |
+| v6 | Haiku 5.5 | high | 118 | 94.1% | 5.9% | 15 | 1 | $0.16 |
+| v7 | Haiku 5.5 | high (two runs) | 121, 120 | 90.1%, 92.5% | 9.9%, 7.5% | 14, 13 | 0, 0 | $0.17 |
+
+(The v2 Opus row is its replies re-scored on the fixed labels with
+`--replay`; as first scored it was 78.2% exact, 20.2% invented.) The final
+full runs, recorded below, are v7 at high effort on Sonnet (Standard) and on
+Haiku (Thrifty).
+
+- **The lever was effort.** At low effort Haiku answers without thinking
+  (about 200 output tokens a call); at high it thinks (median 746, p95
+  1,393, max 2,880, well under `MAX_TOKENS.bookkeeper` 4,000). The same
+  rubric went from 23% to 94% exact on Haiku and from 73% to 93% on
+  Sonnet. **Thrifty and Standard now book at high effort**
+  (`Storage.PRESETS.thrifty.effort.bookkeeper`, `Storage.DEFAULTS.effort`);
+  Best already did. No preset's model changed; Opus is not needed (at
+  medium on v2 it was below Haiku at high on v7). The memory re-read,
+  places re-read, clock check and people pass (Upgrade) think at the
+  bookkeeper's effort too (`Api.EFFORT_OF`), so they move to high with it.
+  `SETTINGS_VERSION` is 3: version 2 settings that were exactly Thrifty or
+  Standard (`V2_PRESETS`) take the new bookkeeper effort, any other effort
+  set is kept. Cost a turn: Sonnet's bookkeeper about 1.09 cents at high
+  against 0.98 at medium (+0.11 cents on a 4.7-cent Standard turn); Haiku's
+  0.08 cents against 0.05 (+0.03 cents on a Thrifty turn).
+- **The rubric, v3 to v7** (`EVENT_RULES`, 989 words; the wave 28 pin is
+  500 to 1,000 now; `EVENT_EXAMPLES`, 621 words). What the dumps showed and
+  what changed: `noted` was the sink for anything said (a lie shown up, a
+  theft found out, a move against them, the asker of a kept secret), so
+  noted is now only what the PLAYER said about the player or promised, with
+  the words it is not named; the told-whom cases say who gets what
+  (betrayed_confidence: the listeners get nothing; telling on someone to the
+  law or whoever they answer to: informed_on on them and exposed on the one
+  told; exposed is a fact, badmouthed an opinion); learned_secret is
+  something they would hide from the town however it came out, they_confided
+  a trouble that is no wrongdoing; stole_from and cheated are said to be the
+  bookkeeper's (models read "a theft seen as it happened" as covering them);
+  the asker, the witness and the one stood up to get nothing; rebuffed is an
+  adult's; complimented, they_helped, did_favour and crossed have concrete
+  glosses. v3 opened with the send-nothing list and Sonnet then sent almost
+  nothing (53 missed); v4 put the positive rule first ("a missed act is as
+  wrong as a made-up one") and the never list last. The worked examples are
+  new scenes: wave 52's copied seven of the eval's own rows, which flatters
+  the score.
+- **The bookkeeper's packet marks a minor present** ("npc_kaylee — Kaylee
+  Pittman (she/her; …; stance: …; UNDER 18 (16): no event about a romantic
+  or flirting line at them)", `Pipeline.minorMark`). Wave 52 had put the mark
+  in the parser's packet only (and there it never fired: the parser's rows
+  carry no age), so the rubric's "anyone marked UNDER 18" had nothing to
+  read. The parser's row now says "UNDER 18 (16)" alone. The set's static
+  packets were brought up to the new packets (62 bookkeeper and 54 parser
+  rows with a minor present).
+- **Labels changed** (each on the rubric's own definitions, never toward a
+  reply): au-b103 and au-b104, caught_you_at kept → refused (ALREADY
+  APPLIED lists the engine's own caught_you_at that turn, and
+  `Rel.wireEvent` refuses a second); au-b081 to au-b084 gain the one told's
+  `exposed <the one told on>` with outcome knows (as au-b063 labels the
+  same act; the player holds nothing over them); au-b102 gains
+  `npc_burl complimented` ("Nice work on those johnboats" and he beams, as
+  au-b016).
+- **What still fails** (a few events a run, the same across models): the
+  one stood up to gets crossed or insulted (au-b077, au-b079), Hollis
+  defending Carter, who is not there, read as badmouthed (au-b080), an
+  identity owned up to read as came_clean or confided (au-b097, labelled
+  noted), the listener of a passed-on confidence given exposed (au-b058,
+  au-b060), a theft found out sent as nothing (au-b108, au-b110). Most are
+  readings a person could defend; the labels stand.
+- **The eval** (`tests/eval-classify.cjs`): `--dump=<file>` writes a line a
+  bookkeeper row (the input, the narration, the labels, the raw lines sent,
+  each event's verdict, the misses, the output tokens); `--replay=<dump>`
+  re-scores a dump with no key (a label change, for nothing); `--jobs=N`
+  keeps N requests in flight; `EVAL_EFFORT` overrides the bookkeeper's
+  effort; requests carry the game's `cache_control`; a 429 or 5xx is asked
+  again up to four times; the report and the record name the effort.
+- The minor-marker test owed from wave 52 is in
+  `tests/wave52-live-findings.test.cjs`: the earlier attempt "hung" because
+  it launched its own browser and a failed assertion left it open; it uses
+  the suite's `h.open` now and passes in under a second. Tests:
+  `tests/settings.test.cjs` (version 3), `tests/wave28-social-events.test.cjs`
+  (the word pin), the effort pins in `tests/api.test.cjs`,
+  `tests/shell.test.cjs` and `tests/ui-fixes.test.cjs`.
+
+## Labelled eval run (2026-11-04)
+
+`node tests/eval-classify.cjs --record` on claude-sonnet-5-5 (the bookkeeper at effort high): 216 rows from `tests/eval/labelled.jsonl` (216 bookkeeper turns, 64 romantic lines, 42 aimed at minors; 216 authored, 0 exported).
+
+- **Below** the recommended bar: invented events, romantic recall for minors.
+- exact accuracy: 94.2% of emitted (bar 75%)
+- neighbour confusions: 0.0% of emitted (bar under 20%)
+- invented events: 5.8% of emitted (bar 5% or fewer) (below)
+- romantic recall for minors: 97.6% over 42 lines (bar 98% over at least 40) (below)
+- minor-related events for a minor: 0 (bar 0)
+- every request answered: 0 failed
+- emitted 120, exact 113, neighbours 0, invented 7, missed 10 of 115, dropped for the engine's own 0
+- romantic recall for minors: parser 97.6%, phrase list 95.2%, either 97.6%; false friends read as romantic 0 of 17
+- confusions (label -> sent): confided -> they_confided 1; nothing -> informed_on 1; defended -> badmouthed 1; informed_on -> crossed 1; exposed -> badmouthed 1; bribed -> pried 1; complimented -> they_helped 1
+- cost: $3.1897 (949489 tokens in, 94604 out)
+
+## Labelled eval run (2026-11-04)
+
+`node tests/eval-classify.cjs --record` on claude-haiku-5-5 (the bookkeeper at effort high): 216 rows from `tests/eval/labelled.jsonl` (216 bookkeeper turns, 64 romantic lines, 42 aimed at minors; 216 authored, 0 exported).
+
+- **Below** the recommended bar: invented events.
+- exact accuracy: 93.0% of emitted (bar 75%)
+- neighbour confusions: 0.0% of emitted (bar under 20%)
+- invented events: 7.0% of emitted (bar 5% or fewer) (below)
+- romantic recall for minors: 100.0% over 42 lines (bar 98% over at least 40)
+- minor-related events for a minor: 0 (bar 0)
+- every request answered: 0 failed
+- emitted 114, exact 106, neighbours 0, invented 8, missed 18 of 115, dropped for the engine's own 0
+- romantic recall for minors: parser 100.0%, phrase list 95.2%, either 100.0%; false friends read as romantic 3 of 17
+- confusions (label -> sent): confided -> they_confided 1; nothing -> exposed 1; nothing -> informed_on 1; defended -> badmouthed 1; noted -> came_clean 1; learned_secret -> insulted 1; nothing -> complimented 1; nothing -> insulted 1
+- cost: $0.2068 (949489 tokens in, 189176 out)

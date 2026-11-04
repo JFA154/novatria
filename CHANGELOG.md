@@ -2,8 +2,12 @@
 
 What changed for players in each wave of work on Lockett's Ferry, newest
 first. The build you are playing is on the title screen's footer and in
-Settings under Advanced ("Build: wave 52 · rules v10"); name it in a bug
+Settings under Advanced ("Build: wave 53 · rules v10"); name it in a bug
 report. A wave that changed only the tests or the tooling says so.
+
+## Wave 53 · 2026-11-04
+
+People remember what you did to them: the bookkeeper names an insult, a favour or a confidence right nine times in ten (under half before).
 
 ## Wave 52 · 2026-11-04
 

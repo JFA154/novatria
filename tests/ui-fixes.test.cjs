@@ -630,7 +630,7 @@ s.test('Settings: Quality presets set the models and effort (the raw fields unde
   assert.equal(await page.evaluate(() => document.getElementById('set-advanced').open), false, 'the raw fields are folded away');
   assert.match(await page.textContent('#remember-warn'), /other HTML files/);
   await page.check('input[name="set-preset"][value="thrifty"]');
-  assert.deepEqual(await page.evaluate(() => { const x = Game.Storage.settings(); return [x.narratorModel, x.parserModel, x.effort]; }), ['claude-sonnet-5-5', 'claude-haiku-5-5', { narrator: 'low', parser: 'low', bookkeeper: 'low', chronicle: 'low' }]);
+  assert.deepEqual(await page.evaluate(() => { const x = Game.Storage.settings(); return [x.narratorModel, x.parserModel, x.effort]; }), ['claude-sonnet-5-5', 'claude-haiku-5-5', { narrator: 'low', parser: 'low', bookkeeper: 'high', chronicle: 'low' }], 'Thrifty (wave 53: the bookkeeper at high, the eval\'s lever)');
   await page.check('input[name="set-preset"][value="best"]');
   assert.equal(await page.evaluate(() => Game.Storage.settings().effort.narrator), 'high');
   await page.click('#set-advanced > summary');

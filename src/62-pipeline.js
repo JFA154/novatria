@@ -33,7 +33,9 @@
    runs after the turn is logged and saved.
    Wave 42: the town and cast blocks lose what repeats itself (castTies,
    castHistory, the place ids, the NOT IN TOWN head's restatement), so the
-   three cached blocks have room under tests/api.test.cjs's budget. */
+   three cached blocks have room under tests/api.test.cjs's budget.
+   Wave 53: the bookkeeper's packet marks a minor present ("UNDER 18 (16)",
+   minorMark); wave 52 had put the mark in the parser's packet only. */
 const Pipeline = (() => {
   const NOTICES = {
     refused: 'The narrator declined that one. Try it another way.',
@@ -560,8 +562,8 @@ const Pipeline = (() => {
     const presentRow = n => {
       const sd = standing(n.id);
       const extra = [`${pronounLabel(n.pronouns)}; ${n.role}; toward the player: ${sd.stance}; lies to them: ${sd.lies}`];
-      // Wave 52: the bookkeeper is told who is under 18, so its rubric's rule (no event about a romantic line at them) can apply.
-      if (typeof n.age === 'number' && n.age < 18) extra.push(`UNDER 18 (${n.age}): no event about a romantic or flirting line at them`);
+      // Wave 52: the parser is told who is under 18 (wave 53: the age alone, minorMark; the bookkeeper's packet adds its rule).
+      if (Rel.isMinor(n)) extra.push(minorMark(n, true));
       if (n.traits.length) extra.push(`traits: ${n.traits.join(', ')}`);
       if (n.goal) extra.push(`wants: ${lowerFirst(n.goal).replace(/\.$/, '')}`);
       return `${n.id} — ${n.name} (${extra.join('; ')})${n.look ? `: ${n.look}` : ''}`;
@@ -4465,6 +4467,12 @@ const Pipeline = (() => {
      a paid debt can be settled), each faction's running clock with its aim
      and progress (so a clock nudge is aimed), the threads with their
      summaries, the open obligations by id, and the town's news. */
+  /* Wave 53: the mark a minor's row carries in the parser's packet ("UNDER 18 (16)": its ROMANTIC rule already says such a
+     line is never null) and in the bookkeeper's, with the bookkeeper's rule after it. The age when the record has one. */
+  function minorMark(n, parser) {
+    const age = [n, State.npc(n.id)].map(x => (x ? x.age : null)).find(a => Number.isInteger(a));
+    return `UNDER 18${age !== undefined ? ` (${age})` : ''}${parser ? '' : ': no event about a romantic or flirting line at them'}`;
+  }
   function bookkeeperPacket(ctx) {
     const s = State.current;
     const p = s.player;
@@ -4476,10 +4484,11 @@ const Pipeline = (() => {
        most three handles on what they still hold, each with its event and
        day, so an apology or a kept word can name what it answers. */
     const stanceOf = n => { const st = Rel.stance(n); return `${st.phrase}${st.tags.length ? `, ${st.tags[0]}` : ''}`; };
-    const npcRow = n => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; stance: ${stanceOf(n)})${n.unnamed ? ' (no name yet)' : ''}`;
+    const npcRow = (n, mark) => `${n.id} — ${n.name} (${pronounLabel(n.pronouns)}; ${n.role}; stance: ${stanceOf(n)}${mark ? '; ' + mark : ''})${n.unnamed ? ' (no name yet)' : ''}`;
+    // Wave 53: a minor present is marked, so EVENT_RULES' "anyone marked UNDER 18" has a mark to read.
     const presentRow = n => {
       const held = Rel.handles(n, 3);
-      return `${npcRow(n)}${held.length ? ` remembers: ${held.join(' / ')}` : ''}`;
+      return `${npcRow(n, Rel.isMinor(n) ? minorMark(n) : '')}${held.length ? ` remembers: ${held.join(' / ')}` : ''}`;
     };
     const engine = [];
     // Wave 28: the engine's own events this turn, so the bookkeeper never sends them again.

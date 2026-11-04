@@ -55,4 +55,42 @@ s.test('the minor guard\'s phrase backstop names the propositions the live eval\
   await browser.close();
 });
 
+/* Wave 53: the bookkeeper's packet marks a minor present with their age
+   ("UNDER 18 (16)" on Kaylee's row). Wave 52 had put the mark in the
+   parser's packet only, so the bookkeeper's rubric ("anyone marked UNDER
+   18") had nothing to read. One mock turn at Pittman's on Day 2 in the
+   evening, when Kaylee is at the register; the mock replies at once
+   (Mock.delay 0), the way tests/probe-grammar.cjs builds its packet. The
+   page comes from the suite's h.open, so a failed assertion closes it
+   (a browser launched in the test and left open by a throw kept the
+   process alive: the "hang" the first attempt at this test met). */
+s.test('the bookkeeper\'s packet marks a minor present as UNDER 18 with the age, and an adult present not at all; the parser\'s packet too', async h => {
+  const page = await h.open();
+  await quickStart(page, { seed: 12345, kinds: [] });
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State;
+    G.Api.Mock.delay = 0;
+    S.apply({ setTime: { day: 2, phase: 'evening' } });
+    S.apply({ playerLocationId: 'loc_pittmans' });
+    G.Storage.saveSettings({ keepPackets: true });
+    await G.Pipeline.submit('I look around the station.');
+    G.Storage.saveSettings({ keepPackets: false });
+    const kept = G.Pipeline.bookTurns;
+    const kaylee = G.data.TOWN_DATA.npcs.find(n => n.id === 'npc_kaylee');
+    return { packet: kept.length ? kept[kept.length - 1].packet : '', parse: G.Pipeline.parsePacket('I look around.', { mode: 'action' }).text, age: kaylee.age };
+  });
+  assert.equal(r.age, 16);
+  const rows = (text, head) => ((new RegExp(`^${head}: (.*)$`, 'm').exec(text) || [])[1] || '').split(/; (?=npc_)/);
+  const row = (list, id) => list.find(x => x.startsWith(id + ' ')) || '';
+  const book = rows(r.packet, 'NPCS PRESENT');
+  assert.match(row(book, 'npc_kaylee'), /^npc_kaylee — Kaylee Pittman \(she\/her; [^)]*; stance: [^;)]*; UNDER 18 \(16\): no event about a romantic or flirting line at them\)/, book.join(' | '));
+  assert.ok(row(book, 'npc_royce'), book.join(' | '));
+  assert.doesNotMatch(row(book, 'npc_royce'), /UNDER 18/);
+  const parse = rows(r.parse, 'NPCS PRESENT');
+  // The parser's packet carries the age alone: its ROMANTIC rule already says a romantic line at someone under 18 is never null.
+  assert.match(row(parse, 'npc_kaylee'), /; UNDER 18 \(16\);/, parse.join(' | '));
+  assert.doesNotMatch(row(parse, 'npc_kaylee'), /no event about/);
+  assert.doesNotMatch(row(parse, 'npc_royce'), /UNDER 18/);
+});
+
 s.run();

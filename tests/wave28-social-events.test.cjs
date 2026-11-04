@@ -106,7 +106,10 @@ s.test('the wire: event strings with or without colons, American spellings, a mi
   const words = t => t.split(/\s+/).filter(Boolean).length;
   // Changed by design in wave 52: the rules became a decision list with direction, no-witness and noted-last rules (about 700
   // words); the block is cached since wave 41, so its size costs about 0.02 cents a call. The worked examples are a block of their own.
-  assert.ok(words(r.eventRules) >= 500 && words(r.eventRules) <= 800, 'about 700 words: ' + words(r.eventRules));
+  // Changed by design in wave 53 (about 990 words): the rubric names what each word is not (noted is only the player's own
+  // claim or promise; the told-whom cases; what the one who asked, the witness and the one stood up to get), measured on the
+  // labelled eval; still a cached block, so about 0.02 cents a call per 1,000 tokens.
+  assert.ok(words(r.eventRules) >= 500 && words(r.eventRules) <= 1000, 'about 990 words: ' + words(r.eventRules));
   assert.ok(words(r.words) >= 45 && words(r.words) <= 60, 'about 53 words: ' + words(r.words));
   assert.match(r.parser, /ROMANTIC: romantic is "flirt" when/);
   assert.match(r.parser, /when asking anything of someone who is against the player or hates them \(the engine also sets a floor\)/);

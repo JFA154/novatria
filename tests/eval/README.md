@@ -30,6 +30,10 @@ ANTHROPIC_API_KEY=… node tests/eval-classify.cjs --record
 
 It sends every bookkeeper packet with the real system prompt and `record_changes`, every parser packet with `parse_action`, on the Thrifty preset's model (`EVAL_MODEL=` to try another), applies the rules that need no saved game, and reports exact accuracy, neighbour confusions, invented events, misses, romantic recall for minors (parser, phrase list, either), false friends read as romantic, and the cost. `--record` appends a dated summary to `docs/notes/prompts.md`.
 
+For rubric work (wave 53): `--only=bookkeeper` posts only the bookkeeper requests; `--jobs=6` keeps six in flight; `EVAL_EFFORT=low|medium|high` overrides the bookkeeper's effort (by default the Thrifty preset's, high since wave 53; Standard's is high too); `--dump=<file>` writes one JSON line a bookkeeper row (input, narration, labels with outcomes, the raw lines sent, each event's verdict, the misses, output tokens); `--replay=<dump>` scores a dump again with no key, which is how a label change is checked for nothing. The requests carry the game's `cache_control` on the system prompt.
+
+Wave 53 brought the static packets up to the game's: a minor present carries "UNDER 18 (16): no event about a romantic or flirting line at them" in the bookkeeper's packet and "UNDER 18 (16)" in the parser's. It changed seven labels, each on the rubric's own definitions (listed in `docs/notes/prompts.md`, wave 53); a changed row's `note` says why.
+
 ## The pass bar
 
 The recommended bar (an owner decision):

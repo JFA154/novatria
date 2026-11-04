@@ -580,7 +580,7 @@ s.test('settings screen has every field with the documented defaults', async h =
   assert.equal(await page.inputValue('#set-narrator-model'), 'claude-opus-5-5');
   assert.equal(await page.inputValue('#set-parser-model'), 'claude-sonnet-5-5');
   for (const role of ['narrator', 'parser', 'bookkeeper', 'chronicle']) {
-    assert.equal(await page.inputValue(`#set-effort-${role}`), { narrator: 'medium', parser: 'low', bookkeeper: 'medium', chronicle: 'medium' }[role], role + ' effort');
+    assert.equal(await page.inputValue(`#set-effort-${role}`), { narrator: 'medium', parser: 'low', bookkeeper: 'high', chronicle: 'medium' }[role], role + ' effort (wave 53: the bookkeeper at high)');
     assert.deepEqual(await page.$$eval(`#set-effort-${role} option`, o => o.map(x => x.value)), ['low', 'medium', 'high']);
   }
   assert.ok(await page.isChecked('#set-rolls'));
