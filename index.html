@@ -65,7 +65,7 @@
   --read-font: "Literata", Georgia, "Times New Roman", serif;
   --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono-font: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --read-size: 18px;
+  --read-size: 1.125rem;
   --feed-w: 680px;
   --panel-w: 320px;
   --tap: 44px;
@@ -151,9 +151,18 @@
   --map-dim: #675e4e;
   color-scheme: light;
 }
-:root[data-size="S"] { --read-size: 16px; }
-:root[data-size="M"] { --read-size: 18px; }
-:root[data-size="L"] { --read-size: 20px; }
+/* Wave 45: every font size is in rem, so the browser's own default text
+   size applies (at its usual 16px the page draws as it did in px). Text
+   size: Small and Medium keep the interface at the browser's size and set
+   the story's (16 / 18 at 16px); Large makes the whole interface an eighth
+   bigger as well, the story staying 20 at 16px (20rem / 18 of the larger root). */
+html { font-size: 100%; }
+:root[data-size="S"] { --read-size: 1rem; }
+:root[data-size="M"] { --read-size: 1.125rem; }
+:root[data-size="L"] { font-size: 112.5%; --read-size: calc(20rem / 18); }
+/* A short screen (an SE-sized phone, a phone on its side) keeps the interface at the browser's size even at Large, so the card table's
+   cards, buttons and amount stay in view above the composer (tests/wave20-table-words.test.cjs, N11); the story is still 20 at 16px. */
+@media (max-height: 600px) { :root[data-size="L"] { font-size: 100%; --read-size: 1.25rem; } }
 
 /* ===== Base ===== */
 *, *::before, *::after { box-sizing: border-box; }
@@ -163,7 +172,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--ui-font);
-  font-size: 15px;
+  font-size: .9375rem;
   line-height: 1.45;
   overflow: hidden;
   overscroll-behavior: none;
@@ -175,6 +184,13 @@ h1, h2, h3 { line-height: 1.2; }
 p { margin: 0 0 .8em; }
 .muted { color: var(--muted); }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Wave 45: the skip link takes no room (0 by 0, so it is no tap target) until it has the focus; then a 44px button at the top left. */
+.skip-link { position: absolute; top: 0; left: 0; z-index: 100; width: 0; height: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip-link:focus { top: calc(8px + var(--sat)); left: calc(8px + var(--sal)); width: auto; height: auto; min-height: var(--tap); padding: 0 16px; display: inline-flex; align-items: center; overflow: visible; clip: auto;
+  border: 2px solid var(--focus); border-radius: var(--radius); background: var(--surface); color: var(--text); font-size: .9375rem; font-weight: 600; text-decoration: none; box-shadow: var(--shadow); }
+/* Wave 45: each narration starts with a heading for screen readers ("Turn 3"), drawn by CSS from data-label like the recap's heading, so the narration's text is its own paragraphs. */
+.f-turn-h { margin: 0; }
+.f-turn-h::before { content: attr(data-label); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 #app {
@@ -200,7 +216,7 @@ p { margin: 0 0 .8em; }
   background: var(--surface);
   color: var(--text);
   font-family: var(--ui-font);
-  font-size: 15px;
+  font-size: .9375rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -213,14 +229,14 @@ p { margin: 0 0 .8em; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn.ghost { background: transparent; border-color: transparent; }
 .btn.ghost:hover { background: var(--surface); border-color: var(--border); }
-.btn.small { min-height: var(--tap); padding: 0 12px; font-size: 14px; }
+.btn.small { min-height: var(--tap); padding: 0 12px; font-size: .875rem; }
 .btn.danger { color: var(--danger); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.wrap { max-width: 100%; padding: 10px 16px; line-height: 1.3; }
 .hint.note { color: var(--text); }
 .label {
   display: block;
-  font-size: 12px;
+  font-size: .75rem;
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -234,25 +250,25 @@ p { margin: 0 0 .8em; }
   border-radius: var(--radius);
   border: 1px solid var(--field);
   background: var(--surface);
-  font-size: 16px;
+  font-size: 1rem;
 }
 select.input { padding-right: 32px; }
 .input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
 /* Placeholders at 4.5:1 or more in both themes (the browser's grey is not). */
 ::placeholder { color: var(--faint); opacity: 1; }
-.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.hint { font-size: .8125rem; color: var(--muted); margin: 6px 0 0; }
 .reread-hint p { margin: 0; }
 .reread-hint ul { margin: 4px 0; padding-left: 1.2em; }
 .reread-hint li + li { margin-top: 2px; }
 .nowrap { white-space: nowrap; }
-.err { font-size: 14px; color: var(--danger); margin: 8px 0 0; min-height: 0; }
+.err { font-size: .875rem; color: var(--danger); margin: 8px 0 0; min-height: 0; }
 .err:empty { display: none; }
 .check { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; }
 .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
 .field { margin: 0 0 20px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .group { border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 4px; margin: 0 0 20px; min-width: 0; }
-.group legend, .group-title { font-family: var(--read-font); font-size: 18px; padding: 0 6px; margin: 0 0 8px; font-weight: 600; }
+.group legend, .group-title { font-family: var(--read-font); font-size: 1.125rem; padding: 0 6px; margin: 0 0 8px; font-weight: 600; }
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
 .seg label {
   display: inline-flex; align-items: center; gap: 8px;
@@ -261,7 +277,7 @@ select.input { padding-right: 32px; }
 }
 .seg input { accent-color: var(--accent); margin: 0; }
 .effort-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-.effort-grid label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+.effort-grid label { font-size: .8125rem; color: var(--muted); display: block; margin-bottom: 4px; }
 .row-btns { display: flex; flex-wrap: wrap; gap: 10px; }
 
 /* ===== Screens ===== */
@@ -277,8 +293,8 @@ select.input { padding-right: 32px; }
 }
 .page-inner { max-width: 680px; margin: 0 auto; }
 .page-head { margin-bottom: 20px; }
-.page-title { font-family: var(--read-font); font-size: 30px; font-weight: 600; margin: 0 0 6px; }
-.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.page-title { font-family: var(--read-font); font-size: 1.875rem; font-weight: 600; margin: 0 0 6px; }
+.eyebrow { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
 .screen-actions {
   display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end;
   margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
@@ -288,15 +304,15 @@ select.input { padding-right: 32px; }
 /* Title: the name, one line, the buttons (above the fold on a phone), how
    the game is being played, then the town for anyone who wants to read. */
 .title-wrap { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
-.title-name { font-family: var(--read-font); font-size: clamp(38px, 10vw, 60px); font-weight: 600; margin: 0 0 10px; letter-spacing: .01em; overflow-wrap: anywhere; }
+.title-name { font-family: var(--read-font); font-size: clamp(2.375rem, 10vw, 3.75rem); font-weight: 600; margin: 0 0 10px; letter-spacing: .01em; overflow-wrap: anywhere; }
 .title-name:focus { outline: none; }
-.title-tagline { font-family: var(--read-font); font-size: calc(var(--read-size) + 1px); line-height: 1.45; margin: 0; max-width: 30em; }
+.title-tagline { font-family: var(--read-font); font-size: calc(var(--read-size) + .0625rem); line-height: 1.45; margin: 0; max-width: 30em; }
 .title-setting { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.6; color: var(--muted); max-width: 34em; margin: 0; }
 .title-about { margin-top: 28px; max-width: 34em; }
 .title-more { margin-top: 4px; }
 .title-more > summary, .disclosure > summary {
   display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap);
-  cursor: pointer; color: var(--accent); font-family: var(--ui-font); font-size: 14px; font-weight: 600; list-style: none;
+  cursor: pointer; color: var(--accent); font-family: var(--ui-font); font-size: .875rem; font-weight: 600; list-style: none;
 }
 .title-more > summary::-webkit-details-marker, .disclosure > summary::-webkit-details-marker { display: none; }
 .title-more > summary::after, .disclosure > summary::after { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translateY(-2px); }
@@ -306,7 +322,7 @@ select.input { padding-right: 32px; }
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; max-width: 100%;
   margin: 16px 0 0; padding: 0 4px 0 14px; min-height: var(--tap);
   border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
-  font-size: 13px; color: var(--muted); align-self: flex-start;
+  font-size: .8125rem; color: var(--muted); align-self: flex-start;
 }
 .status-chip::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 4px; }
 .status-chip[data-mode="live"]::before { background: var(--accent); }
@@ -316,52 +332,52 @@ select.input { padding-right: 32px; }
   background: transparent; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer;
   text-decoration: underline; text-underline-offset: 3px;
 }
-.title-broken { margin: 4px 0; padding: 12px 14px; border: 1px solid var(--danger); border-radius: var(--radius); background: var(--surface); font-size: 14px; }
+.title-broken { margin: 4px 0; padding: 12px 14px; border: 1px solid var(--danger); border-radius: var(--radius); background: var(--surface); font-size: .875rem; }
 .title-broken p { margin: 0 0 8px; }
 .menu-list { display: grid; gap: 10px; max-width: 320px; margin-top: 22px; }
 .menu-list .btn { justify-content: flex-start; }
 .menu-row { display: flex; gap: 10px; min-width: 0; }
 .menu-row #btn-continue { flex: 1 1 auto; min-width: 0; }
 .menu-row #btn-update { flex: 0 1 auto; }
-.title-note { margin: -2px 0 2px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.title-note { margin: -2px 0 2px; font-size: .8125rem; line-height: 1.45; color: var(--muted); }
 .continue-group { display: grid; gap: 10px; }
 .title-note.warn { color: var(--danger); }
 /* The newer-build note is one line at 375: it may run past the 320px button column, never past the page. */
 #title-newer-note { width: max-content; max-width: calc(100vw - 32px - var(--sal) - var(--sar)); }
-.title-foot { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
-.build-line { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; } /* Wave 46 */
+.title-foot { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: .8125rem; }
+.build-line { font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; } /* Wave 46 */
 
 /* Character creation */
 .step { border-top: 1px solid var(--border); padding: 24px 0; }
 .step:first-child { border-top: 0; padding-top: 4px; }
-.step-title { font-family: var(--read-font); font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.step-title { font-family: var(--read-font); font-size: 1.375rem; font-weight: 600; margin: 0 0 4px; }
 .step-sub { color: var(--muted); margin: 0 0 14px; }
-.step-count { color: var(--muted); font-size: 13px; margin: 0; }
+.step-count { color: var(--muted); font-size: .8125rem; margin: 0; }
 .choice-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .choice {
   display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; width: 100%; text-align: left;
   padding: 12px 14px; min-height: var(--tap);
   border: 1px solid var(--field); border-radius: var(--radius);
   background: var(--surface); color: var(--text); cursor: pointer;
-  font-family: var(--ui-font); font-size: 15px;
+  font-family: var(--ui-font); font-size: .9375rem;
 }
 .choice:hover { border-color: var(--muted); }
 .choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
 .choice-title { display: block; font-weight: 600; margin-bottom: 4px; }
-.choice-sub { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
-.choice-meta { display: block; color: var(--faint); font-size: 12px; margin-top: 6px; }
+.choice-sub { display: block; color: var(--muted); font-size: .8125rem; line-height: 1.4; }
+.choice-meta { display: block; color: var(--faint); font-size: .75rem; margin-top: 6px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   min-height: var(--tap); padding: 8px 14px; border-radius: 22px;
   border: 1px solid var(--field); background: var(--surface); color: var(--text);
-  cursor: pointer; text-align: left; font-size: 15px; max-width: 100%;
+  cursor: pointer; text-align: left; font-size: .9375rem; max-width: 100%;
 }
 .chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
 .chip:disabled { opacity: .45; cursor: not-allowed; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
 .stat { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 2px; text-align: center; background: var(--surface); min-width: 0; }
-.stat-name { display: block; font-size: 10.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); overflow-wrap: normal; white-space: nowrap; }
-.stat-val { display: block; font-family: var(--read-font); font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat-name { display: block; font-size: .65625rem; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); overflow-wrap: normal; white-space: nowrap; }
+.stat-val { display: block; font-family: var(--read-font); font-size: 1.375rem; font-variant-numeric: tabular-nums; }
 .stat.changed { border-color: var(--accent); }
 .move-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* Creation: a stat tile with its line and − / + steppers (one point moved, net zero). */
@@ -370,26 +386,26 @@ select.input { padding-right: 32px; }
 .cr-stat.changed { border-color: var(--accent); }
 .cr-stat-mid { text-align: center; min-width: 0; }
 .cr-stat .stat-val { line-height: 1.2; }
-.cr-stat-desc { grid-column: 1 / -1; margin: 2px 4px 0; font-size: 13px; line-height: 1.4; color: var(--muted); text-align: left; }
-.step-btn { min-height: var(--tap); min-width: var(--tap); padding: 0; border: 1px solid var(--field); border-radius: 50%; background: var(--surface-2); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer; }
+.cr-stat-desc { grid-column: 1 / -1; margin: 2px 4px 0; font-size: .8125rem; line-height: 1.4; color: var(--muted); text-align: left; }
+.step-btn { min-height: var(--tap); min-width: var(--tap); padding: 0; border: 1px solid var(--field); border-radius: 50%; background: var(--surface-2); color: var(--text); font-size: 1.25rem; line-height: 1; cursor: pointer; }
 .step-btn:disabled { opacity: .35; cursor: not-allowed; }
-.cr-pending { margin: 0 0 8px; font-size: 14px; color: var(--accent); min-height: 1.4em; }
+.cr-pending { margin: 0 0 8px; font-size: .875rem; color: var(--accent); min-height: 1.4em; }
 .le-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 0 0 10px; background: var(--surface); }
 .le-item.on { border-color: var(--accent); }
 .le-body { margin-top: 10px; display: grid; gap: 8px; }
-.le-body .chips .chip, .cr-suggest .chip { font-size: 14px; padding: 8px 12px; }
+.le-body .chips .chip, .cr-suggest .chip { font-size: .875rem; padding: 8px 12px; }
 .cr-suggest { margin: 10px 0 0; }
-.cr-suggest-k { display: block; margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.cr-suggest-k { display: block; margin: 0 0 6px; font-size: .75rem; color: var(--muted); }
 .cr-random { margin: 0 0 18px; }
-.cr-tip { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
+.cr-tip { margin: 0 0 16px; font-size: .875rem; color: var(--muted); }
 /* One summary of what to fix (laptop: beside Review; a phone reads it out only). */
-.cr-errsum { flex: 1 0 100%; margin: 0; font-size: 14px; color: var(--danger); }
+.cr-errsum { flex: 1 0 100%; margin: 0; font-size: .875rem; color: var(--danger); }
 .cr-errsum:empty { display: none; }
 .mode-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 0 0 18px; }
 .mode-key { display: grid; gap: 10px; }
 .mode-key .row-btns { margin-top: 4px; }
-.summary h2 { font-family: var(--read-font); font-size: 26px; margin: 0 0 2px; }
-.summary h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.summary h2 { font-family: var(--read-font); font-size: 1.625rem; margin: 0 0 2px; }
+.summary h3 { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
 .summary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 14px 0 0; }
 .summary dt { color: var(--muted); }
 .summary dd { margin: 0; overflow-wrap: anywhere; }
@@ -408,7 +424,7 @@ select.input { padding-right: 32px; }
   padding: calc(4px + var(--sat)) calc(8px + var(--sar)) 4px calc(16px + var(--sal));
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  font-size: 14px;
+  font-size: .875rem;
 }
 .tb-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 18px; }
 .tb-time { color: var(--muted); white-space: nowrap; }
@@ -417,7 +433,7 @@ select.input { padding-right: 32px; }
 .tb-stat { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tb-stat b { color: var(--text); font-weight: 600; }
 .tb-actions { display: flex; gap: 2px; flex: none; }
-.tb-actions .btn { padding: 0 12px; font-size: 14px; }
+.tb-actions .btn { padding: 0 12px; font-size: .875rem; }
 /* A pressed toggle (the laptop's Panel): a 3:1 edge and an accent bar under the label, not just a fill. */
 .btn[aria-pressed="true"] { background: var(--surface-2); border-color: var(--field); box-shadow: inset 0 -3px 0 var(--accent); }
 /* Off while it keeps the focus (UI.setOff: a control the player is on is never disabled in place). */
@@ -446,7 +462,8 @@ select.input { padding-right: 32px; }
 .f-item { animation: fade-in .35s ease-out; }
 .f-narr p { margin: 0 0 1em; }
 .f-narr.pending { min-height: 1.6em; }
-.f-narr.pending:empty::before { content: "\2026"; color: var(--faint); }
+/* Wave 45: "empty" is no paragraph yet (the turn's hidden heading is there from the start). */
+.f-narr.pending:not(:has(> p))::before { content: "\2026"; color: var(--faint); }
 .f-input {
   position: relative;
   margin: 1.5em 0 .6em;
@@ -461,7 +478,7 @@ select.input { padding-right: 32px; }
 .f-roll {
   margin: 0 0 .75em;
   font-family: var(--ui-font);
-  font-size: 13px;
+  font-size: .8125rem;
   letter-spacing: .02em;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -469,7 +486,7 @@ select.input { padding-right: 32px; }
 .f-divider {
   display: flex; align-items: center; gap: 12px;
   margin: 2em 0 1.4em;
-  font-family: var(--ui-font); font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--ui-font); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted);
 }
 .f-divider::before, .f-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
@@ -478,7 +495,7 @@ select.input { padding-right: 32px; }
   padding: 6px 12px;
   border-left: 2px solid var(--border);
   font-family: var(--ui-font);
-  font-size: 14px;
+  font-size: .875rem;
   color: var(--muted);
 }
 .f-notice.error { border-left-color: var(--danger); color: var(--text); }
@@ -486,24 +503,24 @@ select.input { padding-right: 32px; }
 .f-notice-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
 /* The recap (Continue, /recap, after a night's sleep): a heading, then one line per kind. */
 .f-notice.recap { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
-.f-notice.recap::before { content: "Where things stand"; content: "Where things stand" / ""; display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-notice.recap::before { content: "Where things stand"; content: "Where things stand" / ""; display: block; margin: 0 0 4px; font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-recap-k { font-weight: 600; }
 /* /help (and Commands help in the ⋯ list): the command list, one a line, under its first line as a heading (as the recap's). */
 .f-notice.help { white-space: pre-line; color: var(--text); border-left-color: var(--accent); }
-.f-help-h { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-help-h { display: block; margin: 0 0 4px; font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-quiet {
   margin: 0 0 .75em;
   font-family: var(--ui-font);
-  font-size: 13px;
+  font-size: .8125rem;
   color: var(--muted);
 }
 /* "Overnight in town": the news, a little above a dice line. */
-.f-quiet.f-news { padding: 6px 12px; border-left: 2px solid var(--accent); font-size: 14px; color: var(--text); }
+.f-quiet.f-news { padding: 6px 12px; border-left: 2px solid var(--accent); font-size: .875rem; color: var(--text); }
 .f-news-k { font-weight: 600; }
 .f-narr .f-tag {
   margin: 0 0 .35em;
   font-family: var(--ui-font);
-  font-size: 11px;
+  font-size: .6875rem;
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--faint);
@@ -529,7 +546,7 @@ select.input { padding-right: 32px; }
 }
 .f-cards p { margin: 0; }
 /* The head takes the focus when the table opens (wave 11, M7); at Small text it is still 11px (L10). */
-.f-cards .cards-head { margin-bottom: .65em; font-size: max(11px, .78em); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-cards .cards-head { margin-bottom: .65em; font-size: max(.6875rem, .78em); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .f-cards .cards-head:focus { outline: none; }
 .cards-side + .cards-side, .cards-board, .cards-board + .cards-side { margin-top: .8em; padding-top: .7em; border-top: 1px solid var(--border); }
 /* A seat's line (wave 13): its name, the dealer's "(deals)", and its status cell at the right ("checks", "bets $4", the hand's name). */
@@ -588,7 +605,7 @@ button.card[data-held="true"] { padding-bottom: .9em; transform: translateY(-.3e
    edge in both themes) between two in the text colour, so it shows on the table and on a held card alike. */
 .f-cards button.card:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 1px; box-shadow: 0 0 0 5px var(--text); }
 /* Hold (a held card) and New (a card the draw brought, after the showdown): at least 10px at Small text (wave 11, L10). */
-.card-tag { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 1px 0; border-radius: 3px; font-size: max(10px, .62em); font-weight: 700; letter-spacing: .04em; line-height: 1.1; text-transform: uppercase; text-align: center; }
+.card-tag { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 1px 0; border-radius: 3px; font-size: max(.625rem, .62em); font-weight: 700; letter-spacing: .04em; line-height: 1.1; text-transform: uppercase; text-align: center; }
 .card-hold { background: var(--accent); color: var(--accent-ink); visibility: hidden; }
 button.card[data-held="true"] .card-hold { visibility: visible; }
 .card-new { border: 1px solid var(--accent); color: var(--accent); background: var(--surface-2); }
@@ -602,11 +619,11 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
    All in; two rows that fit 320px, every control the app's tap height. The field's text is 16px so a phone does not zoom in on it. */
 .f-cards .cards-size { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: .6em; }
 .cards-stepper { display: flex; align-items: stretch; gap: 4px; }
-.cards-stepper .cards-step { min-width: var(--tap); padding: 0 8px; font-size: 18px; font-weight: 600; }
+.cards-stepper .cards-step { min-width: var(--tap); padding: 0 8px; font-size: 1.125rem; font-weight: 600; }
 .cards-amt-wrap { display: inline-flex; align-items: center; gap: 2px; min-height: var(--tap); padding: 0 8px; border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface-2); cursor: text; }
 .cards-amt-wrap:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-.cards-amt-cur { color: var(--muted); font-size: 15px; }
-.f-cards .cards-amt { width: 4.2em; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: 600 16px/1.2 var(--ui-font); outline: none; }
+.cards-amt-cur { color: var(--muted); font-size: .9375rem; }
+.f-cards .cards-amt { width: 4.2em; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: 600 1rem/1.2 var(--ui-font); outline: none; }
 .cards-presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .cards-presets .cards-preset { padding: 0 10px; }
 .f-cards .cards-amt-note { flex-basis: 100%; color: var(--muted); font-size: .92em; }
@@ -656,7 +673,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   background: var(--surface-2);
   color: var(--text);
   font-family: var(--ui-font);
-  font-size: 14px;
+  font-size: .875rem;
   box-shadow: var(--shadow);
   cursor: pointer;
   animation: fade-in .2s ease-out;
@@ -673,19 +690,19 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
    (moved here from the input row, so the box keeps its width). */
 .tabrow { display: none; gap: 4px; margin: 0 0 6px; align-items: stretch; }
 .tabbar { display: none; gap: 2px; margin: 0; }
-.tab-act { flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0 8px; border: 1px solid var(--field); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 20px; line-height: 1; letter-spacing: .05em; cursor: pointer; }
+.tab-act { flex: none; min-width: var(--tap); min-height: var(--tap); padding: 0 8px; border: 1px solid var(--field); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 1.25rem; line-height: 1; letter-spacing: .05em; cursor: pointer; }
 .tabbar button {
   flex: 1 1 0; min-width: 0; min-height: var(--tap);
   border: 0; border-radius: 6px; background: transparent; color: var(--muted);
-  font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+  font-family: var(--ui-font); font-size: .8125rem; cursor: pointer;
 }
 .tabbar button:hover { background: var(--surface); color: var(--text); }
 .tabbar button { white-space: nowrap; overflow: hidden; }
 /* A tab row that does not fit its labels whole steps down (UI.fitTabs, wave 26): widths that follow the labels, then a smaller face. */
 .panel-tabs[data-fit]:not([data-fit="0"]) button, .tabbar[data-fit]:not([data-fit="0"]) button { flex: 1 1 auto; min-width: var(--tap); padding: 0 3px; }
 .panel-tabs[data-fit="2"] button, .panel-tabs[data-fit="3"] button, .panel-tabs[data-fit="4"] button,
-.tabbar[data-fit="2"] button, .tabbar[data-fit="3"] button, .tabbar[data-fit="4"] button { padding: 0 2px; font-size: 12px; letter-spacing: -.01em; }
-.panel-tabs[data-fit="5"] button, .tabbar[data-fit="5"] button { padding: 0 1px; font-size: 11px; letter-spacing: -.01em; }
+.tabbar[data-fit="2"] button, .tabbar[data-fit="3"] button, .tabbar[data-fit="4"] button { padding: 0 2px; font-size: .75rem; letter-spacing: -.01em; }
+.panel-tabs[data-fit="5"] button, .tabbar[data-fit="5"] button { padding: 0 1px; font-size: .6875rem; letter-spacing: -.01em; }
 .input-row { position: relative; display: flex; gap: 8px; align-items: flex-end; }
 .input-wrap { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
 .cmd-input {
@@ -694,13 +711,13 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   width: 100%;
   resize: none;
   min-height: var(--tap);
-  max-height: calc(4 * 1.45 * 17px + 22px);
+  max-height: calc(4 * 1.45 * 1.0625rem + 22px);
   padding: 10px 12px;
   border-radius: var(--radius);
   border: 1px solid var(--field);
   background: var(--surface);
   font-family: var(--read-font);
-  font-size: 17px;
+  font-size: 1.0625rem;
   line-height: 1.45;
   overflow-y: hidden;
 }
@@ -717,17 +734,17 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .mode-btn {
   min-height: var(--tap); min-width: var(--tap); padding: 0 12px;
   border: 0; background: transparent; color: var(--muted);
-  font-family: var(--ui-font); font-size: 14px; cursor: pointer;
+  font-family: var(--ui-font); font-size: .875rem; cursor: pointer;
 }
 .mode-btn + .mode-btn { border-left: 1px solid var(--border); }
 .mode-btn:hover { color: var(--text); }
 .mode-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .say-to { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; min-width: 0; }
-.say-pick { flex: none; width: auto; min-width: 12em; max-width: 100%; min-height: var(--tap); padding: 0 32px 0 14px; border-radius: 22px; font-family: var(--ui-font); font-size: 16px; border-color: var(--accent); }
+.say-pick { flex: none; width: auto; min-width: 12em; max-width: 100%; min-height: var(--tap); padding: 0 32px 0 14px; border-radius: 22px; font-family: var(--ui-font); font-size: 1rem; border-color: var(--accent); }
 .say-chip {
   min-height: var(--tap); min-width: var(--tap); max-width: 100%; padding: 0 14px;
   border: 1px solid var(--field); border-radius: 22px; background: var(--surface); color: var(--text);
-  font-family: var(--ui-font); font-size: 14px; cursor: pointer;
+  font-family: var(--ui-font); font-size: .875rem; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .say-chip:hover { border-color: var(--muted); }
@@ -744,9 +761,9 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 }
 .ac li { display: flex; align-items: baseline; gap: 10px; min-height: var(--tap); padding: 11px 10px; border-radius: 6px; cursor: pointer; }
 .ac li[aria-selected="true"], .ac li:hover { background: var(--surface-2); }
-.ac-name { font-family: var(--mono-font); font-size: 14px; white-space: nowrap; }
-.ac-args { color: var(--faint); font-family: var(--mono-font); font-size: 13px; white-space: nowrap; }
-.ac-desc { color: var(--muted); font-size: 13px; line-height: 1.35; min-width: 0; margin-left: auto; }
+.ac-name { font-family: var(--mono-font); font-size: .875rem; white-space: nowrap; }
+.ac-args { color: var(--faint); font-family: var(--mono-font); font-size: .8125rem; white-space: nowrap; }
+.ac-desc { color: var(--muted); font-size: .8125rem; line-height: 1.35; min-width: 0; margin-left: auto; }
 /* Beside the name (a laptop, a phone on its side) a description too long for the row takes a second line, never cut off ("/cheat"); a third is clamped. */
 .ac li > .ac-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
@@ -768,14 +785,14 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .panel-tabs button {
   flex: 1 1 0; min-width: 0; min-height: var(--tap);
   padding: 0 4px; border: 0; border-bottom: 2px solid transparent; background: none;
-  color: var(--muted); font-family: var(--ui-font); font-size: 13px; cursor: pointer;
+  color: var(--muted); font-family: var(--ui-font); font-size: .8125rem; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .panel-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
-.panel-close { display: none; font-size: 22px; line-height: 1; }
-.panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; font-size: 14px; overflow-wrap: anywhere; }
-.panel-body h2 { font-family: var(--read-font); font-size: 22px; margin: 0 0 2px; }
-.panel-body h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+.panel-close { display: none; font-size: 1.375rem; line-height: 1; }
+.panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; font-size: .875rem; overflow-wrap: anywhere; }
+.panel-body h2 { font-family: var(--read-font); font-size: 1.375rem; margin: 0 0 2px; }
+.panel-body h3 { font-size: .6875rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
 .panel-body ul { list-style: none; margin: 0; padding: 0; }
 .panel-body li { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .panel-body li:last-child { border-bottom: 0; }
@@ -784,7 +801,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; }
-.thread-status { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.thread-status { font-size: .75rem; color: var(--muted); margin-left: 6px; }
 /* People: person cards. A card is a header button (monogram, name, role,
    attitude meter, where last seen) and a panel it opens (look and notes). */
 .people-group + .people-group { margin-top: 24px; }
@@ -807,14 +824,14 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   display: flex; align-items: flex-start; gap: 12px;
   width: 100%; min-height: var(--tap); padding: 12px 8px;
   border: 0; border-radius: 10px; background: transparent; color: var(--text);
-  font-family: var(--ui-font); font-size: 14px; text-align: left; cursor: pointer;
+  font-family: var(--ui-font); font-size: .875rem; text-align: left; cursor: pointer;
 }
 .pcard-head:focus-visible { outline-offset: -2px; }
 .mono {
   flex: none; width: 36px; height: 36px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--person-1); color: var(--person-ink);
-  font-size: 13px; font-weight: 600; letter-spacing: .04em; line-height: 1;
+  font-size: .8125rem; font-weight: 600; letter-spacing: .04em; line-height: 1;
   user-select: none;
 }
 .mono[data-hue="2"] { background: var(--person-2); }
@@ -825,12 +842,12 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .pcard[data-status="dead"] .mono, .pcard[data-status="gone"] .mono { filter: grayscale(1); opacity: .55; }
 .pcard-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .pcard-nameline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
-.pcard-name { font-size: 15px; font-weight: 600; line-height: 1.3; }
-.pcard-pron { font-size: 12px; line-height: 1.3; color: var(--faint); white-space: nowrap; }
+.pcard-name { font-size: .9375rem; font-weight: 600; line-height: 1.3; }
+.pcard-pron { font-size: .75rem; line-height: 1.3; color: var(--faint); white-space: nowrap; }
 .pcard.stranger .pcard-name { color: var(--muted); font-weight: 500; }
-.pcard-role { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.pcard-role { font-size: .8125rem; line-height: 1.4; color: var(--muted); }
 .pcard:not(.open) .pcard-role { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.pcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: 12px; line-height: 1.4; }
+.pcard-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; font-size: .75rem; line-height: 1.4; }
 /* Wave 30: where someone stands, in words (UI.stanceChip): the phrase and
    one tag, tinted by side (on the player's side warm, mixed mild, against
    them cold, neither the muted tone); "hates you", "in your corner" and
@@ -842,17 +859,17 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .stance[data-strong] .stance-phrase { font-weight: 600; }
 .stance-tag { color: var(--muted); }
 .stance-tag::before { content: "· "; color: var(--faint); }
-.pcard-stance { margin: 12px 0 0; font-size: 14px; line-height: 1.5; }
-.pcard-stance .stance { font-size: 14px; }
+.pcard-stance { margin: 12px 0 0; font-size: .875rem; line-height: 1.5; }
+.pcard-stance .stance { font-size: .875rem; }
 .pcard-why { margin: 4px 0 0; padding: 0; list-style: none; }
-.panel-body .pcard-why li { padding: 3px 0; border: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.panel-body .pcard-why li { padding: 3px 0; border: 0; font-size: .8125rem; line-height: 1.45; overflow-wrap: anywhere; }
 .pcard-why .meta { margin-left: 6px; color: var(--faint); white-space: nowrap; }
 .pcard-why li[data-kind="leverage"] { color: var(--text); }
 .pcard-words-fold { margin-top: 12px; }
-.pcard-words-fold > summary { min-height: var(--tap); display: flex; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
-.pcard-words { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 4px 0 0; font-size: 13px; line-height: 1.4; }
+.pcard-words-fold > summary { min-height: var(--tap); display: flex; align-items: center; font-size: .8125rem; color: var(--muted); cursor: pointer; }
+.pcard-words { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 4px 0 0; font-size: .8125rem; line-height: 1.4; }
 .pcard-word { min-width: 0; }
-.pcard-word dt { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-word dt { font-size: .6875rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .pcard-word dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .pcard-where { color: var(--faint); min-width: 0; }
 .pcard-where .nowrap { white-space: nowrap; }
@@ -866,25 +883,25 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .pcard.open .pcard-chev { margin-top: 12px; transform: rotate(-135deg); }
 .pcard-more { padding: 0 16px 16px 56px; }
 .pcard-more.fade { animation: fade-in .22s ease-out; }
-.pcard-look { margin: 0; font-family: var(--read-font); font-style: italic; font-size: 15px; line-height: 1.55; color: var(--muted); }
-.pcard-notes-h { margin: 16px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-look { margin: 0; font-family: var(--read-font); font-style: italic; font-size: .9375rem; line-height: 1.55; color: var(--muted); }
+.pcard-notes-h { margin: 16px 0 4px; font-size: .6875rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .pcard-more > .pcard-notes-h:first-child { margin-top: 0; }
-.panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: 13px; line-height: 1.45; }
+.panel-body .pcard-notes li { padding: 4px 0; border: 0; font-size: .8125rem; line-height: 1.45; }
 .note-k { color: var(--muted); }
-.pcard-none { margin: 0; font-size: 13px; color: var(--faint); }
+.pcard-none { margin: 0; font-size: .8125rem; color: var(--faint); }
 .pcard-fix { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
-.pcard-fix-k { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
-.pcard-chips .chip { padding: 6px 12px; font-size: 13px; }
+.pcard-fix-k { font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.pcard-chips .chip { padding: 6px 12px; font-size: .8125rem; }
 .pcard-edit { margin-left: auto; }
 /* A lived-in town: ages beside names, what the town knows about someone,
    and a sheet for every place under the map. Facts stack (a small label,
    then the text) so they read the same at 375 as in the laptop panel. */
 .char-age { font-weight: 400; color: var(--muted); }
-.char-blurb { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
-.pcard-age { font-size: 13px; line-height: 1.3; color: var(--muted); white-space: nowrap; }
+.char-blurb { margin: 6px 0 0; font-size: .8125rem; line-height: 1.5; color: var(--muted); }
+.pcard-age { font-size: .8125rem; line-height: 1.3; color: var(--muted); white-space: nowrap; }
 .pcard-where.away { color: var(--muted); }
-.pcard-facts, .plcard-facts { grid-template-columns: minmax(0, 1fr); gap: 0; margin: 12px 0 0; font-size: 13px; line-height: 1.5; }
-.pcard-facts dt, .plcard-facts dt { margin-top: 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.pcard-facts, .plcard-facts { grid-template-columns: minmax(0, 1fr); gap: 0; margin: 12px 0 0; font-size: .8125rem; line-height: 1.5; }
+.pcard-facts dt, .plcard-facts dt { margin-top: 10px; font-size: .6875rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
 .pcard-facts dt:first-child, .plcard-facts dt:first-child { margin-top: 0; }
 .pcard-facts dd, .plcard-facts dd { color: var(--text); }
 .place-list { margin: 0 -8px; }
@@ -897,16 +914,16 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   display: flex; align-items: center; gap: 10px;
   width: 100%; min-height: var(--tap); padding: 10px 8px;
   border: 0; border-radius: 10px; background: transparent; color: var(--text);
-  font-family: var(--ui-font); font-size: 14px; text-align: left; cursor: pointer;
+  font-family: var(--ui-font); font-size: .875rem; text-align: left; cursor: pointer;
 }
 .plcard-head:focus-visible { outline-offset: -2px; }
 .plcard-name { flex: 1 1 auto; min-width: 0; font-weight: 600; line-height: 1.35; }
-.plcard-type { flex: none; font-size: 12px; color: var(--faint); }
+.plcard-type { flex: none; font-size: .75rem; color: var(--faint); }
 .plcard .pcard-chev { margin-top: 0; }
 .plcard.open .pcard-chev { margin-top: 4px; transform: rotate(-135deg); }
 .plcard-more { padding: 0 12px 14px; }
-.plcard-desc { margin: 0; font-family: var(--read-font); font-size: 15px; line-height: 1.55; color: var(--muted); }
-.place-hint { margin: -4px 0 6px; font-size: 12px; color: var(--faint); }
+.plcard-desc { margin: 0; font-family: var(--read-font); font-size: .9375rem; line-height: 1.55; color: var(--muted); }
+.place-hint { margin: -4px 0 6px; font-size: .75rem; color: var(--faint); }
 .cr-age-field { margin-top: 16px; max-width: 220px; }
 /* People: a card's editor (UI.editPerson), in place of the card's body:
    the full width of the card, every control a tap tall, 16px fields. */
@@ -914,23 +931,23 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .pedit { display: grid; gap: 16px; min-width: 0; }
 .pedit .field { margin: 0; min-width: 0; }
 .pedit .label { margin-bottom: 6px; }
-.pedit .hint { font-size: 12px; }
+.pedit .hint { font-size: .75rem; }
 .pedit textarea.input { display: block; resize: vertical; line-height: 1.4; }
 .pedit-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
 .pedit-att { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.pedit-range { flex: 1 1 auto; min-width: 0; height: var(--tap); margin: 0; font-size: 16px; accent-color: var(--accent); background: transparent; }
-.pedit-att-word { flex: 0 1 auto; min-width: 6.5em; max-width: 9.5em; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pedit-range { flex: 1 1 auto; min-width: 0; height: var(--tap); margin: 0; font-size: 1rem; accent-color: var(--accent); background: transparent; }
+.pedit-att-word { flex: 0 1 auto; min-width: 6.5em; max-width: 9.5em; font-size: .875rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pedit .seg { gap: 6px; }
-.pedit .seg label { padding: 0 12px; font-size: 14px; }
+.pedit .seg label { padding: 0 12px; font-size: .875rem; }
 .pedit-mems, .pedit-status { min-width: 0; margin: 0; padding: 0; border: 0; }
 .pedit-mems { display: grid; gap: 10px; }
 .pedit-mems > legend, .pedit-status > legend { padding: 0; }
 .pedit-mem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .pedit-mem textarea { grid-column: 1 / -1; }
-.pedit-mems .empty { margin: 0; font-size: 13px; }
+.pedit-mems .empty { margin: 0; font-size: .8125rem; }
 .pedit-add { justify-self: start; }
 .pedit-hidden { min-width: 0; padding: 0 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
-.pedit-hidden > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; }
+.pedit-hidden > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: .875rem; color: var(--muted); list-style: none; }
 .pedit-hidden > summary::-webkit-details-marker { display: none; }
 .pedit-hidden > summary::before { content: ""; flex: none; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); }
 .pedit-hidden[open] > summary::before { transform: rotate(45deg); }
@@ -992,13 +1009,13 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   min-height: var(--tap); max-width: calc(100% - 16px); padding: 0 16px;
   border: 1px solid var(--accent); border-radius: 22px;
   background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
-  font-family: var(--ui-font); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--ui-font); font-size: .875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer; animation: fade-in .15s ease-out;
 }
 .map-go[data-side="above"] { --ty: calc(-100% - 16px); }
 .map-go.placed { --tx: 0px; --ty: 0px; }
 .map-go:disabled { opacity: .45; cursor: not-allowed; }
-.map-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 18px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 18px; font-size: .75rem; line-height: 1.4; color: var(--muted); }
 .map-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .lg { flex: none; display: inline-block; }
 .lg-you { width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%; }
@@ -1006,7 +1023,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .lg-person { box-sizing: border-box; width: 12px; height: 12px; border-radius: 50%; background: var(--person-3); border: 1.5px solid var(--map-ink); }
 .lg-heard { box-sizing: border-box; width: 10px; height: 10px; border-radius: 1px; border: 1.5px dashed var(--map-ink); }
 .dbg pre {
-  font-family: var(--mono-font); font-size: 12px; line-height: 1.45;
+  font-family: var(--mono-font); font-size: .75rem; line-height: 1.45;
   white-space: pre-wrap; overflow-wrap: anywhere;
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 0;
   max-height: 260px; overflow: auto;
@@ -1039,7 +1056,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   background: var(--surface-2);
   border-bottom: 1px solid var(--danger);
   color: var(--text);
-  font-size: 14px;
+  font-size: .875rem;
   /* Under the modal views (the phone sheet, z 40; the expanded map, z 55; a
      dialog, in the top layer), which also make it inert while they are open. */
   position: relative;
@@ -1056,7 +1073,7 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   border-radius: 20px;
   background: var(--text);
   color: var(--bg);
-  font-size: 14px;
+  font-size: .875rem;
   z-index: 70;
   opacity: 0;
   pointer-events: none;
@@ -1069,16 +1086,16 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .slot:first-child { border-top: 1px solid var(--border); }
 .slot-info { flex: 1 1 220px; min-width: 0; }
 .slot-name { font-weight: 600; display: block; overflow-wrap: anywhere; }
-.slot-meta { color: var(--muted); font-size: 13px; display: block; overflow-wrap: anywhere; }
+.slot-meta { color: var(--muted); font-size: .8125rem; display: block; overflow-wrap: anywhere; }
 .slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.slot-note { color: var(--accent); font-size: 13px; display: block; }
+.slot-note { color: var(--accent); font-size: .8125rem; display: block; }
 #slot-list { margin-bottom: 24px; }
-.saves-export-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.saves-export-note { margin: 0 0 12px; font-size: .8125rem; color: var(--muted); }
 
 /* ===== The core loop: status line, Stop, queue, the demo bar ===== */
 /* The line above the input while a turn runs ("Writing…"), with a dot that
    pulses (still under reduced motion). */
-.turn-status { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 6px; font-family: var(--ui-font); font-size: 13px; color: var(--muted); }
+.turn-status { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 6px; font-family: var(--ui-font); font-size: .8125rem; color: var(--muted); }
 .turn-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 /* A queued line: "Next: “…”" in a 32px pill (a true pill) at the end of the
@@ -1087,37 +1104,37 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
    The stage text keeps its full width ("Updating the town…" at 375) and
    the pill takes what is left, its line cut short (the title has it all). */
 .turn-status.has-queued #turn-status-text { flex: 0 0 auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 96px; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: 12px; color: var(--text); }
+.turn-status .queued { margin-left: auto; display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 96px; height: 32px; padding: 0 0 0 12px; border: 1px solid var(--field); border-radius: 16px; font-size: .75rem; color: var(--text); }
 .queued-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+.queued-x { flex: none; width: var(--tap); height: var(--tap); margin: -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 1.125rem; line-height: 1; cursor: pointer; }
 .turn-status.nudge { color: var(--text); }
 /* A nudge beside a queued line ("One line is already waiting. Press × to change it.") is said whole: it wraps beside the pill for its few seconds. */
 .turn-status.nudge.has-queued #turn-status-text { flex: 1 1 auto; max-width: none; white-space: normal; }
 .send-btn.stop { background: var(--surface-2); border-color: var(--danger); color: var(--text); }
 .send-btn.stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--danger); }
 /* The ⋯ actions button and its list. */
-.act-btn { flex: none; min-width: var(--tap); padding: 0; font-size: 20px; letter-spacing: .05em; }
+.act-btn { flex: none; min-width: var(--tap); padding: 0; font-size: 1.25rem; letter-spacing: .05em; }
 .act-pop { top: auto; bottom: calc(100% + 6px); right: auto; left: 0; min-width: 230px; max-height: min(420px, calc(var(--app-h, 100dvh) * .6)); overflow-y: auto; }
 .act-pop .btn { justify-content: flex-start; text-align: left; }
-.act-pop .act-h { margin: 4px 10px 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.act-pop .act-k { margin-left: auto; padding-left: 12px; font-family: var(--mono-font); font-size: 12px; color: var(--faint); }
+.act-pop .act-h { margin: 4px 10px 6px; font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.act-pop .act-k { margin-left: auto; padding-left: 12px; font-family: var(--mono-font); font-size: .75rem; color: var(--faint); }
 .composer-inner { position: relative; }
 /* The slim bars under the top bar: the offline demo, another tab. */
 .bar-note {
   flex: none; display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap;
   padding: 0 calc(4px + var(--sar)) 0 calc(16px + var(--sal)); min-height: 36px;
   border-bottom: 1px solid var(--border); background: var(--surface);
-  font-size: 13px; color: var(--muted);
+  font-size: .8125rem; color: var(--muted);
 }
 .bar-note > span { flex: 1 1 12em; min-width: 0; padding: 4px 0; }
 .bar-note.warn { border-bottom-color: var(--danger); color: var(--text); }
 .bar-note .btn.small { min-height: var(--tap); }
-.bar-x { min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; border-radius: var(--radius); }
+.bar-x { min-width: var(--tap); min-height: var(--tap); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 1.25rem; cursor: pointer; border-radius: var(--radius); }
 /* A read-only tab's box: a dashed edge and quieter colours, every one 4.5:1 (text) or 3:1 (edge); no transparency. */
 .read-only .cmd-input { background: var(--surface-2); color: var(--muted); border-style: dashed; }
 /* A narration being rewritten keeps its first draft, dimmed, under a label. */
 .f-narr.rewriting > p:not(.f-tag):not(.f-rewriting) { color: var(--muted); }
-.f-rewriting { margin: 0 0 .35em; font-family: var(--ui-font); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.f-rewriting { margin: 0 0 .35em; font-family: var(--ui-font); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 /* Undo, a small link at the end of the newest input line. It is not in the
    story's live region (it would be read out again with every turn): it sits
    after the feed and is laid over the line's right edge (UI.placeUndo), so
@@ -1129,13 +1146,13 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   position: absolute; left: 0; top: 0;
   min-height: var(--tap); min-width: var(--tap); padding: 0 6px;
   border: 0; border-radius: var(--radius); background: none; color: var(--accent);
-  font-family: var(--ui-font); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+  font-family: var(--ui-font); font-size: .8125rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .feed-after { max-width: var(--feed-w); margin: -12px auto 0; padding: 0 calc(16px + var(--sar)) 16px calc(16px + var(--sal)); }
 .feed-after:empty { display: none; }
 .page-title:focus, h1[tabindex="-1"]:focus { outline: none; }
 /* The first-turn tip. */
-.f-tip { position: relative; margin: 0 0 1.2em; padding: 12px 48px 12px 14px; border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface); font-family: var(--ui-font); font-size: 14px; line-height: 1.5; color: var(--text); }
+.f-tip { position: relative; margin: 0 0 1.2em; padding: 12px 48px 12px 14px; border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface); font-family: var(--ui-font); font-size: .875rem; line-height: 1.5; color: var(--text); }
 .f-tip p { margin: 0 0 4px; }
 .f-tip p:last-of-type { margin: 0; }
 .f-tip .bar-x { position: absolute; top: 2px; right: 2px; }
@@ -1143,22 +1160,22 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .ask { max-width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--field); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .ask::backdrop { background: var(--scrim); }
 .ask-in { padding: 20px; }
-.ask h2 { margin: 0 0 8px; font-family: var(--read-font); font-size: 22px; }
+.ask h2 { margin: 0 0 8px; font-family: var(--read-font); font-size: 1.375rem; }
 .ask p { margin: 0 0 12px; color: var(--muted); }
 .ask .row-btns { justify-content: flex-end; margin-top: 16px; }
 /* ===== Panels: Journal, People search, Places ===== */
 .jr-sec + .jr-sec { margin-top: 6px; }
 .jr-list li { display: grid; gap: 2px; }
-.jr-day { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.jr-day { font-size: .75rem; color: var(--faint); font-variant-numeric: tabular-nums; }
 .jr-text { line-height: 1.45; }
-.jr-who { font-size: 13px; color: var(--muted); }
+.jr-who { font-size: .8125rem; color: var(--muted); }
 .jr-done .jr-text { text-decoration: line-through; color: var(--muted); }
-.jr-due { font-size: 13px; color: var(--accent); }
+.jr-due { font-size: .8125rem; color: var(--accent); }
 .jr-due.late { color: var(--danger); }
 .jr-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.jr-people .chip { min-height: var(--tap); padding: 4px 12px; font-size: 13px; }
+.jr-people .chip { min-height: var(--tap); padding: 4px 12px; font-size: .8125rem; }
 /* Objectives (wave 26): each entry a summary that opens on its details (open by default on a laptop). */
-.obj-lede { margin: 0 0 4px; font-size: 13px; color: var(--faint); }
+.obj-lede { margin: 0 0 4px; font-size: .8125rem; color: var(--faint); }
 .panel-body .obj-sec h3 { display: flex; align-items: baseline; gap: 8px; }
 .panel-body .obj-list li { padding: 0; }
 .obj-d > summary { list-style: none; cursor: pointer; display: grid; gap: 2px; min-height: var(--tap); padding: 8px 22px 8px 0; position: relative; border-radius: 6px; }
@@ -1170,17 +1187,17 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .obj-d:not([open]) .obj-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .obj-who { font-weight: 600; }
 .obj-gone { color: var(--muted); font-style: italic; }
-.obj-when { font-size: 13px; color: var(--accent); }
+.obj-when { font-size: .8125rem; color: var(--accent); }
 .obj-when.late { color: var(--danger); }
-.obj-stakes { font-size: 13px; color: var(--muted); }
-.obj-more { margin: 0 0 10px; padding: 8px 0 0 10px; border-left: 2px solid var(--border); font-size: 13px; }
+.obj-stakes { font-size: .8125rem; color: var(--muted); }
+.obj-more { margin: 0 0 10px; padding: 8px 0 0 10px; border-left: 2px solid var(--border); font-size: .8125rem; }
 .obj-more .jr-people { margin-top: 0; }
 .thread-status[data-status="resolved"] { color: var(--att-mild); }
 .thread-status[data-status="failed"] { color: var(--danger); }
 .people-tools { position: sticky; top: -16px; z-index: 3; margin: -16px -16px 12px; padding: 12px 16px 10px; background: var(--surface); border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
 .people-tools .input { min-height: var(--tap); }
-.people-sort { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.people-sort .chip { min-height: var(--tap); padding: 4px 12px; font-size: 13px; }
+.people-sort { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); }
+.people-sort .chip { min-height: var(--tap); padding: 4px 12px; font-size: .8125rem; }
 .people-none { margin: 0 0 12px; }
 details.people-group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; min-height: var(--tap); }
 details.people-group > summary::-webkit-details-marker { display: none; }
@@ -1196,7 +1213,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .panel-body.editing { scroll-padding-bottom: 96px; }
 .pedit-actions { position: sticky; bottom: -16px; z-index: 2; margin: 0 -8px -16px; padding: 10px 8px 16px; background: var(--surface-2); border-top: 1px solid var(--border); }
 .pedit-more { min-width: 0; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius); }
-.pedit-more > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; }
+.pedit-more > summary { display: flex; align-items: center; gap: 10px; min-height: var(--tap); cursor: pointer; font-size: .875rem; color: var(--muted); list-style: none; }
 .pedit-more > summary::-webkit-details-marker { display: none; }
 .pedit-more > summary::before { content: ""; flex: none; width: 7px; height: 7px; border: solid var(--faint); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); }
 .pedit-more[open] > summary::before { transform: rotate(45deg); }
@@ -1210,19 +1227,19 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
    and pans sideways; on a laptop it fits the window). */
 .map.expanded { position: fixed; inset: 0; z-index: 55; margin: 0; display: flex; flex-direction: column; padding: var(--sat) var(--sar) var(--sab) var(--sal); border: 0; background: var(--map-land); }
 .map-bar { flex: none; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 8px 6px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.panel-body .map-bar h2, .map-bar h2 { flex: 1 1 auto; min-width: 0; margin: 0; font-family: var(--ui-font); font-size: 16px; font-weight: 600; }
+.panel-body .map-bar h2, .map-bar h2 { flex: 1 1 auto; min-width: 0; margin: 0; font-family: var(--ui-font); font-size: 1rem; font-weight: 600; }
 .map.expanded .map-pan { flex: 1 1 auto; min-height: 0; display: flex; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
 .map.expanded .map-canvas { flex: none; margin: auto; }
 .map.expanded .map-svg { width: 100%; height: 100%; }
 .go-btn { margin-top: 10px; }
 .exit-list li { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .exit-list li > span { flex: 1 1 10em; min-width: 0; }
-.plcard-warn { margin: 10px 0 0; font-size: 13px; color: var(--danger); }
+.plcard-warn { margin: 10px 0 0; font-size: .8125rem; color: var(--danger); }
 /* Character: reputation per faction, progression. */
 .rep-list li { display: flex; justify-content: space-between; gap: 12px; }
 .rep-tier { color: var(--muted); white-space: nowrap; }
 .sp-row { display: flex; align-items: center; gap: 10px; }
-.sp-row .btn { min-height: var(--tap); padding: 0 12px; font-size: 13px; }
+.sp-row .btn { min-height: var(--tap); padding: 0 12px; font-size: .8125rem; }
 /* ===== Settings: presets, key check, cost ===== */
 .preset-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .preset-grid .choice-sub { margin-top: 2px; }
@@ -1230,11 +1247,11 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .preset-grid input { accent-color: var(--accent); margin: 0 6px 0 0; }
 .preset-grid .choice:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
 .key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
-.key-status { font-size: 14px; color: var(--muted); }
+.key-status { font-size: .875rem; color: var(--muted); }
 .key-status[data-ok="1"] { color: var(--att-mild); }
 .key-status[data-ok="0"] { color: var(--danger); }
-.warn-note { margin: 6px 0 0; padding: 8px 12px; border-left: 2px solid var(--danger); background: var(--surface-2); font-size: 13px; color: var(--text); }
-.session-line { margin: 0 0 16px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.warn-note { margin: 6px 0 0; padding: 8px 12px; border-left: 2px solid var(--danger); background: var(--surface-2); font-size: .8125rem; color: var(--text); }
+.session-line { margin: 0 0 16px; font-size: .875rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .disclosure { margin: 4px 0 0; }
 .disclosure[open] > summary { margin-bottom: 12px; }
 
@@ -1248,10 +1265,10 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .topbar { padding-left: calc(16px + var(--sal)); gap: 8px; }
   /* The place on a line of its own, the time, HP and money under it; what does not fit there (a lot of money at 320) goes on a third line, never under Menu. */
   .tb-main { flex-wrap: wrap; gap: 0 12px; }
-  .tb-loc { order: -1; flex: 1 0 100%; font-size: 15px; } /* first (it follows the time in the markup); text only, so no focus order to keep */
-  .tb-time { font-size: 13px; }
-  .tb-hp { font-size: 13px; }
-  .tb-gold { font-size: 13px; }
+  .tb-loc { order: -1; flex: 1 0 100%; font-size: .9375rem; } /* first (it follows the time in the markup); text only, so no focus order to keep */
+  .tb-time { font-size: .8125rem; }
+  .tb-hp { font-size: .8125rem; }
+  .tb-gold { font-size: .8125rem; }
   .tabrow { display: flex; }
   .tabbar { display: flex; flex: 1 1 auto; min-width: 0; }
   .game-body.panel-collapsed .panel { display: flex; }
@@ -1277,8 +1294,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   }
   .panel-grip { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--field); margin: 8px auto 2px; }
   .panel-close { display: inline-flex; }
-  .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: 15px; }
-  .mono { width: 40px; height: 40px; font-size: 14px; }
+  .panel-body { padding: 16px calc(16px + var(--sar)) 16px calc(16px + var(--sal)); font-size: .9375rem; }
+  .mono { width: 40px; height: 40px; font-size: .875rem; }
   .pcard + .pcard::before { left: 60px; }
   .pcard-more { padding-left: 60px; }
   .map { margin: -16px calc(-16px - var(--sar)) 0 calc(-16px - var(--sal)); }
@@ -1286,14 +1303,14 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .create .step.current { display: block; animation: fade-in .2s ease-out; }
   /* The command list: the description on a second line. */
   .ac li { flex-wrap: wrap; row-gap: 2px; padding: 8px 10px; }
-  .ac li > .ac-desc { display: block; flex: 1 0 100%; margin-left: 0; font-size: 12.5px; line-height: 1.35; overflow: visible; }
+  .ac li > .ac-desc { display: block; flex: 1 0 100%; margin-left: 0; font-size: .78125rem; line-height: 1.35; overflow: visible; }
   /* The input row holds the toggle, ⋯, the box and Send: tighter, so the box keeps its room. */
   .composer { padding-left: calc(8px + var(--sal)); padding-right: calc(8px + var(--sar)); }
   .mode-btn { padding: 0 8px; }
   .input-row { gap: 4px; }
   .send-btn { padding: 0 8px; }
   .send-btn.stop::before { display: none; }
-  .cmd-input { font-size: 16px; padding: 10px; }
+  .cmd-input { font-size: 1rem; padding: 10px; }
   /* Say: one row that scrolls sideways, never more. */
   .say-to { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
   .say-to::-webkit-scrollbar { display: none; }
@@ -1318,7 +1335,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .act-pop .act-h { grid-column: 1 / -1; grid-row: 1; }
   /* The command list: one line a command (two for a long description), as on a laptop (there is room across), so more of them show above the box (UI.renderAc lets it use the story's strip). */
   .ac li { flex-wrap: nowrap; row-gap: 0; padding: 11px 10px; }
-  .ac li > .ac-desc { display: -webkit-box; flex: 0 1 auto; margin-left: auto; font-size: 13px; line-height: 1.35; overflow: hidden; }
+  .ac li > .ac-desc { display: -webkit-box; flex: 0 1 auto; margin-left: auto; font-size: .8125rem; line-height: 1.35; overflow: hidden; }
   /* Typing: the top bar steps aside too, and the Say row is the picker alone, in the input row (UI.compactComposer), so the story keeps its room. */
   #app.typing #screen-game .topbar { display: none; }
   #app.typing .composer-inner { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 4px; }
@@ -1333,7 +1350,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   #app.typing .say-to .say-pick { position: static; min-width: 7.5em; max-width: 100%; padding-left: 12px; box-shadow: none; }
   #app.typing .input-wrap { order: 4; flex: 1 1 0; min-width: 120px; }
   /* At most three lines of box (then it scrolls; UI.autosize), so the story keeps 90px or more whatever is typed. */
-  #app.typing .cmd-input { max-height: calc(3 * 1.45 * 16px + 22px); }
+  #app.typing .cmd-input { max-height: calc(3 * 1.45 * 1rem + 22px); }
   #app.typing .send-btn { order: 5; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1343,6 +1360,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 </head>
 <body>
 <div id="app">
+  <!-- Wave 45: the first thing Tab reaches on the game screen; it takes the focus to the box (or the story, when the box cannot be used). -->
+  <a class="skip-link" id="skip-link" href="#cmd" hidden>Skip to the story</a>
   <div id="banner" class="banner" role="alert" hidden>
     <span id="banner-text"></span>
     <button type="button" class="btn ghost small" id="banner-close">Dismiss</button>
@@ -1487,7 +1506,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
       <button type="button" class="btn small" id="tab-bar-take">Play here instead</button>
     </div>
     <div class="game-body" id="game-body">
-      <div class="story">
+      <main class="story" aria-labelledby="game-title">
         <div class="feed-area">
           <div class="feed-scroll" id="feed-scroll">
             <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
@@ -1511,7 +1530,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             </div>
             <div class="popover act-pop" id="act-pop" role="menu" aria-label="Actions and commands" hidden></div>
             <div class="say-to" id="say-to" role="group" aria-label="Say it to" hidden></div>
-            <div class="turn-status" id="turn-status" role="status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line">&#215;</button></span></div>
+            <div class="turn-status" id="turn-status" hidden><span class="turn-dot" aria-hidden="true"></span><span id="turn-status-text"></span><span class="queued" id="queued-note" hidden><span class="queued-text" id="queued-text">Queued</span><button type="button" class="queued-x" id="queued-cancel" aria-label="Cancel the queued line" title="Cancel the queued line">&#215;</button></span></div>
+            <!-- Wave 45: the status line read out (politely). It is always on the page, so a line shown after it was hidden is still announced; the visible line above holds the × button. -->
+            <span class="visually-hidden" id="turn-status-live" role="status" aria-live="polite" aria-atomic="true"></span>
             <div class="input-row">
               <ul id="ac" class="ac" role="listbox" aria-label="Commands" hidden></ul>
               <div class="mode-toggle" role="group" aria-label="Do or say">
@@ -1528,7 +1549,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             </div>
           </div>
         </div>
-      </div>
+      </main>
       <aside class="panel" id="panel" aria-label="Side panel">
         <div class="panel-grip" aria-hidden="true"></div>
         <div class="panel-head">
@@ -31634,7 +31655,10 @@ const Storage = (() => {
 })();
 
 // ===== Module: UI =====
-/* All rendering. Every dynamic string goes in through el()/textContent. */
+/* All rendering. Every dynamic string goes in through el()/textContent.
+   Wave 45 (accessibility): a skip link to the story, a hidden "Turn N"
+   heading on each narration, the status line's polite live region
+   (#turn-status-live), and the focus kept when the feed is drawn again. */
 const UI = (() => {
   const d = {};
   const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['objectives', 'Objectives'], ['places', 'Places']];
@@ -31703,7 +31727,8 @@ const UI = (() => {
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
-    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn', 'title-build', 'set-build'];
+    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn', 'title-build', 'set-build',
+    'skip-link', 'turn-status-live'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -31759,6 +31784,8 @@ const UI = (() => {
     d.newBtn.addEventListener('click', scrollToBottom);
     // Undo (outside the live region): laid over the newest input line again whenever the story's size changes.
     d.undoBtn.addEventListener('click', () => runAction('/undo', d.undoBtn));
+    // Wave 45: Skip to the story.
+    d.skipLink.addEventListener('click', e => { e.preventDefault(); skipToStory(); });
     try { const ro = new ResizeObserver(() => placeUndo()); ro.observe(d.feed); ro.observe(d.feedScroll); } catch (e) { window.addEventListener('resize', () => placeUndo()); }
     // Composer
     // Send's label first: Wait → Send changes the box's width, so its height is measured after (autosize).
@@ -32118,6 +32145,8 @@ const UI = (() => {
     const sheet = isMobile() && !!d.gameBody && d.gameBody.classList.contains('sheet-open');
     const map = mapExpanded && !!d.panelBody && !!$('.map.expanded', d.panelBody);
     d.banner.inert = sheet || map || !!(d.ask && d.ask.open);
+    // Wave 45: so is the skip link (it leads to the story, which is inert under them).
+    if (d.skipLink) d.skipLink.inert = d.banner.inert;
   }
   /* A question in a modal dialog (the page behind it takes no input):
      resolves true for the yes button, false for Cancel or Escape. The focus
@@ -32173,7 +32202,25 @@ const UI = (() => {
       feedPlace = null;
     }
     renderDemoBar();
+    // Wave 45: the skip link is the game screen's (the other screens start with their heading and a short list of buttons).
+    if (d.skipLink) d.skipLink.hidden = name !== 'game';
     focusScreen(name);
+  }
+  /* Wave 45: the skip link (the first stop of Tab on the game screen)
+     takes the focus to the box, or, when the box cannot be used now (no
+     game, a read-only tab, the box off), to the story itself, which takes
+     the focus only for this (tabindex -1, gone again when it leaves). */
+  function skipToStory() {
+    if (App.inGame() && focusableNow(d.cmd) && !d.cmd.readOnly) { d.cmd.focus({ preventScroll: true }); return d.cmd; }
+    focusFeed();
+    return d.feed;
+  }
+  function focusFeed() {
+    if (!d.feed.hasAttribute('tabindex')) {
+      d.feed.setAttribute('tabindex', '-1');
+      d.feed.addEventListener('blur', () => d.feed.removeAttribute('tabindex'), { once: true });
+    }
+    d.feed.focus({ preventScroll: true });
   }
   /* Screen readers hear where they are: the new screen's heading takes the
      focus. On a laptop the game's input takes it instead. */
@@ -34553,12 +34600,28 @@ const UI = (() => {
      being rewritten keeps its "Rewriting…" label. */
   function fillParas(node, text) {
     const paras = String(text || '').split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
+    const head = node.dataset.turnLabel ? [turnHeading(node.dataset.turnLabel)] : [];
     const tag = node.dataset.mock === '1' ? [el('p', { class: 'f-tag' }, 'Mock narration')] : [];
     const label = node.classList.contains('rewriting') ? [rewritingLabel()] : [];
-    node.replaceChildren(...tag, ...label, ...paras.map(t => el('p', null, t)));
+    node.replaceChildren(...head, ...tag, ...label, ...paras.map(t => el('p', null, t)));
   }
   function rewritingLabel() { return el('p', { class: 'f-rewriting' }, 'Rewriting…'); }
-  function narrationNode(text, mock) { const n = el('div', { class: 'f-item f-narr', dataset: mock ? { mock: '1' } : null }); fillParas(n, text); return n; }
+  /* Wave 45: each narration opens with a heading only screen readers meet
+     ("Turn 3"; the arrival's "Arrival"), so the story can be read turn by
+     turn with the headings list. Its words are drawn by CSS from
+     data-label (as the recap's heading is), so the narration's text and
+     innerText stay its own paragraphs. turn: the log entry's (meta.turn
+     while it is written); a node without one has no heading. */
+  function turnLabel(turn) { return Number.isInteger(turn) && turn >= 0 ? (turn ? `Turn ${turn}` : 'Arrival') : ''; }
+  function liveTurn() { const s = State.current; return s && s.meta ? s.meta.turn : null; }
+  function turnHeading(label) { return el('h2', { class: 'f-turn-h visually-hidden', dataset: { label } }); }
+  function narrationNode(text, mock, turn) {
+    const label = turnLabel(turn);
+    const data = Object.assign({}, mock ? { mock: '1' } : {}, label ? { turnLabel: label } : {});
+    const n = el('div', { class: 'f-item f-narr', dataset: Object.keys(data).length ? data : null });
+    fillParas(n, text);
+    return n;
+  }
   /* "Day 2 · Friday · Evening" (the weekday once the engine has a calendar). */
   function dividerNode(day, phase) { return el('div', { class: 'f-item f-divider', role: 'separator', dataset: { day: String(day), phase } }, dayLabel(day, phase)); }
   /* The time the feed shows now: its last divider's (a quiet line printed under it belongs to that time), else the clock's. */
@@ -35308,10 +35371,12 @@ const UI = (() => {
     add(node) { d.feed.append(node); afterAppend(); return node; },
     input(text, sp) { inferStage('parse'); Object.assign(turnMark, { open: true, roll: false, narr: false }); return feed.add(inputNode(text, sp)); },
     roll(r) { if (r) turnMark.roll = true; return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
-    narration(text, mock) { turnMark.narr = true; const node = feed.add(narrationNode(text, mock)); releaseNote(); return node; },
+    narration(text, mock) { turnMark.narr = true; const node = feed.add(narrationNode(text, mock, liveTurn())); releaseNote(); return node; },
     beginNarration(opts) {
       turnMark.narr = true;
-      const node = el('div', { class: 'f-item f-narr pending', 'aria-busy': 'true', 'aria-hidden': 'true', dataset: opts && opts.mock ? { mock: '1' } : null });
+      const label = turnLabel(liveTurn());
+      const data = Object.assign({}, opts && opts.mock ? { mock: '1' } : {}, label ? { turnLabel: label } : {});
+      const node = el('div', { class: 'f-item f-narr pending', 'aria-busy': 'true', 'aria-hidden': 'true', dataset: Object.keys(data).length ? data : null });
       fillParas(node, '');
       liveOff();
       inferStage('narrate');
@@ -35336,7 +35401,7 @@ const UI = (() => {
       if (!node) return;
       node.classList.toggle('rewriting', !!on);
       const label = $('.f-rewriting', node);
-      if (on && !label) { const tag = $('.f-tag', node); if (tag) tag.after(rewritingLabel()); else node.prepend(rewritingLabel()); }
+      if (on && !label) { const tag = $('.f-tag', node) || $('.f-turn-h', node); if (tag) tag.after(rewritingLabel()); else node.prepend(rewritingLabel()); }
       if (!on && label) label.remove();
       if (on) inferStage('rewrite');
     },
@@ -35547,6 +35612,18 @@ const UI = (() => {
   }
   function rebuildFeed() {
     const s = State.current;
+    // Wave 45: a control in the story (Try again, a card, Open Settings) goes with the old feed; the focus is not dropped to the page.
+    const a = document.activeElement;
+    const hadFocus = !!a && a !== d.feed && (d.feed.contains(a) || (d.feedAfter && d.feedAfter.contains(a)));
+    try { rebuildFeedNodes(s); } finally { if (hadFocus && !(document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected)) refocusAfterFeed(); }
+  }
+  /* The focus after the story was drawn again: the box (a phone: Send, so no keyboard pops up), else the story itself. */
+  function refocusAfterFeed() {
+    if (screen !== 'game') return;
+    const to = [isMobile() ? d.send : d.cmd, d.send].find(focusableNow);
+    if (to) to.focus({ preventScroll: true }); else focusFeed();
+  }
+  function rebuildFeedNodes(s) {
     feed.clear();
     // A load, a new game or an undo: Say mode starts again from the default addressee, and an open editor closes.
     composer.chosen = false;
@@ -35584,7 +35661,7 @@ const UI = (() => {
       if (isObj(e.cards)) d.feed.append(cardsNode(e.cards));
       if (e.roll && e.roll.line && showRolls) d.feed.append(rollNode(e.roll));
       for (const n of where('before')) quietAt(e, n);
-      if (e.narration) { at(e.day, e.phase); d.feed.append(narrationNode(e.narration, e.mock === true)); }
+      if (e.narration) { at(e.day, e.phase); d.feed.append(narrationNode(e.narration, e.mock === true, e.turn)); }
       // The quiet lines of that turn (added to the map, edited someone, damage), kept with it.
       for (const n of where('after')) quietAt(e, n);
     }
@@ -35690,6 +35767,13 @@ const UI = (() => {
     renderStatus(message);
     syncSendLabel();
   }
+  /* Wave 45: the status line's words, also put in its live region (#turn-status-live, a polite role=status that is never
+     hidden, so a line shown after the bar was hidden is still read out); the same words are not said twice. */
+  function setStatusText(text) {
+    const t = String(text || '');
+    d.turnStatusText.textContent = t;
+    if (d.turnStatusLive && d.turnStatusLive.textContent !== t) d.turnStatusLive.textContent = t;
+  }
   function renderStatus(message) {
     if (!d.turnStatus) return;
     // A typed amount's note on the hand it finished stays through "Writing…" until the narration arrives (wave 20, QA N4: releaseNote).
@@ -35701,7 +35785,7 @@ const UI = (() => {
     const hs = on && status.stage === 'cards' ? handStatus(shownTable) : null;
     d.turnStatus.classList.toggle('short-hand', !!hs);
     if (hs) d.turnStatusText.title = hs.title; else d.turnStatusText.removeAttribute('title');
-    d.turnStatusText.textContent = on ? (hs ? hs.text : STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '';
+    setStatusText(on ? (hs ? hs.text : STAGE_TEXT[status.stage] || message || STAGE_TEXT.busy) : '');
     // The queued line is shown, not just a pill, with × to take it back.
     const q = on && status.queued;
     d.queuedNote.hidden = !q;
@@ -35736,7 +35820,7 @@ const UI = (() => {
     d.turnStatus.classList.add('nudge');
     d.turnStatus.classList.remove('short-hand');
     d.turnStatusText.removeAttribute('title');
-    d.turnStatusText.textContent = text || 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.';
+    setStatusText(text || 'Still working on the last turn. Your line stays in the box; press Stop to cancel that turn.');
     nudgeAgain = typeof again === 'function' ? again : null;
     clearTimeout(nudgeTimer);
     nudgeTimer = setTimeout(() => renderStatus(), 2600);
@@ -35756,7 +35840,7 @@ const UI = (() => {
     // Wave 20 (QA N11): the status line follows the table drawn (on a short screen it says what Stop costs now).
     if (!d.turnStatus.classList.contains('nudge')) { if (status.stage === 'cards') renderStatus(); return; }
     // The open table as drawn (the hand waits for the player right after this, so its kind is the table's own).
-    if (nudgeAgain && isObj(t) && !t.result && !t.choose) { d.turnStatusText.textContent = nudgeAgain(t, t.game === 'holdem' ? 'holdem' : t.phase === 'bet' ? 'drawbet' : 'draw'); return; }
+    if (nudgeAgain && isObj(t) && !t.result && !t.choose) { setStatusText(nudgeAgain(t, t.game === 'holdem' ? 'holdem' : t.phase === 'bet' ? 'drawbet' : 'draw')); return; }
     clearTimeout(nudgeTimer);
     renderStatus();
   }
@@ -35811,7 +35895,7 @@ const UI = (() => {
   }
   function stopTurn() {
     try { Pipeline.abort(); } catch (e) { console.error(e); }
-    if (d.turnStatusText && !d.turnStatus.hidden) d.turnStatusText.textContent = 'Stopping…';
+    if (d.turnStatusText && !d.turnStatus.hidden) setStatusText('Stopping…');
     return true;
   }
   /* A failed turn hands the line back: into the box if the player has not
