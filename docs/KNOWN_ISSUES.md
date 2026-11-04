@@ -32,8 +32,12 @@ When one is settled, take it out here and say so in the wave's notes.
   phrase backstop (`Api.MINOR_ROMANCE_PHRASES`), which now hits 40 of the
   42 minor-aimed lines (it hit 16 before) and none of the false friends; the
   backstop was tuned on this authored set, so the real measure is a set of
-  live exports. The parser's own recall after the rule change is in the
-  third recorded run.
+  live exports. After the rule change the parser's own recall on Haiku rose
+  from 90.5% to 97.6% (41 of 42; the one left is the ambiguous "wasted on
+  this register"), and parser or backstop together reach 97.6%, a hair
+  under the 98% bar. Haiku still reads 4 of 17 false friends as a flirt
+  ("Thanks, sweetheart", "Honey, that's the best coffee on the river"),
+  where Sonnet reads none; a bare flag costs only the light row.
   The set is still the 216 authored rows, not live turns. B3 tuning (below)
   waits on a bookkeeper that passes; the first thing to try is a rubric line
   that `noted` is for something a person would actually hold on to, not

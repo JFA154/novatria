@@ -1182,3 +1182,19 @@ cast line ids (about 185 tokens) and the doubled cash rule.
 - romantic recall for minors: parser 83.3%, phrase list 38.1%, either 85.7%; false friends read as romantic 0 of 17
 - confusions (label -> sent): nothing -> noted 14; lied_caught -> noted 4; crossed -> noted 4; badmouthed -> noted 4; bribed -> noted 4; betrayed_confidence -> exposed 3; stole_from -> noted 3; cheated -> noted 3; confided -> they_confided 2; kept_word -> noted 2; exposed -> noted 2; informed_on -> exposed 2; did_favour -> noted 2; informed_on -> noted 2; learned_secret -> noted 2; vouched_for -> complimented 2; vouched_for -> noted 2; they_confided -> noted 1; nothing -> pried 1; kept_word -> complimented 1; came_clean -> noted 1; betrayed_confidence -> noted 1; exposed -> pried 1; exposed -> informed_on 1; they_helped -> did_favour 1; defended -> noted 1; nothing -> insulted 1; informed_on -> badmouthed 1; nothing -> exposed 1; learned_secret -> they_confided 1; bribed -> pried 1; flirted -> noted 1; did_favour -> complimented 1; nothing -> complimented 1; complimented -> noted 1
 - cost: $4.8368 (2128711 tokens in, 57936 out)
+
+## Labelled eval run (2026-11-04)
+
+`node tests/eval-classify.cjs --record` on claude-haiku-5-5: 216 rows from `tests/eval/labelled.jsonl` (216 bookkeeper turns, 64 romantic lines, 42 aimed at minors; 216 authored, 0 exported).
+
+- **Below** the recommended bar: exact accuracy, invented events, romantic recall for minors, minor-related events for a minor.
+- exact accuracy: 14.3% of emitted (bar 75%) (below)
+- neighbour confusions: 2.6% of emitted (bar under 20%)
+- invented events: 83.1% of emitted (bar 5% or fewer) (below)
+- romantic recall for minors: 97.6% over 42 lines (bar 98% over at least 40) (below)
+- minor-related events for a minor: 53 (bar 0) (below)
+- every request answered: 0 failed
+- emitted 154, exact 22, neighbours 4, invented 128, missed 90 of 116, dropped for the engine's own 1
+- romantic recall for minors: parser 97.6%, phrase list 95.2%, either 97.6%; false friends read as romantic 4 of 17
+- confusions (label -> sent): nothing -> noted 23; confided -> noted 5; came_clean -> noted 5; lied_caught -> noted 5; flirted -> noted 5; insulted -> noted 4; complimented -> noted 4; pried -> noted 4; apologised -> noted 4; kept_word -> noted 4; betrayed_confidence -> noted 4; crossed -> noted 4; rebuffed -> noted 4; bribed -> noted 4; they_confided -> confided 3; exposed -> noted 3; defended -> noted 3; informed_on -> noted 3; cheated -> noted 3; vouched_for -> noted 3; nothing -> insulted 2; did_favour -> they_helped 2; did_favour -> noted 2; they_helped -> noted 2; learned_secret -> noted 2; cheated -> insulted 2; badmouthed -> noted 2; gift -> noted 2; flirted -> rebuffed 2; insulted -> insulted 1; pried -> insulted 1; they_confided -> noted 1; came_clean -> complimented 1; they_helped -> did_favour 1; defended -> confided 1; informed_on -> insulted 1; rebuffed -> kept_word 1; noted -> noted 1; learned_secret -> confided 1; stole_from -> insulted 1; stole_from -> noted 1; flirted -> insulted 1; spent_time -> complimented 1; spent_time -> noted 1; complimented -> learned_secret 1; nothing -> pried 1
+- cost: $0.2433 (2136199 tokens in, 59345 out)
