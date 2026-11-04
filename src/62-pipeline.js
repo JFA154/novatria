@@ -560,6 +560,8 @@ const Pipeline = (() => {
     const presentRow = n => {
       const sd = standing(n.id);
       const extra = [`${pronounLabel(n.pronouns)}; ${n.role}; toward the player: ${sd.stance}; lies to them: ${sd.lies}`];
+      // Wave 52: the bookkeeper is told who is under 18, so its rubric's rule (no event about a romantic line at them) can apply.
+      if (typeof n.age === 'number' && n.age < 18) extra.push(`UNDER 18 (${n.age}): no event about a romantic or flirting line at them`);
       if (n.traits.length) extra.push(`traits: ${n.traits.join(', ')}`);
       if (n.goal) extra.push(`wants: ${lowerFirst(n.goal).replace(/\.$/, '')}`);
       return `${n.id} — ${n.name} (${extra.join('; ')})${n.look ? `: ${n.look}` : ''}`;

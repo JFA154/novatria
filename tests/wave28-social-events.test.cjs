@@ -104,7 +104,9 @@ s.test('the wire: event strings with or without colons, American spellings, a mi
   assert.match(r.eventRules, /as a neutral witness would name it/);
   assert.match(r.eventRules, /never send them: a fight, a threat, a theft or a cheat seen as it happened, money or a thing handed over, a debt paid, a promise or a meeting kept or missed, a flirt, time spent together/);
   const words = t => t.split(/\s+/).filter(Boolean).length;
-  assert.ok(words(r.eventRules) >= 250 && words(r.eventRules) <= 380, 'about 300 words: ' + words(r.eventRules));
+  // Changed by design in wave 52: the rules became a decision list with direction, no-witness and noted-last rules (about 700
+  // words); the block is cached since wave 41, so its size costs about 0.02 cents a call. The worked examples are a block of their own.
+  assert.ok(words(r.eventRules) >= 500 && words(r.eventRules) <= 800, 'about 700 words: ' + words(r.eventRules));
   assert.ok(words(r.words) >= 45 && words(r.words) <= 60, 'about 53 words: ' + words(r.words));
   assert.match(r.parser, /ROMANTIC: romantic is "flirt" when/);
   assert.match(r.parser, /when asking anything of someone who is against the player or hates them \(the engine also sets a floor\)/);

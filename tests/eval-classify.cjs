@@ -75,7 +75,11 @@ const KEY = process.env.ANTHROPIC_API_KEY || '';
 const DRY = flag('--dry') || process.env.EVAL_DRY === '1';
 const JSON_OUT = flag('--json');
 const RECORD = flag('--record');
-const SET = args.find(a => !a.startsWith('--')) || path.join(__dirname, 'eval', 'labelled.jsonl');
+// --only bookkeeper (wave 52): post only the bookkeeper requests and report only their measures; cheaper for rubric work. No --record.
+const ONLY = (args.find(a => /^--only=/.test(a)) || '').slice(7) || (args.includes('--only') ? String(args[args.indexOf('--only') + 1] || '') : '');
+if (ONLY && ONLY !== 'bookkeeper') { console.log('eval-classify: --only takes "bookkeeper"'); process.exit(2); }
+if (ONLY && RECORD) { console.log('eval-classify: --record needs a full run, not --only'); process.exit(2); }
+const SET = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--only') || path.join(__dirname, 'eval', 'labelled.jsonl');
 // EVAL_ENDPOINT and EVAL_NOTES are for tests/eval-set.test.cjs only: a local stand-in for the API, and a notes file of its own.
 const NOTES = process.env.EVAL_NOTES || path.join(__dirname, '..', 'docs', 'notes', 'prompts.md');
 const ENDPOINT = process.env.EVAL_ENDPOINT || '';
@@ -219,7 +223,7 @@ async function main() {
   const chars = [...built.bodies, ...built.parses].filter(Boolean).reduce((a, b) => a + JSON.stringify(b).length, 0);
   const calls = built.bodies.filter(Boolean).length + built.parses.filter(Boolean).length;
   const guess = await costOf(model, { input: Math.round(chars / 4), output: calls * 150, cacheRead: 0, cacheCreation: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
-  console.log(`  model ${model}; ${built.bodies.filter(Boolean).length} bookkeeper requests, ${built.parses.filter(Boolean).length} parser requests; about ${Math.round(chars / 4)} input tokens, about ${guess === null ? 'an unpriced model' : '$' + guess.toFixed(3)} a run`);
+  console.log(`  model ${model}; ${built.bodies.filter(Boolean).length} bookkeeper requests, ${ONLY === 'bookkeeper' ? 0 : built.parses.filter(Boolean).length} parser requests${ONLY ? ' (--only ' + ONLY + ')' : ''}; about ${Math.round(chars / 4)} input tokens, about ${guess === null ? 'an unpriced model' : '$' + guess.toFixed(3)} a run`);
   if (errors.length) {
     console.log(`SET INVALID (${errors.length}):`);
     for (const e of errors.slice(0, 40)) console.log(`  ${e}`);
@@ -307,7 +311,7 @@ async function main() {
       }
     }
     // Romantic intent: the parser's field and the phrase list, by whom the line was aimed at.
-    if (built.parses[i]) {
+    if (built.parses[i] && ONLY !== 'bookkeeper') {
       const p = await post(built.parses[i], built.effort.parser);
       let byParse = null;
       try { const pr = JSON.parse(textOf(p.data)); byParse = pr.romantic === 'flirt' || pr.romantic === 'more' ? pr.romantic : null; } catch (e) { byParse = null; if (p.status !== 200) tally.http += 1; }
@@ -334,7 +338,7 @@ async function main() {
     ['exact accuracy', tally.emitted > 0 && rate(tally.exact, tally.emitted) >= BAR.exact, `${pct(tally.exact, tally.emitted)} of emitted (bar 75%)`],
     ['neighbour confusions', tally.emitted > 0 && rate(tally.neighbour, tally.emitted) < BAR.neighbour, `${pct(tally.neighbour, tally.emitted)} of emitted (bar under 20%)`],
     ['invented events', tally.emitted > 0 && rate(tally.invented, tally.emitted) <= BAR.invented, `${pct(tally.invented, tally.emitted)} of emitted (bar 5% or fewer)`],
-    ['romantic recall for minors', tally.minorLines >= MIN.minorRomantic && rate(tally.recallEither, tally.minorLines) >= BAR.recall, `${pct(tally.recallEither, tally.minorLines)} over ${tally.minorLines} lines (bar 98% over at least ${MIN.minorRomantic})`],
+    ['romantic recall for minors', ONLY === 'bookkeeper' || (tally.minorLines >= MIN.minorRomantic && rate(tally.recallEither, tally.minorLines) >= BAR.recall), ONLY === 'bookkeeper' ? 'not run (--only bookkeeper)' : `${pct(tally.recallEither, tally.minorLines)} over ${tally.minorLines} lines (bar 98% over at least ${MIN.minorRomantic})`],
     ['minor-related events for a minor', tally.minorEvents === 0, `${tally.minorEvents} (bar 0)`],
     ['every request answered', tally.http === 0, `${tally.http} failed`]
   ];
