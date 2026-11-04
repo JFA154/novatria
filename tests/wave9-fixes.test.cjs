@@ -8,10 +8,9 @@
    for a rewrite (docs/notes/prompts.md, Wave 9). Mock mode.
    Run with: node tests/run.cjs wave9 */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fastClear: fast, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave9-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
 const line = (packet, label) => packet.split('\n').find(l => l.startsWith(label + ':')) || '';
 const packetFor = (page, ctx) => page.evaluate(c => Game.Pipeline.narratorPacket(Object.assign({ notPresent: [], created: [], due: [] }, c)), ctx);
 const check = (page, text, opts) => page.evaluate(([t, o]) => Game.Style.check(t, o), [text, opts || {}]);

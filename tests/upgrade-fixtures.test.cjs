@@ -23,7 +23,9 @@ async function importSave(h, text) {
   await page.evaluate(() => { Game.Api.Mock.delay = 0; });
   await page.click('#btn-load');
   await page.setInputFiles('#import-file', { name: 'fixture.json', mimeType: 'application/json', buffer: Buffer.from(text) });
-  await page.waitForSelector('#screen-game.active');
+  await page.waitForSelector('#screen-game.active', { timeout: 60000 });
+  // Wave 49: imported and autosaved before anything reloads the page.
+  await page.waitForFunction(() => Game.Storage.hasAutosave() && !Game.Pipeline.busy, null, { timeout: 60000 });
   return page;
 }
 
@@ -50,6 +52,8 @@ for (const key of keys()) {
     await page.reload();
     await page.waitForFunction(() => window.Game && Game.App);
     await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+    // Wave 49: the title draws the update once the autosave is there to read, which a loaded machine can make late (60 s at most).
+    await page.waitForFunction(() => !document.getElementById('btn-update').hidden, null, { timeout: 60000 }).catch(() => {});
     assert.equal(await page.evaluate(() => !document.getElementById('btn-update').hidden), true, 'the title offers the update');
     await page.click('#btn-update');
     await page.waitForFunction(() => Game.state && !Game.Pipeline.busy && Game.State.rulesVersion(Game.state) === Game.State.RULES_VERSION, null, { timeout: 30000 });

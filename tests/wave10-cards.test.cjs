@@ -19,14 +19,13 @@
    Mock mode. Run with: node tests/run.cjs wave10 */
 const fs = require('fs');
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, line, idle, GAME_PATH, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave10-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 // Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
 // Wave 18: the round of betting after the draw is checked or called down (hooks.cardsBetting), so a Draw plays to the showdown as these tests were written; tests/wave18-betting.test.cjs plays it.
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsBetting = 'call'; });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
@@ -53,7 +52,6 @@ async function startHand(page, words) {
 }
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 /* The table as drawn: its text, its cards (a code, or "back"), what is just before and after it. */
 const tableNow = page => page.evaluate(() => {
   const t = document.querySelector('#feed .f-cards');

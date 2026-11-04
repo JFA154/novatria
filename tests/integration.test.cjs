@@ -28,10 +28,9 @@
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { suite, quickStart, sendText, ROOT } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fast, ROOT } = require('./helpers.cjs');
 
 const s = suite('integration');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 const quiets = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(e => e.textContent));
 const lastPacket = page => page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop().text);
 
@@ -413,7 +412,8 @@ s.test('wave 2: a read-only tab says so once per refused action (the UI guard an
     window.__toasts = 0;
     new MutationObserver(m => { window.__toasts += m.filter(x => x.type === 'childList').length ? 1 : 0; }).observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true });
   });
-  const count = async fn => { await page.evaluate(() => { window.__toasts = 0; }); await fn(); await page.waitForTimeout(50); return page.evaluate(() => window.__toasts); };
+  // Wave 49: the first toast, then two frames for a second one to show (no fixed sleep).
+  const count = async fn => { await page.evaluate(() => { window.__toasts = 0; }); await fn(); await page.waitForFunction(() => window.__toasts > 0, null, { timeout: 5000 }).catch(() => {}); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); return page.evaluate(() => window.__toasts); };
   const turn0 = await page.evaluate(() => { Game.Storage.setReadOnly(true); return Game.state.meta.turn; });
   assert.equal(await count(() => page.evaluate(() => { const b = document.getElementById('cmd'); b.readOnly = false; b.value = 'I look around'; })
     .then(() => page.press('#cmd', 'Enter'))), 1, 'Enter');
@@ -425,10 +425,12 @@ s.test('wave 2: a read-only tab says so once per refused action (the UI guard an
   assert.equal(await page.evaluate(() => Game.state.meta.turn), turn0, 'nothing played');
   await page.evaluate(() => { Game.Storage.setReadOnly(false); document.getElementById('cmd').value = ''; });
   // Stop while the town is updated, with nothing typed: the button reads Stop, and stopping keeps the narration.
+  // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a 1.5 s timer.
   await page.evaluate(() => {
     const M = Game.Api.Mock;
     const orig = M.bookkeep;
-    M.bookkeep = async function (packet) { await new Promise(res => setTimeout(res, 1500)); M.bookkeep = orig; return orig.call(M, packet); };
+    const held = new Promise(res => { window.__release = res; });
+    M.bookkeep = async function (packet) { await held; M.bookkeep = orig; return orig.call(M, packet); };
   });
   await page.fill('#cmd', 'I look at the counter');
   await page.press('#cmd', 'Enter');
@@ -437,6 +439,7 @@ s.test('wave 2: a read-only tab says so once per refused action (the UI guard an
   assert.equal(await page.inputValue('#cmd'), '');
   await page.click('#send');
   await page.waitForFunction(() => !Game.Pipeline.busy);
+  await page.evaluate(() => window.__release());
   const r = await page.evaluate(() => { const e = Game.state.log[Game.state.log.length - 1]; return { input: e.input, changes: e.changes, narration: !!e.narration, box: document.getElementById('cmd').value }; });
   assert.deepEqual(r, { input: 'I look at the counter', changes: 'not recorded', narration: true, box: '' });
   assert.ok((await quiets(page)).some(q => /^Stopped while the town was being updated/.test(q)));
@@ -493,8 +496,10 @@ s.test('wave 4: a queued line shows its × always; one that fails while somethin
   await quickStart(page);
   await fast(page);
   await page.evaluate(() => {
+    // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a 1.2 s timer.
     const M = Game.Api.Mock, real = M.bookkeep;
-    M.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 1200)); M.bookkeep = real; return real(...args); };
+    const held = new Promise(res => { window.__release = res; });
+    M.bookkeep = async (...args) => { await held; M.bookkeep = real; return real(...args); };
     M.queue('parse', {}, { error: { type: 'invalid_request_error', message: 'mock: refused' } });
   });
   await page.fill('#cmd', 'I look at the board out front');
@@ -505,8 +510,9 @@ s.test('wave 4: a queued line shows its × always; one that fails while somethin
   assert.equal(await page.evaluate(() => Game.Pipeline.queued), 'I wave at the mechanic');
   assert.equal(await page.evaluate(() => !document.getElementById('queued-cancel').hidden), true, 'the × is there');
   await page.fill('#cmd', 'Something new');
+  await page.evaluate(() => window.__release());
   await page.waitForFunction(() => !Game.Pipeline.busy && !Game.Pipeline.queued, null, { timeout: 10000 });
-  await page.waitForTimeout(50);
+  await page.waitForFunction(() => [...document.querySelectorAll('#feed .f-notice')].some(n => n.textContent.includes('Your action:')), null, { timeout: 10000 });
   assert.equal(await page.inputValue('#cmd'), 'Something new', 'what was typed since stays');
   const notices = await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].map(n => n.textContent));
   assert.ok(notices.some(t => t.includes('Your action: “I wave at the mechanic”')), notices.join(' | '));
@@ -615,7 +621,8 @@ s.test('wave 6: /cheat time to the ending past the council: the police vote\'s R
     const title = S.thread('thr_police_vote').title;
     const p0 = st.player.progression.length;
     const quiet = () => [...document.querySelectorAll('#feed .f-quiet')].map(x => x.textContent);
-    const settle = async () => { await P.whenIdle(); await new Promise(res => setTimeout(res, 150)); await P.whenIdle(); };
+    // Wave 49: idle, and still idle after the ending a settle may start (no 150 ms sleep).
+    const settle = async () => { do { await P.whenIdle(); await Promise.resolve(); } while (P.busy); };
     await P.submit('/cheat time morning 21');
     const cheat = { lines: quiet(), status: S.thread('thr_police_vote').status, gained: st.player.progression.length - p0, ending: st.news.filter(n => n.epilogue).map(n => n.seen) };
     M.queue('parse', { actionType: 'look', summary: 'Looks', targets: [], needsRoll: false, timeCost: 'instant' });

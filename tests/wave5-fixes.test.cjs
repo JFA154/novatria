@@ -7,11 +7,9 @@
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { suite, quickStart, sendText, ROOT } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fast, lastPacket, ROOT } = require('./helpers.cjs');
 
 const s = suite('wave5-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
-const lastPacket = page => page.evaluate(() => (Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop() || {}).text || '');
 const line = (packet, label) => (new RegExp(`^${label}: .*$`, 'm').exec(packet) || [''])[0];
 /* The feed from a mark on: [class, text] for each item after it. */
 const markFeed = page => page.evaluate(() => { for (const x of document.querySelectorAll('#feed > *')) x.dataset.w5 = '1'; });

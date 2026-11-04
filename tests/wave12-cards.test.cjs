@@ -15,7 +15,7 @@
    the Say picker does (docs/notes/ui.md and docs/notes/engine-world.md,
    Wave 12). Mock mode. Run with: node tests/run.cjs wave12 */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, LAPTOP, GAME_URL } = require('./helpers.cjs');
+const { suite, quickStart, sendText, line, idle, frames, continueFromTitle, LAPTOP, GAME_URL } = require('./helpers.cjs');
 
 const s = suite('wave12-cards');
 const PHONE_CTX = { reducedMotion: 'reduce', isMobile: true, hasTouch: true };
@@ -23,7 +23,6 @@ const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport |
 // Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
 // Wave 18: the round of betting after the draw is checked or called down (hooks.cardsBetting), so a Draw plays to the showdown as these tests were written; tests/wave18-betting.test.cjs plays it.
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsBetting = 'call'; });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
 /* The card game's place on a day it is open, at a phase its dealer sits at it. */
 const atTable = page => page.evaluate(() => {
@@ -53,15 +52,14 @@ async function reloadGame(page, how) {
   await page.waitForFunction(() => window.Game && Game.App);
   await fast(page);
   if (how === 'none') return;
-  await page.click('#btn-continue');
-  await page.waitForSelector('#screen-game.active');
-  await page.waitForTimeout(100);
+  await continueFromTitle(page);
+  // Wave 49: a frame for the load's held-hand pass to start, then idle (no 100 ms sleep).
+  await frames(page);
   await idle(page);
 }
 const sayLine = (page, words, to) => page.evaluate(([w, t]) => { window.__said = Game.Pipeline.submit(w, { mode: 'say', to: t }); }, [words, to]);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? n.querySelector('.f-notice-text').textContent : null; });
 const tables = page => page.locator('#feed .f-cards').count();
 const setDeal = (page, deal) => page.evaluate(d => { Game.Pipeline.hooks.cardsDeal = d; }, deal);
@@ -162,7 +160,7 @@ s.test('M2: a hand left on the table is dropped by a load that does not match it
   assert.ok(slot > 0);
   await page.evaluate(n => Game.App.loadSlot(n), slot);
   await page.waitForSelector('#screen-game.active');
-  await page.waitForTimeout(100);
+  await frames(page);
   await idle(page);
   assert.equal(await page.evaluate(() => Game.Storage.heldHand()), null, 'dropped by the load that did not match');
   // Played on to the turn the hand was dealt in, then reloaded: nothing is folded.
@@ -272,8 +270,7 @@ s.test('L3: another tab takes the game over with a hand open here: this tab\'s t
   await b.goto(GAME_URL);
   await b.waitForFunction(() => window.Game && Game.App);
   await fast(b);
-  await b.click('#btn-continue');
-  await b.waitForSelector('#screen-game.active');
+  await continueFromTitle(b);
   await b.waitForFunction(() => Game.state.log[Game.state.log.length - 1].cards);
   await idle(b);
   const e = await lastEntry(b);

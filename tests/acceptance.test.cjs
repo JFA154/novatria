@@ -8,13 +8,11 @@
    Run with: node tests/run.cjs acceptance */
 const fs = require('fs');
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, stateJson, fixtures, findScene, place, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
+const { suite, quickStart, sendText, stateJson, fixtures, findScene, place, overflowReport, fast, lastPacket, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('acceptance');
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 const lastLog = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
-const lastPacket = (page, method) => page.evaluate(m => { const c = Game.Api.Mock.calls.filter(x => x.method === m); return c.length ? c[c.length - 1].text : ''; }, method || 'narrate');
 const line = (packet, label) => (packet.split('\n').find(l => l.startsWith(label + ':')) || '').slice(label.length + 1).trim();
 const time = page => page.evaluate(() => ({ day: Game.state.time.day, phase: Game.state.time.phase }));
 const nextPhase = async page => PHASES[(PHASES.indexOf((await time(page)).phase) + 1) % 4];

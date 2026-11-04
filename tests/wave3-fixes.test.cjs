@@ -10,12 +10,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { suite, quickStart, findScene, place, ROOT, GAME_PATH } = require('./helpers.cjs');
+const { suite, quickStart, findScene, place, fast, lastPacket, ROOT, GAME_PATH } = require('./helpers.cjs');
 
 const s = suite('wave3-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 const quiets = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(e => e.textContent));
-const lastPacket = page => page.evaluate(() => (Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop() || {}).text || '');
 const line = (packet, label) => (new RegExp(`^${label}: .*$`, 'm').exec(packet) || [''])[0];
 /* A game with this background (by id), seed and loose ends ([kind, option]). */
 async function start(page, o) {

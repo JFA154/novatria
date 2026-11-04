@@ -18,15 +18,12 @@
    men") is the one being left (#8).
    Mock mode. Run with: node tests/wave15-table-polish.test.cjs */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, presetCards, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, presetCards, fastClear: fast, line, idle, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave15-table-polish');
 const open = (h, viewport) => h.open({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } });
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const gold = page => page.evaluate(() => Game.state.player.gold);
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? (n.querySelector('.f-notice-text') || n).textContent : null; });
 const statusLine = page => page.textContent('#turn-status-text');

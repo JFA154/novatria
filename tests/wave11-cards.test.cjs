@@ -15,14 +15,13 @@
    head says what was named that is no stake, and the demo names a dealer
    not met by his label. Mock mode. Run with: node tests/run.cjs wave11 */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, line, idle, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave11-cards');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 // Wave 13: heads up (no card people sit in) for every hand, after a reload too, as these tests were written.
 // Wave 18: the round of betting after the draw is checked or called down (hooks.cardsBetting), so a Draw plays to the showdown as these tests were written; tests/wave18-betting.test.cjs plays it.
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); Game.Pipeline.hooks.cardsSeats = []; Game.Pipeline.hooks.cardsBetting = 'call'; });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lowerFirst = t => t.charAt(0).toLowerCase() + t.slice(1);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
 /* The card game's place on a day it is open, at a phase its dealer sits at it. */
@@ -52,7 +51,6 @@ async function startHand(page, words) {
 const sayLine = (page, words, to) => page.evaluate(([w, t]) => { window.__said = Game.Pipeline.submit(w, { mode: 'say', to: t }); }, [words, to]);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? n.querySelector('.f-notice-text').textContent : null; });
 const tables = page => page.locator('#feed .f-cards').count();
 /* A hand dealt as given (Pipeline.hooks.cardsDeal), so a split pot or a draw is certain. */

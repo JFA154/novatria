@@ -12,10 +12,9 @@ const os = require('os');
 const path = require('path');
 const assert = require('assert/strict');
 const { spawnSync } = require('child_process');
-const { suite, quickStart, sendText, overflowReport, findScene, place, ROOT, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, findScene, place, fast, ROOT, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('map');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 
 async function openPlaces(page) {
   if (await page.evaluate(() => window.innerWidth < 900)) {

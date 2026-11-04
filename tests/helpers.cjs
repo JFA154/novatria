@@ -239,4 +239,75 @@ function presetCards(page, opts) {
   }, Object.assign({ game: 'draw', seats: [] }, opts || {}));
 }
 
-module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, presetCards, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };
+/* Wave 49: the small helpers many files used to declare for themselves.
+   fast: the mock answers at once (no streaming delay). fastClear: that, and
+   nothing queued or recorded from before. lastPacket: the text of the last
+   packet sent to a mock method ('narrate' by default; '' when there is
+   none). idle: until the pipeline is no longer busy. line: the first
+   line of a packet that starts with the label (the whole line; '' when
+   there is none). */
+const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
+const fastClear = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
+const lastPacket = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method || 'narrate');
+const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
+const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
+
+/* Wave 49: no fixed waits; a test waits for what it was waiting for.
+   frames: n animation frames (2 by default: whatever a resize, a media
+   query or a click set off has run its handlers and been laid out).
+   watchTimers: from now on, and after every reload of the page, the page's
+   pending short timers (under 1 s: the box's 250 ms look again, the sheet's
+   400 ms fallback, the command list's blur, the mock's streaming) are kept
+   in window.__timers, so settled can wait them out. settled: once no CSS
+   transition or animation of finite length is running (a sheet's slide, a
+   card's fade) and no watched short timer is pending; at most `ceiling` ms,
+   then the test goes on as it would after a sleep (the assertion that
+   follows still decides). sheetDone: the phone sheet open (true) or shut
+   (false), then settled. */
+const frames = (page, n = 2) => page.evaluate(k => new Promise(done => { const step = left => (left ? requestAnimationFrame(() => step(left - 1)) : done()); step(k); }), n);
+function TIMER_WATCH() {
+  if (window.__timers) return;
+  const pending = new Set();
+  const set = window.setTimeout, clear = window.clearTimeout;
+  Object.defineProperty(window, '__timers', { value: pending, enumerable: false });
+  window.setTimeout = function (fn, ms, ...args) {
+    if (typeof fn !== 'function' || !((Number(ms) || 0) < 1000)) return set.call(window, fn, ms, ...args);
+    const id = set.call(window, (...a) => { pending.delete(id); return fn(...a); }, ms, ...args);
+    pending.add(id);
+    return id;
+  };
+  window.clearTimeout = function (id) { pending.delete(id); return clear.call(window, id); };
+}
+async function watchTimers(page) {
+  await page.context().addInitScript(TIMER_WATCH);
+  await page.evaluate(TIMER_WATCH);
+  return page;
+}
+async function settled(page, ceiling = 2000) {
+  await frames(page);
+  await page.waitForFunction(() => (!window.__timers || window.__timers.size === 0)
+    && document.getAnimations().every(a => a.playState !== 'running' || (a.effect && a.effect.getComputedTiming().endTime === Infinity)),
+  null, { timeout: ceiling, polling: 'raf' }).catch(e => { if (!e || e.name !== 'TimeoutError') throw e; });
+  await frames(page);
+}
+async function sheetDone(page, open, ceiling) {
+  await page.waitForFunction(o => document.getElementById('game-body').classList.contains('sheet-open') === o, !!open, { timeout: 10000 });
+  await settled(page, ceiling);
+}
+
+/* Wave 49: the title's Continue, pressed once it can be. It is enabled
+   (UI.renderTitle, UI.setBusy) on the title screen when no turn is running
+   and a readable autosave is there; on a loaded machine that can come late
+   after a reload (the page re-renders the title when the autosave's write
+   reaches it), so the wait is generous (60 s), and so is the wait for the
+   game screen after. */
+async function continueFromTitle(page) {
+  await page.waitForFunction(() => {
+    const b = document.getElementById('btn-continue');
+    return document.getElementById('screen-title').classList.contains('active') && b && !b.disabled;
+  }, null, { timeout: 60000 });
+  await page.click('#btn-continue');
+  await page.waitForSelector('#screen-game.active', { timeout: 60000 });
+}
+
+module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, presetCards, fast, fastClear, lastPacket, idle, line, frames, watchTimers, settled, sheetDone, continueFromTitle, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };

@@ -9,7 +9,7 @@
    browser; nothing leaves the machine. Ids and names come from the game.
    Run with: node tests/run.cjs transport */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, fixtures, findScene, place, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fixtures, findScene, place, fastClear: fast, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('transport-fixes');
 /* Changed by design in wave 43: a failed or refused call changes nothing in
@@ -99,7 +99,6 @@ const lastNotice = page => page.evaluate(() => { const n = [...document.querySel
 const quiets = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
 const narrPackets = page => page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'narrate').map(c => c.text));
 const lastLog = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
 
 // ----- A. transport -----
 

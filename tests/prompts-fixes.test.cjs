@@ -10,10 +10,9 @@
    reacts to what happened; rumours spread. Mock mode throughout.
    Run with: node tests/run.cjs prompts */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, fixtures, place, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fixtures, place, fastClear: fast, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('prompts-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
 const line = (packet, label) => packet.split('\n').find(l => l.startsWith(label + ':')) || '';
 const labels = packet => packet.split('\n').map(l => (/ · Location: /.test(l) ? 'CLOCK' : l.split(':')[0]));
 /* A packet for a hand-made turn context (the scene filled as runTurn would). */

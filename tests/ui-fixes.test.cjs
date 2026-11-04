@@ -11,17 +11,18 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, overflowReport, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, fast, frames, watchTimers, settled, sheetDone, continueFromTitle, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('ui-fixes');
-// Screenshots only when UI_SHOTS names a folder for them (never a session's own path, and nothing written in CI).
+// Screenshots only when UI_SHOTS names a folder for them (never a session's own path). Wave 49: CI sets it
+// (.github/workflows/tests.yml and nightly.yml, a folder in the runner's temp) and uploads them when a run fails.
 const SHOTS = process.env.UI_SHOTS || null;
 const shot = async (page, name, opts) => {
   if (!SHOTS) return;
   try { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot(Object.assign({ path: path.join(SHOTS, name + '.png') }, opts || {})); } catch (e) { /* screenshots are for looking at, not for passing */ }
 };
-const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
+// Wave 49: the page's short timers are watched (helpers.cjs, watchTimers), so a test waits them out (settled) instead of sleeping.
+const open = async (h, viewport, extra) => watchTimers(await h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {})));
 const isObjNote = n => n !== null && typeof n === 'object' && typeof n.text === 'string';
 const visibleNow = (page, sel) => page.evaluate(q => {
   const el = document.querySelector(q);
@@ -191,7 +192,7 @@ s.test('empty Enter does nothing (no paid Wait); the Wait button still waits', a
   const t0 = await page.evaluate(() => Game.state.meta.turn);
   await page.fill('#cmd', '');
   await page.press('#cmd', 'Enter');
-  await page.waitForTimeout(200);
+  await settled(page);
   assert.equal(await page.evaluate(() => Game.state.meta.turn), t0, 'Enter on an empty box changes nothing');
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.length), 0, 'and calls nothing');
   await page.click('#send');
@@ -227,12 +228,15 @@ s.test('a slow turn: the status line says what is happening, Send becomes Stop (
 s.test('a routed slow API: "Reading your action…" while the parser works, "Writing…" while the narrator does', async h => {
   const page = await open(h);
   const API = 'https://api.anthropic.com/v1/messages';
+  // Wave 49: the parser's and the narrator's replies are held until the test has seen their stage (no 1.2 s timers).
+  let letParse, letNarrate;
+  const parseGo = new Promise(r => { letParse = r; }), narrateGo = new Promise(r => { letNarrate = r; });
   const msg = text => ({ status: 200, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' }, body: JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: { input_tokens: 10, output_tokens: 10 } }) });
   await page.route(API, async route => {
     const body = JSON.parse(route.request().postData());
     const schema = body.output_config && body.output_config.format && body.output_config.format.schema;
     if (body.stream) {
-      await new Promise(r => setTimeout(r, 1200));
+      await narrateGo;
       const ev = [{ type: 'message_start', message: { id: 's', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], usage: { input_tokens: 5, output_tokens: 1 } } },
         { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
         { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'The pumps tick in the cold. Nobody looks up.' } },
@@ -240,7 +244,7 @@ s.test('a routed slow API: "Reading your action…" while the parser works, "Wri
       return route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' }, body: ev.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('') });
     }
     if (schema && schema.properties && schema.properties.actionType) {
-      await new Promise(r => setTimeout(r, 1200));
+      await parseGo;
       return route.fulfill(msg(JSON.stringify({ actionType: 'look', summary: 'Looks at the pumps', targets: [], destinationId: null, needsRoll: false, stat: null, difficulty: null, usesItemId: null, missingItem: null, timeCost: 'instant', declaresWorldFact: false })));
     }
     const empty = {};
@@ -251,9 +255,11 @@ s.test('a routed slow API: "Reading your action…" while the parser works, "Wri
   await page.evaluate(() => { Game.Storage.saveSettings({ mockMode: false }); Game.Storage.setApiKey('sk-ant-test-0123456789', false); });
   await page.fill('#cmd', 'I look at the pumps');
   await page.press('#cmd', 'Enter');
-  await page.waitForFunction(() => document.getElementById('turn-status-text').textContent === 'Reading your action…', null, { timeout: 3000 });
+  await page.waitForFunction(() => document.getElementById('turn-status-text').textContent === 'Reading your action…', null, { timeout: 10000 });
   await shot(page, 'B02_status_reading_1280');
-  await page.waitForFunction(() => document.getElementById('turn-status-text').textContent === 'Writing…', null, { timeout: 4000 });
+  letParse();
+  await page.waitForFunction(() => document.getElementById('turn-status-text').textContent === 'Writing…', null, { timeout: 10000 });
+  letNarrate();
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
   await page.waitForFunction(() => document.getElementById('turn-status').hidden, null, { timeout: 15000 });
 });
@@ -288,15 +294,17 @@ s.test('a failed turn: the line goes back in the box only if the box is empty; o
   const page = await open(h);
   await quickStart(page);
   await fast(page);
-  // A parser that takes a moment and then fails (an error nothing retries).
+  // A parser that is held (wave 49: until the test lets it go, not 700 ms) and then fails (an error nothing retries).
   await page.evaluate(() => {
     const real = Game.Api.Mock.parse;
-    Game.Api.Mock.parse = async () => { await new Promise(r => setTimeout(r, 700)); Game.Api.Mock.parse = real; throw new Game.Api.ApiError('invalid_request_error', 'The request was not accepted.'); };
+    const held = new Promise(r => { window.__release = r; });
+    Game.Api.Mock.parse = async () => { await held; Game.Api.Mock.parse = real; throw new Game.Api.ApiError('invalid_request_error', 'The request was not accepted.'); };
   });
   await page.fill('#cmd', 'I ask about work');
   await page.press('#cmd', 'Enter');
   await page.waitForFunction(() => Game.Pipeline.busy);
   await page.fill('#cmd', 'I buy a coffee');
+  await page.evaluate(() => window.__release());
   await page.waitForFunction(() => !Game.Pipeline.busy);
   assert.equal(await page.inputValue('#cmd'), 'I buy a coffee', 'the new line stays');
   const notice = await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent);
@@ -361,7 +369,7 @@ s.test('quiet lines are kept with their turn: they survive a reload and go with 
   await sendText(page, 'I look around');
   const who = await page.evaluate(() => Game.State.npcsAt(Game.state.player.locationId)[0]);
   await page.evaluate(id => Game.App.setPronouns(id, Game.State.npc(id).pronouns === 'she' ? 'he' : 'she'), who.id);
-  await page.waitForTimeout(50);
+  await settled(page);
   await sendText(page, '/cheat time night');
   const before = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
   assert.ok(before.some(t => t.startsWith(`${who.name} goes by`)), before.join(' | '));
@@ -403,7 +411,7 @@ s.test('a known person whose attitude crosses a band after a turn gets a quiet l
   // An edit is not a turn: no line.
   const n0 = quiet.length;
   await page.evaluate(id => Game.App.editPerson(id, { attitude: 80 }), who.id);
-  await page.waitForTimeout(50);
+  await settled(page);
   quiet = await page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(n => n.textContent));
   assert.equal(quiet.filter(t => /warms to you/.test(t)).length, 1, quiet.join(' | '));
   assert.equal(quiet.length, n0 + 1, 'only the edit line');
@@ -584,7 +592,7 @@ s.test('Places: labels hide no marker and no other label at several positions; t
   const phone = await open(h, PHONE);
   await quickStart(phone);
   await phone.click('[data-open-tab="places"]');
-  await phone.waitForTimeout(150);
+  await sheetDone(phone, true);
   await phone.click('.map-expand');
   const box = await phone.evaluate(() => { const r = document.querySelector('.map.expanded').getBoundingClientRect(); return [r.width, r.height, window.innerWidth, window.innerHeight]; });
   assert.ok(box[0] >= box[2] - 1 && box[1] >= box[3] - 1, 'full screen: ' + box);
@@ -831,7 +839,7 @@ s.test('accessibility: each screen focuses its heading; the phone sheet is modal
   assert.equal(await page.evaluate(() => document.activeElement.id), 'title-name');
   await quickStart(page);
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   const open1 = await page.evaluate(() => ({ inert: document.querySelector('.story').inert, top: document.querySelector('#screen-game .topbar').inert, focus: document.activeElement.id, exp: document.querySelector('[data-open-tab="people"]').getAttribute('aria-expanded'), ctl: document.querySelector('[data-open-tab="people"]').getAttribute('aria-controls') }));
   assert.deepEqual(open1, { inert: true, top: true, focus: 'panel-close', exp: 'true', ctl: 'panel' });
   // Tab never leaves the sheet.
@@ -842,7 +850,7 @@ s.test('accessibility: each screen focuses its heading; the phone sheet is modal
   await page.keyboard.press('ArrowRight');
   assert.deepEqual(await page.evaluate(() => [Game.UI.tab, document.activeElement.id]), ['journal', 'tab-journal']);
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
+  await settled(page);
   assert.equal(await page.evaluate(() => document.querySelector('.story').inert), false);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.openTab), 'people', 'the focus goes back to the opener');
 });
@@ -901,11 +909,12 @@ s.test('wave 2, D1 and B11: a read-only tab plays nothing (⋯, the Undo link, G
   const b = await a.context().newPage();
   await b.goto(a.url());
   await b.waitForFunction(() => window.Game && Game.App);
-  await b.click('#btn-continue');
+  // Wave 49: the waits on the other tab are generous (60 s), so a loaded machine slows this test instead of failing it.
+  await continueFromTitle(b);
   await b.evaluate(() => { Game.Api.Mock.delay = 0; });
   await sendText(b, 'I look at the pumps');
   await sendText(b, 'I look at the road out of town');
-  await a.waitForFunction(() => Game.Storage.readOnly && !document.getElementById('tab-bar').hidden);
+  await a.waitForFunction(() => Game.Storage.readOnly && !document.getElementById('tab-bar').hidden, null, { timeout: 60000 });
   assert.equal(await a.textContent('#tab-bar-text'), 'This game is open in another tab, so this tab is read-only.');
   const turnA = await a.evaluate(() => Game.state.meta.turn);
   const turnB = await b.evaluate(() => Game.state.meta.turn);
@@ -942,11 +951,11 @@ s.test('wave 2, D1 and B11: a read-only tab plays nothing (⋯, the Undo link, G
   assert.equal(await a.evaluate(() => [...document.querySelectorAll('#feed .f-input')].pop().textContent), 'I look at the road out of town');
   assert.deepEqual(await a.evaluate(() => JSON.parse(localStorage.getItem('novatria.autosave')).state), saved, 'the autosave still holds the newer game');
   assert.deepEqual(await a.evaluate(() => [Game.Storage.readOnly, document.getElementById('tab-bar').hidden]), [false, true]);
-  await b.waitForFunction(() => Game.Storage.readOnly, null, { timeout: 3000 });
+  await b.waitForFunction(() => Game.Storage.readOnly, null, { timeout: 60000 });
   assert.equal(await a.evaluate(() => Game.UI.canAct()), true);
   // An autosave the other tab left unreadable: kept as the previous autosave, this tab's game saved, and the banner says so.
   await b.evaluate(() => localStorage.setItem('novatria.autosave', '{ not json'));
-  await a.waitForFunction(() => Game.Storage.readOnly);
+  await a.waitForFunction(() => Game.Storage.readOnly, null, { timeout: 60000 });
   await a.click('#tab-bar-take');
   const after = await a.evaluate(() => ({ prev: localStorage.getItem('novatria.autosave.prev'), turn: JSON.parse(localStorage.getItem('novatria.autosave')).state.meta.turn, banner: document.getElementById('banner').hidden ? '' : document.getElementById('banner-text').textContent }));
   assert.equal(after.prev, '{ not json', 'the unreadable autosave is kept aside');
@@ -992,7 +1001,7 @@ s.test('wave 2, D3: Expand map (phone and laptop) is a modal view larger than th
     const page = await open(h, vp);
     await quickStart(page);
     await page.evaluate(() => { for (const l of Game.state.locations) if (l.away !== true) l.discovered = true; });
-    if (vp === PHONE) { await page.click('[data-open-tab="places"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('places'));
+    if (vp === PHONE) { await page.click('[data-open-tab="places"]'); await sheetDone(page, true); } else await page.evaluate(() => Game.UI.openPanel('places'));
     const small = await page.evaluate(() => document.querySelector('.map-svg').getBoundingClientRect().width);
     await page.click('.map-expand');
     const m = await page.evaluate(() => {
@@ -1065,7 +1074,7 @@ s.test('wave 2, D4: the focus is never dropped to the page: Back to edit, a Peop
   await quickStart(phone);
   const who = await phone.evaluate(() => { const n = Game.State.npcsAt(Game.state.player.locationId)[0]; Game.State.apply({ npcKnownToPlayer: [n.id] }); return n.id; });
   await phone.click('[data-open-tab="people"]');
-  await phone.waitForTimeout(300);
+  await sheetDone(phone, true);
   await phone.click(`#phead-${who}`);
   await phone.click(`.pcard[data-npc="${who}"] .pcard-edit`);
   assert.deepEqual(await phone.evaluate(() => [document.activeElement.tagName, document.activeElement.classList.contains('pedit')]), ['FORM', true]);
@@ -1146,15 +1155,15 @@ s.test('wave 2, D6: editing someone on a phone with the keyboard up: the search 
   await quickStart(page);
   const who = await page.evaluate(() => { const n = Game.State.npcsAt(Game.state.player.locationId)[0]; Game.State.apply({ npcKnownToPlayer: Game.state.npcs.slice(0, 10).map(x => x.id).concat(n.id) }); return n.id; });
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   await page.click(`#phead-${who}`);
   await page.click(`.pcard[data-npc="${who}"] .pcard-edit`);
   assert.equal(await page.locator('.people-tools').count(), 0, 'no search and sort header while editing');
   await page.setViewportSize({ width: 375, height: 420 });
-  await page.waitForTimeout(200);
+  await settled(page);
   for (const k of ['role', 'relation', 'age']) {
     await page.focus(`#pe-${k}-${who}`);
-    await page.waitForTimeout(150);
+    await settled(page);
     const m = await page.evaluate(() => ({ f: document.activeElement.getBoundingClientRect(), bar: document.querySelector('.pedit-actions').getBoundingClientRect(), body: document.getElementById('panel-body').getBoundingClientRect() }));
     assert.ok(m.f.bottom <= m.bar.top + 1, `${k}: above the Save bar (${Math.round(m.f.bottom)} / ${Math.round(m.bar.top)})`);
     assert.ok(m.f.top >= m.body.top - 1, `${k}: not above the panel either`);
@@ -1300,12 +1309,12 @@ s.test('wave 2, D13: the toast covers neither the bars, the box, the People sear
   for (let i = 1; i < t.length; i++) assert.ok(!rectsMeet(t[0], t[i]), 'the toast is clear of ' + ['', 'the top bar', 'the demo bar', 'the composer'][i]);
   await shot(page, 'W11_toast_375');
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   await page.evaluate(() => Game.UI.toast('Wait for the current turn to finish.'));
   t = await page.evaluate(() => [document.getElementById('toast').getBoundingClientRect(), document.getElementById('people-search').getBoundingClientRect(), document.querySelector('.panel-head').getBoundingClientRect()]);
   assert.ok(!rectsMeet(t[0], t[1]) && !rectsMeet(t[0], t[2]), 'not over the People search or the tabs');
   await page.click('#panel-close');
-  await page.waitForTimeout(300);
+  await settled(page);
   // The dialog: the safe answer has the focus.
   await page.evaluate(() => Game.App.quitToTitle());
   await page.click('#btn-new');
@@ -1321,7 +1330,8 @@ s.test('wave 2, D14: a queued line is shown (and can be taken back when the Pipe
   await quickStart(page);
   await fast(page);
   // A bookkeeper that takes a while: the narration is in, so the next line can wait in the queue.
-  await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 1500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+  // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a timer.
+  await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; const held = new Promise(r => { window.__release = r; }); Game.Api.Mock.bookkeep = async (...args) => { await held; Game.Api.Mock.bookkeep = real; return real(...args); }; });
   await page.fill('#cmd', 'I look at the board out front');
   await page.press('#cmd', 'Enter');
   await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
@@ -1332,6 +1342,7 @@ s.test('wave 2, D14: a queued line is shown (and can be taken back when the Pipe
   assert.equal(q.text, 'Next: “I wave at the mechanic”');
   assert.equal(q.x, q.can, '× only when the Pipeline can take it back');
   await shot(page, 'W12_queued_1280');
+  await page.evaluate(() => window.__release());
   await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 10000 });
   // Check key, in Settings: the reason without "in Settings".
   const stubbed = await page.evaluate(() => { const fake = async () => ({ ok: false, message: 'The API key was not accepted. Check the key in Settings.' }); Game.Api.checkKey = fake; return Game.Api.checkKey === fake; });
@@ -1390,7 +1401,7 @@ s.test('wave 2, polish: Continue leads when there is a game; Wait is a plain but
   const rep = await page.evaluate(() => ({ dts: [...document.querySelectorAll('#panel-body .kv dt')].map(x => x.textContent), town: !!document.querySelector('#panel-body .rep-list [data-faction="town"]') }));
   if (rep.town) assert.ok(!rep.dts.includes('Reputation'), 'no second town standing: ' + rep.dts.join(', '));
   await page.evaluate(() => Game.UI.closeSheet());
-  await page.waitForTimeout(300);
+  await settled(page);
   // The ⋯ Wait until… list has a heading.
   await page.click('#act-btn-m');
   await page.click('#act-pop [data-act="wait"]');
@@ -1400,9 +1411,9 @@ s.test('wave 2, polish: Continue leads when there is a game; Wait is a plain but
   await page.fill('#cmd', '');
   await sendText(page, '/debug');
   await page.evaluate(() => Game.UI.closeSheet());
-  await page.waitForTimeout(300);
+  await settled(page);
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   const cut = await page.evaluate(() => [...document.querySelectorAll('#panel-tabs [role="tab"]')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.textContent));
   assert.deepEqual(cut, [], 'every tab label whole');
   await shot(page, 'W14_debug_tabs_375');
@@ -1484,10 +1495,10 @@ async function acrossTurn(page, fn) {
   for (;;) {
     const r = await page.evaluate(() => ({ busy: !!Game.Pipeline.busy, f: window.__focusOf() }));
     if (r.busy) { started = true; if (!during.includes(r.f)) during.push(r.f); } else if (started || Date.now() - t0 > 1500) break;
-    await page.waitForTimeout(15);
+    await frames(page, 1);
   }
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
-  await page.waitForTimeout(120);
+  await settled(page);
   return { during, after: await page.evaluate(() => window.__focusOf()), inert: await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)) };
 }
 const focusHelper = page => page.evaluate(`window.__focusOf = ${FOCUS_OF.toString()}`);
@@ -1533,7 +1544,7 @@ s.test('wave 3, defect 1: a turn started from the ⋯ list, Wait until…, the U
     else assert.equal(r.after, '#cmd', tag + 'after Undo');
     // Go there on an exit.
     const openPlaces = async () => {
-      if (phone) { await page.click('[data-open-tab="places"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('places'));
+      if (phone) { await page.click('[data-open-tab="places"]'); await sheetDone(page, true); } else await page.evaluate(() => Game.UI.openPanel('places'));
     };
     await openPlaces();
     const go = await page.evaluate(() => document.querySelector('.exit-list [data-go]').dataset.go);
@@ -1581,7 +1592,7 @@ s.test('wave 3, defect 2: the end of a turn never takes the focus from a field t
   await page.click('#people-search');
   await page.keyboard.type('Ro');
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
-  await page.waitForTimeout(100);
+  await settled(page);
   await page.keyboard.type('y');
   assert.deepEqual(await page.evaluate(() => [document.activeElement.id, document.getElementById('people-search').value, document.getElementById('cmd').value]), ['people-search', 'Roy', ''], 'nothing split between the search and the box');
   await shot(page, 'W3_02_focus_kept_after_turn_1280');
@@ -1592,13 +1603,13 @@ s.test('wave 3, defect 2: the end of a turn never takes the focus from a field t
   await page.waitForFunction(() => Game.Pipeline.busy);
   await page.click('#people-search');
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
-  await page.waitForTimeout(100);
+  await settled(page);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'people-search', 'Wait does not take it back either');
   // Left on the button or the box, the box has it after the turn.
   await page.focus('#send');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
-  await page.waitForTimeout(100);
+  await settled(page);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'from Wait: the box');
   await sendText(page, 'I look at the counter');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'cmd', 'from the box: the box');
@@ -1619,13 +1630,13 @@ s.test('wave 3, defect 3: the expanded map, the phone sheet and a dialog sit abo
     assert.deepEqual(await atBanner(page), { inert: false, inBanner: true, hidden: false });
     if (vp === PHONE) {
       await page.click('[data-open-tab="people"]');
-      await page.waitForTimeout(300);
+      await sheetDone(page, true);
       assert.deepEqual(await atBanner(page), { inert: true, inBanner: false, hidden: false }, 'the sheet covers the banner, which takes no focus');
       await shot(page, 'W3_03_sheet_over_banner_375');
       await page.keyboard.press('Escape');
       assert.deepEqual(await atBanner(page), { inert: false, inBanner: true, hidden: false }, 'back after the sheet');
       await page.click('[data-open-tab="places"]');
-      await page.waitForTimeout(300);
+      await sheetDone(page, true);
     } else await page.evaluate(() => Game.UI.openPanel('places'));
     await page.click('.map-expand');
     assert.deepEqual(await atBanner(page), { inert: true, inBanner: false, hidden: false }, `${vp.width}: the expanded map covers the banner`);
@@ -1684,10 +1695,10 @@ s.test('wave 3, defect 4: the story\'s log is never aria-busy, and the Undo link
   const want = { live: false, right: 0, overlap: true, has: true, visible: true };
   assert.deepEqual(await where(), want);
   await page.setViewportSize({ width: 900, height: 700 });
-  await page.waitForTimeout(150);
+  await settled(page);
   assert.deepEqual(await where(), want, 'it follows its line after a resize');
   await page.setViewportSize(PHONE);
-  await page.waitForTimeout(150);
+  await settled(page);
   assert.deepEqual(await where(), want, 'and on a phone');
   await shot(page, 'W3_04_undo_link_375');
 });
@@ -1697,7 +1708,8 @@ s.test('wave 3, defect 5: a queued line at 375 and 390 is one 32px pill with a 4
     const page = await open(h, vp);
     await quickStart(page);
     await fast(page);
-    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 2500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a timer.
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; const held = new Promise(r => { window.__release = r; }); Game.Api.Mock.bookkeep = async (...args) => { await held; Game.Api.Mock.bookkeep = real; return real(...args); }; });
     await page.fill('#cmd', 'I look at the board out front');
     await page.press('#cmd', 'Enter');
     await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
@@ -1722,6 +1734,7 @@ s.test('wave 3, defect 5: a queued line at 375 and 390 is one 32px pill with a 4
     }
     assert.deepEqual(await overflowReport(page, vp.width), [], 'nothing sticks out');
     await shot(page, `W3_05_queued_${vp.width}`, { clip: { x: 0, y: vp.height - 180, width: vp.width, height: 180 } });
+    await page.evaluate(() => window.__release());
     await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 15000 });
   }
 });
@@ -1730,7 +1743,7 @@ s.test('wave 3, defect 6 and N3: place types read as words (one map for the plac
   const page = await open(h, { width: 390, height: 844 });
   await quickStart(page);
   await page.click('[data-open-tab="places"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   // N3: a home nobody has told the player about is not an exit yet (as on the map).
   const ex = await page.evaluate(() => {
     const here = Game.State.loc(Game.state.player.locationId);
@@ -1851,20 +1864,20 @@ s.test('wave 3, defect 9: the expanded map fills the view on both axes (the rive
   const ph = await open(h, PHONE);
   await quickStart(ph);
   await ph.click('[data-open-tab="places"]');
-  await ph.waitForTimeout(300);
+  await sheetDone(ph, true);
   await ph.click('.map-expand');
   const b = await measure(ph);
   assert.deepEqual([b.coverW, b.coverH, b.fitsW, b.fitsH, b.aspect, b.land, b.meVisible], [true, true, false, true, true, true, true], 'upright: fills the height, pans sideways, opens on the player');
   // Turned on its side, it fills the width and pans up and down, with the player in view again.
   await ph.evaluate(() => { const p = document.querySelector('.map.expanded .map-pan'); p.scrollLeft = 0; p.scrollTop = 0; });
   await ph.setViewportSize({ width: 740, height: 375 });
-  await ph.waitForTimeout(250);
+  await settled(ph);
   const c = await measure(ph);
   assert.deepEqual([c.coverW, c.coverH, c.fitsW, c.aspect, c.land, c.meVisible], [true, true, true, true, true, true], 'on its side: covers the view, centred on the player');
   assert.ok(await ph.evaluate(() => { const p = document.querySelector('.map.expanded .map-pan'); return p.scrollHeight <= 740 && p.scrollWidth <= 741; }), 'never drawn at 1184px wide');
   await shot(ph, 'W3_09_map_rotated_740x375');
   await ph.setViewportSize(PHONE);
-  await ph.waitForTimeout(250);
+  await settled(ph);
   assert.equal((await measure(ph)).meVisible, true, 'and back upright');
 });
 
@@ -1882,11 +1895,11 @@ s.test('wave 3, defect 11: App.editPerson and App.setPronouns refuse in a read-o
     Game.Storage.setReadOnly(true);
     window.__toasts = 0;
     const p = Game.App.setPronouns(n.id, other);
-    await new Promise(res => setTimeout(res, 30));
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
     const t1 = window.__toasts;
     window.__toasts = 0;
     const e = Game.App.editPerson(n.id, { attitude: 80 });
-    await new Promise(res => setTimeout(res, 30));
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
     const t2 = window.__toasts;
     const same = JSON.stringify(Game.state) === before;
     Game.Storage.setReadOnly(false);
@@ -2021,7 +2034,7 @@ s.test('wave 4, defect A: a tab change opens the new tab at its top (Places with
     const tag = `${vp.width}: `;
     // Everyone in town met, so People is longer than the panel.
     await page.evaluate(() => Game.State.apply({ npcKnownToPlayer: Game.state.npcs.filter(n => n.alive !== false && Game.presenceOf(n) === 'here').map(n => n.id) }));
-    if (phone) { await page.click('[data-open-tab="people"]'); await page.waitForTimeout(300); } else await page.evaluate(() => Game.UI.openPanel('people'));
+    if (phone) { await page.click('[data-open-tab="people"]'); await sheetDone(page, true); } else await page.evaluate(() => Game.UI.openPanel('people'));
     // The People tab scrolled well down.
     const down = await page.evaluate(() => { const b = document.getElementById('panel-body'); b.scrollTop = 600; return b.scrollTop; });
     assert.ok(down > 100, tag + 'People scrolls: ' + down);
@@ -2054,7 +2067,7 @@ s.test('wave 4, defect B: the box-side ⋯ on a phone never drops the focus: Shi
   // Shift+Tab from the box: the ⋯ beside the toggle has it, and keeps it after the box's 250 ms.
   await page.keyboard.press('Shift+Tab');
   assert.equal(await page.evaluate(() => window.__focusOf()), '#act-btn');
-  await page.waitForTimeout(400);
+  await settled(page);
   assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn', true], 'still on the ⋯ beside the toggle, the layout as it was');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => window.__focusOf()), '#cmd');
@@ -2070,21 +2083,21 @@ s.test('wave 4, defect B: the box-side ⋯ on a phone never drops the focus: Shi
   await page.click('#act-btn');
   const at = () => page.evaluate(() => Math.round(document.getElementById('act-pop').getBoundingClientRect().top));
   const top0 = await at();
-  await page.waitForTimeout(400);
+  await settled(page);
   assert.equal(await at(), top0, 'the open list does not jump');
   await shot(page, 'W4_B_dots_list_kbup_375');
   // The keyboard goes down with the list open: it keeps the focus; Escape gives it to a ⋯ in view (the tab row's), never the page.
   await page.setViewportSize(PHONE);
-  await page.waitForTimeout(300);
+  await settled(page);
   assert.ok(await page.evaluate(() => document.getElementById('act-pop').contains(document.activeElement)), 'the list keeps the focus');
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(350);
+  await settled(page);
   assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn-m', false]);
   // On the box-side ⋯ when the keyboard goes down (no list): the tab row's ⋯ takes it, then the layout changes.
   await kbUp();
   await page.keyboard.press('Shift+Tab');
   await page.setViewportSize(PHONE);
-  await page.waitForTimeout(350);
+  await settled(page);
   assert.deepEqual([await page.evaluate(() => window.__focusOf()), await typing()], ['#act-btn-m', false]);
   // A turn the box-side ⋯ started hands its hold over too: after it the focus is on a ⋯ in view.
   await kbUp();
@@ -2107,31 +2120,31 @@ s.test('wave 4: a layout change across 900px never drops the focus: Panel, Menu 
   const MID = { width: 800, height: 800 };
   for (const [from, vpFrom, vpTo, to] of [['#tb-panel', LAPTOP, MID, '#tb-menu'], ['#act-btn', LAPTOP, MID, '#act-btn-m'], ['#act-btn-m', MID, LAPTOP, '#act-btn'], ['#tb-menu', MID, LAPTOP, '#tb-panel']]) {
     await page.setViewportSize(vpFrom);
-    await page.waitForTimeout(150);
+    await settled(page);
     await page.focus(from);
     await page.setViewportSize(vpTo);
-    await page.waitForTimeout(250);
+    await settled(page);
     assert.equal(await page.evaluate(() => window.__focusOf()), to, `${from} at ${vpFrom.width} → ${vpTo.width}`);
   }
   // The phone sheet's × (a laptop has none): the panel's tab. Something in the laptop's panel (a phone's sheet is shut): Send.
   await page.setViewportSize(MID);
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   await page.focus('#panel-close');
   await page.setViewportSize(LAPTOP);
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-people', 'the sheet\'s × → the tab');
   // The same when the browser has let go of the × before the layout reports (the sheet, closing, finds the focus nowhere).
   await page.setViewportSize(MID);
   await page.click('[data-open-tab="people"]');
-  await page.waitForTimeout(300);
+  await sheetDone(page, true);
   await page.evaluate(() => { document.getElementById('panel-close').focus(); document.activeElement.blur(); });
   await page.setViewportSize(LAPTOP);
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-people', 'the sheet closing → the tab');
   await page.focus('.pcard-head');
   await page.setViewportSize(MID);
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.equal(await page.evaluate(() => window.__focusOf()), '#send', 'a card in the laptop panel → Send');
   // The expanded map's Close map: the map closes, and the focus is never dropped.
   await page.setViewportSize(LAPTOP);
@@ -2139,7 +2152,7 @@ s.test('wave 4: a layout change across 900px never drops the focus: Panel, Menu 
   await page.click('.map-expand');
   await page.focus('.map-close');
   await page.setViewportSize(MID);
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.notEqual(await page.evaluate(() => window.__focusOf()), 'BODY', 'Close map → somewhere on screen');
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)), [], 'nothing inert left behind');
 });
@@ -2154,11 +2167,11 @@ s.test('wave 4, defect C: the first-turn tip says where ⋯ and the panels are i
   await tipNow(page);
   assert.equal(await where(page), LAP);
   await page.setViewportSize({ width: 820, height: 1180 });
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.equal(await where(page), PH, 'turned upright: the phone wording');
   await shot(page, 'W4_C_tip_820x1180');
   await page.setViewportSize({ width: 1180, height: 820 });
-  await page.waitForTimeout(250);
+  await settled(page);
   assert.equal(await where(page), LAP, 'and back');
   // Shown first on a phone, it has the phone wording.
   const ph = await open(h, PHONE);
@@ -2172,7 +2185,8 @@ s.test('wave 4, defect D: with a line queued the stage text is shown whole at 32
     const page = await open(h, vp);
     await quickStart(page);
     await fast(page);
-    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 2500)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a timer.
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; const held = new Promise(r => { window.__release = r; }); Game.Api.Mock.bookkeep = async (...args) => { await held; Game.Api.Mock.bookkeep = real; return real(...args); }; });
     await page.fill('#cmd', 'I look at the board out front');
     await page.press('#cmd', 'Enter');
     await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
@@ -2192,6 +2206,7 @@ s.test('wave 4, defect D: with a line queued the stage text is shown whole at 32
     assert.match(m.qt, /^Next: “I tell him/);
     assert.deepEqual(await overflowReport(page, vp.width), []);
     await shot(page, `W4_D_queued_${vp.width}`, { clip: { x: 0, y: vp.height - 160, width: vp.width, height: 160 } });
+    await page.evaluate(() => window.__release());
     await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 15000 });
   }
 });
@@ -2207,7 +2222,7 @@ s.test('wave 4, defect E: a phone on its side with the keyboard up keeps room fo
     await page.focus('#cmd');
     await page.setViewportSize(KB);
     await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
-    await page.waitForTimeout(100);
+    await settled(page);
     const m = await page.evaluate(() => {
       const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
       const pick = r('say-pick');
@@ -2249,7 +2264,7 @@ s.test('wave 4, defect E: a phone on its side with the keyboard up keeps room fo
     await shot(page, 'W4_E_land_kb_dots');
     // The keyboard down (the list took the focus): all of it in view at once.
     await page.setViewportSize(LAND);
-    await page.waitForTimeout(250);
+    await settled(page);
     const all = await page.evaluate(() => {
       const p = document.getElementById('act-pop');
       const r = p.getBoundingClientRect();
@@ -2257,7 +2272,7 @@ s.test('wave 4, defect E: a phone on its side with the keyboard up keeps room fo
     });
     assert.deepEqual(all, { inView: true, whole: true, items: 7 }, 'keyboard down: ' + JSON.stringify(all));
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await settled(page);
     assert.equal(await page.evaluate(() => window.__focusOf()), '#act-btn-m');
     // From the tab row (no keyboard): the whole list too.
     await page.keyboard.press('Enter');
@@ -2435,9 +2450,9 @@ s.test('wave 5, defect 1: focus in the laptop\'s panel is handed on at once when
       await page.focus(sel);
       assert.ok((await focusNow(page)).inPanel, `${sel}: in the panel first`);
       await page.setViewportSize(PHONE);
-      await page.waitForTimeout(30);
+      await frames(page);
       const now = await focusNow(page);
-      await page.waitForTimeout(470);
+      await settled(page);
       const later = await focusNow(page);
       const tag = `${motion}, ${sel} at 1280 → 375`;
       assert.deepEqual([now.f, now.inPanel], [want, false], tag + ': at once (the sheet still sliding)');
@@ -2446,7 +2461,7 @@ s.test('wave 5, defect 1: focus in the laptop\'s panel is handed on at once when
         await shot(page, `W5_1_narrowed_${motion}`);
         // And back out: the tab row's button hands it to the panel's tab again.
         await page.setViewportSize(LAPTOP);
-        await page.waitForTimeout(450);
+        await settled(page);
         assert.equal(await page.evaluate(() => window.__focusOf()), '#tab-places', tag + ', and back');
       }
     }
@@ -2455,28 +2470,28 @@ s.test('wave 5, defect 1: focus in the laptop\'s panel is handed on at once when
     await quickStart(page);
     await focusHelper(page);
     await page.click('[data-open-tab="places"]');
-    await page.waitForTimeout(350);
+    await sheetDone(page, true);
     await page.focus('.plcard-head');
     await page.setViewportSize(LAPTOP);
-    await page.waitForTimeout(30);
+    await frames(page);
     assert.match((await focusNow(page)).f, /^#plhead-/, `${motion}: the card keeps it on a laptop`);
-    await page.waitForTimeout(450);
+    await settled(page);
     assert.match((await focusNow(page)).f, /^#plhead-/, `${motion}: and after`);
     await page.setViewportSize(PHONE);
-    await page.waitForTimeout(30);
+    await frames(page);
     assert.deepEqual(await focusNow(page), { f: '#send', inPanel: false }, `${motion}: phone → laptop → phone, at once`);
-    await page.waitForTimeout(470);
+    await settled(page);
     assert.deepEqual(await focusNow(page), { f: '#send', inPanel: false }, `${motion}: phone → laptop → phone, after the slide`);
     // Widening, with the slide: the tab row's button → the panel's tab; the sheet's × → the panel's tab; Send stays.
     for (const [sel, want] of [['[data-open-tab="people"]', '#tab-people'], ['#panel-close', '#tab-people'], ['#send', '#send']]) {
       await page.setViewportSize(MID);
-      await page.waitForTimeout(400);
-      if (sel === '#panel-close') { await page.click('[data-open-tab="people"]'); await page.waitForTimeout(350); }
+      await settled(page);
+      if (sel === '#panel-close') { await page.click('[data-open-tab="people"]'); await sheetDone(page, true); }
       await page.focus(sel);
       await page.setViewportSize(LAPTOP);
-      await page.waitForTimeout(30);
+      await frames(page);
       assert.equal((await focusNow(page)).f, want, `${motion}: ${sel} at 800 → 1280, at once`);
-      await page.waitForTimeout(450);
+      await settled(page);
       assert.equal((await focusNow(page)).f, want, `${motion}: ${sel} at 800 → 1280, after`);
     }
     assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[inert]')].map(n => n.id || n.className)), [], 'nothing inert left behind');
@@ -2495,7 +2510,7 @@ s.test('wave 5, defect 2: the Say picker keeps the typing layout while it has th
   await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
   await page.focus('#say-pick');
   // Longer than the box's 250 ms look again after its blur.
-  await page.waitForTimeout(450);
+  await settled(page);
   const layout = () => page.evaluate(() => {
     const r = id => { const e = document.getElementById(id); return e && e.getClientRects().length ? e.getBoundingClientRect() : null; };
     const inView = b => !!b && b.top >= 0 && b.bottom <= innerHeight + 0.5 && b.left >= 0 && b.right <= innerWidth + 0.5;
@@ -2516,13 +2531,13 @@ s.test('wave 5, defect 2: the Say picker keeps the typing layout while it has th
   const other = await page.evaluate(() => { const o = [...document.querySelectorAll('#say-pick option')].find(x => x.value !== 'everyone'); return o ? o.value : null; });
   if (other) {
     await page.selectOption('#say-pick', other);
-    await page.waitForTimeout(350);
+    await settled(page);
     const m2 = await layout();
     assert.deepEqual([m2.typing, m2.focus, m2.box, m2.send], [true, '#say-pick', true, true], JSON.stringify(m2));
   }
   // Back to the box: still typing; left for the toggle with the keyboard down: the bars come back.
   await page.focus('#cmd');
-  await page.waitForTimeout(300);
+  await settled(page);
   assert.equal((await layout()).typing, true);
   await page.focus('#mode-say');
   await page.setViewportSize(LAND);
@@ -2538,13 +2553,13 @@ s.test('wave 5, defect 3: the phone\'s Menu closes when the window widens past 9
     await focusHelper(page);
     for (const [item, want] of [['saves', '#tb-save'], ['settings', '#tb-settings'], ['actions', '#act-btn'], ['title', '#tb-panel']]) {
       await page.setViewportSize(PHONE);
-      await page.waitForTimeout(150);
+      await settled(page);
       await page.focus('#tb-menu');
       await page.keyboard.press('Enter');
       assert.equal(await page.evaluate(() => document.getElementById('menu-pop').hidden), false);
       await page.focus(`#menu-pop [data-menu="${item}"]`);
       await page.setViewportSize(LAPTOP);
-      await page.waitForTimeout(300);
+      await settled(page);
       const r = await page.evaluate(() => ({ open: !document.getElementById('menu-pop').hidden, exp: document.getElementById('tb-menu').getAttribute('aria-expanded'), f: window.__focusOf() }));
       assert.deepEqual(r, { open: false, exp: 'false', f: want }, `${motion}: ${item}`);
       if (item === 'saves') await shot(page, `W5_3_menu_widened_${motion}`);
@@ -2554,11 +2569,11 @@ s.test('wave 5, defect 3: the phone\'s Menu closes when the window widens past 9
     }
     // Open with the focus on Menu itself (no item): Panel.
     await page.setViewportSize(PHONE);
-    await page.waitForTimeout(150);
+    await settled(page);
     await page.click('#tb-menu');
     await page.focus('#tb-menu');
     await page.setViewportSize(LAPTOP);
-    await page.waitForTimeout(300);
+    await settled(page);
     assert.deepEqual(await page.evaluate(() => [document.getElementById('menu-pop').hidden, window.__focusOf()]), [true, '#tb-panel']);
   }
 });
@@ -2569,7 +2584,8 @@ s.test('wave 5, defect 4: a third line typed while one waits stays in the box, t
     const page = await open(h, vp);
     await quickStart(page);
     await fast(page);
-    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; Game.Api.Mock.bookkeep = async (...args) => { await new Promise(r => setTimeout(r, 3000)); Game.Api.Mock.bookkeep = real; return real(...args); }; });
+    // Wave 49: the bookkeeper is held until the test lets it go (window.__release), not slowed by a timer.
+    await page.evaluate(() => { const real = Game.Api.Mock.bookkeep; const held = new Promise(r => { window.__release = r; }); Game.Api.Mock.bookkeep = async (...args) => { await held; Game.Api.Mock.bookkeep = real; return real(...args); }; });
     await page.fill('#cmd', 'I ask about work');
     await page.press('#cmd', 'Enter');
     await page.waitForFunction(() => Game.Pipeline.acceptsQueue === true, null, { timeout: 5000 });
@@ -2595,6 +2611,7 @@ s.test('wave 5, defect 4: a third line typed while one waits stays in the box, t
     assert.deepEqual(await overflowReport(page, vp.width), []);
     await shot(page, `W5_4_third_line_${vp.width}`, { clip: { x: 0, y: vp.height - 170, width: vp.width, height: 170 } });
     // The queued line runs; the third is still in the box, and Send is Send again.
+    await page.evaluate(() => window.__release());
     await page.waitForFunction(() => !Game.Pipeline.busy && document.getElementById('turn-status').hidden, null, { timeout: 20000 });
     assert.equal(await page.inputValue('#cmd'), 'And a third line');
     assert.equal(await page.getAttribute('#send', 'title'), 'Send');
@@ -2624,7 +2641,7 @@ s.test('wave 5, defect 5: a phone on its side with the keyboard up and a sentenc
     });
     for (const text of [SHORT, LONG]) {
       await page.fill('#cmd', text);
-      await page.waitForTimeout(80);
+      await settled(page);
       const m = await measure();
       const tag = `${say ? 'Say' : 'Do'}, ${text.length} characters: ${JSON.stringify(m)}`;
       assert.ok(m.story >= 90, tag);
@@ -2653,7 +2670,7 @@ s.test('wave 5, defect 5: a phone on its side with the keyboard up and a sentenc
     await page.focus('#mode-do');
     await page.setViewportSize(LAND);
     await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
-    await page.waitForTimeout(100);
+    await settled(page);
     assert.equal((await measure()).lines, 4, 'four lines with the keyboard down');
   }
 });
@@ -2683,7 +2700,7 @@ s.test('wave 5, defect 6: a long grey note on a person card wraps inside the lap
     const id = await awayToday(page);
     // The note made long on purpose, as the town's longest.
     await page.evaluate(id => { const n = Game.State.npc(id); n.awayOn.where = 'at the county school in Clayburn, then the band practice behind the gym'; Game.UI.renderPanel(); }, id);
-    await page.waitForTimeout(300);
+    await settled(page);
     const flags = await flagsOf(page, id);
     const soft = flags.find(f => f.soft);
     assert.ok(soft && /county school/i.test(soft.text), JSON.stringify(flags));
@@ -2750,7 +2767,7 @@ s.test('wave 5, defect 8: in the ⋯ list\'s two columns (a phone on its side) U
   await page.keyboard.press('Escape');
   // Upright, one column: Down follows the list, Left and Right do nothing.
   await page.setViewportSize(PHONE);
-  await page.waitForTimeout(150);
+  await settled(page);
   await page.evaluate(() => { Game.state.player.storyPoints = 2; });
   await page.focus('#act-btn-m');
   await page.keyboard.press('Enter');
@@ -2767,9 +2784,9 @@ s.test('wave 5, defect 9: a sheet opened by code never takes the hidden heading 
     // The phone's game screen puts the focus on its heading, for screen readers.
     assert.equal(await page.evaluate(() => window.__focusOf()), '#game-title');
     await page.evaluate(() => Game.UI.openPanel('places'));
-    await page.waitForTimeout(350);
+    await settled(page);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(350);
+    await settled(page);
     assert.equal(await page.evaluate(() => window.__focusOf()), 'button[openTab=places]', `${motion}: Escape`);
     // Opened by code again from the heading, then Go there: the tab row's button holds the focus through the walk and after.
     await page.evaluate(() => document.getElementById('game-title').focus());
@@ -2780,16 +2797,16 @@ s.test('wave 5, defect 9: a sheet opened by code never takes the hidden heading 
       Game.UI.togglePlace(l.id, true);
       return l.id;
     });
-    await page.waitForTimeout(350);
+    await settled(page);
     const r = await acrossTurn(page, () => page.click(`.plcard [data-go="${to}"]`));
     assert.ok(!r.during.includes('#game-title') && !r.during.includes('BODY'), `${motion}, during: ` + r.during);
     assert.equal(r.after, 'button[openTab=places]', `${motion}, after: ` + r.after);
     assert.deepEqual(r.inert, [], 'nothing inert left behind');
     // Nor a control that is hidden when the sheet opens (Menu, hidden for the moment): the tab row's button again.
     await page.evaluate(() => { const m = document.getElementById('tb-menu'); m.focus(); m.style.visibility = 'hidden'; Game.UI.openPanel('journal'); m.style.visibility = ''; });
-    await page.waitForTimeout(350);
+    await settled(page);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(350);
+    await settled(page);
     assert.equal(await page.evaluate(() => window.__focusOf()), 'button[openTab=journal]', `${motion}: from a hidden control`);
   }
 });
@@ -2847,7 +2864,7 @@ s.test('wave 6, item 1: a phone on its side, the Say picker tapped with the keyb
       await page.setViewportSize(KB);
       await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
       // Longer than any look again after a blur (250 ms).
-      await page.waitForTimeout(400);
+      await settled(page);
       const m = await composerNow(page);
       const tag = `${motion}, ${KB.width}x${KB.height}: ${JSON.stringify(m)}`;
       assert.deepEqual([m.typing, m.box, m.send, m.pick, m.focus, m.inert], [true, true, true, true, '#say-pick', []], tag);
@@ -2857,13 +2874,13 @@ s.test('wave 6, item 1: a phone on its side, the Say picker tapped with the keyb
       // A pick keeps the focus and the layout.
       const other = await page.evaluate(() => [...document.querySelectorAll('#say-pick option')].map(o => o.value).find(v => v !== 'everyone'));
       await page.selectOption('#say-pick', other);
-      await page.waitForTimeout(350);
+      await settled(page);
       const m2 = await composerNow(page);
       assert.deepEqual([m2.typing, m2.focus, m2.box, m2.send], [true, '#say-pick', true, true], 'after a pick: ' + JSON.stringify(m2));
       // The wheel gone (the window tall again): the bars come back, the Say row in its own row, the focus still on the picker.
       await page.setViewportSize(LAND);
       await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
-      await page.waitForTimeout(300);
+      await settled(page);
       const m3 = await composerNow(page);
       assert.deepEqual([m3.typing, m3.focus, m3.row, m3.inert], [false, '#say-pick', 'composer-inner', []], 'the wheel gone: ' + JSON.stringify(m3));
       assert.deepEqual(await overflowReport(page, LAND.width), []);
@@ -2877,7 +2894,7 @@ s.test('wave 6, item 1: a phone on its side, the Say picker tapped with the keyb
   await page.click('#mode-say');
   await page.focus('#say-pick');
   await page.setViewportSize({ width: 375, height: 420 });
-  await page.waitForTimeout(400);
+  await settled(page);
   const up = await composerNow(page);
   assert.deepEqual([up.typing, up.focus, up.box, up.send], [false, '#say-pick', true, true], JSON.stringify(up));
 });
@@ -2991,7 +3008,7 @@ s.test('wave 6, item 5: the ⋯ list\'s two columns (a phone on its side) are fi
     await page.focus('#act-btn-m');
     await page.keyboard.press('Enter');
     for (const list of ['main', 'wait']) {
-      if (list === 'wait') { await page.focus('#act-pop [data-act="wait"]'); await page.keyboard.press('Enter'); await page.waitForTimeout(50); }
+      if (list === 'wait') { await page.focus('#act-pop [data-act="wait"]'); await page.keyboard.press('Enter'); await settled(page); }
       const m = await page.evaluate(() => {
         const items = [...document.querySelectorAll('#act-pop [role="menuitem"]')].map(b => { const r = b.getBoundingClientRect(); return { act: b.dataset.act, x: Math.round(r.left), y: Math.round(r.top) }; });
         // Read down the first column, then the second.
@@ -3066,7 +3083,7 @@ s.test('wave 6, item 6: a phone on its side while typing, the focus order is the
   await page.focus('#say-pick');
   await page.setViewportSize(LAND);
   await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
-  await page.waitForTimeout(300);
+  await settled(page);
   const m = await composerNow(page);
   assert.deepEqual([m.row, m.focus, m.inert], ['composer-inner', '#say-pick', []], JSON.stringify(m));
 });
@@ -3089,7 +3106,7 @@ s.test('wave 6, item 7: the / list is sized again when the keyboard comes up or 
     // The keyboard up, no key pressed: the story's strip above it, as after a key.
     await page.setViewportSize(KB);
     await page.waitForFunction(() => document.getElementById('app').classList.contains('typing'));
-    await page.waitForTimeout(150);
+    await settled(page);
     const up = await m();
     await page.keyboard.type('l');
     await page.keyboard.press('Backspace');
@@ -3101,7 +3118,7 @@ s.test('wave 6, item 7: the / list is sized again when the keyboard comes up or 
     // Down again: half the window (CSS), no height left over from the strip.
     await page.setViewportSize(LAND);
     await page.waitForFunction(() => !document.getElementById('app').classList.contains('typing'));
-    await page.waitForTimeout(150);
+    await settled(page);
     const again = await m();
     assert.ok(again.inline === '' && Math.abs(again.h - again.css) <= 2, `${LAND.width}, keyboard down again: ` + JSON.stringify(again));
   }

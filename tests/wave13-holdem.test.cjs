@@ -18,15 +18,12 @@
    Mock mode. Run with: node tests/wave13-holdem.test.cjs */
 const fs = require('fs');
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, overflowReport, presetCards, GAME_PATH, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, presetCards, fastClear: fast, line, idle, continueFromTitle, GAME_PATH, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave13-holdem');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const gold = page => page.evaluate(() => Game.state.player.gold);
 const lastNotice = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent);
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);
@@ -416,8 +413,7 @@ s.test('/cheat win: armed in the game ("Cheat armed: the next hand is yours with
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await fast(page);
-  await page.click('#btn-continue');
-  await page.waitForSelector('#screen-game.active');
+  await continueFromTitle(page);
   assert.equal(await page.evaluate(() => Game.Pipeline.winArmed), true, 'armed after a reload');
   await presetCards(page, { game: undefined, seats: spot.people.slice(0, 2).map(p => p.id) });
   const before = await page.evaluate(ids => ids.map(id => ({ id, att: Game.State.npc(id).attitude })), spot.people.slice(0, 2).map(p => p.id));
@@ -570,8 +566,7 @@ s.test('Stop mid-street folds the hand: what the player put in is lost, the turn
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await fast(page);
-  await page.click('#btn-continue');
-  await page.waitForSelector('#screen-game.active');
+  await continueFromTitle(page);
   await page.waitForFunction(() => Game.state.log[Game.state.log.length - 1].cards);
   await idle(page);
   e = await lastEntry(page);
@@ -596,8 +591,7 @@ s.test('a finished table is drawn again exactly where it was after a reload and 
   assert.deepEqual(await tableNow(page), played, 'after /undo');
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
-  await page.click('#btn-continue');
-  await page.waitForSelector('#screen-game.active');
+  await continueFromTitle(page);
   assert.deepEqual(await tableNow(page), played, 'after a reload');
   assert.deepEqual(await where(), at, 'in the same place: after the line, before the narration');
 });

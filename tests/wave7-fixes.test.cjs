@@ -7,10 +7,9 @@
    line wait too. Mock mode throughout.
    Run with: node tests/run.cjs wave7 */
 const assert = require('assert/strict');
-const { suite, quickStart } = require('./helpers.cjs');
+const { suite, quickStart, fast } = require('./helpers.cjs');
 
 const s = suite('wave7-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 
 /* In the page: the two vote threads made known, the clock at Day 6's
    afternoon at Pittman's (away from Town Hall), and one search that runs

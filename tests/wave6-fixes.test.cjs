@@ -7,11 +7,9 @@
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { suite, quickStart, ROOT } = require('./helpers.cjs');
+const { suite, quickStart, fast, lastPacket, ROOT } = require('./helpers.cjs');
 
 const s = suite('wave6-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
-const lastPacket = page => page.evaluate(() => (Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop() || {}).text || '');
 const markFeed = page => page.evaluate(() => { for (const x of document.querySelectorAll('#feed > *')) x.dataset.w6 = '1'; });
 const feedSince = page => page.evaluate(() => [...document.querySelectorAll('#feed > *')].filter(x => x.dataset.w6 !== '1').map(x => [x.className, x.textContent]));
 /* The name problems Style.check finds for each text: "HARD", "soft" or "ok". */

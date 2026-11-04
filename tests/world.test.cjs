@@ -8,13 +8,11 @@
    Game.World.forceAttitude(npcId, value).
    Run with: node tests/run.cjs world */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, findScene, place, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
+const { suite, quickStart, sendText, findScene, place, overflowReport, fast, lastPacket, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('world');
 
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
-const lastPacket = page => page.evaluate(() => { const c = Game.Api.Mock.calls.filter(x => x.method === 'narrate'); return c.length ? c[c.length - 1].text : ''; });
 const line = (packet, label) => (packet.split('\n').find(l => l.startsWith(label + ':')) || '').slice(label.length + 1).trim();
 const lastLog = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const time = page => page.evaluate(() => ({ day: Game.state.time.day, phase: Game.state.time.phase }));

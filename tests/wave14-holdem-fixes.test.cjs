@@ -21,15 +21,12 @@
    (#22); the no-room-for-a-bet hint (#23).
    Mock mode. Run with: node tests/wave14-holdem-fixes.test.cjs */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, presetCards, LAPTOP, GAME_URL } = require('./helpers.cjs');
+const { suite, quickStart, sendText, presetCards, fastClear: fast, line, idle, LAPTOP, GAME_URL } = require('./helpers.cjs');
 
 const s = suite('wave14-holdem-fixes');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const gold = page => page.evaluate(() => Game.state.player.gold);
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? (n.querySelector('.f-notice-text') || n).textContent : null; });
 const bgWith = (page, re) => page.evaluate(src => Game.data.BACKGROUNDS.findIndex(b => b.items.some(i => new RegExp(src, 'i').test(i.name))), re);

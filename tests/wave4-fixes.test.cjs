@@ -7,11 +7,9 @@
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { suite, quickStart, sendText, ROOT } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fast, lastPacket, ROOT } = require('./helpers.cjs');
 
 const s = suite('wave4-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
-const lastPacket = page => page.evaluate(() => (Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop() || {}).text || '');
 const line = (packet, label) => (new RegExp(`^${label}: .*$`, 'm').exec(packet) || [''])[0];
 /* A game with this background (by id), name, seed and loose ends ([kind, option]). */
 async function start(page, o) {

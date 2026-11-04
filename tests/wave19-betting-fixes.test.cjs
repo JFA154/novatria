@@ -19,16 +19,13 @@
    Run with: node tests/wave19-betting-fixes.test.cjs */
 const fs = require('fs');
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, overflowReport, presetCards, GAME_PATH, GAME_URL, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, presetCards, fastClear: fast, line, idle, GAME_PATH, GAME_URL, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('wave19-betting-fixes');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
 const PHONE_CTX = { reducedMotion: 'reduce', isMobile: true, hasTouch: true };
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const lastEntry = page => page.evaluate(() => Game.state.log[Game.state.log.length - 1]);
 const lastCall = (page, method) => page.evaluate(m => (Game.Api.Mock.calls.filter(c => c.method === m).pop() || {}).text || '', method);
-const line = (packet, label) => (new RegExp(`^${label}.*$`, 'm').exec(packet) || [''])[0];
 const gold = page => page.evaluate(() => Game.state.player.gold);
 const statusLine = page => page.textContent('#turn-status-text');
 const addCash = (page, n) => page.evaluate(d => Game.State.apply({ goldDelta: d }), n);

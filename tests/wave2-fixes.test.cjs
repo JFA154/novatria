@@ -7,13 +7,11 @@
    ids come from Game.data and Game.state. Run with:
    node tests/run.cjs wave2 */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, findScene, place } = require('./helpers.cjs');
+const { suite, quickStart, sendText, findScene, place, fast, lastPacket } = require('./helpers.cjs');
 
 const s = suite('wave2-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 const quiets = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-quiet')].map(e => e.textContent));
 const notices = page => page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].map(e => e.textContent));
-const lastPacket = page => page.evaluate(() => (Game.Api.Mock.calls.filter(c => c.method === 'narrate').pop() || {}).text || '');
 const line = (packet, label) => (new RegExp(`^${label}: .*$`, 'm').exec(packet) || [''])[0];
 /* A place and phase with people, none of them police, in a place that is not a police station. */
 async function quietScene(page, min) {

@@ -14,10 +14,9 @@
    when this build has them; World notes every news line in World.recent
    (kind 'news') either way. Run with: node tests/run.cjs engine-world */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, findScene, place } = require('./helpers.cjs');
+const { suite, quickStart, sendText, findScene, place, fast } = require('./helpers.cjs');
 
 const s = suite('engine-world-fixes');
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
 const news = page => page.evaluate(() => Game.World.recent.filter(e => e.kind === 'news').map(e => e.text));
 const hasOp = (page, op) => page.evaluate(o => Game.State.EFFECT_OPS.includes(o), op);
 

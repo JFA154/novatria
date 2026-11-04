@@ -14,12 +14,10 @@
    past the stack pointing at /rewind (E).
    Mock mode. Run with: node tests/wave16-undo.test.cjs */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, presetCards, stateJson, LAPTOP, PHONE, GAME_URL } = require('./helpers.cjs');
+const { suite, quickStart, sendText, presetCards, stateJson, fastClear: fast, idle, LAPTOP, PHONE, GAME_URL } = require('./helpers.cjs');
 
 const s = suite('wave16-undo');
 const open = (h, viewport, extra) => h.open(Object.assign({ viewport: viewport || LAPTOP, contextOptions: { reducedMotion: 'reduce' } }, extra || {}));
-const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Mock.clear(); });
-const idle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 const gold = page => page.evaluate(() => Game.state.player.gold);
 const lastNotice = page => page.evaluate(() => { const n = [...document.querySelectorAll('#feed .f-notice')].pop(); return n ? (n.querySelector('.f-notice-text') || n).textContent : null; });
 const depth = page => page.evaluate(() => Game.State.undoDepth());

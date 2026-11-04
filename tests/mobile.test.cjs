@@ -10,7 +10,7 @@
    the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
-const { suite, sendText } = require('./helpers.cjs');
+const { suite, sendText, settled, sheetDone } = require('./helpers.cjs');
 
 const s = suite('mobile');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
@@ -106,10 +106,10 @@ for (const size of SIZES) {
     await page.click('#tb-menu');
     for (const tab of ['character', 'people', 'journal', 'objectives', 'places']) {
       await page.click(`[data-open-tab="${tab}"]`);
-      await page.waitForTimeout(300);
+      await sheetDone(page, true);
       await check('sheet: ' + tab);
       await page.click('#panel-close');
-      await page.waitForTimeout(300);
+      await sheetDone(page, false);
     }
     // People: someone met, their card open (the pronoun chips and Edit), then their card in edit mode through /edit,
     // with a new memory line and the hidden goal and secret open: every control a tap tall, 16px fields, nothing wider than the screen.
@@ -119,15 +119,15 @@ for (const size of SIZES) {
       return { id: n.id, name: n.name };
     });
     await page.click('[data-open-tab="people"]');
-    await page.waitForTimeout(300);
+    await sheetDone(page, true);
     await page.click(`#phead-${who.id}`);
-    await page.waitForTimeout(250);
+    await settled(page);
     assert.ok(await page.isVisible(`.pcard[data-npc="${who.id}"] .pcard-edit`));
     await check('sheet: people, a card open');
     await page.click('#panel-close');
-    await page.waitForTimeout(300);
+    await sheetDone(page, false);
     await sendText(page, `/edit ${who.name}`);
-    await page.waitForTimeout(300);
+    await sheetDone(page, true);
     assert.ok(await page.isVisible(`.pcard[data-npc="${who.id}"] .pedit`), '/edit opens the sheet with the editor');
     await page.click('.pedit-add');
     await page.click('.pedit-hidden > summary');
@@ -137,7 +137,7 @@ for (const size of SIZES) {
     await page.press(`#pe-name-${who.id}`, 'Escape');
     assert.equal(await page.evaluate(() => Game.UI.editing), null);
     await page.click('#panel-close');
-    await page.waitForTimeout(300);
+    await sheetDone(page, false);
     // The longer cards: someone who lives elsewhere (where, how to reach them, ties, history), then the
     // Places sheet with the place here open and one out of town open.
     const far = await page.evaluate(() => {
@@ -146,34 +146,34 @@ for (const size of SIZES) {
       return n.id;
     });
     await page.click('[data-open-tab="people"]');
-    await page.waitForTimeout(300);
+    await sheetDone(page, true);
     // Elsewhere is folded away until opened.
     await page.click('.people-group[data-group="elsewhere"] > summary');
     await page.click(`#phead-${far}`);
-    await page.waitForTimeout(250);
+    await settled(page);
     assert.ok(await page.isVisible(`.pcard[data-npc="${far}"] .pcard-facts`), 'the card shows where they live and their history');
     await check('sheet: people, a card from Elsewhere open');
     await page.click('#panel-close');
-    await page.waitForTimeout(300);
+    await sheetDone(page, false);
     await page.click('[data-open-tab="places"]');
-    await page.waitForTimeout(300);
+    await sheetDone(page, true);
     const spot = await page.evaluate(() => Game.state.player.locationId);
     await page.click(`#plhead-${spot}`);
-    await page.waitForTimeout(250);
+    await settled(page);
     assert.ok(await page.isVisible(`.plcard[data-loc="${spot}"] .plcard-facts`), 'the place sheet has its rows');
     await check('sheet: places, the place here open');
     const out = await page.evaluate(() => document.querySelector('.place-list[data-list="away"] .plcard').dataset.loc);
     await page.click(`#plhead-${out}`);
-    await page.waitForTimeout(250);
+    await settled(page);
     assert.ok(await page.isVisible(`.plcard[data-loc="${out}"] .plcard-facts`));
     await check('sheet: places, a place out of town open');
     await page.click('#panel-close');
-    await page.waitForTimeout(300);
+    await sheetDone(page, false);
     await sendText(page, '/debug');
-    await page.waitForTimeout(300);
+    await sheetDone(page, true);
     await check('sheet: debug');
     await page.click('#panel-close');
-    await page.waitForTimeout(300);
+    await sheetDone(page, false);
     // The "New" button, shown when the reader has scrolled up.
     await page.evaluate(() => { for (let i = 0; i < 30; i++) Game.UI.feed.notice('Filler line ' + i); const f = document.getElementById('feed-scroll'); f.scrollTop = 0; f.dispatchEvent(new Event('scroll')); Game.UI.feed.notice('Something new'); });
     assert.ok(await page.isVisible('#new-btn'));
