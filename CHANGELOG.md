@@ -2,8 +2,36 @@
 
 What changed for players in each wave of work on Lockett's Ferry, newest
 first. The build you are playing is on the title screen's footer and in
-Settings under Advanced ("Build: wave 46 · rules v10"); name it in a bug
+Settings under Advanced ("Build: wave 51 · rules v10"); name it in a bug
 report. A wave that changed only the tests or the tooling says so.
+
+## Wave 51 · 2026-11-04
+
+No change in play. The README is a short guide for players, the full manual
+and the maintainer's guide are in docs/, and known issues are listed in one
+place.
+
+## Wave 50 · 2026-11-04
+
+No change in play. The game is now edited in small source files and joined
+into the same one-file index.html, which still plays with no build.
+
+## Wave 49 · 2026-11-04
+
+No change in play. The tests share their helpers and wait on what they are
+waiting for rather than on a clock.
+
+## Wave 48 · 2026-11-04
+
+A long game keeps its undo history and its saves without filling the
+device: a turn writes only its own step, and the town is stored once. If the
+device does run out of room, the game plays on and says so once.
+
+## Wave 47 · 2026-11-04
+
+No change in play. The offline demo's stand-in narrator is its own part of
+the code, and the game decides who counts as police the same way
+everywhere.
 
 ## Wave 46 · 2026-11-04
 
@@ -15,23 +43,34 @@ Settings and in Debug.
 
 ## Wave 45 · 2026-11-04
 
-Landing tonight; this entry is written when it is merged.
+Screen readers and larger text work: the first Tab stop on the game screen
+skips to the story, each turn has its own heading, the status line above
+the input is announced, and every size follows your browser's text size.
 
 ## Wave 44 · 2026-11-04
 
-Landing tonight; this entry is written when it is merged.
+A new player is shown how to get a key in four steps, sees no dead
+Continue on a first visit, and after the first narration gets two or three
+things to try right there. Settings can forget the key or delete everything
+the game keeps on this device.
 
 ## Wave 43 · 2026-11-04
 
-Landing tonight; this entry is written when it is merged.
+The top bar says where you are in the three weeks ('Day 3 of 21') and what
+this game has cost so far; the save keeps the total, and Settings can pause
+and ask once you reach an amount you choose.
 
 ## Wave 42 · 2026-11-04
 
-Landing tonight; this entry is written when it is merged.
+No change in play. The narrator's standing instructions say each thing
+once, which leaves room for the next rule or person without costing more.
 
 ## Wave 41 · 2026-11-04
 
-Landing tonight; this entry is written when it is merged.
+A busy API no longer fails the turn: the game waits as long as the API asks
+(up to a minute), counts down above the input, and Stop cancels the wait and
+keeps your words. Each turn costs a little less, because more of the prompt
+is cached.
 
 ## Wave 40 · 2026-11-03
 
@@ -48,11 +87,13 @@ the game, so updating an old game is tested against the real thing.
 
 ## Wave 38 · 2026-11-03
 
-Landing tonight; this entry is written when it is merged.
+No change in play. The 21-day simulator now courts someone and blackmails
+the town, so changes to romance and leverage are measured before they ship.
 
 ## Wave 37 · 2026-11-03
 
-Landing tonight; this entry is written when it is merged.
+No change in play. The check of how the bookkeeper names what you did has
+a labelled set of 216 turns, ready for a live run.
 
 ## Wave 36 · 2026-11-03
 

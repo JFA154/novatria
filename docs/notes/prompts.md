@@ -1091,3 +1091,30 @@ different.", then "Do it 7 then, the more detailed the better."
   engine's own `d` may carry `m`.
 - **The night**: "says yes; fade to black" now needs romance 40 in place of
   liking 40; the words are as before.
+
+## Wave 37 (3 Nov 2026): the labelled eval has a set
+
+216 authored rows (152 bookkeeper turns; 64 romantic lines: 42 aimed at
+minors, 12 false friends aimed at minors, 10 adults); the packets are genuine
+(`keepBookTurn`, `parsePacket`), the outcomes the engine's rulings. The script
+exits 1 below the bar and 2 on a bad set or no key; it needs 40 minor lines;
+it prices with `Api.costOf` (the old $1 / $5 guess was 10x high); it counts
+the minor rule before the vocabulary check (a `flirted` sent for a minor used
+to be miscounted). Flags `--dry`, `--json`, `--record`. About $0.15 a run on
+Haiku (above the design's "under $0.10"). No passing report is recorded yet,
+so B3 is still gated on the owner's run. Tests: `tests/eval-set.test.cjs`.
+
+## Wave 42 (3 Nov 2026): headroom in the cached blocks
+
+Cut: the place ids in PLACES and OUT OF TOWN; the cast's "History:" label and
+the full name opening 54 histories (now He or She); repeated relation words,
+via `Pipeline.castTies` (`tieWords` unchanged); NOT IN TOWN's "one a line.
+Nobody here sees them; anyone may mention them, the way people talk about
+the dead and the far away."; `KNOWLEDGE`'s ", and never knows or names the
+total the player has or has left"; casual DIALOGUE's "Do not reuse a phrase,
+opener or joke from LAST 3 TURNS." (VARIETY says it every turn); the two Say
+examples' "(said to …)". Measured: casual 12,970 → 12,597, literary 11,873 →
+11,528; the api budget 13,000 → 14,000. Still cuttable if the pins move: the
+cast line ids (about 185 tokens) and the doubled cash rule.
+`docs/relationships/audit.md:369` describes the old cast line format. Tests:
+`tests/wave42-headroom.test.cjs`.

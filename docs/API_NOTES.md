@@ -127,6 +127,9 @@ lines, take lines starting with `data: `, `JSON.parse` the rest.
 
 Thinking blocks arrive first with empty text; render nothing for them.
 
+A data line that is not JSON is logged; if it was a text_delta or a JSON
+fragment, treat the stream as broken (retry once) (wave 41).
+
 ## Non-streaming response
 
 ```json
@@ -159,7 +162,10 @@ project does not use the fallback beta.
 - Minimum cacheable prefix on Sonnet 5.5 and Haiku 5.5 is 512 tokens. The
   style guide plus examples is about 700, so it caches. The parser and
   bookkeeper system prompts are shorter and simply will not cache; that is
-  fine, do not pad them.
+  fine, do not pad them. **Since wave 41** the parser's and the bookkeeper's
+  system prompts (~1,200 / ~1,340 tokens, over the 512 minimum) are one
+  cached block each with `{type:'ephemeral', ttl:'1h'}`. The packet stays in
+  the user message. The chronicle is not cached.
 - Caches are per model: changing the narrator model starts cold.
 - Verify: on the second narration of a session,
   `usage.cache_read_input_tokens > 0`. Show these fields in debug view.
@@ -177,7 +183,7 @@ Non-2xx body:
 | 400 | `invalid_request_error` | Bug in our request. Show the message verbatim in debug, friendly text in the feed. No retry. |
 | 401 | `authentication_error` | Bad key. Point to Settings. No retry. |
 | 403 | `permission_error` | No retry. |
-| 404 | `not_found_error` | Usually a bad model name. Point to Settings. |
+| 404 | `not_found_error` | Usually a bad model name. If the message names the model, GET /v1/models (Check key's request) and suggest a current model of the same family (wave 41); else point to Settings. |
 | 429 | `rate_limit_error` | Retry once after 1.5 s. |
 | 500 | `api_error` | Retry once. |
 | 529 | `overloaded_error` | Retry once after 1.5 s. |
@@ -189,7 +195,7 @@ Log the `request-id` response header with every failure in debug view.
 
 cost = input × in_rate + output × out_rate + cache_read × read_rate +
 cache_creation × in_rate × 1.25, using the table under Models, by model id;
-unknown model id → show tokens only.
+unknown model id → show tokens only, and "no price known for <model>: cost not counted" (wave 41).
 
 ## 30 Oct 2026: Changes made for the 1-hour cache and Check key
 
@@ -224,8 +230,14 @@ against canned replies (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`).
   error, a timeout, a stream that ends before `message_stop`, a mid-stream
   `error` event of type `overloaded_error` or `api_error`, and a body that is
   not JSON. The wait is the `retry-after` header (seconds or an HTTP date),
-  held to at most 10 s, else 1.5 s; a reply that does not parse, or a broken
-  stream, retries at once. This replaces the fixed 1.5 s in the Errors table.
+  held to at most 60 s (wave 41; was 10 s), else 1.5 s; a reply that does not
+  parse, or a broken stream, retries at once. Since wave 41: two retries for
+  `overloaded_error` (529, 503, a mid-stream event), the second wait 2× the
+  first, plus up to 0.4 s of jitter; one for everything else. The page reads
+  `retry-after` only if the response lists it in
+  `access-control-expose-headers` (unverified live); otherwise it uses the
+  fixed wait and the debug entry says so. This replaces the fixed 1.5 s in
+  the Errors table.
 - **Idle timeouts.** Every call runs under an `AbortController`. A stream
   gives up after 45 s with no bytes (each chunk resets the timer); a
   non-streaming call after 120 s in all. Stop aborts every call in flight.

@@ -1,7 +1,7 @@
 # Transport and turn lifecycle (wave 1)
 
 Region: `Api` (everything but the system prompts, schemas, `MEMORY_RULES` and
-the mock provider), the `Pipeline` lifecycle, the whole `Commands` and
+the mock provider; the mock provider is the `Mock` module since wave 47), the `Pipeline` lifecycle, the whole `Commands` and
 `Upgrade` modules, and the CI workflow. Tests: `tests/transport-fixes.test.cjs`
 (27 tests). REVIEW items: E1, E5, E7, E8, E14 (time side), E15 `/cheat`; R1, R2,
 R6, R7, R8, R9, R10; the cost and latency bullets of 2.6; 3.5/3.6 (`/recap`,
@@ -912,3 +912,25 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   short lines.
 - The card's notes comment said "the last 20 turns" (SPEC.md 13's number);
   the code reads 10 (`recent: 10`). The comment says 10 now.
+
+## Wave 41 (3 Nov 2026): API resilience and caching
+
+`Api.RETRY` {jitter, scale}, `RETRY_LIMITS`, `Api.onWait` and the Pipeline
+`retry` stage (the countdown above the input; Stop cancels the wait);
+`suggestModel` / `getModels` / `modelFamily` for a 404 naming a retired
+model; `priceNote`; `usage.cache` / `cacheLine` (cache by role in Debug);
+malformed SSE handling; `State.pushDebug` as the only writer to debugLog;
+linear `capStack`. The parser's and bookkeeper's system prompts are cached
+(`docs/API_NOTES.md`, Prompt caching). Tests: `tests/wave41-api.test.cjs` (9).
+
+## Wave 47 (4 Nov 2026): the mock is its own module
+
+The mock provider moved out of `Api` into `Mock` (right after it). `Api.Mock`,
+`Api.MOCK_ROMANCE` and `Api.MOCK_MORE` are getters onto it; `Api.refusalOf` is
+exported for it; `MINOR_ROMANCE_PHRASES` and `minorPhraseHit` stay in `Api`.
+Tests: `tests/wave47-modules.test.cjs`.
+
+## Wave 48 (4 Nov 2026): storage
+
+The undo store and the saves' layout changed (one IndexedDB record a step,
+the town stored once): see `docs/notes/engine-state.md`, Wave 48.

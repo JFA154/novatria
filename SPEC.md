@@ -1,3 +1,5 @@
+Historical: the design spec this game was built from (Oct 2026). The game has moved on; see docs/README.md for what is current.
+
 # One-Town Text RPG — Build Spec
 
 Oct 27, 2026 · @Joe

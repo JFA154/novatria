@@ -1,6 +1,16 @@
 # People who remember: the relationship system plan
 
-1 Nov 2026 · a plan being built. **Tiers A and B have landed (waves 26 to
+> **Outcome (4 Nov 2026).** Done and archived. Waves 26 to 35 shipped this
+> plan (33 to 35 went to romance in place of B3), and waves 36 to 51 followed
+> it up (coercion however the line is put, the simulator's romance and
+> blackmailer, the labelled eval's set): see BUILD_PLAN direction changes 11
+> and 12. B3 (tuning) was never done; it waits on the live eval, with the
+> simulator's findings in `docs/KNOWN_ISSUES.md`.
+
+1 Nov 2026 · the plan as built (status as of wave 35, 3 Nov 2026: waves 26
+to 35 shipped; wave 34 made every adult eligible with a flirt that rolls
+charm, wave 35 made romance a seventh track; the Outcome above has the
+rest). **Tiers A and B have landed (waves 26 to
 32), and the branch is merged with main's Objectives tab (its wave 26, 3 Nov
 2026); wave 33 (3 Nov 2026, from the owner's own save) makes a flirt land
 on the one it was aimed at: no fan-out to the room but a Say to everyone,
@@ -1010,7 +1020,7 @@ new test lines, and existing tests edited.
 | **A5** (30) | What people show | The People card with its stance chip, two dated reasons, leverage lines and the "More" fold; the editor's sliders, Interested for eligible adults, leverage lines and the event picker; `noteRel` with its ranking and the collapsed overnight line; `/recap` Careful and Owed; the narrator's `to you` line with the 50-token cap, `open to a flirt`, `holds you to`, the hidden-reason wording; the parser row and rubric; both styles' example turns, `Style.KNOWLEDGE`, the trimmed format note and the validator's two regexes; `relAtLeast`/`relBelow` with the council and epilogue rewritten (no fear branch); the contempt and pity cues; **rules version 9**; the simulator, the eval script and the eight-day CI guard. Acceptance: update an old save and see every "Likes you" word match the old meter and every open secret still open; open Hollis's card on a 375-pixel phone with no horizontal scroll; `node tests/relationships-sim.cjs confidant --assert` passes. | 740 + 490 sim and eval / 120 / 640 / ≈ 40 |
 | **B1** (31) | The town is a graph | Ties from both sides of every relation plus about 40 hand-written ones; the factor table with the role limits; one-hop propagation at event time; absent victims through a witness; hearsay by kind of tie with the household rule and the collapsed overnight line; hidden ties with no-name narrator reasons and named-act cards; the arrest route; the hidden protector flag read from ties; **rules version 10**; Debug ties and hearsay. Acceptance: hit Dewayne at Pittman's in the morning, `/rest`, and read "Word got round: Mavis Mangum has heard about Pittman's." and her card at "cool to you" with the act dated. | 530 / 80 / 460 / ≈ 5 |
 | **B2** (32) | Ties that change | `exposed` moving ties by `SECRET_TIES` and the target learning who told; `badmouthed` and `vouched_for` on a successful persuade (two more wire words, so the probe is re-run as a precaution); `tieDelta` and `propagate`, with the templates' third-party deltas converted in place; BETWEEN THEM for known ties; tie words on the card. | 380 / 110 / 350 / ≈ 3 |
-| **B3** (33, optional) | Tuning | One pass over `EVENTS`, `AXIS_EFFECTS` and `GATES` after a playtest, **only once the labelled eval passes** and with the simulator's bands holding; richer report templates; a fourth simulator playstyle (blackmailer) if the playtest shows abuse. | 200 / 60 / 250 |
+| **B3** (planned as 33; never done) | Tuning | **Outcome:** not done. Waves 33 to 35 shipped romance work instead (the flirt's target, the charm roll and every adult eligible, romance as its own track); B3 still waits on a passing live eval (see `docs/KNOWN_ISSUES.md`). The plan was: one pass over `EVENTS`, `AXIS_EFFECTS` and `GATES` after a playtest, **only once the labelled eval passes** and with the simulator's bands holding; richer report templates; a fourth simulator playstyle (blackmailer) if the playtest shows abuse. | 200 / 60 / 250 |
 
 | Tier | Code | Tooling | Content and validator | New test lines | Existing tests edited |
 |---|---|---|---|---|---|
@@ -1033,7 +1043,11 @@ and its README changes (section 12).
 
 ## 8. Before any tuning
 
-Four pieces of tooling, none of which exists today, gate the numbers:
+Four pieces of tooling gate the numbers. **Outcome:** all four exist (the
+probe and the eval script in wave 28 and 30, the eval's 216-row set in wave
+37, the simulator in wave 30 with romance and blackmailer in wave 38, the
+examples from wave 27); only the live probe and the live eval run are still
+to do, with the owner's key.
 
 - **The live grammar probe** (`tests/probe-grammar.cjs`, skipped by
   `run.cjs`, about 150 lines; needs the owner's key and network, so it cannot
@@ -1064,19 +1078,38 @@ Four pieces of tooling, none of which exists today, gate the numbers:
   under 20% of emitted events, exact accuracy 75% or more, invented events 5%
   or fewer, romantic recall for minors 98% or more, and no minor-related event
   emitted for a minor. No gloss, event or axis is tuned before the first
-  passing report is recorded in `docs/notes/prompts.md`.
+  passing report is recorded in `docs/notes/prompts.md`. **Outcome:** the
+  script exists and gates at this bar; wave 37 gave it 216 authored starter
+  rows (152 bookkeeper turns, 64 romantic lines); only the live run is still
+  to do. A run is about $0.15 on Haiku, above the $0.10 asked here.
 - **The 21-day simulator** (`tests/relationships-sim.cjs`, headless, mock
   mode, skipped by `run.cjs`). Three canned playstyles as scripts of
   `Pipeline.submit` lines plus queued mock events, printing each involved
-  person's six tracks, stance and tags every morning; `--assert` exits 1 when a
+  person's seven tracks (six when this was written; romance since wave 35), stance and tags every morning; `--assert` exits 1 when a
   band fails: the beer-buyer's Royce and Curtis never pass "warm to you" and
   their trust never moves; the confidant reaches trust 30 and knows 25 with
   Royce by Day 6 by honest events, and the same run with a staged kept word
   (nobody else present) does not; the brawler's Wade is never "afraid of you"
   and reaches "hates you" with its reason, with fights on Days 2, 4 and 6 only
-  and the bystanders' liking at -12 ± 2 on Day 14 and -7 ± 2 on Day 21 (-13
-  for a grudging one). An eight-day cut of each band runs in the suite as a CI
-  guard, so tuning cannot break them silently.
+  and the bystanders' liking at -27 ± 2 on Day 14 and -17 ± 2 on Day 21 (-30
+  for a grudging one; the simulator's pins since wave 30, the -12 / -7 first
+  written here being the old -8 a fight seen, design 2.5's correction). An
+  eight-day cut of each band runs in the suite as a CI guard, and the
+  nightly workflow runs all 21 days with `--assert`, so tuning cannot break
+  them silently.
+  The romance playstyle (wave 38) courts Tyler Rasberry for 14 evenings,
+  then stays away. No welcome comes before his opensAt. Spark and romance
+  rise only on a welcome, +8 and +2 a flirt. The night opens no earlier than
+  the day all four of its gates are met (Day 12). Romance falls 58 → 44 ± 3
+  by Day 22. The same lines at Kaylee leave no spark or romance and send the
+  minor rule's row, the full row with a report for the night. Threatened to
+  fear 40, or with his secret held, Tyler's night never opens and compliance
+  never fires (live since wave 40). The blackmailer pins $1700 from 13 payers
+  by Day 8, against the plan's 'about $900', which is pending B3.
+  Paid_silence is terminal per person. Repeat demands compound into grudges
+  and reports. A holder's report spends their record. The police bar lifts
+  after the recorded day. Both have eight-day cuts in
+  `tests/relationships-sim-guard.test.cjs`.
 - **The thirteen worked examples as tests**
   (`tests/relationships-examples.test.cjs`), each scripted through the mock in
   the wave its features land: the tracks within ±2 of the design's arithmetic,
@@ -1111,18 +1144,24 @@ Four pieces of tooling, none of which exists today, gate the numbers:
 
 Recommendations first. Everything not listed here is decided (section 3).
 
-1. **The SPEC acceptance test** "Insulting the same NPC three times" (`tests/acceptance.test.cjs` L198). Recommended: keep its title and its three behaviours, and change only the two pins that measure the old arithmetic (`attitude − 45` becomes "three insults compound: -10, -15, -22, at least 45 down"; the memory weights `[2, 3]` become one merged memory of weight 3), with the final check also asserting "hates you" with its reason. The design's "three insults to someone at pride +2, or four to anyone" becomes an extra test, not a rewrite.
-2. **The corroboration threshold for minors.** Recommended: a named target plus one second signal (a bookkeeper romance event, or a phrase hit). Requiring both signals would miss the euphemisms the eval exists to measure.
-3. **Is blackmail meant to fund the game?** Recommended: no. `canRaise` defaults to $100, at most three people above it.
-4. **What telling the police does to the target.** Recommended: the `whenTold` default (a weight-3 memory for the police member it matters to, and for a crime an inquiry seed that fills one police-clock segment); no automatic arrest.
-5. **Leverage in old saves.** Recommended: informant loose ends yes (the obligation is a recorded fact), heard rumours marked `leverageOver` yes with `aware: false`, secrets shown in earlier narrator packets no (nothing records them).
-6. **The labelled-eval pass bar.** Recommended as in section 8.
-7. **The optional memory re-read** during the version 9 update. Recommended: offer re-running version 2's "Memories that matter" as a Settings option; no new typing call.
-8. **What a relationship `/fact` buys.** Recommended: "owes me" → owed +1; "go back", "old friend", "grew up with" → knows at least 30; "trusts me" → trust +15, at most 40; "likes me" → liking +10, at most 40; all into `start`, never spark or fear; the memory stays a protected fact that moves no track and never feeds a grudge.
-9. **Curtis on the eligibility list.** He is separated. Recommended: keep him with `faithful: false`, noted in `docs/notes/content.md`. **Wave 34 (3 Nov 2026):** the list ships as tuning and everyone over 18 is eligible; Curtis keeps his entry at `difficulty: "normal"`, and `faithful` survives only as the old word for `very_hard`.
-10. **The "using you" fallback wording** when distrust is not earned: "wants you" (recommended: one tag, and the card's trust word says the rest) or "wants you, doesn't trust you".
-11. **A clean, unseen steal that succeeds.** Recommended: no event at the time; a later bookkeeper "found out" after the logged steal.
-12. **The new obligation status `lapsed`** for the standoff and for coming clean, shown as "Dropped" in the Journal. Recommended: yes.
+**Outcomes (4 Nov 2026).** 1 to 5, 7, 8, 10 and 12 are implemented as
+recommended and await the owner's sign-off. 6 is open: the bar is coded in
+`tests/eval-classify.cjs` but has never been ratified (or met live). 9 was
+decided differently by the owner in wave 34 (every adult eligible). 11 is
+done in wave 40. Each item below carries its outcome.
+
+1. **The SPEC acceptance test** "Insulting the same NPC three times" (`tests/acceptance.test.cjs` L198). Recommended: keep its title and its three behaviours, and change only the two pins that measure the old arithmetic (`attitude − 45` becomes "three insults compound: -10, -15, -22, at least 45 down"; the memory weights `[2, 3]` become one merged memory of weight 3), with the final check also asserting "hates you" with its reason. The design's "three insults to someone at pride +2, or four to anyone" becomes an extra test, not a rewrite. **Outcome:** implemented as recommended; awaiting sign-off.
+2. **The corroboration threshold for minors.** Recommended: a named target plus one second signal (a bookkeeper romance event, or a phrase hit). Requiring both signals would miss the euphemisms the eval exists to measure. **Outcome:** implemented as recommended; awaiting sign-off.
+3. **Is blackmail meant to fund the game?** Recommended: no. `canRaise` defaults to $100, at most three people above it. **Outcome:** implemented as recommended; awaiting sign-off. The simulator's blackmailer still takes $1,700 (KNOWN_ISSUES, B3).
+4. **What telling the police does to the target.** Recommended: the `whenTold` default (a weight-3 memory for the police member it matters to, and for a crime an inquiry seed that fills one police-clock segment); no automatic arrest. **Outcome:** implemented as recommended; awaiting sign-off.
+5. **Leverage in old saves.** Recommended: informant loose ends yes (the obligation is a recorded fact), heard rumours marked `leverageOver` yes with `aware: false`, secrets shown in earlier narrator packets no (nothing records them). **Outcome:** implemented as recommended (rules version 9, wave 30); awaiting sign-off.
+6. **The labelled-eval pass bar.** Recommended as in section 8. **Outcome:** open: coded in the eval script, never ratified, never met live.
+7. **The optional memory re-read** during the version 9 update. Recommended: offer re-running version 2's "Memories that matter" as a Settings option; no new typing call. **Outcome:** implemented as recommended (Settings → Game, "Rewrite memories in the short form first", wave 30); awaiting sign-off.
+8. **What a relationship `/fact` buys.** Recommended: "owes me" → owed +1; "go back", "old friend", "grew up with" → knows at least 30; "trusts me" → trust +15, at most 40; "likes me" → liking +10, at most 40; all into `start`, never spark or fear; the memory stays a protected fact that moves no track and never feeds a grudge. **Outcome:** implemented as recommended; awaiting sign-off.
+9. **Curtis on the eligibility list.** He is separated. Recommended: keep him with `faithful: false`, noted in `docs/notes/content.md`. **Wave 34 (3 Nov 2026):** the list ships as tuning and everyone over 18 is eligible; Curtis keeps his entry at `difficulty: "normal"`, and `faithful` survives only as the old word for `very_hard`. **Outcome:** decided differently by the owner in wave 34, as below.
+10. **The "using you" fallback wording** when distrust is not earned: "wants you" (recommended: one tag, and the card's trust word says the rest) or "wants you, doesn't trust you". **Outcome:** implemented as recommended ("using you", one tag); awaiting sign-off.
+11. **A clean, unseen steal that succeeds.** Recommended: no event at the time; a later bookkeeper "found out" after the logged steal. **Outcome:** done in wave 40, without the bookkeeper: a clean unseen theft plants a hidden engine seed, a 0.4 chance on each of the next three days on its own stream. It gives the victim `stole_from` at the row's weight and a Journal news line. There is no theft report template, so no report seed.
+12. **The new obligation status `lapsed`** for the standoff and for coming clean, shown as "Dropped" in the Journal. Recommended: yes. **Outcome:** implemented as recommended; awaiting sign-off.
 
 Carried from the first integration plan and recommended as written: `attitudeDelta` lands in everyday; edited values never fade; `/rewind` takes back remembered feelings; the unfired built-in council in games already in progress gets the trust branches through version 9; a knock-down's witnesses keep a lighter copy rather than today's weight-3 memory.
 
@@ -1206,7 +1245,9 @@ ones; where they still differ, this page is the plan.
   design's §10 first proposed.
 - **The eligibility list ships with twelve adults**; the design's second
   version and the integration plan's §7 said "empty by default", superseded by
-  the delta review and the integration plan's §19.5.
+  the delta review and the integration plan's §19.5. **Superseded again in
+  wave 34:** every adult is eligible, and `TOWN_DATA.romance` is tuning (how
+  easily each is won over), not a list of who can be.
 - **`learned_secret`'s precondition** is `state.known.secrets` plus the
   narration overlapping the secret's `leverageKeys` (integration §19.4), not
   "the secret was in this turn's packet" alone (design §2.6.1).

@@ -2206,3 +2206,40 @@ different.", then "Do it 7 then, the more detailed the better." Tests: `tests/wa
   witness at spark 30 takes romance -5 as well as spark -5.
 - **The morning** (`relDay`): everyday romance drifts 1 a day toward 0 for
   someone the player did not see, beside liking and trust's 2.
+
+## Wave 38 (3 Nov 2026): the simulator courts and blackmails
+
+`tests/relationships-sim.cjs` gains the romance and blackmailer styles, with
+all rolls at set tiers (`hooks.nextTier`). Pins: FADE {from Day 15, to 22, at
+58±3, drop 14±3} and EXTRACT {$1700±100, 13 payers, by Day 8}. The two
+coercion bands are live since wave 40; the plan's $900 cap is pending B3.
+Both styles have eight-day cuts in `tests/relationships-sim-guard.test.cjs`.
+The tuning findings are in `docs/KNOWN_ISSUES.md`, "For B3 tuning".
+
+## Wave 40 (3 Nov 2026): however the line is put
+
+`romanceTurn`'s `pushedBy` is worked out for every named target (a live
+record named by a `lev_` id or used by the words; a threat or an
+intimidation; any `lev_` id in the parse; an aware live record the player
+holds over them; fear at or above `GATES.compliance.fear`, leverage's share
+included), with `coercion.each`. The room case: `threatened` (weight 2) for
+each adult, no report, one -10. `coerce` loops over `each` on one burned d20;
+`World.coercion` returns `{ report, rep }`. `intimateGate` counts fear 40 and
+a held record short. `Pipeline.foundOut`: the `foundOut` stream, 0.4 a day
+for 3 days, seed origin `found_out`, `stole_from` at the row's weight and the
+news line "<Name> noticed what went missing, and has a fair idea who took
+it." Tests: `tests/wave40-coercion.test.cjs` (7),
+`tests/wave40-wire-refusals.test.cjs` (33 rows, one per refusal or downgrade
+in `Rel.wireEvent`).
+
+## Wave 47 (4 Nov 2026): one police check
+
+`isPoliceNpc` is one helper (tag `police`, or a role saying police, sheriff,
+deputy or officer) used by Rel and World alike (`World.isPoliceNpc`).
+World's rough-sleeping check used to read the tag only; no cast answer
+changed (Glenda, Hoyt and Teresa differed, but none has a public home). An
+invented deputy without the tag, living at the station, now leaves it
+public. Pipeline's same-name helpers are now `firstWord`, `rumourHousehold`,
+`obligationClause` and `isToWords`. Still different: World's `chiefOf`, Rel
+near `policeHead`, Cards' hard tags and validate-town's `law()`
+(`docs/KNOWN_ISSUES.md`). Tests: `tests/wave47-modules.test.cjs`.

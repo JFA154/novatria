@@ -1,50 +1,73 @@
 # Build plan: One-Town Text RPG
 
-Read SPEC.md first (the game design, authoritative), then docs/API_NOTES.md
+Read SPEC.md first (the original game design, historical now: docs/README.md says what is current), then docs/API_NOTES.md
 (authoritative for every Claude API call), then this file (how the build is
 organised and the shared data contract).
 
 ## Deliverable and hard constraints
 
 - One file: `index.html` at the repo root. Inline CSS and vanilla JavaScript.
-  No build step, no framework, no bundler, no backend. Opening the file from
-  disk must work (`file://`), so no module scripts and no fetches of local files.
+  No build step to play: `index.html` is committed and self-contained. For
+  development it is generated from `src/` by `node tools/build.cjs`, a
+  byte-for-byte concatenation with no transforms, plain Node, no
+  dependencies, and still no `package.json` (wave 50). No framework, no
+  bundler, no backend. Opening the file from disk must work (`file://`), so
+  no module scripts and no fetches of local files.
 - Script organised into clearly delimited sections, one per module, in this
   order: `TOWN_DATA`, `TABLES`, `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`,
   `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `STYLE_GUIDE`, `EXAMPLE_TURNS`,
-  then modules `Rng`, `Dice`, `Tables`, `State`, `Rel`, `Town`, `World`, `Style`,
-  `Api`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`. Each module starts
+  then modules `Rng`, `Dice`, `Cards`, `Tables`, `State`, `Rel`, `Town`,
+  `World`, `Style`, `Api`, `Mock`, `Upgrade`, `Pipeline`, `Storage`, `UI`,
+  `Commands`, `App` (one `src/` file each since wave 50). Each module starts
   with a banner comment: `// ===== Module: State =====`.
 - Expose every module on `window.Game` (`Game.State`, `Game.Dice`, ...) so
   Playwright tests can drive the engine with `page.evaluate`. Also expose
   `Game.state` (the live state object, read-only by convention) and
   `Game.town` (the loaded `TOWN_DATA`).
-- Only one Google Font (Literata), loaded with a `<link>`; fall back to
-  Georgia. Nothing else external. The font will not load in this sandbox and
-  that is fine.
+- One font, Literata, inline since wave 46: two base64 woff2 `@font-face`
+  rules (latin, variable on opsz, about 134 KB of font, 178 KB as base64)
+  with the OFL notice; Georgia is the fallback. The CSP lists no host but
+  `api.anthropic.com` (`font-src data:`). Nothing else external.
+  `manifest.webmanifest`, `icon-192.png` and `icon-512.png` beside the page
+  are optional extras for a host. No service worker (stale-cache risk
+  without versioned builds).
 - Strict mode, no globals besides `Game`. No `innerHTML` with
   unescaped model output or player input: build DOM nodes or escape text.
 
 ## Repository layout
 
 ```
-index.html          the game
-SPEC.md             the design spec (do not edit)
-docs/API_NOTES.md   Claude API wire format (do not edit)
+index.html          the game (built from src/; never edit by hand)
+src/                the parts index.html is built from (edit these)
+tools/build.cjs     joins src/ into index.html; --check, --list, --csp-hash
+manifest.webmanifest, icon-192.png, icon-512.png   Add to Home Screen on a host
+CLAUDE.md           start here (Claude Code sessions)
+README.md           the pitch, privacy, cost, the quickstart, older games
+CHANGELOG.md        what changed for players, per wave
+SPEC.md             the historical design spec (do not edit)
+docs/README.md      which documents are current and which are history
+docs/MANUAL.md      the player's manual
+docs/MAINTAINING.md saves, costs, editing the town and the game, tests, deviations
+docs/KNOWN_ISSUES.md  what is open, unverified or deferred
+docs/API_NOTES.md   Claude API wire format (edited only when the wire format changes)
 docs/BUILD_PLAN.md  this file
 docs/CAST.md        the cast roster, written by tests/cast-doc.cjs (never by hand)
-docs/notes/         one file per area of the 30 Oct 2026 review fixes (direction change 10)
-content/            staging area for authored data; deleted once inlined
+docs/RELATIONSHIPS_PLAN.md, docs/relationships/   the relationship plan and its appendices (done, archived)
+docs/notes/         one file per area: what each wave changed there, from the 30 Oct 2026 review fixes (direction change 10) through wave 51
+docs/screenshot.png the README's screenshot
 tests/              Playwright scripts, CommonJS (.cjs), run with plain node
-tests/run.cjs       runs every tests/*.test.cjs file, exits non-zero on failure
-.github/workflows/  tests.yml: tests/run.cjs on every push and pull request
-README.md           how to play, how to put in the key, how to run tests
+tests/run.cjs       runs the town check and every tests/*.test.cjs file (-j, --shard, --list), exits non-zero on failure
+tests/fixtures/     frozen saves of every older rules version (saves/v<N>.json) and make-saves.cjs
+tests/eval/         the labelled eval's set (labelled.jsonl) and its README
+.github/workflows/  tests.yml: `node tools/build.cjs --check`, then tests/run.cjs in four shards;
+                    nightly.yml: the same check, then the serial run and the simulator
 ```
 
 Tests use the Playwright that is preinstalled in this sandbox:
 `const { chromium } = require('playwright'); const browser = await chromium.launch();`
-Do not run `npx playwright install` and do not add a `package.json`
-dependency on Playwright. Open the game with
+Do not run `npx playwright install` here and do not add a `package.json`
+dependency on Playwright. (CI's workflows do run `npx playwright install`,
+outside the checkout, on GitHub's own machines; that is not the sandbox.) Open the game with
 `page.goto('file://' + path.resolve('index.html'))`. Test on two viewports:
 1280x800 and 375x740. Fail a test on any uncaught page error (`page.on('pageerror')`).
 
@@ -378,14 +401,17 @@ under 18, set aside for the minor rule).
 | Module | Owns |
 |---|---|
 | `Rng` | mulberry32 seeded by `meta.seed`; `Rng.int(a,b)`, `Rng.pick(arr)`, `Rng.d(n)`; advances a counter stored in `meta.rngCalls` so a loaded save continues deterministically |
+| `Cards` | the card table's deck, hand ranking and the dealer's draw (five-card draw and hold'em, wave 10 on); the table's flow is still in Pipeline |
 | `Dice` | d20 + stat + modifiers vs difficulty, outcome tiers, complications that fit the action (`complication(ctx)`), the retry locks (`lockKey`, `isLocked`, `lockFor`, `lock`, `clearLocks`; a set in `meta.lastRollKey`), `threat(npc)` and `fightDamage(tier)` |
 | `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, the undo and redo stacks (`undoSteps`, `redoSteps`, `undoRecord`, `resumeUndo`), helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
-| `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, owed), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables; wave 31: `tiesPlan`, `propagate`, `carry`, `settleSpread`, `household`, `deliveryOf`, `tieFactor`, `arrestTies`, `TIE_KINDS`, `RELATION_KINDS`, `FACTORS`, `DELIVERY`) |
+| `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, romance, owed: `Rel.TRACKS` is `w t f k s m` since wave 35), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables; wave 31: `tiesPlan`, `propagate`, `carry`, `settleSpread`, `household`, `deliveryOf`, `tieFactor`, `arrestTies`, `TIE_KINDS`, `RELATION_KINDS`, `FACTORS`, `DELIVERY`) |
 | `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
 | `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
 | `Style` | banned-phrase and length checks, hard and soft problems, invented names |
-| `Api` | real provider and mock provider behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting (1-hour cache writes); timeouts, `abort()`, retries, `checkKey()`, `prewarm()` |
+| `Api` | the real provider (and, through `Mock`, the mock) behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting (1-hour cache writes); timeouts, `abort()`, retries, `checkKey()`, `prewarm()` |
+| `Mock` | the offline demo's parser, narrator and bookkeeper (wave 47: its own module after `Api`; `Game.Mock` is `Game.Api.Mock`) |
+| `Upgrade` | bringing an older save up to the current `RULES_VERSION`: `MIGRATIONS`, one step a rules version |
 | `Pipeline` | the 13 steps of SPEC.md section 6; the status listener, `abort()`, the one-deep queue, the card game, `/recap`, the epilogue turn |
 | `Storage` | autosave (and the previous autosave), slots, export, import, settings and presets (key storage per SPEC.md section 13), the second-tab guard, the undo stack kept in IndexedDB |
 | `UI` | rendering, feed, panels, sheet, screens, autocomplete, the ⋯ actions, the status line |
@@ -2015,3 +2041,60 @@ talking, I can direct it to one person or all."
      `tests/wave35-romance-track.test.cjs`, waves 26, 29, 30, 33 and 34,
      examples 10 and 15, and `tests/relationships.test.cjs` (its checks
      and fuzz carry `rel.m`).
+12. **The overnight round** (3 to 4 Nov 2026). Sixteen waves, each one
+    package by its own agent, merged one at a time into
+    `claude/overnight-fixes` with the full suite green: test infrastructure,
+    the follow-ups of the relationship plan, API resilience, the first five
+    minutes, storage that scales, the head, and the source split. Nothing
+    here was checked against the live API (see `docs/KNOWN_ISSUES.md`).
+   - **Wave 36**: the suite runs in parallel (`-j`) and in four CI shards; a
+     nightly serial run adds the 21-day simulator; index.html has a 3.25 MB
+     byte budget and its inline script is compiled in constraints.
+   - **Wave 37**: the labelled eval has a set (216 authored rows played in
+     mock mode) and the script gates at the plan's bar; only the live run is
+     still to do.
+   - **Wave 38**: the simulator courts (romance) and blackmails
+     (blackmailer), with its bands pinned and the tuning findings recorded
+     for B3.
+   - **Wave 39**: old saves are committed fixtures, not rebuilt from git
+     history; CI no longer needs `fetch-depth: 0`.
+   - **Wave 40**: coercion is decided by fear, leverage and threats at every
+     named target, never by the parser's action type; a threat to the room
+     is coercion of each adult there; decision 11's found-out path exists.
+   - **Wave 41**: the API waits as long as it is asked (up to 60 s, counted
+     down, cancelled by Stop), retries an overloaded API twice, and caches
+     the parser's and bookkeeper's system prompts. Every module writes the
+     debug log through `State.pushDebug`.
+   - **Wave 42**: the narrator's cached blocks say each thing once (casual
+     12,970 → 12,597 tokens by the suite's estimate); the api budget is
+     14,000.
+   - **Wave 43**: the top bar shows the day of 21 and the next town event;
+     the game's cost is kept in the save (`meta.cost`, written only by the
+     engine's `spend` key), with a spending pause.
+   - **Wave 44**: the first five minutes (the key card's four steps, no dead
+     Continue, a tip from the opening scene) and Settings' This device
+     (Forget key, Delete all game data).
+   - **Wave 45**: font sizes are rem, not px: the page follows the browser's
+     text size, and Text size Large scales the interface too; a skip link, a
+     labelled main and a heading per turn.
+   - **Wave 46**: the Literata font is inline, the CSP lists no Google host,
+     a manifest and icons sit beside the page, and `State.BUILD` /
+     `Game.BUILD` name the build; a new wave bumps that one line together
+     with CHANGELOG.md's top entry (tests/wave46-head). No service worker.
+   - **Wave 47**: the mock provider is its own module, `Mock`, after `Api`
+     (`Game.Mock`, the same object as `Game.Api.Mock`); helpers several
+     modules had copies of (`escRe`, `isPoliceNpc`, `weekdayOf`) live once
+     in the helpers.
+   - **Wave 48**: the undo history is one IndexedDB record a step with each
+     town version stored once, and saves in localStorage share one copy of
+     their town; out of room, the game plays on and says so once.
+   - **Wave 49**: test hygiene: the shared helpers live in
+     `tests/helpers.cjs`, and the suite waits on conditions, not on fixed
+     times.
+   - **Wave 50**: the source split. index.html is built from src/ by
+     tools/build.cjs (exact concatenation) and committed; the suite and CI
+     fail if they disagree. The CSP hash option exists but is off.
+   - **Wave 51**: the docs by reader: README (players' quickstart),
+     `docs/MANUAL.md`, `docs/MAINTAINING.md`, `docs/KNOWN_ISSUES.md`,
+     `docs/README.md` (what is current) and `CLAUDE.md`; the relationship
+     plan closed out with its decisions' outcomes; SPEC.md marked historical.

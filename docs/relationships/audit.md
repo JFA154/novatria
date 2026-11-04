@@ -366,7 +366,7 @@ Facts (`Fact (a story point): ...`) pass through as plain memories. The comment 
 
 ### 4.3 Ties, reputation, wants and secrets elsewhere in the packet
 
-- **Cached cast block** (`castBlock` 18325-18373): `id — Name (age, pron; role; <tieWords: what they are to others, top 4, "husband of Darlene Pittman">; usually at X (phases); home: Y[; under arrest...]) History: ...`. The dead and the away follow under NOT IN TOWN. **No attitude, memories, wants or secrets.** It is byte-identical until the cast changes (an edit, merge, arrest or death).
+- **Cached cast block** (`castBlock` 18325-18373): `id — Name (age, pron; role; <tieWords: what they are to others, top 4, "husband of Darlene Pittman">; usually at X (phases); home: Y[; under arrest...]) History: ...`. The dead and the away follow under NOT IN TOWN. **No attitude, memories, wants or secrets.** It is byte-identical until the cast changes (an edit, merge, arrest or death). (Wave 42 changed this line: the place ids and the "History:" label are gone, histories open with He or She, and relation words go through `Pipeline.castTies`; see `docs/notes/prompts.md`, Wave 42.)
 - **Reputation** appears only as `PLAYER: <name> (...). Reputation: <town tier>. ...` (21859).
 - **LOOSE ENDS** (21576-21616), written from the NPC's side: "`<npc> is owed money by <p> from before <p> came here, and wants it`" (and enemy, secret, lost, promise variants), then `(here now|not here|dead; ...state; <p>'s own words: "...")`.
 - **WHAT PEOPLE KNOW** (21765-21772): "Only X, Y and Z knew of <p> before". The rule text is in the cached style block (`Style.KNOWLEDGE` 14610: "Each person knows about the player only what their "remembers" list and LOOSE ENDS say...").

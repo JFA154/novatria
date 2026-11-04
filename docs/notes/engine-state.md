@@ -1524,3 +1524,47 @@ fuzz carry `rel.m`).
   line "Edited Curtis Pruett: spark, romance, owed."). `Rel.debugLine` is
   the seven: "w 5 t -5 f 0 k 0 s 0 m 0 owed 0 · ..."; `debugMemory`
   shows `m`.
+
+## Wave 39 (3 Nov 2026): save fixtures
+
+`tests/fixtures/make-saves.cjs` holds `BUILDS` (rules version → commit of
+its last build; v8 is 56e69f5, before the relationship engine; `8-late` is
+cf88bdc). It plays one session with the clock frozen at the commit date and
+Math.random seeded, and writes the export envelope plus a `fixture` field;
+regenerating gives the same bytes. When `RULES_VERSION` goes up, add the
+previous version's last commit to `BUILDS` and run the script; the
+upgrade-fixtures test fails until you do. Tests read a fixture with
+`loadSave(key)`; `makeV8Save()` reads `v8.json`. Tests:
+`tests/upgrade-fixtures.test.cjs`.
+
+## Wave 43 (4 Nov 2026): the cost in the save, and the arc
+
+`meta.cost` { usd, turns, calls, input, output, cacheRead, cacheWrite,
+asked?, noticed? } is written only by the engine key `spend` (`State.spend`,
+from `Api.record`), created lazily; `useEntry` keeps it through undo, redo
+and restore; a load cleans it. `State.arc()` returns { endDay, ended, next }.
+Tests api, transport-fixes and upgrade compare "nothing changed" states
+without `meta.cost` (a failed call's cost is kept on purpose). Known:
+`Pipeline.updateGame`'s "changed" check now counts a paid re-read that
+changes nothing as changed (it keeps an /undo step; `docs/KNOWN_ISSUES.md`).
+Tests: `tests/wave43-progress-spend.test.cjs`.
+
+## Wave 48 (4 Nov 2026): saves and undo that scale
+
+Undo entries are `{ id, json, town, th, turn }`; `townHash` names a town
+version. `undoRecord` v2 is `{ v: 2, game, turn, entries: [{ id, turn, json,
+th }], towns: { th: json } }`; `resumeUndo` reads v1 and v2. `stackBytes`
+counts each town version once anywhere; `capStack` (still linear) counts
+uses per version. IndexedDB is version 2, with `undoHead`/`undoSteps`/
+`undoTowns` beside the old `undo` store: writes add and delete only what
+changed, with a full rewrite when what is stored isn't known; the old record
+is read on Continue and replaced by the next write. localStorage saves are
+`{ kind, saveVersion, name, savedAt, summary, townRef, state }` plus
+`novatria.town.<hash>`, cleaned by `sweepTowns`; exports are unchanged. A
+missing town reads as damaged for a stored save and falls back to the
+built-in town for a file. Quota: `Storage.OUT_OF_ROOM` is said once, and the
+autosave drops the previous autosave and retries. UNDO caps unchanged.
+Measured (200 mock turns, 5 saves): localStorage 1,847,094 → 1,185,218
+characters at turn 200; IndexedDB written per turn 5.6 MB → 268 KB; undo
+depth 20 throughout; each save about half its old size. Tests:
+`tests/wave48-storage.test.cjs` (8).

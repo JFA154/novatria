@@ -1943,3 +1943,51 @@ different.", then "Do it 7 then, the more detailed the better." Tests:
   heels, `Rel.words('owed', net)` owes you a lot / owes you one / even /
   you owe them one / you owe them a lot. Two columns at 375, as before.
 - **Debug** prints the seven on each person's line.
+
+## Wave 43 (4 Nov 2026): progress and spend
+
+Top bar: `#tb-time` keeps "Day N · Phase"; `#tb-day` draws `data-of` /
+`data-short` with `::after`; `#tb-next` comes from `State.arc().next` and is
+shown on laptops only; the `#tb-cost` chip is driven by `UI.renderCost` and
+`Api.onSpend` and opens Spending through `UI.openSpending`. The Spending
+group: `spendLine`, `paceLine`, `spendProjection`, `PACE_DAY` = 20. The
+ceiling: `spendNotice` runs once at the end of a turn, `spendGate` runs in
+`send()`. At 375 px on day 10 or later in the afternoon with four-figure
+money the bar can wrap to a third line (no overflow). Tests:
+`tests/wave43-progress-spend.test.cjs`.
+
+## Wave 44 (4 Nov 2026): the first five minutes, and this device
+
+The key card's four steps and its preset and Remember lines; `.card.mode-key`
+undoes the playing-card `.card` rule (which also styled the key card; it may
+also affect `#summary-card.card.summary`, unchecked). Settings "This device":
+`Storage.forgetKey`, `Storage.wipeAll` (prefix-only, the IndexedDB connection
+closed first, no writes until reload), then a reload; `#continue-group` is
+hidden with no readable autosave. The tip: `openingTries()` (talk from
+`State.npcsAt` via `npcLabel`, walk from exits that are found, open and not
+houses, look from the last `aka` not in the place's name), `.f-tip-try` /
+`.f-tip-act[data-kind][data-id]`; landscape typing: `.f-tip-toggle` "Tips"
+(pointerdown blocked so the box keeps the focus), `.f-tip.open`. Tests:
+`tests/wave44-onboarding.test.cjs` (10); the ui-fixes title pin changed.
+
+## Wave 45 (4 Nov 2026): accessibility
+
+The game's story and input are a `<main>` labelled "The story"; `#skip-link`
+is the game screen's first Tab stop (0×0 until focused) and goes to `#cmd`,
+else the feed. CSS font sizes are rem, `html` is 100%, S/M/L set
+`--read-size` to 1rem / 1.125rem / calc(20rem/18), and L sets the root to
+112.5% except at max-height 600px. Narration nodes carry `data-turn-label`
+and a first-child `h2.f-turn-h.visually-hidden` whose text comes from CSS
+`attr(data-label)`; `#turn-status-live` mirrors the status text through
+`setStatusText`, and `#turn-status` no longer has `role=status`;
+`rebuildFeed` gives the focus back to the input when the old feed held it.
+Tests: `tests/wave45-a11y.test.cjs` (9).
+
+## Wave 46 (4 Nov 2026): the Build line
+
+The build is shown in `#title-build` (the title screen's footer), `#set-build`
+(Settings, Advanced: "Build: wave N · rules v10. Name it in a bug report.")
+and `#dbg-build` (first in Debug). The ui-fixes wave 6 item 4 pin changed:
+Literata now loads in tests and is wider than Georgia, so 88 characters wrap
+to five lines at 375 px; the box is capped at four and scrolls. Tests:
+`tests/wave46-head.test.cjs`.
