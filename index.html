@@ -8194,7 +8194,10 @@ const State = (() => {
      entry below when the same), turn (meta.turn then) }. At most UNDO_MAX
      entries and about UNDO_BYTES of text; the oldest go first. Storage
      keeps it in IndexedDB
-     (onUndo), so it survives a reload. The redo stack (/redo) holds the
+     (onUndo), so it survives a reload. Wave 48: each entry also has an id
+     (unique to it, so Storage writes and removes one IndexedDB record a
+     step instead of the whole stack) and th (townHash of its town copy:
+     the town is kept once per distinct version, entries refer to it). The redo stack (/redo) holds the
      steps an undo took back, newest last, in memory only; a new step
      empties it (snapshot), unless that step is rolled back (restore(snap):
      a turn that failed or was taken back mid-hand), which gives it back. */
@@ -8206,6 +8209,10 @@ const State = (() => {
   // A load, a new game or a clear (stackGen): a stack read back from storage for what was there before is not merged in.
   let stackGen = 0;
   let loaded = null; // { json, turn }: the game as loaded (resumeUndo)
+  // Wave 48: an id for each stack entry, unique across reloads (this page's start time, then a count).
+  const entryBase = Date.now().toString(36);
+  let entrySeq = 0;
+  function newEntryId() { entrySeq += 1; return `${entryBase}.${entrySeq.toString(36)}`; }
   const undoListeners = [];
   const LOG_MAX = 30;
   const LOG_NOTES_MAX = 24; // quiet lines kept on one log entry (logEntry / logUpdate notes)
@@ -14270,34 +14277,71 @@ const State = (() => {
     redoKept = null;
     stackGen += 1;
   }
-  /* The game as it is now, as a stack entry (its town copy sharing the
-     string of the newest undo entry when the same). */
-  function entryNow(json) {
-    let t = town ? JSON.stringify(town) : null;
-    const last = undo[undo.length - 1];
-    if (last && last.town === t) t = last.town;
-    return { json: typeof json === 'string' ? json : JSON.stringify(current), town: t, turn: current.meta.turn | 0 };
+  /* Wave 48: a town copy's version, from its JSON (two 32-bit hashes and
+     the length): the key it is kept under, once, in IndexedDB and in
+     localStorage (Storage), however many steps and saves use it. */
+  function townHash(str) {
+    if (typeof str !== 'string') return null;
+    let a = 0x811c9dc5;
+    let b = 5381;
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); a = Math.imul(a ^ c, 16777619); b = (Math.imul(b, 33) + c) | 0; }
+    return `${(a >>> 0).toString(36)}-${(b >>> 0).toString(36)}-${str.length.toString(36)}`;
   }
+  /* The game's town copy now as { town (its JSON, the string an entry
+     already holds when the same), th (its townHash) }. Wave 48: hashed only
+     when it is not the newest entry's (a town changes only with an update
+     or an edit), and shared with any entry of that version. */
+  function townNow() {
+    if (!town) return { town: null, th: null };
+    const t = JSON.stringify(town);
+    const last = undo[undo.length - 1] || redo[redo.length - 1];
+    if (last && last.town === t) return { town: last.town, th: last.th };
+    const th = townHash(t);
+    const same = undo.find(e => e.th === th) || redo.find(e => e.th === th);
+    return { town: same ? same.town : t, th };
+  }
+  /* The game as it is now, as a stack entry { id, json, town, th, turn }. */
+  function entryNow(json) {
+    const t = townNow();
+    return { id: newEntryId(), json: typeof json === 'string' ? json : JSON.stringify(current), town: t.town, th: t.th, turn: current.meta.turn | 0 };
+  }
+  // Wave 48: each distinct town version counted once (by th), wherever it is in the list.
   function stackBytes(list) {
     let b = 0;
-    let prev = null;
-    for (const e of list) { b += e.json.length; if (typeof e.town === 'string' && e.town !== prev) b += e.town.length; prev = e.town; }
+    const seen = new Set();
+    for (const e of list) {
+      b += e.json.length;
+      if (typeof e.town !== 'string') continue;
+      const k = e.th || e.town;
+      if (!seen.has(k)) { seen.add(k); b += e.town.length; }
+    }
     return b;
   }
   // At most UNDO_MAX steps and about UNDO_BYTES (the oldest go first; the newest is always kept).
   /* Wave 41: linear. The total is counted once, then each shift takes off
-     the oldest entry's bytes and adds back the town copy of the new oldest
-     when it was shared with the one taken off (stackBytes counts a shared
-     town string once, on the first entry that has it). */
+     the oldest entry's bytes. Wave 48: a town version is counted once
+     wherever it is in the list (stackBytes), so each version's uses are
+     counted and its bytes come off with its last use. */
   function capStack(list) {
     if (list.length > UNDO_MAX) list.splice(0, list.length - UNDO_MAX);
-    let bytes = stackBytes(list);
+    const uses = new Map();
+    let bytes = 0;
+    for (const e of list) {
+      bytes += e.json.length;
+      if (typeof e.town !== 'string') continue;
+      const k = e.th || e.town;
+      const n = uses.get(k) || 0;
+      if (!n) bytes += e.town.length;
+      uses.set(k, n + 1);
+    }
     while (list.length > 1 && bytes > UNDO_BYTES) {
       const gone = list.shift();
       bytes -= gone.json.length;
-      if (typeof gone.town === 'string') bytes -= gone.town.length;
-      const first = list[0];
-      if (typeof first.town === 'string' && first.town === gone.town) bytes += first.town.length;
+      if (typeof gone.town !== 'string') continue;
+      const k = gone.th || gone.town;
+      const n = uses.get(k) - 1;
+      if (n) uses.set(k, n);
+      else { uses.delete(k); bytes -= gone.town.length; }
     }
   }
   // An entry back as the game (and its town copy).
@@ -14382,18 +14426,19 @@ const State = (() => {
     notify();
     return k;
   }
-  /* The stack as Storage keeps it (wave 16): { v, game, turn, entries:
-     [{ turn, json, t (an index into towns, -1 for none) }], towns }, or
-     null with no game (or one not yet begun). */
+  /* The stack as Storage keeps it (wave 48, v 2): { v, game, turn,
+     entries: [{ id, turn, json, th (its town's townHash, null for none) }],
+     towns: { th: town JSON } (each version once) }, or null with no game
+     (or one not yet begun). */
   function undoRecord() {
     if (!current || muted) return null;
-    const towns = [];
+    const towns = {};
     const entries = undo.map(e => {
-      let t = -1;
-      if (typeof e.town === 'string') { t = towns.length && towns[towns.length - 1] === e.town ? towns.length - 1 : towns.push(e.town) - 1; }
-      return { turn: e.turn, json: e.json, t };
+      const th = typeof e.town === 'string' ? (e.th || townHash(e.town)) : null;
+      if (th) towns[th] = e.town;
+      return { id: e.id, turn: e.turn, json: e.json, th };
     });
-    return { v: 1, game: `${current.meta.createdAt || ''}|${current.meta.seed}`, turn: current.meta.turn | 0, entries, towns };
+    return { v: 2, game: `${current.meta.createdAt || ''}|${current.meta.seed}`, turn: current.meta.turn | 0, entries, towns };
   }
   /* A stack read back from storage after a load of the autosave (Continue,
      Play here instead): only its steps for this game (the caller checked
@@ -14401,15 +14446,26 @@ const State = (() => {
      loaded at (a step kept from after it was never saved in the autosave),
      in order; steps at the top that are the game as loaded are dropped
      (nothing to take back), and what was done since the load stays on top.
-     Returns how many were added. */
+     Returns how many were added. Wave 48: reads both layouts, v 2 (towns
+     by townHash, entries with ids) and wave 16's v 1 (towns a list, t an
+     index into it; its entries get ids and hashes here). */
   function resumeUndo(rec, gen) {
     if (gen !== stackGen || !current || muted || !loaded || !isObj(rec) || !Array.isArray(rec.entries)) return 0;
-    const towns = Array.isArray(rec.towns) ? rec.towns : [];
+    const v2 = rec.v === 2 && isObj(rec.towns);
+    const towns = v2 ? rec.towns : Array.isArray(rec.towns) ? rec.towns : [];
+    const hashes = new Map();
     const list = [];
     for (const x of rec.entries) {
       if (!isObj(x) || typeof x.json !== 'string' || !x.json || !Number.isInteger(x.turn) || x.turn > loaded.turn) continue;
-      const t = Number.isInteger(x.t) && typeof towns[x.t] === 'string' ? towns[x.t] : null;
-      list.push({ json: x.json, town: t, turn: x.turn });
+      let t = null;
+      let th = null;
+      if (v2) { if (typeof x.th === 'string' && typeof towns[x.th] === 'string') { t = towns[x.th]; th = x.th; } }
+      else if (Number.isInteger(x.t) && typeof towns[x.t] === 'string') {
+        t = towns[x.t];
+        if (!hashes.has(x.t)) hashes.set(x.t, townHash(t));
+        th = hashes.get(x.t);
+      }
+      list.push({ id: v2 && typeof x.id === 'string' && x.id ? x.id : newEntryId(), json: x.json, town: t, th, turn: x.turn });
     }
     while (list.length && list[list.length - 1].json === loaded.json) list.pop();
     if (!list.length) return 0;
@@ -14522,6 +14578,8 @@ const State = (() => {
     UNDO_MAX, UNDO_BYTES, undoSteps, redoSteps, undoRecord, resumeUndo,
     // Wave 41: capStack and stackBytes for tests (capStack works on the list it is given).
     capStack, stackBytes,
+    // Wave 48: a town copy's version (Storage keeps each once, in IndexedDB and in localStorage).
+    townHash,
     redoDepth: () => redo.length,
     undoBytes: () => stackBytes(undo),
     get undoGen() { return stackGen; },
@@ -31205,10 +31263,19 @@ const Pipeline = (() => {
    meta.createdAt or seed), the old one is copied to novatria.autosave.prev,
    so New game, Import and Load can always be taken back once (Saves screen,
    "Restore previous"). Another tab writing the autosave makes this tab read
-   only (UI.otherTab) until the player chooses to play here. */
+   only (UI.otherTab) until the player chooses to play here.
+   Wave 48: the saves kept in this browser (autosave, previous autosave,
+   slots) hold their town copy by reference (townRef: State.townHash of its
+   JSON), each version once under novatria.town.<hash>, shared by every save
+   that uses it, and dropped once none does (sweepTowns); an export (and so
+   an imported file) still carries the town in full, as documented, and a
+   save with its town inline is read as before. Out of room (a QuotaExceededError, here or
+   in IndexedDB): the feed says so once ("This device is out of room for
+   saves; export your game."), the game plays on, and the autosave is kept
+   before the previous autosave (the previous one goes to make room). */
 const Storage = (() => {
   const PREFIX = 'novatria.';
-  const KEYS = { settings: PREFIX + 'settings', apiKey: PREFIX + 'apiKey', autosave: PREFIX + 'autosave', prev: PREFIX + 'autosave.prev', slot: n => PREFIX + 'slot.' + n };
+  const KEYS = { settings: PREFIX + 'settings', apiKey: PREFIX + 'apiKey', autosave: PREFIX + 'autosave', prev: PREFIX + 'autosave.prev', slot: n => PREFIX + 'slot.' + n, town: h => PREFIX + 'town.' + h };
   const SLOTS = 3;
   const SAVE_KIND = 'novatria-save';
   /* An imported file larger than this is refused before it is read. */
@@ -31275,9 +31342,21 @@ const Storage = (() => {
     try { return area(which).getItem(key); }
     catch (e) { console.warn('[Storage] read failed', key, e); fail('This browser blocked access to its storage, so saves and settings may not load. You can still export your game from Save / Load.'); return null; }
   }
+  const SAVE_FAILED = 'Saving failed: this browser\'s storage is full or blocked. Export your game from Save / Load so nothing is lost.';
+  /* Wave 48: a write refused for want of room (the name differs by browser). */
+  function isQuota(e) {
+    return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+  }
+  const OUT_OF_ROOM = 'This device is out of room for saves; export your game.';
+  let roomSaid = false;
+  /* Said once a page, in the feed, while a game is on screen (out of a game the banner's "Saving failed" says it). */
+  function outOfRoom() {
+    if (roomSaid) return;
+    try { if (App.inGame() && State.current) { UI.feed.notice(OUT_OF_ROOM); roomSaid = true; } } catch (e) { console.warn('[Storage]', OUT_OF_ROOM, e); }
+  }
   function write(key, value, which) {
     try { area(which).setItem(key, value); return true; }
-    catch (e) { console.warn('[Storage] write failed', key, e); fail('Saving failed: this browser\'s storage is full or blocked. Export your game from Save / Load so nothing is lost.'); return false; }
+    catch (e) { console.warn('[Storage] write failed', key, e); fail(SAVE_FAILED); if (isQuota(e)) outOfRoom(); return false; }
   }
   function remove(key, which) {
     try { area(which).removeItem(key); return true; }
@@ -31362,16 +31441,83 @@ const Storage = (() => {
     const l = st.locations.find(x => x.id === st.player.locationId);
     return { player: st.player.name, background: st.player.background, day: st.time.day, phase: st.time.phase, location: l ? l.name : '', turn: st.meta.turn, town: st.meta.townName };
   }
-  function envelope(name) {
+  // Wave 48: an envelope's fields before its state and town (a save kept here writes the live state, uncopied).
+  function header(name) {
     const st = State.current;
     if (!st) throw new Error('no game in progress');
-    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st) };
+  }
+  function envelope(name) {
+    return Object.assign(header(name), { state: deepCopy(State.current), town: deepCopy(State.town || TOWN_DATA) });
   }
   function serialise(env) {
     let json = JSON.stringify(env);
     // Belt and braces: the key is never in state, but never let it leave either.
     if (apiKey && apiKey.length >= 8 && json.includes(apiKey)) json = json.split(apiKey).join('[redacted]');
     return json;
+  }
+  /* ----- the town kept once (wave 48) -----
+     A save in this browser is the export's envelope with townRef in place
+     of town: { kind, saveVersion, name, savedAt, summary, townRef, state },
+     its town under KEYS.town(townRef). lastTown: the JSON and hash of the
+     town this page last wrote, so an unchanged town is not hashed again. */
+  let lastTown = { json: null, hash: null };
+  function hashOf(json) {
+    if (json !== lastTown.json) lastTown = { json, hash: State.townHash(json) };
+    return lastTown.hash;
+  }
+  // The townRef a stored save's text names (it comes before the state, so only the head is read).
+  const TOWN_REF = /,"townRef":"([0-9a-z-]+)","state":/;
+  function refOf(raw) {
+    if (typeof raw !== 'string') return null;
+    const m = TOWN_REF.exec(raw.slice(0, 8192));
+    return m ? m[1] : null;
+  }
+  /* Every town copy no save names any more is removed. */
+  function sweepTowns() {
+    const keep = new Set();
+    const keys = [KEYS.autosave, KEYS.prev];
+    for (let n = 1; n <= SLOTS; n++) keys.push(KEYS.slot(n));
+    const all = [];
+    try {
+      const ls = area();
+      for (const k of keys) { const r = refOf(ls.getItem(k)); if (r) keep.add(r); }
+      for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && k.startsWith(KEYS.town(''))) all.push(k); }
+    } catch (e) { return; }
+    for (const k of all) if (!keep.has(k.slice(KEYS.town('').length))) remove(k);
+  }
+  /* The previous autosave goes to make room for the autosave (wave 48). */
+  function dropPrevious() {
+    try { if (area().getItem(KEYS.prev) === null) return false; } catch (e) { return false; }
+    remove(KEYS.prev);
+    sweepTowns();
+    console.warn('[Storage] the previous autosave was removed to make room for the autosave');
+    return true;
+  }
+  // A write that says nothing yet (writeSave decides); quotaHit: the last one failed for want of room.
+  let quotaHit = false;
+  function tryWrite(key, value) {
+    quotaHit = false;
+    try { area().setItem(key, value); return true; }
+    catch (e) { console.warn('[Storage] write failed', key, e); quotaHit = isQuota(e); return false; }
+  }
+  /* A save written as kept here (town by reference): its town first (when
+     not there already), then the save, then the town checked again (another
+     tab may have swept it in between). roomy (the autosave): on a quota the
+     previous autosave goes and it is tried once more. */
+  function writeSave(key, head, roomy) {
+    const town = JSON.stringify(State.town || TOWN_DATA);
+    const ref = hashOf(town);
+    const text = serialise(Object.assign({}, head, { townRef: ref, state: State.current }));
+    const tk = KEYS.town(ref);
+    const has = () => { try { return area().getItem(tk) !== null; } catch (e) { return false; } };
+    const once = () => (has() || tryWrite(tk, town)) && tryWrite(key, text) && (has() || tryWrite(tk, town));
+    let ok = once();
+    // Out of room: said once, even when dropping the previous autosave made room (it is gone).
+    if (!ok && quotaHit) { outOfRoom(); if (roomy && dropPrevious()) ok = once(); }
+    if (!ok) { fail(SAVE_FAILED); if (quotaHit) outOfRoom(); return false; }
+    sweepTowns();
+    return true;
   }
   /* State.validateShape's answer as a list of problems: today a list; a
      deeper check may answer { ok, reason } or a string. */
@@ -31392,6 +31538,15 @@ const Storage = (() => {
     if (!isObj(env)) throw new Error(`${it} is not a saved game.`);
     if (env.kind !== SAVE_KIND && isObj(env.meta) && isObj(env.player)) env = { kind: SAVE_KIND, saveVersion: 1, name: 'Imported', state: env, town: null };
     if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error(`${it} is not a saved game.`);
+    // Wave 48: a save kept in this browser names its town (townRef); it comes back in full, as an export has it.
+    if (!isObj(env.town) && typeof env.townRef === 'string') {
+      let t = null;
+      try { const raw = area().getItem(KEYS.town(env.townRef)); t = raw ? JSON.parse(raw) : null; } catch (e) { t = null; }
+      // Kept here and its town gone: damaged. A file (an import) is read as one without a town, as before.
+      if (!isObj(t) && what) throw new Error(`${it} is damaged: its copy of the town is missing`);
+      env.town = t;
+    }
+    delete env.townRef;
     const errs = shapeProblems(env.state, isObj(env.town) ? env.town : undefined);
     if (errs.length) throw new Error(`${what ? it : 'That save'} is damaged: ${errs.join('; ')}`);
     delete env.apiKey;
@@ -31411,15 +31566,16 @@ const Storage = (() => {
       // Only a readable autosave of another game is kept: an unreadable one never replaces a good previous copy.
       if (oldId && oldId !== id) {
         try { area().setItem(KEYS.prev, raw); }
-        catch (e) { console.warn('[Storage] could not keep the previous autosave', e); }
+        catch (e) { console.warn('[Storage] could not keep the previous autosave', e); if (isQuota(e)) outOfRoom(); }
       }
     }
     knownAutosaveId = id;
   }
+  /* Wave 48: the town by reference (writeSave); on a quota the previous autosave makes room. */
   function autosave() {
     if (!State.current || State.muted || readOnly) return false;
     keepPrevious(State.current);
-    const ok = write(KEYS.autosave, serialise(envelope('Autosave')));
+    const ok = writeSave(KEYS.autosave, header('Autosave'), true);
     if (ok) knownAutosaveId = gameId(State.current);
     return ok;
   }
@@ -31435,11 +31591,11 @@ const Storage = (() => {
   function loadPrevious() { const e = peek(KEYS.prev); return e && !e.broken ? e : null; }
   function saveSlot(n, name) {
     if (!(n >= 1 && n <= SLOTS)) throw new Error('slot must be 1 to ' + SLOTS);
-    const env = envelope(name);
-    return write(KEYS.slot(n), serialise(env)) ? env : null;
+    const head = header(name);
+    return writeSave(KEYS.slot(n), head) ? Object.assign(head, { state: deepCopy(State.current), town: deepCopy(State.town || TOWN_DATA) }) : null;
   }
   function loadSlot(n) { const e = peek(KEYS.slot(n)); return e && !e.broken ? e : null; }
-  function deleteSlot(n) { return remove(KEYS.slot(n)); }
+  function deleteSlot(n) { const ok = remove(KEYS.slot(n)); sweepTowns(); return ok; }
   function listSlots() {
     const out = [];
     for (let n = 1; n <= SLOTS; n++) out.push(peek(KEYS.slot(n)));
@@ -31491,7 +31647,13 @@ const Storage = (() => {
   }
   /* The damaged autosave, byte for byte, so it can be mended by hand. */
   function downloadAutosave() {
-    const raw = rawAutosave();
+    let raw = rawAutosave();
+    // Wave 48: with its town put back in, when the text reads and the town is there (the file then imports anywhere).
+    try {
+      const env = raw ? JSON.parse(raw) : null;
+      const t = isObj(env) && typeof env.townRef === 'string' ? area().getItem(KEYS.town(env.townRef)) : null;
+      if (t) { delete env.townRef; env.town = JSON.parse(t); raw = JSON.stringify(env); }
+    } catch (e) { /* as stored */ }
     return raw ? download(raw, 'damaged-autosave.json') : null;
   }
   async function importFile(file) {
@@ -31511,6 +31673,8 @@ const Storage = (() => {
   }
   function setReadOnly(on) {
     readOnly = !!on;
+    // Wave 48: another tab writes the undo stores now, so what this page knew of them is not known.
+    if (readOnly) kept = null;
     if (UI.otherTab) UI.otherTab(readOnly);
     // A hand open here is void now (wave 12, L3): this tab can save nothing, and the other tab holds the game.
     if (readOnly && Pipeline.handOpen) Pipeline.voidHand();
@@ -31522,12 +31686,13 @@ const Storage = (() => {
   function claim() {
     setReadOnly(false);
     knownAutosaveId = null;
+    kept = null;
     return autosave();
   }
   /* An autosave this tab cannot read is kept as the previous autosave before anything is written over it. */
   function keepAside(raw) {
     if (typeof raw !== 'string' || !raw) return false;
-    try { area().setItem(KEYS.prev, raw); return true; } catch (e) { console.warn('[Storage] could not keep the unreadable autosave', e); return false; }
+    try { area().setItem(KEYS.prev, raw); return true; } catch (e) { console.warn('[Storage] could not keep the unreadable autosave', e); if (isQuota(e)) outOfRoom(); return false; }
   }
   /* Never write this tab's (older) game over the other tab's: App.playHere. */
   function takeOver() { return App.playHere(); }
@@ -31571,20 +31736,40 @@ const Storage = (() => {
      taken over (read only) never writes it. Without IndexedDB (some private
      windows, some browsers on file://) or when it fails, nothing is said:
      the stack is this page's only, as before. The redo stack is never kept. */
+  /* Wave 48: one record a step, not the whole stack rewritten each time.
+     Database version 2 has three stores beside wave 16's "undo": "undoHead"
+     (one record, key 'head': { v: 2, game, turn, ids (the steps in order),
+     tab, savedAt }), "undoSteps" (one record a step, keyed by its id: { id,
+     game, turn, json, th }) and "undoTowns" (one record a town version,
+     keyed by its townHash: { th, json }). A write puts only the steps and
+     towns not kept yet, deletes those gone (the oldest past the cap, the
+     ones an undo took), and puts the head, in one transaction; kept is what
+     this page knows the stores hold (null: not known, so the next write
+     clears them all, wave 16's record too, and writes the whole stack: a
+     new page, another game, after another tab, after a write that failed).
+     undoResume reads this layout, or else wave 16's single record (a game
+     mid-play on the older build keeps its undo), which the next write
+     replaces. A quota on the write: outOfRoom, once. */
   const UNDO_DB = 'novatria';
+  const UNDO_DB_VERSION = 2;
   const UNDO_STORE = 'undo';
+  const UNDO_HEAD = 'undoHead';
+  const UNDO_STEPS = 'undoSteps';
+  const UNDO_TOWNS = 'undoTowns';
+  const UNDO_ALL = [UNDO_STORE, UNDO_HEAD, UNDO_STEPS, UNDO_TOWNS];
   const UNDO_WRITE_MS = 250;
   let undoDbP = null;
   let undoTimer = null;
   let undoDirty = false;
   let undoReading = 0;
   let undoChain = Promise.resolve();
+  let kept = null; // { game, ids: Set, ths: Set }: what the stores hold, as far as this page knows
   function undoDb() {
     if (undoDbP) return undoDbP;
     undoDbP = new Promise(resolve => {
       try {
-        const req = window.indexedDB.open(UNDO_DB, 1);
-        req.onupgradeneeded = () => { try { if (!req.result.objectStoreNames.contains(UNDO_STORE)) req.result.createObjectStore(UNDO_STORE); } catch (e) { /* none then */ } };
+        const req = window.indexedDB.open(UNDO_DB, UNDO_DB_VERSION);
+        req.onupgradeneeded = () => { try { for (const n of UNDO_ALL) if (!req.result.objectStoreNames.contains(n)) req.result.createObjectStore(n); } catch (e) { /* none then */ } };
         req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => db.close(); } catch (e) { /* fine */ } resolve(db); };
         req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } resolve(null); };
         req.onblocked = () => resolve(null);
@@ -31592,20 +31777,26 @@ const Storage = (() => {
     });
     return undoDbP;
   }
-  /* One transaction on the store, after every one asked for before it.
-     work(store) returns a request whose result is the answer, or nothing.
-     Resolves to that result, or null whatever went wrong. */
+  /* One transaction on the stores, after every one asked for before it.
+     work(tx) returns a request whose result is the answer, a function that
+     gives it once the transaction is done, or nothing. Resolves to that,
+     or null whatever went wrong (a quota says so: outOfRoom). */
   function undoTx(mode, work) {
     const run = () => undoDb().then(db => new Promise(resolve => {
       if (!db) { resolve(null); return; }
-      let req = null;
+      let got = null;
+      let tx = null;
       try {
-        const tx = db.transaction(UNDO_STORE, mode);
-        req = work(tx.objectStore(UNDO_STORE)) || null;
-        tx.oncomplete = () => resolve(req && req.result !== undefined ? req.result : null);
-        tx.onabort = () => resolve(null);
+        tx = db.transaction(UNDO_ALL, mode);
+        got = work(tx) || null;
+        tx.oncomplete = () => resolve(typeof got === 'function' ? got() : got && got.result !== undefined ? got.result : null);
+        tx.onabort = () => { if (isQuota(tx.error)) outOfRoom(); resolve(null); };
         tx.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } };
-      } catch (e) { resolve(null); }
+      } catch (e) {
+        if (isQuota(e)) outOfRoom();
+        try { if (tx) tx.abort(); } catch (x) { /* done already */ }
+        resolve(null);
+      }
     }));
     const p = undoChain.then(run, run);
     undoChain = p.catch(() => null);
@@ -31615,6 +31806,31 @@ const Storage = (() => {
     if (why === 'switch') { undoFlush(); return; }
     undoDirty = true;
     if (!undoTimer) undoTimer = setTimeout(() => { undoTimer = null; undoFlush(true); }, UNDO_WRITE_MS);
+  }
+  /* The stack as State keeps it, written: only what changed since kept
+     (worked out when the transaction starts, after every write before it). */
+  function undoWrite(rec) {
+    return undoTx('readwrite', tx => {
+      const head = tx.objectStore(UNDO_HEAD);
+      const steps = tx.objectStore(UNDO_STEPS);
+      const towns = tx.objectStore(UNDO_TOWNS);
+      const k = kept && kept.game === rec.game ? kept : null;
+      kept = null; // not known until this transaction is done
+      if (!k) { for (const n of UNDO_ALL) tx.objectStore(n).clear(); }
+      const ids = new Set();
+      const ths = new Set();
+      for (const e of rec.entries) {
+        ids.add(e.id);
+        if (!k || !k.ids.has(e.id)) steps.put({ id: e.id, game: rec.game, turn: e.turn, json: e.json, th: e.th }, e.id);
+        if (e.th) ths.add(e.th);
+      }
+      if (k) for (const id of k.ids) if (!ids.has(id)) steps.delete(id);
+      for (const th of ths) if (!k || !k.ths.has(th)) towns.put({ th, json: rec.towns[th] }, th);
+      if (k) for (const th of k.ths) if (!ths.has(th)) towns.delete(th);
+      head.put({ v: 2, game: rec.game, turn: rec.turn, ids: rec.entries.map(e => e.id), tab: rec.tab, savedAt: rec.savedAt }, 'head');
+      tx.addEventListener('complete', () => { kept = { game: rec.game, ids, ths }; });
+      return () => true;
+    });
   }
   /* Write the stack now (later: the timer's write, which waits for a read
      back that is still under way). */
@@ -31629,11 +31845,36 @@ const Storage = (() => {
     if (!rec) return false;
     rec.tab = tab();
     rec.savedAt = new Date().toISOString();
-    undoTx('readwrite', store => { store.clear(); return store.put(rec, rec.game); });
+    undoWrite(rec);
     return true;
   }
   /* A new game, a slot, an import or the previous autosave: an empty stack, written now over the one kept. */
   function undoReset() { undoDirty = true; return undoFlush(); }
+  /* Everything in the stores, as one record of State.undoRecord's shape
+     (v 2), or wave 16's record (v 1), or null; game: only that game's.
+     Sets kept to what the stores hold when they hold the new layout. */
+  function undoReadAll(game) {
+    return undoTx('readonly', tx => {
+      const h = tx.objectStore(UNDO_HEAD).get('head');
+      const st = tx.objectStore(UNDO_STEPS).getAll();
+      const tw = tx.objectStore(UNDO_TOWNS).getAll();
+      const old = tx.objectStore(UNDO_STORE).getAll();
+      return () => {
+        const head = h.result;
+        if (isObj(head) && Array.isArray(head.ids) && (!game || head.game === game)) {
+          const byId = new Map();
+          for (const x of Array.isArray(st.result) ? st.result : []) if (isObj(x) && typeof x.id === 'string') byId.set(x.id, x);
+          const towns = {};
+          for (const x of Array.isArray(tw.result) ? tw.result : []) if (isObj(x) && typeof x.th === 'string' && typeof x.json === 'string') towns[x.th] = x.json;
+          kept = { game: head.game, ids: new Set(byId.keys()), ths: new Set(Object.keys(towns)) };
+          const entries = head.ids.map(id => byId.get(id)).filter(isObj).map(x => ({ id: x.id, turn: x.turn, json: x.json, th: typeof x.th === 'string' ? x.th : null }));
+          return { v: 2, game: head.game, turn: head.turn, tab: head.tab, savedAt: head.savedAt, entries, towns };
+        }
+        const rec = (Array.isArray(old.result) ? old.result : []).find(x => isObj(x) && (!game || x.game === game));
+        return rec || null;
+      };
+    });
+  }
   /* Continue, Play here instead: the stack kept for this game, read back
      under what was done since the load. Resolves to how many steps came back. */
   function undoResume() {
@@ -31642,14 +31883,23 @@ const Storage = (() => {
     const game = gameId(s);
     const gen = State.undoGen;
     undoReading += 1;
-    return undoTx('readonly', store => store.get(game)).then(rec => {
+    return undoReadAll(game).then(rec => {
       undoReading -= 1;
       const n = isObj(rec) && rec.game === game ? State.resumeUndo(rec, gen) : 0;
       return n;
     }, () => { undoReading -= 1; return 0; });
   }
-  /* The record as kept (tests, the console), or null. */
-  function undoKept() { return undoTx('readonly', store => store.getAll()).then(list => (Array.isArray(list) && list.length ? list[0] : null)); }
+  /* The record as kept (tests, the console), or null: { v, game, tab,
+     savedAt, turn, entries: [{ id, turn, json, th }], towns: [each town
+     version's JSON, as the entries first name it] } (v 1: wave 16's record as stored). */
+  function undoKept() {
+    return undoReadAll(null).then(rec => {
+      if (!isObj(rec) || rec.v !== 2) return rec;
+      const towns = [];
+      for (const e of rec.entries) if (e.th && typeof rec.towns[e.th] === 'string' && !towns.includes(rec.towns[e.th])) towns.push(rec.towns[e.th]);
+      return Object.assign({}, rec, { towns });
+    });
+  }
   /* Every read and write asked for so far is done (tests). */
   function undoIdle() { return undoChain.then(() => null); }
   function undoInit() {
@@ -31671,6 +31921,8 @@ const Storage = (() => {
     download,
     setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
     undoFlush, undoReset, undoResume, undoKept, undoIdle, UNDO_DB, UNDO_STORE,
+    // Wave 48: the per-step layout's stores and version, the town kept once in localStorage, and the out-of-room notice.
+    UNDO_DB_VERSION, UNDO_HEAD, UNDO_STEPS, UNDO_TOWNS, OUT_OF_ROOM, sweepTowns,
     get tabId() { return tab(); },
     get readOnly() { return readOnly; },
     get failed() { return failed; }
