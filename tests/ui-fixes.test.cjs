@@ -36,7 +36,9 @@ s.test('title: New game is above the fold at 375x740 and 1280x800, two sentences
   for (const vp of [{ width: 375, height: 740 }, { width: 1280, height: 800 }]) {
     const page = await open(h, vp);
     await shot(page, `A01_title_${vp.width}`);
-    for (const id of ['#btn-new', '#btn-continue', '#btn-load', '#btn-settings', '#title-mode']) assert.ok(await visibleNow(page, id), `${id} visible without scrolling at ${vp.width}x${vp.height}`);
+    // Wave 44: a fresh profile has nothing to continue, so Continue is not shown (tests/wave44-onboarding.test.cjs).
+    for (const id of ['#btn-new', '#btn-load', '#btn-settings', '#title-mode']) assert.ok(await visibleNow(page, id), `${id} visible without scrolling at ${vp.width}x${vp.height}`);
+    assert.equal(await visibleNow(page, '#btn-continue'), false, 'no Continue with nothing to continue');
     const t = await page.evaluate(() => ({
       shown: document.getElementById('title-setting').textContent,
       more: document.getElementById('title-setting-more').textContent,

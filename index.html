@@ -1356,6 +1356,26 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* Wave 44: the key card's steps, Settings "This device", and the first-turn tip's "Tips" line (rem units). */
+/* The key card is a .card box: the playing-card .card rule (wave 10, later in the sheet) had made it a centred flex column with no padding. */
+.card.mode-key { display: grid; gap: 0.625rem; align-items: stretch; justify-content: normal; aspect-ratio: auto; padding: 1.25rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); font-weight: 400; line-height: 1.5; text-align: left; user-select: auto; }
+.mode-key .key-steps-h { margin: 0; font-family: var(--ui-font); font-size: 0.875rem; font-weight: 600; }
+.mode-key .key-steps { margin: 0; padding-left: 1.4rem; font-family: var(--ui-font); font-size: 0.875rem; line-height: 1.45; }
+.mode-key .key-steps li + li { margin-top: 0.125rem; }
+/* A 44px tap target that does not stretch its line (the negative margins give back what the height adds). */
+.mode-key .key-steps a { display: inline-flex; align-items: center; min-height: 2.75rem; margin: -0.8125rem 0; vertical-align: middle; color: var(--accent); overflow-wrap: anywhere; }
+.mode-key > .hint { margin: 0; }
+.device-status { margin: 0.375rem 0 0; font-family: var(--ui-font); font-size: 0.8125rem; color: var(--muted); }
+.device-status:empty { display: none; }
+.f-tip .f-tip-act { white-space: normal; }
+.f-tip .f-tip-toggle { display: none; }
+/* A phone on its side with the keyboard up: the tip is one line, "Tips", and opens on a tap (UI.toggleTip), so the story keeps its room. */
+@media (max-width: 899px) and (orientation: landscape) {
+  #app.typing .f-tip { padding: 0 3rem 0 0.25rem; margin-bottom: 0.5rem; }
+  #app.typing .f-tip .f-tip-toggle { display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 0.625rem; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+  #app.typing .f-tip:not(.open) .f-tip-body { display: none; }
+  #app.typing .f-tip.open .f-tip-body { padding: 0 0 0.75rem 0.625rem; }
+}
 </style>
 </head>
 <body>
@@ -1430,10 +1450,19 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             </button>
           </div>
           <div class="card mode-key" id="mode-key" hidden>
+            <!-- Wave 44: how to get a key, step by step, for someone who has never used the Console. -->
+            <p class="key-steps-h" id="key-steps-h">Getting a key (a few minutes, once):</p>
+            <ol class="key-steps" id="key-steps" aria-labelledby="key-steps-h">
+              <li>Make an account at <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>.</li>
+              <li>Add some credit under Settings → Billing.</li>
+              <li>Set a monthly spend limit under Settings → Limits, so the game can never cost more.</li>
+              <li>Create a key under Settings → API keys, copy it and paste it below.</li>
+            </ol>
+            <p class="hint" id="key-preset-note">The game starts on Standard quality; Settings has Thrifty for less.</p>
             <label class="label" for="mode-key-input">Anthropic API key</label>
             <input class="input" id="mode-key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
             <label class="check"><input type="checkbox" id="mode-remember"> Remember on this device</label>
-            <p class="hint">Get a key at console.anthropic.com. Unticked, the key is forgotten when this tab closes. Ticked, it stays in this browser, where other files you open from this computer could read it.</p>
+            <p class="hint">Remember keeps the key in this browser after it closes, where other files you open from this computer could read it. Unticked, it is forgotten when this tab closes.</p>
             <p class="err" id="mode-key-err" role="alert"></p>
             <div class="row-btns"><button type="button" class="btn primary" id="mode-key-go">Continue</button></div>
           </div>
@@ -1662,6 +1691,19 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <p class="hint" id="set-reread-memories-hint">When a game is brought up to "People who remember", the memories are first rewritten in the new short form (one call; off by default).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
               <p class="hint note" id="set-reread-behind" hidden>This game was saved under older rules. You can keep playing it as it is, or update it here.</p>
+            </div>
+          </fieldset>
+          <!-- Wave 44: what this browser keeps, and a way to take it back. -->
+          <fieldset class="group" id="set-device">
+            <legend>This device</legend>
+            <div class="field">
+              <button type="button" class="btn" id="set-forget-key" aria-describedby="set-forget-hint">Forget key</button>
+              <p class="hint" id="set-forget-hint">Takes the API key out of this browser, remembered or not. Your games and settings stay. New game asks again how you want to play.</p>
+              <p class="device-status" id="set-forget-status" role="status"></p>
+            </div>
+            <div class="field">
+              <button type="button" class="btn danger wrap" id="set-wipe" aria-describedby="set-wipe-hint">Delete all game data on this device</button>
+              <p class="hint" id="set-wipe-hint">Deletes the autosaves, the save slots, the undo history, your settings and the API key from this browser, and starts again at the title screen. Files you exported are not touched.</p>
             </div>
           </fieldset>
         </form>
@@ -31336,7 +31378,10 @@ const Storage = (() => {
      turn's autosave does not have to read the old one back. */
   let knownAutosaveId = null;
 
-  function area(which) { return which === 'session' ? window.sessionStorage : window.localStorage; }
+  /* Wave 44: after wipeAll() every read and write goes nowhere until the page reloads, so nothing this page still holds is written back. */
+  let wiped = false;
+  const NO_AREA = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  function area(which) { if (wiped) return NO_AREA; return which === 'session' ? window.sessionStorage : window.localStorage; }
   function fail(msg) { failed = true; UI.warn(msg); }
   function read(key, which) {
     try { return area(which).getItem(key); }
@@ -31910,8 +31955,77 @@ const Storage = (() => {
       window.addEventListener('pagehide', hide);
     } catch (e) { /* no page events */ }
   }
+  /* Wave 44: Settings, "This device". forgetKey: the key out of both
+     localStorage and sessionStorage, and New game asks how to play again
+     (playChoice back to null); saves and the other settings stay. */
+  function forgetKey() {
+    apiKey = '';
+    remove(KEYS.apiKey, 'local');
+    remove(KEYS.apiKey, 'session');
+    saveSettings({ rememberKey: false, playChoice: null });
+    return true;
+  }
+  /* Every database the game keeps in IndexedDB: the undo store's, and any
+     other whose name starts with it, where the browser can list them. */
+  function gameDatabases() {
+    const names = [UNDO_DB];
+    try {
+      if (window.indexedDB && typeof window.indexedDB.databases === 'function') {
+        return window.indexedDB.databases().then(list => {
+          for (const x of Array.isArray(list) ? list : []) if (x && typeof x.name === 'string' && x.name.startsWith(UNDO_DB) && !names.includes(x.name)) names.push(x.name);
+          return names;
+        }, () => names);
+      }
+    } catch (e) { /* not offered */ }
+    return Promise.resolve(names);
+  }
+  function deleteDatabase(name) {
+    return new Promise(resolve => {
+      let req;
+      try { req = window.indexedDB.deleteDatabase(name); } catch (e) { resolve(false); return; }
+      req.onsuccess = () => resolve(true);
+      req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } resolve(false); };
+      // Another tab still holds it open: it closes on versionchange (undoDb), and the delete goes through then.
+      req.onblocked = () => setTimeout(() => resolve(false), 1500);
+    });
+  }
+  /* wipeAll: everything the game keeps in this browser goes (every
+     novatria.* key in localStorage and sessionStorage: settings, the key,
+     the autosave and the previous one, the slots, a hand on the table, this
+     tab's id; and the IndexedDB undo database), and from then on this page
+     writes nothing (area) until it is reloaded as a fresh profile (UI).
+     Only the game's own keys: on file:// every page opened from disk shares
+     these storages. Resolves to { ok, left } (what could not be removed). */
+  async function wipeAll() {
+    wiped = true;
+    clearTimeout(undoTimer);
+    undoTimer = null;
+    undoDirty = false;
+    apiKey = '';
+    const left = [];
+    for (const which of ['local', 'session']) {
+      let st = null;
+      try { st = which === 'session' ? window.sessionStorage : window.localStorage; } catch (e) { st = null; }
+      if (!st) continue;
+      try {
+        const keys = [];
+        for (let i = 0; i < st.length; i++) { const k = st.key(i); if (typeof k === 'string' && k.startsWith(PREFIX)) keys.push(k); }
+        for (const k of keys) st.removeItem(k);
+      } catch (e) { left.push(which + 'Storage'); }
+    }
+    // The undo database: this page's connection closed first, so the delete is not blocked by it.
+    const open = undoDbP;
+    undoDbP = Promise.resolve(null);
+    try { const db = open ? await open : null; if (db) db.close(); } catch (e) { /* none open */ }
+    try { await undoChain; } catch (e) { /* done either way */ }
+    let idb = null;
+    try { idb = window.indexedDB || null; } catch (e) { idb = null; }
+    if (idb) for (const name of await gameDatabases()) if (!(await deleteDatabase(name))) left.push('IndexedDB ' + name);
+    return { ok: left.length === 0, left };
+  }
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
+    forgetKey, wipeAll,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
     getApiKey: () => apiKey, setApiKey,
     gameId, envelope, parseEnvelope, shapeProblems, autosave, hasAutosave, loadAutosave, rawAutosave, loadPrevious, peek, inSlot,
@@ -31933,7 +32047,11 @@ const Storage = (() => {
 /* All rendering. Every dynamic string goes in through el()/textContent.
    Wave 45 (accessibility): a skip link to the story, a hidden "Turn N"
    heading on each narration, the status line's polite live region
-   (#turn-status-live), and the focus kept when the feed is drawn again. */
+   (#turn-status-live), and the focus kept when the feed is drawn again.
+   Wave 44: the key card's steps, Settings "This device" (Forget key,
+   Delete all game data), no Continue with nothing to continue, and the
+   first-turn tip's suggestions from the opening scene (openingTries), one
+   "Tips" line on a phone on its side with the keyboard up. */
 const UI = (() => {
   const d = {};
   const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['objectives', 'Objectives'], ['places', 'Places']];
@@ -32133,6 +32251,9 @@ const UI = (() => {
     d.setReread.addEventListener('click', () => App.updateGame());
     d.settingsQuit.addEventListener('click', () => App.quitToTitle());
     d.setCheckKey.addEventListener('click', checkKey);
+    // Wave 44: Settings, "This device".
+    document.getElementById('set-forget-key').addEventListener('click', forgetDeviceKey);
+    document.getElementById('set-wipe').addEventListener('click', () => deleteDeviceData());
     d.savesDone.addEventListener('click', back);
     d.btnExport.addEventListener('click', () => { try { Storage.exportSave(); toast('Exported.'); renderLastExport(); } catch (e) { d.savesError.textContent = e.message; } });
     d.btnImport.addEventListener('click', () => d.importFile.click());
@@ -32542,6 +32663,8 @@ const UI = (() => {
     const auto = raw && !raw.broken ? raw : null;
     const behind = !!auto && Upgrade.behind(auto.state);
     d.btnContinue.disabled = busy || !auto;
+    // Wave 44: nothing to continue (a fresh profile, or only a damaged autosave, explained below): no dead button.
+    d.continueGroup.hidden = !auto;
     // With an autosave, Continue comes first and is the primary button; New game steps back.
     d.btnContinue.classList.toggle('primary', !!auto);
     d.btnNew.classList.toggle('primary', !auto);
@@ -35868,14 +35991,67 @@ const UI = (() => {
   };
   function tipWhere() { return isMobile() ? TIP_WHERE.phone : TIP_WHERE.laptop; }
   function syncTip() { const p = $('.f-tip .f-tip-where'); if (p && p.textContent !== tipWhere()) p.textContent = tipWhere(); }
+  /* Wave 44: two or three things to try in the scene the game opened on,
+     from the engine (so they stay true when the town is edited): someone
+     here to talk to (the first person the opening scene introduces, by
+     name once known, else by role: npcLabel), a place next door to walk to
+     (the first exit that is found, open today and not someone's house),
+     and one thing here to look at (the last of the place's other names
+     that is not part of its name, else the place). Each is
+     { kind: 'talk' | 'walk' | 'look', text, id }. */
+  const PRIVATE_TYPES = ['house', 'bighouse', 'apartment', 'trailer'];
+  function openingTries() {
+    const s = State.current;
+    if (!s || State.muted || !isObj(s.player)) return [];
+    const l = State.loc(s.player.locationId);
+    if (!l) return [];
+    const out = [];
+    const who = State.npcsAt(l.id)[0];
+    if (who) out.push({ kind: 'talk', text: `I talk to ${npcLabel(who)}`, id: who.id });
+    const next = (Array.isArray(l.exits) ? l.exits : []).map(id => State.loc(id))
+      .find(x => x && x.discovered !== false && !PRIVATE_TYPES.includes(x.type) && !State.isClosed(x));
+    if (next) out.push({ kind: 'walk', text: `I walk over to ${next.name.replace(/^The /, 'the ')}`, id: next.id });
+    const words = new Set(String(l.name).toLowerCase().replace(/['’]s\b/g, '').split(/[^a-z]+/).filter(Boolean));
+    const aka = (Array.isArray(l.aka) ? l.aka : []).filter(a => typeof a === 'string' && /^the /i.test(a) && !a.toLowerCase().slice(4).split(/[^a-z]+/).some(w => words.has(w)));
+    out.push({ kind: 'look', text: aka.length ? `I look at ${aka[aka.length - 1]}` : `I look around ${l.name.replace(/^The /, 'the ')}`, id: l.id });
+    return out.slice(0, 3);
+  }
+  function tipTry() {
+    const tries = openingTries();
+    if (!tries.length) return null;
+    const kids = [el('strong', null, 'Try'), ' '];
+    tries.forEach((t, i) => {
+      if (i) kids.push(i === tries.length - 1 ? ' or ' : ', ');
+      kids.push(el('span', { class: 'f-tip-act', dataset: { kind: t.kind, id: t.id } }, `“${t.text}”`));
+    });
+    kids.push('.');
+    return el('p', { class: 'f-tip-try' }, kids);
+  }
+  /* Phone on its side with the keyboard up (CSS at the end of the sheet):
+     the tip is one line, "Tips", that opens on a tap. The tap keeps the
+     focus in the box (pointerdown is not let through), so the keyboard
+     stays up. */
+  function toggleTip(e) {
+    const t = e.target.closest('.f-tip');
+    if (!t) return;
+    const open = !t.classList.contains('open');
+    t.classList.toggle('open', open);
+    e.target.closest('.f-tip-toggle').setAttribute('aria-expanded', String(open));
+    afterAppend();
+  }
   function showTip() {
     if (!d.feedAfter || Storage.settings().tipSeen || $('.f-tip')) return null;
     Storage.saveSettings({ tipSeen: true });
     tipTurns = 0;
+    const keep = e => e.preventDefault();
+    const tries = tipTry();
     const tip = el('aside', { class: 'f-tip', 'aria-label': 'How to play' },
-      el('p', null, el('strong', null, 'Do'), ' is what you do ("I ask for a beer"); ', el('strong', null, 'Say'), ' is your exact words, to whoever is picked.'),
-      el('p', null, el('strong', null, 'Wait'), ' (the button, with the box empty) lets the people here make the next move.'),
-      el('p', { class: 'f-tip-where' }, tipWhere()),
+      el('button', { type: 'button', class: 'f-tip-toggle', 'aria-expanded': 'false', 'aria-controls': 'f-tip-body', onpointerdown: keep, onmousedown: keep, onclick: toggleTip }, 'Tips'),
+      el('div', { class: 'f-tip-body', id: 'f-tip-body' },
+        tries,
+        el('p', null, el('strong', null, 'Do'), tries ? ' is what you do, like those; ' : ' is what you do ("I look around"); ', el('strong', null, 'Say'), ' is your exact words, to whoever is picked.'),
+        el('p', null, el('strong', null, 'Wait'), ' (the button, with the box empty) lets the people here make the next move.'),
+        el('p', { class: 'f-tip-where' }, tipWhere())),
       el('button', { type: 'button', class: 'bar-x', 'aria-label': 'Close the tip', onclick: e => { const t = e.target.closest('.f-tip'); if (t) t.remove(); focusComposer(); } }, '×'));
     d.feedAfter.append(tip);
     afterAppend();
@@ -36419,6 +36595,7 @@ const UI = (() => {
     d.setRereadNone.hidden = loaded;
     d.setRereadBehind.hidden = !(loaded && Upgrade.behind(State.current));
     d.sessionLine.textContent = sessionLine();
+    document.getElementById('set-forget-status').textContent = ''; // Wave 44
     keyStatus('', null);
     if (renderPreset() === 'custom') d.setAdvanced.open = true;
   }
@@ -36484,6 +36661,38 @@ const UI = (() => {
     const said = /^The API key was not accepted\b/i.test(why) ? 'the API did not accept it' : lowerFirst(why.replace(/\.$/, ''));
     keyStatus(ok ? 'The key works.' : `That key did not work${said ? ': ' + said : ''}.`, ok);
     return isObj(r) ? r : { ok };
+  }
+
+  /* Wave 44: Settings, "This device". Forget key: the key out of both
+     storages and both fields, and New game asks how to play again; the
+     saves and the other settings stay, and the line under it says so. */
+  function forgetDeviceKey() {
+    Storage.forgetKey();
+    d.setKey.value = '';
+    d.setRemember.checked = false;
+    d.modeKeyInput.value = '';
+    d.modeRemember.checked = false;
+    keyStatus('', null);
+    document.getElementById('set-forget-status').textContent = 'Key forgotten. Your games and settings are kept.';
+    renderTitleMode();
+    renderDemoBar();
+    return true;
+  }
+  /* Delete all game data on this device: the button, then a question that
+     names what goes (Keep it has the focus); yes clears every store the
+     game keeps (Storage.wipeAll) and the page loads again as a fresh
+     profile, on the title screen. Resolves false when kept. */
+  async function deleteDeviceData() {
+    const yes = await ask({
+      title: 'Delete all game data on this device?',
+      text: 'This deletes from this browser: the autosave and the previous autosave, the three save slots, the undo history, your settings and the API key. A game you are playing goes with them. Files you exported are not touched. This cannot be undone.',
+      yes: 'Delete everything',
+      no: 'Keep it'
+    });
+    if (!yes) return false;
+    const r = await Storage.wipeAll();
+    try { window.location.reload(); } catch (e) { /* the storage is clear either way */ }
+    return r;
   }
 
   // ----- saves screen -----
