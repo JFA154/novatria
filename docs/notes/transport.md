@@ -934,3 +934,22 @@ Tests: `tests/wave47-modules.test.cjs`.
 
 The undo store and the saves' layout changed (one IndexedDB record a step,
 the town stored once): see `docs/notes/engine-state.md`, Wave 48.
+
+## Wave 52 (4 Nov 2026): the first live session after the overnight round
+
+Checked with the owner's key (the record is in `docs/MAINTAINING.md`,
+"Verified against the live API"). What changed in code:
+
+- `Api.checkKey`: when the models call throws (a failed fetch), the message
+  is `FRIENDLY.key_or_network`: "The API refused the key, or could not be
+  reached: from a browser the two look the same. Check the key first, then
+  your connection." Seen live: the API's 401 to `GET /v1/models` carries no
+  CORS headers, so the browser cannot read it and reports a failed fetch. A
+  readable 401 (the canned transport's) still says the key was not accepted.
+  Test: `tests/wave52-live-findings.test.cjs`.
+- What the live calls showed: the 1-hour write on the narrator's blocks is
+  19,139 tokens; the parser's cached prefix is 3,068 tokens and the
+  bookkeeper's 4,560, both read on every later call; `request-id` is
+  readable from the browser (the 404's debug entry carried it);
+  `retry-after` is unverified (no 429 happened); the 404 suggestion named
+  `claude-haiku-5-5` for a retired `claude-haiku-3-0`.

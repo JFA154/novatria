@@ -376,6 +376,8 @@ const Api = (() => {
     api_error: 'The API had an internal error. Try again in a moment.',
     overloaded_error: 'The API is overloaded right now. Try again in a moment.',
     network: 'Could not reach the API. Check your connection and try again.',
+    // Wave 52: Check key only; a browser cannot tell a refused key (a 401 with no CORS headers) from no connection.
+    key_or_network: 'The API refused the key, or could not be reached: from a browser the two look the same. Check the key first, then your connection.',
     timeout: 'The API stopped answering, so the game gave up waiting. Try again.',
     broken_stream: 'The connection dropped before the reply finished. Try again.',
     aborted: 'Stopped.',
@@ -996,7 +998,10 @@ const Api = (() => {
       return { ok: false, status: res.status, message: e.message, detail: e.detail || null };
     } catch (err) {
       const e = transportError(err, w);
-      return { ok: false, status: null, message: e.message, detail: e.detail || null };
+      // Wave 52: seen live, the API's 401 to GET /v1/models carries no CORS headers, so from a browser a refused key reads as a
+      // failed fetch, the same as no connection. Say both, instead of blaming the connection alone.
+      const refused = e.type === 'network' || /Failed to fetch|NetworkError|Load failed/.test(String(err && err.message || ''));
+      return { ok: false, status: null, message: refused ? FRIENDLY.key_or_network : e.message, detail: e.detail || null };
     } finally { w.stop(); }
   }
 

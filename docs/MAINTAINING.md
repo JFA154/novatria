@@ -215,17 +215,19 @@ cache read; Haiku 5.5 at $0.10 / $0.50.
 
 Every narration carries three cached system blocks: the style guide (since
 wave 28 with the one-line fade-to-black rule, about 18 tokens), the town and
-the cast. Together they are about 12,600 tokens by the api suite's estimate
-of 1.4 tokens a word (about 14,700 at 3.5 characters a token); the suite
-fails over 14,000, and its PASS line prints each block's measure. The limit
-is a cost choice, not an API limit: a cache read is $0.20 per million tokens
-on Opus 5.5 and Sonnet 5.5, so every 1,000 cached tokens cost 0.02 cents a
-narration, and the hourly cache write (twice the input price) costs 0.8
-cents more per 1,000 on Opus 5.5 and 0.4 cents on Sonnet 5.5. Using all of
-today's room (about 1,400 tokens) would add about 0.03 cents a narration and
-about 1.1 cents (Opus) or 0.6 cents (Sonnet) to each write. Read from the
-cache the three blocks cost about 0.3 cents a narration; writing them costs
-twice the input price on Opus, about 10 to 12 cents.
+the cast. Counted by the API itself on 4 Nov 2026 (`/v1/messages/count_tokens`,
+wave 52) they are **19,146 tokens**: the style guide 2,952, the town 3,603,
+the cast 12,611. That is 2.13 tokens a word; the two estimates the docs used
+before (1.4 tokens a word, 3.5 characters a token) undercounted by a third
+and more. The api suite now estimates at 2.13 a word and fails over 21,000,
+about 1,850 tokens of room, and its PASS line prints each block's measure.
+The limit is a cost choice, not an API limit: a cache read is $0.20 per
+million tokens on Opus 5.5 and Sonnet 5.5, so the three blocks cost about
+0.38 cents a narration to read, and every 1,000 more cost 0.02 cents; the
+hourly cache write (twice the input price) is about 15 cents on Opus 5.5
+(0.8 cents per 1,000) and 8 cents on Sonnet 5.5. Using all of today's room
+would add about 0.04 cents a narration and about 1.5 cents (Opus) to each
+write.
 
 **Warm and cold.** The cache is kept for an hour (`ttl: '1h'`), so the write
 (about 25 times a read) is paid once a session and again only after an hour
@@ -233,10 +235,13 @@ away, not after every five-minute pause; coming back after more than 50
 minutes, the game warms the cache with a one-token call while your action is
 being read, so the narration finds it warm.
 
-Since wave 41 the parser's and the bookkeeper's system prompts (about 1,200
-and 1,340 tokens) are cached too, with the same one-hour `cache_control`. A
-warm turn reads them for about 0.05 cents instead of paying about 0.5 cents,
-after a write of about 1 cent once a session. The Debug tab's API block
+Since wave 41 the parser's and the bookkeeper's system prompts are cached
+too, with the same one-hour `cache_control`. Live (4 Nov 2026) the API
+wrote 3,068 cached tokens for the parser and 4,560 for the bookkeeper on the
+first call (more than the prompts' own word counts suggest: the cached prefix
+is what the API counts) and read them on every call after, so a warm turn
+reads them for about 0.15 cents instead of paying about 1.5 cents, after a
+write of about 3 cents once a session. The Debug tab's API block
 shows cache reads and writes by role ("cache by role"). A model with no
 known price says "no price known for <model>: cost not counted" in Settings
 and Debug.
@@ -259,12 +264,14 @@ default models (tokens estimated at 3.5 characters each, output assumed):
 | Bookkeeper | ~4,700 tokens (packet ~6,900 characters, system prompt 4,700 with the events' rubric, schema 4,900) | ~180 |
 | Chronicle (once 16 turns have piled up; it keeps the newest 6) | ~1,100 tokens | ~110 |
 
-- A warm turn is about **3.7 cents** with no thinking and about 4.3 cents with
-  some 150 thinking tokens a call; at medium effort the models often think
-  longer, so expect 4 to 5 cents. A hundred warm turns are about $3.65 to
-  $4.25 plus the cache writes.
+- A warm turn measured live on the Standard preset at medium effort (4 Nov
+  2026, eleven turns) was **3.9 to 5.9 cents, 4.7 on average**; the
+  estimate above (3.7 cents with no thinking) is the floor. A hundred warm
+  turns are about $4.70 plus the cache writes.
 - The first narration of a session, or the first after an hour away, adds
-  the cache write: about 12 cents.
+  the cache writes: the first turn cost **22 cents** live (the narrator's
+  19,139 tokens, the parser's 3,068 and the bookkeeper's 4,560 written at
+  twice the input price, plus the turn itself).
 - `/look`, `/rest`, `/wait` and `/skip` call only the narrator (plus the
   bookkeeper when they tell something due, such as the morning's visitor
   after a sleep: one more call then): about 1.4 to 1.7 cents.
@@ -276,9 +283,11 @@ default models (tokens estimated at 3.5 characters each, output assumed):
   rewrite on their own. The first draft stays on screen, dimmed, until the
   rewrite is in (and stays if it fails).
 - Thrifty is about 1 cent a turn; Best costs more for the extra thinking.
-- None of this was measured against the live API this round. The Debug tab
-  shows the real token counts and cost for the turn and the session, a
-  retried call included, and Settings shows the session's total.
+- Measured live on 4 Nov 2026 (wave 52): a scripted twelve-turn game on
+  Standard, 32 calls, $0.67 in all, no narration rewritten. `/rest` was 2.6
+  cents. The Debug tab shows the real token counts and cost for the turn and
+  the session, a retried call included, and Settings shows the session's
+  total.
 
 **When a call fails or stalls.** A reply that stops arriving gives up after
 45 seconds with nothing new (two minutes in all for the parser and the
@@ -604,54 +613,66 @@ sandbox, where Playwright is preinstalled and must not be installed again.
 
 ## Verified against the live API
 
-**Nothing from 30 Oct 2026 to wave 51 (4 Nov 2026) has been checked against the live API.** It was
-verified in mock mode and against canned API replies served inside the
-browser (`tests/api.test.cjs`, `tests/transport-fixes.test.cjs`). Before
-relying on it with a key, a short live session should confirm:
+**Checked live on 4 Nov 2026 (wave 52)**, after the overnight round, with
+the owner's key: the grammar probe, the labelled eval, an exact token count
+of the cached blocks, a scripted twelve-turn game on the Standard preset
+(Opus narrator, Sonnet parser and bookkeeper, $0.67) and a three-turn evening
+with a minor present ($0.14). What each item below showed:
 
-- the bookkeeper's `record_changes`, now 34 properties and 3 enums (with its
-  11-field core), and the parser's `parse_action`, now 14 fields with
-  `romantic`, compile (the API refused 47 properties in an earlier probe with
-  "compiled grammar too large"; 46 passed, and 41 since wave 17).
-  `ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs` posts the three and the
-  41-property control from before wave 28 to the Standard and Thrifty
-  models; it has not been run yet (it needs a key), so waves 28 to 51 shipped on an unprobed schema;
-- the 1-hour cache is accepted as `cache_control: { "type": "ephemeral",
-  "ttl": "1h" }` on the narrator's system blocks, and the usage reports the
-  write under `cache_creation.ephemeral_1h_input_tokens` (on the second
-  narration `cache_read_input_tokens` should be above zero);
-- **Check key** (`GET /v1/models` with the key) answers 200 for a good key and
-  401 for a bad one, from `file://` under the page's content security policy;
-- the real narrator with the newer packets: `TIME PASSED` ("… until morning,
-  Day 4"), `ARREST`, a `DUE EVENT` that is the scene itself (the council
-  meeting), `SINCE THE LAST TURN` (who came and went while time passed), and
-  the narration read beside the "Meanwhile in town" lines and the Resolved
-  lines held until their news is told;
-- the real bookkeeper with money in Say mode: a part payment ("Here's fifty.
-  I'll get you the rest Friday."), an order that buys ("I'll take a beer")
-  and a gift ("Get yourself a beer"). The mock never moves money on a Say
-  line, so only a live session shows what the bookkeeper sends there;
-- how often the name check sends a narration back to be written again (the
-  Debug tab's style entries), now that a first name and a surname before "is"
-  or after "you watch" count as someone;
-- the parser's and the bookkeeper's system blocks with `cache_control` ttl
-  1h (from the second turn `cache_read_input_tokens > 0` on both; the API
-  skips caching silently below its minimum prefix, which is harmless);
-- whether the browser can read `retry-after` across origins
-  (`access-control-expose-headers`); otherwise the Debug entry says "no
-  retry-after header the page could read";
-- a 404 for a retired model and the `/v1/models` suggestion of a current
-  model of the same family;
-- what a turn really costs (the Debug tab's session cost, with the 1-hour
-  cache writes).
+- **The grammar probe passed.** `node tests/probe-grammar.cjs` sent the
+  bookkeeper's `record_changes` (34 properties, 3 enums), its 11-field core,
+  the parser's `parse_action` (14 fields, 6 enums) and the 41-property
+  control to Sonnet 5.5 and Haiku 5.5: eight requests, all 200, no grammar
+  refusal, every reply a known event the engine applied, and "I flirt with
+  Jodie" parsed with `romantic: "flirt"` on both models. (Haiku named the
+  insult `noted` where Sonnet named it `insulted`; see the eval.)
+- **The 1-hour cache works** on the narrator's blocks: the first narration
+  wrote 19,139 tokens (reported as a 1-hour write), every narration after
+  read them;
+- **Check key** answers 200 for a good key from `file://` under the CSP. A
+  bad key does not read as a 401 in a browser: the API's 401 to
+  `GET /v1/models` carries no CORS headers, so the fetch fails as if there
+  were no connection. Since wave 52 the message says "The API refused the
+  key, or could not be reached: from a browser the two look the same";
+- **`TIME PASSED` reads well** (`/rest` woke the player "out back of
+  Pittman's" on Day 2 with the morning's people arriving). Not yet seen live:
+  `ARREST`, a `DUE EVENT` that is the scene itself (the council meeting),
+  "Meanwhile in town" and the Resolved lines;
+- **Money in Say mode behaves**: "I'll take a beer" moved nothing until the
+  narration showed a sale (Royce only quoted the price); "Get yourself a
+  beer, on me" charged $6 (Royce took a coffee instead, "five-fifty with
+  yours"); "Here's fifty, I'll get you the rest Friday" moved nothing because
+  Royce refused the money, and the narrator then carried "what was the fifty
+  for?" through four turns on its own;
+- **No narration was rewritten** in fifteen live narrations (the style
+  check found no hard problem; the longest was 89 words);
+- **The parser's and bookkeeper's blocks cache**: 3,068 and 4,560 tokens
+  written on the first call, read on every call after;
+- **`request-id` is readable** from the browser (the 404's Debug entry
+  carried it). `retry-after` is still unverified: no 429 happened;
+- **The 404 suggestion works**: with the parser set to `claude-haiku-3-0`
+  the turn failed with "The API does not know the model claude-haiku-3-0 (it
+  may have been retired). Try claude-haiku-5-5 in Settings.", the words kept
+  in the box;
+- **What a turn costs**: 3.9 to 5.9 cents warm at medium effort, 22 cents
+  for the first turn with its cache writes, 2.6 cents for `/rest` (the table
+  in "What a turn costs" is updated).
+- **The minor guard, live**: with Kaylee (16) at the register, "Thanks,
+  sweetheart" parsed as not romantic (nothing recorded but that she knows
+  the player a little); "You've got a nice smile" parsed as a flirt, the
+  engine gave the light row (liking -3, a weight-1 "made me uncomfortable"
+  memory, no spark or romance), the bookkeeper's own event for her was set
+  aside, and the narrator had her say "Dad" and walk to the back.
+- **Not yet seen live**: `retry-after` on a 429; the chronicle call; the
+  council meeting as a due event; an arrest; a flirt that reaches a charm
+  roll (Jodie turned it aside with no roll, short of her opensAt).
 
 The first live turns of this round (31 Oct 2026, on the Say-mode money rule)
 found one thing the mock could not: told the player's cash on the CARRYING
 line, the narrator had Jodie say "You've got five bucks left to your name"
 after a $20 tip from $25. The packet now marks the cash as the player's alone,
 both style guides forbid anyone naming it, and a spoken line that knows the
-total is a hard style problem and is rewritten. Still to confirm live: the
-rest of the list above, and that the rewrite rarely fires.
+total is a hard style problem and is rewritten. The 4 Nov 2026 session saw no rewrite in fifteen narrations.
 
 Earlier rounds were checked live: on 28 Oct 2026 an arrival, several turns,
 the casual style and the Do / Say switch (every call 200, the cache read on

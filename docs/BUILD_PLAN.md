@@ -2098,3 +2098,11 @@ talking, I can direct it to one person or all."
      `docs/MANUAL.md`, `docs/MAINTAINING.md`, `docs/KNOWN_ISSUES.md`,
      `docs/README.md` (what is current) and `CLAUDE.md`; the relationship
      plan closed out with its decisions' outcomes; SPEC.md marked historical.
+
+   - **Wave 52**: the first live session after the round (the owner's key, 4
+     Nov 2026): the grammar probe passed, the cached blocks were counted
+     (19,146 tokens; the api test's budget is in real tokens now), a
+     twelve-turn game on Standard cost $0.67 with no rewrite, the minor
+     guard held live, and the labelled eval ran (Haiku far below the bar).
+     Check key says a refused key and no connection look the same from a
+     browser.

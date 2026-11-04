@@ -2,8 +2,15 @@
 
 What changed for players in each wave of work on Lockett's Ferry, newest
 first. The build you are playing is on the title screen's footer and in
-Settings under Advanced ("Build: wave 51 · rules v10"); name it in a bug
+Settings under Advanced ("Build: wave 52 · rules v10"); name it in a bug
 report. A wave that changed only the tests or the tooling says so.
+
+## Wave 52 · 2026-11-04
+
+Check key says when the API may have refused the key instead of blaming your
+connection (from a browser the two look the same). The first live session
+after the overnight round, the grammar probe and the labelled eval are
+written up in the maintainer's guide and the known issues.
 
 ## Wave 51 · 2026-11-04
 

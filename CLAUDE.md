@@ -85,7 +85,7 @@ node tests/run.cjs wave46-head       # files whose name contains the filter
 node tools/build.cjs --check
 node tests/relationships-sim.cjs [style] --assert   # the 21-day simulator
 node tests/eval-classify.cjs --dry                  # the labelled eval, offline
-ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs    # needs a key; never run yet
+ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs    # needs a key; passed on 4 Nov 2026 (wave 52)
 ```
 
 Playwright and Chromium are preinstalled: `require('playwright')`. Never run

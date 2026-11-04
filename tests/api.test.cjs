@@ -179,7 +179,10 @@ s.test({ toString: () => 'requests carry the four headers and a body the current
   assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
-  // Cached text stays small: about 1.4 tokens a word, under 14,000 for the three blocks (docs/MAINTAINING.md, "What a turn costs").
+  // Cached text stays small. Measured live on 4 Nov 2026 with /v1/messages/count_tokens: the three blocks are 19,146 tokens for
+  // 8,998 words, 2.13 tokens a word (style 2,952, town 3,603, cast 12,611), not the 1.4 a word this test assumed until wave 52 (which
+  // undercounted by a third). The estimate is now words x 2.13 and the limit 21,000 real tokens, about 1,850 of room; see
+  // docs/MAINTAINING.md, "What a turn costs", for what the room costs.
   // The limit is a cost choice, not an API limit. Every narration reads the blocks from the cache at $0.20 per million tokens
   // on Opus 5.5 and on Sonnet 5.5 alike, so 1,000 more cached tokens cost 0.02 cents a narration; the cache is written once an
   // hour at twice the input price, so the same 1,000 tokens add 0.8 cents to each hourly write on Opus 5.5 ($8 per million) and
@@ -188,9 +191,10 @@ s.test({ toString: () => 'requests carry the four headers and a body the current
   // tokens, costs at most about 0.03 cents a narration and about 1.1 cents (Opus) or 0.6 cents (Sonnet) an hourly write once a
   // future rule or cast member uses it. The measures print in this test's PASS line.
   const words = t => t.split(/\s+/).filter(Boolean).length;
-  const est = Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * 1.4);
-  cachedMeasure.text = ` [cached blocks, words x 1.4: style ${Math.round(words(sys.narrator) * 1.4)}, town ${Math.round(words(sys.town) * 1.4)}, cast ${Math.round(words(sys.cast) * 1.4)}, total ${est} of 14,000; at 3.5 characters a token ${Math.round((sys.narrator.length + sys.town.length + sys.cast.length) / 3.5)}]`;
-  assert.ok(est < 14000, 'cached blocks: ' + est + ' tokens');
+  const TOK = 2.13;
+  const est = Math.round((words(sys.narrator) + words(sys.town) + words(sys.cast)) * TOK);
+  cachedMeasure.text = ` [cached blocks, words x ${TOK} (the live ratio): style ${Math.round(words(sys.narrator) * TOK)}, town ${Math.round(words(sys.town) * TOK)}, cast ${Math.round(words(sys.cast) * TOK)}, total ${est} of 21,000]`;
+  assert.ok(est < 21000, 'cached blocks: ' + est + ' tokens');
   // Changed by design in wave 41: the parser's and the bookkeeper's system prompts are one cached block each (the narrator's cache_control).
   assert.deepEqual(parser.body.system, [{ type: 'text', text: sys.parser, cache_control: { type: 'ephemeral', ttl: '1h' } }]);
   assert.deepEqual(book.body.system, [{ type: 'text', text: sys.book, cache_control: { type: 'ephemeral', ttl: '1h' } }]);

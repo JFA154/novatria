@@ -1118,3 +1118,36 @@ examples' "(said to …)". Measured: casual 12,970 → 12,597, literary 11,873 �
 cast line ids (about 185 tokens) and the doubled cash rule.
 `docs/relationships/audit.md:369` describes the old cast line format. Tests:
 `tests/wave42-headroom.test.cjs`.
+
+## Labelled eval run (2026-11-04)
+
+`node tests/eval-classify.cjs --record` on claude-haiku-5-5: 216 rows from `tests/eval/labelled.jsonl` (216 bookkeeper turns, 64 romantic lines, 42 aimed at minors; 216 authored, 0 exported).
+
+- **Below** the recommended bar: exact accuracy, invented events, romantic recall for minors, minor-related events for a minor.
+- exact accuracy: 13.4% of emitted (bar 75%) (below)
+- neighbour confusions: 2.5% of emitted (bar under 20%)
+- invented events: 84.1% of emitted (bar 5% or fewer) (below)
+- romantic recall for minors: 95.2% over 42 lines (bar 98% over at least 40) (below)
+- minor-related events for a minor: 50 (bar 0) (below)
+- every request answered: 0 failed
+- emitted 157, exact 21, neighbours 4, invented 132, missed 91 of 116, dropped for the engine's own 0
+- romantic recall for minors: parser 90.5%, phrase list 38.1%, either 95.2%; false friends read as romantic 4 of 17
+- confusions (label -> sent): nothing -> noted 25; came_clean -> noted 7; confided -> noted 5; bribed -> noted 5; complimented -> noted 4; pried -> noted 4; they_confided -> confided 4; lied_caught -> noted 4; crossed -> noted 4; rebuffed -> noted 4; insulted -> noted 3; apologised -> noted 3; kept_word -> noted 3; nothing -> insulted 3; betrayed_confidence -> noted 3; exposed -> noted 3; did_favour -> noted 3; informed_on -> noted 3; learned_secret -> noted 3; cheated -> noted 3; badmouthed -> noted 3; came_clean -> confided 2; they_helped -> noted 2; defended -> noted 2; learned_secret -> confided 2; cheated -> insulted 2; vouched_for -> noted 2; gift -> noted 2; bribed -> complimented 2; flirted -> noted 2; insulted -> insulted 1; pried -> insulted 1; apologised -> kept_word 1; they_confided -> noted 1; lied_caught -> insulted 1; they_helped -> rebuffed 1; they_helped -> did_favour 1; defended -> learned_secret 1; crossed -> complimented 1; rebuffed -> insulted 1; noted -> noted 1; stole_from -> noted 1; cheated -> they_helped 1; gift -> learned_secret 1; flirted -> insulted 1; spent_time -> confided 1; spent_time -> noted 1; hit -> noted 1; flirted -> rebuffed 1
+- cost: $0.2422 (2128711 tokens in, 58601 out)
+
+## Wave 52 (4 Nov 2026): the probe passed, and the blocks were counted
+
+- `node tests/probe-grammar.cjs` passed on Sonnet 5.5 and Haiku 5.5: eight
+  requests, all 200, no grammar refusal; `record_changes` (34/3), its core
+  (11), `parse_action` (14, with `romantic`) and the 41-property control.
+  "I flirt with Jodie" gave `romantic: "flirt"` on both. Haiku named the
+  staged insult `noted` on the full schema and `insulted` on the core;
+  Sonnet named it `insulted` on both.
+- `/v1/messages/count_tokens` counted the narrator's cached blocks at
+  19,146 tokens (style 2,952, town 3,603, cast 12,611; 2.13 tokens a word),
+  the parser's system prompt at 1,393 and the bookkeeper's at 1,817. The api
+  test's estimate is now words x 2.13 against a 21,000 limit (it was 1.4
+  against 14,000, a third too low). The playtest suite's cost band still
+  prices mock packets at 3.5 characters a token; read it as a floor.
+- The eval's live runs are recorded below by `--record` (Haiku, then
+  Sonnet). The findings they raise are in `docs/KNOWN_ISSUES.md`.
