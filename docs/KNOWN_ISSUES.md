@@ -18,11 +18,26 @@ When one is settled, take it out here and say so in the wave's notes.
   `noted` for almost every turn (25 of the "nothing" rows, and in place of
   `came_clean`, `confided`, `bribed`, `complimented`, `pried`, `lied_caught`
   and `crossed`), so people come to know the player faster than the design
-  intends and little else is recorded. The same set on the Standard
-  bookkeeper (Sonnet 5.5) is recorded in `docs/notes/prompts.md` by the
-  eval's `--record` (the second block).
+  intends and little else is recorded. **The Standard bookkeeper (Sonnet
+  5.5) is better but also below the bar**: exact 43.6%, invented 55.6%
+  (the same `noted` habit: 14 of the "nothing" rows), neighbour confusions
+  0.8%, 27 events sent for a minor, romantic recall for minors 85.7% (the
+  parser alone 83.3%), false friends 0 of 17, $4.84 a run. Both records
+  are in `docs/notes/prompts.md`.
+  The parser missed six propositions aimed at minors in plain euphemism
+  ("Meet me at the Bluff after dark, just us", "somewhere quiet where your
+  mama can't see us", "You ever had a girlfriend? Want one?", "You look all
+  grown up today", "Nobody's watching the dock. Come here", "wasted on this
+  register"). Wave 52 names them in the parser's ROMANTIC rule and in the
+  phrase backstop (`Api.MINOR_ROMANCE_PHRASES`), which now hits 40 of the
+  42 minor-aimed lines (it hit 16 before) and none of the false friends; the
+  backstop was tuned on this authored set, so the real measure is a set of
+  live exports. The parser's own recall after the rule change is in the
+  third recorded run.
   The set is still the 216 authored rows, not live turns. B3 tuning (below)
-  waits on a bookkeeper that passes.
+  waits on a bookkeeper that passes; the first thing to try is a rubric line
+  that `noted` is for something a person would actually hold on to, not
+  for every turn.
 - **Still unverified live**: `retry-after` on a 429 (none happened); the
   chronicle call; the council meeting as a due event; an arrest; a flirt that
   reaches a charm roll.

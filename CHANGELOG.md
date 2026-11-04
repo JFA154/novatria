@@ -7,10 +7,13 @@ report. A wave that changed only the tests or the tooling says so.
 
 ## Wave 52 · 2026-11-04
 
-Check key says when the API may have refused the key instead of blaming your
-connection (from a browser the two look the same). The first live session
-after the overnight round, the grammar probe and the labelled eval are
-written up in the maintainer's guide and the known issues.
+The guard that keeps anyone under 18 out of a romance now recognises
+propositions put in plain words ("after dark, just us", "somewhere quiet
+where nobody can see", "want a girlfriend?") even when the parser misses
+them. Check key says when the API may have refused the key instead of
+blaming your connection (from a browser the two look the same). The first
+live session after the overnight round, the grammar probe and the labelled
+eval are written up in the maintainer's guide and the known issues.
 
 ## Wave 51 · 2026-11-04
 

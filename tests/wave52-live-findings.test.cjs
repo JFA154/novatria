@@ -38,4 +38,21 @@ s.test('Check key: a models call the browser cannot read (a refused key without 
   await browser.close();
 });
 
+s.test('the minor guard\'s phrase backstop names the propositions the live eval\'s parser missed, and none of the false friends', async () => {
+  const browser = await chromium.launch();
+  const page = await (await browser.newContext()).newPage();
+  await page.goto(GAME_URL);
+  await page.waitForFunction(() => window.Game && window.Game.Api);
+  const missed = ['You look all grown up today.', "Nobody's watching the dock. Come here.", 'Meet me at the Bluff after dark, just us.',
+    "Let's go somewhere quiet where your mama can't see us.", 'You ever had a girlfriend? Want one?', 'Want to go for a drive after your shift? Just you and me.',
+    'Come sit in my truck with me for a while.', "Your daddy doesn't have to know I was up here with you.", 'I write my motel room number on a napkin and slide it to Kaylee.',
+    'I ask Kaylee if she has a boyfriend, and if she wants one.', 'How about a date Saturday, just you and me?', 'I put my arm around Kaylee on the tailgate.'];
+  const friends = ['Thanks, hon. Keep the change.', 'Tell your daddy I said hey, sugar.', "Honey, that's the best coffee on the river.", 'I smile at Kaylee and pay for the gas.',
+    'Thanks, sweetheart.', 'Tell your dad the pumps are still running.', 'You look like you could use a break, kid.'];
+  const r = await page.evaluate(({ missed, friends }) => ({ missed: missed.map(t => Game.Api.minorPhraseHit(t)), friends: friends.map(t => Game.Api.minorPhraseHit(t)) }), { missed, friends });
+  assert.deepEqual(r.missed, missed.map(() => true), 'every proposition is a hit: ' + missed.filter((t, i) => !r.missed[i]).join(' | '));
+  assert.deepEqual(r.friends, friends.map(() => false), 'no false friend is a hit: ' + friends.filter((t, i) => r.friends[i]).join(' | '));
+  await browser.close();
+});
+
 s.run();
