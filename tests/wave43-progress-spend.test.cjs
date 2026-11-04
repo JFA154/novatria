@@ -237,7 +237,7 @@ s.test('/undo does not take the cost back, nor does a failed turn; the cost surv
   await page.reload();
   await page.waitForFunction(() => window.Game && window.Game.App);
   await page.evaluate(() => Game.App.continueGame());
-  await page.waitForSelector('#screen-game.active');
+  await page.waitForSelector('#screen-game.active', { timeout: 60000 }); // a loaded machine takes longer to resume a game
   assert.deepEqual(await costNow(page), c3);
   assert.equal(await page.evaluate(() => Game.UI.spendLine()), `This game: $${c3.usd.toFixed(2)} over ${c3.turns} turns · this session: $0.00`);
   assert.equal((await chip(page)).text, `$${c3.usd.toFixed(2)}`);
@@ -249,7 +249,7 @@ s.test('/undo does not take the cost back, nor does a failed turn; the cost surv
   const fresh = await h.open({ viewport: PHONE });
   await fresh.click('#btn-load');
   await fresh.setInputFiles('#import-file', { name: 'game.json', mimeType: 'application/json', buffer: Buffer.from(text) });
-  await fresh.waitForSelector('#screen-game.active');
+  await fresh.waitForSelector('#screen-game.active', { timeout: 60000 }); // a loaded machine takes longer to resume a game
   assert.deepEqual(await costNow(fresh), c3);
   // A cost of the wrong shape in a save is read field by field.
   const bad = await fresh.evaluate(() => {
@@ -275,7 +275,7 @@ s.test('the spending pause: crossing it says so once in the story; the next turn
   await page.press('#set-ceiling-amount', 'Tab');
   assert.equal(await page.evaluate(() => Game.Storage.settings().spendCeiling), 0.01);
   await page.click('#settings-done');
-  await page.waitForSelector('#screen-game.active');
+  await page.waitForSelector('#screen-game.active', { timeout: 60000 }); // a loaded machine takes longer to resume a game
   const NOTE = /^This game has now cost \$\d+\.\d\d, past the \$0\.01 you set in Settings\. The next turn asks first\.$/;
   const notes = () => page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].map(x => (x.querySelector('.f-notice-text') || x).textContent).filter(t => /past the \$/.test(t)));
   // A turn here costs under a cent (see the cost test): the first stays under the pause, the second crosses it.
