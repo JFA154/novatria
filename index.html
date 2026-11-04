@@ -1376,6 +1376,27 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   #app.typing .f-tip:not(.open) .f-tip-body { display: none; }
   #app.typing .f-tip.open .f-tip-body { padding: 0 0 0.75rem 0.625rem; }
 }
+/* Wave 43: where the game is in its three weeks, and what it has cost. "Day 3" stays the text of #tb-time (the clock, as the
+   dividers say it); " of 21" (a phone: "/21") is drawn after it from the day span's data. The next town event beside it on a
+   laptop; the cost chip after the money (on a phone, on the place's line). */
+.tb-day::after { content: attr(data-of); }
+.tb-next { color: var(--muted); white-space: nowrap; font-size: .8125rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tb-next[hidden], .tb-cost[hidden] { display: none; }
+.tb-cost { flex: none; align-self: center; min-height: 1.75rem; padding: 0 .5rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: .8125rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+.tb-cost:hover { color: var(--text); border-color: var(--field); }
+.tb-cost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spend-line { margin: 0 0 .5rem; }
+#spend-pace:empty { display: none; }
+.ceiling-custom { margin-top: .5rem; max-width: 12rem; }
+@media (max-width: 899px) {
+  .tb-day::after { content: attr(data-short); }
+  .tb-next { display: none; }
+  /* The money keeps its place beside the time at 375 with five figures: a little less room between them. */
+  .tb-main { column-gap: .625rem; }
+  /* The chip shares the place's line (a short place name leaves room), so the second line keeps the time, HP and money. */
+  .tb-main.has-cost .tb-loc { flex-basis: calc(100% - 5.25rem); }
+  .tb-cost { order: -1; margin-left: auto; min-height: 1.5rem; font-size: .75rem; }
+}
 </style>
 </head>
 <body>
@@ -1442,7 +1463,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
           <div class="choice-grid mode-grid" role="group" aria-label="How to play">
             <button type="button" class="choice" id="choose-claude" aria-expanded="false" aria-controls="mode-key">
               <span class="choice-title">Play with Claude (paste your API key)</span>
-              <span class="choice-sub">Claude narrates every turn. You need an Anthropic API key; a turn costs a few cents.</span>
+              <span class="choice-sub">Claude narrates every turn. You need an Anthropic API key; at the Standard quality a turn costs about 4 to 5 cents, and a whole three-week game about $15 to $25 (Thrifty is about a quarter of that).</span>
             </button>
             <button type="button" class="choice" id="choose-demo">
               <span class="choice-title">Try the offline demo (canned replies)</span>
@@ -1508,9 +1529,11 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
     <header class="topbar">
       <div class="tb-main">
         <span class="tb-time"><span class="tb-wd" id="tb-wd"></span><span id="tb-time"></span></span>
+        <span class="tb-next" id="tb-next" hidden></span>
         <span class="tb-loc" id="tb-loc"></span>
         <span class="tb-stat tb-hp">HP <b id="tb-hp"></b></span>
         <span class="tb-stat tb-gold"><b id="tb-gold"></b><span id="tb-gold-unit"> gold</span></span>
+        <button type="button" class="tb-cost" id="tb-cost" hidden></button>
       </div>
       <div class="tb-actions">
         <button type="button" class="btn ghost desktop-only" id="tb-save">Save</button>
@@ -1648,6 +1671,26 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               </div>
               <p class="hint build-line" id="set-build"></p>
             </details>
+          </fieldset>
+          <fieldset class="group" id="set-spending" tabindex="-1">
+            <legend>Spending</legend>
+            <p class="session-line spend-line" id="spend-line"></p>
+            <p class="hint" id="spend-pace"></p>
+            <div class="field">
+              <span class="label" id="ceiling-label">Pause and ask at</span>
+              <div class="seg" role="radiogroup" aria-labelledby="ceiling-label">
+                <label><input type="radio" name="set-ceiling" value="off"> Off</label>
+                <label><input type="radio" name="set-ceiling" value="5"> $5</label>
+                <label><input type="radio" name="set-ceiling" value="10"> $10</label>
+                <label><input type="radio" name="set-ceiling" value="20"> $20</label>
+                <label><input type="radio" name="set-ceiling" value="custom"> Custom</label>
+              </div>
+              <div class="ceiling-custom" id="ceiling-custom" hidden>
+                <label class="label" for="set-ceiling-amount">Amount in dollars</label>
+                <input class="input" id="set-ceiling-amount" type="number" min="0.01" max="10000" step="0.01" inputmode="decimal">
+              </div>
+              <p class="hint">When this game's cost reaches it, the story says so once and asks before the next turn runs. Off by default.</p>
+            </div>
           </fieldset>
           <fieldset class="group">
             <legend>Play</legend>
@@ -8225,6 +8268,11 @@ const Tables = (() => {
    was aimed at (opts.backed: the engine's LEVERAGE line said they hand
    over nothing now). The feed lines of how people stand queue in relFeed
    (takeFeed), quiet on a load, an edit, a rewind or the morning's step.
+   Wave 43: spend (engine only; Api.record after every paid call) adds to
+   meta.cost { usd, turns, calls, input, output, cacheRead, cacheWrite,
+   asked?, noticed? }; an undo, a redo or a rolled-back turn keeps the
+   cost the game has now (useEntry), since the money was spent. arc():
+   the ending's day, whether it was told, and the next town event.
    Returns { applied: [string], rejected: [{ path, reason }], time?, revealed?, people?, merged?, livedIn?,
    progressed?: [{ threadId, gain }], settled?: [{ id, status }] }. */
 const State = (() => {
@@ -8458,7 +8506,9 @@ const State = (() => {
     // Wave 30: rules version 9's people and content (Upgrade.peopleRemember).
     'relFill',
     // Wave 31: the town's ties made (a new game, rules version 10), and word getting round (World's step i).
-    'tiesFill', 'hearsayDeliver'];
+    'tiesFill', 'hearsayDeliver',
+    // Wave 43: what this game has cost (meta.cost), added after every paid call (Api.record).
+    'spend'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -11700,6 +11750,38 @@ const State = (() => {
     const dt = new Date(start + (d - 1) * 86400000);
     return `${WEEKDAYS[dt.getUTCDay()]} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`;
   }
+  /* Wave 43: what a game has cost (meta.cost): dollars, turns and calls
+     that spent tokens, and the tokens (cacheWrite: both TTLs). asked and
+     noticed are the spending ceiling (Settings, Spending) the player said
+     Keep going at and was told of, so each happens once per amount. */
+  const COST_KEYS = Object.freeze(['usd', 'turns', 'calls', 'input', 'output', 'cacheRead', 'cacheWrite']);
+  function costRecord(raw) {
+    const c = {};
+    for (const k of COST_KEYS) { const n = isObj(raw) ? Number(raw[k]) : 0; c[k] = Number.isFinite(n) && n > 0 ? (k === 'usd' ? n : Math.round(n)) : 0; }
+    for (const k of ['asked', 'noticed']) if (isObj(raw) && Number.isFinite(raw[k]) && raw[k] > 0) c[k] = raw[k];
+    return c;
+  }
+  /* Wave 43: where the game is in the town's arc. endDay: the day the
+     ending is told (the town's epilogue.onDay; null without one); ended:
+     it has been told (it can come early); next: the next town event still
+     to come ({ id, title, day, phase }), or null. A hidden event, or one
+     without a day or a title, is never named. */
+  function arc() {
+    const t = town || TOWN_DATA;
+    const ep = isObj(t) && isObj(t.epilogue) ? t.epilogue : null;
+    const out = { endDay: ep && Number.isInteger(ep.onDay) ? ep.onDay : null, ended: !!(current && current.flags.epilogueShown), next: null };
+    if (!current) return out;
+    const done = new Set((Array.isArray(current.eventsFired) ? current.eventsFired : []).filter(x => typeof x === 'string'));
+    for (const k of Object.keys(current.flags || {})) if (k.startsWith('event.') && current.flags[k]) done.add(k.slice(6));
+    const now = current.time;
+    const phaseOf = ev => (PHASES.includes(ev.phase) ? ev.phase : PHASES[0]);
+    const ahead = ev => ev.day > now.day || (ev.day === now.day && PHASES.indexOf(phaseOf(ev)) >= PHASES.indexOf(now.phase));
+    const list = (isObj(t) && Array.isArray(t.events) ? t.events : []).filter(ev => isObj(ev) && typeof ev.id === 'string' && Number.isInteger(ev.day)
+      && typeof ev.title === 'string' && ev.title.trim() && ev.hidden !== true && !done.has(ev.id) && !done.has(slugify(ev.id).slice(0, 34)) && ahead(ev));
+    list.sort((a, b) => (a.day - b.day) || (PHASES.indexOf(phaseOf(a)) - PHASES.indexOf(phaseOf(b))));
+    if (list.length) out.next = { id: list[0].id, title: list[0].title.trim(), day: list[0].day, phase: phaseOf(list[0]) };
+    return out;
+  }
   /* Shut: closed by the story, or closed on this weekday (closedOn). */
   function isClosed(where, day) {
     const l = isObj(where) ? where : loc(where);
@@ -12844,6 +12926,20 @@ const State = (() => {
         return v ? 'retry lock set' : 'retry lock cleared';
       });
     }
+    // Wave 43: a paid call's cost added to the game's total (meta.cost); asked / noticed: the ceiling the player said Keep going at, and was told of.
+    one('spend', v => {
+      if (!isObj(v)) bad('must be an object');
+      const c = costRecord(s.meta.cost);
+      for (const k of COST_KEYS) {
+        if (v[k] === undefined) continue;
+        const n = Number(v[k]);
+        if (!Number.isFinite(n) || n < 0) bad(`${k} must be a number of 0 or more`);
+        c[k] = k === 'usd' ? Math.round((c[k] + n) * 1e9) / 1e9 : c[k] + Math.round(n);
+      }
+      for (const k of ['asked', 'noticed']) if (v[k] !== undefined) { if (!(Number.isFinite(v[k]) && v[k] > 0)) bad(`${k} must be an amount`); c[k] = v[k]; }
+      s.meta.cost = c;
+      return v.usd !== undefined ? `spent $${Number(v.usd).toFixed(4)} (this game $${c.usd.toFixed(2)})` : 'spending noted';
+    });
     one('beginTurn', v => {
       if (v !== true) return null;
       s.meta.turn += 1;
@@ -14242,6 +14338,8 @@ const State = (() => {
     if (!(Number.isInteger(s.time.instants) && s.time.instants > 0)) delete s.time.instants;
     if (!Number.isInteger(s.meta.rngCalls)) s.meta.rngCalls = 0;
     if (s.meta.lastRollKey === undefined) s.meta.lastRollKey = null;
+    // Wave 43: a cost record of the wrong shape is read field by field (anything not a number of 0 or more is 0).
+    if (s.meta.cost !== undefined) { if (isObj(s.meta.cost)) s.meta.cost = costRecord(s.meta.cost); else delete s.meta.cost; }
     if (!Array.isArray(s.player.looseEnds)) s.player.looseEnds = [];
     if (!Array.isArray(s.player.obligations)) s.player.obligations = [];
     if (!Array.isArray(s.news)) s.news = [];
@@ -14388,7 +14486,10 @@ const State = (() => {
   }
   // An entry back as the game (and its town copy).
   function useEntry(e) {
+    const spent = current && isObj(current.meta) ? { id: `${current.meta.createdAt}|${current.meta.seed}`, cost: current.meta.cost } : null;
     current = JSON.parse(e.json);
+    // Wave 43: the money is spent: an undo, a redo or a rolled-back turn keeps what the game has cost so far.
+    if (spent && isObj(spent.cost) && isObj(current.meta) && `${current.meta.createdAt}|${current.meta.seed}` === spent.id) current.meta.cost = spent.cost;
     if (e.town !== undefined) town = e.town === null ? null : JSON.parse(e.town);
     ledger = freshLedger(-1);
     // An undo or a rolled-back turn prints nothing of what it took back (wave 29).
@@ -14605,6 +14706,8 @@ const State = (() => {
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
     SEED_ORIGINS, OBLIGATION_KINDS, NPC_FATES, WEEKDAYS, NOT_ACTIONS,
+    // Wave 43: the arc (its end day, whether the ending was told, the next town event) and what this game has cost.
+    arc, COST_KEYS, cost: () => costRecord(current && current.meta.cost), spend: (v, opts) => apply({ spend: v }, opts),
     season, weekday, dateLine, isClosed, isBanned, priceFactor, restQuality, obligations, tickObligations, missedEventId, expireDaily, goodNamed, goodSource,
     absentNote: absentFor, awayNow, laidUp, isHurt, PROTECTED_MEMORIES, protectedMemory, newsWaits, MEMORY_ACTS,
     // Wave 22: meetings agreed in the story (appointments() the ones still to come, with their words).
@@ -21426,7 +21529,11 @@ const Style = (() => {
    session's cache reads and writes are kept by role (usage.cache,
    cacheLine). Every module writes the debug log through State.pushDebug.
    Wave 47: the mock provider is its own module, Mock, right after this one
-   (Api.Mock is it). */
+   (Api.Mock is it).
+   Wave 43: each call that spent tokens is also added to the game's own
+   total (State.spend into meta.cost: dollars, turns, calls, tokens), which
+   the save keeps and /undo never takes back; onSpend(fn) hears of it (the
+   top bar's cost chip). */
 const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const MODELS_ENDPOINT = 'https://api.anthropic.com/v1/models';
@@ -21842,6 +21949,8 @@ const Api = (() => {
   function blankUsage() { return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cacheWrite1h: 0, cost: 0, priced: true, calls: 0, unpriced: [] }; }
   const usage = { turn: blankUsage(), session: blankUsage(), cache: {} };
   const responses = [];
+  /* Wave 43: who hears of each paid call (UI's cost chip), with the game's total. */
+  const spendFns = new Set();
   /* Cache writes by TTL: usage.cache_creation.ephemeral_1h_input_tokens and
      ephemeral_5m_input_tokens when the API breaks them down; otherwise the
      old cache_creation_input_tokens, all of it 1-hour (every block this game
@@ -21911,6 +22020,12 @@ const Api = (() => {
     const u = { input: raw.input_tokens | 0, output: raw.output_tokens | 0, cacheRead: raw.cache_read_input_tokens | 0, cacheCreation: w.all, cacheWrite1h: w.h1, cacheWrite5m: w.m5 };
     const spent = u.input + u.output + u.cacheRead + u.cacheCreation > 0;
     const c = costOf(model, u);
+    // Wave 43: the game's own running total (State's meta.cost, kept in the save and never taken back by /undo), added by the same call that adds the session's.
+    const firstOfTurn = usage.turn.calls === 0;
+    if (spent && State.current) {
+      State.spend({ usd: c === null ? 0 : c, turns: firstOfTurn ? 1 : 0, calls: 1, input: u.input, output: u.output, cacheRead: u.cacheRead, cacheWrite: u.cacheCreation });
+      for (const fn of Array.from(spendFns)) { try { fn(State.cost()); } catch (e) { console.error(e); } }
+    }
     for (const b of [usage.turn, usage.session]) {
       b.input += u.input; b.output += u.output; b.cacheRead += u.cacheRead; b.cacheCreation += u.cacheCreation; b.cacheWrite1h = (b.cacheWrite1h | 0) + u.cacheWrite1h; b.calls += 1;
       if (c === null) {
@@ -22384,6 +22499,8 @@ const Api = (() => {
     // Wave 41: retry limits and the test-shortened waits, the wait countdown, the price note, the cache by role, the model family.
     RETRY, RETRY_LIMITS, priceNote, cacheLine, modelFamily,
     onWait(fn) { if (typeof fn !== 'function') return () => {}; waitFns.add(fn); return () => waitFns.delete(fn); },
+    // Wave 43: fn(cost) after every call that spent tokens, cost being the game's total (State.cost()).
+    onSpend(fn) { if (typeof fn !== 'function') return () => {}; spendFns.add(fn); return () => spendFns.delete(fn); },
     SYSTEM, SCHEMAS, FRIENDLY, MEMORY_RULES, PLACE_RULE, RECORD_RULES, PARSE_TYPES, RECORD_CORE_FIELDS, recordFromWire, grammarRefused,
     // Wave 28: the bookkeeper's events on the wire, its rubric, and the romance phrase lists (the mock parser's and the minor rule's).
     EVENT_RULES, MEMORY_WORDS, RECORD_EMPTY, socialFromWire, MINOR_ROMANCE_PHRASES, minorPhraseHit,
@@ -31360,7 +31477,9 @@ const Storage = (() => {
     // Wave 28: the Debug view's export of bookkeeper turns (Pipeline keeps the last 200 in memory while this is on).
     keepPackets: false,
     // Wave 30: rules version 9's update first rewrites memories in the short form (version 2's re-read, one call); off by default.
-    rereadMemories: false
+    rereadMemories: false,
+    // Wave 43: Settings, Spending: "Pause and ask at $X" for a game's cost (dollars; null: off).
+    spendCeiling: null
   };
   /* Settings, "Quality": the models and effort each preset sets. A
      settings object that matches none of them is "custom". */
@@ -31426,6 +31545,8 @@ const Storage = (() => {
     if (raw.inputMode === 'do' || raw.inputMode === 'say') s.inputMode = raw.inputMode;
     if (raw.playChoice === 'demo' || raw.playChoice === 'claude') s.playChoice = raw.playChoice;
     if (typeof raw.lastExportAt === 'string' && !Number.isNaN(Date.parse(raw.lastExportAt))) s.lastExportAt = raw.lastExportAt;
+    // Wave 43: a ceiling is a whole number of cents from 1 cent to $10,000; anything else is off.
+    if (Number.isFinite(raw.spendCeiling) && raw.spendCeiling >= 0.01 && raw.spendCeiling <= 10000) s.spendCeiling = Math.round(raw.spendCeiling * 100) / 100;
     return s;
   }
   function init() {
@@ -32051,7 +32172,12 @@ const Storage = (() => {
    Wave 44: the key card's steps, Settings "This device" (Forget key,
    Delete all game data), no Continue with nothing to continue, and the
    first-turn tip's suggestions from the opening scene (openingTries), one
-   "Tips" line on a phone on its side with the keyboard up. */
+   "Tips" line on a phone on its side with the keyboard up.
+   Wave 43: the top bar's day in the arc ("Day 3 of 21", a phone "/21";
+   renderArc) and the next town event; the cost chip (renderCost, Api.onSpend)
+   that opens Settings at Spending; Spending's lines, projection and the
+   "Pause and ask at $X" ceiling (spendNotice once, spendGate before the
+   next paid turn). */
 const UI = (() => {
   const d = {};
   const TABS = [['character', 'Character'], ['people', 'People'], ['journal', 'Journal'], ['objectives', 'Objectives'], ['places', 'Places']];
@@ -32121,7 +32247,9 @@ const UI = (() => {
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn', 'title-build', 'set-build',
-    'skip-link', 'turn-status-live'];
+    'skip-link', 'turn-status-live',
+    // Wave 43: the next town event and the cost chip in the top bar; Settings, Spending.
+    'tb-next', 'tb-cost', 'set-spending', 'spend-line', 'spend-pace', 'ceiling-custom', 'set-ceiling-amount'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -32141,6 +32269,9 @@ const UI = (() => {
     // Game top bar and menu
     d.tbSave.addEventListener('click', () => showScreen('saves'));
     d.tbSettings.addEventListener('click', () => showScreen('settings'));
+    // Wave 43: the cost chip opens Settings at Spending, and follows every paid call.
+    d.tbCost.addEventListener('click', openSpending);
+    Api.onSpend(() => renderCost());
     d.tbPanel.addEventListener('click', () => setCollapsed(!d.gameBody.classList.contains('panel-collapsed')));
     d.tbMenu.addEventListener('click', e => { e.stopPropagation(); toggleMenu(); });
     $$('[data-menu]', d.menuPop).forEach(b => b.addEventListener('click', e => {
@@ -32720,7 +32851,7 @@ const UI = (() => {
     const l = State.loc(s.player.locationId);
     const wd = weekdayOf(s.time.day);
     d.tbWd.textContent = wd ? `${wd.slice(0, 3)} · ` : '';
-    d.tbTime.textContent = `Day ${s.time.day} · ${capFirst(s.time.phase)}`;
+    renderArc(s);
     d.tbLoc.textContent = l ? l.name : '';
     d.tbHp.textContent = `${s.player.hp}/${s.player.maxHp}`;
     const cash = currency();
@@ -32729,7 +32860,135 @@ const UI = (() => {
     renderPanel();
     renderComposer();
     renderDemoBar();
+    renderCost();
     markUndo();
+  }
+  /* Wave 43: the day in the town's arc. #tb-time keeps the clock as the
+     dividers say it ("Day 3 · Morning"); the day's span draws " of 21"
+     after it (a phone: "/21") from the town's ending day, and once the
+     ending is told ", after the ending" (a phone: nothing). Beside it on a
+     laptop, the next town event still to come ("council meeting Tue,
+     Day 6"), from the town's events (State.arc), never a list of its own. */
+  function renderArc(s) {
+    const a = State.arc();
+    const day = el('span', { class: 'tb-day', id: 'tb-day' }, `Day ${s.time.day}`);
+    day.dataset.of = a.ended ? ', after the ending' : a.endDay ? ` of ${a.endDay}` : '';
+    day.dataset.short = !a.ended && a.endDay ? `/${a.endDay}` : '';
+    d.tbTime.replaceChildren(day, ` · ${capFirst(s.time.phase)}`);
+    const n = a.ended ? null : a.next;
+    d.tbNext.hidden = !n;
+    d.tbNext.textContent = n ? nextEventLine(n, s.time.day) : '';
+  }
+  /* "council meeting Tue, Day 6", "council meeting this evening". */
+  function nextEventLine(n, today) {
+    const title = /^the\s+/i.test(n.title) ? lowerFirst(n.title.replace(/^the\s+/i, '')) : n.title;
+    if (n.day === today) return `${title} ${n.phase === 'night' ? 'tonight' : `this ${n.phase}`}`;
+    const wd = weekdayOf(n.day);
+    return `${title} ${wd ? `${wd.slice(0, 3)}, ` : ''}Day ${n.day}`;
+  }
+  /* Wave 43: the cost chip: this game's total ("$1.23"), after every paid
+     call (Api.onSpend) and every change; hidden in the offline demo, before
+     the game's first paid call and off the game screen. */
+  function renderCost() {
+    if (!d.tbCost) return;
+    const c = State.current ? State.cost() : null;
+    const on = screen === 'game' && !!c && !State.muted && !Storage.settings().mockMode && c.calls > 0;
+    d.tbCost.hidden = !on;
+    d.tbCost.parentNode.classList.toggle('has-cost', on);
+    if (!on) return;
+    const t = dollars(c.usd);
+    d.tbCost.textContent = t;
+    d.tbCost.setAttribute('aria-label', `This game has cost ${t}. Spending, in Settings`);
+    d.tbCost.title = `This game has cost ${t} over ${c.turns} ${c.turns === 1 ? 'turn' : 'turns'}`;
+  }
+  function dollars(n) { return `$${(Number.isFinite(n) ? n : 0).toFixed(2)}`; }
+  /* Settings, opened at Spending (the chip). */
+  function openSpending() {
+    showScreen('settings');
+    if (!d.setSpending) return;
+    try { d.setSpending.scrollIntoView({ block: 'start' }); } catch (e) { /* an old browser */ }
+    d.setSpending.focus({ preventScroll: true });
+  }
+  /* Wave 43: what the rest of the arc may cost at this pace. o: { usd,
+     turns, day, phase, endDay, ended }. The pace is the game's turns a day
+     so far, or PACE_DAY turns a day until half a day has gone by. Returns
+     null with no paid turn; more is null after the ending or without an
+     end day. */
+  const PACE_DAY = 20;
+  function spendProjection(o) {
+    const turns = o && Number.isFinite(o.turns) ? o.turns : 0;
+    if (turns <= 0) return null;
+    const perTurn = (Number(o.usd) || 0) / turns;
+    if (!Number.isInteger(o.endDay) || o.ended) return { perTurn, perDay: null, left: null, assumed: false, more: null };
+    const elapsed = Math.max(0, (o.day - 1) + Math.max(0, PHASES.indexOf(o.phase)) / 4);
+    const left = Math.max(0, o.endDay - 1 - elapsed);
+    const assumed = elapsed < 0.5;
+    const perDay = assumed ? PACE_DAY : turns / elapsed;
+    return { perTurn, perDay, left, assumed, more: perTurn * perDay * left };
+  }
+  /* "This game: $1.23 over 31 turns · this session: $0.40". */
+  function spendLine() {
+    const u = Api.usage && Api.usage.session;
+    const sess = dollars(u ? u.cost : 0);
+    if (!gameLoaded()) return `No game open · this session: ${sess}`;
+    const c = State.cost();
+    return `This game: ${dollars(c.usd)} over ${c.turns} ${c.turns === 1 ? 'turn' : 'turns'} · this session: ${sess}`;
+  }
+  /* "About $0.04 a turn; roughly $9 more to Day 21 at this pace." */
+  function paceLine() {
+    if (!gameLoaded()) return '';
+    if (Storage.settings().mockMode) return 'The offline demo costs nothing.';
+    const c = State.cost();
+    const a = State.arc();
+    const t = State.current.time;
+    const p = spendProjection({ usd: c.usd, turns: c.turns, day: t.day, phase: t.phase, endDay: a.endDay, ended: a.ended });
+    if (!p) return 'Nothing spent on this game yet.';
+    const each = `About ${p.perTurn < 0.01 ? `$${p.perTurn.toFixed(3)}` : dollars(p.perTurn)} a turn`;
+    if (p.more === null) return a.ended ? `${each}. The ending has been told; the town goes on.` : `${each}.`;
+    if (p.left <= 0) return `${each}.`;
+    const more = p.more >= 2 ? `$${Math.round(p.more)}` : dollars(p.more);
+    return `${each}; roughly ${more} more to Day ${a.endDay} at ${p.assumed ? `about ${PACE_DAY} turns a day` : 'this pace'}.`;
+  }
+  function renderSpending() {
+    if (!d.spendLine) return;
+    d.spendLine.textContent = spendLine();
+    d.spendPace.textContent = paceLine();
+    const lim = Storage.settings().spendCeiling;
+    const preset = lim === null ? 'off' : [5, 10, 20].includes(lim) ? String(lim) : 'custom';
+    $$('input[name="set-ceiling"]').forEach(r => { r.checked = r.value === preset; });
+    d.ceilingCustom.hidden = preset !== 'custom';
+    if (preset === 'custom') d.setCeilingAmount.value = String(lim);
+  }
+  /* Wave 43: the spending ceiling. Once this game's cost reaches it, a
+     notice in the story, once (meta.cost.noticed), and a question before
+     the next paid turn (spendGate), until Keep going (meta.cost.asked).
+     Raising or lowering the ceiling asks again at the new amount. */
+  function ceilingNow() {
+    const lim = Storage.settings().spendCeiling;
+    if (!lim || Storage.settings().mockMode || !gameLoaded()) return null;
+    const c = State.cost();
+    return c.usd >= lim ? { lim, c } : null;
+  }
+  function spendNotice() {
+    const x = ceilingNow();
+    if (!x || x.c.noticed === x.lim) return false;
+    feed.notice(`This game has now cost ${dollars(x.c.usd)}, past the ${dollars(x.lim)} you set in Settings. The next turn asks first.`);
+    State.spend({ noticed: x.lim });
+    return true;
+  }
+  /* The lines that call the API (a free command, /undo or /help, never asks). */
+  const PAID_COMMAND = /^\/(look|zoom|skip|pass|rest|wait|fact|reroll)\b/i;
+  /* null when nothing needs asking (the line goes at once, as before);
+     else a promise of true (Keep going) or false (Stop). */
+  function spendGate(text) {
+    if (typeof text === 'string' && /^\//.test(text.trim()) && !PAID_COMMAND.test(text.trim())) return null;
+    const x = ceilingNow();
+    if (!x || x.c.asked === x.lim) return null;
+    spendNotice();
+    return ask({ title: `You set a pause at ${dollars(x.lim)}`, text: `You have spent ${dollars(x.c.usd)} on this game. Keep going?`, yes: 'Keep going', no: 'Stop' }).then(yes => {
+      if (yes && State.current) State.spend({ asked: x.lim });
+      return yes;
+    });
   }
   /* The slim bar while the offline demo is on (closed for the page load with ×). */
   function renderDemoBar() {
@@ -36177,6 +36436,7 @@ const UI = (() => {
       if (!status.fromPipeline && status.stage === 'idle') setStage('busy');
     } else if (!busy && was) {
       if (Api.usage && Api.usage.turn && Api.usage.turn.calls > 0) sessionTurns += 1;
+      spendNotice(); // Wave 43: the turn that crossed the spending ceiling says so, once
       if (streaming) liveOn();
       if (!status.fromPipeline) setStage('idle');
       else Promise.resolve().then(() => { if (!busy && !Pipeline.busy && Pipeline.acceptsQueue !== true && status.stage !== 'idle') setStage('idle'); });
@@ -36371,6 +36631,8 @@ const UI = (() => {
     if (!text.trim()) {
       if (fromButton !== true || turnRunning()) return;
       if (!canAct({ say: true })) return;
+      const pause = spendGate(''); // Wave 43: Stop at the spending pause runs nothing
+      if (pause && !(await pause)) return;
       hideAc();
       lastSent = { pass: true };
       try { await Pipeline.pass(); } catch (e) { console.error(e); }
@@ -36384,6 +36646,12 @@ const UI = (() => {
     // A third line while one waits: it stays in the box (the Pipeline keeps one), and the status line says so.
     if (lineWaiting()) { nudge(QUEUE_FULL); return; }
     if (!canAct({ say: true, queue: true })) return;
+    // Wave 43: at the spending pause the player is asked first; Stop keeps the words in the box.
+    const pause = spendGate(text);
+    if (pause) {
+      if (!(await pause)) { syncSendLabel(); return; }
+      if (d.cmd.value !== text || turnRunning()) return; // changed meanwhile: the player sends it again
+    }
     hideAc();
     d.cmd.value = '';
     autosize();
@@ -36596,6 +36864,7 @@ const UI = (() => {
     d.setRereadBehind.hidden = !(loaded && Upgrade.behind(State.current));
     d.sessionLine.textContent = sessionLine();
     document.getElementById('set-forget-status').textContent = ''; // Wave 44
+    renderSpending();
     keyStatus('', null);
     if (renderPreset() === 'custom') d.setAdvanced.open = true;
   }
@@ -36625,6 +36894,24 @@ const UI = (() => {
     if (t.name === 'set-theme') { Storage.saveSettings({ theme: t.value }); applyDisplay(); return; }
     if (t.name === 'set-size') { Storage.saveSettings({ textSize: t.value }); applyDisplay(); return; }
     if (t.name === 'set-style') { Storage.saveSettings({ narrationStyle: t.value }); return; }
+    // Wave 43: the spending ceiling (a custom amount is kept once one is typed).
+    if (t.name === 'set-ceiling') {
+      if (t.value === 'custom') {
+        d.ceilingCustom.hidden = false;
+        const v = parseFloat(d.setCeilingAmount.value);
+        if (Number.isFinite(v) && v >= 0.01) Storage.saveSettings({ spendCeiling: v });
+        return;
+      }
+      Storage.saveSettings({ spendCeiling: t.value === 'off' ? null : Number(t.value) });
+      renderSpending();
+      return;
+    }
+    if (t === d.setCeilingAmount) {
+      const v = parseFloat(t.value);
+      Storage.saveSettings({ spendCeiling: Number.isFinite(v) && v >= 0.01 ? v : null });
+      if (!(Number.isFinite(v) && v >= 0.01)) renderSpending();
+      return;
+    }
     if (t.name === 'set-preset') { Storage.applyPreset(t.value); fillModels(); renderPreset(); return; }
     const before = Storage.settings();
     const effort = {};
@@ -37261,6 +37548,8 @@ const UI = (() => {
     setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout, setMapExpanded, showPerson,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
     openActions, closeActions, showTip, takeNotes, otherTab, continueLine, renderTitle, markUndo, sessionLine, restoreAction,
+    // Wave 43: the cost chip, Settings at Spending, the game's cost lines and the projection, the spending pause.
+    renderCost, openSpending, spendLine, paceLine, spendProjection, spendNotice, spendGate, PACE_DAY,
     MOCK_OFF, READ_ONLY_NOTICE, pendingNotes, showRecap, canAct, runAction, travel: confirmTravel, cancelQueued,
     placeTypeLabel, placeLabel, placeUndo, expandedSize, effectText, compactComposer, runOn,
     // Wave 30: where someone stands, in words (the People card's chip and its standing block).

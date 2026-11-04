@@ -10,6 +10,10 @@ const assert = require('assert/strict');
 const { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('upgrade');
+/* Changed by design in wave 43: a failed or refused call changes nothing in
+   the game, but what it cost stays in meta.cost (the money was spent), so
+   "nothing changed" compares the game without it. */
+const gameJson = page => page.evaluate(() => { const st = JSON.parse(JSON.stringify(Game.state)); delete st.meta.cost; return JSON.stringify(st); });
 /* A feed divider without the weekday ("Day 2 · Friday · Evening" reads "Day 2 · Evening"), so these hold with or without the engine's calendar. */
 const noWeekday = t => String(t).replace(/ · (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?= · )/, '');
 const AUTOSAVE = 'novatria.autosave';
@@ -812,10 +816,10 @@ s.test('version 4 against the real provider: one structured-output call on the p
   await page.evaluate(() => { Game.Storage.saveSettings({ mockMode: false }); Game.Storage.setApiKey('sk-ant-test-0123456789', false); });
   // A refusal first: nothing changes.
   refuse = true;
-  const s0 = await stateJson(page);
+  const s0 = await gameJson(page);
   const r0 = await page.evaluate(() => Game.App.updateGame());
   assert.deepEqual([r0.ok, r0.reason], [false, 'refused']);
-  assert.equal(await stateJson(page), s0);
+  assert.equal(await gameJson(page), s0);
   refuse = false;
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true, JSON.stringify(res));

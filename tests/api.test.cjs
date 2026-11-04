@@ -10,6 +10,10 @@ const { suite, quickStart, stateJson, sendText, fixtures, LAPTOP } = require('./
 const s = suite('api');
 const API = 'https://api.anthropic.com/v1/messages';
 const KEY = 'sk-ant-test-0123456789';
+/* Changed by design in wave 43: a failed turn changes nothing in the game,
+   but what its calls cost stays in meta.cost (the money was spent), so
+   "nothing changed" compares the game without it. */
+const gameJson = page => page.evaluate(() => { const st = JSON.parse(JSON.stringify(Game.state)); delete st.meta.cost; return JSON.stringify(st); });
 
 function roleOf(body) {
   if (body.stream) return 'narrator';
@@ -258,14 +262,14 @@ s.test('a 429 is retried once after about 1.5 s and then succeeds; 500 retries o
   assert.deepEqual(logged[0], [429, 'req_parser_1', 'rate_limit_error']);
   // Two server errors in a row: one retry, then a clear message and the input kept.
   for (const [status, type, text, tries] of [[500, 'api_error', /internal error/, 2], [529, 'overloaded_error', /overloaded/, 3]]) {
-    const before = await stateJson(page);
+    const before = await gameJson(page);
     const n = reqs.length;
     queue('narrator', ...Array.from({ length: tries }, () => errorReply(status, type)));
     await sendText(page, 'I ask about the boats');
     assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser'].concat(Array(tries).fill('narrator')), `${status}: tried ${tries} times`);
     assert.equal(await page.inputValue('#cmd'), 'I ask about the boats');
     assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), text);
-    assert.equal(await stateJson(page), before);
+    assert.equal(await gameJson(page), before);
     await page.fill('#cmd', '');
   }
   // A network failure is retried once too.
@@ -303,13 +307,13 @@ s.test('401, 403, 404 and 400 are never retried; 401 points to the key, 400 show
 
 s.test('a refusal shows the notice and restores the input (narrator stream and the parser); a bookkeeper refusal keeps the narration and says so', async h => {
   const { page, queue } = await openReal(h);
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('narrator', narrReply(['The ferryman '], { stop: 'refusal', details: { type: 'refusal', category: 'violence', explanation: 'no' } }));
   await sendText(page, 'I do something the narrator will not write');
   assert.equal(await page.inputValue('#cmd'), 'I do something the narrator will not write');
   const notice = await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent);
   assert.equal(notice, 'The narrator declined that one. Try it another way.');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.ok(!(await page.innerText('#feed')).includes('The ferryman'), 'partial text taken back out');
   await page.fill('#cmd', '');
   // The parser: its own words, the input kept, nothing changed.
@@ -317,7 +321,7 @@ s.test('a refusal shows the notice and restores the input (narrator stream and t
   await sendText(page, 'I try another way');
   assert.equal(await page.inputValue('#cmd'), 'I try another way', 'parser');
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice')].pop().textContent), 'The parser declined that one. Try it another way.');
-  assert.equal(await stateJson(page), before, 'parser');
+  assert.equal(await gameJson(page), before, 'parser');
   await page.fill('#cmd', '');
   // The bookkeeper (changed by design, REVIEW R6): the paid narration stands, logged as not recorded, with a quiet line.
   queue('bookkeeper', () => message('', { stop: 'refusal', details: { type: 'refusal', category: 'cyber', explanation: 'no' } }));
@@ -446,13 +450,13 @@ s.test('Api.chronicle summarises log entries with the parser model in plain text
 // Changed by design in wave 41: an overloaded stream gets two retries (three tries in all).
 s.test('an error event inside the stream is surfaced and the input kept (after the two retries an overloaded stream gets)', async h => {
   const { page, queue } = await openReal(h);
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   const over = () => narrReply(['The quay '], { error: { type: 'overloaded_error', message: 'Overloaded' } });
   queue('narrator', over(), over(), over());
   await sendText(page, 'I ask the ferryman about the tide');
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the tide');
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /overloaded right now/);
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.ok(await page.evaluate(() => Game.Api.responses.some(r => r.error && r.error.message === 'Overloaded')));
 });
 
@@ -473,13 +477,13 @@ s.test('a reply the game cannot read is asked for once more: a narrator body tha
   assert.equal(await page.evaluate(() => Game.state.journal.slice(-1)[0].text), 'Asked about the fare.');
   // Twice in a row: the notice, the input kept, the state as before, no third try.
   n = reqs.length;
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('parser', () => message('not json'), () => message('still not json'));
   await sendText(page, 'I ask the ferryman about the weather');
   assert.deepEqual(reqs.slice(n).map(r => r.role), ['parser', 'parser']);
   assert.match(await page.evaluate(() => [...document.querySelectorAll('#feed .f-notice.error')].pop().textContent), /could not read\. Try again\. Your action was kept in the box\./);
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the weather');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
 });
 
 s.test('the cast is fixed with the API: a person the parser sends as new: is someone in the cast or nobody, with no extra call; the parser hears everyone else in town; the narrator gets the town and the cast as cached system blocks, with ages, the dead and the far away; the model cannot add a person', async h => {

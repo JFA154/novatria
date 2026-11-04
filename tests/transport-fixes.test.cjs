@@ -9,9 +9,13 @@
    browser; nothing leaves the machine. Ids and names come from the game.
    Run with: node tests/run.cjs transport */
 const assert = require('assert/strict');
-const { suite, quickStart, stateJson, sendText, fixtures, findScene, place, LAPTOP } = require('./helpers.cjs');
+const { suite, quickStart, sendText, fixtures, findScene, place, LAPTOP } = require('./helpers.cjs');
 
 const s = suite('transport-fixes');
+/* Changed by design in wave 43: a failed or refused call changes nothing in
+   the game, but what it cost stays in meta.cost (the money was spent), so
+   "nothing changed" compares the game without it. */
+const gameJson = page => page.evaluate(() => { const st = JSON.parse(JSON.stringify(Game.state)); delete st.meta.cost; return JSON.stringify(st); });
 const API = 'https://api.anthropic.com/v1/messages';
 const MODELS = 'https://api.anthropic.com/v1/models';
 const KEY = 'sk-ant-test-0123456789';
@@ -102,7 +106,7 @@ const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; Game.Api.Moc
 s.test('a narrator stream that never answers ends the turn after the idle timeout (one retry): the input comes back, nothing changed, and Debug says it timed out with no data', async h => {
   const { page, reqs, queue } = await openReal(h);
   await page.evaluate(() => { Game.Api.TIMEOUTS.stream = 1000; });
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('narrator', HANG, HANG);
   const t0 = Date.now();
   await page.fill('#cmd', 'I ask the ferryman about the tide');
@@ -113,7 +117,7 @@ s.test('a narrator stream that never answers ends the turn after the idle timeou
   assert.deepEqual(reqs.map(r => r.role), ['parser', 'narrator', 'narrator'], 'tried once more, then gave up');
   assert.equal(await page.inputValue('#cmd'), 'I ask the ferryman about the tide');
   assert.match(await lastNotice(page), /stopped answering/);
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.equal(await page.evaluate(() => document.querySelectorAll('#feed .f-narr.pending').length), 0, 'no pending narration left');
   const dbg = await page.evaluate(() => Game.State.debugLog.filter(d => d.kind === 'api').map(d => d.reason));
   assert.ok(dbg.some(r => r === 'timeout: timed out after 1 s with no data'), dbg.join(' | '));
@@ -124,7 +128,7 @@ s.test('a narrator stream that never answers ends the turn after the idle timeou
   await page.press('#cmd', 'Enter');
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 15000 });
   assert.equal(await page.inputValue('#cmd'), 'I ask about the boats');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.ok((await page.evaluate(() => Game.State.debugLog.filter(d => d.kind === 'api').map(d => d.reason))).includes('timeout: timed out after 1 s'));
 });
 
@@ -136,10 +140,10 @@ s.test('a stream that ends before message_stop is asked for once more; twice in 
   const log = await lastLog(page);
   assert.equal(log.narration, NARRATION.join(''), 'the second, whole reply');
   assert.ok(!(await page.innerText('#feed')).includes('boats are all'), 'the broken draft left the feed');
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('narrator', narrReply(['He shrugs'], { noStop: true }), narrReply(['He shrugs again'], { noStop: true }));
   await sendText(page, 'I ask about the boats');
-  assert.equal(await stateJson(page), before, 'a truncated narration is never saved');
+  assert.equal(await gameJson(page), before, 'a truncated narration is never saved');
   assert.match(await lastNotice(page), /connection dropped before the reply finished/);
   assert.equal(await page.inputValue('#cmd'), 'I ask about the boats');
 });
@@ -150,10 +154,10 @@ s.test('a narration cut off by max_tokens is asked for again with twice the limi
   await sendText(page, 'I ask the ferryman about the tide');
   assert.deepEqual(reqs.filter(r => r.role === 'narrator').map(r => r.body.max_tokens), [3000, 6000]);
   assert.equal((await lastLog(page)).narration, NARRATION.join(''));
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('narrator', narrReply(['He shrugs'], { stop: 'max_tokens' }), narrReply(['He shrugs and'], { stop: 'max_tokens' }));
   await sendText(page, 'I ask about the boats');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.match(await lastNotice(page), /cut off before it finished/);
   await page.fill('#cmd', '');
   // Effort: low 2000, high 6000.
@@ -168,9 +172,9 @@ s.test('a narration cut off by max_tokens is asked for again with twice the limi
   assert.deepEqual(reqs.filter(r => r.role === 'chronicle').map(r => r.body.max_tokens), [2000, 4000]);
   // Mock mode: a reply that says it was cut off fails the turn.
   await page.evaluate(() => { Game.Storage.saveSettings({ mockMode: true }); Game.Api.Mock.delay = 0; Game.Api.Mock.queue('narrate', { text: 'He shrugs and says', stopReason: 'max_tokens' }); });
-  const b2 = await stateJson(page);
+  const b2 = await gameJson(page);
   await sendText(page, 'I wave');
-  assert.equal(await stateJson(page), b2);
+  assert.equal(await gameJson(page), b2);
 });
 
 // Changed by design in wave 41: retry-after is capped at 60 s (it was 10 s).
@@ -346,7 +350,7 @@ s.test('the status listener hears each stage; Stop ends the turn cleanly with th
   await sendText(page, 'I ask the ferryman about the tide');
   assert.deepEqual(await page.evaluate(() => window.__stages), ['parse', 'narrate', 'rewrite', 'bookkeep', 'idle']);
   // Stop while the narrator hangs.
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   queue('narrator', HANG);
   await page.fill('#cmd', 'I ask about the boats');
   await page.press('#cmd', 'Enter');
@@ -356,7 +360,7 @@ s.test('the status listener hears each stage; Stop ends the turn cleanly with th
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 3000 });
   assert.equal(await lastNotice(page), 'Stopped. Your action was kept in the box.');
   assert.equal(await page.inputValue('#cmd'), 'I ask about the boats');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.equal(await page.evaluate(() => Game.Pipeline.abort()), false, 'nothing to stop');
   await page.fill('#cmd', '');
   // The queue: the bookkeeper takes a while; a line sent meanwhile waits, a second one is refused.
@@ -377,7 +381,7 @@ s.test('Stop in mock mode: a slow mock narration is cut off at once, and /undo, 
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   await fast(page);
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   await page.evaluate(() => Game.Api.Mock.queue('narrate', { delay: 5000 }));
   await page.fill('#cmd', 'I look around');
   await page.press('#cmd', 'Enter');
@@ -390,7 +394,7 @@ s.test('Stop in mock mode: a slow mock narration is cut off at once, and /undo, 
   await page.evaluate(() => Game.Pipeline.abort());
   await page.waitForFunction(() => !Game.Pipeline.busy, null, { timeout: 2000 });
   assert.ok(Date.now() - t0 < 1500);
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
   assert.equal(await page.inputValue('#cmd'), 'I look around');
 });
 
@@ -523,17 +527,17 @@ s.test('a home not found yet: walking there by name says to ask around and spend
   await quickStart(page);
   await fast(page);
   const home = await page.evaluate(() => { const l = Game.state.locations.find(x => x.discovered === false && !x.away); return { id: l.id, name: l.name }; });
-  const before = await stateJson(page);
+  const before = await gameJson(page);
   await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'move', summary: 'Walks over there', targets: [id], destinationId: id, needsRoll: false, timeCost: 'short' }), home.id);
   await page.fill('#cmd', `I walk to ${home.name}`);
   await page.press('#cmd', 'Enter');
   await page.waitForFunction(() => !Game.Pipeline.busy);
   assert.equal(await lastNotice(page), "You don't know where that is yet. Ask around.");
-  assert.equal(await stateJson(page), before, 'no turn spent');
+  assert.equal(await gameJson(page), before, 'no turn spent');
   // A walk and an action there, to the same place: the same.
   await page.evaluate(id => Game.Api.Mock.queue('parse', { actionType: 'talk', summary: 'Goes there and knocks', targets: [], destinationId: id, needsRoll: false, timeCost: 'short' }), home.id);
   await sendText(page, 'I go knock on their door');
-  assert.equal(await stateJson(page), before);
+  assert.equal(await gameJson(page), before);
 });
 
 s.test('a new morning shows the unseen town news once ("Overnight in town"); an ending in the news is narrated as its own turn (MODE epilogue), then "This is one ending"', async h => {
