@@ -99,7 +99,7 @@ function render(D) {
   const out = [];
   out.push(`# The cast of ${T.name}`);
   out.push('');
-  out.push(`Everyone the story can mention: ${T.npcs.length} people, every one written by hand in \`TOWN_DATA\` in \`index.html\`, with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. ${here.length} live in town, with a home and a place in every phase of the day; ${away.length} live elsewhere and ${dead.length} are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in README.md).`);
+  out.push(`Everyone the story can mention: ${T.npcs.length} people, every one written by hand in \`TOWN_DATA\` in \`index.html\`, with an age, pronouns, a role, a look, a voice, two traits, a goal, a secret, a history and who they are to whom. ${here.length} live in town, with a home and a place in every phase of the day; ${away.length} live elsewhere and ${dead.length} are dead: the story can talk about them, but they never appear. The game never makes a person up: anyone the story or the player mentions is one of these people or does not exist (see "The cast" in docs/MANUAL.md).`);
   out.push('');
   out.push(`The town has ${T.locations.length} places. ${onMap.length} are on the map from the start; ${undiscovered.length} are homes the player finds when someone tells them about one (they then show on the map as "heard of" until visited); ${outOfTown.length} are out of town, talked about and never gone to.`);
   out.push('');

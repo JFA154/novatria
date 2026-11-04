@@ -6,7 +6,7 @@
    queued, played headless in mock mode, printing each involved person's
    six tracks (liking, trust, fear, knows, spark, owed), stance and tags
    every morning. Skipped by run.cjs (no ".test."); an 8-day cut of each
-   band runs in tests/wave30-rel-people.test.cjs as the CI guard, so tuning
+   band runs in tests/wave30-rel-people.test.cjs as the CI guard (the nightly workflow runs all 21 days), so tuning
    (B3) cannot break them silently.
 
    - beer: a round nightly at the Low Water for Royce Pittman and Curtis

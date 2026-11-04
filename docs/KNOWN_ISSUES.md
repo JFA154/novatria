@@ -101,16 +101,6 @@ Findings of the wave 38 simulator (`node tests/relationships-sim.cjs`):
 - **The mock's night check** matches "night" anywhere in the line (wave 39
   note), so a line that only mentions the night can read as asking for one
   in the offline demo.
-- **The Settings hint** under Advanced says "The chronicle sums up every ten
-  turns"; the code waits for 16 turns and keeps the newest 6
-  (`CHRONICLE_AT`, `CHRONICLE_KEEP`). The hint is in `src/20-markup.html`.
-- **CAST.md's header** (written by `tests/cast-doc.cjs`) says 'see "The
-  cast" in README.md'; since wave 51 that section is in docs/MANUAL.md (the
-  README links to it).
-- **Test comments**: `tests/relationships-sim.cjs`'s header calls the
-  eight-day cut "the CI guard" (the nightly workflow runs all 21 days), and
-  `tests/ui-fixes.test.cjs` says "nothing written in CI" though CI sets
-  `UI_SHOTS` since wave 36.
 - **The eval's cost** is about $0.15 a run, above the design's $0.10.
 - **No service worker**, on purpose: without versioned builds it would risk
   serving a stale game. Add to Home Screen works without one.

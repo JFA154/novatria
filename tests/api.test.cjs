@@ -179,7 +179,7 @@ s.test({ toString: () => 'requests carry the four headers and a body the current
   assert.deepEqual(narrator.body.system, [sys.narrator, sys.town, sys.cast].map(text => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })));
   assert.match(sys.town, /^THE TOWN \(background everyone here knows; [^\n]*\nHISTORY: [^\n]+\nRECENT \(oldest first; it is \d{4} now\): /);
   assert.match(sys.cast, /^CAST \(everyone who exists in this town; never invent anyone else\):\n/);
-  // Cached text stays small: about 1.4 tokens a word, under 14,000 for the three blocks (README, "What a turn costs").
+  // Cached text stays small: about 1.4 tokens a word, under 14,000 for the three blocks (docs/MAINTAINING.md, "What a turn costs").
   // The limit is a cost choice, not an API limit. Every narration reads the blocks from the cache at $0.20 per million tokens
   // on Opus 5.5 and on Sonnet 5.5 alike, so 1,000 more cached tokens cost 0.02 cents a narration; the cache is written once an
   // hour at twice the input price, so the same 1,000 tokens add 0.8 cents to each hourly write on Opus 5.5 ($8 per million) and
