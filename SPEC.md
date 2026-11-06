@@ -22,7 +22,7 @@ Non-negotiable rules:
 4. **The narrator never acts for the player.** It never decides what the player character says, thinks, feels or does beyond what the player typed.
 5. **Short turns.** Default narration is 2 to 4 sentences, ending at the first moment that needs the player's input. No option menus.
 6. **No unearned surprises.** Every surprise must trace back to something already in state: a hidden seed, a faction clock, an NPC's goal, or the player's own past actions or backstory.
-7. **Content:** mature themes, violence and romance are fine; intimate scenes fade to black.
+7. **Content:** mature themes, violence and romance are fine; an intimate scene between adults who said yes is written out, sensual and not graphic (no anatomical close-ups), at its own length, and ends on them afterwards.
 8. **Everything persists.** Nothing important lives only in chat history. If it matters later, it is in state.
 
 ## 2. Tech setup

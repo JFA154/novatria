@@ -786,7 +786,7 @@ s.test('the first unwelcome flirt costs a little, the next ones more', async h =
   for (const x of r) { assert.ok(x[1] < 0, 'and trust'); assert.equal(x[2], 'ROMANCE (decided by the engine): Annette Overstreet isn\'t interested: she turns it aside.'); }
 });
 
-s.test('fade to black: with every gate met the narrator is told yes and to fade to black, a scar-class memory is kept, nothing explicit is asked for; one gate short and she says not tonight, kindly; never with anyone under 18 on either side', async h => {
+s.test('the night: with every gate met the narrator is told yes and to write the scene out at its own length, a scar-class memory is kept, nothing explicit is asked for; one gate short and she says not tonight, kindly; never with anyone under 18 on either side', async h => {
   const page = await start(h);
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, R = G.Rel, st = G.state;
@@ -803,7 +803,8 @@ s.test('fade to black: with every gate met the narrator is told yes and to fade 
     const m = S.npc('npc_jodie').memories.filter(x => x.event === 'intimate');
     out.mem = m.map(x => [x.weight, x.decay, x.private === true, x.d.s > 0]);
     out.noFlirt = S.npc('npc_jodie').memories.filter(x => x.event === 'flirted' && x.turn === st.meta.turn).length;
-    out.style = G.Style.systemPrompt('casual').includes('Intimate scenes fade to black');
+    out.style = G.Style.systemPrompt('casual').includes('INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out');
+    out.length = G.Pipeline.lastTurn.packet.split('\n').find(l => l.startsWith('LENGTH:')) || null;
     // One gate short (trust 25): not tonight, kindly, and a welcome flirt.
     S.apply({ relSet: { npcId: 'npc_shayla', s: 55, m: 45, w: 45, t: 25, k: 35 } });
     out.short = R.intimateGate(S.npc('npc_shayla')).short;
@@ -820,10 +821,11 @@ s.test('fade to black: with every gate met the narrator is told yes and to fade 
     return out;
   });
   assert.equal(r.gate.ok, true);
-  assert.deepEqual(r.yes, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; fade to black, nothing explicit; pick up afterwards.']);
+  assert.deepEqual(r.yes, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out, never skip to afterwards: the moment it tips, the kissing, hands, clothes, how they move and what they murmur, the room and the light, and Jodie\'s own way of being with the player, beat by beat. Sensual, not graphic: no anatomical close-ups. End on them afterwards.']);
   assert.deepEqual(r.mem, [[3, 'scar', true, true]], 'a weight-3 scar, private, with its spark');
   assert.equal(r.noFlirt, 0, 'the night, not a flirt besides');
   assert.equal(r.style, true, 'the cached block carries the rule');
+  assert.ok(/^LENGTH: up to 12 sentences, under 230 words\./.test(r.length), 'the intimate length: ' + r.length);
   assert.deepEqual(r.short, ['trust 25 under 30']);
   assert.deepEqual(r.no, ['ROMANCE (decided by the engine): Shayla Rawls: not tonight; she says so kindly.']);
   assert.deepEqual(r.noMem, ['flirted'], 'it counts as a welcome flirt, no harm');

@@ -23,7 +23,7 @@ const { suite, quickStart } = require('./helpers.cjs');
 const s = suite('relationships');
 const ROOT = path.resolve(__dirname, '..');
 // The cues a minor must never carry in any packet (Appendix D step 9, with N11's additions), outside the minor instruction itself.
-// "says yes" is the intimacy answer's form ("<Name> says yes; fade to black"), so Micah's "says yes ma'am" is no cue.
+// "says yes" is the intimacy answer's form ("<Name> says yes; write the scene out"), so Micah's "says yes ma'am" is no cue.
 const CUE_RE = /open to a flirt|open to it|sweet on you|using you|wants you|has noticed you|falling for you|seeing you|old flame|interested|flirts back|lights up when|stands close|for one reason|looks twice|says yes[;:]|fade to black|not tonight/i;
 
 /* In the page: every packet the mock sees (parser, narrator, bookkeeper),

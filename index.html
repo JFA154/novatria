@@ -16262,7 +16262,7 @@ const Rel = (() => {
      adult takes it lightly, nothing recorded. An ask for the night (the
      parse's "more", INTIMATE_ASK in a flirt's words, or a walk to a home
      or a motel room) at a named adult checks every gate (intimateGate):
-     yes ("says yes; fade to black") is the engine's intimate, with no
+     yes ("says yes; write the scene out") is the engine's intimate, with no
      roll; short of a gate it rolls as a flirt, and a welcome one is "not
      tonight; she says so kindly". A player under 18 (or of no age) is
      answered no every time, nothing rolled and no flirt recorded. Returns
@@ -16321,7 +16321,7 @@ const Rel = (() => {
       if (!named(id)) { say(n, flirtWords(n, 'aside')); continue; }
       if (more) {
         const gate = intimateGate(n, ctx);
-        if (gate.ok) { say(n, ' says yes; fade to black, nothing explicit; pick up afterwards.'); out.welcome.push(id); out.intimate.push(id); continue; }
+        if (gate.ok) { say(n, ` says yes; write the scene out, never skip to afterwards: the moment it tips, the kissing, hands, clothes, how they move and what they murmur, the room and the light, and ${n.name.split(' ')[0]}'s own way of being with the player, beat by beat. Sensual, not graphic: no anatomical close-ups. End on them afterwards.`); out.welcome.push(id); out.intimate.push(id); continue; }
       }
       const wel = welcomeOf(n, ctx);
       // Short of their opensAt: no roll, turned aside kindly (the first time free).
@@ -20500,7 +20500,7 @@ const Style = (() => {
     const line = STYLE_GUIDE_LITERARY.split('\n').find(l => l.startsWith('BANNED PHRASES:')) || '';
     return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
   })();
-  const WORD_LIMITS = { normal: 90, zoom: 150 };
+  const WORD_LIMITS = { normal: 90, zoom: 150, intimate: 230 };
   /* A problem is hard (worth a second paid narration) or soft (logged only):
      hard is a narration more than HARD_OVER words over its limit, a past
      invented on day 1, "What do you do" outside dialogue, or a name nobody in
@@ -20527,12 +20527,17 @@ const Style = (() => {
      style and per model, so switching the style starts the cache cold once. */
   /* Wave 28 (SPEC rule 7; the integration plan's 19.2): one rule both
      styles carry, in the cached block between the guide and the WHAT
-     PEOPLE KNOW rules (13 words, about 18 tokens by the api test's
-     estimate). Whether a scene is intimate at all is the engine's (wave 29). */
-  const FADE_TO_BLACK = 'Intimate scenes fade to black before anything explicit: the next line is afterwards.';
+     PEOPLE KNOW rules. Whether a scene is intimate at all is the engine's
+     (wave 29). Wave 36 (the owner: "it is very underwhelming, tried so hard
+     to seduce her and the scene isn't even described"): the yes is no
+     longer a fade to black. The scene is written out, sensual and not
+     graphic, at its own length (WORD_LIMITS.intimate), and ends on them
+     afterwards; the turn's ROMANCE line carries the detail (Rel.romanceTurn),
+     so the cached block stays inside its estimate. */
+  const INTIMATE_SCENES = 'INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out, never skip it; sensual, not graphic; end on them afterwards.';
   /* Wave 30 (the integration plan's 10.3 and 19.7, the trimmed note): how
      to read a person's "to you" line, the flirt rule and the hidden reason,
-     after the fade-to-black rule (about 87 tokens by the api test's
+     before the intimate-scenes rule (about 87 tokens by the api test's
      estimate; the LEVERAGE and BETWEEN THEM lines explain themselves per
      turn). */
   const PEOPLE_NOTE = 'Each person\'s "to you" is where they stand with the player and why; "plays it" is how they carry it now: play it, never say it. Nobody flirts back unless their line says "open to a flirt" or a turn line says so, and nobody under 18 ever flirts or is flirted with. A reason "of their own" is never hinted at.';
@@ -20540,7 +20545,7 @@ const Style = (() => {
     const k = pick(style === undefined ? current() : style);
     if (prompts[k] === undefined) {
       const ex = STYLES[k].examples.map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
-      prompts[k] = `${STYLES[k].guide}\n\n${PEOPLE_NOTE}\n\n${FADE_TO_BLACK}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
+      prompts[k] = `${STYLES[k].guide}\n\n${PEOPLE_NOTE}\n\n${INTIMATE_SCENES}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}`;
     }
     return prompts[k];
   }
@@ -21061,7 +21066,7 @@ const Style = (() => {
     const problems = [];
     for (const b of BANNED) if (lowerOut.includes(b)) problems.push({ type: 'banned', detail: b, hard: false });
     const words = wordCount(t);
-    const limit = zoom ? WORD_LIMITS.zoom : WORD_LIMITS.normal;
+    const limit = o.intimate ? WORD_LIMITS.intimate : zoom ? WORD_LIMITS.zoom : WORD_LIMITS.normal;
     if (words > limit) problems.push({ type: 'length', detail: `${words} words, limit ${limit}`, words, limit, hard: words > limit + HARD_OVER });
     if (/what do you do/i.test(outside)) problems.push({ type: 'question', detail: 'contains "What do you do"', hard: true });
     if (/^\s*["“]?as you\b/i.test(t)) problems.push({ type: 'opening', detail: 'starts with "As you"', hard: false });
@@ -21106,7 +21111,7 @@ const Style = (() => {
     const has = t => main.some(p => p.type === t);
     const plain = (has('money') ? " Nobody can see the player's money: people know only what the player hands over, shows or says, so no one names the total the player has or has left." : '') + (has('past') ? ' It is day 1: the player came to town today, nobody here knew them or heard of them before, and nothing about them happened last night or earlier. People know only what they have seen since the player arrived and what their remembers list says.' : '') + (has('simile') ? ' Say it plainly, with no comparisons.' : '') + (has('repeat') ? ' Give that person different words this time: no catchphrase, no story they already told, a plain answer is fine.' : '') + (has('name') ? ` ${NAME_FIX}` : '');
     const fix = long
-      ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
+      ? `Write it again${others ? ' without that,' : ''} in ${lengthRule(long.limit >= WORD_LIMITS.intimate ? 'intimate' : long.limit > WORD_LIMITS.normal)}: keep the action and its outcome, and cut scenery and bystanders first.${plain}`
       : `Write it again without that.${plain}`;
     let note = `STYLE CHECK FAILED on your last attempt: ${what}. ${fix}`;
     if (rest.length) note += ` If you can, also fix: ${rest.map(describe).join('; ')}.`;
@@ -21116,9 +21121,10 @@ const Style = (() => {
   }
   /* The narrator packet's last line (Pipeline.narratorPacket) and the
      rewrite note share these numbers with check(). */
-  function lengthRule(zoom) { return zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
-  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. Stop at the first moment the player must respond.${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, FADE_TO_BLACK, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
+  // zoom: true for ZOOM's length, 'intimate' for an intimate scene's (wave 36).
+  function lengthRule(zoom) { return zoom === 'intimate' ? `up to 12 sentences, under ${WORD_LIMITS.intimate} words` : zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
+  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. ${zoom === 'intimate' ? 'Give the scene its room, then stop on them afterwards.' : 'Stop at the first moment the player must respond.'}${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
+  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, INTIMATE_SCENES, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
     // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
     numberWords, NUMBER_WORD: NUMWORD,
     // Wave 12 (L7): "I bet he is lying" is a way of speaking, not a bet at cards.
@@ -28797,7 +28803,7 @@ const Pipeline = (() => {
     // One line each (an arrival's two paragraphs too), so every packet label starts a line.
     const flat = t => String(t || '').replace(/\s*\n+\s*/g, ' ');
     const last3 = s.log.slice(-3).map(e => `${e.input ? '> ' + (isSay(e) ? `(says to ${sayTo(e)}) "${flat(e.input)}"` : flat(e.input)) + ' ' : ''}${flat(e.narration)}`).join(' | ');
-    const long = roomy(ctx);
+    const long = intimateTurn(ctx) ? 'intimate' : roomy(ctx);
     const full = ctx.mode === 'arrival' || ctx.mode === 'epilogue' || !!ctx.moved || a.actionType === 'look' || a.actionType === 'move';
     const lines = [];
     // The story so far, oldest first.
@@ -28947,6 +28953,8 @@ const Pipeline = (() => {
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
   function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
+  /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
+  function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
   /* The due events the narration told (wave 8, the final pass): all of
      them, but for those the offline demo had no room for (ctx.dueUntold,
      set by the mock), which stay due for the next narration. */
@@ -28956,6 +28964,7 @@ const Pipeline = (() => {
   }
   async function narrate(ctx) {
     const zoom = roomy(ctx);
+    const intimate = intimateTurn(ctx);
     const style = Style.current();
     const text = withTurnLines(narratorPacket(ctx), ctx);
     ctx.packet = text;
@@ -28970,7 +28979,7 @@ const Pipeline = (() => {
       let narration = String((res && res.text) || '').trim();
       if (!narration) throw new Api.ApiError('bad_response', 'The narrator sent back nothing. Try again.');
       const previous = mock ? [] : State.current.log.slice(-3).map(e => e.narration).filter(Boolean);
-      let check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
+      let check = Style.check(narration, { zoom, intimate, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
       ctx.style = [check];
       const problems = Array.isArray(check.problems) ? check.problems : [];
       const hard = problems.filter(isHard);
@@ -28996,7 +29005,7 @@ const Pipeline = (() => {
         UI.feed.rewriting(node, false);
         if (second) {
           narration = second;
-          check = Style.check(narration, { zoom, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
+          check = Style.check(narration, { zoom, intimate, style, previous, day: State.current.time.day, gold: State.current.player.gold, input: ctx.input });
           ctx.style.push(check);
           if (!check.ok) State.debugLog.push({ turn: State.current.meta.turn, kind: 'style', attempt: 2, problems: check.problems, kept: true });
         } else ctx.rewriteFailed = true;
