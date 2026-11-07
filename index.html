@@ -6545,7 +6545,7 @@ if (typeof module !== 'undefined') { module.exports = { TOWN_DATA, TABLES, BACKG
 const GOOD_TURN = 'WHAT A GOOD TURN DOES: something moves. Someone wants something and says it, or gives one concrete thing (a name, a place, a time, a price) or a plain reason they won\'t. Something can be refused, but not everything is. End on what the player has to answer.';
 const STYLE_GUIDE_LITERARY = `You narrate a text RPG. Write like a sharp, economical novelist, not like an AI.
 
-LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first moment the player must respond.
+LENGTH: 2-4 sentences. Up to 6 when the packet says ZOOM; more only when its LENGTH line says so. Stop at the first moment the player must respond.
 
 VOICE: Second person, present tense. Plain words. Concrete detail: what is seen, heard, done. Never tell the player how to feel.
 
@@ -6567,7 +6567,7 @@ ${GOOD_TURN}`;
 
 const STYLE_GUIDE_CASUAL = `You narrate a text RPG. Keep it casual: plain talk, not a novel, and not like an AI.
 
-LENGTH: 2-4 sentences. Up to 6 only when the packet says ZOOM. Stop at the first moment the player must respond.
+LENGTH: 2-4 sentences. Up to 6 when the packet says ZOOM; more only when its LENGTH line says so. Stop at the first moment the player must respond.
 
 VOICE: Talk like a friend running the game at the table: plain, casual, direct. Everyday words, short sentences. Say what happens and what people say. One concrete detail is plenty; skip scenery and weather unless it changes something. No metaphors, no similes, no mood-setting, no fancy verbs. Second person, present tense. Never tell the player how to feel.
 
@@ -20501,6 +20501,9 @@ const Style = (() => {
     return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
   })();
   const WORD_LIMITS = { normal: 90, zoom: 150, intimate: 230 };
+  /* Wave 36: an intimate scene shorter than this, or with one of these, was skipped, not written. */
+  const INTIMATE_MIN = 120;
+  const SKIPPED_SCENE = /\b(?:the rest of the night|the rest is history|one thing leads to another|goes the way you hoped|what follows|you don't need to be told|fade[sd]? to black)\b/i;
   /* A problem is hard (worth a second paid narration) or soft (logged only):
      hard is a narration more than HARD_OVER words over its limit, a past
      invented on day 1, "What do you do" outside dialogue, or a name nobody in
@@ -21068,6 +21071,11 @@ const Style = (() => {
     const words = wordCount(t);
     const limit = o.intimate ? WORD_LIMITS.intimate : zoom ? WORD_LIMITS.zoom : WORD_LIMITS.normal;
     if (words > limit) problems.push({ type: 'length', detail: `${words} words, limit ${limit}`, words, limit, hard: words > limit + HARD_OVER });
+    // Wave 36: an intimate scene summarised instead of written out (too short, or a skip phrase) is hard: the rewrite writes it out.
+    if (o.intimate) {
+      const skip = SKIPPED_SCENE.exec(outside);
+      if (words < INTIMATE_MIN || skip) problems.push({ type: 'skipped', detail: `the intimate scene was ${skip ? `skipped ("${skip[0]}")` : `summarised in ${words} words`} instead of written out: write the scene itself, beat by beat, from the moment it tips to afterwards, at least ${INTIMATE_MIN} words, sensual and not graphic`, words, hard: true });
+    }
     if (/what do you do/i.test(outside)) problems.push({ type: 'question', detail: 'contains "What do you do"', hard: true });
     if (/^\s*["“]?as you\b/i.test(t)) problems.push({ type: 'opening', detail: 'starts with "As you"', hard: false });
     if (style === 'casual') {
@@ -21124,7 +21132,7 @@ const Style = (() => {
   // zoom: true for ZOOM's length, 'intimate' for an intimate scene's (wave 36).
   function lengthRule(zoom) { return zoom === 'intimate' ? `up to 12 sentences, under ${WORD_LIMITS.intimate} words` : zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
   function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. ${zoom === 'intimate' ? 'Give the scene its room, then stop on them afterwards.' : 'Stop at the first moment the player must respond.'}${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
-  return { BANNED, WORD_LIMITS, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, INTIMATE_SCENES, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
+  return { BANNED, WORD_LIMITS, INTIMATE_MIN, SKIPPED_SCENE, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, INTIMATE_SCENES, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
     // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
     numberWords, NUMBER_WORD: NUMWORD,
     // Wave 12 (L7): "I bet he is lying" is a way of speaking, not a bet at cards.
@@ -28913,7 +28921,8 @@ const Pipeline = (() => {
     // The rules, last: the mode, then the length the style check enforces.
     lines.push(ctx.mode === 'epilogue'
       ? 'MODE: epilogue (ZOOM length). This is an ending: close the threads named in DUE EVENT; the player may keep playing afterwards.'
-      : `MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
+      : long === 'intimate' ? `MODE: ${INTIMATE_MODE}`
+        : `MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
     lines.push(Style.lengthLine(long));
     const text = lines.join('\n');
     // The style check that follows may use any name this packet gives (what the player typed, a due event, the news).
@@ -28953,6 +28962,13 @@ const Pipeline = (() => {
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
   function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
+  /* Wave 36, second pass (the owner, again: "Still didn't describe the
+     scene at all"; the narrator wrote "the rest of the night goes the way
+     you hoped"): the guide's 2-4 sentences, its one concrete detail and
+     its never act for the player all pulled the other way, so the turn's
+     MODE line says this scene is the exception, last in the packet where
+     it weighs most, and Style.check makes a summary a hard problem. */
+  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length and its one-detail rule: write it out from the moment it tips, beat by beat, the kissing, hands, clothes, bodies moving together, breath, what they murmur, the room around them, in your own style's voice. The player chose this, so show what the two of them do together, the player's part too; the player says only what they typed. Sensual, not graphic: no anatomical close-ups. Never summarise or skip it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
   function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
   /* The due events the narration told (wave 8, the final pass): all of

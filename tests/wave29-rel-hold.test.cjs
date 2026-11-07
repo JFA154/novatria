@@ -805,6 +805,10 @@ s.test('the night: with every gate met the narrator is told yes and to write the
     out.noFlirt = S.npc('npc_jodie').memories.filter(x => x.event === 'flirted' && x.turn === st.meta.turn).length;
     out.style = G.Style.systemPrompt('casual').includes('INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out');
     out.length = G.Pipeline.lastTurn.packet.split('\n').find(l => l.startsWith('LENGTH:')) || null;
+    out.mode = G.Pipeline.lastTurn.packet.split('\n').find(l => l.startsWith('MODE:')) || null;
+    // Wave 36, second pass: a summary in place of the scene is a hard problem; a written-out scene is not.
+    out.skip = ['the rest of the night goes the way you hoped.', 'She kisses you. Later she is gone.'].map(t => G.Style.check(t, { intimate: true, names: false }).problems.filter(p => p.type === 'skipped').map(p => p.hard));
+    out.written = G.Style.check(Array(130).fill('kiss').join(' ') + '.', { intimate: true, names: false }).problems.filter(p => p.type === 'skipped').length;
     // One gate short (trust 25): not tonight, kindly, and a welcome flirt.
     S.apply({ relSet: { npcId: 'npc_shayla', s: 55, m: 45, w: 45, t: 25, k: 35 } });
     out.short = R.intimateGate(S.npc('npc_shayla')).short;
@@ -826,6 +830,9 @@ s.test('the night: with every gate met the narrator is told yes and to write the
   assert.equal(r.noFlirt, 0, 'the night, not a flirt besides');
   assert.equal(r.style, true, 'the cached block carries the rule');
   assert.ok(/^LENGTH: up to 12 sentences, under 230 words\./.test(r.length), 'the intimate length: ' + r.length);
+  assert.ok(/^MODE: INTIMATE SCENE\. This turn is the scene itself/.test(r.mode) && /Never summarise or skip it/.test(r.mode), 'the intimate mode: ' + r.mode);
+  assert.deepEqual(r.skip, [[true], [true]], 'a skip phrase or a summary is hard');
+  assert.equal(r.written, 0, 'a scene written out at length passes');
   assert.deepEqual(r.short, ['trust 25 under 30']);
   assert.deepEqual(r.no, ['ROMANCE (decided by the engine): Shayla Rawls: not tonight; she says so kindly.']);
   assert.deepEqual(r.noMem, ['flirted'], 'it counts as a welcome flirt, no harm');
