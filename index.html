@@ -28962,13 +28962,17 @@ const Pipeline = (() => {
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
   function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
-  /* Wave 36, second pass (the owner, again: "Still didn't describe the
+  /* Wave 36, third pass (the owner: "still very tame... I want that hard
+     earned sex scene to be GOOD and HOT"): hungrier, with crude dirty talk
+     in the characters' own voices, still short of anatomy or a blow-by-blow
+     (an explicit ask would be refused by the narrator and lose the turn).
+     Second pass (the owner, again: "Still didn't describe the
      scene at all"; the narrator wrote "the rest of the night goes the way
      you hoped"): the guide's 2-4 sentences, its one concrete detail and
      its never act for the player all pulled the other way, so the turn's
      MODE line says this scene is the exception, last in the packet where
      it weighs most, and Style.check makes a summary a hard problem. */
-  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Let them talk: what that person murmurs, teases, asks, how they say the player's name, in their own voice and nature. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. Sensual and vivid, not graphic: no anatomical close-ups and no explicit description of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
+  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Make it hot: the player earned this, so it pays off. Hungry, urgent and physical, rough or tender as these two are, desire said out loud. Let them talk: what that person murmurs, teases, asks and demands, how they say the player's name, in their own voice and nature; crude, frank dirty talk and swearing are welcome in what they say. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. The heat comes from want, sensation and words, not anatomy: no anatomical close-ups and no blow-by-blow of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
   function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
   /* The due events the narration told (wave 8, the final pass): all of

@@ -830,7 +830,7 @@ s.test('the night: with every gate met the narrator is told yes and to write the
   assert.equal(r.noFlirt, 0, 'the night, not a flirt besides');
   assert.equal(r.style, true, 'the cached block carries the rule');
   assert.ok(/^LENGTH: 3 to 5 short paragraphs, 250 to 450 words\./.test(r.length), 'the intimate length: ' + r.length);
-  assert.ok(/^MODE: INTIMATE SCENE\. This turn is the scene itself/.test(r.mode) && /Never summarise or skip any of it/.test(r.mode) && /not graphic/.test(r.mode), 'the intimate mode: ' + r.mode);
+  assert.ok(/^MODE: INTIMATE SCENE\. This turn is the scene itself/.test(r.mode) && /Never summarise or skip any of it/.test(r.mode) && /no anatomical close-ups/.test(r.mode) && /Make it hot/.test(r.mode), 'the intimate mode: ' + r.mode);
   assert.deepEqual(r.skip, [[true], [true]], 'a skip phrase or a summary is hard');
   assert.equal(r.written, 0, 'a scene written out at length passes');
   assert.deepEqual(r.short, ['trust 25 under 30']);
