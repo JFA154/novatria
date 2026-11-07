@@ -20500,9 +20500,9 @@ const Style = (() => {
     const line = STYLE_GUIDE_LITERARY.split('\n').find(l => l.startsWith('BANNED PHRASES:')) || '';
     return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
   })();
-  const WORD_LIMITS = { normal: 90, zoom: 150, intimate: 230 };
+  const WORD_LIMITS = { normal: 90, zoom: 150, intimate: 450 };
   /* Wave 36: an intimate scene shorter than this, or with one of these, was skipped, not written. */
-  const INTIMATE_MIN = 120;
+  const INTIMATE_MIN = 250;
   const SKIPPED_SCENE = /\b(?:the rest of the night|the rest is history|one thing leads to another|goes the way you hoped|what follows|you don't need to be told|fade[sd]? to black)\b/i;
   /* A problem is hard (worth a second paid narration) or soft (logged only):
      hard is a narration more than HARD_OVER words over its limit, a past
@@ -21130,8 +21130,8 @@ const Style = (() => {
   /* The narrator packet's last line (Pipeline.narratorPacket) and the
      rewrite note share these numbers with check(). */
   // zoom: true for ZOOM's length, 'intimate' for an intimate scene's (wave 36).
-  function lengthRule(zoom) { return zoom === 'intimate' ? `up to 12 sentences, under ${WORD_LIMITS.intimate} words` : zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
-  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. ${zoom === 'intimate' ? 'Give the scene its room, then stop on them afterwards.' : 'Stop at the first moment the player must respond.'}${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
+  function lengthRule(zoom) { return zoom === 'intimate' ? `3 to 5 short paragraphs, ${INTIMATE_MIN} to ${WORD_LIMITS.intimate} words` : zoom ? `up to 6 sentences, under ${WORD_LIMITS.zoom} words` : `2 to 4 sentences, under ${WORD_LIMITS.normal} words`; }
+  function lengthLine(zoom) { return `LENGTH: ${lengthRule(zoom)}. ${zoom === 'intimate' ? 'Take your time; slow down where it matters, and stop on them afterwards.' : 'Stop at the first moment the player must respond.'}${zoom ? '' : ' Not everyone and everything listed needs a mention.'}\nVARIETY: do not repeat a phrase, opener, joke or verbal habit used in LAST 3 TURNS; a person's habit shows at most once in a scene, and they can answer plainly.`; }
   return { BANNED, WORD_LIMITS, INTIMATE_MIN, SKIPPED_SCENE, HARD_OVER, EXAMPLES_INTRO, KNOWLEDGE, INTIMATE_SCENES, PEOPLE_NOTE, GOOD_TURN, NAME_ALLOW, STYLES: NAMES, DEFAULT, systemPrompt, current, check, regenerationNote, lengthLine, spokenPhrases, repeatedPhrase, inventedPast, unknownNames: (text, opts) => unknownNames(text, known(opts)), nameHits: (text, opts) => nameHits(text, known(opts)), BRAND_PHRASES, notePacket,
     // Wave 11 (the card table's stakes in words): "fifty", "a hundred", "two hundred and fifty" as a number, or null.
     numberWords, NUMBER_WORD: NUMWORD,
@@ -28968,7 +28968,7 @@ const Pipeline = (() => {
      its never act for the player all pulled the other way, so the turn's
      MODE line says this scene is the exception, last in the packet where
      it weighs most, and Style.check makes a summary a hard problem. */
-  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length and its one-detail rule: write it out from the moment it tips, beat by beat, the kissing, hands, clothes, bodies moving together, breath, what they murmur, the room around them, in your own style's voice. The player chose this, so show what the two of them do together, the player's part too; the player says only what they typed. Sensual, not graphic: no anatomical close-ups. Never summarise or skip it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
+  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Let them talk: what that person murmurs, teases, asks, how they say the player's name, in their own voice and nature. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. Sensual and vivid, not graphic: no anatomical close-ups and no explicit description of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
   function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
   /* The due events the narration told (wave 8, the final pass): all of
