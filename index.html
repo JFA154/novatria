@@ -211,6 +211,7 @@ p { margin: 0 0 .8em; }
   font-size: 16px;
 }
 select.input { padding-right: 32px; }
+textarea.input.intimate-direction { min-height: 9em; resize: vertical; line-height: 1.4; font-size: 16px; }
 .input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 1px var(--accent); }
 /* Placeholders at 4.5:1 or more in both themes (the browser's grey is not). */
 ::placeholder { color: var(--faint); opacity: 1; }
@@ -1583,6 +1584,12 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
                 <label><input type="radio" name="set-style" value="literary"> Literary</label>
               </div>
               <p class="hint">Casual: plain and direct, like someone running the game at the table. Literary: tighter and more like a novel.</p>
+            </div>
+            <div class="field">
+              <label class="label" for="set-intimate">Intimate scene direction</label>
+              <textarea class="input intimate-direction" id="set-intimate" rows="8" maxlength="3000" spellcheck="true" aria-describedby="set-intimate-hint"></textarea>
+              <p class="hint" id="set-intimate-hint">What the narrator is told when someone says yes to the night. Edit it to change how those scenes are written. If the API refuses a turn, you get your input back and nothing changes.</p>
+              <button type="button" class="btn small" id="set-intimate-reset">Use the default</button>
             </div>
           </fieldset>
           <fieldset class="group">
@@ -16321,7 +16328,7 @@ const Rel = (() => {
       if (!named(id)) { say(n, flirtWords(n, 'aside')); continue; }
       if (more) {
         const gate = intimateGate(n, ctx);
-        if (gate.ok) { say(n, ` says yes; write the scene out, never skip to afterwards: the moment it tips, the kissing, hands, clothes, how they move and what they murmur, the room and the light, and ${n.name.split(' ')[0]}'s own way of being with the player, beat by beat. Sensual, not graphic: no anatomical close-ups. End on them afterwards.`); out.welcome.push(id); out.intimate.push(id); continue; }
+        if (gate.ok) { say(n, ` says yes; write the scene out as MODE says, with ${n.name.split(' ')[0]}'s own way of being with the player; never skip to afterwards.`); out.welcome.push(id); out.intimate.push(id); continue; }
       }
       const wel = welcomeOf(n, ctx);
       // Short of their opensAt: no roll, turned aside kindly (the first time free).
@@ -20537,7 +20544,7 @@ const Style = (() => {
      graphic, at its own length (WORD_LIMITS.intimate), and ends on them
      afterwards; the turn's ROMANCE line carries the detail (Rel.romanceTurn),
      so the cached block stays inside its estimate. */
-  const INTIMATE_SCENES = 'INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out, never skip it; sensual, not graphic; end on them afterwards.';
+  const INTIMATE_SCENES = 'INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out as the turn\'s MODE line says, never skip it; end on them afterwards.';
   /* Wave 30 (the integration plan's 10.3 and 19.7, the trimmed note): how
      to read a person's "to you" line, the flirt rule and the hidden reason,
      before the intimate-scenes rule (about 87 tokens by the api test's
@@ -28921,7 +28928,7 @@ const Pipeline = (() => {
     // The rules, last: the mode, then the length the style check enforces.
     lines.push(ctx.mode === 'epilogue'
       ? 'MODE: epilogue (ZOOM length). This is an ending: close the threads named in DUE EVENT; the player may keep playing afterwards.'
-      : long === 'intimate' ? `MODE: ${INTIMATE_MODE}`
+      : long === 'intimate' ? `MODE: ${intimateMode()}`
         : `MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
     lines.push(Style.lengthLine(long));
     const text = lines.join('\n');
@@ -28973,6 +28980,16 @@ const Pipeline = (() => {
      MODE line says this scene is the exception, last in the packet where
      it weighs most, and Style.check makes a summary a hard problem. */
   const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Make it hot: the player earned this, so it pays off. Hungry, urgent and physical, rough or tender as these two are, desire said out loud. Let them talk: what that person murmurs, teases, asks and demands, how they say the player's name, in their own voice and nature; crude, frank dirty talk and swearing are welcome in what they say. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. The heat comes from want, sensation and words, not anatomy: no anatomical close-ups and no blow-by-blow of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
+  /* Wave 36, fourth pass (the owner: "I want to risk it"): Settings,
+     Intimate scene direction, replaces INTIMATE_MODE with the player's own
+     words (one line in the packet; the cached block is untouched). A
+     narration the API refuses is a refusal like any other: the notice, and
+     the input back. */
+  function intimateMode() {
+    let own = '';
+    try { own = String(Storage.settings().intimateDirection || '').replace(/\s+/g, ' ').trim(); } catch (e) { own = ''; }
+    return own ? `INTIMATE SCENE. ${own.replace(/^INTIMATE SCENE\.\s*/i, '')}` : INTIMATE_MODE;
+  }
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
   function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
   /* The due events the narration told (wave 8, the final pass): all of
@@ -30759,7 +30776,7 @@ const Pipeline = (() => {
   return { noteIntroductions, reroll, pickMemories, pass, updateGame, setClock, forgetEnding,
     // Wave 28: the romance step, coercion and the minor rule after narration; the bookkeeper turns kept for the eval.
     romanceStep, minorTurn, BOOK_TURNS_MAX, keepBookTurn, bookTurnsJsonl, get bookTurns() { return bookTurns.slice(); },
-    submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue,
+    submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue, INTIMATE_MODE, intimateMode,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
     normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine, moneyNamed, openDayFrom, banBackDay,
@@ -30853,6 +30870,7 @@ const Storage = (() => {
      "Last exported" on the Saves screen; persistAsked: navigator.storage
      .persist() was asked for once; tipSeen: the first-turn tip was shown. */
   const SETTINGS_VERSION = 2;
+  const INTIMATE_DIRECTION_MAX = 3000;
   const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
   const DEFAULTS = {
     settingsVersion: SETTINGS_VERSION,
@@ -30875,7 +30893,9 @@ const Storage = (() => {
     // Wave 28: the Debug view's export of bookkeeper turns (Pipeline keeps the last 200 in memory while this is on).
     keepPackets: false,
     // Wave 30: rules version 9's update first rewrites memories in the short form (version 2's re-read, one call); off by default.
-    rereadMemories: false
+    rereadMemories: false,
+    // Wave 36: the player's own direction for an intimate scene (the turn's MODE line); '' is the game's (Pipeline.INTIMATE_MODE).
+    intimateDirection: ''
   };
   /* Settings, "Quality": the models and effort each preset sets. A
      settings object that matches none of them is "custom". */
@@ -30924,6 +30944,7 @@ const Storage = (() => {
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;
     if (raw.narrationStyle === 'casual' || raw.narrationStyle === 'literary') s.narrationStyle = raw.narrationStyle;
     if (raw.inputMode === 'do' || raw.inputMode === 'say') s.inputMode = raw.inputMode;
+    if (typeof raw.intimateDirection === 'string') s.intimateDirection = raw.intimateDirection.trim().slice(0, INTIMATE_DIRECTION_MAX);
     if (raw.playChoice === 'demo' || raw.playChoice === 'claude') s.playChoice = raw.playChoice;
     if (typeof raw.lastExportAt === 'string' && !Number.isNaN(Date.parse(raw.lastExportAt))) s.lastExportAt = raw.lastExportAt;
     return s;
@@ -31370,7 +31391,7 @@ const UI = (() => {
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
-    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'set-intimate', 'set-intimate-reset', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn'];
 
   function init() {
@@ -31493,6 +31514,7 @@ const UI = (() => {
     window.addEventListener('resize', () => { if (!mapExpanded || mapResize) return; mapResize = requestAnimationFrame(() => { mapResize = 0; if (mapExpanded) { refreshMap(null); panMapTo(State.current.player.locationId); } }); });
     // Settings and saves
     d.settingsForm.addEventListener('change', onSettingsChange);
+    d.setIntimateReset.addEventListener('click', resetIntimate);
     d.settingsForm.addEventListener('input', e => { if (e.target === d.setKey) onSettingsChange(e); });
     d.settingsForm.addEventListener('submit', e => e.preventDefault());
     d.settingsDone.addEventListener('click', back);
@@ -35712,6 +35734,7 @@ const UI = (() => {
     d.setMock.checked = s.mockMode;
     d.setKeepPackets.checked = s.keepPackets === true;
     d.setRereadMemories.checked = s.rereadMemories === true;
+    d.setIntimate.value = s.intimateDirection || Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
     fillModels();
     d.setRolls.checked = s.showRolls;
     d.setPermadeath.checked = s.permadeath;
@@ -35754,6 +35777,7 @@ const UI = (() => {
     if (t.name === 'set-theme') { Storage.saveSettings({ theme: t.value }); applyDisplay(); return; }
     if (t.name === 'set-size') { Storage.saveSettings({ textSize: t.value }); applyDisplay(); return; }
     if (t.name === 'set-style') { Storage.saveSettings({ narrationStyle: t.value }); return; }
+    if (t === d.setIntimate) { saveIntimate(); return; }
     if (t.name === 'set-preset') { Storage.applyPreset(t.value); fillModels(); renderPreset(); return; }
     const before = Storage.settings();
     const effort = {};
@@ -35771,6 +35795,17 @@ const UI = (() => {
     if (t === d.setMock && after.mockMode !== before.mockMode) Storage.saveSettings({ playChoice: after.mockMode ? 'demo' : 'claude' });
     renderPreset();
     if (before.showRolls !== after.showRolls && State.current && !State.muted) rebuildFeed();
+  }
+  /* Wave 36: the intimate scene direction; the game's own wording (or nothing) saves as '' (the default). */
+  function saveIntimate() {
+    const v = d.setIntimate.value.trim();
+    const def = Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
+    Storage.saveSettings({ intimateDirection: v === def ? '' : v });
+    if (!v) d.setIntimate.value = def;
+  }
+  function resetIntimate() {
+    Storage.saveSettings({ intimateDirection: '' });
+    d.setIntimate.value = Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
   }
   /* "Check key": one small call through Api.checkKey. */
   async function checkKey() {

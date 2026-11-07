@@ -455,7 +455,7 @@ s.test('the cached style block carries the intimate-scenes rule for both styles,
     return { rule: Game.Style.INTIMATE_SCENES, cas: Game.Style.systemPrompt('casual'), lit: Game.Style.systemPrompt('literary'), know: Game.Style.KNOWLEDGE, est: [est('casual'), est('literary')], ruleTokens: words(Game.Style.INTIMATE_SCENES) * 1.4 };
   });
   // Wave 36: the scene is written out (sensual, not graphic) where wave 28 faded to black.
-  assert.ok(/^INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out, never skip it/.test(r.rule) && /sensual, not graphic/.test(r.rule) && /afterwards/.test(r.rule), r.rule);
+  assert.ok(/^INTIMATE SCENES: when a ROMANCE line says someone says yes, write the scene out as the turn's MODE line says, never skip it/.test(r.rule) && /afterwards/.test(r.rule), r.rule);
   for (const sys of [r.cas, r.lit]) assert.ok(sys.includes(`\n\n${r.rule}\n\n${r.know}\n\nEXAMPLES (from a different town`), 'between the guide and the WHAT PEOPLE KNOW rules');
   assert.ok(r.ruleTokens < 40, 'under 40 tokens (the detail rides on the turn\'s ROMANCE line): ' + r.ruleTokens);
   assert.ok(r.est.every(x => x < 13000), 'cached blocks: ' + r.est.join(', '));

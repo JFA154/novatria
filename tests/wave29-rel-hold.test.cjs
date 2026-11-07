@@ -825,7 +825,7 @@ s.test('the night: with every gate met the narrator is told yes and to write the
     return out;
   });
   assert.equal(r.gate.ok, true);
-  assert.deepEqual(r.yes, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out, never skip to afterwards: the moment it tips, the kissing, hands, clothes, how they move and what they murmur, the room and the light, and Jodie\'s own way of being with the player, beat by beat. Sensual, not graphic: no anatomical close-ups. End on them afterwards.']);
+  assert.deepEqual(r.yes, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out as MODE says, with Jodie\'s own way of being with the player; never skip to afterwards.']);
   assert.deepEqual(r.mem, [[3, 'scar', true, true]], 'a weight-3 scar, private, with its spark');
   assert.equal(r.noFlirt, 0, 'the night, not a flirt besides');
   assert.equal(r.style, true, 'the cached block carries the rule');
@@ -840,6 +840,42 @@ s.test('the night: with every gate met the narrator is told yes and to write the
   assert.equal(r.youngMem, 1, 'nothing more recorded');
   assert.ok(!r.minor.some(l => /says yes|fade to black|not tonight/.test(l)) && r.minor.some(l => /^UNDER 18: Micah Dees is 17/.test(l)), JSON.stringify(r.minor));
   assert.equal(r.minorMem, 0);
+});
+
+s.test('wave 36: Settings, Intimate scene direction: empty is the game\'s MODE line; the player\'s words replace it in the packet; the field shows the default, saves the player\'s words, and Use the default clears them', async h => {
+  const page = await start(h);
+  const r = await page.evaluate(async () => {
+    const G = Game, S = G.State, St = G.Storage;
+    const out = {};
+    const night = async () => {
+      __put('loc_low_water', ['npc_jodie'], 6, 'night');
+      S.apply({ relSet: { npcId: 'npc_jodie', s: 55, m: 45, w: 45, t: 35, k: 35 } });
+      await __say('npc_jodie', 'Stay with me tonight.', { romantic: 'more' });
+      return G.Pipeline.lastTurn.packet.split('\n').find(l => l.startsWith('MODE:'));
+    };
+    out.def = St.settings().intimateDirection;
+    out.defMode = await night();
+    St.saveSettings({ intimateDirection: '  Write it my way.  ' });
+    out.saved = St.settings().intimateDirection;
+    out.ownMode = await night();
+    // The Settings field: the player's words, then the default after Use the default.
+    document.getElementById('tb-settings').click(); out.field = document.getElementById('set-intimate').value;
+    document.getElementById('set-intimate-reset').click();
+    out.afterReset = [St.settings().intimateDirection, document.getElementById('set-intimate').value === G.Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '')];
+    // Typing the default back in saves nothing of the player's own; typing something else saves it.
+    const ta = document.getElementById('set-intimate');
+    ta.value = 'Slow and filthy.'; ta.dispatchEvent(new Event('change', { bubbles: true }));
+    out.typed = St.settings().intimateDirection;
+    St.saveSettings({ intimateDirection: '' });
+    return out;
+  });
+  assert.equal(r.def, '');
+  assert.ok(r.defMode.startsWith('MODE: INTIMATE SCENE. This turn is the scene itself'), r.defMode);
+  assert.equal(r.saved, 'Write it my way.');
+  assert.equal(r.ownMode, 'MODE: INTIMATE SCENE. Write it my way.');
+  assert.equal(r.field, 'Write it my way.', 'the field shows the player\'s words');
+  assert.deepEqual(r.afterReset, ['', true]);
+  assert.equal(r.typed, 'Slow and filthy.');
 });
 
 s.run();

@@ -387,7 +387,7 @@ s.test('(h) the night keeps its gate with no roll; short of it the ask rolls as 
   });
   assert.equal(r.yes.roll, null, 'the gate met: no roll');
   assert.equal(r.yesRng, 0, 'no die drawn');
-  assert.deepEqual(r.yes.rom, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out, never skip to afterwards: the moment it tips, the kissing, hands, clothes, how they move and what they murmur, the room and the light, and Jodie\'s own way of being with the player, beat by beat. Sensual, not graphic: no anatomical close-ups. End on them afterwards.']);
+  assert.deepEqual(r.yes.rom, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out as MODE says, with Jodie\'s own way of being with the player; never skip to afterwards.']);
   assert.deepEqual(r.kind.roll, ['charm', 'easy', 'success'], 'short of the gate: a flirt\'s roll (spark 55 eases her to easy anyway)');
   assert.deepEqual(r.kind.rom, ['ROMANCE (decided by the engine): Shayla Rawls: not tonight; she says so kindly.']);
   assert.deepEqual(r.no.rom, ['ROMANCE (decided by the engine): Shayla Rawls isn\'t interested: she turns it aside.']);
