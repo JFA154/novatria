@@ -9358,7 +9358,7 @@ const Pack = (() => {
   function playerValue(path, pack) {
     if (!PLAYER_PATHS.includes(path) || !isObj(pack) || !isObj(pack.meta) || typeof pack.meta.id !== 'string') return undefined;
     try {
-      if (typeof Storage === 'undefined' || typeof Storage.perPack !== 'function') return undefined;
+      if (typeof Storage === 'undefined') return undefined; // the try below covers a Storage that is not ready; Storage.perPack always exists
       const o = Storage.perPack(pack.meta.id).overrides;
       return isObj(o) && Object.prototype.hasOwnProperty.call(o, path) ? o[path] : undefined;
     } catch (e) { return undefined; /* Storage not defined yet */ }
