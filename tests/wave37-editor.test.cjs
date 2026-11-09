@@ -24,8 +24,8 @@ const s = suite('wave37-editor');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
 const TAB_LABELS = ['Overview', 'World', 'Player', 'Opening', 'Narrator', 'Directions', 'Rules', 'Freedom', 'Prompts', 'JSON', 'Test'];
 const PLACEHOLDER = 'This tab arrives with the next task.';
-// Task M5-B draws these two tabs; the first heading each shows.
-const DRAWN = { Overview: 'About this story', JSON: 'Your story as JSON' };
+// Task M5-B draws these two tabs, task M5-C1 the World tab (Places first, its Start places above the list); the first heading each shows.
+const DRAWN = { Overview: 'About this story', World: 'Start places', JSON: 'Your story as JSON' };
 const BUILT_IN_NOTE = 'Opened a copy; the built-in story cannot be changed.';
 // Screenshots only when UI_SHOTS names a folder for them (as tests/ui-fixes.test.cjs takes them).
 const SHOTS = process.env.UI_SHOTS || null;

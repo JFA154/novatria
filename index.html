@@ -1432,6 +1432,84 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-json-stats { flex: 1 1 100%; margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cr-json-cut { margin: 0 0 10px; }
 .cr-copy { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Task M5-C1: the World tab. Its own strip of lists (Places, People, Schedules, and the next task's), each with its error count. */
+.cr-subtabs { display: flex; gap: 8px; margin: 0 0 16px; padding: 2px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.cr-subtabs::-webkit-scrollbar { display: none; }
+.cr-subtab {
+  flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 16px; border-radius: 22px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.cr-subtab:hover { color: var(--text); border-color: var(--field); }
+.cr-subtab[aria-selected="true"] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cr-subtab .cr-badge, .cr-row .cr-badge { min-height: 20px; padding: 0 7px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+/* An entity tab (Creator.EntityTab): on a phone the list, or the detail in its place; from 900px the list on the left at 320px and the detail beside it. */
+.cr-entity { min-width: 0; }
+.cr-entity[data-open="1"] .cr-entity-list, .cr-entity:not([data-open="1"]) .cr-entity-detail { display: none; }
+.cr-entity-list, .cr-entity-detail { min-width: 0; animation: fade-in .2s ease-out; }
+.cr-list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
+.cr-list-head .cr-section-title { flex: 1 1 auto; margin: 0; }
+.cr-add-new { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.cr-add-new .label { flex: 1 1 100%; margin: 0; }
+.cr-add-new .input { flex: 1 1 12em; width: auto; min-width: 0; font-size: 16px; }
+.cr-search { margin: 0 0 12px; font-size: 16px; }
+.cr-rows { margin: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.cr-rows .cr-row:last-child { border-bottom: 0; }
+.cr-row[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.cr-row-sum { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.cr-row .cr-badge { flex: none; }
+.cr-rows-none { margin: 0; padding: 16px; color: var(--muted); font-size: 14px; }
+.cr-pick { padding: 28px 20px; border: 1px dashed var(--field); border-radius: 14px; color: var(--muted); text-align: center; font-family: var(--read-font); }
+.cr-detail-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 14px; }
+.cr-detail-title { flex: 1 1 12em; min-width: 0; margin: 0; font-family: var(--read-font); font-size: 24px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.cr-detail-title:focus { outline: none; }
+.cr-detail-id { flex: 1 1 100%; margin: 0; font-family: var(--mono-font); font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.cr-rename { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.cr-rename .input { flex: 1 1 12em; width: auto; min-width: 0; font-family: var(--mono-font); font-size: 16px; }
+.cr-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+/* Four small fields in two columns (a place's spot on the map: x, y, label, side). */
+.cr-quad .cr-sub, .cr-quad.cr-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
+.cr-quad > .cr-section-title, .cr-quad > .cr-note, .cr-quad > .cr-sub-title { grid-column: 1 / -1; }
+/* A person's relations: whom, the word, remove; the note offering the reverse under the row. */
+.cr-rels { display: grid; gap: 12px; margin: 0 0 14px; }
+.cr-rel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--tap); gap: 8px; align-items: start; }
+.cr-rel .input { font-size: 16px; }
+.cr-rel .cr-chip-x { border: 1px solid var(--border); }
+.cr-rel .cr-err, .cr-rel .cr-rel-back { grid-column: 1 / -1; }
+.cr-rel-back { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; font-size: 13px; color: var(--muted); }
+.cr-rel-new { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cr-rel-new .btn { grid-column: 1 / -1; justify-self: start; }
+.cr-more { margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.cr-more > summary { display: flex; align-items: center; min-height: var(--tap); padding: 0 18px; cursor: pointer; font-family: var(--read-font); font-size: 18px; font-weight: 600; }
+.cr-more[open] > summary { border-bottom: 1px solid var(--border); }
+.cr-more > .cr-section { margin: 0; border: 0; background: transparent; }
+/* The Schedules grid: a place a row (its name a sticky first column), a phase a column, people as chips; it scrolls sideways inside itself. */
+.cr-seg { display: inline-flex; gap: 0; margin: 0 0 14px; border: 1px solid var(--field); border-radius: var(--radius); overflow: hidden; }
+.cr-seg button { min-height: var(--tap); padding: 0 16px; border: 0; background: var(--surface); color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.cr-seg button + button { border-left: 1px solid var(--field); }
+.cr-seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.cr-grid-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 12px; }
+.cr-grid-table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 14px; }
+.cr-grid-table th, .cr-grid-table td { padding: 8px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: left; vertical-align: top; }
+.cr-grid-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.cr-grid-table th[scope="row"], .cr-grid-table thead th:first-child {
+  position: sticky; left: 0; z-index: 2; min-width: 120px; max-width: 150px; background: var(--surface); font-weight: 600; overflow-wrap: anywhere;
+}
+.cr-grid-table thead th:first-child { z-index: 3; background: var(--surface-2); }
+.cr-grid-table td { min-width: 190px; }
+.cr-grid-table tr:last-child > * { border-bottom: 0; }
+.cr-grid-table tr > :last-child { border-right: 0; }
+.cr-grid-table .cr-chips { gap: 6px; }
+.cr-grid-table .cr-chip-item { font-size: 14px; padding-left: 12px; }
+.cr-grid-table .input { font-size: 16px; }
+.cr-grid-table .cr-row-id { display: block; font-weight: 400; }
+.cr-cell[data-missing="1"] { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.cr-rename .cr-note, .cr-danger .cr-note { flex: 1 1 100%; margin: 0; }
+/* A row filtered out by the search, and a count of none: the hidden attribute wins over the flex these classes set. */
+.cr-row[hidden], .cr-subtab .cr-badge[hidden], .cr-row .cr-badge[hidden] { display: none; }
+@media (min-width: 900px) {
+  .cr-entity { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .cr-entity[data-open="1"] .cr-entity-list, .cr-entity:not([data-open="1"]) .cr-entity-detail { display: block; }
+}
 @media (min-width: 900px) {
   .cr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-sticky { position: static; margin: 16px 0 0; padding: 0; background: none; border-top: 0; }
@@ -10688,6 +10766,71 @@ const Pack = (() => {
     return filled.filter(Boolean).length / filled.length;
   }
 
+  /* ----- ids the editor makes, and renaming one (wave 37, Creator Mode, milestone 5, task M5-C1; plan decision H) -----
+     idFor(kind, name, existing): an id slugged from a name once, when the
+     entity is added; renaming the entity never changes it, because saves,
+     files and every reference name it by its id. The kind's prefix, then
+     ASCII letters and digits joined by underscores: a person by their first
+     name (Loretta Gaddis is npc_loretta, as the built-in cast is), a place
+     without a leading "The" (The Low Water is loc_low_water), anything else
+     by its whole name; _2, _3 on a collision with existing (a list of ids).
+     Apostrophes go first, so "Lockett's" is locketts, not lockett_s. */
+  const ID_KINDS = Object.freeze({
+    npc: 'npc_', loc: 'loc_', fac: 'fac_', thread: 'thr_', thr: 'thr_', seed: 'seed_', rumour: 'rum_', rum: 'rum_',
+    event: 'evt_', evt: 'evt_', background: 'bg_', bg: 'bg_', item: 'item_'
+  });
+  function idFor(kind, name, existing) {
+    const prefix = ID_KINDS[kind] || (typeof kind === 'string' && /^[a-z]+_$/.test(kind) ? kind : 'x_');
+    let words = String(name == null ? '' : name).replace(/['’‘`]/g, '').trim();
+    if (prefix === 'npc_') words = words.split(/\s+/)[0] || '';
+    if (prefix === 'loc_') words = words.replace(/^the\s+/i, '');
+    const slug = slugify(words);
+    const base = prefix + (slug === 'x' && !/x/i.test(words) ? 'new' : slug);
+    const taken = new Set(Array.isArray(existing) ? existing : existing instanceof Set ? [...existing] : []);
+    return uniqueId(base, c => taken.has(c));
+  }
+  /* renameId(pack, from, to) -> { pack, count }: a copy of the pack with
+     every reference to the id rewritten, and how many were. An id is a
+     token no prose holds whole, so a reference is any string value equal
+     to it, wherever it sits: relations' npcId, home, factionId, the
+     schedules, exits, startLocationIds, the police and law ids, romance,
+     ties and secret ties, rumours, seed and background triggers (a string
+     or a list), every effect op's id fields, requires and when, events,
+     threads' linkedIds, protector, mattersTo, loose ends, the epilogue's
+     branches, and the entity's own id; a field list here would fall behind
+     the next field that names an id. A key equal to it is renamed in place
+     (relAtLeast's people, a faction's relations, the gates' maps), and a
+     clock trigger "fac_x:3" keeps its number. Text that only contains the
+     id (a sentence, a {placeholder}) is left alone. With from === to
+     nothing changes and count is how many places name the id: Delete's
+     reference count (count less one, the entity's own id). */
+  function renameId(pack, from, to) {
+    const out = { pack: copy(pack), count: 0 };
+    if (typeof from !== 'string' || !from || typeof to !== 'string' || !to) return out;
+    const clock = from + ':';
+    const fix = v => {
+      if (v === from) { out.count += 1; return to; }
+      if (v.startsWith(clock) && /^\d+$/.test(v.slice(clock.length))) { out.count += 1; return to + v.slice(from.length); }
+      return v;
+    };
+    (function walk(v) {
+      if (Array.isArray(v)) {
+        for (let i = 0; i < v.length; i++) { if (typeof v[i] === 'string') v[i] = fix(v[i]); else walk(v[i]); }
+        return;
+      }
+      if (!isObj(v)) return;
+      if (Object.prototype.hasOwnProperty.call(v, from)) {
+        out.count += 1;
+        // The key renamed where it stood, so the file keeps its order.
+        const entries = Object.keys(v).map(k => [k === from && !Object.prototype.hasOwnProperty.call(v, to) ? to : k, v[k]]);
+        for (const k of Object.keys(v)) delete v[k];
+        for (const [k, x] of entries) v[k] = x;
+      }
+      for (const k of Object.keys(v)) { if (typeof v[k] === 'string') v[k] = fix(v[k]); else walk(v[k]); }
+    })(out.pack);
+    return out;
+  }
+
   return {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, syncAliases, lookup, get, isBuiltIn,
     canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
@@ -10700,7 +10843,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's money patterns, rebuilt when the pack changes, and an amount in its currency.
     get moneyRe() { return moneyRe(); }, moneyText,
     // Wave 37, Creator Mode, milestone 5 (task M5-A): the pack New story starts from, and the share of a pack's sections that are filled.
-    blank, completeness
+    blank, completeness,
+    // Wave 37, Creator Mode, milestone 5 (task M5-C1): the id an added entity gets, and an id renamed through every reference.
+    idFor, renameId
   };
 })();
 
@@ -44973,7 +45118,7 @@ const Creator = (() => {
      pagehide) and checks the pack (check(), 150 ms after the last change). */
   const TABS = Object.freeze([
     { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
-    { id: 'world', label: 'World', render: null },
+    { id: 'world', label: 'World', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
     { id: 'player', label: 'Player', render: null },
     { id: 'opening', label: 'Opening', render: null },
     { id: 'narrator', label: 'Narrator', render: null },
@@ -45265,6 +45410,7 @@ const Creator = (() => {
     }
     fillProblems();
     fillAbout();
+    refreshWorld(); // task M5-C1: the World tab's list buttons and rows count their errors too
   }
   function setView() {
     const lib = state.view !== 'editor';
@@ -45412,7 +45558,627 @@ const Creator = (() => {
   }
 
   // ----- Creator: World -----
-  // (milestone 5, tasks M5-C1 and M5-C2)
+  /* The World tab (milestone 5, task M5-C1; plan decision H, "entity list
+     and detail at 390 px"): a strip of its own lists, each with its error
+     count (Places, People and Schedules here; the next task adds factions,
+     threads, rumours, events, seeds and goods through WorldTab.addSub), and
+     the list open below it. Creator.EntityTab is the list-and-detail every
+     entity list uses: rows in the authored order (a circled initial, the
+     name, the id in monospace, the row's error count), Add at the top (an
+     inline name field; the id is made once from it, Pack.idFor, and never
+     changes on a rename), a search field past eight rows; a row opens its
+     detail in the list's place on a phone (Back at the top and in the
+     sticky bar) and beside it from 900px. The detail is the schema's form
+     (Creator.Form) writing through Editor.set, then Delete, which asks with
+     the count of references Pack.renameId's scan finds and leaves them for
+     the validator to list rather than rewriting them silently (a dangling
+     reference may be the author's to mend, not ours to guess at). Every
+     change is one Editor.set, so one Undo; a change that touches two
+     records (an exit both ways, a person moved in the Schedules grid) sets
+     the whole list once. All of it lives in this IIFE so no name here can
+     clash with the Creator scope or the engine's own World module. */
+  const WorldTab = (() => {
+    const arrOf = v => (Array.isArray(v) ? v : []);
+    const people = d => arrOf(getAt(d, 'world.npcs')).filter(n => isObj(n) && typeof n.id === 'string');
+    const places = d => arrOf(getAt(d, 'world.locations')).filter(l => isObj(l) && typeof l.id === 'string');
+    const initialOf = name => { const m = /[A-Za-z0-9]/.exec(String(name || '')); return m ? m[0].toUpperCase() : '?'; };
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const errorsAt = (path, owns) => Pack.errors(Pack.problemsFor(problems, path)).filter(p => !owns || owns(p.path)).length;
+    // The draft's own name for a phase (setting.phaseLabels), else the engine's word.
+    function phaseLabel(p, d) {
+      const pl = getAt(d, 'setting.phaseLabels');
+      const own = isObj(pl) && typeof pl[p] === 'string' ? pl[p].trim() : '';
+      return own || capFirst(p);
+    }
+    /* The tab drawn again (Form.flush, the body, the problems placed), and the focus put back where it was asked. */
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    // A node scrolled into view under the sticky tab strip, when it is not already near the top.
+    function bringUp(target) {
+      const sc = node('creator-scroll');
+      if (!sc || !target) return;
+      const strip = node('creator-tabs');
+      const room = (strip ? strip.getBoundingClientRect().height : 0) + 8;
+      const top = target.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+      if (top < room || top > sc.clientHeight * 0.5) sc.scrollTop += top - room;
+    }
+    /* An error slot for a path that is not a single control (a whole record, a list of rows): the holder carries the
+       data-path, so Editor's showProblems anchors problems there by the longest prefix, as it does for a field. */
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+
+    // ----- EntityTab -----
+    /* EntityTab({ key, listPath, label, singular, idKind, nameField, fields, summary, onAdd, extraDetail, before, owns }):
+       fields(entity, path, onChange, draft) and extraDetail(entity, path, draft) give the detail's nodes; summary(entity,
+       draft) the row's second line; onAdd(name, ids, draft) the new record; before(draft) what sits above the list;
+       owns(path) which problems count on a row (Places leaves the schedules to their own tab). The view state (the
+       open id, the Add field, the search) survives a redraw, so Undo and a change elsewhere keep the place. */
+    function EntityTab(cfg) {
+      const c = Object.assign({ nameField: 'name', summary: () => '', fields: null, extraDetail: null, before: null, owns: null }, cfg);
+      const view = { open: null, adding: false, renaming: false, query: '' };
+      const listOf = d => arrOf(getAt(d, c.listPath));
+      const indexOf = (d, id) => listOf(d).findIndex(x => isObj(x) && x.id === id);
+      const nameOf = x => { const n = isObj(x) ? x[c.nameField] : ''; return typeof n === 'string' && n.trim() ? n.trim() : (isObj(x) && x.id) || `Unnamed ${c.singular}`; };
+      const boxSel = `.cr-entity[data-entity="${c.key}"]`;
+      const box = () => node('creator-body') && node('creator-body').querySelector(boxSel);
+      const addId = `cr-add-${c.key}`;
+
+      function badge(n) {
+        return el('span', { class: 'cr-badge warn', hidden: !n, 'aria-label': plural(n, 'error') }, String(n));
+      }
+      function row(x, i, d) {
+        const path = `${c.listPath}[${i}]`;
+        const name = nameOf(x);
+        const sum = c.summary(x, d);
+        return el('button', {
+          type: 'button', class: 'cr-row', 'aria-current': x.id === view.open ? 'true' : null, dataset: { id: x.id, rowPath: path, find: `${name} ${x.id}`.toLowerCase() },
+          onclick: () => open(x.id)
+        },
+        el('span', { class: 'cr-initial', 'aria-hidden': 'true' }, initialOf(name)),
+        el('span', { class: 'cr-row-text' }, el('span', { class: 'cr-row-name' }, name), el('span', { class: 'cr-row-id' }, x.id), sum ? el('span', { class: 'cr-row-sum' }, sum) : null),
+        badge(errorsAt(path, c.owns)));
+      }
+      function filter(list) {
+        const q = view.query.trim().toLowerCase();
+        for (const r of list.querySelectorAll('.cr-row')) r.hidden = !!q && !r.dataset.find.includes(q);
+        const none = list.querySelector('.cr-rows-none');
+        if (none) none.hidden = !q || [...list.querySelectorAll('.cr-row')].some(r => !r.hidden);
+      }
+      function addForm() {
+        const field = el('input', { class: 'input', id: addId, type: 'text', autocomplete: 'off', maxlength: 120, enterkeyhint: 'done', placeholder: c.placeholder || '' });
+        const cancel = () => { view.adding = false; redraw(`${boxSel} [data-action="add"]`); };
+        const go = () => { const name = field.value.trim(); if (!name) { field.focus(); return; } add(name); };
+        field.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } else if (e.key === 'Escape') { e.preventDefault(); cancel(); } });
+        return el('div', { class: 'cr-add-new', dataset: { addFor: c.key } },
+          el('label', { class: 'label', for: addId }, `Name of the new ${c.singular}`),
+          field,
+          el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-confirm' }, onclick: go }, 'Add'),
+          el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'add-cancel' }, onclick: cancel }, 'Cancel'));
+      }
+      function listPane(d) {
+        const list = listOf(d);
+        const rows = list.map((x, i) => (isObj(x) && typeof x.id === 'string' ? row(x, i, d) : null)).filter(Boolean);
+        const rowsBox = el('div', { class: 'cr-rows', role: 'group', 'aria-label': c.label },
+          rows.length ? rows : el('p', { class: 'cr-rows-none' }, `No ${c.label.toLowerCase()} yet.`),
+          rows.length ? el('p', { class: 'cr-rows-none', hidden: true }, 'Nothing matches.') : null);
+        const search = rows.length > 8 ? el('input', {
+          class: 'input cr-search', type: 'search', id: `cr-find-${c.key}`, value: view.query, autocomplete: 'off', placeholder: `Find a ${c.singular} by name or id`,
+          'aria-label': `Find a ${c.singular}`, oninput: e => { view.query = e.target.value; filter(rowsBox); }
+        }) : null;
+        if (search && view.query) filter(rowsBox);
+        return el('div', { class: 'cr-entity-list' },
+          c.before ? c.before(d) : null,
+          el('section', { class: 'cr-section' },
+            el('div', { class: 'cr-list-head' },
+              el('h2', { class: 'cr-section-title' }, c.label),
+              el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add' }, 'aria-expanded': String(view.adding), onclick: () => { view.adding = true; redraw('#' + addId); } }, `Add ${c.singular}`)),
+            view.adding ? addForm() : null,
+            search,
+            rowsBox));
+      }
+      function renameForm(x) {
+        const fid = `cr-rename-${c.key}`;
+        const field = el('input', { class: 'input', id: fid, type: 'text', value: x.id, autocomplete: 'off', spellcheck: 'false', maxlength: 80, 'aria-label': 'The new id' });
+        const go = () => changeId(x.id, field.value);
+        field.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+        return el('div', { class: 'cr-rename' }, field,
+          el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'rename-confirm' }, onclick: go }, 'Change it everywhere'),
+          el('button', { type: 'button', class: 'btn small ghost', onclick: () => { view.renaming = false; redraw(); } }, 'Cancel'),
+          el('p', { class: 'cr-note cr-rename-note' }, 'Every place in the story that names this id is rewritten with it. Saves made with the old id still play the old pack.'));
+      }
+      function detailPane(d) {
+        const list = listOf(d);
+        const i = view.open === null ? -1 : indexOf(d, view.open);
+        if (i < 0) return el('div', { class: 'cr-entity-detail' }, el('p', { class: 'cr-pick' }, `Choose a ${c.singular} from the list, or add one.`));
+        const x = list[i];
+        const path = `${c.listPath}[${i}]`;
+        const on = (p, v) => { set(p, v); syncOpen(); };
+        const back = () => close();
+        return el('div', { class: 'cr-entity-detail', dataset: { path, detailFor: x.id } },
+          el('div', { class: 'cr-detail-top' },
+            el('button', { type: 'button', class: 'btn ghost small cr-back', dataset: { action: 'back' }, 'aria-label': `Back to ${c.label.toLowerCase()}`, onclick: back }, 'Back'),
+            el('h2', { class: 'cr-detail-title', id: `cr-detail-${c.key}`, tabindex: '-1' }, nameOf(x)),
+            el('p', { class: 'cr-detail-id' }, x.id, ' ',
+              el('button', { type: 'button', class: 'btn ghost small', dataset: { action: 'rename' }, onclick: () => { view.renaming = true; redraw(`#cr-rename-${c.key}`); } }, 'Change id…')),
+            slot(path)),
+          view.renaming ? renameForm(x) : null,
+          c.fields ? c.fields(x, path, on, d) : null,
+          c.extraDetail ? c.extraDetail(x, path, d) : null,
+          el('div', { class: 'cr-section cr-danger' },
+            el('button', { type: 'button', class: 'btn danger', dataset: { action: 'delete' }, onclick: () => remove(x.id) }, `Delete this ${c.singular}`),
+            el('p', { class: 'cr-note' }, 'Undo brings it back.')),
+          el('div', { class: 'cr-sticky mobile-only' },
+            el('button', { type: 'button', class: 'btn', dataset: { action: 'back-bar' }, onclick: back }, 'Back'),
+            el('span', { class: 'spacer' }),
+            el('button', { type: 'button', class: 'btn primary', dataset: { action: 'save-bar' }, onclick: () => saveAsPack() }, 'Save')));
+      }
+      function render(d) {
+        if (view.open !== null && indexOf(d, view.open) < 0) { view.open = null; view.renaming = false; }
+        return el('div', { class: 'cr-entity', dataset: { entity: c.key, open: view.open !== null ? '1' : '0' } }, listPane(d), detailPane(d));
+      }
+      /* The open record's name, initial and summary follow its form as it is typed (after Form's 150 ms). */
+      function syncOpen() {
+        const b = box();
+        if (!b || view.open === null || !state.draft) return;
+        const i = indexOf(state.draft, view.open);
+        if (i < 0) return;
+        const x = listOf(state.draft)[i];
+        const t = b.querySelector('.cr-detail-title');
+        if (t) t.textContent = nameOf(x);
+        const r = b.querySelector(`.cr-row[data-id="${CSS.escape(view.open)}"]`);
+        if (!r) return;
+        r.querySelector('.cr-row-name').textContent = nameOf(x);
+        r.querySelector('.cr-initial').textContent = initialOf(nameOf(x));
+        r.dataset.find = `${nameOf(x)} ${x.id}`.toLowerCase();
+        const sum = c.summary(x, state.draft);
+        const s = r.querySelector('.cr-row-sum');
+        if (s) s.textContent = sum;
+        else if (sum) r.querySelector('.cr-row-text').append(el('span', { class: 'cr-row-sum' }, sum));
+      }
+      /* After each check(): the rows' error counts. */
+      function refresh() {
+        const b = box();
+        if (!b) return;
+        for (const r of b.querySelectorAll('.cr-row')) {
+          const n = errorsAt(r.dataset.rowPath, c.owns);
+          const g = r.querySelector('.cr-badge');
+          g.textContent = String(n);
+          g.hidden = !n;
+          g.setAttribute('aria-label', plural(n, 'error'));
+        }
+      }
+      function open(id) {
+        if (!state.draft || indexOf(state.draft, id) < 0) return false;
+        view.open = id;
+        view.adding = false;
+        view.renaming = false;
+        redraw(`#cr-detail-${c.key}`);
+        bringUp(box());
+        return true;
+      }
+      function close() {
+        const was = view.open;
+        view.open = null;
+        view.renaming = false;
+        const sel = was ? `${boxSel} .cr-row[data-id="${CSS.escape(was)}"]` : null;
+        redraw(sel);
+        const r = sel ? node('creator-body').querySelector(sel) : null;
+        if (r) try { r.scrollIntoView({ block: 'nearest' }); } catch (e) { /* fine */ }
+      }
+      /* Add: the record onAdd makes from the name (its id slugged once), at the end of the list, opened. */
+      function add(name) {
+        const d = state.draft;
+        if (!d) return null;
+        const ids = listOf(d).map(x => (isObj(x) ? x.id : null)).filter(Boolean);
+        const item = c.onAdd(String(name).trim(), ids, d);
+        if (!isObj(item)) return null;
+        set(c.listPath, listOf(d).concat([item]));
+        view.adding = false;
+        view.query = '';
+        open(item.id);
+        return item.id;
+      }
+      /* Delete asks first, naming the record and how many places in the story name its id (renameId's scan, less
+         the record's own id); those references stay, for the validator to list. */
+      async function remove(id) {
+        const d = state.draft;
+        const i = d ? indexOf(d, id) : -1;
+        if (i < 0) return false;
+        const name = nameOf(listOf(d)[i]);
+        const refs = Math.max(0, Pack.renameId(d, id, id).count - 1);
+        const yes = await UI.ask({
+          title: `Delete ${name}?`,
+          text: `${name} (${id}) goes from the story. ` + (refs
+            ? `${plural(refs, 'other place')} in the story name ${id}; they are left as they are, and Problems lists each one for you to mend.`
+            : `Nothing else in the story names ${id}.`) + ' Undo brings it back.',
+          yes: 'Delete', no: 'Keep it'
+        });
+        if (!yes || !state.draft) return false;
+        set(c.listPath, listOf(state.draft).filter(x => !(isObj(x) && x.id === id)));
+        view.open = null;
+        view.renaming = false;
+        redraw(`${boxSel} [data-action="add"]`);
+        UI.toast(`Deleted ${name}.`);
+        return true;
+      }
+      /* Change id…: Pack.renameId over the whole draft, one Editor.set (one Undo); the id keeps its kind's prefix and is not taken. */
+      function changeId(from, raw) {
+        const to = String(raw || '').trim();
+        const prefix = (/^[a-z]+_/.exec(from) || [''])[0];
+        if (to === from) { view.renaming = false; redraw(); return false; }
+        if (!new RegExp('^' + prefix + '[a-z0-9_]+$').test(to)) { UI.toast(`An id here starts with ${prefix} and then only lowercase letters, digits and underscores.`); return false; }
+        if (Pack.renameId(state.draft, to, to).count) { UI.toast(`${to} is already used in this story.`); return false; }
+        const r = Pack.renameId(state.draft, from, to);
+        view.open = to;
+        view.renaming = false;
+        set('', r.pack);
+        UI.toast(`Changed ${from} to ${to} in ${plural(r.count, 'place')}.`);
+        return r.count;
+      }
+      return Object.freeze({ key: c.key, label: c.label, render, refresh, open, close, add, remove, changeId, get view() { return Object.assign({}, view); } });
+    }
+
+    // ----- Places -----
+    const LOC = () => Pack.SCHEMA.fields.world.fields.locations.of;
+    const NPC = () => Pack.SCHEMA.fields.world.fields.npcs.of;
+    function nameIn(list, id) { const x = list.find(y => y.id === id); return x && typeof x.name === 'string' && x.name.trim() ? x.name.trim() : String(id); }
+    /* The two arrival places (world.startLocationIds), above the list: the keys a background's arrival names. */
+    function startPlaces(d) {
+      return Form.render(Pack.SCHEMA.fields.world.fields.startLocationIds, getAt(d, 'world.startLocationIds'), 'world.startLocationIds', set, {
+        title: 'Start places', note: 'Where a new arrival starts: gate is the arrival by road and docks the arrival by river, the two keys the backgrounds\' arrivals use. They must be two different places in town.'
+      });
+    }
+    /* Exits are written on both sides (the validator's engine.location.symmetric): adding B to A's exits adds A to
+       B's, removing it removes both; the whole list goes in one Editor.set, so one Undo undoes both sides. */
+    function setExits(id, next) {
+      const locs = clone(arrOf(getAt(state.draft, 'world.locations')));
+      const me = locs.find(l => isObj(l) && l.id === id);
+      if (!me) return false;
+      const was = arrOf(me.exits);
+      const added = next.filter(v => !was.includes(v));
+      const gone = was.filter(v => !next.includes(v));
+      me.exits = next.slice();
+      for (const o of locs) {
+        if (!isObj(o) || o.id === id) continue;
+        if (added.includes(o.id) && !arrOf(o.exits).includes(id)) o.exits = arrOf(o.exits).concat([id]);
+        if (gone.includes(o.id) && Array.isArray(o.exits)) o.exits = o.exits.filter(e => e !== id);
+      }
+      return set('world.locations', locs);
+    }
+    function exitsField(x, path, d) {
+      const fpath = path + '.exits';
+      const fid = Form.domId(fpath);
+      if (x.away === true) {
+        return el('section', { class: 'cr-section' }, el('h2', { class: 'cr-section-title' }, 'Exits'),
+          el('p', { class: 'cr-note' }, 'A place out of town has no exits: the game never goes there.'));
+      }
+      const all = places(d);
+      const mine = arrOf(x.exits);
+      const choices = all.filter(l => l.id !== x.id && l.away !== true && !mine.includes(l.id));
+      const chips = mine.map(v => el('span', { class: 'cr-chip-item', dataset: { id: String(v) } },
+        el('span', { class: 'cr-chip-text' }, all.some(l => l.id === v) ? nameIn(all, v) : `${v} (not found)`),
+        el('button', { type: 'button', class: 'cr-chip-x', 'aria-label': `Remove the exit to ${nameIn(all, v)}`, onclick: () => { setExits(x.id, mine.filter(e => e !== v)); redraw('#' + fid + '-add'); } }, '×')));
+      const pick = el('select', {
+        class: 'input cr-chip-add', id: fid + '-add', disabled: !choices.length, 'aria-label': 'Add an exit',
+        onchange: () => { if (!pick.value) return; setExits(x.id, mine.concat([pick.value])); redraw('#' + fid + '-add'); }
+      }, el('option', { value: '', selected: true }, choices.length ? 'Add an exit…' : 'No other place to add'), choices.map(l => el('option', { value: l.id }, nameIn(all, l.id))));
+      return el('section', { class: 'cr-section' },
+        el('div', { class: 'cr-field', dataset: { field: fpath, type: 'refs' } },
+          el('label', { class: 'label', for: fid + '-add', id: fid + '-label' }, 'Exits'),
+          el('div', { class: 'cr-chips', role: 'group', 'aria-labelledby': fid + '-label', 'aria-describedby': `${fid}-help ${fid}-err`, dataset: { path: fpath } }, chips, pick),
+          el('p', { class: 'cr-note', id: fid + '-help' }, 'Exits go both ways: adding one here adds this place to the other place\'s exits, and removing one removes it there too.'),
+          slot(fpath)));
+    }
+    const placesTab = EntityTab({
+      key: 'places', listPath: 'world.locations', label: 'Places', singular: 'place', idKind: 'loc', nameField: 'name',
+      placeholder: 'The Low Water',
+      // The schedules are the Schedules tab's problems, not the place's row.
+      owns: p => !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p),
+      summary: x => [typeof x.type === 'string' && x.type ? x.type : 'place', x.away === true ? 'out of town' : plural(arrOf(x.exits).length, 'exit')].join(' · '),
+      before: startPlaces,
+      /* The brief's record, and closed: false (the validator's engine.location.state wants every place open at the start). */
+      onAdd: (name, ids) => ({
+        id: Pack.idFor('loc', name, ids), name, type: 'other', description: '', exits: [],
+        npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] }, discovered: true, closed: false
+      }),
+      fields: (x, path, on, d) => {
+        const map = Form.render(LOC().fields.map, x.map, path + '.map', on, { title: 'On the map', note: 'Where it sits on the town map: x and y inside the map, the label and the side the label goes on.' });
+        map.classList.add('cr-quad');
+        map.dataset.path = path + '.map';
+        map.append(slot(path + '.map'));
+        return [
+          Form.render(LOC(), x, path, on, { only: ['name', 'type', 'typeLabel', 'description', 'details', 'hours', 'history', 'aka'], title: 'The place', note: 'What it is and what the narrator knows about it. Who is here when is set on the Schedules tab.' }),
+          exitsField(x, path, d),
+          Form.render(LOC(), x, path, on, { only: ['discovered', 'closedOn', 'away', 'distance'], title: 'Known, open, out of town', note: 'Whether a newcomer knows it, the days it shuts, and whether it lies out of town.' }),
+          map
+        ];
+      }
+    });
+
+    // ----- People -----
+    const REL_WORDS = new Set(FAMILY_RELATIONS.concat(WORK_RELATIONS, OTHER_RELATIONS));
+    /* What the other person calls this one back, in one gender (kinWord turns it to this person's pronouns:
+       "wife" -> "husband" for him, "wife" for her, "spouse" for them). A word with no known reverse is its own. */
+    const REVERSE = Object.freeze({
+      wife: 'husband', husband: 'wife', spouse: 'spouse', partner: 'partner', girlfriend: 'boyfriend', boyfriend: 'girlfriend', fiancee: 'fiance', fiance: 'fiancee',
+      son: 'mother', daughter: 'mother', child: 'mother', kid: 'mother', boy: 'mother', girl: 'mother', baby: 'mother',
+      mother: 'son', father: 'son', mom: 'son', dad: 'son', momma: 'son', mama: 'son', daddy: 'son',
+      stepson: 'stepmother', stepdaughter: 'stepmother', stepmother: 'stepson', stepfather: 'stepson',
+      brother: 'brother', sister: 'brother', stepbrother: 'stepbrother', stepsister: 'stepbrother',
+      grandson: 'grandmother', granddaughter: 'grandmother', grandmother: 'grandson', grandfather: 'grandson', grandma: 'grandson', grandpa: 'grandson', granny: 'grandson', granddad: 'grandson',
+      nephew: 'aunt', niece: 'aunt', aunt: 'nephew', uncle: 'nephew', cousin: 'cousin',
+      'son-in-law': 'mother-in-law', 'daughter-in-law': 'mother-in-law', 'mother-in-law': 'son-in-law', 'father-in-law': 'son-in-law',
+      'sister-in-law': 'brother-in-law', 'brother-in-law': 'brother-in-law', 'ex-wife': 'ex-husband', 'ex-husband': 'ex-wife', ex: 'ex',
+      employee: 'boss', worker: 'boss', hand: 'boss', helper: 'boss', apprentice: 'boss', boss: 'employee', employer: 'employee', manager: 'employee',
+      tenant: 'landlord', lodger: 'landlord', landlord: 'tenant', landlady: 'tenant'
+    });
+    function reverseWord(word, pronouns) {
+      const w = String(word || '').toLowerCase().trim();
+      const base = REVERSE[w] || w;
+      const turned = String(kinWord(base, pronouns) || base).toLowerCase();
+      return REL_WORDS.has(turned) ? turned : base;
+    }
+    const REL_LIST_ID = 'cr-relation-words';
+    function relWords() { return el('datalist', { id: REL_LIST_ID }, [...REL_WORDS].sort().map(w => el('option', { value: w }))); }
+    function personIndex(d, id) { return arrOf(getAt(d, 'world.npcs')).findIndex(n => isObj(n) && n.id === id); }
+    function addReverse(x, otherId, word) {
+      const k = personIndex(state.draft, otherId);
+      if (k < 0) return false;
+      const other = getAt(state.draft, `world.npcs[${k}]`);
+      return set(`world.npcs[${k}].relations`, arrOf(other.relations).concat([{ npcId: x.id, relation: word }]));
+    }
+    function relationRow(x, r, j, path, d) {
+      const rp = `${path}.relations[${j}]`;
+      const all = people(d);
+      const others = all.filter(n => n.id !== x.id);
+      const rel = isObj(r) ? r : {};
+      const now = typeof rel.npcId === 'string' ? rel.npcId : '';
+      const other = all.find(n => n.id === now) || null;
+      const sel = el('select', {
+        class: 'input cr-ref', id: Form.domId(rp + '.npcId'), 'aria-label': `Relation ${j + 1}: who`, dataset: { path: rp + '.npcId', ref: 'npc' },
+        onchange: () => { set(rp + '.npcId', sel.value || undefined); redraw('#' + Form.domId(rp + '.npcId')); }
+      }, el('option', { value: '', selected: !now }, 'Choose someone'),
+      others.map(n => el('option', { value: n.id, selected: n.id === now }, nameIn(all, n.id))),
+      now && !other ? el('option', { value: now, selected: true }, `${now} (not found)`) : null);
+      const word = el('input', {
+        class: 'input', type: 'text', id: Form.domId(rp + '.relation'), list: REL_LIST_ID, value: typeof rel.relation === 'string' ? rel.relation : '', autocomplete: 'off', spellcheck: 'false',
+        maxlength: 60, placeholder: 'wife, boss, friend…', 'aria-label': `Relation ${j + 1}: what ${other ? nameIn(all, other.id) : 'they'} ${other ? 'is' : 'are'} to ${nameIn(all, x.id)}`, dataset: { path: rp + '.relation' }
+      });
+      word.addEventListener('change', () => { const v = word.value.trim().toLowerCase(); set(rp + '.relation', v || undefined); redraw('#' + Form.domId(rp + '.relation')); });
+      const kids = [sel, word,
+        el('button', { type: 'button', class: 'cr-chip-x', 'aria-label': `Remove the relation to ${other ? nameIn(all, other.id) : 'nobody yet'}`,
+          onclick: () => { set(path + '.relations', arrOf(x.relations).filter((y, k) => k !== j)); redraw('#cr-relation-new-who'); } }, '×')];
+      // The reverse: when the other person does not list this one back, a note offers the word, one tap to write it.
+      const back = other ? arrOf(other.relations).find(y => isObj(y) && y.npcId === x.id) : null;
+      if (other && !back && typeof rel.relation === 'string' && rel.relation.trim()) {
+        const rev = reverseWord(rel.relation, x.pronouns);
+        kids.push(el('p', { class: 'cr-rel-back', dataset: { reverse: rev, for: other.id } },
+          el('span', null, `${nameIn(all, other.id)} does not list ${nameIn(all, x.id)} back; the reverse is "${rev}".`),
+          el('button', { type: 'button', class: 'btn small', dataset: { action: 'relation-reverse' },
+            onclick: () => { addReverse(x, other.id, rev); redraw(`#${Form.domId(rp + '.relation')}`); UI.toast(`${nameIn(all, other.id)} now lists ${nameIn(all, x.id)} as ${rev}.`); } }, `Add the reverse on ${nameIn(all, other.id)}`)));
+      }
+      kids.push(slot(rp), slot(rp + '.npcId'), slot(rp + '.relation'));
+      return el('div', { class: 'cr-rel', dataset: { path: rp, index: String(j) } }, kids);
+    }
+    function relationsSection(x, path, d) {
+      const rpath = path + '.relations';
+      const all = people(d);
+      const taken = new Set(arrOf(x.relations).map(r => (isObj(r) ? r.npcId : null)));
+      const left = all.filter(n => n.id !== x.id && !taken.has(n.id));
+      const who = el('select', { class: 'input cr-ref', id: 'cr-relation-new-who', 'aria-label': 'A new relation: who' },
+        el('option', { value: '', selected: true }, left.length ? 'Choose someone' : 'Nobody left to add'), left.map(n => el('option', { value: n.id }, nameIn(all, n.id))));
+      const word = el('input', { class: 'input', type: 'text', id: 'cr-relation-new-word', list: REL_LIST_ID, autocomplete: 'off', spellcheck: 'false', maxlength: 60, placeholder: 'wife, boss, friend…', 'aria-label': 'A new relation: what they are to this person' });
+      const addRel = () => {
+        const npcId = who.value;
+        const relation = word.value.trim().toLowerCase();
+        if (!npcId) { who.focus(); return; }
+        if (!relation) { word.focus(); return; }
+        const at = arrOf(x.relations).length;
+        set(rpath, arrOf(x.relations).concat([{ npcId, relation }]));
+        redraw(`.cr-rel[data-index="${at}"] [data-action="relation-reverse"]`);
+      };
+      word.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addRel(); } });
+      return el('section', { class: 'cr-section cr-relations', dataset: { section: rpath, path: rpath } },
+        el('h2', { class: 'cr-section-title' }, 'Relations'),
+        el('p', { class: 'cr-note' }, 'Who each person is to them, in a word the engine knows: wife, boss, friend. Relations are written on both sides; when the other person does not list this one back, a note offers the reverse.'),
+        relWords(),
+        el('div', { class: 'cr-rels' }, arrOf(x.relations).map((r, j) => relationRow(x, r, j, path, d))),
+        el('div', { class: 'cr-rel-new' }, who, word,
+          el('button', { type: 'button', class: 'btn small', dataset: { action: 'relation-add' }, disabled: !left.length, onclick: addRel }, 'Add relation')),
+        slot(rpath));
+    }
+    /* protector: a person's id or "nobody" is picked here; a list of people or { npcId, hidden } is shown, kept, and edited in the JSON. */
+    function protectorField(x, path, d) {
+      const pp = path + '.protector';
+      const fid = Form.domId(pp);
+      const v = x.protector;
+      const all = people(d);
+      const plain = v === undefined || v === null || typeof v === 'string';
+      const ctl = plain ? el('select', {
+        class: 'input cr-ref', id: fid, dataset: { path: pp, ref: 'npc' }, 'aria-describedby': `${fid}-help ${fid}-err`,
+        onchange: () => set(pp, ctl.value === '' ? undefined : ctl.value)
+      }, el('option', { value: '', selected: !v }, 'Not set'), el('option', { value: 'nobody', selected: v === 'nobody' }, 'Nobody'),
+      all.filter(n => n.id !== x.id).map(n => el('option', { value: n.id, selected: n.id === v }, nameIn(all, n.id))),
+      typeof v === 'string' && v !== 'nobody' && !all.some(n => n.id === v) ? el('option', { value: v, selected: true }, `${v} (not found)`) : null)
+        : el('p', { class: 'cr-pre', id: fid, dataset: { path: pp } }, JSON.stringify(v));
+      return el('div', { class: 'cr-field', dataset: { field: pp, type: 'any' } },
+        el('label', { class: 'label', for: fid }, 'Protector'), ctl,
+        el('p', { class: 'cr-note', id: fid + '-help' }, plain ? 'Whom they go to when the player crosses them.' : 'Several people or a hidden protector: edit it in the JSON.'),
+        slot(pp));
+    }
+    let moreOpen = false;
+    const peopleTab = EntityTab({
+      key: 'people', listPath: 'world.npcs', label: 'People', singular: 'person', idKind: 'npc', nameField: 'name',
+      placeholder: 'Loretta Gaddis',
+      summary: x => [typeof x.role === 'string' && x.role.trim() ? x.role.trim() : 'no role yet', Number.isInteger(x.age) ? String(x.age) : null, typeof x.pronouns === 'string' ? x.pronouns : null].filter(Boolean).join(' · '),
+      /* Everyone must be on a schedule; a new person is put nowhere, and the validator says so (on this tab's badge)
+         until the Schedules grid places them. pronouns is the schema's "they" (its enum has no "they/them"), and
+         factionId, tags, home and memories are there because engine.npc.required asks for each. */
+      onAdd: (name, ids) => ({
+        id: Pack.idFor('npc', name, ids), name, pronouns: 'they', role: '', factionId: null, tags: [], home: null, personality: [], relations: [], memories: [],
+        attitude: 0, alive: true, knownToPlayer: false, status: 'free', presence: 'here'
+      }),
+      fields: (x, path, on) => [
+        Form.render(NPC(), x, path, on, { only: ['name', 'pronouns', 'age', 'role', 'factionId', 'tags', 'home', 'status'], title: 'Who they are', note: 'The name the town knows them by, how they are spoken of, and where they belong.' }),
+        Form.render(NPC(), x, path, on, { only: ['presence', 'where', 'reach', 'died'], title: 'Where they are', note: 'Here: in town and somewhere every phase. Away: living elsewhere, with where and how to reach them. Dead: when and how they died.' }),
+        Form.render(NPC(), x, path, on, { only: ['look', 'voice', 'personality', 'goal', 'secret', 'history'], title: 'The writing', note: 'What the narrator reads to play them.' })
+      ],
+      extraDetail: (x, path, d) => {
+        const inner = Form.render(NPC(), x, path, (p, v) => set(p, v), {
+          only: ['start', 'axes', 'secretWeight', 'leverageKeys', 'mattersTo', 'whenTold', 'canRaise', 'mercenary', 'awayOn'],
+          title: '', note: 'The finer dials: how they feel about the player at the start, their temper, what their secret weighs, who they go to.'
+        });
+        inner.append(protectorField(x, path, d));
+        const more = el('details', { class: 'cr-more', open: moreOpen ? true : null }, el('summary', null, 'More'), inner);
+        more.addEventListener('toggle', () => { moreOpen = more.open; });
+        return [relationsSection(x, path, d), more];
+      }
+    });
+
+    // ----- Schedules -----
+    /* A place a row (its name a sticky first column), a phase a column, the people there as chips with x and an Add
+       select of the people not in that cell; By person turns it round (a person a row, the place per phase a picker).
+       Writes npcIdsBySchedule through Editor.set: one cell's list, or (moving a person) the whole list of places. */
+    let byPerson = false;
+    const inTown = d => people(d).filter(n => n.presence === undefined || n.presence === 'here');
+    function setCell(i, p, next) { return set(`world.locations[${i}].npcIdsBySchedule.${p}`, next); }
+    function moveTo(personId, p, locId) {
+      const locs = clone(arrOf(getAt(state.draft, 'world.locations')));
+      for (const l of locs) {
+        if (!isObj(l)) continue;
+        const s = isObj(l.npcIdsBySchedule) ? l.npcIdsBySchedule : null;
+        if (s && Array.isArray(s[p])) s[p] = s[p].filter(id => id !== personId);
+        if (l.id === locId) {
+          if (!isObj(l.npcIdsBySchedule)) l.npcIdsBySchedule = {};
+          l.npcIdsBySchedule[p] = arrOf(l.npcIdsBySchedule[p]).concat([personId]);
+        }
+      }
+      return set('world.locations', locs);
+    }
+    function byPlaceTable(d) {
+      const all = people(d);
+      const avail = inTown(d);
+      const locs = arrOf(getAt(d, 'world.locations'));
+      const rows = [];
+      locs.forEach((l, i) => {
+        if (!isObj(l) || typeof l.id !== 'string' || l.away === true) return;
+        const s = isObj(l.npcIdsBySchedule) ? l.npcIdsBySchedule : {};
+        const name = typeof l.name === 'string' && l.name.trim() ? l.name.trim() : l.id;
+        rows.push(el('tr', { dataset: { id: l.id } },
+          el('th', { scope: 'row' }, name, el('span', { class: 'cr-row-id' }, l.id)),
+          PHASES.map(p => {
+            const cp = `world.locations[${i}].npcIdsBySchedule.${p}`;
+            const sid = `cr-sched-${i}-${p}`;
+            const list = arrOf(s[p]);
+            const left = avail.filter(n => !list.includes(n.id));
+            const pick = el('select', {
+              class: 'input cr-chip-add', id: sid, disabled: !left.length, 'aria-label': `Add someone to ${name} in the ${phaseLabel(p, d).toLowerCase()}`,
+              onchange: () => { if (!pick.value) return; setCell(i, p, list.concat([pick.value])); redraw('#' + sid); }
+            }, el('option', { value: '', selected: true }, left.length ? 'Add…' : 'Everyone is here'), left.map(n => el('option', { value: n.id }, nameIn(all, n.id))));
+            return el('td', { class: 'cr-cell', dataset: { phase: p } },
+              el('div', { class: 'cr-chips', dataset: { path: cp } },
+                list.map(id => el('span', { class: 'cr-chip-item', dataset: { id: String(id) } },
+                  el('span', { class: 'cr-chip-text' }, all.some(n => n.id === id) ? nameIn(all, id) : `${id} (not found)`),
+                  el('button', { type: 'button', class: 'cr-chip-x', 'aria-label': `Take ${nameIn(all, id)} out of ${name} in the ${phaseLabel(p, d).toLowerCase()}`,
+                    onclick: () => { setCell(i, p, list.filter(v => v !== id)); redraw('#' + sid); } }, '×'))),
+                pick),
+              slot(cp));
+          })));
+      });
+      return el('table', { class: 'cr-grid-table', dataset: { view: 'place' } },
+        el('thead', null, el('tr', null, el('th', { scope: 'col' }, 'Place'), PHASES.map(p => el('th', { scope: 'col' }, phaseLabel(p, d))))),
+        el('tbody', null, rows.length ? rows : el('tr', null, el('td', { colspan: '5' }, 'No places yet: add them on the Places tab.'))));
+    }
+    function byPersonTable(d) {
+      const locs = places(d).filter(l => l.away !== true);
+      const all = people(d);
+      const rows = inTown(d).map(n => {
+        const k = personIndex(d, n.id);
+        return el('tr', { dataset: { id: n.id } },
+          el('th', { scope: 'row' }, nameIn(all, n.id), el('span', { class: 'cr-row-id' }, n.id)),
+          PHASES.map(p => {
+            const at = locs.filter(l => isObj(l.npcIdsBySchedule) && arrOf(l.npcIdsBySchedule[p]).includes(n.id)).map(l => l.id);
+            const sid = `cr-who-${k}-${p}`;
+            const pick = el('select', {
+              class: 'input', id: sid, 'aria-label': `Where ${nameIn(all, n.id)} is in the ${phaseLabel(p, d).toLowerCase()}`, dataset: { person: n.id, phase: p },
+              onchange: () => { moveTo(n.id, p, pick.value); redraw('#' + sid); }
+            }, el('option', { value: '', selected: !at.length }, 'Nowhere'), locs.map(l => el('option', { value: l.id, selected: l.id === at[0] }, nameIn(locs, l.id))));
+            return el('td', { class: 'cr-cell', dataset: { phase: p, missing: at.length ? '0' : '1' } }, pick,
+              at.length > 1 ? el('p', { class: 'cr-note' }, `Also at ${at.slice(1).map(id => nameIn(locs, id)).join(', ')}`) : null);
+          }));
+      });
+      return el('table', { class: 'cr-grid-table', dataset: { view: 'person' } },
+        el('thead', null, el('tr', null, el('th', { scope: 'col' }, 'Person'), PHASES.map(p => el('th', { scope: 'col' }, phaseLabel(p, d))))),
+        el('tbody', null, rows.length ? rows : el('tr', null, el('td', { colspan: '5' }, 'Nobody in town yet: add people on the People tab.'))));
+    }
+    function renderSchedules(d) {
+      const seg = (on, label, mode) => el('button', { type: 'button', 'aria-pressed': String(on), dataset: { mode }, onclick: () => { byPerson = mode === 'person'; redraw(`.cr-seg [data-mode="${mode}"]`); } }, label);
+      return el('section', { class: 'cr-section cr-schedules' },
+        el('h2', { class: 'cr-section-title' }, 'Schedules'),
+        el('p', { class: 'cr-note' }, 'Who is where in each part of the day. The grid scrolls sideways; the place stays at the left.'),
+        el('div', { class: 'cr-seg', role: 'group', 'aria-label': 'Show the schedules' }, seg(!byPerson, 'By place', 'place'), seg(byPerson, 'By person', 'person')),
+        el('div', { class: 'cr-grid-scroll', tabindex: '0', role: 'region', 'aria-label': byPerson ? 'Schedules by person' : 'Schedules by place' }, byPerson ? byPersonTable(d) : byPlaceTable(d)),
+        el('p', { class: 'cr-note' }, 'Everyone needs a place in every phase; the validator says who is missing.'));
+    }
+
+    // ----- the World tab's own strip -----
+    /* { id, label, owns(path), render(draft), tab? }: owns says which problems count on its button; tab (an EntityTab)
+       has its rows' counts refreshed after each check. The next task adds its lists with addSub. */
+    const SUBS = [
+      { id: 'places', label: 'Places', owns: p => /^world\.startLocationIds(\.|$)/.test(p) || (/^world\.locations(\[|$)/.test(p) && !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p)), render: d => placesTab.render(d), tab: placesTab },
+      { id: 'people', label: 'People', owns: p => /^world\.npcs(\[|$)/.test(p), render: d => peopleTab.render(d), tab: peopleTab },
+      { id: 'schedules', label: 'Schedules', owns: p => /^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p), render: d => renderSchedules(d) }
+    ];
+    let sub = 'places';
+    function addSub(s) { if (isObj(s) && s.id && !SUBS.some(x => x.id === s.id)) SUBS.push(s); return SUBS.length; }
+    function select(id, focus) {
+      if (!SUBS.some(s => s.id === id)) return false;
+      sub = id;
+      redraw(focus ? `#cr-world-${id}` : null);
+      return true;
+    }
+    function onKey(e) {
+      const ids = SUBS.map(s => s.id);
+      const i = ids.indexOf(sub);
+      const to = e.key === 'ArrowRight' ? ids[(i + 1) % ids.length] : e.key === 'ArrowLeft' ? ids[(i - 1 + ids.length) % ids.length] : null;
+      if (!to) return;
+      e.preventDefault();
+      select(to, true);
+    }
+    function render(d) {
+      if (!SUBS.some(s => s.id === sub)) sub = SUBS[0].id;
+      const entry = SUBS.find(s => s.id === sub);
+      const strip = el('div', { class: 'cr-subtabs', role: 'tablist', 'aria-label': 'Parts of the world', onkeydown: onKey },
+        SUBS.map(s => el('button', {
+          type: 'button', role: 'tab', class: 'cr-subtab', id: `cr-world-${s.id}`, 'aria-selected': String(s.id === sub), 'aria-controls': 'cr-world-body',
+          tabindex: s.id === sub ? '0' : '-1', dataset: { sub: s.id }, onclick: () => select(s.id)
+        }, el('span', null, s.label), el('span', { class: 'cr-badge warn', hidden: true }))));
+      return [strip, el('div', { id: 'cr-world-body', role: 'tabpanel', 'aria-labelledby': `cr-world-${entry.id}`, dataset: { sub: entry.id } }, entry.render(d))];
+    }
+    /* After each check() (Editor's showProblems): each list's error count on its button, and the open list's rows. */
+    function refresh() {
+      const body = node('creator-body');
+      if (!body || state.tab !== 'world') return;
+      const errs = Pack.errors(problems);
+      for (const b of body.querySelectorAll('.cr-subtab')) {
+        const s = SUBS.find(x => x.id === b.dataset.sub);
+        const n = s && s.owns ? errs.filter(p => s.owns(String(p.path || ''))).length : 0;
+        const g = b.querySelector('.cr-badge');
+        g.textContent = String(n);
+        g.hidden = !n;
+        if (n) b.setAttribute('aria-label', `${s.label}, ${plural(n, 'error')}`); else b.removeAttribute('aria-label');
+      }
+      for (const s of SUBS) if (s.tab) s.tab.refresh();
+    }
+    return { EntityTab, render, refresh, select, addSub, reverseWord, SUBS, places: placesTab, people: peopleTab, get sub() { return sub; }, get byPerson() { return byPerson; } };
+  })();
+  const EntityTab = WorldTab.EntityTab;
+  function renderWorld(d) { return WorldTab.render(d); }
+  function refreshWorld() { WorldTab.refresh(); }
+  // ----- World: story tabs (M5-C2) -----
 
   // ----- Creator: Player -----
   // (milestone 5, task M5-D)
@@ -45560,6 +46326,8 @@ const Creator = (() => {
       set, undo, redo, check, saveNow, saveAsPack, tabFor, bumpVersion, fillJson,
       get problems() { return problems; }, get checkMs() { return checkMs; }, get undoDepth() { return work ? work.undo.length : 0; }, get redoDepth() { return work ? work.redo.length : 0; }
     }),
+    // Task M5-C1: the list-and-detail every entity tab uses, and the World tab's lists (tests and the next task use them).
+    EntityTab, WorldTab,
     get state() { return state; }
   };
 })();
