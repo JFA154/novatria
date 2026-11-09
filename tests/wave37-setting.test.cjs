@@ -11,7 +11,9 @@
    newsTemplate } routes the report, the arrest, the inquiry and its news
    and World.grudgeKind; rules.law and rules.narration.maxDue replace
    World's FINE, ROUGH_* and MAX_DUE. setting.locale extends Style's name
-   lists. The built-in pack reads exactly as before ("$", Chief Bell, Town
+   lists. Task M4-E: the card table's money (Pipeline's stake, Say-mode
+   bet, typed bets, summary and bare amount; /cheat cash) is the pack's
+   too. The built-in pack reads exactly as before ("$", Chief Bell, Town
    Hall); a pack's own values are set on a preview (Pack.setPreview, a copy
    of the built-in pack), the editor's way. Mock mode.
    Run with: node tests/run.cjs wave37-setting */
@@ -156,6 +158,84 @@ s.test('the card table\'s amount field: "$" before the amount and "Type an amoun
   assert.match(credits.note, /^Type an amount in credits\. The least bet is \d+ cr\.$/);
   assert.match((await creditsField('12.5')).note, /^Whole credits at this table: 12 cr\./);
   assert.doesNotMatch((await creditsField('12 cr')).note, /Type an amount|Whole/);
+});
+
+/* Wave 37, Creator Mode, milestone 4 (task M4-E): the card table in the
+   pack's money. A no-limit hold'em hand opened by the words given (the
+   betting tests' way: the table's place at a phase its dealer sits, the
+   deal preset, the words typed), the dealer holding aces so a bet is
+   answered and the hand stays open; then a bet typed in the box. What the
+   stake words, the Say-mode bet, the typed bets and /cheat cash read. */
+async function cardMoney(page, sit, bet) {
+  await start(page);
+  await page.evaluate(() => Game.State.apply({ goldDelta: 300 }));
+  const at = await page.evaluate(() => {
+    const G = Game, S = G.State, st = G.state;
+    const l = st.locations.find(x => G.Pipeline.cardGameAt(x));
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    for (const ph of ['evening', 'night', 'afternoon']) {
+      let d = st.time.day + (PH.indexOf(ph) < PH.indexOf(st.time.phase) ? 1 : 0);
+      while (S.isClosed(l, d)) d++;
+      S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
+      if (G.Pipeline.dealerOf(S.npcsAt(l.id).map(n => n.id))) return l.id;
+    }
+    return null;
+  });
+  assert.ok(at, 'a table with its dealer');
+  const words = await page.evaluate(() => {
+    const P = Game.Pipeline;
+    const stake = t => P.stakeFor(t, 300).stake;
+    return {
+      stakes: ['Deal me in for 40 cr', 'Deal me in for forty credits', 'Deal me in for $40'].map(stake),
+      put: [P.wordsBet('put 20 cr in the pot'), stake('put 20 cr in the pot'), P.wordsBet('put $20 in the pot'), stake('put $20 in the pot')]
+    };
+  });
+  await presetCards(page, { game: 'holdem', seats: [], structure: 'nolimit' });
+  await page.evaluate(() => { Game.Pipeline.hooks.cardsDeal = { holes: [['7s', '2d'], ['Ah', 'Ad']], board: ['2c', '7d', '9h', '3s', 'Jc'], seats: [] }; });
+  await page.fill('#cmd', sit);
+  await page.press('#cmd', 'Enter');
+  await page.waitForSelector('#feed .f-cards.open .cards-acts button');
+  const typed = await page.evaluate(() => {
+    const P = Game.Pipeline, t = P.openHand;
+    const to = x => { const b = P.typedBet(x, t); return b && b.choice ? b.choice.to : null; };
+    return { stake: t.stake, to: ['bet 40', 'bet 40 cr', 'bet forty credits', '40 cr', 'bet $40', 'bet forty dollars'].map(to) };
+  });
+  await page.fill('#cmd', bet);
+  await page.press('#cmd', 'Enter');
+  await page.waitForFunction(() => Game.Pipeline.openHand && Game.Pipeline.openHand.ask && Game.Pipeline.openHand.ask.put > 0);
+  const played = await page.evaluate(() => ({ put: Game.Pipeline.openHand.ask.put, seat: document.querySelector('#feed .f-cards.open .cards-side[data-seat="player"] .cards-status').textContent }));
+  return { words, typed, played };
+}
+const cheatCash = async (page, arg) => {
+  await page.evaluate(a => Game.Commands.run('/cheat cash ' + a), arg);
+  return page.evaluate(() => ({ gold: Game.state.player.gold, notice: [...document.querySelectorAll('#feed .f-notice')].pop().textContent }));
+};
+
+s.test('the card table in credits (task M4-E): a stake of "40 cr" or "forty credits" is 40, "put 20 cr in the pot" is a bet of 20, a typed "bet 40 cr", "bet forty credits" or "40 cr" with a hand open is a bet of 40 and plays as one, and /cheat cash 40 cr sets the cash to 40 (a bad amount: "whole credits"); "$40" is no longer money there', async h => {
+  const page = await h.open({ viewport: LAPTOP, contextOptions: { reducedMotion: 'reduce' } });
+  await preview(page, { currency: CREDITS });
+  const r = await cardMoney(page, 'Deal me in for 100 cr.', 'bet 40 cr');
+  assert.deepEqual(r.words.stakes, [40, 40, 20], 'a stake in credits is read; "$40" is not money here (the usual 20)');
+  assert.deepEqual(r.words.put.slice(0, 3), [true, 20, false], '"put $20 in the pot" is not a bet in credits');
+  assert.equal(r.typed.stake, 100, '"Deal me in for 100 cr." stakes 100');
+  assert.deepEqual(r.typed.to, [40, 40, 40, 40, null, null]);
+  assert.deepEqual(r.played, { put: 40, seat: 'bets 40 cr' });
+  assert.deepEqual((await cheatCash(page, '40 cr')).gold, 40);
+  assert.equal((await cheatCash(page, '55 credits')).gold, 55);
+  const bad = await cheatCash(page, 'lots');
+  assert.equal(bad.gold, 55, 'a bad amount changes nothing');
+  assert.match(bad.notice, /Try \/cheat cash 25 \(whole credits, 0 to 1,000,000\)\./);
+});
+
+s.test('the card table in the built-in pack\'s dollars (task M4-E): "$40" stakes 40, "put $20 in the pot" bets 20, "bet $40" typed plays as a bet of 40, /cheat cash $40 sets 40 and a bad amount says "whole dollars"', async h => {
+  const page = await h.open({ viewport: LAPTOP, contextOptions: { reducedMotion: 'reduce' } });
+  const r = await cardMoney(page, 'Deal me in for $100.', 'bet $40');
+  assert.equal(r.words.stakes[2], 40);
+  assert.deepEqual(r.words.put.slice(2), [true, 20]);
+  assert.deepEqual(r.typed.to, [40, null, null, null, 40, 40]);
+  assert.deepEqual(r.played, { put: 40, seat: 'bets $40' });
+  assert.equal((await cheatCash(page, '$40')).gold, 40);
+  assert.match((await cheatCash(page, 'lots')).notice, /\(whole dollars, 0 to 1,000,000\)\./);
 });
 
 s.test('a world.law with a security chief: a report goes to the law head (Rel.policeHead, Rel.reportTo), an arrest puts the player in the law\'s arrest place, World.grudgeKind reads the law\'s head and faction, and a secret told to the chief plants an inquiry whose news is the pack\'s template with the chief\'s name and whose clock is the law\'s faction', async h => {

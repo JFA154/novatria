@@ -26428,8 +26428,16 @@ const World = (() => {
   /* What an arrest would be, without doing it (the pipeline tells it in the
      narration of the fight that caused it): { text, cellId, chiefId, fine,
      weapons: the names of what will be taken }. */
-  /* The police chief, else any free officer, else null. */
+  /* The police chief, else any free officer, else null. Wave 37, Creator
+     Mode, milestone 4 (task M4-E): the pack's law head (world.law.headNpcId,
+     lawOf) first, when that person is free and in town (Rel.inTown), so a
+     starport's security chief makes the arrest and finds the rough
+     sleeper; then the search by tag and role (Low Water's law names Marcus
+     Bell, whom the search finds too). */
   function chiefOf(s) {
+    const lawHead = lawOf().headNpcId;
+    const head = lawHead ? s.npcs.find(n => n.id === lawHead) : null;
+    if (head && Rel.inTown(head)) return head;
     const police = n => (n.tags || []).includes('police') || /\b(police|officer)\b/i.test(String(n.role || ''));
     return s.npcs.find(n => isFree(n) && police(n) && ((n.tags || []).includes('chief') || /\bchief\b/i.test(String(n.role || '')))) || s.npcs.find(n => isFree(n) && police(n)) || null;
   }
@@ -31730,8 +31738,49 @@ const Pipeline = (() => {
      the dealer was spoken to (or everyone was), and otherwise gives the
      no-game line. */
   const SAY_TYPES = ['talk', 'persuade', 'deceive', 'intimidate'];
-  const SAY_NUM = '(?:\\$\\s?\\d|\\d|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\\b)';
-  const SAY_BET = [
+  /* The pack's money at the card table (wave 37, Creator Mode, milestone 4,
+     task M4-E; plan decision F's currency row): every amount Pipeline reads
+     there (a bet said aloud, the stake named, a bet typed with a hand open,
+     the turn's summary, a bare amount between hands) takes the symbol where
+     the pack writes it ("$40" before the number, "40 cr" after) and the
+     pack's money words ("dollars?|bucks?", "credits?|creds?"), from
+     Pack.moneyRe, so a credits pack bets and pays as the dollars pack does.
+     Built once per pack (Style's moneyPatterns idiom: Pack.moneyRe is the
+     same object until the pack or its currency changes). For the built-in
+     pack every pattern is the "$" literal it replaces, source for source.
+     lead: an optional symbol before a figure ("\$?\s*"; nothing when the
+     symbol follows); unit: what may follow a figure (the words, and the
+     symbol when it follows); flags: a typed bet is lowercased first, so a
+     symbol or word with a capital ("Cr") is matched without case. */
+  const cardMoney = { R: null };
+  function cardMoneyPats() {
+    const R = Pack.moneyRe;
+    if (cardMoney.R === R) return cardMoney;
+    const cur = currency();
+    const sym = R.symbol, wl = R.wordList;
+    const symOpt = /^\\?.$/.test(sym) ? `${sym}?` : `(?:${sym})?`;
+    const unit = R.before ? R.wordForms : `${sym}|${R.wordForms}`;
+    const lead = R.before ? `${symOpt}\\s*` : '';
+    const cs = /[A-Z]/.test((cur ? cur.symbol : '') + wl) ? 'i' : '';
+    const num = `(?:${R.before ? `${sym}\\s?\\d|` : ''}\\d|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\\b)`;
+    const fig = '(\\d[\\d,]*(?:\\.\\d+)?)';
+    Object.assign(cardMoney, {
+      R, unit,
+      sayBet: sayBetPats(num, R.before ? `${sym}\\s?\\d+|\\d+(?:\\s*(?:${wl}))?` : `\\d+(?:\\s*(?:${sym}|${wl}))?`),
+      // The stake named: groups 1, 2 and 4 the minus signs, 3 and 5 the figure (2 is empty when the symbol follows).
+      stake: new RegExp(R.before ? `(-)?\\s*${sym}\\s*(-)?\\s*${fig}|(-)?\\b${fig}\\s*(?:${R.wordForms})\\b` : `(-)?()\\b${fig}\\s*${sym}|(-)?\\b${fig}\\s*(?:${R.wordForms})\\b`, 'i'),
+      betWord: new RegExp(`^(?:check|call|bet|bets|raise|raises|re-?raise|make it|all[\\s-]?in|go all[\\s-]?in|shove|jam|push|min|pot|half(?: the)? pot|${R.before ? `${sym}\\s*\\d|` : ''}\\d)`, cs),
+      typedNum: new RegExp(`^${lead}(\\d[\\d,]*)(?:\\.\\d+)?(?:\\s*(?:${unit}))?$`, cs),
+      unitEnd: new RegExp(`\\s*(?:${unit})$`, cs),
+      sumTest: new RegExp(R.before ? `${sym}\\s*\\d` : `\\d\\s*${sym}`, cs),
+      sumAmount: new RegExp(R.before ? `${sym}\\s*\\d[\\d,]*` : `\\d[\\d,]*(?:\\.\\d+)?\\s*${sym}`, cs),
+      bare: new RegExp(`^${lead}\\d[\\d,]*(?:\\.\\d+)?\\s*(?:${unit})?[.!?]*$`, 'i')
+    });
+    return cardMoney;
+  }
+  // SAY_BET for the pack's money: num, an amount after "in for", "raise", "all in for"; put, the amount "put" in the pot.
+  function sayBetPats(SAY_NUM, put) {
+    return [
     /\bdeal me (?:in|another|a hand|one more)\b/i,
     /\bdeal (?:again|another|one more)\b/i,
     new RegExp(`\\b(?:i'?m|i am|count me) in(?:\\s+for\\s+${SAY_NUM}|\\s*[.!?,…]*\\s*$)`, 'i'),
@@ -31743,20 +31792,21 @@ const Pipeline = (() => {
     new RegExp(`\\b(?:raise|raises)(?:\\s+(?:you|it|the pot))?\\s+${SAY_NUM}`, 'i'),
     // All in as a bet ("I'm all in", "I go all in", "All in.", "all in for $50"), not "we're all in this together".
     new RegExp(`\\b(?:i'?m|i am|i go|go|going)\\s+all[\\s-]in\\b|^\\s*all[\\s-]in\\s*[.!?]*\\s*$|\\ball[\\s-]in\\s+for\\s+${SAY_NUM}`, 'i'),
-    /\bput (?:\$\s?\d+|\d+(?:\s*(?:dollars|bucks))?) (?:in|on the table|in the pot|into the pot)\b/i,
+    new RegExp(`\\bput (?:${put}) (?:in|on the table|in the pot|into the pot)\\b`, 'i'),
     // Wave 13: the game and the table size named ("deal me in at hold'em", "a hand of draw", "deal everyone in", "heads up").
     /\b(?:a|another|one more) (?:hand|game|round) of (?:five[\s-]*card\s+)?(?:draw|hold[\s'-]*'?em|holdem|texas hold[\s'-]*'?em|poker)\b/i,
     /\b(?:play|playing|let'?s play|deal|deal me in at|deal us in at|i'?ll play)\s+(?:some\s+)?(?:texas\s+)?(?:hold[\s'-]*'?em|holdem|draw poker|five[\s-]*card(?:\s+draw)?)\b/i,
     /\bdeal (?:everyone|everybody|us all|all of us|the (?:whole )?table) in\b/i,
     /\bheads[\s-]*up\s+(?:game|hand|poker|hold[\s'-]*'?em|holdem|draw|with)\b|\b(?:play|deal|let'?s play)\s+(?:it\s+)?heads[\s-]*up\b/i
-  ];
+    ];
+  }
   /* A bet or a wager is a bet at cards only as Style.betTalk reads it (wave
      12, L7: the cards, a hand, the game or the pot named, or a bare stake);
      "I bet you ten bucks it rains tomorrow" and "I bet he is lying" are
      talk. */
-  function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return SAY_BET.some(re => re.test(t)) || Style.betTalk(t) === 'bet'; }
+  function wordsBet(words) { const t = String(words || '').replace(/[’]/g, "'"); return cardMoneyPats().sayBet.some(re => re.test(t)) || Style.betTalk(t) === 'bet'; }
   // Only a figure of speech: a bet followed by a clause, and nothing else in the words that bets.
-  function betIsTalk(words) { const t = String(words || '').replace(/[’]/g, "'"); return Style.betTalk(t) === 'clause' && !SAY_BET.some(re => re.test(t)); }
+  function betIsTalk(words) { const t = String(words || '').replace(/[’]/g, "'"); return Style.betTalk(t) === 'clause' && !cardMoneyPats().sayBet.some(re => re.test(t)); }
   function sayAction(a, sp, words) {
     const s = State.current;
     const presentIds = State.npcsAt(s.player.locationId).map(n => n.id);
@@ -32922,7 +32972,9 @@ const Pipeline = (() => {
   const cents = n => Math.round(n * 100) / 100;
   function namedStake(text) {
     const t = String(text || '').replace(/[’]/g, "'").replace(/[−–]/g, '-');
-    const d = /(-)?\s*\$\s*(-)?\s*(\d[\d,]*(?:\.\d+)?)|(-)?\b(\d[\d,]*(?:\.\d+)?)\s*(?:dollars?|bucks?)\b/i.exec(t);
+    // The pack's symbol and money words (wave 37, Creator Mode: cardMoneyPats; "$20", "20 dollars", "20 cr", "20 credits").
+    const M = cardMoneyPats();
+    const d = M.stake.exec(t);
     if (d) {
       const n = cents(parseFloat((d[3] || d[5]).replace(/,/g, '')));
       if (Number.isFinite(n)) return d[1] || d[2] || d[4] ? -n : n;
@@ -32935,7 +32987,7 @@ const Pipeline = (() => {
       const k = !count || ONLY_ARTICLES.test(count.trim()) ? 1 : /\d/.test(count) ? parseInt(count, 10) : Style.numberWords(count.trim());
       if (Number.isFinite(k) && k > 0) return k * (slang[2] ? (/^f/i.test(slang[2]) ? 5 : 10) : 1000);
     }
-    const w = new RegExp(`\\b(${NUM}(?:[\\s-]+${NUM})*)\\s+(?:dollars?|bucks?)\\b`, 'i').exec(t);
+    const w = new RegExp(`\\b(${NUM}(?:[\\s-]+${NUM})*)\\s+(?:${M.unit})\\b`, 'i').exec(t);
     if (w && !ONLY_ARTICLES.test(w[1].trim())) { const n = Style.numberWords(w[1]); if (n !== null) return n; }
     const put = /\bput\s+(\d[\d,]*)\s+(?:in|into|on|down)\b/i.exec(t);
     if (put) return parseInt(put[1].replace(/,/g, ''), 10);
@@ -33541,15 +33593,17 @@ const Pipeline = (() => {
      at the draw "draw 3" / "draw three" / "I draw two" ({ draw: n }: the
      UI presses Draw when exactly n cards are not held, else says how). */
   const TYPED_FOLD = /^(?:fold|folds|folding|muck|i'm out|im out)(?: (?:it|my hand|this hand|this one|then))?$/;
-  const TYPED_BETWORD = /^(?:check|call|bet|bets|raise|raises|re-?raise|make it|all[\s-]?in|go all[\s-]?in|shove|jam|push|min|pot|half(?: the)? pot|\$\s*\d|\d)/;
+  // TYPED_BETWORD, its amount in the pack's money, is cardMoneyPats().betWord (wave 37, Creator Mode).
   // "push my chips in", "I shove all my money toward Curtis", "push it all in" (wave 20, QA N1): all in.
   const TYPED_PUSH = /^(?:shove|shoves|push|pushes)(?: (?:it|them))? (?:all[\s-]?in|everything|(?:all (?:of )?)?(?:my |the |these |those |your |our )?(?:chips|money|cash|stack|pile|bankroll))\b/;
   /* An amount in figures or words ("$8", "8", "eight dollars"), or null. */
   function typedAmount(str) {
     const rest = String(str || '').trim();
-    const num = /^\$?\s*(\d[\d,]*)(?:\.\d+)?(?:\s*(?:dollars?|bucks?))?$/.exec(rest);
+    // The pack's money (wave 37, Creator Mode): "$8", "8 dollars"; "8 cr", "eight credits".
+    const M = cardMoneyPats();
+    const num = M.typedNum.exec(rest);
     if (num) return parseInt(num[1].replace(/,/g, ''), 10);
-    const words = rest.replace(/\s*(?:dollars?|bucks?)$/, '').trim();
+    const words = rest.replace(M.unitEnd, '').trim();
     return words && new RegExp(`^${Style.NUMBER_WORD}(?:[\\s-]+${Style.NUMBER_WORD})*$`, 'i').test(words) ? Style.numberWords(words) : null;
   }
   function typedBet(text, t) {
@@ -33565,7 +33619,7 @@ const Pipeline = (() => {
       // Wave 20 (QA N10): "draw a card" is one.
       const n = dn ? (/^an?$/.test(dn[1]) ? 1 : typedAmount(dn[1])) : null;
       if (Number.isInteger(n) && n >= 1 && n <= 5) return { draw: n };
-      if (TYPED_BETWORD.test(w) && !/^\d+ ?(?:,|and|\d)/.test(w)) return { say: 'Pick the cards to hold, then Draw: the betting comes after the draw.' };
+      if (cardMoneyPats().betWord.test(w) && !/^\d+ ?(?:,|and|\d)/.test(w)) return { say: 'Pick the cards to hold, then Draw: the betting comes after the draw.' };
       return null;
     }
     const a = isObj(t.ask) ? t.ask : null;
@@ -33615,10 +33669,11 @@ const Pipeline = (() => {
     else if (/^(?:the )?pot$/.test(rest)) size = 'pot';
     else if (/^(?:all[\s-]?in|it all|everything)$/.test(rest)) size = 'allin';
     else {
-      const num = /^\$?\s*(\d[\d,]*)(?:\.\d+)?(?:\s*(?:dollars?|bucks?))?$/.exec(rest);
+      const M = cardMoneyPats();
+      const num = M.typedNum.exec(rest);
       if (num) amount = parseInt(num[1].replace(/,/g, ''), 10);
       else if (verb) {
-        const words = rest.replace(/\s*(?:dollars?|bucks?)$/, '').trim();
+        const words = rest.replace(M.unitEnd, '').trim();
         const n = new RegExp(`^${Style.NUMBER_WORD}(?:[\\s-]+${Style.NUMBER_WORD})*$`, 'i').test(words) ? Style.numberWords(words) : null;
         if (n === null) return null;
         amount = n;
@@ -34674,7 +34729,9 @@ const Pipeline = (() => {
     const st = replay ? { stake: replay.stake, named: Number.isFinite(replay.named) ? replay.named : null, note: replay.stakeNote || null } : stakeFor(ctx.input, p.gold, lastToday ? lastToday.cards.stake : null);
     const stake = st.stake;
     // The action as told (ACTION) names the stake the engine plays, not the parser's guess (wave 3: "Deal me in" is $20, not "bets $10").
-    a.summary = /\$\s*\d/.test(String(a.summary || '')) ? String(a.summary).replace(/\$\s*\d[\d,]*/, money(stake)) : `bets ${money(stake)} at cards`;
+    // The amount in the pack's money (wave 37, Creator Mode: "$20" or "20 cr") is the stake as played.
+    const M = cardMoneyPats();
+    a.summary = M.sumTest.test(String(a.summary || '')) ? String(a.summary).replace(M.sumAmount, money(stake)) : `bets ${money(stake)} at cards`;
     const deck = markedDeck(p);
     const first = firstName(dealer.name);
     const seed = cardSeed(s);
@@ -36809,7 +36866,7 @@ const Pipeline = (() => {
   /* A move typedBet reads (against a stand-in table facing a bet), a bare amount aside, which is a stake (wave 19; wave 20: the demo's sit-down with the dealer or the table named reads it too). */
   function betWord(text) {
     const t = String(text || '').trim();
-    if (/^\$?\s*\d[\d,]*(?:\.\d+)?\s*(?:dollars?|bucks?)?[.!?]*$/i.test(t)) return false;
+    if (cardMoneyPats().bare.test(t)) return false;
     return typedBet(t, BETWEEN_TABLE) !== null;
   }
   async function submit(rawText, opts) {
@@ -41678,6 +41735,19 @@ const UI = (() => {
       Promise.resolve(Commands.run(t)).then(r => { if (r && r.restoreInput && r.reason === 'usage') restoreAction(t); syncSendLabel(); }, e => console.error(e));
       return true;
     }
+    /* Wave 37, Creator Mode, milestone 4 (owner decision 5; task M4-E): a
+       story that hides the cheats hides them at the table too. Typed with a
+       hand open, /cheat win and /cheat cards go to Commands.run, which says
+       "Not in this story." and runs nothing, as it does with no hand open;
+       the hand stays as it was. */
+    if ((CHEAT_WIN_TYPED.test(t) || CHEAT_CARDS_TYPED.test(t)) && !Commands.allowed('/cheat')) {
+      d.cmd.value = '';
+      autosize();
+      syncSendLabel();
+      hideAc();
+      Commands.run(t);
+      return true;
+    }
     if (CHEAT_WIN_TYPED.test(t)) {
       const node = $('#feed .f-cards.open');
       d.cmd.value = '';
@@ -41802,7 +41872,8 @@ const UI = (() => {
   const NEXT_HINT = "Next hand: name the game in your words to switch (hold'em or draw).";
   const firstOf = name => String(name || '').split(/\s+/)[0];
   // The Win (cheat) control, at the end of the hint on every open table (wave 13).
-  function winButton() { return el('button', { type: 'button', class: 'btn small cards-win', onclick: e => tableAct(e.currentTarget, { win: true }) }, 'Win (cheat)'); }
+  // Wave 37, Creator Mode (owner decision 5): none when the story hides the cheats (Commands.allowed: the pack, the player's override, developer mode).
+  function winButton() { if (!Commands.allowed('/cheat')) return null; return el('button', { type: 'button', class: 'btn small cards-win', onclick: e => tableAct(e.currentTarget, { win: true }) }, 'Win (cheat)'); }
   function tableAct(btn, choice) {
     const node = btn && btn.closest('.f-cards');
     if (!node || !node.classList.contains('open') || !Pipeline.handOpen) return;
@@ -44090,12 +44161,22 @@ const Commands = (() => {
   }
   /* /cheat cash <amount> (wave 16): the player's cash set outright, in whole
      dollars, 0 to $1,000,000, through the engine's goldDelta: no roll,
-     nothing in the story; one /undo step. */
+     nothing in the story; one /undo step. Wave 37, Creator Mode, milestone
+     4 (task M4-E): the amount is in the pack's money (Pack.moneyRe: "$25"
+     or "25 dollars" for Low Water, "25 cr" or "25 credits" for a symbol
+     after the number), and the usage line names the pack's currency
+     ("whole credits"), so a credits story sets cash as a dollars one does.
+     Built at call time: a cheat is typed rarely. */
   function cheatCash(arg) {
     if (Storage.readOnly) { UI.toast(UI.READ_ONLY_NOTICE); return { ok: false, reason: 'read-only', restoreInput: true }; }
-    const m = /^\$?\s*(\d[\d,]*)(?:\.0+)?\s*(?:dollars?|bucks)?[.!]*$/i.exec(String(arg || '').trim());
+    const R = Pack.moneyRe;
+    const lead = R.before ? `(?:${R.symbol})?\\s*` : '';
+    const unit = R.before ? R.wordForms : `${R.symbol}|${R.wordForms}`;
+    const m = new RegExp(`^${lead}(\\d[\\d,]*)(?:\\.0+)?\\s*(?:${unit})?[.!]*$`, 'i').exec(String(arg || '').trim());
     const amount = m ? parseInt(m[1].replace(/,/g, ''), 10) : NaN;
-    if (!Number.isInteger(amount) || amount > 1000000) return usage('Set your cash to what? Try /cheat cash 25 (whole dollars, 0 to 1,000,000).');
+    const cur = currency();
+    const name = cur && typeof cur.name === 'string' && cur.name ? cur.name : 'dollars';
+    if (!Number.isInteger(amount) || amount > 1000000) return usage(`Set your cash to what? Try /cheat cash 25 (whole ${name}, 0 to 1,000,000).`);
     const s = State.current;
     if (s.player.gold === amount) { UI.feed.notice(`Your cash is already ${money(amount)}.`); return { ok: true, same: true }; }
     const snap = State.snapshot();

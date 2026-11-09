@@ -14,9 +14,12 @@
    - Plan decision D: Permadeath, Show dice rolls and the Narration style
      write this story's override (and the first two the global setting
      too); the note after each names the layer its value comes from.
+   - Task M4-E: the card table honours the cheats gate (no Win (cheat)
+     button, /cheat win typed with a hand open answers "Not in this
+     story."), and World.chiefOf reads world.law.headNpcId first.
    Run with: node tests/run.cjs wave37-commands */
 const assert = require('assert/strict');
-const { suite, quickStart, sendText, stateJson } = require('./helpers.cjs');
+const { suite, quickStart, sendText, stateJson, presetCards } = require('./helpers.cjs');
 
 const s = suite('wave37-commands');
 const FIXTURE = require('./fixtures/prompts-v36.json');
@@ -221,6 +224,80 @@ s.test('the Settings screen: Allow cheats anyway shows only for a story that hid
   // An unrelated change on the screen never copies the story's showRolls into the global setting.
   const other = await page.evaluate(() => { document.getElementById('set-keep-packets').click(); const st = Game.Storage.settings(); return [st.keepPackets, st.showRolls]; });
   assert.deepEqual(other, [true, true], 'keepPackets saved, the global showRolls still the player\'s own true');
+});
+
+/* A hold'em hand open at the card game's place (the betting tests' way:
+   a phase its dealer sits, the deal preset, "Deal me in." typed). */
+async function openHand(page) {
+  await page.evaluate(() => {
+    const G = Game, S = G.State, st = G.state;
+    S.apply({ goldDelta: 200 });
+    const l = st.locations.find(x => G.Pipeline.cardGameAt(x));
+    const PH = ['morning', 'afternoon', 'evening', 'night'];
+    for (const ph of ['evening', 'night', 'afternoon']) {
+      let d = st.time.day + (PH.indexOf(ph) < PH.indexOf(st.time.phase) ? 1 : 0);
+      while (S.isClosed(l, d)) d++;
+      S.apply({ setTime: { day: d, phase: ph }, playerLocationId: l.id });
+      if (G.Pipeline.dealerOf(S.npcsAt(l.id).map(n => n.id))) return;
+    }
+    throw new Error('no table with its dealer');
+  });
+  await presetCards(page, { game: 'holdem', seats: [], structure: 'nolimit' });
+  await page.evaluate(() => { Game.Pipeline.hooks.cardsDeal = { holes: [['7s', '2d'], ['Ah', 'Ad']], board: ['2c', '7d', '9h', '3s', 'Jc'], seats: [] }; });
+  await page.fill('#cmd', 'Deal me in.');
+  await page.press('#cmd', 'Enter');
+  await page.waitForSelector('#feed .f-cards.open .cards-acts button');
+}
+const handNow = page => page.evaluate(() => JSON.stringify({ open: Game.Pipeline.handOpen, t: Game.Pipeline.openHand, gold: Game.state.player.gold, log: Game.state.log.length, armed: Game.state.flags }));
+
+s.test('rules.cheats.allowed false at the card table (task M4-E): the open table shows no Win (cheat) button, and /cheat win or /cheat cards typed with the hand open answers "Not in this story." and leaves the hand as it was; with cheats allowed the button is there', async h => {
+  const page = await h.open({ contextOptions: { reducedMotion: 'reduce' } });
+  await preview(page, { cheats: { allowed: false } });
+  await start(page);
+  await openHand(page);
+  assert.equal(await page.$$eval('#feed .f-cards.open .cards-win', b => b.length), 0, 'no Win (cheat) button');
+  const before = await handNow(page);
+  for (const t of ['/cheat win', '/cheat cards']) {
+    await page.fill('#cmd', t);
+    await page.press('#cmd', 'Enter');
+    await page.waitForTimeout(60);
+    assert.equal(await lastNotice(page), 'Not in this story.', t);
+    assert.equal(await handNow(page), before, `${t}: the hand as it was`);
+    assert.equal(await page.$$eval('#feed .f-cards.open', x => x.length), 1, 'the table still open');
+  }
+  const page2 = await h.open({ contextOptions: { reducedMotion: 'reduce' } });
+  await start(page2);
+  await openHand(page2);
+  assert.equal(await page2.$$eval('#feed .f-cards.open .cards-win', b => b.length), 1, 'cheats allowed: the button is there');
+});
+
+s.test('World.chiefOf reads world.law.headNpcId first (task M4-E): a law head who is another free person in town makes the arrest (World.arrestPlan, World.arrestPlayer); a head who is away falls back to the search (Marcus Bell); the built-in law\'s head is Marcus Bell', async h => {
+  const page = await h.open();
+  await start(page);
+  const built = await page.evaluate(() => Game.World.arrestPlan().chiefId);
+  assert.equal(built, 'npc_marcus');
+  await page.evaluate(() => {
+    const P = Game.Pack;
+    const c = P.copy(P.builtIn());
+    c.world.law = Object.assign({}, c.world.law, { headNpcId: 'npc_dewayne' });
+    P.setPreview(c);
+  });
+  const r = await page.evaluate(() => {
+    const G = Game, W = G.World, S = G.State, st = G.state;
+    const dewayne = S.npc('npc_dewayne');
+    const out = { free: G.Rel.inTown(dewayne), tags: dewayne.tags || [], plan: W.arrestPlan() };
+    W.arrestPlayer();
+    out.at = st.player.locationId;
+    dewayne.presence = 'away';
+    out.away = W.arrestPlan().chiefId;
+    return out;
+  });
+  assert.equal(r.free, true, 'Dewayne is free and in town');
+  assert.ok(!r.tags.includes('police') && !r.tags.includes('chief'), 'not the law by tag: only the pack says so');
+  assert.equal(r.plan.chiefId, 'npc_dewayne');
+  assert.match(r.plan.text, /^Dewayne \S+ puts /);
+  assert.equal(r.at, r.plan.cellId, 'the arrest went through');
+  assert.equal(r.away, 'npc_marcus', 'away: the search finds the chief');
 });
 
 s.test('the roll line hides when rules.showRolls is false at the pack layer and the player has not chosen; the player\'s choice for this story shows it again', async h => {
