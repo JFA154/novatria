@@ -1690,6 +1690,52 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-branches > .cr-note { margin: 0 0 10px; }
 .cr-trigger, .cr-outcome { min-width: 0; }
 .cr-story > .cr-entity { margin: 0 0 8px; }
+/* The Story to Pack converter (wave 37, Creator Mode, task M8-C; plan decisions I and L): a card under "Your story,
+   in your words". Each proposed record is a small card of its own: the whole head row is its 44px tick, the kind as a
+   quiet chip, the name in Literata and the id in monospace, "not in your text" in the warm error tone; then its
+   fields, each a 44px tick row, and the sentence it came from beside them in italics (under them on a phone, beside
+   them from 760px). The Gaps reuse the Problems rows. */
+.cr-cv-run { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 12px; }
+.cr-cv-run .cr-note { flex: 1 1 14em; margin: 0; }
+.cr-cv-steps { margin: 0 0 12px; padding: 0 0 0 1.4em; font-size: 14px; line-height: 1.6; color: var(--muted); }
+.cr-cv-steps li::marker { color: var(--faint); }
+.cr-cv-notice { margin: 0 0 12px; }
+.cr-cv-review { min-width: 0; margin: 4px 0 0; animation: fade-in .2s ease-out; }
+.cr-cv-sum { margin: 0 0 10px; }
+.cr-cv-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; min-width: 0; }
+.cr-cv-item { min-width: 0; padding: 4px 14px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.cr-cv-item[data-in-text="0"], .cr-cv-item[data-error="1"] { border-left: 3px solid var(--danger); }
+.cr-cv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; min-width: 0; }
+.cr-cv-tick { display: flex; align-items: center; gap: 10px; min-height: var(--tap); min-width: 0; cursor: pointer; }
+.cr-cv-tick input { flex: 0 0 auto; width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.cr-cv-entity { flex: 1 1 14em; flex-wrap: wrap; gap: 4px 10px; }
+.cr-cv-kind {
+  display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: capitalize; color: var(--muted);
+}
+.cr-cv-name { font-family: var(--read-font); font-size: 17px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.cr-cv-id { font-size: 13px; color: var(--faint); overflow-wrap: anywhere; }
+.cr-cv-flag { font-size: 13px; font-weight: 600; color: var(--danger); }
+.cr-cv-item > .cr-err { margin: 0 0 8px; }
+.cr-cv-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 18px; min-width: 0; }
+.cr-cv-fields { list-style: none; margin: 0; padding: 0; min-width: 0; }
+.cr-cv-field { align-items: flex-start; padding: 10px 0 0; font-size: 14px; line-height: 1.45; }
+.cr-cv-field input { margin-top: 1px; }
+.cr-cv-k { flex: 0 0 7.5em; color: var(--muted); }
+.cr-cv-v { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.cr-cv-quote {
+  margin: 8px 0 0; padding: 4px 0 4px 12px; border-left: 2px solid var(--field); min-width: 0;
+  font-family: var(--read-font); font-style: italic; font-size: 15px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere;
+}
+.cr-cv-quote.none { color: var(--faint); }
+.cr-cv-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cr-cv-gaps { margin: 16px 0 0; min-width: 0; }
+.cr-cv-gaps-title { margin: 0 0 2px; font-family: var(--read-font); font-size: 17px; font-weight: 600; }
+.cr-cv-gaps .cr-problems { margin-top: 10px; }
+@media (min-width: 760px) {
+  .cr-cv-body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .cr-cv-quote { margin-top: 10px; }
+}
 .cr-price { color: var(--accent); }
 .cr-phases .cr-field { margin: 4px 0 0; }
 /* The Rules and Freedom tabs (wave 37, Creator Mode, task M6-B; plan decision L). A switch row: the words, then a
@@ -11108,6 +11154,8 @@ const Pack = (() => {
     idFor, renameId,
     // Wave 37, Creator Mode, milestone 6 (task M6-C): the cached prompt's token estimate (PackBudget, after PackRules: it builds with Style and Pipeline, read at call time).
     budgetEstimate: pack => PackBudget.estimate(pack),
+    // Wave 37, Creator Mode, milestone 8 (task M8-C): the Story to Pack converter's schema for one kind of record (PackConvert, after PackRules, read at call time), its kinds in order and their fields.
+    jsonSchemaFor: kind => PackConvert.jsonSchemaFor(kind), get CONVERT_KINDS() { return PackConvert.KINDS; }, get CONVERT_FIELDS() { return PackConvert.FIELDS; },
     // Wave 37, Creator Mode, milestone 8 (task M8-A): a pack file read and cleaned (PackImport, after PackRules, read at call time), the string caps it cleans to, and validate's shape pass alone (a save's pack, Storage.resolvePack).
     importText: (text, opts) => PackImport.importText(text, opts), cleanStrings: (pack, opts) => PackImport.cleanStrings(pack, opts), STRING_MAX: Object.freeze(Object.assign({}, STRING_MAX)), NOTES_MAX, shape
   };
@@ -14229,6 +14277,91 @@ const PackImport = (() => {
     return { pack, problems, unknown: problems.filter(p => p.rule === 'lint.unknownField').map(p => p.path) };
   }
   return { importText, cleanStrings, refusal, MAX_BYTES, KEY_MAX, DEPTH_MAX, LIST_MAX };
+})();
+
+/* Pack.jsonSchemaFor(kind) (wave 37, Creator Mode, milestone 8, task M8-C;
+   plan decisions I and J). The Story to Pack converter asks for one kind of
+   record a call (places, people, factions, threads, rumours, seeds, the
+   opening), so each answer has a schema of its own, derived here from the
+   Pack.SCHEMA subtree it fills: string and text leaves are strings, numbers
+   and booleans theirs, an enum its values, a ref or a list of refs plain
+   strings (the converter turns them into ids), each nullable but the
+   record's name, every property in required and additionalProperties false
+   (docs/API_NOTES.md, the grammar limit: each schema stays at 40 properties
+   or fewer, every nested one counted, and three enums or fewer, which
+   tests/wave37-convert.test.cjs pins). Only the leaves a text can state are
+   asked for: no effect lists, clocks, events, epilogue branches or
+   schedules beyond a person's phases (four place ids). Those are the
+   author's design work in the forms, and the owner wants "as little as
+   possible generative AI in the creator mode". Every record carries source,
+   the sentence it comes from, word for word, which the review checks against
+   the author's text. The model never makes an id: the converter gives each
+   record one with Pack.idFor after the reply. Here, after PackRules, beside
+   the other story-half helpers; Pack exports it. */
+const PackConvert = (() => {
+  // The pack list each kind fills, and its fields (SCHEMA names) with a short word to the model on each.
+  const LISTS = Object.freeze({ places: 'locations', people: 'npcs', factions: 'factions', threads: 'threads', rumours: 'rumours', seeds: 'seeds' });
+  const KINDS = Object.freeze(Object.keys(LISTS).concat('opening'));
+  const FIELDS = {
+    places: [
+      ['name', 'The place as the text names it'], ['type', 'What kind of place, in a word the text uses'], ['description', 'What the text says it is like'],
+      ['details', 'Further things the text says about it'], ['hours', 'When it is open, as the text says'], ['aka', 'Other names the text gives it'],
+      ['exits', 'Names of the places the text says it leads straight to'], ['away', 'True when the text puts it out of town'], ['distance', 'How far away, as the text says']
+    ],
+    people: [
+      ['name', 'Their full name as the text gives it'], ['pronouns', 'As the text refers to them'], ['age', 'Their age in years when the text states it'],
+      ['role', 'Their job or who they are to someone, in the text\'s words'], ['look', 'How the text says they look'], ['voice', 'How the text says they talk'],
+      ['personality', 'Traits the text gives them'], ['goal', 'What the text says they want'], ['secret', 'What the text says they hide'],
+      ['history', 'Their past as the text tells it'], ['home', 'The PLACES id where the text says they live']
+    ],
+    factions: [['name', 'The group as the text names it'], ['goal', 'What the text says it wants'], ['methods', 'How the text says it goes about it']],
+    threads: [
+      ['title', 'A short title in the text\'s words'], ['summary', 'What the text says is at stake'], ['status', 'As the text says; usually open'],
+      ['knownToPlayer', 'True when the text says the player knows of it at the start'], ['linkedIds', 'PEOPLE and PLACES ids the text ties to it']
+    ],
+    rumours: [
+      ['text', 'The rumour as the text tells it'], ['true', 'Whether the text says it is true'], ['sourceNpcId', 'The PEOPLE id the text says it comes from'],
+      ['tellerIds', 'PEOPLE ids the text says pass it on'], ['threadId', 'The THREADS id it is about'], ['factionId', 'The FACTIONS id whose people know it']
+    ],
+    seeds: [
+      ['cause', 'What the text says sets it up'], ['effect', 'What the text says will happen'], ['trigger', 'When or where it happens, as the text says'],
+      ['notBeforeDay', 'The earliest day the text gives'], ['hidden', 'True when the player should not know of it'], ['danger', 'True when the text puts someone in danger']
+    ],
+    opening: [['premise', 'The story\'s premise in the text\'s words'], ['text', 'How the story opens, in the text\'s words'], ['firstTurn', 'What the text says happens on the first turn']]
+  };
+  // The one record field that is never null: what the review shows as its name.
+  const NAME = Object.freeze({ places: 'name', people: 'name', factions: 'name', threads: 'title', rumours: 'text', seeds: 'effect' });
+  const SOURCE = { type: 'string', description: 'The sentence of the text this comes from, copied word for word' };
+  const PHASES_FIELD = { type: 'array', items: { type: 'string' }, description: 'Four PLACES ids, morning, afternoon, evening, night, where the text puts them; an empty string where it is silent, or an empty list' };
+  const nullable = (t, description) => ({ description, anyOf: [t, { type: 'null' }] });
+  const obj = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+  function leaf(spec, description, required) {
+    const t = spec && spec.type;
+    if (t === 'refs' || (t === 'list' && spec.of && (spec.of.type === 'string' || spec.of.type === 'ref'))) return { type: 'array', items: { type: 'string' }, description };
+    if (t === 'object') {
+      const props = {};
+      for (const k of Object.keys(spec.fields)) props[k] = leaf(spec.fields[k], spec.fields[k].label);
+      return Object.assign(obj(props), { description });
+    }
+    const base = t === 'int' ? { type: 'integer' } : t === 'number' ? { type: 'number' } : t === 'bool' ? { type: 'boolean' }
+      : t === 'enum' ? { type: 'string', enum: spec.enum.slice() } : { type: 'string' };
+    return required ? Object.assign(base, { description }) : nullable(base, description);
+  }
+  function specOf(kind) {
+    return kind === 'opening' ? Pack.SCHEMA.fields.opening : Pack.SCHEMA.fields.world.fields[LISTS[kind]].of;
+  }
+  function jsonSchemaFor(kind) {
+    if (!KINDS.includes(kind)) throw new Error('no converter schema for ' + kind);
+    const spec = specOf(kind);
+    const props = {};
+    for (const [k, words] of FIELDS[kind]) props[k] = leaf(spec.fields[k], words, k === NAME[kind]);
+    if (kind === 'people') props.phases = JSON.parse(JSON.stringify(PHASES_FIELD));
+    props.source = Object.assign({}, SOURCE);
+    if (kind === 'opening') return obj(props);
+    return obj({ items: { type: 'array', items: obj(props) } });
+  }
+  const FIELD_NAMES = Object.freeze(Object.fromEntries(Object.entries(FIELDS).map(([k, v]) => [k, Object.freeze(v.map(f => f[0]))])));
+  return { jsonSchemaFor, KINDS, LISTS, NAME, FIELDS: FIELD_NAMES };
 })();
 
 // ===== Module: Rng =====
@@ -28879,7 +29012,7 @@ const Api = (() => {
   const ENDPOINT = 'https://api.anthropic.com/v1/messages';
   const MODELS_ENDPOINT = 'https://api.anthropic.com/v1/models';
   const API_VERSION = '2026-10-21';
-  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, people: 6000 }; // thinking tokens count toward these
+  const MAX_TOKENS = { narrator: 3000, parser: 2000, bookkeeper: 4000, chronicle: 2000, memories: 8000, places: 6000, clock: 3000, people: 6000, creator: 4000 }; // thinking tokens count toward these
   const NARRATOR_MAX_TOKENS = Object.freeze({ low: 2000, medium: 3000, high: 6000 }); // the narrator thinks more at a higher effort
   const EFFORTS = ['low', 'medium', 'high'];
   const RETRY_DELAY_MS = 1500;
@@ -28947,6 +29080,17 @@ const Api = (() => {
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most " + State.MEMORY_MAX + " per person, the ones that matter most to them. A line that already follows these rules (short and plain, from their point of view) stays as it is. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these turns for the narrator's memory, under 100 words, past tense, full names. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom. Skip scenery and small talk. End with 'Open:' and what is unresolved. Begin with the day or days the turns cover, like 'Day 2:' or 'Days 2-3:'."
   };
+  /* Wave 37, Creator Mode, milestone 8 (task M8-C; plan decision I): the
+     Story to Pack converter's rubric, the creator role's one system prompt.
+     The owner: "I want to keep the story itself away from AI generated ...
+     ideally as little as possible generative AI in the creator mode." So the
+     converter only extracts: the four sentences after the first are the
+     plan's, word for word, and every entity carries the sentence it came
+     from, which the review checks against the author's text. The kind, the
+     ids already found and the author's text go in the user message (one
+     call per kind; nothing cached: the text is the author's own, sent once
+     a call); ids are the engine's, made after the reply (Pack.idFor). */
+  const CONVERT_SYSTEM = "You read an author's own notes for a text RPG story and copy what they state into the fields of one kind of record. Extract only what the text states. Never invent a name, a place, a trait, a number or a fact. Where the text is silent, return null or an empty list. For every entity, copy the sentence it comes from into source, word for word. Use only the ids listed in the message, and never make up an id.";
   /* Wave 37, Creator Mode, milestone 3 (plan decision E): the system prompt
      a role is sent. A story's author may add notes for the parser and the
      bookkeeper (pack.prompts.parserExtra, bookkeeperExtra); they follow the
@@ -29341,7 +29485,7 @@ const Api = (() => {
   }
   function roleModel(role) { const s = Storage.settings(); return role === 'narrator' ? s.narratorModel : s.parserModel; }
   /* The memory rewrite, the places re-read and the clock check (Upgrade) are the bookkeeper's judgement applied to an old game, so they think at the bookkeeper's effort. */
-  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper' };
+  const EFFORT_OF = { memories: 'bookkeeper', places: 'bookkeeper', clock: 'bookkeeper', people: 'bookkeeper', creator: 'bookkeeper' };
   function roleEffort(role) { const e = Storage.settings().effort || {}; const k = EFFORT_OF[role] || role; return EFFORTS.includes(e[k]) ? e[k] : 'low'; }
   function headers(apiKey) {
     return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' };
@@ -29435,6 +29579,7 @@ const Api = (() => {
        Mock.queue('revealPlaces', { placesRevealed: [...] })     instead of the rule-based re-read
        Mock.queue('checkClock', { behind, phase, dayOffset, reason })  instead of the rule-based check
        Mock.queue('fixPeople', { people: [...] })                instead of the rule-based check of people
+       Mock.queue('convert', { items: [...] })                   instead of the rule-based extraction (the opening: the object)
        Mock.queue(any, { refusal: true })      a refusal (stop_reason "refusal")
        Mock.queue(any, { error: { type, message } })   throws ApiError
      Mock.calls lists every call ({ method, text, input, mode }). */
@@ -30834,10 +30979,120 @@ const Api = (() => {
     if (!/[.!?…"]$/.test(body)) body += '.';
     return `${head} ${body} ${tail}`;
   }
+  /* Wave 37, Creator Mode, task M8-C: the Story to Pack converter's stand-in (plan decision I: "Mock.convert
+     extracts capitalised names and 'the <kind>' phrases from the text into canned entities with real quotes, so
+     the flow is testable offline"). It reads packet.story (the author's text) and, for people and later kinds,
+     packet.places and packet.people (the ids already found), and answers in the kind's schema. Every source is a
+     sentence of the text as it stands there, and every value is words of the text: places are "<Name>'s <place
+     word>", "the <Capitalised> ... <place word>" and "the <place word>"; people are two capitalised words
+     (not after "the"), with pronouns, a role ("is the ...", "runs the ..."), a goal ("wants ...") and a home
+     (their own "<Name>'s" place) only where the text gives them, and the phases a sentence naming them puts
+     them somewhere; a faction is a capitalised subject that "wants" or "plans"; a thread a "whether" sentence;
+     rumours the sentences with "rumour" or "they say"; a seed "on day N"; the opening a sentence starting
+     "You". Deterministic: the same text gives the same records. */
+  const MOCK_PLACE_WORDS = ['harbour', 'harbor', 'quay', 'inn', 'tavern', 'bar', 'pub', 'chandlery', 'boatyard', 'lighthouse', 'market', 'church', 'chapel', 'hall', 'shop', 'store', 'mill', 'forge', 'smithy', 'bakery', 'school', 'station', 'dock', 'docks', 'wharf', 'pier', 'warehouse', 'farm', 'cottage', 'office', 'breakwater', 'square', 'bridge', 'diner', 'motel', 'garage', 'saloon'];
+  const MOCK_NOT_NAMES = new Set(['The', 'A', 'An', 'In', 'On', 'At', 'Most', 'His', 'Her', 'Their', 'Nobody', 'They', 'There', 'What', 'You', 'She', 'He', 'It', 'Its', 'When', 'Every', 'Some', 'This', 'That', 'But', 'And', 'If', 'Then']);
+  function mockConvert(packet) {
+    const story = String(packet.story || '');
+    const sentences = (story.match(/[^.!?\n]+(?:[.!?]+["'’”)\]]*|$)/g) || []).map(x => x.trim()).filter(x => /[A-Za-z]/.test(x));
+    const firstWith = re => sentences.find(x => re.test(x)) || null;
+    const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+    const kind = packet.kind;
+    const places = Array.isArray(packet.places) ? packet.places : [];
+    const people = Array.isArray(packet.people) ? packet.people : [];
+    const personNames = new Set(people.map(p => p.name));
+    if (kind === 'places') {
+      const found = [];
+      const seen = new Set();
+      const nouns = new Set();
+      const add = (at, name, noun, phrase) => {
+        if (seen.has(name.toLowerCase())) return;
+        seen.add(name.toLowerCase());
+        nouns.add(noun);
+        found.push({ at, name, phrase });
+      };
+      for (const m of story.matchAll(/\b([A-Z][a-z]+)'s ([a-z]+)\b/g)) if (MOCK_PLACE_WORDS.includes(m[2])) add(m.index, `${m[1]}'s ${m[2]}`, m[2], m[0]);
+      for (const m of story.matchAll(/\bthe ((?:[A-Z][a-z]+ )*[A-Z][a-z]+)\b/g)) {
+        const last = m[1].split(' ').pop().toLowerCase();
+        if (MOCK_PLACE_WORDS.includes(last)) add(m.index, 'The ' + m[1], last, m[0]);
+      }
+      for (const m of story.matchAll(/\b[Tt]he ([a-z]+)\b/g)) if (MOCK_PLACE_WORDS.includes(m[1]) && !nouns.has(m[1])) add(m.index, 'The ' + cap(m[1]), m[1], m[0]);
+      found.sort((a, b) => a.at - b.at);
+      return { items: found.slice(0, 10).map(f => {
+        const src = firstWith(new RegExp('\\b' + esc(f.phrase) + '\\b')) || firstWith(new RegExp(esc(f.phrase), 'i')) || '';
+        const opens = new RegExp('^' + esc(f.phrase) + '\\b', 'i').test(src);
+        return { name: f.name, type: null, description: opens ? src : null, details: null, hours: null, aka: [], exits: [], away: null, distance: null, source: src };
+      }) };
+    }
+    if (kind === 'people') {
+      const out = [];
+      const seen = new Set();
+      for (const m of story.matchAll(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g)) {
+        const words = m[0].split(/\s+/);
+        if (MOCK_NOT_NAMES.has(words[0]) || words.length !== 2) continue;
+        if (/\bthe\s+$/i.test(story.slice(Math.max(0, m.index - 4), m.index))) continue;
+        if (MOCK_PLACE_WORDS.includes(words[1].toLowerCase())) continue;
+        const name = m[0];
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const first = words[0];
+        const i = sentences.findIndex(x => x.includes(name));
+        const src = sentences[i] || '';
+        const after = src.slice(src.indexOf(name) + name.length);
+        const next = sentences[i + 1] || '';
+        const pron = t => (/\b(she|her)\b/i.test(t) ? 'she' : /\b(he|his|him)\b/i.test(t) ? 'he' : null);
+        const pronouns = pron(after) || (/^(She|He|His|Her)\b/.test(next) ? pron(next.split(/\s+/)[0]) : null);
+        const role = (new RegExp('^' + esc(name) + ' is (?:the|a|an) ([^,.;]+)').exec(src) || [])[1] || null;
+        const goal = (/\bwants (to [^,.;]+|a [^,.;]+|the [^,.;]+)/.exec(after) || [])[1] || null;
+        const own = places.find(p => new RegExp('^' + esc(first) + "'s ", 'i').test(String(p.name)));
+        const phases = ['', '', '', ''];
+        for (const x of sentences.filter(y => new RegExp('\\b' + esc(first) + ' is at\\b').test(y))) {
+          const at = places.find(p => x.toLowerCase().includes(String(p.name).toLowerCase().replace(/^the /, '')));
+          if (!at) continue;
+          ['morning', 'afternoon', 'evening', 'night'].forEach((ph, k) => { if (!phases[k] && new RegExp('\\b' + ph + 's?\\b', 'i').test(x)) phases[k] = at.id; });
+        }
+        out.push({
+          name, pronouns, age: null, role, look: null, voice: null, personality: [], goal, secret: null, history: null,
+          home: own ? own.id : null, phases: phases.some(Boolean) ? phases : [], source: src
+        });
+      }
+      return { items: out.slice(0, 12) };
+    }
+    if (kind === 'factions') {
+      const out = [];
+      for (const x of sentences) {
+        const m = /^((?:The )?[A-Z][a-z]+(?: [A-Z][a-z]+)*) (?:wants|plans) (?:to )?([^,.;]+)/.exec(x);
+        if (!m || personNames.has(m[1]) || out.some(f => f.name === m[1])) continue;
+        out.push({ name: m[1], goal: m[2], methods: null, source: x });
+      }
+      return { items: out };
+    }
+    if (kind === 'threads') {
+      return { items: sentences.filter(x => /\bwhether\b/i.test(x)).map(x => ({
+        title: cap((/\bwhether ([^,.;?!]+)/i.exec(x) || [])[0] || x), summary: x, status: null, knownToPlayer: null, linkedIds: [], source: x
+      })) };
+    }
+    if (kind === 'rumours') {
+      return { items: sentences.filter(x => /\brumou?rs?\b|\bthey say\b/i.test(x)).map(x => ({
+        text: x, true: null, sourceNpcId: null, tellerIds: [], threadId: null, factionId: null, source: x
+      })) };
+    }
+    if (kind === 'seeds') {
+      return { items: sentences.filter(x => /\bon day \d+\b/i.test(x)).map(x => ({
+        cause: null, effect: x, trigger: { type: 'day', value: /\bon day (\d+)\b/i.exec(x)[1] }, notBeforeDay: null, hidden: null, danger: null, source: x
+      })) };
+    }
+    if (kind === 'opening') {
+      const x = sentences.find(y => /^You\b/.test(y)) || null;
+      return { premise: null, text: x, firstTurn: null, source: x || '' };
+    }
+    return { items: [] };
+  }
   const Mock = {
     name: 'mock',
     delay: 12,
-    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [], fixPeople: [] },
+    pending: { parse: [], narrate: [], bookkeep: [], chronicle: [], rewriteMemories: [], revealPlaces: [], checkClock: [], fixPeople: [], convert: [] },
     calls: [],
     queue(method) {
       if (!Mock.pending[method]) throw new Error('unknown mock method ' + method);
@@ -30915,6 +31170,13 @@ const Api = (() => {
       if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
       await sleep(Mock.delay);
       return { result: isObj(canned) && Array.isArray(canned.people) ? canned : mockFixPeople(packet || {}), usage: MOCK_ZERO, model: 'mock' };
+    },
+    // Wave 37, Creator Mode, task M8-C: a queued reply stands in for the extraction whole (a planted record, an empty list).
+    async convert(packet) {
+      const canned = Mock.take('convert', packet);
+      if (isObj(canned) && canned.refusal) return Mock.refusal(canned);
+      await sleep(Mock.delay);
+      return { result: isObj(canned) ? canned : mockConvert(packet || {}), usage: MOCK_ZERO, model: 'mock' };
     },
   };
 
@@ -31119,6 +31381,11 @@ const Api = (() => {
     revealPlaces(packet) { return messageCall('places', { system: systemFor('places'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
     checkClock(packet) { return messageCall('clock', { system: systemFor('clock'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
     fixPeople(packet) { return messageCall('people', { system: systemFor('people'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
+    /* Wave 37, Creator Mode, task M8-C: one kind of record from the author's text (Creator.Convert builds the
+       packet: the kind, the ids already found, the text). The schema is Pack.jsonSchemaFor(kind), sent as
+       output_config.format like every data call (fixed rule 3), never a tool; no cached block. messageCall
+       logs it, retries a transient failure and returns { result } or { refusal } as the bookkeeper's call does. */
+    convert(packet, schema) { return messageCall('creator', { system: CONVERT_SYSTEM, user: typeof packet === 'string' ? packet : String((packet && packet.text) || ''), schema }); },
     /* Streamed. A stream that breaks, times out or carries an overloaded or
        internal error is asked for once more (the feed is cleared through
        onDelta('', '') first); a reply cut off by max_tokens is asked for once
@@ -31266,6 +31533,8 @@ const Api = (() => {
     revealPlaces: packet => call('places', 'revealPlaces', [packet]),
     checkClock: packet => call('clock', 'checkClock', [packet]),
     fixPeople: packet => call('people', 'fixPeople', [packet]),
+    // Wave 37, Creator Mode, task M8-C: the Story to Pack converter's one call (the parser's model, the creator's own key).
+    convert: (packet, schema) => call('creator', 'convert', [packet, schema]), CONVERT_SYSTEM,
     // Wave 37, Creator Mode: the system prompt per role, with the author's parser and bookkeeper notes.
     systemFor, ENGINE_RULES_SHORT
   };
@@ -46517,6 +46786,7 @@ const Creator = (() => {
         el('h2', { class: 'cr-section-title' }, 'Your story, in your words'),
         el('p', { class: 'cr-note' }, STORY_NOTE),
         Form.render(S.meta.fields.storyText, meta.storyText, 'meta.storyText', on, { hideLabel: true, noHelp: true, minRows: 8 })), STORY_MORE),
+      Convert.render(d), // task M8-C: the Story to Pack converter, under the author's own words (plan decision I)
       el('section', { class: 'cr-section', dataset: { section: 'meta.notes' } },
         el('h2', { class: 'cr-section-title' }, 'Notes'),
         Form.render(Form.NOTES, meta.notes, 'meta.notes', on, { hideLabel: true })),
@@ -49960,7 +50230,472 @@ const Creator = (() => {
   })();
 
   // ----- Creator: Convert -----
-  // (milestone 8: the Story to Pack converter)
+  /* The Story to Pack converter (wave 37, Creator Mode, milestone 8, task M8-C; plan decision I: extraction, never
+     generation). The owner: "I want to keep the story itself away from AI generated, yes I know the narration is AI,
+     but that's what's going to make my tool different, ideally as little as possible generative AI in the creator
+     mode." So this is the editor's one AI control, and it only structures the author's own words: on the Overview,
+     under "Your story, in your words", a card with Convert (#creator-convert-run; off under MIN_WORDS words, or with
+     no key outside the demo mode, and the reason beside it). run(d) asks for one kind of record a call, in the
+     order a later kind can name an earlier one (places, people given the place ids, factions, threads, rumours,
+     seeds, the opening), through Api.convert with Pack.jsonSchemaFor(kind); the kind, the ids found so far and the
+     text go in the user message. Each record gets its id here (Pack.idFor; the model never makes one), its
+     references kept only where they name a listed id, and a check of its quoted source against the author's text
+     (inText: whitespace and case folded, nine in ten of the quote's words in order): a record whose quote is not
+     there is marked "not in your text" and unticked. Nothing touches the draft until Accept: the review
+     (#creator-convert) shows each record with its fields, the quote beside them in italics, a tick on the record
+     and on each field. Each record is first tried on a copy of the draft (Pack.validate, profile play): one whose
+     addition raises an engine error is shown with it and unticked. The errors that only say the record is not
+     finished yet (a person on no schedule, a place with no exits, no start places) are the Gaps list's
+     (#creator-gaps), not a fault of the record, since the text rarely gives them. Accept writes the ticked records
+     and fields through one Editor.set each, after Pack.cleanStrings, so Undo steps back one record at a time.
+     Clocks, events and the ending are never produced: those are the author's design work in the forms. A refusal
+     shows the usual notice and changes nothing. */
+  const Convert = (() => {
+    const MIN_WORDS = 40;
+    const MATCH = 0.9; // the share of a quote's words that must be in the text, in order
+    const KIND_WORD = Object.freeze({ places: 'place', people: 'person', factions: 'faction', threads: 'thread', rumours: 'rumour', seeds: 'seed', opening: 'opening' });
+    const STEP_LABEL = Object.freeze({ places: 'Places', people: 'People', factions: 'Factions', threads: 'Threads', rumours: 'Rumours', seeds: 'Seeds', opening: 'The opening' });
+    const ID_KIND = Object.freeze({ places: 'loc', people: 'npc', factions: 'fac', threads: 'thread', rumours: 'rumour', seeds: 'seed' });
+    // The kind's sentence in the user message, after the rubric (the creator role's system prompt, CONVERT_SYSTEM in Api).
+    const KIND_SENTENCE = Object.freeze({
+      places: 'List every place in or near the town that the text names: a house, a shop, a street, a landmark.',
+      people: 'List every person the text names; home and phases name only PLACES ids listed below.',
+      factions: 'List every group the text says acts together: a council, a family, a crew, a congregation.',
+      threads: 'List every open question or conflict the text says the story turns on; linkedIds name only ids listed below.',
+      rumours: 'List every rumour or piece of gossip the text gives; the ids name only ids listed below.',
+      seeds: 'List every later event the text says will happen, with the day, place or person it gives; trigger.value is a day number or an id listed below.',
+      opening: 'Copy the premise, how the story opens and what happens on the first turn, only where the text says them.'
+    });
+    const NOTICE_REFUSED = 'The model declined to read this text, so nothing was changed.';
+    const PHASE_WORDS = ['morning', 'afternoon', 'evening', 'night'];
+    const TRIGGERS = ['day', 'location', 'npc', 'clock'];
+    const arr = v => (Array.isArray(v) ? v : []);
+    const str = v => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+    const text = v => (typeof v === 'string' ? v.trim() : '');
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const wordCount = s => String(s || '').split(/\s+/).filter(Boolean).length;
+    let conv = null; // { draftId, running, steps: [{ kind, text }], items, gaps, notice }
+
+    /* Whether Convert can run, and why not: the text (the box's live value when given) and a key or the demo mode. */
+    function canRun(d, live) {
+      const n = wordCount(typeof live === 'string' ? live : metaOf(d).storyText);
+      if (n < MIN_WORDS) return { ok: false, why: `Write at least ${MIN_WORDS} words of your story first (${plural(n, 'word')} so far).` };
+      if (!Storage.settings().mockMode && !Storage.getApiKey()) return { ok: false, why: 'Add your API key in Settings first, or turn on the demo mode there.' };
+      return { ok: true, why: 'Reads your text and proposes records; you review each one before anything changes.' };
+    }
+    /* The quote check: the words of the quote (lower case, punctuation off) found in the text in order, nine in ten
+       of them, within a stretch of the text not much longer than the quote. */
+    const words = s => String(s || '').toLowerCase().replace(/[’‘]/g, "'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g) || [];
+    function lcs(a, b) {
+      let prev = new Array(b.length + 1).fill(0);
+      for (let i = 1; i <= a.length; i++) {
+        const row = [0];
+        for (let j = 1; j <= b.length; j++) row[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], row[j - 1]);
+        prev = row;
+      }
+      return prev[b.length];
+    }
+    function inText(source, story) {
+      const q = words(source);
+      if (!q.length) return false;
+      const t = words(story);
+      if ((' ' + t.join(' ') + ' ').includes(' ' + q.join(' ') + ' ')) return true;
+      const need = Math.ceil(q.length * MATCH);
+      const slack = q.length - need;
+      const heads = new Set(q.slice(0, slack + 1));
+      for (let i = 0; i < t.length; i++) {
+        if (!heads.has(t[i])) continue;
+        if (lcs(q, t.slice(i, i + q.length + slack)) >= need) return true;
+      }
+      return false;
+    }
+
+    // ----- the run -----
+    const listOf = (d, key) => arr(isObj(d) && isObj(d.world) ? d.world[key] : null).filter(x => isObj(x) && typeof x.id === 'string');
+    const nameOf = x => str(x.name || x.title || x.text || x.effect || x.id);
+    function packet(kind, story, known) {
+      const lines = [`KIND: ${kind}. ${KIND_SENTENCE[kind]}`];
+      const list = (label, xs) => lines.push(`${label} (id: name):` + (xs.length ? '\n' + xs.map(x => `${x.id}: ${x.name}`).join('\n') : ' none'));
+      if (kind !== 'places') list('PLACES', known.places);
+      if (kind !== 'places' && kind !== 'people') list('PEOPLE', known.people);
+      if (kind === 'rumours' || kind === 'seeds' || kind === 'opening') { list('FACTIONS', known.factions); list('THREADS', known.threads); }
+      lines.push("THE AUTHOR'S TEXT:\n" + story);
+      return { kind, text: lines.join('\n\n'), story, places: known.places.slice(), people: known.people.slice(), factions: known.factions.slice(), threads: known.threads.slice() };
+    }
+    /* One record of the reply as a review item: its id, its fields kept where the text gave them, the references
+       kept where they name a listed id (the exits by name, from the places found), and the quote's check. */
+    function itemsOf(kind, reply, known, taken, story, d) {
+      const out = [];
+      const ids = k => new Set(known[k].map(x => x.id));
+      const has = (k, v) => typeof v === 'string' && ids(k).has(v);
+      const exists = new Set(listOf(d, PackConvert.LISTS[kind] || 'none').map(x => nameOf(x).toLowerCase()));
+      if (kind === 'opening') {
+        if (!isObj(reply)) return out;
+        const was = isObj(d.opening) ? d.opening : {};
+        const fields = ['premise', 'text', 'firstTurn'].filter(k => text(reply[k])).map(k => ({ k, value: text(reply[k]), on: !text(was[k]) }));
+        if (!fields.length) return out;
+        const source = text(reply.source);
+        const found = inText(source, story);
+        out.push({ key: 'opening', kind, id: null, name: 'The opening', source, inText: found, on: found, fields, error: null });
+        return out;
+      }
+      const nameKey = PackConvert.NAME[kind];
+      for (const row of arr(isObj(reply) ? reply.items : null)) {
+        if (!isObj(row)) continue;
+        const name = kind === 'rumours' || kind === 'seeds' ? text(row[nameKey]) : str(row[nameKey]);
+        if (!name || exists.has(str(name).toLowerCase()) || out.some(x => x.name.toLowerCase() === name.toLowerCase())) continue;
+        const base = kind === 'rumours' || kind === 'seeds' || kind === 'threads' ? name.split(/\s+/).slice(0, 4).join(' ') : name;
+        const id = Pack.idFor(ID_KIND[kind], base, [...taken]);
+        taken.add(id);
+        const fields = [];
+        const keep = (k, v) => { if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) fields.push({ k, value: v, on: true }); };
+        for (const k of PackConvert.FIELDS[kind]) {
+          if (k === nameKey) continue;
+          const v = row[k];
+          if (['exits', 'aka', 'personality', 'linkedIds', 'tellerIds'].includes(k)) {
+            let list = arr(v).map(str).filter(Boolean);
+            if (k === 'linkedIds') list = list.filter(x => has('people', x) || has('places', x));
+            if (k === 'tellerIds') list = list.filter(x => has('people', x));
+            keep(k, [...new Set(list)]);
+          } else if (k === 'home') keep(k, has('places', v) ? v : null);
+          else if (k === 'sourceNpcId') keep(k, has('people', v) ? v : null);
+          else if (k === 'threadId') keep(k, has('threads', v) ? v : null);
+          else if (k === 'factionId') keep(k, has('factions', v) ? v : null);
+          else if (k === 'age') keep(k, Number.isInteger(v) && v >= 0 && v <= 110 ? v : null);
+          else if (k === 'notBeforeDay') keep(k, Number.isInteger(v) && v >= 1 ? v : null);
+          else if (k === 'trigger') {
+            const t = isObj(v) && TRIGGERS.includes(v.type) ? v.type : null;
+            const raw = isObj(v) ? str(String(v.value === null || v.value === undefined ? '' : v.value)) : '';
+            const val = t === 'day' ? (/^\d+$/.test(raw) && +raw >= 1 ? +raw : null) : t === 'location' ? (has('places', raw) ? raw : null) : t === 'npc' ? (has('people', raw) ? raw : null) : t === 'clock' ? (/^fac_[a-z0-9_]+:\d+$/.test(raw) && has('factions', raw.split(':')[0]) ? raw : null) : null;
+            keep(k, val === null ? null : { type: t, value: val });
+          } else if (typeof v === 'boolean') keep(k, v);
+          else if (k === 'pronouns' || k === 'status') keep(k, typeof v === 'string' && (k === 'pronouns' ? PRONOUNS : THREAD_STATUSES).includes(v) ? v : null);
+          else keep(k, kind === 'places' && k === 'type' ? str(v).toLowerCase() : str(v) || null);
+        }
+        if (kind === 'people') {
+          const ph = arr(row.phases).slice(0, 4).map(x => (has('places', x) ? x : ''));
+          if (ph.some(Boolean)) fields.push({ k: 'phases', value: PHASE_WORDS.map((p, i) => ph[i] || ''), on: true });
+        }
+        const source = text(row.source);
+        const found = inText(source, story);
+        out.push({ key: `${kind}:${id}`, kind, id, name, source, inText: found, on: found, fields, error: null });
+        if (known[kind]) known[kind].push({ id, name });
+      }
+      // The exits come back as names: a place found this run, or one already in the draft, by its name with "the" off.
+      if (kind === 'places') {
+        const key = s => str(s).toLowerCase().replace(/^the\s+/, '');
+        const byName = new Map(known.places.map(x => [key(x.name), x.id]));
+        for (const it of out) {
+          const f = it.fields.find(x => x.k === 'exits');
+          if (!f) continue;
+          f.value = [...new Set(f.value.map(n => byName.get(key(n)) || (ids('places').has(n) ? n : null)).filter(x => x && x !== it.id))];
+          if (!f.value.length) it.fields.splice(it.fields.indexOf(f), 1);
+        }
+      }
+      return out;
+    }
+    const sayError = err => (err && err.message ? String(err.message) : 'The converter stopped.');
+    /* run(d): the chain of calls, then the review and the Gaps. Resolves true when there is a review to show. */
+    async function run(d) {
+      Form.flush();
+      d = d || state.draft;
+      if (!d || (conv && conv.running)) return false;
+      const ok = canRun(d);
+      if (!ok.ok) { conv = { draftId: state.draftId, running: false, steps: [], items: [], gaps: null, notice: ok.why }; draw(); return false; }
+      const story = String(metaOf(d).storyText || '');
+      const draftId = state.draftId;
+      conv = { draftId, running: true, steps: [], items: [], gaps: null, notice: null };
+      draw();
+      const known = {
+        places: listOf(d, 'locations').map(x => ({ id: x.id, name: nameOf(x) })), people: listOf(d, 'npcs').map(x => ({ id: x.id, name: nameOf(x) })),
+        factions: listOf(d, 'factions').map(x => ({ id: x.id, name: nameOf(x) })), threads: listOf(d, 'threads').map(x => ({ id: x.id, name: nameOf(x) }))
+      };
+      const taken = new Set(Object.values(PackConvert.LISTS).flatMap(k => listOf(d, k).map(x => x.id)));
+      const items = [];
+      const mine = () => conv && conv.draftId === draftId && state.draftId === draftId;
+      try {
+        for (const kind of Pack.CONVERT_KINDS) {
+          const step = { kind, text: `${STEP_LABEL[kind]}: reading your text…` };
+          conv.steps.push(step);
+          draw();
+          const reply = await ask(packet(kind, story, known), Pack.jsonSchemaFor(kind));
+          if (!mine()) return false;
+          if (reply.refused) {
+            conv = { draftId, running: false, steps: [], items: [], gaps: null, notice: NOTICE_REFUSED + (reply.explanation ? ` (${reply.explanation})` : '') };
+            draw();
+            return false;
+          }
+          const got = itemsOf(kind, reply.result, known, taken, story, d);
+          items.push(...got);
+          step.text = `${STEP_LABEL[kind]}: ${got.length ? (kind === 'opening' ? 'found' : (kind === 'people' && got.length !== 1 ? got.length + ' people' : plural(got.length, KIND_WORD[kind])) + ' found') : 'nothing in your text'}`;
+          draw();
+        }
+      } catch (err) {
+        if (mine()) { conv = { draftId, running: false, steps: conv.steps, items: [], gaps: null, notice: sayError(err) + ' Nothing was changed.' }; draw(); }
+        return false;
+      }
+      conv.items = items;
+      conv.gaps = vet(items, state.draft || d);
+      conv.running = false;
+      draw();
+      return items.length > 0;
+    }
+    /* The converter's one call to a model (the only AI path in Creator Mode): a refusal comes back as one. */
+    async function ask(pk, schema) {
+      const reply = await Api.convert(pk, schema);
+      return reply && reply.refused === true ? reply : { result: reply };
+    }
+
+    // ----- trying a record on a copy, and writing it -----
+    /* The errors that say a record is unfinished, not wrong (the Gaps list names these): someone on no schedule,
+       no start places, and any error at a field that is empty (no exits, no home, a faction's methods, a rumour's
+       source), since the text rarely gives those. An error at a field with a value is the record's fault. */
+    const empty = v => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length) || (isObj(v) && !Object.keys(v).length);
+    const isGap = (p, pack) => p.rule === 'engine.npc.schedule' || p.rule === 'engine.world.start' || (!!p.path && empty(getAt(pack, p.path)));
+    const engineErrors = pack => Pack.errors(Pack.validate(pack, { profile: 'play' }));
+    const sigs = pack => new Set(engineErrors(pack).filter(p => !isGap(p, pack)).map(p => `${p.rule}|${p.path}|${p.message}`));
+    const firstNew = (pack, before) => engineErrors(pack).find(p => !isGap(p, pack) && !before.has(`${p.rule}|${p.path}|${p.message}`));
+    /* The record as the pack holds it, from its fields (all, or the ticked ones), with the references that name an
+       id the pack has (or will have: wants, the exits a place asks for to places added later). */
+    function put(pack, it, ticked, wants) {
+      const f = {};
+      for (const x of it.fields) if (!ticked || x.on) f[x.k] = x.value;
+      if (it.kind === 'opening') {
+        pack.opening = Pack.cleanStrings({ opening: Object.assign({}, isObj(pack.opening) ? pack.opening : {}, f) }).opening;
+        return 'opening';
+      }
+      const w = pack.world = isObj(pack.world) ? pack.world : {};
+      const listKey = PackConvert.LISTS[it.kind];
+      const has = (key, id) => arr(w[key]).some(x => isObj(x) && x.id === id);
+      const loc = id => arr(w.locations).find(x => isObj(x) && x.id === id);
+      let rec;
+      if (it.kind === 'places') {
+        rec = { id: it.id, name: it.name, type: f.type || 'other', description: f.description || '', exits: arr(f.exits).filter(x => has('locations', x)),
+          npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] }, discovered: true, closed: false };
+        for (const k of ['details', 'hours', 'aka', 'away', 'distance']) if (f[k] !== undefined) rec[k] = f[k];
+        // A place added earlier that asked for an exit here gets it now.
+        if (wants) for (const [from, to] of wants) if (to.includes(it.id) && loc(from) && !arr(loc(from).exits).includes(it.id)) loc(from).exits = arr(loc(from).exits).concat(it.id);
+        if (wants && arr(f.exits).length) wants.set(it.id, arr(f.exits));
+      } else if (it.kind === 'people') {
+        rec = { id: it.id, name: it.name, pronouns: f.pronouns || 'they', role: f.role || '', factionId: null, tags: [], home: f.home && has('locations', f.home) ? f.home : null,
+          personality: [], relations: [], memories: [], attitude: 0, alive: true, knownToPlayer: false, status: 'free', presence: 'here' };
+        for (const k of ['age', 'look', 'voice', 'personality', 'goal', 'secret', 'history']) if (f[k] !== undefined) rec[k] = f[k];
+        arr(f.phases).forEach((id, i) => {
+          const l = id && loc(id);
+          if (!l) return;
+          const sch = l.npcIdsBySchedule = isObj(l.npcIdsBySchedule) ? l.npcIdsBySchedule : { morning: [], afternoon: [], evening: [], night: [] };
+          sch[PHASE_WORDS[i]] = arr(sch[PHASE_WORDS[i]]).concat(it.id);
+        });
+      } else if (it.kind === 'factions') {
+        rec = { id: it.id, name: it.name, goal: f.goal || '', methods: f.methods || '', clocks: [], activeClock: 0, relations: {} };
+      } else if (it.kind === 'threads') {
+        rec = { id: it.id, title: it.name, summary: f.summary || '', status: f.status || 'open', knownToPlayer: f.knownToPlayer === true,
+          linkedIds: arr(f.linkedIds).filter(x => has('npcs', x) || has('locations', x)) };
+      } else if (it.kind === 'rumours') {
+        rec = { id: it.id, text: it.name, true: f.true !== false, heard: false };
+        if (f.sourceNpcId && has('npcs', f.sourceNpcId)) rec.sourceNpcId = f.sourceNpcId;
+        const tellers = arr(f.tellerIds).filter(x => has('npcs', x));
+        if (tellers.length) rec.tellerIds = tellers;
+        if (f.threadId && has('threads', f.threadId)) rec.threadId = f.threadId;
+        if (f.factionId && has('factions', f.factionId)) rec.factionId = f.factionId;
+      } else {
+        const t = isObj(f.trigger) && (f.trigger.type === 'day' || f.trigger.type === 'clock'
+          || has(f.trigger.type === 'location' ? 'locations' : 'npcs', f.trigger.value)) ? f.trigger : { type: 'location', value: [] };
+        rec = { id: it.id, cause: f.cause || '', effect: it.name, trigger: t, fired: false, hidden: f.hidden !== false };
+        for (const k of ['notBeforeDay', 'danger']) if (f[k] !== undefined) rec[k] = f[k];
+      }
+      w[listKey] = arr(w[listKey]).concat(Pack.cleanStrings({ world: { [listKey]: [rec] } }).world[listKey][0]);
+      return 'world';
+    }
+    /* After the run: each record tried in turn on a copy of the draft with the ones before it; an engine error its
+       addition raises unticks it and is shown. Returns the Gaps of the draft with every record that passed. */
+    function vet(items, d) {
+      const work = Pack.copy(d);
+      const wants = new Map();
+      let before = sigs(work);
+      for (const it of items) {
+        const next = Pack.copy(work);
+        put(next, it, false, new Map(wants));
+        const bad = firstNew(next, before);
+        if (bad) { it.error = `${bad.path}: ${bad.message}`; it.on = false; continue; }
+        put(work, it, false, wants);
+        before = sigs(work);
+      }
+      return gaps(work);
+    }
+    const accept = () => write(false);
+    const acceptAll = () => write(true);
+    /* Accept: the ticked records (all: every record found in the text, and one not in it only when ticked by hand)
+       with their ticked fields (all: every field), one Editor.set each, each tried on a copy first. */
+    function write(all) {
+      if (!conv || conv.running || !state.draft) return 0;
+      Form.flush();
+      const take = conv.items.filter(it => it.on || (all && it.inText && !it.error));
+      const wants = new Map();
+      let before = sigs(state.draft);
+      let done = 0;
+      for (const it of take) {
+        const next = Pack.copy(state.draft);
+        const trial = new Map(wants);
+        const path = put(next, it, !all, trial);
+        const bad = firstNew(next, before);
+        it.error = bad ? `${bad.path}: ${bad.message}` : null;
+        if (bad) { it.on = false; continue; }
+        if (set(path, next[path])) { done += 1; it.done = true; }
+        for (const [k, v] of trial) wants.set(k, v);
+        before = sigs(state.draft);
+      }
+      conv.items = conv.items.filter(it => !it.done);
+      conv.gaps = gaps(state.draft);
+      conv.notice = null;
+      conv.added = done;
+      renderBody();
+      if (done) UI.toast(`Added ${plural(done, 'record')} to your story. Undo takes them back one at a time.`);
+      return done;
+    }
+    function reject() {
+      if (!conv || conv.running) return false;
+      conv = null;
+      draw();
+      return true;
+    }
+
+    /* Gaps: what the story needs that the text did not give, each pointing at the tab (and World list) to fill it. */
+    function gaps(pack) {
+      const w = isObj(pack) && isObj(pack.world) ? pack.world : {};
+      const locs = arr(w.locations).filter(isObj);
+      const out = [];
+      const where = (path, list) => ({ path, tab: tabFor(path), list });
+      const sched = locs.length ? 'world.locations[0].npcIdsBySchedule' : 'world.locations';
+      arr(w.npcs).forEach(n => {
+        if (!isObj(n) || (n.presence && n.presence !== 'here')) return;
+        const at = PHASE_WORDS.filter(p => locs.some(l => isObj(l.npcIdsBySchedule) && arr(l.npcIdsBySchedule[p]).includes(n.id)));
+        const homeless = !locs.some(l => l.id === n.home);
+        if (at.length < 4) out.push(Object.assign(where(sched, 'Schedules'), { text: `${nameOf(n)} has no schedule${at.length ? ` for ${PHASE_WORDS.filter(p => !at.includes(p)).join(', ')}` : ''}${homeless ? ' and no home' : ''}: say where ${homeless ? 'they live and where ' : ''}they are in every part of the day.`, key: 'schedule:' + n.id }));
+      });
+      locs.forEach((l, i) => {
+        if (l.away === true || arr(l.exits).length) return;
+        out.push(Object.assign(where(`world.locations[${i}].exits`, 'Places'), { text: `${nameOf(l)} has no exits: say which places it leads to.`, key: 'exits:' + l.id }));
+      });
+      const starts = isObj(w.startLocationIds) ? Object.values(w.startLocationIds).filter(id => locs.some(l => l.id === id)) : [];
+      if (!starts.length) out.push(Object.assign(where('world.startLocationIds', 'The town'), { text: 'No start places: choose where the player arrives.', key: 'start' }));
+      const e = isObj(w.epilogue) ? w.epilogue : null;
+      if (!e || !(arr(e.branches).length || (isObj(e.default) && text(e.default.text)))) out.push(Object.assign(where('world.epilogue', null), { text: 'No ending: write how the story can end.', key: 'ending' }));
+      const bgs = isObj(pack) && isObj(pack.player) ? arr(pack.player.backgrounds) : [];
+      if (!bgs.length) out.push(Object.assign(where('player.backgrounds', null), { text: 'No backgrounds: the player needs at least one to choose from.', key: 'backgrounds' }));
+      const facs = arr(w.factions).filter(isObj).length;
+      if (facs < 2) out.push(Object.assign(where('world.factions', null), { text: `${facs ? 'Only one faction' : 'No factions'}: a town needs at least two groups that want something.`, key: 'factions' }));
+      // Then each field a record needs and the text did not give (a faction's methods, a rumour's source), by its record.
+      const LIST_NAME = { locations: 'Places', npcs: 'People', factions: 'Factions', threads: 'Threads', rumours: 'Rumours', seeds: 'Seeds' };
+      const seen = new Set();
+      for (const p of isObj(pack) ? engineErrors(pack) : []) {
+        const m = /^world\.(locations|npcs|factions|threads|rumours|seeds)\[(\d+)\]\.([A-Za-z]+)/.exec(p.path || '');
+        if (!m || ['exits', 'home', 'npcIdsBySchedule'].includes(m[3]) || p.rule === 'engine.npc.schedule' || !empty(getAt(pack, p.path)) || seen.has(m[0])) continue;
+        seen.add(m[0]);
+        const rec = arr(w[m[1]])[+m[2]];
+        const kind = Object.keys(PackConvert.LISTS).find(k => PackConvert.LISTS[k] === m[1]);
+        const who = isObj(rec) ? nameOf(rec).replace(/[.!?]+$/, '') : m[1];
+        out.push(Object.assign(where(p.path, LIST_NAME[m[1]]), { text: `${who.length > 48 ? who.slice(0, 45).trim() + '…' : who}: ${labelOf(kind, m[3])} ${String(p.message).replace(/\.$/, '')}.`, key: 'field:' + m[0] }));
+      }
+      return out;
+    }
+
+    // ----- drawing -----
+    const FIELD_LABEL = { phases: 'Where, by phase' };
+    function labelOf(kind, k) {
+      if (FIELD_LABEL[k]) return FIELD_LABEL[k];
+      const spec = kind === 'opening' ? Pack.SCHEMA.fields.opening : Pack.SCHEMA.fields.world.fields[PackConvert.LISTS[kind]].of;
+      const f = spec.fields[k];
+      return f && f.label ? f.label : k;
+    }
+    function valueText(k, v) {
+      if (k === 'phases') return arr(v).map((id, i) => (id ? `${PHASE_WORDS[i]}: ${id}` : null)).filter(Boolean).join(' · ');
+      if (k === 'trigger' && isObj(v)) return `${v.type} ${v.value}`;
+      if (Array.isArray(v)) return v.join(', ');
+      if (typeof v === 'boolean') return v ? 'yes' : 'no';
+      return String(v);
+    }
+    function itemRow(it) {
+      const box = (on, change, extra) => el('input', Object.assign({ type: 'checkbox', checked: on, onchange: e => change(e.currentTarget.checked) }, extra));
+      const head = el('div', { class: 'cr-cv-head' },
+        el('label', { class: 'cr-cv-tick cr-cv-entity' }, box(it.on, v => { it.on = v; }, { dataset: { cv: 'entity', key: it.key } }),
+          el('span', { class: 'cr-cv-kind' }, KIND_WORD[it.kind]),
+          el('span', { class: 'cr-cv-name' }, it.name),
+          it.id ? el('span', { class: 'cr-mono cr-cv-id' }, it.id) : null),
+        it.inText ? null : el('span', { class: 'cr-cv-flag' }, 'not in your text'));
+      const fields = el('ul', { class: 'cr-cv-fields' }, it.fields.map(f => el('li', null,
+        el('label', { class: 'cr-cv-tick cr-cv-field' }, box(f.on, v => { f.on = v; }, { dataset: { cv: 'field', key: it.key, field: f.k } }),
+          el('span', { class: 'cr-cv-k' }, labelOf(it.kind, f.k)),
+          el('span', { class: 'cr-cv-v' }, valueText(f.k, f.value))))));
+      const quote = el('blockquote', { class: 'cr-cv-quote' + (it.source ? '' : ' none') }, it.source || 'No sentence quoted.');
+      return el('li', { class: 'cr-cv-item', dataset: { kind: it.kind, key: it.key, inText: it.inText ? '1' : '0', error: it.error ? '1' : '0' } },
+        head,
+        it.error ? el('p', { class: 'cr-err' }, `Left out: adding it would break the story (${it.error}).`) : null,
+        el('div', { class: 'cr-cv-body' }, it.fields.length ? fields : el('p', { class: 'cr-note' }, 'Only the name; the text gives nothing more.'), quote));
+    }
+    function render(d) {
+      if (conv && conv.draftId !== state.draftId) conv = null;
+      const c = conv || { running: false, steps: [], items: [], gaps: null, notice: null };
+      const ok = canRun(d);
+      const run1 = el('button', { type: 'button', class: 'btn primary', id: 'creator-convert-run', disabled: !ok.ok || c.running, onclick: () => run() }, c.running ? 'Converting…' : 'Convert');
+      const why = el('p', { class: 'cr-note cr-cv-why' }, ok.why);
+      const items = c.items;
+      const off = items.filter(it => !it.inText).length;
+      const bad = items.filter(it => it.error).length;
+      const review = el('div', { class: 'cr-cv-review', id: 'creator-convert', hidden: !items.length, 'aria-label': 'Proposed records' },
+        el('p', { class: 'cr-note cr-cv-sum' }, `${plural(items.length, 'record')} proposed${off ? `, ${off} not in your text` : ''}${bad ? `, ${bad} left out` : ''}. Nothing changes until you accept.`),
+        el('ul', { class: 'cr-cv-list' }, items.map(itemRow)),
+        el('div', { class: 'cr-cv-actions' },
+          el('button', { type: 'button', class: 'btn small primary', dataset: { cv: 'accept-all' }, onclick: () => acceptAll() }, 'Accept all'),
+          el('button', { type: 'button', class: 'btn small', dataset: { cv: 'accept' }, onclick: () => accept() }, 'Accept ticked'),
+          el('button', { type: 'button', class: 'btn small ghost', dataset: { cv: 'reject' }, onclick: () => reject() }, 'Reject')));
+      const gapList = arr(c.gaps);
+      const gapSec = el('div', { class: 'cr-cv-gaps', id: 'creator-gaps', hidden: !c.gaps },
+        el('h3', { class: 'cr-cv-gaps-title' }, 'Gaps'),
+        el('p', { class: 'cr-note' }, gapList.length ? 'What the story needs that your text did not give. Fill these in the forms.' : 'None: your text gave everything the story needs to play.'),
+        el('ul', { class: 'cr-problems' }, gapList.map(g => el('li', null, el('button', {
+          type: 'button', class: 'cr-problem', dataset: { gap: g.key, tab: g.tab, sev: 'warning' },
+          onclick: () => { if (g.tab === 'world') WorldTab.route(g.path); selectTab(g.tab, true); }
+        }, el('span', { class: 'cr-problem-msg' }, g.text), el('span', { class: 'cr-problem-tab' }, `${tabLabel(g.tab)} tab${g.list ? ' · ' + g.list : ''}`))))));
+      const card = el('section', { class: 'cr-section cr-convert', dataset: { section: 'convert', running: c.running ? '1' : '0' } },
+        el('h2', { class: 'cr-section-title' }, 'Turn your words into a story'),
+        el('p', { class: 'cr-note' }, 'The AI only sorts your own words into the forms and invents nothing; you review every value, with the sentence it came from, before anything changes.'),
+        el('div', { class: 'cr-cv-run' }, run1, why),
+        el('ol', { class: 'cr-cv-steps', 'aria-live': 'polite', hidden: !c.steps.length }, c.steps.map(s => el('li', { dataset: { kind: s.kind } }, s.text))),
+        el('p', { class: 'cr-err cr-cv-notice', role: 'alert', hidden: !c.notice }, c.notice || ''),
+        review, gapSec);
+      // The button follows the story box as the author types (a change there does not draw the tab again).
+      queueMicrotask(() => {
+        const box = card.isConnected && node('creator-body') ? node('creator-body').querySelector('[data-path="meta.storyText"]') : null;
+        if (!box) return;
+        box.addEventListener('input', () => {
+          const now = canRun(state.draft, box.value);
+          run1.disabled = !now.ok || !!(conv && conv.running);
+          why.textContent = now.why;
+        });
+      });
+      return card;
+    }
+    /* The card drawn again where it stands (the Overview open), keeping the focus on the control it was on. */
+    function draw() {
+      const b = node('creator-convert-run');
+      const card = b && b.closest('.cr-convert');
+      if (!card || !state.draft) return;
+      const a = document.activeElement;
+      const sel = a && card.contains(a) ? (a.id ? '#' + CSS.escape(a.id) : a.dataset && a.dataset.cv ? `[data-cv="${a.dataset.cv}"]${a.dataset.key ? `[data-key="${CSS.escape(a.dataset.key)}"]` : ''}${a.dataset.field ? `[data-field="${a.dataset.field}"]` : ''}` : null) : null;
+      const next = render(state.draft);
+      card.replaceWith(next);
+      const back = sel && next.querySelector(sel);
+      if (back && !back.disabled) back.focus({ preventScroll: true });
+    }
+    return {
+      render, run, accept, acceptAll, reject, gaps, inText, canRun, MIN_WORDS,
+      get review() { return conv ? conv.items : []; },
+      get running() { return !!(conv && conv.running); },
+      get steps() { return conv ? conv.steps.map(s => s.text) : []; },
+      get notice() { return conv ? conv.notice : null; }
+    };
+  })();
 
   return {
     open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, NEXT_TASK_NOTE, BUILT_IN_NOTE,
@@ -49977,6 +50712,8 @@ const Creator = (() => {
     Test,
     // Task M7-B (wave 37, Creator Mode, milestone 7): the Developer overlay, the game panel's Dev tab (UI's PANELS.dev).
     Dev,
+    // Task M8-C (wave 37, Creator Mode, milestone 8): the Story to Pack converter, extraction only (plan decision I).
+    Convert,
     get state() { return state; }
   };
 })();
