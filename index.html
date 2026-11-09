@@ -10437,7 +10437,7 @@ const Pack = (() => {
       rules: obj({
         rolls: obj({ always: strs('Action'), never: strs('Action'), alwaysPhrases: strs('Phrase'), neverPhrases: strs('Phrase') }),
         dcs: obj({ easy: i('Easy'), normal: i('Normal'), hard: i('Hard'), very_hard: i('Very hard') }),
-        floors: obj({ ask: e('Asking', DIFFICULTIES), lie: list(any('Floor', '[liking at or below, difficulty], e.g. [-25, "hard"].')), intimidateHard: e('Intimidating the hard', DIFFICULTIES) }),
+        floors: obj({ ask: e('Asking', DIFFICULTIES), lie: list(any('Floor', '[trust at or below, difficulty], e.g. [-25, "hard"]: lying to someone whose trust in the player is that low is at least this hard.')), intimidateHard: e('Intimidating the hard', DIFFICULTIES) }),
         hp: obj({ start: i('Start'), max: i('Most'), damage: obj({ failure: list(i('Damage')), partial: i('Partial'), critical_failure: i('Critical failure') }) }),
         crits: b('Criticals'), permadeath: b('Permadeath'), showRolls: b('Show rolls'),
         storyPoints: obj({ start: i('Start'), max: i('Most'), factAllowed: b('/fact allowed') }),
@@ -13944,6 +13944,29 @@ const PackBudget = (() => {
     if (!(n > Pack.TOKEN_BUDGET)) return [];
     const at = ANCHORS.find(p => filled(dig(pack, p))) || '';
     return [PackRules.problem(at, `The narrator's cached prompt is over the token budget (${n.toLocaleString('en-US')} of ${Pack.TOKEN_BUDGET.toLocaleString('en-US')} tokens, estimated); shorten the guide, the example turns or the narrator note.`, { rule: 'engine.budget' })];
+  } });
+})();
+
+/* Two rules milestone 6's tabs asked for (wave 37, Creator Mode): the
+   freedom dial's create.people is accepted only as false ("not supported
+   yet": direction change 8 retired the people maker, and Pack.freedom
+   forces it false whatever a pack says), and each lie floor is a pair
+   [trust at or below (a whole number), a difficulty], as Rel.difficultyFloor
+   reads it; the shape pass types the rows as any, so this is their check. */
+(() => {
+  PackRules.register({ id: 'engine.freedom.people', cls: 'engine', run(pack) {
+    const c = isObj(pack) && isObj(pack.freedom) && isObj(pack.freedom.create) ? pack.freedom.create : null;
+    return c && c.people === true ? [PackRules.problem('freedom.create.people', 'is not supported yet: a story may let the player add places and things, never people.', { rule: 'engine.freedom.people' })] : [];
+  } });
+  PackRules.register({ id: 'engine.floors.lie', cls: 'engine', run(pack) {
+    const lie = isObj(pack) && isObj(pack.rules) && isObj(pack.rules.floors) ? pack.rules.floors.lie : undefined;
+    if (!Array.isArray(lie)) return [];
+    const out = [];
+    lie.forEach((row, i) => {
+      const ok = Array.isArray(row) && row.length === 2 && Number.isInteger(row[0]) && row[0] >= -100 && row[0] <= 100 && DIFFICULTIES.includes(row[1]);
+      if (!ok) out.push(PackRules.problem(`rules.floors.lie[${i}]`, 'must be [trust at or below (a whole number from -100 to 100), a difficulty: easy, normal, hard or very_hard].', { rule: 'engine.floors.lie' }));
+    });
+    return out;
   } });
 })();
 
@@ -18485,7 +18508,9 @@ const State = (() => {
     const town = Number.isFinite(fl.priceMultiplier) && fl.priceMultiplier > 0 ? fl.priceMultiplier : 1;
     const own = Number.isFinite(fl.playerPriceMultiplier) && fl.playerPriceMultiplier > 0
       && !(Number.isInteger(fl.playerPriceUntilDay) && fl.playerPriceUntilDay < current.time.day) ? fl.playerPriceMultiplier : 1;
-    return Math.round(town * own * sellerMarkup() * 100) / 100;
+    // Wave 37, Creator Mode: the story's own price factor (rules.prices.factor; 1 for Low Water, so nothing changes there).
+    const story = Pack.get('rules.prices.factor');
+    return Math.round(town * own * sellerMarkup() * (Number.isFinite(story) && story > 0 ? story : 1) * 100) / 100;
   }
   /* Wave 27: a seller here who is against the player and has stopped
      refusing them (flags['relPrice.<npcId>'], Pipeline's refuseSale)
@@ -32606,6 +32631,9 @@ const Pipeline = (() => {
       timeCost: TIME_COSTS.includes(r.timeCost) ? r.timeCost : 'instant',
       declaresWorldFact: r.declaresWorldFact === true
     };
+    // Wave 37, Creator Mode: the story's own time cost for this kind of action (rules.time.costs) wins over the parser's word; an action the story does not list keeps the parser's.
+    const costs = Pack.get('rules.time.costs');
+    if (isObj(costs) && TIME_COSTS.includes(costs[out.actionType])) out.timeCost = costs[out.actionType];
     if (out.destinationId && /^new:/i.test(out.destinationId)) {
       if (!out.targets.includes(out.destinationId)) out.targets.push(out.destinationId);
       out.destinationId = null;
@@ -48361,7 +48389,7 @@ const Creator = (() => {
       const aSel = el('select', { class: 'input', id: addId, 'aria-label': 'Action', disabled: !left.length }, left.length ? left.map(a => el('option', { value: a }, a)) : el('option', { value: '' }, 'Every action is listed'));
       const cSel = el('select', { class: 'input', id: addId + '-cost', 'aria-label': 'Its cost', disabled: !left.length }, costOpts('instant'));
       const add = () => { if (!aSel.value) return; put(Object.assign({}, objOf(getAt(state.draft, p)), { [aSel.value]: cSel.value })); redraw('#' + addId); };
-      return sub('Costs', 'An action listed here costs this much time: instant, short (part of a phase), long (an hour or more) or rest (until morning). An action not listed keeps the engine\'s cost. This version of the game does not read the list yet, so every action keeps the engine\'s cost; the list waits in the story for the version that does.', [
+      return sub('Costs', 'An action listed here costs this much time: instant, short (part of a phase), long (an hour or more) or rest (until morning). An action not listed keeps the engine\'s cost. The story\'s cost wins over what the parser decided for that kind of action.', [
         el('div', { class: 'cr-maprows', dataset: { path: p } },
           keys.length ? el('div', { class: 'cr-maprow cr-maphead', 'aria-hidden': 'true' }, el('span', null, 'Action'), el('span', null, 'Cost')) : el('p', { class: 'cr-note' }, 'None listed: every action keeps the engine\'s cost.'),
           rows),
@@ -48377,7 +48405,7 @@ const Creator = (() => {
     }
     function pricesCard(d) {
       return card('Prices', 'What things cost in this story.', [
-        num(d, 'rules.prices.factor', 'Price factor', { int: false, min: 0, help: 'Every listed price times this; 1 is the price as written. This version of the game does not apply it yet: prices change only with the town\'s own events.' })
+        num(d, 'rules.prices.factor', 'Price factor', { int: false, min: 0, help: 'Every listed price times this; 1 is the price as written. The town\'s own price events and the player\'s own deals multiply it further.' })
       ], 'rules.prices');
     }
     function lawCard(d) {
