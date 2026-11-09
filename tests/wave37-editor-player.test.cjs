@@ -109,7 +109,7 @@ s.test('the Player tab draws the built-in copy: 6 backgrounds, 8 flaws, 6 goal s
       start: [b.querySelector('[data-path="player.start.hp"]').value, b.querySelector('[data-path="player.start.storyPoints"]').value, b.querySelector('[data-path="player.ageRange[0]"]').value, b.querySelector('[data-path="player.ageRange[1]"]').value],
       order,
       badge: document.getElementById('creator-tab-player').dataset.count || null,
-      placeholder: b.textContent.includes(Game.Creator.PLACEHOLDER)
+      placeholder: b.textContent.includes(Game.Creator.NEXT_TASK_NOTE)
     };
   });
   assert.deepEqual(r.rows, ['bg_veteran', 'bg_dropout', 'bg_fired_bookkeeper', 'bg_river_deckhand', 'bg_group_home_kid', 'bg_poker_hustler']);

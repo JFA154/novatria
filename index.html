@@ -45552,6 +45552,7 @@ const Creator = (() => {
     fillProblems();
     fillAbout();
     refreshWorld(); // task M5-C1: the World tab's list buttons and rows count their errors too
+    PlayerTab.refresh(); // task M5-D: the Player tab's background rows count their errors the same way
   }
   function setView() {
     const lib = state.view !== 'editor';
