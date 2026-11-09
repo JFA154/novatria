@@ -45129,7 +45129,7 @@ const Creator = (() => {
     { id: 'json', label: 'JSON', render: d => renderJson(d) },
     { id: 'test', label: 'Test', render: null }
   ].map(t => Object.freeze(t)));
-  const PLACEHOLDER = 'This tab arrives with the next task.';
+  const NEXT_TASK_NOTE = 'This tab arrives with the next task.';
   /* Which tab owns a problem's path, by its first segment (Overview holds meta, setting and opening for now). */
   const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', opening: 'overview', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
   function tabFor(path) { return TAB_OF[String(path || '').split(/[.[]/)[0]] || 'overview'; }
@@ -45183,7 +45183,7 @@ const Creator = (() => {
     body.dataset.tab = entry.id;
     const drawn = entry.render && state.draft ? entry.render(state.draft) : el('section', { class: 'cr-section' },
       el('h2', { class: 'cr-section-title' }, entry.label),
-      el('p', { class: 'cr-note' }, PLACEHOLDER));
+      el('p', { class: 'cr-note' }, NEXT_TASK_NOTE));
     body.replaceChildren(...[].concat(drawn));
     showProblems();
   }
@@ -46319,7 +46319,7 @@ const Creator = (() => {
   // (milestone 8: the Story to Pack converter)
 
   return {
-    open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, PLACEHOLDER, BUILT_IN_NOTE,
+    open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, NEXT_TASK_NOTE, BUILT_IN_NOTE,
     // Task M5-B: the form renderer and the editor's working calls (tests and the later tabs use them).
     Form,
     Editor: Object.freeze({
