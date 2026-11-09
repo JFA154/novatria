@@ -52,7 +52,8 @@ s.test('Pack.DEFAULTS carries the narration, directions, prompts and suggestedSe
 });
 
 s.test('precedence default < pack < player for directions.intimate: the built-in pack reads the engine\'s text at layer default, a copy with its own direction reads it at layer pack, a saved override reads at layer player (and Pack.get returns it), and null returns to the pack or default layer', async h => {
-  const page = await h.open();
+  // Without the helpers' 18+ yes (tests/helpers.cjs): this test reads Low Water's whole perPack entry.
+  const page = await h.open({ consent: false });
   const r = await page.evaluate(() => {
     const P = Game.Pack, St = Game.Storage;
     const b = P.builtIn();

@@ -1141,6 +1141,27 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .ask h2 { margin: 0 0 8px; font-family: var(--read-font); font-size: 22px; }
 .ask p { margin: 0 0 12px; color: var(--muted); }
 .ask .row-btns { justify-content: flex-end; margin-top: 16px; }
+/* The 18+ ask (wave 37, Creator Mode, milestone 8, task M8-B; UI.askConsent): the story's title, its rating chip,
+   its content warnings (scrolled inside the dialog when there are many), the sentence, a 44px row with a 16px
+   checkbox, and the two 44px buttons. Long words from a pack wrap; nothing sticks out on a phone. */
+.consent { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+/* The rating chip is the Library's (.cr-chip); its tints are set on #screen-creator, so the dialog sets the same ones. */
+.consent { --cr-general: var(--att-cool); --cr-teen: var(--att-cold); --cr-mature: var(--att-mild); --cr-adult: var(--danger); }
+.consent .ask-in { display: flex; flex-direction: column; max-height: calc(100dvh - 34px); box-sizing: border-box; }
+.consent h2 { overflow-wrap: anywhere; }
+.consent p.consent-rating { margin: 0 0 12px; }
+.consent-body { min-height: 0; overflow-y: auto; }
+.consent-body[hidden] { display: none; }
+.consent p.consent-warn-label { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.consent-warnings { margin: 0 0 12px; padding-left: 20px; color: var(--text); }
+.consent-warnings li { padding: 2px 0; overflow-wrap: anywhere; }
+.consent p.consent-more { margin: -8px 0 12px; font-size: 13px; }
+.consent .check { min-height: 44px; color: var(--text); }
+.consent .check input { width: 16px; height: 16px; }
+.consent .btn { min-height: 44px; }
+.set-adult { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+.set-adult[hidden] { display: none; }
+.set-adult .btn { min-height: 44px; }
 /* ===== Panels: Journal, People search, Places ===== */
 .jr-sec + .jr-sec { margin-top: 6px; }
 .jr-list li { display: grid; gap: 2px; }
@@ -2168,6 +2189,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath <span class="hint" id="set-permadeath-layer"></span></label>
               <label class="check" id="set-cheats-row" hidden><input type="checkbox" id="set-cheats" aria-describedby="set-cheats-hint"> Allow cheats anyway <span class="hint" id="set-cheats-layer"></span></label>
               <p class="hint" id="set-cheats-hint" hidden></p>
+              <!-- Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ yes for this story, shown only when it has one (UI.fillPlay). -->
+              <p class="set-adult" id="set-adult" hidden><span id="set-adult-text">You confirmed you are 18 or older for this story.</span> <button type="button" class="btn small" id="set-adult-forget">Forget</button></p>
             </div>
             <div class="field">
               <span class="label">Narration style <span class="hint" id="set-style-layer"></span></span>
@@ -2326,6 +2349,24 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
       <p id="creator-share-text"></p>
       <div class="cr-sheet-body" id="creator-share-body"></div>
       <div class="row-btns cr-sheet-btns" id="creator-share-btns"></div>
+    </div>
+  </dialog>
+  <!-- Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask before a story that needs it plays (UI.askConsent fills it, textContent only). -->
+  <dialog id="consent" class="ask consent" aria-labelledby="consent-title" aria-describedby="consent-text">
+    <div class="ask-in">
+      <h2 id="consent-title"></h2>
+      <p class="consent-rating"><span class="cr-chip" id="consent-rating"></span></p>
+      <div class="consent-body" id="consent-body">
+        <p class="consent-warn-label" id="consent-warn-label">Content warnings</p>
+        <ul class="consent-warnings" id="consent-warnings" aria-labelledby="consent-warn-label"></ul>
+        <p class="consent-more" id="consent-more" hidden></p>
+      </div>
+      <p id="consent-text">This story has adult content. To play it, confirm you are 18 or older.</p>
+      <label class="check consent-check"><input type="checkbox" id="consent-check"> I am 18 or older</label>
+      <div class="row-btns">
+        <button type="button" class="btn" id="consent-no">Not now</button>
+        <button type="button" class="btn primary" id="consent-yes" disabled>Continue</button>
+      </div>
     </div>
   </dialog>
 </div>
@@ -11157,7 +11198,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 8 (task M8-C): the Story to Pack converter's schema for one kind of record (PackConvert, after PackRules, read at call time), its kinds in order and their fields.
     jsonSchemaFor: kind => PackConvert.jsonSchemaFor(kind), get CONVERT_KINDS() { return PackConvert.KINDS; }, get CONVERT_FIELDS() { return PackConvert.FIELDS; },
     // Wave 37, Creator Mode, milestone 8 (task M8-A): a pack file read and cleaned (PackImport, after PackRules, read at call time), the string caps it cleans to, and validate's shape pass alone (a save's pack, Storage.resolvePack).
-    importText: (text, opts) => PackImport.importText(text, opts), cleanStrings: (pack, opts) => PackImport.cleanStrings(pack, opts), STRING_MAX: Object.freeze(Object.assign({}, STRING_MAX)), NOTES_MAX, shape
+    importText: (text, opts) => PackImport.importText(text, opts), cleanStrings: (pack, opts) => PackImport.cleanStrings(pack, opts), STRING_MAX: Object.freeze(Object.assign({}, STRING_MAX)), NOTES_MAX, shape,
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): whether a story needs the player's 18+ yes, and whether it has it (PackConsent, after the story half, read at call time).
+    needsConsent: pack => PackConsent.needsConsent(pack), promptAllowed: pack => PackConsent.promptAllowed(pack)
   };
 })();
 
@@ -14010,6 +14053,37 @@ const PackRules = (() => {
     { id, cls, run: id === 'lint.thread.unlinked' ? unlinkedThreads : (pack, ctx) => pass(pack, ctx).get(id) || [] },
     cls === 'house' ? { set: HOUSE } : {}
   )));
+})();
+
+/* Pack.needsConsent and Pack.promptAllowed (wave 37, Creator Mode,
+   milestone 8, task M8-B; plan decision D, the per-pack player layer's
+   adultOk, and "Decisions and deviations" 5: Low Water is rated adult, "a
+   one-time 18+ ask on New game for every player"). A story needs the
+   player's yes when it is rated adult, or when the pack itself writes the
+   intimate scene direction (its own directions.intimate, the pack layer:
+   a general-rated story that sets one still writes those scenes). The yes
+   is the player's alone, kept in Storage.perPack(id).adultOk: neither a
+   pack nor a pack file read in ever sets it (cleanSettings whitelists it in
+   the settings only).
+   promptAllowed is the question every way into a game asks (App) and the
+   one Pipeline.runTurn asks again before anything of the pack reaches a
+   prompt. Here, after the story half, as its own small module; Pack exports
+   both (read at call time, as Storage is). */
+const PackConsent = (() => {
+  function needsConsent(pack) {
+    if (!isObj(pack)) return false;
+    if (isObj(pack.meta) && pack.meta.rating === 'adult') return true;
+    let own = null;
+    try { own = Pack.lookup('directions.intimate', pack, { noPlayer: true }); } catch (e) { own = null; }
+    return !!own && own.layer === 'pack' && typeof own.value === 'string' && own.value.trim().length > 0;
+  }
+  function promptAllowed(pack) {
+    if (!needsConsent(pack)) return true;
+    const id = isObj(pack.meta) && typeof pack.meta.id === 'string' ? pack.meta.id : '';
+    if (!id) return false;
+    try { return Storage.perPack(id).adultOk === true; } catch (e) { return false; }
+  }
+  return { needsConsent, promptAllowed };
 })();
 
 /* Pack.budgetEstimate(pack) (wave 37, Creator Mode, milestone 6, task M6-C;
@@ -38002,6 +38076,11 @@ const Pipeline = (() => {
     if (busy) return { ok: false, reason: 'busy', restoreInput: true };
     const ro = readOnlyRefusal();
     if (ro) return ro;
+    /* Wave 37, Creator Mode, milestone 8 (task M8-B): the belt to App's braces. A story
+       that needs the player's 18+ yes (Pack.needsConsent) and has not had it (Forget in
+       Settings, a save loaded some other way) plays no turn: nothing of it reaches a
+       prompt, and the Api sees no call. */
+    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice('This story needs your confirmation first; open Settings or start it again from the title.'); return { ok: false, reason: 'consent' }; }
     const s = State.current;
     busy = true;
     acceptsQueue = false;
@@ -40487,7 +40566,10 @@ const UI = (() => {
     // Wave 37, Creator Mode, milestone 8 (task M8-A): the sheets' parts (the buttons and lists are drawn with the sheet, so null here).
     'creator-share-title', 'creator-share-text', 'creator-share-body', 'creator-share-btns', 'creator-share-list', 'creator-share-more',
     'creator-share-file', 'creator-share-note', 'creator-share-yes', 'creator-share-no', 'creator-share-download', 'creator-share-share',
-    'creator-share-copy', 'creator-share-close'];
+    'creator-share-copy', 'creator-share-close',
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask and Settings' line for it.
+    'consent', 'consent-title', 'consent-rating', 'consent-body', 'consent-warn-label', 'consent-warnings', 'consent-more', 'consent-text',
+    'consent-check', 'consent-yes', 'consent-no', 'set-adult', 'set-adult-text', 'set-adult-forget'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -40526,7 +40608,7 @@ const UI = (() => {
     });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      if (d.ask.open) return; // the dialog closes itself
+      if (d.ask.open || (d.consent && d.consent.open)) return; // the dialog closes itself
       if (!d.menuPop.hidden) closeMenu(true);
       else if (!d.actPop.hidden) closeActions(true);
       else if (mapPick) setPick(null, mapExpanded ? 'close' : null);
@@ -40628,6 +40710,11 @@ const UI = (() => {
     // syncBanner at once too: the dialog's close event comes a moment later.
     d.askYes.addEventListener('click', () => { d.ask.close('yes'); syncBanner(); });
     d.askNo.addEventListener('click', () => { d.ask.close('no'); syncBanner(); });
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask (askConsent) and Settings' Forget.
+    d.consentCheck.addEventListener('change', () => { d.consentYes.disabled = !d.consentCheck.checked; });
+    d.consentYes.addEventListener('click', () => { if (d.consentCheck.checked) { d.consent.close('yes'); syncBanner(); } });
+    d.consentNo.addEventListener('click', () => { d.consent.close('no'); syncBanner(); });
+    d.setAdultForget.addEventListener('click', forgetAdult);
     try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyDisplay); } catch (e) { /* old browsers */ }
     // The Pipeline reports each stage of a turn.
     Pipeline.setStatusListener(onPipelineStatus);
@@ -40906,7 +40993,7 @@ const UI = (() => {
     if (!d.banner) return;
     const sheet = isMobile() && !!d.gameBody && d.gameBody.classList.contains('sheet-open');
     const map = mapExpanded && !!d.panelBody && !!$('.map.expanded', d.panelBody);
-    d.banner.inert = sheet || map || !!(d.ask && d.ask.open);
+    d.banner.inert = sheet || map || !!(d.ask && d.ask.open) || !!(d.consent && d.consent.open);
   }
   /* A question in a modal dialog (the page behind it takes no input):
      resolves true for the yes button, false for Cancel or Escape. The focus
@@ -40934,6 +41021,57 @@ const UI = (() => {
       syncBanner();
       // The safe answer takes the focus: Enter or Space never does the drastic thing by accident.
       d.askNo.focus();
+    });
+  }
+  /* Wave 37, Creator Mode, milestone 8 (task M8-B; plan decision D, adultOk;
+     "Decisions and deviations" 5: "a one-time 18+ ask on New game for every
+     player"): the ask before a story that needs it (Pack.needsConsent)
+     plays, in a dialog like ask()'s: the story's title, its rating, its
+     content warnings (each the pack's own words, textContent only, cut at
+     CONSENT_WARN_MAX characters, at most CONSENT_WARN_LIST of them), the
+     sentence, and "I am 18 or older", which alone enables Continue. Resolves
+     true for Continue and writes Storage.savePerPack(id, { adultOk: true }),
+     so it is asked once per story (Pack.promptAllowed short-circuits it
+     after); "Not now" or Escape resolves false and writes nothing. A story
+     that needs no ask, or has the yes already, resolves true at once. The
+     focus goes back where it was, as ask()'s does. */
+  const CONSENT_WARN_MAX = 120;
+  const CONSENT_WARN_LIST = 12;
+  function askConsent(pack) {
+    if (!isObj(pack) || !isObj(pack.meta) || Pack.promptAllowed(pack)) return Promise.resolve(true);
+    const m = pack.meta;
+    const id = typeof m.id === 'string' ? m.id : '';
+    return new Promise(resolve => {
+      const dlg = d.consent;
+      const title = String(m.title || id || 'This story');
+      const yes = () => { if (id) Storage.savePerPack(id, { adultOk: true }); return !!id; };
+      if (!dlg || typeof dlg.showModal !== 'function') { resolve(window.confirm(`${title}\n\nThis story has adult content. To play it, confirm you are 18 or older.`) ? yes() : false); return; }
+      if (dlg.open) dlg.close('no');
+      d.consentTitle.textContent = title;
+      const rating = typeof m.rating === 'string' && m.rating ? m.rating.slice(0, 20) : 'adult';
+      d.consentRating.textContent = rating;
+      d.consentRating.dataset.rating = rating;
+      const warns = (Array.isArray(m.contentWarnings) ? m.contentWarnings : []).filter(w => typeof w === 'string' && w.trim());
+      const cap = w => { const t = w.trim().replace(/\s+/g, ' '); return t.length > CONSENT_WARN_MAX ? t.slice(0, CONSENT_WARN_MAX - 1).trimEnd() + '…' : t; };
+      d.consentWarnings.replaceChildren(...warns.slice(0, CONSENT_WARN_LIST).map(w => el('li', null, cap(w))));
+      const more = warns.length - CONSENT_WARN_LIST;
+      d.consentMore.hidden = more <= 0;
+      d.consentMore.textContent = more > 0 ? `and ${more.toLocaleString('en-US')} more` : '';
+      d.consentBody.hidden = !warns.length;
+      d.consentCheck.checked = false;
+      d.consentYes.disabled = true;
+      dlg.returnValue = '';
+      const was = document.activeElement;
+      dlg.addEventListener('close', () => {
+        syncBanner();
+        resolve(dlg.returnValue === 'yes' ? yes() : false);
+        if (was && was.isConnected && typeof was.focus === 'function') was.focus({ preventScroll: true });
+        if (!document.activeElement || document.activeElement === document.body) focusScreen(screen);
+      }, { once: true });
+      dlg.showModal();
+      syncBanner();
+      // The safe answer takes the focus, as ask()'s does.
+      d.consentNo.focus();
     });
   }
 
@@ -45027,6 +45165,7 @@ const UI = (() => {
   function fillPlay() {
     const pack = intimatePack();
     const s = Storage.settings();
+    fillAdult(pack);
     const rolls = Pack.lookup('rules.showRolls', pack), death = Pack.lookup('rules.permadeath', pack);
     d.setRolls.checked = rolls.value !== false;
     d.setPermadeath.checked = death.value === true;
@@ -45056,6 +45195,23 @@ const UI = (() => {
     Storage.savePerPack(pack.meta.id, { overrides: { [path]: t.checked } });
     fillPlay();
     if ((Pack.get('rules.showRolls') !== false) !== rollsWere && State.current && !State.muted) rebuildFeed();
+  }
+  /* Wave 37, Creator Mode, milestone 8 (task M8-B): the player's 18+ yes for
+     this story (Storage.perPack(id).adultOk), shown with Forget only when the
+     story needs one (Pack.needsConsent) and has it. Forget writes adultOk:
+     null, so the next New game, Continue or Test of it asks again, and a
+     turn of a game of it now running is refused until then (Pipeline). */
+  function fillAdult(pack) {
+    if (!d.setAdult) return;
+    d.setAdult.hidden = !(Pack.needsConsent(pack) && Storage.perPack(pack.meta.id).adultOk === true);
+  }
+  function forgetAdult() {
+    const pack = intimatePack();
+    Storage.savePerPack(pack.meta.id, { adultOk: null });
+    fillPlay();
+    toast('Forgotten. This story will ask again before it plays.');
+    // The button went with the line: the focus goes to the Play fieldset's first box, never the page.
+    if (d.setRolls) d.setRolls.focus({ preventScroll: true });
   }
   // Ticked: rules.cheats.allowed and rules.undo are the player's (true); unticked: back to the story's own.
   function saveCheats(on) {
@@ -45755,6 +45911,8 @@ const UI = (() => {
     get tab() { return tab; },
     get debug() { return debugOn; },
     devOn,
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask before a story that needs it.
+    askConsent,
     get stuckToBottom() { return stick; }
   };
 })();
@@ -51213,6 +51371,24 @@ const App = (() => {
       no: 'Keep it'
     });
   }
+  /* Wave 37, Creator Mode, milestone 8 (task M8-B; "Decisions and
+     deviations" 5, "a one-time 18+ ask on New game for every player"): every
+     way into a game of a story that needs the player's yes (Pack.needsConsent)
+     asks for it (UI.askConsent) before anything of it shows or reaches a
+     prompt: New game before character creation, a test from a draft, and
+     Continue, Load and Restore previous before the game screen. With the yes
+     already given (Pack.promptAllowed) go() runs at once, as before; else a
+     promise of go()'s result, or false after "Not now", which changes
+     nothing (the screen it was asked from stays as it was). */
+  function consented(pack, go) {
+    if (Pack.promptAllowed(pack)) return go();
+    return UI.askConsent(pack).then(yes => (yes ? go() : false));
+  }
+  // The story pack a save plays (Storage.resolvePack's, else the one State.load falls back on).
+  function packOf(env) {
+    if (isObj(env) && isObj(env.pack)) return env.pack;
+    try { return Pack.forLegacy(isObj(env) ? env.state : null, isObj(env) ? env.town : undefined); } catch (e) { return Pack.builtIn(); }
+  }
   function newGame() {
     if (turnRunning()) return false;
     const go = () => {
@@ -51220,9 +51396,11 @@ const App = (() => {
       UI.showScreen('create');
       return true;
     };
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask after the autosave's, before character creation opens.
+    const ask = () => consented(Pack.selected(), go);
     const auto = unsaved(null);
-    if (auto) return askReplace(auto, 'A new game').then(yes => (yes ? go() : false));
-    return go();
+    if (auto) return askReplace(auto, 'A new game').then(yes => (yes ? ask() : false));
+    return ask();
   }
   function prepare(character, opts) {
     if (turnRunning()) return null;
@@ -51257,8 +51435,10 @@ const App = (() => {
     const auto = unsaved(null);
     const test = auto && isObj(auto.state.meta) && auto.state.meta.packSource === 'draft';
     const title = isObj(pack) && isObj(pack.meta) ? pack.meta.title || pack.meta.id : '';
-    if (auto && !test) return askReplace(auto, `A test of ${title || 'this story'}`).then(yes => (yes ? go() : false));
-    return go();
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): a draft that needs the 18+ yes asks for it as New game does (Creator's Test comes through here).
+    const ask = () => consented(pack, go);
+    if (auto && !test) return askReplace(auto, `A test of ${title || 'this story'}`).then(yes => (yes ? ask() : false));
+    return ask();
   }
   /* With mock mode off and a key set, the arrival is narrated (MODE
      arrival) and streams in after the game screen shows; otherwise, or if
@@ -51276,7 +51456,8 @@ const App = (() => {
     // A new game starts with nothing to undo, and the stack kept for the last one goes (wave 16).
     Storage.undoReset();
     Storage.requestPersist();
-    const live = !Storage.settings().mockMode && !!Storage.getApiKey();
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): no narrated arrival for a story still waiting on the 18+ yes (a start that skipped the ask): the local opening text.
+    const live = !Storage.settings().mockMode && !!Storage.getApiKey() && Pack.promptAllowed(Pack.current());
     if (live) {
       State.apply({ journalEntry: `Arrived in ${s.meta.townName}.` });
       UI.rebuildFeed();
@@ -51379,17 +51560,22 @@ const App = (() => {
     if (isObj(env) && env.packMissing) throw new Error(env.packMissing);
     if (turnRunning()) return false;
     const auto = opts && opts.confirmed ? null : unsaved(env && env.state);
-    if (auto) return askReplace(auto, `Loading ${UI.continueLine(env) || 'that game'}`).then(yes => (yes ? load(env) : false));
-    return load(env);
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask, after the autosave's, before the game screen shows.
+    const go = () => consented(packOf(env), () => load(env));
+    if (auto) return askReplace(auto, `Loading ${UI.continueLine(env) || 'that game'}`).then(yes => (yes ? go() : false));
+    return go();
   }
   function continueGame() {
     if (turnRunning()) return false;
     const env = Storage.loadAutosave();
     if (!env) { UI.toast('There is no autosave yet.'); return false; }
-    try { load(env, { resume: true }); } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
-    // Where things stand, when the Pipeline can say (a recap built in code, no API call).
-    UI.showRecap();
-    return true;
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask first, for a story that needs it (a promise then).
+    return consented(packOf(env), () => {
+      try { load(env, { resume: true }); } catch (e) { UI.warn('The autosave could not be loaded: ' + e.message); return false; }
+      // Where things stand, when the Pipeline can say (a recap built in code, no API call).
+      UI.showRecap();
+      return true;
+    });
   }
   /* A promise from enter() (it asked first) or a boolean. */
   function settle(r, onOk, onErr) {
@@ -51412,9 +51598,12 @@ const App = (() => {
     if (turnRunning()) return false;
     const env = Storage.loadPrevious();
     if (!env) { UI.toast('There is no previous autosave.'); return false; }
-    try { load(env); } catch (e) { UI.warn('The previous autosave could not be loaded: ' + e.message); return false; }
-    UI.toast('Restored the previous autosave.');
-    return true;
+    // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ ask first, as Continue's.
+    return consented(packOf(env), () => {
+      try { load(env); } catch (e) { UI.warn('The previous autosave could not be loaded: ' + e.message); return false; }
+      UI.toast('Restored the previous autosave.');
+      return true;
+    });
   }
   /* Settings, "Re-read this game with the latest rules": the loaded game is
      brought up to date (or re-read at the current version) on the game

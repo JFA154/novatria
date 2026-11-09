@@ -190,11 +190,15 @@ s.test('the export path: a Marrow Bend game exported and imported on a fresh dev
   await quickStart(page, { name: 'Tomas Reed' });
   await sendText(page, 'I look around the room');
   const text = await page.evaluate(() => Game.Storage.exportJson());
-  // A new browser context: its own IndexedDB and localStorage, empty.
-  const fresh = await open(h);
+  // A new browser context: its own IndexedDB and localStorage, empty (no helper's 18+ yes either: tests/helpers.cjs).
+  const fresh = await open(h, { consent: false });
   assert.deepEqual(await fresh.evaluate(() => [Game.Storage.Library.index().map(r => r.id), localStorage.length]), [['low-water'], 0]);
   await fresh.evaluate(() => Game.UI.showScreen('saves'));
   await fresh.setInputFiles('#import-file', { name: 'marrow-bend-tomas-reed-day-1.json', mimeType: 'application/json', buffer: Buffer.from(text) });
+  // Wave 37, Creator Mode, milestone 8 (task M8-B): Marrow Bend is rated adult, so the fresh device asks once before it plays.
+  await fresh.waitForSelector('#consent[open]');
+  await fresh.check('#consent-check');
+  await fresh.click('#consent-yes');
   await fresh.waitForSelector('#screen-game.active');
   const r = await fresh.evaluate(() => {
     const rec = Game.Storage.Library.get('marrow-bend');

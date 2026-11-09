@@ -137,6 +137,8 @@ async function runSim(browser, style, opts) {
     await page.evaluate(seed => {
       const D = Game.data;
       const bg = D.BACKGROUNDS[0];
+      // Wave 37, Creator Mode, milestone 8 (task M8-B): Low Water is rated adult; the 18+ yes first, as tests/helpers.cjs gives it, or every turn is refused.
+      Game.Storage.savePerPack('low-water', { adultOk: true });
       Game.App.quickStart({ name: 'Tester', backgroundId: bg.id, stats: Object.assign({}, bg.stats), goal: 'Find out who sent the letter', flaw: D.FLAWS[0], looseEnds: [] }, { seed });
     }, o.seed || 2026);
     await install(page);

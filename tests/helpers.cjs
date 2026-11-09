@@ -38,6 +38,14 @@ function suite(name) {
             page.on('pageerror', e => errors.push(e));
             await page.goto(opts.url || GAME_URL);
             await page.waitForFunction(() => window.Game && window.Game.App);
+            /* Wave 37, Creator Mode, milestone 8 (task M8-B): Low Water is rated adult, so New game,
+               Continue, Load and a turn of it need the player's 18+ yes (Pack.promptAllowed). Every
+               page a test opens has that yes given once, as a player who answered the ask would
+               (settings.perPack['low-water'].adultOk = true), so every path that starts or loads a
+               game (the title's buttons, App.newGame, continueGame, loadSlot, enter) plays as it did.
+               A test that reloads with settings of its own keeps exactly those. open({ consent: false })
+               leaves it out (tests/wave37-rating.test.cjs). */
+            if (opts.consent !== false) await page.evaluate(() => Game.Storage.savePerPack('low-water', { adultOk: true }));
             return page;
           }
         };
@@ -62,10 +70,17 @@ function suite(name) {
   };
 }
 
-/* Start a game without the form, using the inlined content data. */
+/* Start a game without the form, using the inlined content data. Wave 37,
+   Creator Mode, milestone 8 (task M8-B): the story New game plays
+   (Pack.selected) gets the player's 18+ yes first when it needs one and has
+   none (settings.perPack[id].adultOk = true, as the ask's Continue writes),
+   so a test that cleared the settings still starts and plays turns;
+   opts.consent false leaves it as it is. */
 async function quickStart(page, opts = {}) {
-  await page.evaluate(({ seed, kinds, bgIndex, name }) => {
+  await page.evaluate(({ seed, kinds, bgIndex, name, consent }) => {
     const D = Game.data;
+    const pack = Game.Pack.selected();
+    if (consent !== false && Game.Pack.needsConsent(pack) && Game.Storage.perPack(pack.meta.id).adultOk !== true) Game.Storage.savePerPack(pack.meta.id, { adultOk: true });
     const bg = D.BACKGROUNDS[bgIndex || 0];
     const ks = kinds || ['debt', 'enemy', 'secret'];
     Game.App.quickStart({
@@ -73,8 +88,17 @@ async function quickStart(page, opts = {}) {
       goal: 'Find out who sent the letter', flaw: D.FLAWS[0],
       looseEnds: ks.map(k => ({ kind: k, text: D.LOOSE_ENDS[k].options[0] }))
     }, { seed });
-  }, { seed: opts.seed === undefined ? 12345 : opts.seed, kinds: opts.kinds, bgIndex: opts.bgIndex, name: opts.name });
+  }, { seed: opts.seed === undefined ? 12345 : opts.seed, kinds: opts.kinds, bgIndex: opts.bgIndex, name: opts.name, consent: opts.consent });
   await page.waitForSelector('#screen-game.active');
+}
+
+/* Wave 37, Creator Mode, milestone 8 (task M8-B): the player's 18+ yes for
+   the story packs a test makes of its own (a copy of the built-in story
+   under another id is rated adult too), as the ask's Continue writes it
+   (settings.perPack[id].adultOk = true), so its New game, Continue, Load and
+   turns play without the ask. h.open gives it for 'low-water' already. */
+function consent(page, ...ids) {
+  return page.evaluate(list => { for (const id of list) Game.Storage.savePerPack(id, { adultOk: true }); }, ids);
 }
 
 const stateJson = page => page.evaluate(() => JSON.stringify(Game.state));
@@ -239,4 +263,4 @@ function presetCards(page, opts) {
   }, Object.assign({ game: 'draw', seats: [] }, opts || {}));
 }
 
-module.exports = { suite, quickStart, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, presetCards, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };
+module.exports = { suite, quickStart, consent, legacyTown, stateJson, sendText, overflowReport, fixtures, findScene, place, presetCards, ROOT, GAME_PATH, GAME_URL, LAPTOP, PHONE };

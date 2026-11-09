@@ -27,6 +27,9 @@ async function continueSave(page, env) {
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   await page.evaluate(() => { Game.Api.Mock.delay = 0; });
+  /* Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ yes for the story the save plays (an edited
+     town's legacy- pack is rated adult as the built-in one is), so Continue does not stop at the ask. */
+  await page.evaluate(() => { const e = Game.Storage.loadAutosave(); const p = e.pack || Game.Pack.forLegacy(e.state, e.town); Game.Storage.savePerPack(p.meta.id, { adultOk: true }); });
   await page.click('#btn-continue');
   await page.waitForSelector('#screen-game.active');
 }

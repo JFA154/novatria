@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert/strict');
-const { suite, quickStart } = require('./helpers.cjs');
+const { suite, consent, quickStart } = require('./helpers.cjs');
 
 const s = suite('wave37-import');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
@@ -39,6 +39,8 @@ const shot = async (page, name) => {
 async function open(h, opts) {
   const page = await h.open(Object.assign({ contextOptions: { reducedMotion: 'reduce' } }, opts || {}));
   await page.evaluate(async () => { Game.Api.Mock.delay = 0; await Game.Storage.Library.ready; await Game.Storage.Drafts.ready; });
+  // Wave 37, Creator Mode, milestone 8 (task M8-B): the 18+ yes for the adult copies this file makes (helpers' consent).
+  await consent(page, 'hostile-town', 'marrow-bend', 'hand-edit');
   return page;
 }
 async function library(page) {
