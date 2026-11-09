@@ -8590,8 +8590,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
    between the BEGIN and END PACK markers just above this script, so
    the page still runs from file:// with no build. Edit the JSON, never the
    inlined copy, then run node tests/pack-inline.cjs (--check fails when the
-   two differ). node tests/validate-town.cjs still reads the old JavaScript
-   block and is replaced by node tests/validate-pack.cjs in M1-C2. The old
+   two differ). node tests/validate-pack.cjs checks it with Pack.validate
+   (the strict profile on the page's own pack). The old
    block's comments are kept in docs/notes/low-water-comments.md.
    ========================================================================== */
 // The eight content names (TOWN_DATA and the rest) are defined right after
@@ -9183,13 +9183,43 @@ const Pack = (() => {
 
   let builtInPack = null;
   /* Parsed once, frozen to the leaves. A page without the element is broken
-     beyond saving, so the error names it plainly. */
+     beyond saving, so the error names it plainly. The first call runs while
+     the main script is still defining things, before Game exists or
+     App.boot's catch can show anything, so a missing or unparsable element
+     would leave a dead title screen with no word why (wave 37, Creator
+     Mode): the failure is written into the same banner App.boot's catch
+     uses, then rethrown. Guarded for a page without the banner and for a
+     bare vm context with no document. */
   function builtIn() {
     if (builtInPack) return builtInPack;
-    const node = typeof document !== 'undefined' ? document.getElementById('pack-low-water') : null;
-    if (!node) throw new Error('The built-in story (the pack-low-water element) is missing from the page.');
-    builtInPack = deepFreeze(JSON.parse(node.textContent));
+    const doc = typeof document !== 'undefined' ? document : null;
+    try {
+      const node = doc ? doc.getElementById('pack-low-water') : null;
+      if (!node) throw new Error('The built-in story (the pack-low-water element) is missing from the page.');
+      let parsed;
+      try { parsed = JSON.parse(node.textContent); } catch (e) {
+        throw new Error('The built-in story (the pack-low-water element) is not valid JSON: ' + e.message);
+      }
+      builtInPack = deepFreeze(parsed);
+    } catch (err) {
+      const banner = doc ? doc.getElementById('banner') : null;
+      const text = doc ? doc.getElementById('banner-text') : null;
+      if (banner && text) { text.textContent = 'The game failed to start: ' + err.message; banner.hidden = false; }
+      throw err;
+    }
     return builtInPack;
+  }
+  /* The world keys a game never changes: lookup tables, templates, the law
+     and the gates. A save's town is a working copy of the world, and these
+     (about 24 KB) would ride along in every envelope though nothing reads
+     them from the copy; iOS localStorage holds five envelopes near its 5 MB
+     limit (wave 37, Creator Mode; plan decision C). The pack keeps them. */
+  const STATIC_WORLD_KEYS = Object.freeze(['tables', 'grudgeTemplates', 'favourTemplates', 'law', 'gates']);
+  // The mutable town a save carries: a deep copy of the world without the static keys.
+  function townOf(world) {
+    const out = deepCopy(world);
+    if (isObj(out)) for (const k of STATIC_WORLD_KEYS) delete out[k];
+    return out;
   }
   /* The preview pack when one is set (setPreview), else the built-in pack.
      Milestone 2 puts State.pack first; milestone 5 adds the Library
@@ -9697,7 +9727,21 @@ const Pack = (() => {
     const profile = opts && opts.profile === 'strict' ? 'strict' : 'play';
     const list = shape(pack);
     if (!isObj(pack)) return list;
-    return list.concat(PackRules.run(pack, profile));
+    /* The editor anchors problems to fields and should show one per fault
+       (wave 37, Creator Mode): a rule problem at a path the shape pass
+       already faulted (a wrong type or enum) is dropped, and so is an exact
+       repeat of one already listed (engine.mention.name finds a name once
+       per occurrence). */
+    const shaped = new Set(list.filter(p => /^engine\.shape\./.test(p.rule)).map(p => p.path));
+    const seen = new Set();
+    const rules = PackRules.run(pack, profile).filter(p => {
+      if (shaped.has(p.path)) return false;
+      const key = JSON.stringify([p.rule, p.path, p.message]);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return list.concat(rules);
   }
   function errors(list) { return (list || []).filter(p => p.severity === 'error'); }
   /* The problems at a path or under it ("world.npcs[1]" holds
@@ -9712,8 +9756,8 @@ const Pack = (() => {
   }
 
   return {
-    FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, tokenEstimate, builtIn, current, setPreview, lookup, get, isBuiltIn,
-    canonical, hash, copy, format, deepFreeze, validate, errors, problemsFor
+    FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, lookup, get, isBuiltIn,
+    canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor
   };
 })();
 
@@ -9722,10 +9766,12 @@ const Pack = (() => {
    B), one rule at a time: { id, cls, set?, run(pack, ctx) → [problem] }.
    Classes: engine (always an error: what the game cannot run), house (a
    set the pack opts into with meta.lints, e.g. 'lockett-house': a warning
-   in the play profile, an error in strict) and lint (a warning). The two
-   sub-regions below are filled by the next tasks (M1-C1 the world half,
-   M1-C2 the story half, ported from tests/validate-town.cjs with rule ids
-   and paths). Like Pack, this reads nothing defined after it. */
+   in the play profile, an error in strict) and lint (a warning). Two
+   sub-regions hold them: the world half (places, people, schedules,
+   relations, romance) and the story half (seeds, events, effects,
+   rumours, the engine.mention.* rules), ported from the old Node
+   validator with rule ids and paths. Like Pack, this reads nothing
+   defined after it. */
 const PackRules = (() => {
   const RULES = [];
   const CLASSES = ['engine', 'house', 'lint'];
@@ -11066,12 +11112,13 @@ const PackRules = (() => {
 
       // ===== lint: advice =====
       // A lived-in town: a public place on the map has somebody there at some time of day (REVIEW section 4 found five empty in every phase).
-      { id: 'lint.place.empty', cls: 'lint', run(pack, ctx) {
+      // A house rule (wave 37, Creator Mode): the old validator stopped on it, so CI keeps that strength under strict; another pack gets a warning.
+      { id: 'house.place.empty', cls: 'house', set: 'lockett-house', run(pack, ctx) {
         const out = [];
         const v = view(pack, ctx);
         eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
           if (l.discovered === false || l.away === true || !isObj(l.npcIdsBySchedule)) return;
-          if (!PHASES.some(p => arr(l.npcIdsBySchedule[p]).length)) out.push(P(where + '.npcIdsBySchedule', 'a public place nobody is ever at: schedule someone whose story puts them there', 'lint.place.empty'));
+          if (!PHASES.some(p => arr(l.npcIdsBySchedule[p]).length)) out.push(P(where + '.npcIdsBySchedule', 'a public place nobody is ever at: schedule someone whose story puts them there', 'house.place.empty'));
         });
         return out;
       } },
@@ -19316,7 +19363,8 @@ const State = (() => {
     };
     undoSwitch();
     current = st;
-    town = deepCopy(townData);
+    // Wave 37, Creator Mode: the save's working copy leaves out the static world keys (Pack.townOf), which the pack keeps.
+    town = Pack.townOf(townData);
     muted = opts.pending === true;
     loaded = null;
     ledger = freshLedger(-1);
@@ -23641,7 +23689,7 @@ const Town = (() => {
     return best;
   }
 
-  // ----- TOWN_DATA validation (in-browser twin of tests/validate-town.cjs, lighter) -----
+  // ----- TOWN_DATA validation (the fast in-game shape check; the full one is Pack.validate, run by tests/validate-pack.cjs) -----
   // The ops and reserved flags are State's own, so the two can never disagree.
   const EFFECT_OPS = State.EFFECT_OPS;
   function validate(t) {
@@ -23706,7 +23754,7 @@ const Town = (() => {
       if (pres === 'away' && n.status !== 'gone') e(`${n.id}: away needs status gone`);
       if (pres !== 'here' && scheduled.has(n.id)) e(`${n.id}: is ${pres} but scheduled in town`);
       if (n.age !== undefined && !(Number.isInteger(n.age) && n.age >= 0 && n.age <= 120)) e(`${n.id}: age must be a whole number from 0 to 120`);
-      // The cast's home and relations (written on both sides; tests/validate-town.cjs checks the words too).
+      // The cast's home and relations (written on both sides; Pack.validate, run by tests/validate-pack.cjs, checks the words too).
       if (n.home !== undefined && n.home !== null && !locById.has(n.home)) e(`${n.id}: home ${n.home} is not a location`);
       if (n.relations !== undefined && !Array.isArray(n.relations)) e(`${n.id}: relations must be an array`);
       for (const r of arr(n.relations)) {
@@ -36516,7 +36564,8 @@ const Storage = (() => {
     if (errs.length) throw new Error(`${what ? it : 'That save'} is damaged: ${errs.join('; ')}`);
     delete env.apiKey;
     delete env.settings;
-    if (!isObj(env.town)) env.town = deepCopy(TOWN_DATA);
+    // Wave 37, Creator Mode: a defaulted town is the mutable part only (Pack.townOf), as State.newGame makes it.
+    if (!isObj(env.town)) env.town = Pack.townOf(TOWN_DATA);
     return env;
   }
   /* Copy the autosave to .prev when the game about to be written is a different one. */
@@ -38644,6 +38693,14 @@ const UI = (() => {
   function placeLabel(l) {
     if (!l) return 'Place';
     if (typeof l.typeLabel === 'string' && l.typeLabel.trim()) return l.typeLabel.trim();
+    /* A save from before wave 37 (Creator Mode) carries no typeLabel on its
+       places: the label moved from this module's old table into the pack.
+       In a game of the built-in town, the built-in pack's record for the
+       same place still has it, so the Bluff stays "Bluff", not "Highway". */
+    if (Pack.isBuiltIn(State.current)) {
+      const b = Pack.builtIn().world.locations.find(x => x.id === l.id);
+      if (b && typeof b.typeLabel === 'string' && b.typeLabel.trim()) return b.typeLabel.trim();
+    }
     return placeTypeLabel(l.type);
   }
   /* " (closed)" for a place shut for good, " (closed today)" for one shut on today's weekday. */

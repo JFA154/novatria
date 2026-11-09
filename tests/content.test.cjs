@@ -308,14 +308,14 @@ s.test('schedules: every public place has someone at some time of day, each wher
   for (const l of D.TOWN_DATA.locations.filter(x => x.discovered !== false && !x.away)) {
     assert.ok(['morning', 'afternoon', 'evening', 'night'].some(p => l.npcIdsBySchedule[p].length), 'somebody is at ' + l.id + ' some time');
   }
-  // Wave 37, Creator Mode: a lint now, a warning in both profiles (a place nobody is at still plays), where the old validator stopped.
+  // Wave 37, Creator Mode: a house rule of the lockett-house set, an error under strict as the old validator's was (CI keeps that strength); another pack gets a warning.
   const r = await editedProblems(h, (p, { W, li, idx }) => {
     const tower = W.locations[li('loc_water_tower')];
     tower.npcIdsBySchedule.night = tower.npcIdsBySchedule.night.filter(id => id !== 'npc_kaylee');
     W.locations[idx(W.locations, l => JSON.stringify(l.npcIdsBySchedule && l.npcIdsBySchedule.night) === '["npc_royce","npc_darlene"]', 'Royce and Darlene at night')].npcIdsBySchedule.night.push('npc_kaylee');
     return 'world.locations[' + li('loc_water_tower') + '].npcIdsBySchedule';
   });
-  problemAt(r, 'lint.place.empty', r.at, /^a public place nobody is ever at/, 'warning');
+  problemAt(r, 'house.place.empty', r.at, /^a public place nobody is ever at/, 'error');
 });
 
 s.test('the facts agree: Wiley three springs ago, Travis paying down his boat, Dwight\'s stakes, the engineer the state sent, four overdoses and one death, the mayor in the holding cell, prices, the river road, Amos\'s whiskey, the bridge Annette crossed, Boyd\'s check-in, Loretta\'s bypass fight, a five-seat council', async () => {

@@ -264,8 +264,8 @@ Pittman, who died at the pumps in 2009; Amber Lott, at nineteen), each with
 when and how they died and where they are buried. Seventeen live elsewhere
 (Dale Purvis in the state penitentiary, Leah Dees at the Willows), each with
 where they are and how they can be reached: they can be talked about, called
-or written to, but they never walk in. `tests/mentions.cjs` fails the town
-check on any capitalised name, "the <kind of place>" or made-up crowd ("two
+or written to, but they never walk in. The validator's `engine.mention.*`
+rules fail the town check on any capitalised name, "the <kind of place>" or made-up crowd ("two
 other boys", "the night clerk") in the content that is not a record.
 
 **The town has a past.** The narrator is told how Lockett's Ferry came to be
@@ -1625,14 +1625,22 @@ box.
 
 ## Editing the town
 
-The whole town lives in `index.html` between the markers
-`// ===== BEGIN CONTENT =====` and `// ===== END CONTENT =====`: `TOWN_DATA`
+The whole town is one JSON file, `packs/low-water.json`: its `world`
 (places, people, factions and their clocks, threads, seeds, rumours, the
-calendar, town events and the ending), `TABLES` (random tables),
+calendar, town events and the ending, the random `tables` and the grudge and
+favour templates) and its `player` (backgrounds, flaws, loose ends and goal
+suggestions); in the page they are still read as `TOWN_DATA`, `TABLES`,
 `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`
-and `GOAL_PRESETS`. It is plain data with double-quoted strings. The shape is
-in `docs/BUILD_PLAN.md` under "Shared data contract". The fields that make
-the town move:
+and `GOAL_PRESETS`. Edit the file, never the copy in `index.html`: `node
+tests/pack-inline.cjs` inlines it into the page (CI runs it with `--check`,
+which fails when the two differ), and `node tests/validate-pack.cjs` validates
+it. The shape is in `docs/BUILD_PLAN.md` under "Shared data contract".
+
+Creator Mode (wave 37) is under way: the town is the built-in Story Pack, and
+the same format will carry other stories. For now a pack is edited by hand as
+above; the in-app editor arrives in a later milestone.
+
+The fields that make the town move:
 
 - `TOWN_DATA.calendar = { season, startDate }` (day 1 is that date); a
   place's `closedOn: ["Sunday"]`; a person's `awayOn: { days, phases, where }`
@@ -1744,7 +1752,7 @@ the town move:
 After editing, run:
 
 ```
-node tests/validate-town.cjs
+node tests/validate-pack.cjs
 ```
 
 It checks every field and cross-reference. For the cast: unique ids and
@@ -1760,8 +1768,8 @@ reads set somewhere, every effect op and its fields, obligations, a grudge
 and a favour for everyone in town and no beating from the old, the young or
 the police, no template that assumes your phone or a vehicle, the
 backgrounds' phone and hook, goods' kinds, the goal suggestions and the
-narrator's example turns. It runs `tests/mentions.cjs`, so a name, a place
-or a crowd the content mentions with no record fails. It lists every problem
+narrator's example turns. Its `engine.mention.*` rules fail a name, a place
+or a crowd the content mentions with no record. It lists every problem
 it finds and exits 1. After changing the cast, regenerate the roster:
 
 ```

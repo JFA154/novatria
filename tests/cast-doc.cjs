@@ -111,7 +111,7 @@ function render(D) {
   out.push('');
   out.push(`Every adult can be won over (wave 34). The ${romance.length} the romance list tunes say how hard ("Easy to win over", "Normal to win over"); anyone else over 18 is hard (spark rate 0.5; opens at knows 10). Nobody under 18 ever is.`);
   out.push('');
-  out.push('This file is generated from the data: after editing the cast or the places, run `node tests/cast-doc.cjs` (and `node tests/validate-town.cjs`). Looks, voices, goals and secrets are in `index.html` only, so this roster spoils nothing.');
+  out.push('This file is generated from the data in `packs/low-water.json`: after editing the cast or the places, run `node tests/cast-doc.cjs` (and `node tests/validate-pack.cjs`). Looks, voices, goals and secrets are in the pack only, so this roster spoils nothing.');
   for (const h of homes) {
     const l = loc(h);
     const people = here.filter(n => n.home === h);

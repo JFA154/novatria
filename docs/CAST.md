@@ -6,7 +6,7 @@ The town has 38 places. 15 are on the map from the start; 8 are homes the player
 
 Every adult can be won over (wave 34). The 12 the romance list tunes say how hard ("Easy to win over", "Normal to win over"); anyone else over 18 is hard (spark rate 0.5; opens at knows 10). Nobody under 18 ever is.
 
-This file is generated from the data: after editing the cast or the places, run `node tests/cast-doc.cjs` (and `node tests/validate-town.cjs`). Looks, voices, goals and secrets are in `index.html` only, so this roster spoils nothing.
+This file is generated from the data in `packs/low-water.json`: after editing the cast or the places, run `node tests/cast-doc.cjs` (and `node tests/validate-pack.cjs`). Looks, voices, goals and secrets are in the pack only, so this roster spoils nothing.
 
 ## The Low Water
 
