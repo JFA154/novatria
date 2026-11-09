@@ -12565,11 +12565,31 @@ const PackRules = (() => {
   /* storyPass(pack, ctx) → Map(rule id → [problem]): every story check in
      one walk, cached per validate (ctx is fresh each time). */
   const passes = new WeakMap();
+  /* Wave 37, Creator Mode (review R6, M3): the pass is most of a validate (some 120 to 195 ms of the built-in
+     story's 150 to 290), and the editor validates after every edit, so its last answer is kept against a
+     fingerprint of everything it reads: world, player and narration (the example turns, the style, the bans),
+     the effect lists anywhere else (index() walks the whole pack for ctx's flags, threads, rumours and seeds,
+     and the shape pass reports a stray list but cannot stop one), and which engine lists were there to read
+     (a validate during boot has none). meta, setting, opening, directions, rules, freedom and prompts are not
+     read, so an edit there re-runs only the cheap rules. The fingerprint is JSON.stringify compared as a
+     string: under 1 ms on the built-in pack against Pack.hash's 2 to 5 (which also sorts every key). run() copies
+     each problem it is handed, so sharing the arrays between two validates is safe. */
+  let memo = { key: null, found: null };
+  function passKey(pack, ctx) {
+    const L = engineLists();
+    const elsewhere = ctx.effectLists.filter(l => !/^(world|player)\b/.test(l.path));
+    try { return JSON.stringify([pack.world, pack.player, pack.narration, elsewhere, [!!L.ops, L.reserved.length, !!L.events, !!L.decay, L.stays.length]]); } catch (e) { return null; }
+  }
   function pass(pack, ctx) {
     if (!passes.has(ctx)) {
+      const key = passKey(pack, ctx);
       let found;
-      try { found = storyPass(pack, ctx); } catch (e) {
-        found = new Map([['engine.story', [P('', 'The story checks could not finish: ' + e.message, { rule: 'engine.story' })]]]);
+      if (key !== null && memo.key === key) found = memo.found;
+      else {
+        try { found = storyPass(pack, ctx); } catch (e) {
+          found = new Map([['engine.story', [P('', 'The story checks could not finish: ' + e.message, { rule: 'engine.story' })]]]);
+        }
+        memo = { key, found };
       }
       passes.set(ctx, found);
     }
@@ -21498,6 +21518,8 @@ const State = (() => {
     // Wave 37, Creator Mode: the frozen story pack of the running game, or null.
     get pack() { return pack; },
     get muted() { return muted; },
+    // Wave 37, Creator Mode (review R6, S4): true while sandbox(fn) runs, so a builder can leave the live game's memory alone.
+    get sandboxed() { return sandboxed > 0; },
     // Town news (CONTRACTS section 5): the live array, oldest first.
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
     RECORD_KEYS, ENGINE_KEYS, LIMITS, LOG_MAX, DEFEAT_OUTCOMES, EFFECT_OPS, RESERVED_FLAGS,
@@ -24929,10 +24951,21 @@ const Town = (() => {
   let personTail = null;
   let placeRe = null;
   let placeTail = null;
-  function personWords() { return personRe || (personRe = wordsRe(PERSON_LIST())); }
+  /* Wave 37, Creator Mode (review R6, N4): the four are built from the pack's occupations and place types, so
+     they are kept against those two lists, and a second pack in the same page (a preview, a Library story)
+     gets its own words. Keyed on the lists themselves, not Pack.hash: hashing 300 KB on every isPersonWord
+     (Style asks it word by word) would cost more than the regexes save, and an edit made in place to the
+     preview's lists is caught too. */
+  let wordsKey = null;
+  function freshWords() {
+    const t = Pack.tables();
+    const key = JSON.stringify([t.npc.occupations || [], t.location.types || []]);
+    if (key !== wordsKey) { wordsKey = key; personRe = personTail = placeRe = placeTail = null; }
+  }
+  function personWords() { freshWords(); return personRe || (personRe = wordsRe(PERSON_LIST())); }
   /* One word that names a kind of person ("bartender", "wife", "man"): Style reads who says something with it (wave 4). */
   function isPersonWord(w) { const t = String(w || '').trim(); return !!t && !/\s/.test(t) && personWords().test(t); }
-  function placeWords() { return placeRe || (placeRe = wordsRe(PLACE_WORDS.concat(Pack.tables().location.types || []))); }
+  function placeWords() { freshWords(); return placeRe || (placeRe = wordsRe(PLACE_WORDS.concat(Pack.tables().location.types || []))); }
   /* What a `new:` description is: read from its head phrase (the words
      before "at", "by", "of", "who" ...). Its last word is the head noun: a
      word for a person makes a person, a place word a place; then a name
@@ -25304,6 +25337,7 @@ const Town = (() => {
     return null;
   }
   function placeType(head) {
+    freshWords();
     if (!placeRe) placeRe = wordsRe(PLACE_WORDS.concat(Pack.tables().location.types || []));
     const m = placeRe.exec(String(head || ''));
     return m ? m[1].toLowerCase() : 'place';
@@ -36666,7 +36700,8 @@ const Pipeline = (() => {
     lines.push(Style.lengthLine(long));
     const text = lines.join('\n');
     // The style check that follows may use any name this packet gives (what the player typed, a due event, the news).
-    Style.notePacket(text);
+    // Wave 37, Creator Mode (review R6, S4): not a packet built in State.sandbox (the Prompt view's), whose names would replace the live game's.
+    if (!State.sandboxed) Style.notePacket(text);
     return text;
   }
   /* Wave 37, Creator Mode, milestone 4 (freedom.steer, through
@@ -38956,7 +38991,7 @@ const Storage = (() => {
     settings = cleanSettings(parsed);
     // Wave 37, Creator Mode: settings from version 2 with wave 36's direction are written back as version 3 at once, the old field gone.
     if (isObj(parsed) && parsed.intimateDirection !== undefined) write(KEYS.settings, JSON.stringify(settings));
-    if (typeof Pack.invalidate === 'function') Pack.invalidate();
+    Pack.invalidate();
     apiKey = (settings.rememberKey ? read(KEYS.apiKey, 'local') : read(KEYS.apiKey, 'session')) || '';
     // Nothing chosen yet: the demo only while there is no key.
     if (!(isObj(parsed) && typeof parsed.mockMode === 'boolean')) settings.mockMode = !apiKey;
@@ -38972,7 +39007,7 @@ const Storage = (() => {
     settings = cleanSettings(next);
     write(KEYS.settings, JSON.stringify(settings));
     // Wave 37, Creator Mode: a player override or developerMode may have changed, so Pack's memoised lookups start again.
-    if (typeof Pack.invalidate === 'function') Pack.invalidate();
+    Pack.invalidate();
     return settings;
   }
   /* Wave 37, Creator Mode, milestone 3: the player's settings for one
@@ -39173,7 +39208,7 @@ const Storage = (() => {
       }
       return pack;
     }
-    if (!ref) return typeof Pack.forLegacy === 'function' ? Pack.forLegacy(env.state, env.town) : Pack.builtIn();
+    if (!ref) return Pack.forLegacy(env.state, env.town);
     if (ref.hash === packHash(Pack.builtIn())) return Pack.builtIn();
     if (lib.frozen.has(ref.hash)) return lib.frozen.get(ref.hash);
     const rec = lib.get(ref.id);
@@ -39185,7 +39220,7 @@ const Storage = (() => {
        once names its legacy pack; with IndexedDB cleared (no frozen copy)
        the envelope's own town still makes it, as Pack.forLegacy made it
        first. A warning only when the town has changed since. */
-    if (/^legacy-/.test(ref.id) && typeof Pack.forLegacy === 'function') {
+    if (/^legacy-/.test(ref.id)) {
       const legacy = Pack.forLegacy(env.state, env.town);
       if (packHash(legacy) !== ref.hash) env.packWarning = 'The story pack changed since this save; it plays with the pack you have now.';
       return legacy;
@@ -39390,6 +39425,9 @@ const Storage = (() => {
   let undoDirty = false;
   let undoReading = 0;
   let txChain = Promise.resolve();
+  /* Wave 37, Creator Mode (review R6, M1): the database once it is open, or null, so Drafts.put can write at
+     once when the page is going away (a write queued on txChain then never starts). */
+  let dbNow = null;
   /* The database, or null when there is none (some private windows, some
      browsers on file://, an upgrade blocked by another tab, an open that
      never answers): every caller then does nothing, as the undo store
@@ -39405,6 +39443,7 @@ const Storage = (() => {
         if (settled) { try { if (db) db.close(); } catch (e) { /* fine */ } return; }
         settled = true;
         clearTimeout(timer);
+        dbNow = db || null;
         resolve(db);
       };
       /* Wave 37, Creator Mode (review M2-G2): an open that never answers
@@ -39421,7 +39460,7 @@ const Storage = (() => {
             for (const name of Object.keys(DB_STORES)) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, DB_STORES[name] ? { keyPath: DB_STORES[name] } : undefined);
           } catch (e) { /* none then */ }
         };
-        req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => db.close(); } catch (e) { /* fine */ } finish(db); };
+        req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => { if (dbNow === db) dbNow = null; db.close(); }; } catch (e) { /* fine */ } finish(db); };
         req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } finish(null); };
         req.onblocked = () => finish(null);
       } catch (e) { finish(null); }
@@ -39706,8 +39745,63 @@ const Storage = (() => {
       pack: Pack.copy(draft.pack), savedAt: new Date().toISOString(), undo: list(draft.undo), redo: list(draft.redo)
     };
     drafts.records.set(id, rec);
-    tx('drafts', 'readwrite', store => store.put(rec));
+    draftWrite(rec);
     return Object.assign({}, rec);
+  }
+  /* Wave 37, Creator Mode (review R6, M1): with the database open the record is written now, in a transaction
+     of its own committed at once, not queued on txChain: the editor saves on pagehide and on a hidden page, and
+     a queued write never starts once the page is gone (an edit typed in the last moment before a reload or a
+     closed tab was lost). A write still queued from earlier writes only while its record is the newest, so it
+     can never land over this one. Then the other tabs hear of it (S3, draftNews). */
+  function draftWrite(rec) {
+    const db = dbNow;
+    if (db) {
+      try {
+        const t = db.transaction('drafts', 'readwrite');
+        t.objectStore('drafts').put(rec);
+        t.oncomplete = () => draftNews(rec);
+        if (typeof t.commit === 'function') t.commit();
+        return;
+      } catch (e) { /* closed under us: the queue below opens it again */ }
+    }
+    tx('drafts', 'readwrite', store => (drafts.records.get(rec.id) === rec ? store.put(rec) : null)).then(() => { if (drafts.records.get(rec.id) === rec) draftNews(rec); });
+  }
+  /* Two tabs on one draft (wave 37, Creator Mode, review R6, S3): a write posts { id, savedAt } on the channel
+     novatria-drafts; a tab that hears of a draft newer than its own copy reads it back from the store and tells
+     its listeners (the editor reloads the draft it has open). Browsers without BroadcastChannel go without. */
+  const DRAFT_CHANNEL = 'novatria-drafts';
+  let draftChannel = null;
+  const draftListeners = [];
+  function draftChan() {
+    if (draftChannel === null) {
+      try {
+        draftChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel(DRAFT_CHANNEL) : false;
+        if (draftChannel) draftChannel.onmessage = e => draftHeard(e && e.data);
+      } catch (e) { draftChannel = false; }
+    }
+    return draftChannel;
+  }
+  function draftNews(rec) {
+    const ch = draftChan();
+    if (ch) { try { ch.postMessage({ id: rec.id, savedAt: rec.savedAt }); } catch (e) { /* fine */ } }
+  }
+  function draftHeard(m) {
+    if (!isObj(m) || typeof m.id !== 'string' || typeof m.savedAt !== 'string') return null;
+    const mine = drafts.records.get(m.id);
+    if (mine && String(mine.savedAt) >= m.savedAt) return null;
+    return tx('drafts', 'readonly', store => store.get(m.id)).then(r => {
+      if (!draftShapeOk(r) || r.id !== m.id) return;
+      const now = drafts.records.get(r.id);
+      if (now && String(now.savedAt) >= String(r.savedAt)) return;
+      drafts.records.set(r.id, r);
+      for (const fn of draftListeners.slice()) { try { fn(r.id); } catch (e) { console.warn('[Storage] a draft listener failed', e); } }
+    });
+  }
+  /* fn(id) after another tab's newer copy of a draft replaced this tab's; returns a function that stops it. */
+  function draftOnChange(fn) {
+    draftChan();
+    draftListeners.push(fn);
+    return () => { const i = draftListeners.indexOf(fn); if (i >= 0) draftListeners.splice(i, 1); };
   }
   function draftRemove(id) {
     if (!drafts.records.has(id)) return false;
@@ -39729,6 +39823,8 @@ const Storage = (() => {
   }
   const Drafts = {
     index: draftIndex, get: draftGet, put: draftPut, remove: draftRemove, UNDO_MAX: DRAFT_UNDO_MAX,
+    // Wave 37, Creator Mode (review R6, S3): another tab's newer copy of a draft.
+    onChange: draftOnChange, CHANNEL: DRAFT_CHANNEL,
     get ready() { return drafts.ready; },
     get persistent() { return drafts.persistent; }
   };
@@ -45536,7 +45632,8 @@ const Creator = (() => {
      draft open is a working copy in Creator.state.draft, and every change
      goes through Editor.set(path, value), which keeps an undo snapshot,
      autosaves (Storage.Drafts, 500 ms after the last change and at once on
-     pagehide) and checks the pack (check(), 150 ms after the last change). */
+     pagehide or a hidden page) and checks the pack (check(), when the page is
+     next idle from 300 ms after the last change). */
   const TABS = Object.freeze([
     { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
     { id: 'world', label: 'World', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
@@ -45563,13 +45660,19 @@ const Creator = (() => {
   function tabFor(path) { return TAB_OF[String(path || '').split(/[.[]/)[0]] || 'overview'; }
   const tabLabel = id => (TABS.find(t => t.id === id) || TABS[0]).label;
   const SAVE_MS = 500;
-  const CHECK_MS = 150;
+  /* Wave 37, Creator Mode (review R6, M3): 300 ms, then the next idle moment (at most CHECK_IDLE_MS later), so a
+     check never lands between two keys of someone typing. */
+  const CHECK_MS = 300;
+  const CHECK_IDLE_MS = 1000;
   const JSON_MS = 300;
   /* The draft open: work holds its record's id, the pack it came from and the undo and redo stacks (JSON
      snapshots, at most Storage.Drafts.UNDO_MAX, the oldest dropped); its pack is state.draft. problems is
-     what the last check() found; checkMs how long that took (a 300 KB pack costs about 160 ms, so check()
-     never runs on a key, only CHECK_MS after the last change). */
+     what the last check() found; checkMs how long that took. On the built-in story's copy (350 KB) a check
+     after an edit to its world, player or narration costs some 150 to 200 ms; after any other edit (meta, the
+     opening, directions, rules, freedom, prompts) 25 to 35 ms, the story pass being kept from the last check
+     (PackRules, review R6). So check() never runs on a key, only CHECK_MS after the last change and idle. */
   let work = null;
+  let checkIdle = null;
   let problems = [];
   let checkMs = 0;
   const timers = { save: null, check: null, json: null, meter: null, preview: null };
@@ -45655,6 +45758,17 @@ const Creator = (() => {
     problems = [];
     return true;
   }
+  /* Another tab saved the draft open here after this tab last did (review R6, S3; Storage.Drafts.onChange): its
+     copy replaces this one, edits not yet kept here included, rather than the two tabs writing over each other. */
+  function reloadDraft(id) {
+    if (!work || work.id !== id || state.view !== 'editor') return false;
+    clearTimeout(timers.save);
+    timers.save = null;
+    work = null;
+    if (UI.screen === 'creator') render(); else load(id);
+    UI.toast('This story changed in another tab.');
+    return true;
+  }
   function renderEditor() {
     if ((!work || work.id !== state.draftId || !state.draft) && !load(state.draftId)) { state.view = 'library'; state.draftId = null; return render(); }
     renderHead();
@@ -45732,7 +45846,8 @@ const Creator = (() => {
     clearTimeout(timers.save);
     timers.save = setTimeout(saveNow, SAVE_MS);
     clearTimeout(timers.check);
-    timers.check = setTimeout(check, CHECK_MS);
+    cancelCheckIdle();
+    timers.check = setTimeout(checkWhenIdle, CHECK_MS);
     clearTimeout(timers.json);
     if (state.tab === 'json') timers.json = setTimeout(fillJson, JSON_MS);
     // Task M6-C: the header meter, and the Prompt view while it is open, follow the draft.
@@ -45795,9 +45910,20 @@ const Creator = (() => {
   /* check(): the draft through Pack.validate (profile play), then each problem under the control whose data-path
      is the longest prefix of its path (one line each, errors in the error tone, warnings muted), each tab's error
      count on its button, and the Overview's Problems list and file line. */
+  function checkWhenIdle() {
+    timers.check = null;
+    cancelCheckIdle();
+    if (typeof window.requestIdleCallback === 'function') checkIdle = { idle: window.requestIdleCallback(() => { checkIdle = null; check(); }, { timeout: CHECK_IDLE_MS }) };
+    else check();
+  }
+  function cancelCheckIdle() {
+    if (checkIdle && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(checkIdle.idle);
+    checkIdle = null;
+  }
   function check() {
     clearTimeout(timers.check);
     timers.check = null;
+    cancelCheckIdle();
     if (!state.draft) { problems = []; return problems; }
     const t0 = performance.now();
     try { problems = Pack.validate(state.draft, { profile: 'play' }); } catch (e) {
@@ -45911,6 +46037,11 @@ const Creator = (() => {
     node('creator-redo').addEventListener('click', () => redo());
     node('creator-save').addEventListener('click', () => saveAsPack());
     window.addEventListener('pagehide', () => { if (work) { Form.flush(); saveNow(); } });
+    /* Wave 37, Creator Mode (review R6, M1): a hidden page too, as Storage's undo stack does: a phone may never
+       send pagehide to a tab it closes from the switcher. Drafts.put writes at once with the database open. */
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && work) { Form.flush(); saveNow(); } });
+    // S3: another tab saved the draft open here.
+    Storage.Drafts.onChange(reloadDraft);
   }
 
   // ----- Creator: Overview -----

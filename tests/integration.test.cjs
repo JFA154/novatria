@@ -474,7 +474,7 @@ s.test('wave 4: the Character tab\'s Grown line says what the quiet line said: t
 
 s.test('wave 4: no module guards a function this file always has (typeof State.x, Pipeline.x, Api.x, UI.x, Upgrade.x, App.x); one composer focus helper: Do / Say put the focus in the box on a laptop, and leave it on the button pressed on a phone', async h => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const guards = html.match(/typeof (?:Rng|Dice|Tables|State|Town|World|Style|Api|Upgrade|Pipeline|Storage|UI|Commands|App)\.[\w.]+ [!=]== 'function'/g) || [];
+  const guards = html.match(/typeof (?:Rng|Dice|Tables|State|Town|World|Style|Api|Upgrade|Pipeline|Storage|UI|Commands|App|Pack|PackRules|Creator)\.[\w.]+ [!=]== 'function'/g) || [];
   assert.deepEqual(guards, []);
   assert.ok(!/function focusInput\(/.test(html) && !/\bfocusInput\(/.test(html), 'focusInput folded into focusComposer');
   assert.ok(!/\breadOnly: 'This game is open/.test(html), 'one read-only notice (the UI\'s)');
