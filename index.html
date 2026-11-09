@@ -9848,10 +9848,1243 @@ const PackRules = (() => {
   }
 
   // ----- PackRules: world (M1-C1: strings, ids, references, places, exits, schedules, people, relations, homes, ages, presence, ties, romance and the minor rule) -----
-  register([]);
+  /* The world half of tests/validate-town.cjs, ported to rules (wave 37,
+     Creator Mode; plan decision B): its source scan (section 1), the
+     whole-data scan, the id registry (section 3) and the town, places, map,
+     people, relations, family, offstage, blackmail cap, ties, secret ties
+     and romance checks of section 5. The old messages are kept where they
+     read well; the paths are the pack's own (world.npcs[12].relations[0]).
+     Dropped on purpose: section 1's JavaScript checks (quotes, backticks,
+     arrows, functions, spread, module syntax, trailing commas, the order of
+     the const list, "gold" only as a field name) and the scan for functions,
+     undefined and non-finite numbers: a pack is JSON, which can hold none of
+     them, and JSON has no comments for the comment scans to read. "unexpected
+     field" is the shape pass's lint.unknownField, and an id's prefix and
+     slug form is its engine.id.shape; the registry below adds what the shape
+     pass cannot see (uniqueness, and the ids effects create). Braces in world
+     text are the story half's whole-world placeholder rule (M1-C2), so the
+     string checks here do not repeat it. Everything is local to this IIFE:
+     the two halves share only what PackRules.index(pack) gives. */
+  (() => {
+    const P = (path, message, rule) => problem(path, message, { rule });
+    const isStr = v => typeof v === 'string' && v.trim().length > 0;
+    const isInt = v => Number.isInteger(v);
+    const isNum = v => typeof v === 'number' && Number.isFinite(v);
+    const sentenceCount = s => (String(s).match(/[.!?]['")]?(?=\s|$)/g) || []).length;
+    const PRESENCES = ['here', 'away', 'dead'];
+    const presenceOf = n => (isObj(n) && PRESENCES.includes(n.presence) ? n.presence : 'here');
+    const yearIn = s => { const m = /\b(1[89]\d\d|20\d\d)\b/.exec(String(s || '')); return m ? Number(m[1]) : null; };
+    const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordIn = (text, word, caseless) => new RegExp('\\b' + esc(word) + '\\b', caseless ? 'i' : '').test(text);
 
-  // ----- PackRules: story (M1-C2: factions, clocks, effects and ops, triggers, threads, seeds, rumours, events, epilogue, templates, backgrounds, flaws, loose ends, goal presets, example turns, mentions) -----
-  register([]);
+    /* The minor rule (the owner's line since wave 28: "nobody under 18 is
+       ever on the romance list"): under 18 by age, tagged teen, or with no
+       age and a role that reads as a teen. */
+    const TEEN_ROLE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
+    function isMinor(n) {
+      if (!isObj(n)) return false;
+      const tags = arr(n.tags);
+      if (isInt(n.age) && n.age < 18) return true;
+      if (tags.includes('teen') || tags.includes('teenager')) return true;
+      return !isInt(n.age) && TEEN_ROLE.test((typeof n.role === 'string' ? n.role : '') + ' ' + tags.join(' '));
+    }
+
+    /* What every rule below reads, worked out once a run (keyed on the run's
+       ctx): the lists, who is the first record of an id (a later record with
+       a taken id is reported once by engine.id.unique and not checked again),
+       and where each person is scheduled. */
+    const VIEWS = new WeakMap();
+    function view(pack, ctx) {
+      if (VIEWS.has(ctx)) return VIEWS.get(ctx);
+      const w = isObj(pack.world) ? pack.world : {};
+      const npcs = arr(w.npcs);
+      const locations = arr(w.locations);
+      const first = (m, list, base) => list.map((x, i) => isObj(x) && typeof x.id === 'string' && m.has(x.id) && m.get(x.id).path === base + '[' + i + ']');
+      const npcFirst = first(ctx.npcs, npcs, 'world.npcs');
+      const locFirst = first(ctx.locations, locations, 'world.locations');
+      const npc = id => (typeof id === 'string' && ctx.npcs.has(id) ? ctx.npcs.get(id).value : null);
+      const loc = id => (typeof id === 'string' && ctx.locations.has(id) ? ctx.locations.get(id).value : null);
+      // npcId → { phase: [locIds] }, from the first record of each place.
+      const slots = new Map();
+      locations.forEach((l, i) => {
+        if (!locFirst[i] || !isObj(l.npcIdsBySchedule)) return;
+        for (const p of PHASES) for (const id of arr(l.npcIdsBySchedule[p])) {
+          if (typeof id !== 'string') continue;
+          if (!slots.has(id)) slots.set(id, {});
+          (slots.get(id)[p] = slots.get(id)[p] || []).push(l.id);
+        }
+      });
+      const year = isInt(w.year) ? w.year : null;
+      const v = { w, npcs, locations, npcFirst, locFirst, npc, loc, slots, year };
+      VIEWS.set(ctx, v);
+      return v;
+    }
+    // Each first record of a list, with its path.
+    function eachFirst(list, firsts, base, fn) { list.forEach((x, i) => { if (firsts[i]) fn(x, base + '[' + i + ']', i); }); }
+
+    // ----- relation words (the engine's own lists, so this check and the engine cannot drift apart) -----
+    const RELATION_WORDS = new Set(FAMILY_RELATIONS.concat(WORK_RELATIONS, OTHER_RELATIONS));
+    // What the other person must call this one back: A lists B as a word on the left, so B lists A as one on the right.
+    const RELATION_PAIRS = [
+      [['wife', 'husband', 'spouse', 'partner'], ['wife', 'husband', 'spouse', 'partner']],
+      [['girlfriend', 'boyfriend', 'fiancee', 'fiance'], ['girlfriend', 'boyfriend', 'fiancee', 'fiance']],
+      [['son', 'daughter', 'child', 'kid', 'boy', 'girl', 'baby'], ['mother', 'father', 'mom', 'dad', 'momma', 'mama', 'daddy']],
+      [['stepson', 'stepdaughter'], ['stepmother', 'stepfather']],
+      [['brother', 'sister'], ['brother', 'sister']],
+      [['stepbrother', 'stepsister'], ['stepbrother', 'stepsister']],
+      [['grandson', 'granddaughter'], ['grandmother', 'grandfather', 'grandma', 'grandpa', 'granny', 'granddad']],
+      [['nephew', 'niece'], ['aunt', 'uncle']],
+      [['cousin'], ['cousin']],
+      [['son-in-law', 'daughter-in-law'], ['mother-in-law', 'father-in-law']],
+      [['sister-in-law', 'brother-in-law'], ['sister-in-law', 'brother-in-law']],
+      [['ex-wife', 'ex-husband', 'ex'], ['ex-wife', 'ex-husband', 'ex']],
+      [['employee', 'worker', 'hand', 'helper', 'apprentice'], ['boss', 'employer', 'manager']],
+      [['tenant', 'lodger'], ['landlord', 'landlady']],
+      [['friend', 'buddy'], ['friend', 'buddy']],
+      [['neighbor', 'neighbour'], ['neighbor', 'neighbour']],
+      [['roommate'], ['roommate']], [['rival'], ['rival']], [['enemy'], ['enemy']]
+    ];
+    function inverseWords(word) {
+      const out = new Set();
+      for (const [a, b] of RELATION_PAIRS) { if (a.includes(word)) b.forEach(x => out.add(x)); if (b.includes(word)) a.forEach(x => out.add(x)); }
+      return out;
+    }
+    function wordPronouns(word) {
+      for (const [she, he] of GENDERED_WORDS) { if (word === she) return 'she'; if (word === he) return 'he'; }
+      return null;
+    }
+    // Rel's tie kinds and State's editor limits, read when a rule runs (both modules come after this one).
+    function tieKinds() { try { return typeof Rel !== 'undefined' && Rel && isObj(Rel.TIE_KINDS) ? Object.keys(Rel.TIE_KINDS) : null; } catch (e) { return null; } }
+    // The People editor's limits (State.EDIT_MAX), so editing anyone never has to cut what is written; the numbers are its own if State is not there yet.
+    function editMax() {
+      try { if (typeof State !== 'undefined' && State && isObj(State.EDIT_MAX)) return State.EDIT_MAX; } catch (e) { /* State not yet defined */ }
+      return { look: 200, voice: 200, history: 400, goal: 200, secret: 300 };
+    }
+
+    // ----- the cast and the factions in text (a linked secret, a secret tie's seed) -----
+    function mentionsCast(text, exceptId, v) {
+      const count = new Map();
+      for (const n of v.npcs) if (isObj(n) && typeof n.name === 'string') for (const t of new Set(n.name.split(/\s+/))) count.set(t, (count.get(t) || 0) + 1);
+      for (const n of v.npcs) {
+        if (!isObj(n) || n.id === exceptId || typeof n.name !== 'string') continue;
+        if (n.name.split(/\s+/).some(t => t.length >= 3 && count.get(t) === 1 && wordIn(text, t, false))) return true;
+      }
+      return factionAliasList(v.w).some(a => wordIn(text, a, true));
+    }
+    function factionAliases(f) {
+      if (!isObj(f) || typeof f.name !== 'string') return [];
+      const bare = f.name.replace(/^The\s+/, '');
+      return Array.from(new Set([bare, bare.split(/\s+/).slice(0, 2).join(' ')]));
+    }
+    function factionAliasList(w) { return arr(w.factions).flatMap(factionAliases); }
+
+    // ----- Low Water's vocabulary (the lockett-house set) -----
+    // SPEC.md section 9's banned list, plus the setting bans from the brief.
+    const BANNED_PHRASES = [
+      'the air is thick with', 'a testament to', 'little did you know', 'somewhere in the distance',
+      "you can't help but", 'you cannot help but', 'a sense of', 'palpable', 'tapestr', 'whispers of',
+      'the weight of', 'sends shivers', 'unbeknownst', 'in the grand scheme', "it's worth noting",
+      'echoes through', 'hangs in the air', 'a mix of', 'as if on cue', 'time seems to slow',
+      'eyes glinting with', 'what do you do',
+      'prophec', 'prophes', 'chosen one', 'dark lord', 'hooded stranger', 'hooded figure',
+      'mysterious stranger', 'ancient evil', 'destiny', 'destined'
+    ];
+    // Modern: no fantasy-era vocabulary and nothing supernatural ("gold" survives only as the backgrounds' field name, a key).
+    const FANTASY_RE = /\b(swords?|daggers?|taverns?|guilds?|jonkers?|lords?|serfs?|wizards?|spells?|spellbooks?|magic|magical|potions?|coppers?|gold|knights?|castles?|sorcer\w*|enchant\w*)\b|\bsilver pieces?\b/i;
+    const SUPERNATURAL_RE = /\b(ghosts?|haunt\w*|witch\w*|curse[sd]?|demons?|spectres?|specters?|phantoms?|psychics?|supernatural)\b/i;
+    const REQUIRED_TAGS = ['lender', 'fence', 'police', 'watch', 'priest', 'owner', 'mechanic', 'bartender', 'boatman', 'healer', 'informant'];
+    const REQUIRED_LOCATION_TYPES = ['bar', 'gas', 'motel', 'church', 'police', 'trailerpark', 'marina', 'bighouse'];
+    const FANTASY_LOCATION_TYPES = ['tavern', 'temple', 'manor', 'smithy', 'watch', 'slum', 'riverbank'];
+    const HOME_TYPES = ['house', 'trailer', 'apartment', 'farm', 'cabin', 'home'];
+    const GENERIC_ROLES = ['man', 'woman', 'person', 'guy', 'lady', 'boy', 'girl', 'townsfolk', 'stranger', 'local', 'resident', 'somebody', 'someone'];
+    const CAST_MIN = 40; // the people in town (presence "here")
+    const CAST_MAX = 45;
+    const PEOPLE_MAX = 90; // everyone, the dead and the far away included
+    const TOWN_PLACES_MIN = 8;
+    const TOWN_PLACES_MAX = 16;
+    const HOMES_MAX = 12;
+    const MAP_MIN_GAP = 28;
+    const SVG_PATH = /^\s*[Mm][\s\d.,eE+-]*(?:[MmLlHhVvCcSsQqTtAaZz][\s\d.,eE+-]*)*$/;
+    const SCHOOL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    // Ages a look can state: "woman of forty-one", "sixteen-year-old girl", "in his fifties".
+    const NUMBER_WORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+      thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50,
+      sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+    function wordNumber(word) {
+      const parts = String(word).toLowerCase().split('-');
+      const has = k => Object.prototype.hasOwnProperty.call(NUMBER_WORDS, k);
+      if (parts.length === 1) return has(parts[0]) ? NUMBER_WORDS[parts[0]] : null;
+      if (parts.length === 2 && has(parts[0]) && has(parts[1]) && NUMBER_WORDS[parts[0]] >= 20 && NUMBER_WORDS[parts[0]] % 10 === 0 && NUMBER_WORDS[parts[1]] >= 1 && NUMBER_WORDS[parts[1]] <= 9) return NUMBER_WORDS[parts[0]] + NUMBER_WORDS[parts[1]];
+      return null;
+    }
+    const DECADES = { teens: 13, twenties: 20, thirties: 30, forties: 40, fifties: 50, sixties: 60, seventies: 70, eighties: 80, nineties: 90 };
+    function lookAge(look) {
+      const t = String(look || '').toLowerCase();
+      const NUM = '([a-z]+(?:-[a-z]+)?)';
+      let m = new RegExp('\\b(?:man|woman|kid|boy|girl|guy|gal|lady|fellow|teenager)\\s+of\\s+' + NUM + '\\b').exec(t);
+      if (m && wordNumber(m[1]) !== null) return { exact: wordNumber(m[1]) };
+      m = new RegExp('\\b' + NUM + '-year-old\\b').exec(t);
+      if (m && wordNumber(m[1]) !== null) return { exact: wordNumber(m[1]) };
+      m = /\bin (?:his|her|their) (early |mid-|late )?(teens|twenties|thirties|forties|fifties|sixties|seventies|eighties|nineties)\b/.exec(t);
+      if (m) {
+        const lo = DECADES[m[2]];
+        const span = m[2] === 'teens' ? [13, 19] : m[1] === 'early ' ? [lo, lo + 3] : m[1] === 'mid-' ? [lo + 3, lo + 6] : m[1] === 'late ' ? [lo + 6, lo + 9] : [lo, lo + 9];
+        return { min: span[0], max: span[1] };
+      }
+      return null;
+    }
+    // The strings of the world half's own records, for the one-line form check.
+    function worldHalfStrings(w) {
+      const out = [];
+      const add = (v, path) => (typeof v === 'string' ? out.push({ path, value: v }) : strings(v).forEach(s => out.push({ path: path + (s.path.startsWith('[') ? '' : '.') + s.path, value: s.value })));
+      for (const k of ['name', 'setting', 'history', 'recent', 'offstage', 'locations', 'npcs', 'ties', 'secretTies']) if (w[k] !== undefined) add(w[k], 'world.' + k);
+      if (isObj(w.map)) {
+        if (w.map.riverLabel !== undefined) add(w.map.riverLabel, 'world.map.riverLabel');
+        if (w.map.labels !== undefined) add(w.map.labels, 'world.map.labels');
+      }
+      return out;
+    }
+    /* The content strings: what the old whole-data scan read, the eight
+       content constants (TOWN_DATA, TABLES and the templates are world now;
+       BACKGROUNDS, FLAWS, LOOSE_ENDS and GOAL_PRESETS are player). The
+       sections the pack format added around them (world.law and gates,
+       player.stats, start, ageRange, arrivals and creation, lifted from the
+       engine's code) were never held to it. */
+    const CONTENT_SKIP = /^(world\.(law|gates)|player\.(stats|start|ageRange|arrivals|creation))\b/;
+    function contentStrings(pack) {
+      const pl = isObj(pack.player) ? pack.player : {};
+      return strings({ world: pack.world, player: pl }).filter(s => !CONTENT_SKIP.test(s.path));
+    }
+
+    register([
+      // ===== engine: ids (section 3) =====
+      { id: 'engine.id.missing', cls: 'engine', run(pack) {
+        const out = [];
+        const w = isObj(pack.world) ? pack.world : {};
+        for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours', 'events']) {
+          arr(w[k]).forEach((x, i) => { if (isObj(x) && !isStr(x.id)) out.push(P('world.' + k + '[' + i + '].id', 'missing id', 'engine.id.missing')); });
+        }
+        const pl = isObj(pack.player) ? pack.player : {};
+        arr(pl.backgrounds).forEach((b, i) => {
+          if (!isObj(b)) return;
+          if (!isStr(b.id)) out.push(P('player.backgrounds[' + i + '].id', 'missing id', 'engine.id.missing'));
+          arr(b.items).forEach((it, j) => { if (isObj(it) && !isStr(it.id)) out.push(P('player.backgrounds[' + i + '].items[' + j + '].id', 'missing id', 'engine.id.missing')); });
+        });
+        return out;
+      } },
+      /* One id, one thing, across world.* and player.*: the records, and the
+         threads, rumours and seeds effects create (an id with a {placeholder}
+         is a template's, filled in play, and is not registered). */
+      { id: 'engine.id.unique', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const seen = new Map();
+        const reg = (id, path) => {
+          if (typeof id !== 'string' || !id || /[{}]/.test(id)) return;
+          if (seen.has(id)) out.push(P(path, 'duplicate id "' + id + '" (also at ' + seen.get(id) + ')', 'engine.id.unique'));
+          else seen.set(id, path);
+        };
+        const w = isObj(pack.world) ? pack.world : {};
+        for (const k of ['locations', 'npcs', 'factions', 'threads', 'seeds', 'rumours', 'events']) arr(w[k]).forEach((x, i) => { if (isObj(x)) reg(x.id, 'world.' + k + '[' + i + '].id'); });
+        const pl = isObj(pack.player) ? pack.player : {};
+        arr(pl.backgrounds).forEach((b, i) => {
+          if (!isObj(b)) return;
+          reg(b.id, 'player.backgrounds[' + i + '].id');
+          arr(b.items).forEach((it, j) => { if (isObj(it)) reg(it.id, 'player.backgrounds[' + i + '].items[' + j + '].id'); });
+        });
+        for (const { path, effect } of ctx.effects) {
+          if (!path.startsWith('world') && !path.startsWith('player')) continue;
+          const key = effect.op === 'openThread' ? 'thread' : effect.op === 'addRumour' ? 'rumour' : effect.op === 'plantSeed' ? 'seed' : null;
+          if (key && isObj(effect[key])) reg(effect[key].id, path + '.' + key + '.id');
+        }
+        return out;
+      } },
+      /* The ids effects create, which the shape pass cannot see (an effect is
+         free data to it): a slug with its kind's prefix. A thread, rumour or
+         seed a clock, a seed, an event or the ending makes needs its id (a
+         template's or a table's gets one in play); an addObligation's id is
+         obl_<kind>_<npc id>, registered here and checked field by field by
+         the story half. */
+      { id: 'engine.id.created', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const KEYS = { openThread: ['thread', 'thread'], addRumour: ['rumour', 'rumour'], plantSeed: ['seed', 'seed'] };
+        const needsId = /^world\.(factions|seeds|events|epilogue)\b/;
+        for (const { path, effect } of ctx.effects) {
+          if (!path.startsWith('world') && !path.startsWith('player')) continue;
+          if (effect.op === 'addObligation') {
+            if (typeof effect.kind === 'string' && typeof effect.npcId === 'string' && !/[{}]/.test(effect.kind + effect.npcId)) {
+              const id = ID_PREFIXES.obligation + effect.kind + '_' + effect.npcId;
+              if (!/^obl_[a-z]+_npc_[a-z0-9_]+$/.test(id)) out.push(P(path, 'makes the obligation id "' + id + '", which is not obl_<kind>_<npc id>', 'engine.id.created'));
+            }
+            continue;
+          }
+          const k = KEYS[effect.op];
+          if (!k || !isObj(effect[k[0]])) continue;
+          const id = effect[k[0]].id;
+          const where = path + '.' + k[0] + '.id';
+          if (id === undefined || id === '') { if (needsId.test(path)) out.push(P(where, 'missing id', 'engine.id.created')); continue; }
+          if (typeof id !== 'string') { out.push(P(where, 'the id must be text', 'engine.id.created')); continue; }
+          if (/[{}]/.test(id)) continue;
+          if (!/^[a-z]+_[a-z0-9_]+$/.test(id)) out.push(P(where, 'id "' + id + '" is not a lowercase slug', 'engine.id.created'));
+          else if (id.indexOf(ID_PREFIXES[k[1]]) !== 0) out.push(P(where, 'id "' + id + '" must start with "' + ID_PREFIXES[k[1]] + '"', 'engine.id.created'));
+        }
+        return out;
+      } },
+
+      // ===== engine: the town =====
+      { id: 'engine.world.required', cls: 'engine', run(pack) {
+        const out = [];
+        const w = isObj(pack.world) ? pack.world : null;
+        if (!w) return out;
+        for (const k of ['setting', 'currency', 'startLocationIds', 'factions', 'threads', 'seeds', 'rumours']) if (w[k] === undefined) out.push(P('world.' + k, 'is required (the game reads it)', 'engine.world.required'));
+        if (typeof w.name === 'string' && !w.name.trim()) out.push(P('world.name', 'the town needs a name', 'engine.world.required'));
+        if (isObj(w.currency)) for (const k of ['symbol', 'name']) if (!isStr(w.currency[k])) out.push(P('world.currency.' + k, 'the money label the screen shows next to the player\'s cash: a non-empty string', 'engine.world.required'));
+        return out;
+      } },
+      { id: 'engine.world.start', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const s = v.w.startLocationIds;
+        if (!isObj(s)) return out;
+        for (const k of ['gate', 'docks']) {
+          const l = v.loc(s[k]);
+          if (!l) out.push(P('world.startLocationIds.' + k, '"' + s[k] + '" is not a location', 'engine.world.start'));
+          else if (l.away === true) out.push(P('world.startLocationIds.' + k, s[k] + ' is out of town: the player cannot arrive there', 'engine.world.start'));
+        }
+        if (s.gate !== undefined && s.gate === s.docks) out.push(P('world.startLocationIds', 'gate and docks must be different places', 'engine.world.start'));
+        return out;
+      } },
+      // Wave 27: the police head a report goes to (Rel.policeHead); wave 28: the law outside town (Rel.policeFallback).
+      { id: 'engine.world.police', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        if (v.w.policeHead !== undefined) {
+          const ph = v.npc(v.w.policeHead);
+          if (!ph) out.push(P('world.policeHead', '"' + v.w.policeHead + '" is not an NPC', 'engine.world.police'));
+          else if (presenceOf(ph) !== 'here' || !arr(ph.tags).includes('police')) out.push(P('world.policeHead', v.w.policeHead + ' must live in town and be tagged police', 'engine.world.police'));
+        }
+        if (v.w.policeFallback !== undefined) {
+          const fb = v.npc(v.w.policeFallback);
+          const law = x => arr(x.tags).some(t => ['police', 'sheriff', 'deputy'].includes(t)) || /\b(police|sheriff|deputy|trooper)\b/i.test(x.role || '');
+          if (!fb) out.push(P('world.policeFallback', '"' + v.w.policeFallback + '" is not an NPC', 'engine.world.police'));
+          else if (presenceOf(fb) !== 'away' || !law(fb) || !isStr(fb.where)) out.push(P('world.policeFallback', v.w.policeFallback + ' must live elsewhere (with where), and be the law by tag or role', 'engine.world.police'));
+        }
+        return out;
+      } },
+      // The calendar (CONTRACTS section 1): day 1 is a real date, in the story's present year.
+      { id: 'engine.world.calendar', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const c = v.w.calendar;
+        if (!isObj(c) || c.startDate === undefined) return out;
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(c.startDate));
+        const d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+        if (!m || d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) out.push(P('world.calendar.startDate', 'a real date as YYYY-MM-DD, found ' + JSON.stringify(c.startDate), 'engine.world.calendar'));
+        else if (v.year !== null && +m[1] !== v.year) out.push(P('world.calendar.startDate', 'day 1 falls in the present year ' + v.year, 'engine.world.calendar'));
+        return out;
+      } },
+
+      // ===== engine: places, exits, schedules, the map =====
+      { id: 'engine.location.exit', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (l.away === true) return;
+          if (!Array.isArray(l.exits) || !l.exits.length) { out.push(P(where + '.exits', 'exits must be a non-empty array', 'engine.location.exit')); return; }
+          l.exits.forEach((x, j) => {
+            const p = where + '.exits[' + j + ']';
+            if (l.exits.indexOf(x) !== j) out.push(P(p, 'duplicate exit ' + x, 'engine.location.exit'));
+            else if (x === l.id) out.push(P(p, 'exit to itself', 'engine.location.exit'));
+            else if (!v.loc(x)) out.push(P(p, 'exit "' + x + '" is not a location', 'engine.location.exit'));
+            else if (v.loc(x).away === true) out.push(P(p, 'exit to ' + x + ', a place out of town', 'engine.location.exit'));
+          });
+        });
+        return out;
+      } },
+      { id: 'engine.location.symmetric', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (l.away === true) return;
+          arr(l.exits).forEach((x, j) => {
+            const other = x !== l.id && l.exits.indexOf(x) === j ? v.loc(x) : null;
+            if (other && other.away !== true && Array.isArray(other.exits) && !other.exits.includes(l.id)) out.push(P(where + '.exits[' + j + ']', 'exit to ' + x + ' is not symmetric (' + x + ' does not list ' + l.id + ')', 'engine.location.symmetric'));
+          });
+        });
+        return out;
+      } },
+      /* A place's start state: known or not (a home the player has not heard
+         of is reached by an exit from a place they know), open, and a place
+         out of town (away: true) never gone to: not discovered, no exits, not
+         on the map, nobody scheduled, no closedOn; only it has a distance. */
+      { id: 'engine.location.state', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.location.state';
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (typeof l.discovered !== 'boolean') out.push(P(where + '.discovered', 'discovered must be true or false', R));
+          if (l.closed !== false) out.push(P(where + '.closed', 'closed must be false at start', R));
+          if (l.away !== undefined && l.away !== true) out.push(P(where + '.away', 'is true for a place out of town, or left out', R));
+          if (l.closedOn !== undefined) {
+            if (!Array.isArray(l.closedOn) || !l.closedOn.length || l.closedOn.length > 6) out.push(P(where + '.closedOn', 'one to six weekday names', R));
+            else if (new Set(l.closedOn).size !== l.closedOn.length) out.push(P(where + '.closedOn', 'duplicate day', R));
+            if (l.away === true) out.push(P(where + '.closedOn', 'a place out of town is never gone to; leave closedOn out', R));
+          }
+          if (l.away === true) {
+            if (l.discovered !== false) out.push(P(where + '.discovered', 'a place out of town is never discovered (it is not on the map)', R));
+            if (!Array.isArray(l.exits) || l.exits.length) out.push(P(where + '.exits', 'a place out of town has no exits: the game never goes there', R));
+            if (l.map !== undefined) out.push(P(where + '.map', 'a place out of town is not on the map', R));
+            if (isObj(l.npcIdsBySchedule) && PHASES.some(p => arr(l.npcIdsBySchedule[p]).length)) out.push(P(where + '.npcIdsBySchedule', 'nobody is scheduled out of town', R));
+          } else {
+            if (l.distance !== undefined) out.push(P(where + '.distance', 'only a place out of town has a distance', R));
+            if (l.discovered === false && Array.isArray(l.exits) && !l.exits.some(x => v.loc(x) && v.loc(x).discovered === true)) out.push(P(where + '.exits', 'an undiscovered home must have an exit to a discovered place', R));
+          }
+        });
+        return out;
+      } },
+      // Connectivity from the gate: every place in town can be walked to.
+      { id: 'engine.location.reachable', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const gate = isObj(v.w.startLocationIds) ? v.w.startLocationIds.gate : null;
+        if (!v.loc(gate)) return out;
+        const seen = new Set([gate]);
+        const queue = [gate];
+        while (queue.length) for (const x of arr((v.loc(queue.shift()) || {}).exits)) if (v.loc(x) && !seen.has(x)) { seen.add(x); queue.push(x); }
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => { if (l.away !== true && !seen.has(l.id)) out.push(P(where, l.id + ' is not reachable from the gate', 'engine.location.reachable')); });
+        return out;
+      } },
+      // Who is where in each phase: four lists of people who exist, are alive and free, each once.
+      { id: 'engine.schedule', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.schedule';
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          const s = l.npcIdsBySchedule;
+          if (!isObj(s)) { out.push(P(where + '.npcIdsBySchedule', 'needs { morning, afternoon, evening, night }, each a list of people', R)); return; }
+          for (const p of PHASES) {
+            const wp = where + '.npcIdsBySchedule.' + p;
+            if (!Array.isArray(s[p])) { out.push(P(wp, 'must be an array', R)); continue; }
+            s[p].forEach((id, k) => {
+              const n = v.npc(id);
+              if (s[p].indexOf(id) !== k) out.push(P(wp + '[' + k + ']', 'duplicate NPC ' + id, R));
+              else if (!n) out.push(P(wp + '[' + k + ']', '"' + id + '" is not an NPC', R));
+              else if (presenceOf(n) === 'here' && (n.alive !== true || n.status !== 'free')) out.push(P(wp + '[' + k + ']', id + ' is scheduled but is ' + (n.alive !== true ? 'dead' : n.status), R));
+            });
+          }
+        });
+        return out;
+      } },
+      /* The town map (docs/BUILD_PLAN.md, "Map"): once world.map is there,
+         every place in town has map { x, y, label, anchor } inside the
+         bounds, and the river, roads and bridges are SVG paths. */
+      { id: 'engine.map', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const M = v.w.map;
+        if (!isObj(M)) return out;
+        const W = isNum(M.width) && M.width > 0 ? M.width : 360;
+        const H = isNum(M.height) && M.height > 0 ? M.height : 300;
+        const R = 'engine.map';
+        const path = (d, where) => { if (typeof d !== 'string' || !SVG_PATH.test(d)) out.push(P(where, 'must be an SVG path ("M x,y ..." with numbers and path commands only)', R)); };
+        for (const k of ['width', 'height']) if (!isNum(M[k])) out.push(P('world.map.' + k, 'is required: a number', R));
+        if (!Array.isArray(M.roads)) out.push(P('world.map.roads', 'must be an array of SVG paths', R));
+        if (!Array.isArray(M.labels)) out.push(P('world.map.labels', 'must be an array of { text, x, y }', R));
+        if (M.river !== undefined) path(M.river, 'world.map.river');
+        for (const k of ['roads', 'bridges']) arr(M[k]).forEach((d, i) => path(d, 'world.map.' + k + '[' + i + ']'));
+        const point = (o, where) => {
+          if (!isObj(o)) return;
+          if (!isNum(o.x) || o.x < 0 || o.x > W) out.push(P(where + '.x', 'must be a number from 0 to ' + W + ' (the map width)', R));
+          if (!isNum(o.y) || o.y < 0 || o.y > H) out.push(P(where + '.y', 'must be a number from 0 to ' + H + ' (the map height)', R));
+        };
+        if (M.riverLabel !== undefined) point(M.riverLabel, 'world.map.riverLabel');
+        arr(M.labels).forEach((o, i) => point(o, 'world.map.labels[' + i + ']'));
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (l.away === true) return;
+          if (!isObj(l.map)) { out.push(P(where + '.map', 'missing: with world.map every place in town needs map { x, y, label, anchor }', R)); return; }
+          point(l.map, where + '.map');
+          if (!isStr(l.map.label)) out.push(P(where + '.map.label', 'the name on the map: a non-empty string', R));
+          if (l.map.anchor === undefined) out.push(P(where + '.map.anchor', 'must be "n", "s", "e" or "w" (the side the label goes on)', R));
+        });
+        return out;
+      } },
+
+      // ===== engine: people =====
+      // The fields the game reads on everyone (the old contract's required list, less what only Low Water asks: see house.npc.text).
+      { id: 'engine.npc.required', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const FIELDS = ['name', 'pronouns', 'presence', 'role', 'factionId', 'tags', 'relations', 'home', 'memories', 'alive', 'knownToPlayer', 'status', 'attitude'];
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          for (const k of FIELDS) if (n[k] === undefined) out.push(P(where + '.' + k, 'missing field "' + k + '"', 'engine.npc.required'));
+          if (typeof n.name === 'string' && !n.name.trim()) out.push(P(where + '.name', 'a person needs a name', 'engine.npc.required'));
+          if (n.tags !== undefined && !Array.isArray(n.tags)) out.push(P(where + '.tags', 'a list of tags', 'engine.npc.required'));
+        });
+        return out;
+      } },
+      /* Presence (direction change 9): here (in town, somewhere every phase,
+         alive and free), away (alive, status gone, living elsewhere: where
+         and how to reach them; never scheduled) or dead (alive false, status
+         dead, when they died; never scheduled). Nobody starts known or with
+         memories. */
+      { id: 'engine.npc.state', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.npc.state';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          const pres = presenceOf(n);
+          if (n.age !== undefined && (!isInt(n.age) || n.age < 0 || n.age > 110)) out.push(P(where + '.age', 'must be a whole number of years, 0 to 110', R));
+          if (n.memories !== undefined && !(Array.isArray(n.memories) && n.memories.length === 0)) out.push(P(where + '.memories', 'memories must be []', R));
+          if (n.knownToPlayer !== undefined && n.knownToPlayer !== false) out.push(P(where + '.knownToPlayer', 'knownToPlayer must be false', R));
+          for (const k of ['where', 'reach']) if (n[k] !== undefined && pres !== 'away') out.push(P(where + '.' + k, 'only someone away has ' + k, R));
+          for (const k of ['died', 'buried']) if (n[k] !== undefined && pres !== 'dead') out.push(P(where + '.' + k, 'only someone dead has ' + k, R));
+          if (pres === 'here') {
+            if (n.alive !== true) out.push(P(where + '.alive', 'alive must be true', R));
+            if (n.status !== 'free') out.push(P(where + '.status', 'status must be "free"', R));
+            const h = v.loc(n.home);
+            if (!h) out.push(P(where + '.home', '"' + n.home + '" is not a location', R));
+            else if (h.away === true) out.push(P(where + '.home', 'someone in town lives in town, not at ' + n.home, R));
+          } else if (pres === 'away') {
+            for (const k of ['where', 'reach']) if (!isStr(n[k])) out.push(P(where + '.' + k, 'someone away says ' + (k === 'where' ? 'where they are' : 'how to reach them'), R));
+            if (n.alive !== true || n.status !== 'gone') out.push(P(where, 'someone away is alive with status "gone" (not in town)', R));
+            if (n.home !== null && !(v.loc(n.home) && v.loc(n.home).away === true)) out.push(P(where + '.home', 'someone away lives out of town: a place with away true, or null', R));
+          } else {
+            if (!isStr(n.died)) out.push(P(where + '.died', 'say when and how they died', R));
+            if (n.alive !== false || n.status !== 'dead') out.push(P(where, 'someone dead has alive false and status "dead"', R));
+            if (n.home !== null) out.push(P(where + '.home', 'the dead have no home (null)', R));
+            if (n.buried !== undefined && !(v.loc(n.buried) && v.loc(n.buried).away !== true)) out.push(P(where + '.buried', 'a place in town', R));
+          }
+          // Out of town on some days (CONTRACTS section 1): school days, a shift away.
+          if (n.awayOn !== undefined) {
+            const a = n.awayOn;
+            if (pres !== 'here') out.push(P(where + '.awayOn', 'only someone in town is sometimes away', R));
+            if (!isObj(a)) out.push(P(where + '.awayOn', '{ days, phases, where }', R));
+            else {
+              if (!Array.isArray(a.days) || !a.days.length || a.days.some(d => !WEEKDAYS.includes(d))) out.push(P(where + '.awayOn.days', 'weekday names (' + WEEKDAYS.join(', ') + ')', R));
+              else if (new Set(a.days).size !== a.days.length) out.push(P(where + '.awayOn.days', 'duplicate day', R));
+              if (!Array.isArray(a.phases) || !a.phases.length || a.phases.length > 3 || a.phases.some(p => !PHASES.includes(p))) out.push(P(where + '.awayOn.phases', 'one to three phases; they are home some part of every day', R));
+              if (!isStr(a.where)) out.push(P(where + '.awayOn.where', 'where they are: a non-empty string', R));
+            }
+          }
+        });
+        return out;
+      } },
+      /* Every person on a schedule: someone here is somewhere in every phase,
+         one place at a time, and at home in at least one; someone away or
+         dead is in no schedule. */
+      { id: 'engine.npc.schedule', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.npc.schedule';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          const slots = v.slots.get(n.id) || {};
+          const at = PHASES.filter(p => slots[p] && slots[p].length);
+          if (presenceOf(n) !== 'here') {
+            if (at.length) out.push(P(where, 'is ' + presenceOf(n) + ' but scheduled in town (' + at.join(', ') + ')', R));
+            return;
+          }
+          if (at.length !== PHASES.length) out.push(P(where, 'is somewhere in ' + at.length + ' of 4 phases; everyone needs a place in every phase (missing ' + PHASES.filter(p => !at.includes(p)).join(', ') + ')', R));
+          for (const p of at) if (slots[p].length > 1) out.push(P(where, 'scheduled in two places at once (' + p + ': ' + slots[p].join(', ') + ')', R));
+          // Someone on no schedule at all is named once, above; the home check is for someone who is somewhere.
+          if (at.length && v.loc(n.home) && !at.some(p => slots[p].includes(n.home))) out.push(P(where + '.home', 'is never at home (' + n.home + ') in any phase', R));
+        });
+        return out;
+      } },
+      { id: 'engine.npc.unique', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const seen = new Map();
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (typeof n.name !== 'string' || !n.name) return;
+          if (seen.has(n.name)) out.push(P(where + '.name', 'duplicate name "' + n.name + '" (also ' + seen.get(n.name) + ')', 'engine.npc.unique'));
+          else seen.set(n.name, where);
+        });
+        return out;
+      } },
+      // A person's references: their faction, whom a secret told hurts them with, whom they go to (wave 27, Rel.protectorOf).
+      { id: 'engine.npc.refs', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.npc.refs';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (n.factionId !== undefined && n.factionId !== null && !ctx.factions.has(n.factionId)) out.push(P(where + '.factionId', 'factionId "' + n.factionId + '" is not a faction (or null)', R));
+          if (n.mattersTo !== undefined) {
+            if (!Array.isArray(n.mattersTo) || !n.mattersTo.length) out.push(P(where + '.mattersTo', 'a list of npc ids', R));
+            else n.mattersTo.forEach((id, j) => { if (!v.npc(id)) out.push(P(where + '.mattersTo[' + j + ']', '"' + id + '" is not an NPC', R)); else if (id === n.id) out.push(P(where + '.mattersTo[' + j + ']', 'never themselves', R)); });
+          }
+          if (n.protector !== undefined && n.protector !== 'nobody') {
+            const many = Array.isArray(n.protector);
+            const items = many ? n.protector : [n.protector];
+            if (!items.length) out.push(P(where + '.protector', 'an npc id, a list of them, "nobody" or { npcId, hidden: true }', R));
+            items.forEach((x, j) => {
+              const wj = where + '.protector' + (many ? '[' + j + ']' : '');
+              const id = typeof x === 'string' ? x : isObj(x) ? x.npcId : null;
+              if (isObj(x) && Object.keys(x).some(k => k !== 'npcId' && k !== 'hidden')) out.push(P(wj, 'only npcId and hidden', R));
+              if (isObj(x) && x.hidden !== undefined && typeof x.hidden !== 'boolean') out.push(P(wj + '.hidden', 'true or false', R));
+              const o = v.npc(id);
+              if (!o) out.push(P(wj, '"' + id + '" is not an NPC', R));
+              else if (id === n.id) out.push(P(wj, 'nobody protects themself', R));
+              else if (presenceOf(o) !== 'here') out.push(P(wj, id + ' does not live in town', R));
+            });
+          }
+        });
+        return out;
+      } },
+      /* Wave 29: what a secret is worth as leverage (design Appendix C), and
+         wave 28's tuning (start, axes): the ranges Rel is tuned for. */
+      { id: 'engine.npc.leverage', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.npc.leverage';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          const hasSecret = isStr(n.secret);
+          if (n.secretWeight !== undefined && !(isInt(n.secretWeight) && n.secretWeight >= 1 && n.secretWeight <= 3)) out.push(P(where + '.secretWeight', '1, 2 or 3', R));
+          if (n.leverageKeys !== undefined) {
+            if (!Array.isArray(n.leverageKeys) || n.leverageKeys.length < 2 || n.leverageKeys.length > 3) out.push(P(where + '.leverageKeys', 'two or three short phrases', R));
+            else n.leverageKeys.forEach((k, j) => { if (!isStr(k) || k.split(/\s+/).length > 6 || /[{}]/.test(k)) out.push(P(where + '.leverageKeys[' + j + ']', 'a short phrase, six words at most', R)); });
+            if (!hasSecret) out.push(P(where + '.leverageKeys', 'keys for a secret they do not have', R));
+          }
+          if (n.secretWeight !== undefined && !(Array.isArray(n.leverageKeys) && n.leverageKeys.length >= 2)) out.push(P(where + '.leverageKeys', 'a secret with a weight needs two or more keys', R));
+          if (n.whenTold !== undefined && isObj(n.whenTold)) {
+            const t = n.whenTold;
+            if (!Object.keys(t).length) out.push(P(where + '.whenTold', 'at least one of memory, crime, inquiry, news', R));
+            if (t.crime !== undefined && typeof t.crime !== 'boolean') out.push(P(where + '.whenTold.crime', 'true or false', R));
+            if ((t.inquiry !== undefined || t.news !== undefined) && t.crime !== true) out.push(P(where + '.whenTold', 'an inquiry is only for a crime (crime: true)', R));
+          }
+          if (n.canRaise !== undefined && !(isInt(n.canRaise) && n.canRaise >= 0 && n.canRaise <= 1000)) out.push(P(where + '.canRaise', 'a whole number of dollars from 0 to 1000', R));
+          if (n.mercenary !== undefined && n.mercenary !== true) out.push(P(where + '.mercenary', 'true, or leave it out', R));
+          if (isObj(n.start)) {
+            if (!Object.keys(n.start).length) out.push(P(where + '.start', 'trust, fear or both', R));
+            for (const k of Object.keys(n.start)) if (k !== 'trust' && k !== 'fear') out.push(P(where + '.start.' + k, 'a stranger\'s start is trust and fear only', R));
+            if (n.start.trust !== undefined && !(isInt(n.start.trust) && n.start.trust >= -60 && n.start.trust <= 60)) out.push(P(where + '.start.trust', 'a whole number from -60 to 60', R));
+            if (n.start.fear !== undefined && !(isInt(n.start.fear) && n.start.fear >= 0 && n.start.fear <= 30)) out.push(P(where + '.start.fear', 'a whole number from 0 to 30', R));
+          }
+          if (isObj(n.axes)) {
+            if (!Object.keys(n.axes).length) out.push(P(where + '.axes', 'at least one of p, g, n, r', R));
+            for (const k of Object.keys(n.axes)) if (!(isInt(n.axes[k]) && n.axes[k] >= -2 && n.axes[k] <= 2)) out.push(P(where + '.axes.' + k, 'a whole number from -2 to 2', R));
+          }
+        });
+        return out;
+      } },
+      { id: 'engine.npc.editMax', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const max = editMax();
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          for (const f of ['look', 'voice', 'goal', 'secret', 'history']) {
+            if (typeof n[f] === 'string' && isInt(max[f]) && n[f].length > max[f]) out.push(P(where + '.' + f, 'at most ' + max[f] + ' characters (the People editor\'s limit), found ' + n[f].length, 'engine.npc.editMax'));
+          }
+        });
+        return out;
+      } },
+      // Wave 29: canRaise is 0 for anyone under 18 (nobody pays a child's silence).
+      { id: 'engine.blackmail.minor', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (isInt(n.canRaise) && n.canRaise > 0 && isMinor(n)) out.push(P(where + '.canRaise', n.id + ' is under 18: canRaise is 0 for anyone under 18', 'engine.blackmail.minor'));
+        });
+        return out;
+      } },
+
+      // ===== engine: relations =====
+      /* [{ npcId, relation }], "npcId is this person's relation", a word from
+         the engine's lists, a gendered word matching the pronouns of the one
+         it describes. */
+      { id: 'engine.relation', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.relation';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (n.relations === undefined) return;
+          if (!Array.isArray(n.relations)) { out.push(P(where + '.relations', 'must be an array of { npcId, relation }', R)); return; }
+          const seen = new Set();
+          n.relations.forEach((r, j) => {
+            const w = where + '.relations[' + j + ']';
+            if (!isObj(r)) { out.push(P(w, 'an object { npcId, relation }', R)); return; }
+            if (r.npcId === n.id) { out.push(P(w + '.npcId', 'a person cannot be related to themself', R)); return; }
+            const other = v.npc(r.npcId);
+            if (!other) { out.push(P(w + '.npcId', '"' + r.npcId + '" is not an NPC', R)); return; }
+            if (seen.has(r.npcId)) out.push(P(w + '.npcId', 'lists ' + r.npcId + ' twice', R));
+            seen.add(r.npcId);
+            if (typeof r.relation !== 'string' || !RELATION_WORDS.has(r.relation)) { out.push(P(w + '.relation', 'relation "' + r.relation + '" is not one of the engine\'s relation words', R)); return; }
+            const want = wordPronouns(r.relation);
+            if (want && other.pronouns !== want) out.push(P(w + '.relation', '"' + r.relation + '" is ' + want + ', but ' + other.id + ' is ' + other.pronouns, R));
+          });
+        });
+        return out;
+      } },
+      // Written on both sides, with words that answer each other (Dewayne's wife Mavis; Mavis's husband Dewayne).
+      { id: 'engine.relation.symmetric', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          arr(n.relations).forEach((r, j) => {
+            if (!isObj(r) || r.npcId === n.id || typeof r.relation !== 'string' || !RELATION_WORDS.has(r.relation)) return;
+            const other = v.npc(r.npcId);
+            if (!other) return;
+            const back = arr(other.relations).find(x => isObj(x) && x.npcId === n.id);
+            const w = where + '.relations[' + j + ']';
+            if (!back) { out.push(P(w, other.id + ' does not list ' + n.id + ' back (relations are written on both sides)', 'engine.relation.symmetric')); return; }
+            const inv = inverseWords(r.relation);
+            if (!inv.has(back.relation)) out.push(P(w + '.relation', n.id + ' calls ' + other.id + ' "' + r.relation + '", but ' + other.id + ' calls ' + n.id + ' "' + back.relation + '" (expected one of ' + Array.from(inv).join(', ') + ')', 'engine.relation.symmetric'));
+          });
+        });
+        return out;
+      } },
+      // Offstage people: named in the story, never in town; superseded by records with a presence, still accepted, never a record's name.
+      { id: 'engine.offstage', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        arr(v.w.offstage).forEach((o, i) => {
+          const w = 'world.offstage[' + i + ']';
+          if (!isObj(o)) { out.push(P(w, 'an object { name, about }', 'engine.offstage')); return; }
+          for (const k of ['name', 'about']) if (!isStr(o[k])) out.push(P(w + '.' + k, 'a non-empty string', 'engine.offstage'));
+          if (typeof o.name === 'string' && v.npcs.some(n => isObj(n) && n.name === o.name)) out.push(P(w + '.name', '"' + o.name + '" is in the cast; offstage is for people who never appear', 'engine.offstage'));
+        });
+        return out;
+      } },
+
+      // ===== engine: ties and secret ties =====
+      /* Wave 31: how people feel about each other beyond their relations
+         (Rel.tiesPlan): two different people of the cast, one entry a
+         direction, a kind of Rel.TIE_KINDS (or none where a relation gives
+         it), liking and trust -100..100, and a hidden tie says what reveals
+         it. */
+      { id: 'engine.tie', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.tie';
+        const kinds = tieKinds();
+        const related = (a, b) => arr(a.relations).some(r => isObj(r) && r.npcId === b.id) || arr(b.relations).some(r => isObj(r) && r.npcId === a.id);
+        const seen = new Set();
+        arr(v.w.ties).forEach((t, i) => {
+          const where = 'world.ties[' + i + ']';
+          if (!isObj(t)) { out.push(P(where, 'an object { from, to, kind?, w, t, hidden?, revealedBy?, why? }', R)); return; }
+          const a = v.npc(t.from);
+          const b = v.npc(t.to);
+          if (!a) out.push(P(where + '.from', '"' + t.from + '" is not an NPC', R));
+          if (!b) out.push(P(where + '.to', '"' + t.to + '" is not an NPC', R));
+          if (t.from === t.to) out.push(P(where, 'a tie is between two people', R));
+          const key = t.from + '>' + t.to;
+          if (seen.has(key)) out.push(P(where, key + ' is written twice: one entry a direction', R));
+          seen.add(key);
+          if (t.kind !== undefined && kinds && !kinds.includes(t.kind)) out.push(P(where + '.kind', '"' + t.kind + '" is not a kind of tie (one of ' + kinds.join(', ') + ')', R));
+          if (t.kind === undefined && a && b && !related(a, b)) out.push(P(where + '.kind', 'no relation between them gives the kind: name one', R));
+          for (const k of ['w', 't']) if (!isInt(t[k]) || t[k] < -100 || t[k] > 100) out.push(P(where + '.' + k, 'a whole number, -100 to 100', R));
+          if (t.hidden === true && !isObj(t.revealedBy)) out.push(P(where + '.revealedBy', 'a hidden tie says what reveals it: { rumours?, flags? }', R));
+          if (isObj(t.revealedBy)) {
+            const rb = t.revealedBy;
+            if (!Object.keys(rb).length) out.push(P(where + '.revealedBy', 'empty: a rumour or a flag', R));
+            if (rb.rumours !== undefined && (!Array.isArray(rb.rumours) || !rb.rumours.length)) out.push(P(where + '.revealedBy.rumours', 'a non-empty list of rumour ids', R));
+            if (rb.flags !== undefined) {
+              if (!Array.isArray(rb.flags) || !rb.flags.length) out.push(P(where + '.revealedBy.flags', 'a non-empty list of flag names', R));
+              else rb.flags.forEach((k, j) => { if (typeof k !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(k)) out.push(P(where + '.revealedBy.flags[' + j + ']', 'a flag name', R)); });
+            }
+          }
+        });
+        return out;
+      } },
+      // A hidden tie's revealedBy.rumours name rumours the town has (its own, or one an effect adds).
+      { id: 'engine.tie.revealedBy', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        arr(v.w.ties).forEach((t, i) => {
+          if (!isObj(t) || !isObj(t.revealedBy)) return;
+          arr(t.revealedBy.rumours).forEach((id, j) => { if (!ctx.rumours.has(id)) out.push(P('world.ties[' + i + '].revealedBy.rumours[' + j + ']', '"' + id + '" is no rumour the town has', 'engine.tie.revealedBy')); });
+        });
+        return out;
+      } },
+      /* Wave 32: what a secret told does between people (Rel.secretTiesFor):
+         secretOf someone with a secret, learnedBy someone else of the cast (or
+         a list), ties of two different people with liking, trust or both
+         within +/-100, and a seed { effect, dayOffset [lo, hi] in 1..10 }. */
+      { id: 'engine.secretTie', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.secretTie';
+        const list = arr(v.w.secretTies);
+        list.forEach((x, i) => {
+          const where = 'world.secretTies[' + i + ']';
+          if (!isObj(x)) { out.push(P(where, 'an object { secretOf, learnedBy, ties, why, seed? }', R)); return; }
+          const y = v.npc(x.secretOf);
+          if (!y) out.push(P(where + '.secretOf', '"' + x.secretOf + '" is not an NPC', R));
+          else if (!isStr(y.secret)) out.push(P(where + '.secretOf', x.secretOf + ' has no secret to tell', R));
+          const many = Array.isArray(x.learnedBy);
+          (many ? x.learnedBy : [x.learnedBy]).forEach((id, j) => {
+            const wj = where + '.learnedBy' + (many ? '[' + j + ']' : '');
+            if (!v.npc(id)) out.push(P(wj, '"' + id + '" is not an NPC', R));
+            else if (id === x.secretOf) out.push(P(wj, 'someone learns another\'s secret', R));
+          });
+          if (!Array.isArray(x.ties) || !x.ties.length) out.push(P(where + '.ties', 'a non-empty list of { from, to, w?, t? }', R));
+          else x.ties.forEach((t, j) => {
+            const w = where + '.ties[' + j + ']';
+            if (!isObj(t)) { out.push(P(w, 'an object { from, to, w?, t? }', R)); return; }
+            if (!v.npc(t.from)) out.push(P(w + '.from', '"' + t.from + '" is not an NPC', R));
+            if (!v.npc(t.to)) out.push(P(w + '.to', '"' + t.to + '" is not an NPC', R));
+            if (t.from === t.to) out.push(P(w, 'a tie is between two people', R));
+            if (t.w === undefined && t.t === undefined) out.push(P(w, 'liking (w), trust (t) or both', R));
+            for (const k of ['w', 't']) if (t[k] !== undefined && (!isInt(t[k]) || Math.abs(t[k]) > 100)) out.push(P(w + '.' + k, 'a whole number within +/-100', R));
+          });
+          if (!isStr(x.why)) out.push(P(where + '.why', 'why, in plain words', R));
+          if (x.seed !== undefined) {
+            if (!isObj(x.seed) || !isStr(x.seed.effect)) out.push(P(where + '.seed', '{ effect, dayOffset }', R));
+            const d = isObj(x.seed) ? x.seed.dayOffset : undefined;
+            if (!Array.isArray(d) || d.length !== 2 || !isInt(d[0]) || !isInt(d[1]) || d[0] < 1 || d[1] < d[0] || d[1] > 10) out.push(P(where + '.seed.dayOffset', '[lo, hi]: whole days, 1 to 10', R));
+          }
+          if (list.findIndex(z => isObj(z) && z.secretOf === x.secretOf && JSON.stringify(z.learnedBy) === JSON.stringify(x.learnedBy)) !== i) out.push(P(where, 'the same secret and listener twice', R));
+        });
+        return out;
+      } },
+
+      // ===== engine: romance and the minor rule =====
+      /* Wave 34/35: how each listed adult takes to the player's interest
+         (Rel.tuningOf): each person once, someone in town; sparkRate and
+         romanceRate 0.1 to 2, opensAt { knows } 0 to 60, a difficulty;
+         faithful: true is the old word for very_hard; open is gone. */
+      { id: 'engine.romance', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'engine.romance';
+        const list = arr(v.w.romance);
+        list.forEach((r, i) => {
+          const where = 'world.romance[' + i + ']';
+          if (!isObj(r)) { out.push(P(where, 'an object { npcId, sparkRate, opensAt, difficulty }', R)); return; }
+          if ('open' in r) out.push(P(where + '.open', 'open is gone (wave 34): everyone over 18 can be interested; set difficulty (easy, normal, hard, very_hard) to make them easier or harder', R));
+          if (list.findIndex(x => isObj(x) && x.npcId === r.npcId) !== i) out.push(P(where + '.npcId', r.npcId + ' is on the list twice', R));
+          const n = v.npc(r.npcId);
+          if (!n) { out.push(P(where + '.npcId', '"' + r.npcId + '" is not an NPC', R)); return; }
+          if (presenceOf(n) !== 'here') out.push(P(where + '.npcId', r.npcId + ' does not live in town', R));
+          if (r.faithful === true && r.difficulty !== undefined && r.difficulty !== 'very_hard') out.push(P(where + '.faithful', 'faithful: true means difficulty very_hard; leave one of them out', R));
+          for (const k of ['sparkRate', 'romanceRate']) if (r[k] !== undefined && !(isNum(r[k]) && r[k] >= 0.1 && r[k] <= 2)) out.push(P(where + '.' + k, 'a number from 0.1 to 2', R));
+          if (r.opensAt !== undefined && !(isObj(r.opensAt) && Object.keys(r.opensAt).length === 1 && isInt(r.opensAt.knows) && r.opensAt.knows >= 0 && r.opensAt.knows <= 60)) out.push(P(where + '.opensAt', '{ knows } from 0 to 60 (how well they must know the player)', R));
+        });
+        return out;
+      } },
+      { id: 'engine.romance.minor', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        arr(v.w.romance).forEach((r, i) => {
+          const n = isObj(r) ? v.npc(r.npcId) : null;
+          if (n && isMinor(n)) out.push(P('world.romance[' + i + '].npcId', r.npcId + ' is under 18: nobody under 18 is ever on the romance list', 'engine.romance.minor'));
+        });
+        return out;
+      } },
+      /* Wave 37, Creator Mode: a pack's own intimate-scene direction names
+         nobody under 18, by full name or first name as a word. The same
+         people the romance list refuses. */
+      { id: 'engine.direction.minor', cls: 'engine', run(pack, ctx) {
+        const out = [];
+        const text = isObj(pack.directions) && typeof pack.directions.intimate === 'string' ? pack.directions.intimate : '';
+        if (!text) return out;
+        const v = view(pack, ctx);
+        const TITLES = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'doc', 'old', 'young', 'big', 'little', 'aunt', 'auntie', 'uncle', 'cousin', 'granny', 'pastor', 'reverend', 'officer', 'chief', 'deputy', 'mayor', 'sheriff']);
+        for (const n of v.npcs) {
+          if (!isMinor(n) || typeof n.name !== 'string' || !n.name.trim()) continue;
+          const words = n.name.trim().split(/\s+/);
+          const first = words.find(x => !TITLES.has(x.toLowerCase().replace(/\.$/, ''))) || words[0];
+          const hit = [n.name.trim(), first].find(x => wordIn(text, x, false));
+          if (hit) out.push(P('directions.intimate', 'names ' + n.id + ' ("' + hit + '"), who is under 18: an intimate scene never involves anyone under 18', 'engine.direction.minor'));
+        }
+        return out;
+      } },
+
+      // ===== house: Low Water's numbers and vocabulary (meta.lints: ["lockett-house"]) =====
+      // Strings of the world half's records: non-empty, trimmed, one line, no double space.
+      { id: 'house.text.form', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        if (!isObj(pack.world)) return out;
+        for (const { path, value } of worldHalfStrings(pack.world)) {
+          if (/\.(river|roads|bridges)\b/.test(path)) continue;
+          if (!value.trim()) out.push(P(path, 'expected a non-empty string', 'house.text.form'));
+          else if (value !== value.trim()) out.push(P(path, 'leading or trailing whitespace', 'house.text.form'));
+          if (/\n/.test(value)) out.push(P(path, 'must be one line', 'house.text.form'));
+          if (/ {2,}/.test(value)) out.push(P(path, 'double space', 'house.text.form'));
+        }
+        return out;
+      } },
+      { id: 'house.content.banned', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        for (const { path, value } of contentStrings(pack)) {
+          const low = value.toLowerCase();
+          for (const b of BANNED_PHRASES) if (low.includes(b)) out.push(P(path, 'banned phrase "' + b + '" in "' + value.slice(0, 60) + '"', 'house.content.banned'));
+          if (/^as you\b/i.test(value)) out.push(P(path, 'starts with "As you"', 'house.content.banned'));
+        }
+        return out;
+      } },
+      { id: 'house.content.vocabulary', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        for (const { path, value } of contentStrings(pack)) {
+          const f = FANTASY_RE.exec(value);
+          const s = f ? null : SUPERNATURAL_RE.exec(value);
+          if (f) out.push(P(path, 'fantasy-era word "' + f[0] + '" in "' + value.slice(0, 60) + '"', 'house.content.vocabulary'));
+          else if (s) out.push(P(path, 'supernatural word "' + s[0] + '" in "' + value.slice(0, 60) + '"', 'house.content.vocabulary'));
+        }
+        return out;
+      } },
+      // Plain ASCII, as the content block was (the old check read the source; a pack's strings and keys now).
+      { id: 'house.content.ascii', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        const bad = /[^\x09\x0a\x0d\x20-\x7e]/;
+        for (const { path, value } of contentStrings(pack)) { const m = bad.exec(value); if (m) out.push(P(path, 'non-ASCII character "' + m[0] + '" (keep content plain ASCII)', 'house.content.ascii')); }
+        return out;
+      } },
+      // Modern: the setting must say why business is done in person.
+      { id: 'house.world.setting', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        const w = isObj(pack.world) ? pack.world : {};
+        if (typeof w.setting !== 'string' || w.setting.trim().length < 200) out.push(P('world.setting', 'expected a one-paragraph string of some substance', 'house.world.setting'));
+        else {
+          if (!/\bsignal\b/i.test(w.setting)) out.push(P('world.setting', 'must say that cell signal is patchy', 'house.world.setting'));
+          if (!/\bface to face\b/i.test(w.setting)) out.push(P('world.setting', 'must say that business is done face to face', 'house.world.setting'));
+        }
+        return out;
+      } },
+      { id: 'house.world.currency', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        const c = isObj(pack.world) && isObj(pack.world.currency) ? pack.world.currency : null;
+        if (!c) return out;
+        if (c.symbol !== '$') out.push(P('world.currency.symbol', 'must be "$", found ' + JSON.stringify(c.symbol), 'house.world.currency'));
+        if (c.name !== 'dollars') out.push(P('world.currency.name', 'must be "dollars", found ' + JSON.stringify(c.name), 'house.world.currency'));
+        return out;
+      } },
+      /* A lived-in town (direction change 9): the story's present year, the
+         town's history and its recent events, dated, oldest first, none after
+         the present; day 1's season is the one its month falls in. */
+      { id: 'house.world.dated', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const w = v.w;
+        const R = 'house.world.dated';
+        if (w.year !== undefined && (!isInt(w.year) || w.year < 1990 || w.year > 2100)) out.push(P('world.year', 'must be a whole year, the story\'s present', R));
+        if (w.history !== undefined || w.recent !== undefined) {
+          if (v.year === null) out.push(P('world.year', 'needed with a history: the present year the dates count from', R));
+          if (typeof w.history !== 'string' || w.history.length < 300) out.push(P('world.history', 'a paragraph or two about how the town came to be what it is', R));
+          if (!Array.isArray(w.recent) || w.recent.length < 5 || w.recent.length > 14) out.push(P('world.recent', 'expected 5 to 14 dated events', R));
+          else {
+            let last = 0;
+            w.recent.forEach((r, i) => {
+              const p = 'world.recent[' + i + ']';
+              if (!isObj(r) || !isStr(r.when) || !isStr(r.what)) { out.push(P(p, '{ when, what }', R)); return; }
+              if (sentenceCount(r.what) > 2) out.push(P(p + '.what', 'expected at most 2 sentence(s), found ' + sentenceCount(r.what), R));
+              const y = yearIn(r.when);
+              if (y === null) { out.push(P(p + '.when', 'must name a year', R)); return; }
+              if (v.year !== null && (y > v.year || y < v.year - 3)) out.push(P(p + '.when', 'recent means the last two or three years before ' + v.year + ', found ' + y, R));
+              if (y < last) out.push(P(p, 'events are oldest first', R));
+              last = y;
+            });
+          }
+        }
+        const c = w.calendar;
+        const m = isObj(c) ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(c.startDate)) : null;
+        if (m) {
+          const month = +m[2] - 1;
+          const season = month >= 2 && month <= 4 ? 'spring' : month >= 5 && month <= 7 ? 'summer' : month >= 8 && month <= 10 ? 'autumn' : 'winter';
+          if (SEASONS.includes(c.season) && season !== c.season) out.push(P('world.calendar.season', c.startDate + ' is ' + season + ', not ' + c.season, R));
+        }
+        return out;
+      } },
+      // A faction alias that is also the town's name would make every mention of the town count as tied to a faction.
+      { id: 'house.faction.townName', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        const w = isObj(pack.world) ? pack.world : {};
+        if (typeof w.name !== 'string') return out;
+        arr(w.factions).forEach((f, i) => {
+          if (factionAliases(f).some(a => wordIn(w.name, a, true) || wordIn(a, w.name, true))) out.push(P('world.factions[' + i + '].name', 'name "' + f.name + '" overlaps the town name; the linked-secret check would be meaningless', 'house.faction.townName'));
+        });
+        return out;
+      } },
+      /* The town's own places (8 to 16, discovered from the start), the homes
+         of the cast (at most 12, undiscovered until someone tells the player,
+         and only a dwelling starts undiscovered), exactly one police place
+         (arrested people are moved there), the brief's place types, modern
+         ones only. */
+      { id: 'house.location.kinds', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.location.kinds';
+        const town = v.locations.filter(l => isObj(l) && l.discovered !== false && l.away !== true).length;
+        const homes = v.locations.filter(l => isObj(l) && l.discovered === false && l.away !== true).length;
+        if (town < TOWN_PLACES_MIN || town > TOWN_PLACES_MAX) out.push(P('world.locations', 'expected ' + TOWN_PLACES_MIN + ' to ' + TOWN_PLACES_MAX + ' town places (discovered), found ' + town, R));
+        if (homes > HOMES_MAX) out.push(P('world.locations', 'at most ' + HOMES_MAX + ' undiscovered homes, found ' + homes, R));
+        const types = {};
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          types[l.type] = (types[l.type] || 0) + 1;
+          if (typeof l.type !== 'string' || !/^[a-z]+$/.test(l.type)) out.push(P(where + '.type', 'type must be a lowercase word', R));
+          else if (FANTASY_LOCATION_TYPES.includes(l.type)) out.push(P(where + '.type', 'type "' + l.type + '" is from the fantasy town; use a modern type', R));
+          if (l.away !== true && l.discovered === false && !HOME_TYPES.includes(l.type)) out.push(P(where + '.type', 'only a home (' + HOME_TYPES.join(', ') + ') may start undiscovered, found type "' + l.type + '"', R));
+        });
+        if (types.police !== 1) out.push(P('world.locations', 'need exactly one "police" location (arrested NPCs are moved there), found ' + (types.police || 0), R));
+        for (const t of REQUIRED_LOCATION_TYPES) if (t !== 'police' && !types[t]) out.push(P('world.locations', 'no location of type "' + t + '"', R));
+        return out;
+      } },
+      /* What you see, notice and are told of a place, at Low Water's lengths:
+         a two-sentence description, details (3 sentences, 400 characters),
+         history (2 sentences, 300), one short line of hours that names the
+         days it is shut, and how far a place out of town is. */
+      { id: 'house.location.text', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.location.text';
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          for (const k of ['name', 'description', 'details', 'hours', 'history']) if (!isStr(l[k])) out.push(P(where + '.' + k, 'expected a non-empty string', R));
+          if (isStr(l.description) && sentenceCount(l.description) !== 2) out.push(P(where + '.description', 'expected 2 sentence(s), found ' + sentenceCount(l.description), R));
+          if (isStr(l.details)) {
+            if (sentenceCount(l.details) > 3) out.push(P(where + '.details', 'expected at most 3 sentence(s), found ' + sentenceCount(l.details), R));
+            if (l.details.length > 400) out.push(P(where + '.details', 'at most 400 characters', R));
+          }
+          if (isStr(l.history)) {
+            if (sentenceCount(l.history) > 2) out.push(P(where + '.history', 'expected at most 2 sentence(s), found ' + sentenceCount(l.history), R));
+            if (l.history.length > 300) out.push(P(where + '.history', 'at most 300 characters', R));
+          }
+          if (typeof l.hours === 'string' && l.hours.length > 80) out.push(P(where + '.hours', 'one short line, at most 80 characters', R));
+          if (Array.isArray(l.closedOn) && typeof l.hours === 'string') {
+            l.closedOn.forEach((d, j) => { if (WEEKDAYS.includes(d) && !l.hours.includes(d) && !/Monday to Saturday/.test(l.hours)) out.push(P(where + '.closedOn[' + j + ']', 'the hours do not say it is shut on ' + d, R)); });
+          } else if (l.closedOn === undefined && typeof l.hours === 'string' && l.away !== true && /\bclosed (on )?(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)s?\b|\bMonday to (Friday|Saturday)\b/.test(l.hours)) {
+            out.push(P(where + '.closedOn', 'the hours name days it is shut (' + l.hours + '); list them in closedOn', R));
+          }
+          if (l.away === true && (!isStr(l.distance) || sentenceCount(l.distance) > 1)) out.push(P(where + '.distance', 'how far it is and how you get there, in a sentence', R));
+        });
+        return out;
+      } },
+      // Every other name a place goes by (aka) belongs to that place alone.
+      { id: 'house.location.aka', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const owner = new Map();
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          [l.name].concat(arr(l.aka)).forEach((k, j) => {
+            if (typeof k !== 'string') return;
+            const key = k.toLowerCase().replace(/^the /, '');
+            const p = j === 0 ? where + '.name' : where + '.aka[' + (j - 1) + ']';
+            if (owner.has(key) && owner.get(key) !== l.id) out.push(P(p, '"' + k + '" is also a name of ' + owner.get(key), 'house.location.aka'));
+            else if (j > 0 && owner.get(key) === l.id && arr(l.aka).findIndex(x => typeof x === 'string' && x.toLowerCase().replace(/^the /, '') === key) !== j - 1) out.push(P(p, 'duplicate entry "' + k + '"', 'house.location.aka'));
+            owner.set(key, l.id);
+          });
+        });
+        return out;
+      } },
+      // The map's numbers: its size, the river, labels of one to three words (four for a free label), and no two places closer than 28.
+      { id: 'house.map', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const M = v.w.map;
+        if (!isObj(M)) return out;
+        const R = 'house.map';
+        if (isNum(M.width) && (!isInt(M.width) || M.width < 120 || M.width > 2000)) out.push(P('world.map.width', 'must be a whole number from 120 to 2000', R));
+        if (isNum(M.height) && (!isInt(M.height) || M.height < 100 || M.height > 2000)) out.push(P('world.map.height', 'must be a whole number from 100 to 2000', R));
+        if (M.riverWidth !== undefined && (!isNum(M.riverWidth) || M.riverWidth < 4 || M.riverWidth > 120)) out.push(P('world.map.riverWidth', 'must be a number from 4 to 120', R));
+        if (isObj(M.riverLabel) && M.riverLabel.rotate !== undefined && (!isNum(M.riverLabel.rotate) || Math.abs(M.riverLabel.rotate) > 90)) out.push(P('world.map.riverLabel.rotate', 'must be a number of degrees from -90 to 90', R));
+        const free = [['world.map.riverLabel', M.riverLabel]].concat(arr(M.labels).map((o, i) => ['world.map.labels[' + i + ']', o]));
+        for (const [p, o] of free) if (isObj(o) && isStr(o.text) && o.text.trim().split(/\s+/).length > 4) out.push(P(p + '.text', 'keep a map label to four words or fewer', R));
+        const mapped = [];
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (!isObj(l.map)) return;
+          if (isStr(l.map.label) && l.map.label.trim().split(/\s+/).length > 3) out.push(P(where + '.map.label', 'a short name for the map: one to three words, found ' + l.map.label.trim().split(/\s+/).length, R));
+          if (isNum(l.map.x) && isNum(l.map.y)) mapped.push({ id: l.id, where, x: l.map.x, y: l.map.y });
+        });
+        for (let i = 0; i < mapped.length; i++) for (let j = i + 1; j < mapped.length; j++) {
+          const d = Math.hypot(mapped[i].x - mapped[j].x, mapped[i].y - mapped[j].y);
+          if (d < MAP_MIN_GAP) out.push(P(mapped[j].where + '.map', mapped[i].id + ' and ' + mapped[j].id + ' are ' + d.toFixed(1) + ' apart on the map; keep them at least ' + MAP_MIN_GAP + ' apart', R));
+        }
+        return out;
+      } },
+      // The whole cast, written by hand: 40 to 45 people in town, 90 at most in all.
+      { id: 'house.cast', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const here = v.npcs.filter(n => isObj(n) && presenceOf(n) === 'here').length;
+        if (here < CAST_MIN || here > CAST_MAX) out.push(P('world.npcs', 'expected the full cast of ' + CAST_MIN + ' to ' + CAST_MAX + ' people in town, found ' + here, 'house.cast'));
+        if (v.npcs.length > PEOPLE_MAX) out.push(P('world.npcs', 'at most ' + PEOPLE_MAX + ' people in all, found ' + v.npcs.length, 'house.cast'));
+        return out;
+      } },
+      /* A person as Low Water writes them: a look, a voice, two traits, a
+         goal, a secret and a two- or three-sentence history; a role that says
+         who they are; lowercase tags, with police and its alias watch
+         together; an attitude within +/-20; no two alike in voice or look. */
+      { id: 'house.npc.text', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.npc.text';
+        const voices = new Set();
+        const looks = new Set();
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          for (const [f, most] of [['look', 2], ['voice', 4], ['goal', 2], ['secret', 2]]) {
+            if (!isStr(n[f])) out.push(P(where + '.' + f, 'expected a non-empty string', R));
+            else if (sentenceCount(n[f]) > most) out.push(P(where + '.' + f, 'expected at most ' + most + ' sentence(s), found ' + sentenceCount(n[f]), R));
+          }
+          if (n.age === undefined) out.push(P(where + '.age', 'missing field "age"', R));
+          if (isStr(n.history) && (sentenceCount(n.history) < 2 || sentenceCount(n.history) > 3)) out.push(P(where + '.history', 'two or three plain sentences', R));
+          if (isStr(n.role) && GENERIC_ROLES.includes(n.role.trim().toLowerCase().replace(/^(a|an|the)\s+/, ''))) out.push(P(where + '.role', 'role "' + n.role + '" only says what they are; say who they are or what they do', R));
+          if (!Array.isArray(n.personality) || n.personality.length !== 2 || !n.personality.every(isStr)) out.push(P(where + '.personality', 'personality must be exactly 2 trait strings', R));
+          if (!isInt(n.attitude) || n.attitude < -20 || n.attitude > 20) out.push(P(where + '.attitude', 'attitude must be an integer -20..20', R));
+          const tags = arr(n.tags);
+          if (!tags.length) out.push(P(where + '.tags', 'tags must be a non-empty array', R));
+          tags.forEach((t, j) => { if (typeof t !== 'string' || !/^[a-z]+$/.test(t)) out.push(P(where + '.tags[' + j + ']', 'tag "' + t + '" must be a lowercase word', R)); });
+          // Modern: "watch" is kept as an alias of "police" for the engine.
+          if (tags.includes('police') && !tags.includes('watch')) out.push(P(where + '.tags', 'police NPCs must also carry the alias tag "watch"', R));
+          if (tags.includes('watch') && !tags.includes('police')) out.push(P(where + '.tags', 'the "watch" tag is only an alias; add "police"', R));
+          if (typeof n.voice === 'string') { if (voices.has(n.voice)) out.push(P(where + '.voice', 'voice duplicates another NPC', R)); voices.add(n.voice); }
+          if (typeof n.look === 'string') { if (looks.has(n.look)) out.push(P(where + '.look', 'look duplicates another NPC', R)); looks.add(n.look); }
+          if (presenceOf(n) === 'away') for (const k of ['where', 'reach']) if (isStr(n[k]) && sentenceCount(n[k]) > 1) out.push(P(where + '.' + k, 'expected at most 1 sentence(s), found ' + sentenceCount(n[k]), R));
+          if (isObj(n.whenTold)) for (const k of ['memory', 'inquiry', 'news']) if (isStr(n.whenTold[k]) && sentenceCount(n.whenTold[k]) > 1) out.push(P(where + '.whenTold.' + k, 'expected at most 1 sentence(s), found ' + sentenceCount(n.whenTold[k]), R));
+          // A place phrase that follows the name ("at the county school in Clayburn").
+          if (isObj(n.awayOn) && typeof n.awayOn.where === 'string' && (sentenceCount(n.awayOn.where) > 0 || !/^(at|in|on|up|out|across|over|with|away)\b/.test(n.awayOn.where))) out.push(P(where + '.awayOn.where', 'a place phrase that follows the name ("at the county school in Clayburn")', R));
+        });
+        // Two people never share a first name (a title such as "Pastor" or "Miss" skipped).
+        const firsts = new Map();
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (typeof n.name !== 'string') return;
+          const parts = n.name.split(/\s+/);
+          const f = parts.length > 2 ? parts[1] : parts[0];
+          if (firsts.has(f)) out.push(P(where + '.name', 'two NPCs share the first name "' + f + '" (also ' + firsts.get(f) + ')', R));
+          else firsts.set(f, where);
+        });
+        return out;
+      } },
+      // Pronouns never against what the look says ("woman" is she, "man" is he).
+      { id: 'house.npc.pronouns', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (!PRONOUNS.includes(n.pronouns) || typeof n.look !== 'string') return;
+          const lk = n.look.toLowerCase();
+          const she = /\b(woman|women|girl|lady|wife|mother|widow)\b/.test(lk);
+          const he = /\b(man|men|boy|guy|husband|father|widower)\b/.test(lk);
+          if (she && !he && n.pronouns !== 'she') out.push(P(where + '.pronouns', 'the look says she but pronouns are "' + n.pronouns + '"', 'house.npc.pronouns'));
+          if (he && !she && n.pronouns !== 'he') out.push(P(where + '.pronouns', 'the look says he but pronouns are "' + n.pronouns + '"', 'house.npc.pronouns'));
+        });
+        return out;
+      } },
+      // An age the look agrees with, a look in town that says it, and a death dated no later than the present.
+      { id: 'house.npc.age', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.npc.age';
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (isInt(n.age) && n.age >= 0 && n.age <= 110) {
+            const said = lookAge(n.look);
+            if (said && said.exact !== undefined && said.exact !== n.age) out.push(P(where + '.age', 'is ' + n.age + ', but the look says ' + said.exact, R));
+            if (said && said.min !== undefined && (n.age < said.min || n.age > said.max)) out.push(P(where + '.age', 'is ' + n.age + ', but the look says ' + said.min + ' to ' + said.max, R));
+            if (!said && presenceOf(n) === 'here') out.push(P(where + '.look', 'say how old they look ("a woman of forty-one", "in his fifties"), to match age ' + n.age, R));
+          }
+          if (presenceOf(n) === 'dead' && isStr(n.died)) {
+            const y = yearIn(n.died);
+            if (y === null) out.push(P(where + '.died', 'say when, with the year ("spring of 2021, a stroke")', R));
+            else if (v.year !== null && y > v.year) out.push(P(where + '.died', 'after the present year ' + v.year, R));
+            if (sentenceCount(n.died) > 1) out.push(P(where + '.died', 'expected at most 1 sentence(s), found ' + sentenceCount(n.died), R));
+          }
+        });
+        return out;
+      } },
+      // School days (CONTRACTS section 1): the teacher and the teenagers are at school on weekday mornings and afternoons.
+      { id: 'house.npc.school', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          if (presenceOf(n) !== 'here' || !arr(n.tags).some(t => t === 'teacher' || t === 'teen')) return;
+          const a = n.awayOn;
+          if (!isObj(a) || !Array.isArray(a.days) || SCHOOL_DAYS.some(d => !a.days.includes(d))) out.push(P(where + '.awayOn', 'a teacher or a student is at school on weekdays: give them awayOn', 'house.npc.school'));
+        });
+        return out;
+      } },
+      // Modern: the cast tags the engine links by, and half the secrets tied to someone else or a faction.
+      { id: 'house.npc.cast', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const tags = new Set();
+        v.npcs.forEach(n => { if (isObj(n)) arr(n.tags).forEach(t => tags.add(t)); });
+        for (const t of REQUIRED_TAGS) if (!tags.has(t)) out.push(P('world.npcs', 'no NPC has the required tag "' + t + '"', 'house.npc.cast'));
+        const linked = v.npcs.filter(n => isObj(n) && typeof n.secret === 'string' && mentionsCast(n.secret, n.id, v)).length;
+        if (linked < Math.ceil(v.npcs.length / 2)) out.push(P('world.npcs', 'only ' + linked + ' secrets mention another NPC or a faction; need at least half', 'house.npc.cast'));
+        return out;
+      } },
+      // Wave 29: blackmail is not meant to fund the game (the plan's decision 3): a demand takes $100 at most, raised for three people at most.
+      { id: 'house.blackmail', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const v = view(pack, ctx);
+        const raised = v.npcs.filter((n, i) => v.npcFirst[i] && isInt(n.canRaise) && n.canRaise > 100).map(n => n.id);
+        return raised.length > 3 ? [P('world.npcs', 'canRaise above 100 for ' + raised.length + ' people (' + raised.join(', ') + '); three at most', 'house.blackmail')] : [];
+      } },
+      /* Family maths, by the year each person was born (the dead: the year
+         they died less their age at death): a parent 16 to 60 years older
+         than their child, a grandparent at least 32 older, spouses and
+         partners at most 20 years apart, brothers and sisters at most 25. */
+      { id: 'house.family', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.family';
+        const born = n => (isInt(n.age) && v.year !== null ? (presenceOf(n) === 'dead' ? yearIn(n.died) : v.year) - n.age : null);
+        const CHILD = ['son', 'daughter', 'child', 'kid', 'boy', 'girl', 'baby', 'stepson', 'stepdaughter'];
+        const GRANDCHILD = ['grandson', 'granddaughter'];
+        const SPOUSE = ['wife', 'husband', 'spouse', 'partner', 'girlfriend', 'boyfriend', 'fiancee', 'fiance', 'ex-wife', 'ex-husband', 'ex'];
+        const SIBLING = ['brother', 'sister', 'stepbrother', 'stepsister'];
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => {
+          const a = born(n);
+          arr(n.relations).forEach((r, j) => {
+            const o = isObj(r) ? v.npc(r.npcId) : null;
+            const b = o ? born(o) : null;
+            if (a === null || b === null || Number.isNaN(a) || Number.isNaN(b) || typeof r.relation !== 'string') return;
+            const w = where + '.relations[' + j + ']';
+            if (CHILD.includes(r.relation) && (b - a < 16 || b - a > 60)) out.push(P(w, n.id + ' (born ' + a + ') is ' + (b - a) + ' years older than their ' + r.relation + ' ' + o.id + ' (born ' + b + '); a parent is 16 to 60 years older', R));
+            if (GRANDCHILD.includes(r.relation) && b - a < 32) out.push(P(w, n.id + ' (born ' + a + ') is only ' + (b - a) + ' years older than their ' + r.relation + ' ' + o.id + '; a grandparent is at least 32 older', R));
+            if (SPOUSE.includes(r.relation) && Math.abs(b - a) > 20) out.push(P(w, n.id + ' and their ' + r.relation + ' ' + o.id + ' were born ' + Math.abs(b - a) + ' years apart (at most 20)', R));
+            if (SIBLING.includes(r.relation) && Math.abs(b - a) > 25) out.push(P(w, n.id + ' and their ' + r.relation + ' ' + o.id + ' were born ' + Math.abs(b - a) + ' years apart (at most 25)', R));
+          });
+        });
+        return out;
+      } },
+      // A tie's and a secret tie's words, at Low Water's lengths, and a secret tie's seed names someone.
+      { id: 'house.tie.text', cls: 'house', set: 'lockett-house', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        const R = 'house.tie.text';
+        const short = (s, path, max, sentences) => {
+          if (!isStr(s)) return;
+          if (s.length > max) out.push(P(path, 'at most ' + max + ' characters, found ' + s.length, R));
+          if (sentenceCount(s) > sentences) out.push(P(path, 'expected at most ' + sentences + ' sentence(s), found ' + sentenceCount(s), R));
+        };
+        arr(v.w.ties).forEach((t, i) => { if (isObj(t)) short(t.why, 'world.ties[' + i + '].why', 160, 1); });
+        arr(v.w.secretTies).forEach((x, i) => {
+          if (!isObj(x)) return;
+          short(x.why, 'world.secretTies[' + i + '].why', 80, 1);
+          if (isObj(x.seed) && isStr(x.seed.effect)) {
+            short(x.seed.effect, 'world.secretTies[' + i + '].seed.effect', 400, 2);
+            if (!mentionsCast(x.seed.effect, null, v)) out.push(P('world.secretTies[' + i + '].seed.effect', 'names nobody in the cast', R));
+          }
+        });
+        return out;
+      } },
+      // Wave 29: every field of a romance entry written out (design Appendix E's block).
+      { id: 'house.romance.fields', cls: 'house', set: 'lockett-house', run(pack) {
+        const out = [];
+        const w = isObj(pack.world) ? pack.world : {};
+        arr(w.romance).forEach((r, i) => {
+          if (!isObj(r)) return;
+          for (const k of ['npcId', 'sparkRate', 'opensAt'].concat(r.faithful === true ? [] : ['difficulty'])) if (r[k] === undefined) out.push(P('world.romance[' + i + '].' + k, 'missing field "' + k + '"', 'house.romance.fields'));
+        });
+        return out;
+      } },
+
+      // ===== lint: advice =====
+      // A lived-in town: a public place on the map has somebody there at some time of day (REVIEW section 4 found five empty in every phase).
+      { id: 'lint.place.empty', cls: 'lint', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.locations, v.locFirst, 'world.locations', (l, where) => {
+          if (l.discovered === false || l.away === true || !isObj(l.npcIdsBySchedule)) return;
+          if (!PHASES.some(p => arr(l.npcIdsBySchedule[p]).length)) out.push(P(where + '.npcIdsBySchedule', 'a public place nobody is ever at: schedule someone whose story puts them there', 'lint.place.empty'));
+        });
+        return out;
+      } },
+      { id: 'lint.npc.history', cls: 'lint', run(pack, ctx) {
+        const out = [];
+        const v = view(pack, ctx);
+        eachFirst(v.npcs, v.npcFirst, 'world.npcs', (n, where) => { if (!isStr(n.history)) out.push(P(where + '.history', 'no history: a sentence or two of how they came to be who they are gives the narrator something true to draw on', 'lint.npc.history')); });
+        return out;
+      } }
+    ]);
+  })();
+
+  // The story half's rules (M1-C2) follow the module, in their own section.
 
   return { register, RULES, problem, index, run, strings, effectLists, ID_PREFIXES, PLACEHOLDER_RE, WEEKDAYS };
 })();
