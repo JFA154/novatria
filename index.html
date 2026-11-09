@@ -1582,11 +1582,14 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
           <fieldset class="group">
             <legend>Play</legend>
             <div class="field">
-              <label class="check"><input type="checkbox" id="set-rolls"> Show dice rolls in the story</label>
-              <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath</label>
+              <!-- Wave 37, Creator Mode (plan decision D): each choice is this story's; the note after it says where the value comes from (UI.fillSettings). -->
+              <label class="check"><input type="checkbox" id="set-rolls"> Show dice rolls in the story <span class="hint" id="set-rolls-layer"></span></label>
+              <label class="check"><input type="checkbox" id="set-permadeath"> Permadeath <span class="hint" id="set-permadeath-layer"></span></label>
+              <label class="check" id="set-cheats-row" hidden><input type="checkbox" id="set-cheats" aria-describedby="set-cheats-hint"> Allow cheats anyway <span class="hint" id="set-cheats-layer"></span></label>
+              <p class="hint" id="set-cheats-hint" hidden></p>
             </div>
             <div class="field">
-              <span class="label">Narration style</span>
+              <span class="label">Narration style <span class="hint" id="set-style-layer"></span></span>
               <div class="seg" role="radiogroup" aria-label="Narration style">
                 <label><input type="radio" name="set-style" value="casual"> Casual</label>
                 <label><input type="radio" name="set-style" value="literary"> Literary</label>
@@ -27380,8 +27383,43 @@ const Api = (() => {
       .replace(/\s+/g, ' ').trim();
     return t.slice(0, EXTRA_CAP).replace(/[\ud800-\udbff]$/, '').trim();
   }
+  /* Wave 37, Creator Mode, milestone 4 (plan decision F: "Api.systemFor
+     ('parser') templated DIFFICULTY and STAT sentences from rules.dcs and
+     player.stats; defaults reproduce today's text byte for byte"). The
+     four numbers in DIFFICULTY are the story's rules.dcs; in STAT each of
+     the four fixed keys (the parser answers with the key) is followed by
+     the story's own name for it when that is not the key itself, as in
+     "might (this story calls it Brawn) for force". The descriptions after
+     "for" stay the prompt's own: the pack's blurbs are the character
+     screen's wording ("Strength and toughness: ..."), not a rubric for
+     which stat an action uses, so they are not sent. The replacements are
+     made on SYSTEM.parser itself (each anchor occurs once), which stays
+     today's literal: with the built-in numbers and labels the result is
+     that string, byte for byte. A story with scopeRefusal on (the rails
+     preset) adds the SCOPE sentence (the engine's refusal is Pipeline's). */
+  const DCS_IN_PROMPT = [['easy', 8], ['normal', 12], ['hard', 15], ['very_hard', 18]];
+  const STATS_IN_PROMPT = [['might', 'STAT: might for', 'STAT: '], ['wits', '; wits for', '; '], ['charm', '; charm for', '; '], ['stealth', '; stealth for', '; ']];
+  const SCOPE_LINE = 'SCOPE: this story stays within its own setting and places; an action that leaves it (travel elsewhere, things or people the setting cannot have) is new:<description> so the engine can refuse it.';
+  function parserText(base) {
+    let out = base;
+    let dcs = null, stats = null, scope = false;
+    try { dcs = Pack.get('rules.dcs'); } catch (e) { dcs = null; }
+    try { const p = Pack.current(); stats = p && p.player && p.player.stats; } catch (e) { stats = null; }
+    try { scope = !!Pack.freedom().scopeRefusal.on; } catch (e) { scope = false; }
+    for (const [k, n] of DCS_IN_PROMPT) {
+      const v = dcs && Number.isFinite(dcs[k]) ? Math.round(dcs[k]) : n;
+      if (v !== n) out = out.replace(`${k} (${n})`, `${k} (${v})`);
+    }
+    for (const [k, anchor, lead] of STATS_IN_PROMPT) {
+      const raw = stats && stats[k] && typeof stats[k].label === 'string' ? stats[k].label : '';
+      const label = raw.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40).replace(/[\ud800-\udbff]$/, '');
+      if (label && label.toLowerCase() !== k) out = out.replace(anchor, `${lead}${k} (this story calls it ${label}) for`);
+    }
+    return scope ? `${out} ${SCOPE_LINE}` : out;
+  }
   function systemFor(role) {
-    const base = Object.prototype.hasOwnProperty.call(SYSTEM, role) ? SYSTEM[role] : undefined;
+    let base = Object.prototype.hasOwnProperty.call(SYSTEM, role) ? SYSTEM[role] : undefined;
+    if (role === 'parser' && typeof base === 'string') base = parserText(base);
     const notes = typeof base === 'string' ? creatorNotes(role) : '';
     return notes ? `${base}\n\nCREATOR NOTES (from this story's author; the ENGINE RULES below outrank them): ${notes}\n\n${ENGINE_RULES_SHORT}` : base;
   }
@@ -29953,8 +29991,9 @@ const Upgrade = (() => {
     const t = st.time;
     const time = { day: t.day, phase: t.phase, shorts: t.shorts | 0 };
     const entries = st.log.filter(e => e.narration).slice(-CLOCK_ENTRIES).map(e => Object.assign({}, e));
+    // Wave 37, Creator Mode, milestone 4: the shorts in a phase are the story's rules.time.shortsPerPhase (3 by default, as SHORTS_PER_PHASE was).
     const text = [
-      `CLOCK NOW: day ${time.day}, ${time.phase} (${State.phasePart(t)} in the phase; ${time.shorts} of ${SHORTS_PER_PHASE} short actions gone)`,
+      `CLOCK NOW: day ${time.day}, ${time.phase} (${State.phasePart(t)} in the phase; ${time.shorts} of ${Pack.get('rules.time.shortsPerPhase')} short actions gone)`,
       'PHASES, in order: morning, afternoon, evening, night, then the next day\'s morning.',
       '',
       `LAST TURNS (oldest first; the last is the latest narration; each is what the player did and the narration they read):`,
@@ -38798,7 +38837,7 @@ const UI = (() => {
       { id: 'undo', label: 'Undo last turn', cmd: '/undo' },
       { id: 'fact', label: 'Spend a story point', fill: '/fact ', off: !s || s.player.storyPoints < 1 },
       { id: 'help', label: 'Commands help', help: true }
-    ];
+    ].filter(a => Commands.allowed(String(a.cmd || a.fill || '').trim().split(/\s+/)[0])); // wave 37, Creator Mode: what this story hides (Undo, /fact) is not offered
   }
   function renderActions(sub) {
     // A turn item is off while a turn runs or in a read-only tab (the title says which).
@@ -41732,7 +41771,8 @@ const UI = (() => {
   const feed = {
     add(node) { d.feed.append(node); afterAppend(); return node; },
     input(text, sp) { inferStage('parse'); Object.assign(turnMark, { open: true, roll: false, narr: false }); return feed.add(inputNode(text, sp)); },
-    roll(r) { if (r) turnMark.roll = true; return r && Storage.settings().showRolls ? feed.add(rollNode(r)) : null; },
+    // Wave 37, Creator Mode: rules.showRolls through the layers (the player's choice for this pack, the global setting, the pack's, the default).
+    roll(r) { if (r) turnMark.roll = true; return r && Pack.get('rules.showRolls') !== false ? feed.add(rollNode(r)) : null; },
     narration(text, mock) { turnMark.narr = true; const node = feed.add(narrationNode(text, mock)); releaseNote(); return node; },
     beginNarration(opts) {
       turnMark.narr = true;
@@ -41914,7 +41954,8 @@ const UI = (() => {
     const last = inputs[inputs.length - 1] || null;
     // Wave 16: also while a hand is open at cards (its turn is taken back, free), and the link's name says how many steps there are.
     const hand = Pipeline.handOpen;
-    const ok = !!s && !State.muted && !Storage.readOnly && !(s.player && s.player.dead) && !!last && (hand || (!busy && !Pipeline.busy && State.undoDepth() >= 1));
+    // Wave 37, Creator Mode: not in a story that hides /undo (Commands.allowed: the player's override and developer mode count).
+    const ok = !!s && !State.muted && !Storage.readOnly && !(s.player && s.player.dead) && !!last && Commands.allowed('/undo') && (hand || (!busy && !Pipeline.busy && State.undoDepth() >= 1));
     const n = State.undoDepth();
     const more = `${n} can be taken back`;
     d.undoBtn.title = hand ? `Take back this turn and its hand, free (/undo; ${more})` : `Take back the last turn (/undo; ${more})`;
@@ -41978,7 +42019,7 @@ const UI = (() => {
     if (editing) { editing = null; renderPanel(); }
     renderComposer();
     if (!s) return;
-    const showRolls = Storage.settings().showRolls;
+    const showRolls = Pack.get('rules.showRolls') !== false; // wave 37, Creator Mode: through the layers, as feed.roll
     for (const c of s.chronicle) d.feed.append(el('div', { class: 'f-chronicle' }, el('p', null, c.summary)));
     /* In the order it was shown (wave 6, the round-5 playtest's R7): the
        divider of the time the input was given (from, else the entry's own)
@@ -42476,12 +42517,10 @@ const UI = (() => {
     d.setRereadMemories.checked = s.rereadMemories === true;
     fillIntimate();
     fillModels();
-    d.setRolls.checked = s.showRolls;
-    d.setPermadeath.checked = s.permadeath;
+    fillPlay();
     const theme = Storage.effectiveTheme();
     $$('input[name="set-theme"]').forEach(r => { r.checked = r.value === theme; });
     $$('input[name="set-size"]').forEach(r => { r.checked = r.value === s.textSize; });
-    $$('input[name="set-style"]').forEach(r => { r.checked = r.value === s.narrationStyle; });
     d.settingsQuit.hidden = !App.inGame();
     const loaded = gameLoaded();
     d.setReread.disabled = busy || !loaded;
@@ -42516,7 +42555,12 @@ const UI = (() => {
     }
     if (t.name === 'set-theme') { Storage.saveSettings({ theme: t.value }); applyDisplay(); return; }
     if (t.name === 'set-size') { Storage.saveSettings({ textSize: t.value }); applyDisplay(); return; }
-    if (t.name === 'set-style') { Storage.saveSettings({ narrationStyle: t.value }); return; }
+    /* Wave 37, Creator Mode, milestone 4: the style is also this story's
+       own choice (Style.current reads narration.preset's player layer
+       first); the global setting is still written, as before. */
+    if (t.name === 'set-style') { Storage.saveSettings({ narrationStyle: t.value }); Storage.savePerPack(intimatePack().meta.id, { overrides: { 'narration.preset': t.value } }); fillPlay(); return; }
+    if (t === d.setRolls || t === d.setPermadeath) { savePlayChoice(t); return; }
+    if (t.id === 'set-cheats') { saveCheats(t.checked); return; }
     if (t === d.setIntimate) { saveIntimate(); return; }
     if (t.name === 'set-preset') { Storage.applyPreset(t.value); fillModels(); renderPreset(); return; }
     const before = Storage.settings();
@@ -42528,13 +42572,66 @@ const UI = (() => {
       rereadMemories: d.setRereadMemories.checked,
       narratorModel: d.setNarratorModel.value.trim() || Storage.DEFAULTS.narratorModel,
       parserModel: d.setParserModel.value.trim() || Storage.DEFAULTS.parserModel,
-      effort,
-      showRolls: d.setRolls.checked,
-      permadeath: d.setPermadeath.checked
+      effort
     });
     if (t === d.setMock && after.mockMode !== before.mockMode) Storage.saveSettings({ playChoice: after.mockMode ? 'demo' : 'claude' });
     renderPreset();
-    if (before.showRolls !== after.showRolls && State.current && !State.muted) rebuildFeed();
+  }
+  /* Wave 37, Creator Mode, milestone 4: the Play choices (plan decision D,
+     "show in the UI which layer a value comes from"; owner decision 5, "Pack
+     hides; player can override"). Each is the player's for one story, the
+     open game's pack, else the one New game plays (intimatePack), kept in
+     Storage.perPack(id).overrides at its Pack.PLAYER_PATHS path. Permadeath
+     and Show dice rolls still write the global setting too, so older
+     readers and the global fallback in Pack.playerValue agree; they are
+     written only when that box changes, so another change on this screen
+     never copies a story's own value into the global one. The boxes show
+     the effective value (Pack.lookup), and the note after each its layer:
+     "(your choice)", "(this story's setting)", or nothing for the game's
+     default. */
+  const LAYER_NOTES = { player: '(your choice)', pack: '(this story\'s setting)' };
+  function layerNote(id, layer) { const n = document.getElementById(id); if (n) n.textContent = LAYER_NOTES[layer] || ''; }
+  // What the pack itself turns off of /undo and the cheats (the player's override left out).
+  function packHides(pack) { return ['rules.cheats.allowed', 'rules.undo'].filter(path => Pack.lookup(path, pack, { noPlayer: true }).value === false); }
+  function fillPlay() {
+    const pack = intimatePack();
+    const s = Storage.settings();
+    const rolls = Pack.lookup('rules.showRolls', pack), death = Pack.lookup('rules.permadeath', pack);
+    d.setRolls.checked = rolls.value !== false;
+    d.setPermadeath.checked = death.value === true;
+    layerNote('set-rolls-layer', rolls.layer);
+    layerNote('set-permadeath-layer', death.layer);
+    // The style as Style.current() decides it: this story's choice, else a global literary, else the pack's preset.
+    const own = Pack.lookup('narration.preset', pack);
+    const style = Style.current();
+    $$('input[name="set-style"]').forEach(r => { r.checked = r.value === style; });
+    layerNote('set-style-layer', own.layer === 'player' || (s.narrationStyle !== 'casual' && s.narrationStyle === style) ? 'player' : own.layer);
+    // Allow cheats anyway: only for a story that hides something; ticked when the player has every hidden one back.
+    const hides = packHides(pack);
+    const row = document.getElementById('set-cheats-row'), box = document.getElementById('set-cheats'), hint = document.getElementById('set-cheats-hint');
+    if (!row || !box || !hint) return;
+    row.hidden = hint.hidden = !hides.length;
+    box.checked = hides.length > 0 && hides.every(path => Pack.lookup(path, pack).value === true);
+    layerNote('set-cheats-layer', hides.length ? (box.checked ? 'player' : 'pack') : 'default');
+    const what = hides.length === 2 ? 'the cheats and /undo' : hides[0] === 'rules.undo' ? '/undo, /redo and /rewind' : 'the cheats (/cheat and /reroll)';
+    // The pack's title, from the pack's own text: textContent only.
+    hint.textContent = hides.length ? `${String(pack.meta.title || pack.meta.id)} leaves out ${what}. Tick this to have them anyway in this story.` : '';
+  }
+  function savePlayChoice(t) {
+    const pack = intimatePack();
+    const rollsWere = Pack.get('rules.showRolls') !== false;
+    const path = t === d.setRolls ? 'rules.showRolls' : 'rules.permadeath';
+    Storage.saveSettings(t === d.setRolls ? { showRolls: t.checked } : { permadeath: t.checked });
+    Storage.savePerPack(pack.meta.id, { overrides: { [path]: t.checked } });
+    fillPlay();
+    if ((Pack.get('rules.showRolls') !== false) !== rollsWere && State.current && !State.muted) rebuildFeed();
+  }
+  // Ticked: rules.cheats.allowed and rules.undo are the player's (true); unticked: back to the story's own.
+  function saveCheats(on) {
+    const pack = intimatePack();
+    Storage.savePerPack(pack.meta.id, { overrides: { 'rules.cheats.allowed': on ? true : null, 'rules.undo': on ? true : null } });
+    fillPlay();
+    if (State.current && !State.muted) markUndo();
   }
   /* Wave 36: the intimate scene direction; the game's own wording (or nothing) saves as no override (the default).
      Wave 37, Creator Mode, milestone 3 (plan decision D): it is the
@@ -43228,15 +43325,44 @@ const Commands = (() => {
   const PANEL_FOR = { '/sheet': 'character', '/people': 'people', '/journal': 'journal', '/places': 'places' };
   // Other words for a command (not listed: they would crowd the list typed after "/").
   const ALIASES = { '/commands': '/help' };
+  /* Wave 37, Creator Mode, milestone 4 (owner decision 5): a story pack can
+     hide /undo and the cheats. "Pack hides; player can override":
+     rules.undo and rules.cheats.allowed are Pack.PLAYER_PATHS, so Pack.get
+     already reads the player's "Allow cheats anyway" for this pack above
+     the pack's own value. Developer mode (settings.developerMode) shows
+     every cheat and /undo whatever the pack or the player says; /fact is a
+     rule of the story (its story points), not a cheat, so it follows
+     rules.storyPoints.factAllowed alone (Pipeline refuses it too). LIST
+     stays the full list; available() is what this story offers. */
+  const GATED = {
+    '/undo': 'rules.undo', '/redo': 'rules.undo', '/rewind': 'rules.undo',
+    '/cheat': 'rules.cheats.allowed', '/reroll': 'rules.cheats.allowed',
+    '/debug': 'rules.cheats.debugView',
+    '/fact': 'rules.storyPoints.factAllowed'
+  };
+  const NOT_HERE = 'Not in this story.';
+  function allowed(name) {
+    const said = String(name || '').trim().toLowerCase();
+    const head = ALIASES[said] || said;
+    const path = GATED[head];
+    if (!path) return true;
+    if (head !== '/fact') {
+      try { if (Storage.settings().developerMode === true) return true; } catch (e) { /* no settings yet: the pack decides */ }
+    }
+    let v;
+    try { v = Pack.get(path); } catch (e) { return true; }
+    return v !== false;
+  }
+  function available() { return LIST.filter(c => allowed(c.name)); }
   /* The command list as text, one line each: "/skip <where or when>: Jump
      ahead to a place or time" (wave 3: /help and /commands print it). */
   function helpText() {
     // The first line is the heading the UI styles (wave 4, coordinator item 6), the second how to pick one.
-    return ['Commands', 'Type / to pick one.'].concat(LIST.map(c => `${c.name}${c.args ? ' ' + c.args : ''}: ${c.help || c.desc}`)).join('\n');
+    return ['Commands', 'Type / to pick one.'].concat(available().map(c => `${c.name}${c.args ? ' ' + c.args : ''}: ${c.help || c.desc}`)).join('\n');
   }
   function match(input) {
     const head = String(input || '').trim().split(/\s+/)[0].toLowerCase();
-    return head.startsWith('/') ? LIST.filter(c => c.name.startsWith(head)) : [];
+    return head.startsWith('/') ? available().filter(c => c.name.startsWith(head)) : [];
   }
   function usage(text) { UI.feed.notice(text); return { ok: false, reason: 'usage', restoreInput: true }; }
   function run(text) {
@@ -43248,6 +43374,8 @@ const Commands = (() => {
     const arg = trimmed.slice(rawHead.length).trim();
     const cmd = LIST.find(c => c.name === head);
     if (!cmd) { UI.feed.notice(`There is no ${head} command. Type / to see the list.`); return { ok: false, reason: 'unknown', restoreInput: true }; }
+    // Wave 37, Creator Mode: a command this story hides runs nothing.
+    if (!allowed(cmd.name)) { UI.feed.notice(NOT_HERE); return { ok: false, reason: 'hidden' }; }
     if (PANEL_FOR[cmd.name]) { UI.openPanel(PANEL_FOR[cmd.name]); return { ok: true }; }
     const dead = !!(State.current && State.current.player.dead);
     if (dead && (cmd.turn || ['/undo', '/redo', '/rewind'].includes(cmd.name))) { UI.feed.notice(Pipeline.NOTICES.dead); return { ok: false, reason: 'dead' }; }
@@ -43494,7 +43622,9 @@ const Commands = (() => {
     UI.feed.notice(`Cheat: your cash is ${money(State.current.player.gold)} now.`);
     return { ok: true };
   }
-  return { LIST, ALIASES, match, run, helpText, countOf };
+  return { LIST, ALIASES, match, run, helpText, countOf,
+    // Wave 37, Creator Mode, milestone 4: whether this story offers a command, and the ones it does (the UI's lists).
+    allowed, available, NOT_HERE };
 })();
 
 // ===== Module: App =====
