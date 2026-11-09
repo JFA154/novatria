@@ -34,7 +34,7 @@ const shot = async (page, name) => {
   try { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } catch (e) { /* screenshots are for looking at, not for passing */ }
 };
 const SENTENCE = 'This story has adult content. To play it, confirm you are 18 or older.';
-const NOTICE = 'This story needs your confirmation first; open Settings or start it again from the title.';
+const NOTICE = 'This story needs your 18+ confirmation first; start it again from the title screen, which asks.';
 
 /* A page with no 18+ yes given (unless consent is true), the Library and drafts read, and the mock answering at once. */
 async function open(h, opts) {

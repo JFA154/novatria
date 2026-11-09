@@ -38080,7 +38080,7 @@ const Pipeline = (() => {
        that needs the player's 18+ yes (Pack.needsConsent) and has not had it (Forget in
        Settings, a save loaded some other way) plays no turn: nothing of it reaches a
        prompt, and the Api sees no call. */
-    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice('This story needs your confirmation first; open Settings or start it again from the title.'); return { ok: false, reason: 'consent' }; }
+    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice('This story needs your 18+ confirmation first; start it again from the title screen, which asks.'); return { ok: false, reason: 'consent' }; }
     const s = State.current;
     busy = true;
     acceptsQueue = false;
