@@ -93,9 +93,12 @@ s.test('byte identity: both styles\' system prompts, the town and cast blocks an
     parser: Game.Api.SYSTEM.parser,
     bookkeeper: Game.Api.SYSTEM.bookkeeper,
     memories: Game.Api.SYSTEM.memories,
-    chronicle: Game.Api.SYSTEM.chronicle
+    chronicle: Game.Api.SYSTEM.chronicle,
+    // Wave 37, Creator Mode, milestone 4: the parser prompt a turn sends is templated from the pack's rules (Api.systemFor); pinned by default too.
+    parserFor: Game.Api.systemFor('parser')
   }));
   for (const k of ['casual', 'literary', 'town', 'cast', 'parser', 'bookkeeper', 'memories', 'chronicle']) sameText(now[k], FIXTURE[k], k);
+  assert.equal(now.parserFor, FIXTURE.parser, 'Api.systemFor(\'parser\'), the templating path, is the snapshot\'s parser prompt');
 });
 
 s.test('a seeded ten-input mock playthrough is the v36 snapshot\'s: the first packet, the log, journal, clock, player, turn, rng calls and the whole state but its one wall-clock field', async h => {

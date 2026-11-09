@@ -9472,6 +9472,10 @@ const Pack = (() => {
       return undefined;
     } catch (e) { return undefined; /* Storage not defined yet */ }
   }
+  /* Wave 37, Creator Mode: the global settings behind the fallback above.
+     Settings' Play choices no longer write them (they write the per-pack
+     override only, UI's savePlayChoice), so what they hold is the choice a
+     player made before packs, read only for a story with no override. */
   const GLOBAL_SETTING = Object.freeze({ 'rules.permadeath': 'permadeath', 'rules.showRolls': 'showRolls' });
   /* Wave 37, Creator Mode, milestone 4 (plan "freedom"): the effective freedom
      dials. A preset sets every dial; a dial the pack writes out itself wins
@@ -39125,6 +39129,10 @@ const UI = (() => {
     else if (name === 'settings') fillSettings();
     else if (name === 'saves') renderSaves();
     else if (name === 'game') {
+      /* Wave 37, Creator Mode: a new game or a load lands here. Debug opened
+         in the last game stays closed in a story that hides it
+         (rules.cheats.debugView false), where /debug could not close it again. */
+      if (debugOn && !Commands.allowed('/debug')) { debugOn = false; if (tab === 'debug') tab = 'character'; }
       renderGame();
       // Back from Settings or Saves: the story where it was, unless it was at the bottom.
       const keep = feedPlace && (from === 'settings' || from === 'saves') && !feedPlace.stick;
@@ -41254,7 +41262,8 @@ const UI = (() => {
       const facs = Object.keys(p.reputation || {});
       const progress = Array.isArray(p.progression) ? p.progression.filter(isObj) : [];
       const noSpend = p.storyPoints < 1 ? 'You have no story points' : actBlock({ fill: true });
-      const spend = el('button', { type: 'button', class: 'btn small', id: 'sp-spend', disabled: !!noSpend, title: noSpend || 'Make something true: /fact', onclick: () => { if (!canAct({ fill: true, say: true })) return; if (isMobile()) closeSheet(true); fillBox('/fact '); } }, 'Spend');
+      // Wave 37, Creator Mode: no Spend for a story without /fact (rules.storyPoints.factAllowed false); it would only fill a command that answers "Not in this story."
+      const spend = !Commands.allowed('/fact') ? null : el('button', { type: 'button', class: 'btn small', id: 'sp-spend', disabled: !!noSpend, title: noSpend || 'Make something true: /fact', onclick: () => { if (!canAct({ fill: true, say: true })) return; if (isMobile()) closeSheet(true); fillBox('/fact '); } }, 'Spend');
       const condition = c => {
         const left = Number.isInteger(c.untilDay) ? c.untilDay - day : null;
         const when = left === null ? 'until you rest' : left > 1 ? `${left} days left` : left === 1 ? '1 day left' : 'ends today';
@@ -43134,10 +43143,11 @@ const UI = (() => {
      hides; player can override"). Each is the player's for one story, the
      open game's pack, else the one New game plays (intimatePack), kept in
      Storage.perPack(id).overrides at its Pack.PLAYER_PATHS path. Permadeath
-     and Show dice rolls still write the global setting too, so older
-     readers and the global fallback in Pack.playerValue agree; they are
-     written only when that box changes, so another change on this screen
-     never copies a story's own value into the global one. The boxes show
+     and Show dice rolls write only that per-pack override, never the
+     global setting (reviewer item 9): a choice made for one story must not
+     leak into every other. The global permadeath and showRolls stay as the
+     pre-wave player's choice, which Pack.playerValue reads (GLOBAL_SETTING)
+     only for a story with no override of its own. The boxes show
      the effective value (Pack.lookup), and the note after each its layer:
      "(your choice)", "(this story's setting)", or nothing for the game's
      default. */
@@ -43173,7 +43183,7 @@ const UI = (() => {
     const pack = intimatePack();
     const rollsWere = Pack.get('rules.showRolls') !== false;
     const path = t === d.setRolls ? 'rules.showRolls' : 'rules.permadeath';
-    Storage.saveSettings(t === d.setRolls ? { showRolls: t.checked } : { permadeath: t.checked });
+    // This story's choice only; the global setting is left as it was (see above).
     Storage.savePerPack(pack.meta.id, { overrides: { [path]: t.checked } });
     fillPlay();
     if ((Pack.get('rules.showRolls') !== false) !== rollsWere && State.current && !State.muted) rebuildFeed();

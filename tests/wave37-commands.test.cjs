@@ -12,8 +12,9 @@
      the v36 snapshot's parser prompt byte for byte. A story with
      scopeRefusal on (the rails preset) adds the SCOPE sentence.
    - Plan decision D: Permadeath, Show dice rolls and the Narration style
-     write this story's override (and the first two the global setting
-     too); the note after each names the layer its value comes from.
+     write this story's override (the first two never the global setting:
+     reviewer item 9); the note after each names the layer its value
+     comes from.
    - Task M4-E: the card table honours the cheats gate (no Win (cheat)
      button, /cheat win typed with a hand open answers "Not in this
      story."), and World.chiefOf reads world.law.headNpcId first.
@@ -178,7 +179,29 @@ s.test('developer mode shows every cheat and /undo with no override; rules.cheat
   assert.ok(!(await slashList(page)).includes('/debug'));
 });
 
-s.test('the Settings screen: Allow cheats anyway shows only for a story that hides something and writes both overrides; Permadeath writes the global setting and the override (layer player); the style radio writes narration.preset; the notes name each layer', async h => {
+s.test('rules.storyPoints.factAllowed false: the Character sheet has no Spend button (it would only fill /fact); Low Water as it is keeps it', async h => {
+  const page = await h.open();
+  const spendShown = () => page.evaluate(() => { Game.UI.openPanel('character'); return !!document.getElementById('sp-spend'); });
+  await start(page);
+  assert.equal(await spendShown(), true, 'Low Water as it is: Spend is there');
+  await preview(page, { storyPoints: { factAllowed: false } });
+  await start(page);
+  assert.equal(await page.evaluate(() => Game.Commands.allowed('/fact')), false);
+  assert.equal(await spendShown(), false, 'no Spend in a story without /fact');
+});
+
+s.test('rules.cheats.debugView false: the Debug view opened in the last game is closed once a new game of that story starts', async h => {
+  const page = await h.open();
+  const debugTab = () => page.evaluate(() => ({ on: Game.UI.debug, tab: !!document.querySelector('#panel-tabs [data-tab="debug"]') }));
+  await start(page);
+  await page.evaluate(() => Game.UI.toggleDebug(true));
+  assert.deepEqual(await debugTab(), { on: true, tab: true }, 'Debug open in Low Water as it is');
+  await preview(page, { cheats: { allowed: true, debugView: false } });
+  await start(page);
+  assert.deepEqual(await debugTab(), { on: false, tab: false }, 'closed in the new game, where /debug is hidden');
+});
+
+s.test('the Settings screen: Allow cheats anyway shows only for a story that hides something and writes both overrides; Permadeath writes only this story\'s override (layer player), never the global setting; the style radio writes narration.preset; the notes name each layer', async h => {
   const page = await h.open();
   // Low Water as it is: no box, every value the default, no notes.
   await page.click('#btn-settings');
@@ -210,10 +233,10 @@ s.test('the Settings screen: Allow cheats anyway shows only for a story that hid
   assert.deepEqual(ticked, { o: { 'rules.cheats.allowed': true, 'rules.undo': true }, note: '(your choice)', allowed: true });
   await page.uncheck('#set-cheats');
   assert.deepEqual(await page.evaluate(() => Game.Storage.perPack('low-water').overrides), {}, 'unticked: back to the story\'s own');
-  // Permadeath: the global setting and this story's override.
+  // Permadeath: this story's override only; the global setting stays the player's pre-wave false (reviewer item 9).
   await page.check('#set-permadeath');
   const death = await page.evaluate(() => ({ global: Game.Storage.settings().permadeath, o: Game.Storage.perPack('low-water').overrides, l: Game.Pack.lookup('rules.permadeath'), note: document.getElementById('set-permadeath-layer').textContent }));
-  assert.equal(death.global, true);
+  assert.equal(death.global, false, 'the global setting is not written');
   assert.deepEqual(death.o, { 'rules.permadeath': true });
   assert.deepEqual([death.l.layer, death.l.value], ['player', true]);
   assert.equal(death.note, '(your choice)');

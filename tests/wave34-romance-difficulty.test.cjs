@@ -367,7 +367,7 @@ s.test('(g) the late flirt lands by the turn\'s charm roll: a success is welcome
   assert.equal(r.none.roll, null);
 });
 
-s.test('(h) the night keeps its gate with no roll; short of it the ask rolls as a flirt: a success is "not tonight; she says so kindly", a failure the refusal', async h => {
+s.test('(h) the night keeps its gate and rolls the intimacy roll; short of it the ask rolls as a flirt: a success is "not tonight; she says so kindly", a failure the refusal', async h => {
   const page = await start(h);
   const r = await page.evaluate(async () => {
     const G = Game, S = G.State, st = G.state;
@@ -376,6 +376,10 @@ s.test('(h) the night keeps its gate with no roll; short of it the ask rolls as 
     // Changed by design in wave 35: the night reads romance 40 where it read liking 40.
     S.apply({ relSet: { npcId: J, s: 55, m: 45, w: 45, t: 35, k: 35 } });
     __put('loc_low_water', [J], 6, 'night');
+    /* Wave 37, Creator Mode: a yes to the night now rolls the intimacy roll
+       (owner decision 6, on in Low Water); the tier is forced so the test
+       does not depend on the seed. */
+    __roll('success');
     const c0 = st.meta.rngCalls;
     out.yes = await __say(J, 'Stay with me tonight.', { romantic: 'more' });
     out.yesRng = st.meta.rngCalls - c0;
@@ -388,8 +392,9 @@ s.test('(h) the night keeps its gate with no roll; short of it the ask rolls as 
     out.no = await __say('npc_shayla', 'Come back to my room tonight.', { romantic: 'more' });
     return out;
   });
-  assert.equal(r.yes.roll, null, 'the gate met: no roll');
-  assert.equal(r.yesRng, 0, 'no die drawn');
+  assert.deepEqual(r.yes.roll, ['charm', 'normal', 'success'], 'the gate met: the night rolls (wave 37, owner decision 6)');
+  // The forced tier stands in for the die (Pipeline's nextDie): nothing is drawn from the stream.
+  assert.equal(r.yesRng, 0, 'the forced die, none drawn');
   assert.deepEqual(r.yes.rom, ['ROMANCE (decided by the engine): Jodie Strayhorn says yes; write the scene out as MODE says, with Jodie\'s own way of being with the player; never skip to afterwards.']);
   assert.deepEqual(r.kind.roll, ['charm', 'easy', 'success'], 'short of the gate: a flirt\'s roll (spark 55 eases her to easy anyway)');
   assert.deepEqual(r.kind.rom, ['ROMANCE (decided by the engine): Shayla Rawls: not tonight; she says so kindly.']);

@@ -602,7 +602,9 @@ s.test('settings screen has every field with the documented defaults', async h =
   const st = await page.evaluate(() => Game.Storage.settings());
   assert.equal(st.effort.narrator, 'high');
   assert.equal(st.parserModel, 'claude-opus-5-5');
-  assert.equal(st.permadeath, true);
+  // Wave 37, Creator Mode: Permadeath is this story's choice (the per-pack override), not the global setting.
+  const death = await page.evaluate(() => Game.Pack.lookup('rules.permadeath'));
+  assert.deepEqual([death.value, death.layer], [true, 'player']);
 });
 
 s.test('with mock mode off the turn fails cleanly and keeps the typed input', async h => {
