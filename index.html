@@ -36634,10 +36634,12 @@ const Pipeline = (() => {
   /* A question or a how-to is not a fact (wave 23: the owner typed "/fact how to seduce Jodie" and it became a "fact" on her
      card): refused at no cost, with what /fact is for. */
   const NOT_A_FACT = /^(?:how|what|why|when|where|who|whom|which|can|could|should|would|is|are|am|do|does|did|will|tell me|any way|anyway)\b|\?\s*$/i;
+  // Wave 37, Creator Mode: the notice for a story without story points (Commands says it too when /fact is hidden).
+  const NO_FACTS = 'This story has no story points to spend.';
   function fact(statement) {
     // Wave 37, Creator Mode, milestone 4: a story may have no facts to buy (rules.storyPoints.factAllowed false); nothing is spent.
     if (Pack.get('rules.storyPoints.factAllowed') === false) {
-      UI.feed.notice('This story has no story points to spend.');
+      UI.feed.notice(NO_FACTS);
       return { ok: false, reason: 'no-facts', restoreInput: true };
     }
     if (State.current.player.storyPoints < 1) {
@@ -37379,7 +37381,7 @@ const Pipeline = (() => {
     // Wave 37, Creator Mode: the author's directions in the packet (tests, the editor's preview).
     directionLines, directionText, ENGINE_TRAILER, DIRECTION_SITUATIONS: Object.freeze(SITUATIONS.map(x => x[0])),
     // Wave 37, Creator Mode, milestone 4: the rules and freedom dials Pipeline reads (tests, the editor's preview).
-    rollRules, createGate, steerLine, nightEvents, gambleStake, skipGoal, NIGHT_OUTCOME, NO_CARDS
+    rollRules, createGate, steerLine, nightEvents, gambleStake, skipGoal, NIGHT_OUTCOME, NO_CARDS, NO_FACTS
   };
 })();
 
@@ -43619,7 +43621,8 @@ const Commands = (() => {
     const cmd = LIST.find(c => c.name === head);
     if (!cmd) { UI.feed.notice(`There is no ${head} command. Type / to see the list.`); return { ok: false, reason: 'unknown', restoreInput: true }; }
     // Wave 37, Creator Mode: a command this story hides runs nothing.
-    if (!allowed(cmd.name)) { UI.feed.notice(NOT_HERE); return { ok: false, reason: 'hidden' }; }
+    // /fact keeps Pipeline's own words (a story rule, not a cheat): the player learns why, not only that it is hidden.
+    if (!allowed(cmd.name)) { UI.feed.notice((ALIASES[cmd.name] || cmd.name) === '/fact' ? Pipeline.NO_FACTS : NOT_HERE); return { ok: false, reason: 'hidden' }; }
     if (PANEL_FOR[cmd.name]) { UI.openPanel(PANEL_FOR[cmd.name]); return { ok: true }; }
     const dead = !!(State.current && State.current.player.dead);
     if (dead && (cmd.turn || ['/undo', '/redo', '/rewind'].includes(cmd.name))) { UI.feed.notice(Pipeline.NOTICES.dead); return { ok: false, reason: 'dead' }; }
