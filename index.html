@@ -39252,7 +39252,9 @@ const Storage = (() => {
          purpose; it is no Library pack and never joins. A pack the Library
          refused once is not validated again on every peek (the title and
          Save / Load read each save on every draw). */
-      if (!/^legacy-/.test(pack.meta.id) && !lib.records.has(pack.meta.id) && !lib.refused.has(hash)) {
+      // A test of a draft (milestone 7, M7-A's report) embeds the draft when IndexedDB is missing; the draft is the author's working copy, not a pack for the Library.
+      const testGame = isObj(env.state) && isObj(env.state.meta) && env.state.meta.packSource === 'draft';
+      if (!testGame && !/^legacy-/.test(pack.meta.id) && !lib.records.has(pack.meta.id) && !lib.refused.has(hash)) {
         try { lib.put(pack, { source: 'from-save' }); } catch (e) { lib.refused.add(hash); console.warn('[Storage] the save\'s pack could not join the Library', e); }
       }
       return pack;
@@ -40835,7 +40837,7 @@ const UI = (() => {
      focus and no taps until it closes; the focus then goes back to what
      opened it. */
   function setInert(on) {
-    for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.tabBar]) if (node) node.inert = !!on;
+    for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.testBar, d.tabBar]) if (node) node.inert = !!on;
     syncBanner();
   }
   function syncTabbar() {
@@ -42176,7 +42178,7 @@ const UI = (() => {
   function syncMapModal() {
     const on = mapExpanded && !!d.panelBody && !!$('.map.expanded', d.panelBody);
     const sheet = isMobile() && d.gameBody.classList.contains('sheet-open');
-    for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.tabBar]) if (node) node.inert = on || sheet;
+    for (const node of [$('.story', d.gameBody), $('#screen-game .topbar'), d.demoBar, d.testBar, d.tabBar]) if (node) node.inert = on || sheet;
     const head = $('.panel-head', d.panel);
     if (head) head.inert = on;
     for (const kid of d.panelBody ? d.panelBody.children : []) if (!kid.classList.contains('map')) kid.inert = on;
