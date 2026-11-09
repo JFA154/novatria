@@ -11089,6 +11089,1454 @@ const PackRules = (() => {
   return { register, RULES, problem, index, run, strings, effectLists, ID_PREFIXES, PLACEHOLDER_RE, WEEKDAYS };
 })();
 
+// ===== PackRules: the story half (wave 37, Creator Mode) =====
+/* The story half of the pack validator (plan decision B: "one validator,
+   run in the page"): factions and clocks, effect ops, triggers, conditions,
+   threads, seeds, rumours, town events, the epilogue, the tables, the
+   backgrounds, flaws, loose ends and their obligations, the grudge and
+   favour templates, goal presets, a pack's own example turns and the
+   mentions check (everything the story names is a record). Ported from
+   tests/validate-town.cjs sections 4 to 9 and tests/mentions.cjs, which this
+   replaces; each old check is a rule with a stable id and a dotted path.
+   It sits after the PackRules module, not in its story sub-region, because
+   the two halves were written in parallel by two agents: one IIFE here and
+   one PackRules.register call, sharing nothing with the world half but what
+   PackRules.index(pack) gives (the maps by id, the strings walker, the id
+   prefixes, the phase and weekday names).
+   One pass (storyPass) walks the pack once per validate, the way the old
+   validator did, because its checks are recursive (an effect plants a seed
+   whose alt holds effects); every registered rule returns its own share of
+   that pass. The engine's own lists (State.EFFECT_OPS, State.RESERVED_FLAGS,
+   Rel's event names, fading classes, STAYS and leverage statuses) are read
+   when a pack is validated, never copied, so this and State.apply cannot
+   drift apart; in a bare vm context without them those sub-checks are
+   skipped. Classes: engine for what the game would misbehave on or a fixed
+   rule; house (set 'lockett-house') for Low Water's numbers and vocabulary;
+   lint for advice. */
+(() => {
+  const P = PackRules.problem;
+  const HOUSE = 'lockett-house';
+  const arr = v => (Array.isArray(v) ? v : []);
+  const isStr = v => typeof v === 'string' && v.trim().length > 0;
+  const isInt = v => Number.isInteger(v);
+  const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const join = (path, key) => (path ? path + '.' + key : String(key));
+  const sentenceCount = s => (String(s).match(/[.!?]['")]?(?=\s|$)/g) || []).length;
+  const words = s => String(s).split(/\s+/).filter(Boolean).length;
+
+  // ----- the engine's lists, read at validate time -----
+  function engineLists() {
+    const out = { ops: null, reserved: [], events: null, decay: null, stays: [], levStatuses: ['held', 'used', 'paid', 'spent', 'void'] };
+    try {
+      if (typeof State !== 'undefined' && State) {
+        if (Array.isArray(State.EFFECT_OPS)) out.ops = State.EFFECT_OPS;
+        if (Array.isArray(State.RESERVED_FLAGS)) out.reserved = State.RESERVED_FLAGS;
+      }
+      if (typeof Rel !== 'undefined' && Rel) {
+        if (Array.isArray(Rel.EVENT_NAMES)) out.events = Rel.EVENT_NAMES;
+        if (isObj(Rel.DECAY)) out.decay = Object.keys(Rel.DECAY);
+        if (Array.isArray(Rel.STAYS)) out.stays = Rel.STAYS;
+        if (Array.isArray(Rel.LEV_STATUSES)) out.levStatuses = Rel.LEV_STATUSES;
+      }
+    } catch (e) { /* a vm context, or a call during boot: the sub-checks that need them are skipped */ }
+    return out;
+  }
+
+  // ----- data (from tests/validate-town.cjs; docs/BUILD_PLAN.md "Shared data contract") -----
+  // Each op's required fields, then the fields it may carry besides.
+  const OPS = {
+    closeLocation: ['locationId'], openLocation: ['locationId'], npcStatus: ['npcId', 'status'], npcMove: ['npcId', 'locationId', 'phases'],
+    attitudeDelta: ['npcId', 'delta'], priceMultiplier: ['factor'], openThread: ['thread'], threadStatus: ['threadId', 'status'],
+    addRumour: ['rumour'], plantSeed: ['seed'], factionRelation: ['a', 'b', 'delta'], setFlag: ['key', 'value'], reputationDelta: ['key', 'delta'],
+    playerGold: ['delta'], playerHp: ['delta'], giveItem: ['name'], placeItem: ['name'], takeItem: ['name'], addCondition: ['name', 'effect', 'days'],
+    banFrom: ['locationId', 'days'], playerPrice: ['factor', 'days'], addMemory: ['npcId', 'text', 'weight'], clockAdjust: ['factionId', 'delta'],
+    threadUpdate: ['threadId'], addObligation: ['kind', 'npcId', 'text'], settleObligation: ['id', 'status'], obligationPaid: ['id', 'amount'],
+    addNews: ['text'], socialEvent: ['npcId', 'event', 'text'], owedSettle: ['npcId'], leverageSet: ['id'], tieDelta: ['fromId', 'toId', 'why'],
+    propagate: ['npcId', 'event']
+  };
+  const OPS_OPTIONAL = {
+    npcStatus: ['by'], playerHp: ['allowDefeat'], giveItem: ['notes'], placeItem: ['notes', 'locationId'], banFrom: ['byNpcId'], addMemory: ['act'],
+    threadUpdate: ['summary', 'status', 'knownToPlayer'],
+    addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet', 'dueOffset', 'leverageId', 'missText'],
+    obligationPaid: ['take'], addNews: ['factionId', 'public'],
+    socialEvent: ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public'],
+    owedSettle: ['dir'], leverageSet: ['status', 'aware', 'playerKnows', 'use', 'knownBy', 'tell'], tieDelta: ['w', 't', 'known'],
+    propagate: ['factor', 'via', 'text']
+  };
+  const OBLIGATION_KINDS = ['debt', 'blackmail', 'promise', 'errand', 'lodging'];
+  // Wave 29: lapsed, "can no longer be"; open is never a condition's answer.
+  const OBLIGATION_STATUSES = ['met', 'missed', 'lapsed'];
+  const OBLIGATION_ID = /^obl_(debt|blackmail|promise|errand|lodging)_(npc_[a-z0-9_]+)$/;
+  const TRIGGER_TYPES = ['day', 'location', 'npc', 'clock'];
+  // Wave 35: romance (m) is its own track.
+  const REL_TRACKS = ['w', 't', 'f', 'k', 's', 'm'];
+  const REL_RANGES = { liking: [-100, 100], trust: [-100, 100], fear: [0, 100], knows: [0, 100] };
+  const CONDITION_EFFECT = /^[+-][1-3] (might|wits|charm|stealth|all)(, [+-][1-3] (might|wits|charm|stealth|all))*$/;
+  // The days an aftermath seed the ending plants may wait for (after the latest ending).
+  const ENDING_DAYS = [21, 30];
+  const PH_TEXT = ['{npc}', '{playerName}'];
+  const GOOD_KINDS = ['good', 'service', 'drink', 'food'];
+  const COMPLICATION_TIERS = ['partial', 'failure', 'both'];
+  const COMPLICATION_KINDS = ['social', 'physical', 'stealth', 'any'];
+  // A grudge answers in kind (World.grudgeKind); report, tell and price are a holder's own (World.plantReport, plantHolders).
+  const GRUDGE_KINDS = ['violence', 'police', 'gossip', 'money', 'ban', 'report', 'tell', 'price'];
+  const PLAYER_GEAR = /\btexts? \{player\}|\bcalls? \{player\}|\{player\}'s (phone|car|truck|ride|tires?)\b|whatever \{player\} (has been )?(riding|driving)/i;
+  const VEHICLE_RE = /\b(truck|trucks|pickup|car|cars|van|boat|johnboat|motorcycle|motorbike|bike|scooter|atv|trailer|camper)\b/i;
+  const SIMILE = /\b(like an?|as if)\b/i;
+  const HOW_LONG = /\b(weeks? (on|in|later|since)|three weeks|a month (on|later))\b/i;
+  // Low Water's numbers (the lockett-house set).
+  const REQUIRED_BACKGROUNDS = ['veteran', 'dropout', 'fired bookkeeper', 'river deckhand', 'group home kid', 'poker hustler'];
+  const LOOSE_END_KEYS = ['debt', 'enemy', 'secret', 'lost', 'promise'];
+  const TABLE_SPEC = {
+    npc: { firstNames: 30, occupations: 30 }, location: { types: 15, details: 20, problems: 15 },
+    items: { goods: 40, trinkets: 20 }, complications: 20, weather: { spring: 6, summer: 6, autumn: 6, winter: 6 }
+  };
+  // SPEC.md section 9's banned list plus the setting's bans (a pack's narration.banned adds to it).
+  const BANNED_PHRASES = [
+    'the air is thick with', 'a testament to', 'little did you know', 'somewhere in the distance',
+    "you can't help but", 'you cannot help but', 'a sense of', 'palpable', 'tapestr', 'whispers of',
+    'the weight of', 'sends shivers', 'unbeknownst', 'in the grand scheme', "it's worth noting",
+    'echoes through', 'hangs in the air', 'a mix of', 'as if on cue', 'time seems to slow',
+    'eyes glinting with', 'what do you do',
+    'prophec', 'prophes', 'chosen one', 'dark lord', 'hooded stranger', 'hooded figure',
+    'mysterious stranger', 'ancient evil', 'destiny', 'destined'
+  ];
+  // Example turns: the literary three keep the shape of SPEC.md section 9's; the casual six to eight use the packet's own labels.
+  const SPEC_EXAMPLE_WORDS = [32, 31, 25];
+  const EXAMPLE_SCENES = [
+    { what: 'a creditor waiting in a bar who says what is owed', input: /\bbar\b/i, context: /^Seed due: /, narration: /\bowe\b/i },
+    { what: 'a failed lock pick on an office door, watched by a kid', input: /\block\b.*\boffice\b/i, context: /^Stealth \d+ vs \d+ · Failure · Complication: .+\.$/, narration: /\bkid\b/i },
+    { what: 'a mechanic who keeps working and asks if you are buying', input: /\bmechanic\b/i, context: /^Mechanic: .*\b(cool to you|[a-z' ,]+ you)\.$/, narration: /buying something\?/i }
+  ];
+  const PACKET_LABELS = /^(PRESENT|PLAYER SAYS \(to [^)]+\)|PLAYER TYPED|ACTION|ROLL|OUTCOME|COMPLICATION|NOT CARRIED|SINCE THE LAST TURN \([^)]*\)|DUE EVENT|NOT PRESENT|MOVED|TOWN NEWS|LOOSE ENDS|OPEN|TIME THIS TAKES|WHAT PEOPLE KNOW):/;
+  const CASUAL_COVERS = [
+    { what: 'Say to one person', test: c => /^PLAYER SAYS \(to (?!everyone)[^)]+\): "/m.test(c) },
+    { what: 'Say to everyone', test: c => /^PLAYER SAYS \(to everyone present\): "/m.test(c) },
+    { what: 'a success', test: c => /^ROLL: \w+ \d+.* vs \d+ · (Success|Critical)$/m.test(c) && /^OUTCOME: the ask succeeded/m.test(c) },
+    { what: 'a failure with a complication', test: c => /^ROLL: \w+ \d+.* vs \d+ · Failure$/m.test(c) && /^COMPLICATION: (?!none)/m.test(c) },
+    { what: 'an arrival', test: c => /^SINCE THE LAST TURN \(/m.test(c) },
+    { what: 'something not carried', test: c => /^NOT CARRIED: /m.test(c) },
+    { what: 'two people present', test: c => (/^PRESENT: (.*)$/m.exec(c) || ['', ''])[1].split(/\); (?=[A-Z][a-z]+ [A-Z][a-z]+ \(\d)/).length >= 2 },
+    { what: 'a due event', test: c => /^DUE EVENT: (?!none)/m.test(c) }
+  ];
+  /* The mentions check (direction change 9: "everything mentioned exists"),
+     its allow-lists kept as data as tests/mentions.cjs had them. */
+  const MENTION_ALLOW = ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Chief', 'Pastor', 'Mayor', 'Officer', 'Sheriff', 'Bible', 'Army', 'Civil War', 'Christmas', 'Room'];
+  const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const PLACE_NOUNS = ['bluff', 'highway', 'bypass', 'bottomland', 'school', 'cemetery', 'graveyard', 'clinic', 'hospital', 'emergency room',
+    'county seat', 'courthouse', "sheriff's office", 'garage', 'mill', 'interchange', 'water tower', 'penitentiary', 'prison', 'nursing home',
+    'county home', 'coast', 'city', 'dry county', 'treatment program', 'treatment center', 'university', 'college', 'river road', 'street',
+    'station', 'factory', 'plant', 'gin', 'diner', 'cafe', 'warehouse', 'airport', 'depot', 'marina', 'motel', 'jail'];
+  // A crowd or a stranger in town who would have to be made up (REVIEW section 4).
+  const NOBODY = [
+    /\b(two|three) other (boys|girls|men|women|kids|guys)\b/i, /\ba couple of (kids|boys|men|guys)\b/i,
+    /\b(pays|hires|sends|gets) (two|three|some|a couple of) (men|boys|kids|guys)\b/i, /\bthe (farmers|teenagers|old men|bass fishermen)\b/i,
+    /\bthe (sheriff's )?deputies (park|sit|run|come)\b/i, /\bmen working timber\b/i, /\ba (boy|girl|man|woman|kid) at Riverbend\b/i,
+    /\bthe night clerk\b/i, /\bthe city doctor\b|\ba doctor in the city\b/i, /\bthe consulting engineer Carter\b/i, /\ba trucker left\b/i
+  ];
+  // Real names used on purpose: a maiden name, a name before a marriage.
+  const PAIR_ALLOW = ['Mavis Crocker', 'Jodie Ogletree'];
+  const MENTION_SKIP_KEYS = new Set(['id', 'type', 'tags', 'pronouns', 'presence', 'status', 'op', 'key', 'anchor', 'arrival', 'relation', 'trigger', 'river', 'roads', 'bridges', 'flagsSet', 'flagsUnset', 'orFlagsSet', 'phases', 'kind']);
+
+  // ----- the pass -----
+  /* storyPass(pack, ctx) → Map(rule id → [problem]): every story check in
+     one walk, cached per validate (ctx is fresh each time). */
+  const passes = new WeakMap();
+  function pass(pack, ctx) {
+    if (!passes.has(ctx)) {
+      let found;
+      try { found = storyPass(pack, ctx); } catch (e) {
+        found = new Map([['engine.story', [P('', 'The story checks could not finish: ' + e.message, { rule: 'engine.story' })]]]);
+      }
+      passes.set(ctx, found);
+    }
+    return passes.get(ctx);
+  }
+
+  function storyPass(pack, ctx) {
+    const out = new Map();
+    const err = (rule, path, msg) => { if (!out.has(rule)) out.set(rule, []); out.get(rule).push(P(path, msg, { rule })); };
+    const L = engineLists();
+    const W = isObj(pack.world) ? pack.world : {};
+    const PL = isObj(pack.player) ? pack.player : {};
+    const npcs = arr(W.npcs);
+    const factions = arr(W.factions);
+    const val = (m, id) => (typeof id === 'string' && m.has(id) ? m.get(id).value : null);
+    const isNpc = id => typeof id === 'string' && ctx.npcs.has(id);
+    const isLoc = id => typeof id === 'string' && ctx.locations.has(id);
+    const isFac = id => typeof id === 'string' && ctx.factions.has(id);
+    const isThread = id => typeof id === 'string' && ctx.threads.has(id);
+    const npcOf = id => val(ctx.npcs, id);
+    const locOf = id => val(ctx.locations, id) || {};
+    const presenceOf = n => (isObj(n) && ['here', 'away', 'dead'].includes(n.presence) ? n.presence : 'here');
+    const inTown = n => isObj(n) && presenceOf(n) === 'here';
+    const looseEnds = isObj(PL.looseEnds) ? PL.looseEnds : {};
+    const start = isObj(W.startLocationIds) ? W.startLocationIds : {};
+    // Who reads a flag (every condition list), checked against ctx.flags (every setFlag in the pack) at the end.
+    const flagsRead = [];
+    const seenNested = new Map();
+
+    // A record's fields: the required ones there; with extras, nothing else (an effect, a condition: free data the shape pass cannot see into).
+    function keys(o, required, path, optional, rule, extras) {
+      if (!isObj(o)) { err(rule, path, 'should be an object.'); return false; }
+      for (const k of required) if (!(k in o)) err(rule, join(path, k), 'is missing.');
+      if (extras) {
+        const allowed = new Set(required.concat(optional || []));
+        for (const k of Object.keys(o)) if (!allowed.has(k)) err(rule, join(path, k), 'is not a field this can carry.');
+      }
+      return true;
+    }
+    // The world's strings the placeholder walk below covers (so a brace there is reported once).
+    const braceWalked = path => /^world\./.test(path) && !/^world\.(tables|grudgeTemplates|favourTemplates)\b/.test(path) && path !== 'world.law.newsTemplate';
+    // A line of content text. opts: sentences, maxSentences, noPlaceholders.
+    function str(v, path, opts) {
+      const o = opts || {};
+      if (!isStr(v)) { err('engine.text.empty', path, 'needs some text.'); return false; }
+      if (v !== v.trim()) err('house.text.line', path, 'has a space at the start or the end.');
+      if (/\n/.test(v)) err('house.text.line', path, 'should be one line.');
+      if (/ {2,}/.test(v)) err('house.text.line', path, 'has a double space.');
+      const n = sentenceCount(v);
+      if (o.sentences !== undefined && n !== o.sentences) err('house.text.sentences', path, 'should be ' + o.sentences + ' sentence(s); it is ' + n + '.');
+      if (o.maxSentences !== undefined && n > o.maxSentences) err('house.text.sentences', path, 'should be at most ' + o.maxSentences + ' sentence(s); it is ' + n + '.');
+      if (o.noPlaceholders && /[{}]/.test(v) && !braceWalked(path)) err('engine.text.placeholder', path, 'may not hold a {placeholder}: nothing fills it here.');
+      return true;
+    }
+    function strList(list, path, count, opts) {
+      if (!Array.isArray(list)) { err('engine.text.empty', path, 'should be a list.'); return; }
+      if (count !== undefined && list.length !== count) err('house.tables.count', path, 'should have ' + count + ' entries; it has ' + list.length + '.');
+      const seen = new Set();
+      list.forEach((v, i) => {
+        str(v, path + '[' + i + ']', opts);
+        if (typeof v === 'string') {
+          if (seen.has(v.toLowerCase())) err('house.tables.duplicate', path + '[' + i + ']', 'repeats "' + v + '".');
+          seen.add(v.toLowerCase());
+        }
+      });
+    }
+    // Text the engine fills: opts.ph (placeholders allowed), opts.more (more placeholders), opts.max (characters).
+    function text(s, path, opts) {
+      const o = opts || {};
+      if (!str(s, path, { maxSentences: o.maxSentences })) return;
+      if (o.max && s.length > o.max) err('house.text.length', path, 'should be at most ' + o.max + ' characters; it is ' + s.length + '.');
+      const found = s.match(/\{[^}]*\}/g) || [];
+      if (found.length && !o.ph) err('engine.placeholder', path, 'placeholders are only filled in the loose ends and the grudge and favour templates.');
+      const known = PH_TEXT.concat(o.more || []);
+      if (o.ph) found.forEach(p => { if (!known.includes(p)) err('engine.placeholder', path, 'has the unknown placeholder ' + p + ' (use ' + known.join(', ') + ').'); });
+      if (/[{}]/.test(s.replace(/\{[^}]*\}/g, ''))) err('engine.placeholder', path, 'has a stray brace.');
+    }
+    // A template's or a hook's text: {npc} and {player} (and more), with the required ones present.
+    function placeholders(s, path, required, more) {
+      if (typeof s !== 'string') return;
+      const ok = ['{npc}', '{player}'].concat(more || []);
+      (s.match(/\{[^}]*\}/g) || []).forEach(p => { if (!ok.includes(p)) err('engine.placeholder', path, 'has the unknown placeholder ' + p + '.'); });
+      if (/[{}]/.test(ok.reduce((x, p) => x.split(p).join(''), s))) err('engine.placeholder', path, 'has a stray brace.');
+      required.forEach(p => { if (!s.includes(p)) err('engine.placeholder', path, 'must contain ' + p + '.'); });
+    }
+    function dayOffset(v, path, min, max, rule) {
+      if (!Array.isArray(v) || v.length !== 2 || !isInt(v[0]) || !isInt(v[1])) { err(rule, path, 'should be [fewest, most] whole days.'); return; }
+      if (v[0] < min || v[1] > max || v[0] > v[1]) err(rule, path, 'should satisfy ' + min + ' <= fewest <= most <= ' + max + '; it is [' + v.join(', ') + '].');
+    }
+    function delta(v, path, max) {
+      if (!isInt(v) || v === 0 || Math.abs(v) > max) err('engine.effect.value', path, 'should be a whole number other than 0, within +/-' + max + '; it is ' + JSON.stringify(v) + '.');
+    }
+    const npcRef = (v, ph) => isNpc(v) || (ph === true && v === '{npcId}');
+
+    // Name aliases for "does this text mention someone of the cast or a faction".
+    const tokenCount = new Map();
+    for (const n of npcs) if (isObj(n) && typeof n.name === 'string') for (const t of new Set(n.name.split(/\s+/))) tokenCount.set(t, (tokenCount.get(t) || 0) + 1);
+    const npcAliases = n => (typeof n.name === 'string' ? n.name.split(/\s+/).filter(t => t.length >= 3 && tokenCount.get(t) === 1) : []);
+    const factionAliases = f => {
+      if (typeof f.name !== 'string') return [];
+      const bare = f.name.replace(/^The\s+/, '');
+      return Array.from(new Set([bare, bare.split(/\s+/).slice(0, 2).join(' ')]));
+    };
+    const mentions = (t, alias, caseless) => new RegExp('\\b' + esc(alias) + '\\b', caseless ? 'i' : '').test(t);
+    function mentionsCast(t) {
+      for (const n of npcs) if (isObj(n) && npcAliases(n).some(a => mentions(t, a, false))) return true;
+      for (const f of factions) if (isObj(f) && factionAliases(f).some(a => mentions(t, a, true))) return true;
+      return false;
+    }
+
+    // An id an effect creates (a thread, a rumour, a seed): its prefix, and no other record by it.
+    function nestedId(id, kind, path) {
+      const prefix = ctx.ID_PREFIXES[kind];
+      if (typeof id !== 'string' || !new RegExp('^' + prefix + '[a-z0-9_]+$').test(id)) { err('engine.effect.id', join(path, 'id'), JSON.stringify(id) + ' is not an id: "' + prefix + '" then lowercase letters, digits and underscores.'); return; }
+      const m = { thread: ctx.threads, rumour: ctx.rumours, seed: ctx.seeds }[kind];
+      const first = m.get(id);
+      if (first && first.path !== path) err('engine.effect.id', join(path, 'id'), '"' + id + '" is already used at ' + first.path + '.');
+      if (seenNested.has(id) && seenNested.get(id) !== path) err('engine.effect.id', join(path, 'id'), '"' + id + '" is already used at ' + seenNested.get(id) + '.');
+      seenNested.set(id, path);
+    }
+
+    // ----- section 4: threads, rumours, seeds, triggers, conditions, effects -----
+    function checkThread(t, path, expectStatus, nested) {
+      if (!keys(t, ['id', 'title', 'summary', 'status', 'knownToPlayer', 'linkedIds'], path, ['reward'], 'engine.thread.fields', nested)) return;
+      if (nested) nestedId(t.id, 'thread', path);
+      // What resolving it teaches the player (CONTRACTS section 9): +1 to this stat.
+      if (t.reward !== undefined && !STATS.includes(t.reward)) err('engine.thread.reward', join(path, 'reward'), 'should be one of ' + STATS.join(', ') + '; it is ' + JSON.stringify(t.reward) + '.');
+      str(t.title, join(path, 'title'), { noPlaceholders: true });
+      str(t.summary, join(path, 'summary'), { noPlaceholders: true, maxSentences: 3 });
+      if (t.status !== expectStatus) err('house.thread.start', join(path, 'status'), 'should be "' + expectStatus + '".');
+      if (t.knownToPlayer !== false) err('house.thread.start', join(path, 'knownToPlayer'), 'should be false: the player finds the thread.');
+      if (!Array.isArray(t.linkedIds) || !t.linkedIds.length) err('engine.thread.links', join(path, 'linkedIds'), 'should list the ids the thread is about.');
+      else t.linkedIds.forEach((id, i) => {
+        const p = join(path, 'linkedIds') + '[' + i + ']';
+        if (!(isLoc(id) || isNpc(id) || isFac(id) || isThread(id))) err('engine.thread.links', p, '"' + id + '" is no place, person, faction or thread.');
+        if (id === t.id) err('engine.thread.links', p, 'a thread does not link to itself.');
+      });
+    }
+    // Who can pass a rumour on: its source, the people of its faction (or the source's) in town, and its tellerIds.
+    function tellersOf(r) {
+      const set = new Set([r.sourceNpcId]);
+      arr(r.tellerIds).forEach(id => set.add(id));
+      const src = npcOf(r.sourceNpcId);
+      const fac = r.factionId || (src && src.factionId);
+      if (fac) npcs.forEach(n => { if (inTown(n) && n.factionId === fac) set.add(n.id); });
+      return set;
+    }
+    function checkRumour(r, path, nested) {
+      if (!keys(r, ['id', 'text', 'true', 'sourceNpcId', 'heard'], path, ['threadId', 'tellerIds', 'factionId', 'leverageOver'], 'engine.rumour.fields', nested)) return;
+      if (nested) nestedId(r.id, 'rumour', path);
+      str(r.text, join(path, 'text'), { noPlaceholders: true, maxSentences: 2 });
+      if (typeof r.true !== 'boolean') err('engine.rumour.fields', join(path, 'true'), 'should be true or false.');
+      // Wave 29: a true rumour heard is leverage over someone in town with a secret, named in it, never its source.
+      if (r.leverageOver !== undefined) {
+        const p = join(path, 'leverageOver');
+        const o = npcOf(r.leverageOver);
+        if (!o) err('engine.rumour.leverage', p, '"' + r.leverageOver + '" is nobody in the cast.');
+        else {
+          if (r.true !== true) err('engine.rumour.leverage', p, 'only a true rumour is leverage.');
+          if (!isStr(o.secret)) err('engine.rumour.leverage', p, r.leverageOver + ' has no secret.');
+          if (presenceOf(o) !== 'here') err('engine.rumour.leverage', p, r.leverageOver + ' does not live in town.');
+          if (r.leverageOver === r.sourceNpcId) err('engine.rumour.leverage', p, 'never the one who tells it.');
+          if (typeof r.text === 'string' && typeof o.name === 'string' && !r.text.includes(o.name)) err('engine.rumour.leverage', p, 'the rumour names ' + o.name + '.');
+        }
+      }
+      if (!isNpc(r.sourceNpcId)) err('engine.rumour.source', join(path, 'sourceNpcId'), JSON.stringify(r.sourceNpcId) + ' is nobody in the cast.');
+      if (r.heard !== false) err('house.rumour.start', join(path, 'heard'), 'should be false: nobody has heard it yet.');
+      if (r.threadId !== undefined && !isThread(r.threadId)) err('engine.rumour.ref', join(path, 'threadId'), '"' + r.threadId + '" is no thread.');
+      if (r.factionId !== undefined && !isFac(r.factionId)) err('engine.rumour.ref', join(path, 'factionId'), '"' + r.factionId + '" is no faction.');
+      if (r.tellerIds !== undefined) {
+        const p = join(path, 'tellerIds');
+        if (!Array.isArray(r.tellerIds) || !r.tellerIds.length) err('engine.rumour.tellers', p, 'should list the people besides the source who can tell it.');
+        else {
+          if (new Set(r.tellerIds).size !== r.tellerIds.length) err('engine.rumour.tellers', p, 'lists someone twice.');
+          r.tellerIds.forEach((id, i) => {
+            const q = p + '[' + i + ']';
+            if (!isNpc(id)) err('engine.rumour.tellers', q, '"' + id + '" is nobody in the cast.');
+            else if (id === r.sourceNpcId) err('engine.rumour.tellers', q, 'the source tells it already; list the others.');
+            else if (presenceOf(npcOf(id)) !== 'here') err('engine.rumour.tellers', q, id + ' is not in town to tell it.');
+          });
+        }
+      }
+    }
+    /* allowDay: true for a starting seed (a day 3 to 15), false for a seed a
+       clock plants (npc or location only: the day a clock finishes is
+       unknown), 'ending' for one the epilogue plants (npc, location, or a day
+       in ENDING_DAYS). */
+    function checkTrigger(t, path, allowDay) {
+      const R = 'engine.trigger';
+      if (!keys(t, ['type', 'value'], path, [], R, false)) return;
+      if (!TRIGGER_TYPES.includes(t.type)) { err(R, join(path, 'type'), JSON.stringify(t.type) + ' is not one of ' + TRIGGER_TYPES.join(', ') + '.'); return; }
+      if (!allowDay && t.type !== 'npc' && t.type !== 'location') err(R, join(path, 'type'), 'a seed a clock plants uses an npc or location trigger (the day a clock finishes is unknown).');
+      if (allowDay === 'ending' && t.type === 'clock') err(R, join(path, 'type'), 'a seed the ending plants uses an npc, location or day trigger.');
+      const vp = join(path, 'value');
+      if (t.type === 'day' && allowDay === 'ending') {
+        if (!isInt(t.value) || t.value < ENDING_DAYS[0] || t.value > ENDING_DAYS[1]) err(R, vp, 'a seed the ending plants waits for a day ' + ENDING_DAYS.join(' to ') + ' (after the latest ending); it is ' + JSON.stringify(t.value) + '.');
+      } else if (t.type === 'day') {
+        if (!isInt(t.value) || t.value < 3 || t.value > 15) err(R, vp, 'a day trigger is a whole day from 3 to 15; it is ' + JSON.stringify(t.value) + '.');
+      } else if (t.type === 'location') {
+        const list = Array.isArray(t.value) ? t.value : [t.value];
+        if (!list.length) err(R, vp, 'a location trigger needs a place.');
+        list.forEach(v => {
+          if (!isLoc(v)) err(R, vp, JSON.stringify(v) + ' is no place.');
+          else if (locOf(v).away === true) err(R, vp, '"' + v + '" is out of town: the player never goes there.');
+        });
+      } else if (t.type === 'npc') {
+        if (!isNpc(t.value)) err(R, vp, JSON.stringify(t.value) + ' is nobody in the cast.');
+      } else if (t.type === 'clock') {
+        const m = typeof t.value === 'string' ? /^(fac_[a-z0-9_]+):(\d+)$/.exec(t.value) : null;
+        if (!m) err(R, vp, 'a clock trigger looks like "fac_x:3"; it is ' + JSON.stringify(t.value) + '.');
+        else {
+          const f = val(ctx.factions, m[1]);
+          if (!f) err(R, vp, 'the faction "' + m[1] + '" does not exist.');
+          else {
+            const most = Math.max.apply(null, arr(f.clocks).map(c => (isObj(c) && isInt(c.segments) ? c.segments : 6)).concat([1]));
+            const n = Number(m[2]);
+            if (n < 1 || n > most) err(R, vp, 'the segment should be 1 to ' + most + '.');
+          }
+        }
+      }
+    }
+    function checkSeed(s, path, allowDay, nested) {
+      const optional = ['requires', 'alt', 'effects'].concat(nested ? [] : ['notBeforeDay', 'danger']);
+      if (!keys(s, ['id', 'cause', 'effect', 'trigger', 'fired', 'hidden'], path, optional, 'engine.seed.fields', nested)) return;
+      if (nested) nestedId(s.id, 'seed', path);
+      str(s.cause, join(path, 'cause'), { noPlaceholders: true, maxSentences: 2 });
+      str(s.effect, join(path, 'effect'), { noPlaceholders: true, maxSentences: 2 });
+      checkTrigger(s.trigger, join(path, 'trigger'), allowDay);
+      const ending = allowDay === 'ending';
+      if (s.effects !== undefined) effectList(s.effects, join(path, 'effects'), { min: 1, max: 4, ending });
+      if (s.requires !== undefined) checkRequires(s.requires, join(path, 'requires'));
+      if (s.alt !== undefined) checkAlt(s.alt, join(path, 'alt'), 2, s.requires, ending);
+      if (s.fired !== false) err('house.seed.start', join(path, 'fired'), 'should be false.');
+      if (s.hidden !== true) err('house.seed.start', join(path, 'hidden'), 'should be true.');
+      if (typeof s.cause === 'string' && typeof s.effect === 'string' && !mentionsCast(s.cause + ' ' + s.effect)) err('house.seed.tied', path, 'names nobody of the cast and no faction.');
+    }
+    function flagList(list, path) {
+      if (!Array.isArray(list) || !list.length) { err('engine.condition', path, 'should list flag names.'); return; }
+      list.forEach((k, i) => {
+        if (typeof k !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(k)) err('engine.condition', path + '[' + i + ']', 'should be a flag name.');
+        else flagsRead.push([path + '[' + i + ']', k]);
+      });
+    }
+    function npcList(list, path) {
+      if (!Array.isArray(list) || !list.length) { err('engine.condition', path, 'should list people by id.'); return; }
+      list.forEach((id, i) => { if (!isNpc(id)) err('engine.condition', path + '[' + i + ']', JSON.stringify(id) + ' is nobody in the cast.'); });
+    }
+    /* An obligation id (obl_<kind>_<npc id>) the loose ends can make: some
+       option of that kind binds, by its tag, to someone who is that person. */
+    function obligationPossible(id) {
+      const m = OBLIGATION_ID.exec(id || '');
+      if (!m) return false;
+      const n = npcOf(m[2]);
+      if (!n || !Array.isArray(n.tags)) return false;
+      for (const key of Object.keys(looseEnds)) {
+        const le = looseEnds[key];
+        if (!isObj(le) || !isObj(le.link)) continue;
+        const opts = arr(le.options);
+        for (let i = 0; i < opts.length; i++) {
+          const ob = Array.isArray(le.obligations) && isObj(le.obligations[i]) ? le.obligations[i] : le.obligation;
+          if (!isObj(ob) || ob.kind !== m[1]) continue;
+          const tag = (Array.isArray(le.link.optionTags) && le.link.optionTags[i]) || le.link.tag;
+          if (n.tags.includes(tag) || n.tags.includes(le.link.tag)) return true;
+        }
+      }
+      return false;
+    }
+    // relAtLeast / relBelow (wave 30): { npcId: { liking?, trust?, fear?, knows? } }; spark and romance are never readable.
+    function checkRel(v, path) {
+      if (!isObj(v) || !Object.keys(v).length) { err('engine.condition', path, 'should be { npcId: { liking, trust, fear, knows } }.'); return; }
+      for (const id of Object.keys(v)) {
+        const p = join(path, id);
+        if (!isNpc(id)) err('engine.condition', p, '"' + id + '" is nobody in the cast.');
+        const c = v[id];
+        if (!isObj(c) || !Object.keys(c).length) { err('engine.condition', p, 'should be { liking, trust, fear, knows }: what they must be at.'); continue; }
+        for (const k of Object.keys(c)) {
+          if (k === 'spark' || k === 'romance') { err('engine.condition.romance', join(p, k), k + ' is never readable by a town condition.'); continue; }
+          if (!REL_RANGES[k]) { err('engine.condition', join(p, k), 'is not a track: liking, trust, fear or knows.'); continue; }
+          if (!isInt(c[k]) || c[k] < REL_RANGES[k][0] || c[k] > REL_RANGES[k][1]) err('engine.condition', join(p, k), 'should be a whole number, ' + REL_RANGES[k][0] + ' to ' + REL_RANGES[k][1] + '.');
+        }
+      }
+    }
+    // requires (CONTRACTS section 3): what must hold when a seed or a clock fires.
+    function checkRequires(r, path) {
+      if (!keys(r, [], path, ['npcFree', 'npcAt', 'flagsSet', 'flagsUnset', 'obligationOpen', 'relAtLeast', 'relBelow'], 'engine.condition', true)) return;
+      if (!Object.keys(r).length) err('engine.condition', path, 'is empty: say what must hold, or leave requires out.');
+      if (r.relAtLeast !== undefined) checkRel(r.relAtLeast, join(path, 'relAtLeast'));
+      if (r.relBelow !== undefined) checkRel(r.relBelow, join(path, 'relBelow'));
+      if (r.npcFree !== undefined) npcList(r.npcFree, join(path, 'npcFree'));
+      if (r.npcAt !== undefined) {
+        const p = join(path, 'npcAt');
+        if (!isObj(r.npcAt) || !Object.keys(r.npcAt).length) err('engine.condition', p, 'should be { npcId: locationId }.');
+        else for (const k of Object.keys(r.npcAt)) {
+          if (!isNpc(k)) err('engine.condition', join(p, k), '"' + k + '" is nobody in the cast.');
+          if (!isLoc(r.npcAt[k])) err('engine.condition', join(p, k), JSON.stringify(r.npcAt[k]) + ' is no place.');
+        }
+      }
+      if (r.flagsSet !== undefined) flagList(r.flagsSet, join(path, 'flagsSet'));
+      if (r.flagsUnset !== undefined) flagList(r.flagsUnset, join(path, 'flagsUnset'));
+      if (r.obligationOpen !== undefined) {
+        const p = join(path, 'obligationOpen');
+        if (!Array.isArray(r.obligationOpen) || !r.obligationOpen.length) err('engine.condition', p, 'should list obligation ids.');
+        else r.obligationOpen.forEach((id, i) => { if (!obligationPossible(id)) err('engine.obligation', p + '[' + i + ']', JSON.stringify(id) + ' is no obligation a loose end can make (obl_<kind>_<npc id>).'); });
+      }
+    }
+    // alt: what happens instead when requires does not hold.
+    // skipEffects: a clock's alt, whose effects its completion check walks.
+    function checkAlt(a, path, maxSentences, requires, ending, skipEffects) {
+      if (!keys(a, ['text'], path, ['effects'], 'engine.condition', true)) return;
+      if (requires === undefined) err('engine.condition', path, 'an alt without requires never fires.');
+      text(a.text, join(path, 'text'), { maxSentences, max: 400 });
+      if (a.effects !== undefined && !skipEffects) effectList(a.effects, join(path, 'effects'), { max: 5, ending: ending === true });
+    }
+    // when (CONTRACTS section 11): an event branch's or the epilogue's conditions.
+    function checkWhen(w, path) {
+      if (!keys(w, [], path, ['flagsSet', 'flagsUnset', 'clockAtLeast', 'npcFree', 'attitudeAtLeast', 'relAtLeast', 'relBelow', 'obligationStatus', 'playerAt'], 'engine.condition', true)) return;
+      if (w.relAtLeast !== undefined) checkRel(w.relAtLeast, join(path, 'relAtLeast'));
+      if (w.relBelow !== undefined) checkRel(w.relBelow, join(path, 'relBelow'));
+      if (!Object.keys(w).length) err('engine.condition', path, 'is empty: a branch with no condition is the default.');
+      if (w.playerAt !== undefined) {
+        const p = join(path, 'playerAt');
+        if (!isLoc(w.playerAt)) err('engine.condition', p, JSON.stringify(w.playerAt) + ' is no place.');
+        else if (locOf(w.playerAt).away === true || locOf(w.playerAt).discovered === false) err('engine.condition', p, 'should be a town place on the map, where the player can be.');
+      }
+      if (w.flagsSet !== undefined) flagList(w.flagsSet, join(path, 'flagsSet'));
+      if (w.flagsUnset !== undefined) flagList(w.flagsUnset, join(path, 'flagsUnset'));
+      if (w.npcFree !== undefined) npcList(w.npcFree, join(path, 'npcFree'));
+      if (w.clockAtLeast !== undefined) {
+        const p = join(path, 'clockAtLeast');
+        if (!isObj(w.clockAtLeast) || !Object.keys(w.clockAtLeast).length) err('engine.condition', p, 'should be { factionId: segments }.');
+        else for (const k of Object.keys(w.clockAtLeast)) {
+          if (!isFac(k)) err('engine.condition', join(p, k), '"' + k + '" is no faction.');
+          if (!isInt(w.clockAtLeast[k]) || w.clockAtLeast[k] < 1) err('engine.condition', join(p, k), 'should be a whole number of segments, 1 or more.');
+        }
+      }
+      if (w.attitudeAtLeast !== undefined) {
+        const p = join(path, 'attitudeAtLeast');
+        if (!isObj(w.attitudeAtLeast) || !Object.keys(w.attitudeAtLeast).length) err('engine.condition', p, 'should be { npcId: attitude }.');
+        else for (const k of Object.keys(w.attitudeAtLeast)) {
+          if (!isNpc(k)) err('engine.condition', join(p, k), '"' + k + '" is nobody in the cast.');
+          if (!isInt(w.attitudeAtLeast[k]) || w.attitudeAtLeast[k] < -100 || w.attitudeAtLeast[k] > 100) err('engine.condition', join(p, k), 'should be an attitude, -100 to 100.');
+        }
+      }
+      if (w.obligationStatus !== undefined) {
+        const p = join(path, 'obligationStatus');
+        if (!isObj(w.obligationStatus) || !Object.keys(w.obligationStatus).length) err('engine.condition', p, 'should be { obligationId: "met" | "missed" | "lapsed" }.');
+        else for (const k of Object.keys(w.obligationStatus)) {
+          if (!obligationPossible(k)) err('engine.obligation', join(p, k), '"' + k + '" is no obligation a loose end can make (obl_<kind>_<npc id>).');
+          if (!OBLIGATION_STATUSES.includes(w.obligationStatus[k])) err('engine.condition', join(p, k), 'should be met, missed or lapsed.');
+        }
+      }
+    }
+    function effectList(list, path, opts) {
+      const o = opts || {};
+      if (!Array.isArray(list)) { err('engine.effect.fields', path, 'should be a list of effect ops.'); return; }
+      if (o.min !== undefined && list.length < o.min) err('house.effects.count', path, 'needs at least ' + o.min + ' effect op(s).');
+      // Wave 32: a tie's change (tieDelta) rides along and does not count toward the most.
+      if (o.max !== undefined && list.filter(e => !(isObj(e) && e.op === 'tieDelta')).length > o.max) err('house.effects.count', path, 'has more than ' + o.max + ' effect ops.');
+      list.forEach((e, i) => checkEffect(e, path + '[' + i + ']', o));
+    }
+    /* opts.ph: placeholders allowed (loose ends, templates); opts.world: the
+       town firing on its own (it never resolves a thread); opts.ending: the
+       epilogue and the seeds it plants; opts.settles: a town event's vote;
+       opts.protector / opts.price: a report's or a price's own placeholders;
+       opts.shallow: a complication's effects, filled by Dice (op and fields only). */
+    function checkEffect(e, path, opts) {
+      const o = opts || {};
+      const ph = o.ph === true;
+      if (!isObj(e)) { err('engine.effect.op', path, 'should be an effect: { op, ... }.'); return; }
+      if (!Object.prototype.hasOwnProperty.call(OPS, e.op) || (L.ops && !L.ops.includes(e.op))) { err('engine.effect.op', join(path, 'op'), JSON.stringify(e.op) + ' is not one of the engine\'s effect ops.'); return; }
+      keys(e, ['op'].concat(OPS[e.op]), path, OPS_OPTIONAL[e.op], 'engine.effect.fields', true);
+      if (o.shallow) return;
+      const V = 'engine.effect.value';
+      const REF = 'engine.effect.ref';
+      const p = k => join(path, k);
+      const textOf = (k, x) => text(e[k], p(k), Object.assign({ ph, more: o.more }, x));
+      switch (e.op) {
+        case 'closeLocation': case 'openLocation':
+          if (!isLoc(e.locationId)) err(REF, p('locationId'), JSON.stringify(e.locationId) + ' is no place.');
+          break;
+        case 'npcStatus':
+          if (!isNpc(e.npcId)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          if (!NPC_STATUSES.includes(e.status)) err(V, p('status'), JSON.stringify(e.status) + ' is not one of ' + NPC_STATUSES.join(', ') + '.');
+          if (e.by !== undefined) {
+            const by = npcOf(e.by);
+            if (!by) err(REF, p('by'), JSON.stringify(e.by) + ' is nobody in the cast.');
+            else if (e.status !== 'arrested') err(V, p('by'), 'only an arrest has an officer who made it.');
+            else if (!arr(by.tags).includes('police')) err(V, p('by'), e.by + ' should be tagged police to make an arrest.');
+          }
+          break;
+        case 'npcMove':
+          if (!isNpc(e.npcId)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          if (!isLoc(e.locationId)) err(REF, p('locationId'), JSON.stringify(e.locationId) + ' is no place.');
+          if (e.phases !== 'all') {
+            if (!Array.isArray(e.phases) || !e.phases.length) err(V, p('phases'), 'should be "all" or a list of phases.');
+            else {
+              if (new Set(e.phases).size !== e.phases.length) err(V, p('phases'), 'lists a phase twice.');
+              e.phases.forEach((x, i) => { if (!PHASES.includes(x)) err(V, p('phases') + '[' + i + ']', JSON.stringify(x) + ' is not a phase.'); });
+            }
+          }
+          break;
+        case 'attitudeDelta':
+          if (!npcRef(e.npcId, ph)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          delta(e.delta, p('delta'), 50);
+          break;
+        case 'priceMultiplier':
+          if (typeof e.factor !== 'number' || !(e.factor >= 0.5 && e.factor <= 2) || e.factor === 1) err(V, p('factor'), 'should be a number from 0.5 to 2, not 1.');
+          break;
+        case 'openThread':
+          checkThread(e.thread, p('thread'), 'open', true);
+          break;
+        case 'threadStatus':
+          if (!isThread(e.threadId)) err(REF, p('threadId'), JSON.stringify(e.threadId) + ' is no thread.');
+          if (!THREAD_STATUSES.includes(e.status)) err(V, p('status'), JSON.stringify(e.status) + ' is not one of ' + THREAD_STATUSES.join(', ') + '.');
+          // Content note 3: the world never resolves a thread (that would hand out story points).
+          if (e.status === 'resolved' && !o.ending) err('engine.effect.resolve', p('status'), 'the world may not resolve a thread: only the player earns a resolution.');
+          break;
+        case 'addRumour':
+          checkRumour(e.rumour, p('rumour'), true);
+          break;
+        case 'plantSeed':
+          checkSeed(e.seed, p('seed'), o.ending ? 'ending' : false, true);
+          break;
+        case 'factionRelation':
+          if (!isFac(e.a)) err(REF, p('a'), JSON.stringify(e.a) + ' is no faction.');
+          if (!isFac(e.b)) err(REF, p('b'), JSON.stringify(e.b) + ' is no faction.');
+          if (e.a === e.b) err(V, path, 'a and b should be two factions.');
+          delta(e.delta, p('delta'), 50);
+          break;
+        case 'setFlag':
+          if (typeof e.key !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]*$/.test(e.key)) err(V, p('key'), 'should be a flag name.');
+          else if (L.reserved.includes(e.key)) err('engine.flag.reserved', p('key'), 'the flag "' + e.key + '" belongs to the engine; use the matching op.');
+          if (!['boolean', 'number', 'string'].includes(typeof e.value)) err(V, p('value'), 'should be true, false, a number or a word.');
+          break;
+        case 'reputationDelta':
+          if (e.key !== 'town' && !isFac(e.key)) err(REF, p('key'), 'should be "town" or a faction id; it is ' + JSON.stringify(e.key) + '.');
+          delta(e.delta, p('delta'), 50);
+          break;
+        case 'playerGold':
+          delta(e.delta, p('delta'), 500);
+          break;
+        case 'playerHp':
+          delta(e.delta, p('delta'), 3);
+          if (e.allowDefeat !== undefined && typeof e.allowDefeat !== 'boolean') err(V, p('allowDefeat'), 'should be true or false.');
+          break;
+        case 'giveItem': case 'placeItem': case 'takeItem':
+          textOf('name', { max: 60, maxSentences: 0 });
+          if (e.notes !== undefined) textOf('notes', { max: 200, maxSentences: 2 });
+          // Wave 4: a thing left lying in a place (the player's, unless locationId names an in-town place).
+          if (e.op === 'placeItem' && e.locationId !== undefined && (!isLoc(e.locationId) || locOf(e.locationId).away === true)) err(REF, p('locationId'), JSON.stringify(e.locationId) + ' is no place in town.');
+          break;
+        case 'addCondition':
+          text(e.name, p('name'), { max: 40, maxSentences: 0 });
+          if (typeof e.effect !== 'string' || !CONDITION_EFFECT.test(e.effect)) err(V, p('effect'), 'should read like "-1 might" or "+1 charm, -1 wits"; it is ' + JSON.stringify(e.effect) + '.');
+          if (!isInt(e.days) || e.days < 1 || e.days > 7) err(V, p('days'), 'should be a whole number of days, 1 to 7.');
+          break;
+        case 'banFrom':
+          if (!isLoc(e.locationId)) err(REF, p('locationId'), JSON.stringify(e.locationId) + ' is no place.');
+          else if (locOf(e.locationId).away === true) err(REF, p('locationId'), '"' + e.locationId + '" is out of town.');
+          if (!isInt(e.days) || e.days < 1 || e.days > 7) err(V, p('days'), 'should be a whole number of days, 1 to 7.');
+          if (e.byNpcId !== undefined && !npcRef(e.byNpcId, ph)) err(REF, p('byNpcId'), JSON.stringify(e.byNpcId) + ' is nobody in the cast.');
+          break;
+        case 'playerPrice':
+          if (typeof e.factor !== 'number' || !(e.factor >= 0.5 && e.factor <= 2) || e.factor === 1) err(V, p('factor'), 'should be a number from 0.5 to 2, not 1.');
+          if (!isInt(e.days) || e.days < 1 || e.days > 10) err(V, p('days'), 'should be a whole number of days, 1 to 10.');
+          break;
+        case 'addMemory':
+          if (!npcRef(e.npcId, ph)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          textOf('text', { max: 200, maxSentences: 2 });
+          if (![1, 2, 3].includes(e.weight)) err(V, p('weight'), 'should be 1, 2 or 3.');
+          if (e.act !== undefined && e.act !== 'own') err(V, p('act'), 'should be "own" (what they did to the player), or left out.');
+          break;
+        case 'clockAdjust':
+          if (!isFac(e.factionId)) err(REF, p('factionId'), JSON.stringify(e.factionId) + ' is no faction.');
+          delta(e.delta, p('delta'), 2);
+          break;
+        case 'threadUpdate':
+          if (!isThread(e.threadId)) err(REF, p('threadId'), JSON.stringify(e.threadId) + ' is no thread.');
+          if (e.summary !== undefined) textOf('summary', { maxSentences: 3, max: 400 });
+          if (e.status !== undefined) {
+            if (!THREAD_STATUSES.includes(e.status)) err(V, p('status'), JSON.stringify(e.status) + ' is not one of ' + THREAD_STATUSES.join(', ') + '.');
+            // Wave 5: a town event's vote settles the thread it decides too.
+            if (e.status === 'resolved' && !o.ending && !o.settles) err('engine.effect.resolve', p('status'), 'the world may not resolve a thread: only the player earns a resolution, or the ending or a town event\'s vote settles it.');
+          }
+          if (e.knownToPlayer !== undefined && typeof e.knownToPlayer !== 'boolean') err(V, p('knownToPlayer'), 'should be true or false.');
+          if (e.summary === undefined && e.status === undefined && e.knownToPlayer === undefined) err(V, path, 'changes nothing: give a summary, a status or knownToPlayer.');
+          break;
+        case 'addObligation':
+          if (!OBLIGATION_KINDS.includes(e.kind)) err(V, p('kind'), 'should be one of ' + OBLIGATION_KINDS.join(', ') + '.');
+          if (!npcRef(e.npcId, ph)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          textOf('text', { max: 200, maxSentences: 1 });
+          // Wave 29: a price template's blackmail (its amount "{amount}", on "{leverageId}").
+          if (e.amount !== undefined && !(isInt(e.amount) && e.amount > 0) && !(o.price === true && e.amount === '{amount}')) err(V, p('amount'), 'should be a whole amount, or "{amount}" in a price template.');
+          if (e.dueOffset !== undefined && !(isInt(e.dueOffset) && e.dueOffset >= 1 && e.dueOffset <= 7)) err('engine.obligation', p('dueOffset'), 'should be a whole number of days, 1 to 7.');
+          if (e.leverageId !== undefined && !(o.price === true && e.leverageId === '{leverageId}')) err('engine.placeholder', p('leverageId'), 'should be "{leverageId}", in a price template only.');
+          if (e.missText !== undefined) textOf('missText', { max: 300, maxSentences: 1 });
+          if (e.onMet !== undefined) effectList(e.onMet, p('onMet'), Object.assign({}, o, { min: undefined, max: 3 }));
+          if (e.onMiss !== undefined) effectList(e.onMiss, p('onMiss'), Object.assign({}, o, { min: undefined, max: 3 }));
+          break;
+        case 'settleObligation':
+          if (!OBLIGATION_ID.test(String(e.id))) err('engine.obligation', p('id'), 'should be an obligation id, obl_<kind>_<npc id>.');
+          if (!OBLIGATION_STATUSES.includes(e.status)) err(V, p('status'), 'should be ' + OBLIGATION_STATUSES.join(', ') + '.');
+          break;
+        case 'owedSettle':
+          if (!npcRef(e.npcId, ph)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          if (e.dir !== undefined && e.dir !== 1 && e.dir !== -1) err(V, p('dir'), 'should be 1 or -1.');
+          break;
+        case 'leverageSet':
+          if (!(ph && e.id === '{leverageId}')) err('engine.placeholder', p('id'), 'should be "{leverageId}", in a tell template only.');
+          if (e.status !== undefined && !L.levStatuses.includes(e.status)) err(V, p('status'), 'should be one of ' + L.levStatuses.join(', ') + '.');
+          if (e.knownBy !== undefined && e.knownBy !== 'mattersTo' && !(Array.isArray(e.knownBy) && e.knownBy.every(isNpc))) err(REF, p('knownBy'), 'should be "mattersTo" or a list of people by id.');
+          for (const k of ['aware', 'playerKnows', 'tell']) if (e[k] !== undefined && typeof e[k] !== 'boolean') err(V, p(k), 'should be true or false.');
+          if (e.use !== undefined && L.events && !L.events.includes(e.use)) err(V, p('use'), JSON.stringify(e.use) + ' is not one of the engine\'s events.');
+          break;
+        case 'obligationPaid':
+          if (!(ph && e.id === '{obligationId}') && !OBLIGATION_ID.test(String(e.id))) err('engine.obligation', p('id'), 'should be an obligation id obl_<kind>_<npc id>, or "{obligationId}" in an obligation\'s own effects.');
+          if (!isInt(e.amount) || e.amount < 1) err(V, p('amount'), 'should be a whole amount, 1 or more.');
+          if (e.take !== undefined && typeof e.take !== 'boolean') err(V, p('take'), 'should be true or false.');
+          break;
+        case 'addNews':
+          textOf('text', { max: 300, maxSentences: 2 });
+          if (e.factionId !== undefined && !isFac(e.factionId)) err(REF, p('factionId'), JSON.stringify(e.factionId) + ' is no faction.');
+          if (e.public !== undefined && typeof e.public !== 'boolean') err(V, p('public'), 'should be true or false.');
+          break;
+        case 'tieDelta':
+          // Wave 32: two people of the cast, liking and trust within +/-100 (at least one, or known), why in a few words.
+          if (!isNpc(e.fromId)) err(REF, p('fromId'), JSON.stringify(e.fromId) + ' is nobody in the cast.');
+          if (!isNpc(e.toId)) err(REF, p('toId'), JSON.stringify(e.toId) + ' is nobody in the cast.');
+          if (e.fromId === e.toId) err(V, path, 'a tie is between two people.');
+          for (const k of ['w', 't']) if (e[k] !== undefined && (!isInt(e[k]) || Math.abs(e[k]) > 100)) err(V, p(k), 'should be a whole number within +/-100.');
+          if (e.known !== undefined && typeof e.known !== 'boolean') err(V, p('known'), 'should be true or false.');
+          if (!e.w && !e.t && e.known !== true) err(V, path, 'needs w, t or known.');
+          text(e.why, p('why'), { max: 80, maxSentences: 1 });
+          break;
+        case 'propagate':
+          // Wave 32: an event that travels the town's ties, from someone, at a factor.
+          if (!npcRef(e.npcId, ph)) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          if (L.events && !L.events.includes(e.event)) err(V, p('event'), JSON.stringify(e.event) + ' is not one of the engine\'s events.');
+          else if (L.stays.includes(e.event)) err(V, p('event'), e.event + ' does not travel the town\'s ties (Rel.STAYS).');
+          if (e.factor !== undefined && !(typeof e.factor === 'number' && e.factor >= 0.1 && e.factor <= 2)) err(V, p('factor'), 'should be a number from 0.1 to 2.');
+          if (e.via !== undefined && !['now', 'overnight', 'morning', 'meet'].includes(e.via)) err(V, p('via'), 'should be now, overnight, morning or meet.');
+          if (e.text !== undefined) textOf('text', { max: 200, maxSentences: 2 });
+          break;
+        case 'socialEvent':
+          // Wave 26: the person, an event of Rel.EVENTS, what they would remember. Wave 27: a report's {protectorId}.
+          if (!npcRef(e.npcId, ph) && !(o.protector === true && e.npcId === '{protectorId}')) err(REF, p('npcId'), JSON.stringify(e.npcId) + ' is nobody in the cast.');
+          if (e.public !== undefined && typeof e.public !== 'boolean') err(V, p('public'), 'should be true or false.');
+          if (L.events && !L.events.includes(e.event)) err(V, p('event'), JSON.stringify(e.event) + ' is not one of the engine\'s events.');
+          textOf('text', { max: 200, maxSentences: 2 });
+          if (e.weight !== undefined && ![1, 2, 3].includes(e.weight)) err(V, p('weight'), 'should be 1, 2 or 3.');
+          if (e.act !== undefined && e.act !== 'own') err(V, p('act'), 'should be "own" (what they did to the player), or left out.');
+          if (e.aboutId !== undefined && !npcRef(e.aboutId, ph)) err(REF, p('aboutId'), JSON.stringify(e.aboutId) + ' is nobody in the cast.');
+          for (const k of ['private', 'secondhand']) if (e[k] !== undefined && typeof e[k] !== 'boolean') err(V, p(k), 'should be true or false.');
+          if (e.leverageId !== undefined && !(typeof e.leverageId === 'string' && (/^lev_[a-z0-9_]+$/.test(e.leverageId) || (ph && e.leverageId === '{leverageId}')))) err(V, p('leverageId'), 'should be a leverage id, lev_<npc>_<n>.');
+          if (e.decay !== undefined && L.decay && !L.decay.includes(e.decay)) err(V, p('decay'), 'should be one of ' + L.decay.join(', ') + '.');
+          if (e.scale !== undefined && !(typeof e.scale === 'number' && e.scale >= 0.1 && e.scale <= 2)) err(V, p('scale'), 'should be a number from 0.1 to 2.');
+          if (e.d !== undefined) {
+            if (!isObj(e.d) || !Object.keys(e.d).length) err(V, p('d'), 'should be an object of tracks (w, t, f, k, s, m).');
+            else for (const k of Object.keys(e.d)) {
+              if (!REL_TRACKS.includes(k)) err(V, join(p('d'), k), 'is not a track (w, t, f, k, s, m).');
+              else delta(e.d[k], join(p('d'), k), 50);
+              // Spark never moves from content: the romance list decides it (wave 29), and nobody under 18 is ever on it.
+              if (k === 's' && e.d.s > 0) err('engine.effect.spark', join(p('d'), k), 'spark is never given by content.');
+            }
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    // ----- section 5: factions and their clocks -----
+    if (factions.length !== 3) err('house.factions.count', 'world.factions', 'should be 3 factions; there are ' + factions.length + '.');
+    let negativePairs = 0;
+    let failedThreads = 0;
+    const segmentCounts = [];
+    factions.forEach((f, i) => {
+      const fp = 'world.factions[' + i + ']';
+      if (!keys(f, ['id', 'name', 'goal', 'methods', 'clocks', 'activeClock', 'relations'], fp, [], 'engine.faction.fields', false)) return;
+      str(f.name, fp + '.name', { noPlaceholders: true });
+      str(f.goal, fp + '.goal', { noPlaceholders: true, maxSentences: 2 });
+      str(f.methods, fp + '.methods', { noPlaceholders: true, maxSentences: 2 });
+      const clocks = arr(f.clocks);
+      if (!clocks.length) err('lint.faction.noClocks', fp + '.clocks', 'this faction has no clocks, so it never moves on its own.');
+      else if (clocks.length < 2 || clocks.length > 3) err('house.factions.clocks', fp + '.clocks', 'should be 2 or 3 clocks.');
+      if (isInt(f.activeClock) && (f.activeClock < -1 || f.activeClock >= Math.max(1, clocks.length))) err('engine.faction.fields', fp + '.activeClock', 'should name one of its clocks (0 to ' + (clocks.length - 1) + ').');
+      if (f.activeClock !== 0) err('house.clock.start', fp + '.activeClock', 'should be 0: the first clock runs first.');
+      clocks.forEach((c, ci) => {
+        const cp = fp + '.clocks[' + ci + ']';
+        if (!keys(c, ['label', 'segments', 'filled', 'onComplete'], cp, [], 'engine.clock.fields', false)) return;
+        str(c.label, cp + '.label', { noPlaceholders: true });
+        if (!isInt(c.segments) || c.segments < 1) err('engine.clock.fields', cp + '.segments', 'should be a whole number of segments.');
+        // Staggered factions (REVIEW section 3.4): 4 to 10 segments, the same within a faction.
+        else if (c.segments < 4 || c.segments > 10) err('house.clock.segments', cp + '.segments', 'should be 4 to 10 segments; it is ' + c.segments + '.');
+        else if (ci > 0 && isObj(clocks[0]) && c.segments !== clocks[0].segments) err('house.clock.segments', cp + '.segments', 'a faction\'s clocks share one segment count (' + clocks[0].segments + ').');
+        if (ci === 0 && isInt(c.segments)) segmentCounts.push(c.segments);
+        if (!isInt(c.filled) || c.filled < 0 || (isInt(c.segments) && c.filled >= c.segments)) err('engine.clock.fields', cp + '.filled', 'should be a whole number below its segments.');
+        else if (c.filled !== 0) err('house.clock.start', cp + '.filled', 'should be 0 at the start.');
+        const oc = c.onComplete;
+        if (!keys(oc, ['text', 'effects'], cp + '.onComplete', ['requires', 'alt'], 'engine.clock.fields', false)) return;
+        str(oc.text, cp + '.onComplete.text', { sentences: 1, noPlaceholders: true });
+        const completion = (list, lp) => {
+          const counted = Array.isArray(list) ? list.filter(e => !(isObj(e) && e.op === 'tieDelta')).length : 0;
+          if (!Array.isArray(list)) { err('engine.effect.fields', lp, 'should be a list of effect ops.'); return; }
+          // Wave 32: a tie's change (tieDelta) does not count toward the five.
+          if (counted < 2 || counted > 5) err('house.clock.effects', lp, 'should be 2 to 5 effect ops (a tieDelta besides); it has ' + counted + '.');
+          list.forEach((e, ei) => checkEffect(e, lp + '[' + ei + ']', { world: true }));
+          if (new Set(list.map(e => isObj(e) && e.op)).size < 2) err('house.clock.effects', lp, 'should use at least 2 different ops so the town visibly changes.');
+          // Content note 2: every clock completion adds its own rumour, exactly one.
+          const rumours = list.filter(e => isObj(e) && e.op === 'addRumour').length;
+          if (rumours !== 1) err('house.clock.rumour', lp, 'should add exactly one rumour about the completion; it adds ' + rumours + '.');
+          failedThreads += list.filter(e => isObj(e) && e.op === 'threadStatus' && e.status === 'failed').length;
+          // A faction never sets its own clock back from its own completion: the next clock starts at 0 anyway.
+          list.forEach((e, ei) => { if (isObj(e) && e.op === 'clockAdjust' && e.factionId === f.id) err('house.clock.selfReset', lp + '[' + ei + ']', 'a completion adjusts another faction\'s clock, not its own.'); });
+        };
+        completion(oc.effects, cp + '.onComplete.effects');
+        if (oc.requires !== undefined) checkRequires(oc.requires, cp + '.onComplete.requires');
+        if (oc.alt !== undefined) {
+          checkAlt(oc.alt, cp + '.onComplete.alt', 1, oc.requires, false, true);
+          if (isObj(oc.alt)) completion(oc.alt.effects, cp + '.onComplete.alt.effects');
+        }
+      });
+      if (!isObj(f.relations)) return;
+      const rp = fp + '.relations';
+      for (const o of factions) if (isObj(o) && o.id !== f.id && !(o.id in f.relations)) err('engine.faction.relations', rp, 'has no relation to ' + o.id + '.');
+      for (const k of Object.keys(f.relations)) {
+        const v = f.relations[k];
+        if (!isFac(k) || k === f.id) err('engine.faction.relations', join(rp, k), '"' + k + '" is no other faction.');
+        if (!isInt(v) || v < -100 || v > 100) err('engine.faction.relations', join(rp, k), 'should be a whole number, -100 to 100.');
+        const other = val(ctx.factions, k);
+        if (other && isObj(other.relations) && other.relations[f.id] !== v) err('engine.faction.relations', join(rp, k), 'does not match ' + k + '\'s relation to ' + f.id + '.');
+        if (f.id < k && isInt(v) && v < 0) negativePairs++;
+      }
+    });
+    if (factions.length === 3 && negativePairs < 2) err('house.factions.relations', 'world.factions', 'relations should be mostly negative (at least 2 of 3 pairs).');
+    // Content note 3: at most one clock sets a thread to failed (its alternative may too).
+    if (failedThreads > 2) err('house.clock.failsThread', 'world.factions', 'at most one clock may fail a thread; ' + failedThreads + ' do.');
+    if (segmentCounts.length === factions.length && factions.length > 1 && new Set(segmentCounts).size < 2) err('house.clock.stagger', 'world.factions', 'stagger the factions: give at least two of them different segment counts (all are ' + segmentCounts[0] + ').');
+
+    // ----- threads -----
+    const threads = arr(W.threads);
+    if (threads.length < 2 || threads.length > 3) err('house.threads.count', 'world.threads', 'should be 2 or 3 threads; there are ' + threads.length + '.');
+    threads.forEach((t, i) => checkThread(t, 'world.threads[' + i + ']', 'open', false));
+
+    // ----- seeds -----
+    // Wave 27: a seed marked danger (someone in trouble the player can step in on) is counted on its own.
+    const seeds = arr(W.seeds);
+    const isDanger = s => isObj(s) && s.danger !== undefined;
+    const plain = seeds.filter(s => !isDanger(s));
+    const danger = seeds.filter(isDanger);
+    if (plain.length < 5 || plain.length > 8) err('house.seeds.count', 'world.seeds', 'should be 5 to 8 seeds besides the danger ones; there are ' + plain.length + '.');
+    if (danger.length < 3 || danger.length > 4) err('house.seeds.count', 'world.seeds', 'should be 3 or 4 danger seeds; there are ' + danger.length + '.');
+    seeds.forEach((s, i) => {
+      const sp = 'world.seeds[' + i + ']';
+      if (!isObj(s)) { err('engine.seed.fields', sp, 'should be an object.'); return; }
+      // notBeforeDay: a starting seed that waits (the engine's own field for loose-end seeds).
+      if (s.notBeforeDay !== undefined && (!isInt(s.notBeforeDay) || s.notBeforeDay < 2 || s.notBeforeDay > 15)) err('engine.trigger', sp + '.notBeforeDay', 'should be a day, 2 to 15.');
+      /* danger (wave 27): true, or the ids of who is in danger; it happens
+         where its location trigger is, to people who are there and free. */
+      if (isDanger(s)) {
+        const d = s.danger;
+        const ids = typeof d === 'string' ? [d] : Array.isArray(d) ? d : null;
+        if (d !== true && !(ids && ids.length && ids.every(isNpc))) err('engine.seed.danger', sp + '.danger', 'should be true, or the ids of who is in danger.');
+        if (!isObj(s.trigger) || s.trigger.type !== 'location') err('engine.seed.danger', sp + '.trigger', 'a danger seed happens somewhere: give it a location trigger.');
+        const named = npcs.filter(n => isObj(n) && typeof n.name === 'string' && typeof s.effect === 'string' && s.effect.includes(n.name));
+        if (named.length < 2) err('engine.seed.danger', sp + '.effect', 'a danger seed names the one doing it and who is in danger, by their full names.');
+        if (!isObj(s.requires) || !Array.isArray(s.requires.npcFree) || named.some(n => !s.requires.npcFree.includes(n.id))) err('engine.seed.danger', sp + '.requires.npcFree', 'everyone it names should be free (requires.npcFree).');
+      }
+      checkSeed(s, sp, true, false);
+      // Content note 1 (the modern brief): a starting seed waits for a day, a place or a person.
+      if (isObj(s.trigger) && s.trigger.type === 'clock') err('house.seeds.trigger', sp + '.trigger.type', 'a starting seed uses a day, location or npc trigger.');
+      // A location seed on a start location would fire on arrival, before the player has done anything, unless it waits.
+      const at = isObj(s.trigger) && s.trigger.type === 'location' ? [].concat(s.trigger.value) : [];
+      if (at.some(v => Object.values(start).includes(v)) && !(isInt(s.notBeforeDay) && s.notBeforeDay >= 2)) err('engine.trigger', sp + '.trigger.value', 'a start location would fire it on arrival: give it notBeforeDay.');
+    });
+    if (plain.filter(s => isObj(s.trigger) && s.trigger.type !== 'day').length > 1) err('house.seeds.trigger', 'world.seeds', 'at most one starting seed (besides the danger ones) uses a trigger other than a day.');
+
+    // ----- rumours: the talk at the start, each with two people or more who can pass it on (REVIEW section 4) -----
+    const rumours = arr(W.rumours);
+    if (rumours.length < 10 || rumours.length > 20) err('house.rumours.count', 'world.rumours', 'should be 10 to 20 rumours; there are ' + rumours.length + '.');
+    rumours.forEach((r, i) => {
+      const rp = 'world.rumours[' + i + ']';
+      checkRumour(r, rp, false);
+      if (isObj(r) && isNpc(r.sourceNpcId) && tellersOf(r).size < 2) err('engine.rumour.tellers', rp + '.tellerIds', 'only ' + r.sourceNpcId + ' can tell it: give it a factionId or tellerIds.');
+    });
+    const trueCount = rumours.filter(r => isObj(r) && r.true === true).length;
+    const falseCount = rumours.filter(r => isObj(r) && r.true === false).length;
+    if (falseCount < 3 || trueCount < falseCount * 2) err('house.rumours.truth', 'world.rumours', 'should be at least 3 false and twice as many true; there are ' + trueCount + ' true and ' + falseCount + ' false.');
+
+    // ----- town events (CONTRACTS section 11) -----
+    /* The people a branch's text has acting: anyone named by full name or by
+       a name only they have, except as an owner ("Hollis Byrd's chair
+       empty"): that is about them, not done by them. */
+    function actorsIn(t) {
+      const named = npcs.filter(n => isObj(n) && typeof n.name === 'string').map(n => ({ id: n.id, names: [n.name].concat(npcAliases(n)) }));
+      let s = String(t || '');
+      for (const n of named) for (const a of n.names) s = s.replace(new RegExp('\\b' + esc(a) + '\'s\\b', 'g'), ' ');
+      return named.filter(n => n.names.some(a => new RegExp('\\b' + esc(a) + '\\b').test(s))).map(n => n.id);
+    }
+    function checkBranch(b, path, isDefault, maxSentences, maxChars, opts) {
+      const o = opts || {};
+      const rule = o.ending ? 'engine.epilogue' : 'engine.event';
+      if (!keys(b, isDefault ? ['text', 'effects'] : ['when', 'text', 'effects'], path, [], rule, false)) return;
+      if (!isDefault) checkWhen(b.when, path + '.when');
+      text(b.text, path + '.text', { maxSentences, max: maxChars });
+      effectList(b.effects, path + '.effects', { max: 8, world: true, ending: o.ending === true, settles: o.settles === true });
+      if (o.actorsFree && typeof b.text === 'string') {
+        const free = isObj(b.when) && Array.isArray(b.when.npcFree) ? b.when.npcFree : [];
+        actorsIn(b.text).forEach(id => { if (!free.includes(id)) err('engine.event.actors', path + '.when.npcFree', 'the text has ' + id + ' acting: add them to npcFree (or write the branch for their empty chair).'); });
+      }
+    }
+    arr(W.events).forEach((ev, i) => {
+      const ep = 'world.events[' + i + ']';
+      if (!keys(ev, ['id', 'day', 'phase', 'locationId', 'title', 'branches', 'default'], ep, ['attendees'], 'engine.event', false)) return;
+      // attendees: the people at the place for that phase when it happens (World brings them, if free).
+      if (ev.attendees !== undefined) {
+        if (!Array.isArray(ev.attendees) || !ev.attendees.length) err('engine.event.attendees', ep + '.attendees', 'should list people by id.');
+        else ev.attendees.forEach((id, k) => {
+          const ap = ep + '.attendees[' + k + ']';
+          if (!isNpc(id)) err('engine.event.attendees', ap, JSON.stringify(id) + ' is nobody in the cast.');
+          else if (presenceOf(npcOf(id)) !== 'here') err('engine.event.attendees', ap, '"' + id + '" does not live in town.');
+          if (ev.attendees.indexOf(id) !== k) err('engine.event.attendees', ap, 'is listed twice.');
+        });
+      }
+      if (!isInt(ev.day) || ev.day < 2 || ev.day > 30) err('engine.event', ep + '.day', 'should be a day, 2 to 30.');
+      if (!PHASES.includes(ev.phase)) err('engine.event', ep + '.phase', 'should be one of ' + PHASES.join(', ') + '.');
+      if (!isLoc(ev.locationId)) err('engine.event', ep + '.locationId', JSON.stringify(ev.locationId) + ' is no place.');
+      else if (locOf(ev.locationId).away === true || locOf(ev.locationId).discovered === false) err('engine.event', ep + '.locationId', 'should be a town place on the map, where the player can be.');
+      str(ev.title, ep + '.title', { noPlaceholders: true, maxSentences: 0 });
+      if (!Array.isArray(ev.branches) || ev.branches.length < 2) err('engine.event.branches', ep + '.branches', 'should be at least two branches besides the default.');
+      else ev.branches.forEach((b, bi) => checkBranch(b, ep + '.branches[' + bi + ']', false, 4, 700, { actorsFree: true, settles: true }));
+      // The default is what happens when no branch's people are all free: it names nobody acting.
+      checkBranch(ev.default, ep + '.default', true, 4, 700, { actorsFree: true });
+      // The news line the event leaves: every branch says something in public.
+      const all = arr(ev.branches).concat([ev.default]);
+      all.forEach((b, bi) => {
+        if (isObj(b) && Array.isArray(b.effects) && !b.effects.some(e => isObj(e) && e.op === 'addNews' && e.public === true)) err('engine.event.news', (bi < all.length - 1 ? ep + '.branches[' + bi + ']' : ep + '.default') + '.effects', 'needs an addNews with public true (what the town hears).');
+      });
+    });
+
+    // ----- the epilogue: an ending told on a day, or sooner when a flag decides it -----
+    if (W.epilogue !== undefined) {
+      const E = W.epilogue;
+      if (keys(E, ['onDay', 'orFlagsSet', 'branches', 'default'], 'world.epilogue', [], 'engine.epilogue', false)) {
+        if (!isInt(E.onDay) || E.onDay < 10 || E.onDay > 40) err('house.epilogue.day', 'world.epilogue.onDay', 'should be a day, 10 to 40.');
+        else if (E.onDay > ENDING_DAYS[0]) err('engine.epilogue', 'world.epilogue.onDay', 'aftermath seeds wait for day ' + ENDING_DAYS[0] + ' or later: the ending comes by then.');
+        flagList(E.orFlagsSet, 'world.epilogue.orFlagsSet');
+        const branches = arr(E.branches);
+        if (!Array.isArray(E.branches) || !branches.length) err('engine.epilogue', 'world.epilogue.branches', 'should list the endings.');
+        // Wave 5: seven, so the open-bridge ending settles the police both ways.
+        else if (branches.length < 3 || branches.length > 7) err('house.epilogue.branches', 'world.epilogue.branches', 'should be 3 to 7 branches; there are ' + branches.length + '.');
+        branches.forEach((b, bi) => {
+          const bp = 'world.epilogue.branches[' + bi + ']';
+          checkBranch(b, bp, false, 6, 900, { ending: true });
+          if (!isObj(b)) return;
+          if (typeof b.text === 'string' && HOW_LONG.test(b.text)) err('house.epilogue.howLong', bp + '.text', 'says how long it has been ("' + HOW_LONG.exec(b.text)[0] + '"), but a flag can bring this ending before day ' + E.onDay + '.');
+          if (!arr(b.effects).some(e => isObj(e) && (e.op === 'threadUpdate' || e.op === 'threadStatus') && (e.status === 'resolved' || e.status === 'failed'))) err('house.epilogue.settles', bp + '.effects', 'an ending settles the story: set a thread resolved or failed.');
+        });
+        checkBranch(E.default, 'world.epilogue.default', true, 6, 900, { ending: true });
+        branches.concat([E.default]).forEach((b, bi) => {
+          if (!isObj(b) || !Array.isArray(b.effects)) return;
+          const n = b.effects.filter(e => isObj(e) && e.op === 'plantSeed').length;
+          if (n < 2 || n > 3) err('house.epilogue.aftermath', (bi < branches.length ? 'world.epilogue.branches[' + bi + ']' : 'world.epilogue.default') + '.effects', 'should plant 2 or 3 aftermath seeds (what happens next); it plants ' + n + '.');
+        });
+      }
+    }
+
+    // ----- no placeholders in the world, outside the templates and the strings the engine fills -----
+    const FILLED = ['tables', 'grudgeTemplates', 'favourTemplates'];
+    (function walk(v, path) {
+      if (typeof v === 'string') { if (/[{}]/.test(v)) err('engine.text.placeholder', path, 'a {placeholder} here is never filled: they belong in the loose ends and the templates.'); return; }
+      if (Array.isArray(v)) v.forEach((x, i) => walk(x, path + '[' + i + ']'));
+      else if (isObj(v)) for (const k of Object.keys(v)) {
+        if (path === 'world' && FILLED.includes(k)) continue;
+        if (path === 'world.law' && k === 'newsTemplate') continue;
+        walk(v[k], join(path, k));
+      }
+    })(W, 'world');
+
+    // ----- section 6: the tables -----
+    const T = isObj(W.tables) ? W.tables : null;
+    const castFirsts = new Set(npcs.filter(n => isObj(n) && typeof n.name === 'string').map(n => { const parts = n.name.split(/\s+/); return parts.length > 2 ? parts[1] : parts[0]; }));
+    if (T) {
+      for (const group of Object.keys(TABLE_SPEC)) {
+        const spec = TABLE_SPEC[group];
+        const gp = 'world.tables.' + group;
+        if (T[group] === undefined) { err('engine.tables', gp, 'is missing: the engine draws from it.'); continue; }
+        if (group === 'complications') {
+          const list = T.complications;
+          if (!Array.isArray(list)) continue;
+          if (list.length !== spec) err('house.tables.count', gp, 'should have ' + spec + ' entries; it has ' + list.length + '.');
+          const seen = new Set();
+          list.forEach((c, i) => {
+            const cp = gp + '[' + i + ']';
+            if (!keys(c, ['text', 'tiers', 'kinds'], cp, [], 'engine.complication', false)) return;
+            if (str(c.text, cp + '.text') && /[{}]/.test(c.text.replace(/\{witness\}/g, ''))) err('engine.placeholder', cp + '.text', 'the one placeholder a complication has is {witness}.');
+            if (typeof c.text === 'string') { if (seen.has(c.text.toLowerCase())) err('house.tables.duplicate', cp + '.text', 'repeats another complication.'); seen.add(c.text.toLowerCase()); }
+            if (!Array.isArray(c.tiers) || !c.tiers.length || !c.tiers.every(t => COMPLICATION_TIERS.includes(t))) err('engine.complication', cp + '.tiers', 'should list ' + COMPLICATION_TIERS.join(', ') + '.');
+            if (!Array.isArray(c.kinds) || !c.kinds.length || !c.kinds.every(k => COMPLICATION_KINDS.includes(k))) err('engine.complication', cp + '.kinds', 'should list ' + COMPLICATION_KINDS.join(', ') + '.');
+            if (/\{witness(Id)?\}/.test(JSON.stringify(c.text) + JSON.stringify(c.effects || [])) && c.needsPerson !== true) err('engine.complication', cp + '.needsPerson', 'names {witness}, so it needs someone present (needsPerson true).');
+            if (c.effects !== undefined) {
+              if (!Array.isArray(c.effects)) err('engine.complication', cp + '.effects', 'should be a list of effect ops.');
+              else c.effects.forEach((e, ei) => checkEffect(e, cp + '.effects[' + ei + ']', { shallow: true }));
+            }
+          });
+          continue;
+        }
+        if (!isObj(T[group])) continue;
+        for (const key of Object.keys(spec)) {
+          const kp = gp + '.' + key;
+          const list = T[group][key];
+          if (list === undefined) { err('engine.tables', kp, 'is missing: the engine draws from it.'); continue; }
+          if (group === 'items' && key === 'goods') {
+            if (!Array.isArray(list)) continue;
+            if (list.length !== spec[key]) err('house.tables.count', kp, 'should have ' + spec[key] + ' entries; it has ' + list.length + '.');
+            // A good's name names no place (it is bought wherever the player is), and its kind says what buying it does.
+            const placeNames = [];
+            arr(W.locations).forEach(l => {
+              if (!isObj(l)) return;
+              [l.name, isObj(l.map) && l.map.label].concat(arr(l.aka)).forEach(k => {
+                if (typeof k !== 'string') return;
+                const bare = k.replace(/^the /i, '');
+                if (/[A-Z]/.test(bare)) placeNames.push(bare.toLowerCase());
+              });
+            });
+            const seen = new Set();
+            list.forEach((g, gi) => {
+              const gp2 = kp + '[' + gi + ']';
+              if (!keys(g, ['name', 'price', 'kind'], gp2, [], 'engine.goods', false)) return;
+              str(g.name, gp2 + '.name', { noPlaceholders: true });
+              if (!GOOD_KINDS.includes(g.kind)) err('engine.goods', gp2 + '.kind', 'should be one of ' + GOOD_KINDS.join(', ') + '; it is ' + JSON.stringify(g.kind) + '.');
+              if (typeof g.name === 'string') {
+                const hit = placeNames.find(x => new RegExp('\\b' + esc(x) + '\\b').test(g.name.toLowerCase()));
+                if (hit) err('house.goods.name', gp2 + '.name', 'names a place ("' + hit + '"); a good is bought wherever the player is.');
+                if (seen.has(g.name.toLowerCase())) err('engine.goods', gp2 + '.name', 'repeats the good "' + g.name + '".');
+                seen.add(g.name.toLowerCase());
+              }
+              if (!isInt(g.price) || g.price < 0) err('engine.goods', gp2 + '.price', 'should be a whole price.');
+              // Modern: whole dollars, small-town prices.
+              else if (g.price < 2 || g.price > 400) err('house.goods.price', gp2 + '.price', 'should be 2 to 400 dollars; it is ' + g.price + '.');
+            });
+          } else strList(list, kp, spec[key], { noPlaceholders: true });
+        }
+      }
+      if (isObj(T.npc)) arr(T.npc.firstNames).forEach((f, i) => { if (castFirsts.has(f)) err('house.tables.firstNames', 'world.tables.npc.firstNames[' + i + ']', '"' + f + '" is already a first name in the cast.'); });
+    }
+
+    // ----- section 7: character creation -----
+    const backgrounds = arr(PL.backgrounds);
+    if (backgrounds.length !== 6) err('house.backgrounds.count', 'player.backgrounds', 'should be 6 backgrounds; there are ' + backgrounds.length + '.');
+    const arrivals = new Set();
+    backgrounds.forEach((b, i) => {
+      const bp = 'player.backgrounds[' + i + ']';
+      if (!keys(b, ['id', 'name', 'blurb', 'age', 'stats', 'gold', 'items', 'arrival'], bp, ['hook'], 'engine.background', false)) return;
+      // A first lead for this background (REVIEW section 4): someone of the cast with work or a question for this kind of stranger.
+      if (b.hook !== undefined && keys(b.hook, ['npcId', 'text', 'dayOffset', 'trigger'], bp + '.hook', [], 'engine.background.hook', false)) {
+        const hk = b.hook;
+        const hp = bp + '.hook';
+        if (!isNpc(hk.npcId)) err('engine.background.hook', hp + '.npcId', JSON.stringify(hk.npcId) + ' is nobody in the cast.');
+        else if (presenceOf(npcOf(hk.npcId)) !== 'here') err('engine.background.hook', hp + '.npcId', hk.npcId + ' does not live in town.');
+        str(hk.text, hp + '.text', { maxSentences: 1 });
+        placeholders(hk.text, hp + '.text', ['{player}']);
+        if (hk.dayOffset !== 0 && hk.dayOffset !== 1) err('engine.background.hook', hp + '.dayOffset', 'should be 0 or 1.');
+        if (keys(hk.trigger, ['type', 'value'], hp + '.trigger', [], 'engine.background.hook', false)) {
+          const tr = hk.trigger;
+          const tp = hp + '.trigger.value';
+          if (tr.type === 'npc') { if (!isNpc(tr.value)) err('engine.background.hook', tp, JSON.stringify(tr.value) + ' is nobody in the cast.'); else if (tr.value !== hk.npcId) err('engine.background.hook', tp, 'an npc hook fires when the player meets its own person, ' + hk.npcId + '.'); }
+          else if (tr.type === 'location') { if (!isLoc(tr.value) || locOf(tr.value).away === true) err('engine.background.hook', tp, JSON.stringify(tr.value) + ' is no town place.'); }
+          else if (tr.type === 'day') { if (!isInt(tr.value) || tr.value < 1 || tr.value > 7) err('engine.background.hook', tp, 'should be a day, 1 to 7.'); }
+          else err('engine.background.hook', hp + '.trigger.type', 'should be npc, location or day.');
+        }
+      }
+      // The age the creation form starts at for this background.
+      if (!isInt(b.age) || b.age < 16 || b.age > 90) err('engine.background', bp + '.age', 'should be a whole number of years, 16 to 90.');
+      str(b.name, bp + '.name', { noPlaceholders: true });
+      str(b.blurb, bp + '.blurb', { sentences: 1, noPlaceholders: true });
+      if (keys(b.stats, STATS, bp + '.stats', [], 'engine.background', false)) {
+        let sum = 0;
+        for (const k of STATS) {
+          const v = b.stats[k];
+          if (!isInt(v) || v < -1 || v > 3) err('engine.background', bp + '.stats.' + k, 'should be a whole number, -1 to 3.');
+          else sum += v;
+        }
+        if (sum !== 3) err('house.background.stats', bp + '.stats', 'should total 3; they total ' + sum + '.');
+      }
+      // Modern: starting cash in dollars (the field keeps the name "gold").
+      if (!isInt(b.gold) || b.gold < 0) err('engine.background', bp + '.gold', 'should be a whole amount of money.');
+      else if (b.gold < 20 || b.gold > 400) err('house.background.cash', bp + '.gold', 'should be 20 to 400 dollars; it is ' + b.gold + '.');
+      // Two things from the background and a cheap prepaid phone, so the people who live elsewhere can be reached.
+      if (!Array.isArray(b.items) || b.items.length !== 3) err('house.background.items', bp + '.items', 'should be 3 things: two of the background\'s own and a prepaid phone.');
+      else if (!b.items.some(it => isObj(it) && it.name === 'Prepaid phone')) err('house.background.items', bp + '.items', 'every background carries a "Prepaid phone".');
+      arr(b.items).forEach((it, ii) => {
+        const ip = bp + '.items[' + ii + ']';
+        if (!keys(it, ['id', 'name', 'qty', 'notes'], ip, [], 'engine.background', false)) return;
+        str(it.name, ip + '.name', { noPlaceholders: true });
+        if (typeof it.name === 'string' && VEHICLE_RE.test(it.name)) err('house.background.items', ip + '.name', 'a starting thing is never a vehicle ("' + it.name + '").');
+        if (!isInt(it.qty) || it.qty < 1) err('engine.background', ip + '.qty', 'should be a whole number, 1 or more.');
+        if (typeof it.notes !== 'string') err('engine.background', ip + '.notes', 'should be text (it may be empty).');
+        else if (it.notes) str(it.notes, ip + '.notes', { noPlaceholders: true });
+      });
+      // Where they arrive: a key of world.startLocationIds (gate, docks).
+      if (typeof b.arrival !== 'string' || !Object.prototype.hasOwnProperty.call(start, b.arrival)) err('engine.background.arrival', bp + '.arrival', JSON.stringify(b.arrival) + ' is not an arrival point of world.startLocationIds (' + Object.keys(start).join(', ') + ').');
+      else arrivals.add(b.arrival);
+    });
+    const bgNames = backgrounds.map(b => (isObj(b) && typeof b.name === 'string' ? b.name.toLowerCase() : ''));
+    for (const r of REQUIRED_BACKGROUNDS) if (!bgNames.includes(r)) err('house.backgrounds.required', 'player.backgrounds', 'has no "' + r + '" background.');
+    if (arrivals.size !== 2) err('house.backgrounds.arrivals', 'player.backgrounds', 'should use both arrival points (gate and docks).');
+
+    const flaws = PL.flaws;
+    if (!Array.isArray(flaws) || flaws.length !== 8) err('house.flaws.count', 'player.flaws', 'should be 8 flaws.');
+    if (flaws !== undefined) strList(flaws, 'player.flaws', undefined, { maxSentences: 1, noPlaceholders: true });
+
+    /* An obligation the loose end creates when its seed fires: what is owed,
+       by when (dueOffset days after the seed), and what missing or meeting
+       it does. owedTo: who it is owed to when that is not the person it binds. */
+    function checkObligation(ob, path) {
+      const R = 'engine.obligation';
+      if (!keys(ob, ['kind', 'dueOffset', 'text', 'missText', 'onMiss', 'onMet'], path, ['amount', 'itemName', 'onStart', 'owedTo'], R, false)) return;
+      text(ob.missText, path + '.missText', { ph: true, max: 300, maxSentences: 2 });
+      if (typeof ob.missText === 'string' && /came looking:/i.test(ob.missText)) err('house.obligation.text', path + '.missText', 'say what happens, not "came looking: <the task>".');
+      if (ob.owedTo !== undefined && !npcRef(ob.owedTo, true)) err(R, path + '.owedTo', JSON.stringify(ob.owedTo) + ' is nobody in the cast.');
+      if (ob.kind === 'errand' && (ob.owedTo === undefined || ob.owedTo === '{npcId}')) err(R, path + '.owedTo', 'an errand is owed to whoever asked for it, not to the person the thing is for: name them.');
+      // Whoever it is owed to remembers a miss (an addMemory, or a socialEvent: a broken word is a memory too).
+      const owed = ob.owedTo === undefined ? '{npcId}' : ob.owedTo;
+      if (Array.isArray(ob.onMiss) && !ob.onMiss.some(e => isObj(e) && (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === owed)) err(R, path + '.onMiss', 'the person it is owed to (' + owed + ') remembers the miss: give them an addMemory or a socialEvent.');
+      if (!['debt', 'blackmail', 'promise', 'errand'].includes(ob.kind)) err(R, path + '.kind', 'should be debt, blackmail, promise or errand.');
+      if (ob.kind === 'debt' || ob.kind === 'blackmail') {
+        if (!isInt(ob.amount) || ob.amount < 1) err(R, path + '.amount', 'a ' + ob.kind + ' names its amount.');
+        else if (ob.amount < 20 || ob.amount > 2000) err('house.obligation.amount', path + '.amount', 'should be 20 to 2000 dollars.');
+      } else if (ob.amount !== undefined && ob.amount !== null) err(R, path + '.amount', 'only a debt or blackmail has an amount.');
+      if (!isInt(ob.dueOffset) || ob.dueOffset < 1 || ob.dueOffset > 7) err(R, path + '.dueOffset', 'should be days after the seed fires, 1 to 7.');
+      text(ob.text, path + '.text', { ph: true, max: 160, maxSentences: 1 });
+      if (ob.kind === 'errand') {
+        text(ob.itemName, path + '.itemName', { ph: true, max: 60, maxSentences: 0 });
+        // The thing to deliver comes with the loose end, at character creation.
+        if (!Array.isArray(ob.onStart) || !ob.onStart.some(e => isObj(e) && e.op === 'giveItem' && e.name === ob.itemName)) err(R, path + '.onStart', 'an errand gives the player the thing to deliver: a giveItem named "' + ob.itemName + '".');
+      } else if (ob.itemName !== undefined) err(R, path + '.itemName', 'only an errand has a thing to deliver.');
+      if (ob.onStart !== undefined) effectList(ob.onStart, path + '.onStart', { ph: true, min: 1, max: 2 });
+      effectList(ob.onMiss, path + '.onMiss', { ph: true, min: 1, max: 5 });
+      effectList(ob.onMet, path + '.onMet', { ph: true, max: 4 });
+      // A missed debt or blackmail bites: money, a thing, health, a door or a price, not just a feeling.
+      const BITES = ['playerGold', 'obligationPaid', 'playerHp', 'takeItem', 'banFrom', 'playerPrice', 'addCondition', 'addMemory'];
+      if ((ob.kind === 'debt' || ob.kind === 'blackmail') && Array.isArray(ob.onMiss) && !ob.onMiss.some(e => isObj(e) && (BITES.includes(e.op) || (e.op === 'socialEvent' && e.npcId !== owed)))) err('house.obligation.bites', path + '.onMiss', 'a missed ' + ob.kind + ' costs the player something (' + BITES.join(', ') + ', or a socialEvent for someone else).');
+    }
+    const carriers = tag => npcs.filter(n => isObj(n) && arr(n.tags).includes(tag)).length;
+    if (isObj(PL.looseEnds)) {
+      for (const k of LOOSE_END_KEYS) if (!(k in looseEnds)) err('house.looseEnds.keys', 'player.looseEnds.' + k, 'is missing (Low Water\'s five loose ends).');
+      for (const key of Object.keys(looseEnds)) {
+        const le = looseEnds[key];
+        const lp = 'player.looseEnds.' + key;
+        if (!keys(le, ['label', 'options', 'link', 'seed'], lp, ['obligation', 'obligations', 'followUp'], 'engine.looseEnd', false)) continue;
+        str(le.label, lp + '.label', { noPlaceholders: true });
+        strList(le.options, lp + '.options', undefined, { noPlaceholders: true, maxSentences: 1 });
+        if (!Array.isArray(le.options) || le.options.length !== 3) err('house.looseEnds.options', lp + '.options', 'should be 3 options.');
+        arr(le.options).forEach((o, oi) => { if (typeof o === 'string' && !/\b(I|I'm|I've|I'd|my|me|mine)\b/i.test(o)) err('house.looseEnds.options', lp + '.options[' + oi + ']', 'should be written in the first person.'); });
+        // Every loose end binds to the cast (the game never makes a person): link.tag is carried by someone, each option's tag too.
+        if (key === 'debt' && !(isObj(le.link) && le.link.tag === 'lender')) err('house.looseEnds.link', lp + '.link.tag', 'the debt links the tag "lender".');
+        if (keys(le.link, ['tag'], lp + '.link', ['optionTags'], 'engine.looseEnd', false)) {
+          const n = carriers(le.link.tag);
+          if (!n) err('engine.looseEnd.link', lp + '.link.tag', 'nobody in the cast carries the tag "' + le.link.tag + '".');
+          else if (n < 2) err('house.looseEnds.link', lp + '.link.tag', 'the tag "' + le.link.tag + '" should be carried by two people or more; ' + n + ' does.');
+          if (le.link.optionTags !== undefined) {
+            if (!Array.isArray(le.link.optionTags) || le.link.optionTags.length !== arr(le.options).length) err('engine.looseEnd.link', lp + '.link.optionTags', 'should be one tag per option.');
+            else le.link.optionTags.forEach((t, ti) => { if (!carriers(t)) err('engine.looseEnd.link', lp + '.link.optionTags[' + ti + ']', 'nobody in the cast carries the tag "' + t + '".'); });
+          }
+        }
+        if (keys(le.seed, ['dayOffset', 'effect', 'trigger'], lp + '.seed', [], 'engine.looseEnd', false)) {
+          dayOffset(le.seed.dayOffset, lp + '.seed.dayOffset', 2, 15, 'engine.looseEnd');
+          str(le.seed.effect, lp + '.seed.effect', { maxSentences: 1 });
+          // Told to the player as it happens to them: the person by {npc}, the player as "you".
+          placeholders(le.seed.effect, lp + '.seed.effect', ['{npc}']);
+          if (typeof le.seed.effect === 'string' && (/\{player\}/.test(le.seed.effect) || !/\byou(r)?\b/.test(le.seed.effect))) err('engine.looseEnd', lp + '.seed.effect', 'a loose end happens to the player: write it to "you", not {player}.');
+          // Content note 4: loose-end seeds use day triggers counted from day 1.
+          if (le.seed.trigger !== 'day') err('engine.looseEnd', lp + '.seed.trigger', 'a loose end\'s seed uses "day".');
+          // The person comes to the player when the seed fires, wherever that is: no setting assumed.
+          if (typeof le.seed.effect === 'string' && /\b(booth|across the bar|behind the bar|at the counter|the night clerk)\b/i.test(le.seed.effect)) err('house.looseEnds.setting', lp + '.seed.effect', 'assumes a setting; the person comes to the player wherever they are.');
+        }
+        // Wave 5: what the first beat threatens, some days on.
+        if (le.followUp !== undefined && keys(le.followUp, ['dayOffset', 'effect', 'effects', 'alt'], lp + '.followUp', [], 'engine.looseEnd', false)) {
+          const fu = le.followUp;
+          const fp = lp + '.followUp';
+          dayOffset(fu.dayOffset, fp + '.dayOffset', 1, 7, 'engine.looseEnd');
+          str(fu.effect, fp + '.effect', { maxSentences: 1 });
+          placeholders(fu.effect, fp + '.effect', ['{npc}']);
+          if (typeof fu.effect === 'string' && (/\{player\}/.test(fu.effect) || !/\byou(r)?\b/.test(fu.effect))) err('engine.looseEnd', fp + '.effect', 'it happens to the player: write it to "you", not {player}.');
+          effectList(fu.effects, fp + '.effects', { ph: true, min: 1, max: 5 });
+          if (Array.isArray(fu.effects) && !fu.effects.some(e => isObj(e) && ['playerHp', 'takeItem', 'playerGold'].includes(e.op))) err('house.looseEnds.followUp', fp + '.effects', 'a threat that comes good costs the player something (playerHp, takeItem or playerGold).');
+          if (keys(fu.alt, ['text'], fp + '.alt', ['effects'], 'engine.looseEnd', false)) {
+            str(fu.alt.text, fp + '.alt.text', { maxSentences: 1 });
+            if (fu.alt.effects !== undefined) effectList(fu.alt.effects, fp + '.alt.effects', { ph: true, max: 3 });
+          }
+        }
+        if (le.obligation !== undefined) checkObligation(le.obligation, lp + '.obligation');
+        if (le.obligations !== undefined) {
+          if (!Array.isArray(le.obligations) || le.obligations.length !== arr(le.options).length) err('engine.obligation', lp + '.obligations', 'should be one per option (null for none).');
+          else le.obligations.forEach((ob, oi) => { if (ob !== null) checkObligation(ob, lp + '.obligations[' + oi + ']'); });
+        }
+        if (['debt', 'secret', 'promise'].includes(key) && le.obligation === undefined && !(Array.isArray(le.obligations) && le.obligations.every(isObj))) err('house.looseEnds.obligation', lp, 'a ' + key + ' binds the player to something: give it an obligation.');
+      }
+    }
+
+    // ----- grudges and favours (CONTRACTS sections 2 and 3); never the player's phone or vehicle -----
+    const here = npcs.filter(inTown);
+    const tagCarriers = tag => here.filter(n => arr(n.tags).includes(tag));
+    const holders = t => here.filter(n => Array.isArray(n.tags) &&
+      (!Array.isArray(t.forTags) || t.forTags.some(g => n.tags.includes(g))) &&
+      (!Array.isArray(t.notForTags) || !t.notForTags.some(g => n.tags.includes(g))));
+    function checkTemplates(list, path, grudges) {
+      const R = 'engine.template';
+      if (!Array.isArray(list)) return;
+      if (list.length < 8) err('house.templates.count', path, 'should be 8 templates or more; there are ' + list.length + '.');
+      const seen = new Set();
+      const reports = new Set();
+      list.forEach((t, i) => {
+        const tp = path + '[' + i + ']';
+        const report = grudges && isObj(t) && t.kind === 'report';
+        // Wave 29: a holder's tell or price (grudges), a favour asked back (favours, kind ask: World.owedAsk).
+        const held = grudges && isObj(t) && (t.kind === 'tell' || t.kind === 'price');
+        const ask = !grudges && isObj(t) && t.kind !== undefined;
+        if (!keys(t, grudges ? ['effect', 'kind', 'dayOffset', 'effects', 'public'] : ['effect', 'dayOffset', 'effects', 'public'], tp, [], R, false)) return;
+        if (!grudges && t.about !== undefined) err(R, tp + '.about', 'a favour answers no offence.');
+        if (grudges && !report && t.to !== undefined) err(R, tp + '.to', 'only a report says whom it goes to.');
+        if (grudges && t.needs !== undefined) err(R, tp + '.needs', 'only a favour needs trust.');
+        if (ask && t.kind !== 'ask') err(R, tp + '.kind', 'a favour template has no kind, or "ask" (a favour the player owes, asked back).');
+        if (held && t.about !== undefined) err(R, tp + '.about', 'a ' + t.kind + ' answers what they hold, not an offence.');
+        if (grudges && t.kind === 'tell' && !arr(t.effects).some(e => isObj(e) && e.op === 'leverageSet' && e.id === '{leverageId}' && e.status === 'spent')) err(R, tp + '.effects', 'a tell spends the record: leverageSet { id: "{leverageId}", status: "spent" }.');
+        if (grudges && t.kind === 'price' && !arr(t.effects).some(e => isObj(e) && e.op === 'addObligation' && e.kind === 'blackmail' && e.amount === '{amount}' && e.leverageId === '{leverageId}' && e.npcId === '{npcId}')) err(R, tp + '.effects', 'a price names a blackmail of "{amount}" on "{leverageId}" for {npcId}.');
+        if (ask && arr(t.effects).some(e => isObj(e) && (e.op === 'playerGold' || e.op === 'playerHp'))) err(R, tp + '.effects', 'an ask asks: it gives the player nothing.');
+        // Wave 28: what a favour needs of the one who does it: { trust }, 0 to 60.
+        if (!grudges && t.needs !== undefined && keys(t.needs, [], tp + '.needs', ['trust'], R, true)) {
+          if (!(isInt(t.needs.trust) && t.needs.trust >= 0 && t.needs.trust <= 60)) err(R, tp + '.needs.trust', 'should be a whole number from 0 to 60.');
+        }
+        // Wave 6: the offences a grudge answers, when only some. Wave 27: a report says what it is about and whom it goes to.
+        if (grudges && !report && t.about !== undefined && !(Array.isArray(t.about) && t.about.length && t.about.every(k => ['violence', 'theft', 'insult'].includes(k)))) err(R, tp + '.about', 'should list violence, theft or insult.');
+        if (report) {
+          if (!(Array.isArray(t.about) && t.about.length && t.about.every(k => ['threat', 'violence', 'advance', 'coercion'].includes(k)))) err(R, tp + '.about', 'a report says what it is about: threat, violence, advance or coercion.');
+          if (!['police', 'family'].includes(t.to)) err(R, tp + '.to', 'should be police or family (a parent, a boss or anyone else).');
+          if (!arr(t.effects).some(e => isObj(e) && e.op === 'socialEvent' && e.npcId === '{protectorId}')) err(R, tp + '.effects', 'a report gives the protector a socialEvent ({protectorId}).');
+          arr(t.about).forEach(k => reports.add(t.to + ':' + k));
+        }
+        if (grudges && !GRUDGE_KINDS.includes(t.kind)) err(R, tp + '.kind', 'should be one of ' + GRUDGE_KINDS.join(', ') + '; it is ' + JSON.stringify(t.kind) + '.');
+        if (grudges && t.kind === 'violence' && !arr(t.effects).some(e => isObj(e) && e.op === 'playerHp')) err(R, tp + '.effects', 'violence hurts the player (a playerHp effect).');
+        str(t.effect, tp + '.effect', { maxSentences: 1 });
+        const priced = grudges && t.kind === 'price';
+        const more = (report ? ['{protector}'] : []).concat(priced ? ['{price}'] : []);
+        placeholders(t.effect, tp + '.effect', ['{npc}', '{player}'].concat(more), more);
+        if (typeof t.effect === 'string' && PLAYER_GEAR.test(t.effect)) err('house.templates.gear', tp + '.effect', 'assumes the player has a phone or a vehicle.');
+        // A report comes in a day or two; a tell, a price or an ask in one to three days.
+        dayOffset(t.dayOffset, tp + '.dayOffset', report || held || ask ? 1 : 2, report ? 2 : held || ask ? 3 : 5, R);
+        if (typeof t.effect === 'string') { if (seen.has(t.effect)) err('house.templates.duplicate', tp + '.effect', 'repeats another template.'); seen.add(t.effect); }
+        effectList(t.effects, tp + '.effects', { ph: true, min: 1, max: 4, protector: report, price: priced, more: priced ? ['{price}'] : [] });
+        if (typeof t.public !== 'boolean') err(R, tp + '.public', 'should be true when the town hears of it, else false.');
+        for (const k of ['forTags', 'notForTags']) {
+          if (t[k] === undefined) continue;
+          if (!Array.isArray(t[k]) || !t[k].length) { err(R, tp + '.' + k, 'should list tags.'); continue; }
+          t[k].forEach((g, gi) => { if (!tagCarriers(g).length) err(R, tp + '.' + k + '[' + gi + ']', 'nobody in town carries the tag "' + g + '".'); });
+        }
+        const who = holders(t);
+        if (!who.length) err(R, tp, 'nobody in town can hold it (forTags and notForTags leave no one).');
+        // The old, the young and the law do not beat anyone (the law uses its own methods).
+        if (arr(t.effects).some(e => isObj(e) && e.op === 'playerHp' && e.delta < 0)) {
+          const wrong = who.filter(n => ['elderly', 'teen', 'police'].some(g => n.tags.includes(g)));
+          if (wrong.length) err('house.templates.beating', tp, 'a beating, but ' + wrong.map(n => n.id).join(', ') + ' could hold it (leave out elderly, teen and police).');
+        }
+      });
+      // Wave 27: reports cover every protector and both offences (World.plantReport finds one for each).
+      if (grudges && reports.size) ['police:threat', 'police:violence', 'family:threat', 'family:violence'].forEach(k => { if (!reports.has(k)) err(R, path, 'has no report template for ' + k.replace(':', ' about ') + '.'); });
+      // Everyone in town has at least one they can hold.
+      here.forEach(n => { if (!list.some(t => isObj(t) && holders(t).includes(n))) err('house.templates.everyone', path, n.id + ' can hold none of them.'); });
+    }
+    checkTemplates(W.grudgeTemplates, 'world.grudgeTemplates', true);
+    checkTemplates(W.favourTemplates, 'world.favourTemplates', false);
+
+    // Goal presets: four to six one-line goals the creation form offers.
+    const goals = PL.goalPresets;
+    if (!Array.isArray(goals) || goals.length < 4 || goals.length > 6) err('house.goals.count', 'player.goalPresets', 'should be four to six one-line goals.');
+    if (Array.isArray(goals)) {
+      strList(goals, 'player.goalPresets', undefined, { noPlaceholders: true, maxSentences: 1 });
+      goals.forEach((g, i) => { if (typeof g === 'string' && g.length > 140) err('engine.goals', 'player.goalPresets[' + i + ']', 'should be at most 140 characters (the creation form\'s limit).'); });
+    }
+
+    // Text the narrator is handed to tell has no simile outside quotes: the casual style's check would send it back.
+    const narrated = [['world.factions', W.factions], ['world.seeds', W.seeds], ['world.events', W.events], ['world.epilogue', W.epilogue],
+      ['player.looseEnds', PL.looseEnds], ['world.grudgeTemplates', W.grudgeTemplates], ['world.favourTemplates', W.favourTemplates]]
+      .concat(backgrounds.map((b, i) => ['player.backgrounds[' + i + '].hook', isObj(b) ? b.hook : undefined]));
+    for (const [root, v0] of narrated) {
+      (function scan(v, path, key) {
+        if (typeof v === 'string') {
+          if (['effect', 'text'].includes(key) && SIMILE.test(v.replace(/"[^"]*"/g, ' '))) err('house.narrated.simile', path, 'a simile ("' + SIMILE.exec(v)[0] + '") in text the narrator tells; say it plainly.');
+          return;
+        }
+        if (Array.isArray(v)) v.forEach((x, i) => scan(x, path + '[' + i + ']', key));
+        else if (isObj(v)) for (const k of Object.keys(v)) scan(v[k], join(path, k), k);
+      })(v0, root, null);
+    }
+
+    // Every flag a condition reads is one some effect sets (ctx.flags: every setFlag in the pack).
+    for (const [path, k] of flagsRead) if (!ctx.flags.has(k)) err('engine.flag.unset', path, 'reads the flag "' + k + '", which nothing in the pack sets.');
+
+    // ----- section 8: the pack's own example turns (narration.examples), when it has them -----
+    const N = isObj(pack.narration) ? pack.narration : {};
+    if (N.examples !== undefined && Array.isArray(N.examples)) {
+      const turns = N.examples;
+      const xp = 'narration.examples';
+      const literary = N.preset === 'literary';
+      const casual = N.preset === 'casual';
+      const banned = BANNED_PHRASES.concat(arr(N.banned).filter(isStr).map(b => b.toLowerCase()));
+      if (turns.length < 3 || turns.length > 8) err('engine.examples', xp, 'should be 3 to 8 example turns; there are ' + turns.length + '.');
+      if (literary && turns.length !== 3) err('house.examples.literary', xp, 'the literary style has exactly 3 example turns.');
+      if (casual && (turns.length < 6 || turns.length > 8)) err('house.examples.casual', xp, 'the casual style has 6 to 8 example turns.');
+      if (casual) {
+        const contexts = turns.map(t => (isObj(t) && isStr(t.context) ? t.context : ''));
+        for (const c of CASUAL_COVERS) if (!contexts.some(c.test)) err('house.examples.casual', xp, 'no example covers ' + c.what + '.');
+      }
+      turns.forEach((turn, i) => {
+        const tp = xp + '[' + i + ']';
+        if (!keys(turn, ['input', 'context', 'narration'], tp, [], 'engine.examples', false)) return;
+        if (!['input', 'context', 'narration'].every(k => isStr(turn[k]))) { err('engine.examples', tp, 'input, context and narration each need some text.'); return; }
+        const sc = sentenceCount(turn.narration);
+        if (sc < 2 || sc > 9) err('engine.examples', tp + '.narration', 'should be 2 to 9 sentences, dialogue included; it is ' + sc + '.');
+        for (const part of ['input', 'context', 'narration']) {
+          const low = turn[part].toLowerCase();
+          for (const b of banned) if (low.includes(b)) err('engine.examples.banned', tp + '.' + part, 'has the banned phrase "' + b + '".');
+        }
+        if (/^as you\b/i.test(turn.narration)) err('engine.examples.banned', tp + '.narration', 'starts with "As you".');
+        if (/\(|\)/.test(turn.context.charAt(0) + turn.context.slice(-1))) err('house.examples.form', tp + '.context', 'is written without the parentheses (the prompt adds them).');
+        if (!/[.!?]$/.test(turn.context)) err('house.examples.form', tp + '.context', 'should end with a full stop, as in SPEC.md.');
+        // Wave 30: the narrator hears where people stand in words ("to you: cool to you"), never a number.
+        if (/attitude [−-]?\d/.test(turn.context)) err('house.examples.form', tp + '.context', 'gives an attitude number: the packet says "to you: <stance>".');
+        const n = words(turn.narration);
+        if (literary) {
+          const target = SPEC_EXAMPLE_WORDS[i];
+          if (target !== undefined && Math.abs(n - target) > 10) err('house.examples.literary', tp + '.narration', 'is ' + n + ' words; the SPEC.md example it replaces is ' + target + '.');
+          if (n > 90) err('house.examples.literary', tp + '.narration', 'is over 90 words.');
+          if (sc > 6) err('house.examples.literary', tp + '.narration', 'should be 2 to 6 sentences.');
+          if (!/^I\b/.test(turn.input)) err('house.examples.literary', tp + '.input', 'should be a first-person action.');
+          const scene = EXAMPLE_SCENES[i];
+          if (scene && (!scene.input.test(turn.input) || !scene.context.test(turn.context) || !scene.narration.test(turn.narration))) err('house.examples.literary', tp, 'should be ' + scene.what + ' (SPEC.md section 9).');
+        }
+        if (casual) {
+          if (n > 60) err('house.examples.casual', tp + '.narration', 'is over 60 words.');
+          if (!/^(I\b|")/.test(turn.input)) err('house.examples.casual', tp + '.input', 'should be a first-person action or the quoted words said.');
+          for (const line of turn.context.split('\n')) if (!PACKET_LABELS.test(line)) err('house.examples.casual', tp + '.context', 'a line is not in the packet\'s field format: "' + line.slice(0, 50) + '".');
+          // The casual style bans similes; its examples do not use one.
+          if (SIMILE.test(turn.narration.replace(/"[^"]*"/g, ' '))) err('house.examples.casual', tp + '.narration', 'has a simile.');
+        }
+      });
+    }
+
+    // ----- section 9: everything mentioned exists (direction change 9) -----
+    mentionPass(pack, err);
+    return out;
+  }
+
+  /* tests/mentions.cjs, in the page: the content's strings (the world but
+     its tables, and the player's backgrounds, flaws, loose ends and goal
+     presets) name only records. The narrator's example turns are not
+     scanned: they are from a different town on purpose. Signs written in
+     capitals are not names. */
+  function mentionPass(pack, err) {
+    const W = isObj(pack.world) ? pack.world : {};
+    const PL = isObj(pack.player) ? pack.player : {};
+    const names = new Set();
+    const places = new Set();
+    const add = s => { if (typeof s === 'string' && s.trim()) { names.add(s.trim()); names.add(s.trim().replace(/^The /, '')); } };
+    add(W.name);
+    String(W.name || '').split(/\s+/).forEach(w => add(w.replace(/'s$/, '')));
+    // A family by name: "the Gentrys", "the Sturdivants".
+    for (const n of arr(W.npcs)) if (isObj(n)) { add(n.name); String(n.name || '').split(/\s+/).forEach(add); add(String(n.name || '').split(/\s+/).slice(-1)[0] + 's'); }
+    for (const f of arr(W.factions)) if (isObj(f)) add(f.name);
+    for (const l of arr(W.locations)) {
+      if (!isObj(l)) continue;
+      for (const k of [l.name, isObj(l.map) && l.map.label].concat(arr(l.aka))) {
+        if (typeof k !== 'string') continue;
+        if (/[A-Z]/.test(k.replace(/^The /, ''))) add(k.replace(/^the /, ''));
+        places.add(k.toLowerCase().replace(/^the /, ''));
+      }
+    }
+    const M = isObj(W.map) ? W.map : {};
+    for (const lab of [M.riverLabel].concat(arr(M.labels))) {
+      if (!isObj(lab) || typeof lab.text !== 'string') continue;
+      add(lab.text);
+      lab.text.split(/\s+/).forEach(w => { if (/^[A-Z]/.test(w)) add(w); });
+      places.add(lab.text.toLowerCase());
+    }
+    MENTION_ALLOW.forEach(add);
+    CALENDAR.forEach(d => { add(d); add(d + 's'); });
+    const known = Array.from(names).sort((a, b) => b.length - a.length);
+    const cast = arr(W.npcs).filter(isObj).map(n => String(n.name || '').trim().split(/\s+/)).filter(p => p.length >= 2);
+    const firsts = new Set(cast.map(p => p[0]));
+    const lasts = new Set(cast.map(p => p[p.length - 1]));
+    const fulls = new Set(cast.map(p => p.join(' ')).concat(cast.map(p => p[0] + ' ' + p[p.length - 1])).concat(PAIR_ALLOW));
+    const nameRe = known.map(n => new RegExp("(^|[^A-Za-z])" + esc(n) + "(?=('s|s'|')?(?![A-Za-z]))", 'g'));
+    const nounRe = new RegExp("\\bthe\\s+((?:[a-z][a-z'-]*\\s+){0,3}?)(" + PLACE_NOUNS.map(esc).join('|') + ")(?![a-z])", 'gi');
+    const list = [];
+    (function walk(v, path, key) {
+      if (MENTION_SKIP_KEYS.has(key) || /Id$|Ids$/.test(key || '')) return;
+      if (typeof v === 'string') { list.push([path, v, key]); return; }
+      if (Array.isArray(v)) { v.forEach((x, i) => walk(x, path + '[' + i + ']', key)); return; }
+      if (isObj(v)) for (const k of Object.keys(v)) { if (path === 'world' && k === 'tables') continue; walk(v[k], join(path, k), k); }
+    })(W, 'world', null);
+    for (const k of ['backgrounds', 'flaws', 'looseEnds', 'goalPresets']) if (PL[k] !== undefined) (function walk(v, path, key) {
+      if (MENTION_SKIP_KEYS.has(key) || /Id$|Ids$/.test(key || '')) return;
+      if (typeof v === 'string') { list.push([path, v, key]); return; }
+      if (Array.isArray(v)) { v.forEach((x, i) => walk(x, path + '[' + i + ']', key)); return; }
+      if (isObj(v)) for (const kk of Object.keys(v)) walk(v[kk], join(path, kk), kk);
+    })(PL[k], 'player.' + k, k);
+    for (const [path, raw, key] of list) {
+      if (/^[a-z_]+$/.test(raw)) continue; // a code word
+      if (key !== 'role') for (const re of NOBODY) { const m = re.exec(raw); if (m) err('engine.mention.person', path, '"' + m[0] + '" puts someone in the story who is not in the cast: name a cast member, or let the person act alone.'); }
+      for (const m of raw.matchAll(/\b([A-Z][a-z]+) ([A-Z][a-z]+)(?![a-z])/g)) {
+        if (firsts.has(m[1]) && lasts.has(m[2]) && !fulls.has(m[1] + ' ' + m[2]) && !known.includes(m[1] + ' ' + m[2])) err('engine.mention.pair', path, '"' + m[0] + '" is one person\'s first name with another\'s family name, and nobody is called that: use the full name as written.');
+      }
+      // A title's full stop does not end a sentence ("Mr. Sturdivant").
+      let s = raw.replace(/\{(npc|player|playerName|npcId)\}/g, 'someone').replace(/\b(Mr|Mrs|Ms|Dr|St)\./g, '$1 ');
+      for (const re of nameRe) s = s.replace(re, (m, pre) => pre + ' '.repeat(m.length - pre.length));
+      const ws = [...s.matchAll(/[A-Za-z][A-Za-z'-]*/g)];
+      for (let i = 0; i < ws.length; i++) {
+        const w = ws[i][0].replace(/('s|s'|')$/, '');
+        if (!/^[A-Z][a-z]/.test(w)) continue;
+        const before = s.slice(0, ws[i].index).replace(/["'(\s]+$/, '');
+        const starts = before === '' || /[.!?:;]$/.test(before);
+        const next = ws[i + 1] && /^[A-Z][a-z]/.test(ws[i + 1][0]) && /^\s+$/.test(s.slice(ws[i].index + ws[i][0].length, ws[i + 1].index));
+        if (starts && !next) continue;
+        err('engine.mention.name', path, 'the name "' + w + '" matches no person, place or faction: add a record, an aka, or reword.');
+      }
+      for (const m of raw.matchAll(nounRe)) {
+        const phrase = (m[1] + m[2]).toLowerCase().trim();
+        const parts = phrase.split(/\s+/);
+        let ok = false;
+        for (let k = 0; k < parts.length && !ok; k++) if (places.has(parts.slice(k).join(' '))) ok = true;
+        if (!ok) err('engine.mention.place', path, 'the place "the ' + phrase + '" matches no place: add a record, an aka, or reword.');
+      }
+    }
+  }
+
+  // ----- the rules: each returns its share of the one pass -----
+  const RULES = [
+    // engine: what the game would misbehave on, or a fixed rule (always an error)
+    ['engine.story', 'engine'], ['engine.effect.op', 'engine'], ['engine.effect.fields', 'engine'], ['engine.effect.value', 'engine'],
+    ['engine.effect.ref', 'engine'], ['engine.effect.id', 'engine'], ['engine.effect.resolve', 'engine'], ['engine.effect.spark', 'engine'],
+    ['engine.flag.reserved', 'engine'], ['engine.flag.unset', 'engine'], ['engine.placeholder', 'engine'], ['engine.text.placeholder', 'engine'], ['engine.text.empty', 'engine'],
+    ['engine.trigger', 'engine'], ['engine.condition', 'engine'], ['engine.condition.romance', 'engine'], ['engine.obligation', 'engine'],
+    ['engine.thread.fields', 'engine'], ['engine.thread.reward', 'engine'], ['engine.thread.links', 'engine'],
+    ['engine.seed.fields', 'engine'], ['engine.seed.danger', 'engine'],
+    ['engine.rumour.fields', 'engine'], ['engine.rumour.source', 'engine'], ['engine.rumour.tellers', 'engine'], ['engine.rumour.ref', 'engine'], ['engine.rumour.leverage', 'engine'],
+    ['engine.faction.fields', 'engine'], ['engine.faction.relations', 'engine'], ['engine.clock.fields', 'engine'],
+    ['engine.event', 'engine'], ['engine.event.branches', 'engine'], ['engine.event.attendees', 'engine'], ['engine.event.actors', 'engine'], ['engine.event.news', 'engine'],
+    ['engine.epilogue', 'engine'], ['engine.tables', 'engine'], ['engine.complication', 'engine'], ['engine.goods', 'engine'],
+    ['engine.background', 'engine'], ['engine.background.hook', 'engine'], ['engine.background.arrival', 'engine'],
+    ['engine.looseEnd', 'engine'], ['engine.looseEnd.link', 'engine'], ['engine.template', 'engine'], ['engine.goals', 'engine'], ['engine.examples', 'engine'], ['engine.examples.banned', 'engine'],
+    ['engine.mention.person', 'engine'], ['engine.mention.pair', 'engine'], ['engine.mention.name', 'engine'], ['engine.mention.place', 'engine'],
+    // house: Low Water's numbers and vocabulary (meta.lints "lockett-house")
+    ['house.text.line', 'house'], ['house.text.sentences', 'house'], ['house.text.length', 'house'], ['house.effects.count', 'house'],
+    ['house.factions.count', 'house'], ['house.factions.clocks', 'house'], ['house.factions.relations', 'house'],
+    ['house.clock.start', 'house'], ['house.clock.segments', 'house'], ['house.clock.stagger', 'house'], ['house.clock.effects', 'house'],
+    ['house.clock.rumour', 'house'], ['house.clock.selfReset', 'house'], ['house.clock.failsThread', 'house'],
+    ['house.threads.count', 'house'], ['house.thread.start', 'house'], ['house.seeds.count', 'house'], ['house.seeds.trigger', 'house'],
+    ['house.seed.start', 'house'], ['house.seed.tied', 'house'], ['house.rumours.count', 'house'], ['house.rumours.truth', 'house'], ['house.rumour.start', 'house'],
+    ['house.epilogue.day', 'house'], ['house.epilogue.branches', 'house'], ['house.epilogue.howLong', 'house'], ['house.epilogue.settles', 'house'], ['house.epilogue.aftermath', 'house'],
+    ['house.tables.count', 'house'], ['house.tables.duplicate', 'house'], ['house.tables.firstNames', 'house'], ['house.goods.name', 'house'], ['house.goods.price', 'house'],
+    ['house.backgrounds.count', 'house'], ['house.backgrounds.required', 'house'], ['house.backgrounds.arrivals', 'house'],
+    ['house.background.stats', 'house'], ['house.background.cash', 'house'], ['house.background.items', 'house'], ['house.flaws.count', 'house'],
+    ['house.looseEnds.keys', 'house'], ['house.looseEnds.options', 'house'], ['house.looseEnds.link', 'house'], ['house.looseEnds.setting', 'house'],
+    ['house.looseEnds.followUp', 'house'], ['house.looseEnds.obligation', 'house'], ['house.obligation.text', 'house'], ['house.obligation.amount', 'house'], ['house.obligation.bites', 'house'],
+    ['house.templates.count', 'house'], ['house.templates.gear', 'house'], ['house.templates.duplicate', 'house'], ['house.templates.beating', 'house'], ['house.templates.everyone', 'house'],
+    ['house.goals.count', 'house'], ['house.narrated.simile', 'house'],
+    ['house.examples.form', 'house'], ['house.examples.literary', 'house'], ['house.examples.casual', 'house'],
+    // lint: advice (a warning)
+    ['lint.faction.noClocks', 'lint'], ['lint.thread.unlinked', 'lint']
+  ];
+  /* lint.thread.unlinked: a thread nothing links to (no rumour, no effect,
+     no other thread names it) is one the
+     player can only stumble on. Its own small rule: it reads ctx, not the pass. */
+  function unlinkedThreads(pack, ctx) {
+    const found = [];
+    const refs = new Set();
+    for (const [, r] of ctx.rumours) if (isObj(r.value) && typeof r.value.threadId === 'string') refs.add(r.value.threadId);
+    for (const x of ctx.effects) if (isObj(x.effect) && typeof x.effect.threadId === 'string') refs.add(x.effect.threadId);
+    for (const [id, t] of ctx.threads) for (const l of arr(isObj(t.value) ? t.value.linkedIds : [])) if (l !== id) refs.add(l);
+    for (const [id, t] of ctx.threads) if (!t.nested && !refs.has(id)) found.push(P(t.path, 'nothing links to this thread: no rumour, effect or other thread names it.', { rule: 'lint.thread.unlinked' }));
+    return found;
+  }
+  PackRules.register(RULES.map(([id, cls]) => Object.assign(
+    { id, cls, run: id === 'lint.thread.unlinked' ? unlinkedThreads : (pack, ctx) => pass(pack, ctx).get(id) || [] },
+    cls === 'house' ? { set: HOUSE } : {}
+  )));
+})();
+
 /* The eight content names every existing read uses (about a hundred of
    them), now views of the frozen built-in pack (wave 37, Creator Mode; the
    owner: "No hard coded story allowed."). They keep those reads working

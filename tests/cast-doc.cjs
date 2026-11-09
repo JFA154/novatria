@@ -1,28 +1,34 @@
 #!/usr/bin/env node
 // Writes docs/CAST.md, the readable roster of everyone in the town, from the
-// cast inlined in index.html (TOWN_DATA between the BEGIN/END CONTENT
-// markers, read in a Node vm sandbox like tests/validate-town.cjs does).
+// built-in Story Pack, packs/low-water.json (wave 37, Creator Mode: the
+// pack is the source of truth, and node tests/pack-inline.cjs copies it into
+// index.html). The eight old content names are read from it where they now
+// live: TOWN_DATA is world, TABLES world.tables, BACKGROUNDS, FLAWS,
+// LOOSE_ENDS and GOAL_PRESETS the player's backgrounds, flaws, looseEnds
+// and goalPresets, and the grudge and favour templates world's.
 // Usage: node tests/cast-doc.cjs          (rewrites docs/CAST.md)
 //        node tests/cast-doc.cjs --check  (exits 1 when docs/CAST.md is out of date)
+//        PACK_FILE=other.json node tests/cast-doc.cjs --check   (another pack)
 // tests/content.test.cjs runs the check, so the roster never drifts from the data.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
-const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(ROOT, 'index.html');
+const FILE = process.env.PACK_FILE ? path.resolve(process.env.PACK_FILE) : path.join(ROOT, 'packs', 'low-water.json');
 const OUT = path.join(ROOT, 'docs', 'CAST.md');
-const BEGIN = '// ===== BEGIN CONTENT =====';
-const END = '// ===== END CONTENT =====';
 const PHASES = ['morning', 'afternoon', 'evening', 'night'];
 const PRONOUNS = { he: 'he/him', she: 'she/her', they: 'they/them' };
 
 function load() {
-  const html = fs.readFileSync(FILE, 'utf8');
-  const src = html.slice(html.indexOf(BEGIN) + BEGIN.length, html.indexOf(END));
-  return vm.runInNewContext(src + '\n;({ TOWN_DATA, LOOSE_ENDS })', {}, { filename: 'index.html#content', timeout: 5000 });
+  const pack = JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  const w = pack.world;
+  const p = pack.player;
+  return {
+    TOWN_DATA: w, TABLES: w.tables, BACKGROUNDS: p.backgrounds, FLAWS: p.flaws, LOOSE_ENDS: p.looseEnds,
+    GRUDGE_TEMPLATES: w.grudgeTemplates, FAVOUR_TEMPLATES: w.favourTemplates, GOAL_PRESETS: p.goalPresets
+  };
 }
 
 /* The roster as Markdown: the people in town grouped by where they live,
