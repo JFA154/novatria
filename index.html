@@ -987,6 +987,23 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin: 0;
   max-height: 260px; overflow: auto;
 }
+/* Wave 37, Creator Mode, milestone 7 (task M7-B): the Dev tab (Creator.Dev),
+   the Debug tab's monospaced blocks under a heading row with a token badge
+   and a Copy button, and rows of 44px controls that wrap on a 375px phone. */
+.dev .dev-sec + .dev-sec { margin-top: 20px; }
+.dev h3 { margin: 0 0 8px; }
+.dev-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dev-head h3 { margin: 0; }
+.dev-head .spacer { flex: 1 1 auto; }
+.dev-badge { flex: none; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-family: var(--mono-font); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dev-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.dev-row .input { flex: 1 1 110px; width: auto; min-width: 0; }
+.dev-tiers .btn, .dev-cmds .btn { flex: 1 1 88px; }
+.dev-tiers .btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.dev-pending .hint { flex: 1 1 140px; margin: 0; }
+.dev-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.45; }
+.dev-clean { color: var(--muted); }
+.dev .dev-meta { margin: 0 0 6px; overflow-wrap: anywhere; }
 .scrim { display: none; }
 
 /* Menu popover (mobile top bar) */
@@ -38808,7 +38825,7 @@ const Pipeline = (() => {
     /* The line waiting in the queue taken back (the UI's "Next: ..." and its
        x): it will not run. Returns its text, or null when nothing waits. */
     cancelQueued() { if (!queued) return null; const q = queued; queued = null; return q.text || ''; },
-    get lastTurn() { return lastTurn; },
+    get lastTurn() { return lastTurn; }, get lastCtx() { return lastTurn ? Object.assign({}, lastTurn.ctx, { packet: lastTurn.packet, style: lastTurn.style, narration: lastTurn.narration }) : null; },
     /* /rewind (wave 16): the turn /reroll would replay is struck from the story. */
     forgetLastTurn() { lastTurn = null; },
     // Wave 37, Creator Mode: the author's directions in the packet (tests, the editor's preview).
@@ -39880,6 +39897,16 @@ const UI = (() => {
   let returnTo = 'title';
   let tab = 'character';
   let debugOn = false;
+  /* Wave 37, Creator Mode, milestone 7 (plan decision H; task M7-B): the Dev
+     tab (PANELS.dev, drawn by Creator.Dev) is there in developer mode
+     (Settings, Advanced) and in a test game (meta.packSource 'draft'). Read
+     afresh on every draw of the tabs, so coming back from Settings shows or
+     hides it as the Debug tab follows Commands.allowed('/debug'). */
+  function devOn() {
+    try { if (Storage.settings().developerMode === true) return true; } catch (e) { /* no settings yet: only a test game shows it */ }
+    const s = State.current;
+    return !!(s && isObj(s.meta) && s.meta.packSource === 'draft');
+  }
   let stick = true;
   let busy = false;
   let toastTimer = null;
@@ -40794,6 +40821,7 @@ const UI = (() => {
   }
   function openPanel(id) {
     if (id === 'debug' && !debugOn) return;
+    if (id === 'dev' && !devOn()) return;
     tab = id;
     renderPanel();
     if (isMobile()) {
@@ -40836,7 +40864,7 @@ const UI = (() => {
   }
   /* Tabs: one tab stop; the arrow keys (Home, End) move between them. */
   function renderTabs() {
-    const tabs = TABS.concat(debugOn ? [['debug', 'Debug']] : []);
+    const tabs = TABS.concat(debugOn ? [['debug', 'Debug']] : [], devOn() ? [['dev', 'Dev']] : []);
     if (!tabs.some(t => t[0] === tab)) tab = 'character';
     d.panelTabs.dataset.count = String(tabs.length);
     // Objectives with what is waiting on the player ("Objectives · 4", wave 26), on the panel's tabs and the phone's tab row alike.
@@ -40892,7 +40920,7 @@ const UI = (() => {
   /* Where the focus was in the panel, so a re-render can put it back on the
      same control: its id, else its class and data-* attributes inside the
      nearest card, section or group that names itself. */
-  const FOCUS_KEYS = ['npc', 'loc', 'sort', 'pron', 'go', 'section', 'group', 'thread', 'faction', 'rumour', 'obligation', 'objective', 'retry', 'settings'];
+  const FOCUS_KEYS = ['npc', 'loc', 'sort', 'pron', 'go', 'section', 'group', 'thread', 'faction', 'rumour', 'obligation', 'objective', 'retry', 'settings', 'dev'];
   function focusKey(node) {
     if (!node || node === d.panelBody || !d.panelBody.contains(node)) return null;
     if (node.id) return '#' + CSS.escape(node.id);
@@ -42835,7 +42863,11 @@ const UI = (() => {
           const err = r.error ? `\nerror ${r.error.type}: ${r.error.message}` : '';
           return `${head}${use}${err}\n${JSON.stringify(r.data)}`;
         }).join('\n\n') || '-'));
-    }
+    },
+    /* Wave 37, Creator Mode, milestone 7 (task M7-B): the Developer overlay,
+       for an author testing a story (devOn). Creator.Dev draws it and acts
+       only through the engine's own entry points. */
+    dev(s) { return Creator.Dev.render(s); }
   };
 
   // ----- feed -----
@@ -45181,6 +45213,7 @@ const UI = (() => {
     get screen() { return screen; },
     get tab() { return tab; },
     get debug() { return debugOn; },
+    devOn,
     get stuckToBottom() { return stick; }
   };
 })();
@@ -49342,7 +49375,135 @@ const Creator = (() => {
   // (milestone 7: Test from a draft)
 
   // ----- Creator: Dev -----
-  // (milestone 7: the Developer overlay)
+  /* Wave 37, Creator Mode, milestone 7 (plan decision H, the Developer
+     overlay; task M7-B): the game panel's Dev tab, drawn by UI's PANELS.dev
+     in developer mode or a test game (UI.devOn), so an author can see why a
+     turn came out as it did and set up the next one. It reads what the last
+     turn kept (Pipeline.lastCtx: the packet, the style check; Api.responses:
+     the narrator's reply) and it acts only through the engine's own entry
+     points (fixed rule 1, plan decision J): the next roll through
+     Pipeline.hooks (nextTier, nextD20; the roll itself still comes out of
+     Dice), the clock through Pipeline.setClock, a person moved by the
+     engine's own npcMove effect through State.apply, the commands through
+     UI.runAction as the ⋯ list sends them. It never writes a roll result or
+     a state field itself. Its controls carry data-dev, never an id, so
+     nothing joins UI.IDS; every pack string reaches the page through el(). */
+  const Dev = (() => {
+    const TIERS = [['critical', 'Critical'], ['success', 'Success'], ['partial', 'Partial'], ['failure', 'Failure'], ['fumble', 'Fumble']];
+    const TIER_WORD = { critical: 'a critical', success: 'a success', partial: 'a partial success', failure: 'a failure', fumble: 'a fumble' };
+    const pre = (text, label) => el('pre', { tabindex: '0', 'aria-label': label }, text);
+    const redraw = () => UI.renderPanel();
+    // The narrator's last answer kept by the transport (the Debug tab's raw list), newest first.
+    function lastReply() {
+      const list = Array.isArray(Api.responses) ? Api.responses : [];
+      for (let i = list.length - 1; i >= 0; i--) if (isObj(list[i]) && list[i].role === 'narrator') return list[i];
+      return null;
+    }
+    function replyText(r) {
+      const d = r.data;
+      if (isObj(d) && typeof d.text === 'string') return d.text;
+      if (isObj(d) && isObj(d.refusal)) return `Refused${d.refusal.category ? ` (${d.refusal.category})` : ''}${d.refusal.explanation ? `: ${d.refusal.explanation}` : ''}`;
+      return d === null || d === undefined ? '(no data)' : JSON.stringify(d, null, 1);
+    }
+    // What the next roll is armed with: a tier (hooks.nextTier) or a die (hooks.nextD20), or nothing.
+    function pending() {
+      const h = Pipeline.hooks;
+      if (h.nextTier) return TIER_WORD[h.nextTier] || String(h.nextTier);
+      if (Number.isInteger(h.nextD20)) return `a ${h.nextD20} on the die`;
+      return null;
+    }
+    // One force at a time, as /cheat arms one: a tier clears a die and a die a tier.
+    function force(tier, d20) {
+      const h = Pipeline.hooks;
+      h.nextTier = tier || null;
+      Pipeline.forceNextRoll(Number.isInteger(d20) ? d20 : null);
+      redraw();
+    }
+    async function copy(text) {
+      let ok = false;
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+      if (!ok) ok = copyByHand(text);
+      UI.toast(ok ? `Copied the packet (${Pack.tokenEstimate(text).toLocaleString('en-US')} tokens).` : 'This browser would not copy it. Select the text and copy it instead.');
+      return ok;
+    }
+    /* Someone here now: their schedule for this phase moved to the player's
+       place by the engine's npcMove effect, as a clock's completion moves a
+       person. State.apply checks it (the dead, the gone and the arrested stay
+       where they are) and the next packet's PRESENT reads the schedule. */
+    function place(npcId) {
+      const s = State.current;
+      if (!s || !npcId) return null;
+      const r = State.apply({ effects: [{ op: 'npcMove', npcId, locationId: s.player.locationId, phases: [s.time.phase] }] }, { source: 'engine' });
+      const n = State.npc(npcId);
+      const here = State.npcsAt(s.player.locationId).some(x => x.id === npcId);
+      UI.toast(here ? `${n ? n.name : npcId} is here now.` : `Not moved: ${r.rejected.length ? r.rejected[0].reason : 'they cannot come here now'}.`);
+      redraw();
+      return r;
+    }
+    function render(s) {
+      const last = Pipeline.lastCtx;
+      const packet = last && typeof last.packet === 'string' && last.packet ? last.packet : null;
+      const reply = lastReply();
+      const checks = last && Array.isArray(last.style) ? last.style.filter(isObj) : [];
+      const crits = Pack.get('rules.crits') !== false;
+      const armed = pending();
+      const here = s.player.locationId;
+      const presentNow = State.npcsAt(here);
+      const present = new Set(presentNow.map(n => n.id));
+      const away = s.npcs.filter(n => isObj(n) && n.alive !== false && !['dead', 'gone', 'arrested'].includes(n.status) && !present.has(n.id))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      // /edit's person: the first one here with a People card (only those can be edited), else the first here.
+      const first = presentNow.find(n => n.knownToPlayer || n.created) || presentNow[0] || null;
+      const packetSec = el('section', { class: 'dev-sec', dataset: { dev: 'packet' } },
+        el('div', { class: 'dev-head' }, el('h3', null, 'Last packet'),
+          packet ? el('span', { class: 'dev-badge', dataset: { dev: 'tokens' } }, `${Pack.tokenEstimate(packet).toLocaleString('en-US')} tokens`) : null,
+          el('span', { class: 'spacer' }),
+          el('button', { type: 'button', class: 'btn small', dataset: { dev: 'copy-packet' }, disabled: !packet, 'aria-label': 'Copy the last packet', onclick: () => copy(packet) }, 'Copy')),
+        packet ? pre(packet, 'The last packet') : el('p', { class: 'hint' }, 'No narrated turn yet. Play a turn and its packet shows here.'));
+      const replyHead = reply ? [reply.at, 'via ' + reply.provider, reply.status ? 'HTTP ' + reply.status : '', reply.requestId ? 'request-id ' + reply.requestId : '', reply.stopReason ? 'stop ' + reply.stopReason : ''].filter(Boolean).join(' · ') : '';
+      const replySec = el('section', { class: 'dev-sec', dataset: { dev: 'reply' } }, el('h3', null, 'Last reply'),
+        reply ? [el('p', { class: 'hint dev-meta' }, replyHead), pre(replyText(reply) + (reply.error ? `\nerror ${reply.error.type}: ${reply.error.message}` : ''), 'The last reply')]
+          : el('p', { class: 'hint' }, 'No reply from the narrator yet.'));
+      // Each draft's problems (a rewrite is checked again), or "clean".
+      const styleSec = el('section', { class: 'dev-sec', dataset: { dev: 'style' } }, el('h3', null, 'Style check'),
+        !checks.length ? el('p', { class: 'hint' }, last ? 'Not checked on the last turn.' : 'No narrated turn yet.')
+          : el('ul', { class: 'dev-list' }, checks.map((c, i) => {
+            const probs = Array.isArray(c.problems) ? c.problems : [];
+            const tag = checks.length > 1 ? (i === 0 ? 'First draft: ' : 'Rewrite: ') : '';
+            return probs.length ? probs.map(p => el('li', null, `${tag}${isObj(p) ? (p.detail || p.type || JSON.stringify(p)) : String(p)}`)) : el('li', { class: 'dev-clean' }, `${tag}clean`);
+          })));
+      const d20 = el('input', { type: 'number', class: 'input', min: '1', max: '20', step: '1', inputmode: 'numeric', placeholder: '1-20', 'aria-label': 'The die for the next roll, 1 to 20', dataset: { dev: 'd20' } });
+      const setDie = () => { const v = parseInt(d20.value, 10); if (Number.isInteger(v) && v >= 1 && v <= 20) force(null, v); else UI.toast('A die from 1 to 20.'); };
+      d20.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setDie(); } });
+      const noCrit = id => !crits && (id === 'critical' || id === 'fumble');
+      const rollSec = el('section', { class: 'dev-sec', dataset: { dev: 'roll' } }, el('h3', null, 'Force the next roll'),
+        el('p', { class: 'hint' }, 'The next roll comes out this way; the engine still rolls it and reads the result.'),
+        el('div', { class: 'dev-row dev-tiers' }, TIERS.map(([id, label]) => el('button', {
+          type: 'button', class: 'btn small', dataset: { dev: 'tier-' + id }, 'aria-pressed': String(Pipeline.hooks.nextTier === id),
+          disabled: noCrit(id), title: noCrit(id) ? 'This story has no critical rolls.' : null, onclick: () => force(id, null)
+        }, label))),
+        el('div', { class: 'dev-row' }, d20, el('button', { type: 'button', class: 'btn small', dataset: { dev: 'set-d20' }, onclick: setDie }, 'Set die')),
+        el('div', { class: 'dev-row dev-pending' }, el('p', { class: 'hint', role: 'status', dataset: { dev: 'pending' } }, armed ? `Next roll: ${armed}.` : 'Nothing forced.'),
+          el('button', { type: 'button', class: 'btn small', dataset: { dev: 'clear-roll' }, disabled: !armed, onclick: () => force(null, null) }, 'Clear')));
+      const phase = el('select', { class: 'input', 'aria-label': 'Phase', dataset: { dev: 'phase' } }, PHASES.map(p => el('option', { value: p, selected: p === s.time.phase }, capFirst(p))));
+      const day = el('input', { type: 'number', class: 'input', min: '1', step: '1', inputmode: 'numeric', value: String(s.time.day), 'aria-label': 'Day', dataset: { dev: 'day' } });
+      const clockSec = el('section', { class: 'dev-sec', dataset: { dev: 'clock' } }, el('h3', null, 'Set the clock'),
+        el('p', { class: 'hint' }, `Now: Day ${s.time.day} · ${capFirst(s.time.phase)}. No narration; the town's events on the way happen as the clock passes them.`),
+        el('div', { class: 'dev-row' }, phase, day, el('button', { type: 'button', class: 'btn small', dataset: { dev: 'set-clock' }, onclick: () => { Pipeline.setClock(phase.value, parseInt(day.value, 10)); redraw(); } }, 'Set')));
+      const who = el('select', { class: 'input', 'aria-label': 'Who to place here', dataset: { dev: 'who' }, disabled: !away.length },
+        away.length ? away.map(n => el('option', { value: n.id }, `${n.name} (${n.id})`)) : el('option', { value: '' }, 'Everyone is here'));
+      const placeSec = el('section', { class: 'dev-sec', dataset: { dev: 'place' } }, el('h3', null, 'Place someone here'),
+        el('p', { class: 'hint' }, 'Moves them here for this phase, as a story event would; they are in the next scene.'),
+        el('div', { class: 'dev-row' }, who, el('button', { type: 'button', class: 'btn small', dataset: { dev: 'place-here' }, disabled: !away.length, onclick: () => place(who.value) }, 'Place')));
+      // The commands as the ⋯ list sends them (Commands.allowed lets every one through in developer mode and a test game).
+      const cmds = [['debug', '/debug', '/debug'], ['reroll', '/reroll', '/reroll'], ['cheat', '/cheat', '/cheat']];
+      if (first) cmds.push(['edit', `/edit ${first.name.split(' ')[0]}`, `/edit ${first.name}`]);
+      const cmdSec = el('section', { class: 'dev-sec', dataset: { dev: 'commands' } }, el('h3', null, 'Commands'),
+        el('div', { class: 'dev-row dev-cmds' }, cmds.map(([id, label, cmd]) => el('button', { type: 'button', class: 'btn small', dataset: { dev: 'cmd-' + id }, onclick: e => UI.runAction(cmd, e.currentTarget) }, label))));
+      return el('div', { class: 'dbg dev' }, packetSec, replySec, styleSec, rollSec, clockSec, placeSec, cmdSec);
+    }
+    return { render, place, pending, lastReply, TIERS };
+  })();
 
   // ----- Creator: Convert -----
   // (milestone 8: the Story to Pack converter)
@@ -49359,6 +49520,8 @@ const Creator = (() => {
     EntityTab, WorldTab,
     PlayerTab,
     Preview,
+    // Task M7-B (wave 37, Creator Mode, milestone 7): the Developer overlay, the game panel's Dev tab (UI's PANELS.dev).
+    Dev,
     get state() { return state; }
   };
 })();
@@ -49422,6 +49585,9 @@ const Commands = (() => {
     if (!path) return true;
     if (head !== '/fact') {
       try { if (Storage.settings().developerMode === true) return true; } catch (e) { /* no settings yet: the pack decides */ }
+      // Wave 37, Creator Mode, milestone 7 (task M7-B): a test game (Creator's Test, meta.packSource 'draft') is the author's own, so it shows every cheat as developer mode does.
+      const s = State.current;
+      if (s && isObj(s.meta) && s.meta.packSource === 'draft') return true;
     }
     let v;
     try { v = Pack.get(path); } catch (e) { return true; }
