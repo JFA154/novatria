@@ -4,9 +4,20 @@
    autocomplete list, the menu, each sheet tab, an open person card and its
    editor, the debug tab, settings, saves,
    a warning banner, the "New" button) every button, tab, select, text field
-   and tappable label is at least 44px each way, text fields use 16px or more
+   and tappable label (a folding summary too) is at least 44px each way, text fields use 16px or more
    (so iOS does not zoom), and nothing is wider than the screen (the Do / Say
-   toggle and the Say chips included). The CSS uses
+   toggle and the Say chips included). Wave 37, Creator Mode (task M5-E): the
+   same audit, on a second page at the same size, covers the Creator screens
+   as milestone 5 leaves them: the Library (the built-in card, a Library pack
+   from a save and a draft, so every badge and both action rows show), the
+   editor shell on a draft of the built-in copy, every tab in
+   Game.Creator.TABS (Overview, World, Player, JSON and the tabs that still
+   show their coming-soon note), each World sub-tab read from its strip
+   (Places, People, Schedules, Factions and Clocks, Threads, Rumours, Events
+   and Seeds, Goods; the Schedules grid by place and by person, scrolling
+   sideways inside its own box), a person's detail form with its sticky
+   bottom bar (and that bar again with the form scrolled), and a faction
+   with a clock open (a nested form). The CSS uses
    the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
@@ -23,7 +34,8 @@ function audit(label) {
     const r = el.getBoundingClientRect();
     return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.closest('[hidden]');
   };
-  const TAP = 'button, [role=tab], [role=menuitem], select, input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, label.check, .seg label, #ac li, a[href]';
+  // A folding card's summary is a tappable label too (wave 37, Creator Mode: the editor's More, clocks and branches fold).
+  const TAP = 'details > summary, button, [role=tab], [role=menuitem], select, input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, label.check, .seg label, #ac li, a[href]';
   const targets = [...document.querySelectorAll(TAP)].filter(vis);
   const small = targets.map(el => ({ el, r: el.getBoundingClientRect() })).filter(x => x.r.width < 44 || x.r.height < 44)
     .map(x => `${x.el.tagName.toLowerCase()}${x.el.id ? '#' + x.el.id : ''} "${(x.el.textContent || '').trim().slice(0, 24)}" ${Math.round(x.r.width)}x${Math.round(x.r.height)}`);
@@ -190,6 +202,84 @@ for (const size of SIZES) {
     await page.click('[data-menu="saves"]');
     await page.click('#slot-1 [data-action="save"]');
     await check('saves');
+    // Wave 37, Creator Mode (task M5-E): the Creator screens, on a page of their own at the same size (a fresh
+    // context, so its Library and drafts hold only what is put here) whose audits join the same results. What the
+    // editor draws is read from the page (Game.Creator.TABS, the World strip's buttons, the first row of a list), so
+    // the next milestone's tabs and sub-tabs are audited without this test changing.
+    const cr = await h.open({ viewport: size, contextOptions: { reducedMotion: 'reduce' } });
+    const crCheck = async label => { results.push(await cr.evaluate(audit, 'creator: ' + label)); };
+    await cr.evaluate(async () => {
+      Game.Api.Mock.delay = 0;
+      await Game.Storage.Library.ready;
+      await Game.Storage.Drafts.ready;
+      // A Library pack from a save, and a draft with a long title, author and premise (the longest card lines).
+      const m = Game.Pack.copy(Game.Pack.builtIn());
+      m.meta.id = 'marrow-bend';
+      m.meta.title = 'Marrow Bend';
+      m.meta.author = 'Tester';
+      m.meta.rating = 'teen';
+      Game.Storage.Library.put(m, { source: 'from-save' });
+      const p = Game.Pack.blank('The Long Night at Pittman\'s Crossing');
+      p.meta.author = 'A writer with a rather long name';
+      p.setting.blurb = 'A truck stop on the interstate where the night shift knows everything and says nothing, until the storm closes the road.';
+      Game.Storage.Drafts.put({ pack: p });
+    });
+    await cr.click('#btn-create');
+    await cr.waitForSelector('#screen-creator.active #creator-library:not([hidden])');
+    assert.deepEqual(await cr.$$eval('#creator-cards .cr-badge:not(.on)', bs => bs.map(b => b.textContent)), ['Built in', 'From a save', 'Draft'], 'one card of each kind');
+    assert.ok(await cr.$$eval('#creator-cards .cr-card', cs => cs.every(c => c.querySelector('.cr-card-actions button') && c.querySelector('.cr-card-more button'))), 'every card has both action rows');
+    await crCheck('library');
+    await cr.click('#creator-cards .cr-card[data-kind="built-in"] [data-action=open]');
+    await cr.waitForSelector('#creator-body [data-path="meta.title"]');
+    await crCheck('editor shell (a draft of the built-in copy)');
+    const tabs = await cr.evaluate(() => Game.Creator.TABS.map(t => ({ id: t.id, label: t.label, drawn: !!t.render })));
+    assert.ok(tabs.length > 0 && tabs.some(t => t.id === 'world'), 'the editor has its tabs');
+    for (const tab of tabs) {
+      await cr.click('#creator-tab-' + tab.id);
+      await cr.waitForSelector(`#creator-body[data-tab="${tab.id}"]`);
+      await crCheck(`tab ${tab.label}${tab.drawn ? '' : ' (coming soon)'}`);
+      if (tab.id !== 'world') continue;
+      // Each part of the world, as its strip lists them; then a person's detail form and a faction with a clock open.
+      const subs = await cr.$$eval('#creator-body .cr-subtab', bs => bs.map(b => ({ id: b.id.replace(/^cr-world-/, ''), label: b.firstChild.textContent })));
+      assert.ok(subs.length > 0, 'the World tab has its strip');
+      const sub = async id => { await cr.click('#cr-world-' + id); await cr.waitForSelector(`#cr-world-body[data-sub="${id}"]`); };
+      for (const x of subs) {
+        await sub(x.id);
+        await crCheck(`World, ${x.label}`);
+        if (!(await cr.$('#cr-world-body .cr-grid-scroll'))) continue;
+        // The Schedules grid is wider than a phone on purpose and scrolls sideways inside its own box, never the page.
+        assert.ok(await cr.evaluate(() => { const g = document.querySelector('#cr-world-body .cr-grid-scroll'); return g.scrollWidth > g.clientWidth && getComputedStyle(g).overflowX === 'auto'; }), 'the Schedules grid scrolls inside itself');
+        const other = await cr.$('#cr-world-body .cr-seg button:not([aria-pressed="true"])');
+        if (other) { await other.click(); await crCheck(`World, ${x.label}, the other view`); }
+      }
+      const detail = async (subId, key) => {
+        await sub(subId);
+        await cr.click(`.cr-entity[data-entity="${key}"] .cr-row >> nth=0`);
+        await cr.waitForSelector(`.cr-entity[data-entity="${key}"][data-open="1"]`);
+        assert.equal(await cr.isVisible(`.cr-entity[data-entity="${key}"] .cr-entity-list`), false, 'on a phone the detail replaces the list');
+        assert.ok(await cr.isVisible(`.cr-entity[data-entity="${key}"] .cr-sticky [data-action="back-bar"]`), 'the sticky bottom bar is there');
+      };
+      await detail('people', 'people');
+      if (await cr.$('.cr-entity[data-entity="people"] .cr-more:not([open]) > summary')) await cr.click('.cr-entity[data-entity="people"] .cr-more:not([open]) > summary');
+      await crCheck('World, a person\'s detail form');
+      // The bar stays on screen, above the safe area, with the form scrolled half way.
+      const bar = await cr.evaluate(() => {
+        const sc = document.getElementById('creator-scroll');
+        sc.scrollTop = (sc.scrollHeight - sc.clientHeight) / 2;
+        const r = document.querySelector('.cr-entity[data-entity="people"] .cr-sticky').getBoundingClientRect();
+        return { scrolled: sc.scrollTop > 0, top: r.top, bottom: r.bottom, h: window.innerHeight };
+      });
+      assert.ok(bar.scrolled && bar.top >= 0 && bar.bottom <= bar.h + 1, 'the sticky bar sits at the bottom of the screen: ' + JSON.stringify(bar));
+      await crCheck('World, a person\'s detail form scrolled, the sticky bar');
+      await cr.click('.cr-entity[data-entity="people"] .cr-sticky [data-action="back-bar"]');
+      await cr.waitForSelector('.cr-entity[data-entity="people"][data-open="0"]');
+      await detail('factions', 'factions');
+      await cr.click('.cr-entity[data-entity="factions"] details.cr-clock >> nth=0 >> summary');
+      assert.ok(await cr.$eval('.cr-entity[data-entity="factions"] details.cr-clock', d => d.open), 'the clock is open');
+      await crCheck('World, a faction with a clock open');
+      await cr.click('.cr-entity[data-entity="factions"] .cr-sticky [data-action="back-bar"]');
+      await cr.waitForSelector('.cr-entity[data-entity="factions"][data-open="0"]');
+    }
     for (const r of results) {
       assert.ok(r.checked > 0, r.label + ': nothing measured');
       assert.deepEqual(r.small, [], `${r.label}: tap targets under 44px`);
