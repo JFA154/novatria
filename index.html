@@ -1382,6 +1382,45 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   background: var(--surface); border-top: 1px solid var(--border);
 }
 .cr-sticky .spacer { flex: 1 1 0; }
+/* Wave 37, Creator Mode, task M6-A: the Opening, Narrator, Directions and Prompts tabs. A live count under a box
+   ("n of 1,500", red over the cap) with Use the default beside it; a disclosure in the game's own style (the title
+   screen's "About this town"); the styles' lines under the style picker; the engine's banned list greyed while a story
+   has none of its own; an example turn as a card like a faction's clock; the five lengths two to a row from 600px;
+   one packet line and the ENGINE RULES text as quiet monospaced blocks. */
+.cr-count-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-width: 0; }
+.cr-count { margin: 0; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cr-count[data-over="1"] { color: var(--danger); font-weight: 600; }
+.cr-count-row .btn { margin-left: auto; }
+.cr-disclosure { margin: 0; min-width: 0; }
+.cr-disclosure > summary {
+  display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap);
+  cursor: pointer; color: var(--accent); font-family: var(--ui-font); font-size: 14px; font-weight: 600; list-style: none;
+}
+.cr-disclosure > summary::-webkit-details-marker { display: none; }
+.cr-disclosure > summary::after { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translateY(-2px); }
+.cr-disclosure[open] > summary::after { transform: rotate(-135deg) translate(-2px, 0); }
+.cr-disclosure-body { display: grid; gap: 10px; min-width: 0; padding: 4px 0 10px; animation: fade-in .2s ease-out; }
+.cr-section > .cr-disclosure { margin: 0 0 14px; }
+.cr-preset-lines { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.cr-preset-lines li[data-on="1"] { color: var(--text); }
+.cr-preset-lines strong { font-weight: 600; }
+.cr-default-list { display: grid; gap: 8px; min-width: 0; }
+.cr-default-list > .cr-note { margin: 0; }
+.cr-chips-default { margin: 0; padding: 0; list-style: none; }
+.cr-chips-default .cr-chip-item { padding: 0 14px; border-style: dashed; background: transparent; color: var(--faint); min-height: 32px; font-size: 14px; }
+.cr-chips-default { gap: 6px; }
+/* A default in words (the intimate direction) reads as prose, not code. */
+.cr-disclosure-body > .cr-pre { font-family: var(--read-font); font-size: 15px; line-height: 1.55; max-height: 50vh; }
+.cr-example { margin: 0 0 10px; }
+.cr-example > summary { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; padding: 10px 18px; font-size: 16px; }
+.cr-preset-examples { display: grid; gap: 10px; margin: 10px 0 14px; min-width: 0; }
+.cr-lengths { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: 14px; min-width: 0; }
+.cr-pre.cr-pre-line { max-height: none; margin: 8px 0 10px; padding: 10px 14px; }
+.cr-rules { display: grid; gap: 6px; min-width: 0; margin: 4px 0 0; }
+.cr-rules > .label { margin: 0; }
+.cr-rules > .cr-pre { max-height: none; color: var(--muted); }
+.cr-budget-note { margin-top: 12px; }
+@media (min-width: 600px) { .cr-lengths { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* A monospaced, line-wrapped block (the JSON view, the prompt blocks). */
 .cr-pre {
   margin: 0; padding: 14px; max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);
@@ -30721,7 +30760,7 @@ const Api = (() => {
     checkClock: packet => call('clock', 'checkClock', [packet]),
     fixPeople: packet => call('people', 'fixPeople', [packet]),
     // Wave 37, Creator Mode: the system prompt per role, with the author's parser and bookkeeper notes.
-    systemFor
+    systemFor, ENGINE_RULES_SHORT
   };
 })();
 
@@ -47508,21 +47547,320 @@ const Creator = (() => {
   // ----- Creator: Opening -----
   // (milestone 6, task M6-A)
   const Opening = (() => {
-    function render() { return comingSoon('Opening'); }
-    return { render };
+    /* The Opening tab (wave 37, Creator Mode, milestone 6, task M6-A): the
+       opening's three fields, premise, text and firstTurn, in one card. The
+       premise is the story card's line and the one New game shows; the text
+       is what the player reads before they type anything. The Overview
+       keeps the premise and the text too, at the same paths, so a change on
+       one tab is what the other shows (each tab is drawn from the draft).
+       Like every form here it needs no AI (the owner: "as little as possible
+       generative AI in the creator mode").
+       Two helpers the Narrator, Directions and Prompts tabs share live here,
+       the first of the four in the file: counted() puts a live "n of 1,500"
+       under a box, red over the cap. The box keeps no maxlength on purpose:
+       a paste that runs over shows how far over instead of being cut short
+       without a word, and the validator's engine.string.length line says so
+       under the field. disclosure() is a <details> in the game's own
+       disclosure style whose open state survives a redraw. */
+    const NOTE = 'How the story begins. The premise is the line on the story card and at New game; the opening text is what the player reads before they type anything; the first turn is what the narrator is told about the player\'s first move.';
+    const fmt = n => Number(n).toLocaleString('en-US');
+    // The count under a field's box, with anything passed in extra (Use the default) beside it.
+    function counted(field, max, extra) {
+      const box = field && field.querySelector('textarea, input');
+      if (!box) return null;
+      box.removeAttribute('maxlength');
+      const id = box.id + '-count';
+      const out = el('p', { class: 'cr-count', id, dataset: { over: '0', max: String(max) } });
+      const show = () => {
+        const n = box.value.length;
+        out.textContent = `${fmt(n)} of ${fmt(max)}`;
+        out.dataset.over = n > max ? '1' : '0';
+      };
+      box.addEventListener('input', show);
+      show();
+      box.setAttribute('aria-describedby', [box.getAttribute('aria-describedby'), id].filter(Boolean).join(' '));
+      box.after(el('div', { class: 'cr-count-row' }, out, extra || null));
+      return out;
+    }
+    function disclosure(key, label, kids, openSet, data) {
+      const det = el('details', { class: 'cr-disclosure', open: openSet && openSet.has(key) ? true : null, dataset: Object.assign({ disclosure: key }, data || {}) },
+        el('summary', null, label), el('div', { class: 'cr-disclosure-body' }, kids));
+      if (openSet) det.addEventListener('toggle', () => { if (det.open) openSet.add(key); else openSet.delete(key); });
+      return det;
+    }
+    function render(d) {
+      const S = Pack.SCHEMA.fields.opening;
+      const sec = Form.render(S, d.opening, 'opening', (p, v) => set(p, v), { title: 'Opening', note: NOTE });
+      for (const k of Object.keys(S.fields)) counted(sec.querySelector(`[data-field="opening.${k}"]`), S.fields[k].max || 1200);
+      return sec;
+    }
+    return { render, counted, disclosure };
   })();
 
   // ----- Creator: Narrator -----
   // (milestone 6, task M6-A)
   const Narrator = (() => {
-    function render() { return comingSoon('Narrator'); }
+    /* The Narrator tab (wave 37, Creator Mode, milestone 6, task M6-A; plan
+       "Pack format v1", narration): how the narrator writes, in six cards.
+       Voice: the style (casual, literary or custom) with a line on each,
+       the author's own guide (open when the style is custom, else folded
+       under "Write your own guide", since only custom sends it) and the
+       point of view. Phrases: the banned phrases and what else to avoid as
+       chips; while the story has no banned list of its own the engine's is
+       shown greyed, and the first phrase added starts the story's list from
+       the engine's (a pack's list replaces the default wholesale, so
+       starting from empty would quietly drop every engine phrase). Style
+       checks: the five soft checks a story may switch off; the name check is
+       not among them (fixed rule 2: the narrator describes state). Example
+       turns: the story's own, Add and Remove one Undo each, or the preset's
+       read-only with "Write your own" to copy them in (the validator's
+       engine.examples wants 3 to 8 once a story has its own). Good turn, and
+       the five lengths with the engine's numbers greyed in each. A value the
+       story leaves unset shows the engine default greyed, never written into
+       the draft, so the default can still change under it. */
+    const F = () => Pack.SCHEMA.fields.narration.fields;
+    const DEF = () => Pack.DEFAULTS.narration;
+    const PRESETS = ['casual', 'literary', 'custom'];
+    const PRESET_LINES = [
+      ['casual', 'plain talk, like a friend running the game at the table: short sentences, one concrete detail, no similes, no mood-setting.'],
+      ['literary', 'a sharp, economical novelist: concrete detail, a line of dialogue over a line of description.'],
+      ['custom', 'your own guide below takes the preset\'s place; your banned phrases, what to avoid and what a good turn does are added to it.']
+    ];
+    const POV_NOTE = 'Both styles write in the second person, present tense ("you walk in"). Any other point of view switches off the "As you" and invented-past checks, which assume "you" and now.';
+    const CHECK_HELP = {
+      simile: 'A "like a" or "as if" outside dialogue. The casual style only.',
+      asYou: 'A turn that opens with "As you".',
+      inventedPast: 'On day 1, someone speaks of a past with the player that never happened.',
+      moneyLeak: 'Someone says how much money the player has, which nobody can see.',
+      repeat: 'A spoken phrase repeated from the last three turns.'
+    };
+    const LENGTH_HELP = {
+      normal: 'An ordinary turn: at most this many words.',
+      zoom: 'A turn with room (a close look, an arrival, the epilogue, a busy day): at most this many words.',
+      intimate: 'An intimate scene: at most this many words.',
+      intimateMin: 'An intimate scene: at least this many words; a shorter one counts as skipped and is written again.',
+      hardOver: 'The slack over a limit before a turn is written again.'
+    };
+    const HARD_OVER_NOTE = 'A turn up to "Hard over" words past its limit is kept with a note; one further over is sent back to be written again, which is a second paid call. Leave a number empty for the engine\'s, shown greyed.';
+    const EXAMPLE_NOTE = 'Turns the narrator copies the manner of: what the player typed, the packet lines it was given (without the parentheses: the prompt adds them) and the narration. A story with its own has 3 to 8.';
+    const openSet = new Set(); // the disclosures and example cards open, across redraws
+    const relabel = (spec, words) => Object.assign({}, spec, words);
+    const short = (v, n) => { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    const sel = id => '#' + CSS.escape(id);
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+    function card(title, note, kids, path) {
+      return el('section', { class: 'cr-section', dataset: path ? { path, section: path } : null },
+        el('h2', { class: 'cr-section-title' }, title), note ? el('p', { class: 'cr-note' }, note) : null, kids);
+    }
+    // A select whose blank choice names the default it stands for ("The default (casual)").
+    function withDefault(field, text) {
+      const blank = field && field.querySelector('select option[value=""]');
+      if (blank) blank.textContent = text;
+      return field;
+    }
+    function presetOf(N) { return PRESETS.includes(N.preset) ? N.preset : DEF().preset; }
+
+    function voice(N) {
+      const preset = presetOf(N);
+      const onPick = (p, v) => { set(p, v); redraw(`[data-path="${p}"]`); };
+      const presetField = withDefault(Form.render(F().preset, N.preset, 'narration.preset', onPick), `The default (${DEF().preset})`);
+      const lines = el('ul', { class: 'cr-preset-lines' }, PRESET_LINES.map(([k, t]) =>
+        el('li', { dataset: { preset: k, on: k === preset ? '1' : '0' } }, el('strong', null, k[0].toUpperCase() + k.slice(1)), `: ${t}`)));
+      presetField.insertBefore(lines, presetField.querySelector('.cr-err'));
+      const guide = Form.render(relabel(F().customGuide, { help: 'The whole of how your narrator writes. The engine\'s rules are sent after it, always.' }), N.customGuide, 'narration.customGuide', (p, v) => set(p, v), { minRows: 10 });
+      Opening.counted(guide, F().customGuide.max || 6000);
+      const guideBox = preset === 'custom' ? guide
+        : Opening.disclosure('narration.customGuide', 'Write your own guide', [el('p', { class: 'cr-note' }, 'Sent only when the style is custom: choose custom above to use it.'), guide], openSet);
+      const pov = withDefault(Form.render(relabel(F().pointOfView, { help: POV_NOTE }), N.pointOfView, 'narration.pointOfView', (p, v) => set(p, v)), `The default (${DEF().pointOfView})`);
+      return card('Voice', 'The style the narrator writes in and from whose eyes. A player can still pick their own style in Settings.', [presetField, guideBox, pov]);
+    }
+
+    function phrases(N) {
+      const engine = DEF().banned;
+      const own = Array.isArray(N.banned);
+      const bp = 'narration.banned';
+      const onBanned = (p, list) => {
+        if (own) { set(p, list); return; }
+        // The first phrase starts the story's list from the engine's, so none of the engine's is dropped.
+        set(p, engine.concat(list.filter(x => !engine.includes(x))));
+        redraw(sel(Form.domId(p) + '-add'));
+      };
+      const banned = Form.render(relabel(F().banned, { help: 'The style check flags these in every style, outside dialogue; the custom guide also lists them for the narrator.' }), own ? N.banned : [], bp, onBanned);
+      const extra = own
+        ? el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'banned-default' }, onclick: () => { set(bp, undefined); redraw(sel(Form.domId(bp) + '-add')); } }, 'Use the engine\'s list')
+        : el('div', { class: 'cr-default-list', dataset: { default: bp } },
+          el('p', { class: 'cr-note' }, 'The engine\'s list, used while your story has none of its own. Adding a phrase starts your list from it, so none of these is lost.'),
+          el('ul', { class: 'cr-chips cr-chips-default', 'aria-label': 'The engine\'s banned phrases' }, engine.map(b => el('li', { class: 'cr-chip-item cr-chip-default' }, el('span', { class: 'cr-chip-text' }, b)))));
+      banned.insertBefore(extra, banned.querySelector('.cr-err'));
+      const avoid = Form.render(relabel(F().alsoAvoid, { help: 'Habits to steer clear of, one to a chip, such as "rhetorical questions". The custom guide sends them as its "Also avoid" line.' }), N.alsoAvoid, 'narration.alsoAvoid', (p, v) => set(p, v));
+      return card('Phrases', 'Words and habits the narrator should never use.', [banned, avoid]);
+    }
+
+    function checks(N) {
+      const eff = Object.assign({}, DEF().softChecks, isObj(N.softChecks) ? N.softChecks : {});
+      const S = F().softChecks.fields;
+      return card('Style checks', 'Each narration is checked before the player sees it; a story may switch these off. The name check always runs: the narrator may name only the people and places the game has (fixed rule 2).',
+        Object.keys(S).map(k => Form.render(relabel(S[k], { help: CHECK_HELP[k] }), eff[k], `narration.softChecks.${k}`, (p, v) => set(p, v))), 'narration.softChecks');
+    }
+
+    function examples(N) {
+      const xp = 'narration.examples';
+      const own = Array.isArray(N.examples) && N.examples.length ? N.examples : null;
+      const preset = presetOf(N);
+      const from = preset === 'custom' ? 'casual' : preset;
+      if (!own) {
+        const turns = DEF().presets[from].examples;
+        return card('Example turns', EXAMPLE_NOTE, [
+          slot(xp),
+          el('h3', { class: 'cr-sub-title' }, `Using the ${from} style's examples`),
+          el('p', { class: 'cr-note' }, 'Read only; they come from a town of their own, and the narrator is told none of it exists in yours.'),
+          el('div', { class: 'cr-preset-examples' }, turns.map((t, i) => el('p', { class: 'cr-pre', dataset: { example: String(i) } }, `Input: ${t.input}\n(${t.context})\n${t.narration}`))),
+          el('button', { type: 'button', class: 'btn small', id: Form.domId(xp) + '-own', dataset: { action: 'examples-own' },
+            onclick: () => { set(xp, Pack.copy(turns)); UI.toast('Copied the examples into your story. Undo takes them out.'); redraw(sel(Form.domId(xp) + '-add')); } }, 'Write your own')
+        ], xp);
+      }
+      const EX = F().examples.of;
+      const spec = relabel(EX, { fields: Object.assign({}, EX.fields, { context: relabel(EX.fields.context, { help: 'The packet lines, without the parentheses: the prompt adds them.' }) }) });
+      const cards = own.map((t, i) => {
+        const tp = `${xp}[${i}]`;
+        const x = isObj(t) ? t : {};
+        const det = el('details', { class: 'cr-more cr-example', open: openSet.has(tp) ? true : null, dataset: { path: tp, index: String(i) } },
+          el('summary', null, el('span', { class: 'cr-branch-n' }, `Example ${i + 1}`), el('span', { class: 'cr-branch-sum' }, short(x.input, 60) || 'Nothing typed yet')),
+          el('div', { class: 'cr-branch-body' },
+            slot(tp),
+            Form.render(spec, x, tp, (p, v) => set(p, v), { title: '', note: '', nested: true }),
+            el('div', { class: 'cr-row-btns' },
+              el('button', { type: 'button', class: 'btn small danger', dataset: { action: 'example-remove' },
+                onclick: () => { openSet.delete(tp); set(xp, own.filter((y, k) => k !== i)); UI.toast('Removed the example. Undo brings it back.'); redraw(sel(Form.domId(xp) + '-add')); } }, 'Remove this example'))));
+        det.addEventListener('toggle', () => { if (det.open) openSet.add(tp); else openSet.delete(tp); });
+        return det;
+      });
+      return card('Example turns', EXAMPLE_NOTE, [
+        slot(xp),
+        cards,
+        el('div', { class: 'cr-row-btns' },
+          el('button', { type: 'button', class: 'btn small', id: Form.domId(xp) + '-add', dataset: { action: 'example-add' },
+            onclick: () => { openSet.add(`${xp}[${own.length}]`); set(xp, own.concat([{ input: '', context: '', narration: '' }])); redraw(sel(Form.domId(`${xp}[${own.length}].input`))); } }, 'Add an example'),
+          el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'examples-default' },
+            onclick: () => { set(xp, undefined); UI.toast('Back to the style\'s examples. Undo brings yours back.'); redraw(sel(Form.domId(xp) + '-own')); } }, 'Use the style\'s examples'))
+      ], xp);
+    }
+
+    function goodTurn(N) {
+      const f = Form.render(relabel(F().goodTurn, { placeholder: DEF().goodTurn, help: 'Sent at the end of the custom guide; the casual and literary guides carry their own. Empty uses the engine\'s, shown greyed.' }), N.goodTurn, 'narration.goodTurn', (p, v) => set(p, v), { hideLabel: true, minRows: 4 });
+      Opening.counted(f, F().goodTurn.max || 1500);
+      return card('Good turn', 'What every turn should do, in a few sentences.', f);
+    }
+
+    function lengths(N) {
+      const L = isObj(N.lengths) ? N.lengths : {};
+      const S = F().lengths.fields;
+      const fields = Object.keys(S).map(k => {
+        const f = Form.render(relabel(S[k], { help: LENGTH_HELP[k], min: 0 }), L[k], `narration.lengths.${k}`, (p, v) => set(p, v));
+        const box = f.querySelector('input');
+        if (box) box.placeholder = String(DEF().lengths[k]);
+        return f;
+      });
+      return card('Lengths', HARD_OVER_NOTE, el('div', { class: 'cr-lengths' }, fields), 'narration.lengths');
+    }
+
+    function render(d) {
+      const N = isObj(d.narration) ? d.narration : {};
+      return [voice(N), phrases(N), checks(N), examples(N), goodTurn(N), lengths(N)];
+    }
     return { render };
   })();
 
   // ----- Creator: Directions -----
   // (milestone 6, task M6-A)
   const Directions = (() => {
-    function render() { return comingSoon('Directions'); }
+    /* The Directions tab (wave 37, Creator Mode, milestone 6, task M6-A;
+       plan decision E): how the author wants twelve moments told, in the
+       order Pipeline sends them (Pipeline.DIRECTION_SITUATIONS, the eleven
+       situations), with the intimate scene first because it is the one the
+       engine already has words for. Each is a box whose placeholder is the
+       engine's default (none for eleven of them; the intimate one is long,
+       so its first two sentences, with the whole of it byte for byte under
+       "Show the default"), Use the default beside it (the story's value
+       goes, so the engine's applies again), a line on when it is sent and a
+       live count against the 1,500 cap. The caption says how it travels: a
+       DIRECTION line, then the ENGINE line, because the code settled the
+       turn (the roll, the money, who won) before the narrator is asked, so
+       a direction shapes the telling and never the outcome. */
+    // When each is sent, in plain words (Pipeline's SITUATIONS table says the same in code).
+    const WHEN = {
+      intimate: 'A night someone said yes to. It replaces the scene\'s own instructions rather than adding a line, and a player may set their own in Settings.',
+      combat: 'An attack or a fight.',
+      defeat: 'The player loses a fight and lives: robbed, captured or left in the gutter.',
+      death: 'The player loses a fight with Permadeath on.',
+      arrival: 'The player arrives: the first narration, or a skip to another place.',
+      timeSkip: 'Time passes: a wait, a rest, a skip or a night\'s sleep.',
+      gamble: 'A hand at the card table, or the table\'s refusal to deal one.',
+      epilogue: 'The epilogue, when the story ends.',
+      firstTurn: 'The player\'s first turn.',
+      refusedByNpc: 'A social ask that failed its roll: someone says no.',
+      rollFailure: 'A failed roll, or a critical failure.',
+      rollCritical: 'A critical success, a natural 20.'
+    };
+    const NO_DEFAULT = 'No direction: the narrator tells it its own way.';
+    const openSet = new Set();
+    const keys = () => ['intimate'].concat(Pipeline.DIRECTION_SITUATIONS.filter(k => k !== 'intimate'));
+    // A long default as a placeholder: its first two sentences, then an ellipsis.
+    function headOf(text) {
+      const line = String(text || '').split('\n')[0];
+      const m = /^(.*?[.!?])\s+(.*?[.!?])(?=\s|$)/.exec(line);
+      return m && m[0].length < line.length ? `${m[0]} …` : line;
+    }
+    function field(k, D) {
+      const S = Pack.SCHEMA.fields.directions.fields[k];
+      const path = `directions.${k}`;
+      const def = Pack.DEFAULTS.directions[k] || '';
+      const has = typeof D[k] === 'string';
+      let reset = null;
+      // The button follows the box: there is something to take away once the story has its own words here.
+      const onChange = (p, v) => { set(p, v); if (reset) reset.disabled = v === undefined; };
+      const f = Form.render(Object.assign({}, S, { help: `When: ${WHEN[k]}`, placeholder: def ? headOf(def) : NO_DEFAULT }), D[k], path, onChange, { minRows: 3 });
+      const id = Form.domId(path);
+      reset = el('button', { type: 'button', class: 'btn small ghost', id: id + '-default', disabled: !has, dataset: { action: 'use-default', for: path },
+        onclick: () => {
+          // One change, so one Undo: the last direction takes the emptied directions object with it.
+          const rest = Object.keys(isObj(state.draft.directions) ? state.draft.directions : {}).filter(x => x !== k);
+          set(rest.length ? path : 'directions', undefined);
+          redraw(id);
+        } }, 'Use the default');
+      Opening.counted(f, S.max || 1500, reset);
+      if (def && def.length > 200) {
+        f.insertBefore(Opening.disclosure(path, 'Show the default', el('p', { class: 'cr-pre', dataset: { defaultFor: path } }, def), openSet), f.querySelector('.cr-err'));
+      }
+      f.dataset.layer = has ? 'pack' : 'default';
+      return f;
+    }
+    function redraw(id) {
+      renderBody();
+      const f = document.getElementById(id);
+      if (f) f.focus({ preventScroll: true });
+    }
+    function render(d) {
+      const D = isObj(d.directions) ? d.directions : {};
+      return [
+        el('section', { class: 'cr-section', dataset: { section: 'directions.about' } },
+          el('h2', { class: 'cr-section-title' }, 'Directions'),
+          el('p', { class: 'cr-note' }, 'How you want a moment told. When it comes up, your words go to the narrator as their own line of the turn\'s packet:'),
+          el('p', { class: 'cr-pre cr-pre-line' }, 'DIRECTION (from the story\'s author): …'),
+          el('p', { class: 'cr-note' }, 'followed, always, by:'),
+          el('p', { class: 'cr-pre cr-pre-line', dataset: { trailer: '1' } }, Pipeline.ENGINE_TRAILER),
+          el('p', { class: 'cr-note' }, 'The game\'s code has already decided the turn\'s outcome (the roll, the money, who won) before the narrator reads it: a direction shapes how it is told, never what happened. Leave a box empty for no direction.')),
+        el('section', { class: 'cr-section', dataset: { section: 'directions' } },
+          el('h2', { class: 'cr-section-title' }, 'Moments'),
+          keys().map(k => field(k, D)))
+      ];
+    }
     return { render };
   })();
 
@@ -47543,7 +47881,50 @@ const Creator = (() => {
   // ----- Creator: Prompts -----
   // (milestone 6, task M6-A)
   const Prompts = (() => {
-    function render() { return comingSoon('Prompts'); }
+    /* The Prompts tab (wave 37, Creator Mode, milestone 6, task M6-A; plan
+       decision E and fixed rule 7): the author's notes for the narrator,
+       the parser and the bookkeeper, each in a labelled slot of the game's
+       own prompt and never in place of it. The forms need no AI (the owner:
+       "as little as possible generative AI in the creator mode"); these
+       boxes are for an author who wants to say a word to the models the
+       game already calls. Each box has a live count against its cap (1,500,
+       600, 600) and beneath it, read-only, the ENGINE RULES text the engine
+       sends after the note, exactly as sent (Style.ENGINE_RULES for the
+       narrator, Api.ENGINE_RULES_SHORT for the other two), so the author
+       sees what outranks them. */
+    const SLOTS = [
+      { key: 'narratorExtra', who: 'the narrator', rules: () => Style.ENGINE_RULES,
+        help: 'Added to the narrator\'s cached prompt after the style guide and the examples, as CREATOR NOTES.' },
+      { key: 'parserExtra', who: 'the parser', rules: () => Api.ENGINE_RULES_SHORT,
+        help: 'Added to the prompt of the model that reads what the player typed and names the action.' },
+      { key: 'bookkeeperExtra', who: 'the bookkeeper', rules: () => Api.ENGINE_RULES_SHORT,
+        help: 'Added to the prompt of the model that records what changed after each turn.' }
+    ];
+    const BUDGET_NOTE = 'The narrator\'s cached prompt is counted against a budget of 13,000 tokens, and the built-in story already uses 12,999 of them: a narrator note on a copy of it goes over. The meter in the header shows where your story stands.';
+    function slotCard({ key, who, rules, help }, P) {
+      const S = Pack.SCHEMA.fields.prompts.fields[key];
+      const path = `prompts.${key}`;
+      const f = Form.render(Object.assign({}, S, { help }), P[key], path, (p, v) => set(p, v), { minRows: 4, hideLabel: true });
+      Opening.counted(f, S.max);
+      const id = Form.domId(path) + '-rules';
+      return el('section', { class: 'cr-section', dataset: { section: path } },
+        el('h2', { class: 'cr-section-title' }, S.label),
+        el('p', { class: 'cr-note' }, `A note for ${who}.`),
+        f,
+        el('div', { class: 'cr-rules' },
+          el('p', { class: 'label', id: id + '-label' }, 'Sent after your note, always'),
+          el('p', { class: 'cr-pre', id, 'aria-labelledby': id + '-label', dataset: { rulesFor: path } }, rules())),
+        key === 'narratorExtra' ? el('p', { class: 'cr-note cr-budget-note' }, BUDGET_NOTE) : null);
+    }
+    function render(d) {
+      const P = isObj(d.prompts) ? d.prompts : {};
+      return [
+        el('section', { class: 'cr-section', dataset: { section: 'prompts.about' } },
+          el('h2', { class: 'cr-section-title' }, 'Prompts'),
+          el('p', { class: 'cr-note' }, 'Your story needs none of this: the forms on the other tabs need no AI at all. These notes are added to the game\'s own prompts and never replace them, and the engine\'s rules are always sent after them, so a note can shape how the models write and read, never what the game decides.')),
+        ...SLOTS.map(s => slotCard(s, P))
+      ];
+    }
     return { render };
   })();
 
