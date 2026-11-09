@@ -266,4 +266,51 @@ s.test('the undo stack never holds the pack: after a turn its bytes are exactly 
   assert.equal(r.turn, 0, 'the undo took the turn back');
 });
 
+s.test('the eight content bindings follow the game (review M2-G4): a Library pack with an extra flaw and one goal preset fewer, selected and started, is what Game.data reads, TOWN_DATA is State.pack.world; once the game is cleared they are the built-in pack\'s again; a preview still wins over the game', async h => {
+  const page = await h.open();
+  await page.evaluate(() => Game.Storage.Library.ready);
+  const extra = 'Cannot leave a locked door alone.';
+  const r0 = await page.evaluate(flaw => {
+    const p = Game.Pack.copy(Game.Pack.builtIn());
+    p.meta.id = 'flaw-copy';
+    p.meta.title = 'Flaw Copy';
+    p.player.flaws.push(flaw);
+    const removed = p.player.goalPresets.shift();
+    Game.Storage.Library.put(p, { source: 'created' });
+    Game.Storage.saveSettings({ selectedPackId: 'flaw-copy' });
+    return { removed, before: Game.data.TOWN_DATA === Game.Pack.builtIn().world };
+  }, extra);
+  assert.equal(r0.before, true, 'no game: the built-in world');
+  await quickStart(page);
+  const r = await page.evaluate(({ flaw, removed }) => {
+    const D = Game.data;
+    const B = Game.Pack.builtIn();
+    const during = {
+      id: Game.State.pack.meta.id,
+      flaw: D.FLAWS.includes(flaw), preset: D.GOAL_PRESETS.includes(removed),
+      town: D.TOWN_DATA === Game.State.pack.world, tables: D.TABLES === Game.State.pack.world.tables,
+      backgrounds: D.BACKGROUNDS === Game.State.pack.player.backgrounds, looseEnds: D.LOOSE_ENDS === Game.State.pack.player.looseEnds,
+      grudges: D.GRUDGE_TEMPLATES === Game.State.pack.world.grudgeTemplates, favours: D.FAVOUR_TEMPLATES === Game.State.pack.world.favourTemplates,
+      notBuiltIn: D.TOWN_DATA !== B.world
+    };
+    // A preview wins over the game, and dropping it points back at the game's pack.
+    Game.Pack.setPreview(B);
+    const preview = { town: D.TOWN_DATA === Game.Pack.current().world, flaw: D.FLAWS.includes(flaw), copy: D.TOWN_DATA !== B.world };
+    Game.Pack.setPreview(null);
+    const back = D.TOWN_DATA === Game.State.pack.world;
+    Game.App.quitToTitle();
+    Game.State.clear();
+    const cleared = [D.TOWN_DATA === B.world, D.TABLES === B.world.tables, D.BACKGROUNDS === B.player.backgrounds, D.FLAWS === B.player.flaws,
+      D.LOOSE_ENDS === B.player.looseEnds, D.GRUDGE_TEMPLATES === B.world.grudgeTemplates, D.FAVOUR_TEMPLATES === B.world.favourTemplates, D.GOAL_PRESETS === B.player.goalPresets];
+    return { during, preview, back, cleared };
+  }, { flaw: extra, removed: r0.removed });
+  assert.deepEqual(r.during, { id: 'flaw-copy', flaw: true, preset: false, town: true, tables: true, backgrounds: true, looseEnds: true, grudges: true, favours: true, notBuiltIn: true });
+  assert.deepEqual(r.preview, { town: true, flaw: false, copy: true }, 'the preview copy, not the game\'s pack');
+  assert.equal(r.back, true);
+  assert.deepEqual(r.cleared, [true, true, true, true, true, true, true, true]);
+  // State.load points them at the loaded game's pack too: Continue plays the Library game again.
+  const loaded = await page.evaluate(flaw => { Game.App.continueGame(); return [Game.State.pack.meta.id, Game.data.FLAWS.includes(flaw), Game.data.TOWN_DATA === Game.State.pack.world]; }, extra);
+  assert.deepEqual(loaded, ['flaw-copy', true, true]);
+});
+
 s.run();

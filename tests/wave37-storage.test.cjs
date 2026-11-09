@@ -419,4 +419,90 @@ s.test('without IndexedDB (as in some private windows) the Library works in memo
   assert.equal(await page.isHidden('#banner'), true, 'no warning');
 });
 
+s.test('an IndexedDB open that never answers (review M2-G2): Library.ready resolves within about 4 s, persistent is false, and an autosave of a pack that is not the built-in one shows the missing note under Continue, not a blank', async h => {
+  const page = await start(h);
+  await page.evaluate(() => {
+    const St = Game.Storage;
+    const env = St.envelope('Lost game');
+    env.packRef = { id: 'lost-pack', version: '1.0.0', hash: '0123456789abcdef' };
+    env.summary.packTitle = 'Lost Pack';
+    delete env.pack;
+    localStorage.setItem(St.KEYS.autosave, JSON.stringify(env));
+  });
+  // Every open hands back a request that never fires success, error or blocked.
+  await page.context().addInitScript(() => { try { IDBFactory.prototype.open = function () { return {}; }; } catch (e) { /* fine */ } });
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  const r = await page.evaluate(async () => {
+    const t0 = performance.now();
+    await Game.Storage.Library.ready;
+    return { waited: performance.now() - t0, sinceStart: performance.now(), persistent: Game.Storage.Library.persistent, db: await Game.Storage.openDb() };
+  });
+  assert.ok(r.sinceStart < 4500, `Library.ready came ${Math.round(r.sinceStart)} ms after the page started`);
+  assert.equal(r.persistent, false);
+  assert.equal(r.db, null);
+  await page.waitForFunction(() => !document.getElementById('title-pack-note').hidden);
+  const note = await page.evaluate(() => ({ text: document.getElementById('title-pack-note').textContent, cont: document.getElementById('btn-continue').disabled }));
+  assert.equal(note.text, 'This save needs the story pack Lost Pack (lost-pack), which is not on this device. Import the save\'s export file instead.');
+  assert.equal(note.cont, true);
+});
+
+s.test('a saveVersion 2 envelope naming a legacy- pack with no frozen copy (review M2-G3) resolves to Pack.forLegacy of its own town with no warning (a warning when the town changed since); a save carrying a pack the Library refuses is validated once, not on every peek, and a legacy- pack never joins the Library', async h => {
+  const page = await start(h);
+  const r = await page.evaluate(() => {
+    const St = Game.Storage;
+    const P = Game.Pack;
+    const env = St.envelope('Edited town');
+    env.town.name = 'Bramble Ford';
+    env.state.meta.townName = 'Bramble Ford';
+    const legacy = P.forLegacy(env.state, env.town);
+    env.packRef = { id: legacy.meta.id, version: legacy.meta.version, hash: P.hash(legacy) };
+    delete env.pack;
+    const back = St.parseEnvelope(JSON.stringify(env));
+    const edited = JSON.parse(JSON.stringify(env));
+    edited.town.tagline = 'Changed since.';
+    const moved = St.parseEnvelope(JSON.stringify(edited));
+    // A save that carries a pack the Library refuses, and a save that carries a legacy- pack.
+    const bad = P.copy(P.builtIn());
+    bad.meta.id = 'broken-copy';
+    bad.meta.title = 'Broken Copy';
+    bad.world.npcs[1].id = bad.world.npcs[0].id;
+    let refused = null;
+    try { P.validate(bad, { profile: 'play' }); refused = P.errors(P.validate(bad, { profile: 'play' })).length; } catch (e) { refused = e.message; }
+    const carry = St.envelope('Carried');
+    carry.pack = bad;
+    localStorage.setItem(St.KEYS.slot(3), JSON.stringify(carry));
+    const carryLegacy = St.envelope('Carried legacy');
+    carryLegacy.pack = JSON.parse(JSON.stringify(legacy));
+    localStorage.setItem(St.KEYS.slot(4), JSON.stringify(carryLegacy));
+    const real = P.validate;
+    let calls = 0;
+    P.validate = function () { calls += 1; return real.apply(this, arguments); };
+    try {
+      const first = St.peek(St.KEYS.slot(3));
+      const afterFirst = calls;
+      const second = St.peek(St.KEYS.slot(3));
+      const third = St.peek(St.KEYS.slot(4));
+      return {
+        id: legacy.meta.id, isLegacy: back.pack === legacy, warn: back.packWarning || null, missing: back.packMissing || null,
+        movedId: moved.pack && moved.pack.meta.id, movedWarn: moved.packWarning || null, movedHash: moved.pack && P.hash(moved.pack) !== env.packRef.hash,
+        refused, afterFirst, calls, firstPack: first.pack && first.pack.meta.id, secondPack: second.pack && second.pack.meta.id,
+        thirdPack: third.pack && third.pack.meta.id, inLibrary: [!!St.Library.get('broken-copy'), !!St.Library.get(legacy.meta.id)]
+      };
+    } finally { P.validate = real; }
+  });
+  assert.match(r.id, /^legacy-bramble-ford/);
+  assert.equal(r.isLegacy, true, 'the legacy pack made from the envelope\'s town');
+  assert.equal(r.warn, null);
+  assert.equal(r.missing, null);
+  assert.equal(r.movedId, r.id);
+  assert.equal(r.movedHash, true);
+  assert.equal(r.movedWarn, 'The story pack changed since this save; it plays with the pack you have now.');
+  assert.ok(typeof r.refused === 'number' && r.refused > 0, `the carried pack fails validation (${r.refused})`);
+  assert.equal(r.afterFirst, 1, 'the first peek tries Library.put once');
+  assert.equal(r.calls, 1, 'neither the second peek nor the legacy pack validates again');
+  assert.deepEqual([r.firstPack, r.secondPack, r.thirdPack], ['broken-copy', 'broken-copy', r.id], 'each save still plays the pack it carries');
+  assert.deepEqual(r.inLibrary, [false, false]);
+});
+
 s.run();

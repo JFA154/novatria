@@ -237,6 +237,78 @@ s.test('a save whose story pack is not on this device: the title says which pack
   assert.equal(r.slot, false);
   assert.equal(r.state, null, 'State.load was never called');
   assert.ok(r.banner.includes(MISSING), r.banner);
+  /* Before the Library is read (review M2-G5): a slow IndexedDB open, held
+     until the test lets it through, keeps Library.ready waiting; the rows
+     then have no note yet and Load off, and the message comes once it is read. */
+  await page.context().addInitScript(() => {
+    const real = IDBFactory.prototype.open;
+    let release;
+    const gate = new Promise(r => { release = r; });
+    window.__releaseDb = () => release();
+    IDBFactory.prototype.open = function (...args) {
+      const self = this;
+      const fake = {};
+      gate.then(() => {
+        const req = real.apply(self, args);
+        req.onupgradeneeded = e => { fake.result = req.result; if (fake.onupgradeneeded) fake.onupgradeneeded(e); };
+        req.onsuccess = e => { fake.result = req.result; if (fake.onsuccess) fake.onsuccess(e); };
+        req.onerror = e => { if (fake.onerror) fake.onerror(e); };
+        req.onblocked = e => { if (fake.onblocked) fake.onblocked(e); };
+      });
+      return fake;
+    };
+  });
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  let readYet = false;
+  await page.evaluate(() => { Game.Storage.Library.ready.then(() => { window.__libRead = true; }); });
+  await page.click('#btn-load');
+  await page.waitForSelector('#screen-saves.active');
+  readYet = await page.evaluate(() => window.__libRead === true);
+  assert.equal(readYet, false, 'the Library is not read yet');
+  for (const id of ['slot-2', 'slot-auto']) {
+    assert.equal(await page.locator(`#${id} [data-pack="missing"]`).count(), 0, `${id}: no note before the Library is read`);
+    assert.equal(await page.textContent(`#${id} .slot-info`).then(t => t.includes('not on this device')), false, id);
+    assert.equal(await page.isDisabled(`#${id} [data-action="load"]`), true, `${id}: Load off meanwhile`);
+  }
+  await page.evaluate(() => window.__releaseDb());
+  await page.waitForSelector('#slot-2 [data-pack="missing"]');
+  for (const id of ['slot-2', 'slot-auto']) {
+    assert.equal(await page.textContent(`#${id} [data-pack="missing"]`), MISSING, id);
+    assert.equal(await page.isDisabled(`#${id} [data-action="load"]`), true, id);
+  }
+});
+
+s.test('/load of a slot whose story pack is not on this device (review M2-G1), with an autosave of another game in no slot: no "Replace the autosave?" question, the banner gives the missing-pack message, and the game is unchanged', async h => {
+  const page = await open(h);
+  await quickStart(page, { name: 'Tomas Reed' });
+  await sendText(page, 'I look around the room');
+  await page.evaluate(() => {
+    const St = Game.Storage;
+    const env = St.envelope('Lost game');
+    env.packRef = { id: 'lost-pack', version: '1.0.0', hash: '0123456789abcdef' };
+    env.summary.packTitle = 'Lost Pack';
+    delete env.pack;
+    // Another game, so loading it would replace an autosave that is in no slot.
+    env.state.meta.createdAt = '2020-01-01T00:00:00.000Z';
+    env.state.meta.seed = 999;
+    localStorage.setItem(St.KEYS.slot(1), JSON.stringify(env));
+  });
+  const before = await page.evaluate(() => JSON.stringify(Game.state));
+  const r = await page.evaluate(() => {
+    const asked = !!Game.App && Game.Storage.loadAutosave() && !Game.Storage.inSlot(Game.Storage.loadAutosave().state);
+    const res = Game.Commands.run('/load 1');
+    return { asked, ok: res && res.ok, banner: document.getElementById('banner-text').textContent, bannerShown: !document.getElementById('banner').hidden };
+  });
+  assert.equal(r.asked, true, 'the autosave is in no slot, so a load of another game would ask');
+  assert.equal(r.ok, false);
+  await page.waitForTimeout(100);
+  assert.equal(await page.isVisible('#ask'), false, 'no dialog');
+  assert.equal(await page.textContent('#ask-title'), '', 'the dialog was never filled');
+  assert.equal(r.bannerShown, true);
+  assert.equal(r.banner, 'That save could not be loaded: ' + MISSING);
+  assert.equal(await page.evaluate(() => JSON.stringify(Game.state)), before, 'the game is unchanged');
+  assert.equal(await page.isVisible('#screen-game.active'), true);
 });
 
 s.test('a slot whose packRef hash differs from the Library\'s Marrow Bend copy: its row shows the note and Load works, the load shows the warning as a toast and plays the Library\'s copy', async h => {

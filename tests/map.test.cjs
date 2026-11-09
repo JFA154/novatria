@@ -402,6 +402,7 @@ s.test('a place without coordinates goes beside its exit, and a town without map
     for (const l of Game.State.town.locations) delete l.map;
     for (const l of st.locations) delete l.map;
     st.meta.townName = 'Somewhere Else';
+    delete st.meta.packId; // wave 37 (Creator Mode): a game is known by its pack id first; another town has none of the built-in's
     Game.UI.renderPanel();
   });
   r = await check();
