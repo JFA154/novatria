@@ -1216,6 +1216,170 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .disclosure { margin: 4px 0 0; }
 .disclosure[open] > summary { margin-bottom: 12px; }
 
+/* ===== Creator Mode (wave 37) ===== */
+/* Wave 37, Creator Mode (plan decision L): the owner asked for a "very
+   pretty" Creator Mode in the same visual world as the game. One small
+   design system the editor's tabs reuse (milestones 5 to 8): the game's
+   colour tokens in both themes, Literata for titles and the system sans for
+   labels, 44px targets and 16px inputs, fades only, nothing wider than a
+   390px phone. Every class here starts cr-; the creation screen's cr-stat
+   tiles above are another family. */
+#screen-creator {
+  /* A rating chip's tint, by rating: calm for general, cooler for teen, warm for mature and adult (decision L). */
+  --cr-general: var(--att-cool);
+  --cr-teen: var(--att-cold);
+  --cr-mature: var(--att-mild);
+  --cr-adult: var(--danger);
+  --cr-ring: 48px;
+}
+#screen-creator .page-inner { max-width: 1040px; }
+/* The screen's header: Back, then the eyebrow and the heading; the Library's two actions under them. */
+.cr-top { display: flex; align-items: flex-start; gap: 4px 12px; flex-wrap: wrap; margin: 0 0 18px; }
+.cr-top .eyebrow { margin: 0 0 4px; }
+.cr-top .page-title { margin: 0; overflow-wrap: anywhere; }
+.cr-top .page-title:focus { outline: none; }
+.cr-top-text { flex: 1 1 14em; min-width: 0; }
+.cr-back { margin-left: -12px; }
+.cr-back::before { content: ""; width: 8px; height: 8px; border: solid currentColor; border-width: 0 0 1.5px 1.5px; transform: rotate(45deg); margin-right: 2px; }
+.cr-lede { margin: 0 0 16px; max-width: 40em; font-family: var(--read-font); font-size: calc(var(--read-size) - 1px); line-height: 1.55; color: var(--muted); }
+.cr-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 20px; }
+.cr-view { animation: fade-in .2s ease-out; }
+
+/* The Library: story cards, one column on a phone, two from 900px. */
+.cr-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.cr-card {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 18px 18px 16px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); box-shadow: 0 1px 0 var(--border);
+  transition: border-color .15s ease;
+}
+.cr-card:hover { border-color: var(--field); }
+.cr-card[data-selected="1"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cr-card-top { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.cr-card-text { flex: 1 1 auto; min-width: 0; }
+.cr-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.cr-card-title { margin: 0; font-family: var(--read-font); font-size: 22px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.cr-card-by { margin: 4px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+/* The one-line premise, at most two lines on the card. */
+.cr-card-premise {
+  margin: 0; font-family: var(--read-font); font-size: 16px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.cr-card-premise.none { color: var(--faint); font-style: italic; }
+.cr-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 2px; }
+.cr-card-actions .btn { flex: 1 1 10em; }
+.cr-card-more { display: flex; flex-wrap: wrap; gap: 2px 4px; margin: -4px -12px -6px; }
+.cr-card-more .btn { color: var(--muted); }
+.cr-card-more .btn:hover { color: var(--text); }
+.cr-card-more .btn.danger { color: var(--danger); }
+.cr-card .cr-note { margin: -4px 0 0; }
+/* The rating chip, tinted by data-rating. */
+.cr-chip {
+  --cr-tint: var(--muted);
+  display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--cr-tint) 55%, transparent);
+  background: color-mix(in srgb, var(--cr-tint) 14%, transparent);
+  color: var(--cr-tint); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: lowercase; white-space: nowrap;
+}
+.cr-chip[data-rating="general"] { --cr-tint: var(--cr-general); }
+.cr-chip[data-rating="teen"] { --cr-tint: var(--cr-teen); }
+.cr-chip[data-rating="mature"] { --cr-tint: var(--cr-mature); }
+.cr-chip[data-rating="adult"] { --cr-tint: var(--cr-adult); }
+/* Badges: Built in, Draft, From a save (and what else a pack's source says); "Plays next" in the accent. */
+.cr-badge {
+  display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--muted);
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+}
+.cr-badge.on { border-color: var(--accent); color: var(--accent); background: transparent; }
+.cr-badge.warn { border-color: var(--danger); color: var(--danger); background: transparent; }
+/* The completeness ring: an inline SVG circle, its dash the share filled (Pack.completeness). */
+.cr-ring { position: relative; flex: none; width: var(--cr-ring); height: var(--cr-ring); }
+.cr-ring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.cr-ring-track { fill: none; stroke: var(--border); stroke-width: 3.5; }
+.cr-ring-fill { fill: none; stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
+.cr-ring[data-full="1"] .cr-ring-fill { stroke: var(--att-mild); }
+.cr-ring-num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; letter-spacing: -.02em; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The empty state: one sentence and the two buttons. */
+.cr-empty {
+  margin: 20px 0 0; padding: 28px 20px; border: 1px dashed var(--field); border-radius: 14px; text-align: center;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.cr-empty p { margin: 0 auto 16px; max-width: 30em; font-family: var(--read-font); font-size: calc(var(--read-size) - 1px); line-height: 1.55; color: var(--muted); }
+.cr-empty .row-btns { justify-content: center; }
+
+/* The editor's header card: title, author, the thin token meter and its number, then Undo, Redo, Save, Test. */
+.cr-head { display: grid; gap: 10px; padding: 18px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.cr-head-title { margin: 0; font-family: var(--read-font); font-size: 26px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.cr-head > .eyebrow { margin: 0; }
+.cr-head-sub { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.cr-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cr-head-actions .spacer { flex: 1 1 0; }
+.cr-meter { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
+.cr-meter-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; box-shadow: inset 0 0 0 1px var(--border); }
+.cr-meter-fill { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .3s ease; }
+.cr-meter[data-over="1"] .cr-meter-fill { background: var(--danger); }
+.cr-meter-num { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cr-meter[data-over="1"] .cr-meter-num { color: var(--danger); }
+/* The tab strip: the game's panel tabs (underline in the accent), scrolling sideways when eleven do not fit. */
+.panel-tabs.cr-tabs {
+  position: sticky; top: 0; z-index: 2;
+  margin: 0 0 16px; padding: 0 2px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.panel-tabs.cr-tabs::-webkit-scrollbar { display: none; }
+.panel-tabs.cr-tabs button { flex: none; min-width: var(--tap); padding: 0 14px; font-size: 14px; overflow: visible; text-overflow: clip; }
+.panel-tabs.cr-tabs button:hover { color: var(--text); }
+.cr-tab-count { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--bg); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+.cr-body { animation: fade-in .2s ease-out; }
+/* A section card per tab: the heading in Literata and one line saying what the section is for. */
+.cr-section { padding: 18px; margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); min-width: 0; }
+.cr-section-title { margin: 0 0 4px; font-family: var(--read-font); font-size: 20px; font-weight: 600; }
+.cr-section > .cr-note:first-of-type { margin-bottom: 14px; }
+
+/* An entity row: a circled initial, the name, the id in monospace, a badge when the row has problems. */
+.cr-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 12px;
+  border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.cr-row:hover { background: var(--surface-2); }
+.cr-initial {
+  flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--person-3); color: var(--person-ink); font-family: var(--read-font); font-size: 16px; font-weight: 600;
+}
+.cr-row-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.cr-row-name { font-weight: 600; overflow-wrap: anywhere; }
+.cr-row-id { font-family: var(--mono-font); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+/* Help text under a heading or a field, and an error under a field in the warm error tone. */
+.cr-note { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.cr-err { margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--danger); font-size: 13px; line-height: 1.45; color: var(--danger); overflow-wrap: anywhere; }
+.cr-err:empty { display: none; }
+/* A form field: the label above the control, the help beneath it. */
+.cr-field { display: grid; gap: 6px; margin: 0 0 18px; min-width: 0; }
+.cr-field > .label { margin: 0; }
+.cr-field > .cr-note { margin: 0; }
+.cr-field .input { font-size: 16px; }
+.cr-field textarea.input { min-height: 7em; resize: vertical; line-height: 1.45; }
+/* A bottom action bar on phones (Back, Save), above the safe area. */
+.cr-sticky {
+  position: sticky; bottom: 0; z-index: 3; display: flex; gap: 10px; justify-content: flex-end;
+  margin: 16px calc(-16px - var(--sar)) calc(-32px - var(--sab)) calc(-16px - var(--sal));
+  padding: 10px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal));
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+.cr-sticky .spacer { flex: 1 1 0; }
+/* A monospaced, line-wrapped block (the JSON view, the prompt blocks). */
+.cr-pre {
+  margin: 0; padding: 14px; max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text); font-family: var(--mono-font); font-size: 13px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+}
+@media (min-width: 900px) {
+  .cr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cr-sticky { position: static; margin: 16px 0 0; padding: 0; background: none; border-top: 0; }
+}
+
 /* ===== Layout switches ===== */
 @media (min-width: 900px) {
   .mobile-only { display: none !important; }
@@ -1352,6 +1516,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <button type="button" class="btn small" id="btn-broken-download">Download it</button>
           </div>
           <button type="button" class="btn" id="btn-load">Load</button>
+          <!-- Wave 37, Creator Mode: the story packs on this device, and the editor (the Creator module). -->
+          <button type="button" class="btn" id="btn-create">Create</button>
           <button type="button" class="btn" id="btn-settings">Settings</button>
         </div>
         <p class="status-chip" id="title-mode" data-mode="demo"><span id="title-mode-text"></span><button type="button" class="link-btn" id="title-mode-act" hidden></button></p>
@@ -1556,6 +1722,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
                 <label class="check"><input type="checkbox" id="set-mock"> Offline demo: canned replies, no API calls</label>
                 <label class="check"><input type="checkbox" id="set-keep-packets" aria-describedby="keep-packets-hint"> Keep bookkeeper packets</label>
                 <p class="hint" id="keep-packets-hint">Keeps this session's last 200 bookkeeper turns in memory, for the Debug view's "Export bookkeeper turns" (labelling them for the event eval). Nothing is saved or sent.</p>
+                <!-- Wave 37, Creator Mode (plan decision H): settings.developerMode; the developer tools themselves arrive in milestone 7. -->
+                <label class="check"><input type="checkbox" id="set-developer" aria-describedby="developer-hint"> Developer mode</label>
+                <p class="hint" id="developer-hint">Shows the developer tools during play: the last packet and reply, the style check, and every command whatever the story hides.</p>
               </div>
               <div class="field two">
                 <div>
@@ -1669,6 +1838,59 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         <div class="screen-actions">
           <span class="spacer"></span>
           <button type="button" class="btn primary" id="saves-done">Back</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Creator Mode (wave 37) ===== -->
+  <!-- The Library of story cards and the editor (the Creator module; plan decisions H and L). Every pack string is put in by Creator through el()/textContent. -->
+  <section id="screen-creator" class="screen" aria-labelledby="creator-title">
+    <div class="page" id="creator-scroll">
+      <div class="page-inner">
+        <header class="cr-top" id="creator-head">
+          <button type="button" class="btn ghost small cr-back" id="creator-back">Back</button>
+          <div class="cr-top-text">
+            <p class="eyebrow">Creator Mode</p>
+            <h1 class="page-title" id="creator-title" tabindex="-1">Your stories</h1>
+          </div>
+        </header>
+        <div id="creator-library" class="cr-view">
+          <p class="cr-lede">Every story this game can play is here. Play one, or open it in Creator to make it your own.</p>
+          <div class="cr-toolbar" id="creator-toolbar">
+            <button type="button" class="btn primary" id="creator-new">New story</button>
+            <button type="button" class="btn" id="creator-import">Import a .json</button>
+          </div>
+          <input type="file" id="creator-import-file" accept=".json,application/json" hidden>
+          <p class="cr-err" id="creator-persist" role="status" hidden>Packs and drafts can't be kept on this device; export your work before you leave.</p>
+          <div class="cr-grid" id="creator-cards"></div>
+          <div class="cr-empty" id="creator-empty" hidden>
+            <p>Nothing of yours here yet. Start a story from a blank page, or bring one in from a file.</p>
+            <div class="row-btns">
+              <button type="button" class="btn primary" id="creator-empty-new">New story</button>
+              <button type="button" class="btn" id="creator-empty-import">Import a .json</button>
+            </div>
+          </div>
+        </div>
+        <div id="creator-editor" class="cr-view" hidden>
+          <div class="cr-head" id="creator-editor-head">
+            <p class="eyebrow" id="creator-editor-kind">Draft</p>
+            <h2 class="cr-head-title" id="creator-editor-title"></h2>
+            <p class="cr-head-sub" id="creator-editor-sub"></p>
+            <div class="cr-meter" id="creator-meter">
+              <span class="cr-meter-bar" aria-hidden="true"><span class="cr-meter-fill" id="creator-meter-fill"></span></span>
+              <span class="cr-meter-num" id="creator-meter-num"></span>
+            </div>
+            <div class="cr-head-actions">
+              <button type="button" class="btn small" id="creator-undo" disabled>Undo</button>
+              <button type="button" class="btn small" id="creator-redo" disabled>Redo</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn small" id="creator-test" disabled>Test</button>
+              <button type="button" class="btn small primary" id="creator-save" disabled>Save</button>
+            </div>
+          </div>
+          <div class="panel-tabs cr-tabs" id="creator-tabs" role="tablist" aria-label="Story sections"></div>
+          <div class="cr-body" id="creator-body" role="tabpanel"></div>
         </div>
       </div>
     </div>
@@ -10119,6 +10341,84 @@ const Pack = (() => {
   // An amount as the pack writes it (the Helpers' money(): "$40", "40 cr", "40 gold").
   function moneyText(n) { return money(n); }
 
+  /* ----- a blank pack and how complete a pack is (wave 37, Creator Mode, milestone 5, task M5-A) -----
+     blank(title): the smallest pack of format 1 the editor starts from (New
+     story). Its id is slugged from the title with a short random tail, so
+     two blanks never clash; the tables and the stat labels are copies of the
+     built-in story's (a creator edits them, never writes them from nothing).
+     It fails validation on purpose (no places, no people), so the editor can
+     show what is missing. */
+  function blank(title) {
+    const name = String(title == null ? '' : title).trim().slice(0, 120) || 'Untitled story';
+    let base = slugify(name.replace(/['’‘`]/g, '')).replace(/_/g, '-').slice(0, 30).replace(/-+$/, '');
+    if (!/^[a-z]/.test(base)) base = 'story-' + base;
+    const tail = Math.random().toString(36).slice(2, 6).padEnd(4, '0');
+    const b = builtIn();
+    return {
+      packFormat: FORMAT,
+      meta: { id: `${base}-${tail}`.slice(0, 41), title: name, version: '0.1.0', rating: 'general', lints: [] },
+      setting: { era: 'modern', blurb: '' },
+      world: {
+        name, setting: '', currency: { symbol: '$', name: 'dollars' }, startLocationIds: {},
+        locations: [], npcs: [], factions: [], threads: [], seeds: [], rumours: [],
+        tables: copy(b.world.tables), grudgeTemplates: [], favourTemplates: []
+      },
+      player: { backgrounds: [], flaws: [], goalPresets: [], looseEnds: {}, stats: copy(b.player.stats) }
+    };
+  }
+  /* completeness(pack): 0 to 1, the share of these ten sections that are
+     filled (the Library's ring; decision L, "the share of required sections
+     the validator finds filled"):
+       1. a title (meta.title);
+       2. a premise or a setting (opening.premise, setting.blurb or world.setting);
+       3. at least one place (world.locations);
+       4. at least one person (world.npcs);
+       5. a background for the player (player.backgrounds);
+       6. a faction or a thread (world.factions, world.threads);
+       7. an opening or an arrival (opening.text, opening.firstTurn, or an arrival's opening);
+       8. a narration preset chosen (narration.preset);
+       9. the rules section present (rules);
+      10. the freedom preset chosen (freedom.preset).
+     A pack that leaves 8 to 10 out plays the engine defaults (Pack.DEFAULTS,
+     the built-in story's own dials); that counts as chosen only when the
+     pack validates with no error, so a finished story that keeps the
+     defaults is whole and a blank one is not. That validation is memoised
+     per frozen pack (the Library's) and per hash (a draft). */
+  const cleanMemo = new WeakMap();
+  const cleanByHash = new Map();
+  function playsClean(pack) {
+    if (Object.isFrozen(pack) && cleanMemo.has(pack)) return cleanMemo.get(pack);
+    const h = Object.isFrozen(pack) ? null : hash(pack);
+    if (h && cleanByHash.has(h)) return cleanByHash.get(h);
+    let ok = false;
+    try { ok = errors(validate(pack)).length === 0; } catch (e) { ok = false; }
+    if (Object.isFrozen(pack)) cleanMemo.set(pack, ok);
+    else { if (cleanByHash.size > 40) cleanByHash.clear(); cleanByHash.set(h, ok); }
+    return ok;
+  }
+  function completeness(pack) {
+    if (!isObj(pack)) return 0;
+    const text = v => typeof v === 'string' && v.trim() !== '';
+    const some = v => Array.isArray(v) && v.length > 0;
+    const o = (v, k) => (isObj(v) && isObj(v[k]) ? v[k] : {});
+    const meta = o(pack, 'meta'), setting = o(pack, 'setting'), world = o(pack, 'world'), player = o(pack, 'player'), opening = o(pack, 'opening');
+    const arrivals = o(player, 'arrivals');
+    const dial = (section, key) => (isObj(pack[section]) ? (key ? text(pack[section][key]) : true) : pack[section] === undefined && playsClean(pack));
+    const filled = [
+      text(meta.title),
+      text(opening.premise) || text(setting.blurb) || text(world.setting),
+      some(world.locations),
+      some(world.npcs),
+      some(player.backgrounds),
+      some(world.factions) || some(world.threads),
+      text(opening.text) || text(opening.firstTurn) || Object.keys(arrivals).some(k => isObj(arrivals[k]) && text(arrivals[k].opening)),
+      dial('narration', 'preset'),
+      dial('rules', null),
+      dial('freedom', 'preset')
+    ];
+    return filled.filter(Boolean).length / filled.length;
+  }
+
   return {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, syncAliases, lookup, get, isBuiltIn,
     canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
@@ -10129,7 +10429,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 4: the effective freedom dials (a preset, then the pack's own dials).
     freedom, FREEDOM_PRESETS,
     // Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's money patterns, rebuilt when the pack changes, and an amount in its currency.
-    get moneyRe() { return moneyRe(); }, moneyText
+    get moneyRe() { return moneyRe(); }, moneyText,
+    // Wave 37, Creator Mode, milestone 5 (task M5-A): the pack New story starts from, and the share of a pack's sections that are filled.
+    blank, completeness
   };
 })();
 
@@ -37867,6 +38169,8 @@ const Storage = (() => {
     try { window.addEventListener('storage', onStorageEvent); } catch (e) { /* no window events */ }
     undoInit();
     libraryBoot();
+    // Wave 37, Creator Mode, milestone 5: the editor's drafts, read beside the Library.
+    draftsBoot();
   }
   function saveSettings(patch) {
     const next = Object.assign({}, settings, patch || {});
@@ -38572,6 +38876,68 @@ const Storage = (() => {
     get ready() { return lib.ready; },
     get persistent() { return lib.persistent; }
   };
+  // ----- Drafts: the stories being written in Creator (wave 37, Creator Mode, milestone 5, task M5-A; plan decision G) -----
+  /* Records { id, fromPackId, pack, savedAt, undo: [json…] (at most 20),
+     redo }, kept in the store "drafts" that openDb makes. Like the
+     Library's: read into memory once at boot (draftsBoot), so get and index
+     answer synchronously; a write changes the map at once and the store a
+     moment later. Unlike the Library's, a draft is not frozen and need not
+     validate (a blank one never does): put keeps its own copy of the pack,
+     and the editor works on Pack.copy(get(id).pack). Ids are
+     d_<base36 time><rand>. Without IndexedDB the map lives for this page
+     only and persistent is false, as the Library's. */
+  const DRAFT_UNDO_MAX = 20;
+  let draftsLoaded = null;
+  const drafts = { records: new Map(), persistent: false, ready: new Promise(resolve => { draftsLoaded = resolve; }) };
+  function draftId() {
+    let id;
+    do id = 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); while (drafts.records.has(id));
+    return id;
+  }
+  const draftShapeOk = r => isObj(r) && typeof r.id === 'string' && isObj(r.pack) && isObj(r.pack.meta);
+  function draftIndex() {
+    // The newest first: the one being written is at the top.
+    return Array.from(drafts.records.values()).sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)) || a.id.localeCompare(b.id)).map(r => Object.assign({}, r));
+  }
+  function draftGet(id) {
+    const r = drafts.records.get(id);
+    return r ? Object.assign({}, r) : null;
+  }
+  function draftPut(draft) {
+    if (!isObj(draft) || !isObj(draft.pack) || !isObj(draft.pack.meta)) throw new Error('That is not a story pack.');
+    const id = typeof draft.id === 'string' && /^d_[a-z0-9]+$/.test(draft.id) ? draft.id : draftId();
+    const list = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string').slice(-DRAFT_UNDO_MAX) : []);
+    const rec = {
+      id, fromPackId: typeof draft.fromPackId === 'string' && draft.fromPackId ? draft.fromPackId : null,
+      pack: Pack.copy(draft.pack), savedAt: new Date().toISOString(), undo: list(draft.undo), redo: list(draft.redo)
+    };
+    drafts.records.set(id, rec);
+    tx('drafts', 'readwrite', store => store.put(rec));
+    return Object.assign({}, rec);
+  }
+  function draftRemove(id) {
+    if (!drafts.records.has(id)) return false;
+    drafts.records.delete(id);
+    tx('drafts', 'readwrite', store => store.delete(id));
+    return true;
+  }
+  /* At boot (init), beside libraryBoot: the store into memory; Drafts.ready resolves after, whatever happened. */
+  function draftsBoot() {
+    const fill = db => {
+      drafts.persistent = !!db;
+      if (!db) return null;
+      return tx('drafts', 'readonly', store => store.getAll()).then(list => {
+        // A draft written while the store was being read is newer than what it held.
+        for (const r of Array.isArray(list) ? list : []) if (draftShapeOk(r) && !drafts.records.has(r.id)) drafts.records.set(r.id, r);
+      });
+    };
+    return openDb().then(fill).catch(e => { console.warn('[Storage] the drafts could not be read', e); }).then(() => { draftsLoaded(); });
+  }
+  const Drafts = {
+    index: draftIndex, get: draftGet, put: draftPut, remove: draftRemove, UNDO_MAX: DRAFT_UNDO_MAX,
+    get ready() { return drafts.ready; },
+    get persistent() { return drafts.persistent; }
+  };
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -38587,6 +38953,8 @@ const Storage = (() => {
     undoFlush, undoReset, undoResume, undoKept, undoIdle, UNDO_DB, UNDO_STORE,
     // Wave 37, Creator Mode: envelope v2, the pack a save plays, IndexedDB v2 and the story packs on this device.
     SAVE_VERSION, DB_VERSION, serialise, resolvePack, openDb, tx, Library,
+    // Wave 37, Creator Mode, milestone 5: the drafts the editor writes.
+    Drafts,
     get tabId() { return tab(); },
     get readOnly() { return readOnly; },
     get failed() { return failed; }
@@ -38665,7 +39033,18 @@ const UI = (() => {
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'set-intimate', 'set-intimate-reset', 'set-intimate-hint', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn',
     // Wave 37, Creator Mode: the title's story pack line and the autosave's pack note.
-    'title-pack', 'title-pack-note'];
+    'title-pack', 'title-pack-note',
+    /* Wave 37, Creator Mode, milestone 5 (task M5-A): the title's Create, Settings' Developer mode, and every
+       Creator element id for milestones 5 to 8 in one place (plan, "Ids and CSS up front"), so later tasks never
+       share an anchor. The Library and the editor shell are drawn now; the ids from creator-problems on are for
+       the tabs still to come (absent until then, so d holds null for them). */
+    'btn-create', 'set-developer',
+    'creator-scroll', 'creator-head', 'creator-back', 'creator-title', 'creator-library', 'creator-toolbar', 'creator-new', 'creator-import',
+    'creator-import-file', 'creator-persist', 'creator-cards', 'creator-empty', 'creator-empty-new', 'creator-empty-import',
+    'creator-editor', 'creator-editor-head', 'creator-editor-kind', 'creator-editor-title', 'creator-editor-sub', 'creator-meter',
+    'creator-meter-fill', 'creator-meter-num', 'creator-undo', 'creator-redo', 'creator-save', 'creator-test', 'creator-tabs', 'creator-body',
+    'creator-problems', 'creator-json', 'creator-json-copy', 'creator-json-download', 'creator-json-import', 'creator-preview',
+    'creator-convert', 'creator-convert-run', 'creator-gaps', 'creator-share'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -38674,6 +39053,9 @@ const UI = (() => {
     d.btnContinue.addEventListener('click', () => App.continueGame());
     d.btnUpdate.addEventListener('click', () => App.updateSave('autosave'));
     d.btnLoad.addEventListener('click', () => showScreen('saves'));
+    // Wave 37, Creator Mode: Create opens the Library of story cards; Creator wires its own screen.
+    d.btnCreate.addEventListener('click', () => Creator.open());
+    Creator.wire();
     d.btnSettings.addEventListener('click', () => showScreen('settings'));
     d.btnTheme.addEventListener('click', toggleTheme);
     d.titleModeAct.addEventListener('click', () => openKeySettings());
@@ -39113,7 +39495,7 @@ const UI = (() => {
 
   // ----- screens -----
   /* Each screen's heading, which takes the focus when the screen opens. */
-  const SCREEN_HEADS = { title: 'titleName', settings: 'settingsTitle', saves: 'savesTitle', game: 'gameTitle' };
+  const SCREEN_HEADS = { title: 'titleName', settings: 'settingsTitle', saves: 'savesTitle', game: 'gameTitle', creator: 'creatorTitle' };
   function showScreen(name) {
     const from = screen;
     if ((name === 'settings' || name === 'saves') && screen !== 'settings' && screen !== 'saves') returnTo = screen;
@@ -39128,6 +39510,8 @@ const UI = (() => {
     if (name === 'title') renderTitle();
     else if (name === 'settings') fillSettings();
     else if (name === 'saves') renderSaves();
+    // Wave 37, Creator Mode: the Library or the editor, whichever Creator.state.view names.
+    else if (name === 'creator') Creator.render();
     else if (name === 'game') {
       /* Wave 37, Creator Mode: a new game or a load lands here. Debug opened
          in the last game stays closed in a story that hides it
@@ -43075,6 +43459,8 @@ const UI = (() => {
     d.setRemember.checked = s.rememberKey;
     d.setMock.checked = s.mockMode;
     d.setKeepPackets.checked = s.keepPackets === true;
+    // Wave 37, Creator Mode, milestone 5: settings.developerMode (the developer tools in play, milestone 7).
+    d.setDeveloper.checked = s.developerMode === true;
     d.setRereadMemories.checked = s.rereadMemories === true;
     fillIntimate();
     fillModels();
@@ -43132,6 +43518,7 @@ const UI = (() => {
     const after = Storage.saveSettings({
       mockMode: d.setMock.checked,
       keepPackets: d.setKeepPackets.checked,
+      developerMode: d.setDeveloper.checked,
       rereadMemories: d.setRereadMemories.checked,
       narratorModel: d.setNarratorModel.value.trim() || Storage.DEFAULTS.narratorModel,
       parserModel: d.setParserModel.value.trim() || Storage.DEFAULTS.parserModel,
@@ -43850,6 +44237,391 @@ const UI = (() => {
     get tab() { return tab; },
     get debug() { return debugOn; },
     get stuckToBottom() { return stick; }
+  };
+})();
+
+// ===== Module: Creator =====
+/* Creator Mode (wave 37; plan decisions G, H and L). The owner asked to
+   "convert the story to a json" so a story is a pack anyone can write, and
+   for a "very pretty" Creator Mode in the same visual world as the game: the
+   Library of story cards (the built-in story first, then the packs on this
+   device by title, then the drafts) and the editor, a header card with the
+   token meter, a tab strip and one section card per tab. Its CSS is the
+   section "Creator Mode (wave 37)"; its element ids are in UI.IDS. Every
+   pack string reaches the page through el() and textContent, never markup
+   (plan decision J, rule 4).
+   Milestone 5, task M5-A lays the module down: the Library and the editor's
+   shell work; the sub-regions below the Editor are marked and empty, one
+   per later task (M5-B Form and Json, M5-C World, M5-D Overview and Player,
+   M6 Narrator to Prompts and Preview, M7 Test and Dev, M8 Convert), so two
+   tasks never edit the same lines. Creator.state is { view: 'library' |
+   'editor', draftId, tab }. */
+const Creator = (() => {
+  const state = { view: 'library', draftId: null, tab: 'overview' };
+  const node = id => document.getElementById(id);
+  const RATINGS = ['general', 'teen', 'mature', 'adult'];
+  // A pack's source as its card's badge (Storage.Library's sources); the built-in story and a draft have their own.
+  const SOURCE_BADGE = { 'from-save': 'From a save', import: 'Imported', duplicate: 'Copy', created: 'Saved' };
+  const BUILT_IN_NOTE = 'Opened a copy; the built-in story cannot be changed.';
+  let wired = false;
+
+  // ----- Creator: Library -----
+  /* The cards, in order: the built-in story (badge "Built in"), the
+     Library's packs by title (Storage.Library.index sorts them), then the
+     drafts, newest first (badge "Draft"). Each card: the title in Literata,
+     the author and version, the rating chip, the premise in two lines at
+     most, the completeness ring (Pack.completeness), Play this story and
+     Open in Creator, and Export, Duplicate and Delete under them. */
+  function items() {
+    const out = Storage.Library.index().map(r => ({ kind: r.source === 'built-in' ? 'built-in' : 'pack', id: r.id, pack: r.pack, source: r.source }));
+    for (const dr of Storage.Drafts.index()) out.push({ kind: 'draft', id: dr.id, pack: dr.pack, fromPackId: dr.fromPackId });
+    return out;
+  }
+  const metaOf = pack => (isObj(pack) && isObj(pack.meta) ? pack.meta : {});
+  const titleOf = pack => { const m = metaOf(pack); return String(m.title || m.id || 'Untitled story'); };
+  /* The one line a card tells: the opening premise, else the setting's blurb, the description, the world's first sentence. */
+  function premiseOf(pack) {
+    const o = isObj(pack.opening) ? pack.opening : {};
+    const st = isObj(pack.setting) ? pack.setting : {};
+    const w = isObj(pack.world) ? pack.world : {};
+    const pick = [o.premise, st.blurb, metaOf(pack).description, typeof w.setting === 'string' ? firstSentence(w.setting.trim()) : ''];
+    return pick.find(x => typeof x === 'string' && x.trim()) || '';
+  }
+  function selectedId() { try { return Storage.settings().selectedPackId || ''; } catch (e) { return ''; } }
+  /* The completeness ring: an SVG circle whose dash is the share filled (decision L). */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs) {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const k of Object.keys(attrs || {})) n.setAttribute(k, String(attrs[k]));
+    return n;
+  }
+  function ring(share) {
+    const pct = Math.round(Math.max(0, Math.min(1, Number(share) || 0)) * 100);
+    const R = 19;
+    const C = 2 * Math.PI * R;
+    const pic = svg('svg', { viewBox: '0 0 48 48', 'aria-hidden': 'true', focusable: 'false' });
+    pic.append(svg('circle', { class: 'cr-ring-track', cx: 24, cy: 24, r: R }));
+    if (pct > 0) pic.append(svg('circle', { class: 'cr-ring-fill', cx: 24, cy: 24, r: R, 'stroke-dasharray': `${(C * pct / 100).toFixed(2)} ${C.toFixed(2)}` }));
+    return el('div', { class: 'cr-ring', role: 'img', 'aria-label': `${pct}% complete`, title: `${pct}% of the story's sections are filled`, dataset: { pct: String(pct), full: pct === 100 ? '1' : '0' } },
+      pic, el('span', { class: 'cr-ring-num', 'aria-hidden': 'true' }, `${pct}%`));
+  }
+  function card(item) {
+    const pack = item.pack;
+    const m = metaOf(pack);
+    const title = titleOf(pack);
+    const rating = RATINGS.includes(m.rating) ? m.rating : '';
+    const badge = item.kind === 'built-in' ? 'Built in' : item.kind === 'draft' ? 'Draft' : SOURCE_BADGE[item.source] || 'Saved';
+    const selected = item.kind !== 'draft' && item.id === selectedId();
+    const premise = premiseOf(pack);
+    const base = 'cr-card-' + item.id;
+    const by = [m.author ? `by ${m.author}` : 'No author yet', m.version ? `version ${m.version}` : ''].filter(Boolean).join(' · ');
+    const draft = item.kind === 'draft';
+    const btn = (label, cls, action, onclick, extra) => el('button', Object.assign({ type: 'button', class: 'btn ' + cls, dataset: { action }, onclick }, extra || {}), label);
+    const actions = [
+      btn('Play this story', 'primary', 'play', () => play(item), draft ? { disabled: true, 'aria-describedby': base + '-test' } : null),
+      btn('Open in Creator', '', 'open', () => openItem(item))
+    ];
+    const more = [
+      btn('Export', 'ghost small', 'export', () => exportItem(item)),
+      btn('Duplicate', 'ghost small', 'duplicate', () => duplicateItem(item)),
+      item.kind === 'built-in' ? null : btn('Delete', 'ghost small danger', 'delete', () => deleteItem(item))
+    ];
+    return el('article', { class: 'cr-card', id: base, 'aria-labelledby': base + '-title', dataset: { kind: item.kind, id: item.id, selected: selected ? '1' : '0' } },
+      el('div', { class: 'cr-card-top' },
+        el('div', { class: 'cr-card-text' },
+          el('div', { class: 'cr-badges' },
+            el('span', { class: 'cr-badge', dataset: { badge: item.kind === 'pack' ? item.source : item.kind } }, badge),
+            rating ? el('span', { class: 'cr-chip', dataset: { rating } }, rating) : null,
+            selected ? el('span', { class: 'cr-badge on' }, 'Plays next') : null),
+          el('h2', { class: 'cr-card-title', id: base + '-title' }, title),
+          el('p', { class: 'cr-card-by' }, by)),
+        ring(Pack.completeness(pack))),
+      el('p', { class: 'cr-card-premise' + (premise ? '' : ' none') }, premise || 'No premise yet.'),
+      el('div', { class: 'cr-card-actions' }, actions),
+      draft ? el('p', { class: 'cr-note', id: base + '-test' }, 'Test it from the editor') : null,
+      el('div', { class: 'cr-card-more' }, more));
+  }
+  /* The Library and the drafts are read from IndexedDB at boot: the cards are drawn at once, and once more when
+     both are in memory (then too the note that nothing can be kept here shows, when IndexedDB is missing). */
+  let storesRead = false;
+  Promise.all([Storage.Library.ready, Storage.Drafts.ready]).then(() => {
+    storesRead = true;
+    if (UI.screen === 'creator' && state.view === 'library') renderLibrary();
+  }, () => { storesRead = true; });
+  function renderLibrary() {
+    const list = items();
+    node('creator-cards').replaceChildren(...list.map(card));
+    // Nothing beyond the built-in story: the empty state's sentence and its two buttons, and the header's pair steps aside.
+    const empty = list.length <= 1;
+    node('creator-empty').hidden = !empty;
+    node('creator-toolbar').hidden = empty;
+    node('creator-persist').hidden = !storesRead || (Storage.Library.persistent && Storage.Drafts.persistent);
+  }
+
+  /* Play this story: it is the one New game plays (settings.selectedPackId), and New game starts. */
+  function play(item) {
+    if (item.kind === 'draft') return false;
+    Storage.saveSettings({ selectedPackId: item.id });
+    return App.newGame();
+  }
+  /* Open in Creator: a pack is edited as a draft (its own copy); the built-in story is frozen, so it is first
+     duplicated into a pack of its own (Library.duplicate) and that is what the draft edits. A pack with a
+     draft already open again opens that draft. */
+  function openItem(item) {
+    if (item.kind === 'draft') { openEditor(item.id); return item.id; }
+    let from = item;
+    if (item.kind === 'built-in') {
+      try {
+        const rec = Storage.Library.duplicate(item.id);
+        from = { kind: 'pack', id: rec.id, pack: rec.pack };
+      } catch (e) { UI.toast(e.message); return null; }
+    } else {
+      const had = Storage.Drafts.index().find(dr => dr.fromPackId === item.id);
+      if (had) { openEditor(had.id); return had.id; }
+    }
+    const dr = Storage.Drafts.put({ fromPackId: from.id, pack: Pack.copy(from.pack) });
+    if (item.kind === 'built-in') UI.toast(BUILT_IN_NOTE);
+    openEditor(dr.id);
+    return dr.id;
+  }
+  /* New story: a blank pack (Pack.blank) as a draft, straight into the editor. */
+  function newStory() {
+    const dr = Storage.Drafts.put({ fromPackId: null, pack: Pack.blank('Untitled story') });
+    openEditor(dr.id);
+    return dr.id;
+  }
+  function fileName(pack) { const m = metaOf(pack); return `${m.id || 'story'}-${m.version || '0.0.0'}.json`; }
+  /* Export: the pack's file, "<id>-<version>.json", as Pack.format writes it (Library.exportText). */
+  function exportItem(item) {
+    try {
+      const name = Storage.download(Storage.Library.exportText(item.kind === 'draft' ? item.pack : item.id), fileName(item.pack));
+      UI.toast(`Downloaded ${name}.`);
+      return name;
+    } catch (e) { UI.toast(e.message); return null; }
+  }
+  function duplicateItem(item) {
+    try {
+      if (item.kind === 'draft') {
+        const pack = Pack.copy(item.pack);
+        pack.meta.title = `${titleOf(item.pack)} (copy)`;
+        Storage.Drafts.put({ fromPackId: item.fromPackId || null, pack });
+        UI.toast(`Made a copy of the draft "${titleOf(item.pack)}".`);
+      } else {
+        const rec = Storage.Library.duplicate(item.id);
+        UI.toast(`Made "${rec.title}".`);
+      }
+    } catch (e) { UI.toast(e.message); return false; }
+    renderLibrary();
+    return true;
+  }
+  /* Delete asks first, the title in the question. A save of a deleted pack still plays from its frozen copy. */
+  async function deleteItem(item) {
+    const title = titleOf(item.pack);
+    const draft = item.kind === 'draft';
+    const yes = await UI.ask({
+      title: draft ? 'Delete this draft?' : 'Delete this story?',
+      text: draft ? `The draft "${title}" goes from this device. This cannot be undone.`
+        : `"${title}" goes from this device. Games already saved with it keep playing. This cannot be undone.`,
+      yes: 'Delete', no: 'Keep it'
+    });
+    if (!yes) return false;
+    if (draft) Storage.Drafts.remove(item.id);
+    else {
+      Storage.Library.remove(item.id);
+      if (selectedId() === item.id) Storage.saveSettings({ selectedPackId: Pack.builtIn().meta.id });
+    }
+    UI.toast(`Deleted "${title}".`);
+    renderLibrary();
+    focusHead();
+    return true;
+  }
+  /* Import a .json: Library.importText reads and checks it; what is wrong is said in a toast. */
+  async function onImportFile(e) {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return null;
+    try {
+      if (file.size > Storage.Library.IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
+      const rec = Storage.Library.importText(await file.text(), { source: 'import' });
+      UI.toast(`Imported "${rec.title}".`);
+      renderLibrary();
+      return rec.id;
+    } catch (err) { UI.toast(err.message); return null; }
+  }
+
+  // ----- Creator: Form -----
+  // (milestone 5, task M5-B: Creator.Form.render from Pack.SCHEMA)
+
+  // ----- Creator: Editor -----
+  /* The shell (task M5-A): the header card (the draft's title, author and
+     version, the token meter, Undo, Redo, Test, Save), the tab strip and the
+     body; each tab's body arrives with its task. */
+  const TABS = Object.freeze([['overview', 'Overview'], ['world', 'World'], ['player', 'Player'], ['opening', 'Opening'], ['narrator', 'Narrator'],
+    ['directions', 'Directions'], ['rules', 'Rules'], ['freedom', 'Freedom'], ['prompts', 'Prompts'], ['json', 'JSON'], ['test', 'Test']]);
+  const PLACEHOLDER = 'This tab arrives with the next task.';
+  /* The meter for now (milestone 6 builds the real one): the built-in story's three cached blocks, estimated
+     (Pack.tokenEstimate) from its system prompt and the town and cast blocks of a stand-in game made from the
+     pack's own lists, so no running game is touched. Measured once. */
+  let builtInEstimate = null;
+  function estimate() {
+    if (builtInEstimate !== null) return builtInEstimate;
+    const b = Pack.builtIn();
+    const parts = [];
+    try { parts.push(Style.systemPrompt()); } catch (e) { /* none */ }
+    try {
+      const w = Pack.copy(b.world);
+      const stand = { meta: { packId: b.meta.id, townName: w.name }, npcs: w.npcs, locations: w.locations, factions: w.factions, threads: w.threads, rumours: w.rumours,
+        player: { locationId: w.startLocationIds.gate, knownNpcIds: [] }, time: { day: 1, phase: 'morning' }, flags: {} };
+      parts.push(Pipeline.townBlock(stand), Pipeline.castBlock(stand));
+    } catch (e) { /* the system prompt alone, then */ }
+    builtInEstimate = Pack.tokenEstimate(parts.join(' '));
+    return builtInEstimate;
+  }
+  function renderMeter() {
+    const n = estimate();
+    const budget = Pack.TOKEN_BUDGET;
+    node('creator-meter-fill').style.width = `${Math.min(100, (n / budget) * 100).toFixed(1)}%`;
+    node('creator-meter').dataset.over = n > budget ? '1' : '0';
+    node('creator-meter-num').textContent = `${n.toLocaleString('en-US')} of ${budget.toLocaleString('en-US')} tokens · estimate`;
+    node('creator-meter').title = 'The cached prompt the narrator reads every turn, estimated for the built-in story; the meter for your draft arrives with the next milestone.';
+  }
+  function tabButton([id, label]) {
+    const on = id === state.tab;
+    return el('button', { type: 'button', role: 'tab', id: 'creator-tab-' + id, 'aria-selected': String(on), 'aria-controls': 'creator-body', tabindex: on ? '0' : '-1', dataset: { crTab: id }, onclick: () => selectTab(id) }, label);
+  }
+  function renderBody() {
+    const body = node('creator-body');
+    const entry = TABS.find(t => t[0] === state.tab) || TABS[0];
+    body.setAttribute('aria-labelledby', 'creator-tab-' + entry[0]);
+    body.dataset.tab = entry[0];
+    body.replaceChildren(el('section', { class: 'cr-section' },
+      el('h2', { class: 'cr-section-title' }, entry[1]),
+      el('p', { class: 'cr-note' }, PLACEHOLDER)));
+  }
+  function selectTab(id, focus) {
+    if (!TABS.some(t => t[0] === id)) return;
+    state.tab = id;
+    for (const b of node('creator-tabs').querySelectorAll('[role=tab]')) {
+      const on = b.dataset.crTab === id;
+      b.setAttribute('aria-selected', String(on));
+      b.tabIndex = on ? 0 : -1;
+      if (on) { if (focus) b.focus({ preventScroll: true }); try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* fine */ } }
+    }
+    renderBody();
+  }
+  // The tab strip's keys, as the game's panel tabs: arrows, Home and End move and open.
+  function onTabKey(e) {
+    const ids = TABS.map(t => t[0]);
+    const i = ids.indexOf(state.tab);
+    const to = e.key === 'ArrowRight' ? ids[(i + 1) % ids.length] : e.key === 'ArrowLeft' ? ids[(i - 1 + ids.length) % ids.length] : e.key === 'Home' ? ids[0] : e.key === 'End' ? ids[ids.length - 1] : null;
+    if (!to) return;
+    e.preventDefault();
+    selectTab(to, true);
+  }
+  function renderEditor() {
+    const dr = Storage.Drafts.get(state.draftId);
+    if (!dr) { state.view = 'library'; state.draftId = null; return render(); }
+    const m = metaOf(dr.pack);
+    node('creator-editor-title').textContent = titleOf(dr.pack);
+    node('creator-editor-sub').textContent = [m.author ? `by ${m.author}` : 'No author yet', m.version ? `version ${m.version}` : '', m.id ? `id ${m.id}` : ''].filter(Boolean).join(' · ');
+    renderMeter();
+    node('creator-tabs').replaceChildren(...TABS.map(tabButton));
+    renderBody();
+    return dr;
+  }
+  function setView() {
+    const lib = state.view !== 'editor';
+    node('creator-library').hidden = !lib;
+    node('creator-editor').hidden = lib;
+    node('creator-title').textContent = lib ? 'Your stories' : 'Story editor';
+    node('creator-back').setAttribute('aria-label', lib ? 'Back to the title screen' : 'Back to your stories');
+  }
+  function render() {
+    setView();
+    if (state.view === 'editor') renderEditor(); else renderLibrary();
+  }
+  function focusHead() { const h = node('creator-title'); if (h) h.focus({ preventScroll: true }); }
+  function scrollTop() { const sc = node('creator-scroll'); if (sc) sc.scrollTop = 0; }
+  /* Create on the title: the screen with the Library. */
+  function open() {
+    state.view = 'library';
+    state.draftId = null;
+    UI.showScreen('creator');
+    scrollTop();
+  }
+  function showLibrary() {
+    state.view = 'library';
+    state.draftId = null;
+    if (UI.screen !== 'creator') { UI.showScreen('creator'); return; }
+    render();
+    scrollTop();
+    focusHead();
+  }
+  function openEditor(id) {
+    if (!Storage.Drafts.get(id)) { UI.toast('That draft is not on this device any more.'); showLibrary(); return false; }
+    state.view = 'editor';
+    state.draftId = id;
+    state.tab = 'overview';
+    if (UI.screen !== 'creator') UI.showScreen('creator');
+    else { render(); focusHead(); }
+    scrollTop();
+    return true;
+  }
+  function back() { if (state.view === 'editor') showLibrary(); else UI.showScreen('title'); }
+  /* Called once from UI.init (the title's Create is wired there). */
+  function wire() {
+    if (wired) return;
+    wired = true;
+    node('creator-back').addEventListener('click', back);
+    for (const id of ['creator-new', 'creator-empty-new']) node(id).addEventListener('click', () => newStory());
+    for (const id of ['creator-import', 'creator-empty-import']) node(id).addEventListener('click', () => node('creator-import-file').click());
+    node('creator-import-file').addEventListener('change', onImportFile);
+    node('creator-tabs').addEventListener('keydown', onTabKey);
+  }
+
+  // ----- Creator: Overview -----
+  // (milestone 5, task M5-D)
+
+  // ----- Creator: World -----
+  // (milestone 5, tasks M5-C1 and M5-C2)
+
+  // ----- Creator: Player -----
+  // (milestone 5, task M5-D)
+
+  // ----- Creator: Narrator -----
+  // (milestone 6)
+
+  // ----- Creator: Directions -----
+  // (milestone 6)
+
+  // ----- Creator: Rules -----
+  // (milestone 6)
+
+  // ----- Creator: Freedom -----
+  // (milestone 6)
+
+  // ----- Creator: Prompts -----
+  // (milestone 6)
+
+  // ----- Creator: Json -----
+  // (milestone 5, task M5-B: the live formatted view, Copy, Download, Import)
+
+  // ----- Creator: Preview -----
+  // (milestone 6: Show me the prompt)
+
+  // ----- Creator: Test -----
+  // (milestone 7: Test from a draft)
+
+  // ----- Creator: Dev -----
+  // (milestone 7: the Developer overlay)
+
+  // ----- Creator: Convert -----
+  // (milestone 8: the Story to Pack converter)
+
+  return {
+    open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, PLACEHOLDER, BUILT_IN_NOTE,
+    get state() { return state; }
   };
 })();
 
@@ -44616,7 +45388,7 @@ const App = (() => {
 
 // ===== Game: the one global (tests drive the engine through it) =====
 window.Game = Object.freeze({
-  Rng, Dice, Cards, Tables, State, Rel, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, Pack, PackRules, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
+  Rng, Dice, Cards, Tables, State, Rel, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, Pack, PackRules, Creator, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
   /* Getters (wave 37, Creator Mode): Game.data.TOWN_DATA is always the current
