@@ -1303,6 +1303,26 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-chip[data-rating="teen"] { --cr-tint: var(--cr-teen); }
 .cr-chip[data-rating="mature"] { --cr-tint: var(--cr-mature); }
 .cr-chip[data-rating="adult"] { --cr-tint: var(--cr-adult); }
+/* The Creator's sheets (wave 37, Creator Mode, milestone 8, task M8-A): the import sheet's warnings, a path in
+   the mono face over its message, scrolled inside the sheet when there are many; the share sheet's file line and
+   its three 44px buttons, side by side when they fit and stacked on a phone. */
+.cr-sheet { width: min(520px, calc(100vw - 32px)); max-width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+.cr-sheet .ask-in { display: flex; flex-direction: column; max-height: calc(100dvh - 34px); box-sizing: border-box; }
+.cr-sheet h2 { overflow-wrap: anywhere; }
+.cr-sheet-body { min-height: 0; overflow-y: auto; }
+.cr-sheet-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.cr-sheet-list li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.cr-sheet-path { font-family: var(--mono-font); font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.cr-sheet-msg { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.cr-sheet #creator-share-more { margin: 8px 0 0; }
+.cr-sheet .cr-sheet-btns { justify-content: flex-end; align-items: center; }
+.cr-sheet .btn { min-height: 44px; }
+.cr-share-file { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.cr-sheet p.cr-share-file { color: var(--text); }
+.cr-share-name { font-family: var(--mono-font); font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.cr-share-size { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.cr-share-btns { display: flex; flex-wrap: wrap; gap: 10px; flex: 1 1 100%; }
+.cr-share-btns .btn { flex: 1 1 8em; }
 /* Badges: Built in, Draft, From a save (and what else a pack's source says); "Plays next" in the accent. */
 .cr-badge {
   display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 6px;
@@ -2251,6 +2271,15 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         <button type="button" class="btn" id="ask-no">Cancel</button>
         <button type="button" class="btn primary" id="ask-yes">OK</button>
       </div>
+    </div>
+  </dialog>
+  <!-- Wave 37, Creator Mode, milestone 8 (task M8-A): the Creator's sheets, the import warnings and the share sheet, drawn by Creator. -->
+  <dialog id="creator-share" class="ask cr-sheet" aria-labelledby="creator-share-title" aria-describedby="creator-share-text">
+    <div class="ask-in">
+      <h2 id="creator-share-title"></h2>
+      <p id="creator-share-text"></p>
+      <div class="cr-sheet-body" id="creator-share-body"></div>
+      <div class="row-btns cr-sheet-btns" id="creator-share-btns"></div>
     </div>
   </dialog>
 </div>
@@ -11078,7 +11107,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 5 (task M5-C1): the id an added entity gets, and an id renamed through every reference.
     idFor, renameId,
     // Wave 37, Creator Mode, milestone 6 (task M6-C): the cached prompt's token estimate (PackBudget, after PackRules: it builds with Style and Pipeline, read at call time).
-    budgetEstimate: pack => PackBudget.estimate(pack)
+    budgetEstimate: pack => PackBudget.estimate(pack),
+    // Wave 37, Creator Mode, milestone 8 (task M8-A): a pack file read and cleaned (PackImport, after PackRules, read at call time), the string caps it cleans to, and validate's shape pass alone (a save's pack, Storage.resolvePack).
+    importText: (text, opts) => PackImport.importText(text, opts), cleanStrings: (pack, opts) => PackImport.cleanStrings(pack, opts), STRING_MAX: Object.freeze(Object.assign({}, STRING_MAX)), NOTES_MAX, shape
   };
 })();
 
@@ -14035,6 +14066,169 @@ const PackBudget = (() => {
     });
     return out;
   } });
+})();
+
+/* Pack.importText and Pack.cleanStrings (wave 37, Creator Mode, milestone 8,
+   task M8-A; plan decision J, fixed rule 4: packs are data). A story pack
+   comes from anyone, so every way one arrives from outside (a pack file in
+   the Library or on the JSON tab, the pack a save's export carries, a draft
+   read back from IndexedDB) is cleaned the same way before anything else
+   reads it:
+   - every string loses its control characters (C0 but line breaks and tabs,
+     DEL, C1) and the bidi controls (U+200E, U+200F, U+202A to U+202E,
+     U+2066 to U+2069) that make a name read one way and sort another; line
+     breaks and tabs stay in text and in fields the format does not know,
+     and become a space in a one-line field; a carriage return becomes a
+     line break;
+   - every string is cut to its field's cap (a one-line field 500, a text
+     field its max, notes 600, a field the format does not know 2,000), every
+     key to 64 characters, every list to 2,000 entries, and nothing is kept
+     below twelve levels of nesting: a file can be large, never unbounded
+     where the editor and the prompts walk it;
+   - a "<" is not cleaned away: Pack.validate's engine.markup refuses it,
+     since the inliner's "<\/" rule (plan decision A) and the text-only DOM
+     (rule 4) both rest on there being none.
+   Pack.cleanStrings returns a cleaned copy, key order kept, so a pack that
+   was clean comes back byte for byte (Pack.format of both equal) and keeps
+   its hash. Fields the format does not know are kept: Pack.validate reports
+   each as lint.unknownField ("it is kept, and the game ignores it").
+   Pack.importText(text, { profile }) reads a file: the 2 MB cap, the JSON, a
+   saved game turned away, the pack format; then the cleaning, then
+   Pack.validate in the play profile. It throws an Error a player can read,
+   or returns { pack, problems, unknown }: problems is what the cleaning did
+   (lint.import.*, warnings) and what validate found, unknown the paths of
+   the fields kept that the game ignores. Profile 'play' (the Library)
+   refuses any error; profile 'draft' (the JSON tab, which replaces a draft
+   that may be unfinished) refuses only a "<", the rest showing in Problems.
+   The refusal names the first three errors by path. */
+const PackImport = (() => {
+  const MAX_BYTES = 2 * 1024 * 1024;
+  const KEY_MAX = 64;
+  const DEPTH_MAX = 12;
+  const LIST_MAX = 2000;
+  const UNKNOWN_MAX = 2000;
+  const SAVE_KIND = 'novatria-save';
+  const STRIP_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F‎‏‪-‮⁦-⁩]/g;
+  const ONE_LINE = new Set(['string', 'ref', 'id', 'enum']);
+  const join = (path, key) => (path ? path + '.' + key : String(key));
+  const plural = (n, one, many) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+  // Cut at a code point, never between the halves of a surrogate pair.
+  function cut(s, max) {
+    let out = s.slice(0, max);
+    const last = out.charCodeAt(out.length - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) out = out.slice(0, -1);
+    return out;
+  }
+  /* The cap and whether line breaks stay, from the field's spec (null: a field the format does not know). */
+  function leafOf(spec, notes) {
+    if (notes) return { max: Pack.NOTES_MAX, lines: true };
+    if (!spec) return { max: UNKNOWN_MAX, lines: true };
+    if (ONE_LINE.has(spec.type)) return { max: spec.max || Pack.STRING_MAX[spec.type] || Pack.STRING_MAX.string, lines: false };
+    if (spec.type === 'text') return { max: spec.max || Pack.STRING_MAX.text, lines: true };
+    return { max: spec.max || UNKNOWN_MAX, lines: true };
+  }
+  /* The cleaned copy of pack; opts.report (a list) gets a warning for each change, opts.lengths false keeps long strings whole. */
+  function cleanStrings(pack, opts) {
+    const report = opts && Array.isArray(opts.report) ? opts.report : null;
+    const lengths = !(opts && opts.lengths === false);
+    const note = (path, message, rule) => { if (report) report.push({ path, message, severity: 'warning', rule }); };
+    const DROP = {};
+    function str(s, path, leaf) {
+      let v = s.replace(/\r\n?/g, '\n');
+      const stripped = v.replace(STRIP_RE, '');
+      let changed = stripped.length !== v.length || v.length !== s.length;
+      v = stripped;
+      if (!leaf.lines && /[\n\t]/.test(v)) { v = v.replace(/[\n\t]+/g, ' '); changed = true; }
+      if (changed) note(path, 'had hidden characters (control or text-direction marks); they were taken out.', 'lint.import.stripped');
+      if (lengths && v.length > leaf.max) {
+        note(path, `was ${plural(v.length, 'character', 'characters')}; it was cut to the most, ${plural(leaf.max, 'character', 'characters')}.`, 'lint.import.cut');
+        v = cut(v, leaf.max);
+      }
+      return v;
+    }
+    function key(k, path) {
+      let v = k.replace(STRIP_RE, '').replace(/[\r\n\t]+/g, ' ');
+      if (v.length > KEY_MAX) v = cut(v, KEY_MAX);
+      if (v !== k) note(path, `the field name had hidden characters or ran over ${KEY_MAX} characters; it was cleaned.`, 'lint.import.key');
+      return v;
+    }
+    function childOf(spec, k) {
+      if (!spec) return { spec: null, notes: false };
+      if (spec.type === 'object') {
+        if (Object.prototype.hasOwnProperty.call(spec.fields, k)) return { spec: spec.fields[k], notes: false };
+        return { spec: null, notes: k === 'notes' };
+      }
+      if (spec.type === 'map') return { spec: spec.of, notes: false };
+      return { spec: null, notes: false };
+    }
+    function walk(v, spec, path, depth, notes) {
+      if (typeof v === 'string') return str(v, path, leafOf(spec, notes));
+      if (v === null || typeof v !== 'object') return v;
+      if (depth >= DEPTH_MAX) {
+        note(path, `is nested deeper than ${DEPTH_MAX} levels; what was below was left out.`, 'lint.import.depth');
+        return DROP;
+      }
+      if (Array.isArray(v)) {
+        const of = spec && spec.type === 'list' ? spec.of : spec && spec.type === 'refs' ? { type: 'ref', max: spec.max } : null;
+        let list = v;
+        if (list.length > LIST_MAX) {
+          note(path, `had ${plural(list.length, 'entry', 'entries')}; it was cut to the first ${plural(LIST_MAX, 'entry', 'entries')}.`, 'lint.import.cut');
+          list = list.slice(0, LIST_MAX);
+        }
+        const out = [];
+        list.forEach((x, i) => { const c = walk(x, of, path + '[' + i + ']', depth + 1, false); if (c !== DROP) out.push(c); });
+        return out;
+      }
+      const out = {};
+      for (const k of Object.keys(v)) {
+        const k2 = key(k, join(path, k));
+        if (!k2 || Object.prototype.hasOwnProperty.call(out, k2)) { note(join(path, k), 'had the same name as another field once cleaned (or none); it was left out.', 'lint.import.key'); continue; }
+        const c = childOf(spec, k2);
+        const x = walk(v[k], c.spec, join(path, k2), depth + 1, c.notes);
+        // defineProperty: a key "__proto__" from JSON.parse stays a plain field, never the copy's prototype.
+        if (x !== DROP) Object.defineProperty(out, k2, { value: x, enumerable: true, writable: true, configurable: true });
+      }
+      return out;
+    }
+    const out = walk(pack, Pack.SCHEMA, '', 0, false);
+    return out === DROP ? {} : out;
+  }
+  function bytesOf(text) {
+    if (text.length > MAX_BYTES) return text.length;
+    return typeof TextEncoder === 'function' ? new TextEncoder().encode(text).length : text.length;
+  }
+  /* "That story pack has a problem at P: M Also at P2: M2 Also at P3: M3 And 4 more." */
+  function refusal(errs) {
+    const at = p => (p.path ? ' at ' + p.path : '');
+    const first = errs[0];
+    const parts = [`That story pack has a problem${at(first)}: ${first.message}`];
+    for (const p of errs.slice(1, 3)) parts.push(`Also${at(p)}: ${p.message}`);
+    if (errs.length > 3) parts.push(`And ${(errs.length - 3).toLocaleString('en-US')} more.`);
+    return parts.join(' ');
+  }
+  function importText(text, opts) {
+    const profile = opts && opts.profile === 'draft' ? 'draft' : 'play';
+    if (typeof text !== 'string') throw new Error('That file is not a story pack.');
+    const bytes = bytesOf(text);
+    if (bytes > MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(bytes / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
+    let raw;
+    try { raw = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON.'); }
+    if (!isObj(raw)) throw new Error('That file is not a story pack.');
+    if (raw.kind === SAVE_KIND) throw new Error('That file is a saved game, not a story pack. Import it from Save / Load.');
+    if (typeof raw.packFormat === 'number' && raw.packFormat > Pack.FORMAT) throw new Error('That story pack was made for a newer version of the game.');
+    if (raw.packFormat !== Pack.FORMAT || !isObj(raw.meta)) throw new Error('That file is not a story pack.');
+    const report = [];
+    const pack = cleanStrings(raw, { report });
+    const problems = report.concat(Pack.validate(pack, { profile: 'play' }));
+    const refuse = Pack.errors(problems).filter(p => profile === 'play' || p.rule === 'engine.markup');
+    if (refuse.length) {
+      const err = new Error(refusal(refuse));
+      err.problems = refuse;
+      throw err;
+    }
+    return { pack, problems, unknown: problems.filter(p => p.rule === 'lint.unknownField').map(p => p.path) };
+  }
+  return { importText, cleanStrings, refusal, MAX_BYTES, KEY_MAX, DEPTH_MAX, LIST_MAX };
 })();
 
 // ===== Module: Rng =====
@@ -39243,7 +39437,14 @@ const Storage = (() => {
     delete env.packMissing;
     const ref = isObj(env.packRef) ? env.packRef : null;
     if (isObj(env.pack)) {
-      const pack = Pack.deepFreeze(env.pack);
+      // Wave 37, Creator Mode, milestone 8 (task M8-A): the pack a save carries is a file from anywhere, cleaned as an import is.
+      const read = savedPack(env.pack);
+      if (read.error) {
+        const name = isObj(env.pack.meta) && typeof env.pack.meta.title === 'string' ? Pack.cleanStrings({ t: env.pack.meta.title }).t.slice(0, 80) : '';
+        env.packMissing = `This save's story pack${name ? ` ${name}` : ''} cannot be played: it has a problem${read.error.path ? ` at ${read.error.path}` : ''}: ${read.error.message}`;
+        return null;
+      }
+      const pack = read.pack;
       if (isBuiltInPack(pack)) return Pack.builtIn();
       const hash = packHash(pack);
       keepFrozen(pack, hash);
@@ -39279,6 +39480,27 @@ const Storage = (() => {
     const title = isObj(env.summary) && typeof env.summary.packTitle === 'string' ? env.summary.packTitle : '';
     env.packMissing = `This save needs the story pack ${title ? `${title} (${ref.id})` : ref.id}, which is not on this device. Import the save's export file instead.`;
     return null;
+  }
+  /* The pack a save carries, as resolvePack plays it (wave 37, Creator Mode, milestone 8, task M8-A; plan R8,
+     every import path): Pack.cleanStrings, then validate's shape pass alone (Pack.shape: a "<", a wrong type, a bad
+     id refuse): a legacy- pack fails the mention rules on purpose, and a story the rules fault still loads, as it did.
+     The title and Save / Load read each save on every draw, so the answer is kept per hash of what the save
+     held (the last SAVED_PACKS_MAX of them): a pack is cleaned and checked once a page. */
+  const SAVED_PACKS_MAX = 8;
+  const savedPacks = new Map();
+  function savedPack(raw) {
+    let key;
+    try { key = Pack.hash(raw); } catch (e) { key = null; }
+    const had = key && savedPacks.get(key);
+    if (had) return had;
+    const pack = Pack.deepFreeze(Pack.cleanStrings(raw));
+    const error = Pack.errors(Pack.shape(pack))[0] || null;
+    const out = { pack, error };
+    if (key) {
+      if (savedPacks.size >= SAVED_PACKS_MAX) savedPacks.delete(savedPacks.keys().next().value);
+      savedPacks.set(key, out);
+    }
+    return out;
   }
   /* Copy the autosave to .prev when the game about to be written is a different one. */
   function keepPrevious(st) {
@@ -39676,19 +39898,14 @@ const Storage = (() => {
     pack.meta.title = `${from.meta.title || from.meta.id} (copy)`;
     return libPut(pack, { source: 'duplicate' });
   }
-  /* A pack file's text: the basics now (size, JSON, a pack of this format);
-     plan decision M8-A makes import stricter in milestone 8. */
+  /* A pack file's text (wave 37, Creator Mode, milestone 8, task M8-A): Pack.importText reads, cleans and checks
+     it (the 2 MB cap, the JSON, a saved game turned away, the pack format, control characters and caps, a "<"
+     refused, the play profile's errors refused by path) and its messages are the ones a player reads here; the
+     cleaned pack is then put. The Library's Import asks about the warnings first (Creator's import sheet) and puts
+     the pack itself; this is the same path without the question. */
   function libImportText(text, opts) {
-    if (typeof text !== 'string') throw new Error('That file is not a story pack.');
-    const bytes = text.length > LIBRARY_IMPORT_MAX_BYTES ? text.length : (typeof TextEncoder === 'function' ? new TextEncoder().encode(text).length : text.length);
-    if (bytes > LIBRARY_IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(bytes / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
-    let pack;
-    try { pack = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON.'); }
-    if (!isObj(pack)) throw new Error('That file is not a story pack.');
-    if (pack.kind === SAVE_KIND) throw new Error('That file is a saved game, not a story pack. Import it from Save / Load.');
-    if (typeof pack.packFormat === 'number' && pack.packFormat > Pack.FORMAT) throw new Error('That story pack was made for a newer version of the game.');
-    if (pack.packFormat !== Pack.FORMAT) throw new Error('That file is not a story pack.');
-    return libPut(pack, { source: (opts && opts.source) || 'import' });
+    const read = Pack.importText(text, { profile: 'play' });
+    return libPut(read.pack, { source: (opts && opts.source) || 'import' });
   }
   function libExportText(ref) {
     const pack = packOf(ref);
@@ -39997,7 +40214,11 @@ const UI = (() => {
     'creator-editor', 'creator-editor-head', 'creator-editor-kind', 'creator-editor-title', 'creator-editor-sub', 'creator-meter',
     'creator-meter-fill', 'creator-meter-num', 'creator-undo', 'creator-redo', 'creator-save', 'creator-test', 'creator-tabs', 'creator-body',
     'creator-problems', 'creator-json', 'creator-json-copy', 'creator-json-download', 'creator-json-import', 'creator-preview',
-    'creator-convert', 'creator-convert-run', 'creator-gaps', 'creator-share'];
+    'creator-convert', 'creator-convert-run', 'creator-gaps', 'creator-share',
+    // Wave 37, Creator Mode, milestone 8 (task M8-A): the sheets' parts (the buttons and lists are drawn with the sheet, so null here).
+    'creator-share-title', 'creator-share-text', 'creator-share-body', 'creator-share-btns', 'creator-share-list', 'creator-share-more',
+    'creator-share-file', 'creator-share-note', 'creator-share-yes', 'creator-share-no', 'creator-share-download', 'creator-share-share',
+    'creator-share-copy', 'creator-share-close'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -45421,13 +45642,99 @@ const Creator = (() => {
     return dr.id;
   }
   function fileName(pack) { const m = metaOf(pack); return `${m.id || 'story'}-${m.version || '0.0.0'}.json`; }
-  /* Export: the pack's file, "<id>-<version>.json", as Pack.format writes it (Library.exportText). */
+  /* Export: the pack's file, "<id>-<version>.json", as Pack.format writes it (Library.exportText), in the share
+     sheet (task M8-A). */
   function exportItem(item) {
     try {
-      const name = Storage.download(Storage.Library.exportText(item.kind === 'draft' ? item.pack : item.id), fileName(item.pack));
-      UI.toast(`Downloaded ${name}.`);
-      return name;
+      return shareSheet(Storage.Library.exportText(item.kind === 'draft' ? item.pack : item.id), fileName(item.pack), titleOf(item.pack));
     } catch (e) { UI.toast(e.message); return null; }
+  }
+  /* ----- the sheets (wave 37, Creator Mode, milestone 8, task M8-A) -----
+     One <dialog> (#creator-share, after #ask) holds either sheet, drawn here through el() and textContent:
+     the import sheet, the warnings a pack file brings (Pack.importText's, by path; SHEET_MAX of them and how many
+     more) with "Import anyway" and Cancel, the safe answer focused as UI.ask focuses it; and the share sheet, the
+     file's name and size and three ways to take it away (Download, Share when the browser can share a file,
+     Copy JSON). A modal dialog sits above the toast, so a button closes the sheet before it acts and its toast
+     shows; the focus goes back where it was. */
+  const SHEET_MAX = 20;
+  const SHARE_NOTE = 'A story pack holds your story and its settings. It never holds your API key or a saved game.';
+  function sheet(fill) {
+    const dlg = node('creator-share');
+    if (!dlg || typeof dlg.showModal !== 'function') return Promise.resolve('');
+    if (dlg.open) dlg.close('');
+    const btn = (id, label, cls, value, act) => el('button', { type: 'button', class: 'btn ' + cls, id, onclick: () => { dlg.close(value); if (act) act(); } }, label);
+    const f = fill(btn);
+    node('creator-share-title').textContent = f.title;
+    node('creator-share-text').textContent = f.text;
+    node('creator-share-body').replaceChildren(...f.body.filter(Boolean));
+    node('creator-share-btns').replaceChildren(...f.buttons.filter(Boolean));
+    dlg.dataset.sheet = f.kind;
+    dlg.returnValue = '';
+    const was = document.activeElement;
+    return new Promise(resolve => {
+      dlg.addEventListener('close', () => {
+        resolve(dlg.returnValue);
+        if (was && was.isConnected && typeof was.focus === 'function') was.focus({ preventScroll: true });
+      }, { once: true });
+      dlg.showModal();
+      const first = node(f.focus);
+      if (first) first.focus();
+    });
+  }
+  /* The import sheet: resolves true for Import anyway (or opts.yes). */
+  async function importSheet(opts) {
+    const list = opts.warnings;
+    const more = list.length - SHEET_MAX;
+    const said = await sheet(btn => ({
+      kind: 'import', title: opts.title, text: opts.text, focus: 'creator-share-no',
+      body: [
+        el('ul', { class: 'cr-sheet-list', id: 'creator-share-list' }, list.slice(0, SHEET_MAX).map(p => el('li', null,
+          p.path ? el('span', { class: 'cr-sheet-path' }, p.path) : null, el('span', { class: 'cr-sheet-msg' }, p.message)))),
+        more > 0 ? el('p', { class: 'cr-note', id: 'creator-share-more' }, `and ${more.toLocaleString('en-US')} more`) : null
+      ],
+      buttons: [btn('creator-share-no', opts.no || 'Cancel', '', 'no'), btn('creator-share-yes', opts.yes || 'Import anyway', 'primary', 'yes')]
+    }));
+    return said === 'yes';
+  }
+  // "1 thing" / "3 things": what the import sheet's sentence counts.
+  const warningsText = n => `${n.toLocaleString('en-US')} ${n === 1 ? 'thing' : 'things'}`;
+  /* The share sheet for a pack file's text; resolves to what was done ('download', 'share', 'copy' or ''). */
+  function shareSheet(text, name, title) {
+    const bytes = byteLength(text);
+    let file = null;
+    let canFile = false;
+    try {
+      file = typeof File === 'function' ? new File([text], name, { type: 'application/json' }) : null;
+      canFile = !!file && typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }) === true;
+    } catch (e) { canFile = false; }
+    const share = async () => {
+      try { await navigator.share({ files: [file], title }); } catch (e) {
+        // The person closing the system's share sheet is no error.
+        if (!e || e.name !== 'AbortError') UI.toast(`This browser would not share the file${e && e.message ? ` (${e.message})` : ''}. Use Download instead.`);
+      }
+    };
+    return sheet(btn => ({
+      kind: 'share', title: `Share "${title}"`, text: 'Send the story pack to someone, or keep a copy.', focus: 'creator-share-download',
+      body: [
+        el('p', { class: 'cr-share-file', id: 'creator-share-file' }, el('span', { class: 'cr-share-name' }, name), el('span', { class: 'cr-share-size' }, kb(bytes))),
+        el('p', { class: 'cr-note', id: 'creator-share-note' }, SHARE_NOTE)
+      ],
+      buttons: [
+        el('div', { class: 'cr-share-btns' },
+          btn('creator-share-download', 'Download', 'primary', 'download', () => { const n = Storage.download(text, name); UI.toast(`Downloaded ${n}.`); }),
+          canFile ? btn('creator-share-share', 'Share', '', 'share', share) : null,
+          btn('creator-share-copy', 'Copy JSON', '', 'copy', () => copyText(text))),
+        btn('creator-share-close', 'Close', 'ghost', '')
+      ]
+    }));
+  }
+  /* Text onto the clipboard, else through a selected textarea (copyByHand, the JSON tab's). */
+  async function copyText(text) {
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+    if (!ok) ok = copyByHand(text);
+    UI.toast(ok ? `Copied the JSON (${kb(byteLength(text))}).` : 'This browser would not copy it. Use Download instead.');
+    return ok;
   }
   function duplicateItem(item) {
     try {
@@ -45465,7 +45772,8 @@ const Creator = (() => {
     focusHead();
     return true;
   }
-  /* Import a .json: Library.importText reads and checks it; what is wrong is said in a toast. */
+  /* Import a .json: Pack.importText reads, cleans and checks it (task M8-A); an error is said in a toast, and
+     warnings (fields the game ignores, text that was cut or cleaned) are shown in the import sheet first. */
   async function onImportFile(e) {
     const input = e.target;
     const file = input.files && input.files[0];
@@ -45473,7 +45781,16 @@ const Creator = (() => {
     if (!file) return null;
     try {
       if (file.size > Storage.Library.IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
-      const rec = Storage.Library.importText(await file.text(), { source: 'import' });
+      const read = Pack.importText(await file.text(), { profile: 'play' });
+      const warnings = read.problems.filter(p => p.severity === 'warning');
+      if (warnings.length) {
+        const yes = await importSheet({
+          title: `Import "${titleOf(read.pack)}"?`, warnings,
+          text: `The story can be played. The game noticed ${warningsText(warnings.length)} in ${file.name}:`
+        });
+        if (!yes) return false;
+      }
+      const rec = Storage.Library.put(read.pack, { source: 'import' });
       UI.toast(`Imported "${rec.title}".`);
       renderLibrary();
       return rec.id;
@@ -45853,7 +46170,12 @@ const Creator = (() => {
     const dr = Storage.Drafts.get(id);
     if (!dr) { work = null; state.draft = null; return false; }
     work = { id: dr.id, fromPackId: dr.fromPackId, undo: dr.undo.slice(), redo: dr.redo.slice() };
-    state.draft = Pack.copy(dr.pack);
+    /* Wave 37, Creator Mode, milestone 8 (task M8-A; plan R8, every import path): the draft as IndexedDB gave it
+       back (another tab, a hand edit) is cleaned as an import is, its hidden characters out and its lists and
+       nesting capped, but its long strings kept whole: the Narrator tab's boxes have no maxlength on purpose, so
+       a paste that runs over shows how far over (engine.string.length) instead of being cut short on the next
+       open. Unknown fields stay, and check() lists them; a draft with errors is still a draft. */
+    state.draft = Pack.cleanStrings(dr.pack, { lengths: false });
     problems = [];
     return true;
   }
@@ -49175,41 +49497,37 @@ const Creator = (() => {
     UI.toast(ok ? `Copied the JSON (${kb(byteLength(text))}).` : 'This browser would not copy it. Use Download .json instead.');
     return ok;
   }
+  /* Download .json opens the share sheet (task M8-A): Download, Share where the browser can, Copy JSON. */
   function downloadJson() {
     if (!state.draft) return null;
     Form.flush();
-    try {
-      const name = Storage.download(Storage.Library.exportText(state.draft), fileName(state.draft));
-      UI.toast(`Downloaded ${name}.`);
-      return name;
-    } catch (e) { UI.toast(e.message); return null; }
+    try { return shareSheet(Storage.Library.exportText(state.draft), fileName(state.draft), titleOf(state.draft)); } catch (e) { UI.toast(e.message); return null; }
   }
-  /* A pack file's text as Library.importText reads it (JSON, not a save, pack format 1), but nothing is refused
-     for what Pack.validate finds: a draft may be unfinished, so those problems show in Problems. */
-  function readPackText(text) {
-    let pack;
-    try { pack = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON.'); }
-    if (!isObj(pack)) throw new Error('That file is not a story pack.');
-    if (pack.kind === Storage.SAVE_KIND) throw new Error('That file is a saved game, not a story pack. Import it from Save / Load.');
-    if (typeof pack.packFormat === 'number' && pack.packFormat > Pack.FORMAT) throw new Error('That story pack was made for a newer version of the game.');
-    if (pack.packFormat !== Pack.FORMAT || !isObj(pack.meta)) throw new Error('That file is not a story pack.');
-    return pack;
-  }
+  /* A pack file's text through Pack.importText in the draft profile (task M8-A): the file's checks, the cleaning
+     and the "<" refused, but nothing else refused for what Pack.validate finds: a draft may be unfinished, so
+     those problems show in Problems. Returns { pack, problems, unknown }. */
+  function readPackText(text) { return Pack.importText(text, { profile: 'draft' }); }
   async function onJsonImport(e) {
     const input = e.target;
     const file = input.files && input.files[0];
     input.value = '';
     if (!file || !state.draft) return null;
-    let pack;
+    let read;
     try {
       if (file.size > Storage.Library.IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
-      pack = readPackText(await file.text());
+      read = readPackText(await file.text());
     } catch (err) { UI.toast(err.message); return null; }
-    const yes = await UI.ask({
+    const pack = read.pack;
+    const warnings = read.problems.filter(p => p.severity === 'warning');
+    const question = {
       title: 'Replace this draft with the file?',
       text: `Everything in "${titleOf(state.draft)}" is replaced by "${titleOf(pack)}" from ${file.name}. Undo brings this draft back.`,
       yes: 'Replace', no: 'Keep the draft'
-    });
+    };
+    // With warnings the import sheet asks the same question and lists them; without, UI.ask.
+    const yes = warnings.length
+      ? await importSheet(Object.assign({}, question, { warnings, yes: 'Import anyway', text: `${question.text} The game noticed ${warningsText(warnings.length)} in the file:` }))
+      : await UI.ask(question);
     if (!yes) return false;
     set('', pack);
     check();

@@ -268,7 +268,9 @@ s.test('Duplicate adds a -copy record; Export downloads "<id>-<version>.json" wh
   assert.deepEqual(rec, { source: 'duplicate', title: 'Marrow Bend (copy)' });
   assert.deepEqual((await cards(page)).map(c => c.id), ['low-water', 'marrow-bend', 'marrow-bend-copy']);
   for (const [id, name] of [['low-water', 'low-water-1.0.0.json'], ['marrow-bend', 'marrow-bend-1.0.0.json']]) {
-    const [download] = await Promise.all([page.waitForEvent('download'), page.click(`${card(page, id)} [data-action=export]`)]);
+    // Task M8-A: Export opens the share sheet; its Download gives the file.
+    await page.click(`${card(page, id)} [data-action=export]`);
+    const [download] = await Promise.all([page.waitForEvent('download'), page.click('#creator-share-download')]);
     assert.equal(download.suggestedFilename(), name);
     const text = fs.readFileSync(await download.path(), 'utf8');
     assert.equal(text, await page.evaluate(i => Game.Pack.format(Game.Storage.Library.get(i).pack), id), id);
@@ -278,7 +280,8 @@ s.test('Duplicate adds a -copy record; Export downloads "<id>-<version>.json" wh
   await page.click('#creator-back');
   await library(page);
   const want = await page.evaluate(i => { const p = Game.Storage.Drafts.get(i).pack; return { name: `${p.meta.id}-0.1.0.json`, text: Game.Pack.format(p) }; }, draftId);
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click(`${card(page, draftId)} [data-action=export]`)]);
+  await page.click(`${card(page, draftId)} [data-action=export]`);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#creator-share-download')]);
   assert.equal(download.suggestedFilename(), want.name);
   assert.equal(fs.readFileSync(await download.path(), 'utf8'), want.text);
   await page.click(`${card(page, draftId)} [data-action=duplicate]`);
@@ -708,7 +711,9 @@ s.test('the JSON tab shows Pack.format of the draft with its line count and size
   await page.click('#creator-json-copy');
   assert.equal(await toast(page), `Copied the JSON (${v.kb} KB).`);
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await page.evaluate(() => Game.Pack.format(Game.Creator.state.draft)));
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#creator-json-download')]);
+  // Task M8-A: Download .json opens the share sheet; its Download gives the file.
+  await page.click('#creator-json-download');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#creator-share-download')]);
   assert.equal(download.suggestedFilename(), 'harbour-copy-1.0.0.json');
   assert.equal(fs.readFileSync(await download.path(), 'utf8'), await page.evaluate(() => Game.Pack.format(Game.Creator.state.draft)));
   // Import: a bad file says why; a pack file is asked about first; Keep the draft keeps it; Replace replaces it.
