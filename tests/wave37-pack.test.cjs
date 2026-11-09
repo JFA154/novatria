@@ -118,8 +118,17 @@ s.test('a seeded ten-input mock playthrough is the v36 snapshot\'s: the first pa
     // the one key a milestone 1 game carries that a pre-wave game did not (nothing the player sees changes). Removed on the
     // live side only, after the assertion below pins them to exactly these two places.
     for (const l of copy.locations) delete l.typeLabel;
+    /* Milestone 2 (plan decision C), the second planned change: a new game names its story pack in meta (packId,
+       packVersion, packHash) and starts at the current rules version (11, "A story pack", once Upgrade has its step).
+       Pinned to exactly those values here, then taken out on the live side (rulesVersion set back in place, so the
+       key order is the snapshot's). */
+    const m = copy.meta;
+    const packMeta = { packId: m.packId, packVersion: m.packVersion, packHash: m.packHash, rulesVersion: m.rulesVersion, current: Game.State.RULES_VERSION, builtInHash: Game.Pack.hash(Game.Pack.builtIn()) };
+    delete m.packId; delete m.packVersion; delete m.packHash;
+    if (m.rulesVersion === 11) m.rulesVersion = 10;
     const p = st.player;
     return {
+      packMeta,
       labels,
       packet: calls.length ? calls[0].text : null,
       log: st.log, journal: st.journal, time: st.time,
@@ -138,6 +147,9 @@ s.test('a seeded ten-input mock playthrough is the v36 snapshot\'s: the first pa
   assert.equal(r.rngCalls, P.rngCalls);
   // First, so the typeLabel normalisation cannot hide anything wider.
   assert.deepEqual(r.labels.sort(), [['loc_bluff', 'Bluff'], ['loc_town_hall', 'Town hall']], 'typeLabel on exactly the two places of decision F');
+  assert.ok([10, 11].includes(r.packMeta.current), 'rules version 10, or 11 once Upgrade has its step');
+  assert.deepEqual(r.packMeta, { packId: 'low-water', packVersion: '1.0.0', packHash: r.packMeta.builtInHash, rulesVersion: r.packMeta.current, current: r.packMeta.current, builtInHash: r.packMeta.builtInHash }, 'the pack fields of decision C and the current rules version, exactly');
+  assert.match(r.packMeta.builtInHash, /^[0-9a-f]{16}$/);
   sameText(r.stateJson, P.stateJson, 'the whole state as JSON (createdAt removed); turn errors: ' + JSON.stringify(errs));
 });
 

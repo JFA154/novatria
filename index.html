@@ -9221,11 +9221,21 @@ const Pack = (() => {
     if (isObj(out)) for (const k of STATIC_WORLD_KEYS) delete out[k];
     return out;
   }
-  /* The preview pack when one is set (setPreview), else the built-in pack.
-     Milestone 2 puts State.pack first; milestone 5 adds the Library
-     selection. */
+  /* The preview pack when one is set (setPreview), else the running game's
+     own frozen pack (State.pack, wave 37 milestone 2: a game keeps playing
+     the pack it was started from, whatever the library holds now), else
+     the built-in pack. State is defined further down the file: it is read
+     only here, at call time, and a call made while the script is still
+     defining things (State in its temporal dead zone) or in a bare vm
+     context without State falls through to the built-in pack. */
   let preview = null;
-  function current() { return preview || builtIn(); }
+  function current() {
+    if (preview) return preview;
+    try {
+      if (typeof State !== 'undefined' && State.current && State.pack) return State.pack;
+    } catch (e) { /* State not defined yet */ }
+    return builtIn();
+  }
   /* setPreview(pack): the editor's draft (milestone 5) and a test's mutated
      copy (brought forward to milestone 1) become the current pack. It keeps
      an UNFROZEN deep copy on purpose: a draft or a test copy is working
@@ -9297,6 +9307,64 @@ const Pack = (() => {
     return { value: undefined, layer: 'none', path: String(path) };
   }
   function get(path, pack) { return lookup(path, pack).value; }
+
+  /* The pack a save from before packs plays from (wave 37, Creator Mode;
+     plan decision C): such a save names no pack, only its town. A save of
+     the built-in town (or with no town at all) is the built-in pack. A save
+     of another town (an edited copy, an older import) keeps its own town
+     under the built-in dials, setting and player options, with the static
+     world keys it lacks (a save's town never carried them after milestone
+     1) taken from the built-in world, so the engine finds its tables. Deep-
+     frozen and cached, so loading the same old save twice gives the same
+     object. The cache is keyed by the town's hash, not its name alone: two
+     different edited towns can share a name, and one must never play the
+     other's people. */
+  const legacyPacks = new Map();
+  function forLegacy(st, town) {
+    const b = builtIn();
+    const named = st && isObj(st.meta) ? st.meta.townName : undefined;
+    if (!isObj(town) || town.name === b.world.name || named === b.world.name) return b;
+    const key = hash(town);
+    if (legacyPacks.has(key)) return legacyPacks.get(key);
+    // An id the packAttach engine key accepts: lowercase, hyphens, at most 41 characters in all.
+    const slug = slugify(town.name).replace(/_/g, '-').slice(0, 33).replace(/-+$/, '') || 'town';
+    const world = copy(town);
+    for (const k of STATIC_WORLD_KEYS) if (world[k] === undefined && b.world[k] !== undefined) world[k] = copy(b.world[k]);
+    const pack = deepFreeze({
+      packFormat: FORMAT,
+      meta: { id: 'legacy-' + slug, title: String(town.name || 'An older town'), version: '0.0.0', rating: b.meta.rating, lints: [] },
+      setting: copy(b.setting),
+      world,
+      player: copy(b.player)
+    });
+    legacyPacks.set(key, pack);
+    return pack;
+  }
+  /* The pack a new game starts from (App.prepare; wave 37, Creator Mode).
+     A preview, when one is set, comes first: the editor's Test from a
+     draft (milestone 7) and a test's bent copy start their game from it,
+     as they did when prepare passed the old TOWN_DATA binding (which
+     setPreview re-points). Else settings.selectedPackId through the
+     library (Storage.Library, milestone 2's other half), else the built-in
+     pack. Storage is defined after this module and its settings may not
+     carry the field yet, so every read is guarded: anything missing means
+     the built-in pack. */
+  function selected() {
+    if (preview) return preview;
+    const b = builtIn();
+    let id = null;
+    try {
+      const st = Storage.settings();
+      if (st && typeof st.selectedPackId === 'string' && st.selectedPackId) id = st.selectedPackId;
+    } catch (e) { id = null; }
+    if (!id || id === b.meta.id) return b;
+    try {
+      const lib = Storage.Library;
+      const rec = lib && typeof lib.get === 'function' ? lib.get(id) : null;
+      if (rec && isObj(rec.pack) && rec.pack.packFormat !== undefined) return rec.pack;
+    } catch (e) { /* no library yet */ }
+    return b;
+  }
 
   /* A game of the built-in story: its pack id, or for a save from before
      packs, its town's name. */
@@ -9757,7 +9825,9 @@ const Pack = (() => {
 
   return {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, lookup, get, isBuiltIn,
-    canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor
+    canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
+    // Wave 37, Creator Mode, milestone 2: the pack of a save from before packs, and the pack a new game starts from.
+    forLegacy, selected
   };
 })();
 
@@ -13657,6 +13727,11 @@ const Tables = (() => {
 const State = (() => {
   let current = null;
   let town = null;
+  /* The story pack the running game plays from (wave 37, Creator Mode;
+     plan decision C): frozen, pinned at newGame or load, so an edit to the
+     library's copy never changes a game under way. Never in the undo
+     stack: a step back is the same game, so the same pack. */
+  let pack = null;
   let muted = false;
   /* The undo stack (wave 16): one entry a step, oldest first, { json (the
      game before the step), town (its town copy, the string shared with the
@@ -13872,7 +13947,9 @@ const State = (() => {
     // Wave 30: rules version 9's people and content (Upgrade.peopleRemember).
     'relFill',
     // Wave 31: the town's ties made (a new game, rules version 10), and word getting round (World's step i).
-    'tiesFill', 'hearsayDeliver'];
+    'tiesFill', 'hearsayDeliver',
+    // Wave 37, Creator Mode: the story pack a game plays from, named in meta (rules version 11).
+    'packAttach'];
   /* A person's memories no bookkeeper may settle away (memoriesSettled) and
      no re-read may change (Upgrade): the loose end the player came with and
      a fact bought with a story point. */
@@ -19211,6 +19288,22 @@ const State = (() => {
       s.meta.rulesVersion = v;
       return `rules version ${before} -> ${v}`;
     });
+    /* Wave 37, Creator Mode: the story pack the game plays from, by id,
+       version and hash (Upgrade version 11 attaches an older save to its
+       pack; the engine's alone, so the model can never move a game onto
+       another story). The same three again changes nothing (a rerun). */
+    one('packAttach', v => {
+      if (!isObj(v)) bad('must be an object');
+      if (typeof v.id !== 'string' || !/^[a-z][a-z0-9-]{1,40}$/.test(v.id)) bad('id must be lowercase letters, digits and hyphens, 2 to 41 characters, starting with a letter');
+      if (typeof v.version !== 'string' || !v.version || v.version.length >= 20) bad('version must be a non-empty string under 20 characters');
+      if (typeof v.hash !== 'string' || !/^[0-9a-f]{16}$/.test(v.hash)) bad('hash must be 16 lowercase hex characters');
+      const m = s.meta;
+      if (m.packId === v.id && m.packVersion === v.version && m.packHash === v.hash) return null;
+      m.packId = v.id;
+      m.packVersion = v.version;
+      m.packHash = v.hash;
+      return `story pack ${v.id} ${v.version} (${v.hash})`;
+    });
   }
   /* Two names for the same thing: the same words, or one inside the other. */
   function sameThing(a, b) {
@@ -19313,9 +19406,16 @@ const State = (() => {
   /* character: { name, age?, backgroundId, stats, goal, flaw, looseEnds: [{ kind, text }] }
      opts: { seed, pending } — pending keeps the new game silent (no autosave,
      no render) until commit(), so an abandoned creation never overwrites the
-     autosave. */
-  function newGame(townData, character, opts) {
+     autosave.
+     Wave 37, Creator Mode (plan decision C): packOrTown is a story pack (an
+     object with packFormat) or, as before packs, a town; a town is wrapped
+     by Pack.forLegacy (the built-in town is the built-in pack). The game
+     records the pack's id, version and hash in meta and keeps a frozen copy
+     as State.pack, so it stays pinned to the pack it began with. */
+  function newGame(packOrTown, character, opts) {
     opts = opts || {};
+    const p = isObj(packOrTown) && packOrTown.packFormat !== undefined ? packOrTown : Pack.forLegacy(null, packOrTown);
+    const townData = p.world;
     const bg = BACKGROUNDS.find(b => b.id === character.backgroundId);
     if (!bg) throw new Error('unknown background');
     const name = cleanText(character.name, 40);
@@ -19329,7 +19429,7 @@ const State = (() => {
     t.factions.forEach(f => { reputation[f.id] = 0; });
     const st = {
       version: 1,
-      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
+      meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, packId: p.meta.id, packVersion: p.meta.version, packHash: Pack.hash(p), townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
       time: { day: 1, phase: 'morning', shorts: 0 },
       flags: { priceMultiplier: 1, weather: '', season: 'spring' },
       player: {
@@ -19365,6 +19465,7 @@ const State = (() => {
     current = st;
     // Wave 37, Creator Mode: the save's working copy leaves out the static world keys (Pack.townOf), which the pack keeps.
     town = Pack.townOf(townData);
+    pack = pinPack(p);
     muted = opts.pending === true;
     loaded = null;
     ledger = freshLedger(-1);
@@ -19422,8 +19523,15 @@ const State = (() => {
     if (r.rejected.length) console.warn('[State] background hook not planted', r.rejected);
     return r.rejected.length ? null : sd.id;
   }
+  /* A pack as State keeps it (wave 37, Creator Mode): frozen to the leaves.
+     A pack frozen already (the built-in pack, a library record's, a cached
+     legacy pack) is kept as it is, since nothing can change it; any other
+     is copied first, so freezing it never freezes the caller's object (the
+     editor's draft, a preview) and a later edit of that object never
+     reaches the game. */
+  function pinPack(p) { return Object.isFrozen(p) ? p : Pack.deepFreeze(Pack.copy(p)); }
   function commit() { muted = false; notify(); }
-  function clear() { undoSwitch(); current = null; town = null; muted = false; loaded = null; relFeed.length = 0; }
+  function clear() { undoSwitch(); current = null; town = null; pack = null; muted = false; loaded = null; relFeed.length = 0; }
   /* A save's shape, checked deep before anything loads it (review R3, R4):
      returns [] or a list holding the first problem. Every person, place,
      faction, thread, seed and rumour is an object with a string id (people,
@@ -19643,8 +19751,14 @@ const State = (() => {
   /* Load a save (its state and its own copy of the town). Returns
      { state, rulesVersion, newer }: newer when the save was made by a later
      build than this one (meta.rulesVersion above RULES_VERSION): it loads,
-     and the UI can say so. */
-  function load(st, townData) {
+     and the UI can say so.
+     Wave 37, Creator Mode: packData is the story pack the save plays from
+     (Storage resolves it from the envelope); without one, Pack.forLegacy
+     gives the pack of a save from before packs. It is kept frozen as
+     State.pack. The save's meta.packId and the rest are not written here:
+     a load changes nothing in the game (Upgrade version 11 attaches it,
+     with a line in the feed). */
+  function load(st, townData, packData) {
     const errs = validateShape(st, townData);
     if (errs.length) throw new Error(errs.join('; '));
     const s = deepCopy(st);
@@ -19689,6 +19803,7 @@ const State = (() => {
     undoSwitch();
     current = s;
     town = deepCopy(townData || TOWN_DATA);
+    pack = pinPack(isObj(packData) && packData.packFormat !== undefined ? packData : Pack.forLegacy(s, townData));
     /* Wave 26 (Rel), no version bump: the leverage records and the secrets
        shown, empty where a save has none; a person with no rel gets one
        (their start from the save's town copy, liking exactly their
@@ -19755,6 +19870,10 @@ const State = (() => {
   // An entry back as the game (and its town copy).
   function useEntry(e) {
     current = JSON.parse(e.json);
+    /* The town copy comes back with the step; the pack does not and need
+       not (wave 37, Creator Mode): undo, redo and a rollback stay inside
+       one game, which plays one frozen pack, so State.pack is left as it
+       is and an entry never carries it (the stack's bytes are as before). */
     if (e.town !== undefined) town = e.town === null ? null : JSON.parse(e.town);
     ledger = freshLedger(-1);
     // An undo or a rolled-back turn prints nothing of what it took back (wave 29).
@@ -19954,6 +20073,8 @@ const State = (() => {
   return {
     get current() { return current; },
     get town() { return town; },
+    // Wave 37, Creator Mode: the frozen story pack of the running game, or null.
+    get pack() { return pack; },
     get muted() { return muted; },
     // Town news (CONTRACTS section 5): the live array, oldest first.
     get news() { return current && Array.isArray(current.news) ? current.news : []; },
@@ -42400,7 +42521,8 @@ const App = (() => {
     if (turnRunning()) return null;
     inGame = false;
     const s = opts && Number.isInteger(opts.seed) ? opts.seed : urlSeed();
-    return State.newGame(TOWN_DATA, character, { seed: Number.isInteger(s) ? s : undefined, pending: true });
+    // Wave 37, Creator Mode: a new game starts from the selected story pack (the built-in one until the library has another).
+    return State.newGame(Pack.selected(), character, { seed: Number.isInteger(s) ? s : undefined, pending: true });
   }
   function cancelPrepare() { if (State.muted) State.clear(); }
   /* With mock mode off and a key set, the arrival is narrated (MODE
@@ -42449,6 +42571,8 @@ const App = (() => {
     const before = State.current;
     const beforeJson = before && !State.muted ? JSON.stringify(before) : null;
     const beforeTown = State.town;
+    // Wave 37, Creator Mode: the open game's pack, so a failed load puts that game back on the same pack.
+    const beforePack = State.pack;
     const wasIn = inGame;
     const from = UI.screen;
     let r = null;
@@ -42456,13 +42580,14 @@ const App = (() => {
     relSeen = { id: null, turn: -1 };
     State.beginBatch();
     try {
-      r = State.load(env.state, env.town);
+      // Wave 37, Creator Mode: the envelope's resolved pack (Storage); without one, State.load falls back on Pack.forLegacy.
+      r = State.load(env.state, env.town, env.pack);
       inGame = true;
       UI.rebuildFeed();
       UI.showScreen('game');
     } catch (e) {
       try {
-        if (beforeJson && State.current !== before) { State.load(JSON.parse(beforeJson), beforeTown); Storage.undoResume(); }
+        if (beforeJson && State.current !== before) { State.load(JSON.parse(beforeJson), beforeTown, beforePack); Storage.undoResume(); }
         else if (!beforeJson && State.current) State.clear();
       } catch (x) { console.error(x); }
       inGame = wasIn && !!beforeJson;
