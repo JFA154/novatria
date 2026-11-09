@@ -257,6 +257,9 @@ s.test('obligations settle by play: money handed over in front of the creditor, 
 s.test('a loose end\'s obligation rides on its seed with placeholders filled, and is due dueOffset days after the day the seed fires', async h => {
   const page = await h.open();
   const debtWords = await page.evaluate(() => {
+    // Wave 37, Creator Mode: the built-in pack (Game.data's source) is frozen now, so a test that edits content first makes
+    // the preview, an unfrozen working copy of the pack that the engine plays, and edits that.
+    Game.Pack.setPreview(Game.Pack.builtIn());
     const D = Game.data;
     const words = D.LOOSE_ENDS.debt.options[0];
     D.LOOSE_ENDS.debt.options[0] = { text: words, obligation: { kind: 'debt', amount: 400, dueOffset: 3, text: 'You owe {npc} $400',
@@ -793,7 +796,8 @@ s.test('/undo after an update restores the game\'s town copy too; snapshot still
 s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day 1 a Thursday without one); closedOn and awayOn follow the weekday; the season pick keeps a seed\'s world', async h => {
   const plain = await h.open();
   // Without a calendar (the town now has one, so it is taken away here).
-  await plain.evaluate(() => { delete Game.data.TOWN_DATA.calendar; });
+  // frozen built-in pack: mutate the preview copy (see above)
+  await plain.evaluate(() => { Game.Pack.setPreview(Game.Pack.builtIn()); delete Game.data.TOWN_DATA.calendar; });
   await quickStart(plain);
   const a = await plain.evaluate(() => {
     const S = Game.State;
@@ -804,7 +808,8 @@ s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day
   assert.equal(a.season, true);
 
   const page = await h.open();
-  await page.evaluate(() => { delete Game.data.TOWN_DATA.calendar; Game.data.TOWN_DATA.calendar = { season: 'autumn', startDate: '2026-10-08' }; });
+  // frozen built-in pack: mutate the preview copy (see above)
+  await page.evaluate(() => { Game.Pack.setPreview(Game.Pack.builtIn()); delete Game.data.TOWN_DATA.calendar; Game.data.TOWN_DATA.calendar = { season: 'autumn', startDate: '2026-10-08' }; });
   await quickStart(page);
   const r = await page.evaluate(() => {
     const S = Game.State;
@@ -844,7 +849,8 @@ s.test('the calendar: weekday, date line and season from TOWN_DATA.calendar (day
 
 s.test('a background\'s hook is planted as a seed at creation (origin background); none without one; reputation -20 reads "disliked"; journal lines carry day and phase', async h => {
   const page = await h.open();
-  await page.evaluate(() => { Game.data.BACKGROUNDS[0].hook = { effect: 'A letter addressed to {player} waits behind the counter.', dayOffset: [3, 3] }; });
+  // frozen built-in pack: mutate the preview copy (see above)
+  await page.evaluate(() => { Game.Pack.setPreview(Game.Pack.builtIn()); Game.data.BACKGROUNDS[0].hook = { effect: 'A letter addressed to {player} waits behind the counter.', dayOffset: [3, 3] }; });
   await quickStart(page, { bgIndex: 0 });
   const r = await page.evaluate(() => {
     const S = Game.State;
@@ -865,7 +871,8 @@ s.test('a background\'s hook is planted as a seed at creation (origin background
   assert.deepEqual(r.journal, { turn: r.journal.turn, day: 1, phase: 'afternoon', text: 'Met the mechanic.' });
   const other = await h.open();
   // Every background in the town has a hook now: take one away.
-  await other.evaluate(() => { delete Game.data.BACKGROUNDS[1].hook; });
+  // frozen built-in pack: mutate the preview copy (see above)
+  await other.evaluate(() => { Game.Pack.setPreview(Game.Pack.builtIn()); delete Game.data.BACKGROUNDS[1].hook; });
   await quickStart(other, { bgIndex: 1 });
   assert.equal(await other.evaluate(() => Game.state.seeds.some(sd => /^seed_bg_/.test(sd.id))), false, 'no hook, no seed');
 });

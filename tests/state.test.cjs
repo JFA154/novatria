@@ -641,7 +641,8 @@ s.test('town data passes validation and every content constant has the contract 
   // Changed by design in wave 28 (A3): the law outside town a report goes to when the town's own cannot hear it (policeFallback).
   // Changed by design in wave 29 (A4): who can be interested in the player (romance, the twelve adults of design Appendix E).
   // Wave 31: ties (how people feel about each other beyond their relations) is optional too; wave 32: secretTies (what a secret told does between people).
-  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance', 'calendar', 'events', 'epilogue', 'closedOn', 'policeHead', 'policeFallback', 'romance', 'ties', 'secretTies'].includes(k);
+  // Wave 37, Creator Mode: the world of a Story Pack carries tables, grudgeTemplates, favourTemplates, law and gates, and a place its typeLabel (plan decision F).
+  const optional = k => !['map', 'offstage', 'aka', 'away', 'distance', 'calendar', 'events', 'epilogue', 'closedOn', 'policeHead', 'policeFallback', 'romance', 'ties', 'secretTies', 'tables', 'grudgeTemplates', 'favourTemplates', 'law', 'gates', 'typeLabel'].includes(k);
   assert.deepEqual(r.townKeys.filter(optional), ['currency', 'factions', 'history', 'locations', 'name', 'npcs', 'recent', 'rumours', 'seeds', 'setting', 'startLocationIds', 'threads', 'year']);
   for (const k of r.locKeys) assert.deepEqual(k.filter(optional), ['closed', 'description', 'details', 'discovered', 'exits', 'history', 'hours', 'id', 'name', 'npcIdsBySchedule', 'type']);
   // The cast (docs/BUILD_PLAN.md, direction changes 8 and 9): an age, a presence, a history, relations and a home on everyone;

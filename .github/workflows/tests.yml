@@ -12,7 +12,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The suite sits at 15 to 20 minutes and grows with wave 37 (Creator Mode), so the limit is 40.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:

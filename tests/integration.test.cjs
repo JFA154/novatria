@@ -40,9 +40,10 @@ s.test('a loose end tied with content\'s obligations: obligations[i] lined up wi
   // The first loose end whose option has an obligation with onStart (content: the letter).
   const pick = await page.evaluate(() => {
     const L = Game.data.LOOSE_ENDS;
-    for (const kind of Object.keys(L)) (L[kind].obligations || []).forEach((o, i) => { if (o && Array.isArray(o.onStart) && o.onStart.length && !L.__pick) L.__pick = { kind, index: i, ob: o }; });
-    const p = L.__pick; delete L.__pick;
-    return p || null;
+    // A local, not a key on L: the built-in pack (Game.data's source) is frozen since wave 37.
+    let p = null;
+    for (const kind of Object.keys(L)) (L[kind].obligations || []).forEach((o, i) => { if (o && Array.isArray(o.onStart) && o.onStart.length && !p) p = { kind, index: i, ob: o }; });
+    return p;
   });
   assert.ok(pick, 'content has a loose end whose obligation gives the player something at the start');
   await page.evaluate(p => {
@@ -75,6 +76,8 @@ s.test('a loose end tied with content\'s obligations: obligations[i] lined up wi
 s.test('a background hook with a number dayOffset: a person trigger may fire from day 1 + dayOffset; a day trigger is never before tomorrow', async h => {
   const page = await h.open();
   await page.evaluate(() => {
+    // Wave 37, Creator Mode: the built-in pack is frozen now; the preview is an unfrozen working copy the engine plays, so edit that.
+    Game.Pack.setPreview(Game.Pack.builtIn());
     const B = Game.data.BACKGROUNDS;
     const n = Game.data.TOWN_DATA.npcs.find(x => x.presence === 'here');
     B[0].hook = { npcId: n.id, text: '{npc} has a job for {player}.', dayOffset: 0, trigger: { type: 'npc', value: n.id } };
@@ -86,7 +89,8 @@ s.test('a background hook with a number dayOffset: a person trigger may fire fro
   assert.equal(a.nb, 1, 'day 1 + 0');
   assert.match(a.effect, /has a job for Tester\.$/);
   const other = await h.open();
-  await other.evaluate(() => { Game.data.BACKGROUNDS[1].hook = { text: 'A note for {player} turns up.', dayOffset: 0, trigger: 'day' }; });
+  // frozen built-in pack: mutate the preview copy (see above)
+  await other.evaluate(() => { Game.Pack.setPreview(Game.Pack.builtIn()); Game.data.BACKGROUNDS[1].hook = { text: 'A note for {player} turns up.', dayOffset: 0, trigger: 'day' }; });
   await quickStart(other, { bgIndex: 1 });
   assert.deepEqual(await other.evaluate(() => Game.state.seeds.find(x => /^seed_bg_/.test(x.id)).trigger), { type: 'day', value: 2 });
 });

@@ -21,9 +21,18 @@ s.test('index.html is one self-contained file: inline CSS and classic scripts, o
   assert.match(links[0].match(/href="([^"]+)"/)[1].replace(/&amp;/g, '&'), FONT, 'and it is the Literata font');
   const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)].map(m => m[1].trim());
   assert.ok(scripts.length >= 1);
-  assert.deepEqual(scripts.filter(a => a !== ''), [], 'no src, type="module" or other attributes on <script>');
+  // Wave 37, Creator Mode: a Story Pack is data the browser never executes (the built-in story, packs/low-water.json, inlined
+  // by tests/pack-inline.cjs), so the one attribute set allowed is the inert JSON element's. It has to be an element of its
+  // own because a script element cannot nest; only scripts with no attributes are code.
+  const PACK_ATTRS = /^type="application\/json" id="pack-[a-z0-9-]+"$/;
+  assert.deepEqual(scripts.filter(a => a !== '' && !PACK_ATTRS.test(a)), [], 'no src, type="module" or other attributes on <script>');
   for (const tag of ['iframe', 'img', 'video', 'audio', 'object', 'embed', 'base']) assert.ok(!new RegExp(`<${tag}\\b`, 'i').test(html), 'no <' + tag + '>');
-  const code = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]).join('\n');
+  const blocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  // The pack's JSON is excluded from the code scan below (its prose is story, not code), and nothing in it may end the element early.
+  const packs = blocks.filter(m => PACK_ATTRS.test(m[1].trim()));
+  assert.ok(packs.length >= 1, 'the built-in pack is inlined');
+  for (const b of packs) assert.doesNotMatch(b[2], /<\/script/i, 'no </script inside a JSON pack block');
+  const code = blocks.filter(m => m[1].trim() === '').map(m => m[2]).join('\n');
   assert.doesNotMatch(code, /^\s*(import|export)\s/m, 'no import/export statements');
   assert.doesNotMatch(code, /\bimport\s*\(/, 'no dynamic import()');
   assert.doesNotMatch(code, /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|new Worker)\b/, 'no other way out');
