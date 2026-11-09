@@ -45261,18 +45261,25 @@ const Creator = (() => {
     { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
     { id: 'world', label: 'World', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
     { id: 'player', label: 'Player', render: d => renderPlayer(d) }, // task M5-D: backgrounds, flaws, goals, loose ends, stats, start, arrivals, steps
-    { id: 'opening', label: 'Opening', render: null },
-    { id: 'narrator', label: 'Narrator', render: null },
-    { id: 'directions', label: 'Directions', render: null },
-    { id: 'rules', label: 'Rules', render: null },
-    { id: 'freedom', label: 'Freedom', render: null },
-    { id: 'prompts', label: 'Prompts', render: null },
+    /* Milestone 6 (tasks M6-A, M6-B, M6-C run side by side): each tab below calls its own sub-region's render, laid
+       down as a coming-soon stub first, so three tasks never edit the same lines of this table. */
+    { id: 'opening', label: 'Opening', render: d => Opening.render(d) },
+    { id: 'narrator', label: 'Narrator', render: d => Narrator.render(d) },
+    { id: 'directions', label: 'Directions', render: d => Directions.render(d) },
+    { id: 'rules', label: 'Rules', render: d => Rules.render(d) },
+    { id: 'freedom', label: 'Freedom', render: d => Freedom.render(d) },
+    { id: 'prompts', label: 'Prompts', render: d => Prompts.render(d) },
     { id: 'json', label: 'JSON', render: d => renderJson(d) },
+    { id: 'preview', label: 'Prompt view', render: d => Preview.render(d) }, // task M6-C: Show me the prompt
     { id: 'test', label: 'Test', render: null }
   ].map(t => Object.freeze(t)));
   const NEXT_TASK_NOTE = 'This tab arrives with the next task.';
-  /* Which tab owns a problem's path, by its first segment (Overview holds meta, setting and opening for now). */
-  const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', opening: 'overview', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
+  /* A tab that is not drawn yet: its name and the note (renderBody draws the same for a tab with no render). */
+  function comingSoon(label) {
+    return el('section', { class: 'cr-section' }, el('h2', { class: 'cr-section-title' }, label), el('p', { class: 'cr-note' }, NEXT_TASK_NOTE));
+  }
+  /* Which tab owns a problem's path, by its first segment (Overview holds meta and setting; the opening has its own tab). */
+  const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', opening: 'opening', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
   function tabFor(path) { return TAB_OF[String(path || '').split(/[.[]/)[0]] || 'overview'; }
   const tabLabel = id => (TABS.find(t => t.id === id) || TABS[0]).label;
   const SAVE_MS = 500;
@@ -45322,9 +45329,7 @@ const Creator = (() => {
     const entry = TABS.find(t => t.id === state.tab) || TABS[0];
     body.setAttribute('aria-labelledby', 'creator-tab-' + entry.id);
     body.dataset.tab = entry.id;
-    const drawn = entry.render && state.draft ? entry.render(state.draft) : el('section', { class: 'cr-section' },
-      el('h2', { class: 'cr-section-title' }, entry.label),
-      el('p', { class: 'cr-note' }, NEXT_TASK_NOTE));
+    const drawn = entry.render && state.draft ? entry.render(state.draft) : comingSoon(entry.label);
     body.replaceChildren(...[].concat(drawn));
     showProblems();
   }
@@ -47500,20 +47505,47 @@ const Creator = (() => {
   })();
   function renderPlayer(d) { return PlayerTab.render(d); }
 
+  // ----- Creator: Opening -----
+  // (milestone 6, task M6-A)
+  const Opening = (() => {
+    function render() { return comingSoon('Opening'); }
+    return { render };
+  })();
+
   // ----- Creator: Narrator -----
-  // (milestone 6)
+  // (milestone 6, task M6-A)
+  const Narrator = (() => {
+    function render() { return comingSoon('Narrator'); }
+    return { render };
+  })();
 
   // ----- Creator: Directions -----
-  // (milestone 6)
+  // (milestone 6, task M6-A)
+  const Directions = (() => {
+    function render() { return comingSoon('Directions'); }
+    return { render };
+  })();
 
   // ----- Creator: Rules -----
-  // (milestone 6)
+  // (milestone 6, task M6-B)
+  const Rules = (() => {
+    function render() { return comingSoon('Rules'); }
+    return { render };
+  })();
 
   // ----- Creator: Freedom -----
-  // (milestone 6)
+  // (milestone 6, task M6-B)
+  const Freedom = (() => {
+    function render() { return comingSoon('Freedom'); }
+    return { render };
+  })();
 
   // ----- Creator: Prompts -----
-  // (milestone 6)
+  // (milestone 6, task M6-A)
+  const Prompts = (() => {
+    function render() { return comingSoon('Prompts'); }
+    return { render };
+  })();
 
   // ----- Creator: Json -----
   /* "Your story as JSON" (milestone 5, task M5-B; owner decision 9: Creator
@@ -47624,7 +47656,11 @@ const Creator = (() => {
   }
 
   // ----- Creator: Preview -----
-  // (milestone 6: Show me the prompt)
+  // (milestone 6, task M6-C: Show me the prompt)
+  const Preview = (() => {
+    function render() { return comingSoon('Prompt view'); }
+    return { render };
+  })();
 
   // ----- Creator: Test -----
   // (milestone 7: Test from a draft)

@@ -6,7 +6,7 @@
    "by Joe", the rating chip, a full completeness ring, "Built in"), then the
    Library's packs (a pack from a save says so), then the drafts. New story
    makes a draft (Storage.Drafts) and opens the editor's shell with its
-   eleven tabs; Open in Creator on the built-in story edits a copy and says
+   twelve tabs; Open in Creator on the built-in story edits a copy and says
    so; Play this story selects a pack and reaches character creation;
    Duplicate, Export ("<id>-<version>.json", Pack.format's text), Import
    (and a bad file's reason) and Delete (asked first) work from the cards;
@@ -22,7 +22,7 @@ const { suite } = require('./helpers.cjs');
 
 const s = suite('wave37-editor');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
-const TAB_LABELS = ['Overview', 'World', 'Player', 'Opening', 'Narrator', 'Directions', 'Rules', 'Freedom', 'Prompts', 'JSON', 'Test'];
+const TAB_LABELS = ['Overview', 'World', 'Player', 'Opening', 'Narrator', 'Directions', 'Rules', 'Freedom', 'Prompts', 'JSON', 'Prompt view', 'Test'];
 const PLACEHOLDER = 'This tab arrives with the next task.';
 // Task M5-B draws these two tabs, task M5-C1 the World tab (Places first, its Start places above the list); the first heading each shows.
 const DRAWN = { Overview: 'About this story', World: 'Start places', Player: 'Backgrounds', JSON: 'Your story as JSON' };
@@ -140,7 +140,7 @@ s.test('Create (after Load on the title) opens the Library, whose first card is 
   await page.waitForSelector('#screen-title.active');
 });
 
-s.test('New story makes a blank draft in Storage.Drafts and opens the editor shell: the header card with its title and the meter, eleven tabs, and each later tab\'s placeholder (Overview and JSON are drawn since task M5-B); Back returns to the Library, which shows the draft card with Play off', async h => {
+s.test('New story makes a blank draft in Storage.Drafts and opens the editor shell: the header card with its title and the meter, twelve tabs, and each later tab\'s placeholder (Overview and JSON are drawn since task M5-B); Back returns to the Library, which shows the draft card with Play off', async h => {
   const page = await open(h);
   await library(page);
   await page.click('#creator-empty-new');
