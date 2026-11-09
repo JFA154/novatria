@@ -43116,10 +43116,12 @@ const UI = (() => {
     }
     if (t.name === 'set-theme') { Storage.saveSettings({ theme: t.value }); applyDisplay(); return; }
     if (t.name === 'set-size') { Storage.saveSettings({ textSize: t.value }); applyDisplay(); return; }
-    /* Wave 37, Creator Mode, milestone 4: the style is also this story's
-       own choice (Style.current reads narration.preset's player layer
-       first); the global setting is still written, as before. */
-    if (t.name === 'set-style') { Storage.saveSettings({ narrationStyle: t.value }); Storage.savePerPack(intimatePack().meta.id, { overrides: { 'narration.preset': t.value } }); fillPlay(); return; }
+    /* Wave 37, Creator Mode, milestone 4: the style is this story's own
+       choice (Style.current reads narration.preset's player layer first),
+       like Permadeath and Show dice rolls; the global setting keeps the
+       pre-wave player's choice and is read only for a story with no
+       override, so a pick in one story never reaches another. */
+    if (t.name === 'set-style') { Storage.savePerPack(intimatePack().meta.id, { overrides: { 'narration.preset': t.value } }); fillPlay(); return; }
     if (t === d.setRolls || t === d.setPermadeath) { savePlayChoice(t); return; }
     if (t.id === 'set-cheats') { saveCheats(t.checked); return; }
     if (t === d.setIntimate) { saveIntimate(); return; }

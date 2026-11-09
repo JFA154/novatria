@@ -243,7 +243,7 @@ s.test('the Settings screen: Allow cheats anyway shows only for a story that hid
   // The Narration style radio.
   await page.check('input[name="set-style"][value="literary"]');
   const style = await page.evaluate(() => ({ o: Game.Storage.perPack('low-water').overrides['narration.preset'], g: Game.Storage.settings().narrationStyle, l: Game.Pack.lookup('narration.preset').layer, cur: Game.Style.current(), note: document.getElementById('set-style-layer').textContent }));
-  assert.deepEqual(style, { o: 'literary', g: 'literary', l: 'player', cur: 'literary', note: '(your choice)' });
+  assert.deepEqual(style, { o: 'literary', g: 'casual', l: 'player', cur: 'literary', note: '(your choice)' }); // the global stays the pre-wave choice: a style picked in one story is that story's alone
   // An unrelated change on the screen never copies the story's showRolls into the global setting.
   const other = await page.evaluate(() => { document.getElementById('set-keep-packets').click(); const st = Game.Storage.settings(); return [st.keepPackets, st.showRolls]; });
   assert.deepEqual(other, [true, true], 'keepPackets saved, the global showRolls still the player\'s own true');

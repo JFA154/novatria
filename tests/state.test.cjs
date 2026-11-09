@@ -903,9 +903,10 @@ s.test('the narrator system prompt follows the Narration style setting and is by
   await page.waitForSelector('#screen-game.active');
   await turn('I look around again');
   await turn('I ask about the bridge');
-  const r = await page.evaluate(() => ({ sys: window.__sys, cas: Game.Style.systemPrompt('casual'), lit: Game.Style.systemPrompt('literary'), setting: Game.Storage.settings().narrationStyle, saved: JSON.parse(localStorage.getItem('novatria.settings')).narrationStyle }));
+  const r = await page.evaluate(() => ({ sys: window.__sys, cas: Game.Style.systemPrompt('casual'), lit: Game.Style.systemPrompt('literary'), setting: Game.Pack.lookup('narration.preset').value, saved: (JSON.parse(localStorage.getItem('novatria.settings')).perPack['low-water'] || { overrides: {} }).overrides['narration.preset'] }));
+  // Wave 37 (Creator Mode): the radio writes this story's own choice (narration.preset's player layer); the global setting is the pre-wave player's and stays.
   assert.equal(r.setting, 'literary');
-  assert.equal(r.saved, 'literary', 'the style is saved with the settings');
+  assert.equal(r.saved, 'literary', 'the style is saved with the settings, as this story\'s choice');
   assert.equal(r.sys.length, 4);
   assert.equal(r.sys[0], r.cas);
   assert.equal(r.sys[1], r.sys[0], 'casual: byte-identical across two turns');
@@ -913,7 +914,8 @@ s.test('the narrator system prompt follows the Narration style setting and is by
   assert.equal(r.sys[3], r.sys[2], 'literary: byte-identical across two turns');
   assert.notEqual(r.sys[0], r.sys[2], 'the prompt switched with the setting');
   // A bad value reads as the default, casual; the settings version is untouched.
-  const st = await page.evaluate(() => [Game.Storage.saveSettings({ narrationStyle: 'purple' }).narrationStyle, Game.Storage.settings().settingsVersion, Game.Style.current()]);
+  // With this story's own choice cleared, a bad global value reads as casual and Style.current follows.
+  const st = await page.evaluate(() => { Game.Storage.savePerPack('low-water', { overrides: { 'narration.preset': null } }); return [Game.Storage.saveSettings({ narrationStyle: 'purple' }).narrationStyle, Game.Storage.settings().settingsVersion, Game.Style.current()]; });
   assert.deepEqual(st, ['casual', 3, 'casual']); // settings version 3 since wave 37 (perPack)
 });
 
