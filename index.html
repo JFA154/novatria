@@ -1375,6 +1375,63 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   background: var(--surface-2); color: var(--text); font-family: var(--mono-font); font-size: 13px; line-height: 1.5;
   white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
 }
+/* Task M5-B: the form (Creator.Form), the problems and the JSON view. A section inside a section is a quieter card. */
+.cr-sub { padding: 14px 14px 2px; margin: 4px 0 18px; border-radius: 12px; background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+.cr-sub-title { margin: 0 0 4px; font-family: var(--read-font); font-size: 17px; font-weight: 600; }
+.cr-sub > .cr-note:first-of-type { margin-bottom: 12px; }
+.cr-req { margin-left: 8px; font-weight: 500; letter-spacing: .02em; text-transform: none; color: var(--faint); }
+.cr-mono { font-family: var(--mono-font); }
+.cr-field .input.cr-mono { font-size: 16px; }
+.cr-field .input[readonly] { background: var(--surface-2); color: var(--muted); }
+.cr-field textarea.input.cr-story-box { min-height: 14em; font-family: var(--read-font); line-height: 1.55; }
+.cr-field select.input { max-width: 100%; text-overflow: ellipsis; }
+.cr-field .check { margin: 0; }
+/* A label read by screen readers only (a field whose section heading already names it). */
+.cr-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Chips: a value with its remove x, 44px tall; the Add control after them. */
+.cr-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.cr-chip-item {
+  display: inline-flex; align-items: center; max-width: 100%; min-height: var(--tap); padding: 0 0 0 14px;
+  border: 1px solid var(--border); border-radius: 22px; background: var(--surface-2); color: var(--text); font-size: 15px;
+}
+.cr-chip-text { min-width: 0; padding: 6px 0; overflow-wrap: anywhere; }
+.cr-chip-x {
+  flex: none; width: var(--tap); height: var(--tap); border: 0; border-radius: 22px; background: none;
+  color: var(--muted); font: inherit; font-size: 20px; line-height: 1; cursor: pointer;
+}
+.cr-chip-x:hover { color: var(--danger); }
+.cr-chips .input.cr-chip-add { flex: 1 1 12em; width: auto; min-width: 0; }
+.cr-chip-new { display: flex; flex: 1 1 100%; gap: 8px; min-width: 0; }
+.cr-chip-new .input { flex: 1 1 auto; min-width: 0; width: auto; }
+/* An error line under a field; a warning in the muted tone, its slot's border too when nothing worse is there. */
+.cr-err-line { display: block; }
+.cr-err-line + .cr-err-line { margin-top: 2px; }
+.cr-err-line[data-sev="warning"] { color: var(--muted); }
+.cr-err[data-sev="warning"] { border-left-color: var(--field); }
+.cr-field .input[aria-invalid="true"] { border-color: var(--danger); }
+/* A tab's error count, drawn from data-count so the tab's own text stays its name. */
+.panel-tabs.cr-tabs button[data-count]::after {
+  content: attr(data-count); display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px;
+  background: var(--danger); color: var(--bg); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center;
+}
+/* Problems: one button a problem, its path in monospace, the message, and the tab it opens. */
+.cr-problems-section:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cr-problems { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.cr-problem {
+  display: grid; gap: 2px; width: 100%; min-height: var(--tap); padding: 8px 12px; text-align: left; cursor: pointer;
+  border: 1px solid var(--border); border-left: 3px solid var(--danger); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit;
+}
+.cr-problem:hover { border-color: var(--field); border-left-color: var(--danger); }
+.cr-problem[data-sev="warning"], .cr-problem[data-sev="warning"]:hover { border-left-color: var(--field); }
+.cr-problem-path { font-family: var(--mono-font); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.cr-problem-msg { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.cr-problem-tab { font-size: 12px; color: var(--accent); }
+.cr-about { margin: 0 0 16px; padding: 0 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* The JSON tab: the line count and size, then Copy, Download and Import. */
+.cr-json-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; }
+.cr-json-stats { flex: 1 1 100%; margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cr-json-cut { margin: 0 0 10px; }
+.cr-copy { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 @media (min-width: 900px) {
   .cr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-sticky { position: static; margin: 16px 0 0; padding: 0; background: none; border-top: 0; }
@@ -10148,6 +10205,218 @@ const Pack = (() => {
       prompts: obj({ narratorExtra: t('Narrator notes', 1500), parserExtra: t('Parser notes', 600), bookkeeperExtra: t('Bookkeeper notes', 600) }),
       suggestedSettings: obj({ narratorModel: s('Narrator model'), parserModel: s('Parser model'), effort: map(s('Effort')), narrationStyle: e('Narration style', ['casual', 'literary']) })
     }, ['packFormat', 'meta', 'world']);
+    /* The editor's words for the tree (wave 37, Creator Mode, milestone 5,
+       task M5-B; plan decision H, "one schema drives forms and
+       validation"): Creator.Form draws a control per leaf from these. By
+       path ("[]" a list's item, "{}" a map's value), filled in only where a
+       node has none of its own, so the shape pass reads exactly what it read
+       before: label (every leaf, list and map has one, short and plain, as
+       Settings labels read), help (one sentence, where a creator needs
+       one), order (an object's fields as the editor shows them, where the
+       authored order is not that), oneLine (a short string: one input, not
+       a box), placeholder (the big boxes), readOnly (shown, never edited:
+       meta.id) and hidden (not a plain control: packFormat; the tables and
+       the templates have tabs of their own later). A node shared by several
+       paths (an effect list, a person's tracks) takes the words of the first
+       path that names it, so those words suit every use. */
+    const EDITOR = {
+      packFormat: { hidden: true, help: 'The pack format this file is written in; this game reads format 1.' },
+      meta: {
+        label: 'About this story', help: 'What the story card, the title screen and New game show.',
+        order: ['title', 'id', 'author', 'version', 'rating', 'description', 'storyText', 'contentWarnings', 'tags', 'language', 'lints', 'minGameVersion', 'notes']
+      },
+      'meta.id': { readOnly: true, help: 'Made once from the title. Saves and files name the story by it, so renaming the story never changes it.' },
+      'meta.title': { help: 'The name on the story card and the title screen.' },
+      'meta.author': { help: 'Your name, or the name you write under.' },
+      'meta.version': { help: 'Three numbers, like 1.0.0. Save as pack raises the last one each time.' },
+      'meta.rating': { help: 'Who the story is for. Adult stories ask the player\'s age before they start.' },
+      'meta.description': { help: 'A few sentences for someone choosing a story.', placeholder: 'What this story is, for someone deciding whether to play it.' },
+      'meta.storyText': {
+        help: 'The place, the people, what is going on and how it can end, in any form. It stays in the pack and is never sent to the game\'s narrator.',
+        placeholder: 'Your story, in your words…'
+      },
+      'meta.contentWarnings': { label: 'Content warnings', help: 'Anything a player should know before starting, one to a chip.' },
+      'meta.tags': { label: 'Tags', help: 'Words to find the story by.' },
+      'meta.language': { help: 'The language the story is written in, as a short code such as en.' },
+      'meta.lints': { label: 'Lint sets', help: 'Extra checks for this story (the built-in story uses lockett-house). Leave it empty unless you want one.' },
+      'meta.minGameVersion': { help: 'The oldest game version this story needs. Leave it empty for any.' },
+      setting: { label: 'Setting', help: 'The kind of world the story is set in.' },
+      'setting.era': { help: 'When the story feels set: modern, historic, future or fantasy.' },
+      'setting.blurb': { help: 'The era and the place in one sentence. The story card shows it when there is no premise.', placeholder: 'A river town, the summer the bridge closed.' },
+      'setting.locale': { label: 'Names and brands', help: 'Words the style check lets through: names of your world, brands that belong in it.' },
+      'setting.locale.nameAllow': { label: 'Names allowed' },
+      'setting.locale.brandPhrases': { label: 'Brand phrases' },
+      'setting.locale.givenNames': { label: 'Given names' },
+      'setting.vocabulary': { label: 'Vocabulary', help: 'The words this world uses for a few things the game talks about.' },
+      'setting.vocabulary.police': { label: 'Words for the police' },
+      'setting.vocabulary.essentials': { label: 'Everyday essentials' },
+      'setting.vocabulary.teen': { label: 'Teenage words' },
+      'setting.vocabulary.lodging': { label: 'Words for a place to stay' },
+      'setting.phaseLabels': { label: 'Names for the times of day', help: 'Leave a time empty to keep morning, afternoon, evening or night.' },
+      world: { label: 'World', help: 'The town: its places, people, factions and what is going on.' },
+      'world.name': { help: 'The town\'s name, as the narrator says it.' },
+      'world.setting': { help: 'The town and its life in a paragraph or two; the narrator reads it every turn.', placeholder: 'The town, what it lives on, what its people worry about.' },
+      'world.history': { placeholder: 'What happened here before the story starts.' },
+      'world.currency': { label: 'Money' },
+      'world.currency.words': { label: 'Words for money', help: 'What people call the money aloud, such as dollars or bucks.' },
+      'world.startLocationIds': { label: 'Where a new arrival starts' },
+      'world.romance': { label: 'Romance' },
+      'world.ties': { label: 'Ties between people' },
+      'world.ties[].revealedBy': { label: 'Revealed by' },
+      'world.secretTies': { label: 'Secret ties' },
+      'world.secretTies[].ties': { label: 'Ties' },
+      'world.calendar': { label: 'Calendar' },
+      'world.recent': { label: 'Recent events' },
+      'world.offstage': { label: 'People offstage' },
+      'world.map': { label: 'Map' },
+      'world.map.bridges': { label: 'Bridge paths' },
+      'world.map.roads': { label: 'Road paths' },
+      'world.map.labels': { label: 'Map labels' },
+      'world.map.riverLabel': { label: 'River label' },
+      'world.locations': { label: 'Places' },
+      'world.locations[].map': { label: 'On the map' },
+      'world.locations[].aka': { label: 'Also called' },
+      'world.locations[].npcIdsBySchedule': { label: 'Who is here when' },
+      'world.locations[].closedOn': { label: 'Closed on' },
+      'world.npcs': { label: 'People' },
+      'world.npcs[].tags': { label: 'Tags' },
+      'world.npcs[].personality': { label: 'Traits' },
+      'world.npcs[].leverageKeys': { label: 'Leverage words' },
+      'world.npcs[].relations': { label: 'Relations' },
+      'world.npcs[].memories': { label: 'Memories' },
+      'world.npcs[].awayOn': { label: 'Away' },
+      'world.npcs[].awayOn.days': { label: 'Away on' },
+      'world.npcs[].awayOn.phases': { label: 'Away in' },
+      'world.npcs[].start': { label: 'How they feel about you at the start' },
+      'world.npcs[].whenTold': { label: 'When told' },
+      'world.npcs[].axes': { label: 'Temper' },
+      'world.factions': { label: 'Factions' },
+      'world.factions[].clocks': { label: 'Clocks' },
+      'world.factions[].clocks[].onComplete': { label: 'When it fills' },
+      'world.factions[].clocks[].onComplete.effects': { label: 'Effects' },
+      'world.factions[].clocks[].onComplete.alt': { label: 'Otherwise' },
+      'world.factions[].relations': { label: 'Relations with other factions' },
+      'world.threads': { label: 'Threads' },
+      'world.seeds': { label: 'Seeds' },
+      'world.seeds[].trigger': { label: 'Trigger' },
+      'world.seeds[].effects': { label: 'Effects' },
+      'world.rumours': { label: 'Rumours' },
+      'world.events': { label: 'Events' },
+      'world.events[].branches': { label: 'Branches' },
+      'world.events[].branches[].effects': { label: 'Effects' },
+      'world.events[].default': { label: 'Otherwise' },
+      'world.epilogue': { label: 'Epilogue' },
+      'world.epilogue.branches': { label: 'Branches' },
+      'world.tables': { label: 'Tables', hidden: true },
+      'world.tables.npc': { label: 'People' },
+      'world.tables.npc.firstNames': { label: 'First names' },
+      'world.tables.npc.occupations': { label: 'Occupations' },
+      'world.tables.location': { label: 'Places' },
+      'world.tables.location.types': { label: 'Types' },
+      'world.tables.location.details': { label: 'Details' },
+      'world.tables.location.problems': { label: 'Problems' },
+      'world.tables.items': { label: 'Goods' },
+      'world.tables.items.goods': { label: 'Goods' },
+      'world.tables.items.goods[].synonyms': { label: 'Also called' },
+      'world.tables.items.trinkets': { label: 'Trinkets' },
+      'world.tables.complications': { label: 'Complications' },
+      'world.tables.complications[].tiers': { label: 'On' },
+      'world.tables.complications[].kinds': { label: 'For' },
+      'world.tables.weather': { label: 'Weather' },
+      'world.tables.weather.spring': { label: 'Spring' },
+      'world.tables.weather.summer': { label: 'Summer' },
+      'world.tables.weather.autumn': { label: 'Autumn' },
+      'world.tables.weather.winter': { label: 'Winter' },
+      'world.grudgeTemplates': { label: 'Grudges', hidden: true },
+      'world.grudgeTemplates[].about': { label: 'About' },
+      'world.grudgeTemplates[].dayOffset': { label: 'Days later' },
+      'world.grudgeTemplates[].forTags': { label: 'For tags' },
+      'world.grudgeTemplates[].notForTags': { label: 'Not for tags' },
+      'world.grudgeTemplates[].needs': { label: 'Needs' },
+      'world.favourTemplates': { label: 'Favours', hidden: true },
+      'world.law': { label: 'The law' },
+      'world.gates': { label: 'Gates' },
+      'world.gates.council': { label: 'The council' },
+      'world.gates.epilogue': { label: 'The epilogue' },
+      player: { label: 'Player', help: 'Who the player can be, and how they arrive.' },
+      'player.backgrounds': { label: 'Backgrounds' },
+      'player.backgrounds[].stats': { label: 'Stats' },
+      'player.backgrounds[].items': { label: 'Things they carry' },
+      'player.backgrounds[].hook': { label: 'Hook' },
+      'player.flaws': { label: 'Flaws' },
+      'player.goalPresets': { label: 'Goals' },
+      'player.looseEnds': { label: 'Loose ends' },
+      'player.looseEnds{}.options': { label: 'Options' },
+      'player.looseEnds{}.link': { label: 'Link' },
+      'player.looseEnds{}.link.optionTags': { label: 'Tags' },
+      'player.looseEnds{}.seed': { label: 'Seed' },
+      'player.looseEnds{}.obligation': { label: 'Obligation' },
+      'player.looseEnds{}.obligations': { label: 'Obligations' },
+      'player.looseEnds{}.followUp': { label: 'Follow-up' },
+      'player.stats': { label: 'Stats', help: 'The four stats stay; a story renames and describes them.' },
+      'player.start': { label: 'At the start' },
+      'player.ageRange': { label: 'Age range', help: 'The youngest and the oldest a player may be.' },
+      'player.arrivals': { label: 'Arrivals' },
+      'player.arrivals.gate': { label: 'By road' },
+      'player.arrivals.docks': { label: 'By river' },
+      'player.creation': { label: 'Character creation' },
+      'player.creation.steps': { label: 'Steps' },
+      opening: { label: 'Opening', help: 'How the story begins.' },
+      'opening.premise': { help: 'One or two sentences shown at New game and on the story card.', placeholder: 'What the player walks into.' },
+      'opening.text': { help: 'The first scene, before the player types anything.', placeholder: 'The first thing the player reads.' },
+      'opening.firstTurn': { placeholder: 'What the narrator is told about the first turn.' },
+      narration: { label: 'Narration', help: 'How the narrator writes.' },
+      'narration.banned': { label: 'Banned phrases' },
+      'narration.alsoAvoid': { label: 'Also avoid' },
+      'narration.softChecks': { label: 'Style checks', help: 'The checks a story may switch off. The name check always runs.' },
+      'narration.examples': { label: 'Example turns' },
+      'narration.lengths': { label: 'Lengths in words' },
+      'narration.customGuide': { placeholder: 'How your narrator writes, in your words.' },
+      directions: { label: 'Directions', help: 'What the narrator is told for particular moments.' },
+      rules: { label: 'Rules', help: 'The dice, health, time, money and the law.' },
+      'rules.rolls': { label: 'When to roll' },
+      'rules.rolls.always': { label: 'Always roll' },
+      'rules.rolls.never': { label: 'Never roll' },
+      'rules.rolls.alwaysPhrases': { label: 'Always roll on' },
+      'rules.rolls.neverPhrases': { label: 'Never roll on' },
+      'rules.dcs': { label: 'Difficulty numbers' },
+      'rules.floors': { label: 'Floors' },
+      'rules.floors.lie': { label: 'Lying' },
+      'rules.hp': { label: 'Health' },
+      'rules.hp.damage': { label: 'Damage' },
+      'rules.hp.damage.failure': { label: 'On a failure', help: 'The least and the most.' },
+      'rules.permadeath': { help: 'When the player dies the game ends, with no way back.' },
+      'rules.storyPoints': { label: 'Story points' },
+      'rules.time': { label: 'Time' },
+      'rules.time.costs': { label: 'Costs' },
+      'rules.prices': { label: 'Prices' },
+      'rules.law': { label: 'The law' },
+      'rules.cheats': { label: 'Cheats' },
+      'rules.romance': { label: 'Romance' },
+      'rules.romance.gates': { label: 'Gates' },
+      'rules.romance.defaults': { label: 'Defaults' },
+      'rules.romance.intimacyRoll': { label: 'Intimacy roll' },
+      'rules.gamble': { label: 'Cards' },
+      'rules.narration': { label: 'Narration' },
+      freedom: { label: 'Freedom', help: 'How far the player may go beyond what you wrote.' },
+      'freedom.create': { label: 'What the player may add' },
+      'freedom.scopeRefusal': { label: 'Out of scope' },
+      prompts: { label: 'Prompts', help: 'Notes added to the game\'s own prompts.' },
+      suggestedSettings: { label: 'Suggested settings', help: 'Shown at New game as a suggestion, never applied by itself.' },
+      'suggestedSettings.effort': { label: 'Effort' }
+    };
+    // An effect list, a condition, a list of days, a person's tracks: shared nodes, worded once wherever they first appear.
+    const SHARED = new Map([[EFFECTS, { label: 'Effects' }], [DAY_RANGE, { label: 'Days later' }], [TRACKS, { label: 'Tracks' }]]);
+    (function words(node, path) {
+      const add = Object.assign({}, SHARED.get(node), EDITOR[path]);
+      if (node.type === 'string' && !(node.max > 500)) add.oneLine = true;
+      for (const k of Object.keys(add)) if (node[k] === undefined) node[k] = add[k];
+      // A list of plain values the table does not name is called what one of them is called ("Also called", "Flaw").
+      if ((node.type === 'list' || node.type === 'map') && node.label === undefined && node.of.label) node.label = node.of.label;
+      if (node.type === 'object') for (const k of Object.keys(node.fields)) words(node.fields[k], path ? path + '.' + k : k);
+      else if (node.type === 'list') words(node.of, path + '[]');
+      else if (node.type === 'map') words(node.of, path + '{}');
+    })(ROOT, '');
     return ROOT;
   })();
   deepFreeze(SCHEMA);
@@ -44255,9 +44524,10 @@ const UI = (() => {
    per later task (M5-B Form and Json, M5-C World, M5-D Overview and Player,
    M6 Narrator to Prompts and Preview, M7 Test and Dev, M8 Convert), so two
    tasks never edit the same lines. Creator.state is { view: 'library' |
-   'editor', draftId, tab }. */
+   'editor', draftId, tab, draft } (draft, task M5-B: the working copy of
+   the open draft's pack, which Editor.set changes and autosaves). */
 const Creator = (() => {
-  const state = { view: 'library', draftId: null, tab: 'overview' };
+  const state = { view: 'library', draftId: null, tab: 'overview', draft: null };
   const node = id => document.getElementById(id);
   const RATINGS = ['general', 'teen', 'mature', 'adult'];
   // A pack's source as its card's badge (Storage.Library's sources); the built-in story and a draft have their own.
@@ -44451,15 +44721,285 @@ const Creator = (() => {
   }
 
   // ----- Creator: Form -----
-  // (milestone 5, task M5-B: Creator.Form.render from Pack.SCHEMA)
+  /* Creator.Form (milestone 5, task M5-B; plan decision H, "one schema
+     drives forms and validation"): render(spec, value, path, onChange,
+     opts) draws the controls for a Pack.SCHEMA node from its own words
+     (label, help, order, oneLine, placeholder, readOnly, hidden). The forms
+     are the creator's primary path and need no AI at all (the owner: "as
+     little as possible generative AI in the creator mode"). A leaf is a
+     .cr-field: the label above, the control (data-path, the path dotted
+     with indices), the help beneath (.cr-note) and an empty .cr-err slot
+     that check() fills. string is a text input (a textarea when it is not
+     oneLine), text a textarea that grows with its text (3 to 14 rows),
+     int and number a number input, bool a .check box, enum a select, ref a
+     select of the draft's entities of that kind with a blank choice, refs
+     and a list of plain values chips with a remove x and an Add control.
+     A list of objects, a map and an any leaf are not drawn here: the entity
+     tabs own them, so they get a note saying which. An object is a
+     .cr-section of its fields in order. onChange(path, value) fires on
+     input for typed text (150 ms after the last key; at once on change)
+     and on change for the rest; an emptied field gives undefined (the key
+     goes, so a required one says so). Every value from the pack goes in as
+     text or a property, never markup. opts: pack (whose entities fill the
+     pickers; the open draft by default), title and note (a section's
+     heading and its line), skip and only (field names), hideLabel and
+     noHelp (a leaf in a section that already says it), minRows. */
+  const Form = (() => {
+    const TYPE_MS = 150;
+    const SCALAR = ['string', 'text', 'int', 'number', 'bool', 'enum', 'ref', 'id'];
+    const LIMIT = { string: 500, text: 2000, ref: 500, id: 500 };
+    // An object's own notes field (Pack.SCHEMA: "every object may also carry notes ... 600 characters"), drawn where an order names it.
+    const NOTES = Object.freeze({ type: 'text', label: 'Notes', max: 600, help: 'For you and whoever opens the file; never sent to the narrator.', placeholder: 'Anything you want to remember about this story.' });
+    const pending = new Map(); // path -> the fire function of a text control still waiting out TYPE_MS
+    const domId = path => 'cr-f-' + (String(path).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'root');
+    const has = v => v !== undefined && v !== null;
+    const short = (v, n) => { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+    /* The choices for a ref of a kind, from the pack being edited: [{ value, text }]. */
+    function flagsOf(pack) {
+      const out = new Set();
+      (function walk(v) {
+        if (Array.isArray(v)) { v.forEach(walk); return; }
+        if (!isObj(v)) return;
+        if (v.op === 'setFlag' && typeof v.key === 'string' && v.key) out.add(v.key);
+        for (const k of Object.keys(v)) if (v[k] && typeof v[k] === 'object') walk(v[k]);
+      })(pack);
+      return [...out].sort().map(k => ({ value: k, text: k }));
+    }
+    function entities(kind, pack) {
+      const p = isObj(pack) ? pack : {};
+      const w = isObj(p.world) ? p.world : {};
+      const pl = isObj(p.player) ? p.player : {};
+      const rows = v => (Array.isArray(v) ? v.filter(x => isObj(x) && typeof x.id === 'string' && x.id) : []);
+      const by = (list, name) => rows(list).map(x => ({ value: x.id, text: short(name(x), 60) || x.id }));
+      const goods = () => {
+        const t = isObj(w.tables) && isObj(w.tables.items) && Array.isArray(w.tables.items.goods) ? w.tables.items.goods : [];
+        return t.filter(g => isObj(g) && typeof g.name === 'string' && g.name).map(g => ({ value: g.name, text: g.name }));
+      };
+      switch (kind) {
+        case 'npc': return by(w.npcs, x => x.name || x.id);
+        case 'loc': return by(w.locations, x => x.name || x.id);
+        case 'fac': return by(w.factions, x => x.name || x.id);
+        case 'thread': return by(w.threads, x => x.title || x.id);
+        case 'seed': return by(w.seeds, x => x.cause || x.id);
+        case 'rumour': return by(w.rumours, x => x.text || x.id);
+        case 'event': return by(w.events, x => x.title || x.id);
+        case 'background': return by(pl.backgrounds, x => x.name || x.id);
+        case 'item': return goods();
+        case 'flag': return flagsOf(p);
+        // A ref of no one kind (a thread's linked ids): every person, place, faction, thread, seed, rumour and event.
+        default: return ['npc', 'loc', 'fac', 'thread', 'seed', 'rumour', 'event'].flatMap(k => entities(k, p));
+      }
+    }
+    function option(value, text, on) { return el('option', { value, selected: on }, text); }
+
+    /* One leaf's parts: the label, the help and the error slot, with the ids that tie them to the control. */
+    function parts(spec, path, ctx, opts) {
+      const id = domId(path);
+      const help = spec.help && !opts.noHelp ? el('p', { class: 'cr-note', id: id + '-help' }, spec.help) : null;
+      const err = el('p', { class: 'cr-err', id: id + '-err', dataset: { errFor: path } });
+      const req = ctx.required && !spec.readOnly ? el('span', { class: 'cr-req' }, 'required') : null;
+      return { id, help, err, req, described: [help ? id + '-help' : null, id + '-err'].filter(Boolean).join(' ') };
+    }
+    function wrap(spec, path, kids) {
+      return el('div', { class: 'cr-field', dataset: { field: path, type: spec.type } }, kids);
+    }
+    function labelFor(spec, pt, opts, forId) {
+      return el('label', { class: 'label' + (opts.hideLabel ? ' cr-sr' : ''), for: forId || pt.id, id: pt.id + '-label' }, spec.label || '', pt.req);
+    }
+    // A textarea's height from its text: a row a line, long lines wrapping at about 56 characters, 3 to 14 rows (or opts.minRows).
+    function rowsFor(text, min) {
+      const n = String(text || '').split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 56)), 0);
+      return Math.max(min || 3, Math.min(14, n));
+    }
+    /* A typed field: onChange 150 ms after the last key, and at once on change (leaving the field), whichever comes first. */
+    function typed(ctl, path, read, ctx) {
+      let timer = null;
+      const fire = () => { clearTimeout(timer); timer = null; pending.delete(path); ctx.onChange(path, read()); };
+      ctl.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(fire, TYPE_MS); pending.set(path, fire); });
+      ctl.addEventListener('change', () => { if (timer) fire(); });
+    }
+    function textLeaf(spec, value, path, ctx, opts) {
+      const pt = parts(spec, path, ctx, opts);
+      const box = spec.type === 'text' || (spec.type === 'string' && spec.oneLine === false);
+      const max = spec.max || LIMIT[spec.type] || null;
+      const now = typeof value === 'string' ? value : has(value) ? String(value) : '';
+      const mono = spec.type === 'id' || spec.type === 'ref';
+      const attrs = {
+        class: 'input' + (mono ? ' cr-mono' : '') + (opts.minRows >= 8 ? ' cr-story-box' : ''), id: pt.id, value: now, maxlength: max, placeholder: spec.placeholder || null,
+        readonly: spec.readOnly ? true : null, spellcheck: mono ? 'false' : null, autocomplete: 'off', 'aria-describedby': pt.described, dataset: { path }
+      };
+      let ctl;
+      if (box) {
+        ctl = el('textarea', Object.assign(attrs, { rows: rowsFor(now, opts.minRows) }));
+        ctl.addEventListener('input', () => { ctl.rows = rowsFor(ctl.value, opts.minRows); });
+      } else ctl = el('input', Object.assign(attrs, { type: 'text' }));
+      if (!spec.readOnly) typed(ctl, path, () => (ctl.value === '' ? undefined : ctl.value), ctx);
+      return wrap(spec, path, [labelFor(spec, pt, opts), ctl, pt.help, pt.err]);
+    }
+    function numberLeaf(spec, value, path, ctx, opts) {
+      const pt = parts(spec, path, ctx, opts);
+      const int = spec.type === 'int';
+      const ctl = el('input', {
+        class: 'input', type: 'number', id: pt.id, inputmode: int ? 'numeric' : 'decimal', step: int ? '1' : 'any',
+        min: has(spec.min) ? spec.min : null, max: has(spec.max) ? spec.max : null, value: typeof value === 'number' ? String(value) : '',
+        'aria-describedby': pt.described, dataset: { path },
+        onchange: () => { const raw = ctl.value.trim(); ctx.onChange(path, raw === '' ? undefined : Number(raw)); }
+      });
+      return wrap(spec, path, [labelFor(spec, pt, opts), ctl, pt.help, pt.err]);
+    }
+    function boolLeaf(spec, value, path, ctx, opts) {
+      const pt = parts(spec, path, ctx, opts);
+      const box = el('input', { type: 'checkbox', id: pt.id, checked: value === true, 'aria-describedby': pt.described, dataset: { path }, onchange: () => ctx.onChange(path, box.checked) });
+      return wrap(spec, path, [el('label', { class: 'check', id: pt.id + '-label' }, box, ' ' + (spec.label || ''), pt.req), pt.help, pt.err]);
+    }
+    /* enum and ref: a select. A value the choices do not hold (a typo in a file, a person since removed) is kept and shown as such. */
+    function selectLeaf(spec, value, path, ctx, opts) {
+      const pt = parts(spec, path, ctx, opts);
+      const choices = spec.type === 'enum' ? spec.enum.map(v => ({ value: v, text: v })) : entities(spec.ref, ctx.pack);
+      const now = has(value) ? String(value) : '';
+      const opt = [];
+      if (spec.type === 'ref' || !ctx.required || now === '') opt.push(option('', spec.type === 'ref' ? 'None' : 'Not set', now === ''));
+      for (const c of choices) opt.push(option(c.value, c.text, c.value === now));
+      if (now !== '' && !choices.some(c => c.value === now)) opt.push(option(now, `${now} (not found)`, true));
+      const ctl = el('select', {
+        class: 'input' + (spec.type === 'ref' ? ' cr-ref' : ''), id: pt.id, 'aria-describedby': pt.described, dataset: spec.ref ? { path, ref: spec.ref } : { path },
+        onchange: () => ctx.onChange(path, ctl.value === '' ? undefined : ctl.value)
+      }, opt);
+      return wrap(spec, path, [labelFor(spec, pt, opts), ctl, pt.help, pt.err]);
+    }
+    /* refs and a list of plain values: one chip per value with a remove x, then the Add control (a select of what is
+       left for refs and enums, else a field and an Add button; Enter adds too). The whole list is what onChange gets. */
+    function chipsLeaf(spec, value, path, ctx, opts) {
+      const of = spec.type === 'refs' ? { type: 'ref', ref: spec.ref, label: spec.label } : spec.of;
+      const pt = parts(spec, path, ctx, opts);
+      const list = Array.isArray(value) ? value.slice() : [];
+      const choices = of.type === 'ref' ? entities(of.ref, ctx.pack) : of.type === 'enum' ? of.enum.map(v => ({ value: v, text: v })) : null;
+      const textOf = v => { const c = choices && choices.find(x => x.value === v); return c ? c.text : String(v); };
+      const group = el('div', { class: 'cr-chips', role: 'group', 'aria-labelledby': pt.id + '-label', 'aria-describedby': pt.described, dataset: { path } });
+      const emit = () => ctx.onChange(path, list.slice());
+      const addId = pt.id + '-add';
+      function draw(refocus) {
+        const chips = list.map((v, i) => el('span', { class: 'cr-chip-item', dataset: { index: String(i) } },
+          el('span', { class: 'cr-chip-text' }, textOf(v)),
+          el('button', { type: 'button', class: 'cr-chip-x', 'aria-label': `Remove ${textOf(v)}`, onclick: () => { list.splice(i, 1); emit(); draw(true); } }, '×')));
+        let add;
+        if (choices) {
+          const left = choices.filter(c => !list.includes(c.value));
+          add = el('select', { class: 'input cr-chip-add', id: addId, 'aria-label': `Add to ${spec.label || 'the list'}`, disabled: !left.length,
+            onchange: () => { if (!add.value) return; list.push(add.value); emit(); draw(true); } },
+          option('', left.length ? 'Add…' : 'Nothing more to add', true), left.map(c => option(c.value, c.text, false)));
+        } else {
+          const num = of.type === 'int' || of.type === 'number';
+          const field = el('input', { class: 'input', id: addId, type: num ? 'number' : 'text', inputmode: num ? 'numeric' : null, autocomplete: 'off', maxlength: num ? null : (of.max || LIMIT.string), 'aria-label': `New ${(of.label || 'value').toLowerCase()}` });
+          const push = () => {
+            const raw = field.value.trim();
+            if (!raw) return;
+            list.push(num ? Number(raw) : raw);
+            emit();
+            draw(true);
+          };
+          field.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); push(); } });
+          add = el('span', { class: 'cr-chip-new' }, field, el('button', { type: 'button', class: 'btn small', onclick: push }, 'Add'));
+        }
+        group.replaceChildren(...chips, add);
+        if (refocus) { const a = document.getElementById(addId); if (a) a.focus({ preventScroll: true }); }
+      }
+      draw(false);
+      return wrap(spec, path, [labelFor(spec, pt, opts, addId), group, pt.help, pt.err]);
+    }
+    /* A list of objects, a map, an any leaf: drawn by the tab that owns them (World, Player, Narrator and on). */
+    function elsewhere(spec, path) {
+      const tab = TABS.find(t => t.id === tabFor(path));
+      return wrap(spec, path, [el('span', { class: 'label' }, spec.label || ''), el('p', { class: 'cr-note', dataset: { elsewhere: tab.id } }, `Edited on the ${tab.label} tab`)]);
+    }
+    function orderOf(spec) {
+      const named = (spec.order || []).filter(k => Object.prototype.hasOwnProperty.call(spec.fields, k) || (k === 'notes' && spec.notes));
+      return named.concat(Object.keys(spec.fields).filter(k => !named.includes(k)));
+    }
+    function section(spec, value, path, ctx, opts) {
+      const v = isObj(value) ? value : {};
+      const req = spec.required || [];
+      const keys = orderOf(spec).filter(k => (!opts.only || opts.only.includes(k)) && !(opts.skip || []).includes(k) && !(spec.fields[k] && spec.fields[k].hidden));
+      const kids = keys.map(k => {
+        const p = path ? `${path}.${k}` : k;
+        const sub = Object.assign({}, ctx, { required: req.includes(k) });
+        if (k === 'notes' && !spec.fields.notes) return leaf(NOTES, v.notes, p, sub, {});
+        return draw(spec.fields[k], v[k], p, sub, { nested: true });
+      });
+      const nested = !!opts.nested;
+      const title = opts.title || spec.label || '';
+      const note = has(opts.note) ? opts.note : spec.help;
+      return el('section', { class: 'cr-section' + (nested ? ' cr-sub' : ''), dataset: { section: path } },
+        title ? el(nested ? 'h3' : 'h2', { class: nested ? 'cr-sub-title' : 'cr-section-title' }, title) : null,
+        note ? el('p', { class: 'cr-note' }, note) : null,
+        kids);
+    }
+    function leaf(spec, value, path, ctx, opts) {
+      switch (spec.type) {
+        case 'string': case 'text': case 'id': return textLeaf(spec, value, path, ctx, opts);
+        case 'int': case 'number': return numberLeaf(spec, value, path, ctx, opts);
+        case 'bool': return boolLeaf(spec, value, path, ctx, opts);
+        case 'enum': case 'ref': return selectLeaf(spec, value, path, ctx, opts);
+        case 'refs': return chipsLeaf(spec, value, path, ctx, opts);
+        default: return elsewhere(spec, path);
+      }
+    }
+    function draw(spec, value, path, ctx, opts) {
+      if (!spec) return null;
+      if (spec.type === 'object') return section(spec, value, path, ctx, opts);
+      if (spec.type === 'list') return SCALAR.includes(spec.of.type) ? chipsLeaf(spec, value, path, ctx, opts) : elsewhere(spec, path);
+      if (spec.type === 'map' || spec.type === 'any') return elsewhere(spec, path);
+      return leaf(spec, value, path, ctx, opts);
+    }
+    function render(spec, value, path, onChange, opts) {
+      const o = opts || {};
+      const ctx = { onChange: typeof onChange === 'function' ? onChange : () => {}, pack: o.pack || state.draft || {}, required: !!o.required };
+      return draw(spec, value, String(path || ''), ctx, o);
+    }
+    // Whatever is still being typed reaches onChange now (before Save, Undo, Back, Copy and the page going away).
+    function flush() { for (const fire of [...pending.values()]) fire(); }
+    return { render, flush, entities, NOTES, domId };
+  })();
 
   // ----- Creator: Editor -----
   /* The shell (task M5-A): the header card (the draft's title, author and
      version, the token meter, Undo, Redo, Test, Save), the tab strip and the
-     body; each tab's body arrives with its task. */
-  const TABS = Object.freeze([['overview', 'Overview'], ['world', 'World'], ['player', 'Player'], ['opening', 'Opening'], ['narrator', 'Narrator'],
-    ['directions', 'Directions'], ['rules', 'Rules'], ['freedom', 'Freedom'], ['prompts', 'Prompts'], ['json', 'JSON'], ['test', 'Test']]);
+     body. Task M5-B makes it an editor: TABS is { id, label, render(draft) }
+     (Overview and JSON drawn here, the rest arriving with their tasks); the
+     draft open is a working copy in Creator.state.draft, and every change
+     goes through Editor.set(path, value), which keeps an undo snapshot,
+     autosaves (Storage.Drafts, 500 ms after the last change and at once on
+     pagehide) and checks the pack (check(), 150 ms after the last change). */
+  const TABS = Object.freeze([
+    { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
+    { id: 'world', label: 'World', render: null },
+    { id: 'player', label: 'Player', render: null },
+    { id: 'opening', label: 'Opening', render: null },
+    { id: 'narrator', label: 'Narrator', render: null },
+    { id: 'directions', label: 'Directions', render: null },
+    { id: 'rules', label: 'Rules', render: null },
+    { id: 'freedom', label: 'Freedom', render: null },
+    { id: 'prompts', label: 'Prompts', render: null },
+    { id: 'json', label: 'JSON', render: d => renderJson(d) },
+    { id: 'test', label: 'Test', render: null }
+  ].map(t => Object.freeze(t)));
   const PLACEHOLDER = 'This tab arrives with the next task.';
+  /* Which tab owns a problem's path, by its first segment (Overview holds meta, setting and opening for now). */
+  const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', opening: 'overview', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
+  function tabFor(path) { return TAB_OF[String(path || '').split(/[.[]/)[0]] || 'overview'; }
+  const tabLabel = id => (TABS.find(t => t.id === id) || TABS[0]).label;
+  const SAVE_MS = 500;
+  const CHECK_MS = 150;
+  const JSON_MS = 300;
+  /* The draft open: work holds its record's id, the pack it came from and the undo and redo stacks (JSON
+     snapshots, at most Storage.Drafts.UNDO_MAX, the oldest dropped); its pack is state.draft. problems is
+     what the last check() found; checkMs how long that took (a 300 KB pack costs about 160 ms, so check()
+     never runs on a key, only CHECK_MS after the last change). */
+  let work = null;
+  let problems = [];
+  let checkMs = 0;
+  const timers = { save: null, check: null, json: null };
   /* The meter for now (milestone 6 builds the real one): the built-in story's three cached blocks, estimated
      (Pack.tokenEstimate) from its system prompt and the town and cast blocks of a stand-in game made from the
      pack's own lists, so no running game is touched. Measured once. */
@@ -44486,21 +45026,24 @@ const Creator = (() => {
     node('creator-meter-num').textContent = `${n.toLocaleString('en-US')} of ${budget.toLocaleString('en-US')} tokens · estimate`;
     node('creator-meter').title = 'The cached prompt the narrator reads every turn, estimated for the built-in story; the meter for your draft arrives with the next milestone.';
   }
-  function tabButton([id, label]) {
+  function tabButton({ id, label }) {
     const on = id === state.tab;
     return el('button', { type: 'button', role: 'tab', id: 'creator-tab-' + id, 'aria-selected': String(on), 'aria-controls': 'creator-body', tabindex: on ? '0' : '-1', dataset: { crTab: id }, onclick: () => selectTab(id) }, label);
   }
   function renderBody() {
+    Form.flush();
     const body = node('creator-body');
-    const entry = TABS.find(t => t[0] === state.tab) || TABS[0];
-    body.setAttribute('aria-labelledby', 'creator-tab-' + entry[0]);
-    body.dataset.tab = entry[0];
-    body.replaceChildren(el('section', { class: 'cr-section' },
-      el('h2', { class: 'cr-section-title' }, entry[1]),
-      el('p', { class: 'cr-note' }, PLACEHOLDER)));
+    const entry = TABS.find(t => t.id === state.tab) || TABS[0];
+    body.setAttribute('aria-labelledby', 'creator-tab-' + entry.id);
+    body.dataset.tab = entry.id;
+    const drawn = entry.render && state.draft ? entry.render(state.draft) : el('section', { class: 'cr-section' },
+      el('h2', { class: 'cr-section-title' }, entry.label),
+      el('p', { class: 'cr-note' }, PLACEHOLDER));
+    body.replaceChildren(...[].concat(drawn));
+    showProblems();
   }
   function selectTab(id, focus) {
-    if (!TABS.some(t => t[0] === id)) return;
+    if (!TABS.some(t => t.id === id)) return;
     state.tab = id;
     for (const b of node('creator-tabs').querySelectorAll('[role=tab]')) {
       const on = b.dataset.crTab === id;
@@ -44512,23 +45055,216 @@ const Creator = (() => {
   }
   // The tab strip's keys, as the game's panel tabs: arrows, Home and End move and open.
   function onTabKey(e) {
-    const ids = TABS.map(t => t[0]);
+    const ids = TABS.map(t => t.id);
     const i = ids.indexOf(state.tab);
     const to = e.key === 'ArrowRight' ? ids[(i + 1) % ids.length] : e.key === 'ArrowLeft' ? ids[(i - 1 + ids.length) % ids.length] : e.key === 'Home' ? ids[0] : e.key === 'End' ? ids[ids.length - 1] : null;
     if (!to) return;
     e.preventDefault();
     selectTab(to, true);
   }
-  function renderEditor() {
-    const dr = Storage.Drafts.get(state.draftId);
-    if (!dr) { state.view = 'library'; state.draftId = null; return render(); }
-    const m = metaOf(dr.pack);
-    node('creator-editor-title').textContent = titleOf(dr.pack);
+  /* The header card follows the draft as it is typed: the title, then the author, version and id. */
+  function renderHead() {
+    const pack = state.draft || {};
+    const m = metaOf(pack);
+    node('creator-editor-title').textContent = titleOf(pack);
     node('creator-editor-sub').textContent = [m.author ? `by ${m.author}` : 'No author yet', m.version ? `version ${m.version}` : '', m.id ? `id ${m.id}` : ''].filter(Boolean).join(' · ');
+  }
+  function syncButtons() {
+    node('creator-undo').disabled = !work || !work.undo.length;
+    node('creator-redo').disabled = !work || !work.redo.length;
+    node('creator-save').disabled = !work;
+    node('creator-save').title = 'Save as pack: check the story and keep it in your Library';
+  }
+  /* The draft into the editor: a working copy of its pack and its two stacks. */
+  function load(id) {
+    const dr = Storage.Drafts.get(id);
+    if (!dr) { work = null; state.draft = null; return false; }
+    work = { id: dr.id, fromPackId: dr.fromPackId, undo: dr.undo.slice(), redo: dr.redo.slice() };
+    state.draft = Pack.copy(dr.pack);
+    problems = [];
+    return true;
+  }
+  function renderEditor() {
+    if ((!work || work.id !== state.draftId || !state.draft) && !load(state.draftId)) { state.view = 'library'; state.draftId = null; return render(); }
+    renderHead();
     renderMeter();
+    syncButtons();
     node('creator-tabs').replaceChildren(...TABS.map(tabButton));
+    // A new draft's strip starts at its open tab, not where the last draft's was scrolled.
+    node('creator-tabs').scrollLeft = 0;
     renderBody();
-    return dr;
+    check();
+    return state.draft;
+  }
+
+  /* ----- the path of a field: "world.npcs[2].name" -> ['world', 'npcs', 2, 'name'] ----- */
+  function steps(path) {
+    const out = [];
+    String(path || '').replace(/\[(\d+)\]|[^.[\]]+/g, (m, n) => { out.push(n !== undefined ? Number(n) : m); return m; });
+    return out;
+  }
+  function getAt(root, path) {
+    let o = root;
+    for (const k of steps(path)) { if (o === null || typeof o !== 'object') return undefined; o = o[k]; }
+    return o;
+  }
+  /* Writes value at path, making the objects and lists on the way; undefined takes the key away (a list's item goes). */
+  function setAt(root, path, value) {
+    const ks = steps(path);
+    let o = root;
+    for (let i = 0; i < ks.length - 1; i++) {
+      const k = ks[i];
+      if (o[k] === null || typeof o[k] !== 'object') {
+        if (value === undefined) return;
+        o[k] = typeof ks[i + 1] === 'number' ? [] : {};
+      }
+      o = o[k];
+    }
+    const last = ks[ks.length - 1];
+    if (value !== undefined) o[last] = value;
+    else if (Array.isArray(o) && typeof last === 'number') o.splice(last, 1);
+    else delete o[last];
+  }
+  const clone = v => (v !== null && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v);
+
+  /* Editor.set(path, value): the one way a change reaches the draft. A snapshot of the pack before it goes on
+     undo (the oldest dropped past Storage.Drafts.UNDO_MAX) and redo empties; then the change, the header, the
+     autosave (SAVE_MS), check() (CHECK_MS) and the JSON view (JSON_MS). The path '' replaces the whole pack
+     (Import), and the tab is drawn again. A change to the value already there does nothing (false). */
+  function set(path, value) {
+    if (!work || !state.draft) return false;
+    const p = String(path || '');
+    if (p === '' && !isObj(value)) return false;
+    const was = p === '' ? state.draft : getAt(state.draft, p);
+    if (JSON.stringify(was) === JSON.stringify(value)) return false;
+    work.undo.push(JSON.stringify(state.draft));
+    if (work.undo.length > Storage.Drafts.UNDO_MAX) work.undo.splice(0, work.undo.length - Storage.Drafts.UNDO_MAX);
+    work.redo = [];
+    if (p === '') state.draft = clone(value);
+    else setAt(state.draft, p, clone(value));
+    changed(p === '');
+    if (p !== '') showValue(p, value);
+    return true;
+  }
+  /* A change made from elsewhere (Save as pack's version, a later tab, a test) shows in its control, unless that
+     control is the one being typed in. */
+  function showValue(path, value) {
+    const c = node('creator-body') && node('creator-body').querySelector(`[data-path="${CSS.escape(path)}"]`);
+    if (!c || c === document.activeElement || !('value' in c) || (value !== undefined && typeof value === 'object')) return;
+    if (c.type === 'checkbox') c.checked = value === true;
+    else c.value = value === undefined || value === null ? '' : String(value);
+  }
+  function changed(redraw) {
+    renderHead();
+    syncButtons();
+    if (redraw) renderBody();
+    clearTimeout(timers.save);
+    timers.save = setTimeout(saveNow, SAVE_MS);
+    clearTimeout(timers.check);
+    timers.check = setTimeout(check, CHECK_MS);
+    clearTimeout(timers.json);
+    if (state.tab === 'json') timers.json = setTimeout(fillJson, JSON_MS);
+  }
+  /* Undo and Redo: the pack swaps with the top of one stack (the other takes the pack as it is), and the tab is drawn again. */
+  function step(from, to) {
+    Form.flush();
+    if (!work || !work[from].length) return false;
+    work[to].push(JSON.stringify(state.draft));
+    if (work[to].length > Storage.Drafts.UNDO_MAX) work[to].splice(0, work[to].length - Storage.Drafts.UNDO_MAX);
+    state.draft = JSON.parse(work[from].pop());
+    changed(true);
+    return true;
+  }
+  const undo = () => step('undo', 'redo');
+  const redo = () => step('redo', 'undo');
+  /* The draft into Storage.Drafts now (the autosave's timer, Back, Save as pack, pagehide). */
+  function saveNow() {
+    clearTimeout(timers.save);
+    timers.save = null;
+    if (!work || !state.draft) return null;
+    try {
+      return Storage.Drafts.put({ id: work.id, fromPackId: work.fromPackId, pack: state.draft, undo: work.undo, redo: work.redo });
+    } catch (e) { console.warn('[Creator] the draft could not be kept', e); return null; }
+  }
+  /* "1.0.0" -> "1.0.1" (a pre-release or build tail goes: the patch is a release of its own); no version yet -> "0.1.0". */
+  function bumpVersion(v) {
+    const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(v || ''));
+    return m ? `${m[1]}.${m[2]}.${Number(m[3]) + 1}` : '0.1.0';
+  }
+  /* Save as pack: an error anywhere stops it (the toast counts them and the Overview's Problems list takes the
+     focus); else the patch version goes up and the pack goes into the Library (source created), the draft stays
+     open with the new version, and the draft now belongs to that pack. */
+  function saveAsPack() {
+    Form.flush();
+    if (!work || !state.draft) return null;
+    const errs = Pack.errors(check());
+    if (errs.length) {
+      UI.toast(`Fix ${errs.length} problem${errs.length === 1 ? '' : 's'} first.`);
+      if (state.tab !== 'overview') selectTab('overview');
+      const list = node('creator-problems');
+      if (list) { try { list.scrollIntoView({ block: 'start' }); } catch (e) { /* fine */ } list.focus({ preventScroll: true }); }
+      return null;
+    }
+    const version = bumpVersion(metaOf(state.draft).version);
+    const pack = Pack.copy(state.draft);
+    pack.meta.version = version;
+    let rec;
+    try { rec = Storage.Library.put(pack, { source: 'created' }); } catch (e) { UI.toast(e.message); return null; }
+    set('meta.version', version);
+    work.fromPackId = rec.id;
+    saveNow();
+    UI.toast(`Saved to your Library as ${titleOf(pack)} ${version}.`);
+    return rec;
+  }
+  /* check(): the draft through Pack.validate (profile play), then each problem under the control whose data-path
+     is the longest prefix of its path (one line each, errors in the error tone, warnings muted), each tab's error
+     count on its button, and the Overview's Problems list and file line. */
+  function check() {
+    clearTimeout(timers.check);
+    timers.check = null;
+    if (!state.draft) { problems = []; return problems; }
+    const t0 = performance.now();
+    try { problems = Pack.validate(state.draft, { profile: 'play' }); } catch (e) {
+      problems = [{ path: '', message: `The story could not be checked: ${e.message}`, severity: 'error', rule: 'creator.check' }];
+    }
+    checkMs = performance.now() - t0;
+    showProblems();
+    return problems;
+  }
+  // A path and every path above it, the longest first: "a.b[2].c", "a.b[2]", "a.b", "a".
+  function prefixes(path) {
+    const out = [path];
+    for (let i = path.length - 1; i > 0; i--) if (path[i] === '.' || path[i] === '[') out.push(path.slice(0, i));
+    return out;
+  }
+  const sentence = s => { const t = String(s || ''); return t.charAt(0).toUpperCase() + t.slice(1); };
+  function showProblems() {
+    const body = node('creator-body');
+    if (!body) return;
+    const slots = new Map();
+    for (const s of body.querySelectorAll('.cr-err[data-err-for]')) { s.replaceChildren(); delete s.dataset.sev; slots.set(s.dataset.errFor, s); }
+    const controls = new Map();
+    for (const c of body.querySelectorAll('[data-path]')) { c.removeAttribute('aria-invalid'); controls.set(c.dataset.path, c); }
+    for (const p of problems) {
+      const at = prefixes(String(p.path || '')).find(x => controls.has(x) && slots.has(x));
+      if (at === undefined) continue;
+      const slot = slots.get(at);
+      const sev = p.severity === 'error' ? 'error' : 'warning';
+      const where = p.path !== at ? `${String(p.path).slice(at.length).replace(/^\./, '')}: ` : '';
+      slot.append(el('span', { class: 'cr-err-line', dataset: { sev } }, where + sentence(p.message)));
+      if (sev === 'error') { slot.dataset.sev = 'error'; controls.get(at).setAttribute('aria-invalid', 'true'); } else if (!slot.dataset.sev) slot.dataset.sev = 'warning';
+    }
+    const count = {};
+    for (const p of Pack.errors(problems)) { const t = tabFor(p.path); count[t] = (count[t] || 0) + 1; }
+    const strip = node('creator-tabs');
+    if (strip) {
+      for (const b of strip.querySelectorAll('[role=tab]')) {
+        const n = count[b.dataset.crTab] || 0;
+        if (n) { b.dataset.count = String(n); b.setAttribute('aria-label', `${tabLabel(b.dataset.crTab)}, ${n} error${n === 1 ? '' : 's'}`); } else { delete b.dataset.count; b.removeAttribute('aria-label'); }
+      }
+    }
+    fillProblems();
+    fillAbout();
   }
   function setView() {
     const lib = state.view !== 'editor';
@@ -44545,12 +45281,25 @@ const Creator = (() => {
   function scrollTop() { const sc = node('creator-scroll'); if (sc) sc.scrollTop = 0; }
   /* Create on the title: the screen with the Library. */
   function open() {
+    closeDraft();
     state.view = 'library';
     state.draftId = null;
     UI.showScreen('creator');
     scrollTop();
   }
+  /* Leaving the draft (Back, another draft, the title): what is being typed and the draft are kept first. */
+  function closeDraft() {
+    if (!work) return;
+    Form.flush();
+    saveNow();
+    clearTimeout(timers.check);
+    clearTimeout(timers.json);
+    work = null;
+    state.draft = null;
+    problems = [];
+  }
   function showLibrary() {
+    closeDraft();
     state.view = 'library';
     state.draftId = null;
     if (UI.screen !== 'creator') { UI.showScreen('creator'); return; }
@@ -44560,6 +45309,7 @@ const Creator = (() => {
   }
   function openEditor(id) {
     if (!Storage.Drafts.get(id)) { UI.toast('That draft is not on this device any more.'); showLibrary(); return false; }
+    if (work && work.id !== id) closeDraft();
     state.view = 'editor';
     state.draftId = id;
     state.tab = 'overview';
@@ -44578,10 +45328,88 @@ const Creator = (() => {
     for (const id of ['creator-import', 'creator-empty-import']) node(id).addEventListener('click', () => node('creator-import-file').click());
     node('creator-import-file').addEventListener('change', onImportFile);
     node('creator-tabs').addEventListener('keydown', onTabKey);
+    // Task M5-B: Undo, Redo and Save as pack; the draft is kept at once when the page goes away (an iPhone closing the tab).
+    node('creator-undo').addEventListener('click', () => undo());
+    node('creator-redo').addEventListener('click', () => redo());
+    node('creator-save').addEventListener('click', () => saveAsPack());
+    window.addEventListener('pagehide', () => { if (work) { Form.flush(); saveNow(); } });
   }
 
   // ----- Creator: Overview -----
-  // (milestone 5, task M5-D)
+  /* The Overview tab (task M5-B draws it; M5-D may add to it): the meta
+     fields in their order with the id read-only in monospace, the era and
+     the blurb, the opening's premise and text, "Your story, in your words"
+     (meta.storyText: the author writes first, plan decision I; it stays in
+     the pack and is never sent to a game prompt), the notes, then Problems
+     (every problem check() found, each a button to the tab that owns it)
+     and a line about the file. */
+  const STORY_NOTE = 'Write it the way you would tell it: the place, the people, what is going on, how it can end. It stays in the pack and is never sent to the game\'s narrator.';
+  function renderOverview(d) {
+    const S = Pack.SCHEMA.fields;
+    const on = (path, value) => set(path, value);
+    const meta = isObj(d.meta) ? d.meta : {};
+    return [
+      Form.render(S.meta, meta, 'meta', on, { skip: ['storyText', 'notes'] }),
+      Form.render(S.setting, d.setting, 'setting', on, { only: ['era', 'blurb'], note: 'The kind of world the story is set in, in a word and a sentence.' }),
+      Form.render(S.opening, d.opening, 'opening', on, { only: ['premise', 'text'] }),
+      el('section', { class: 'cr-section cr-story', dataset: { section: 'meta.storyText' } },
+        el('h2', { class: 'cr-section-title' }, 'Your story, in your words'),
+        el('p', { class: 'cr-note' }, STORY_NOTE),
+        Form.render(S.meta.fields.storyText, meta.storyText, 'meta.storyText', on, { hideLabel: true, noHelp: true, minRows: 8 })),
+      el('section', { class: 'cr-section', dataset: { section: 'meta.notes' } },
+        el('h2', { class: 'cr-section-title' }, 'Notes'),
+        Form.render(Form.NOTES, meta.notes, 'meta.notes', on, { hideLabel: true })),
+      el('section', { class: 'cr-section cr-problems-section', id: 'creator-problems', tabindex: '-1', 'aria-labelledby': 'creator-problems-title' },
+        el('h2', { class: 'cr-section-title', id: 'creator-problems-title' }, 'Problems'),
+        el('p', { class: 'cr-note cr-problems-sum', role: 'status' }),
+        el('ul', { class: 'cr-problems' }),
+        el('p', { class: 'cr-note cr-problems-more', hidden: true })),
+      el('p', { class: 'cr-note cr-about', id: 'creator-about' })
+    ];
+  }
+  const PROBLEMS_SHOWN = 200;
+  /* The Problems list from the last check(): errors first, then warnings, each with its path, its message and its tab. */
+  function fillProblems() {
+    const sec = node('creator-problems');
+    if (!sec) return;
+    const errs = Pack.errors(problems);
+    const warns = problems.filter(p => p.severity !== 'error');
+    const n = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`;
+    sec.querySelector('.cr-problems-sum').textContent = problems.length
+      ? `${n(errs.length, 'error')} and ${n(warns.length, 'warning')}. Errors stop the story being saved as a pack; warnings do not.`
+      : 'None. The story can be saved as a pack.';
+    const shown = errs.concat(warns).slice(0, PROBLEMS_SHOWN);
+    sec.querySelector('.cr-problems').replaceChildren(...shown.map(p => {
+      const tab = tabFor(p.path);
+      const sev = p.severity === 'error' ? 'error' : 'warning';
+      return el('li', null, el('button', { type: 'button', class: 'cr-problem', dataset: { tab, problem: p.path || '', sev }, onclick: () => selectTab(tab, true) },
+        el('span', { class: 'cr-problem-path' }, p.path || 'the whole pack'),
+        el('span', { class: 'cr-problem-msg' }, sentence(p.message)),
+        el('span', { class: 'cr-problem-tab' }, `${sev === 'error' ? 'Error' : 'Warning'} · ${tabLabel(tab)} tab`)));
+    }));
+    const more = sec.querySelector('.cr-problems-more');
+    more.hidden = problems.length <= PROBLEMS_SHOWN;
+    more.textContent = more.hidden ? '' : `And ${problems.length - PROBLEMS_SHOWN} more; fix these first.`;
+  }
+  const kb = bytes => `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
+  const byteLength = text => (typeof TextEncoder === 'function' ? new TextEncoder().encode(text).length : text.length);
+  /* The completeness percent without a second validation: Pack.completeness counts a missing narration, rules
+     or freedom section as chosen only when the pack validates clean, which the last check() already knows. */
+  function completeShare(pack) {
+    const clean = Pack.errors(problems).length === 0;
+    const shadow = Object.assign({}, pack);
+    for (const k of ['narration', 'rules', 'freedom']) if (pack[k] === undefined) shadow[k] = clean ? (k === 'rules' ? {} : { preset: 'default' }) : null;
+    return Pack.completeness(shadow);
+  }
+  /* "About this file": the pack's id, version, a short hash, its size as Pack.format writes it, how complete it is. */
+  function fillAbout() {
+    const line = node('creator-about');
+    if (!line || !state.draft) return;
+    const m = metaOf(state.draft);
+    const text = Pack.format(state.draft);
+    line.replaceChildren('About this file: ', el('span', { class: 'cr-mono' }, m.id || 'no id'), ` · version ${m.version || 'none'} · hash `,
+      el('span', { class: 'cr-mono' }, Pack.hash(state.draft).slice(0, 8)), ` · ${kb(byteLength(text))} · ${Math.round(completeShare(state.draft) * 100)}% complete`);
+  }
 
   // ----- Creator: World -----
   // (milestone 5, tasks M5-C1 and M5-C2)
@@ -44605,7 +45433,112 @@ const Creator = (() => {
   // (milestone 6)
 
   // ----- Creator: Json -----
-  // (milestone 5, task M5-B: the live formatted view, Copy, Download, Import)
+  /* "Your story as JSON" (milestone 5, task M5-B; owner decision 9: Creator
+     Mode "converts the story to a json" and the editor's output is a JSON
+     file shown live in its own tab): Pack.format of the draft, drawn again
+     JSON_MS after each change, with its line count and size; Copy JSON (the
+     clipboard, else a selected textarea), Download .json (the Library's
+     download, "<id>-<version>.json") and Import (another pack file replaces
+     this draft after a question; Undo brings the draft back). A file over
+     JSON_FULL shows its first JSON_HEAD lines: a page of text that long is
+     slow to draw on a phone and nobody reads it there. */
+  const JSON_FULL = 400 * 1024;
+  const JSON_HEAD = 200;
+  function renderJson() {
+    const pre = el('pre', { class: 'cr-pre', id: 'creator-json', tabindex: '0', 'aria-label': 'The story pack as JSON' });
+    const sec = el('section', { class: 'cr-section cr-json' },
+      el('h2', { class: 'cr-section-title' }, 'Your story as JSON'),
+      el('p', { class: 'cr-note' }, 'This is the file your story becomes: the pack the game plays and the file you share. It follows every change you make.'),
+      el('div', { class: 'cr-json-bar' },
+        el('p', { class: 'cr-json-stats', role: 'status' }),
+        el('button', { type: 'button', class: 'btn small primary', id: 'creator-json-copy', onclick: () => copyJson() }, 'Copy JSON'),
+        el('button', { type: 'button', class: 'btn small', id: 'creator-json-download', onclick: () => downloadJson() }, 'Download .json'),
+        el('button', { type: 'button', class: 'btn small', id: 'creator-json-import', onclick: () => { const f = sec.querySelector('.cr-json-file'); if (f) f.click(); } }, 'Import'),
+        el('input', { type: 'file', class: 'cr-json-file', accept: '.json,application/json', hidden: true, 'aria-label': 'A story pack file to replace this draft', onchange: onJsonImport })),
+      el('p', { class: 'cr-note cr-json-cut', hidden: true }),
+      pre);
+    fillJson(pre);
+    return sec;
+  }
+  /* The view from the draft as it is now: pre while the tab is being drawn, else the one on the page. */
+  function fillJson(pre) {
+    clearTimeout(timers.json);
+    timers.json = null;
+    const view = pre || node('creator-json');
+    if (!view || !state.draft) return view;
+    const text = Pack.format(state.draft);
+    const bytes = byteLength(text);
+    const lines = text.split('\n').length - 1;
+    const cut = bytes > JSON_FULL;
+    view.textContent = cut ? text.split('\n').slice(0, JSON_HEAD).join('\n') + '\n' : text;
+    const sec = view.closest('.cr-json');
+    const stats = sec ? sec.querySelector('.cr-json-stats') : null;
+    const note = sec ? sec.querySelector('.cr-json-cut') : null;
+    if (stats) stats.textContent = `${lines.toLocaleString('en-US')} line${lines === 1 ? '' : 's'} · ${kb(bytes)}`;
+    if (note) { note.hidden = !cut; note.textContent = cut ? `Showing the first ${JSON_HEAD} of ${lines.toLocaleString('en-US')} lines. Copy JSON and Download .json give the whole file.` : ''; }
+    return view;
+  }
+  function jsonText() { Form.flush(); return Pack.format(state.draft); }
+  function copyByHand(text) {
+    const ta = el('textarea', { class: 'cr-copy', readonly: true, 'aria-hidden': 'true', tabindex: '-1' });
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+  async function copyJson() {
+    if (!state.draft) return false;
+    const text = jsonText();
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+    if (!ok) ok = copyByHand(text);
+    UI.toast(ok ? `Copied the JSON (${kb(byteLength(text))}).` : 'This browser would not copy it. Use Download .json instead.');
+    return ok;
+  }
+  function downloadJson() {
+    if (!state.draft) return null;
+    Form.flush();
+    try {
+      const name = Storage.download(Storage.Library.exportText(state.draft), fileName(state.draft));
+      UI.toast(`Downloaded ${name}.`);
+      return name;
+    } catch (e) { UI.toast(e.message); return null; }
+  }
+  /* A pack file's text as Library.importText reads it (JSON, not a save, pack format 1), but nothing is refused
+     for what Pack.validate finds: a draft may be unfinished, so those problems show in Problems. */
+  function readPackText(text) {
+    let pack;
+    try { pack = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON.'); }
+    if (!isObj(pack)) throw new Error('That file is not a story pack.');
+    if (pack.kind === Storage.SAVE_KIND) throw new Error('That file is a saved game, not a story pack. Import it from Save / Load.');
+    if (typeof pack.packFormat === 'number' && pack.packFormat > Pack.FORMAT) throw new Error('That story pack was made for a newer version of the game.');
+    if (pack.packFormat !== Pack.FORMAT || !isObj(pack.meta)) throw new Error('That file is not a story pack.');
+    return pack;
+  }
+  async function onJsonImport(e) {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file || !state.draft) return null;
+    let pack;
+    try {
+      if (file.size > Storage.Library.IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
+      pack = readPackText(await file.text());
+    } catch (err) { UI.toast(err.message); return null; }
+    const yes = await UI.ask({
+      title: 'Replace this draft with the file?',
+      text: `Everything in "${titleOf(state.draft)}" is replaced by "${titleOf(pack)}" from ${file.name}. Undo brings this draft back.`,
+      yes: 'Replace', no: 'Keep the draft'
+    });
+    if (!yes) return false;
+    set('', pack);
+    check();
+    UI.toast(`Replaced the draft with "${titleOf(pack)}".`);
+    return true;
+  }
 
   // ----- Creator: Preview -----
   // (milestone 6: Show me the prompt)
@@ -44621,6 +45554,12 @@ const Creator = (() => {
 
   return {
     open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, PLACEHOLDER, BUILT_IN_NOTE,
+    // Task M5-B: the form renderer and the editor's working calls (tests and the later tabs use them).
+    Form,
+    Editor: Object.freeze({
+      set, undo, redo, check, saveNow, saveAsPack, tabFor, bumpVersion, fillJson,
+      get problems() { return problems; }, get checkMs() { return checkMs; }, get undoDepth() { return work ? work.undo.length : 0; }, get redoDepth() { return work ? work.redo.length : 0; }
+    }),
     get state() { return state; }
   };
 })();
