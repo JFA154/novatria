@@ -9271,6 +9271,8 @@ const Pack = (() => {
     let game = null;
     try { game = typeof State !== 'undefined' ? State.pack : null; } catch (e) { game = null; /* State not defined yet */ }
     const p = preview || game || builtIn();
+    // Pack.current() may have changed (wave 37, Creator Mode, milestone 3): the memoised lookups start again.
+    invalidate();
     TOWN_DATA = p.world;
     TABLES = p.world.tables;
     BACKGROUNDS = p.player.backgrounds;
@@ -9281,20 +9283,51 @@ const Pack = (() => {
     GOAL_PRESETS = p.player.goalPresets;
   }
 
-  /* The engine defaults a pack falls back on, as data. Milestone 1 holds the
+  /* The engine defaults a pack falls back on, as data. Milestone 1 held the
      narration presets (the style guides and example turns, from a different
      fictional town on purpose, so Low Water omits them and gets them by
-     precedence); milestones 3 and 4 add directions, rules, freedom, prompts
-     and suggestedSettings. Copies of the example arrays, so freezing the
-     defaults never freezes the constants Game.data exposes. */
+     precedence). Milestone 3 (wave 37, Creator Mode; plan "Pack format v1")
+     adds the rest of the narration dial, the directions and the prompt
+     extras as today's constants: Style and Pipeline read them through
+     Pack.get from milestone 3 on, so for Low Water every layer is
+     'default' and every prompt keeps today's bytes. Milestone 4 adds
+     rules and freedom and fills suggestedSettings. Copies of the example
+     arrays, so freezing the defaults never freezes the constants Game.data
+     exposes. */
+  // Style.BANNED's list, built the same way from the same line, so the two cannot drift (both guides carry it; SPEC section 9).
+  const BANNED_DEFAULT = (() => {
+    const line = STYLE_GUIDE_LITERARY.split('\n').find(l => l.startsWith('BANNED PHRASES:')) || '';
+    return Array.from(line.matchAll(/"([^"]+)"/g), m => m[1].toLowerCase());
+  })();
   const DEFAULTS = deepFreeze({
     narration: {
+      preset: 'casual',
       presets: {
         casual: { guide: STYLE_GUIDE_CASUAL, examples: deepCopy(EXAMPLE_TURNS_CASUAL) },
         literary: { guide: STYLE_GUIDE_LITERARY, examples: deepCopy(EXAMPLE_TURNS_LITERARY) }
       },
-      goodTurn: GOOD_TURN
-    }
+      customGuide: '',
+      banned: BANNED_DEFAULT,
+      alsoAvoid: [],
+      // Style.check's soft checks: a simile (casual only), "As you", an invented past, a money leak, a repeated phrase.
+      softChecks: { simile: true, asYou: true, inventedPast: true, moneyLeak: true, repeat: true },
+      // null: the preset's own example turns.
+      examples: null,
+      goodTurn: GOOD_TURN,
+      // Style.WORD_LIMITS, INTIMATE_MIN and HARD_OVER.
+      lengths: { normal: 90, zoom: 150, intimate: 450, intimateMin: 250, hardOver: 15 },
+      pointOfView: 'second-present'
+    },
+    /* What the narrator is told in a situation; '' is no direction. The
+       intimate one is wave 36's MODE line for the night (Pipeline keeps the
+       name INTIMATE_MODE for it), moved here as it was, byte for byte. */
+    directions: {
+      intimate: "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Make it hot: the player earned this, so it pays off. Hungry, urgent and physical, rough or tender as these two are, desire said out loud. Let them talk: what that person murmurs, teases, asks and demands, how they say the player's name, in their own voice and nature; crude, frank dirty talk and swearing are welcome in what they say. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. The heat comes from want, sensation and words, not anatomy: no anatomical close-ups and no blow-by-blow of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.",
+      combat: '', defeat: '', death: '', arrival: '', timeSkip: '', gamble: '', epilogue: '',
+      firstTurn: '', refusedByNpc: '', rollFailure: '', rollCritical: ''
+    },
+    prompts: { narratorExtra: '', parserExtra: '', bookkeeperExtra: '' },
+    suggestedSettings: {}
   });
   // The sections whose objects merge key by key over the defaults (decision D).
   const DIAL_SECTIONS = ['narration', 'directions', 'rules', 'freedom', 'prompts', 'suggestedSettings'];
@@ -9314,12 +9347,35 @@ const Pack = (() => {
     for (const k of Object.keys(p)) out[k] = isObj(out[k]) && isObj(p[k]) ? merge(out[k], p[k]) : p[k];
     return out;
   }
-  /* { value, layer, path }: the pack's value when it has one (in a dial
-     section an object merges over the default's), else the default, else
-     undefined with layer 'none'. */
-  function lookup(path, pack) {
-    pack = pack === undefined ? current() : pack;
+  /* The paths a player may set for one pack in Settings (plan decision D):
+     settings.perPack[packId].overrides, keyed by these paths and nothing
+     else (Storage.cleanSettings drops any other). */
+  const PLAYER_PATHS = Object.freeze(['directions.intimate', 'rules.permadeath', 'rules.cheats.allowed', 'rules.undo', 'narration.preset', 'rules.showRolls']);
+  /* The player's override at a PLAYER_PATHS path for this pack, else
+     undefined. Storage is defined after this module: read at call time,
+     and anything missing (a bare vm context, Storage not defined yet, no
+     settings) means no override. */
+  function playerValue(path, pack) {
+    if (!PLAYER_PATHS.includes(path) || !isObj(pack) || !isObj(pack.meta) || typeof pack.meta.id !== 'string') return undefined;
+    try {
+      if (typeof Storage === 'undefined' || typeof Storage.perPack !== 'function') return undefined;
+      const o = Storage.perPack(pack.meta.id).overrides;
+      return isObj(o) && Object.prototype.hasOwnProperty.call(o, path) ? o[path] : undefined;
+    } catch (e) { return undefined; /* Storage not defined yet */ }
+  }
+  /* { value, layer, path }: the player's override when the path is one of
+     PLAYER_PATHS and they set one for this pack (milestone 3), else the
+     pack's value (in a dial section an object merges over the default's,
+     key by key; arrays replace wholesale), else the default, else
+     undefined with layer 'none'. opts.noPlayer leaves the player layer out:
+     Settings shows that pack-or-default text as what "Use the default"
+     returns to. */
+  function resolve(path, pack, noPlayer) {
     const parts = splitPath(path);
+    if (!noPlayer) {
+      const own = playerValue(parts.join('.'), pack);
+      if (own !== undefined) return { value: own, layer: 'player', path: String(path) };
+    }
     const pv = dig(pack, parts);
     const dv = dig(DEFAULTS, parts);
     if (pv !== undefined) {
@@ -9328,6 +9384,29 @@ const Pack = (() => {
     }
     if (dv !== undefined) return { value: dv, layer: 'default', path: String(path) };
     return { value: undefined, layer: 'none', path: String(path) };
+  }
+  /* The memo (plan decision D: Pack.get is on the hot path from milestone 3
+     on, so a lookup is a few map reads after the first). The plan keys the
+     merged view by (pack hash, perPack[id], developerMode). A frozen pack
+     never changes, so the object stands for its hash without hashing 300
+     KB a call; the other two change only through Storage.saveSettings (and
+     Storage.init on a reload), which call invalidate(), as does
+     syncAliases (setPreview's too) whenever Pack.current() may have
+     changed. An unfrozen pack (the editor's preview, a test's copy) can
+     change under a memo, so it is looked up afresh each time. The answers
+     handed out from the memo are frozen, so no caller can bend the next. */
+  let memo = new WeakMap();
+  function invalidate() { memo = new WeakMap(); }
+  function lookup(path, pack, opts) {
+    pack = pack === undefined ? current() : pack;
+    const noPlayer = !!(opts && opts.noPlayer);
+    if (!isObj(pack) || !Object.isFrozen(pack)) return resolve(path, pack, noPlayer);
+    let paths = memo.get(pack);
+    if (!paths) { paths = new Map(); memo.set(pack, paths); }
+    const key = (noPlayer ? '-' : '+') + String(path);
+    let hit = paths.get(key);
+    if (!hit) { hit = deepFreeze(resolve(path, pack, noPlayer)); paths.set(key, hit); }
+    return hit;
   }
   function get(path, pack) { return lookup(path, pack).value; }
 
@@ -9850,7 +9929,9 @@ const Pack = (() => {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, syncAliases, lookup, get, isBuiltIn,
     canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
     // Wave 37, Creator Mode, milestone 2: the pack of a save from before packs, and the pack a new game starts from.
-    forLegacy, selected
+    forLegacy, selected,
+    // Wave 37, Creator Mode, milestone 3: the paths a player may set per pack, and the end of the memoised lookups (Storage.saveSettings calls it).
+    PLAYER_PATHS, invalidate
   };
 })();
 
@@ -34721,15 +34802,21 @@ const Pipeline = (() => {
      its never act for the player all pulled the other way, so the turn's
      MODE line says this scene is the exception, last in the packet where
      it weighs most, and Style.check makes a summary a hard problem. */
-  const INTIMATE_MODE = "INTIMATE SCENE. This turn is the scene itself, the exception to the guide's length, its one-detail rule and its no mood-setting: immerse the player in it. Write it out from the moment it tips, slowly, beat by beat, in paragraphs: the first kiss and how it changes, hands finding skin, clothes coming off one at a time, the heat and weight of them together, breath, the sounds of the room, the smell of skin, hair and sheets, the light, how it builds, how the one with the player reacts as it happens. Make it hot: the player earned this, so it pays off. Hungry, urgent and physical, rough or tender as these two are, desire said out loud. Let them talk: what that person murmurs, teases, asks and demands, how they say the player's name, in their own voice and nature; crude, frank dirty talk and swearing are welcome in what they say. The player chose this, so show what the two of them do together, the player's part too, felt from inside; the player says only what they typed. The heat comes from want, sensation and words, not anatomy: no anatomical close-ups and no blow-by-blow of sex acts. Never summarise or skip any of it (\"the rest of the night\", \"later\", \"one thing leads to another\"); end on them afterwards.";
+  /* Wave 37, Creator Mode: the text is Pack.DEFAULTS.directions.intimate now
+     (the engine default; a pack's own direction and the player's override sit
+     above it); this name stays, byte-identical, for the tests and Settings. */
+  const INTIMATE_MODE = Pack.DEFAULTS.directions.intimate;
   /* Wave 36, fourth pass (the owner: "I want to risk it"): Settings,
      Intimate scene direction, replaces INTIMATE_MODE with the player's own
      words (one line in the packet; the cached block is untouched). A
      narration the API refuses is a refusal like any other: the notice, and
-     the input back. */
+     the input back. Wave 37, Creator Mode, milestone 3: the words are
+     Pack.get('directions.intimate'), the player's override for this pack
+     (Storage.perPack) over the pack's own direction over INTIMATE_MODE;
+     the default comes back unchanged through the same normalising. */
   function intimateMode() {
     let own = '';
-    try { own = String(Storage.settings().intimateDirection || '').replace(/\s+/g, ' ').trim(); } catch (e) { own = ''; }
+    try { own = String(Pack.get('directions.intimate') || '').replace(/\s+/g, ' ').trim(); } catch (e) { own = ''; }
     return own ? `INTIMATE SCENE. ${own.replace(/^INTIMATE SCENE\.\s*/i, '')}` : INTIMATE_MODE;
   }
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
@@ -36610,8 +36697,13 @@ const Storage = (() => {
      New game asks first (playChoice: null until the player picks 'demo' or
      'claude'); entering a key turns it off (UI). lastExportAt (ISO) feeds
      "Last exported" on the Saves screen; persistAsked: navigator.storage
-     .persist() was asked for once; tipSeen: the first-turn tip was shown. */
-  const SETTINGS_VERSION = 2;
+     .persist() was asked for once; tipSeen: the first-turn tip was shown.
+     Version 3 (wave 37, Creator Mode, milestone 3; plan decision D): the
+     player's own settings for one story pack live in perPack, and wave 36's
+     intimateDirection moves into perPack['low-water'] (the only story there
+     was when it was typed). */
+  const SETTINGS_VERSION = 3;
+  // A player's string override (today the intimate direction) is capped here, as wave 36's field was.
   const INTIMATE_DIRECTION_MAX = 3000;
   const V1_DEFAULTS = { narratorModel: 'claude-sonnet-5-5', parserModel: 'claude-haiku-5-5' };
   const DEFAULTS = {
@@ -36636,8 +36728,10 @@ const Storage = (() => {
     keepPackets: false,
     // Wave 30: rules version 9's update first rewrites memories in the short form (version 2's re-read, one call); off by default.
     rereadMemories: false,
-    // Wave 36: the player's own direction for an intimate scene (the turn's MODE line); '' is the game's (Pipeline.INTIMATE_MODE).
-    intimateDirection: '',
+    /* Wave 37, Creator Mode, milestone 3: per story pack, { overrides: {
+       [a Pack.PLAYER_PATHS path]: value }, adultOk?, playedAt? }. Wave 36's
+       intimateDirection is perPack[id].overrides['directions.intimate']. */
+    perPack: {},
     /* Wave 37, Creator Mode: the story pack New game plays (a Library id;
        the built-in one by default) and the creator's Developer overlay
        (milestone 7). Additive fields: cleanSettings gives a settings object
@@ -36677,10 +36771,51 @@ const Storage = (() => {
   }
 
   // ----- settings -----
+  /* Wave 37, Creator Mode, milestone 3: a player override as its path
+     allows, else undefined (dropped). Strings: control characters but the
+     line break stripped, trimmed, capped at INTIMATE_DIRECTION_MAX, and
+     empty means no override; narration.preset one of the three styles;
+     the rules paths true or false. */
+  const PRESETS_OK = ['casual', 'literary', 'custom'];
+  function cleanOverride(path, v) {
+    if (path === 'directions.intimate') {
+      if (typeof v !== 'string') return undefined;
+      const t = v.replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, '').trim().slice(0, INTIMATE_DIRECTION_MAX);
+      return t || undefined;
+    }
+    if (path === 'narration.preset') return PRESETS_OK.includes(v) ? v : undefined;
+    if (Pack.PLAYER_PATHS.includes(path)) return typeof v === 'boolean' ? v : undefined;
+    return undefined;
+  }
+  /* settings.perPack, whitelisted: an id the pack format would accept
+     (meta.id's pattern), overrides only at Pack.PLAYER_PATHS, adultOk a
+     boolean, playedAt a date. An entry left with nothing is dropped. */
+  const PACK_ID = /^[a-z][a-z0-9-]{1,40}$/;
+  function cleanPerPack(raw) {
+    const out = {};
+    if (!isObj(raw)) return out;
+    for (const id of Object.keys(raw)) {
+      const e = raw[id];
+      if (!PACK_ID.test(id) || !isObj(e)) continue;
+      const entry = { overrides: {} };
+      if (isObj(e.overrides)) {
+        for (const path of Object.keys(e.overrides)) {
+          if (!Pack.PLAYER_PATHS.includes(path)) continue;
+          const v = cleanOverride(path, e.overrides[path]);
+          if (v !== undefined) entry.overrides[path] = v;
+        }
+      }
+      if (typeof e.adultOk === 'boolean') entry.adultOk = e.adultOk;
+      if (typeof e.playedAt === 'string' && !Number.isNaN(Date.parse(e.playedAt))) entry.playedAt = e.playedAt;
+      if (Object.keys(entry.overrides).length || entry.adultOk !== undefined || entry.playedAt !== undefined) out[id] = entry;
+    }
+    return out;
+  }
   function cleanSettings(raw) {
     const s = deepCopy(DEFAULTS);
     if (!isObj(raw)) return s;
-    const legacy = !(typeof raw.settingsVersion === 'number' && raw.settingsVersion >= SETTINGS_VERSION);
+    // Settings from before version 2 (the v1 defaults); version 3 changed only perPack, so a version 2 object is not legacy.
+    const legacy = !(typeof raw.settingsVersion === 'number' && raw.settingsVersion >= 2);
     const narr = typeof raw.narratorModel === 'string' ? raw.narratorModel.trim() : '';
     const pars = typeof raw.parserModel === 'string' ? raw.parserModel.trim() : '';
     if (narr && !(legacy && narr === V1_DEFAULTS.narratorModel)) s.narratorModel = narr;
@@ -36692,7 +36827,18 @@ const Storage = (() => {
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;
     if (raw.narrationStyle === 'casual' || raw.narrationStyle === 'literary') s.narrationStyle = raw.narrationStyle;
     if (raw.inputMode === 'do' || raw.inputMode === 'say') s.inputMode = raw.inputMode;
-    if (typeof raw.intimateDirection === 'string') s.intimateDirection = raw.intimateDirection.trim().slice(0, INTIMATE_DIRECTION_MAX);
+    s.perPack = cleanPerPack(raw.perPack);
+    /* Version 2 to 3 (wave 37, Creator Mode): wave 36's one direction was
+       written for Low Water, so a non-empty one becomes that pack's
+       override, unless the player already set one there; the field itself
+       is gone (nothing here copies it). */
+    if (typeof raw.settingsVersion === 'number' && raw.settingsVersion < 3 && typeof raw.intimateDirection === 'string') {
+      const own = cleanOverride('directions.intimate', raw.intimateDirection);
+      if (own !== undefined) {
+        const lw = s.perPack['low-water'] || (s.perPack['low-water'] = { overrides: {} });
+        if (lw.overrides['directions.intimate'] === undefined) lw.overrides['directions.intimate'] = own;
+      }
+    }
     if (raw.playChoice === 'demo' || raw.playChoice === 'claude') s.playChoice = raw.playChoice;
     // A pack id as the pack format spells one; anything else keeps the built-in story (Pack.selected falls back the same way for an id the Library has lost).
     if (typeof raw.selectedPackId === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(raw.selectedPackId.trim())) s.selectedPackId = raw.selectedPackId.trim();
@@ -36704,6 +36850,9 @@ const Storage = (() => {
     let parsed = null;
     try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
     settings = cleanSettings(parsed);
+    // Wave 37, Creator Mode: settings from version 2 with wave 36's direction are written back as version 3 at once, the old field gone.
+    if (isObj(parsed) && parsed.intimateDirection !== undefined) write(KEYS.settings, JSON.stringify(settings));
+    if (typeof Pack.invalidate === 'function') Pack.invalidate();
     apiKey = (settings.rememberKey ? read(KEYS.apiKey, 'local') : read(KEYS.apiKey, 'session')) || '';
     // Nothing chosen yet: the demo only while there is no key.
     if (!(isObj(parsed) && typeof parsed.mockMode === 'boolean')) settings.mockMode = !apiKey;
@@ -36716,7 +36865,42 @@ const Storage = (() => {
     if (patch && patch.effort) next.effort = Object.assign({}, settings.effort, patch.effort);
     settings = cleanSettings(next);
     write(KEYS.settings, JSON.stringify(settings));
+    // Wave 37, Creator Mode: a player override or developerMode may have changed, so Pack's memoised lookups start again.
+    if (typeof Pack.invalidate === 'function') Pack.invalidate();
     return settings;
+  }
+  /* Wave 37, Creator Mode, milestone 3: the player's settings for one
+     story pack, always an object with overrides (a copy: change them with
+     savePerPack). */
+  function perPack(id) {
+    const e = isObj(settings.perPack) && typeof id === 'string' ? settings.perPack[id] : null;
+    const out = isObj(e) ? deepCopy(e) : {};
+    if (!isObj(out.overrides)) out.overrides = {};
+    return out;
+  }
+  /* patch: { overrides?: { path: value | null }, adultOk?, playedAt? }.
+     Overrides merge key by key and null deletes one; cleanSettings keeps
+     only what the whitelist allows. Saves the settings. */
+  function savePerPack(id, patch) {
+    if (typeof id !== 'string') return perPack(id);
+    const all = deepCopy(settings.perPack || {});
+    const e = isObj(all[id]) ? all[id] : { overrides: {} };
+    if (!isObj(e.overrides)) e.overrides = {};
+    if (isObj(patch)) {
+      if (isObj(patch.overrides)) {
+        for (const path of Object.keys(patch.overrides)) {
+          if (patch.overrides[path] === null) delete e.overrides[path];
+          else e.overrides[path] = patch.overrides[path];
+        }
+      }
+      for (const k of ['adultOk', 'playedAt']) {
+        if (patch[k] === null) delete e[k];
+        else if (patch[k] !== undefined) e[k] = patch[k];
+      }
+    }
+    all[id] = e;
+    saveSettings({ perPack: all });
+    return perPack(id);
   }
   /* 'thrifty' | 'standard' | 'best' | 'custom' for the current settings. */
   function presetOf(s) {
@@ -37383,6 +37567,8 @@ const Storage = (() => {
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
+    // Wave 37, Creator Mode, milestone 3: the player's settings per story pack (settings version 3).
+    SETTINGS_VERSION, perPack, savePerPack, cleanSettings,
     getApiKey: () => apiKey, setApiKey,
     gameId, envelope, parseEnvelope, shapeProblems, autosave, hasAutosave, loadAutosave, rawAutosave, loadPrevious, peek, inSlot,
     saveSlot, loadSlot, deleteSlot, listSlots, saveNamed, findSlot,
@@ -37468,7 +37654,7 @@ const UI = (() => {
     'set-parser-model', 'set-rolls', 'set-permadeath', 'settings-done', 'settings-quit', 'save-name-field', 'save-name', 'slot-list',
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
-    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'set-intimate', 'set-intimate-reset', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
+    'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'set-intimate', 'set-intimate-reset', 'set-intimate-hint', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn',
     // Wave 37, Creator Mode: the title's story pack line and the autosave's pack note.
     'title-pack', 'title-pack-note'];
@@ -41853,7 +42039,7 @@ const UI = (() => {
     d.setMock.checked = s.mockMode;
     d.setKeepPackets.checked = s.keepPackets === true;
     d.setRereadMemories.checked = s.rereadMemories === true;
-    d.setIntimate.value = s.intimateDirection || Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
+    fillIntimate();
     fillModels();
     d.setRolls.checked = s.showRolls;
     d.setPermadeath.checked = s.permadeath;
@@ -41915,16 +42101,35 @@ const UI = (() => {
     renderPreset();
     if (before.showRolls !== after.showRolls && State.current && !State.muted) rebuildFeed();
   }
-  /* Wave 36: the intimate scene direction; the game's own wording (or nothing) saves as '' (the default). */
+  /* Wave 36: the intimate scene direction; the game's own wording (or nothing) saves as no override (the default).
+     Wave 37, Creator Mode, milestone 3 (plan decision D): it is the
+     player's override for one story pack, the open game's pack, else the
+     one New game plays (Pack.selected), kept in Storage.perPack(id). The
+     text "Use the default" returns to is that pack's own direction when it
+     has one, else the engine's (Pack.lookup without the player layer). */
+  function intimatePack() { return State.current && State.pack ? Pack.current() : Pack.selected(); }
+  function intimateBase(pack) {
+    return String(Pack.lookup('directions.intimate', pack, { noPlayer: true }).value || Pipeline.INTIMATE_MODE).replace(/^INTIMATE SCENE\.\s*/, '');
+  }
+  function fillIntimate() {
+    const pack = intimatePack();
+    const own = Storage.perPack(pack.meta.id).overrides['directions.intimate'];
+    d.setIntimate.value = typeof own === 'string' && own ? own : intimateBase(pack);
+    // The pack's title, from the pack's own text: textContent only.
+    const title = String(pack.meta.title || pack.meta.id);
+    d.setIntimateHint.textContent = `What the narrator is told when someone says yes to the night in ${title}. Edit it to change how those scenes are written here; each story keeps its own. If the API refuses a turn, you get your input back and nothing changes.`;
+  }
   function saveIntimate() {
+    const pack = intimatePack();
     const v = d.setIntimate.value.trim();
-    const def = Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
-    Storage.saveSettings({ intimateDirection: v === def ? '' : v });
+    const def = intimateBase(pack);
+    Storage.savePerPack(pack.meta.id, { overrides: { 'directions.intimate': !v || v === def ? null : v } });
     if (!v) d.setIntimate.value = def;
   }
   function resetIntimate() {
-    Storage.saveSettings({ intimateDirection: '' });
-    d.setIntimate.value = Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '');
+    const pack = intimatePack();
+    Storage.savePerPack(pack.meta.id, { overrides: { 'directions.intimate': null } });
+    d.setIntimate.value = intimateBase(pack);
   }
   /* "Check key": one small call through Api.checkKey. */
   async function checkKey() {

@@ -24,7 +24,7 @@ s.test('a fresh browser gets the current defaults and they are written with a se
   assert.deepEqual(st.effort, NEW.effort);
   await page.evaluate(() => Game.Storage.saveSettings({ showRolls: false }));
   const raw = await page.evaluate(k => JSON.parse(localStorage.getItem(k)), KEY);
-  assert.equal(raw.settingsVersion, 2);
+  assert.equal(raw.settingsVersion, 3, 'version 3 since wave 37 (perPack)');
   assert.equal(raw.showRolls, false);
 });
 

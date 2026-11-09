@@ -291,7 +291,7 @@ s.test('settings gain selectedPackId (the built-in pack by default; a pack id as
     St.saveSettings({ selectedPackId: 42 });
     return { first, set, kept, again: St.settings().selectedPackId, defaults: [St.DEFAULTS.selectedPackId, St.DEFAULTS.developerMode], stored: JSON.parse(localStorage.getItem(St.KEYS.settings)).selectedPackId };
   });
-  assert.deepEqual(r.first, ['low-water', false, 2]);
+  assert.deepEqual(r.first, ['low-water', false, 3]); // settings version 3 since milestone 3 (perPack)
   assert.deepEqual(r.set, ['river-copy', true]);
   // cleanSettings treats a bad value as it treats every field: dropped, so the default stands.
   assert.deepEqual(r.kept, ['low-water', false], 'a malformed id and a non-boolean developerMode give the defaults');

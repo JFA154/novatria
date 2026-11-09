@@ -853,20 +853,22 @@ s.test('wave 36: Settings, Intimate scene direction: empty is the game\'s MODE l
       await __say('npc_jodie', 'Stay with me tonight.', { romantic: 'more' });
       return G.Pipeline.lastTurn.packet.split('\n').find(l => l.startsWith('MODE:'));
     };
-    out.def = St.settings().intimateDirection;
+    // Wave 37, Creator Mode, milestone 3: the direction is the player's override for this story pack (Storage.perPack), no longer a settings field.
+    const own = () => St.perPack('low-water').overrides['directions.intimate'];
+    out.def = own() || '';
     out.defMode = await night();
-    St.saveSettings({ intimateDirection: '  Write it my way.  ' });
-    out.saved = St.settings().intimateDirection;
+    St.savePerPack('low-water', { overrides: { 'directions.intimate': '  Write it my way.  ' } });
+    out.saved = own();
     out.ownMode = await night();
     // The Settings field: the player's words, then the default after Use the default.
     document.getElementById('tb-settings').click(); out.field = document.getElementById('set-intimate').value;
     document.getElementById('set-intimate-reset').click();
-    out.afterReset = [St.settings().intimateDirection, document.getElementById('set-intimate').value === G.Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '')];
+    out.afterReset = [own() || '', document.getElementById('set-intimate').value === G.Pipeline.INTIMATE_MODE.replace(/^INTIMATE SCENE\.\s*/, '')];
     // Typing the default back in saves nothing of the player's own; typing something else saves it.
     const ta = document.getElementById('set-intimate');
     ta.value = 'Slow and filthy.'; ta.dispatchEvent(new Event('change', { bubbles: true }));
-    out.typed = St.settings().intimateDirection;
-    St.saveSettings({ intimateDirection: '' });
+    out.typed = own();
+    St.savePerPack('low-water', { overrides: { 'directions.intimate': null } });
     return out;
   });
   assert.equal(r.def, '');
