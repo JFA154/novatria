@@ -41,6 +41,10 @@ async function v10Save(page, opts = {}) {
     const m = env.state.meta;
     m.rulesVersion = 10;
     for (const k of ['packId', 'packVersion', 'packHash']) delete m[k];
+    // A save from before the packs was saveVersion 1: no packRef, no pack, no pack title in its summary.
+    env.saveVersion = 1;
+    delete env.packRef; delete env.pack;
+    if (env.summary) { delete env.summary.packTitle; delete env.summary.packRating; }
     if (o.town) { env.town.name = o.town; m.townName = o.town; }
     return env;
   }, opts);
