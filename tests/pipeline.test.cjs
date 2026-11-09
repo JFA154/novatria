@@ -1907,7 +1907,7 @@ s.test('the player fixes someone\'s pronouns: chips on the People card, or /pron
   await sendText(page, '/pronouns Nobody Atall she');
   assert.equal(await lastNotice(page), 'There is nobody called Nobody Atall in the game.');
   await sendText(page, '/pronouns');
-  assert.equal(await lastNotice(page), 'Whose pronouns, and which? Try /pronouns Mavis she (she, he or they).');
+  assert.equal(await lastNotice(page), 'Whose pronouns, and which? Try /pronouns Loretta she (she, he or they).');
   assert.equal(await page.evaluate(() => Game.Api.Mock.calls.length), 0, 'none of it calls the API');
 });
 
@@ -2062,7 +2062,7 @@ s.test('the player edits someone on their People card: Edit opens the whole reco
   await sendText(page, '/edit Nobody Atall');
   assert.equal(await lastNotice(page), 'There is nobody called Nobody Atall in the game.');
   await sendText(page, '/edit');
-  assert.equal(await lastNotice(page), 'Edit whom? Try /edit Mavis.');
+  assert.equal(await lastNotice(page), 'Edit whom? Try /edit Loretta.');
   assert.equal(await editing(), null);
 
   // While a turn runs, Edit and Save are off and say why.

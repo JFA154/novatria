@@ -1334,6 +1334,19 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-body { animation: fade-in .2s ease-out; }
 /* A section card per tab: the heading in Literata and one line saying what the section is for. */
 .cr-section { padding: 18px; margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); min-width: 0; }
+/* The Player tab (wave 37, Creator Mode, task M5-D): a loose end's options as boxes with Remove beside them, a thing's
+   id and Remove under it, the age range's two numbers side by side, a step's two arrows at full tap size. */
+.cr-line-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.cr-line-row > .cr-field { margin-bottom: 10px; }
+.cr-line-row > .btn { margin-top: 26px; }
+.cr-lines > .btn { justify-self: start; }
+.cr-item-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: -6px 0 14px; }
+.cr-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
+.cr-pair > .cr-sub-title, .cr-pair > .cr-note, .cr-pair > .cr-err { grid-column: 1 / -1; }
+.cr-step-moves { display: flex; gap: 8px; margin: -6px 0 14px; }
+.cr-step-moves .btn { min-width: var(--tap); padding: 0; font-size: 18px; }
+.cr-total { margin: 0 0 4px; grid-column: 1 / -1; font-variant-numeric: tabular-nums; }
+#creator-body[data-tab="player"] .cr-section > .btn, #creator-body[data-tab="player"] .cr-sub > .btn { margin: 0 0 14px; }
 .cr-section-title { margin: 0 0 4px; font-family: var(--read-font); font-size: 20px; font-weight: 600; }
 .cr-section > .cr-note:first-of-type { margin-bottom: 14px; }
 
@@ -1977,7 +1990,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
             <legend>Game</legend>
             <div class="field">
               <button type="button" class="btn wrap" id="set-reread" aria-describedby="set-reread-hint">Re-read this game with the latest rules</button>
-              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the council meeting, the ending and what loose ends still to come will cost;</li><li>gives what people remember about you its reasons: what kind of thing each memory was and how long it lasts, with how much they like you exactly as it was.</li></ul><p>About four API calls (none in the offline demo).</p></div>
+              <div class="hint reread-hint" id="set-reread-hint"><p>Brings this game up to the latest rules. It:</p><ul><li>rewrites what people remember about you in the new short form;</li><li>adds places people told you about to the map;</li><li>sets the clock back if it ran ahead of the story;</li><li>fixes people the game made up so they match what the story says about them, and brings in the town's full cast, written by hand, folding anyone the game made up into the person they were;</li><li>fills in the lived-in town: everyone's age and history, the dead, the people who live elsewhere and the places people talk about;</li><li>gives the game its arc: the calendar, the town's events, the ending and what loose ends still to come will cost;</li><li>gives what people remember about you its reasons: what kind of thing each memory was and how long it lasts, with how much they like you exactly as it was.</li></ul><p>About four API calls (none in the offline demo).</p></div>
               <label class="check"><input type="checkbox" id="set-reread-memories" aria-describedby="set-reread-memories-hint"> Rewrite memories in the short form first</label>
               <p class="hint" id="set-reread-memories-hint">When a game is brought up to "People who remember", the memories are first rewritten in the new short form (one call; off by default).</p>
               <p class="hint" id="set-reread-none">Start or load a game to use this.</p>
@@ -9010,8 +9023,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
    (the strict profile on the page's own pack). The old
    block's comments are kept in docs/notes/low-water-comments.md.
    ========================================================================== */
-// The eight content names (TOWN_DATA and the rest) are defined right after
-// the Pack and PackRules modules, below the Helpers (wave 37, Creator Mode).
+// The eight content names (TOWN_DATA and the rest) are gone: the engine reads
+// the pack that plays through Pack.world(), Pack.tables() and the other
+// readers in the Pack module (wave 37, Creator Mode, milestone 5, task M5-D).
 
 /* Two narration styles (Settings, "Narration style"; casual is the default).
    STYLE_GUIDE_LITERARY: SPEC.md section 9, word for word, then the WHAT A
@@ -9482,7 +9496,7 @@ function npcLabel(npc) {
 function currency() {
   let t = null;
   try { const p = Pack.current(); t = p && isObj(p.world) ? p.world : null; } catch (e) { t = null; /* Pack not defined yet */ }
-  if (!t) t = State.town || TOWN_DATA;
+  if (!t) t = State.town || null;
   return t && isObj(t.currency) && typeof t.currency.symbol === 'string' ? t.currency : null;
 }
 function money(n) { const c = currency(); return c ? (c.before === false ? `${n} ${c.symbol}` : `${c.symbol}${n}`) : `${n} gold`; }
@@ -9690,41 +9704,57 @@ const Pack = (() => {
   /* setPreview(pack): the editor's draft (milestone 5) and a test's mutated
      copy (brought forward to milestone 1) become the current pack. It keeps
      an UNFROZEN deep copy on purpose: a draft or a test copy is working
-     data, while the built-in pack stays the canonical, frozen one. It also
-     re-points the eight content bindings (syncAliases) at the copy, so
-     every old read sees it; setPreview(null) points them back at the
-     running game's pack or the built-in one. */
+     data, while the built-in pack stays the canonical, frozen one. Every
+     content read goes through current() at call time (the readers below),
+     so the copy is what the engine reads at once; setPreview(null) gives
+     back the running game's pack or the built-in one. */
   function setPreview(pack) {
     preview = pack ? copy(pack) : null;
     syncAliases();
     return preview;
   }
-  /* The eight content bindings (TOWN_DATA and the rest, declared with let
-     after PackRules) point at the parts of the pack that plays: the
-     preview, else the running game's own pack (State.pack), else the
-     built-in pack (wave 37, Creator Mode, review M2-G4: they followed only
-     the preview, so a game started from a Library pack still read Low
-     Water's tables, backgrounds, loose ends and templates). setPreview
-     calls it, and State.newGame, State.load and State.clear right after
-     they set or drop their pack. The preview copy is unfrozen and the
-     others frozen; the engine only reads them. The bindings are only
-     assigned here, inside a function called after they exist; State is
-     read at call time, guarded as in current(). */
+  /* What is left of the eight content bindings (wave 37, Creator Mode,
+     milestone 5, task M5-D): the bindings are gone, since every read now
+     asks the readers below at call time, but Pack.current() may still
+     change here (setPreview, and State.newGame, State.load and State.clear
+     right after they set or drop their pack), so the memoised lookups start
+     again. The name stays because those callers mean "the pack that plays
+     may have changed". */
   function syncAliases() {
-    let game = null;
-    try { game = typeof State !== 'undefined' ? State.pack : null; } catch (e) { game = null; /* State not defined yet */ }
-    const p = preview || game || builtIn();
-    // Pack.current() may have changed (wave 37, Creator Mode, milestone 3): the memoised lookups start again.
     invalidate();
-    TOWN_DATA = p.world;
-    TABLES = p.world.tables;
-    BACKGROUNDS = p.player.backgrounds;
-    FLAWS = p.player.flaws;
-    LOOSE_ENDS = p.player.looseEnds;
-    GRUDGE_TEMPLATES = p.world.grudgeTemplates;
-    FAVOUR_TEMPLATES = p.world.favourTemplates;
-    GOAL_PRESETS = p.player.goalPresets;
   }
+  /* The eight content readers (wave 37, Creator Mode, milestone 5, task
+     M5-D; plan decision F, "~100 reads of the eight content constants":
+     Pack.current().world.* and .player.*). They replace the old TOWN_DATA,
+     TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES,
+     FAVOUR_TEMPLATES and GOAL_PRESETS bindings: each reads the pack that
+     plays (the preview, else the running game's own pack, else the built-in
+     pack) when it is called, so nothing has to be re-pointed when the pack
+     changes and a Library pack's game reads its own backgrounds, tables
+     and templates. A pack that lacks a section (a blank draft under
+     preview, a legacy town without tables) reads the built-in pack's, so a
+     half-written story never leaves the engine reading undefined. For the
+     built-in pack each returns exactly the object the old binding held. */
+  function readWorld() {
+    const p = current();
+    return isObj(p) && isObj(p.world) ? p.world : builtIn().world;
+  }
+  function readPlayer(key, test) {
+    const p = current();
+    const v = isObj(p) && isObj(p.player) ? p.player[key] : undefined;
+    return test(v) ? v : builtIn().player[key];
+  }
+  function readStatic(key, test) {
+    const v = readWorld()[key];
+    return test(v) ? v : builtIn().world[key];
+  }
+  const readTables = () => readStatic('tables', isObj);
+  const readGrudges = () => readStatic('grudgeTemplates', Array.isArray);
+  const readFavours = () => readStatic('favourTemplates', Array.isArray);
+  const readBackgrounds = () => readPlayer('backgrounds', Array.isArray);
+  const readFlaws = () => readPlayer('flaws', Array.isArray);
+  const readLooseEnds = () => readPlayer('looseEnds', isObj);
+  const readGoalPresets = () => readPlayer('goalPresets', Array.isArray);
 
   /* The engine defaults a pack falls back on, as data. Milestone 1 held the
      narration presets (the style guides and example turns, from a different
@@ -10881,6 +10911,9 @@ const Pack = (() => {
 
   return {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, syncAliases, lookup, get, isBuiltIn,
+    // Wave 37, Creator Mode, milestone 5 (task M5-D): the eight content readers that replaced the old bindings.
+    world: readWorld, tables: readTables, backgrounds: readBackgrounds, flaws: readFlaws, looseEnds: readLooseEnds,
+    grudgeTemplates: readGrudges, favourTemplates: readFavours, goalPresets: readGoalPresets,
     canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
     // Wave 37, Creator Mode, milestone 2: the pack of a save from before packs, and the pack a new game starts from.
     forLegacy, selected,
@@ -13335,7 +13368,14 @@ const PackRules = (() => {
       if (typeof b.arrival !== 'string' || !Object.prototype.hasOwnProperty.call(start, b.arrival)) err('engine.background.arrival', bp + '.arrival', JSON.stringify(b.arrival) + ' is not an arrival point of world.startLocationIds (' + Object.keys(start).join(', ') + ').');
       else arrivals.add(b.arrival);
     });
-    const bgNames = backgrounds.map(b => (isObj(b) && typeof b.name === 'string' ? b.name.toLowerCase() : ''));
+    /* Each arrival point has its words, and only those (wave 37, Creator Mode, milestone 5, task M5-D): the opening
+       scene, the arrival's summary and the creation screen's "By road" read player.arrivals[key] for the key a
+       background names, so a key world.startLocationIds has and the arrivals lack would leave a background no words. */
+    if (isObj(PL.arrivals)) {
+      for (const k of Object.keys(start)) if (!isObj(PL.arrivals[k])) err('engine.background.arrival', 'player.arrivals.' + k, 'is missing: world.startLocationIds has ' + k + ', so the story needs its label, opening and summary.');
+      for (const k of Object.keys(PL.arrivals)) if (!Object.prototype.hasOwnProperty.call(start, k)) err('engine.background.arrival', 'player.arrivals.' + k, k + ' is not an arrival point of world.startLocationIds (' + Object.keys(start).join(', ') + ').');
+    }
+    const bgNames =backgrounds.map(b => (isObj(b) && typeof b.name === 'string' ? b.name.toLowerCase() : ''));
     for (const r of REQUIRED_BACKGROUNDS) if (!bgNames.includes(r)) err('house.backgrounds.required', 'player.backgrounds', 'has no "' + r + '" background.');
     if (arrivals.size !== 2) err('house.backgrounds.arrivals', 'player.backgrounds', 'should use both arrival points (gate and docks).');
 
@@ -13720,26 +13760,6 @@ const PackRules = (() => {
   )));
 })();
 
-/* The eight content names every existing read uses (about a hundred of
-   them), now views of the frozen built-in pack (wave 37, Creator Mode; the
-   owner: "No hard coded story allowed."). They keep those reads working
-   until milestones 4 and 5 replace them with Pack.get reads and delete
-   these lines. let, not const: Pack.syncAliases re-points them at the pack
-   that plays (an unfrozen preview copy, the editor's draft or a test's
-   mutated copy; else the running game's State.pack; else the built-in
-   pack), so a game started from a Library pack reads that pack's tables,
-   backgrounds, loose ends and templates, not Low Water's (review M2-G4).
-   Declarations are hoisted for functions; nothing at the top level above
-   this line reads them. */
-let TOWN_DATA = Pack.builtIn().world;
-let TABLES = TOWN_DATA.tables;
-let BACKGROUNDS = Pack.builtIn().player.backgrounds;
-let FLAWS = Pack.builtIn().player.flaws;
-let LOOSE_ENDS = Pack.builtIn().player.looseEnds;
-let GRUDGE_TEMPLATES = TOWN_DATA.grudgeTemplates;
-let FAVOUR_TEMPLATES = TOWN_DATA.favourTemplates;
-let GOAL_PRESETS = Pack.builtIn().player.goalPresets;
-
 // ===== Module: Rng =====
 /* mulberry32. Its state after n calls is seed + n * 0x6D2B79F5, so the stream
    is fully described by (meta.seed, meta.rngCalls): a loaded save continues
@@ -13945,7 +13965,7 @@ const Dice = (() => {
   function complication(ctx, rng) {
     ctx = ctx || {};
     const r = rng || Rng;
-    const all = (Array.isArray(TABLES.complications) ? TABLES.complications : []).map(entryOf).filter(Boolean);
+    const all = (Array.isArray(Pack.tables().complications) ? Pack.tables().complications : []).map(entryOf).filter(Boolean);
     if (!all.length) return null;
     const kind = COMPLICATION_KIND[ctx.actionType] || 'physical';
     const t = ctx.tier === 'partial' ? 'partial' : 'failure';
@@ -14597,7 +14617,7 @@ const Tables = (() => {
   function location(opts, rng) {
     opts = opts || {};
     const r = rng || Rng;
-    const T = TABLES.location;
+    const T = Pack.tables().location;
     const type = cleanText(opts.type, 40) || r.pick(T.types);
     const detail = r.pick(T.details);
     const problem = r.pick(T.problems);
@@ -14617,25 +14637,25 @@ const Tables = (() => {
   function item(kind, rng) {
     const r = rng || Rng;
     if (kind === 'trinket') {
-      const name = capFirst(r.pick(TABLES.items.trinkets));
+      const name = capFirst(r.pick(Pack.tables().items.trinkets));
       return { id: 'item_' + slugify(name), name, qty: 1, notes: 'trinket', price: 0 };
     }
-    const g = r.pick(TABLES.items.goods);
+    const g = r.pick(Pack.tables().items.goods);
     return { id: 'item_' + slugify(g.name), name: g.name, qty: 1, notes: '', price: price(g.name) };
   }
   /* A listed price times State.priceFactor(): the town's multiplier
      (flags.priceMultiplier) and the player's own while it lasts (the
      playerPrice op). */
   function price(name) {
-    const g = TABLES.items.goods.find(x => x.name.toLowerCase() === String(name).toLowerCase());
+    const g = Pack.tables().items.goods.find(x => x.name.toLowerCase() === String(name).toLowerCase());
     if (!g) return null;
     return Math.max(1, Math.round(g.price * State.priceFactor()));
   }
   /* One TABLES.complications entry, picked with no regard to the action
      (Dice.complication picks one that fits). */
-  function complication(rng) { return (rng || Rng).pick(TABLES.complications); }
+  function complication(rng) { return (rng || Rng).pick(Pack.tables().complications); }
   function weather(season, rng) {
-    const list = TABLES.weather[season] || TABLES.weather.spring || [];
+    const list = Pack.tables().weather[season] || Pack.tables().weather.spring || [];
     return (rng || Rng).pick(list) || '';
   }
   return { location, item, price, complication, weather };
@@ -17418,7 +17438,7 @@ const State = (() => {
      words, or one name the start of the other ("Shot of whiskey" and "Shot
      of whiskey at the Low Water"). */
   function goodsEntry(name) {
-    const goods = TABLES.items && Array.isArray(TABLES.items.goods) ? TABLES.items.goods : [];
+    const goods = Pack.tables().items && Array.isArray(Pack.tables().items.goods) ? Pack.tables().items.goods : [];
     const norm = v => String(v || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(a|an|the|some) /, '');
     const want = norm(name);
     if (!want) return null;
@@ -17440,7 +17460,7 @@ const State = (() => {
   let goodWordsRe = null;
   function goodWords() {
     if (goodWordsRe) return goodWordsRe;
-    const goods = TABLES.items && Array.isArray(TABLES.items.goods) ? TABLES.items.goods : [];
+    const goods = Pack.tables().items && Array.isArray(Pack.tables().items.goods) ? Pack.tables().items.goods : [];
     const words = new Set(GOOD_SYNONYMS);
     for (const g of goods) {
       if (!isObj(g) || typeof g.name !== 'string') continue;
@@ -17677,12 +17697,12 @@ const State = (() => {
     return inv.find(i => i.id === r) || inv.find(i => i.name.toLowerCase() === r.toLowerCase()) || inv.find(i => i.id === 'item_' + slugify(r)) || null;
   }
   function knownItemName(id) {
-    const all = [].concat(current.player.inventory, ...BACKGROUNDS.map(b => b.items || []));
+    const all = [].concat(current.player.inventory, ...Pack.backgrounds().map(b => b.items || []));
     const hit = all.find(i => i && i.id === id);
     if (hit) return hit.name;
-    const g = TABLES.items.goods.find(x => 'item_' + slugify(x.name) === id);
+    const g = Pack.tables().items.goods.find(x => 'item_' + slugify(x.name) === id);
     if (g) return g.name;
-    const t = TABLES.items.trinkets.find(x => 'item_' + slugify(x) === id);
+    const t = Pack.tables().items.trinkets.find(x => 'item_' + slugify(x) === id);
     return t ? capFirst(t) : capFirst(id.slice(5).replace(/_/g, ' '));
   }
 
@@ -18787,7 +18807,7 @@ const State = (() => {
     }
     const p = current.player;
     if (!Number.isInteger(p.age)) {
-      const bg = BACKGROUNDS.find(b => b.id === p.backgroundId);
+      const bg = Pack.backgrounds().find(b => b.id === p.backgroundId);
       p.age = bg && Number.isInteger(bg.age) ? bg.age : 30;
       out.playerAge = p.age;
     }
@@ -20548,8 +20568,8 @@ const State = (() => {
     opts = opts || {};
     const p = isObj(packOrTown) && packOrTown.packFormat !== undefined ? packOrTown : Pack.forLegacy(null, packOrTown);
     const townData = p.world;
-    // The pack's own backgrounds (the alias follows the game only once the game is set; review M2-G).
-    const bgs = isObj(p.player) && Array.isArray(p.player.backgrounds) ? p.player.backgrounds : BACKGROUNDS;
+    // The pack's own backgrounds, read from p: Pack.current() is still the last game's until this one is set (review M2-G).
+    const bgs = isObj(p.player) && Array.isArray(p.player.backgrounds) ? p.player.backgrounds : Pack.builtIn().player.backgrounds;
     const bg = bgs.find(b => b.id === character.backgroundId);
     if (!bg) throw new Error('unknown background');
     const name = cleanText(character.name, 40);
@@ -20941,7 +20961,7 @@ const State = (() => {
       tidyPending(t);
     }
     // Pronouns, once, for people saved before records carried them.
-    fillPronouns(s, townData || TOWN_DATA);
+    fillPronouns(s, townData || Pack.world());
     // The dead are on no schedule (review E14: a clock that killed someone used to leave them there).
     for (const n of s.npcs) {
       if (!isObj(n) || !(n.alive === false || n.status === 'dead')) continue;
@@ -20949,7 +20969,7 @@ const State = (() => {
     }
     undoSwitch();
     current = s;
-    town = deepCopy(townData || TOWN_DATA);
+    town = deepCopy(townData || Pack.world());
     pack = pinPack(isObj(packData) && packData.packFormat !== undefined ? packData : Pack.forLegacy(s, townData));
     // Wave 37, Creator Mode (review M2-G4): TOWN_DATA and the rest now read the loaded game's pack.
     Pack.syncAliases();
@@ -24421,7 +24441,7 @@ const Rel = (() => {
    TOWN_DATA object, plausibility of `new:` targets, loose ends at character
    creation, and the local opening scene. */
 const Town = (() => {
-  function data() { return State.town || TOWN_DATA; }
+  function data() { return State.town || Pack.world(); }
   /* A deep copy of a TOWN_DATA object with every runtime default filled in,
      ready to become the world part of a new game's state. */
   function instantiate(townData) {
@@ -24648,7 +24668,7 @@ const Town = (() => {
   /* Words for a person: PERSON_WORDS, the tables' occupations and every
      relation word (kin, work, other: "Colt's dad", "the boss"; not "hand",
      which is mostly a hand). */
-  const PERSON_LIST = () => PERSON_WORDS.concat(TABLES.npc.occupations || [], FAMILY_RELATIONS, Object.keys(KIN_SYNONYMS), Object.keys(KIN_NEUTRAL),
+  const PERSON_LIST = () => PERSON_WORDS.concat(Pack.tables().npc.occupations || [], FAMILY_RELATIONS, Object.keys(KIN_SYNONYMS), Object.keys(KIN_NEUTRAL),
     WORK_RELATIONS.filter(w => w !== 'hand'), OTHER_RELATIONS);
   let personRe = null;
   let personTail = null;
@@ -24657,7 +24677,7 @@ const Town = (() => {
   function personWords() { return personRe || (personRe = wordsRe(PERSON_LIST())); }
   /* One word that names a kind of person ("bartender", "wife", "man"): Style reads who says something with it (wave 4). */
   function isPersonWord(w) { const t = String(w || '').trim(); return !!t && !/\s/.test(t) && personWords().test(t); }
-  function placeWords() { return placeRe || (placeRe = wordsRe(PLACE_WORDS.concat(TABLES.location.types || []))); }
+  function placeWords() { return placeRe || (placeRe = wordsRe(PLACE_WORDS.concat(Pack.tables().location.types || []))); }
   /* What a `new:` description is: read from its head phrase (the words
      before "at", "by", "of", "who" ...). Its last word is the head noun: a
      word for a person makes a person, a place word a place; then a name
@@ -24668,7 +24688,7 @@ const Town = (() => {
     personWords();
     placeWords();
     if (!personTail) personTail = tailRe(PERSON_LIST());
-    if (!placeTail) placeTail = tailRe(PLACE_WORDS.concat(TABLES.location.types || []));
+    if (!placeTail) placeTail = tailRe(PLACE_WORDS.concat(Pack.tables().location.types || []));
     const raw = cleanText(String(desc || '').replace(/^new:/i, ''), 200);
     // A gun by its maker and model is a thing, not a person named Smith (wave 5: "a Smith and Wesson Model 10").
     const gun = weaponOf(raw);
@@ -24697,7 +24717,7 @@ const Town = (() => {
     if (/^(mr|mrs|ms|miss|dr)\.?$/i.test(words[0]) && words.length > 1 && words.slice(1).every(cap)) return d;
     if (!words.every(cap)) return null;
     if (words.length > 1) return d;
-    const firsts = TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, ((State.current && State.current.npcs) || []).map(n => String(n.name || '').split(/\s+/)[0]));
+    const firsts = Pack.tables().npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, ((State.current && State.current.npcs) || []).map(n => String(n.name || '').split(/\s+/)[0]));
     return firsts.includes(words[0]) ? d : null;
   }
   /* description: the text after `new:`. locationType may be any string;
@@ -25029,7 +25049,7 @@ const Town = (() => {
     return null;
   }
   function placeType(head) {
-    if (!placeRe) placeRe = wordsRe(PLACE_WORDS.concat(TABLES.location.types || []));
+    if (!placeRe) placeRe = wordsRe(PLACE_WORDS.concat(Pack.tables().location.types || []));
     const m = placeRe.exec(String(head || ''));
     return m ? m[1].toLowerCase() : 'place';
   }
@@ -25040,7 +25060,7 @@ const Town = (() => {
     const t = String(text || '').toLowerCase();
     let best = null;
     let bestScore = 0;
-    for (const g of TABLES.items.goods) {
+    for (const g of Pack.tables().items.goods) {
       const words = g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !PRICE_STOP.has(w));
       const score = words.filter(w => hasPhrase(t, w) || hasPhrase(t, w.replace(/s$/, ''))).length;
       if (score > bestScore) { best = g; bestScore = score; }
@@ -25275,7 +25295,7 @@ const Town = (() => {
      it. Returns { effect, onStart } or null. */
   function obligationFor(le, target) {
     const s = State.current;
-    const def = le && LOOSE_ENDS[le.kind];
+    const def = le && Pack.looseEnds()[le.kind];
     const n = target || (le ? State.npc(le.npcId) : null);
     if (!s || !def || !n) return null;
     const text = cleanText(le.text, 200) || optionText((def.options || [])[0]);
@@ -25301,7 +25321,7 @@ const Town = (() => {
   }
   function resolveLooseEnd(le) {
     const s = State.current;
-    const def = le && LOOSE_ENDS[le.kind];
+    const def = le && Pack.looseEnds()[le.kind];
     if (!def) throw new Error('unknown loose end: ' + (le && le.kind));
     const text = cleanText(le.text, 200) || optionText((def.options || [])[0]);
     const used = new Set((s.player.looseEnds || []).map(x => x.npcId));
@@ -25394,15 +25414,30 @@ const Town = (() => {
     if (/^(a|an|the)\s/i.test(look)) return lowerFirst(look);
     return `${article(look)} ${lowerFirst(look)}`;
   }
+  /* An arrival point's words (wave 37, Creator Mode, milestone 5, task
+     M5-D; plan decision F, "Arrivals gate/docks ... player.arrivals"):
+     { label, opening, summary } from pack.player.arrivals[key] (the pack
+     that plays unless one is given: the creation screen passes the story
+     it starts). key is gate unless it is docks, as the old two-way test
+     read a background's arrival. A field the pack lacks is the built-in
+     pack's, whose JSON carries the old literals word for word. */
+  function arrivalOf(key, pack) {
+    const k = key === 'docks' ? 'docks' : 'gate';
+    const p = pack || Pack.current();
+    const own = isObj(p) && isObj(p.player) && isObj(p.player.arrivals) && isObj(p.player.arrivals[k]) ? p.player.arrivals[k] : {};
+    const b = Pack.builtIn().player.arrivals[k];
+    const pick = f => (typeof own[f] === 'string' && own[f].trim() ? own[f] : b[f]);
+    return { key: k, label: pick('label'), opening: pick('opening'), summary: pick('summary') };
+  }
+  // {place} and {town} filled as the old template literals filled them; split and join, so a $ in a name is only a $.
+  function fillArrival(text, place, town) { return String(text).split('{place}').join(place).split('{town}').join(town); }
   function openingScene(s) {
     s = s || State.current;
     const p = s.player;
     const l = State.loc(p.locationId);
-    const bg = BACKGROUNDS.find(b => b.id === p.backgroundId);
+    const bg = Pack.backgrounds().find(b => b.id === p.backgroundId);
     const place = l.name.replace(/^The /, 'the ');
-    const first = bg && bg.arrival === 'docks'
-      ? `You step off a river boat onto ${place} in ${s.meta.townName}, your pack on your shoulder.`
-      : `You come in on foot by the road and stop at ${place}, on the edge of ${s.meta.townName}.`;
+    const first = fillArrival(arrivalOf(bg && bg.arrival).opening, place, s.meta.townName);
     const weather = s.flags.weather ? sentence(s.flags.weather) + ' ' : '';
     const here = State.npcsAt(l.id, s.time.phase).slice(0, 2);
     const intro = here.map((n, i) => sentence(i === 0 ? `You notice ${lookPhrase(n)}` : `Not far off is ${lookPhrase(n)}`)).join(' ');
@@ -25410,7 +25445,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst,
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, arrivalOf, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst,
     // Wave 30: where a loose end's person starts (Upgrade's version 9 reads them).
     LOOSE_END_ATTITUDE: Object.freeze(Object.assign({}, LOOSE_END_ATTITUDE)), LOOSE_END_TRUST };
 })();
@@ -26002,7 +26037,7 @@ const World = (() => {
     const not = arr(t.notForTags).map(x => String(x).toLowerCase());
     return (!want.length || want.some(x => tags.has(x))) && !not.some(x => tags.has(x)) && (!isObj(t.needs) || Rel.meets(n, t.needs));
   }
-  function templatesOf(kind) { return kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES; }
+  function templatesOf(kind) { return kind === 'grudge' ? Pack.grudgeTemplates() : Pack.favourTemplates(); }
   /* What a grudge's memory is about, and what kind of answer a grudge
      template is. Wave 4 (playtest R6): the template says (kind: violence,
      police, gossip, money or ban), so a rumour that the player "has been
@@ -26202,10 +26237,10 @@ const World = (() => {
   function plantHeld(n, rec, kind, day) {
     const s = st();
     const rng = Rel.rng(kind, n.id, day);
-    const fit = GRUDGE_TEMPLATES.map((t, i) => (isObj(t) && t.kind === kind && templateFits(t, n) ? i : -1)).filter(i => i >= 0);
+    const fit = Pack.grudgeTemplates().map((t, i) => (isObj(t) && t.kind === kind && templateFits(t, n) ? i : -1)).filter(i => i >= 0);
     if (!fit.length) return null;
     const i = rng.pick(fit);
-    const t = GRUDGE_TEMPLATES[i];
+    const t = Pack.grudgeTemplates()[i];
     const amount = kind === 'price' ? Rel.GATES.leverage.price * clamp(toInt(rec.weight) || 1, 1, 3) : null;
     const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : [1, 2];
     const lo = clamp(toInt(off[0]) || 1, 1, 30);
@@ -26330,10 +26365,10 @@ const World = (() => {
     }
     const first = State.npc(pr.ids[0]);
     const to = Rel.isPoliceNpc(first) ? 'police' : 'family';
-    const fit = GRUDGE_TEMPLATES.map((t, i) => (isObj(t) && t.kind === 'report' && (!t.to || t.to === to) && (!Array.isArray(t.about) || t.about.includes(why.why)) ? i : -1)).filter(i => i >= 0);
+    const fit = Pack.grudgeTemplates().map((t, i) => (isObj(t) && t.kind === 'report' && (!t.to || t.to === to) && (!Array.isArray(t.about) || t.about.includes(why.why)) ? i : -1)).filter(i => i >= 0);
     if (!fit.length) return null;
     const i = rng.pick(fit);
-    const t = GRUDGE_TEMPLATES[i];
+    const t = Pack.grudgeTemplates()[i];
     const off = Array.isArray(t.dayOffset) && t.dayOffset.length ? t.dayOffset : Rel.GATES.report.days;
     const lo = clamp(toInt(off[0]) || 1, 1, 30);
     const hi = clamp(toInt(off.length > 1 ? off[1] : off[0]) || lo, lo, 30);
@@ -26689,7 +26724,7 @@ const World = (() => {
   }
   function newMorning(day, events) {
     const s = st();
-    const list = ((TABLES.weather && TABLES.weather[season()]) || []).filter(w => w !== s.flags.weather);
+    const list = ((Pack.tables().weather && Pack.tables().weather[season()]) || []).filter(w => w !== s.flags.weather);
     const w = Rng.pick(list);
     if (w) State.apply({ weather: w }, W);
     const ended = s.player.conditions.filter(c => Number.isInteger(c.untilDay) && c.untilDay < day);
@@ -26907,7 +26942,7 @@ const World = (() => {
       if (!isFree(pr) && !away) continue;
       if (away) applyEffects([{ op: 'addNews', text: fallbackNews(pr) }]);
       const to = Rel.isPoliceNpc(pr) || away ? 'police' : 'family';
-      const tpl = GRUDGE_TEMPLATES.find(t => isObj(t) && t.kind === 'report' && t.to === to && (!Array.isArray(t.about) || t.about.includes(o.why))) || templateOf(sd);
+      const tpl = Pack.grudgeTemplates().find(t => isObj(t) && t.kind === 'report' && t.to === to && (!Array.isArray(t.about) || t.about.includes(o.why))) || templateOf(sd);
       if (!tpl) continue;
       const fx = fillEffects(arr(tpl.effects), { npc: n, protectorId: pr.id }).map(e => (isObj(e) && e.op === 'socialEvent' && o.hidden === true ? Object.assign({}, e, { secondhand: { via: n.id, hidden: true } }) : e));
       if (fx.length) applyEffects(fx);
@@ -27759,7 +27794,7 @@ const Style = (() => {
     const allow = new Set(NAME_ALLOW);
     for (const w of list('nameAllow')) allow.add(w);
     const out = { allow, brands: BRAND_PHRASES.concat(list('brandPhrases')),
-      given: new Set(TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES, list('givenNames'))) };
+      given: new Set(Pack.tables().npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES, list('givenNames'))) };
     localeCache.set(p, out);
     return out;
   }
@@ -29603,7 +29638,7 @@ const Api = (() => {
     const t = String(text || '').toLowerCase();
     let best = [];
     let top = 0;
-    for (const g of TABLES.items.goods) {
+    for (const g of Pack.tables().items.goods) {
       const words = g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !['the', 'and', 'for', 'set', 'ten', 'five', 'dozen', 'cup', 'jug', 'bed', 'hot', 'old', 'round', 'pair', 'some'].includes(w));
       const score = words.filter(w => new RegExp(`(^|[^a-z])${w.replace(/s$/, '')}s?([^a-z]|$)`).test(t)).length;
       if (score > top) { best = [g]; top = score; } else if (score && score === top) best.push(g);
@@ -31425,7 +31460,7 @@ const Upgrade = (() => {
     for (const le of Array.isArray(st.player.looseEnds) ? st.player.looseEnds : []) {
       const sd = le && le.seedId ? st.seeds.find(x => x.id === le.seedId) : null;
       // Its words as the loose end's kind now has them (wave 5: "draws you aside", not "finds you alone").
-      const def = le && LOOSE_ENDS[le.kind];
+      const def = le && Pack.looseEnds()[le.kind];
       const n = sd ? st.npcs.find(x => x.id === le.npcId) : null;
       const words = sd && !sd.fired && def && isObj(def.seed) && typeof def.seed.effect === 'string' && n ? fillTemplate(def.seed.effect, { npc: n.name, player: st.player.name, text: cleanText(le.text, 200) }) : null;
       if (words && words !== sd.effect) seeds.push({ seedId: sd.id, effect: words });
@@ -31441,7 +31476,7 @@ const Upgrade = (() => {
     // A grudge or favour still to come does what its template now does (matched by its words).
     for (const sd of st.seeds) {
       if (!sd || sd.fired || !isObj(sd.origin) || (sd.origin.kind !== 'grudge' && sd.origin.kind !== 'favour') || (Array.isArray(sd.effects) && sd.effects.length)) continue;
-      const list = sd.origin.kind === 'grudge' ? GRUDGE_TEMPLATES : FAVOUR_TEMPLATES;
+      const list = sd.origin.kind === 'grudge' ? Pack.grudgeTemplates() : Pack.favourTemplates();
       const n = st.npcs.find(x => x.id === sd.origin.npcId);
       const t = (Array.isArray(list) ? list : []).find(x => isObj(x) && Array.isArray(x.effects) && x.effects.length && fillTemplate(x.effect, { npc: n ? n.name : '', player: st.player.name }) === sd.effect);
       if (t) seeds.push({ seedId: sd.id, effects: deepCopy(t.effects) });
@@ -31683,7 +31718,7 @@ const Upgrade = (() => {
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     const oldOf = (kind, at) => { const o = OLD_OBLIGATIONS[kind]; if (!o) return null; return at >= 0 && o.options[at] ? o.options[at] : o.obligation; };
     const newOf = (kind, at) => {
-      const def = LOOSE_ENDS[kind];
+      const def = Pack.looseEnds()[kind];
       if (!def) return null;
       if (at < 0 && isObj(def.obligation)) return def.obligation;
       const i = at >= 0 ? at : 0;
@@ -31703,7 +31738,7 @@ const Upgrade = (() => {
       if (!isObj(le) || !OLD_OBLIGATIONS[le.kind]) continue;
       const n = st.npcs.find(x => x.id === le.npcId);
       if (!n) continue;
-      const def = LOOSE_ENDS[le.kind];
+      const def = Pack.looseEnds()[le.kind];
       const at = (Array.isArray(def.options) ? def.options : []).findIndex(o => optionText(o) === cleanText(le.text, 200));
       const was = oldOf(le.kind, at);
       const now = newOf(le.kind, at);
@@ -31760,7 +31795,7 @@ const Upgrade = (() => {
   function leverageFill(st) {
     const records = [];
     const head = Rel.policeHead({ s: st, town: State.town });
-    const opts = (LOOSE_ENDS.secret && Array.isArray(LOOSE_ENDS.secret.options) ? LOOSE_ENDS.secret.options : []).map(o => (typeof o === 'string' ? o : isObj(o) ? o.text : ''));
+    const opts = (Pack.looseEnds().secret && Array.isArray(Pack.looseEnds().secret.options) ? Pack.looseEnds().secret.options : []).map(o => (typeof o === 'string' ? o : isObj(o) ? o.text : ''));
     for (const le of Array.isArray(st.player.looseEnds) ? st.player.looseEnds : []) {
       if (!isObj(le) || le.kind !== 'secret' || !st.npcs.some(n => n.id === le.npcId)) continue;
       if ((Array.isArray(st.leverage) ? st.leverage : []).some(x => isObj(x) && x.holder === le.npcId && x.over === 'player' && isObj(x.about) && x.about.kind === 'loose_end')) continue;
@@ -37688,6 +37723,22 @@ const Pipeline = (() => {
   const NOT_A_FACT = /^(?:how|what|why|when|where|who|whom|which|can|could|should|would|is|are|am|do|does|did|will|tell me|any way|anyway)\b|\?\s*$/i;
   // Wave 37, Creator Mode: the notice for a story without story points (Commands says it too when /fact is hidden).
   const NO_FACTS = 'This story has no story points to spend.';
+  /* What /fact is for, with examples from the story that plays (wave 37, Creator Mode, milestone 5, task M5-D; plan
+     decision F, hints built from the current pack): its first person's first name, the first place it has out of
+     town (else "elsewhere"), and its second person to ask, with the verb that person's pronouns take. The notice
+     named Low Water's Jodie, Royce and Clayburn whatever story was playing. */
+  function notAFactNotice() {
+    const w = Pack.world();
+    const people = (Array.isArray(w.npcs) ? w.npcs : []).filter(n => isObj(n) && typeof n.name === 'string' && n.name.trim());
+    const first = n => n.name.trim().split(' ')[0];
+    const a = people[0] ? first(people[0]) : 'someone';
+    const away = (Array.isArray(w.locations) ? w.locations : []).find(l => isObj(l) && l.away === true && typeof l.name === 'string' && l.name.trim());
+    const where = away ? `in ${away.name.trim().replace(/^The /, 'the ')}` : 'elsewhere';
+    const b = people[1];
+    const pr = b && b.pronouns === 'she' ? 'she knows' : b && b.pronouns === 'he' ? 'he knows' : 'they know';
+    const ask = b ? `I ask ${first(b)} what ${pr} about ${a}` : `I ask around about ${a}`;
+    return `A fact is a statement to make true, not a question: /fact ${a} grew up ${where}, or /fact the mechanic owes me a favour. To find something out, ask someone in the story ("${ask}").`;
+  }
   function fact(statement) {
     // Wave 37, Creator Mode, milestone 4: a story may have no facts to buy (rules.storyPoints.factAllowed false); nothing is spent.
     if (Pack.get('rules.storyPoints.factAllowed') === false) {
@@ -37699,7 +37750,7 @@ const Pipeline = (() => {
       return { ok: false, reason: 'no-points', restoreInput: true };
     }
     if (NOT_A_FACT.test(String(statement).trim())) {
-      UI.feed.notice('A fact is a statement to make true, not a question: /fact Jodie grew up in Clayburn, or /fact the mechanic owes me a favour. To find something out, ask someone in the story ("I ask Royce what he knows about Jodie").');
+      UI.feed.notice(notAFactNotice());
       return { ok: false, reason: 'not-a-fact', restoreInput: true };
     }
     return runTurn({ input: `/fact ${statement}`, parse: statement, fact: statement, mode: 'normal' });
@@ -37830,9 +37881,10 @@ const Pipeline = (() => {
       let mock = false;
       let notice = null;
       try {
-        const bg = BACKGROUNDS.find(b => b.id === s.player.backgroundId);
+        const bg = Pack.backgrounds().find(b => b.id === s.player.backgroundId);
+        // How they arrive is the story's own words (wave 37, Creator Mode, milestone 5: player.arrivals[key].summary).
         const ctx = { input: '', mode: 'arrival', roll: null, created: [], notPresent: [], links: [], due: [] };
-        ctx.action = normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${bg && bg.arrival === 'docks' ? 'arriving by the river' : 'arriving by the road'}, at ${here().name}`, targets: [], timeCost: 'instant' });
+        ctx.action = normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${Town.arrivalOf(bg && bg.arrival).summary}, at ${here().name}`, targets: [], timeCost: 'instant' });
         scene(ctx);
         ctx.due = World.dueSeeds({ turn: s.meta.turn, time: nowTime(), locationId: ctx.location.id, presentNpcIds: ctx.presentIds, targetIds: [], mode: 'arrival' }) || [];
         if (ctx.due.length) scene(ctx);
@@ -38748,7 +38800,7 @@ const Storage = (() => {
     const st = State.current;
     if (!st) throw new Error('no game in progress');
     const pack = currentPack();
-    const env = { kind: SAVE_KIND, saveVersion: 2, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st, pack), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+    const env = { kind: SAVE_KIND, saveVersion: 2, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st, pack), state: deepCopy(st), town: deepCopy(State.town || Pack.world()) };
     env.packRef = { id: pack.meta.id, version: pack.meta.version || '', hash: packHash(pack) };
     if ((opts && opts.forFile) || (!isBuiltInPack(pack) && !lib.persistent)) env.pack = pack;
     return env;
@@ -42103,7 +42155,10 @@ const UI = (() => {
   const PANELS = {
     character(s) {
       const p = s.player;
-      const bg = BACKGROUNDS.find(b => b.id === p.backgroundId);
+      const bg = Pack.backgrounds().find(b => b.id === p.backgroundId);
+      // The stats by the story's names for them (wave 37, Creator Mode, milestone 5: player.stats[k].label), else the key.
+      const statDefs = isObj(Pack.current().player) && isObj(Pack.current().player.stats) ? Pack.current().player.stats : {};
+      const statName = k => (isObj(statDefs[k]) && typeof statDefs[k].label === 'string' && statDefs[k].label.trim() ? statDefs[k].label.trim() : capFirst(k));
       const day = s.time.day;
       const facs = Object.keys(p.reputation || {});
       const progress = Array.isArray(p.progression) ? p.progression.filter(isObj) : [];
@@ -42120,7 +42175,7 @@ const UI = (() => {
         el('h2', { class: 'char-name' }, p.name, ageText(p.age) ? el('span', { class: 'char-age', title: 'Age' }, ` · ${p.age}`) : null),
         el('p', { class: 'muted' }, p.background),
         bg && bg.blurb ? el('p', { class: 'char-blurb' }, bg.blurb) : null,
-        el('div', { class: 'stat-grid' }, STATS.map(k => el('div', { class: 'stat' }, el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(p.stats[k]))))),
+        el('div', { class: 'stat-grid' }, STATS.map(k => el('div', { class: 'stat' }, el('span', { class: 'stat-name' }, statName(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(p.stats[k]))))),
         kv([['HP', `${p.hp} / ${p.maxHp}`], [moneyLabel(), el('span', { class: 'char-cash' }, currency() ? money(p.gold) : String(p.gold))],
           ['Story points', el('span', { class: 'sp-row' }, `${p.storyPoints} / ${State.LIMITS.storyPoints}`, spend)]]
           // The town's standing is in the Standing list when there is one; said once.
@@ -44207,20 +44262,50 @@ const UI = (() => {
      form, on a first launch with no key, the mode view asks how to play
      (Claude with a key, or the offline demo). */
   const Create = (() => {
-    const STEPS = [
-      { id: 'name', title: 'Name', sub: 'What people in town will call you.' },
-      { id: 'background', title: 'Background and age', sub: 'Sets your starting stats, money, three things (one a prepaid phone), and whether you arrive by road or river. Your age starts at what the background suggests.' },
-      { id: 'stats', title: 'Stats', sub: 'You can move one point: take it from one stat with −, give it to another with +. Stats run from −1 to +3.' },
-      { id: 'goal', title: 'Goal and flaw', sub: 'Why you came to this town, in one line, and the habit that gets you into trouble.' },
-      { id: 'loose', title: 'Three loose ends', sub: 'Pick three. Each becomes a real person in town, with consequences.' }
-    ];
-    /* What each stat is for, in a line. */
-    const STAT_LINES = {
-      might: 'Strength and toughness: fights, lifting, holding a door shut.',
-      wits: 'Noticing, figuring out, remembering, fixing things.',
-      charm: 'Talking people round: persuading, lying, calming, flirting.',
-      stealth: 'Not being seen: sneaking, picking pockets and locks, slipping off.'
-    };
+    /* The story this screen starts (wave 37, Creator Mode, milestone 5,
+       task M5-D): Pack.selected(), the preview first (the editor's Test),
+       else the Library pack chosen for New game, else the built-in one. Not
+       Pack.current(): the last game can still be open behind this screen,
+       and its pack is not the one being started. Every list the form shows
+       (backgrounds, flaws, goals, loose ends, the stats' names and lines,
+       the arrivals and the steps themselves) is that story's; a section it
+       lacks is the built-in pack's, whose JSON carries today's words. */
+    function story() { try { return Pack.selected(); } catch (e) { return Pack.builtIn(); } }
+    function own(key, test) {
+      const p = story();
+      const v = isObj(p) && isObj(p.player) ? p.player[key] : undefined;
+      return test(v) ? v : Pack.builtIn().player[key];
+    }
+    const storyBackgrounds = () => own('backgrounds', Array.isArray);
+    const storyFlaws = () => own('flaws', Array.isArray);
+    const storyLooseEnds = () => own('looseEnds', isObj);
+    const storyWorld = () => { const p = story(); return isObj(p) && isObj(p.world) ? p.world : Pack.builtIn().world; };
+    const storyTables = () => { const w = storyWorld(); return isObj(w.tables) ? w.tables : Pack.builtIn().world.tables; };
+    /* What each stat is for, in a line: the story's player.stats[k].blurb (the old STAT_LINES are the built-in pack's). */
+    function statBlurb(k) {
+      const st = own('stats', isObj);
+      const b = isObj(st[k]) && typeof st[k].blurb === 'string' ? st[k].blurb : '';
+      return b || (Pack.builtIn().player.stats[k] || {}).blurb || '';
+    }
+    /* The steps, the story's player.creation.steps in its order: only the five this form knows how to draw (a step
+       the pack names that the form has no body for is left out), and any of the five the pack leaves out comes
+       back from the built-in pack's list at the end, so the form never loses a step it needs. */
+    function storySteps() {
+      const known = Pack.builtIn().player.creation.steps;
+      const c = own('creation', isObj);
+      const list = (Array.isArray(c.steps) ? c.steps : []).filter(st => isObj(st) && known.some(k => k.id === st.id));
+      const seen = new Set();
+      const out = [];
+      for (const st of list) {
+        if (seen.has(st.id)) continue;
+        seen.add(st.id);
+        const base = known.find(k => k.id === st.id);
+        out.push({ id: st.id, title: typeof st.title === 'string' && st.title.trim() ? st.title : base.title, sub: typeof st.sub === 'string' ? st.sub : base.sub });
+      }
+      for (const k of known) if (!seen.has(k.id)) out.push({ id: k.id, title: k.title, sub: k.sub });
+      return out;
+    }
+    let STEPS = storySteps();
     const GOAL_FALLBACK = ['Find out what happened to my brother'];
     let draft = null;
     let step = 0;
@@ -44228,10 +44313,11 @@ const UI = (() => {
 
     function blank() {
       const loose = {};
-      for (const k of LOOSE_END_KINDS) if (LOOSE_ENDS[k]) loose[k] = { on: false, option: 0, text: LOOSE_ENDS[k].options[0] || '' };
+      const defs = storyLooseEnds();
+      for (const k of LOOSE_END_KINDS) if (defs[k]) loose[k] = { on: false, option: 0, text: defs[k].options[0] || '' };
       return { name: '', age: '', ageTouched: false, backgroundId: null, moveFrom: '', moveTo: '', goal: '', flawIndex: -1, flawCustom: '', loose };
     }
-    function bg() { return BACKGROUNDS.find(b => b.id === draft.backgroundId) || null; }
+    function bg() { return storyBackgrounds().find(b => b.id === draft.backgroundId) || null; }
     function finalStats() {
       const b = bg();
       if (!b) return null;
@@ -44248,15 +44334,13 @@ const UI = (() => {
       else if (draft.moveTo && !draft.moveFrom) s[draft.moveTo] += 1;
       return s;
     }
-    function flawText() { return cleanText(draft.flawCustom, 120) || (draft.flawIndex >= 0 ? FLAWS[draft.flawIndex] : ''); }
+    function flawText() { return cleanText(draft.flawCustom, 120) || (draft.flawIndex >= 0 ? storyFlaws()[draft.flawIndex] : ''); }
     function chosenLoose() {
       return LOOSE_END_KINDS.filter(k => draft.loose[k] && draft.loose[k].on).map(k => ({ kind: k, text: cleanText(draft.loose[k].text, 200) }));
     }
-    /* The goal suggestions: the town's (Game.data.GOAL_PRESETS), as text. */
+    /* The goal suggestions: the story's (player.goalPresets), as text. */
     function goalPresets() {
-      let list = null;
-      try { list = window.Game && window.Game.data && window.Game.data.GOAL_PRESETS; } catch (e) { list = null; }
-      if (!Array.isArray(list)) { try { list = typeof GOAL_PRESETS !== 'undefined' ? GOAL_PRESETS : null; } catch (e) { list = null; } }
+      const list = own('goalPresets', Array.isArray);
       const out = (Array.isArray(list) ? list : []).map(g => (typeof g === 'string' ? g : isObj(g) ? (g.text || g.label || '') : '')).map(g => cleanText(g, 140)).filter(Boolean);
       return out.length ? out : GOAL_FALLBACK;
     }
@@ -44273,7 +44357,13 @@ const UI = (() => {
     function character() {
       return { name: cleanText(draft.name, 40), age: ageValue(), backgroundId: draft.backgroundId, stats: finalStats(), goal: cleanText(draft.goal, 140), flaw: flawText(), looseEnds: chosenLoose() };
     }
-    function statLine(st) { return STATS.map(k => `${capFirst(k)} ${fmtMod(st[k])}`).join(', '); }
+    /* A stat's name: the story's player.stats[k].label (the parser hears it too), else the key. */
+    function statName(k) {
+      const st = own('stats', isObj);
+      const l = isObj(st[k]) && typeof st[k].label === 'string' ? st[k].label.trim() : '';
+      return l || capFirst(k);
+    }
+    function statLine(st) { return STATS.map(k => `${statName(k)} ${fmtMod(st[k])}`).join(', '); }
     function focusSel(sel) { const n = $(sel, d.createSteps); if (n) n.focus({ preventScroll: true }); return !!n; }
     /* A number below n, from the browser's random source (the game's own dice stay seeded). */
     function rnd(n) {
@@ -44335,6 +44425,8 @@ const UI = (() => {
       d.createScroll.scrollTop = 0;
     }
     function start() {
+      // The story's own steps, read again each time: New game may start another story than the last time.
+      STEPS = storySteps();
       draft = blank();
       step = 0;
       d.createModeView.hidden = true;
@@ -44397,8 +44489,8 @@ const UI = (() => {
       switch (id) {
         case 'name': return cleanText(draft.name, 40) ? '' : 'Give your character a name.';
         case 'background': return bg() ? ageError() : 'Pick a background.';
-        case 'stats': return (draft.moveFrom && !draft.moveTo) ? `You took a point from ${capFirst(draft.moveFrom)}: give it to another stat with +, or put it back.`
-          : (draft.moveTo && !draft.moveFrom) ? `You gave a point to ${capFirst(draft.moveTo)}: take it from another stat with −, or take it back.` : '';
+        case 'stats': return (draft.moveFrom && !draft.moveTo) ? `You took a point from ${statName(draft.moveFrom)}: give it to another stat with +, or put it back.`
+          : (draft.moveTo && !draft.moveFrom) ? `You gave a point to ${statName(draft.moveTo)}: take it from another stat with −, or take it back.` : '';
         case 'goal':
           if (!cleanText(draft.goal, 140)) return 'Write one line about why you came here, or tap one of the suggestions.';
           return flawText() ? '' : 'Pick a flaw or write your own.';
@@ -44471,13 +44563,13 @@ const UI = (() => {
     const PLAYER_SURNAMES = ['Hale', 'Mercer', 'Tate', 'Boone', 'Rourke', 'Sutter', 'Kimbrough', 'Ledford', 'Danner', 'Holloway', 'Calloway', 'Whitlock', 'Ashby', 'Toomey', 'Varga', 'Delacroix', 'Okafor', 'Reyes', 'Lindqvist', 'Barlowe'];
     function randomise() {
       const taken = new Set();
-      for (const n of (TOWN_DATA.npcs || [])) for (const w of String(n.name || '').split(/\s+/)) taken.add(w.toLowerCase());
-      const T = TABLES.npc || {};
+      for (const n of (storyWorld().npcs || [])) for (const w of String(n.name || '').split(/\s+/)) taken.add(w.toLowerCase());
+      const T = storyTables().npc || {};
       const firsts = (T.firstNames || ['Sam']).filter(x => !taken.has(x.toLowerCase()));
       const lasts = PLAYER_SURNAMES.filter(x => !taken.has(x.toLowerCase()));
       const fresh = blank();
       fresh.name = `${pick(firsts.length ? firsts : ['Sam'])} ${pick(lasts.length ? lasts : ['Stranger'])}`;
-      const b = pick(BACKGROUNDS);
+      const b = pick(storyBackgrounds());
       fresh.backgroundId = b.id;
       fresh.age = Number.isInteger(b.age) ? String(b.age) : '';
       const from = STATS.filter(k => b.stats[k] > -1);
@@ -44489,11 +44581,11 @@ const UI = (() => {
         if (!fresh.moveTo) fresh.moveFrom = '';
       }
       fresh.goal = pick(goalPresets());
-      fresh.flawIndex = rnd(FLAWS.length);
+      fresh.flawIndex = rnd(storyFlaws().length);
       const kinds = LOOSE_END_KINDS.filter(k => fresh.loose[k]).slice();
       for (let i = 0; i < 3 && kinds.length; i++) {
         const k = kinds.splice(rnd(kinds.length), 1)[0];
-        const opts = LOOSE_ENDS[k].options;
+        const opts = storyLooseEnds()[k].options;
         const o = rnd(opts.length);
         fresh.loose[k] = { on: true, option: o, text: opts[o] };
       }
@@ -44505,7 +44597,7 @@ const UI = (() => {
       const s = State.current;
       const p = s.player;
       const l = State.loc(p.locationId);
-      const b = BACKGROUNDS.find(x => x.id === p.backgroundId);
+      const b = storyBackgrounds().find(x => x.id === p.backgroundId);
       const row = (k, v) => [el('dt', null, k), el('dd', null, v)];
       d.summaryCard.replaceChildren(
         el('h2', null, p.name, ageText(p.age) ? el('span', { class: 'char-age' }, ` · ${p.age}`) : null),
@@ -44518,7 +44610,7 @@ const UI = (() => {
           row('Carrying', p.inventory.map(i => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name)).join(', ')),
           row('Goal', p.goal),
           row('Flaw', p.flaw),
-          row('Arrives', `${b && b.arrival === 'docks' ? 'By river' : 'By road'}, at ${l.name}`),
+          row('Arrives', `${Town.arrivalOf(b && b.arrival, story()).label}, at ${l.name}`),
           row('Story points', String(p.storyPoints))),
         el('h3', null, 'Loose ends'),
         el('ul', { id: 'summary-loose' }, p.looseEnds.map(le => {
@@ -44586,7 +44678,7 @@ const UI = (() => {
             oninput: e => { draft.age = e.target.value; draft.ageTouched = String(e.target.value).trim() !== ''; showErr('background', ''); },
             onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); if (isMobile()) nextStep(); } } }),
           el('p', { class: 'hint' }, `${State.AGE_MIN} to ${State.AGE_MAX}.${chosen && Number.isInteger(chosen.age) ? ` A ${chosen.name.toLowerCase()} is usually about ${chosen.age}.` : ''}`));
-        return [el('div', { class: 'choice-grid', role: 'group', 'aria-label': 'Backgrounds' }, BACKGROUNDS.map(b => el('button', {
+        return [el('div', { class: 'choice-grid', role: 'group', 'aria-label': 'Backgrounds' }, storyBackgrounds().map(b => el('button', {
           type: 'button', class: 'choice bg-choice', 'aria-pressed': String(draft.backgroundId === b.id), dataset: { id: b.id },
           onclick: () => {
             draft.backgroundId = b.id;
@@ -44601,23 +44693,23 @@ const UI = (() => {
         },
         el('span', { class: 'choice-title' }, b.name),
         el('span', { class: 'choice-sub' }, b.blurb),
-        el('span', { class: 'choice-meta' }, `${Number.isInteger(b.age) ? `age ${b.age} · ` : ''}${statLine(b.stats)} · ${money(b.gold)} · ${b.items.map(i => i.name).join(', ')} · arrives by ${b.arrival === 'docks' ? 'river' : 'road'}`)))), age];
+        el('span', { class: 'choice-meta' }, `${Number.isInteger(b.age) ? `age ${b.age} · ` : ''}${statLine(b.stats)} · ${money(b.gold)} · ${b.items.map(i => i.name).join(', ')} · arrives ${lowerFirst(Town.arrivalOf(b.arrival, story()).label)}`)))), age];
       },
       stats() {
         const b = bg();
         if (!b) return el('p', { class: 'muted' }, 'Pick a background first. It sets your starting stats.');
         const shown = shownStats();
-        const pending = draft.moveFrom && !draft.moveTo ? `One point taken from ${capFirst(draft.moveFrom)}. Press + on the stat that should get it.`
-          : draft.moveTo && !draft.moveFrom ? `One point for ${capFirst(draft.moveTo)}: press − on the stat to take it from.`
-            : draft.moveFrom && draft.moveTo ? `Moved a point from ${capFirst(draft.moveFrom)} to ${capFirst(draft.moveTo)}.` : '';
+        const pending = draft.moveFrom && !draft.moveTo ? `One point taken from ${statName(draft.moveFrom)}. Press + on the stat that should get it.`
+          : draft.moveTo && !draft.moveFrom ? `One point for ${statName(draft.moveTo)}: press − on the stat to take it from.`
+            : draft.moveFrom && draft.moveTo ? `Moved a point from ${statName(draft.moveFrom)} to ${statName(draft.moveTo)}.` : '';
         const tiles = STATS.map(k => {
           const downOk = draft.moveTo === k || (b.stats[k] > -1 && draft.moveFrom !== k && !(draft.moveFrom && draft.moveTo));
           const upOk = draft.moveFrom === k || (b.stats[k] < 3 && draft.moveTo !== k && !(draft.moveFrom && draft.moveTo));
           return el('div', { class: 'cr-stat' + (shown[k] !== b.stats[k] ? ' changed' : ''), dataset: { statTile: k } },
             el('button', { type: 'button', class: 'step-btn', dataset: { for: k, dir: 'down' }, 'aria-label': `One point less ${k}`, disabled: !downOk, onclick: () => stepStat(k, -1) }, '−'),
-            el('span', { class: 'cr-stat-mid' }, el('span', { class: 'stat-name' }, capFirst(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(shown[k]))),
+            el('span', { class: 'cr-stat-mid' }, el('span', { class: 'stat-name' }, statName(k)), el('span', { class: 'stat-val', dataset: { stat: k } }, fmtMod(shown[k]))),
             el('button', { type: 'button', class: 'step-btn', dataset: { for: k, dir: 'up' }, 'aria-label': `One point more ${k}`, disabled: !upOk, onclick: () => stepStat(k, 1) }, '+'),
-            el('p', { class: 'cr-stat-desc' }, STAT_LINES[k] || ''));
+            el('p', { class: 'cr-stat-desc' }, statBlurb(k)));
         });
         return [el('div', { class: 'cr-stats', id: 'cr-stat-grid', role: 'group', 'aria-label': 'Stats' }, tiles),
           el('p', { class: 'cr-pending', role: 'status' }, pending),
@@ -44629,7 +44721,7 @@ const UI = (() => {
           'aria-label': 'Your goal',
           oninput: e => { draft.goal = e.target.value; showErr('goal', ''); syncPressed('.goal-choice', draft.goal); },
           onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); if (isMobile()) nextStep(); } } });
-        const flaws = el('div', { class: 'chips', role: 'group', 'aria-label': 'Flaws' }, FLAWS.map((f, i) => el('button', {
+        const flaws = el('div', { class: 'chips', role: 'group', 'aria-label': 'Flaws' }, storyFlaws().map((f, i) => el('button', {
           type: 'button', class: 'chip flaw-choice', 'aria-pressed': String(draft.flawIndex === i && !cleanText(draft.flawCustom)), dataset: { index: String(i) },
           onclick: () => { draft.flawIndex = i; draft.flawCustom = ''; renderStep('goal'); focusSel(`.flaw-choice[data-index="${i}"]`); }
         }, f)));
@@ -44648,8 +44740,9 @@ const UI = (() => {
       },
       loose() {
         const chosen = chosenLoose();
-        const items = LOOSE_END_KINDS.filter(k => LOOSE_ENDS[k]).map(k => {
-          const def = LOOSE_ENDS[k];
+        const defs = storyLooseEnds();
+        const items = LOOSE_END_KINDS.filter(k => defs[k]).map(k => {
+          const def = defs[k];
           const st = draft.loose[k];
           const toggle = el('button', {
             type: 'button', class: 'chip le-toggle', 'aria-pressed': String(st.on), disabled: !st.on && chosen.length >= 3, dataset: { kind: k },
@@ -44673,7 +44766,7 @@ const UI = (() => {
       const want = cleanText(text, 200);
       for (const c of $$(sel, d.createSteps)) c.setAttribute('aria-pressed', String(cleanText(c.dataset.full || c.textContent, 200) === want));
     }
-    return { wire, start, review, layoutChanged, randomise, randomiseAsk, needsChoice, showChoice, get draft() { return draft; }, STEPS };
+    return { wire, start, review, layoutChanged, randomise, randomiseAsk, needsChoice, showChoice, get draft() { return draft; }, get STEPS() { return STEPS; } };
   })();
 
   return {
@@ -45167,7 +45260,7 @@ const Creator = (() => {
   const TABS = Object.freeze([
     { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
     { id: 'world', label: 'World', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
-    { id: 'player', label: 'Player', render: null },
+    { id: 'player', label: 'Player', render: d => renderPlayer(d) }, // task M5-D: backgrounds, flaws, goals, loose ends, stats, start, arrivals, steps
     { id: 'opening', label: 'Opening', render: null },
     { id: 'narrator', label: 'Narrator', render: null },
     { id: 'directions', label: 'Directions', render: null },
@@ -47093,7 +47186,318 @@ const Creator = (() => {
   })();
 
   // ----- Creator: Player -----
-  // (milestone 5, task M5-D)
+  /* The Player tab (wave 37, Creator Mode, milestone 5, task M5-D; plan
+     decision H, "one schema drives forms and validation", and decision F's
+     rows for the arrivals, the stats and the creation steps): who the
+     player can be and how they arrive, in the order a creator thinks of
+     it. Backgrounds is an EntityTab (the World tab's list and detail): the
+     name, blurb and age, the four stats with their total, the money in the
+     story's currency, the things they carry, how they arrive (one of the
+     Arrivals below) and the hook, the first lead someone in town gives
+     them. Then the flaws and the goal suggestions as chips, a card per
+     loose-end kind (its label, the options the player picks from, who it
+     ties to, what happens later and what it costs), the four stats' names
+     and lines, the start (health, story points, the age range), the two
+     arrivals' words and the creation steps in their order. Every value
+     reaches the page as text or a property (Creator.Form, el()), never as
+     markup, and every change is one Editor.set, so one Undo. The engine
+     reads all of it from the pack that plays (Pack.backgrounds() and the
+     other readers, Town.arrivalOf, the Create screen's story()), so a
+     preview of the draft shows the edit in the game. */
+  const PlayerTab = (() => {
+    const arrOf = v => (Array.isArray(v) ? v : []);
+    const objOf = v => (isObj(v) ? v : {});
+    const SPEC = () => Pack.SCHEMA.fields.player.fields;
+    const BG = () => SPEC().backgrounds.of;
+    // A frozen schema node with some of its words changed, for this one drawing (the schema itself is never written).
+    const relabel = (spec, words) => Object.assign({}, spec, words);
+    const nonEmpty = v => (typeof v === 'string' && v.trim() ? v.trim() : '');
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    // An error slot for a path that is not a single control (a list, a pair of numbers): showProblems anchors there.
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+    function card(title, note, kids, data) {
+      return el('section', { class: 'cr-section', dataset: data || null },
+        el('h2', { class: 'cr-section-title' }, title),
+        note ? el('p', { class: 'cr-note' }, note) : null,
+        kids);
+    }
+    // The draft's name for a stat (player.stats[k].label), else the key: the background's stat fields use it.
+    const statLabel = (d, k) => nonEmpty(getAt(d, `player.stats.${k}.label`)) || capFirst(k);
+    // An arrival key's label in the draft ("By road"), else the key.
+    const arrivalLabel = (d, k) => nonEmpty(getAt(d, `player.arrivals.${k}.label`)) || String(k || '');
+    const statSum = x => STATS.reduce((a, k) => a + (isObj(x) && isObj(x.stats) && Number.isInteger(x.stats[k]) ? x.stats[k] : 0), 0);
+    const signed = n => (n > 0 ? `+${n}` : String(n));
+
+    // ----- Backgrounds -----
+    /* The four stats as number fields under the story's own names, with the total below them, kept as they change. */
+    function statsBlock(x, path, on, d) {
+      const spec = BG().fields.stats;
+      const fields = {};
+      for (const k of STATS) fields[k] = relabel(spec.fields[k], { label: statLabel(d, k) });
+      const total = el('p', { class: 'cr-note cr-total', role: 'status', dataset: { totalFor: path + '.stats' } });
+      const show = () => {
+        const n = statSum(getAt(state.draft, path));
+        total.textContent = `Total ${signed(n)}. Each from −1 to +3; the built-in story's backgrounds each total +3, and the player can move one point at the start.`;
+      };
+      const sec = Form.render(relabel(spec, { fields }), objOf(x.stats), path + '.stats', (p, v) => { on(p, v); show(); }, {
+        title: 'Stats', note: 'What a roll adds to the d20 for this background, by the names on the Stats card below.'
+      });
+      sec.classList.add('cr-quad');
+      sec.append(total);
+      show();
+      return sec;
+    }
+    /* Money in the draft's own currency: its name in the label, an example of how it shows in the help. */
+    function moneyField(x, path, on, d) {
+      const cur = objOf(getAt(d, 'world.currency'));
+      const name = nonEmpty(cur.name) || 'gold';
+      const sym = typeof cur.symbol === 'string' ? cur.symbol : '';
+      const shown = sym ? (cur.before === false ? `40 ${sym}` : `${sym}40`) : '40 gold';
+      return Form.render(relabel(BG().fields.gold, { label: `Money, in ${name}`, help: `What they arrive with; the game shows it as ${shown}.` }), x.gold, path + '.gold', on, { required: true });
+    }
+    /* Arrives: a select of the draft's arrival points (player.arrivals), each by its label. */
+    function arrivalField(x, path, on, d) {
+      const p = path + '.arrival';
+      const id = Form.domId(p);
+      const keys = Object.keys(objOf(getAt(d, 'player.arrivals')));
+      const now = typeof x.arrival === 'string' ? x.arrival : '';
+      const opts = [el('option', { value: '', selected: now === '' }, 'Not set')];
+      for (const k of keys) opts.push(el('option', { value: k, selected: k === now }, `${arrivalLabel(d, k)} (${k})`));
+      if (now && !keys.includes(now)) opts.push(el('option', { value: now, selected: true }, `${now} (not found)`));
+      const sel = el('select', { class: 'input', id, 'aria-describedby': `${id}-help ${id}-err`, dataset: { path: p }, onchange: () => on(p, sel.value === '' ? undefined : sel.value) }, opts);
+      return el('div', { class: 'cr-field', dataset: { field: p, type: 'enum' } },
+        el('label', { class: 'label', for: id, id: id + '-label' }, 'Arrives', el('span', { class: 'cr-req' }, 'required')),
+        sel,
+        el('p', { class: 'cr-note', id: id + '-help' }, 'How they come into the story: one of the Arrivals below, starting at that arrival\'s place in the World tab\'s Start places.'),
+        slot(p));
+    }
+    // Every thing's id across the backgrounds: a new thing's id is unique among them.
+    const itemIds = d => arrOf(getAt(d, 'player.backgrounds')).flatMap(b => arrOf(isObj(b) ? b.items : null)).map(it => (isObj(it) ? it.id : null)).filter(Boolean);
+    /* The things they carry: one small card each (name, how many, a line about it, its id), Remove, and Add by name. */
+    function itemsBlock(x, path, d) {
+      const lp = path + '.items';
+      const items = arrOf(x.items);
+      const ITEM = BG().fields.items.of;
+      const addId = Form.domId(lp) + '-add';
+      const rows = items.map((it, i) => {
+        const ip = `${lp}[${i}]`;
+        const sec = Form.render(ITEM, objOf(it), ip, (p, v) => set(p, v), { only: ['name', 'qty', 'notes'], nested: true, title: nonEmpty(objOf(it).name) || `Thing ${i + 1}` });
+        sec.append(el('div', { class: 'cr-item-foot' },
+          el('span', { class: 'cr-row-id' }, nonEmpty(objOf(it).id) || 'no id'),
+          el('button', { type: 'button', class: 'btn small danger', dataset: { action: 'remove-item', index: String(i) }, onclick: () => { set(lp, items.filter((_, j) => j !== i)); redraw('#' + addId); } }, 'Remove')));
+        return sec;
+      });
+      const field = el('input', { class: 'input', id: addId, type: 'text', autocomplete: 'off', maxlength: 120, enterkeyhint: 'done', placeholder: 'Folding knife' });
+      const add = () => {
+        const name = field.value.trim();
+        if (!name) { field.focus(); return; }
+        const item = { id: Pack.idFor('item', name, itemIds(state.draft)), name, qty: 1, notes: '' };
+        set(lp, arrOf(getAt(state.draft, lp)).concat([item]));
+        redraw('#' + addId);
+      };
+      field.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+      return el('section', { class: 'cr-section', dataset: { section: lp } },
+        el('h2', { class: 'cr-section-title' }, 'Things they carry'),
+        el('p', { class: 'cr-note' }, 'What they arrive with: a name, how many and a line about it. Its id is made once from the name.'),
+        rows,
+        el('div', { class: 'cr-add-new', dataset: { path: lp } },
+          el('label', { class: 'label', for: addId }, 'Name of a new thing'),
+          field,
+          el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-item' }, onclick: add }, 'Add')),
+        slot(lp));
+    }
+    /* The trigger's value, as its type wants it: a person, a place, a day, or a clock's "fac_x:3". */
+    function triggerValue(tr, tp) {
+      const p = tp + '.value';
+      const type = isObj(tr) ? tr.type : undefined;
+      const spec = type === 'npc' ? { type: 'ref', ref: 'npc', label: 'Person' }
+        : type === 'location' ? { type: 'ref', ref: 'loc', label: 'Place' }
+          : type === 'day' ? { type: 'int', label: 'Day', min: 1, max: 7, help: 'The day it fires, 1 to 7.' }
+            : { type: 'string', label: 'Value', oneLine: true, help: 'A clock\'s faction and segment, as fac_police:3.' };
+      return Form.render(spec, isObj(tr) ? tr.value : undefined, p, (pp, v) => set(pp, v));
+    }
+    /* The hook: who gives this background its first lead, what they say ({player} is the player's name), how many
+       days later, and the trigger. A background may have none. */
+    function hookBlock(x, path, on, d) {
+      const hp = path + '.hook';
+      const HOOK = BG().fields.hook;
+      const note = 'A first lead: someone in town with work or a question for this kind of stranger. {player} becomes the player\'s name.';
+      if (!isObj(x.hook)) {
+        return card('Hook', note, el('button', { type: 'button', class: 'btn small', dataset: { action: 'add-hook' }, onclick: () => { set(hp, { text: '', dayOffset: 0 }); redraw(`[data-path="${hp}.npcId"]`); } }, 'Add a hook'), { section: hp });
+      }
+      const hk = x.hook;
+      const tp = hp + '.trigger';
+      // A new trigger type starts its value afresh (a person for npc, the hook's own person when it has one).
+      const onTrigger = (p, v) => {
+        if (p !== tp + '.type') { set(p, v); return; }
+        set(tp, v === undefined ? undefined : Object.assign({ type: v }, v === 'npc' && typeof getAt(state.draft, hp + '.npcId') === 'string' ? { value: getAt(state.draft, hp + '.npcId') } : {}));
+        redraw(`[data-path="${tp}.type"]`);
+      };
+      const sec = Form.render(HOOK, hk, hp, on, { only: ['npcId', 'text', 'dayOffset'], title: 'Hook', note });
+      const trig = Form.render(HOOK.fields.trigger, objOf(hk.trigger), tp, onTrigger, { only: ['type'], nested: true, title: 'When it fires', note: 'npc: when the player meets that person; location: when they go there; day: on that day; clock: when a faction\'s clock reaches a segment.' });
+      trig.append(triggerValue(hk.trigger, tp));
+      sec.append(trig, el('button', { type: 'button', class: 'btn small danger', dataset: { action: 'remove-hook' }, onclick: () => { set(hp, undefined); redraw('[data-action="add-hook"]'); } }, 'Remove the hook'));
+      return sec;
+    }
+    const backgrounds = EntityTab({
+      key: 'backgrounds', listPath: 'player.backgrounds', label: 'Backgrounds', singular: 'background', idKind: 'background', nameField: 'name',
+      placeholder: 'Drifter',
+      summary: (x, d) => [Number.isInteger(x.age) ? `age ${x.age}` : null, typeof x.arrival === 'string' && x.arrival ? arrivalLabel(d, x.arrival).toLowerCase() : 'no arrival yet', `stats ${signed(statSum(x))}`].filter(Boolean).join(' · '),
+      /* A new background has its name, a blurb to write, an age, stats totalling +3 and some money; its things and
+         how it arrives are the creator's to choose, so the validator says so (engine.background) until they are. */
+      onAdd: (name, ids) => ({ id: Pack.idFor('background', name, ids), name, blurb: '', age: 30, stats: { might: 1, wits: 1, charm: 1, stealth: 0 }, gold: 100 }),
+      fields: (x, path, on, d) => {
+        const who = Form.render(BG(), x, path, on, { only: ['name', 'blurb', 'age'], title: 'Who they were', note: 'The card the player picks at New game: the name, one sentence about them, and the age the form starts at.' });
+        who.append(moneyField(x, path, on, d), arrivalField(x, path, on, d));
+        return [who, statsBlock(x, path, on, d), itemsBlock(x, path, d), hookBlock(x, path, on, d)];
+      }
+    });
+
+    // ----- Flaws and goal suggestions -----
+    function chipsCard(title, note, path, d) {
+      const spec = path === 'player.flaws' ? SPEC().flaws : SPEC().goalPresets;
+      return card(title, note, Form.render(spec, getAt(d, path), path, (p, v) => set(p, v), { hideLabel: true }), { section: path });
+    }
+
+    // ----- Loose ends -----
+    /* A list of longer lines, one box each with Remove, and Add: a loose end's options. */
+    function linesList(path, value, o) {
+      const list = arrOf(value);
+      const addId = Form.domId(path) + '-add';
+      const rows = list.map((t, i) => el('div', { class: 'cr-line-row' },
+        Form.render({ type: 'text', label: `${o.item} ${i + 1}`, max: o.max }, typeof t === 'string' ? t : '', `${path}[${i}]`, (p, v) => set(p, v === undefined ? '' : v), { minRows: 2 }),
+        el('button', { type: 'button', class: 'btn small danger', dataset: { action: 'remove-line', index: String(i) }, 'aria-label': `Remove ${o.item.toLowerCase()} ${i + 1}`, onclick: () => { set(path, list.filter((_, j) => j !== i)); redraw('#' + addId); } }, 'Remove')));
+      return el('div', { class: 'cr-field cr-lines', dataset: { field: path, path } },
+        el('span', { class: 'label' }, o.label),
+        o.help ? el('p', { class: 'cr-note' }, o.help) : null,
+        rows,
+        el('button', { type: 'button', class: 'btn small', id: addId, dataset: { action: 'add-line' }, onclick: () => { set(path, list.concat([''])); redraw(`[data-path="${path}[${list.length}]"]`); } }, `Add ${o.item.toLowerCase()}`),
+        slot(path));
+    }
+    const EFFECTS_NOTE = 'Its effects (when it starts, when it is missed, when it is met) are kept as they are; the JSON tab shows them.';
+    function obligationForm(path, o, title, note, extra) {
+      const OBL = SPEC().looseEnds.of.fields.obligation;
+      const sec = Form.render(OBL, objOf(o), path, (p, v) => set(p, v), { nested: true, title, note: note ? `${note} ${EFFECTS_NOTE}` : EFFECTS_NOTE, skip: ['onStart', 'onMiss', 'onMet'] });
+      if (extra) sec.append(extra);
+      return sec;
+    }
+    function looseCard(kind, d) {
+      const base = `player.looseEnds.${kind}`;
+      const le = objOf(getAt(d, base));
+      const LE = SPEC().looseEnds.of;
+      const on = (p, v) => set(p, v);
+      const per = arrOf(le.obligations);
+      const opts = arrOf(le.options);
+      const perList = per.map((o, i) => obligationForm(`${base}.obligations[${i}]`, o, `For option ${i + 1}`, null,
+        el('button', { type: 'button', class: 'btn small danger', dataset: { action: 'remove-obligation', index: String(i) }, onclick: () => { set(`${base}.obligations`, per.filter((_, j) => j !== i)); redraw(); } }, 'Remove')));
+      const addPer = per.length < opts.length
+        ? el('button', { type: 'button', class: 'btn small', dataset: { action: 'add-obligation' }, onclick: () => { set(`${base}.obligations`, per.concat([clone(isObj(le.obligation) ? le.obligation : { kind: 'promise', text: '' })])); redraw(); } }, `Add one for option ${per.length + 1}`)
+        : null;
+      return el('section', { class: 'cr-section cr-loose', dataset: { section: base, kind } },
+        el('h2', { class: 'cr-section-title' }, nonEmpty(le.label) || capFirst(kind), ' ', el('span', { class: 'cr-row-id' }, kind)),
+        el('p', { class: 'cr-note' }, 'What the player picks, who in the story it ties to, what happens a few days in, and what it costs.'),
+        Form.render(LE.fields.label, le.label, base + '.label', on, { required: true }),
+        linesList(base + '.options', le.options, { label: 'Options', item: 'Option', max: 500, help: 'The lines the player picks from at the start (they can rewrite the one they pick). Three is the usual.' }),
+        Form.render(LE.fields.link, le.link, base + '.link', on, { nested: true, title: 'Who it ties to', note: 'Tag: the tag a person in the cast carries to be the one this ties to. Tags: one per option, in the options\' order, when each option ties to a different kind of person.' }),
+        Form.render(LE.fields.seed, le.seed, base + '.seed', on, { nested: true, title: 'What happens later', note: 'Days later: one day, or the lowest and highest. Effect: what the player sees then ({npc} is the person it ties to). Trigger: day.' }),
+        isObj(le.obligation)
+          ? obligationForm(base + '.obligation', le.obligation, 'What it costs', 'The obligation it starts ({npc} is the person; {playerName} the player).')
+          : el('div', { class: 'cr-sub' }, el('h3', { class: 'cr-sub-title' }, 'What it costs'), el('p', { class: 'cr-note' }, 'No obligation: this loose end costs nothing on a clock.'),
+            el('button', { type: 'button', class: 'btn small', dataset: { action: 'add-obligation-main' }, onclick: () => { set(base + '.obligation', { kind: kind === 'debt' ? 'debt' : 'promise', text: '' }); redraw(); } }, 'Add an obligation')),
+        el('div', { class: 'cr-sub', dataset: { path: base + '.obligations' } },
+          el('h3', { class: 'cr-sub-title' }, 'Per option'),
+          el('p', { class: 'cr-note' }, per.length ? 'Each option\'s own obligation, in the options\' order; it takes the place of the one above.' : 'None: every option carries the obligation above.'),
+          perList, addPer, slot(base + '.obligations')));
+    }
+
+    // ----- Stats, start, arrivals, creation steps -----
+    function statsCard(d) {
+      const ST = SPEC().stats;
+      return card('Stats', 'The four stats are fixed: might, wits, charm and stealth are the keys every roll, every background and the parser use, so they never change. Name each and say what it is for: the creation screen shows the name and the line, and the parser hears the name beside its key.',
+        STATS.map(k => Form.render(ST.fields[k], getAt(d, `player.stats.${k}`), `player.stats.${k}`, (p, v) => set(p, v), { nested: true, title: statLabel(d, k), note: `Key: ${k}` })),
+        { section: 'player.stats' });
+    }
+    /* The age range: the youngest and the oldest, two whole numbers written as the one list. */
+    function ageRangeField(d) {
+      const p = 'player.ageRange';
+      const now = arrOf(getAt(d, p));
+      const id = Form.domId(p);
+      const num = (i, label) => {
+        const inp = el('input', {
+          class: 'input', type: 'number', inputmode: 'numeric', step: '1', id: `${id}-${i}`, value: Number.isInteger(now[i]) ? String(now[i]) : '', 'aria-describedby': `${id}-err`, dataset: { path: `${p}[${i}]` },
+          onchange: () => {
+            const next = arrOf(getAt(state.draft, p)).slice(0, 2);
+            while (next.length < 2) next.push(null);
+            next[i] = inp.value.trim() === '' ? null : Number(inp.value.trim());
+            set(p, next);
+          }
+        });
+        return el('div', { class: 'cr-field' }, el('label', { class: 'label', for: inp.id }, label), inp);
+      };
+      return el('div', { class: 'cr-sub cr-pair', dataset: { path: p } },
+        el('h3', { class: 'cr-sub-title' }, 'Age range'),
+        el('p', { class: 'cr-note' }, 'The youngest and the oldest a player may be.'),
+        num(0, 'Youngest'), num(1, 'Oldest'), slot(p));
+    }
+    function startCard(d) {
+      const sec = Form.render(SPEC().start, getAt(d, 'player.start'), 'player.start', (p, v) => set(p, v), { title: 'At the start', note: 'Health and story points a new player starts with, and how old they may be.' });
+      sec.append(ageRangeField(d));
+      return sec;
+    }
+    function arrivalsCard(d) {
+      const AR = SPEC().arrivals;
+      return card('Arrivals', 'The two ways a player comes into the story. Label: what the creation screen and the review call it. Opening: the game\'s own first lines when no narrator tells the arrival; {place} becomes the place they arrive at (a leading "The" made "the") and {town} the town\'s name. Summary: how the narrator hears it, after "arrives in the town for the first time,".',
+        Object.keys(AR.fields).map(k => Form.render(AR.fields[k], getAt(d, `player.arrivals.${k}`), `player.arrivals.${k}`, (p, v) => set(p, v), { nested: true, title: `${arrivalLabel(d, k)} (${k})`, note: `Starts at the World tab's ${k} start place.` })),
+        { section: 'player.arrivals' });
+    }
+    function stepsCard(d) {
+      const p = 'player.creation.steps';
+      const list = arrOf(getAt(d, p));
+      const STEP = SPEC().creation.fields.steps.of;
+      const move = (i, dir) => {
+        const next = list.slice();
+        const j = i + dir;
+        [next[i], next[j]] = [next[j], next[i]];
+        set(p, next);
+        redraw(`[data-step-move="${j}"][data-dir="${dir < 0 ? 'up' : 'down'}"]:not([disabled])`);
+      };
+      const rows = list.map((st, i) => {
+        const s = objOf(st);
+        const name = nonEmpty(s.title) || nonEmpty(s.id) || 'Step';
+        const sec = Form.render(STEP, s, `${p}[${i}]`, (pp, v) => set(pp, v), { only: ['title', 'sub'], nested: true, title: `${i + 1}. ${name}`, note: `Step id: ${nonEmpty(s.id) || 'none'} (which part of the form it is).` });
+        sec.classList.add('cr-step');
+        sec.append(el('div', { class: 'cr-step-moves' },
+          el('button', { type: 'button', class: 'btn small', 'aria-label': `Move ${name} up`, disabled: i === 0, dataset: { stepMove: String(i), dir: 'up' }, onclick: () => move(i, -1) }, '↑'),
+          el('button', { type: 'button', class: 'btn small', 'aria-label': `Move ${name} down`, disabled: i === list.length - 1, dataset: { stepMove: String(i), dir: 'down' }, onclick: () => move(i, 1) }, '↓')));
+        return sec;
+      });
+      return card('Creation steps', 'The steps of the New game form, in their order, each with the title and the line under it. The five parts of the form are fixed; their order and words are yours.',
+        el('div', { dataset: { path: p } }, rows, slot(p)), { section: p });
+    }
+
+    function render(d) {
+      const kinds = Object.keys(objOf(getAt(d, 'player.looseEnds')));
+      return [
+        backgrounds.render(d),
+        chipsCard('Flaws', 'The habits that get a player into trouble; New game offers them as chips, and the player may write their own.', 'player.flaws', d),
+        chipsCard('Goal suggestions', 'Why someone might come to this place, in a line each; New game offers them under the goal.', 'player.goalPresets', d),
+        card('Loose ends', `The player picks three at the start, and each becomes a real person in the story. The kinds are the engine's five (${LOOSE_END_KINDS.join(', ')}): a story words them and says what they cost, but adding a kind is rare and the engine plays only these.`, null, { section: 'player.looseEnds' }),
+        ...kinds.map(k => looseCard(k, d)),
+        statsCard(d),
+        startCard(d),
+        arrivalsCard(d),
+        stepsCard(d)
+      ];
+    }
+    function refresh() { backgrounds.refresh(); }
+    return { render, refresh, backgrounds };
+  })();
+  function renderPlayer(d) { return PlayerTab.render(d); }
 
   // ----- Creator: Narrator -----
   // (milestone 6)
@@ -47240,6 +47644,7 @@ const Creator = (() => {
     }),
     // Task M5-C1: the list-and-detail every entity tab uses, and the World tab's lists (tests and the next task use them).
     EntityTab, WorldTab,
+    PlayerTab,
     get state() { return state; }
   };
 })();
@@ -47320,6 +47725,13 @@ const Commands = (() => {
     return head.startsWith('/') ? available().filter(c => c.name.startsWith(head)) : [];
   }
   function usage(text) { UI.feed.notice(text); return { ok: false, reason: 'usage', restoreInput: true }; }
+  /* The name a usage line suggests (wave 37, Creator Mode, milestone 5, task M5-D; plan decision F, hints built
+     from the current pack): the first name of the first person in the story's cast, so a hint never names someone
+     from another story. "Sam" only for a cast with no one in it. */
+  function examplePerson() {
+    const n = (Array.isArray(Pack.world().npcs) ? Pack.world().npcs : []).find(x => isObj(x) && typeof x.name === 'string' && x.name.trim());
+    return n ? n.name.trim().split(' ')[0] : 'Sam';
+  }
   function run(text) {
     const trimmed = String(text || '').trim();
     // '/Cheat: reroll' and '/reroll.' still land: case and a trailing colon or full stop do not matter.
@@ -47357,7 +47769,7 @@ const Commands = (() => {
       }
       case '/pronouns': {
         const m = /^(.*?)\s*(?:\bis\b|\bgoes by\b|:)?\s*(she|her|he|him|they|them)(?:\/\w+)?[\s.!]*$/i.exec(arg || '');
-        if (!m || !m[1].trim()) return usage("Whose pronouns, and which? Try /pronouns Mavis she (she, he or they).");
+        if (!m || !m[1].trim()) return usage(`Whose pronouns, and which? Try /pronouns ${examplePerson()} she (she, he or they).`);
         const who = m[1].trim();
         const p = { her: 'she', him: 'he', them: 'they' }[m[2].toLowerCase()] || m[2].toLowerCase();
         const people = State.current.npcs.filter(n => n.alive !== false && (State.samePerson(n.name, who) || State.personKey(n.name).split(' ').includes(State.personKey(who))));
@@ -47369,7 +47781,7 @@ const Commands = (() => {
       case '/edit': {
         // Matched like /pronouns (full name, first name, or a word of it), the dead too, so they can be brought back.
         const who = String(arg || '').trim();
-        if (!who) return usage('Edit whom? Try /edit Mavis.');
+        if (!who) return usage(`Edit whom? Try /edit ${examplePerson()}.`);
         const people = State.current.npcs.filter(n => State.samePerson(n.name, who) || State.personKey(n.name).split(' ').includes(State.personKey(who)));
         const known = people.filter(n => n.knownToPlayer || n.created);
         const pick = known.length === 1 ? known[0] : people.length === 1 ? people[0] : null;
@@ -48009,14 +48421,16 @@ const App = (() => {
 window.Game = Object.freeze({
   Rng, Dice, Cards, Tables, State, Rel, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, Pack, PackRules, Creator, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
-  get town() { return State.town || TOWN_DATA; },
-  /* Getters (wave 37, Creator Mode): Game.data.TOWN_DATA is always the current
-     binding: the preview's copy after Pack.setPreview, else the running
-     game's pack (Pack.syncAliases), else the built-in pack. */
+  get town() { return State.town || Pack.world(); },
+  /* Getters (wave 37, Creator Mode): Game.data.TOWN_DATA and the rest read
+     the pack that plays when asked (milestone 5, task M5-D: the Pack
+     readers that replaced the old bindings): the preview's copy after
+     Pack.setPreview, else the running game's pack, else the built-in pack.
+     The old names stay, so tests and the console read as they did. */
   data: Object.freeze({
-    get TOWN_DATA() { return TOWN_DATA; }, get TABLES() { return TABLES; }, get BACKGROUNDS() { return BACKGROUNDS; },
-    get FLAWS() { return FLAWS; }, get LOOSE_ENDS() { return LOOSE_ENDS; }, get GRUDGE_TEMPLATES() { return GRUDGE_TEMPLATES; },
-    get FAVOUR_TEMPLATES() { return FAVOUR_TEMPLATES; }, get GOAL_PRESETS() { return GOAL_PRESETS; },
+    get TOWN_DATA() { return Pack.world(); }, get TABLES() { return Pack.tables(); }, get BACKGROUNDS() { return Pack.backgrounds(); },
+    get FLAWS() { return Pack.flaws(); }, get LOOSE_ENDS() { return Pack.looseEnds(); }, get GRUDGE_TEMPLATES() { return Pack.grudgeTemplates(); },
+    get FAVOUR_TEMPLATES() { return Pack.favourTemplates(); }, get GOAL_PRESETS() { return Pack.goalPresets(); },
     STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL
   })
 });

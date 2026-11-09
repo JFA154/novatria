@@ -119,7 +119,7 @@ s.test('/fact refuses a question or a how-to at no cost (the owner\'s "/fact how
   });
   for (const x of r) {
     assert.equal(x.ok, false, x.line); assert.equal(x.reason, 'not-a-fact', x.line);
-    assert.match(x.notice, /^A fact is a statement to make true, not a question: \/fact Jodie grew up in Clayburn/, x.line);
+    assert.match(x.notice, /^A fact is a statement to make true, not a question: \/fact Loretta grew up in Clayburn/, x.line);
     assert.equal(x.pts, pts, 'no point spent: ' + x.line);
   }
   const jodie = await page.evaluate(() => { const n = Game.state.npcs.find(x => /jodie/i.test(x.name)); return n.memories.map(m => m.text); });
