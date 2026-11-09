@@ -9420,8 +9420,47 @@ const Pack = (() => {
     try {
       if (typeof Storage === 'undefined') return undefined; // the try below covers a Storage that is not ready; Storage.perPack always exists
       const o = Storage.perPack(pack.meta.id).overrides;
-      return isObj(o) && Object.prototype.hasOwnProperty.call(o, path) ? o[path] : undefined;
+      if (isObj(o) && Object.prototype.hasOwnProperty.call(o, path)) return o[path];
+      /* Wave 37, Creator Mode, milestone 4: Permadeath and Show dice rolls were
+         global settings before packs. With no per-pack override, the global
+         choice still counts as the player's when it is not the engine's
+         default, so a player who turned permadeath on keeps it in every
+         story that does not set it itself. */
+      const key = GLOBAL_SETTING[path];
+      if (key) {
+        const v = Storage.settings()[key];
+        if (typeof v === 'boolean' && v !== DEFAULTS.rules[key]) return v;
+      }
+      return undefined;
     } catch (e) { return undefined; /* Storage not defined yet */ }
+  }
+  const GLOBAL_SETTING = Object.freeze({ 'rules.permadeath': 'permadeath', 'rules.showRolls': 'showRolls' });
+  /* Wave 37, Creator Mode, milestone 4 (plan "freedom"): the effective freedom
+     dials. A preset sets every dial; a dial the pack writes out itself wins
+     over its preset; the engine defaults fill the rest. create.people stays
+     false in v1 (direction change 8 retired the person maker). */
+  const FREEDOM_PRESETS = Object.freeze({
+    sandbox: { create: { places: true, things: true }, travel: 'anywhere', steer: 'none', scopeRefusal: { on: false }, skipAnywhere: true },
+    guided: { create: { places: true, things: true }, travel: 'known', steer: 'nudge', scopeRefusal: { on: false }, skipAnywhere: true },
+    rails: { create: { places: false, things: false }, travel: 'listed', steer: 'steer', scopeRefusal: { on: true }, skipAnywhere: false }
+  });
+  function freedom(pack) {
+    const p = pack || current();
+    const own = isObj(p) && isObj(p.freedom) ? p.freedom : {};
+    const name = typeof own.preset === 'string' && FREEDOM_PRESETS[own.preset] ? own.preset : DEFAULTS.freedom.preset;
+    const preset = FREEDOM_PRESETS[name];
+    const out = copy(DEFAULTS.freedom);
+    out.preset = name;
+    for (const k of Object.keys(preset)) {
+      if (isObj(preset[k])) Object.assign(out[k], preset[k]); else out[k] = preset[k];
+    }
+    for (const k of Object.keys(own)) {
+      if (k === 'preset') continue;
+      if (isObj(own[k]) && isObj(out[k])) Object.assign(out[k], own[k]); else out[k] = own[k];
+    }
+    out.create.people = false;
+    if (out.scopeRefusal.on && !out.scopeRefusal.reason) out.scopeRefusal.reason = 'That is outside this story.';
+    return deepFreeze(out);
   }
   /* { value, layer, path }: the player's override when the path is one of
      PLAYER_PATHS and they set one for this pack (milestone 3), else the
@@ -9994,7 +10033,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 2: the pack of a save from before packs, and the pack a new game starts from.
     forLegacy, selected,
     // Wave 37, Creator Mode, milestone 3: the paths a player may set per pack, and the end of the memoised lookups (Storage.saveSettings calls it).
-    PLAYER_PATHS, invalidate
+    PLAYER_PATHS, invalidate,
+    // Wave 37, Creator Mode, milestone 4: the effective freedom dials (a preset, then the pack's own dials).
+    freedom, FREEDOM_PRESETS
   };
 })();
 
