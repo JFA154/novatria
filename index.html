@@ -1321,6 +1321,22 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-meter[data-over="1"] .cr-meter-fill { background: var(--danger); }
 .cr-meter-num { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cr-meter[data-over="1"] .cr-meter-num { color: var(--danger); }
+/* The Prompt view (task M6-C, "Show me the prompt"): the situation picker, the cached total as a meter, then one
+   block per part of the prompt, its title, badge, token count and Copy above the monospaced text. */
+.cr-preview-pick { margin-bottom: 14px; }
+.cr-preview-pick select.input { width: 100%; max-width: 22em; min-height: var(--tap); }
+.cr-preview-meter { margin: 0 0 6px; }
+.cr-preview-meter[hidden] { display: none; }
+.cr-preview .cr-preview-sum { margin: 0 0 20px; font-variant-numeric: tabular-nums; }
+.cr-preview .cr-preview-when { margin: 0; }
+.cr-pblock { margin: 0 0 22px; min-width: 0; }
+.cr-pblock:last-child { margin-bottom: 4px; }
+.cr-pblock-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 2px; }
+.cr-pblock-head .cr-sub-title { margin: 0; }
+.cr-pblock-head .spacer { flex: 1 1 0; }
+.cr-pblock-num { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cr-pblock > .cr-note { margin: 0 0 10px; }
+.cr-preview .cr-pre { max-height: 55vh; }
 /* The tab strip: the game's panel tabs (underline in the accent), scrolling sideways when eleven do not fit. */
 .panel-tabs.cr-tabs {
   position: sticky; top: 0; z-index: 2;
@@ -11013,7 +11029,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 5 (task M5-A): the pack New story starts from, and the share of a pack's sections that are filled.
     blank, completeness,
     // Wave 37, Creator Mode, milestone 5 (task M5-C1): the id an added entity gets, and an id renamed through every reference.
-    idFor, renameId
+    idFor, renameId,
+    // Wave 37, Creator Mode, milestone 6 (task M6-C): the cached prompt's token estimate (PackBudget, after PackRules: it builds with Style and Pipeline, read at call time).
+    budgetEstimate: pack => PackBudget.estimate(pack)
   };
 })();
 
@@ -11142,7 +11160,8 @@ const PackRules = (() => {
         continue;
       }
       for (const p of found) {
-        const sev = rule.cls === 'engine' ? 'error' : rule.cls === 'house' ? (strict ? 'error' : 'warning') : p.severity === 'info' ? 'info' : 'warning';
+        // Wave 37, Creator Mode (task M6-C): an engine rule marked playWarns (engine.budget) is a warning in the play profile.
+        const sev = rule.cls === 'engine' ? (rule.playWarns && !strict ? 'warning' : 'error') : rule.cls === 'house' ? (strict ? 'error' : 'warning') : p.severity === 'info' ? 'info' : 'warning';
         out.push({ path: String(p.path == null ? '' : p.path), message: String(p.message), severity: sev, rule: p.rule || rule.id });
       }
     }
@@ -13845,6 +13864,87 @@ const PackRules = (() => {
     { id, cls, run: id === 'lint.thread.unlinked' ? unlinkedThreads : (pack, ctx) => pass(pack, ctx).get(id) || [] },
     cls === 'house' ? { set: HOUSE } : {}
   )));
+})();
+
+/* Pack.budgetEstimate(pack) (wave 37, Creator Mode, milestone 6, task M6-C;
+   plan decision E and "Decisions and deviations" 7): the three cached
+   blocks the narrator reads every turn, built for this pack exactly as a
+   game of it would send them, and estimated as the suite counts them
+   (Pack.tokenEstimate, the total rounded once over the joined text: the
+   built-in pack's 12,999 of 13,000). The style block is
+   Style.systemPrompt(undefined, pack), in the pack's own preset with no
+   player layer; the town and cast blocks are Pipeline's, built on a
+   stand-in game made from the pack's own lists (Town.instantiate, as
+   State.newGame makes one) inside State.sandbox, so the cast's ties and
+   places are read from the stand-in and no game is touched or notified.
+   The budget is the project's cost ceiling, not an API limit. Here, after
+   PackRules, because it builds with modules defined later (read at call
+   time, as Pack.current reads State); Pack exports it. A frozen pack's
+   result is kept by its hash (the last few); a draft can change under a
+   cache, so it is built afresh each call (its style block is still the
+   memo's, by hash). Returns { system, town, cast, total }. */
+const PackBudget = (() => {
+  const KEEP = 4;
+  const kept = new Map();
+  const hashes = new WeakMap();
+  function standIn(pack) {
+    const w = pack.world;
+    const t = Town.instantiate(w);
+    const starts = isObj(w.startLocationIds) ? Object.values(w.startLocationIds).filter(x => typeof x === 'string') : [];
+    const start = starts[0] || (Array.isArray(t.locations) && t.locations[0] ? t.locations[0].id : null);
+    const meta = { packId: isObj(pack.meta) ? pack.meta.id : null, townName: t.name };
+    return { meta, npcs: t.npcs, locations: t.locations, factions: t.factions, threads: t.threads, rumours: t.rumours,
+      player: { locationId: start, knownNpcIds: [] }, time: { day: 1, phase: 'morning' }, flags: {} };
+  }
+  function build(pack) {
+    const system = Style.systemPrompt(undefined, pack);
+    let town = '';
+    let cast = '';
+    // A draft too unfinished to make a town of (no places yet) has the style block alone.
+    try {
+      const st = standIn(pack);
+      const copy = Pack.townOf(pack.world);
+      [town, cast] = State.sandbox(() => [Pipeline.townBlock(st, copy), Pipeline.castBlock(st, copy)], { current: st, town: copy });
+    } catch (e) { town = ''; cast = ''; }
+    return Object.freeze({
+      system: Pack.tokenEstimate(system), town: Pack.tokenEstimate(town), cast: Pack.tokenEstimate(cast),
+      total: Pack.tokenEstimate([system, town, cast].join(' '))
+    });
+  }
+  function estimate(pack) {
+    if (!isObj(pack)) return Object.freeze({ system: 0, town: 0, cast: 0, total: 0 });
+    if (!Object.isFrozen(pack)) return build(pack);
+    let h = hashes.get(pack);
+    if (h === undefined) { h = Pack.hash(pack); hashes.set(pack, h); }
+    let out = kept.get(h);
+    if (!out) {
+      out = build(pack);
+      if (kept.size >= KEEP) kept.delete(kept.keys().next().value);
+      kept.set(h, out);
+    }
+    return out;
+  }
+  return { estimate };
+})();
+
+/* engine.budget (wave 37, Creator Mode, milestone 6, task M6-C): a pack
+   whose cached prompt estimates over Pack.TOKEN_BUDGET (Pack.budgetEstimate)
+   has one problem, a warning in the play profile and an error in strict
+   (playWarns): a pack over the budget still plays, since the budget is the
+   project's cost ceiling, not the API's. It sits at the first author text
+   the pack sets that the narrator's cached prompt carries, the place to
+   shorten; the built-in pack is under (12,999), so its strict check stays
+   clean. */
+(() => {
+  const ANCHORS = ['prompts.narratorExtra', 'narration.customGuide', 'narration.examples', 'world.history'];
+  const dig = (pack, path) => path.split('.').reduce((o, k) => (isObj(o) ? o[k] : undefined), pack);
+  const filled = v => (typeof v === 'string' ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : false);
+  PackRules.register({ id: 'engine.budget', cls: 'engine', playWarns: true, run(pack) {
+    const n = Pack.budgetEstimate(pack).total;
+    if (!(n > Pack.TOKEN_BUDGET)) return [];
+    const at = ANCHORS.find(p => filled(dig(pack, p))) || '';
+    return [PackRules.problem(at, `The narrator's cached prompt is over the token budget (${n.toLocaleString('en-US')} of ${Pack.TOKEN_BUDGET.toLocaleString('en-US')} tokens, estimated); shorten the guide, the example turns or the narrator note.`, { rule: 'engine.budget' })];
+  } });
 })();
 
 // ===== Module: Rng =====
@@ -20601,7 +20701,8 @@ const State = (() => {
      the ones after see it. */
   let notifying = false;
   function notify() {
-    if (muted || !current) return;
+    // Wave 37, Creator Mode (task M6-C): nothing in a sandbox is heard, even after a newGame there set muted from its own opts.
+    if (muted || sandboxed || !current) return;
     if (batchDepth > 0) { dirty = true; return; }
     if (notifying) return;
     notifying = true;
@@ -20786,6 +20887,45 @@ const State = (() => {
   function commit() { muted = false; notify(); }
   // Wave 37, Creator Mode (review M2-G4): with no game, TOWN_DATA and the rest are the built-in pack's again (or the preview's).
   function clear() { undoSwitch(); current = null; town = null; pack = null; Pack.syncAliases(); muted = false; loaded = null; relFeed.length = 0; }
+  /* Wave 37, Creator Mode, milestone 6 (task M6-C; plan decisions E and H,
+     "Show me the prompt"): fn runs against a throwaway game and leaves the
+     live one exactly as it was. Every module variable a newGame, an apply
+     or a packet build touches is saved (the undo, redo, debug and feed
+     lists by their contents), muted is set so notify() never runs (no
+     autosave, no render, no feed; notify() checks sandboxed too, since a
+     newGame in fn sets muted from its own opts) and the undo listeners
+     hear nothing (a newGame's 'switch' would make Storage write the live
+     stack); all of it comes back in finally, muted included, whatever fn
+     did or threw. Chosen over threading a state argument through the
+     packet builder and its helpers: the builders run unchanged on the
+     throwaway game. stage ({ current, town, pack }, optional) is a
+     stand-in put in place before fn runs (Pack.budgetEstimate's, built
+     from a pack's own lists, so the cast's ties are read from it and not
+     from the live game). Re-entrant; returns what fn returns. */
+  let sandboxed = 0;
+  function sandbox(fn, stage) {
+    const kept = { current, town, pack, muted, redoKept, stackGen, loaded, ledger, batchDepth, dirty, rewardHold, relQuiet, lastCarry, goodWordsRe, applyCtx, notifying };
+    const lists = [[undo, undo.slice()], [redo, redo.slice()], [debugLog, debugLog.slice()], [relFeed, relFeed.slice()]];
+    sandboxed += 1;
+    muted = true;
+    try {
+      if (isObj(stage)) {
+        current = isObj(stage.current) ? stage.current : null;
+        town = isObj(stage.town) ? stage.town : null;
+        pack = isObj(stage.pack) ? stage.pack : null;
+        loaded = null;
+        ledger = freshLedger(-1);
+        Pack.syncAliases();
+      }
+      return fn();
+    } finally {
+      ({ current, town, pack, muted, redoKept, stackGen, loaded, ledger, batchDepth, dirty, rewardHold, relQuiet, lastCarry, goodWordsRe, applyCtx, notifying } = kept);
+      for (const [list, was] of lists) list.splice(0, list.length, ...was);
+      sandboxed -= 1;
+      // Pack.current() may have changed and changed back (a newGame in fn pins its own pack).
+      Pack.syncAliases();
+    }
+  }
   /* A save's shape, checked deep before anything loads it (review R3, R4):
      returns [] or a list holding the first problem. Every person, place,
      faction, thread, seed and rumour is an object with a string id (people,
@@ -21096,7 +21236,8 @@ const State = (() => {
      count) hear 'switch' before another game takes this one's place (the
      stack is still this game's then), and 'push', 'pop', 'undo', 'redo',
      'join' and 'resume' after the stack changed. */
-  function undoChanged(why) { for (const fn of undoListeners) { try { fn(why); } catch (e) { console.error(e); } } }
+  // Wave 37, Creator Mode (task M6-C): a sandbox's throwaway game is heard by no one (sandbox).
+  function undoChanged(why) { if (sandboxed) return; for (const fn of undoListeners) { try { fn(why); } catch (e) { console.error(e); } } }
   function undoSwitch() {
     if (current) undoChanged('switch');
     undo.length = 0;
@@ -21345,6 +21486,8 @@ const State = (() => {
     placeNames, mapPointOf, pathPoints, revealLabel, samePerson, personKey, relationPhrase, relationNote, tiesOf, inCast, castTown, firstName, cleanRelation, splitWho, fillPronouns, homeOf,
     RULES_VERSION, MEMORY_MAX, MEMORY_TEXT_MAX, EDIT_MAX, AGE_MIN, AGE_MAX, playerAge, rulesVersion, shortMemory, phasePart, clockLine,
     apply, newGame, commit, clear, load, validateShape, snapshot, restore, joinSnapshot, beginBatch, endBatch,
+    // Wave 37, Creator Mode, milestone 6 (task M6-C): a throwaway game for "Show me the prompt" and the token meter.
+    sandbox,
     canUndo: () => undo.length > 0,
     undoDepth: () => undo.length,
     // Wave 16: several steps at once, /redo, and the stack kept in storage.
@@ -27548,8 +27691,14 @@ const Style = (() => {
      built-in pack checks exactly what it did. Style.BANNED, WORD_LIMITS,
      INTIMATE_MIN and HARD_OVER stay exported, as getters, for Pipeline's
      mock and the tests. */
-  function banned() {
-    const b = Pack.get('narration.banned');
+  /* Wave 37, Creator Mode, milestone 6 (task M6-C): banned, guideFor,
+     examplesFor, creatorBlock, promptKey and systemPrompt take an optional
+     trailing pack, read in place of Pack.current() (the token meter and
+     Pack.budgetEstimate read a draft without previewing it); its style is
+     its own narration.preset, without the player's layer or the Settings
+     radio (styleOf). With no pack every byte is as before. */
+  function banned(pack) {
+    const b = Pack.get('narration.banned', pack);
     return (Array.isArray(b) ? b : Pack.DEFAULTS.narration.banned).filter(x => typeof x === 'string' && x.trim());
   }
   // { normal, zoom, intimate, intimateMin, hardOver }: the pack's, else the default, number by number (a non-number never reaches a limit).
@@ -27595,6 +27744,14 @@ const Style = (() => {
     try { s = Storage.settings().narrationStyle; } catch (e) { s = null; }
     if (NAMES.includes(s) && s !== DEFAULT) return s;
     return pick(own ? own.value : s);
+  }
+  // The style asked for, else (no pack) the one the narrator writes in now, else the given pack's own preset.
+  function styleOf(style, pack) {
+    if (style !== undefined) return pick(style);
+    if (pack === undefined) return pick(current());
+    let own = null;
+    try { own = Pack.lookup('narration.preset', pack, { noPlayer: true }); } catch (e) { own = null; }
+    return pick(own ? own.value : undefined);
   }
   /* Byte-identical every call for a given style so it caches
      (docs/API_NOTES.md): nothing volatile goes in here, only that style's
@@ -27642,41 +27799,41 @@ const Style = (() => {
      avoid line from narration.alsoAvoid when it has any, and
      narration.goodTurn after a blank line, as both presets end with
      GOOD_TURN. */
-  function guideFor(style) {
-    const k = pick(style === undefined ? current() : style);
+  function guideFor(style, pack) {
+    const k = styleOf(style, pack);
     if (k !== CUSTOM) return STYLES[k].guide;
     const parts = [];
-    const own = authorText(Pack.get('narration.customGuide'), CUSTOM_GUIDE_MAX);
+    const own = authorText(Pack.get('narration.customGuide', pack), CUSTOM_GUIDE_MAX);
     if (own) parts.push(own);
     const lines = [];
-    const ban = banned().map(b => authorText(b, 200).replace(/\s+/g, ' ')).filter(Boolean);
+    const ban = banned(pack).map(b => authorText(b, 200).replace(/\s+/g, ' ')).filter(Boolean);
     if (ban.length) lines.push(`BANNED PHRASES: ${ban.map(b => `"${b}"`).join(', ')}.`);
-    const also = Pack.get('narration.alsoAvoid');
+    const also = Pack.get('narration.alsoAvoid', pack);
     const avoid = (Array.isArray(also) ? also : []).map(a => authorText(a, 200).replace(/\s+/g, ' ')).filter(Boolean);
     if (avoid.length) lines.push(`Also avoid: ${series(avoid)}.`);
     if (lines.length) parts.push(lines.join('\n'));
-    const good = authorText(Pack.get('narration.goodTurn'), CUSTOM_GUIDE_MAX);
+    const good = authorText(Pack.get('narration.goodTurn', pack), CUSTOM_GUIDE_MAX);
     if (good) parts.push(good);
     return parts.join('\n\n');
   }
   // The pack's own example turns (narration.examples, not empty) replace the preset's; a custom style with none borrows casual's.
-  function ownExamples() {
-    const ex = Pack.get('narration.examples');
+  function ownExamples(pack) {
+    const ex = Pack.get('narration.examples', pack);
     return Array.isArray(ex) && ex.length ? ex : null;
   }
-  function examplesFor(style) {
-    const k = pick(style === undefined ? current() : style);
-    return ownExamples() || STYLES[k === CUSTOM ? DEFAULT : k].examples;
+  function examplesFor(style, pack) {
+    const k = styleOf(style, pack);
+    return ownExamples(pack) || STYLES[k === CUSTOM ? DEFAULT : k].examples;
   }
   /* After the examples, when this prompt carries the author's text (a
      custom guide, the pack's own example turns or prompts.narratorExtra):
      CREATOR NOTES with the extra (when there is one), then ENGINE RULES as
      the last paragraph, so the engine's rules are the last word. With no
      author text, '' (the built-in pack's prompt is unchanged). */
-  function creatorBlock(style) {
-    const k = pick(style === undefined ? current() : style);
-    const extra = authorText(Pack.get('prompts.narratorExtra'), NARRATOR_EXTRA_MAX);
-    if (k !== CUSTOM && !ownExamples() && !extra) return '';
+  function creatorBlock(style, pack) {
+    const k = styleOf(style, pack);
+    const extra = authorText(Pack.get('prompts.narratorExtra', pack), NARRATOR_EXTRA_MAX);
+    if (k !== CUSTOM && !ownExamples(pack) && !extra) return '';
     return (extra ? `\n\n${CREATOR_NOTES}\n${extra}` : '') + `\n\n${ENGINE_RULES}`;
   }
   /* Memoised by the current pack's hash and the style (plan decision E):
@@ -27694,15 +27851,15 @@ const Style = (() => {
     return h;
   }
   // The memo key, for the editor's "Show me the prompt" and its meter.
-  function promptKey(style) { return `${packHash(Pack.current())}|${pick(style === undefined ? current() : style)}`; }
+  function promptKey(style, pack) { return `${packHash(pack === undefined ? Pack.current() : pack)}|${styleOf(style, pack)}`; }
   const prompts = new Map();
-  function systemPrompt(style) {
-    const k = pick(style === undefined ? current() : style);
-    const key = promptKey(k);
+  function systemPrompt(style, pack) {
+    const k = styleOf(style, pack);
+    const key = promptKey(k, pack);
     let p = prompts.get(key);
     if (p === undefined) {
-      const ex = examplesFor(k).map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
-      p = `${guideFor(k)}\n\n${PEOPLE_NOTE}\n\n${INTIMATE_SCENES}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}${creatorBlock(k)}`;
+      const ex = examplesFor(k, pack).map(t => `Input: ${t.input}\n(${t.context})\n${t.narration}`).join('\n\n');
+      p = `${guideFor(k, pack)}\n\n${PEOPLE_NOTE}\n\n${INTIMATE_SCENES}\n\n${KNOWLEDGE}\n\n${EXAMPLES_INTRO}\n\n${ex}${creatorBlock(k, pack)}`;
       // An editor session hashes every draft it previews: keep the memo small.
       if (prompts.size >= 32) prompts.clear();
       prompts.set(key, p);
@@ -32178,8 +32335,9 @@ const Pipeline = (() => {
      (morning, afternoon)". A cast member's schedule is read from the town
      data (so it does not move with a visit or a clock), anyone else's from
      the game. */
-  function usualPlaces(n, s) {
-    const t = State.town;
+  // Wave 37, Creator Mode (task M6-C): town, when given, is read in place of State.town (castBlock's stand-in, below).
+  function usualPlaces(n, s, town) {
+    const t = town !== undefined ? town : State.town;
     const fromTown = t && Array.isArray(t.locations) && Array.isArray(t.npcs) && t.npcs.some(x => x.id === n.id);
     const locs = fromTown ? t.locations : s.locations;
     const at = {};
@@ -32206,9 +32364,14 @@ const Pipeline = (() => {
   const ABSENT_HEAD = 'NOT IN TOWN (they can be talked about, but they never appear): the dead and the people who live elsewhere, one a line. Nobody here sees them; anyone may mention them, the way people talk about the dead and the far away.';
   /* "Mavis Mangum (41, she/her" without the closing: the name, then the age and pronouns. */
   function nameHead(n) { const a = ageText(n.age); return `${n.name}${n.unnamed ? ' (no name yet)' : ''} (${a ? `${a}, ` : ''}${pronounLabel(n.pronouns)}`; }
-  function castBlock(st) {
+  /* Wave 37, Creator Mode, milestone 6 (task M6-C): st and town (both
+     optional) are a stand-in game and its town copy, read in place of
+     State.current and State.town (Pack.budgetEstimate's, made from a pack's
+     own lists); with neither, every byte is as before. */
+  function castBlock(st, town) {
     const s = st || State.current;
     if (!s) return '';
+    const own = town !== undefined ? town : State.town;
     const lines = [CAST_HEAD];
     const absent = [];
     for (const n of s.npcs) {
@@ -32216,14 +32379,14 @@ const Pipeline = (() => {
       const parts = [n.role || 'townsfolk'];
       const ties = tieWords(n);
       if (ties) parts.push(ties);
-      const where = usualPlaces(n, s);
+      const where = usualPlaces(n, s, own);
       if (where) parts.push(where);
       if (n.status === 'arrested') parts.push('under arrest, in the cell at the police station');
       lines.push(`${n.id} — ${nameHead(n)}; ${parts.join('; ')})${n.history ? ` History: ${n.history}` : ''}`);
     }
     lines.push(CAST_RULE);
     // The dead and the far away, from their own records; an older game's offstage names that are not records yet, after them.
-    const t = State.town && Array.isArray(State.town.offstage) ? State.town : null;
+    const t = own && Array.isArray(own.offstage) ? own : null;
     const off = t ? t.offstage.filter(o => isObj(o) && o.name && !s.npcs.some(n => State.samePerson(n.name, o.name))) : [];
     if (absent.length || off.length) {
       lines.push(ABSENT_HEAD);
@@ -32250,10 +32413,12 @@ const Pipeline = (() => {
      places, never from anything that changes turn to turn, so it stays
      byte-identical and cached. '' for a town with no history. */
   const TOWN_HEAD = 'THE TOWN (background everyone here knows; let it show in what people say and notice, never as a history lesson):';
-  function townBlock(st) {
+  // Wave 37, Creator Mode (task M6-C): st and town as castBlock's, above.
+  function townBlock(st, town) {
     const s = st || State.current;
     if (!s) return '';
-    const t = State.town && typeof State.town.history === 'string' ? State.town : Pack.isBuiltIn(s) ? Pack.builtIn().world : null;
+    const own = town !== undefined ? town : State.town;
+    const t = own && typeof own.history === 'string' ? own : Pack.isBuiltIn(s) ? Pack.builtIn().world : null;
     if (!t || typeof t.history !== 'string' || !t.history) return '';
     const lines = [TOWN_HEAD, `HISTORY: ${t.history}`];
     const recent = Array.isArray(t.recent) ? t.recent.filter(r => isObj(r) && r.when && r.what) : [];
@@ -38514,7 +38679,7 @@ const Pipeline = (() => {
     romanceStep, minorTurn, BOOK_TURNS_MAX, keepBookTurn, bookTurnsJsonl, get bookTurns() { return bookTurns.slice(); },
     submit, runTurn, look, zoom, skip, rest, wait, fact, arrival, epilogue, INTIMATE_MODE, intimateMode,
     speechFor, spokenWords, defaultAddressee, sayAction, SAY_TYPES,
-    normaliseParse, parsePacket, narratorPacket, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
+    normaliseParse, parsePacket, narratorPacket, withTurnLines, bookkeeperPacket, checkAndCreate, pickRumour, compressIfDue, passTime, castBlock, townBlock, usualPlaces, tieWords, hasWords, CAST_RULE,
     noteMentioned, awayTarget, awayLine, unknownTarget, carriedAs, carryingLine, notCarriedLine, cardGameAt, dealerOf, stakeFrom, stakeFor, outsideOf, markedDeck, cardSeed, readOdds, readText, dealHand, dealerHours, dealerRefusal, wordsBet, plainHandText, gainText, shutHereLine, moneyNamed, openDayFrom, banBackDay,
     recap: recapText, recapText, printRecap, askShort,
     // Wave 30: a memory's sense and its words for "you" (the card, the recap, the narrator's "to you"), and the line itself.
@@ -45379,33 +45544,33 @@ const Creator = (() => {
   let work = null;
   let problems = [];
   let checkMs = 0;
-  const timers = { save: null, check: null, json: null };
-  /* The meter for now (milestone 6 builds the real one): the built-in story's three cached blocks, estimated
-     (Pack.tokenEstimate) from its system prompt and the town and cast blocks of a stand-in game made from the
-     pack's own lists, so no running game is touched. Measured once. */
-  let builtInEstimate = null;
+  const timers = { save: null, check: null, json: null, meter: null, preview: null };
+  /* The meter (milestone 6, task M6-C): the open draft's cached prompt, the three blocks the narrator reads
+     every turn (Pack.budgetEstimate: its system prompt, and the town and cast blocks of a stand-in game made
+     from the draft's own lists, so no running game is touched), against Pack.TOKEN_BUDGET; the total is
+     rounded once, as the suite counts it (the built-in story's 12,999). Drawn with the editor and again
+     METER_MS after the last change (a 300 KB draft costs some 20 ms, so never on a key). Over the budget it
+     turns red (data-over): the story still plays, the budget being the project's cost ceiling. */
+  const METER_MS = 400;
   function estimate() {
-    if (builtInEstimate !== null) return builtInEstimate;
-    const b = Pack.builtIn();
-    const parts = [];
-    try { parts.push(Style.systemPrompt()); } catch (e) { /* none */ }
-    try {
-      const w = Pack.copy(b.world);
-      const stand = { meta: { packId: b.meta.id, townName: w.name }, npcs: w.npcs, locations: w.locations, factions: w.factions, threads: w.threads, rumours: w.rumours,
-        player: { locationId: w.startLocationIds.gate, knownNpcIds: [] }, time: { day: 1, phase: 'morning' }, flags: {} };
-      parts.push(Pipeline.townBlock(stand), Pipeline.castBlock(stand));
-    } catch (e) { /* the system prompt alone, then */ }
-    builtInEstimate = Pack.tokenEstimate(parts.join(' '));
-    return builtInEstimate;
+    if (!state.draft) return 0;
+    try { return Pack.budgetEstimate(state.draft).total; } catch (e) { return 0; }
   }
   function renderMeter() {
+    clearTimeout(timers.meter);
+    timers.meter = null;
+    const meter = node('creator-meter');
+    // A timer that fires after the draft was closed draws nothing.
+    if (!meter || !state.draft) return 0;
     const n = estimate();
     const budget = Pack.TOKEN_BUDGET;
     node('creator-meter-fill').style.width = `${Math.min(100, (n / budget) * 100).toFixed(1)}%`;
-    node('creator-meter').dataset.over = n > budget ? '1' : '0';
-    node('creator-meter-num').textContent = `${n.toLocaleString('en-US')} of ${budget.toLocaleString('en-US')} tokens · estimate`;
-    node('creator-meter').title = 'The cached prompt the narrator reads every turn, estimated for the built-in story; the meter for your draft arrives with the next milestone.';
+    meter.dataset.over = n > budget ? '1' : '0';
+    node('creator-meter-num').textContent = meterText(n);
+    meter.title = 'The cached prompt the narrator reads every turn (its style guide, the town and the cast), estimated at about 1.4 tokens a word.';
+    return n;
   }
+  const meterText = n => `${n.toLocaleString('en-US')} of ${Pack.TOKEN_BUDGET.toLocaleString('en-US')} tokens · estimate`;
   function tabButton({ id, label }) {
     const on = id === state.tab;
     return el('button', { type: 'button', role: 'tab', id: 'creator-tab-' + id, 'aria-selected': String(on), 'aria-controls': 'creator-body', tabindex: on ? '0' : '-1', dataset: { crTab: id }, onclick: () => selectTab(id) }, label);
@@ -45542,6 +45707,11 @@ const Creator = (() => {
     timers.check = setTimeout(check, CHECK_MS);
     clearTimeout(timers.json);
     if (state.tab === 'json') timers.json = setTimeout(fillJson, JSON_MS);
+    // Task M6-C: the header meter, and the Prompt view while it is open, follow the draft.
+    clearTimeout(timers.meter);
+    timers.meter = setTimeout(renderMeter, METER_MS);
+    clearTimeout(timers.preview);
+    if (state.tab === 'preview') timers.preview = setTimeout(Preview.refresh, Preview.MS);
   }
   /* Undo and Redo: the pack swaps with the top of one stack (the other takes the pack as it is), and the tab is drawn again. */
   function step(from, to) {
@@ -48544,9 +48714,209 @@ const Creator = (() => {
 
   // ----- Creator: Preview -----
   // (milestone 6, task M6-C: Show me the prompt)
+  /* The Prompt view tab (plan decisions E, H and L, "Show me the prompt"):
+     what the game sends for this story, built from the draft as it is now.
+     build(draft, situation) runs in State.sandbox: the draft becomes the
+     preview pack (the one there before comes back in finally), a throwaway
+     game starts from it (SAMPLE_CHARACTER, seed 1), and the engine's own
+     builders run unchanged on it: the style block, the town and cast
+     blocks, the narrator's packet for a sample turn of the situation
+     (sampleCtx), and the parser's and bookkeeper's prompts. The live game,
+     its autosave and its undo stack never see it. The cached total is
+     Pack.budgetEstimate's (the header meter's): the style block is the
+     draft's own preset, and the three blocks are rounded once. The tab draws
+     it when it opens and again MS after a change while it is open
+     (Editor's changed()). Nothing is sent. */
   const Preview = (() => {
-    function render() { return comingSoon('Prompt view'); }
-    return { render };
+    const MS = 400;
+    // The situations a sample turn can be in (Pipeline.DIRECTION_SITUATIONS and the modes), each with when it happens.
+    const SITUATIONS = Object.freeze([
+      ['normal', 'A normal turn', 'An ordinary turn: the player does something and the people here answer.'],
+      ['zoom', 'Zoom', 'The player typed /zoom: a longer, closer telling of one moment.'],
+      ['arrival', 'Arrival', 'The game\'s first narration: the player arrives in town.'],
+      ['intimate', 'Intimate scene', 'Someone said yes to the night: the scene is written out at its own length.'],
+      ['combat', 'Combat', 'The player attacks someone, or a fight is on.'],
+      ['defeat', 'Defeat', 'The player is beaten senseless; the engine decides what happens after.'],
+      ['epilogue', 'Epilogue', 'An ending: the story\'s epilogue is told as the scene.'],
+      ['gamble', 'Gamble', 'A hand at a card table, or the table refusing to deal one.'],
+      ['rollFailure', 'A failed roll', 'A roll failed: what the player tried does not work.'],
+      ['rollCritical', 'A critical roll', 'A natural 20: it works, and then some.'],
+      ['firstTurn', 'The first turn', 'The player\'s first action after arriving.']
+    ].map(([id, label, when]) => Object.freeze({ id, label, when })));
+    const PARTS = Object.freeze([
+      { key: 'system', title: 'System prompt', badge: 'cached every turn', about: 'The style guide, how people play their stance, what people know and the example turns.' },
+      { key: 'town', title: 'Town block', badge: 'cached every turn', about: 'The town\'s history and recent events, and how each place came to be.' },
+      { key: 'cast', title: 'Cast block', badge: 'cached every turn', about: 'Everyone who exists in the story, one line each, and the people who are never in town.' },
+      { key: 'packet', title: 'Packet for this situation', badge: 'this turn only', about: 'The turn itself: the story so far, the scene, the people here, the roll and the rules for this telling.' },
+      { key: 'parser', title: 'Parser prompt', badge: null, about: 'Reads what the player typed into an action, before any roll.' },
+      { key: 'bookkeeper', title: 'Bookkeeper prompt', badge: null, about: 'Reads the narration back into the record of what changed.' }
+    ].map(p => Object.freeze(p)));
+    let situation = 'normal';
+    let last = null;
+    /* The player a sample turn is played by: the first background (its stats), "Tester", the middle of the
+       story's age range, the first flaw, they/them. */
+    function SAMPLE_CHARACTER(pack) {
+      const pl = isObj(pack) && isObj(pack.player) ? pack.player : {};
+      const bg = (Array.isArray(pl.backgrounds) ? pl.backgrounds : []).find(isObj) || {};
+      const range = Array.isArray(pl.ageRange) && pl.ageRange.length === 2 && pl.ageRange.every(Number.isInteger) ? pl.ageRange : [State.AGE_MIN, State.AGE_MAX];
+      const age = Math.max(State.AGE_MIN, Math.min(State.AGE_MAX, Math.round((range[0] + range[1]) / 2)));
+      const flaw = (Array.isArray(pl.flaws) ? pl.flaws : []).find(f => typeof f === 'string' && f.trim()) || '';
+      return { name: 'Tester', age, backgroundId: bg.id, stats: isObj(bg.stats) ? Object.assign({}, bg.stats) : undefined, goal: 'see the story', flaw, pronouns: 'they', looseEnds: [] };
+    }
+    /* A roll as Dice makes one, on the throwaway game's stream (seed 1), with the tier the situation needs: the
+       die is picked against the story's own normal difficulty (rules.dcs), with no stat and no modifier. */
+    function sampleRoll(tier, stat, actionType, npcId) {
+      const tgt = Dice.target('normal');
+      const d20 = tier === 'critical' ? 20 : tier === 'success' ? Math.max(2, Math.min(19, tgt)) : tier === 'partial' ? Math.max(2, Math.min(19, tgt - 1)) : 2;
+      return Dice.resolve({ stat, difficulty: 'normal', d20, statValue: 0, modifiers: [], actionType, npcId });
+    }
+    /* A sample turn's ctx, shaped like runTurn's (App's for the arrival), with the fields the situation's
+       SITUATIONS test reads set; inside build's sandbox, on the throwaway game. */
+    function sampleCtx(key) {
+      const s = State.current;
+      const here = () => State.npcsAt(s.player.locationId);
+      // Turn 0 is the arrival and 1 the first action (firstTurn); any other sample is a turn well into the game.
+      s.meta.turn = key === 'arrival' ? 0 : key === 'firstTurn' ? 1 : 6;
+      if (key !== 'arrival' && !here().length) {
+        const busy = s.locations.find(l => l.away !== true && State.npcsAt(l.id).length);
+        if (busy) s.player.locationId = busy.id;
+      }
+      const who = here()[0] || null;
+      const name = who ? who.name : 'someone';
+      const act = (actionType, summary, extra) => Pipeline.normaliseParse(Object.assign({ actionType, summary, targets: who ? [who.id] : [], timeCost: 'instant' }, extra || {}));
+      if (key === 'arrival') {
+        const bg = Pack.backgrounds().find(b => b.id === s.player.backgroundId);
+        const ctx = { input: '', mode: 'arrival', roll: null, created: [], notPresent: [], links: [], due: [] };
+        ctx.action = Pipeline.normaliseParse({ actionType: 'move', summary: `${s.player.name} arrives in ${s.meta.townName} for the first time, ${Town.arrivalOf(bg && bg.arrival).summary}, at ${State.loc(s.player.locationId).name}`, targets: [], timeCost: 'instant' });
+        return ctx;
+      }
+      const ctx = { input: '', mode: 'normal', speech: null, cause: 'turn', action: null, roll: null, created: [], notPresent: [], links: [], due: [], reroll: false, beat: false, narratorLines: [], bookLines: [] };
+      const turn = {
+        normal: () => { ctx.input = 'I ask what is new in town'; ctx.action = act('talk', `asks ${name} what is new in town`); },
+        firstTurn: () => { ctx.input = 'I look around and ask who runs this place'; ctx.action = act('talk', `looks around and asks ${name} who runs the place`); },
+        zoom: () => { ctx.mode = 'zoom'; ctx.input = '/zoom I take in the room'; ctx.action = act('look', 'takes in the room slowly', { targets: [] }); },
+        intimate: () => { ctx.input = 'I take their hand'; ctx.action = act('flirt', `takes ${name}'s hand`); ctx.romance = { intimate: who ? [who.id] : [] }; },
+        combat: () => { ctx.input = `I hit ${name}`; ctx.action = act('attack', `hits ${name}`); ctx.attacked = who ? who.id : null; ctx.roll = sampleRoll('success', 'might', 'attack', who && who.id); },
+        defeat: () => { ctx.input = `I swing at ${name}`; ctx.action = act('attack', `swings at ${name}`); ctx.attacked = who ? who.id : null; ctx.roll = sampleRoll('partial', 'might', 'attack', who && who.id); ctx.damage = s.player.hp; ctx.defeated = true; },
+        epilogue: () => {
+          ctx.mode = 'epilogue';
+          ctx.input = '';
+          ctx.action = act('wait', 'waits as the story comes to its end', { targets: [] });
+          const ep = isObj(Pack.world().epilogue) ? Pack.world().epilogue : {};
+          const br = (Array.isArray(ep.branches) ? ep.branches : []).filter(b => isObj(b) && typeof b.text === 'string' && b.text.trim());
+          ctx.due = [{ seedId: 'sample_epilogue', text: br.length ? br[br.length - 1].text : 'The story comes to its end.' }];
+        },
+        gamble: () => { ctx.input = '/cards'; ctx.action = act('other', 'asks for a hand of cards', { targets: [] }); ctx.gamble = { played: false, why: 'sample', dealerId: who ? who.id : null, dealerName: who ? who.name : null, refused: false }; },
+        rollFailure: () => { ctx.input = `I talk ${name} into a favour`; ctx.action = act('persuade', `tries to talk ${name} into a favour`); ctx.roll = sampleRoll('failure', 'charm', 'persuade', who && who.id); },
+        rollCritical: () => { ctx.input = `I talk ${name} into a favour`; ctx.action = act('persuade', `talks ${name} into a favour`); ctx.roll = sampleRoll('critical', 'charm', 'persuade', who && who.id); }
+      };
+      (turn[key] || turn.normal)();
+      return ctx;
+    }
+    /* { system, town, cast, packet, parser, bookkeeper, tokens: { per part, cachedTotal, total } } for the
+       draft in the situation; throws when the draft cannot start a game yet (no background, no places). */
+    function build(draft, sit) {
+      const key = SITUATIONS.some(x => x.id === sit) ? sit : 'normal';
+      return State.sandbox(() => {
+        // The preview pack there before (the only unfrozen pack Pack.current() gives), put back in finally.
+        const was = Pack.current();
+        const before = isObj(was) && !Object.isFrozen(was) ? was : null;
+        try {
+          Pack.setPreview(draft);
+          State.newGame(draft, SAMPLE_CHARACTER(draft), { seed: 1, pending: true });
+          const ctx = sampleCtx(key);
+          const out = {
+            situation: key,
+            system: Style.systemPrompt(undefined, Pack.current()),
+            town: Pipeline.townBlock(),
+            cast: Pipeline.castBlock(),
+            packet: Pipeline.withTurnLines(Pipeline.narratorPacket(ctx), ctx),
+            parser: Api.systemFor('parser'),
+            bookkeeper: Api.systemFor('bookkeeper')
+          };
+          const tokens = {};
+          for (const p of PARTS) tokens[p.key] = Pack.tokenEstimate(out[p.key]);
+          tokens.cachedTotal = Pack.tokenEstimate([out.system, out.town, out.cast].join(' '));
+          tokens.total = Pack.tokenEstimate([out.system, out.town, out.cast, out.packet].join(' '));
+          out.tokens = tokens;
+          return out;
+        } finally {
+          Pack.setPreview(before);
+        }
+      });
+    }
+    function render(d) {
+      const select = el('select', { class: 'input cr-preview-situation', 'aria-label': 'Situation', onchange: () => { situation = select.value; fill(); } },
+        SITUATIONS.map(x => el('option', { value: x.id, selected: x.id === situation }, x.label)));
+      const sec = el('section', { class: 'cr-section cr-preview', id: 'creator-preview' },
+        el('h2', { class: 'cr-section-title' }, 'Show me the prompt'),
+        el('p', { class: 'cr-note' }, 'What the game sends the narrator for this story, built from your draft as it is now, for a sample turn. Nothing is sent and no game is touched.'),
+        el('div', { class: 'cr-field cr-preview-pick' }, el('span', { class: 'label', 'aria-hidden': 'true' }, 'Situation'), select, el('p', { class: 'cr-note cr-preview-when', role: 'status' })),
+        el('div', { class: 'cr-meter cr-preview-meter', title: 'The three blocks cached every turn, against the token budget' },
+          el('span', { class: 'cr-meter-bar', 'aria-hidden': 'true' }, el('span', { class: 'cr-meter-fill' })),
+          el('span', { class: 'cr-meter-num' })),
+        el('p', { class: 'cr-note cr-preview-sum', role: 'status' }),
+        el('div', { class: 'cr-preview-parts' }));
+      fill(sec, d);
+      return sec;
+    }
+    // The tab as the draft is now: the section being drawn, else the one on the page.
+    function fill(secArg, draftArg) {
+      clearTimeout(timers.preview);
+      timers.preview = null;
+      const sec = secArg || node('creator-preview');
+      const draft = draftArg || state.draft;
+      if (!sec || !draft) return null;
+      const sit = SITUATIONS.find(x => x.id === situation) || SITUATIONS[0];
+      sec.querySelector('.cr-preview-when').textContent = sit.when;
+      const parts = sec.querySelector('.cr-preview-parts');
+      const meter = sec.querySelector('.cr-preview-meter');
+      let b;
+      try { b = build(draft, sit.id); } catch (e) {
+        last = null;
+        meter.hidden = true;
+        sec.querySelector('.cr-preview-sum').textContent = '';
+        parts.replaceChildren(el('p', { class: 'cr-err cr-preview-err', role: 'status' }, `The prompt cannot be built yet: ${sentence(e.message)}. A story needs a background and its places before a game can start.`));
+        return null;
+      }
+      last = b;
+      const budget = Pack.TOKEN_BUDGET;
+      const n = b.tokens.cachedTotal;
+      meter.hidden = false;
+      meter.dataset.over = n > budget ? '1' : '0';
+      meter.querySelector('.cr-meter-fill').style.width = `${Math.min(100, (n / budget) * 100).toFixed(1)}%`;
+      meter.querySelector('.cr-meter-num').textContent = meterText(n);
+      sec.querySelector('.cr-preview-sum').textContent = `Cached every turn: ${n.toLocaleString('en-US')} tokens${n > budget ? ', over the budget' : ''}. With this situation's packet: ${b.tokens.total.toLocaleString('en-US')}. Estimates, at about 1.4 tokens a word.`;
+      parts.replaceChildren(...PARTS.map(p => el('div', { class: 'cr-pblock', dataset: { part: p.key } },
+        el('div', { class: 'cr-pblock-head' },
+          el('h3', { class: 'cr-sub-title' }, p.title),
+          p.badge ? el('span', { class: 'cr-badge' + (p.key === 'packet' ? ' on' : '') }, p.badge) : null,
+          el('span', { class: 'cr-pblock-num' }, `${b.tokens[p.key].toLocaleString('en-US')} tokens`),
+          el('span', { class: 'spacer' }),
+          el('button', { type: 'button', class: 'btn small', 'aria-label': `Copy the ${p.title.toLowerCase()}`, onclick: () => copy(p.key) }, 'Copy')),
+        el('p', { class: 'cr-note' }, p.about),
+        el('pre', { class: 'cr-pre', tabindex: '0', 'aria-label': p.title }, b[p.key]))));
+      return b;
+    }
+    /* Again after a change, while the tab is open (changed() calls it MS after the last one). */
+    function refresh() { if (state.tab === 'preview') fill(); }
+    // One block onto the clipboard (the JSON tab's fallback when the clipboard says no).
+    async function copy(key) {
+      const p = PARTS.find(x => x.key === key);
+      if (!p || !last) return false;
+      const text = last[key];
+      let ok = false;
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+      if (!ok) ok = copyByHand(text);
+      UI.toast(ok ? `Copied the ${p.title.toLowerCase()} (${Pack.tokenEstimate(text).toLocaleString('en-US')} tokens).` : 'This browser would not copy it. Select the text and copy it instead.');
+      return ok;
+    }
+    return {
+      render, refresh, build, sampleCtx, SAMPLE_CHARACTER, copy, SITUATIONS, PARTS, MS,
+      get situation() { return situation; },
+      set situation(v) { if (SITUATIONS.some(x => x.id === v)) situation = v; },
+      get last() { return last; }
+    };
   })();
 
   // ----- Creator: Test -----
@@ -48569,6 +48939,7 @@ const Creator = (() => {
     // Task M5-C1: the list-and-detail every entity tab uses, and the World tab's lists (tests and the next task use them).
     EntityTab, WorldTab,
     PlayerTab,
+    Preview,
     get state() { return state; }
   };
 })();

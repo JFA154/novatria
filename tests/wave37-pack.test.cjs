@@ -359,7 +359,9 @@ s.test('profiles: a cast of 39 and a clock of 12 segments are warnings in play a
   const page = await h.open();
   const r = await page.evaluate(() => {
     const P = Game.Pack;
-    const brief = list => list.map(x => `${x.severity} [${x.rule}] ${x.path}`);
+    /* engine.budget (task M6-C) is left out: the built-in pack is 1 token under the budget, so an edit that adds
+       cast text (two people moved away) tips it over; that rule has its own tests (tests/wave37-prompt-view.test.cjs). */
+    const brief = list => list.filter(x => x.rule !== 'engine.budget').map(x => `${x.severity} [${x.rule}] ${x.path}`);
     const run = edit => {
       const p = P.copy(P.builtIn());
       edit(p);

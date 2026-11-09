@@ -37,6 +37,8 @@ const shot = async (page, name) => {
   if (!SHOTS) return;
   try { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } catch (e) { /* screenshots are for looking at, not for passing */ }
 };
+// Task M6-C draws the Prompt view (tests/wave37-prompt-view.test.cjs); a line of its own, so the milestone's tasks add theirs apart.
+DRAWN['Prompt view'] = 'Show me the prompt';
 
 /* A page with the Library and the drafts read, and the mock answering at once. */
 async function open(h, opts) {
