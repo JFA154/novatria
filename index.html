@@ -45670,7 +45670,7 @@ const Creator = (() => {
     return el('section', { class: 'cr-section' }, el('h2', { class: 'cr-section-title' }, label), el('p', { class: 'cr-note' }, NEXT_TASK_NOTE));
   }
   /* Which tab owns a problem's path, by its first segment (Overview holds meta and setting; the opening has its own tab). */
-  const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', opening: 'opening', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
+  const TAB_OF = Object.freeze({ meta: 'overview', setting: 'overview', suggestedSettings: 'overview', opening: 'opening', world: 'world', player: 'player', narration: 'narrator', directions: 'directions', rules: 'rules', freedom: 'freedom', prompts: 'prompts' });
   function tabFor(path) { return TAB_OF[String(path || '').split(/[.[]/)[0]] || 'overview'; }
   const tabLabel = id => (TABS.find(t => t.id === id) || TABS[0]).label;
   const SAVE_MS = 500;
@@ -46102,6 +46102,8 @@ const Creator = (() => {
       Form.render(S.meta, meta, 'meta', on, { skip: ['storyText', 'notes'] }),
       Form.render(S.setting, d.setting, 'setting', on, { only: ['era', 'blurb'], note: 'The kind of world the story is set in, in a word and a sentence.' }),
       settingRest(d, on),
+      // The suggested settings live here (the R6 review found them on no tab): a suggestion New game shows, never applied by itself (fixed rule 5).
+      Form.render(S.suggestedSettings, d.suggestedSettings, 'suggestedSettings', on),
       Form.render(S.opening, d.opening, 'opening', on, { only: ['premise', 'text'] }),
       Opening.withMore(el('section', { class: 'cr-section cr-story', dataset: { section: 'meta.storyText' } },
         el('h2', { class: 'cr-section-title' }, 'Your story, in your words'),

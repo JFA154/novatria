@@ -521,10 +521,12 @@ s.test('a blank draft opens on the Overview: the title field, the id read-only i
     };
   });
   assert.deepEqual(f.order.slice(0, 4), ['meta.title', 'meta.id', 'meta.author', 'meta.version']);
-  // Task M6-E2: the rest of setting follows the era and the blurb (every setting field has a control now).
-  assert.deepEqual(f.order.slice(-17), ['setting.era', 'setting.blurb', 'setting.locale.nameAllow', 'setting.locale.brandPhrases', 'setting.locale.givenNames',
+  // Task M6-E2: the rest of setting follows the era and the blurb (every setting field has a control now); then the
+  // suggested settings (the R6 review found them on no tab), whose effort map is a note, not a control.
+  assert.deepEqual(f.order.slice(-20), ['setting.era', 'setting.blurb', 'setting.locale.nameAllow', 'setting.locale.brandPhrases', 'setting.locale.givenNames',
     'setting.vocabulary.police', 'setting.vocabulary.essentials', 'setting.vocabulary.teen', 'setting.vocabulary.lodging',
     'setting.phaseLabels.morning', 'setting.phaseLabels.afternoon', 'setting.phaseLabels.evening', 'setting.phaseLabels.night',
+    'suggestedSettings.narratorModel', 'suggestedSettings.parserModel', 'suggestedSettings.narrationStyle',
     'opening.premise', 'opening.text', 'meta.storyText', 'meta.notes']);
   assert.deepEqual(f.title, ['INPUT', 'text', 'Untitled story', 'Title']);
   assert.deepEqual(f.id.slice(1), [true, true, true, true]);
