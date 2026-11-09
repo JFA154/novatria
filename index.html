@@ -15095,7 +15095,9 @@ const State = (() => {
     // Someone written into the cast lives where the cast says: a second home for them is never made.
     const ownHome = kind === 'home' && owner && !isObj(owner.created) && owner.home ? loc(owner.home.locationId) : null;
     if (ownHome && ownHome.discovered && !isObj(ownHome.revealed)) bad(`${owner.id} lives at ${ownHome.id} (${ownHome.name})`);
-    if (s.locations.filter(l => isObj(l.revealed) && !l.revealed.authored).length >= LIMITS.revealedPlaces) bad(`at most ${LIMITS.revealedPlaces} places people told you about in one game`);
+    // Wave 37, Creator Mode, milestone 4: the story's cap (freedom.create.perGame through Pack.freedom; LIMITS.revealedPlaces' 12 by default).
+    const perGame = (() => { try { const v = Pack.freedom().create.perGame; return Number.isInteger(v) && v >= 0 ? v : LIMITS.revealedPlaces; } catch (e) { return LIMITS.revealedPlaces; } })();
+    if (s.locations.filter(l => isObj(l.revealed) && !l.revealed.authored).length >= perGame) bad(`at most ${perGame} places people told you about in one game`);
     const want = placeNames(name);
     for (const l of s.locations) {
       const c = mapPointOf(l);
@@ -31336,6 +31338,7 @@ const Pipeline = (() => {
       if (why) { if (State.current) State.debugLog.push({ turn: State.current.meta.turn, kind: 'rel', text: `lev id ignored: ${why} (${id})` }); continue; }
       out.aboutIds.push(id);
     }
+    rollRules(out, words);
     /* Wave 28: the engine's floors on a roll aimed at someone (Rel.difficultyFloor;
        design section 6.2): at least hard to ask anything of someone against the
        player or who hates them, a lie to someone who distrusts them hard (very
@@ -31346,6 +31349,28 @@ const Pipeline = (() => {
       if (floor && DIFFICULTIES.indexOf(out.difficulty || 'normal') < DIFFICULTIES.indexOf(floor)) out.difficulty = floor;
     }
     return out;
+  }
+  /* Wave 37, Creator Mode, milestone 4 (plan "Pack format v1", rules.rolls):
+     the author's say on what rolls, over the parser's. An actionType in
+     never, or a phrase of neverPhrases in the typed words, rolls nothing;
+     one in always, or a phrase of alwaysPhrases, rolls with the parser's
+     stat and difficulty (wits and normal when it gave none). Phrases are
+     lowercased substrings of the words. A never wins over an always when
+     both match (the author ruled the roll out somewhere). The engine's
+     own rules come after this and still win: a search for a thing not
+     here rolls (checkAndCreate), a fight's difficulty is the target's
+     threat and an ask backed by leverage skips the roll (resolve), and a
+     flirt rolls charm (romanceStep). With the default empty lists nothing
+     changes. */
+  function rollRules(out, words) {
+    let r;
+    try { r = Pack.get('rules.rolls'); } catch (e) { r = null; }
+    if (!isObj(r)) return;
+    const text = String(words || '').toLowerCase();
+    const typed = list => Array.isArray(list) && list.includes(out.actionType);
+    const said = list => !!text && Array.isArray(list) && list.some(p => typeof p === 'string' && p.trim() && text.includes(p.trim().toLowerCase()));
+    if (typed(r.never) || said(r.neverPhrases)) { out.needsRoll = false; return; }
+    if (typed(r.always) || said(r.alwaysPhrases)) Object.assign(out, { needsRoll: true, stat: out.stat || 'wits', difficulty: out.difficulty || 'normal' });
   }
   /* Structured packet for the parser (the mock reads the fields, the real
      parser reads `text`, a labelled plain-text version). */
@@ -31655,11 +31680,18 @@ const Pipeline = (() => {
       if (match) { existing(match.id, raw); continue; }
       if (unproven) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'unproven' }); continue; }
       const verdict = Town.plausible(desc, l.type, { fact: !!opts.fact });
-      if (!verdict.plausible) { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }); continue; }
+      if (!verdict.plausible) { out.notPresent.push(Object.assign({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: verdict.reason }, scopeOf())); continue; }
       // A take picks up what is lying here (ITEMS HERE, matched above): it never makes a thing out of nothing (playtest B5, REVIEW E1).
       if (action.actionType === 'take' && !opts.fact && verdict.kind === 'item') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'nothing_here', why: 'nothing like that is here to take' }); continue; }
       // Everyone who exists is in the cast: a person nobody in it answers to is simply not there.
       if (verdict.kind === 'npc') { out.notPresent.push({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', person: true, why: 'nobody like that lives in this town' }); continue; }
+      // Wave 37, Creator Mode: what the story's freedom dials let it make (createGate); a walk to a place it may not make is refused whole.
+      const gate = createGate(verdict.kind, action, opts);
+      if (gate) {
+        if (gate.walk) out.walkRefused = { scope: gate.scope || null };
+        out.notPresent.push(Object.assign({ ref: raw, label: labelFor(desc), reason: 'does_not_exist', why: gate.why }, gate.scope ? { scope: gate.scope } : {}));
+        continue;
+      }
       // A search for something that is not lying here always rolls (Wits, normal) and finds it only on a success (wave 3, playtest N12).
       if (opts.defer && !opts.fact && verdict.kind === 'item' && action.actionType === 'search' && !action.needsRoll) Object.assign(action, { needsRoll: true, stat: STATS.includes(action.stat) ? action.stat : 'wits', difficulty: DIFFICULTIES.includes(action.difficulty) ? action.difficulty : 'normal' });
       if (opts.defer && !opts.fact && verdict.kind === 'item' && action.needsRoll) { out.deferred.push({ raw, desc }); keep(raw); continue; }
@@ -31680,6 +31712,55 @@ const Pipeline = (() => {
     if (action.destinationId === l.id) action.destinationId = null;
     if (action.usesItemId && !s.player.inventory.some(i => i.id === action.usesItemId)) action.usesItemId = null;
     return out;
+  }
+  /* Wave 37, Creator Mode, milestone 4 (plan "freedom"): how far play may
+     leave the authored story, always through Pack.freedom (the preset, the
+     pack's own dials over it, the defaults under both; never freedom.*
+     read raw). The default is the sandbox, today's game: places and things
+     are made, travel goes anywhere it went, nothing steers, nothing is
+     refused as out of scope and /skip goes to any known place. */
+  function freedom() {
+    try { return Pack.freedom(); } catch (e) { return Pack.DEFAULTS.freedom; }
+  }
+  // { scope: the story's reason } when it refuses what is out of scope in its own words (scopeRefusal.on; the resolver fills a default reason), else {}.
+  function scopeOf() {
+    const f = freedom();
+    return f.scopeRefusal && f.scopeRefusal.on && f.scopeRefusal.reason ? { scope: String(f.scopeRefusal.reason) } : {};
+  }
+  /* Whether the story lets checkAndCreate make this new: thing ({ why,
+     scope?, walk? }), or null to make it. A place: none when create.places
+     is off or travel is listed (rails: the places the story wrote, and no
+     others), none past create.perGame places made in a game (the dial in
+     place of the twelve, refused as that cap refuses; Town.plausible's own
+     twelve still stands above it), and with travel known or listed never
+     one to walk to (walk: the
+     turn is refused and nothing spent, with "You don't know where that is
+     yet" or the story's reason). A thing: none when create.things is off,
+     so a search finds nothing the town has not written. */
+  function createGate(kind, action, opts) {
+    const f = freedom();
+    const sc = scopeOf();
+    const walk = !opts.fact && action.actionType === 'move';
+    if (kind === 'location') {
+      if (f.create.places === false || f.travel === 'listed') return Object.assign({ why: 'this story makes no new places', walk }, sc);
+      const cap = Number.isInteger(f.create.perGame) ? f.create.perGame : null;
+      // As Town.plausible's own cap: not there, and the turn goes on.
+      if (cap !== null && Town.placesMade() >= cap) return Object.assign({ why: `no more new places in this game (${cap} made already)` }, sc);
+      if (walk && f.travel === 'known') return { why: 'not a place the player knows', walk: true };
+    }
+    if (kind === 'item' && f.create.things === false) return Object.assign({ why: 'this story makes no new things' }, sc);
+    return null;
+  }
+  // The story's reason for what it refused this turn, once, in the feed (scopeRefusal.on): the player reads the author's words, not only the narration's "not there".
+  function scopeNotice(ctx) {
+    const said = [...new Set((ctx.notPresent || []).map(x => x.scope).filter(Boolean))];
+    for (const t of said) UI.feed.quiet(t);
+  }
+  function refuseWalk(w, opts, ctx, snap, mark) {
+    const r = fail(snap, mark, null, { reason: 'unknown-place' });
+    UI.feed.input(opts.input, ctx.speech);
+    UI.feed.notice(w.scope || NOTICES.unknownPlace);
+    return r;
   }
   /* After the roll: the things checkAndCreate held back exist only if the
      roll succeeded (wave 3, playtest N12: no roll, nothing made); otherwise
@@ -31928,12 +32009,12 @@ const Pipeline = (() => {
     const social = isSay(ctx.speech) || Dice.SOCIAL_ACTIONS.includes(a.actionType);
     const scared = a.actionType === 'intimidate';
     // A child frightened into it opens nothing (wave 28): no secret from a minor on a threat, however it rolled.
-    if (ctx.roll && ctx.roll.success && social && aimed.length && !(scared && Rel.isMinor(State.npc(aimed[0])))) { ids.add(aimed[0]); how[aimed[0]] = 'roll'; }
+    if (askRoll(ctx) && ctx.roll.success && social && aimed.length && !(scared && Rel.isMinor(State.npc(aimed[0])))) { ids.add(aimed[0]); how[aimed[0]] = 'roll'; }
     for (const id of aimed) {
       const n = State.npc(id);
       if (!n) continue;
       if (Rel.secretOpen(n)) { ids.add(id); how[id] = how[id] || 'trust'; }
-      else if (scared && ctx.roll && ctx.roll.success && !Rel.isMinor(n) && Rel.tracksOf(n).f >= Rel.GATES.secret.fear) { ids.add(id); how[id] = 'fear'; }
+      else if (scared && askRoll(ctx) && ctx.roll.success && !Rel.isMinor(n) && Rel.tracksOf(n).f >= Rel.GATES.secret.fear) { ids.add(id); how[id] = 'fear'; }
     }
     if (!ids.size) return;
     ctx.revealSecretFor = Array.from(ids);
@@ -32252,6 +32333,8 @@ const Pipeline = (() => {
     const backedAt = a.targets.map(t => (ctx.presentIds.includes(t) ? State.npc(t) : null)).find(Boolean) || null;
     const backed = backedAt ? Rel.backedRecord(backedAt, a) : null;
     if (backed) return backedAsk(ctx, backedAt, backed);
+    // Wave 37, Creator Mode: a yes to the night on a turn with no roll of its own rolls the intimacy roll (rollNight).
+    if (!a.needsRoll && nightRolls(ctx)) return rollNight(ctx);
     if (!a.needsRoll) return {};
     const npcTarget = a.targets.find(t => ctx.presentIds.includes(t));
     const attack = a.actionType === 'attack';
@@ -32329,6 +32412,57 @@ const Pipeline = (() => {
     if (roll.tier === 'critical_failure' && !flirt) ctx.consequence = lastingConsequence(ctx);
     return {};
   }
+  /* Wave 37, Creator Mode, milestone 4 (plan "Pack format v1", the owner's
+     decision 6: "On in Low Water too"): the intimacy roll. A yes to the
+     night (Rel.romanceTurn's intimate, after every gate held) on a turn
+     with no roll of its own rolls rules.romance.intimacyRoll's stat at its
+     difficulty (charm at normal by default) through the turn's roll path:
+     the ROLL line shows it, /reroll and /cheat redo it, hooks.nextTier
+     forces it, and its die comes from the seeded Rng like every roll's, so
+     a Low Water game with a night in it now draws one more die than it
+     did. It rolls no complication (the tier is the night's consequence),
+     sets no retry lock and is no ask (askRoll): nothing that reads a failed
+     ask reads it. The yes stands on every tier and the scene is told as
+     intimate (MODE and length unchanged); the tier shapes what the night
+     does for them (nightEvents) and the narrator hears it as an OUTCOME
+     line (none on a success). With enabled false the night rolls nothing,
+     as before. Someone under 18 never reaches a yes (Rel.intimateGate), so
+     the roll never meets them. */
+  const NIGHT_OUTCOME = Object.freeze({
+    critical: 'OUTCOME: the night is unforgettable',
+    partial: 'OUTCOME: the night is warm but a little awkward',
+    failure: 'OUTCOME: the night does not quite land',
+    critical_failure: 'OUTCOME: the night is awkward for both of you'
+  });
+  function intimacyRoll() {
+    try { return Pack.get('rules.romance.intimacyRoll'); } catch (e) { return null; }
+  }
+  function nightRolls(ctx) {
+    const r = ctx.romance;
+    const ir = intimacyRoll();
+    return !!r && !r.coercion && Array.isArray(r.intimate) && r.intimate.length > 0 && ctx.mode !== 'epilogue' && isObj(ir) && ir.enabled === true;
+  }
+  function rollNight(ctx) {
+    const s = State.current;
+    const a = ctx.action;
+    const ir = intimacyRoll();
+    const id = ctx.romance.intimate[0];
+    // A charm roll takes the liking modifier as a flirt's does (Rel.rollMod through Dice.modifiersFor).
+    const rollOpts = { stat: STATS.includes(ir.stat) ? ir.stat : 'charm', difficulty: DIFFICULTIES.includes(ir.difficulty) ? ir.difficulty : 'normal', npcId: id, actionType: 'persuade', presentIds: ctx.presentIds.slice(), complication: false };
+    // The action carries the roll, so /reroll finds one to redo (it replays the parse, and romanceStep and this run again).
+    Object.assign(a, { needsRoll: true, stat: rollOpts.stat, difficulty: rollOpts.difficulty });
+    const roll = Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
+    ctx.roll = roll;
+    ctx.rollNpcId = id;
+    ctx.night = { npcId: id, tier: roll.tier };
+    UI.feed.roll(roll);
+    storyPointFor(ctx, roll);
+    if (NIGHT_OUTCOME[roll.tier]) ctx.narratorLines.push(`${NIGHT_OUTCOME[roll.tier]}; the yes stands, so tell the scene as MODE says and let this colour it.`);
+    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `intimacy roll: ${rollOpts.stat} at ${rollOpts.difficulty} with ${ctx.romance.intimate.join(', ')}: ${roll.tier}` });
+    return {};
+  }
+  // The turn's roll as an ask (a social roll, a search, a fight), or null: the intimacy roll is none (rollNight).
+  function askRoll(ctx) { return ctx && !ctx.night ? ctx.roll : null; }
   /* What the engine sees in a roll (wave 27; the integration plan's 4.1),
      applied at resolve as complications are: a threat (intimidate aimed at
      someone here: threatened, as its row on a success, liking -10 and fear
@@ -32461,7 +32595,14 @@ const Pipeline = (() => {
      narrator that fails, is stopped or declines leaves the hand told
      plainly too, never taken back and dealt again. /reroll of a hand
      replays it from its record and rolls only the catch again. */
-  const GAMBLE_STAKE = 20;
+  /* Wave 37, Creator Mode, milestone 4: the stake a bet that names none puts
+     up is the story's (rules.gamble.stake; 20, the old GAMBLE_STAKE, by
+     default). */
+  function gambleStake() {
+    let v;
+    try { v = Pack.get('rules.gamble.stake'); } catch (e) { v = undefined; }
+    return Number.isInteger(v) && v > 0 ? v : 20;
+  }
   // Caught cheating: not welcome for three days, today counted (the narrator's "three days" and the ban agree).
   const CAUGHT_BAN_DAYS = 3;
   // After catching the player the dealer will not deal to them for a week, today counted, nor while he is this cold to them (wave 11, L6).
@@ -32591,7 +32732,7 @@ const Pipeline = (() => {
     // Whole dollars: under $1 is no stake (the usual $20).
     const whole = named === null ? null : Math.floor(named);
     const last = whole === null && Number.isInteger(again) && again >= 1 && ANOTHER_HAND.test(words) ? again : null;
-    const want = all ? cash : half ? Math.floor(cash / 2) : last !== null ? last : whole === null || whole <= 0 ? GAMBLE_STAKE : whole;
+    const want = all ? cash : half ? Math.floor(cash / 2) : last !== null ? last : whole === null || whole <= 0 ? gambleStake() : whole;
     const stake = clamp(want, 1, Math.max(1, cash));
     const note = stake >= cash ? 'all' : whole !== null && whole <= 0 ? 'usual' : half ? 'half' : null;
     return { stake, named, note };
@@ -34719,7 +34860,8 @@ const Pipeline = (() => {
     if (cost === 'long') return `an hour or more; it will be ${nextText} when this is done`;
     const shorts = (t.shorts | 0) + 1;
     // Night holds until the player sleeps (State advanceTime): a short there stays late at night.
-    if (shorts < SHORTS_PER_PHASE) return `${lead}; it will still be ${t.phase} (${State.phasePart({ phase: t.phase, shorts })})`;
+    // Wave 37, Creator Mode: the story's shorts a phase (rules.time.shortsPerPhase, as State's clock counts them; SHORTS_PER_PHASE's 3 by default).
+    if (shorts < Pack.get('rules.time.shortsPerPhase')) return `${lead}; it will still be ${t.phase} (${State.phasePart({ phase: t.phase, shorts })})`;
     if (t.phase === 'night') return `${lead}; it will still be night (late)`;
     return `${lead}; it will be ${nextText} when this is done`;
   }
@@ -34929,7 +35071,7 @@ const Pipeline = (() => {
     // The instant that makes up a short (wave 5, the fourth review's bug 3): it lands where that short does. counts false: the narration of time passed (/rest, /wait ...) counts no instant.
     if (counts !== false && !['short', 'long', 'rest'].includes(cost) && (t.instants | 0) + 1 >= State.LIMITS.instantsPerShort) cost = 'short';
     if (cost === 'long') return next;
-    if (cost === 'short' && t.phase !== 'night' && (t.shorts | 0) + 1 >= SHORTS_PER_PHASE) return next;
+    if (cost === 'short' && t.phase !== 'night' && (t.shorts | 0) + 1 >= Pack.get('rules.time.shortsPerPhase')) return next;
     return t.phase;
   }
   /* Who is in the scene: everyone here now, and anyone the turn keeps in it
@@ -35089,6 +35231,8 @@ const Pipeline = (() => {
       if (x.reason === 'unproven') return `${x.label} (the player claims this, but it is not true in this world; nobody like that is here)`;
       if (x.reason === 'not_found') return `${x.label} (looked for and not found: the search turns up nothing like it, and the player does not get it)`;
       if (x.reason === 'nothing_here') return `${x.label} (nothing like that is here to take: only what ITEMS HERE lists can be picked up, and the player does not get it)`;
+      // Wave 37, Creator Mode: refused as out of this story (scopeRefusal.on), in the author's words.
+      if (x.scope) return `${x.label} (not in this story: ${lowerFirst(String(x.scope)).replace(/[.!]+$/, '')}; it is simply not there)`;
       return `${x.label} (does not exist in this town; it is simply not there)`;
     });
     if (np.length) lines.push(`NOT PRESENT: ${np.join('; ')}.`);
@@ -35126,8 +35270,9 @@ const Pipeline = (() => {
     if (ctx.pressed) lines.push(`SAME ASK AGAIN: the player already tried this and it failed${ctx.pressed.line ? ` (${ctx.pressed.line})` : ''}; there is no new roll and the answer does not change. Show them holding their position and reacting to being pushed (shorter, cooler or amused). Nothing new is granted.`);
     lines.push(`COMPLICATION: ${[roll && roll.complication, ctx.consequence].filter(Boolean).join('; ') || 'none'}`);
     // Wave 29: a backed ask's outcome is its LEVERAGE line (the engine decided their answer), never these.
-    if (roll && !ctx.backed && !roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push('OUTCOME: the ask failed. The person does not give the player what they asked for, in any form; the complication is on top of the refusal, not instead of it.');
-    if (roll && !ctx.backed && roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push(`OUTCOME: the ask succeeded. ${roll.tier === 'critical' ? 'It works, and then some.' : roll.tier === 'partial' ? 'It works, but at the cost named in COMPLICATION.' : 'It works.'} The person goes along with what the player asked, at least in part, whatever they said before; do not narrate a refusal or a watered-down substitute. If it seems out of character, the difficulty already allowed for that: the dice decided.`);
+    // Wave 37, Creator Mode: the intimacy roll is no ask (askRoll): its OUTCOME is the night's (rollNight), never these.
+    if (roll && !ctx.night && !ctx.backed && !roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push('OUTCOME: the ask failed. The person does not give the player what they asked for, in any form; the complication is on top of the refusal, not instead of it.');
+    if (roll && !ctx.night && !ctx.backed && roll.success && Dice.SOCIAL_ACTIONS.includes(a.actionType)) lines.push(`OUTCOME: the ask succeeded. ${roll.tier === 'critical' ? 'It works, and then some.' : roll.tier === 'partial' ? 'It works, but at the cost named in COMPLICATION.' : 'It works.'} The person goes along with what the player asked, at least in part, whatever they said before; do not narrate a refusal or a watered-down substitute. If it seems out of character, the difficulty already allowed for that: the dice decided.`);
     if (ctx.damage) lines.push(`DAMAGE: the player takes ${ctx.damage} damage.`);
     if (ctx.defeated) lines.push('DEFEAT: the player is beaten senseless. Narrate them going down and stop there; the engine decides what happens after.');
     // SPEC step 11: work due events in naturally. A town event at the player's place is the scene itself (scene); one from an
@@ -35140,7 +35285,9 @@ const Pipeline = (() => {
     lines.push(`DUE EVENT: ${due.length ? due.join(' / ') : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}${shutHereLine(ctx)}`);
-    // Wave 37, Creator Mode: the author's directions for this turn's situations (none for a pack that sets none), just before MODE.
+    // Wave 37, Creator Mode: the story's steer toward an open thread (freedom.steer; none in the sandbox), then the author's directions for this turn's situations (none for a pack that sets none), just before MODE.
+    const steer = ctx.mode === 'epilogue' ? null : steerLine(s);
+    if (steer) lines.push(steer);
     for (const line of directionLines(ctx)) lines.push(line);
     // The rules, last: the mode, then the length the style check enforces.
     lines.push(ctx.mode === 'epilogue'
@@ -35154,6 +35301,22 @@ const Pipeline = (() => {
     // The style check that follows may use any name this packet gives (what the player typed, a due event, the news).
     Style.notePacket(text);
     return text;
+  }
+  /* Wave 37, Creator Mode, milestone 4 (freedom.steer, through
+     Pack.freedom): the story's pull toward its open threads. nudge lets the
+     first open thread the player knows (by id) surface if the scene
+     allows; steer brings the scene toward it, with the first sentence of
+     its summary; none (the sandbox, Low Water's) and no such thread add
+     nothing. */
+  function steerLine(s) {
+    const how = freedom().steer;
+    if (how !== 'nudge' && how !== 'steer') return null;
+    const t = (s.threads || []).filter(x => isObj(x) && x.status === 'open' && x.knownToPlayer).sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0))[0];
+    if (!t) return null;
+    const title = cleanText(t.title, 120);
+    if (how === 'nudge') return `NUDGE: an open thread the player knows is "${title}"; let it surface if the scene allows.`;
+    const first = String(t.summary || '').trim().split(/(?<=[.!?])\s+/)[0] || '';
+    return `STEER: bring the scene toward "${title}": ${cleanText(first, 300).replace(/[.!?]+$/, '')}.`;
   }
   /* Lines the turn adds to the narrator's packet (the card game's OUTCOME):
      after the COMPLICATION line. An epilogue turn says MODE: epilogue, with
@@ -35266,14 +35429,14 @@ const Pipeline = (() => {
        rollCritical  ctx.roll.tier critical (a natural 20) */
   const SITUATIONS = [
     ['combat', ctx => (ctx.action || {}).actionType === 'attack' || !!ctx.attacked],
-    ['defeat', ctx => !!ctx.defeated && !Storage.settings().permadeath],
-    ['death', ctx => !!ctx.defeated && !!Storage.settings().permadeath],
+    ['defeat', ctx => !!ctx.defeated && !permadeath()],
+    ['death', ctx => !!ctx.defeated && permadeath()],
     ['arrival', ctx => ctx.mode === 'arrival'],
     ['timeSkip', ctx => !!ctx.timePassed],
     ['gamble', ctx => !!ctx.gamble],
     ['epilogue', ctx => ctx.mode === 'epilogue'],
     ['firstTurn', () => State.current.meta.turn <= 1],
-    ['refusedByNpc', ctx => { const r = ctx.roll; return !!r && !ctx.backed && !r.success && Dice.SOCIAL_ACTIONS.includes((ctx.action || {}).actionType); }],
+    ['refusedByNpc', ctx => { const r = askRoll(ctx); return !!r && !ctx.backed && !r.success && Dice.SOCIAL_ACTIONS.includes((ctx.action || {}).actionType); }],
     ['rollFailure', ctx => !!ctx.roll && (ctx.roll.tier === 'failure' || ctx.roll.tier === 'critical_failure')],
     ['rollCritical', ctx => !!ctx.roll && ctx.roll.tier === 'critical']
   ];
@@ -35467,7 +35630,8 @@ const Pipeline = (() => {
     let outcome;
     let npc = null;
     let dest = null;
-    if (Storage.settings().permadeath) outcome = 'dead';
+    // Wave 37, Creator Mode, milestone 4: the story's rule (rules.permadeath); the player layer falls back to the global Permadeath setting, so a game with no story rule plays as before.
+    if (permadeath()) outcome = 'dead';
     else {
       // Wave 27 (Rel.rescues): liking 25 or more, or a favour they owe, unless they are afraid of the player.
       const friend = present.filter(n => n !== foe && Rel.rescues(n)).sort((x, y) => y.attitude - x.attitude)[0];
@@ -35499,6 +35663,7 @@ const Pipeline = (() => {
     }[outcome]();
     return { outcome, npcId: npc ? npc.id : null, text };
   }
+  function permadeath() { return Pack.get('rules.permadeath') === true; }
 
   // ----- step 12: chronicle compression -----
   /* When the log holds CHRONICLE_AT entries, all but the newest
@@ -35546,7 +35711,22 @@ const Pipeline = (() => {
   function refuseAway(l, opts, ctx, snap, mark) {
     const r = fail(snap, mark, null, { reason: 'away', placeId: l.id });
     UI.feed.input(opts.input, ctx.speech);
-    UI.feed.notice(awayLine(l));
+    // Wave 37, Creator Mode: a story that refuses out of scope in its own words (scopeRefusal.on) says its reason instead.
+    UI.feed.notice(scopeOf().scope || awayLine(l));
+    return r;
+  }
+  /* Wave 37, Creator Mode, milestone 4 (plan table F, "Card game"):
+     rules.gamble.enabled, on as in Low Water; a story without the card game
+     refuses to deal (a plain line, nothing spent) and never takes a table
+     stakes ask as one. */
+  function gambleOn() {
+    try { return Pack.get('rules.gamble.enabled') !== false; } catch (e) { return true; }
+  }
+  const NO_CARDS = 'There is no card game in this story.';
+  function refuseGamble(opts, ctx, snap, mark) {
+    const r = fail(snap, mark, null, { reason: 'no-cards' });
+    UI.feed.input(opts.input, ctx.speech);
+    UI.feed.notice(NO_CARDS);
     return r;
   }
   /* A place in town the player has not found yet (a home nobody has told
@@ -35626,6 +35806,15 @@ const Pipeline = (() => {
     }
     // A place someone named: credited to whoever the player was talking to (the bookkeeper does not say who told it).
     const by = speakerOf(ctx);
+    /* Wave 37, Creator Mode, milestone 4 (freedom): a story that makes no new
+       places (create.places off) or keeps to its listed ones (travel listed)
+       takes no place from the bookkeeper either; the drop is in the debug
+       view. */
+    const fr = freedom();
+    if (Array.isArray(clean.placesRevealed) && clean.placesRevealed.length && (fr.create.places === false || fr.travel === 'listed')) {
+      reject('placesRevealed', `ignored: this story ${fr.travel === 'listed' ? 'keeps to the places it lists' : 'makes no new places'} (freedom ${fr.preset})`);
+      delete clean.placesRevealed;
+    }
     for (const k of ['placesRevealed', 'peopleRevealed']) {
       if (Array.isArray(clean[k])) clean[k] = clean[k].map(x => (isObj(x) && by ? Object.assign({}, x, { byNpcId: by }) : x));
     }
@@ -35666,8 +35855,31 @@ const Pipeline = (() => {
       const n = State.npc(f.npcId);
       if (n) out.push(...Rel.jealousyOf(n, ctx.presentIds || []));
     }
-    for (const id of Array.isArray(r.intimate) ? r.intimate : []) out.push({ npcId: id, event: 'intimate', text: `spent the night with ${State.current.player.name}`, private: true });
+    for (const id of Array.isArray(r.intimate) ? r.intimate : []) out.push(...nightEvents(ctx, id));
     return out;
+  }
+  /* Wave 37, Creator Mode, milestone 4: the night's row as the intimacy
+     roll's tier shapes it (rollNight; no roll, or a success: the row as it
+     was). Liking, trust and spark by the event's scale; romance given
+     outright (Rel.applyEvent never scales romance, so d.m is the row's
+     times the same factor, and their romanceRate still applies). A
+     critical doubles the gains, within the turn's caps (CAPS.turn: spark
+     and romance 20 a turn at most, so a night's spark of 15 doubles to
+     20); a partial halves them; a failure gains nothing (a scale cannot be
+     0, so the gains are given as 0; what they learn of each other, the
+     row's knows, they still learn); a critical failure gains nothing and
+     leaves them a weight-2 awkward memory with a romance dip of 5 (a
+     flirted record, as a flirt's awkward critical failure is). Private,
+     as the night is. */
+  function nightEvents(ctx, id) {
+    const night = { npcId: id, event: 'intimate', text: `spent the night with ${State.current.player.name}`, private: true };
+    const tier = ctx.night ? ctx.night.tier : null;
+    const m = Rel.EVENTS.intimate.m;
+    if (tier === 'critical') return [Object.assign(night, { scale: 2, d: { m: 2 * m } })];
+    if (tier === 'partial') return [Object.assign(night, { scale: 0.5, d: { m: Math.round(m / 2) } })];
+    if (tier === 'failure') return [Object.assign(night, { d: { w: 0, t: 0, s: 0, m: 0 } })];
+    if (tier === 'critical_failure') return [Object.assign(night, { d: { w: 0, t: 0, s: 0, m: 0 } }), { npcId: id, event: 'flirted', text: 'an awkward night together', weight: 2, private: true, d: { w: 0, t: 0, s: 0, m: -5 } }];
+    return [night];
   }
   /* Wave 28: the turn's flirts when the bookkeeper did not run or failed
      (its apply carries them otherwise: ctx.flirtsDone). Wave 29: the
@@ -35701,9 +35913,11 @@ const Pipeline = (() => {
        signals) and the diminishing (diminish, giftTo). */
     const bo = isObj(ctx.bookOpts) ? ctx.bookOpts : {};
     ctx.flirtsDone = true;
-    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ctx.roll && ctx.roll.success) || !!ctx.complied, attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null, bought: !!ctx.bought, paying: !!ctx.paying, rolled: !!ctx.roll, asked: (ctx.roll && ctx.rollNpcId) || null,
+    // Wave 37, Creator Mode: the intimacy roll is no ask (askRoll), so the model's rules read the turn as they did before it rolled.
+    const ask = askRoll(ctx);
+    ctx.applied = State.apply(clean, { source: 'model', present: (ctx.presentIds || []).slice(), rollSuccess: !!(ask && ask.success) || !!ctx.complied, attacked: ctx.attacked || null, targets, actionType: (ctx.action && ctx.action.actionType) || null, bought: !!ctx.bought, paying: !!ctx.paying, rolled: !!ask, asked: (ask && ctx.rollNpcId) || null,
       engineEvents: Array.isArray(bo.engineEvents) ? bo.engineEvents : [], diminish: bo.diminish || null, giftTo: bo.giftTo || null, speechTo: isSay(ctx.speech) && ctx.speech.to !== 'everyone' ? ctx.speech.to : null, romance: ctx.romance || null,
-      narration: ctx.narration || '', backed: ctx.backed ? ctx.backed.npcId : null, rollStat: ctx.roll ? ctx.roll.stat : null, rollTier: ctx.roll ? ctx.roll.tier : null });
+      narration: ctx.narration || '', backed: ctx.backed ? ctx.backed.npcId : null, rollStat: ask ? ask.stat : null, rollTier: ask ? ask.tier : null });
     // A gift counts once it was handed over (the money or the thing went), and is no payment toward what they are owed.
     const handed = ctx.applied.applied.some(x => /^(goldDelta|itemsLost)/.test(x)) && !ctx.applied.applied.some(x => /^(paid|settled)\./.test(x));
     if (ctx.gift && handed) State.apply({ giftGiven: ctx.gift });
@@ -35777,7 +35991,7 @@ const Pipeline = (() => {
     if (Dice.SOCIAL_ACTIONS.includes(a.actionType)) for (const id of a.targets || []) if (here.includes(id) && !aimed.includes(id)) aimed.push(id);
     if (!aimed.length) return;
     // A turn that moved them, or an ask of theirs that failed (a "no" is no time together), counts no time together.
-    const refused = ctx.roll && !ctx.roll.success ? (a.targets || []) : [];
+    const refused = askRoll(ctx) && !ctx.roll.success ? (a.targets || []) : [];
     const quiet = aimed.filter(id => { const n = State.npc(id); return !n || refused.includes(id) || n.attitude !== ctx.attStart[id] || (n.memories || []).length !== (ctx.memStart || {})[id]; });
     const r = State.apply({ relTurn: { aimed, quiet } });
     if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'relTurn', reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
@@ -35924,6 +36138,8 @@ const Pipeline = (() => {
       // A place out of town is never a destination, and a place not found yet cannot be walked to: a plain line, nothing spent.
       if (!opts.fact && awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
       if (!opts.fact && unknownTarget(action)) return refuseUnknown(unknownTarget(action), opts, ctx, snap, mark);
+      // Wave 37, Creator Mode: a story without the card game (rules.gamble.enabled false) deals no hand: a plain line, nothing spent.
+      if (!opts.fact && action.actionType === 'gamble' && !gambleOn()) return refuseGamble(opts, ctx, snap, mark);
       // Step 3b. A walk and then an action there: the engine moves the player first.
       if (!opts.fact) walkFirst(ctx);
       // Step 4. Check and create (a thing looked for with a roll waits for the roll: createDeferred).
@@ -35932,6 +36148,8 @@ const Pipeline = (() => {
       if (opts.fact) return finishFact(ctx, opts, snap, mark);
       if (awayTarget(action)) return refuseAway(awayTarget(action), opts, ctx, snap, mark);
       if (unknownTarget(action)) return refuseUnknown(unknownTarget(action), opts, ctx, snap, mark);
+      if (ctx.walkRefused) return refuseWalk(ctx.walkRefused, opts, ctx, snap, mark);
+      scopeNotice(ctx);
       fleeExit(ctx);
       scene(ctx);
       // Something the action needs that the player does not carry: told to the narrator and the bookkeeper (NOT CARRIED).
@@ -35940,7 +36158,7 @@ const Pipeline = (() => {
       romanceStep(ctx);
       // Step 5. Resolve (the card game is played in code, at a table the player plays: wave 10).
       // Wave 18 (amendment 2): asking the dealer for table stakes is its own resolution (the engine's word rule, whatever the parser called it).
-      const asked = ctx.replayCards ? null : stakesAsked(ctx);
+      const asked = ctx.replayCards || !gambleOn() ? null : stakesAsked(ctx);
       // How everyone stood before the turn did anything to them (wave 27: a turn that moved someone is not also time spent with them).
       ctx.attStart = World.attitudes();
       ctx.memStart = Object.fromEntries(s.npcs.map(n => [n.id, (n.memories || []).length]));
@@ -36209,7 +36427,9 @@ const Pipeline = (() => {
     const statement = cleanText(opts.fact, 200);
     if (!ctx.created.length && !ctx.links.length) {
       const why = ctx.notPresent.some(x => x.person) ? `Nobody like that lives in ${s.meta.townName}: everyone in town is already written, so a story point can make something true about someone here, but it cannot add a person.`
-        : ctx.notPresent.some(x => x.reason === 'does_not_exist') ? `That cannot be true in ${s.meta.townName}.` : 'Nothing in that could be made true. Name a person, place or thing in town.';
+        // Wave 37, Creator Mode: what the story refused as out of scope says its own reason (scopeRefusal.on).
+        : ctx.notPresent.some(x => x.scope) ? ctx.notPresent.find(x => x.scope).scope
+          : ctx.notPresent.some(x => x.reason === 'does_not_exist') ? `That cannot be true in ${s.meta.townName}.` : 'Nothing in that could be made true. Name a person, place or thing in town.';
       return fail(snap, mark, { text: `${why} No story point was spent.` }, { reason: 'fact-refused', restoreInput: true });
     }
     const memory = `Fact (a story point): ${firstPerson(statement, p.name)}`;
@@ -36293,6 +36513,14 @@ const Pipeline = (() => {
     if (ro) return ro;
     const want = wantedOutcome(arg);
     if (String(arg || '').trim() && want === null) { UI.feed.notice('Say which outcome: success, partial, fail, crit, fumble, or a number from 1 to 20.'); return { ok: false, reason: 'usage', restoreInput: true }; }
+    /* Wave 37, Creator Mode, milestone 4: in a story without criticals
+       (rules.crits false) a forced critical or fumble is refused and nothing
+       is armed, rather than quietly read as whatever its die totals; a
+       forced number is still a die. */
+    if (want !== null && !Number.isInteger(want) && /^critical/.test(TIER_ALIASES[want]) && Pack.get('rules.crits') === false) {
+      UI.feed.notice('This story has no critical rolls.');
+      return { ok: false, reason: 'no-crits', restoreInput: true };
+    }
     const s = State.current;
     const entry = s && s.log.length ? s.log[s.log.length - 1] : null;
     const last = lastTurn;
@@ -36407,6 +36635,11 @@ const Pipeline = (() => {
      card): refused at no cost, with what /fact is for. */
   const NOT_A_FACT = /^(?:how|what|why|when|where|who|whom|which|can|could|should|would|is|are|am|do|does|did|will|tell me|any way|anyway)\b|\?\s*$/i;
   function fact(statement) {
+    // Wave 37, Creator Mode, milestone 4: a story may have no facts to buy (rules.storyPoints.factAllowed false); nothing is spent.
+    if (Pack.get('rules.storyPoints.factAllowed') === false) {
+      UI.feed.notice('This story has no story points to spend.');
+      return { ok: false, reason: 'no-facts', restoreInput: true };
+    }
     if (State.current.player.storyPoints < 1) {
       UI.feed.notice('You have no story points to spend. You earn them when a thread is resolved or on a natural 20.');
       return { ok: false, reason: 'no-points', restoreInput: true };
@@ -36487,6 +36720,15 @@ const Pipeline = (() => {
     if (g.location && g.location.id === s.player.locationId && (!g.phase || g.phase === s.time.phase)) {
       UI.feed.notice(`You are already at ${placeName(g.location)}.`);
       return { ok: false, reason: 'already-there' };
+    }
+    /* Wave 37, Creator Mode, milestone 4 (freedom.skipAnywhere): /skip finds
+       only places the player knows, so a story that keeps the player on
+       foot (rails) refuses any skip that would carry them to another place,
+       in its own words when it refuses out of scope; a skip in time where
+       they stand still works. */
+    if (g.location && g.location.id !== s.player.locationId && freedom().skipAnywhere === false) {
+      UI.feed.notice(scopeOf().scope || 'In this story you get there on foot: /skip only passes time where you are.');
+      return { ok: false, reason: 'no-skip', restoreInput: true };
     }
     // The day the player gets there (a phase past night is tomorrow): a place shut that day (closed, closed on that weekday, or barred to them) is a shut door, as for a walk (shutReason).
     const steps = g.phase ? phaseSteps(g.phase) : 0;
@@ -37135,7 +37377,9 @@ const Pipeline = (() => {
     /* /rewind (wave 16): the turn /reroll would replay is struck from the story. */
     forgetLastTurn() { lastTurn = null; },
     // Wave 37, Creator Mode: the author's directions in the packet (tests, the editor's preview).
-    directionLines, directionText, ENGINE_TRAILER, DIRECTION_SITUATIONS: Object.freeze(SITUATIONS.map(x => x[0]))
+    directionLines, directionText, ENGINE_TRAILER, DIRECTION_SITUATIONS: Object.freeze(SITUATIONS.map(x => x[0])),
+    // Wave 37, Creator Mode, milestone 4: the rules and freedom dials Pipeline reads (tests, the editor's preview).
+    rollRules, createGate, steerLine, nightEvents, gambleStake, skipGoal, NIGHT_OUTCOME, NO_CARDS
   };
 })();
 

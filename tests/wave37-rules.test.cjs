@@ -287,7 +287,8 @@ s.test('rules.romance.gates.trust 10 opens the night at trust 10: Jodie at spark
   assert.deepEqual(r.gate, [true, []]);
   assert.deepEqual(r.G, { spark: 50, romance: 40, trust: 10, knows: 30 }, 'Rel.GATES.intimate is the live row');
   assert.deepEqual(r.live, r.G);
-  assert.equal(r.said.roll, null, 'a yes rolls nothing (the intimacy roll is task M4-B\'s)');
+  // Wave 37, task M4-B: a yes rolls the intimacy roll (charm at normal by default; its tier from the seeded die).
+  assert.deepEqual(r.said.roll.slice(0, 2), ['charm', 'normal'], 'a yes rolls the intimacy roll');
   assert.ok(r.said.rom.some(l => /says yes/.test(l)), JSON.stringify(r.said.rom));
 });
 
