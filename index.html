@@ -1614,6 +1614,54 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-story > .cr-entity { margin: 0 0 8px; }
 .cr-price { color: var(--accent); }
 .cr-phases .cr-field { margin: 4px 0 0; }
+/* The Rules and Freedom tabs (wave 37, Creator Mode, task M6-B; plan decision L). A switch row: the words, then a
+   switch drawn on the checkbox at the row's end (the whole row is the 44px label, so the tap lands anywhere on it);
+   a dial the preset sets is muted until the story sets it itself, and then carries the override chip. The preset is
+   three cards to tap (one column on a phone, three from 700px), the chosen one in the accent. Typed rows (a lie
+   floor, a time cost) reuse cr-maprow; the row that adds one has its Add button at its natural width. cr-pair (two
+   numbers side by side) is the Player tab's, reused as it is. */
+.cr-switch-row .check { justify-content: space-between; gap: 12px; }
+.cr-switch-text { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; overflow-wrap: anywhere; }
+.cr-switch-row input[type="checkbox"] {
+  -webkit-appearance: none; appearance: none; position: relative; flex: none; width: 48px; height: 28px; margin: 0;
+  border: 1px solid var(--field); border-radius: 14px; background: var(--surface-2); cursor: pointer; transition: background-color .15s ease, border-color .15s ease;
+}
+.cr-switch-row input[type="checkbox"]::before {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s ease, background-color .15s ease;
+}
+.cr-switch-row input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); }
+.cr-switch-row input[type="checkbox"]:checked::before { transform: translateX(20px); background: var(--accent-ink); }
+.cr-switch-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cr-switch-row input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
+.cr-switch-row[data-layer="preset"] .cr-switch-text, .cr-switch-row[data-layer="engine"] .cr-switch-text { color: var(--muted); }
+.cr-field[data-layer="preset"] select.input { color: var(--muted); }
+.cr-override {
+  display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 11px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+  font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: .02em; line-height: 1.2; text-transform: none; white-space: nowrap;
+}
+.cr-field > .label .cr-override { margin-left: 8px; vertical-align: 1px; }
+.cr-radio-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 12px 0 0; }
+.cr-radio-card {
+  display: flex; align-items: flex-start; gap: 12px; min-height: var(--tap); min-width: 0; padding: 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); cursor: pointer; transition: border-color .15s ease, background-color .15s ease;
+}
+.cr-radio-card:hover { border-color: var(--field); }
+.cr-radio-card[data-on="1"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
+.cr-radio-card:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cr-radio-card input[type="radio"] { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
+.cr-radio-body { display: grid; gap: 4px; min-width: 0; }
+.cr-radio-name { font-family: var(--read-font); font-size: 18px; font-weight: 600; line-height: 1.25; }
+.cr-radio-desc { font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+@media (min-width: 700px) { .cr-radio-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cr-maphead { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+.cr-maprow-key { align-self: center; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.cr-addrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 4px 0 12px; min-width: 0; }
+.cr-addrow > .btn { min-width: var(--tap); }
+/* The romance gates two by two, as the difficulty numbers' card (cr-quad there is a section; here it is a sub-card). */
+.cr-sub.cr-quad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
+.cr-sub.cr-quad > .cr-sub-title, .cr-sub.cr-quad > .cr-note { grid-column: 1 / -1; }
 
 /* ===== Layout switches ===== */
 @media (min-width: 900px) {
@@ -47865,17 +47913,475 @@ const Creator = (() => {
   })();
 
   // ----- Creator: Rules -----
-  // (milestone 6, task M6-B)
+  /* The Rules tab (wave 37, Creator Mode, milestone 6, task M6-B; plan
+     "Pack format v1", the rules block, and milestone 4, what each dial
+     does): every number the engine decides by that a story may set,
+     grouped in cards, each with one line on what the engine does with it,
+     taken from milestone 4's readers (Dice, Rel, World, Pipeline,
+     Commands), not from hopes. Every control carries its data-path and
+     writes through Editor.set, so each change is one Undo and check() puts
+     the validator's words under the field. A field left empty takes its
+     key away and the engine's default applies: the default
+     (Pack.DEFAULTS at that path) is the placeholder, or a select's blank
+     choice, so the author sees what "empty" means. A switch has no empty
+     state, so it shows the pack's value or the default and writes what is
+     ticked. The lists the engine reads whole (floors.lie, time.costs) are
+     typed rows with Add and Remove; a row changed on the default list
+     makes the whole list the story's own, because a pack's array replaces
+     the default's wholesale (decision D). The small builders (num, toggle,
+     pick, chips) are returned for the Freedom tab below; nothing here is
+     exported from Creator. */
   const Rules = (() => {
-    function render() { return comingSoon('Rules'); }
-    return { render };
+    const arrOf = v => (Array.isArray(v) ? v : []);
+    const objOf = v => (isObj(v) ? v : {});
+    const has = v => v !== undefined && v !== null;
+    // The engine's value at a path: what an empty field means.
+    const dflt = path => getAt(Pack.DEFAULTS, path);
+    const write = (p, v) => set(p, v);
+    const sel = p => `[data-path="${CSS.escape(p)}"]`;
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    // An error slot check() fills (showProblems anchors a problem at the longest path that has a control and a slot).
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+    const helpOf = (id, text) => (text ? el('p', { class: 'cr-note', id: id + '-help' }, text) : null);
+    const described = (id, text) => [text ? id + '-help' : null, id + '-err'].filter(Boolean).join(' ');
+    function field(path, type, kids, o) {
+      return el('div', { class: 'cr-field' + (o && o.cls ? ' ' + o.cls : ''), dataset: Object.assign({ field: path, type }, o && o.data) }, kids);
+    }
+    function labelEl(id, text, badge) { return el('label', { class: 'label', for: id, id: id + '-label' }, text, badge || null); }
+    function card(title, note, kids, path) {
+      return el('section', { class: 'cr-section', dataset: { section: path } },
+        el('h2', { class: 'cr-section-title' }, title),
+        note ? el('p', { class: 'cr-note' }, note) : null,
+        kids);
+    }
+    function sub(title, note, kids, cls, path) {
+      return el('div', { class: 'cr-sub' + (cls ? ' ' + cls : ''), dataset: path ? { path } : null },
+        el('h3', { class: 'cr-sub-title' }, title),
+        note ? el('p', { class: 'cr-note' }, note) : null,
+        kids);
+    }
+    /* A whole or decimal number. Empty takes the key away (the placeholder, the default, applies); the type=number
+       control gives the number as typed, so 12.5 for a whole-number field reaches the validator and is named. */
+    function num(d, path, label, o) {
+      const opt = o || {};
+      const id = Form.domId(path);
+      const int = opt.int !== false;
+      const v = getAt(d, path);
+      const ph = has(opt.placeholder) ? opt.placeholder : dflt(path);
+      const ctl = el('input', {
+        class: 'input', type: 'number', id, inputmode: opt.negative ? null : int ? 'numeric' : 'decimal', step: int ? '1' : 'any',
+        min: has(opt.min) ? opt.min : null, max: has(opt.max) ? opt.max : null, value: typeof v === 'number' ? String(v) : '',
+        placeholder: has(ph) ? String(ph) : null, autocomplete: 'off', 'aria-describedby': described(id, opt.help), dataset: { path },
+        onchange: () => { const raw = ctl.value.trim(); (opt.onChange || write)(path, raw === '' ? undefined : Number(raw)); }
+      });
+      return field(path, int ? 'int' : 'number', [labelEl(id, label, opt.badge), ctl, helpOf(id, opt.help), slot(path)], opt.field);
+    }
+    /* A switch: the text, then the switch at the row's end. It shows opt.value when given (Freedom's effective dial),
+       else the pack's value, else the default. */
+    function toggle(d, path, label, o) {
+      const opt = o || {};
+      const id = Form.domId(path);
+      const own = getAt(d, path);
+      const now = has(opt.value) ? opt.value === true : typeof own === 'boolean' ? own : dflt(path) === true;
+      const box = el('input', {
+        type: 'checkbox', role: 'switch', id, checked: now, disabled: opt.disabled ? true : null, 'aria-describedby': described(id, opt.help), dataset: { path },
+        onchange: () => (opt.onChange || write)(path, box.checked)
+      });
+      const f = opt.field || {};
+      return field(path, 'bool', [el('label', { class: 'check', id: id + '-label' }, el('span', { class: 'cr-switch-text' }, label, opt.badge || null), box), helpOf(id, opt.help), slot(path)],
+        { cls: 'cr-switch-row' + (f.cls ? ' ' + f.cls : ''), data: f.data });
+    }
+    /* A select of choices ({ value, text }); its blank choice names the default ("Default: hard (15)") and takes the key away. */
+    function pick(d, path, label, choices, o) {
+      const opt = o || {};
+      const id = Form.domId(path);
+      const v = getAt(d, path);
+      const now = has(v) ? String(v) : '';
+      const textOf = x => { const c = choices.find(y => y.value === x); return c ? c.text : String(x); };
+      const opts = [el('option', { value: '', selected: now === '' }, has(opt.blank) ? opt.blank : `Default: ${textOf(dflt(path))}`)];
+      for (const c of choices) opts.push(el('option', { value: c.value, selected: c.value === now, dataset: c.dc ? { dc: c.dc } : null }, c.text));
+      if (now !== '' && !choices.some(c => c.value === now)) opts.push(el('option', { value: now, selected: true }, `${now} (not found)`));
+      const ctl = el('select', { class: 'input', id, 'aria-describedby': described(id, opt.help), dataset: { path }, onchange: () => (opt.onChange || write)(path, ctl.value === '' ? undefined : ctl.value) }, opts);
+      return field(path, 'enum', [labelEl(id, label, opt.badge), ctl, helpOf(id, opt.help), slot(path)], opt.field);
+    }
+    /* A list of values as chips (Creator.Form's chips: a select of what is left for an enum, else a field and Add).
+       The last chip removed takes the key away, so the default (an empty list) applies. */
+    function chips(d, path, label, of, help) {
+      return Form.render({ type: 'list', label, help, of }, getAt(d, path), path, (p, v) => write(p, Array.isArray(v) && !v.length ? undefined : v));
+    }
+    // A difficulty by its word and the story's number for it: "very hard (18)".
+    function dcOf(d, k) { const v = getAt(d, `rules.dcs.${k}`); return Number.isInteger(v) ? v : dflt(`rules.dcs.${k}`); }
+    const diffChoices = d => DIFFICULTIES.map(k => ({ value: k, text: `${k.replace('_', ' ')} (${dcOf(d, k)})`, dc: k }));
+    // A difficulty number changed: every difficulty choice on the tab says the new number at once (no redraw, so the focus stays where it went).
+    function dcWrite(p, v) {
+      write(p, v);
+      const body = node('creator-body');
+      for (const o of body.querySelectorAll('option[data-dc]')) o.textContent = `${o.dataset.dc.replace('_', ' ')} (${dcOf(state.draft, o.dataset.dc)})`;
+    }
+    // The story's money, from its own world.currency: its name for a label, an amount as the game shows it.
+    function moneyOf(d) {
+      const c = objOf(getAt(d, 'world.currency'));
+      const name = typeof c.name === 'string' && c.name.trim() ? c.name.trim() : 'gold';
+      const sym = typeof c.symbol === 'string' ? c.symbol : '';
+      return { name, show: n => (sym ? (c.before === false ? `${n} ${sym}` : `${sym}${n}`) : `${n} gold`) };
+    }
+    // The four stats by the story's own names (player.stats[k].label), the key beside a name that is not the key.
+    function statChoices(d) {
+      return STATS.map(k => {
+        const raw = getAt(d, `player.stats.${k}.label`);
+        const name = typeof raw === 'string' && raw.trim() ? raw.trim() : capFirst(k);
+        return { value: k, text: name.toLowerCase() === k ? name : `${name} (${k})` };
+      });
+    }
+    const actionTypes = () => (Array.isArray(Api.PARSE_TYPES) ? Api.PARSE_TYPES : ACTION_TYPES);
+
+    // ----- the cards, in their order -----
+    function rollsCard(d) {
+      const A = { type: 'enum', enum: actionTypes().slice(), label: 'Action' };
+      return card('When to roll', 'Over the parser\'s own call: an action of a type under Always rolls (wits at normal when the parser named neither), one under Never rolls nothing; a phrase matches anywhere in what the player typed, in any case. A never wins over an always. The engine\'s own rolls still happen: a search for something not here, a fight, a flirt.', [
+        chips(d, 'rules.rolls.always', 'Always roll', A, 'The parser\'s action types; pick one to add it.'),
+        chips(d, 'rules.rolls.never', 'Never roll', A, 'The parser\'s action types; pick one to add it.'),
+        chips(d, 'rules.rolls.alwaysPhrases', 'Always roll on', { type: 'string', label: 'Phrase', max: 120 }, 'Words that make a turn roll, such as "pick the lock".'),
+        chips(d, 'rules.rolls.neverPhrases', 'Never roll on', { type: 'string', label: 'Phrase', max: 120 }, 'Words that keep a turn from rolling, such as "say hello".')
+      ], 'rules.rolls');
+    }
+    function dcsCard(d) {
+      const names = { easy: 'Easy', normal: 'Normal', hard: 'Hard', very_hard: 'Very hard' };
+      const sec = card('Difficulty numbers', 'What the d20 plus the stat must reach at each difficulty. Every roll reads these, and the parser\'s prompt shows each number beside its word, so it rates actions against this story\'s scale.',
+        DIFFICULTIES.map(k => num(d, `rules.dcs.${k}`, names[k], { onChange: dcWrite })), 'rules.dcs');
+      sec.classList.add('cr-quad');
+      return sec;
+    }
+    /* floors.lie: [trust at or below, difficulty] rows (Rel.difficultyFloor reads the player's trust with that person;
+       the hardest row that matches counts). */
+    function lieRows(d) {
+      const p = 'rules.floors.lie';
+      const own = getAt(d, p);
+      const mine = Array.isArray(own);
+      const rows = mine ? own : arrOf(dflt(p));
+      const current = () => { const v = getAt(state.draft, p); return (Array.isArray(v) ? v : arrOf(dflt(p))).map(r => (Array.isArray(r) ? r.slice() : r)); };
+      const addId = Form.domId(p) + '-add';
+      const errId = Form.domId(p) + '-err';
+      const row = (r, i) => {
+        const pair = Array.isArray(r) ? r : [];
+        const ip = `${p}[${i}]`;
+        const t = el('input', {
+          class: 'input', type: 'number', step: '1', max: '0', id: Form.domId(ip) + '-t', value: Number.isInteger(pair[0]) ? String(pair[0]) : '', autocomplete: 'off',
+          'aria-label': `Trust at or below, row ${i + 1}`, 'aria-describedby': errId, dataset: { path: ip + '[0]' },
+          onchange: () => {
+            const raw = t.value.trim();
+            if (raw === '' || !Number.isFinite(Number(raw))) { t.value = Number.isInteger(pair[0]) ? String(pair[0]) : ''; return; }
+            const next = current();
+            next[i] = [Number(raw), pair[1]];
+            write(p, next);
+          }
+        });
+        const dsel = el('select', {
+          class: 'input', id: Form.domId(ip) + '-d', 'aria-label': `At least, row ${i + 1}`, 'aria-describedby': errId, dataset: { path: ip + '[1]' },
+          onchange: () => { const next = current(); next[i] = [pair[0], dsel.value]; write(p, next); }
+        }, diffChoices(d).map(c => el('option', { value: c.value, selected: c.value === pair[1], dataset: { dc: c.dc } }, c.text)),
+        typeof pair[1] === 'string' && !DIFFICULTIES.includes(pair[1]) ? el('option', { value: pair[1], selected: true }, `${pair[1]} (not found)`) : null);
+        return el('div', { class: 'cr-maprow', dataset: { index: String(i) } }, t, dsel,
+          el('button', { type: 'button', class: 'cr-chip-x cr-fx-x', 'aria-label': `Remove row ${i + 1}`, dataset: { action: 'remove-lie', index: String(i) }, onclick: () => { const next = current(); next.splice(i, 1); write(p, next); redraw('#' + addId); } }, '×'));
+      };
+      const at = el('input', { class: 'input', type: 'number', step: '1', max: '0', id: addId, placeholder: '-30', autocomplete: 'off', 'aria-label': 'Trust at or below, new row' });
+      const ad = el('select', { class: 'input', id: addId + '-d', 'aria-label': 'At least, new row' }, diffChoices(d).map(c => el('option', { value: c.value, selected: c.value === 'hard', dataset: { dc: c.dc } }, c.text)));
+      const add = () => {
+        const raw = at.value.trim();
+        const n = Number(raw);
+        if (raw === '' || !Number.isInteger(n) || n > 0) { at.focus(); return; }
+        write(p, current().concat([[n, ad.value]]));
+        redraw('#' + addId);
+      };
+      at.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+      return sub('Lying', `A lie to someone whose trust in the player is at or below a row's number is at least that hard; the hardest row that matches counts. ${mine ? 'This story\'s own rows.' : 'The engine\'s rows: changing, adding or removing one makes the list this story\'s own.'}`, [
+        el('div', { class: 'cr-maprows', dataset: { path: p } },
+          el('div', { class: 'cr-maprow cr-maphead', 'aria-hidden': 'true' }, el('span', null, 'Trust at or below'), el('span', null, 'At least')),
+          rows.map(row)),
+        el('div', { class: 'cr-addrow', dataset: { action: 'add-lie-row' } }, at, ad, el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-lie' }, onclick: add }, 'Add')),
+        mine ? el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'lie-default' }, onclick: () => { write(p, undefined); redraw('[data-action="add-lie"]'); } }, 'Use the default') : null,
+        slot(p)
+      ], null, null);
+    }
+    function floorsCard(d) {
+      return card('Floors', 'The least a roll can be with one person, however the parser rated it.', [
+        pick(d, 'rules.floors.ask', 'Asking', diffChoices(d), { help: 'An ask (talk, persuade, buy, sell, give) of someone who dislikes or hates the player.' }),
+        pick(d, 'rules.floors.intimidateHard', 'Intimidating the hard', diffChoices(d), { help: 'Frightening someone who is hard by nature.' }),
+        lieRows(d)
+      ], 'rules.floors');
+    }
+    /* hp.damage.failure: the least and the most a failed fight costs, written as the one pair; an emptied number takes
+       its default, both emptied take the key away. */
+    function failurePair(d) {
+      const p = 'rules.hp.damage.failure';
+      const own = getAt(d, p);
+      const def = arrOf(dflt(p));
+      const id = Form.domId(p);
+      const inputs = [];
+      const num2 = (i, label) => {
+        const inp = el('input', {
+          class: 'input', type: 'number', inputmode: 'numeric', step: '1', min: '0', id: `${id}-${i}`, autocomplete: 'off',
+          value: Array.isArray(own) && typeof own[i] === 'number' ? String(own[i]) : '', placeholder: String(def[i]), 'aria-describedby': `${id}-err`, dataset: { path: `${p}[${i}]` },
+          onchange: () => {
+            const raw = inputs.map(x => x.value.trim());
+            write(p, raw.every(x => x === '') ? undefined : raw.map((x, k) => (x === '' ? def[k] : Number(x))));
+          }
+        });
+        inputs.push(inp);
+        return el('div', { class: 'cr-field' }, el('label', { class: 'label', for: inp.id }, label), inp);
+      };
+      return el('div', { class: 'cr-sub cr-pair', dataset: { path: p } },
+        el('h3', { class: 'cr-sub-title' }, 'A failed fight'),
+        el('p', { class: 'cr-note' }, 'Costs a number of health from the least to the most, drawn each time.'),
+        num2(0, 'Least'), num2(1, 'Most'), slot(p));
+    }
+    function healthCard(d) {
+      return card('Health', 'How much health a character has and what a fight costs.', [
+        el('div', { class: 'cr-pair' },
+          num(d, 'rules.hp.start', 'Start', { min: 1 }),
+          num(d, 'rules.hp.max', 'Most', { min: 1 }),
+          el('p', { class: 'cr-note' }, 'Start is a new character\'s health when the Player tab\'s At the start leaves it empty (the built-in story sets 10 there); never above Most.')),
+        failurePair(d),
+        el('div', { class: 'cr-pair' },
+          num(d, 'rules.hp.damage.partial', 'A partial', { min: 0 }),
+          num(d, 'rules.hp.damage.critical_failure', 'A critical failure', { min: 0 }),
+          el('p', { class: 'cr-note' }, 'What a fight that half works, and one that goes badly wrong, costs.')),
+        toggle(d, 'rules.crits', 'Criticals', { help: 'On: a natural 20 is a critical and a natural 1 a critical failure. Off: no roll is ever critical.' })
+      ], 'rules.hp');
+    }
+    function dyingCard(d) {
+      return card('Dying and dice', 'Players may change these per story in Settings; this is where the story starts them.', [
+        toggle(d, 'rules.permadeath', 'Permadeath', { help: 'When the player dies the game ends, with no way back.' }),
+        toggle(d, 'rules.showRolls', 'Show dice rolls', { help: 'Each roll\'s line (the die, the stat, the number it needed) shows in the story.' })
+      ], 'rules.permadeath');
+    }
+    function pointsCard(d) {
+      const noFacts = typeof Pipeline.NO_FACTS === 'string' ? Pipeline.NO_FACTS : 'This story has no story points to spend.';
+      return card('Story points', 'Points the player spends on /fact to make a small thing true about the world.', [
+        el('div', { class: 'cr-pair' },
+          num(d, 'rules.storyPoints.start', 'Start', { min: 0 }),
+          num(d, 'rules.storyPoints.max', 'Most', { min: 0 }),
+          el('p', { class: 'cr-note' }, 'Start is what a new character has when the Player tab\'s At the start leaves it empty; Most is the most they can hold.')),
+        toggle(d, 'rules.storyPoints.factAllowed', '/fact allowed', { help: `Off: /fact leaves the command list, and typing it answers "${noFacts}"` })
+      ], 'rules.storyPoints');
+    }
+    // time.costs: one row an action, its cost a select; Add takes an action not listed yet.
+    function costRows(d) {
+      const p = 'rules.time.costs';
+      const own = objOf(getAt(d, p));
+      const keys = Object.keys(own);
+      const addId = Form.domId(p) + '-add';
+      const costOpts = now => TIME_COSTS.map(c => el('option', { value: c, selected: c === now }, c));
+      const put = next => write(p, Object.keys(next).length ? next : undefined);
+      const rows = keys.map(k => {
+        const kp = `${p}.${k}`;
+        const s = el('select', { class: 'input', id: Form.domId(kp), 'aria-label': `Time cost of ${k}`, 'aria-describedby': Form.domId(kp) + '-err', dataset: { path: kp },
+          onchange: () => write(kp, s.value) }, costOpts(own[k]), TIME_COSTS.includes(own[k]) ? null : el('option', { value: String(own[k]), selected: true }, `${own[k]} (not found)`));
+        return el('div', { class: 'cr-maprow', dataset: { key: k } },
+          el('span', { class: 'cr-maprow-key cr-mono' }, k), s,
+          el('button', { type: 'button', class: 'cr-chip-x cr-fx-x', 'aria-label': `Remove ${k}`, dataset: { action: 'remove-cost', key: k }, onclick: () => { const next = Object.assign({}, objOf(getAt(state.draft, p))); delete next[k]; put(next); redraw('#' + addId); } }, '×'),
+          slot(kp));
+      });
+      const left = actionTypes().filter(a => !keys.includes(a));
+      const aSel = el('select', { class: 'input', id: addId, 'aria-label': 'Action', disabled: !left.length }, left.length ? left.map(a => el('option', { value: a }, a)) : el('option', { value: '' }, 'Every action is listed'));
+      const cSel = el('select', { class: 'input', id: addId + '-cost', 'aria-label': 'Its cost', disabled: !left.length }, costOpts('instant'));
+      const add = () => { if (!aSel.value) return; put(Object.assign({}, objOf(getAt(state.draft, p)), { [aSel.value]: cSel.value })); redraw('#' + addId); };
+      return sub('Costs', 'An action listed here costs this much time: instant, short (part of a phase), long (an hour or more) or rest (until morning). An action not listed keeps the engine\'s cost. This version of the game does not read the list yet, so every action keeps the engine\'s cost; the list waits in the story for the version that does.', [
+        el('div', { class: 'cr-maprows', dataset: { path: p } },
+          keys.length ? el('div', { class: 'cr-maprow cr-maphead', 'aria-hidden': 'true' }, el('span', null, 'Action'), el('span', null, 'Cost')) : el('p', { class: 'cr-note' }, 'None listed: every action keeps the engine\'s cost.'),
+          rows),
+        el('div', { class: 'cr-addrow', dataset: { action: 'add-cost-row' } }, aSel, cSel, el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-cost' }, disabled: !left.length, onclick: add }, 'Add')),
+        slot(p)
+      ], null, null);
+    }
+    function timeCard(d) {
+      return card('Time', 'How the clock moves. A day has four phases: morning, afternoon, evening and night.', [
+        num(d, 'rules.time.shortsPerPhase', 'Short actions a phase', { min: 1, help: 'Short actions (a walk across town, a search, a chore) before the phase turns.' }),
+        costRows(d)
+      ], 'rules.time');
+    }
+    function pricesCard(d) {
+      return card('Prices', 'What things cost in this story.', [
+        num(d, 'rules.prices.factor', 'Price factor', { int: false, min: 0, help: 'Every listed price times this; 1 is the price as written. This version of the game does not apply it yet: prices change only with the town\'s own events.' })
+      ], 'rules.prices');
+    }
+    function lawCard(d) {
+      const m = moneyOf(d);
+      const money = (path, label) => num(d, path, `${label}, in ${m.name}`, { min: 0, help: `${path.endsWith('roughFine') ? 'What it costs the next time the police find them sleeping there' : 'What an arrest costs, or what the player has if it is less'}; shown as ${m.show(has(getAt(d, path)) ? getAt(d, path) : dflt(path))}.` });
+      return card('The law', 'Arrests and sleeping rough. The police are the World tab\'s law faction, and their chief does the talking.', [
+        money('rules.law.fine', 'Arrest fine'),
+        toggle(d, 'rules.law.roughSleeping', 'Sleeping rough is noticed', { help: 'On: nights slept in a public place are counted and the police chief comes by. Off: nobody minds where the player sleeps.' }),
+        num(d, 'rules.law.roughNights', 'Nights before a warning', { min: 1, help: 'Nights in a row at the same public place before the chief tells the player to move along.' }),
+        money('rules.law.roughFine', 'Sleeping rough fine'),
+        num(d, 'rules.law.roughForgiven', 'Forgiven after', { min: 0, help: 'Clear nights after which the next time is a warning again.' })
+      ], 'rules.law');
+    }
+    function cheatsCard(d) {
+      return card('Cheats and undo', 'Off takes the commands out of the list, and typing one answers "Not in this story." A player can still tick "Allow cheats anyway" in Settings for this story, and developer mode always has them.', [
+        toggle(d, 'rules.cheats.allowed', 'Cheats', { help: '/cheat and /reroll.' }),
+        toggle(d, 'rules.cheats.debugView', 'Debug view', { help: '/debug, the turn\'s workings.' }),
+        toggle(d, 'rules.undo', 'Undo', { help: '/undo, /redo and /rewind.' })
+      ], 'rules.cheats');
+    }
+    function romanceCard(d) {
+      const gates = sub('Gates', 'A night together needs each of these at least, between the player and that person.',
+        [['spark', 'Spark'], ['romance', 'Romance'], ['trust', 'Trust'], ['knows', 'Knows you']].map(([k, label]) => num(d, `rules.romance.gates.${k}`, label)), 'cr-quad', 'rules.romance.gates');
+      const defaults = sub('For anyone not listed', 'For a person not on the World tab\'s romance list: how fast spark grows (1 is the usual pace), how well they must know the player before a flirt can work, and how hard a flirt is.', [
+        num(d, 'rules.romance.defaults.sparkRate', 'Spark rate', { int: false, min: 0 }),
+        num(d, 'rules.romance.defaults.opensAt', 'Opens at (knows you)', { min: 0 }),
+        pick(d, 'rules.romance.defaults.difficulty', 'Flirt difficulty', diffChoices(d))
+      ], null, 'rules.romance.defaults');
+      const roll = sub('Intimacy roll', 'When every gate holds and the answer is yes, the turn rolls this stat at this difficulty. The yes stands whatever the die says; the roll shapes the night: a critical is unforgettable and doubles the gain, a success is the usual night, a partial is warm but a little awkward with half the gain, a failure does not quite land and gains nothing, and a critical failure is awkward for both and leaves a memory of it.', [
+        toggle(d, 'rules.romance.intimacyRoll.enabled', 'Roll for the night'),
+        pick(d, 'rules.romance.intimacyRoll.stat', 'Stat', statChoices(d), { help: 'By the names on the Player tab\'s Stats card.' }),
+        pick(d, 'rules.romance.intimacyRoll.difficulty', 'Difficulty', diffChoices(d))
+      ], null, 'rules.romance.intimacyRoll');
+      return card('Romance', 'Whether people can be won over, and what a night together needs. Whatever the story says, nobody under 18 is ever eligible, and nor is a player under 18.', [
+        toggle(d, 'rules.romance.enabled', 'Romance', { help: 'Off: nobody in this story can be won over.' }),
+        gates, defaults, roll
+      ], 'rules.romance');
+    }
+    function cardsCard(d) {
+      const m = moneyOf(d);
+      const stake = getAt(d, 'rules.gamble.stake');
+      return card('Cards', 'Five-card draw at the table of the person tagged cards in the World tab.', [
+        toggle(d, 'rules.gamble.enabled', 'Card game', { help: 'Off: there is no card game in this story.' }),
+        num(d, 'rules.gamble.stake', `Stake, in ${m.name}`, { min: 0, help: `What a hand costs to play; shown as ${m.show(typeof stake === 'number' ? stake : dflt('rules.gamble.stake'))}.` })
+      ], 'rules.gamble');
+    }
+    function narrationCard(d) {
+      return card('Narration', 'How much the world does in one turn.', [
+        num(d, 'rules.narration.maxDue', 'Due events a turn tells', { min: 1, help: 'The most due events (a visitor arriving, news, a seed coming due) one narration tells; the rest wait for the next turn.' })
+      ], 'rules.narration');
+    }
+    function render(d) {
+      return [rollsCard(d), dcsCard(d), floorsCard(d), healthCard(d), dyingCard(d), pointsCard(d), timeCard(d), pricesCard(d), lawCard(d), cheatsCard(d), romanceCard(d), cardsCard(d), narrationCard(d)];
+    }
+    return { render, num, toggle, pick, card, sub, slot, redraw, sel };
   })();
 
   // ----- Creator: Freedom -----
-  // (milestone 6, task M6-B)
+  /* The Freedom tab (wave 37, Creator Mode, milestone 6, task M6-B; plan
+     milestone 4, the freedom dials): the preset as three cards to tap
+     (each described from what FREEDOM_PRESETS sets, so the words cannot
+     drift from the engine), then the dials. Pack.freedom(draft) is what
+     the engine will play: the preset sets every dial, a dial the pack
+     writes itself wins, the engine defaults fill the rest. So each dial
+     shows that effective value, muted with "the preset's" when the pack
+     leaves it to the preset, and a chip "overrides the preset" beside a
+     dial the pack sets (only the dials a preset sets; perGame and the
+     reason are the engine's defaults, shown as placeholders). Follow the
+     preset takes the pack's own dials away in one Editor.set (one Undo).
+     create.people is shown off and disabled: the engine has no person
+     maker in v1 (Pack.freedom forces it false). A change here draws the
+     tab again, since one choice moves several effective values. */
   const Freedom = (() => {
-    function render() { return comingSoon('Freedom'); }
-    return { render };
+    const PRESET_DIALS = Object.freeze(['create.places', 'create.things', 'travel', 'steer', 'scopeRefusal.on', 'skipAnywhere']);
+    const NAMES = Object.freeze({ sandbox: 'Sandbox', guided: 'Guided', rails: 'On rails' });
+    const TRAVEL = Object.freeze({ anywhere: 'to any place, even one the story has just named', known: 'only to places the player has heard of', listed: 'only to the story\'s own places, and the story may not reveal new ones' });
+    const STEER = Object.freeze({ none: 'nothing steers the scene', nudge: 'an open thread the player knows may surface if the scene allows', steer: 'the scene is brought toward an open thread the player knows' });
+    const P = 'freedom';
+    // What a preset sets, in words, from its FREEDOM_PRESETS row.
+    function describe(row) {
+      const c = row.create || {};
+      const made = c.places && c.things ? 'The story may add places and things' : c.places ? 'The story may add places, not things' : c.things ? 'The story may add things, not places' : 'Nothing new is added';
+      const parts = [made, `travel goes ${TRAVEL[row.travel] || row.travel}`, STEER[row.steer] || row.steer];
+      if (row.scopeRefusal && row.scopeRefusal.on) parts.push('an action outside the story is refused');
+      parts.push(row.skipAnywhere === false ? '/skip only passes time' : '/skip goes anywhere known');
+      return parts.join('; ') + '.';
+    }
+    const ownAt = (d, k) => getAt(d, `${P}.${k}`);
+    const owns = (d, k) => ownAt(d, k) !== undefined;
+    const chip = () => el('span', { class: 'cr-override' }, 'overrides the preset');
+    const layerOf = (d, k) => (owns(d, k) ? 'pack' : 'preset');
+    // A dial's change: written, then the tab drawn again (the chip and the effective values move), the focus kept.
+    const dialWrite = (p, v) => { set(p, v); Rules.redraw(Rules.sel(p)); };
+    function presetCards(d, eff) {
+      const own = ownAt(d, 'preset');
+      const id = Form.domId(`${P}.preset`);
+      const cards = Object.keys(Pack.FREEDOM_PRESETS).map(k => {
+        const on = eff.preset === k;
+        const r = el('input', { type: 'radio', name: 'cr-freedom-preset', value: k, id: `${id}-${k}`, checked: on, 'aria-describedby': `${id}-${k}-desc`,
+          onchange: () => { if (!r.checked) return; set(`${P}.preset`, k); Rules.redraw(`#${id}-${k}`); } });
+        return el('label', { class: 'cr-radio-card', for: r.id, dataset: { preset: k, on: on ? '1' : '0' } }, r,
+          el('span', { class: 'cr-radio-body' },
+            el('span', { class: 'cr-radio-name' }, NAMES[k] || capFirst(k)),
+            el('span', { class: 'cr-radio-desc', id: `${id}-${k}-desc` }, describe(Pack.FREEDOM_PRESETS[k]))));
+      });
+      return el('section', { class: 'cr-section', dataset: { section: `${P}.preset` } },
+        el('h2', { class: 'cr-section-title', id: id + '-label' }, 'Preset'),
+        el('p', { class: 'cr-note' }, 'How far the player may go beyond what you wrote. A preset sets every dial below; a dial you set yourself wins over it.'),
+        el('div', { class: 'cr-radio-cards', role: 'radiogroup', 'aria-labelledby': id + '-label', 'aria-describedby': id + '-err', dataset: { path: `${P}.preset` } }, cards),
+        own === undefined ? el('p', { class: 'cr-note' }, `Not set: the ${NAMES[eff.preset] ? NAMES[eff.preset].toLowerCase() : eff.preset} applies, as for any story that does not choose.`) : null,
+        Rules.slot(`${P}.preset`));
+    }
+    /* Follow the preset: the pack's own preset dials go (create.perGame, the reason and anything else stay), one Undo. */
+    function follow(d) {
+      const own = isObj(getAt(d, P)) ? clone(getAt(d, P)) : null;
+      if (!own) return;
+      for (const k of PRESET_DIALS) {
+        const [a, b] = k.split('.');
+        if (b === undefined) delete own[a];
+        else if (isObj(own[a])) { delete own[a][b]; if (!Object.keys(own[a]).length) delete own[a]; }
+      }
+      set(P, Object.keys(own).length ? own : undefined);
+      Rules.redraw('.cr-radio-card[data-on="1"] input');
+    }
+    function switchDial(d, eff, k, label, help) {
+      const [a, b] = k.split('.');
+      const v = b === undefined ? eff[a] : eff[a][b];
+      const mine = owns(d, k);
+      return Rules.toggle(d, `${P}.${k}`, label, {
+        value: v === true, badge: mine ? chip() : null, onChange: dialWrite,
+        help: mine ? help : `${help} The preset's: ${v ? 'on' : 'off'}.`, field: { data: { layer: layerOf(d, k), effective: String(v) } }
+      });
+    }
+    function selectDial(d, eff, k, label, words) {
+      const mine = owns(d, k);
+      const choices = Object.keys(words).map(w => ({ value: w, text: w }));
+      return Rules.pick(d, `${P}.${k}`, label, choices, {
+        blank: mine ? 'Follow the preset' : `The preset's: ${eff[k]}`, badge: mine ? chip() : null, onChange: dialWrite,
+        help: Object.keys(words).map(w => `${capFirst(w)}: ${words[w]}.`).join(' '), field: { data: { layer: layerOf(d, k), effective: String(eff[k]) } }
+      });
+    }
+    function render(d) {
+      const eff = Pack.freedom(d);
+      const anyOwn = PRESET_DIALS.some(k => owns(d, k));
+      const reasonDefault = Pack.freedom({ freedom: { scopeRefusal: { on: true } } }).scopeRefusal.reason;
+      const people = el('div', { class: 'cr-field cr-switch-row', dataset: { field: `${P}.create.people`, type: 'bool', layer: 'engine', effective: 'false' } },
+        el('label', { class: 'check', id: Form.domId(`${P}.create.people`) + '-label' },
+          el('span', { class: 'cr-switch-text' }, 'People'),
+          el('input', { type: 'checkbox', role: 'switch', id: Form.domId(`${P}.create.people`), checked: false, disabled: true, 'aria-describedby': Form.domId(`${P}.create.people`) + '-help', dataset: { path: `${P}.create.people` } })),
+        el('p', { class: 'cr-note', id: Form.domId(`${P}.create.people`) + '-help' }, 'Not supported yet: the story names new people only within the game\'s own limit, and this stays off.'),
+        Rules.slot(`${P}.create.people`));
+      return [
+        presetCards(d, eff),
+        Rules.card('What the story may add', 'New places and things the narration and the parser bring in beyond the World tab\'s lists.', [
+          switchDial(d, eff, 'create.places', 'Places', 'The story may add places people mention or the player looks for.'),
+          switchDial(d, eff, 'create.things', 'Things', 'The story may add things the player looks for that the story did not list.'),
+          people,
+          Rules.num(d, `${P}.create.perGame`, 'New places in a game', { min: 0, placeholder: eff.create.perGame, help: 'The most new places one game may add.' })
+        ], `${P}.create`),
+        Rules.card('Travel and steering', 'Where the player may go and how hard the story pulls toward its threads.', [
+          selectDial(d, eff, 'travel', 'Travel', TRAVEL),
+          selectDial(d, eff, 'steer', 'Steer', STEER)
+        ], `${P}.travel`),
+        Rules.card('Out of scope', 'An action outside the story (travel elsewhere, things or people the setting cannot have).', [
+          switchDial(d, eff, 'scopeRefusal.on', 'Refuse out of scope', 'The parser is told to mark such an action, and the game refuses it with the reason below.'),
+          Form.render({ type: 'string', oneLine: true, label: 'Reason', max: 500, placeholder: reasonDefault, help: 'What the player is told; empty says the placeholder.' }, ownAt(d, 'scopeRefusal.reason'), `${P}.scopeRefusal.reason`, (p, v) => set(p, v)),
+          switchDial(d, eff, 'skipAnywhere', 'Skip time anywhere', 'On: /skip can carry the player to any place they know. Off: /skip only passes time where they are.')
+        ], `${P}.scopeRefusal`),
+        el('div', { class: 'cr-row-btns' },
+          el('button', { type: 'button', class: 'btn', dataset: { action: 'follow-preset' }, disabled: !anyOwn, 'aria-describedby': 'cr-follow-note', onclick: () => follow(state.draft) }, 'Follow the preset'),
+          el('p', { class: 'cr-note', id: 'cr-follow-note' }, anyOwn ? 'Takes away the dials you set yourself, so the preset sets them all.' : 'Every dial follows the preset.'))
+      ];
+    }
+    return { render, describe };
   })();
 
   // ----- Creator: Prompts -----

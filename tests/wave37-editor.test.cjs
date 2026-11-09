@@ -28,6 +28,8 @@ const PLACEHOLDER = 'This tab arrives with the next task.';
 const DRAWN = { Overview: 'About this story', World: 'Start places', Player: 'Backgrounds', JSON: 'Your story as JSON' };
 // Task M6-A draws the Opening, Narrator, Directions and Prompts tabs (tests/wave37-editor-narrator.test.cjs tests them).
 Object.assign(DRAWN, { Opening: 'Opening', Narrator: 'Voice', Directions: 'Directions', Prompts: 'Prompts' });
+// Task M6-B draws the Rules and Freedom tabs.
+Object.assign(DRAWN, { Rules: 'When to roll', Freedom: 'Preset' });
 const BUILT_IN_NOTE = 'Opened a copy; the built-in story cannot be changed.';
 // Screenshots only when UI_SHOTS names a folder for them (as tests/ui-fixes.test.cjs takes them).
 const SHOTS = process.env.UI_SHOTS || null;
