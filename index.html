@@ -277,6 +277,8 @@ textarea.input.intimate-direction { min-height: 9em; resize: vertical; line-heig
 .title-more > summary::after, .disclosure > summary::after { content: ""; width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translateY(-2px); }
 .title-more[open] > summary::after, .disclosure[open] > summary::after { transform: rotate(-135deg) translate(-2px, 0); }
 .title-more .title-setting { margin-top: 4px; }
+/* Wave 37, Creator Mode: the selected story pack's name, author and rating, a short line above the rest of the setting. */
+.title-pack { margin: 4px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .status-chip {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; max-width: 100%;
   margin: 16px 0 0; padding: 0 4px 0 14px; min-height: var(--tap);
@@ -1046,6 +1048,8 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 .slot-meta { color: var(--muted); font-size: 13px; display: block; overflow-wrap: anywhere; }
 .slot-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .slot-note { color: var(--accent); font-size: 13px; display: block; }
+/* Wave 37, Creator Mode: a save whose story pack is not on this device cannot load; the note says which pack, in the warning colour. */
+.slot-note.warn { color: var(--danger); overflow-wrap: anywhere; }
 #slot-list { margin-bottom: 24px; }
 .saves-export-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 
@@ -1338,6 +1342,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
               <button type="button" class="btn" id="btn-update" aria-describedby="title-update-note" hidden>Update this game</button>
             </div>
             <p class="title-note" id="continue-sub" hidden></p>
+            <!-- Wave 37, Creator Mode: the autosave's story pack is not on this device (warn, Continue off) or changed since (it still plays). -->
+            <p class="title-note" id="title-pack-note" hidden></p>
             <p class="title-note" id="title-update-note" hidden>This game was saved under older rules. You can keep playing, or update it.</p>
             <p class="title-note warn" id="title-newer-note" hidden>Saved by a newer version; it may not play right here.</p>
           </div>
@@ -1356,6 +1362,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
           <p id="title-setting" class="title-setting"></p>
           <details class="title-more" id="title-more">
             <summary>More about the town</summary>
+            <!-- Wave 37, Creator Mode: which story pack New game plays ("Low Water · by Joe · adult"). -->
+            <p id="title-pack" class="title-pack"></p>
             <p id="title-setting-more" class="title-setting"></p>
           </details>
         </div>
@@ -37345,7 +37353,9 @@ const UI = (() => {
     'set-check-key', 'key-status', 'session-line', 'preset-custom', 'set-advanced', 'settings-title', 'saves-title', 'last-export',
     'btn-export', 'btn-import', 'import-file', 'saves-error', 'saves-done', 'toast', 'say-to', 'mode-do', 'mode-say',
     'btn-update', 'title-update-note', 'set-reread', 'set-reread-none', 'set-reread-behind', 'set-reread-memories', 'set-intimate', 'set-intimate-reset', 'ask', 'ask-title', 'ask-text', 'ask-yes', 'ask-no',
-    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn'];
+    'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn',
+    // Wave 37, Creator Mode: the title's story pack line and the autosave's pack note.
+    'title-pack', 'title-pack-note'];
 
   function init() {
     for (const id of IDS) d[camel(id)] = document.getElementById(id);
@@ -37846,35 +37856,68 @@ const UI = (() => {
     const where = sum.location || (l ? l.name : '');
     return [who, day ? `Day ${day}` : '', where].filter(Boolean).join(' · ');
   }
+  /* Wave 37, Creator Mode: "Low Water · by Joe · adult", the story pack a
+     New game plays (the author only when the pack names one). */
+  function packLine(pack) {
+    const m = isObj(pack) && isObj(pack.meta) ? pack.meta : {};
+    return [m.title || m.id || '', m.author ? `by ${m.author}` : '', m.rating || ''].filter(Boolean).join(' · ');
+  }
+  /* The Library is read from IndexedDB at boot (Storage.Library.ready):
+     until then a save of a pack that is not the built-in one cannot find its
+     frozen copy and would read as missing, and the selected pack is not
+     there yet. So the title is drawn at once (a built-in save never waits)
+     and once more when the Library is in memory. */
+  let packsRead = false;
+  let packsAwaited = false;
   function renderTitle() {
-    const t = TOWN_DATA;
+    if (!packsAwaited) {
+      packsAwaited = true;
+      Promise.resolve(Storage.Library.ready).then(() => { packsRead = true; if (screen === 'title') renderTitle(); else if (screen === 'saves') renderSaves(); }, () => {});
+    }
+    // Wave 37, Creator Mode: the pack New game plays (the selected one), not always the built-in town.
+    const pack = Pack.selected();
+    const t = pack.world;
     d.titleName.textContent = t.name;
     d.titleTagline.textContent = typeof t.tagline === 'string' && t.tagline ? t.tagline : 'Type what you do. Claude tells you what happens, and the town keeps moving with or without you.';
-    const [first, rest] = splitSetting(t.setting);
+    // A pack's opening premise, when it has one, is what the title tells; Low Water has none and keeps its setting.
+    const premise = Pack.get('opening.premise', pack);
+    const [first, rest] = splitSetting(typeof premise === 'string' && premise.trim() ? premise : t.setting);
+    d.titlePack.textContent = packLine(pack);
     d.titleSetting.textContent = first;
     d.titleSettingMore.textContent = rest;
-    d.titleMore.hidden = !rest;
+    d.titleMore.hidden = !rest && !d.titlePack.textContent;
     document.title = t.name;
     d.btnNew.disabled = busy;
     d.btnLoad.disabled = busy;
     // An autosave under older rules: Continue plays it as it is; Update brings it up to date first.
     const raw = Storage.peek(Storage.KEYS.autosave);
     const auto = raw && !raw.broken ? raw : null;
+    /* Wave 37, Creator Mode: an autosave whose story pack is not on this
+       device cannot be played (App.load refuses it): Continue and Update are
+       off and the note says which pack, as a damaged autosave is explained.
+       Before the Library is read, the same save only waits, unexplained. */
+    const missing = !!(auto && auto.packMissing);
     const behind = !!auto && Upgrade.behind(auto.state);
-    d.btnContinue.disabled = busy || !auto;
+    d.btnContinue.disabled = busy || !auto || missing;
     // With an autosave, Continue comes first and is the primary button; New game steps back.
-    d.btnContinue.classList.toggle('primary', !!auto);
-    d.btnNew.classList.toggle('primary', !auto);
+    d.btnContinue.classList.toggle('primary', !!auto && !missing);
+    d.btnNew.classList.toggle('primary', !auto || missing);
     if (auto) { if (d.continueGroup.nextElementSibling !== d.btnNew) d.menuList.insertBefore(d.continueGroup, d.btnNew); }
     else if (d.btnNew.nextElementSibling !== d.continueGroup) d.btnNew.after(d.continueGroup);
     d.btnUpdate.hidden = !behind;
-    d.btnUpdate.disabled = busy;
+    d.btnUpdate.disabled = busy || missing;
     d.titleUpdateNote.hidden = !behind;
-    d.continueSub.textContent = auto ? continueLine(auto) : '';
+    // "… · from the story pack Marrow Bend": a game of the built-in story says nothing more.
+    const other = auto && isObj(auto.pack) && auto.pack !== Pack.builtIn() && isObj(auto.pack.meta) ? auto.pack.meta.title || auto.pack.meta.id : '';
+    d.continueSub.textContent = auto ? continueLine(auto) + (other ? ` · from the story pack ${other}` : '') : '';
     d.continueSub.hidden = !auto;
+    const packNote = !auto ? '' : missing ? (packsRead ? auto.packMissing : '') : auto.packWarning || '';
+    d.titlePackNote.textContent = packNote;
+    d.titlePackNote.classList.toggle('warn', missing);
+    d.titlePackNote.hidden = !packNote;
     // Saved by a newer build: one line here, before it is loaded (the banner after loading is short too).
     d.titleNewerNote.hidden = !(auto && App.newerRules(auto.state));
-    d.btnContinue.setAttribute('aria-describedby', ['continue-sub', 'title-newer-note'].filter(id => !document.getElementById(id).hidden).join(' ') || 'continue-sub');
+    d.btnContinue.setAttribute('aria-describedby', ['continue-sub', 'title-pack-note', 'title-newer-note'].filter(id => !document.getElementById(id).hidden).join(' ') || 'continue-sub');
     // A damaged autosave is explained, with a way to keep a copy.
     const broken = !!(raw && raw.broken);
     d.titleBroken.hidden = !broken;
@@ -41788,19 +41831,35 @@ const UI = (() => {
   }
 
   // ----- saves screen -----
+  /* Wave 37, Creator Mode: "Tomas Reed · Day 3 · Morning · Low Water ·
+     adult · …": every row names its story pack, the built-in one too, so
+     the rows read the same way. The summary's title, else (a save from
+     before packs) the pack it resolved to. */
+  function slotPack(env) {
+    const s = env.summary || {};
+    const m = isObj(env.pack) && isObj(env.pack.meta) ? env.pack.meta : {};
+    return [s.packTitle || m.title || '', s.packTitle ? s.packRating || '' : m.rating || ''].filter(Boolean).join(' · ');
+  }
   function slotMeta(env) {
     const s = env.summary || {};
     const when = env.savedAt ? new Date(env.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
-    return `${s.player || '?'} · Day ${s.day}${s.phase ? ' · ' + capFirst(s.phase) : ''} · ${s.location || ''}${when ? ' · ' + when : ''}`;
+    const pack = slotPack(env);
+    return `${s.player || '?'} · Day ${s.day}${s.phase ? ' · ' + capFirst(s.phase) : ''}${pack ? ' · ' + pack : ''} · ${s.location || ''}${when ? ' · ' + when : ''}`;
   }
   /* A save made under older rules (Upgrade): it loads and plays as it is; Update brings it up to date. */
   const saveBehind = env => !!env && !env.broken && Upgrade.behind(env.state);
+  /* Wave 37, Creator Mode: a save whose story pack is not on this device
+     (Storage.resolvePack's packMissing) cannot be loaded or updated. */
+  const packGone = env => !!env && !env.broken && !!env.packMissing;
   function slotRow(label, env, actions, id) {
     return el('div', { class: 'slot', id },
       el('div', { class: 'slot-info' },
         el('span', { class: 'slot-name' }, label),
         el('span', { class: 'slot-meta' }, env && !env.broken ? slotMeta(env) : env && env.broken ? 'Damaged save' : 'Empty'),
-        saveBehind(env) ? el('span', { class: 'slot-note' }, 'Saved under older rules') : null),
+        saveBehind(env) ? el('span', { class: 'slot-note' }, 'Saved under older rules') : null,
+        // Wave 37, Creator Mode: which pack is missing (Load is off), or that the pack changed since (it loads with the one here).
+        packGone(env) ? el('span', { class: 'slot-note warn', 'data-pack': 'missing' }, env.packMissing)
+          : env && !env.broken && env.packWarning ? el('span', { class: 'slot-note', 'data-pack': 'warning' }, env.packWarning) : null),
       el('div', { class: 'slot-actions' }, actions));
   }
   /* "Last exported: 3 days ago" (or never), so a game is not only in this browser. */
@@ -41821,14 +41880,15 @@ const UI = (() => {
     d.btnExport.disabled = !inGame;
     d.btnImport.disabled = busy;
     renderLastExport();
-    const loadBtn = (filled, onclick) => el('button', { type: 'button', class: 'btn small', 'data-action': 'load', dataset: { filled: filled ? '1' : '' }, disabled: busy || !filled, onclick }, 'Load');
-    const updateBtn = (env, onclick) => (saveBehind(env) ? el('button', { type: 'button', class: 'btn small', 'data-action': 'update', disabled: busy, onclick, title: 'Load this game and update it to the latest rules' }, 'Update') : null);
+    // Wave 37, Creator Mode: filled but its story pack is not here (packGone): Load and Update stay, switched off.
+    const loadBtn = (filled, onclick, gone) => el('button', { type: 'button', class: 'btn small', 'data-action': 'load', dataset: { filled: filled ? '1' : '' }, disabled: busy || !filled || !!gone, onclick }, 'Load');
+    const updateBtn = (env, onclick) => (saveBehind(env) ? el('button', { type: 'button', class: 'btn small', 'data-action': 'update', disabled: busy || packGone(env), onclick, title: 'Load this game and update it to the latest rules' }, 'Update') : null);
     const rows = [];
     const auto = Storage.peek(Storage.KEYS.autosave);
-    rows.push(slotRow('Autosave', auto, [loadBtn(!!auto && !auto.broken, () => App.continueGame()), updateBtn(auto, () => App.updateSave('autosave'))], 'slot-auto'));
+    rows.push(slotRow('Autosave', auto, [loadBtn(!!auto && !auto.broken, () => App.continueGame(), packGone(auto)), updateBtn(auto, () => App.updateSave('autosave'))], 'slot-auto'));
     // The game the autosave held before a different one took its place.
     const prev = Storage.loadPrevious();
-    if (prev) rows.push(slotRow('Previous autosave', prev, [el('button', { type: 'button', class: 'btn small', 'data-action': 'restore', dataset: { filled: '1' }, disabled: busy, onclick: () => App.restorePrevious() }, 'Restore previous')], 'slot-prev'));
+    if (prev) rows.push(slotRow('Previous autosave', prev, [el('button', { type: 'button', class: 'btn small', 'data-action': 'restore', dataset: { filled: '1' }, disabled: busy || packGone(prev), onclick: () => App.restorePrevious() }, 'Restore previous')], 'slot-prev'));
     Storage.listSlots().forEach((env, i) => {
       const n = i + 1;
       const filled = env && !env.broken;
@@ -41844,7 +41904,7 @@ const UI = (() => {
           const env2 = Storage.saveSlot(n, d.saveName.value);
           if (env2) { toast(`Saved to slot ${n}.`); d.saveName.value = ''; renderSaves(); }
         } }, filled ? 'Overwrite' : 'Save here') : null,
-        loadBtn(filled, () => App.loadSlot(n)),
+        loadBtn(filled, () => App.loadSlot(n), packGone(env)),
         updateBtn(env, () => App.updateSave(n)),
         del
       ], 'slot-' + n));
@@ -42876,6 +42936,10 @@ const App = (() => {
      autosave) reads back the undo stack kept for that game; any other load
      starts with nothing to undo and clears the one kept. */
   function load(env, opts) {
+    /* Wave 37, Creator Mode: a save whose story pack is not on this device
+       (Storage.resolvePack) is refused before anything changes, with the
+       message that names the pack; State.load never sees it. */
+    if (isObj(env) && env.packMissing) throw new Error(env.packMissing);
     const before = State.current;
     const beforeJson = before && !State.muted ? JSON.stringify(before) : null;
     const beforeTown = State.town;
@@ -42905,6 +42969,10 @@ const App = (() => {
       State.endBatch();
     }
     if ((isObj(r) && r.newer === true) || newerRules(env.state)) UI.warn(NEWER_NOTICE);
+    /* Wave 37, Creator Mode: the pack changed since this save (it plays the
+       Library's copy as it is now). A task, not now: the caller's own toast
+       ("Loaded …", "Imported.") comes after this returns and would replace it. */
+    if (env.packWarning) { const say = env.packWarning; setTimeout(() => UI.toast(say), 0); }
     // Loaded in a tab that was read only: this tab plays it now.
     if (Storage.readOnly) Storage.claim();
     if (opts && opts.resume) Storage.undoResume(); else Storage.undoReset();
