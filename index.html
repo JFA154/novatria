@@ -1514,6 +1514,54 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   .cr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-sticky { position: static; margin: 16px 0 0; padding: 0; background: none; border-top: 0; }
 }
+/* Task M5-C2: the World tab's story lists. An effect list a card of rows (the op a select, its fields under it); a
+   condition a block of its own with a remove x; a clock or a branch a folding card; the map rows of a condition (who,
+   what, x) two columns and the x; a raw JSON box for what no control draws. */
+.cr-fx, .cr-cond, .cr-alt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 6px 0 18px; padding: 12px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cr-fx-title { margin: 0; font-family: var(--read-font); font-size: 16px; font-weight: 600; }
+.cr-fx-count { font-family: inherit; font-weight: 400; color: var(--muted); }
+.cr-fx > .cr-note, .cr-cond > .cr-note, .cr-alt > .cr-note { margin: 0; }
+.cr-fx-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; padding: 10px; border-radius: 10px; background: var(--surface-2); }
+.cr-fx-head { display: grid; grid-template-columns: auto minmax(0, 1fr) var(--tap); gap: 8px; align-items: center; }
+.cr-fx-n { min-width: 24px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; text-align: center; }
+.cr-fx-what { font-size: 14px; color: var(--danger); overflow-wrap: anywhere; }
+.cr-fx-row .input, .cr-fx-addrow .input, .cr-cond .input, .cr-maprow .input { font-size: 16px; }
+.cr-fx-fields { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+/* A select is as wide as its longest choice (an op named in full, a long thread title) unless its box says otherwise. */
+.cr-fx select.input, .cr-cond select.input, .cr-alt select.input, .cr-trigger select.input, .cr-branches select.input { width: 100%; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.cr-fx-fields .cr-field { margin-bottom: 12px; }
+.cr-fx-x { border: 1px solid var(--border); }
+.cr-fx-addrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.cr-fx-addrow .input { flex: 1 1 14em; width: auto; min-width: 0; }
+.cr-fx-nested { min-width: 0; padding: 10px 0 0; border-top: 1px dashed var(--border); }
+.cr-fx-nested-title { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.cr-fx .cr-fx, .cr-fx .cr-cond, .cr-fx .cr-alt { background: var(--surface-2); }
+.cr-cond-key { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; padding: 8px 0 0; border-top: 1px solid var(--border); }
+.cr-cond-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cr-cond-label { flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.cr-cond-key .cr-field { margin-bottom: 6px; }
+.cr-cond-id { align-self: center; font-size: 13px; overflow-wrap: anywhere; }
+.cr-maprows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0 0 8px; }
+.cr-maprow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--tap); gap: 8px; align-items: start; min-width: 0; }
+.cr-maprow > .cr-err { grid-column: 1 / -1; }
+.cr-clockpick { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.cr-tracks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+.cr-track { display: grid; gap: 2px; min-width: 0; font-size: 12px; color: var(--muted); }
+.cr-track-name { text-transform: capitalize; }
+.cr-raw { min-height: 6em; line-height: 1.45; white-space: pre; overflow-x: auto; }
+.cr-raw-note:empty { display: none; }
+.cr-clock, .cr-branch { margin: 0 0 10px; }
+.cr-clock > summary, .cr-branch > summary { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; padding: 10px 18px; font-size: 16px; }
+.cr-branch-n { font-family: var(--read-font); font-weight: 600; }
+.cr-branch-sum { flex: 1 1 12em; min-width: 0; font-size: 14px; font-weight: 400; color: var(--muted); overflow-wrap: anywhere; }
+.cr-branch-body { padding: 12px 14px 4px; min-width: 0; }
+.cr-row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.cr-branches { min-width: 0; margin: 0 0 18px; }
+.cr-branches > .cr-note { margin: 0 0 10px; }
+.cr-trigger, .cr-outcome { min-width: 0; }
+.cr-story > .cr-entity { margin: 0 0 8px; }
+.cr-price { color: var(--accent); }
+.cr-phases .cr-field { margin: 4px 0 0; }
 
 /* ===== Layout switches ===== */
 @media (min-width: 900px) {
@@ -46179,6 +46227,869 @@ const Creator = (() => {
   function renderWorld(d) { return WorldTab.render(d); }
   function refreshWorld() { WorldTab.refresh(); }
   // ----- World: story tabs (M5-C2) -----
+  /* The World tab's story lists (milestone 5, task M5-C2; plan decision H):
+     Factions and Clocks, Threads, Rumours, Events and Seeds (with the
+     ending) and Goods (with the complications), each an EntityTab or, for
+     the two tables whose records have no id, an index-keyed list drawn the
+     same way, added to the World strip through WorldTab.addSub. Two editors
+     serve every one of them. Effects.render(list, path) draws an effect list
+     a row an op: the op a select of State.EFFECT_OPS, then exactly the
+     fields the story-half rules allow that op (FIELDS_BY_OP mirrors
+     PackRules' field table, which it keeps private; a test pins the two
+     equal), an id a picker of its kind, a nested thread, rumour or seed a
+     form of its own; an op this build does not know (an imported pack from a
+     newer game) keeps its raw JSON in a box, so nothing is lost by opening
+     it. Conditions.render(cond, path, { kind }) draws a requires or a when
+     from the keys the rules accept for that kind (requires and when differ;
+     the engine's own attitudeBelow and threadOpen are its loose ends' and
+     the rules refuse them in a pack, so they are not offered), and keeps any
+     other key as raw JSON. Every change is one Editor.set, so one Undo; the
+     faction relations write both sides in one set, as the exits do. Both
+     editors hang off WorldTab (Creator.WorldTab.Effects and .Conditions)
+     rather than the Creator's return, which this task leaves alone. */
+  (() => {
+    const arrOf = v => (Array.isArray(v) ? v : []);
+    const has = v => v !== undefined && v !== null;
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const short = (v, n) => { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+    const initialOf = name => { const m = /[A-Za-z0-9]/.exec(String(name || '')); return m ? m[0].toUpperCase() : '?'; };
+    const errorsAt = (path, owns) => Pack.errors(Pack.problemsFor(problems, path)).filter(p => !owns || owns(p.path)).length;
+    const WS = () => Pack.SCHEMA.fields.world.fields;
+    const FAC = () => WS().factions.of;
+    const CLOCK = () => FAC().fields.clocks.of;
+    const THR = () => WS().threads.of;
+    const RUM = () => WS().rumours.of;
+    const SEED = () => WS().seeds.of;
+    const EVT = () => WS().events.of;
+    const EPI = () => WS().epilogue;
+    const GOOD = () => WS().tables.fields.items.fields.goods.of;
+    const COMP = () => WS().tables.fields.complications.of;
+    const listAt = (d, p) => arrOf(getAt(d, p)).filter(x => isObj(x) && typeof x.id === 'string');
+    const nameOf = x => (isObj(x) ? String(x.name || x.title || x.id || '').trim() : '');
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+    const sel = id => '#' + CSS.escape(id);
+    // Optional lists (tellerIds, attendees, synonyms) go away when emptied: an empty one is an error, an absent one is not.
+    const dropEmpty = on => (p, v) => on(p, Array.isArray(v) && !v.length ? undefined : v);
+    function option(value, text, on) { return el('option', { value, selected: on }, text); }
+    function btn(label, action, onclick, cls) { return el('button', { type: 'button', class: 'btn small' + (cls ? ' ' + cls : ''), dataset: { action }, onclick }, label); }
+    function xBtn(label, onclick, action) { return el('button', { type: 'button', class: 'cr-chip-x cr-fx-x', 'aria-label': label, dataset: { action: action || 'remove' }, onclick }, '×'); }
+
+    /* Chips for a list of ids with its own choices (a thread's linked ids, a trigger's places): the Form's chips look,
+       one Editor.set a change, the tab drawn again with the focus on the Add select. */
+    function chipsField(path, value, choices, label, help, onChange) {
+      const id = Form.domId(path);
+      const list = Array.isArray(value) ? value.slice() : has(value) ? [value] : [];
+      const textOf = v => { const c = choices.find(x => x.value === v); return c ? c.text : `${v} (not found)`; };
+      const emit = next => { onChange(path, next); redraw(sel(id + '-add')); };
+      const left = choices.filter(c => !list.includes(c.value));
+      const add = el('select', { class: 'input cr-chip-add', id: id + '-add', 'aria-label': `Add to ${label}`, disabled: !left.length,
+        onchange: () => { if (add.value) emit(list.concat([add.value])); } },
+      option('', left.length ? 'Add…' : 'Nothing more to add', true), left.map(c => option(c.value, c.text, false)));
+      return el('div', { class: 'cr-field', dataset: { field: path, type: 'refs' } },
+        el('label', { class: 'label', for: id + '-add', id: id + '-label' }, label),
+        el('div', { class: 'cr-chips', role: 'group', 'aria-labelledby': id + '-label', 'aria-describedby': `${id}-help ${id}-err`, dataset: { path } },
+          list.map((v, i) => el('span', { class: 'cr-chip-item', dataset: { index: String(i), id: String(v) } },
+            el('span', { class: 'cr-chip-text' }, textOf(v)),
+            xBtn(`Remove ${textOf(v)}`, () => emit(list.filter((y, k) => k !== i))))),
+          add),
+        help ? el('p', { class: 'cr-note', id: id + '-help' }, help) : null,
+        slot(path));
+    }
+    /* A JSON box for what no control here draws (an unknown op, a condition key the rules do not know, knownBy):
+       shown as it is, written back only when it parses and differs, so opening a pack never changes it. */
+    function rawBox(path, value, label, help) {
+      const id = Form.domId(path) + '-raw';
+      const note = el('p', { class: 'cr-note cr-raw-note', role: 'status' });
+      const box = el('textarea', { class: 'input cr-mono cr-raw', id, rows: Math.min(12, Math.max(3, JSON.stringify(value, null, 2).split('\n').length)), spellcheck: 'false', autocomplete: 'off',
+        'aria-describedby': `${id}-help ${Form.domId(path)}-err`, dataset: { path, raw: '1' } });
+      box.value = JSON.stringify(value, null, 2);
+      box.addEventListener('change', () => {
+        let v;
+        try { v = JSON.parse(box.value); } catch (e) { note.textContent = 'That is not valid JSON; nothing was changed.'; return; }
+        note.textContent = '';
+        if (JSON.stringify(v) === JSON.stringify(value)) return;
+        set(path, v);
+        redraw(sel(id));
+      });
+      return el('div', { class: 'cr-field cr-raw-field', dataset: { field: path, type: 'any' } },
+        el('label', { class: 'label', for: id }, label),
+        box,
+        el('p', { class: 'cr-note', id: id + '-help' }, help),
+        note,
+        slot(path));
+    }
+    // The choices of a kind from the draft (Form's own list, so pickers and Form agree).
+    const choicesOf = (kind, d) => Form.entities(kind, d);
+    const townPlaces = d => listAt(d, 'world.locations').filter(l => l.away !== true).map(l => ({ value: l.id, text: short(l.name || l.id, 60) }));
+
+    // ----- Effects -----
+    /* The story-half rules' field table (PackRules' OPS and OPS_OPTIONAL, docs/BUILD_PLAN.md "Effect ops"): the fields
+       each op needs, then the ones it may carry. The rules refuse anything else ("is not a field this can carry"), so
+       the editor offers exactly these. giveItem's qty is the engine's but not the rules', so it is not offered. */
+    const FIELDS_BY_OP = Object.freeze({
+      closeLocation: [['locationId'], []], openLocation: [['locationId'], []], npcStatus: [['npcId', 'status'], ['by']],
+      npcMove: [['npcId', 'locationId', 'phases'], []], attitudeDelta: [['npcId', 'delta'], []], priceMultiplier: [['factor'], []],
+      openThread: [['thread'], []], threadStatus: [['threadId', 'status'], []], addRumour: [['rumour'], []], plantSeed: [['seed'], []],
+      factionRelation: [['a', 'b', 'delta'], []], setFlag: [['key', 'value'], []], reputationDelta: [['key', 'delta'], []],
+      playerGold: [['delta'], []], playerHp: [['delta'], ['allowDefeat']], giveItem: [['name'], ['notes']], placeItem: [['name'], ['notes', 'locationId']],
+      takeItem: [['name'], []], addCondition: [['name', 'effect', 'days'], []], banFrom: [['locationId', 'days'], ['byNpcId']],
+      playerPrice: [['factor', 'days'], []], addMemory: [['npcId', 'text', 'weight'], ['act']], clockAdjust: [['factionId', 'delta'], []],
+      threadUpdate: [['threadId'], ['summary', 'status', 'knownToPlayer']],
+      addObligation: [['kind', 'npcId', 'text'], ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet', 'dueOffset', 'leverageId', 'missText']],
+      settleObligation: [['id', 'status'], []], obligationPaid: [['id', 'amount'], ['take']], addNews: [['text'], ['factionId', 'public']],
+      socialEvent: [['npcId', 'event', 'text'], ['weight', 'act', 'aboutId', 'private', 'leverageId', 'd', 'decay', 'secondhand', 'scale', 'public']],
+      owedSettle: [['npcId'], ['dir']], leverageSet: [['id'], ['status', 'aware', 'playerKnows', 'use', 'knownBy', 'tell']],
+      tieDelta: [['fromId', 'toId', 'why'], ['w', 't', 'known']], propagate: [['npcId', 'event'], ['factor', 'via', 'text']]
+    });
+    const OP_LABEL = Object.freeze({
+      closeLocation: 'Close a place', openLocation: 'Open a place', npcStatus: 'Change someone\'s status', npcMove: 'Move someone',
+      attitudeDelta: 'Change someone\'s attitude', priceMultiplier: 'Change the town\'s prices', openThread: 'Open a thread', threadStatus: 'Set a thread\'s status',
+      addRumour: 'Start a rumour', plantSeed: 'Plant a seed', factionRelation: 'Change two factions\' relation', setFlag: 'Set a flag',
+      reputationDelta: 'Change the player\'s reputation', playerGold: 'Give or take money', playerHp: 'Heal or hurt the player', giveItem: 'Give the player a thing',
+      placeItem: 'Leave a thing in a place', takeItem: 'Take a thing from the player', addCondition: 'Give the player a condition', banFrom: 'Ban the player from a place',
+      playerPrice: 'Change the player\'s prices', addMemory: 'Give someone a memory', clockAdjust: 'Move a faction\'s clock', threadUpdate: 'Update a thread',
+      addObligation: 'Put the player under an obligation', settleObligation: 'Settle an obligation', obligationPaid: 'Pay toward an obligation', addNews: 'Town news',
+      socialEvent: 'Something between someone and the player', owedSettle: 'Clear favours owed', leverageSet: 'Change a leverage record',
+      tieDelta: 'Change a tie between two people', propagate: 'Word travels the town\'s ties'
+    });
+    const FIELD_LABEL = Object.freeze({
+      locationId: 'Place', npcId: 'Person', by: 'Arrested by', byNpcId: 'Banned by', aboutId: 'About', fromId: 'From', toId: 'To', factionId: 'Faction',
+      a: 'Faction', b: 'Other faction', threadId: 'Thread', status: 'Status', phases: 'Phases', delta: 'Change by', factor: 'Factor', key: 'Flag',
+      value: 'Value', allowDefeat: 'May knock the player down', name: 'Name', notes: 'Notes', effect: 'Effect', days: 'Days', text: 'Text', weight: 'Weight',
+      act: 'Done by them to the player', summary: 'Summary', knownToPlayer: 'Known to the player', kind: 'Kind', amount: 'Amount', dueDay: 'Due on day',
+      dueOffset: 'Due, days after it starts', itemName: 'The thing owed', leverageId: 'Leverage id', missText: 'When it is missed', onMiss: 'If it is missed',
+      onMet: 'If it is met', id: 'Id', take: 'Take it from the player\'s cash', public: 'Town news', event: 'Event', private: 'Private', d: 'Change to the tracks',
+      decay: 'How it fades', secondhand: 'Heard secondhand', scale: 'Scale', dir: 'Which way', aware: 'They know of it', playerKnows: 'The player knows',
+      use: 'Used as', knownBy: 'Known by', tell: 'Told anyway', why: 'Why', w: 'Liking', t: 'Trust', known: 'Makes a hidden tie known', via: 'How it travels'
+    });
+    const BOOLS = ['allowDefeat', 'knownToPlayer', 'take', 'public', 'private', 'secondhand', 'aware', 'playerKnows', 'tell', 'known'];
+    const TEXTS = ['text', 'summary', 'notes', 'missText'];
+    const relList = (name, fallback) => { try { const v = Rel[name]; return Array.isArray(v) ? v.slice() : isObj(v) ? Object.keys(v) : fallback; } catch (e) { return fallback; } };
+    /* The leaf a field of an op is drawn as: a Form spec, or a kind this editor draws itself. */
+    function fieldSpec(op, k, d) {
+      const label = FIELD_LABEL[k] || capFirst(k);
+      const ref = kind => ({ type: 'ref', ref: kind, label });
+      const int = (min, max, help) => ({ type: 'int', label, min, max, help });
+      if (BOOLS.includes(k)) return { type: 'bool', label };
+      if (TEXTS.includes(k)) return { type: 'text', label, max: k === 'missText' ? 300 : 400 };
+      switch (k) {
+        case 'locationId': return ref('loc');
+        case 'npcId': case 'by': case 'byNpcId': case 'aboutId': case 'fromId': case 'toId': return ref('npc');
+        case 'factionId': case 'a': case 'b': return ref('fac');
+        case 'threadId': return ref('thread');
+        case 'status': return { type: 'enum', label, enum: op === 'npcStatus' ? NPC_STATUSES : op === 'settleObligation' ? ['met', 'missed', 'lapsed'] : op === 'leverageSet' ? relList('LEV_STATUSES', ['held', 'used', 'paid', 'spent', 'void']) : THREAD_STATUSES };
+        case 'kind': return { type: 'enum', label, enum: ['debt', 'blackmail', 'promise', 'errand', 'lodging'] };
+        case 'event': case 'use': return { type: 'enum', label, enum: relList('EVENT_NAMES', []) };
+        case 'decay': return { type: 'enum', label, enum: relList('DECAY', ['mood', 'slight', 'wound', 'scar', 'keeps']) };
+        case 'via': return { type: 'enum', label, enum: ['now', 'overnight', 'morning', 'meet'] };
+        case 'act': return { type: 'enum', label, enum: ['own'] };
+        case 'key': return op === 'setFlag' ? { type: 'id', label, help: 'A flag name: letters, digits and _, starting with a letter. Conditions read it.' } : { type: 'enum', label: 'Reputation with', enum: ['town'].concat(listAt(d, 'world.factions').map(f => f.id)) };
+        case 'delta': return op === 'playerGold' ? int(-500, 500, 'Money given (more than 0) or taken (less than 0).') : op === 'playerHp' ? int(-3, 3) : op === 'clockAdjust' ? int(-2, 2, '-2, -1, 1 or 2 segments of the running clock.') : int(-50, 50);
+        case 'days': return op === 'playerPrice' ? int(1, 10) : int(1, 7);
+        case 'weight': return int(1, 3);
+        case 'amount': case 'dueDay': return int(1);
+        case 'dueOffset': return int(1, 7);
+        case 'dir': return { type: 'enum', label, enum: ['1', '-1'], help: '1: they owed the player; -1: the player owed them; not set: both.' };
+        case 'w': case 't': return int(-100, 100);
+        case 'factor': return { type: 'number', label, min: op === 'propagate' ? 0.1 : 0.5, max: 2 };
+        case 'scale': return { type: 'number', label, min: 0.1, max: 2 };
+        case 'effect': return { type: 'string', label, placeholder: '-1 might', help: 'Like "-1 might" or "+1 charm, -1 wits".' };
+        case 'name': return { type: 'string', label, max: 60 };
+        case 'why': return { type: 'string', label, max: 80 };
+        case 'id': case 'leverageId': return { type: 'id', label };
+        case 'value': return { type: 'flagValue', label };
+        case 'phases': return { type: 'phases', label };
+        case 'onMiss': case 'onMet': return { type: 'effects', label };
+        case 'thread': case 'rumour': case 'seed': return { type: 'nested', label: { thread: 'The thread', rumour: 'The rumour', seed: 'The seed' }[k] };
+        case 'd': return { type: 'tracks', label };
+        default: return { type: 'any', label };
+      }
+    }
+    // A nested record starts with an id of its kind not used anywhere in the story, and the fields its rules need.
+    function freshId(kind, base) {
+      const taken = id => Pack.renameId(state.draft, id, id).count > 0;
+      let id = Pack.idFor(kind, base, []);
+      for (let i = 2; taken(id); i++) id = Pack.idFor(kind, base, []) + '_' + i;
+      return id;
+    }
+    const newThread = (title, id) => ({ id: id || freshId('thread', title || 'new thread'), title: title || '', summary: '', status: 'open', knownToPlayer: false, linkedIds: [] });
+    const newRumour = (text, id) => ({ id: id || freshId('rumour', String(text || 'new rumour').split(/\s+/).slice(0, 4).join(' ')), text: text || '', true: true, heard: false });
+    const newSeed = (cause, id) => ({ id: id || freshId('seed', String(cause || 'new seed').split(/\s+/).slice(0, 4).join(' ')), cause: cause || '', effect: '', trigger: { type: 'location', value: [] }, fired: false, hidden: true });
+    function newEffect(op) {
+      const e = { op };
+      if (op === 'openThread') e.thread = newThread();
+      if (op === 'addRumour') e.rumour = newRumour();
+      if (op === 'plantSeed') e.seed = newSeed();
+      return e;
+    }
+    // setFlag's value: true, false, a number or a word, typed in one field.
+    function flagValueField(v, path, label) {
+      const id = Form.domId(path);
+      const ctl = el('input', { class: 'input cr-mono', type: 'text', id, value: has(v) ? String(v) : '', autocomplete: 'off', spellcheck: 'false', maxlength: 120,
+        'aria-describedby': `${id}-help ${id}-err`, dataset: { path } });
+      ctl.addEventListener('change', () => {
+        const raw = ctl.value.trim();
+        set(path, raw === '' ? undefined : raw === 'true' ? true : raw === 'false' ? false : /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw);
+      });
+      return el('div', { class: 'cr-field', dataset: { field: path, type: 'any' } },
+        el('label', { class: 'label', for: id }, label, el('span', { class: 'cr-req' }, 'required')), ctl,
+        el('p', { class: 'cr-note', id: id + '-help' }, 'true, false, a number or a word.'), slot(path));
+    }
+    // npcMove's phases: "all", or the phases it rewrites.
+    function phasesField(v, path, label) {
+      const all = v === 'all';
+      const id = Form.domId(path) + '-all';
+      const box = el('input', { type: 'checkbox', id, checked: all, onchange: () => { set(path, box.checked ? 'all' : []); redraw(sel(id)); } });
+      return el('div', { class: 'cr-field cr-phases', dataset: { field: path, type: 'any' } },
+        el('label', { class: 'check' }, box, ' Every phase'),
+        all ? slot(path) : Form.render({ type: 'list', of: { type: 'enum', enum: PHASES, label: 'Phase' }, label }, Array.isArray(v) ? v : [], path, (p, x) => set(p, x)));
+    }
+    function fieldNode(op, e, k, p, required, depth, d) {
+      const spec = fieldSpec(op, k, d);
+      const fp = `${p}.${k}`;
+      const on = (q, v) => set(q, v);
+      switch (spec.type) {
+        case 'flagValue': return flagValueField(e[k], fp, spec.label);
+        case 'phases': return phasesField(e[k], fp, spec.label);
+        case 'effects': return Effects.render(e[k], fp, { title: spec.label, depth: depth + 1, optional: true });
+        case 'tracks': return Form.render({ type: 'object', label: spec.label, fields: { w: { type: 'int', label: 'Liking' }, t: { type: 'int', label: 'Trust' }, f: { type: 'int', label: 'Fear' }, k: { type: 'int', label: 'Knows you' }, s: { type: 'int', label: 'Spark' }, m: { type: 'int', label: 'Romance' } } },
+          e[k], fp, on, { nested: true, note: 'Whole numbers within 50 either way; leave a track empty to leave it alone.' });
+        case 'nested': {
+          const kind = k;
+          const x = isObj(e[k]) ? e[k] : {};
+          const parts = kind === 'thread' ? threadFields(x, fp, on, d, true) : kind === 'rumour' ? rumourFields(x, fp, on, true) : seedFields(x, fp, on, d, true, depth + 1);
+          return el('div', { class: 'cr-fx-nested', dataset: { path: fp } }, el('h4', { class: 'cr-fx-nested-title' }, spec.label), slot(fp), parts);
+        }
+        case 'any': return rawBox(fp, has(e[k]) ? e[k] : null, spec.label, 'Edited as JSON here.');
+        // dir is a number the select holds as text (1 or -1).
+        default: return k === 'dir' ? Form.render(spec, has(e[k]) ? String(e[k]) : undefined, fp, (q, v) => set(q, v === undefined ? undefined : Number(v)), { required })
+          : Form.render(spec, e[k], fp, on, { required });
+      }
+    }
+    const KNOWN_OPS = () => (Array.isArray(State.EFFECT_OPS) ? State.EFFECT_OPS : Object.keys(FIELDS_BY_OP)).filter(op => FIELDS_BY_OP[op]);
+    function effectRow(e, i, path, list, depth, d) {
+      const p = `${path}[${i}]`;
+      const opId = Form.domId(p + '.op');
+      const remove = xBtn(`Remove effect ${i + 1}`, () => { set(path, list.filter((y, k) => k !== i)); redraw(sel(Form.domId(path) + '-add')); }, 'effect-remove');
+      const known = isObj(e) && KNOWN_OPS().includes(e.op);
+      if (!known) {
+        const what = isObj(e) && typeof e.op === 'string' ? `An op this game does not know: "${e.op}"` : 'Not an effect this game can read';
+        return el('div', { class: 'cr-fx-row', dataset: { index: String(i), unknown: '1' } },
+          el('div', { class: 'cr-fx-head' }, el('span', { class: 'cr-fx-n' }, String(i + 1)), el('span', { class: 'cr-fx-what' }, what), remove),
+          rawBox(p, e, 'As written', 'Kept exactly as it is; edit the JSON to change it.'));
+      }
+      const pick = el('select', { class: 'input cr-fx-op', id: opId, 'aria-label': `Effect ${i + 1}: what it does`, 'aria-describedby': opId + '-err', dataset: { path: p + '.op' },
+        onchange: () => {
+          const op = pick.value;
+          const next = newEffect(op);
+          const keep = FIELDS_BY_OP[op][0].concat(FIELDS_BY_OP[op][1]);
+          for (const k of Object.keys(e)) if (k !== 'op' && keep.includes(k)) next[k] = e[k];
+          set(p, next);
+          redraw(sel(opId));
+        } }, KNOWN_OPS().map(op => option(op, `${OP_LABEL[op] || op} (${op})`, op === e.op)));
+      const [req, opt] = FIELDS_BY_OP[e.op];
+      return el('div', { class: 'cr-fx-row', dataset: { index: String(i), op: e.op, path: p } },
+        el('div', { class: 'cr-fx-head' }, el('span', { class: 'cr-fx-n', 'aria-hidden': 'true' }, String(i + 1)), pick, remove),
+        slot(p + '.op'), slot(p),
+        el('div', { class: 'cr-fx-fields' }, req.map(k => fieldNode(e.op, e, k, p, true, depth, d)), opt.map(k => fieldNode(e.op, e, k, p, false, depth, d))));
+    }
+    /* Effects.render(list, path, opts): opts.title, opts.note, opts.depth (a nested seed's effects), opts.optional (the
+       list goes away when its last effect does, where an empty list is not wanted). */
+    const Effects = Object.freeze({
+      FIELDS_BY_OP, OP_LABEL,
+      render(list, path, opts) {
+        const o = opts || {};
+        const d = state.draft || {};
+        const items = Array.isArray(list) ? list : [];
+        const addId = Form.domId(path) + '-add';
+        const deep = (o.depth || 0) > 6;
+        const add = el('select', { class: 'input cr-fx-add', id: addId, 'aria-label': `Add an effect to ${o.title || 'the effects'}`, disabled: deep,
+          onchange: () => {
+            if (!add.value) return;
+            set(path, items.concat([newEffect(add.value)]));
+            redraw(sel(Form.domId(`${path}[${items.length}].op`)));
+          } }, option('', 'Add an effect…', true), KNOWN_OPS().map(op => option(op, `${OP_LABEL[op] || op} (${op})`, false)));
+        const body = Array.isArray(list) || !has(list) ? items.map((e, i) => effectRow(e, i, path, items, o.depth || 0, d)) : [rawBox(path, list, 'As written', 'Not a list; kept as it is.')];
+        return el('div', { class: 'cr-fx', dataset: { path, fx: '1' } },
+          el('h4', { class: 'cr-fx-title' }, o.title || 'Effects', el('span', { class: 'cr-fx-count' }, ` · ${items.length}`)),
+          o.note ? el('p', { class: 'cr-note' }, o.note) : null,
+          slot(path),
+          body,
+          el('div', { class: 'cr-fx-addrow' }, add, o.optional && Array.isArray(list) && !items.length ? btn('Remove the list', 'effects-drop', () => { set(path, undefined); redraw(); }, 'ghost') : null));
+      }
+    });
+
+    // ----- Conditions -----
+    /* The keys the story-half rules accept (checkRequires, checkWhen); both kinds share their controls. */
+    const COND_KEYS = Object.freeze({
+      requires: ['flagsSet', 'flagsUnset', 'npcFree', 'npcAt', 'obligationOpen', 'relAtLeast', 'relBelow'],
+      when: ['flagsSet', 'flagsUnset', 'npcFree', 'clockAtLeast', 'attitudeAtLeast', 'relAtLeast', 'relBelow', 'obligationStatus', 'playerAt']
+    });
+    const COND_LABEL = Object.freeze({
+      flagsSet: 'Flags set', flagsUnset: 'Flags not set', npcFree: 'Free (not arrested, gone or dead)', npcAt: 'Someone at a place',
+      obligationOpen: 'Obligations still open', relAtLeast: 'How someone feels, at least', relBelow: 'How someone feels, below',
+      clockAtLeast: 'A faction\'s clocks, at least', attitudeAtLeast: 'Someone\'s attitude, at least', obligationStatus: 'An obligation settled', playerAt: 'The player is at'
+    });
+    const TRACK_KEYS = [['liking', -100, 100], ['trust', -100, 100], ['fear', 0, 100], ['knows', 0, 100]];
+    /* A map condition a row a key: the key a select of its kind (or a typed id), the value its control, x; then an Add. */
+    function mapRows(cond, kp, key, d) {
+      const obj = isObj(cond[key]) ? cond[key] : {};
+      const people = choicesOf('npc', d);
+      const keyChoices = key === 'clockAtLeast' ? choicesOf('fac', d) : key === 'obligationStatus' ? null : people;
+      const keys = Object.keys(obj);
+      const writeKeys = next => set(kp, next);
+      const renameKey = (from, to) => { const next = {}; for (const k of keys) next[k === from ? to : k] = obj[k]; writeKeys(next); };
+      const rows = keys.map((k, j) => {
+        const vp = `${kp}.${k}`;
+        const vid = Form.domId(vp);
+        let keyCtl;
+        if (keyChoices) {
+          const ks = el('select', { class: 'input cr-ref', id: vid + '-key', 'aria-label': `${COND_LABEL[key]}, row ${j + 1}: who`,
+            onchange: () => { if (ks.value && ks.value !== k && !keys.includes(ks.value)) { renameKey(k, ks.value); redraw(sel(Form.domId(`${kp}.${ks.value}`) + '-key')); } } },
+          keyChoices.filter(c => c.value === k || !keys.includes(c.value)).map(c => option(c.value, c.text, c.value === k)),
+          keyChoices.some(c => c.value === k) ? null : option(k, `${k} (not found)`, true));
+          keyCtl = ks;
+        } else keyCtl = el('span', { class: 'cr-mono cr-cond-id' }, k);
+        let val;
+        if (key === 'npcAt') {
+          val = el('select', { class: 'input cr-ref', id: vid, 'aria-label': `${COND_LABEL[key]}, row ${j + 1}: where`, dataset: { path: vp }, onchange: () => set(vp, val.value || undefined) },
+            option('', 'Choose a place', !obj[k]), choicesOf('loc', d).map(c => option(c.value, c.text, c.value === obj[k])));
+        } else if (key === 'obligationStatus') {
+          val = el('select', { class: 'input', id: vid, 'aria-label': `${k}: settled as`, dataset: { path: vp }, onchange: () => set(vp, val.value || undefined) },
+            option('', 'Choose', !obj[k]), ['met', 'missed', 'lapsed'].map(s => option(s, s, s === obj[k])));
+        } else if (key === 'relAtLeast' || key === 'relBelow') {
+          const t = isObj(obj[k]) ? obj[k] : {};
+          val = el('div', { class: 'cr-tracks', dataset: { path: vp } }, TRACK_KEYS.map(([tk, lo, hi]) => {
+            const tp = `${vp}.${tk}`;
+            const n = el('input', { class: 'input', type: 'number', inputmode: 'numeric', step: '1', min: lo, max: hi, id: Form.domId(tp), value: Number.isInteger(t[tk]) ? String(t[tk]) : '',
+              dataset: { path: tp }, 'aria-describedby': Form.domId(tp) + '-err',
+              onchange: () => set(tp, n.value.trim() === '' ? undefined : Number(n.value)) });
+            return el('label', { class: 'cr-track' }, el('span', { class: 'cr-track-name' }, tk), n, slot(tp));
+          }));
+        } else {
+          const lim = key === 'attitudeAtLeast' ? [-100, 100] : [1, null];
+          val = el('input', { class: 'input', type: 'number', inputmode: 'numeric', step: '1', min: lim[0], max: lim[1], id: vid, value: Number.isInteger(obj[k]) ? String(obj[k]) : '',
+            'aria-label': `${COND_LABEL[key]}, row ${j + 1}: ${key === 'clockAtLeast' ? 'segments' : 'attitude'}`, dataset: { path: vp },
+            onchange: () => set(vp, val.value.trim() === '' ? undefined : Number(val.value)) });
+        }
+        return el('div', { class: 'cr-maprow', dataset: { key: k, index: String(j) } }, keyCtl, val,
+          xBtn(`Remove ${k}`, () => { const next = Object.assign({}, obj); delete next[k]; writeKeys(next); redraw(sel(Form.domId(kp) + '-addkey')); }), slot(vp));
+      });
+      let adder;
+      const addId = Form.domId(kp) + '-addkey';
+      const defaultOf = () => (key === 'relAtLeast' || key === 'relBelow' ? {} : key === 'npcAt' ? '' : key === 'obligationStatus' ? 'met' : key === 'clockAtLeast' ? 1 : 0);
+      if (keyChoices) {
+        const left = keyChoices.filter(c => !keys.includes(c.value));
+        adder = el('select', { class: 'input cr-chip-add', id: addId, disabled: !left.length, 'aria-label': `${COND_LABEL[key]}: add a row`,
+          onchange: () => { if (!adder.value) return; const k = adder.value; writeKeys(Object.assign({}, obj, { [k]: defaultOf() })); redraw(sel(Form.domId(`${kp}.${k}`))); } },
+        option('', left.length ? 'Add a row…' : 'Nothing more to add', true), left.map(c => option(c.value, c.text, false)));
+      } else {
+        const f = el('input', { class: 'input cr-mono', id: addId, type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: 'obl_debt_npc_…', 'aria-label': 'An obligation id to add' });
+        const go = () => { const k = f.value.trim(); if (!k || keys.includes(k)) return; writeKeys(Object.assign({}, obj, { [k]: defaultOf() })); redraw(sel(Form.domId(`${kp}.${k}`))); };
+        f.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); go(); } });
+        adder = el('span', { class: 'cr-chip-new' }, f, btn('Add', 'cond-row-add', go));
+      }
+      return [el('div', { class: 'cr-maprows' }, rows), adder];
+    }
+    function condKey(cond, path, key, kind, d, drop) {
+      const kp = `${path}.${key}`;
+      const known = COND_KEYS[kind].includes(key);
+      const head = el('div', { class: 'cr-cond-head' },
+        el('span', { class: 'cr-cond-label', id: Form.domId(kp) + '-label' }, known ? COND_LABEL[key] : `${key} (not a ${kind} key)`),
+        xBtn(`Remove the condition ${COND_LABEL[key] || key}`, drop, 'cond-remove'));
+      let body;
+      const listOn = (p, v) => { set(p, v); };
+      if (!known) body = rawBox(kp, cond[key], 'As written', 'The rules do not read this key here; kept as it is.');
+      else if (key === 'flagsSet' || key === 'flagsUnset') body = Form.render({ type: 'refs', ref: 'flag', label: COND_LABEL[key], help: 'Only flags something in the story sets (a setFlag effect).' }, cond[key], kp, listOn, { hideLabel: true });
+      else if (key === 'npcFree') body = Form.render({ type: 'refs', ref: 'npc', label: COND_LABEL[key] }, cond[key], kp, listOn, { hideLabel: true });
+      else if (key === 'obligationOpen') body = Form.render({ type: 'list', of: { type: 'string', label: 'Obligation id' }, label: COND_LABEL[key], help: 'Ids like obl_debt_npc_royce: a kind and the person a loose end binds it to.' }, cond[key], kp, listOn, { hideLabel: true });
+      else if (key === 'playerAt') body = Form.render({ type: 'ref', ref: 'loc', label: COND_LABEL[key] }, cond[key], kp, listOn, { hideLabel: true });
+      else body = el('div', { class: 'cr-field', dataset: { field: kp, type: 'any', path: kp } }, mapRows(cond, kp, key, d), slot(kp));
+      return el('div', { class: 'cr-cond-key', dataset: { key } }, head, body);
+    }
+    /* Conditions.render(cond, path, { kind: 'requires' | 'when', title, note }); alt(alt, path, requires) the text and effects used instead. */
+    const Conditions = Object.freeze({
+      KEYS: COND_KEYS,
+      render(cond, path, opts) {
+        const o = Object.assign({ kind: 'requires' }, opts);
+        const d = state.draft || {};
+        const c = isObj(cond) ? cond : {};
+        const present = Object.keys(c);
+        const left = COND_KEYS[o.kind].filter(k => !present.includes(k));
+        const addId = Form.domId(path) + '-add';
+        const drop = key => () => {
+          const next = Object.assign({}, c);
+          delete next[key];
+          set(path, o.kind === 'requires' && !Object.keys(next).length ? undefined : next);
+          redraw(sel(addId));
+        };
+        const add = el('select', { class: 'input cr-cond-add', id: addId, disabled: !left.length, 'aria-label': `Add a condition to ${o.title || o.kind}`,
+          onchange: () => {
+            const k = add.value;
+            if (!k) return;
+            const init = ['flagsSet', 'flagsUnset', 'npcFree', 'obligationOpen'].includes(k) ? [] : k === 'playerAt' ? '' : {};
+            set(path, Object.assign({}, c, { [k]: init }));
+            redraw(`[data-path="${CSS.escape(path)}"] .cr-cond-key[data-key="${k}"] select, [data-path="${CSS.escape(path)}"] .cr-cond-key[data-key="${k}"] input`);
+          } }, option('', left.length ? 'Add a condition…' : 'Every condition is here', true), left.map(k => option(k, COND_LABEL[k], false)));
+        const title = o.title || (o.kind === 'when' ? 'When' : 'Only if');
+        const note = has(o.note) ? o.note : o.kind === 'when'
+          ? 'All of these must hold for this branch; the first branch whose conditions all hold is the one told.'
+          : 'All of these must hold when it fires; when one does not, what happens instead (below) is used, or nothing.';
+        if (!isObj(cond) && has(cond)) return el('div', { class: 'cr-cond', dataset: { path } }, el('h4', { class: 'cr-fx-title' }, title), rawBox(path, cond, 'As written', 'Not a condition object; kept as it is.'));
+        return el('div', { class: 'cr-cond', dataset: { path, cond: o.kind } },
+          el('h4', { class: 'cr-fx-title' }, title),
+          el('p', { class: 'cr-note' }, note),
+          slot(path),
+          present.map(k => condKey(c, path, k, o.kind, d, drop(k))),
+          add);
+      },
+      alt(alt, path, requires) {
+        const note = 'What happens instead when a condition above does not hold. An alternative with no conditions never happens.';
+        if (!isObj(alt)) {
+          return el('div', { class: 'cr-alt', dataset: { path } }, el('h4', { class: 'cr-fx-title' }, 'Instead'), el('p', { class: 'cr-note' }, note), slot(path),
+            btn('Add what happens instead', 'alt-add', () => { set(path, { text: '' }); redraw(sel(Form.domId(path + '.text'))); }, has(requires) ? '' : 'ghost'));
+        }
+        return el('div', { class: 'cr-alt', dataset: { path } },
+          el('div', { class: 'cr-cond-head' }, el('h4', { class: 'cr-fx-title' }, 'Instead'), xBtn('Remove what happens instead', () => { set(path, undefined); redraw(); }, 'alt-remove')),
+          el('p', { class: 'cr-note' }, note), slot(path),
+          Form.render({ type: 'text', label: 'Text instead', max: 2000 }, alt.text, path + '.text', (p, v) => set(p, v), { required: true }),
+          Effects.render(alt.effects, path + '.effects', { title: 'Effects instead', optional: true }));
+      }
+    });
+
+    // ----- shared record parts -----
+    function threadFields(x, path, on, d, nested) {
+      const others = listAt(d, 'world.threads').filter(t => t.id !== x.id);
+      const choices = choicesOf('npc', d).concat(choicesOf('loc', d), choicesOf('fac', d), others.map(t => ({ value: t.id, text: short(t.title || t.id, 60) })));
+      return [
+        Form.render(THR(), x, path, on, { only: (nested ? ['id'] : []).concat(['title', 'summary', 'status', 'knownToPlayer', 'reward']), title: nested ? '' : 'The thread', note: nested ? '' : 'A question the story turns on. The player finds it; resolving it first raises the reward stat.', nested }),
+        chipsField(path + '.linkedIds', x.linkedIds, choices, 'Linked people, places, factions and threads', 'Who and what the thread is about.', on)
+      ];
+    }
+    function rumourFields(x, path, on, nested) {
+      return Form.render(RUM(), x, path, dropEmpty(on), {
+        only: (nested ? ['id'] : []).concat(['text', 'true', 'sourceNpcId', 'tellerIds', 'threadId', 'factionId', 'leverageOver', 'heard']),
+        title: nested ? '' : 'The rumour', note: nested ? '' : 'Talk in town at the start. Someone besides its source must be able to pass it on: a teller, or the people of its faction.', nested
+      });
+    }
+    const TRIGGER_LABEL = { day: 'On a day', location: 'When the player is at a place', npc: 'When the player meets someone', clock: 'When a faction\'s clock reaches a segment' };
+    function triggerField(t, tp, d) {
+      const trig = isObj(t) ? t : {};
+      const tid = Form.domId(tp + '.type');
+      const type = el('select', { class: 'input', id: tid, dataset: { path: tp + '.type' }, 'aria-describedby': tid + '-err',
+        onchange: () => {
+          const v = type.value;
+          set(tp, v ? { type: v, value: v === 'location' ? [] : undefined } : undefined);
+          redraw(sel(tid));
+        } }, option('', 'Choose', !trig.type), Object.keys(TRIGGER_LABEL).map(k => option(k, TRIGGER_LABEL[k], k === trig.type)),
+      trig.type && !TRIGGER_LABEL[trig.type] ? option(trig.type, `${trig.type} (not a trigger)`, true) : null);
+      const vp = tp + '.value';
+      let value = null;
+      if (trig.type === 'day') value = Form.render({ type: 'int', label: 'Day', min: 1 }, trig.value, vp, (p, v) => set(p, v), { required: true });
+      else if (trig.type === 'location') value = chipsField(vp, trig.value, townPlaces(d), 'Places', 'Any of these places sets it off.', (p, v) => set(p, v));
+      else if (trig.type === 'npc') {
+        value = Array.isArray(trig.value) ? chipsField(vp, trig.value, choicesOf('npc', d), 'People', 'A trigger names one person; the rules ask for one.', (p, v) => set(p, v))
+          : Form.render({ type: 'ref', ref: 'npc', label: 'Person' }, trig.value, vp, (p, v) => set(p, v), { required: true });
+      } else if (trig.type === 'clock') {
+        const m = typeof trig.value === 'string' ? /^([^:]*):(\d*)$/.exec(trig.value) : null;
+        const fac = m ? m[1] : '';
+        const seg = m ? m[2] : '';
+        const vid = Form.domId(vp);
+        const write = (f, n) => set(vp, f || n ? `${f}:${n}` : undefined);
+        // The row holds the data-path, not the select: Editor.set shows a value in its control, and "fac_x:" is no choice of this one.
+        const fs = el('select', { class: 'input cr-ref', id: vid, 'aria-describedby': vid + '-err', onchange: () => write(fs.value, num.value.trim()) },
+          option('', 'Choose a faction', !fac), choicesOf('fac', d).map(c => option(c.value, c.text, c.value === fac)));
+        const num = el('input', { class: 'input', type: 'number', inputmode: 'numeric', min: 1, step: '1', id: vid + '-seg', value: seg, 'aria-label': 'Segment', onchange: () => write(fs.value, num.value.trim()) });
+        value = el('div', { class: 'cr-field', dataset: { field: vp, type: 'any' } },
+          el('label', { class: 'label', for: vid }, 'Faction and segment'), el('div', { class: 'cr-maprow cr-clockpick', dataset: { path: vp } }, fs, num), slot(vp));
+      } else if (has(trig.value)) value = rawBox(vp, trig.value, 'Value', 'Kept as it is.');
+      return el('div', { class: 'cr-sub cr-trigger', dataset: { path: tp } },
+        el('h3', { class: 'cr-sub-title' }, 'What sets it off'),
+        slot(tp),
+        el('div', { class: 'cr-field', dataset: { field: tp + '.type', type: 'enum' } }, el('label', { class: 'label', for: tid }, 'Trigger', el('span', { class: 'cr-req' }, 'required')), type, slot(tp + '.type')),
+        value);
+    }
+    function seedFields(x, path, on, d, nested, depth) {
+      const danger = x.danger;
+      const dp = path + '.danger';
+      const dangerField = nested ? null : Array.isArray(danger) || typeof danger === 'string'
+        ? Form.render({ type: 'refs', ref: 'npc', label: 'Who is in danger' }, [].concat(danger), dp, (p, v) => set(p, v && v.length ? v : undefined))
+        : Form.render({ type: 'bool', label: 'Someone in danger', help: 'The player can step in: it happens at its place, to people there and free. A danger seed names who does it and who is in danger, by their full names.' }, danger === true, dp, (p, v) => set(p, v ? true : undefined));
+      return [
+        Form.render(SEED(), x, path, on, { only: (nested ? ['id'] : []).concat(['cause', 'effect']), title: nested ? '' : 'The seed', note: nested ? '' : 'Something already under way: why it happens, and what the player sees when it does.', nested }),
+        triggerField(x.trigger, path + '.trigger', d),
+        Form.render(SEED(), x, path, on, { only: (nested ? [] : ['notBeforeDay']).concat(['hidden', 'fired']), title: 'When it can happen', note: '', nested: true }),
+        dangerField,
+        Effects.render(x.effects, path + '.effects', { title: 'Effects', note: 'What changes in the town when it fires.', optional: true, depth }),
+        Conditions.render(x.requires, path + '.requires', { kind: 'requires' }),
+        Conditions.alt(x.alt, path + '.alt', x.requires)
+      ];
+    }
+    /* Branches (an event's, the ending's): each a card, open or folded (remembered by path); Move up, Remove, Add. */
+    const openBranches = new Set();
+    function branchesField(list, path, label) {
+      const items = arrOf(list);
+      const addId = Form.domId(path) + '-add';
+      const cards = items.map((b, i) => {
+        const bp = `${path}[${i}]`;
+        const x = isObj(b) ? b : {};
+        const det = el('details', { class: 'cr-more cr-branch', open: openBranches.has(bp) ? true : null, dataset: { path: bp, index: String(i) } },
+          el('summary', null, el('span', { class: 'cr-branch-n' }, `Branch ${i + 1}`), el('span', { class: 'cr-branch-sum' }, short(x.text, 70) || 'No text yet')),
+          el('div', { class: 'cr-branch-body' },
+            slot(bp),
+            Conditions.render(x.when, bp + '.when', { kind: 'when' }),
+            Form.render({ type: 'text', label: 'Text', max: 2000 }, x.text, bp + '.text', (p, v) => set(p, v), { required: true }),
+            Effects.render(x.effects, bp + '.effects', { title: 'Effects' }),
+            el('div', { class: 'cr-row-btns' },
+              i > 0 ? btn('Move up', 'branch-up', () => { const next = items.slice(); next.splice(i - 1, 0, next.splice(i, 1)[0]); openBranches.delete(bp); openBranches.add(`${path}[${i - 1}]`); set(path, next); redraw(); }) : null,
+              btn('Remove this branch', 'branch-remove', () => { openBranches.delete(bp); set(path, items.filter((y, k) => k !== i)); redraw(sel(addId)); }, 'danger'))));
+        det.addEventListener('toggle', () => { if (det.open) openBranches.add(bp); else openBranches.delete(bp); });
+        return det;
+      });
+      return el('div', { class: 'cr-branches', dataset: { path } },
+        el('h3', { class: 'cr-sub-title' }, label),
+        el('p', { class: 'cr-note' }, 'Read in order: the first branch whose conditions all hold is told; when none does, the default is.'),
+        slot(path),
+        cards,
+        el('button', { type: 'button', class: 'btn small', id: addId, dataset: { action: 'branch-add' },
+          onclick: () => { const bp = `${path}[${items.length}]`; openBranches.add(bp); set(path, items.concat([{ when: {}, text: '', effects: [] }])); redraw(sel(Form.domId(bp) + '-add')); } }, 'Add a branch'));
+    }
+    function outcomeField(o, path, label) {
+      const x = isObj(o) ? o : {};
+      return el('div', { class: 'cr-sub cr-outcome', dataset: { path } },
+        el('h3', { class: 'cr-sub-title' }, label),
+        slot(path),
+        Form.render({ type: 'text', label: 'Text', max: 2000 }, x.text, path + '.text', (p, v) => set(p, v), { required: true }),
+        Effects.render(x.effects, path + '.effects', { title: 'Effects' }));
+    }
+    // The draft's currency by money()'s own rule (symbol before, or after with a space when before is false); money() reads the playing pack, which an open draft is not, so it is the fallback when the draft has none.
+    function priceText(n, d) {
+      const c = getAt(d, 'world.currency');
+      if (!Number.isFinite(n)) return '';
+      return isObj(c) && typeof c.symbol === 'string' && c.symbol ? (c.before === false ? `${n} ${c.symbol}` : `${c.symbol}${n}`) : money(n);
+    }
+
+    // ----- a list without ids (the goods, the complications) -----
+    /* IndexTab: EntityTab's look and behaviour (rows, Add with a name, the detail in the list's place on a phone, Back
+       in the sticky bar, Delete with Undo) for a table whose records have no id, so a row is its index. */
+    function IndexTab(cfg) {
+      const c = Object.assign({ summary: () => '', fields: null }, cfg);
+      const view = { open: null, adding: false, query: '' };
+      const listOf = d => arrOf(getAt(d, c.listPath));
+      const nameOfRow = x => (isObj(x) && typeof x[c.nameField] === 'string' && x[c.nameField].trim() ? x[c.nameField].trim() : `Unnamed ${c.singular}`);
+      const boxSel = `.cr-entity[data-entity="${c.key}"]`;
+      const addId = `cr-add-${c.key}`;
+      function row(x, i, d) {
+        const path = `${c.listPath}[${i}]`;
+        const name = nameOfRow(x);
+        const sum = c.summary(x, d);
+        const n = errorsAt(path);
+        return el('button', { type: 'button', class: 'cr-row', 'aria-current': i === view.open ? 'true' : null, dataset: { index: String(i), rowPath: path, find: name.toLowerCase() }, onclick: () => open(i) },
+          el('span', { class: 'cr-initial', 'aria-hidden': 'true' }, initialOf(name)),
+          el('span', { class: 'cr-row-text' }, el('span', { class: 'cr-row-name' }, name), sum ? el('span', { class: 'cr-row-sum' }, sum) : null),
+          el('span', { class: 'cr-badge warn', hidden: !n, 'aria-label': plural(n, 'error') }, String(n)));
+      }
+      function filter(box) {
+        const q = view.query.trim().toLowerCase();
+        for (const r of box.querySelectorAll('.cr-row')) r.hidden = !!q && !r.dataset.find.includes(q);
+        const none = box.querySelector('.cr-rows-none');
+        if (none) none.hidden = !q || [...box.querySelectorAll('.cr-row')].some(r => !r.hidden);
+      }
+      function listPane(d) {
+        const list = listOf(d);
+        const rows = list.map((x, i) => row(x, i, d));
+        const box = el('div', { class: 'cr-rows', role: 'group', 'aria-label': c.label },
+          rows.length ? rows : el('p', { class: 'cr-rows-none' }, `No ${c.label.toLowerCase()} yet.`),
+          rows.length ? el('p', { class: 'cr-rows-none', hidden: true }, 'Nothing matches.') : null);
+        const search = rows.length > 8 ? el('input', { class: 'input cr-search', type: 'search', id: `cr-find-${c.key}`, value: view.query, autocomplete: 'off', placeholder: `Find a ${c.singular}`,
+          'aria-label': `Find a ${c.singular}`, oninput: e => { view.query = e.target.value; filter(box); } }) : null;
+        if (search && view.query) filter(box);
+        let adder = null;
+        if (view.adding) {
+          const f = el('input', { class: 'input', id: addId, type: 'text', autocomplete: 'off', maxlength: 200, enterkeyhint: 'done', placeholder: c.placeholder || '' });
+          const go = () => { const v = f.value.trim(); if (!v) { f.focus(); return; } add(v); };
+          const cancel = () => { view.adding = false; redraw(`${boxSel} [data-action="add"]`); };
+          f.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } else if (e.key === 'Escape') { e.preventDefault(); cancel(); } });
+          adder = el('div', { class: 'cr-add-new', dataset: { addFor: c.key } }, el('label', { class: 'label', for: addId }, c.addLabel || `Name of the new ${c.singular}`), f,
+            btn('Add', 'add-confirm', go, 'primary'), btn('Cancel', 'add-cancel', cancel, 'ghost'));
+        }
+        return el('div', { class: 'cr-entity-list' },
+          el('section', { class: 'cr-section' },
+            el('div', { class: 'cr-list-head' }, el('h2', { class: 'cr-section-title' }, c.label),
+              el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add' }, 'aria-expanded': String(view.adding), onclick: () => { view.adding = true; redraw(sel(addId)); } }, `Add ${c.singular}`)),
+            c.note ? el('p', { class: 'cr-note' }, c.note) : null,
+            adder, search, box));
+      }
+      function detailPane(d) {
+        const list = listOf(d);
+        if (view.open === null || !list[view.open]) return el('div', { class: 'cr-entity-detail' }, el('p', { class: 'cr-pick' }, `Choose a ${c.singular} from the list, or add one.`));
+        const i = view.open;
+        const x = isObj(list[i]) ? list[i] : {};
+        const path = `${c.listPath}[${i}]`;
+        const on = (p, v) => { set(p, v); syncOpen(); };
+        return el('div', { class: 'cr-entity-detail', dataset: { path, detailFor: String(i) } },
+          el('div', { class: 'cr-detail-top' },
+            el('button', { type: 'button', class: 'btn ghost small cr-back', dataset: { action: 'back' }, 'aria-label': `Back to ${c.label.toLowerCase()}`, onclick: close }, 'Back'),
+            el('h2', { class: 'cr-detail-title', id: `cr-detail-${c.key}`, tabindex: '-1' }, nameOfRow(x)),
+            el('p', { class: 'cr-detail-id' }, `${capFirst(c.singular)} ${i + 1} of ${list.length}`),
+            slot(path)),
+          c.fields(x, path, on, d),
+          el('div', { class: 'cr-section cr-danger' },
+            el('button', { type: 'button', class: 'btn danger', dataset: { action: 'delete' }, onclick: () => remove(i) }, `Delete this ${c.singular}`),
+            el('p', { class: 'cr-note' }, 'Undo brings it back.')),
+          el('div', { class: 'cr-sticky mobile-only' },
+            el('button', { type: 'button', class: 'btn', dataset: { action: 'back-bar' }, onclick: close }, 'Back'),
+            el('span', { class: 'spacer' }),
+            el('button', { type: 'button', class: 'btn primary', dataset: { action: 'save-bar' }, onclick: () => saveAsPack() }, 'Save')));
+      }
+      function render(d) {
+        if (view.open !== null && !listOf(d)[view.open]) view.open = null;
+        return el('div', { class: 'cr-entity', dataset: { entity: c.key, open: view.open !== null ? '1' : '0' } }, listPane(d), detailPane(d));
+      }
+      function syncOpen() {
+        const b = node('creator-body') && node('creator-body').querySelector(boxSel);
+        if (!b || view.open === null || !state.draft) return;
+        const x = listOf(state.draft)[view.open];
+        const t = b.querySelector('.cr-detail-title');
+        if (t) t.textContent = nameOfRow(x);
+        const r = b.querySelector(`.cr-row[data-index="${view.open}"]`);
+        if (!r) return;
+        r.querySelector('.cr-row-name').textContent = nameOfRow(x);
+        r.querySelector('.cr-initial').textContent = initialOf(nameOfRow(x));
+        r.dataset.find = nameOfRow(x).toLowerCase();
+        const s = r.querySelector('.cr-row-sum');
+        if (s) s.textContent = c.summary(x, state.draft);
+      }
+      function refresh() {
+        const b = node('creator-body') && node('creator-body').querySelector(boxSel);
+        if (!b) return;
+        for (const r of b.querySelectorAll('.cr-row')) {
+          const n = errorsAt(r.dataset.rowPath);
+          const g = r.querySelector('.cr-badge');
+          g.textContent = String(n);
+          g.hidden = !n;
+          g.setAttribute('aria-label', plural(n, 'error'));
+        }
+      }
+      function open(i) {
+        if (!state.draft || !listOf(state.draft)[i]) return false;
+        view.open = i;
+        view.adding = false;
+        redraw(`#cr-detail-${c.key}`);
+        return true;
+      }
+      function close() {
+        const was = view.open;
+        view.open = null;
+        redraw(was !== null ? `${boxSel} .cr-row[data-index="${was}"]` : null);
+      }
+      function add(name) {
+        const d = state.draft;
+        if (!d) return null;
+        const item = c.onAdd(String(name).trim(), d);
+        set(c.listPath, listOf(d).concat([item]));
+        view.adding = false;
+        view.query = '';
+        open(listOf(state.draft).length - 1);
+        return view.open;
+      }
+      async function remove(i) {
+        const d = state.draft;
+        const x = d ? listOf(d)[i] : null;
+        if (!x) return false;
+        const name = nameOfRow(x);
+        const yes = await UI.ask({ title: `Delete ${short(name, 60)}?`, text: `${name} goes from the ${c.label.toLowerCase()}. Undo brings it back.`, yes: 'Delete', no: 'Keep it' });
+        if (!yes || !state.draft) return false;
+        set(c.listPath, listOf(state.draft).filter((y, k) => k !== i));
+        view.open = null;
+        redraw(`${boxSel} [data-action="add"]`);
+        UI.toast(`Deleted ${short(name, 60)}.`);
+        return true;
+      }
+      return Object.freeze({ key: c.key, label: c.label, render, refresh, open, close, add, remove, get view() { return Object.assign({}, view); } });
+    }
+
+    // ----- Factions and Clocks -----
+    const openClocks = new Set();
+    /* A faction's relation to each other faction, one number each, written on both sides (the rules want them equal). */
+    function setFactionRelation(aId, bId, v) {
+      const facs = clone(arrOf(getAt(state.draft, 'world.factions')));
+      for (const [me, other] of [[aId, bId], [bId, aId]]) {
+        const f = facs.find(x => isObj(x) && x.id === me);
+        if (!f) continue;
+        f.relations = isObj(f.relations) ? f.relations : {};
+        if (v === undefined) delete f.relations[other]; else f.relations[other] = v;
+      }
+      return set('world.factions', facs);
+    }
+    function relationsField(f, fp, d) {
+      const others = listAt(d, 'world.factions').filter(o => o.id !== f.id);
+      const rel = isObj(f.relations) ? f.relations : {};
+      const stale = Object.keys(rel).filter(k => !others.some(o => o.id === k));
+      const rp = fp + '.relations';
+      return el('section', { class: 'cr-section', dataset: { path: rp } },
+        el('h2', { class: 'cr-section-title' }, 'Relations'),
+        el('p', { class: 'cr-note' }, 'How this faction stands with each other one, -100 to 100. A relation is written on both sides at once.'),
+        slot(rp),
+        others.length ? others.map(o => Form.render({ type: 'int', label: short(o.name || o.id, 60), min: -100, max: 100 }, rel[o.id], `${rp}.${o.id}`, (p, v) => setFactionRelation(f.id, o.id, v)))
+          : el('p', { class: 'cr-note' }, 'There is no other faction yet.'),
+        stale.map(k => Form.render({ type: 'int', label: `${k} (not found)`, min: -100, max: 100 }, rel[k], `${rp}.${k}`, (p, v) => set(p, v))));
+    }
+    function clockCard(f, fp, c, ci, clocks) {
+      const cp = `${fp}.clocks[${ci}]`;
+      const x = isObj(c) ? c : {};
+      const oc = isObj(x.onComplete) ? x.onComplete : {};
+      const key = `${f.id}#${ci}`;
+      const det = el('details', { class: 'cr-more cr-clock', open: openClocks.has(key) ? true : null, dataset: { path: cp, index: String(ci) } },
+        el('summary', null, el('span', { class: 'cr-branch-n' }, `Clock ${ci + 1}`), el('span', { class: 'cr-branch-sum' }, `${short(x.label, 50) || 'No label yet'} · ${Number.isInteger(x.filled) ? x.filled : 0} of ${Number.isInteger(x.segments) ? x.segments : '?'}`)),
+        el('div', { class: 'cr-branch-body' },
+          slot(cp),
+          Form.render(CLOCK(), x, cp, (p, v) => set(p, v), { only: ['label', 'segments', 'filled', 'odds'], title: '', note: '', nested: true }),
+          el('div', { class: 'cr-sub', dataset: { path: cp + '.onComplete' } },
+            el('h3', { class: 'cr-sub-title' }, 'When it fills'),
+            el('p', { class: 'cr-note' }, 'One sentence the town hears, and what changes.'),
+            slot(cp + '.onComplete'),
+            Form.render({ type: 'text', label: 'Text', max: 2000 }, oc.text, cp + '.onComplete.text', (p, v) => set(p, v), { required: true }),
+            Effects.render(oc.effects, cp + '.onComplete.effects', { title: 'Effects' }),
+            Conditions.render(oc.requires, cp + '.onComplete.requires', { kind: 'requires' }),
+            Conditions.alt(oc.alt, cp + '.onComplete.alt', oc.requires)),
+          el('div', { class: 'cr-row-btns' },
+            btn('Remove this clock', 'clock-remove', () => { openClocks.delete(key); set(fp + '.clocks', clocks.filter((y, k) => k !== ci)); UI.toast('Removed the clock. Undo brings it back.'); redraw(sel(Form.domId(fp + '.clocks') + '-add')); }, 'danger'))));
+      det.addEventListener('toggle', () => { if (det.open) openClocks.add(key); else openClocks.delete(key); });
+      return det;
+    }
+    function clocksField(f, fp) {
+      const clocks = arrOf(f.clocks);
+      const cl = fp + '.clocks';
+      return el('section', { class: 'cr-section cr-clocks', dataset: { path: cl } },
+        el('h2', { class: 'cr-section-title' }, 'Clocks'),
+        el('p', { class: 'cr-note' }, 'What the faction is doing while the player is not looking, a clock at a time: a segment fills on a roll each day, and a full clock changes the town.'),
+        slot(cl),
+        clocks.map((c, ci) => clockCard(f, fp, c, ci, clocks)),
+        el('button', { type: 'button', class: 'btn small', id: Form.domId(cl) + '-add', dataset: { action: 'clock-add' },
+          onclick: () => {
+            const first = clocks.find(isObj);
+            openClocks.add(`${f.id}#${clocks.length}`);
+            set(cl, clocks.concat([{ label: '', segments: first && Number.isInteger(first.segments) ? first.segments : 6, filled: 0, onComplete: { text: '', effects: [] } }]));
+            redraw(sel(Form.domId(`${cl}[${clocks.length}].label`)));
+          } }, 'Add a clock'));
+    }
+    const factionsTab = EntityTab({
+      key: 'factions', listPath: 'world.factions', label: 'Factions', singular: 'faction', idKind: 'fac', nameField: 'name', placeholder: 'The Ferry Board',
+      summary: x => [plural(arrOf(x.clocks).length, 'clock'), short(x.goal, 60) || 'no goal yet'].join(' · '),
+      onAdd: (name, ids) => ({ id: Pack.idFor('fac', name, ids), name, goal: '', methods: '', clocks: [], activeClock: 0, relations: {} }),
+      fields: (x, path, on, d) => [
+        Form.render(FAC(), x, path, on, { only: ['name', 'goal', 'methods', 'odds', 'activeClock'], title: 'The faction', note: 'Who they are, what they want and how they get it. The active clock is the one running (0 is the first).' }),
+        relationsField(x, path, d),
+        clocksField(x, path)
+      ]
+    });
+
+    // ----- Threads -----
+    const threadsTab = EntityTab({
+      key: 'threads', listPath: 'world.threads', label: 'Threads', singular: 'thread', idKind: 'thread', nameField: 'title', placeholder: 'The bridge vote',
+      summary: x => [x.status || 'open', x.reward ? `rewards ${x.reward}` : null, plural(arrOf(x.linkedIds).length, 'link')].filter(Boolean).join(' · '),
+      onAdd: (name, ids) => newThread(name, Pack.idFor('thread', name, ids)),
+      fields: (x, path, on, d) => threadFields(x, path, on, d, false)
+    });
+
+    // ----- Rumours -----
+    const rumoursTab = EntityTab({
+      key: 'rumours', listPath: 'world.rumours', label: 'Rumours', singular: 'rumour', idKind: 'rumour', nameField: 'text', placeholder: 'The mayor owes Carter money',
+      summary: (x, d) => [x.true === false ? 'false' : 'true', x.sourceNpcId ? `from ${nameOf(listAt(d, 'world.npcs').find(n => n.id === x.sourceNpcId)) || x.sourceNpcId}` : 'no source yet', plural(arrOf(x.tellerIds).length, 'teller')].join(' · '),
+      onAdd: (name, ids) => newRumour(name, Pack.idFor('rumour', name.split(/\s+/).slice(0, 4).join(' '), ids)),
+      fields: (x, path, on) => [rumourFields(x, path, on, false)]
+    });
+
+    // ----- Events and Seeds -----
+    const seedsTab = EntityTab({
+      key: 'seeds', listPath: 'world.seeds', label: 'Seeds', singular: 'seed', idKind: 'seed', nameField: 'cause', placeholder: 'Dewayne is behind on the boat loan',
+      summary: x => {
+        const t = isObj(x.trigger) ? x.trigger : {};
+        const v = t.type === 'day' ? `day ${t.value}` : t.type === 'location' ? plural([].concat(t.value || []).length, 'place') : t.type === 'npc' ? 'meeting someone' : t.type === 'clock' ? `clock ${t.value || ''}` : 'no trigger';
+        return [v, x.danger !== undefined ? 'danger' : null, plural(arrOf(x.effects).length, 'effect')].filter(Boolean).join(' · ');
+      },
+      onAdd: (name, ids) => newSeed(name, Pack.idFor('seed', name.split(/\s+/).slice(0, 4).join(' '), ids)),
+      fields: (x, path, on, d) => seedFields(x, path, on, d, false, 0)
+    });
+    const eventsTab = EntityTab({
+      key: 'events', listPath: 'world.events', label: 'Events', singular: 'event', idKind: 'event', nameField: 'title', placeholder: 'The council meeting',
+      summary: x => [Number.isInteger(x.day) ? `day ${x.day}` : 'no day', x.phase || null, `${arrOf(x.branches).length} branch${arrOf(x.branches).length === 1 ? '' : 'es'}`].filter(Boolean).join(' · '),
+      onAdd: (name, ids) => ({ id: Pack.idFor('event', name, ids), title: name, day: 2, phase: 'evening', branches: [], default: { text: '', effects: [] } }),
+      fields: (x, path, on) => [
+        Form.render(EVT(), x, path, dropEmpty(on), { only: ['title', 'day', 'phase', 'locationId', 'attendees'], title: 'The event', note: 'Something the town does on a day, at a place: a meeting, a fish fry, a vote. The attendees are there that phase if they are free.' }),
+        el('section', { class: 'cr-section' }, branchesField(x.branches, path + '.branches', 'Branches'), outcomeField(x.default, path + '.default', 'Default'))
+      ]
+    });
+    function endingSection(d) {
+      const E = getAt(d, 'world.epilogue');
+      const head = [el('h2', { class: 'cr-section-title' }, 'The ending'),
+        el('p', { class: 'cr-note' }, 'How the story ends: on a day, or sooner when one of the flags below is set. The first branch whose conditions hold is told.')];
+      if (!isObj(E)) {
+        return el('section', { class: 'cr-section cr-ending', dataset: { path: 'world.epilogue' } }, head, slot('world.epilogue'),
+          btn('Add an ending', 'ending-add', () => { set('world.epilogue', { onDay: 21, orFlagsSet: [], branches: [], default: { text: '', effects: [] } }); redraw(sel(Form.domId('world.epilogue.onDay'))); }, 'primary'));
+      }
+      return el('section', { class: 'cr-section cr-ending', dataset: { path: 'world.epilogue' } }, head, slot('world.epilogue'),
+        Form.render(EPI(), E, 'world.epilogue', (p, v) => set(p, v), { only: ['onDay', 'orFlagsSet'], title: '', note: '', nested: true }),
+        branchesField(E.branches, 'world.epilogue.branches', 'Endings'),
+        outcomeField(E.default, 'world.epilogue.default', 'Default ending'));
+    }
+    function renderStory(d) {
+      // One list open at a time: its detail takes the tab, as a single list's does.
+      if (seedsTab.view.open !== null && listAt(d, 'world.seeds').some(s => s.id === seedsTab.view.open)) return seedsTab.render(d);
+      if (eventsTab.view.open !== null && listAt(d, 'world.events').some(s => s.id === eventsTab.view.open)) return eventsTab.render(d);
+      return el('div', { class: 'cr-story' }, seedsTab.render(d), eventsTab.render(d), endingSection(d));
+    }
+
+    // ----- Goods -----
+    const goodsTab = IndexTab({
+      key: 'goods', listPath: 'world.tables.items.goods', label: 'Goods', singular: 'good', nameField: 'name', placeholder: 'Box of shotgun shells',
+      note: 'What can be bought anywhere in town, at these prices.',
+      summary: (x, d) => [priceText(x.price, d) || 'no price', x.kind || null].filter(Boolean).join(' · '),
+      onAdd: name => ({ name, price: 5, kind: 'good' }),
+      fields: (x, path, on, d) => {
+        const sec = Form.render(GOOD(), x, path, dropEmpty(on), { only: ['name', 'price', 'kind', 'synonyms'], title: 'The good', note: 'Its name as a shop says it, its price in whole money, and what buying it does: a good is kept, food and drink are had, a service is done.' });
+        const pf = sec.querySelector(`[data-field="${CSS.escape(path + '.price')}"]`);
+        if (pf) pf.insertBefore(el('p', { class: 'cr-note cr-price', dataset: { price: path } }, Number.isFinite(x.price) ? `Shown to the player as ${priceText(x.price, d)}.` : 'No price yet.'), pf.querySelector('.cr-err'));
+        const box = sec.querySelector(`[data-path="${CSS.escape(path + '.price')}"]`);
+        if (box) box.addEventListener('change', () => { const n = node('creator-body').querySelector('.cr-price'); const v = getAt(state.draft, path + '.price'); if (n) n.textContent = Number.isFinite(v) ? `Shown to the player as ${priceText(v, state.draft)}.` : 'No price yet.'; });
+        return [sec];
+      }
+    });
+    const complicationsTab = IndexTab({
+      key: 'complications', listPath: 'world.tables.complications', label: 'Complications', singular: 'complication', nameField: 'text', placeholder: 'someone you know sees it',
+      addLabel: 'What goes wrong', note: 'What goes wrong on a partial success or a failure, drawn at random by the kind of the roll.',
+      summary: x => [arrOf(x.tiers).join(', ') || 'no tier', arrOf(x.kinds).join(', ') || 'no kind'].join(' · '),
+      onAdd: name => ({ text: name, tiers: ['both'], kinds: ['any'] }),
+      fields: (x, path, on) => [
+        Form.render(COMP(), x, path, on, { only: ['text', 'tiers', 'kinds', 'needsPerson', 'notDay1'], title: 'The complication', note: 'One phrase, lower case, that finishes "but…". {witness} names someone present (then it needs someone present).' }),
+        el('section', { class: 'cr-section' }, Effects.render(x.effects, path + '.effects', { title: 'Effects', note: 'Filled in when it happens: {witnessId} is the one who saw it.', optional: true }))
+      ]
+    });
+    function renderGoods(d) {
+      if (complicationsTab.view.open !== null) return complicationsTab.render(d);
+      if (goodsTab.view.open !== null) return goodsTab.render(d);
+      return el('div', { class: 'cr-story' }, goodsTab.render(d), complicationsTab.render(d),
+        el('section', { class: 'cr-section cr-tables-note' }, el('h2', { class: 'cr-section-title' }, 'Weather and names'),
+          el('p', { class: 'cr-note' }, 'The weather by season and the tables of first names, jobs, place types and trinkets are edited in the JSON tab: small, and rarely changed.')));
+    }
+
+    // ----- onto the World strip -----
+    const both = (a, b) => Object.freeze({ refresh() { a.refresh(); b.refresh(); } });
+    WorldTab.addSub({ id: 'factions', label: 'Factions and Clocks', owns: p => /^world\.factions(\[|\.|$)/.test(p), render: d => factionsTab.render(d), tab: factionsTab });
+    WorldTab.addSub({ id: 'threads', label: 'Threads', owns: p => /^world\.threads(\[|\.|$)/.test(p), render: d => threadsTab.render(d), tab: threadsTab });
+    WorldTab.addSub({ id: 'rumours', label: 'Rumours', owns: p => /^world\.rumours(\[|\.|$)/.test(p), render: d => rumoursTab.render(d), tab: rumoursTab });
+    WorldTab.addSub({ id: 'story', label: 'Events and Seeds', owns: p => /^world\.(seeds|events|epilogue)(\[|\.|$)/.test(p), render: renderStory, tab: both(seedsTab, eventsTab) });
+    WorldTab.addSub({ id: 'goods', label: 'Goods', owns: p => /^world\.tables(\[|\.|$)/.test(p), render: renderGoods, tab: both(goodsTab, complicationsTab) });
+    // Tests and the later tabs reach them through the World tab, which the Creator already returns.
+    Object.assign(WorldTab, { Effects, Conditions, factions: factionsTab, threads: threadsTab, rumours: rumoursTab, seeds: seedsTab, events: eventsTab, goods: goodsTab, complications: complicationsTab, priceText });
+  })();
 
   // ----- Creator: Player -----
   // (milestone 5, task M5-D)

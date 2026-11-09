@@ -186,7 +186,10 @@ s.test('the World tab: its strip (Places, People, Schedules) with error badges; 
   await openDraft(page, 'copy');
   await page.click('#creator-tab-world');
   assert.deepEqual(await page.$$eval('#creator-body .cr-subtab', bs => bs.map(b => [b.id, b.firstChild.textContent, b.getAttribute('aria-selected')])),
-    [['cr-world-places', 'Places', 'true'], ['cr-world-people', 'People', 'false'], ['cr-world-schedules', 'Schedules', 'false']]);
+    [['cr-world-places', 'Places', 'true'], ['cr-world-people', 'People', 'false'], ['cr-world-schedules', 'Schedules', 'false'],
+      // Task M5-C2: the story lists follow, added through WorldTab.addSub.
+      ['cr-world-factions', 'Factions and Clocks', 'false'], ['cr-world-threads', 'Threads', 'false'], ['cr-world-rumours', 'Rumours', 'false'],
+      ['cr-world-story', 'Events and Seeds', 'false'], ['cr-world-goods', 'Goods', 'false']]);
   await worldTab(page, 'people');
   const rows = await page.$$eval('.cr-entity[data-entity="people"] .cr-row', rs => rs.map(r => ({ id: r.dataset.id, ini: r.querySelector('.cr-initial').textContent, name: r.querySelector('.cr-row-name').textContent, rid: r.querySelector('.cr-row-id').textContent, sum: r.querySelector('.cr-row-sum').textContent })));
   const want = await page.evaluate(() => Game.Creator.state.draft.world.npcs.map(n => n.id));
@@ -451,6 +454,386 @@ s.test('a place\'s detail, a person\'s detail and the Schedules grid pass the mo
       await worldTab(page, 'schedules');
       await page.evaluate(() => { document.getElementById('creator-scroll').scrollTop = 0; });
       await shot(page, `creator-world-schedules-${vp.width}x${vp.height}-${theme}`);
+    }
+  }
+});
+
+/* ----- task M5-C2: Factions and Clocks, Threads, Rumours, Events and Seeds, Goods; the Effects and Conditions editors ----- */
+const domId = (page, p) => page.evaluate(x => Game.Creator.Form.domId(x), p);
+// A number or text field's value, the way a person leaves it: typed, then the change event (the field losing the focus).
+async function type(page, selector, value) {
+  await page.fill(selector, String(value));
+  await page.$eval(selector, e => e.dispatchEvent(new Event('change', { bubbles: true })));
+}
+const at = p => `[data-path="${p}"]`;
+const fieldsOf = (page, rowPath) => page.$$eval(`.cr-fx-row[data-path="${rowPath}"] > .cr-fx-fields > .cr-field`, fs => fs.map(f => f.dataset.field.split('.').pop()));
+async function openClock(page, facId, ci) {
+  await worldTab(page, 'factions');
+  if (!(await page.$(`.cr-entity[data-entity="factions"][data-open="1"] [data-detail-for="${facId}"]`))) await page.click(`.cr-row[data-id="${facId}"]`);
+  const i = await page.evaluate(id => Game.Creator.state.draft.world.factions.findIndex(f => f.id === id), facId);
+  const cp = `world.factions[${i}].clocks[${ci}]`;
+  if (!(await page.$eval(`details.cr-clock[data-path="${cp}"]`, d => d.open))) await page.click(`details.cr-clock[data-path="${cp}"] > summary`);
+  return cp;
+}
+
+s.test('the five story lists render for a copy of the built-in story with its own counts: 3 factions, 3 threads, 20 rumours, 10 seeds and 1 event (with the ending under them), and the 40 goods and 20 complications; the weather and the name tables are a note pointing at the JSON tab', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  const want = await page.evaluate(() => { const w = Game.Creator.state.draft.world; return { factions: w.factions.length, threads: w.threads.length, rumours: w.rumours.length, seeds: w.seeds.length, events: w.events.length, goods: w.tables.items.goods.length, complications: w.tables.complications.length, endings: w.epilogue.branches.length }; });
+  assert.deepEqual(want, { factions: 3, threads: 3, rumours: 20, seeds: 10, events: 1, goods: 40, complications: 20, endings: 7 });
+  const rows = key => page.$$eval(`.cr-entity[data-entity="${key}"] .cr-row`, rs => rs.length);
+  await worldTab(page, 'factions');
+  assert.equal(await rows('factions'), 3);
+  assert.match(await page.textContent('.cr-row[data-id="fac_sturdivant"] .cr-row-sum'), /^3 clocks · Get the old bridge closed/);
+  await worldTab(page, 'threads');
+  assert.equal(await rows('threads'), 3);
+  await worldTab(page, 'rumours');
+  assert.equal(await rows('rumours'), 20);
+  assert.ok(await page.$('#cr-find-rumours'), 'a search past eight rows');
+  await worldTab(page, 'story');
+  assert.equal(await rows('seeds'), 10);
+  assert.equal(await rows('events'), 1);
+  assert.equal(await page.$$eval('.cr-ending details.cr-branch', ds => ds.length), 7, 'the ending\'s seven branches, folded');
+  assert.equal(await page.$eval(`.cr-ending ${at('world.epilogue.onDay')}`, i => i.value), '21');
+  assert.deepEqual(await page.$$eval(`.cr-ending ${at('world.epilogue.orFlagsSet')} .cr-chip-text`, cs => cs.map(c => c.textContent)), ['oldBridgeClosed', 'secondInspectionOrdered']);
+  await worldTab(page, 'goods');
+  assert.equal(await rows('goods'), 40);
+  assert.equal(await rows('complications'), 20);
+  assert.match(await page.textContent('.cr-tables-note'), /edited in the JSON tab/);
+  // Opening each story list's records draws without a page error (the helpers fail the test on one).
+  for (const [sub, key, sel] of [['factions', 'factions', '.cr-row'], ['threads', 'threads', '.cr-row'], ['rumours', 'rumours', '.cr-row'], ['story', 'seeds', '.cr-row'], ['story', 'events', '.cr-row'], ['goods', 'goods', '.cr-row'], ['goods', 'complications', '.cr-row']]) {
+    await worldTab(page, sub);
+    const n = await rows(key);
+    for (let i = 0; i < n; i += Math.max(1, Math.floor(n / 4))) {
+      await page.click(`.cr-entity[data-entity="${key}"] ${sel} >> nth=${i}`);
+      await page.waitForSelector(`.cr-entity[data-entity="${key}"][data-open="1"]`);
+      await page.click(`.cr-entity[data-entity="${key}"] [data-action="back"]`);
+      await page.waitForSelector(`.cr-entity[data-entity="${key}"][data-open="0"]`);
+    }
+  }
+  // Nothing was written by looking.
+  assert.equal(await page.evaluate(() => Game.Creator.Editor.undoDepth), 0);
+});
+
+s.test('a faction\'s detail: relations a number per other faction, written on both sides at once; a clock\'s segments set to 12 puts house.clock.segments under that field as a warning (play profile); Add a clock and Remove a clock are one Undo each', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await worldTab(page, 'factions');
+  await page.click('.cr-row[data-id="fac_sturdivant"]');
+  const names = await page.evaluate(() => Object.fromEntries(Game.Creator.state.draft.world.factions.map(f => [f.id, f.name])));
+  assert.deepEqual(await page.$$eval(`${at('world.factions[0].relations')} .cr-field`, fs => fs.map(f => [f.dataset.field, f.querySelector('label').textContent, f.querySelector('input').value])),
+    [['world.factions[0].relations.fac_police', names.fac_police, '-30'], ['world.factions[0].relations.fac_nightrun', names.fac_nightrun, '-50']]);
+  await type(page, at('world.factions[0].relations.fac_police'), -45);
+  const rel = await page.evaluate(() => Game.Creator.state.draft.world.factions.map(f => f.relations));
+  assert.equal(rel[0].fac_police, -45);
+  assert.equal(rel[1].fac_sturdivant, -45, 'the other side follows');
+  assert.equal(await page.evaluate(() => Game.Creator.Editor.undoDepth), 1, 'one Undo for both sides');
+  const cp = await openClock(page, 'fac_sturdivant', 0);
+  await type(page, at(cp + '.segments'), 12);
+  const probs = await checkNow(page);
+  const seg = probs.filter(p => p.rule === 'house.clock.segments' && p.path === cp + '.segments');
+  assert.equal(seg.length, 1);
+  assert.equal(seg[0].severity, 'warning', 'a house rule warns in the play profile');
+  const slotText = await page.$eval(`.cr-err[data-err-for="${cp}.segments"]`, e => ({ text: e.textContent, sev: e.dataset.sev }));
+  assert.deepEqual(slotText, { text: 'Should be 4 to 10 segments; it is 12.', sev: 'warning' });
+  // Add a clock: one Undo, its card open with its label field focused; Remove: one Undo.
+  const before = await page.evaluate(() => Game.Creator.Editor.undoDepth);
+  await page.click(`#${await domId(page, 'world.factions[0].clocks')}-add`);
+  let d = await draft(page);
+  assert.equal(d.world.factions[0].clocks.length, 4);
+  assert.deepEqual(d.world.factions[0].clocks[3], { label: '', segments: 12, filled: 0, onComplete: { text: '', effects: [] } }, 'it shares the faction\'s segment count');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.path), 'world.factions[0].clocks[3].label');
+  await page.click('details.cr-clock[data-path="world.factions[0].clocks[3]"] [data-action="clock-remove"]');
+  d = await draft(page);
+  assert.equal(d.world.factions[0].clocks.length, 3);
+  assert.equal(await page.evaluate(() => Game.Creator.Editor.undoDepth), before + 2);
+  await page.click('#creator-undo');
+  assert.equal((await draft(page)).world.factions[0].clocks.length, 4, 'Undo brings the clock back');
+});
+
+s.test('the Effects editor: Add effect with giveItem shows exactly the fields the rules allow it (name, notes) and writes { op: "giveItem", name } into the clock\'s onComplete.effects; switching the op to playerGold swaps them for delta; FIELDS_BY_OP is the rules\' own table, op for op', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  const cp = await openClock(page, 'fac_sturdivant', 0);
+  const lp = cp + '.onComplete.effects';
+  const n = (await draft(page)).world.factions[0].clocks[0].onComplete.effects.length;
+  const rowPath = `${lp}[${n}]`;
+  await page.selectOption(`#${await domId(page, lp)}-add`, 'giveItem');
+  await page.waitForSelector(`.cr-fx-row[data-path="${rowPath}"]`);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.path), rowPath + '.op', 'the new row\'s op takes the focus');
+  assert.deepEqual(await fieldsOf(page, rowPath), ['name', 'notes']);
+  assert.equal(await page.$eval(`.cr-fx-row[data-path="${rowPath}"] ${at(rowPath + '.name')}`, i => i.closest('.cr-field').querySelector('.cr-req') !== null), true, 'name is required');
+  await type(page, at(rowPath + '.name'), 'Tackle box');
+  let eff = (await draft(page)).world.factions[0].clocks[0].onComplete.effects;
+  assert.equal(eff.length, n + 1);
+  assert.deepEqual(eff[n], { op: 'giveItem', name: 'Tackle box' });
+  await page.selectOption(at(rowPath + '.op'), 'playerGold');
+  assert.deepEqual(await fieldsOf(page, rowPath), ['delta']);
+  eff = (await draft(page)).world.factions[0].clocks[0].onComplete.effects;
+  assert.deepEqual(eff[n], { op: 'playerGold' }, 'the fields playerGold cannot carry go');
+  await type(page, at(rowPath + '.delta'), 25);
+  assert.deepEqual((await draft(page)).world.factions[0].clocks[0].onComplete.effects[n], { op: 'playerGold', delta: 25 });
+  let probs = await checkNow(page);
+  assert.deepEqual(probs.filter(p => p.path.startsWith(rowPath)), [], 'a whole playerGold is a valid effect');
+  // An id field is a picker of its kind; a nested seed is a form of its own.
+  await page.selectOption(at(rowPath + '.op'), 'npcMove');
+  assert.deepEqual(await fieldsOf(page, rowPath), ['npcId', 'locationId', 'phases']);
+  assert.equal(await page.$eval(at(rowPath + '.npcId'), s => s.dataset.ref), 'npc');
+  assert.equal(await page.$eval(at(rowPath + '.locationId'), s => s.dataset.ref), 'loc');
+  await page.check(`#${await domId(page, rowPath + '.phases')}-all`);
+  assert.equal((await draft(page)).world.factions[0].clocks[0].onComplete.effects[n].phases, 'all');
+  await page.selectOption(at(rowPath + '.op'), 'plantSeed');
+  const seed = (await draft(page)).world.factions[0].clocks[0].onComplete.effects[n].seed;
+  assert.match(seed.id, /^seed_new_seed(_\d+)?$/);
+  assert.equal(await page.$eval(at(rowPath + '.seed.id'), i => i.value), seed.id);
+  assert.ok(await page.$(`${at(rowPath + '.seed.trigger')} ${at(rowPath + '.seed.trigger.type')}`), 'the nested seed has its trigger');
+  assert.ok(await page.$(`.cr-fx${at(rowPath + '.seed.effects')}`), 'and its own effects');
+  // Remove the row: one Undo.
+  await page.click(`.cr-fx-row[data-path="${rowPath}"] [data-action="effect-remove"]`);
+  assert.equal((await draft(page)).world.factions[0].clocks[0].onComplete.effects.length, n);
+  // The mirror: every op this game knows, every field the editor offers it accepted by the rules, one field more refused.
+  const pin = await page.evaluate(() => {
+    const T = Game.Creator.WorldTab.Effects.FIELDS_BY_OP;
+    const P = Game.Pack;
+    const pack = P.copy(P.builtIn());
+    const ops = Object.keys(T);
+    pack.world.seeds[0].effects = ops.map(op => { const e = { op, zz: 1 }; for (const k of T[op][0].concat(T[op][1])) e[k] = ['onMet', 'onMiss'].includes(k) ? [] : 1; return e; });
+    const fieldProbs = P.validate(pack, { profile: 'play' }).filter(p => p.rule === 'engine.effect.fields' && p.path.startsWith('world.seeds[0].effects['));
+    return { ops: ops.slice().sort(), engine: Game.State.EFFECT_OPS.slice().sort(), paths: fieldProbs.map(p => p.path + ' ' + p.message) };
+  });
+  assert.deepEqual(pin.ops, pin.engine, 'one entry an op of State.EFFECT_OPS');
+  assert.equal(pin.paths.length, pin.ops.length, pin.paths.join('\n'));
+  assert.ok(pin.paths.every(p => /\]\.zz is not a field this can carry\.$/.test(p)), pin.paths.join('\n'));
+});
+
+s.test('the Conditions editor: a requires offers only the keys the rules read for requires; adding flagsSet then removing its last key drops requires; npcAt rows are person → place; the alt is text and effects', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  const cp = await openClock(page, 'fac_sturdivant', 0);
+  const rp = cp + '.onComplete.requires';
+  const keys = await page.$$eval(`#${await domId(page, rp)}-add option`, os => os.map(o => o.value).filter(Boolean));
+  const have = Object.keys((await draft(page)).world.factions[0].clocks[0].onComplete.requires);
+  assert.deepEqual(keys, ['flagsSet', 'flagsUnset', 'npcFree', 'npcAt', 'obligationOpen', 'relAtLeast', 'relBelow'].filter(k => !have.includes(k)));
+  await page.selectOption(`#${await domId(page, rp)}-add`, 'npcAt');
+  await page.selectOption(`#${await domId(page, rp + '.npcAt')}-addkey`, 'npc_royce');
+  await page.selectOption(at(rp + '.npcAt.npc_royce'), 'loc_town_hall');
+  assert.deepEqual((await draft(page)).world.factions[0].clocks[0].onComplete.requires.npcAt, { npc_royce: 'loc_town_hall' });
+  let probs = await checkNow(page);
+  assert.deepEqual(probs.filter(p => p.path.startsWith(rp)), []);
+  // Removing every key drops requires (an empty one is an error), and the alt left behind is the validator's to name.
+  for (const k of Object.keys((await draft(page)).world.factions[0].clocks[0].onComplete.requires)) {
+    await page.click(`${at(rp)} .cr-cond-key[data-key="${k}"] [data-action="cond-remove"]`);
+  }
+  assert.equal((await draft(page)).world.factions[0].clocks[0].onComplete.requires, undefined);
+  probs = await checkNow(page);
+  assert.ok(probs.some(p => p.path === cp + '.onComplete.alt' && /without requires never fires/.test(p.message)));
+  assert.match(await page.textContent(`.cr-err[data-err-for="${cp}.onComplete.alt"]`), /never fires/, 'shown at the alt');
+  // The alt: its text and its own effects.
+  assert.equal(await page.$eval(at(cp + '.onComplete.alt.text'), t => t.tagName), 'TEXTAREA');
+  assert.ok(await page.$(`.cr-fx${at(cp + '.onComplete.alt.effects')}`));
+});
+
+s.test('a seed\'s trigger: the type is a select, and location shows a picker of the town\'s places that writes a list; day is a number and npc one person', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await worldTab(page, 'story');
+  const id = await page.evaluate(() => Game.Creator.state.draft.world.seeds[0].id);
+  await page.click(`.cr-entity[data-entity="seeds"] .cr-row[data-id="${id}"]`);
+  const tp = 'world.seeds[0].trigger';
+  assert.equal(await page.$eval(at(tp + '.type'), s => s.value), 'day');
+  assert.equal(await page.$eval(at(tp + '.value'), i => [i.tagName, i.type].join(' ')), 'INPUT number');
+  await page.selectOption(at(tp + '.type'), 'location');
+  assert.deepEqual((await draft(page)).world.seeds[0].trigger, { type: 'location', value: [] });
+  const offered = await page.$$eval(`#${await domId(page, tp + '.value')}-add option`, os => os.map(o => o.value).filter(Boolean));
+  const town = await page.evaluate(() => Game.Creator.state.draft.world.locations.filter(l => l.away !== true).map(l => l.id));
+  assert.deepEqual(offered, town, 'the town\'s places, none out of town');
+  await page.selectOption(`#${await domId(page, tp + '.value')}-add`, 'loc_old_bridge');
+  await page.selectOption(`#${await domId(page, tp + '.value')}-add`, 'loc_riverbend');
+  assert.deepEqual((await draft(page)).world.seeds[0].trigger, { type: 'location', value: ['loc_old_bridge', 'loc_riverbend'] });
+  const placeNames = await page.evaluate(() => ['loc_old_bridge', 'loc_riverbend'].map(id => Game.Creator.state.draft.world.locations.find(l => l.id === id).name));
+  assert.deepEqual(await page.$$eval(`${at(tp + '.value')} .cr-chip-text`, cs => cs.map(c => c.textContent)), placeNames);
+  await page.selectOption(at(tp + '.type'), 'npc');
+  assert.equal(await page.$eval(at(tp + '.value'), s => s.dataset.ref), 'npc');
+  await page.selectOption(at(tp + '.value'), 'npc_royce');
+  assert.deepEqual((await draft(page)).world.seeds[0].trigger, { type: 'npc', value: 'npc_royce' });
+  await page.selectOption(at(tp + '.type'), 'clock');
+  await page.selectOption(`#${await domId(page, tp + '.value')}`, 'fac_nightrun');
+  await type(page, `#${await domId(page, tp + '.value')}-seg`, 3);
+  assert.deepEqual((await draft(page)).world.seeds[0].trigger, { type: 'clock', value: 'fac_nightrun:3' });
+});
+
+s.test('a new rumour: its source has no faction, so the rules say only the source can tell it; one person chosen in Who can tell it writes tellerIds and the complaint goes (two who can tell it); emptied, tellerIds goes away', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await worldTab(page, 'rumours');
+  const rid = await addThrough(page, 'rumours', 'The ferry runs at night again');
+  assert.equal(rid, 'rum_the_ferry_runs_at');
+  const r = await page.evaluate(() => Game.Creator.state.draft.world.rumours.length - 1);
+  const rp = `world.rumours[${r}]`;
+  const [src, teller] = await page.evaluate(() => {
+    const here = Game.Creator.state.draft.world.npcs.filter(n => (n.presence || 'here') === 'here');
+    return [here.find(n => !n.factionId).id, here.filter(n => !n.factionId)[1].id];
+  });
+  await page.selectOption(at(rp + '.sourceNpcId'), src);
+  let probs = await checkNow(page);
+  assert.ok(probs.some(p => p.rule === 'engine.rumour.tellers' && p.path === rp + '.tellerIds'), JSON.stringify(probs.filter(p => p.path.startsWith(rp))));
+  await page.selectOption(`#${await domId(page, rp + '.tellerIds')}-add`, teller);
+  assert.deepEqual((await draft(page)).world.rumours[r].tellerIds, [teller]);
+  probs = await checkNow(page);
+  assert.deepEqual(probs.filter(p => p.rule === 'engine.rumour.tellers' && p.path.startsWith(rp)), []);
+  assert.match(await page.textContent(`.cr-row[data-id="${rid}"] .cr-row-sum`), /^true · from .+ · 1 teller$/);
+  await page.click(`${at(rp + '.tellerIds')} .cr-chip-x`);
+  assert.equal((await draft(page)).world.rumours[r].tellerIds, undefined, 'an empty list is not kept');
+});
+
+s.test('an event branch: its when.flagsSet chips offer only the flags something in the story sets; Add a branch is one Undo and opens the new one', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await worldTab(page, 'story');
+  await page.click('.cr-entity[data-entity="events"] .cr-row[data-id="evt_council_meeting"]');
+  const bp = 'world.events[0].branches[0]';
+  await page.click(`details.cr-branch[data-path="${bp}"] > summary`);
+  const fp = bp + '.when.flagsSet';
+  assert.deepEqual(await page.$$eval(`${at(fp)} .cr-chip-text`, cs => cs.map(c => c.textContent)), ['bridgeReportVoid']);
+  const offered = await page.$$eval(`#${await domId(page, fp)}-add option`, os => os.map(o => o.value).filter(Boolean));
+  const setFlags = await page.evaluate(() => {
+    const out = new Set();
+    (function walk(v) { if (Array.isArray(v)) return v.forEach(walk); if (v && typeof v === 'object') { if (v.op === 'setFlag') out.add(v.key); Object.values(v).forEach(walk); } })(Game.Creator.state.draft);
+    return [...out].sort();
+  });
+  assert.ok(setFlags.length > 10);
+  assert.deepEqual(offered, setFlags.filter(f => f !== 'bridgeReportVoid'));
+  // A flag nothing sets is not offered, though a condition elsewhere could name it.
+  assert.ok(!offered.includes('councilVotedd'));
+  await page.selectOption(`#${await domId(page, fp)}-add`, 'policeKept');
+  assert.deepEqual((await draft(page)).world.events[0].branches[0].when.flagsSet, ['bridgeReportVoid', 'policeKept']);
+  const n = (await draft(page)).world.events[0].branches.length;
+  const depth = await page.evaluate(() => Game.Creator.Editor.undoDepth);
+  await page.click(`#${await domId(page, 'world.events[0].branches')}-add`);
+  assert.deepEqual((await draft(page)).world.events[0].branches[n], { when: {}, text: '', effects: [] });
+  assert.equal(await page.evaluate(() => Game.Creator.Editor.undoDepth), depth + 1);
+  assert.equal(await page.$eval(`details.cr-branch[data-path="world.events[0].branches[${n}]"]`, d => d.open), true);
+  const probs = await checkNow(page);
+  assert.ok(probs.some(p => p.path === `world.events[0].branches[${n}].when` && /is empty/.test(p.message)), 'an empty when is the validator\'s to name');
+});
+
+s.test('a good\'s price is shown in the story\'s money: "$9" for the built-in story, "9 cr" for a draft whose currency is credits after the number, and money()\'s own "9 cr" from a credits preview when the draft names no currency; a good\'s name is text, never markup', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await worldTab(page, 'goods');
+  const first = '.cr-entity[data-entity="goods"] .cr-row[data-index="0"] .cr-row-sum';
+  assert.equal(await page.textContent(first), '$9 · good');
+  await page.click('.cr-entity[data-entity="goods"] .cr-row[data-index="0"]');
+  assert.equal(await page.textContent('.cr-price'), 'Shown to the player as $9.');
+  await type(page, at('world.tables.items.goods[0].price'), 11);
+  assert.equal(await page.textContent('.cr-price'), 'Shown to the player as $11.');
+  assert.equal((await draft(page)).world.tables.items.goods[0].price, 11);
+  await page.click('.cr-entity[data-entity="goods"] [data-action="back"]');
+  await page.evaluate(() => Game.Creator.Editor.set('world.currency', { symbol: 'cr', name: 'credits', before: false }));
+  await worldTab(page, 'goods');
+  assert.equal(await page.textContent(first), '11 cr · good');
+  // No currency in the draft: money() and the playing pack's (here a credits preview).
+  await page.evaluate(() => {
+    Game.Creator.Editor.set('world.currency', undefined);
+    const p = Game.Pack.copy(Game.Pack.builtIn());
+    p.world.currency = { symbol: 'cr', name: 'credits', before: false };
+    Game.Pack.setPreview(p);
+  });
+  await worldTab(page, 'goods');
+  assert.equal(await page.textContent(first), '11 cr · good');
+  await page.evaluate(() => Game.Pack.setPreview(null));
+  await worldTab(page, 'goods');
+  assert.equal(await page.textContent(first), '$11 · good');
+  await addThrough(page, 'goods', '<b>Bold</b> soap');
+  assert.equal(await page.textContent('.cr-entity[data-entity="goods"] .cr-detail-title'), '<b>Bold</b> soap');
+  assert.equal(await page.$('#creator-body b'), null);
+  assert.deepEqual((await draft(page)).world.tables.items.goods[40], { name: '<b>Bold</b> soap', price: 5, kind: 'good' });
+});
+
+s.test('an imported effect with an op this game does not know shows its raw JSON in a box and survives opening, checking and saving the draft unchanged; editing the box to a known op turns it into a row of fields', async h => {
+  const page = await open(h);
+  await page.click('#btn-create');
+  await page.waitForSelector('#screen-creator.active #creator-library:not([hidden])');
+  const odd = { op: 'summonHeron', where: 'loc_old_bridge', count: 2, notes: { why: ['dawn', 1] } };
+  const id = await page.evaluate(o => {
+    const p = Game.Pack.copy(Game.Pack.builtIn());
+    p.meta.id = 'heron-copy';
+    p.world.seeds[0].effects = [o, { op: 'setFlag', key: 'heronSeen', value: true }];
+    const dr = Game.Storage.Drafts.put({ pack: p });
+    Game.Creator.openEditor(dr.id);
+    return dr.id;
+  }, odd);
+  assert.ok(id);
+  await worldTab(page, 'story');
+  const sid = await page.evaluate(() => Game.Creator.state.draft.world.seeds[0].id);
+  await page.click(`.cr-entity[data-entity="seeds"] .cr-row[data-id="${sid}"]`);
+  const box = '.cr-fx-row[data-unknown="1"] textarea.cr-raw';
+  assert.equal(await page.$eval(box, t => t.value), JSON.stringify(odd, null, 2));
+  assert.match(await page.textContent('.cr-fx-row[data-unknown="1"] .cr-fx-what'), /An op this game does not know: "summonHeron"/);
+  const probs = await checkNow(page);
+  assert.ok(probs.some(p => p.rule === 'engine.effect.op' && p.path === 'world.seeds[0].effects[0].op'), 'the validator still names it');
+  await page.evaluate(() => Game.Creator.Editor.saveNow());
+  const kept = await page.evaluate(i => Game.Storage.Drafts.get(i).pack.world.seeds[0].effects[0], id);
+  assert.deepEqual(kept, odd, 'kept exactly');
+  assert.equal(await page.evaluate(() => Game.Creator.Editor.undoDepth), 0, 'opening it changed nothing');
+  // Bad JSON changes nothing and says so; a known op becomes a row.
+  await page.fill(box, '{ nope');
+  await page.$eval(box, e => e.dispatchEvent(new Event('change')));
+  assert.match(await page.textContent('.cr-fx-row[data-unknown="1"] .cr-raw-note'), /not valid JSON; nothing was changed/);
+  assert.deepEqual((await draft(page)).world.seeds[0].effects[0], odd);
+  await page.fill(box, '{ "op": "giveItem", "name": "Heron feather" }');
+  await page.$eval(box, e => e.dispatchEvent(new Event('change')));
+  assert.deepEqual((await draft(page)).world.seeds[0].effects[0], { op: 'giveItem', name: 'Heron feather' });
+  assert.deepEqual(await fieldsOf(page, 'world.seeds[0].effects[0]'), ['name', 'notes']);
+});
+
+s.test('the five story lists pass the mobile audit at 375 and 390: each list, a faction with a clock open, a thread, a rumour, a seed, the event with a branch open, a good and a complication', async h => {
+  for (const vp of SIZES) {
+    const page = await open(h, { viewport: vp });
+    await openDraft(page, 'copy');
+    const check = async label => { const a = await page.evaluate(audit, `${label} ${vp.width}`); assert.deepEqual([a.small, a.fonts, a.wide], [[], [], []], JSON.stringify(a)); };
+    for (const sub of ['factions', 'threads', 'rumours', 'story', 'goods']) { await worldTab(page, sub); await check(`${sub} list`); }
+    await openClock(page, 'fac_sturdivant', 0);
+    assert.equal(await page.isVisible('.cr-entity[data-entity="factions"] .cr-entity-list'), false, 'on a phone the detail replaces the list');
+    await check('faction with a clock open');
+    for (const [sub, key, id] of [['threads', 'threads', 'thr_bridge_vote'], ['rumours', 'rumours', 'rum_lunch_inspection']]) {
+      await worldTab(page, sub);
+      await page.click(`.cr-entity[data-entity="${key}"] .cr-row[data-id="${id}"]`);
+      await check(`${key} detail`);
+    }
+    await worldTab(page, 'story');
+    await page.click('.cr-entity[data-entity="seeds"] .cr-row >> nth=6');
+    await check('seed detail');
+    await page.click('.cr-entity[data-entity="seeds"] .cr-sticky [data-action="back-bar"]');
+    await page.click('.cr-entity[data-entity="events"] .cr-row[data-id="evt_council_meeting"]');
+    await page.click('details.cr-branch[data-path="world.events[0].branches[0]"] > summary');
+    await check('event with a branch open');
+    await worldTab(page, 'goods');
+    await page.click('.cr-entity[data-entity="goods"] .cr-row[data-index="0"]');
+    await check('good detail');
+    await page.click('.cr-entity[data-entity="goods"] .cr-sticky [data-action="back-bar"]');
+    await page.click('.cr-entity[data-entity="complications"] .cr-row[data-index="0"]');
+    await check('complication detail');
+  }
+  if (!SHOTS) return;
+  for (const [theme, scheme] of [['dark', 'dark'], ['parchment', 'light']]) {
+    for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+      const page = await open(h, { viewport: vp, colorScheme: scheme, contextOptions: { reducedMotion: 'reduce', deviceScaleFactor: 2 } });
+      await openDraft(page, 'copy');
+      await page.evaluate(() => Game.Creator.Editor.check());
+      const cp = await openClock(page, 'fac_sturdivant', 0);
+      await page.evaluate(p => { const c = document.querySelector(`details.cr-clock[data-path="${p}"]`); c.scrollIntoView({ block: 'start' }); document.getElementById('creator-scroll').scrollTop -= 60; }, cp);
+      await shot(page, `creator-world-factions-clock-${vp.width}x${vp.height}-${theme}`);
+      await worldTab(page, 'story');
+      await page.evaluate(() => { document.getElementById('creator-scroll').scrollTop = 0; });
+      await shot(page, `creator-world-events-seeds-${vp.width}x${vp.height}-${theme}`);
+      await page.click('.cr-entity[data-entity="events"] .cr-row[data-id="evt_council_meeting"]');
+      await page.click('details.cr-branch[data-path="world.events[0].branches[0]"] > summary');
+      await page.evaluate(() => { document.querySelector('details.cr-branch').scrollIntoView({ block: 'start' }); document.getElementById('creator-scroll').scrollTop -= 60; });
+      await shot(page, `creator-world-event-branch-${vp.width}x${vp.height}-${theme}`);
+      await worldTab(page, 'goods');
+      await page.evaluate(() => { document.getElementById('creator-scroll').scrollTop = 0; });
+      await shot(page, `creator-world-goods-${vp.width}x${vp.height}-${theme}`);
     }
   }
 });
