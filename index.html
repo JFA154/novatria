@@ -9065,17 +9065,52 @@ function npcLabel(npc) {
 /* Money. The state field is player.gold whatever the setting. A town with
    TOWN_DATA.currency ({ symbol, name }) is shown as cash ("$12"); without it
    the money is gold ("12 gold"). See docs/BUILD_PLAN.md, setting change. */
+/* Wave 37, Creator Mode, milestone 4 (task M4-C): the currency is the
+   playing pack's (Pack.current(): the preview, else the game's own pack,
+   else the built-in one), so an editor's preview shows its own money
+   before a game starts; the save's town copy, then the old binding, only
+   when no pack can be read (a call while the script is still defining
+   things). For every game the two agree: State.town is a copy of its
+   pack's world. currency.before false puts the symbol after the number
+   with a space ("40 cr"); absent or true, before it ("$40"), as Low
+   Water's JSON (which leaves before out) always had it. */
 function currency() {
-  const t = State.town || TOWN_DATA;
+  let t = null;
+  try { const p = Pack.current(); t = p && isObj(p.world) ? p.world : null; } catch (e) { t = null; /* Pack not defined yet */ }
+  if (!t) t = State.town || TOWN_DATA;
   return t && isObj(t.currency) && typeof t.currency.symbol === 'string' ? t.currency : null;
 }
-function money(n) { const c = currency(); return c ? `${c.symbol}${n}` : `${n} gold`; }
+function money(n) { const c = currency(); return c ? (c.before === false ? `${n} ${c.symbol}` : `${c.symbol}${n}`) : `${n} gold`; }
 function moneyLabel() { return currency() ? 'Cash' : 'Gold'; }
 /* For packets the models read: "15 gold" or "cash $15". */
 function moneyLine(n) { return currency() ? `cash ${money(n)}` : money(n); }
 /* The setting decides what is an anachronism: a town with a currency is
    modern day, otherwise low fantasy. */
 function isModern() { return !!currency(); }
+/* The law of the playing pack (wave 37, Creator Mode, milestone 4, task
+   M4-C; plan decision F): world.law { factionId, headNpcId, fallbackNpcId,
+   arrestPlaceId, newsTemplate }, read by Rel.policeHead, policeFallback
+   and WHEN_TOLD.news, World.grudgeKind and arrestPlan, and State's
+   whenTold. A field the pack's law leaves out is null (the reader's own
+   search then decides) and the news is the engine's default line. A pack
+   with no law at all reads the built-in's ids (Low Water's police, harmless
+   where those ids do not exist, and exactly right for an old save whose
+   pack Pack.forLegacy built) with the engine's default news; the built-in
+   pack carries its own law, Chief Bell's line included, so its strings
+   are what they were. */
+const LAW_NEWS = '{police} has been asking questions about {npc}.';
+function lawOf() {
+  let own = null, base = null;
+  try {
+    const p = Pack.current();
+    own = p && isObj(p.world) && isObj(p.world.law) ? p.world.law : null;
+    if (!own) { const b = Pack.builtIn().world; base = isObj(b) && isObj(b.law) ? b.law : null; }
+  } catch (e) { own = null; base = null; /* Pack not defined yet */ }
+  const L = own || base || {};
+  const id = k => (typeof L[k] === 'string' && L[k] ? L[k] : null);
+  return { factionId: id('factionId'), headNpcId: id('headNpcId'), fallbackNpcId: id('fallbackNpcId'), arrestPlaceId: id('arrestPlaceId'),
+    newsTemplate: own && typeof own.newsTemplate === 'string' && own.newsTemplate.trim() ? own.newsTemplate : LAW_NEWS };
+}
 /* Location types that play the same part in either setting. */
 const PLACE_KINDS = {
   watch: ['police', 'watch'],
@@ -10030,6 +10065,56 @@ const Pack = (() => {
     });
   }
 
+  /* ----- money as the pack writes it (wave 37, Creator Mode, milestone 4, task M4-C) -----
+     world.currency { symbol, name, before, words }: before (the symbol goes
+     before the number, "$40"; false: after it with a space, "40 cr") and
+     words (what people call the money aloud, "forty dollars", "50 bucks")
+     default in code to Low Water's ways, since get() does not merge world
+     and the built-in JSON leaves both out. A world with no currency is the
+     old gold setting ("12 gold"). moneyRe is what every money pattern in
+     State, Rel, Style and the UI is built from at call time instead of a
+     "$" literal: { digits (global: an amount written with the symbol in
+     its place, "$40", "$ 40", "40 cr", the number captured), words (the
+     money words as whole words), spoken (global: an amount in figures or
+     words followed by a money word, "forty dollars", "40 bucks", the
+     amount captured), symbol (the symbol escaped for a RegExp), before,
+     wordList ("dollars|bucks", as written) and wordForms ("dollars?|bucks?",
+     each also singular) }. The global ones keep lastIndex: reset it, or
+     use matchAll. Built once per pack object (a preview is a new object),
+     and again if that pack's currency object is replaced. */
+  const MONEY_NUMWORD = '(?:a|an|and|hundred|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)';
+  const MONEY_WORDS_DEFAULT = Object.freeze(['dollars', 'bucks']);
+  const moneyCache = new WeakMap();
+  function moneyRegExps(c) {
+    const esc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const raw = c ? c.symbol : 'gold';
+    const before = c ? c.before !== false : false;
+    const given = c && Array.isArray(c.words) ? c.words.filter(w => typeof w === 'string' && w.trim()).map(w => w.trim()) : [];
+    const words = c ? (given.length ? given : MONEY_WORDS_DEFAULT.slice()) : ['gold'];
+    // A symbol with letters at an edge ("cr", "Cr") is a word there: "40 cr" but not "40 crates".
+    const symbol = (/^[A-Za-z]/.test(raw) ? '(?<![A-Za-z])' : '') + esc(raw) + (/[A-Za-z]$/.test(raw) ? '(?![A-Za-z])' : '');
+    const wordList = words.map(esc).join('|');
+    const wordForms = words.map(w => (/s$/i.test(w) ? esc(w.slice(0, -1)) + 's?' : esc(w))).join('|');
+    const num = '\\d[\\d,]*(?:\\.\\d+)?';
+    return {
+      digits: before ? new RegExp(`${symbol}\\s?(${num})`, 'gi') : new RegExp(`(?<![\\d.,])(${num})\\s?${symbol}`, 'gi'),
+      words: new RegExp(`\\b(?:${wordForms})\\b`, 'i'),
+      spoken: new RegExp(`\\b(${num}|${MONEY_NUMWORD}(?:[\\s-]+${MONEY_NUMWORD})*)\\s+(?:${wordForms})\\b`, 'gi'),
+      symbol, before, wordList, wordForms
+    };
+  }
+  function moneyRe() {
+    const p = current();
+    const c = currency();
+    const hit = moneyCache.get(p);
+    if (hit && hit.src === c) return hit.re;
+    const re = moneyRegExps(c);
+    moneyCache.set(p, { src: c, re });
+    return re;
+  }
+  // An amount as the pack writes it (the Helpers' money(): "$40", "40 cr", "40 gold").
+  function moneyText(n) { return money(n); }
+
   return {
     FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, STATIC_WORLD_KEYS, tokenEstimate, builtIn, current, setPreview, syncAliases, lookup, get, isBuiltIn,
     canonical, hash, copy, townOf, format, deepFreeze, validate, errors, problemsFor,
@@ -10038,7 +10123,9 @@ const Pack = (() => {
     // Wave 37, Creator Mode, milestone 3: the paths a player may set per pack, and the end of the memoised lookups (Storage.saveSettings calls it).
     PLAYER_PATHS, invalidate,
     // Wave 37, Creator Mode, milestone 4: the effective freedom dials (a preset, then the pack's own dials).
-    freedom, FREEDOM_PRESETS
+    freedom, FREEDOM_PRESETS,
+    // Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's money patterns, rebuilt when the pack changes, and an amount in its currency.
+    get moneyRe() { return moneyRe(); }, moneyText
   };
 })();
 
@@ -14468,8 +14555,20 @@ const State = (() => {
     { re: new RegExp(`\\b${APPT_HOUR} (?:thirty|fifteen|forty[- ]five|o'?clock)(?![a-z])${APPT_AMPM}?`, 'i'), h: 1, ampm: 2 },
     { re: new RegExp(`\\b${APPT_HOUR}${APPT_AMPM}`, 'i'), h: 1, ampm: 2 },
     // "at six", "before eleven", "around nine"
-    { re: new RegExp(`\\b(?:at|by|around|about|before|after|till|until|toward|towards) ${APPT_HOUR}(?![a-z0-9]|\\s*(?:of|hundred|thousand|grand|dollars|bucks|minutes|hours|days|weeks|months|years|miles|people|men|women|times|more|others)\\b)`, 'i'), h: 1 }
+    /* Not "at ten dollars": the money words are the pack's (wave 37, Creator
+       Mode, milestone 4, task M4-C; Pack.moneyRe.wordList, "dollars|bucks"
+       for Low Water), so the pattern is built for the playing pack when read. */
+    { get re() { return apptAtHour(); }, h: 1 }
   ];
+  const apptAtCache = { words: null, re: null };
+  function apptAtHour() {
+    const words = Pack.moneyRe.wordList;
+    if (apptAtCache.words !== words) {
+      apptAtCache.words = words;
+      apptAtCache.re = new RegExp(`\\b(?:at|by|around|about|before|after|till|until|toward|towards) ${APPT_HOUR}(?![a-z0-9]|\\s*(?:of|hundred|thousand|grand|${words}|minutes|hours|days|weeks|months|years|miles|people|men|women|times|more|others)\\b)`, 'i');
+    }
+    return apptAtCache.re;
+  }
   // Times that are past or every day ("last night", "yesterday morning", "every evening") name no meeting.
   const apptNotNow = t => t.replace(/\b(?:last|yesterday|the other|every)\s+(?:night|morning|afternoon|evening)s?\b|\byesterday\b|\bnights?\s+ago\b/g, ' ');
   // The times of day the words name, as the phase each falls in (the earliest named counts).
@@ -14750,12 +14849,25 @@ const State = (() => {
      seed fires; the Objectives tab, the recap and the People card read it
      (askWords) until it fires. */
   // The reward or the threat in an ask's words: what follows a semicolon or a dash, else a sum offered, else "or else ...".
-  const ASK_PAY = /\b(?:in exchange for|in return for|for|offering|offers|offered|pays?|paying|will pay|promised?)\s+(\$\s?\d[\d,]*(?:\.\d\d)?(?:\s+(?:cash|in cash|up front|a week|apiece|a head))?)/i;
+  /* A sum in the pack's currency, the symbol where the pack writes it
+     ("$40", "$ 40", "40 cr"; wave 37, Creator Mode, milestone 4, task M4-C:
+     Pack.moneyRe.symbol, built at call time instead of a "$" literal). */
+  const askSumCache = { symbol: null, before: null, pay: null, sum: null };
+  function askSum() {
+    const R = Pack.moneyRe;
+    if (askSumCache.symbol !== R.symbol || askSumCache.before !== R.before) {
+      const sum = R.before ? `${R.symbol}\\s?\\d[\\d,]*(?:\\.\\d\\d)?` : `(?<![\\d.,])\\d[\\d,]*(?:\\.\\d\\d)?\\s?${R.symbol}`;
+      Object.assign(askSumCache, { symbol: R.symbol, before: R.before, sum: new RegExp(sum, 'i'),
+        pay: new RegExp(`\\b(?:in exchange for|in return for|for|offering|offers|offered|pays?|paying|will pay|promised?)\\s+(${sum}(?:\\s+(?:cash|in cash|up front|a week|apiece|a head))?)`, 'i') });
+    }
+    return askSumCache;
+  }
   const ASK_THREAT = /\b((?:or else|otherwise|or (?:he|she|they)(?:'ll| will| would))\b.*)$/i;
   function askReward(text) {
     const t = cleanText(text, 400).replace(/[’]/g, "'");
     const after = /[;—]\s*(.+)$/.exec(t) || /\s-\s(.+)$/.exec(t);
-    const pick = after ? after[1] : (ASK_PAY.exec(t) || [])[1] || (ASK_THREAT.exec(t) || [])[1] || (/\$\s?\d[\d,]*(?:\.\d\d)?/.exec(t) || [])[0] || '';
+    const A = askSum();
+    const pick = after ? after[1] : (A.pay.exec(t) || [])[1] || (ASK_THREAT.exec(t) || [])[1] || (A.sum.exec(t) || [])[0] || '';
     return cleanText(pick.replace(/[.!]+$/, ''), 160) || null;
   }
   /* The ask a seed is (above), or null: never an appointment (Meetings
@@ -16407,7 +16519,8 @@ const State = (() => {
       const day = current.time.day;
       const r = Rel.rng('inquiry', y.id, day);
       const due = day + r.int(W.days[0], W.days[1]);
-      const fx = [{ op: 'clockAdjust', factionId: 'fac_police', delta: 1 }, { op: 'addNews', text: cleanText(fillTemplate(hook.news || W.news, { npc: y.name, police: police.name }), 300), public: true }].filter(e => e.op !== 'clockAdjust' || !!faction(e.factionId));
+      // The law's faction clock (world.law.factionId; wave 37, Creator Mode, milestone 4): a pack whose law names none moves no clock.
+      const fx = [{ op: 'clockAdjust', factionId: lawOf().factionId, delta: 1 }, { op: 'addNews', text: cleanText(fillTemplate(hook.news || W.news, { npc: y.name, police: police.name }), 300), public: true }].filter(e => e.op !== 'clockAdjust' || !!faction(e.factionId));
       const sd = normaliseSeed({ id: `seed_inquiry_${y.id.slice(4)}`, cause: `Inquiry: ${police.name} was told about ${y.name}`, effect: cleanText(fillTemplate(hook.inquiry || W.inquiry, { npc: y.name, police: police.name }), 400), trigger: { type: 'day', value: due }, hidden: true,
         origin: { kind: 'inquiry', npcId: police.id, key: rec.id }, turn: current.meta.turn, effects: fx }, false);
       current.seeds.push(sd);
@@ -17316,7 +17429,8 @@ const State = (() => {
       delete t.instants;
       if (spec.toPhaseStart === true) t.shorts = 0;
     }
-    if (quality === 'rough') putCondition(Object.assign({}, STIFF, { untilDay: t.day }));
+    // A story without the rough-sleeping rule (rules.law.roughSleeping false; wave 37, Creator Mode, milestone 4) leaves nobody Stiff.
+    if (quality === 'rough' && Pack.get('rules.law.roughSleeping') !== false) putCondition(Object.assign({}, STIFF, { untilDay: t.day }));
     if (newDay && t.noSleep === true) putCondition(Object.assign({}, TIRED));
     if (newDay) expireNow(t.day);
     // A visit lasts for the phase it was made in (World: the NPC came to the player for that scene); one for a phase still
@@ -21830,15 +21944,35 @@ const Rel = (() => {
   }
   /* The police head (design Appendix F): the town's policeHead (the save's
      town copy, else the built-in town's), else the first police person
-     whose role says chief; free, in town and not laid up. An id or null. */
+     whose role says chief; free, in town and not laid up. An id or null.
+     Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's law head
+     (world.law.headNpcId) comes first, so a starport's security chief
+     hears the reports; Low Water's law names Marcus Bell, its policeHead.
+     A head the save's town copy names that is not the playing pack's own
+     (an edited town, wave 37's upgrade suite) is that save's and still wins. */
   function policeHead(ctx) {
     ctx = context(ctx);
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
+    const lawHead = townEdit(ctx, 'policeHead') || (lawApplies(ctx) ? lawOf().headNpcId : null);
     const named = ctx.town && typeof ctx.town.policeHead === 'string' ? ctx.town.policeHead : builtIn(ctx) && typeof Pack.builtIn().world.policeHead === 'string' ? Pack.builtIn().world.policeHead : null;
     const police = x => isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || '')));
-    const head = (named && npcs.find(x => isObj(x) && x.id === named)) || npcs.find(x => police(x) && /\bchief\b/i.test(String(x.role || '')));
+    const head = (lawHead && npcs.find(x => isObj(x) && x.id === lawHead)) || (named && npcs.find(x => isObj(x) && x.id === named)) || npcs.find(x => police(x) && /\bchief\b/i.test(String(x.role || '')));
     return head && available(head, ctx) ? head.id : null;
   }
+  /* The save's town copy's own policeHead or policeFallback when it differs
+     from the playing pack's world (an edit made to that save), else null:
+     such an edit outranks world.law (wave 37, Creator Mode, milestone 4). */
+  function townEdit(ctx, key) {
+    const own = ctx.town && typeof ctx.town[key] === 'string' ? ctx.town[key] : null;
+    if (!own) return null;
+    let base = null;
+    try { const w = Pack.current().world; base = isObj(w) && typeof w[key] === 'string' ? w[key] : null; } catch (e) { base = null; }
+    return own !== base ? own : null;
+  }
+  /* The playing pack's law speaks for the live game, or a reading of the
+     built-in story; another town's state read meanwhile (an old save of a
+     renamed town) never borrows it, as it never borrows the built-in chief. */
+  function lawApplies(ctx) { return ctx.s === State.current || builtIn(ctx); }
   // Someone who can hear about it: alive, free, in town, not laid up.
   function available(x, ctx) {
     if (!isObj(x) || x.alive === false || x.status !== 'free' || (x.presence !== undefined && x.presence !== 'here')) return false;
@@ -22111,11 +22245,14 @@ const Rel = (() => {
   /* The law outside town for when the town's own cannot hear it (design
      Appendix F): the town's policeFallback (the save's copy, else the
      built-in town's: Sheriff Hoyt Bramlett in Clayburn), alive. An id or
-     null. */
+     null. Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's law
+     fallback (world.law.fallbackNpcId) first, when that person exists. */
   function policeFallback(ctx) {
     ctx = context(ctx);
-    const id = ctx.town && typeof ctx.town.policeFallback === 'string' ? ctx.town.policeFallback : builtIn(ctx) && typeof Pack.builtIn().world.policeFallback === 'string' ? Pack.builtIn().world.policeFallback : null;
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
+    const lawFb = townEdit(ctx, 'policeFallback') || (lawApplies(ctx) ? lawOf().fallbackNpcId : null);
+    const id = lawFb && npcs.some(m => isObj(m) && m.id === lawFb) ? lawFb
+      : ctx.town && typeof ctx.town.policeFallback === 'string' ? ctx.town.policeFallback : builtIn(ctx) && typeof Pack.builtIn().world.policeFallback === 'string' ? Pack.builtIn().world.policeFallback : null;
     const x = id ? npcs.find(m => isObj(m) && m.id === id) : null;
     return x && x.alive !== false && x.status !== 'dead' ? x.id : null;
   }
@@ -22493,13 +22630,29 @@ const Rel = (() => {
   const NIGHT_PLACES = Object.freeze(['house', 'trailer', 'apartment', 'bighouse', 'home', 'motel']);
   // A price named in the player's words: "$300", "300 dollars", "three hundred", "fifty bucks" (the integration plan's 8.3, with the words for it).
   const NUMBER_WORDS = deepFreeze({ a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 });
+  /* Wave 37, Creator Mode, milestone 4 (task M4-C): the symbol and the
+     money words are the pack's (Pack.moneyRe: "$300" or "300 cr", "300
+     dollars" or "300 credits"), built when read; Low Water's read as before. */
+  const priceCache = { key: null };
+  function pricePatterns() {
+    const R = Pack.moneyRe;
+    const key = `${R.before}|${R.symbol}|${R.wordList}`;
+    if (priceCache.key !== key) {
+      Object.assign(priceCache, { key,
+        sym: R.before ? new RegExp(`${R.symbol}\\s?(\\d+)`, 'i') : new RegExp(`(?<![\\d.])(\\d+)\\s?${R.symbol}`, 'i'),
+        said: new RegExp(`\\b(\\d+)\\s+(?:${R.wordList})\\b`, 'i'),
+        tens: new RegExp(`\\b(ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](one|two|three|four|five|six|seven|eight|nine))?\\s+(?:${R.wordList})\\b`, 'i') });
+    }
+    return priceCache;
+  }
   function priceIn(text) {
     const t = ` ${String(text || '').toLowerCase().replace(/[’]/g, "'").replace(/(\d),(?=\d{3})/g, '$1')} `;
-    let m = /\$\s?(\d+)/.exec(t) || /\b(\d+)\s+(?:dollars|bucks)\b/.exec(t) || /\b(\d+)\s+hundred\b/.exec(t);
+    const P = pricePatterns();
+    let m = P.sym.exec(t) || P.said.exec(t) || /\b(\d+)\s+hundred\b/.exec(t);
     if (m) return (parseInt(m[1], 10) * (/hundred/.test(m[0]) ? 100 : 1)) || null;
     m = /\b(a|one|two|three|four|five|six|seven|eight|nine|ten)\s+hundred\b/.exec(t);
     if (m) return NUMBER_WORDS[m[1]] * 100;
-    m = /\b(ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](one|two|three|four|five|six|seven|eight|nine))?\s+(?:dollars|bucks)\b/.exec(t);
+    m = P.tens.exec(t);
     return m ? NUMBER_WORDS[m[1]] + (m[2] ? NUMBER_WORDS[m[2]] : 0) : null;
   }
   /* Words that carry the meaning (the content words of a record, a key, an
@@ -22539,7 +22692,12 @@ const Rel = (() => {
      weight-3 noted memory for the officer it reaches ("knows what {npc} has
      been doing") and, for a crime, an inquiry seed that fills a segment of
      the police clock. */
-  const WHEN_TOLD = deepFreeze({ memory: 'knows what {npc} has been doing', inquiry: '{police} starts asking around about {npc}.', days: [1, 2], news: 'Chief Bell has been asking questions about {npc}.' });
+  /* news is the pack's (wave 37, Creator Mode, milestone 4, task M4-C):
+     world.law.newsTemplate, {npc} and {police} (the officer's name) filled
+     by State's whenTold, else the engine's "{police} has been asking
+     questions about {npc}."; Low Water's law keeps "Chief Bell has been
+     asking questions about {npc}." A getter, read when the inquiry is planted. */
+  const WHEN_TOLD = deepFreeze({ memory: 'knows what {npc} has been doing', inquiry: '{police} starts asking around about {npc}.', days: [1, 2], get news() { return lawOf().newsTemplate; } });
   function whenToldOf(n, ctx) { const v = authored(n, 'whenTold', ctx); return isObj(v) ? v : null; }
   /* The most a demand can take from them: $100 unless content raises it
      (canRaise; at most three people above 100), $0 for anyone under 18. */
@@ -24593,7 +24751,14 @@ const Town = (() => {
    there too, kind 'news'), and forget(turn) drops those of turns taken
    back by /undo or a failed turn. */
 const World = (() => {
-  const MAX_DUE = 3;
+  /* Wave 37, Creator Mode, milestone 4 (task M4-C): the due events a turn
+     tells (rules.narration.maxDue, 3 by default), the arrest's fine
+     (rules.law.fine, 50) and the rough-sleeping rule (rules.law.roughSleeping,
+     roughNights 2, roughFine 25, roughForgiven 7) are the pack's, read when
+     used; World.MAX_DUE, FINE and ROUGH_* are getters over them, so Api's
+     and Pipeline's World.MAX_DUE reads follow the pack too. */
+  const lawRule = (k, dflt) => { const v = toInt(Pack.get('rules.law.' + k)); return v !== null && v >= 0 ? v : dflt; };
+  function maxDue() { const v = toInt(Pack.get('rules.narration.maxDue')); return v !== null && v >= 1 ? v : 3; }
   const GRUDGE_AT = -60;
   const FAVOUR_AT = 60;
   const REP_DIVISOR = 5;
@@ -24604,7 +24769,6 @@ const World = (() => {
   // The morning's drift (wave 26: Rel's own numbers, State's relDay).
   const DRIFT_PER_DAY = Rel.CAPS.everydayDrift;
   const DRIFT_QUIET_DAYS = Rel.CAPS.quietDays;
-  const FINE = 50;
   const CLOCK_ODDS = 5;
   const W = { source: 'world' };
   const hooks = { clockRolls: {} }; // forced d6 per faction id, '*' for every faction
@@ -25092,7 +25256,9 @@ const World = (() => {
     if (t && GRUDGE_KINDS.includes(t.kind)) return t.kind;
     const effects = arr(t && t.effects);
     if (effects.some(e => isObj(e) && e.op === 'playerHp')) return 'violence';
-    if (effects.some(e => isObj(e) && (e.npcId === 'npc_marcus' || e.key === 'fac_police' || e.op === 'playerGold'))) return 'police';
+    // The law's head and faction are the pack's (world.law; wave 37, Creator Mode, milestone 4): Low Water's npc_marcus and fac_police.
+    const law = lawOf();
+    if (effects.some(e => isObj(e) && ((law.headNpcId && e.npcId === law.headNpcId) || (law.factionId && e.key === law.factionId) || e.op === 'playerGold'))) return 'police';
     if (effects.some(e => isObj(e) && e.op === 'banFrom')) return 'ban';
     if (effects.some(e => isObj(e) && (e.op === 'playerPrice' || e.op === 'takeItem'))) return 'money';
     return 'gossip';
@@ -26100,7 +26266,7 @@ const World = (() => {
        turn's time runs into while the player stays (no walk, or a walk to a
        shut door): whoever comes for them is there now and still there then. */
     const then = ctx && isObj(ctx.then) && PHASES.includes(ctx.then.phase) && Number.isInteger(ctx.then.day) && (ctx.then.phase !== phase || ctx.then.day !== day) ? ctx.then : null;
-    const cap = ctx && (ctx.max === Infinity || (Number.isInteger(ctx.max) && ctx.max > 0)) ? ctx.max : MAX_DUE;
+    const cap = ctx && (ctx.max === Infinity || (Number.isInteger(ctx.max) && ctx.max > 0)) ? ctx.max : maxDue();
     const hold = ctx && isObj(ctx.hold) ? ctx.hold : null;
     const held = (ev, sd) => !!hold && ((!!ev.npcId && arr(hold.npcIds).includes(ev.npcId))
       || (!!ev.npcId && !ev.obligationId && arr(hold.coldNpcIds).includes(ev.npcId))
@@ -26283,9 +26449,8 @@ const World = (() => {
      move along and still there, the count runs on, and every night more is
      fined). Returns the seed id, or
      null. */
-  const ROUGH_NIGHTS = 2;
-  const ROUGH_FINE = 25;
-  const ROUGH_FORGIVEN = 7; // clear nights after which the chief's warning starts again (flags.movedOnDay)
+  // The pack's rules.law (wave 37, Creator Mode, milestone 4); roughForgiven: clear nights after which the chief's warning starts again (flags.movedOnDay).
+  const roughRules = () => ({ nights: Math.max(1, lawRule('roughNights', 2)), fine: lawRule('roughFine', 25), forgiven: lawRule('roughForgiven', 7) });
   const isPoliceNpc = n => (n.tags || []).includes('police');
   function roughPublic(l) {
     return isPublicPlace(l) && !st().npcs.some(n => n.alive !== false && isObj(n.home) && n.home.locationId === l.id && !isPoliceNpc(n));
@@ -26293,6 +26458,10 @@ const World = (() => {
   function sleptRough(quality) {
     const s = st();
     if (!s) return null;
+    // A story without the rule (rules.law.roughSleeping false): no count, no chief, no fine.
+    if (Pack.get('rules.law.roughSleeping') === false) return null;
+    const R = roughRules();
+    const ROUGH_NIGHTS = R.nights, ROUGH_FINE = R.fine, ROUGH_FORGIVEN = R.forgiven;
     const l = State.loc(s.player.locationId);
     const fl = s.flags;
     const was = toInt(fl.roughNights) || 0;
@@ -26333,11 +26502,16 @@ const World = (() => {
   function arrestPlan() {
     const s = st();
     if (!s) return null;
-    const cell = s.locations.find(l => l.type === 'police' && !l.closed) || s.locations.find(l => l.type === 'watch' && !l.closed) || State.loc('loc_town_hall');
+    /* The pack's arrest place first (world.law.arrestPlaceId; wave 37,
+       Creator Mode, milestone 4: a starport's brig) while it is open, then
+       a police station or a watch house, then the law's place even closed
+       (Low Water's Town Hall, which this named before). */
+    const lawCell = lawOf().arrestPlaceId ? State.loc(lawOf().arrestPlaceId) : null;
+    const cell = (lawCell && !lawCell.closed ? lawCell : null) || s.locations.find(l => l.type === 'police' && !l.closed) || s.locations.find(l => l.type === 'watch' && !l.closed) || lawCell;
     const chief = chiefOf(s);
     const from = State.loc(s.player.locationId);
     const place = placeIn(from);
-    const fine = Math.min(FINE, Math.max(0, s.player.gold | 0));
+    const fine = Math.min(lawRule('fine', 50), Math.max(0, s.player.gold | 0));
     const who = chief ? chief.name : 'The police';
     const weapons = s.player.inventory.filter(isWeapon).map(i => i.name);
     const taken = weapons.length ? ` ${chief ? (chief.pronouns === 'she' ? 'She' : chief.pronouns === 'they' ? 'They' : 'He') : 'They'} take${chief && chief.pronouns !== 'they' ? 's' : ''} ${andList(weapons.map(theThing))} off ${s.player.name}.` : '';
@@ -26424,17 +26598,19 @@ const World = (() => {
   }
 
   return {
-    MAX_DUE, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, FEELING_COOLDOWN, GOT_EVEN, DRIFT_PER_DAY, DRIFT_QUIET_DAYS, FINE, CLOCK_ODDS, hooks, recent,
+    get MAX_DUE() { return maxDue(); }, GRUDGE_AT, FAVOUR_AT, REP_DIVISOR, REP_CAP, HOME_RULES, FEELING_COOLDOWN, GOT_EVEN, DRIFT_PER_DAY, DRIFT_QUIET_DAYS, get FINE() { return lawRule('fine', 50); }, CLOCK_ODDS, hooks, recent,
     tick, fireSeeds, dueSeeds, dueNarrated, applyEffects, fillEffects, conditionsMet, clockProgress, fireEvents, catchUp, eventsOnArrival, eventsFired, arrestPlan,
     appointmentsHere, settleAppointments, appointmentVisits,
-    knockDown, arrestPlayer, feelingMark, oddsOf, sleptRough, ROUGH_NIGHTS, ROUGH_FINE, ROUGH_FORGIVEN, memoryKind, freshMemory, plantFeeling, townSeed, theThing,
+    knockDown, arrestPlayer, feelingMark, oddsOf, sleptRough, get ROUGH_NIGHTS() { return roughRules().nights; }, get ROUGH_FINE() { return roughRules().fine; }, get ROUGH_FORGIVEN() { return roughRules().forgiven; }, memoryKind, freshMemory, plantFeeling, townSeed, theThing,
     plantReports, plantReport, toughAnswer, markDanger,
     // Wave 28: the minor rule's and coercion's consequences; what a favour answers.
     minorHarm, minorAdvance, coercion, lawFor, helpMemory, HELP_EVENTS,
     // Wave 29: what people hold (the backed ask's answer, the holders' tell and price, favours owed both ways, the trust route).
     leverageAnswered, plantHolders, owedFavour, owedAsk, barLifted, betrayal, BETRAYALS, OWN_KINDS, plantFeelings,
     attitudes, driftReputation, homeFor, activeClock, seedStatus, whereIs, forget,
-    forceClockRoll, forceAttitude
+    forceClockRoll, forceAttitude,
+    // Wave 37, Creator Mode, milestone 4 (task M4-C): the kind of answer a template is, which reads the pack's law.
+    grudgeKind
   };
 })();
 
@@ -26701,6 +26877,9 @@ const Style = (() => {
     'Bible Belt', 'Deep South', 'Church of Christ', 'Highway Patrol', 'State Patrol', 'Social Security',
     // Wave 8: brands named like a person, now that a first name and a surname before "is" are someone.
     'Sam Adams', 'Samuel Adams', 'Johnnie Walker', 'Jose Cuervo', 'Captain Morgan', 'Earl Grey', 'Jimmy Dean', 'Betty Crocker', 'Ronald McDonald'];
+  /* The month and day names stay English: the calendar is Gregorian in
+     pack format v1 (wave 37, Creator Mode, milestone 4; world.calendar
+     only moves the start date and season). */
   const CALENDAR = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   // Words that open a sentence before a name without being part of it ("Ask Bobby", "Tell Earl").
@@ -26788,10 +26967,28 @@ const Style = (() => {
     'Kelly Kristy Laura Laverne Leah Lena Linda Lisa Lois Loretta Lori Louise Lucille Lucy Lula Mabel Mae Marcy Margaret Maria Marie Marilyn Marlene Martha Mary Maxine Melba Melissa ' +
     'Michelle Mildred Minnie Myrtle Nancy Naomi Nell Nellie Nora Norma Patty Paula Peggy Phyllis Rachel Rebecca Regina Renee Rita Roberta Rosa Ruth Sally Samantha Sandra Sara Sarah ' +
     'Shannon Sharon Sheila Shelby Shirley Stacy Stephanie Sue Susan Sylvia Tammy Tanya Teresa Terri Thelma Tina Tonya Tracy Trudy Valerie Vera Vicki Viola Wilma Yvonne Zelda').split(' ');
-  let givenSet = null;
+  /* The pack's own names (wave 37, Creator Mode, milestone 4, task M4-C):
+     setting.locale { nameAllow (single words fine on their own), brandPhrases
+     (brands and names of two or more words), givenNames (first names) }
+     extend NAME_ALLOW, BRAND_PHRASES and GIVEN_NAMES, never replace them, so
+     a starport can have its Nebula Cola. Built once per pack object, with
+     the pack's own first-name table (TABLES follows the playing pack). */
+  const localeCache = new WeakMap();
+  function locale() {
+    const p = Pack.current();
+    const hit = localeCache.get(p);
+    if (hit) return hit;
+    const L = isObj(p) && isObj(p.setting) && isObj(p.setting.locale) ? p.setting.locale : {};
+    const list = k => (Array.isArray(L[k]) ? L[k].filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()) : []);
+    const allow = new Set(NAME_ALLOW);
+    for (const w of list('nameAllow')) allow.add(w);
+    const out = { allow, brands: BRAND_PHRASES.concat(list('brandPhrases')),
+      given: new Set(TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES, list('givenNames'))) };
+    localeCache.set(p, out);
+    return out;
+  }
   function givenName(w) {
-    if (!givenSet) givenSet = new Set(TABLES.npc.firstNames.concat(NAME_PRONOUNS.she, NAME_PRONOUNS.he, GIVEN_NAMES));
-    return givenSet.has(w);
+    return locale().given.has(w);
   }
   const PERSON_NEXT = new Set(('is was isn\'t wasn\'t says said sits sat sitting stands stood standing leans leaned leaning walks walked walking laughs laughed laughing ' +
     'waits waited waiting looks looked looking nods nodded playing watches watched watching stares stared staring works worked working talks talked talking ' +
@@ -26866,7 +27063,7 @@ const Style = (() => {
       out.add(t.replace(/^The /, ''));
     };
     const words = x => String(x || '').split(/\s+/).forEach(w => add(w.replace(/'s$/, '')));
-    BRAND_PHRASES.forEach(add);
+    locale().brands.forEach(add);
     if (s) {
       const town = s.meta && s.meta.townName;
       add(town);
@@ -26910,7 +27107,7 @@ const Style = (() => {
         lower: new Set(list.flatMap(n => n.toLowerCase().split(/[^a-z]+/)).filter(w => w.length >= 2).concat(CALENDAR.map(d => d.toLowerCase())))
       };
     }
-    const single = new Set(NAME_ALLOW);
+    const single = new Set(locale().allow);
     for (const d of CALENDAR) { single.add(d); single.add(d + 's'); }
     for (const w of (typeof o.packet === 'string' ? capitalised(o.packet) : packetWords)) single.add(w.replace(/('s|s'|')$/, ''));
     for (const w of Array.isArray(o.allow) ? o.allow : []) single.add(w);
@@ -27076,8 +27273,21 @@ const Style = (() => {
      it public, and a price ("That's five bucks") is nobody's wallet. */
   const NUMWORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
   const NUMWORD = `(?:a|an|and|hundred|${Object.keys(NUMWORDS).join('|')})`;
-  const MONEY_WORDS = new RegExp(`\\b(${NUMWORD}(?:[\\s-]+${NUMWORD})*)\\s+(?:bucks?|dollars?)\\b`, 'gi');
-  const MONEY_DIGITS = /\$\s*(\d[\d,]*)(?:\.\d+)?|\b(\d[\d,]*)\s*(?:\$|bucks?|dollars?)\b/g;
+  /* The pack's money (wave 37, Creator Mode, milestone 4, task M4-C):
+     MONEY_WORDS ("forty dollars") and MONEY_DIGITS ("$40", "40 bucks"; "40
+     cr" for a symbol after the number) are built from Pack.moneyRe when
+     read, once per pack; Low Water's are the patterns they always were. */
+  const moneyPats = { R: null };
+  function moneyPatterns() {
+    const R = Pack.moneyRe;
+    if (moneyPats.R !== R) {
+      moneyPats.R = R;
+      moneyPats.words = new RegExp(`\\b(${NUMWORD}(?:[\\s-]+${NUMWORD})*)\\s+(?:${R.wordForms})\\b`, 'gi');
+      moneyPats.digits = R.before ? new RegExp(`${R.symbol}\\s*(\\d[\\d,]*)(?:\\.\\d+)?|\\b(\\d[\\d,]*)\\s*(?:${R.symbol}|${R.wordForms})\\b`, 'g')
+        : new RegExp(`\\b(\\d[\\d,]*)(?:\\.\\d+)?\\s*(?:${R.symbol}|(?:${R.wordForms})\\b)`, 'gi');
+    }
+    return moneyPats;
+  }
   const OWN_MONEY = /\b(?:you(?:'ve| have)?(?: only| just| still)? (?:got|have)|you're (?:down to|left with)|left to your name|to your name|all you(?:'ve| have)? got|all you have|on you\b|in your (?:pocket|pockets|wallet|purse)|your last)\b/i;
   function numberWords(str) {
     let total = 0, any = false;
@@ -27101,15 +27311,31 @@ const Style = (() => {
      bet my watch", "I bet $20 on it"). */
   const BET_VERB = /\b(?:bet|bets|betting|wager|wagers|wagering)\b/i;
   const CARD_TALK = /\b(?:cards?|hands?|game|games|pot|poker|deal|deals|dealt|dealer|table|ante|antes|chips?|showdown|draw|blinds?|hold[\s'-]*'?em|holdem|texas|flop|river)\b/i;
-  const BET_STAKE = `(?:-?\\$\\s?-?\\d[\\d,]*(?:\\.\\d+)?|-?\\d[\\d,]*(?:\\.\\d+)?|${NUMWORD}(?:[\\s-]+${NUMWORD})*)(?:\\s*(?:dollars?|bucks?|grand))?|(?:${NUMWORD}\\s+)?(?:fivers?|tenners?)`;
+  /* The stake a bet names, in the pack's money (wave 37, Creator Mode,
+     milestone 4, task M4-C): the symbol where the pack writes it ("$20",
+     "20 cr") and its money words ("twenty bucks"), from Pack.moneyRe;
+     BET_CLAUSE and BET_BARE are built from it once per pack (betPatterns). */
+  function betStake(R) {
+    const sym = R.before ? `-?${R.symbol}\\s?-?\\d[\\d,]*(?:\\.\\d+)?` : `-?\\d[\\d,]*(?:\\.\\d+)?\\s?${R.symbol}`;
+    return `(?:${sym}|-?\\d[\\d,]*(?:\\.\\d+)?|${NUMWORD}(?:[\\s-]+${NUMWORD})*)(?:\\s*(?:${R.wordForms}|grand))?|(?:${NUMWORD}\\s+)?(?:fivers?|tenners?)`;
+  }
   const BET_SUBJECT = `(?:he|she|they|it|we|i|you|there|this|someone|somebody|nobody|no one|everyone|everybody|he's|she's|they're|it's|it'll|there's|that's|you're|i'm|we're|they'll|he'll|she'll|you'll|i'll|we'll|he'd|she'd|they'd|you'd|the\\s+(?!whole\\b|entire\\b|lot\\b|rest\\b|pot\\b)[a-z]+)`;
-  const BET_CLAUSE = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them|ya)\\s+)?(?:(?:${BET_STAKE})\\s+)?(?:that\\b|${BET_SUBJECT}\\s+(?!all\\b)(?!${NUMWORD}\\b)[a-z']+)`, 'i');
+  const betPats = { R: null };
+  function betPatterns() {
+    const R = Pack.moneyRe;
+    if (betPats.R === R) return betPats;
+    betPats.R = R;
+    const BET_STAKE = betStake(R);
+    betPats.clause = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them|ya)\\s+)?(?:(?:${BET_STAKE})\\s+)?(?:that\\b|${BET_SUBJECT}\\s+(?!all\\b)(?!${NUMWORD}\\b)[a-z']+)`, 'i');
+    betPats.bare = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them)\\s+)?(?:${BET_STAKE}|everything(?:\\s+i\\s+(?:have|got))?|it\\s+all|all\\s+i\\s+(?:have|got)|all\\s+(?:of\\s+)?my\\s+(?:money|cash)|the\\s+(?:whole|entire)\\s+(?:roll|stack|bankroll|wad|pile)|half\\s+(?:of\\s+)?(?:my\\s+(?:money|cash)|what\\s+i\\s+(?:have|got)|everything))\\s*[.!?]*\\s*$`, 'i');
+    return betPats;
+  }
   // "I bet Curtis is bluffing": a name and a verb (the name is capitalised, so this one is case-sensitive).
   const BET_NAME_CLAUSE = /\b(?:bet|bets|wager|wagers)\s+(?:(?:you|him|her|them)\s+)?(?:\S+\s+){0,2}?[A-Z][a-z]+\s+(?:is|was|will|would|can|could|has|had|did|does|knows|thinks|wants|isn't|wasn't|won't|can't|doesn't|didn't|never|always|just|already|still)\b/;
-  const BET_BARE = new RegExp(`\\b(?:bet|bets|betting|wager|wagers)\\s+(?:(?:you|him|her|them)\\s+)?(?:${BET_STAKE}|everything(?:\\s+i\\s+(?:have|got))?|it\\s+all|all\\s+i\\s+(?:have|got)|all\\s+(?:of\\s+)?my\\s+(?:money|cash)|the\\s+(?:whole|entire)\\s+(?:roll|stack|bankroll|wad|pile)|half\\s+(?:of\\s+)?(?:my\\s+(?:money|cash)|what\\s+i\\s+(?:have|got)|everything))\\s*[.!?]*\\s*$`, 'i');
   function betTalk(text) {
     const t = String(text || '').replace(/[’]/g, "'").replace(/[−–]/g, '-');
     if (!BET_VERB.test(t)) return null;
+    const { clause: BET_CLAUSE, bare: BET_BARE } = betPatterns();
     if (BET_CLAUSE.test(t) || BET_NAME_CLAUSE.test(t)) return 'clause';
     if (CARD_TALK.test(t) || BET_BARE.test(t)) return 'bet';
     if (/\b(?:bet|bets|wager|wagers)\s*[.!?]*\s*$/i.test(t)) return 'bare';
@@ -27118,6 +27344,7 @@ const Style = (() => {
   function moneyAmounts(str) {
     const out = [];
     const t = String(str || '');
+    const { digits: MONEY_DIGITS, words: MONEY_WORDS } = moneyPatterns();
     MONEY_DIGITS.lastIndex = 0;
     for (let m = MONEY_DIGITS.exec(t); m; m = MONEY_DIGITS.exec(t)) out.push(parseInt((m[1] || m[2]).replace(/,/g, ''), 10));
     MONEY_WORDS.lastIndex = 0;
@@ -41645,12 +41872,18 @@ const UI = (() => {
        own, so it is the least ("Bets are at least $4."); cents are cut to
        whole dollars ("Whole dollars at this table: $60."); each said on the
        line under the field, before any change the table makes. */
+    /* Wave 37, Creator Mode, milestone 4 (task M4-C): the symbol the field
+       may hold and the money's name in its notes are the pack's currency
+       (Pack.moneyRe.symbol; currency().name, "dollars" for Low Water). */
+    const cur = currency();
+    const curName = cur && typeof cur.name === 'string' && cur.name ? cur.name : 'gold';
+    const amountRe = new RegExp(`(-)?\\s*(?:${Pack.moneyRe.symbol})?\\s*(-)?\\s*(\\d[\\d,]*)(?:\\.(\\d*))?`, 'i');
     const parse = () => {
-      const m = /(-)?\s*\$?\s*(-)?\s*(\d[\d,]*)(?:\.(\d*))?/.exec(field.value.replace(/[−–]/g, '-'));
+      const m = amountRe.exec(field.value.replace(/[−–]/g, '-'));
       if (!m) return { n: NaN, why: '' };
       if (m[1] || m[2]) return { n: a.minTo, why: kind === 'raise' ? `Raises are to at least ${money(a.minTo)}.` : `Bets are at least ${money(a.minTo)}.` };
       const n = parseInt(m[3].replace(/,/g, ''), 10);
-      return { n, why: m[4] && /[1-9]/.test(m[4]) ? `Whole dollars at this table: ${money(n)}.` : '' };
+      return { n, why: m[4] && /[1-9]/.test(m[4]) ? `Whole ${curName} at this table: ${money(n)}.` : '' };
     };
     const read = () => parse().n;
     /* Wave 19 (QA D7): the button always reads what the amount comes to,
@@ -41669,7 +41902,7 @@ const UI = (() => {
       main.textContent = label(to);
       main.dataset.to = String(to);
       const least = kind === 'bet' ? `The least bet is ${money(a.minTo)}` : `The least raise is to ${money(a.minTo)}`;
-      note.textContent = !Number.isFinite(want) ? (field.value.trim() ? `Type an amount in dollars. ${least}.` : '') : [p.why, c.why].filter(Boolean).join(' ');
+      note.textContent = !Number.isFinite(want) ? (field.value.trim() ? `Type an amount in ${curName}. ${least}.` : '') : [p.why, c.why].filter(Boolean).join(' ');
       if (settle && String(to) !== field.value) field.value = String(to);
       return to;
     };
@@ -41699,7 +41932,9 @@ const UI = (() => {
     const size = el('div', { class: 'cards-size', role: 'group', 'aria-label': kind === 'bet' ? 'How much to bet' : 'How much to raise to' },
       el('div', { class: 'cards-stepper' },
         el('button', { type: 'button', class: 'btn small cards-step', dataset: { step: '-1' }, 'aria-label': `${money(a.unit)} less`, onclick: () => step(-1) }, '−'),
-        el('label', { class: 'cards-amt-wrap' }, el('span', { class: 'cards-amt-cur', 'aria-hidden': 'true' }, '$'), field),
+        // The pack's symbol, on the side of the amount where the pack writes it ("$" before, "cr" after).
+        cur && cur.before === false ? el('label', { class: 'cards-amt-wrap' }, field, el('span', { class: 'cards-amt-cur', 'aria-hidden': 'true' }, cur.symbol))
+          : el('label', { class: 'cards-amt-wrap' }, el('span', { class: 'cards-amt-cur', 'aria-hidden': 'true' }, cur ? cur.symbol : '$'), field),
         el('button', { type: 'button', class: 'btn small cards-step', dataset: { step: '1' }, 'aria-label': `${money(a.unit)} more`, onclick: () => step(1) }, '+')),
       el('div', { class: 'cards-presets' }, preset('min', 'Min', 'The least'), preset('half', '½ pot', 'Half the pot'), preset('pot', 'Pot', 'The pot'), preset('allin', 'All in', 'All in')),
       note);
