@@ -266,7 +266,7 @@ async function night(page) {
   });
 }
 
-s.test('the packet: with an override saved, a turn where someone says yes puts the override\'s words on the MODE line, byte for byte as wave 36 did, and no DIRECTION or ENGINE line yet; without one it is the engine\'s MODE text', async h => {
+s.test('the packet: with an override saved, a turn where someone says yes puts the override\'s words on the MODE line, byte for byte as wave 36 did, with M3-C\'s ENGINE trailer after it and nothing new before it; without one it is the engine\'s MODE text and no trailer', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
   const INTIMATE = await page.evaluate(() => Game.Pipeline.INTIMATE_MODE);
@@ -277,7 +277,8 @@ s.test('the packet: with an override saved, a turn where someone says yes puts t
   const own = await night(page);
   assert.match(own.romance, /says yes/);
   assert.equal(own.mode, 'MODE: INTIMATE SCENE. Write it my way, slowly.', 'whitespace folded as wave 36 did');
-  assert.equal(plain.directions + own.directions, 0, 'no DIRECTION or ENGINE line until M3-C');
+  // Wave 37, Creator Mode, M3-C (plan decision E): the override is a direction, so its MODE line is followed by the ENGINE trailer (tests/wave37-directions.test.cjs).
+  assert.deepEqual([plain.directions, own.directions], [0, 1], 'the default: no trailer; the override: the one ENGINE line');
   assert.ok(!/^DIRECTION|^ENGINE:/.test(own.before), 'nothing new just before MODE: ' + own.before);
 });
 

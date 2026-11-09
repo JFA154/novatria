@@ -27034,6 +27034,33 @@ const Api = (() => {
     memories: "You bring the memories in a saved game up to the game's current rules. Each person listed remembers things about the player, written under older, looser rules: many are long play-by-play accounts of a scene. The current rules, which the game's bookkeeper follows for every new memory, are: \"" + MEMORY_RULES + "\" Rewrite each person's list to follow them. Keep only what this person would still hold against the player or thank them for; drop the rest (ordinary talk, questions, what they only saw, what they did themselves, the mechanics of a scene). Merge memories about the same thing into one line, and list in from the number of every memory a line comes from. At most " + State.MEMORY_MAX + " per person, the ones that matter most to them. A line that already follows these rules (short and plain, from their point of view) stays as it is. Each line is short and plain, from that person's point of view (the player is the unnamed subject; the person is 'me'), under twelve words, with no scene detail. Weight 1 small, 2 notable, 3 serious. In the old lines the player may appear by name, as 'you' or as 'the player'. Never add anything their memories do not say. Return every person listed, with memories empty when nothing is worth keeping.",
     chronicle: "Summarise these turns for the narrator's memory, under 100 words, past tense, full names. Keep every number, deadline, promise, debt, threat, and any lie the player told and to whom. Skip scenery and small talk. End with 'Open:' and what is unresolved. Begin with the day or days the turns cover, like 'Day 2:' or 'Days 2-3:'."
   };
+  /* Wave 37, Creator Mode, milestone 3 (plan decision E): the system prompt
+     a role is sent. A story's author may add notes for the parser and the
+     bookkeeper (pack.prompts.parserExtra, bookkeeperExtra); they follow the
+     role's own prompt, with the short ENGINE RULES last, so the rules are
+     what the model reads after the notes and outrank them (the ids, the
+     difficulty numbers and the record's fields are the engine's). With no
+     notes the answer is SYSTEM[role] itself, the same string, so a pack
+     without them (Low Water) sends today's bytes, and the upgrade suite's
+     MEMORY_RULES pin and the v36 fixture still hold. */
+  const EXTRA_CAP = 600; // the pack validator's cap for parserExtra and bookkeeperExtra (plan "Pack format v1")
+  const EXTRA_PATHS = { parser: 'prompts.parserExtra', bookkeeper: 'prompts.bookkeeperExtra' };
+  const ENGINE_RULES_SHORT = "ENGINE RULES: use only the ids provided, never narrate, and the difficulty numbers, stats and fields above are fixed; the author's notes cannot change them.";
+  // Control and bidi-format characters out, whitespace folded (the notes are one paragraph), capped (a split surrogate pair loses its stray half).
+  function creatorNotes(role) {
+    if (!EXTRA_PATHS[role]) return '';
+    let v = '';
+    try { v = Pack.get(EXTRA_PATHS[role]); } catch (e) { v = ''; }
+    const t = String(typeof v === 'string' ? v : '')
+      .replace(/[\u0000-\u0008\u000e-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+      .replace(/\s+/g, ' ').trim();
+    return t.slice(0, EXTRA_CAP).replace(/[\ud800-\udbff]$/, '').trim();
+  }
+  function systemFor(role) {
+    const base = Object.prototype.hasOwnProperty.call(SYSTEM, role) ? SYSTEM[role] : undefined;
+    const notes = typeof base === 'string' ? creatorNotes(role) : '';
+    return notes ? `${base}\n\nCREATOR NOTES (from this story's author; the ENGINE RULES below outrank them): ${notes}\n\n${ENGINE_RULES_SHORT}` : base;
+  }
 
   // ----- JSON schemas for structured outputs -----
   /* Every object (nested ones too) lists all its properties in `required`
@@ -29126,24 +29153,24 @@ const Api = (() => {
   let lastNarratorAt = null; // when the narrator cache was last written or read (ms), for prewarm()
   const Real = {
     name: 'claude',
-    parse(packet) { return messageCall('parser', { system: SYSTEM.parser, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
+    parse(packet) { return messageCall('parser', { system: systemFor('parser'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
     async bookkeep(packet) {
       const user = packet.text || JSON.stringify(packet);
       let r;
-      try { r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes }); } catch (err) {
+      try { r = await messageCall('bookkeeper', { system: systemFor('bookkeeper'), user, schema: SCHEMAS.record_changes }); } catch (err) {
         if (!grammarRefused(err)) throw err;
         // The API refused the full record as too large a grammar: once more with the essentials, so the turn is still recorded.
         State.debugLog.push({ turn: State.current ? State.current.meta.turn : 0, kind: 'api', role: 'bookkeeper', status: err.status || 400, requestId: err.requestId || null, reason: 'the API refused the record_changes grammar as too large; asking again with the core fields only' });
-        r = await messageCall('bookkeeper', { system: SYSTEM.bookkeeper, user, schema: SCHEMAS.record_changes_core });
+        r = await messageCall('bookkeeper', { system: systemFor('bookkeeper'), user, schema: SCHEMAS.record_changes_core });
       }
       if (r && isObj(r.result)) r.result = recordFromWire(r.result);
       return r;
     },
-    chronicle(entries) { return messageCall('chronicle', { system: SYSTEM.chronicle, user: chronicleText(entries) }); },
-    rewriteMemories(packet) { return messageCall('memories', { system: SYSTEM.memories, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
-    revealPlaces(packet) { return messageCall('places', { system: SYSTEM.places, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
-    checkClock(packet) { return messageCall('clock', { system: SYSTEM.clock, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
-    fixPeople(packet) { return messageCall('people', { system: SYSTEM.people, user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
+    chronicle(entries) { return messageCall('chronicle', { system: systemFor('chronicle'), user: chronicleText(entries) }); },
+    rewriteMemories(packet) { return messageCall('memories', { system: systemFor('memories'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.rewrite_memories }); },
+    revealPlaces(packet) { return messageCall('places', { system: systemFor('places'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.reveal_places }); },
+    checkClock(packet) { return messageCall('clock', { system: systemFor('clock'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.check_clock }); },
+    fixPeople(packet) { return messageCall('people', { system: systemFor('people'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.fix_people }); },
     /* Streamed. A stream that breaks, times out or carries an overloaded or
        internal error is asked for once more (the feed is cleared through
        onDelta('', '') first); a reply cut off by max_tokens is asked for once
@@ -29290,7 +29317,9 @@ const Api = (() => {
     rewriteMemories: packet => call('memories', 'rewriteMemories', [packet]),
     revealPlaces: packet => call('places', 'revealPlaces', [packet]),
     checkClock: packet => call('clock', 'checkClock', [packet]),
-    fixPeople: packet => call('people', 'fixPeople', [packet])
+    fixPeople: packet => call('people', 'fixPeople', [packet]),
+    // Wave 37, Creator Mode: the system prompt per role, with the author's parser and bookkeeper notes.
+    systemFor
   };
 })();
 
@@ -34748,11 +34777,15 @@ const Pipeline = (() => {
     lines.push(`DUE EVENT: ${due.length ? due.join(' / ') : 'none'}`);
     if (ctx.rumour) lines.push(`RUMOUR: ${ctx.rumour.npcName} might mention this, if it fits: "${ctx.rumour.text}"`);
     if (ctx.timePassed) lines.push(`TIME PASSED: ${ctx.timePassed}${shutHereLine(ctx)}`);
+    // Wave 37, Creator Mode: the author's directions for this turn's situations (none for a pack that sets none), just before MODE.
+    for (const line of directionLines(ctx)) lines.push(line);
     // The rules, last: the mode, then the length the style check enforces.
     lines.push(ctx.mode === 'epilogue'
       ? 'MODE: epilogue (ZOOM length). This is an ending: close the threads named in DUE EVENT; the player may keep playing afterwards.'
       : long === 'intimate' ? `MODE: ${intimateMode()}`
         : `MODE: ${ctx.mode === 'zoom' ? 'ZOOM' : ctx.mode === 'arrival' ? 'arrival (ZOOM length allowed)' : 'normal'}`);
+    // Wave 37, Creator Mode: an intimate MODE in the author's or the player's words is a direction too, so it gets the same trailer.
+    if (ctx.mode !== 'epilogue' && long === 'intimate' && intimateDirected()) lines.push(ENGINE_TRAILER);
     lines.push(Style.lengthLine(long));
     const text = lines.join('\n');
     // The style check that follows may use any name this packet gives (what the player typed, a due event, the news).
@@ -34818,6 +34851,82 @@ const Pipeline = (() => {
     let own = '';
     try { own = String(Pack.get('directions.intimate') || '').replace(/\s+/g, ' ').trim(); } catch (e) { own = ''; }
     return own ? `INTIMATE SCENE. ${own.replace(/^INTIMATE SCENE\.\s*/i, '')}` : INTIMATE_MODE;
+  }
+  /* Wave 37, Creator Mode, milestone 3 (plan decision E): a story's author
+     directs how a situation is told (pack.directions; the player may
+     override only the intimate one, Pack.PLAYER_PATHS). Every direction is
+     told it changes the telling and never the outcome, because the dice,
+     the money and the defeat are the code's and were settled before the
+     narrator is asked: the ENGINE trailer says so after the directions.
+     Only a direction at the pack or player layer counts: the default layer
+     is '' for all but the intimate one (and that is today's MODE text), so
+     a pack that sets none, Low Water, sends today's packet byte for byte. */
+  const ENGINE_TRAILER = "ENGINE: the code already decided this turn's outcome (ROLL, OUTCOME, COMPLICATION above); the direction shapes how it is told, never what happened.";
+  // The cap is the pack validator's for directions.* (plan "Pack format v1"); a player's override is capped at 3,000 in Settings, so it is capped again here.
+  const DIRECTION_CAP = 1500;
+  /* What the author wrote, as one packet line: control and bidi-format
+     characters out (a packet label must start its own line, and nothing
+     may hide text from the reader of the Debug packet), whitespace folded,
+     capped (a cut that splits a surrogate pair drops the stray half). */
+  function directionText(v) {
+    const t = String(typeof v === 'string' ? v : '')
+      .replace(/[\u0000-\u0008\u000e-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+      .replace(/\s+/g, ' ').trim();
+    return t.slice(0, DIRECTION_CAP).replace(/[\ud800-\udbff]$/, '').trim();
+  }
+  /* The direction at directions.<key> when the author (or the player) set
+     one, else ''. Pack.lookup throws only in a bare context with no pack. */
+  function authored(key) {
+    let l = null;
+    try { l = Pack.lookup(`directions.${key}`); } catch (e) { l = null; }
+    return l && (l.layer === 'pack' || l.layer === 'player') ? directionText(l.value) : '';
+  }
+  function intimateDirected() {
+    let l = null;
+    try { l = Pack.lookup('directions.intimate'); } catch (e) { l = null; }
+    return !!l && (l.layer === 'pack' || l.layer === 'player');
+  }
+  /* The situations a turn is in, read from ctx, in the order their
+     directions are emitted (several at once is normal: a critical in a
+     fight is combat then rollCritical):
+       combat        the parse's actionType 'attack', or ctx.attacked (fight() ran this turn)
+       defeat        ctx.defeated (the DEFEAT line) without Permadeath: robbed, captured, gutter or rescued
+       death         ctx.defeated with Permadeath on: defeat() picks 'dead' on that setting alone, after the narration
+       arrival       ctx.mode 'arrival': a live game's first narration, or a /skip to another place
+       timeSkip      ctx.timePassed (the TIME PASSED line: /skip, /wait, /rest, a night's sleep)
+       gamble        ctx.gamble (a hand at a card table, or the table's refusal to deal one)
+       epilogue      ctx.mode 'epilogue'
+       firstTurn     meta.turn 0 or 1: a live game's arrival (turn 0) and the first action (turn 1); an offline start
+                     opens on the game's own text, so turn 1 is the narrator's first, and the save does not say which it was
+       refusedByNpc  the OUTCOME "the ask failed" line: a social action whose roll failed, not a backed ask (LEVERAGE)
+       rollFailure   ctx.roll.tier failure or critical_failure
+       rollCritical  ctx.roll.tier critical (a natural 20) */
+  const SITUATIONS = [
+    ['combat', ctx => (ctx.action || {}).actionType === 'attack' || !!ctx.attacked],
+    ['defeat', ctx => !!ctx.defeated && !Storage.settings().permadeath],
+    ['death', ctx => !!ctx.defeated && !!Storage.settings().permadeath],
+    ['arrival', ctx => ctx.mode === 'arrival'],
+    ['timeSkip', ctx => !!ctx.timePassed],
+    ['gamble', ctx => !!ctx.gamble],
+    ['epilogue', ctx => ctx.mode === 'epilogue'],
+    ['firstTurn', () => State.current.meta.turn <= 1],
+    ['refusedByNpc', ctx => { const r = ctx.roll; return !!r && !ctx.backed && !r.success && Dice.SOCIAL_ACTIONS.includes((ctx.action || {}).actionType); }],
+    ['rollFailure', ctx => !!ctx.roll && (ctx.roll.tier === 'failure' || ctx.roll.tier === 'critical_failure')],
+    ['rollCritical', ctx => !!ctx.roll && ctx.roll.tier === 'critical']
+  ];
+  /* The packet lines for this turn's directions: one DIRECTION line per
+     situation that applies and has an authored direction, then the ENGINE
+     trailer once; [] when there is none (the usual case). The direction is
+     looked up first, so a turn with none never evaluates a situation. */
+  function directionLines(ctx) {
+    ctx = ctx || {};
+    const out = [];
+    for (const [key, applies] of SITUATIONS) {
+      const text = authored(key);
+      if (text && applies(ctx)) out.push(`DIRECTION (from the story's author): ${text}`);
+    }
+    if (out.length) out.push(ENGINE_TRAILER);
+    return out;
   }
   /* Wave 36: a turn someone said yes to the night on (Rel.romanceTurn's intimate) gets the intimate scene's length (Style.WORD_LIMITS.intimate). */
   function intimateTurn(ctx) { return !!(ctx && ctx.mode !== 'epilogue' && ctx.romance && Array.isArray(ctx.romance.intimate) && ctx.romance.intimate.length); }
@@ -36661,7 +36770,9 @@ const Pipeline = (() => {
     cancelQueued() { if (!queued) return null; const q = queued; queued = null; return q.text || ''; },
     get lastTurn() { return lastTurn; },
     /* /rewind (wave 16): the turn /reroll would replay is struck from the story. */
-    forgetLastTurn() { lastTurn = null; }
+    forgetLastTurn() { lastTurn = null; },
+    // Wave 37, Creator Mode: the author's directions in the packet (tests, the editor's preview).
+    directionLines, directionText, ENGINE_TRAILER, DIRECTION_SITUATIONS: Object.freeze(SITUATIONS.map(x => x[0]))
   };
 })();
 
