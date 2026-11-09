@@ -1472,6 +1472,7 @@ told you about: Dewayne's house.", "The clock matches the story."):
 | 7 (29 Oct 2026) | A lived-in town | Fills in ages, histories, the dead, the people elsewhere, the new places and the places out of town, never over what the game has | None |
 | 9 (1 Nov 2026) | People who remember | Gives everyone's feelings about you their reasons: each memory gets the kind of thing it was and how long it lasts; trust, fear and how well they know you are worked out from them, and anyone who would have told you their secret still will; how much they like you stays exactly as it was. Someone who was holding your secret over you now has a record of it. A council or ending still to come weighs trust | None |
 | 10 (1 Nov 2026) | A town that talks | Ties between people (family, work, friends and the town's secrets) start to count: from now on what you do to someone reaches the people close to them, overnight for a husband or wife, by the next morning for family and work; nothing that already happened is spread again | None |
+| 11 (9 Nov 2026) | A story pack | Names the story pack the game plays from (its id, version and fingerprint), so the game keeps its own story whatever is in your library later: a game of Lockett's Ferry plays from the built-in pack, Low Water 1.0.0; a game of a town of your own plays from that town under the built-in rules. Nothing in the game changes. The feed says "This game now plays from the story pack Low Water 1.0.0." | None |
 
 - **An arc** (added 30 Oct 2026, rules version 8). Games from before this
   change have no calendar, council meeting, ending, ledger of what you owe or
@@ -1548,7 +1549,7 @@ else as it was. Someone who was "sweet on you" by the old reading (a spark
 and real liking) may read "wants you" or "has noticed you" until romance
 grows; set Romance on their card (Edit) to where the story is.
 
-Behind the scenes a save carries `state.meta.rulesVersion` (10 now; a save
+Behind the scenes a save carries `state.meta.rulesVersion` (11 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
 

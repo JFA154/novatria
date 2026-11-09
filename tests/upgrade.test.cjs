@@ -82,15 +82,19 @@ function rest(json) {
    thing it was (event, d, decay, key, its day), never other words. */
 const plain = m => ({ turn: m.turn, text: m.text, weight: m.weight });
 const plainAll = list => (list || []).map(plain);
-// The rules version this build is at (wave 30: 9; wave 31: 10), and what versions 9 and 10 say at the end of an update.
+// The rules version this build is at (wave 30: 9; wave 31: 10; wave 37: 11), and what versions 9, 10 and 11 say at the end of an update.
 const rulesNow = page => page.evaluate(() => Game.State.RULES_VERSION);
 // (A step that changes nothing is "People already remember why.", the way every other step says so.)
 const NINE = "(People now remember why: \\d+ (person's|people's) memories now carry what they did to how they feel\\.( \\d+ (person has|people have) something on you\\.)?( The council now weighs trust\\.)?|People already remember why\\.)";
 // Wave 31: version 10 ("A town that talks"): the ties made, or already there (a game started under the current rules has them).
 const TEN = "(People now feel for each other: \\d+ ties between \\d+ people\\. What you do from now on reaches the people close to them\\.|People already feel for each other\\.)";
+// Wave 37, Creator Mode: version 11 ("A story pack"): the pack attached, or already named (a game started under the current rules names it). The title and version are the pack's.
+const ELEVEN = "This game (now|already) plays from the story pack .+ \\d+\\.\\d+\\.\\d+\\.";
+// Version 11 on a game that already names its pack, as the built-in pack's meta says it.
+const ALREADY = page => page.evaluate(() => { const m = Game.Pack.builtIn().meta; return `This game already plays from the story pack ${m.title} ${m.version}.`; });
 const esc = t => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// The feed's summary: the steps before 9 exactly as written, then version 9's line and version 10's.
-const withNine = text => new RegExp(`^${esc(text)} ${NINE} ${TEN}$`);
+// The feed's summary: the steps before 9 exactly as written, then version 9's line, version 10's and version 11's.
+const withNine = text => new RegExp(`^${esc(text)} ${NINE} ${TEN} ${ELEVEN}$`);
 const words = t => t.trim().split(/\s+/).length;
 const waitIdle = page => page.waitForFunction(() => !Game.Pipeline.busy);
 
@@ -98,10 +102,10 @@ s.test('a new game is stamped with the current rules version; a save without one
   const page = await h.open({ viewport: LAPTOP });
   await quickStart(page);
   const fresh = await page.evaluate(() => ({ v: Game.state.meta.rulesVersion, current: Game.State.RULES_VERSION, read: Game.State.rulesVersion(Game.state), behind: Game.Upgrade.behind(Game.state) }));
-  // Changed by design in wave 30: rules version 9 ("People who remember"); wave 31: 10 ("A town that talks").
+  // Changed by design in wave 30: rules version 9 ("People who remember"); wave 31: 10 ("A town that talks"); wave 37: 11 ("A story pack").
   const V = await rulesNow(page);
   assert.deepEqual(fresh, { v: V, current: V, read: V, behind: false });
-  assert.equal(V, 10);
+  assert.equal(V, 11);
   const { env } = await writeOldAutosave(page);
   assert.equal(await page.evaluate(st => Game.State.rulesVersion(st), env.state), 1, 'no rulesVersion reads as 1');
   await page.click('#btn-continue');
@@ -567,7 +571,8 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   await page.click('#tb-settings');
   await page.click('#set-reread');
   await waitIdle(page);
-  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other.');
+  // Wave 37: and version 11's line.
+  assert.equal(await page.textContent('#feed .f-notice:last-child'), 'Nobody had any memories to rewrite. No new places to add. The clock matches the story. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other. ' + await ALREADY(page));
   assert.equal(await stateJson(page), before, 'a re-read adds nothing twice');
   assert.equal(await page.evaluate(() => Game.State.undoDepth()), depth);
   // /undo takes the update back: no place, no cast, no home, version 2 again.
@@ -577,8 +582,8 @@ s.test('version 3 on a save at version 2: a line in the story about where someon
   assert.equal(await page.evaluate(() => Game.Upgrade.behind(Game.state)), true);
 });
 
-// Changed by design in wave 30: the chain runs on to version 9; wave 31: and 10.
-s.test('a save at version 1 runs version 2, 3, 4, 5, 6, 7, 8, 9 then 10; with nothing in the story to add, version 3 adds no place, version 6 adds the cast, version 7 fills in the town, version 8 finds the arc in place, version 9 gives every memory its kind with liking as it was, version 10 the ties, and the game is stamped 10', async h => {
+// Changed by design in wave 30: the chain runs on to version 9; wave 31: and 10; wave 37: and 11.
+s.test('a save at version 1 runs version 2, 3, 4, 5, 6, 7, 8, 9, 10 then 11; with nothing in the story to add, version 3 adds no place, version 6 adds the cast, version 7 fills in the town, version 8 finds the arc in place, version 9 gives every memory its kind with liking as it was, version 10 the ties, version 11 names the story pack, and the game is stamped 11', async h => {
   const page = await h.open({ viewport: LAPTOP });
   const m = await writeMentionSave(page, { version: 1, line: "Couldn't tell you. Ask around." });
   await page.click('#btn-continue');
@@ -586,9 +591,9 @@ s.test('a save at version 1 runs version 2, 3, 4, 5, 6, 7, 8, 9 then 10; with no
   const att0 = await page.evaluate(() => Object.fromEntries(Game.state.npcs.map(n => [n.id, n.attitude])));
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story'], [5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember'], [10, 'A town that talks']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[2, 'Memories that matter'], [3, 'Places people told you about'], [4, 'Clock follows the story'], [5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember'], [10, 'A town that talks'], [11, 'A story pack']]);
   const st = JSON.parse(await stateJson(page));
-  assert.equal(st.meta.rulesVersion, 10);
+  assert.equal(st.meta.rulesVersion, 11);
   for (const n of st.npcs) if (att0[n.id] !== undefined) assert.equal(n.attitude, att0[n.id], `${n.id}: liking exactly as it was`);
   assert.ok(st.npcs.every(n => (n.memories || []).every(x => typeof x.event === 'string' && x.d !== undefined)), 'every memory says what it was');
   assert.equal(st.meta.castFixed, true);
@@ -729,7 +734,7 @@ s.test('version 4 on a save at version 3: the clock ran into day 2 morning durin
   assert.match(r.packet, /^CLOCK NOW: day 2, morning \(early in the phase; 0 of 3 short actions gone\)\n/);
   assert.ok(r.packet.indexOf('TURN 10 (day 1, night)') < r.packet.indexOf('TURN 11 (day 2, morning)\nPLAYER: Go to the back bedroom and let him lead'), 'oldest first');
   assert.ok(r.packet.includes('the lamp clicks on.') && r.packet.includes('"Shut the door behind you," he says.'));
-  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other.', 'Day 1 · Night']);
+  assert.deepEqual(r.feed.map(noWeekday), ['Updating this game to the latest rules...', 'Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other. ' + await ALREADY(page), 'Day 1 · Night']);
   assert.equal(r.bar, 'Day 1 · Night');
   assert.ok(r.narr.startsWith('DAY 1 (Thursday 8 October), NIGHT (late; the player has not slept) · Location: '), r.narr);
   assert.match(r.dbg, /clock: day 2, morning -> day 1, night/);
@@ -754,7 +759,7 @@ s.test('version 4: a save whose story matches its clock is left as it is and sta
   await page.waitForSelector('#screen-game.active');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true);
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.'], [5, 'People match the story', 'People already match the story.'], [6, 'A full cast', 'The cast is complete.'], [7, 'A lived-in town', 'The town is already lived in.'], [8, 'An arc', ARC], [9, 'People who remember', res.summaries.find(x => x.version === 9).text], [10, 'A town that talks', 'People already feel for each other.']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title, x.text]), [[4, 'Clock follows the story', 'The clock matches the story.'], [5, 'People match the story', 'People already match the story.'], [6, 'A full cast', 'The cast is complete.'], [7, 'A lived-in town', 'The town is already lived in.'], [8, 'An arc', ARC], [9, 'People who remember', res.summaries.find(x => x.version === 9).text], [10, 'A town that talks', 'People already feel for each other.'], [11, 'A story pack', await ALREADY(page)]]);
   assert.match(res.summaries.find(x => x.version === 9).text, new RegExp(`^${NINE}$`));
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 2, phase: 'morning', shorts: 0 });
@@ -844,7 +849,7 @@ s.test('version 4 against the real provider: one structured-output call on the p
   const st = JSON.parse(await stateJson(page));
   assert.deepEqual(st.time, { day: 1, phase: 'night', shorts: 2, late: true });
   assert.equal(st.meta.rulesVersion, await rulesNow(page));
-  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other.', 'Day 1 · Night']);
+  assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#feed .f-item')].slice(-2).map(n => n.textContent))).map(noWeekday), ['Set the clock back to Day 1 · Night: the story had not reached morning. People already match the story. The cast is complete. The town is already lived in. The story already has its arc. People already remember why. People already feel for each other. ' + await ALREADY(page), 'Day 1 · Night']);
   assert.match(await page.evaluate(() => Game.State.debugLog.filter(x => x.kind === 'upgrade').map(x => x.reason).join(' | ')), /clock: day 2, morning -> day 1, night \(He is taking his boots off for bed; nobody has slept yet\.\)/);
 });
 
@@ -964,7 +969,7 @@ s.test('versions 5, 6 and 7 on a save at version 4: a tables-made "Mavis Toler",
   assert.deepEqual(await page.evaluate(() => Game.Upgrade.madeUp(Game.state).map(n => n.id)), ['npc_mavis_toler'], 'version 5 treats the cast as the town\'s own people');
   const res = await page.evaluate(() => Game.App.updateGame());
   assert.equal(res.ok, true, JSON.stringify(res));
-  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember'], [10, 'A town that talks']]);
+  assert.deepEqual(res.summaries.map(x => [x.version, x.title]), [[5, 'People match the story'], [6, 'A full cast'], [7, 'A lived-in town'], [8, 'An arc'], [9, 'People who remember'], [10, 'A town that talks'], [11, 'A story pack']]); // wave 37: and 11
   const r = await page.evaluate(m => {
     const S = Game.State;
     return {
@@ -1003,7 +1008,7 @@ s.test('versions 5, 6 and 7 on a save at version 4: a tables-made "Mavis Toler",
   // A re-read finds everyone already right: nothing changes.
   const same = await stateJson(page);
   const res2 = await page.evaluate(() => Game.App.updateGame());
-  assert.deepEqual(res2.summaries.filter(x => x.version >= 5).map(x => x.text), ['People already match the story.', 'The cast is complete.', 'The town is already lived in.', ARC, 'People already remember why.', 'People already feel for each other.']);
+  assert.deepEqual(res2.summaries.filter(x => x.version >= 5).map(x => x.text), ['People already match the story.', 'The cast is complete.', 'The town is already lived in.', ARC, 'People already remember why.', 'People already feel for each other.', await ALREADY(page)]);
   assert.equal(await stateJson(page), same);
   // /undo takes the update back: a man again, no cast, version 4.
   await sendText(page, '/undo');

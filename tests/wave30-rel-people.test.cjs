@@ -404,8 +404,8 @@ s.test('rules version 9: liking stays exactly the old attitude for everyone in a
   assert.ok(before.council >= 6, 'the old council read attitude');
   assert.equal(before.levs, 0, 'no records before wave 29');
   const res = await page.evaluate(() => Game.App.updateGame());
-  // Wave 31: the update runs on to version 10 (the ties; tests/wave31-town-ties.test.cjs has its own checks).
-  assert.deepEqual([res.ok, res.from, res.to], [true, 8, 10]);
+  // Wave 31: the update runs on to version 10 (the ties; tests/wave31-town-ties.test.cjs has its own checks); wave 37: and 11 (the story pack; tests/wave37-upgrade.test.cjs).
+  assert.deepEqual([res.ok, res.from, res.to], [true, 8, 11]);
   const after = await page.evaluate(debtor => {
     const G = Game, S = G.State, R = G.Rel, st = G.state;
     const informant = st.player.looseEnds.find(le => le.kind === 'secret').npcId;
@@ -445,7 +445,7 @@ s.test('rules version 9: liking stays exactly the old attitude for everyone in a
   // The council still to come reads trust; the ending reads Loretta's liking.
   assert.equal(after.council, 6);
   assert.equal(after.epilogue, true);
-  assert.match(after.feed, /^People now remember why: \d+ people's memories now carry what they did to how they feel\. 1 person has something on you\. The council now weighs trust\. People now feel for each other: \d+ ties between \d+ people\. What you do from now on reaches the people close to them\.$/);
+  assert.match(after.feed, /^People now remember why: \d+ people's memories now carry what they did to how they feel\. 1 person has something on you\. The council now weighs trust\. People now feel for each other: \d+ ties between \d+ people\. What you do from now on reaches the people close to them\. This game now plays from the story pack Low Water 1\.0\.0\.$/); // wave 37: and version 11's line
   console.log('        the fixture save\'s update: ' + after.feed);
   // Version 9 again: nothing changes (everyone is at rel.migrated 9 with every line typed); /undo takes the update back, as one step.
   const once = await page.evaluate(() => JSON.stringify(Game.state));

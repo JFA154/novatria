@@ -13924,8 +13924,12 @@ const State = (() => {
      other, from both sides of every relation and the town's own, and what
      the player does from now on reaches the people close to them, overnight
      for a husband or wife, by the next morning for family and work; nothing
-     that already happened is spread again: Upgrade townTalks, tiesFill). */
-  const RULES_VERSION = 10;
+     that already happened is spread again: Upgrade townTalks, tiesFill).
+     11: "A story pack" (wave 37, Creator Mode: a game names the story pack
+     it plays from, its id, version and hash in meta; an older game is
+     attached to the built-in pack, or one of its own edited town under the
+     built-in dials: Upgrade attachPack, packAttach). */
+  const RULES_VERSION = 11;
   const DEBUG_MAX = 200;
   const listeners = [];
   const debugLog = [];
@@ -14694,14 +14698,14 @@ const State = (() => {
      save of the same town), so a stored point matches what is drawn. */
   function mapFrame() {
     if (town && isObj(town.map)) return town.map;
-    return current && current.meta.townName === TOWN_DATA.name && isObj(TOWN_DATA.map) ? TOWN_DATA.map : null;
+    return Pack.isBuiltIn(current) && isObj(Pack.builtIn().world.map) ? Pack.builtIn().world.map : null;
   }
   function mapPointOf(l) {
     if (!l) return null;
     let c = isObj(l.map) ? l.map : null;
     if (!c) {
       const src = (town && Array.isArray(town.locations) ? town.locations.find(x => x.id === l.id) : null)
-        || (current && current.meta.townName === TOWN_DATA.name ? TOWN_DATA.locations.find(x => x.id === l.id) : null);
+        || (Pack.isBuiltIn(current) ? Pack.builtIn().world.locations.find(x => x.id === l.id) : null);
       c = src && isObj(src.map) ? src.map : null;
     }
     return c && Number.isFinite(c.x) && Number.isFinite(c.y) ? c : null;
@@ -15147,7 +15151,7 @@ const State = (() => {
      they). Returns the ids filled. */
   function fillPronouns(s, townData) {
     const own = townData && Array.isArray(townData.npcs) ? townData.npcs : [];
-    const builtIn = s.meta && s.meta.townName === TOWN_DATA.name ? TOWN_DATA.npcs : [];
+    const builtIn = Pack.isBuiltIn(s) ? Pack.builtIn().world.npcs : [];
     const filled = [];
     for (const n of Array.isArray(s.npcs) ? s.npcs : []) {
       if (!isObj(n) || validPronouns(n.pronouns)) continue;
@@ -16192,7 +16196,7 @@ const State = (() => {
   // A heard rumour content marks leverageOver (rumoursHeard): the record, or null.
   function rumourLeverage(r) {
     const own = typeof r.leverageOver === 'string' ? r.leverageOver : null;
-    const live = !own && current.meta.townName === TOWN_DATA.name ? (TOWN_DATA.rumours || []).find(x => x.id === r.id) : null;
+    const live = !own && Pack.isBuiltIn(current) ? (Pack.builtIn().world.rumours || []).find(x => x.id === r.id) : null;
     const over = own || (live && typeof live.leverageOver === 'string' ? live.leverageOver : null);
     const n = over ? npc(over) : null;
     if (!n || r.true === false || typeof n.secret !== 'string' || !n.secret.trim()) return null;
@@ -17547,7 +17551,7 @@ const State = (() => {
   /* The town data people and places come from: this game's own copy, or
      the built-in town's for a game of that town. */
   function castTown() {
-    if (current && current.meta.townName === TOWN_DATA.name) return TOWN_DATA;
+    if (Pack.isBuiltIn(current)) return Pack.builtIn().world;
     return town && Array.isArray(town.npcs) ? town : null;
   }
   /* Is this person written in the town's cast (not made in play)? */
@@ -18946,7 +18950,7 @@ const State = (() => {
         out.seeds += 1;
         return `${sd.id} does what its loose end now does`;
       }));
-      const builtIn = s.meta.townName === TOWN_DATA.name && isObj(town) && town !== TOWN_DATA;
+      const builtIn = Pack.isBuiltIn(s) && isObj(town) && town !== Pack.builtIn().world;
       list('branches').forEach((x, i) => run(`relFill.branches[${i}]`, () => {
         if (!builtIn || !isObj(x) || !isObj(x.when) || !Number.isInteger(x.index)) return null;
         const ending = x.eventId === 'epilogue';
@@ -20617,7 +20621,13 @@ const Rel = (() => {
     const turn = Number.isInteger(c.turn) ? c.turn : s && isObj(s.meta) ? s.meta.turn | 0 : 0;
     return { s: s || null, town: town || null, day, turn, place: c.place !== undefined ? c.place : s && s.player ? s.player.locationId : null, used: c.used };
   }
-  function builtIn(ctx) { return !ctx.s || !isObj(ctx.s.meta) || ctx.s.meta.townName === TOWN_DATA.name; }
+  /* A reading of the built-in story (no game counts as one): the fallbacks
+     below then read the built-in pack's world for what the save's town copy
+     lacks. Wave 37, Creator Mode (plan decision F): this asked the town's
+     name and read TOWN_DATA; outside a preview that alias is the same
+     object as Pack.builtIn().world, so this is a rename with one source of
+     truth, and another pack's game never borrows Low Water's people. */
+  function builtIn(ctx) { return !ctx.s || !isObj(ctx.s.meta) || Pack.isBuiltIn(ctx.s); }
   function townRecord(id, ctx) { return ctx.town && Array.isArray(ctx.town.npcs) ? (ctx.town.npcs.find(x => isObj(x) && x.id === id) || null) : null; }
   /* A field content writes on a person (wave 29: secretWeight, canRaise,
      mattersTo, leverageKeys, whenTold, mercenary): the record's own, else
@@ -20629,7 +20639,7 @@ const Rel = (() => {
     if (n[key] !== undefined && n[key] !== null) return n[key];
     const rec = townRecord(n.id, ctx);
     if (rec && rec[key] !== undefined && rec[key] !== null) return rec[key];
-    const live = builtIn(ctx) ? TOWN_DATA.npcs.find(x => x.id === n.id) : null;
+    const live = builtIn(ctx) ? Pack.builtIn().world.npcs.find(x => x.id === n.id) : null;
     return live && live[key] !== undefined && live[key] !== null ? live[key] : undefined;
   }
 
@@ -20665,7 +20675,7 @@ const Rel = (() => {
     if (!isObj(n)) return true;
     ctx = context(ctx);
     const copy = townRecord(n.id, ctx);
-    const live = builtIn(ctx) ? (TOWN_DATA.npcs.find(x => x.id === n.id) || null) : null;
+    const live = builtIn(ctx) ? (Pack.builtIn().world.npcs.find(x => x.id === n.id) || null) : null;
     const recs = [n, copy, live].filter(isObj);
     const ages = recs.map(r => r.age).filter(a => Number.isInteger(a));
     if (ages.length && Math.min(...ages) < 18) return true;
@@ -20683,7 +20693,7 @@ const Rel = (() => {
   function romanceOf(ctx) {
     ctx = context(ctx);
     if (ctx.town && Array.isArray(ctx.town.romance)) return ctx.town.romance.filter(isObj);
-    return builtIn(ctx) && Array.isArray(TOWN_DATA.romance) ? TOWN_DATA.romance.filter(isObj) : [];
+    return builtIn(ctx) && Array.isArray(Pack.builtIn().world.romance) ? Pack.builtIn().world.romance.filter(isObj) : [];
   }
   /* Spark can move for them: an adult, with an adult player. Wave 34 (the
      owner: "everyone should be allowed to go to 100"): the romance list no
@@ -21536,7 +21546,7 @@ const Rel = (() => {
   function policeHead(ctx) {
     ctx = context(ctx);
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
-    const named = ctx.town && typeof ctx.town.policeHead === 'string' ? ctx.town.policeHead : builtIn(ctx) && typeof TOWN_DATA.policeHead === 'string' ? TOWN_DATA.policeHead : null;
+    const named = ctx.town && typeof ctx.town.policeHead === 'string' ? ctx.town.policeHead : builtIn(ctx) && typeof Pack.builtIn().world.policeHead === 'string' ? Pack.builtIn().world.policeHead : null;
     const police = x => isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || '')));
     const head = (named && npcs.find(x => isObj(x) && x.id === named)) || npcs.find(x => police(x) && /\bchief\b/i.test(String(x.role || '')));
     return head && available(head, ctx) ? head.id : null;
@@ -21572,7 +21582,7 @@ const Rel = (() => {
     const barred = !(opts && opts.anyway) && policeBarred(n, ctx);
     const ok = id => id !== n.id && available(byId(id), ctx) && !(barred && isPoliceNpc(byId(id)));
     const rec = townRecord(n.id, ctx);
-    const live = builtIn(ctx) ? (TOWN_DATA.npcs.find(x => x.id === n.id) || null) : null;
+    const live = builtIn(ctx) ? (Pack.builtIn().world.npcs.find(x => x.id === n.id) || null) : null;
     const own = [n, rec, live].find(x => isObj(x) && x.protector !== undefined && x.protector !== null);
     const p = own ? own.protector : undefined;
     if (p === 'nobody') return { nobody: true };
@@ -21814,7 +21824,7 @@ const Rel = (() => {
      null. */
   function policeFallback(ctx) {
     ctx = context(ctx);
-    const id = ctx.town && typeof ctx.town.policeFallback === 'string' ? ctx.town.policeFallback : builtIn(ctx) && typeof TOWN_DATA.policeFallback === 'string' ? TOWN_DATA.policeFallback : null;
+    const id = ctx.town && typeof ctx.town.policeFallback === 'string' ? ctx.town.policeFallback : builtIn(ctx) && typeof Pack.builtIn().world.policeFallback === 'string' ? Pack.builtIn().world.policeFallback : null;
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
     const x = id ? npcs.find(m => isObj(m) && m.id === id) : null;
     return x && x.alive !== false && x.status !== 'dead' ? x.id : null;
@@ -21833,7 +21843,7 @@ const Rel = (() => {
   function minorAge(n, ctx) {
     ctx = context(ctx);
     const copy = townRecord(n.id, ctx);
-    const live = builtIn(ctx) ? (TOWN_DATA.npcs.find(x => x.id === n.id) || null) : null;
+    const live = builtIn(ctx) ? (Pack.builtIn().world.npcs.find(x => x.id === n.id) || null) : null;
     const ages = [n, copy, live].filter(isObj).map(r => r.age).filter(a => Number.isInteger(a));
     return ages.length ? Math.min(...ages) : null;
   }
@@ -22702,7 +22712,7 @@ const Rel = (() => {
   function contentList(key, ctx) {
     ctx = context(ctx);
     if (ctx.town && Array.isArray(ctx.town[key])) return ctx.town[key].filter(isObj);
-    return builtIn(ctx) && Array.isArray(TOWN_DATA[key]) ? TOWN_DATA[key].filter(isObj) : [];
+    return builtIn(ctx) && Array.isArray(Pack.builtIn().world[key]) ? Pack.builtIn().world[key].filter(isObj) : [];
   }
   /* Every tie the town gives, for the people in town now (State's
      tiesFill writes the ones a game lacks, never overwriting): the
@@ -26457,7 +26467,7 @@ const Style = (() => {
       for (const f of s.factions || []) add(f.name);
       if (s.player && s.player.name) { add(s.player.name); words(s.player.name); }
       const t = State.town;
-      const m = (t && t.map) || (town === TOWN_DATA.name ? TOWN_DATA.map : null);
+      const m = (t && t.map) || (Pack.isBuiltIn(s) ? Pack.builtIn().world.map : null);
       if (m) for (const lab of [m.riverLabel].concat(Array.isArray(m.labels) ? m.labels : [])) if (lab && typeof lab.text === 'string') { add(lab.text); words(lab.text); }
       if (t && Array.isArray(t.offstage)) for (const o of t.offstage) if (o && o.name) { add(o.name); words(o.name); }
     }
@@ -29302,6 +29312,18 @@ const Api = (() => {
    "People now feel for each other: N ties between M people. What you do
    from now on reaches the people close to them."
 
+   Version 11, "A story pack" (wave 37, Creator Mode; plan decision C): a
+   game now names the story pack it plays from (meta.packId, packVersion,
+   packHash), so a save keeps playing its own story whatever the library
+   holds later. An older game names only its town. A game of the built-in
+   town is attached to the built-in pack; a game of another town (an edited
+   copy, an older import) to the pack Pack.forLegacy gives it, its own town
+   under the built-in dials, with a legacy- id. The pack State.load pinned
+   (State.pack) is the one attached, so the meta and the pack played never
+   disagree. Deterministic and quiet, no call: "This game now plays from
+   the story pack Low Water 1.0.0.", or on a rerun, "This game already
+   plays from the story pack Low Water 1.0.0."
+
    Each step stamps the rules version as it completes and has a snapshot
    of its own (Pipeline.updateGame), so a failure at one step keeps the
    steps before it. A save from a newer build than this one (newer) is
@@ -29554,7 +29576,7 @@ const Upgrade = (() => {
      reached yet. */
   function castIds(st) {
     const ids = new Set();
-    for (const t of [State.town, st && st.meta && st.meta.townName === TOWN_DATA.name ? TOWN_DATA : null, State.town ? null : TOWN_DATA]) if (t && Array.isArray(t.npcs)) t.npcs.forEach(n => ids.add(n.id));
+    for (const t of [State.town, Pack.isBuiltIn(st) ? Pack.builtIn().world : null, State.town ? null : Pack.builtIn().world]) if (t && Array.isArray(t.npcs)) t.npcs.forEach(n => ids.add(n.id));
     return ids;
   }
   /* Everyone the game made during play: not in the cast, or holding a cast
@@ -29694,7 +29716,7 @@ const Upgrade = (() => {
   /* The town data a game's cast comes from: TOWN_DATA for a game of the
      built-in town, else the game's own copy (a town with its own cast). */
   function castData(st) {
-    if (st.meta.townName === TOWN_DATA.name) return TOWN_DATA;
+    if (Pack.isBuiltIn(st)) return Pack.builtIn().world;
     return State.town && Array.isArray(State.town.npcs) && Array.isArray(State.town.locations) ? State.town : null;
   }
   const ROLE_STOP = new Set(['with', 'from', 'that', 'this', 'their', 'there', 'town', 'works', 'work', 'runs', 'keeps', 'lives', 'after', 'about', 'before', 'school', 'everyone', 'somebody', 'someone', 'townsfolk']);
@@ -29893,7 +29915,7 @@ const Upgrade = (() => {
      loose ends' onStart effects. */
   async function anArc(st) {
     const res = { town: [], rumours: 0, threads: 0, obligations: 0, feelings: 0, defaults: [], calls: 0 };
-    const T = st.meta.townName === TOWN_DATA.name ? TOWN_DATA : null;
+    const T = Pack.isBuiltIn(st) ? Pack.builtIn().world : null;
     const seeds = [];
     const starts = [];
     // A loose end still to come carries its obligation (Town.obligationFor, the builder a new game uses), due that many days after the day its seed was planned for; one that already fired gets none.
@@ -30008,10 +30030,16 @@ const Upgrade = (() => {
      the player), then its words (Rel.typeMemory), then its sense (a
      grievance is crossed, a kindness a compliment). The text is read with
      the player's name taken out, so a name never decides it. Returns {
-     event, own, scale, witness, dNull, noRecord, secondhand, by }. */
-  function legacyType(m, player) {
+     event, own, scale, witness, dNull, noRecord, secondhand, by }.
+     Wave 37, Creator Mode: the engine's words are tried only when lowWater
+     (Pack.isBuiltIn of the game; a direct call without it keeps the old
+     reading). They are Low Water's (Chief Bell, the title loan) and
+     migrate its pre-version-9 saves; they stay here, not in the pack,
+     because JSON cannot carry a RegExp, and another pack's old saves
+     cannot exist (packs came after version 9). */
+  function legacyType(m, player, lowWater) {
     const text = String(m.text || '');
-    const hit = LEGACY_ENGINE_TEXTS.find(x => x.re.test(text));
+    const hit = lowWater !== false ? LEGACY_ENGINE_TEXTS.find(x => x.re.test(text)) : null;
     if (hit) return Object.assign({ by: 'engine' }, hit, { re: undefined });
     if (m.act === 'own') return { event: 'noted', own: true, by: 'act' };
     const t = text.toLowerCase();
@@ -30030,7 +30058,7 @@ const Upgrade = (() => {
      knows-you in it (they knew the player before). */
   function startFor(st, n) {
     const copy = State.town && Array.isArray(State.town.npcs) ? State.town.npcs.find(x => isObj(x) && x.id === n.id) : null;
-    const live = st.meta.townName === TOWN_DATA.name ? TOWN_DATA.npcs.find(x => x.id === n.id) : null;
+    const live = Pack.isBuiltIn(st) ? Pack.builtIn().world.npcs.find(x => x.id === n.id) : null;
     const start = Rel.startOf(n, copy || live || n);
     const les = (st.player.looseEnds || []).filter(le => isObj(le) && le.npcId === n.id);
     for (const le of les) {
@@ -30060,6 +30088,8 @@ const Upgrade = (() => {
     rel.fix = Object.assign({}, rel.fix, { w: 0, s: 0, m: 0 });
     rel.migrated = 9;
     const player = st.player.name;
+    // Low Water's own engine lines (LEGACY_ENGINE_TEXTS) are tried only for a game of the built-in story (see legacyType).
+    const lowWater = Pack.isBuiltIn(st);
     const kept = [];
     const fresh = [];
     const memories = [];
@@ -30071,7 +30101,7 @@ const Upgrade = (() => {
       const m = deepCopy(m0);
       memories.push(m);
       if (isObj(m.d) && Rel.EVENTS[m.event]) { kept.push(m); if (m.weight >= 2 && !Rel.harmful(m)) goodSerious = true; continue; }
-      const t = legacyType(m, player);
+      const t = legacyType(m, player, lowWater);
       const row = Rel.EVENTS[t.event] || Rel.EVENTS.noted;
       m.event = Rel.EVENTS[t.event] ? t.event : 'noted';
       if (!Number.isInteger(m.day)) { const d = Rel.memoryDay(m, st); m.day = Number.isInteger(d) ? d : Math.max(1, D - 7); }
@@ -30160,7 +30190,13 @@ const Upgrade = (() => {
       return isObj(def.obligation) ? def.obligation : null;
     };
     const optionText = o => (typeof o === 'string' ? o : isObj(o) ? o.text : '');
-    for (const le of Array.isArray(p.looseEnds) ? p.looseEnds : []) {
+    /* Wave 37, Creator Mode: OLD_OBLIGATIONS (npc_marcus, loc_low_water, the
+       title loan) are Low Water's 56e69f5 obligations; they migrate its
+       pre-version-9 saves only, so a game of another story never reads
+       them. They stay in code because JSON cannot carry the RegExps beside
+       them, and another pack's old saves cannot exist. */
+    const lowWater = Pack.isBuiltIn(st);
+    for (const le of lowWater && Array.isArray(p.looseEnds) ? p.looseEnds : []) {
       if (!isObj(le) || !OLD_OBLIGATIONS[le.kind]) continue;
       const n = st.npcs.find(x => x.id === le.npcId);
       if (!n) continue;
@@ -30190,8 +30226,8 @@ const Upgrade = (() => {
         if (changed) out.seeds.push({ seedId: sd.id, effects });
       }
     }
-    if (st.meta.townName === TOWN_DATA.name && State.town && State.town !== TOWN_DATA) {
-      const T = TOWN_DATA;
+    if (Pack.isBuiltIn(st) && State.town && State.town !== Pack.builtIn().world) {
+      const T = Pack.builtIn().world;
       const reads = w => isObj(w) && (isObj(w.relAtLeast) || isObj(w.relBelow));
       const fromOld = w => isObj(w) && isObj(w.attitudeAtLeast);
       const branches = (eventId, mine, theirs) => {
@@ -30230,7 +30266,7 @@ const Upgrade = (() => {
       const status = !o ? 'held' : o.status === 'open' ? 'used' : o.status === 'met' ? 'paid' : o.status === 'missed' ? 'spent' : o.status === 'lapsed' ? 'void' : 'held';
       records.push(Object.assign({ holder: le.npcId, text: cleanText(le.text, 120), weight: at >= 0 ? Rel.LEVERAGE_WEIGHT.looseEnd[at] || 2 : 2, mattersTo: head ? [head] : [], status, playerKnows: !!o }, o ? { obligationId: o.id } : {}));
     }
-    const live = st.meta.townName === TOWN_DATA.name ? (TOWN_DATA.rumours || []) : [];
+    const live = Pack.isBuiltIn(st) ? (Pack.builtIn().world.rumours || []) : [];
     const heard = st.rumours.filter(r => isObj(r) && r.heard && r.true !== false && (typeof r.leverageOver === 'string' || live.some(x => x.id === r.id && typeof x.leverageOver === 'string'))).map(r => r.id);
     return { records, heard };
   }
@@ -30304,6 +30340,31 @@ const Upgrade = (() => {
     const text = f.added ? `People now feel for each other: ${f.ties} ${f.ties === 1 ? 'tie' : 'ties'} between ${f.people} people. What you do from now on reaches the people close to them.` : 'People already feel for each other.';
     return { text, ties: f.ties, people: f.people, added: f.added, calls: 0, state: st ? st.meta.turn : 0 };
   }
+  /* Version 11, "A story pack" (wave 37, Creator Mode; no call): the pack an
+     older game plays from, named in its meta (State's packAttach). A game
+     already naming one is left as it is (rerun-safe). Otherwise the pack
+     is the one State.load pinned for it (State.pack: the built-in pack for
+     the built-in town, Pack.forLegacy's for another town), so the meta
+     names exactly what plays; with none pinned, Pack.forLegacy over the
+     game's town copy. A built-in-town game whose pinned pack is another
+     pack (by hash) would be a bug elsewhere: refused, so nothing is
+     attached wrongly.
+     One feed line, from the pack's own title and version. */
+  async function attachPack(st) {
+    const m = st.meta;
+    const b = Pack.builtIn();
+    const line = (p, verb) => `This game ${verb} plays from the story pack ${p && isObj(p.meta) ? `${p.meta.title} ${p.meta.version}` : `${m.packId} ${m.packVersion}`}.`;
+    if (typeof m.packId === 'string' && m.packId) {
+      const p = State.pack && State.pack.meta.id === m.packId ? State.pack : m.packId === b.meta.id ? b : null;
+      return { text: line(p, 'already'), packId: m.packId, attached: false, calls: 0 };
+    }
+    const pinned = State.pack || null;
+    const p = Pack.isBuiltIn(st) ? b : pinned && pinned !== b ? pinned : Pack.forLegacy(st, State.town);
+    if (pinned && pinned !== p && Pack.hash(pinned) !== Pack.hash(p)) throw new Error(`this game plays from ${pinned.meta.id}, not ${p.meta.id}`);
+    const r = State.quietly(() => State.apply({ packAttach: { id: p.meta.id, version: p.meta.version, hash: Pack.hash(p) } }));
+    if (r.rejected.length) throw new Error('the engine refused it: ' + r.rejected.map(x => `${x.path}: ${x.reason}`).join('; '));
+    return { text: line(p, 'now'), packId: p.meta.id, attached: true, calls: 0 };
+  }
 
   const MIGRATIONS = Object.freeze([
     Object.freeze({ version: 2, title: 'Memories that matter', rerun: true, run: rewriteMemories }),
@@ -30314,13 +30375,17 @@ const Upgrade = (() => {
     Object.freeze({ version: 7, title: 'A lived-in town', rerun: true, run: livedInTown }),
     Object.freeze({ version: 8, title: 'An arc', rerun: true, run: anArc }),
     Object.freeze({ version: 9, title: 'People who remember', rerun: true, run: peopleRemember }),
-    Object.freeze({ version: 10, title: 'A town that talks', rerun: true, run: townTalks })
+    Object.freeze({ version: 10, title: 'A town that talks', rerun: true, run: townTalks }),
+    // Wave 37, Creator Mode.
+    Object.freeze({ version: 11, title: 'A story pack', rerun: true, run: attachPack })
   ]);
   return { MIGRATIONS, PROTECTED, PER_PERSON, CHUNK, CLOCK_ENTRIES, MENTIONS, NOTICES, isProtected, isShort, behind, newer, known, pending, candidates, chunks, memoryPacket, cleanReply, placesPacket, clockPacket, peoplePacket, madeUp, mentionsOf, castMatch, castData,
     // Wave 30: version 9.
     LEGACY_ENGINE_TEXTS, OLD_OBLIGATIONS, legacyType, rememberPerson, contentFill, leverageFill,
     // Wave 31: version 10.
-    townTalks };
+    townTalks,
+    // Wave 37, Creator Mode: version 11.
+    attachPack };
 })();
 
 // ===== Module: Pipeline =====
@@ -30563,7 +30628,7 @@ const Pipeline = (() => {
   function townBlock(st) {
     const s = st || State.current;
     if (!s) return '';
-    const t = State.town && typeof State.town.history === 'string' ? State.town : s.meta.townName === TOWN_DATA.name ? TOWN_DATA : null;
+    const t = State.town && typeof State.town.history === 'string' ? State.town : Pack.isBuiltIn(s) ? Pack.builtIn().world : null;
     if (!t || typeof t.history !== 'string' || !t.history) return '';
     const lines = [TOWN_HEAD, `HISTORY: ${t.history}`];
     const recent = Array.isArray(t.recent) ? t.recent.filter(r => isObj(r) && r.when && r.what) : [];
@@ -32148,7 +32213,7 @@ const Pipeline = (() => {
   function cardPeople(presentIds, dealer) {
     const s = State.current;
     // A game saved before wave 13 has the cast without the tag: the town's own record says who plays (the built-in town).
-    const cast = s && s.meta.townName === TOWN_DATA.name ? new Set(TOWN_DATA.npcs.filter(x => (x.tags || []).includes(CARD_TAG)).map(x => x.id)) : new Set();
+    const cast = Pack.isBuiltIn(s) ? new Set(Pack.builtIn().world.npcs.filter(x => (x.tags || []).includes(CARD_TAG)).map(x => x.id)) : new Set();
     // Wave 28 (Rel.GATES.seats): and trust above -40.
     return (presentIds || []).map(id => State.npc(id)).filter(n => n && (!dealer || n.id !== dealer.id) && n.alive !== false && ((n.tags || []).includes(CARD_TAG) || cast.has(n.id)) && (toInt(n.attitude) || 0) > SEAT_COLD && Rel.tracksOf(n).t > Rel.GATES.seats.trust);
   }
@@ -38967,10 +39032,10 @@ const UI = (() => {
      town's for a save of the same town made before it had a map. */
   function mapSource(s) {
     const t = State.town;
-    const same = s.meta.townName === TOWN_DATA.name;
-    const map = t && isObj(t.map) ? t.map : same && isObj(TOWN_DATA.map) ? TOWN_DATA.map : null;
+    const same = Pack.isBuiltIn(s);
+    const map = t && isObj(t.map) ? t.map : same && isObj(Pack.builtIn().world.map) ? Pack.builtIn().world.map : null;
     const coords = id => {
-      const from = (t && Array.isArray(t.locations) ? t.locations.find(l => l.id === id) : null) || (same ? TOWN_DATA.locations.find(l => l.id === id) : null);
+      const from = (t && Array.isArray(t.locations) ? t.locations.find(l => l.id === id) : null) || (same ? Pack.builtIn().world.locations.find(l => l.id === id) : null);
       return from && isObj(from.map) ? from.map : null;
     };
     return { map, coords };

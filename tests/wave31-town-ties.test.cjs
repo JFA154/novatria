@@ -376,11 +376,12 @@ s.test('rules version 10 spreads nothing old', async h => {
     __tick(8);
     return { same: before === after, ties, people, hearsay: st.hearsay.length, feed, v, rerun: r2.text, log: st.ties['npc_mavis>npc_dewayne'].log.length, nothing, ok: !!r1, migrations: G.Upgrade.MIGRATIONS.map(m => m.version), title: G.Upgrade.MIGRATIONS.find(m => m.version === 10).title, mavis: S.npc('npc_mavis').memories.filter(m => m.secondhand).length };
   });
-  assert.deepEqual(r.migrations, [2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  // Changed by design in wave 37: version 11 ("A story pack") follows.
+  assert.deepEqual(r.migrations, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(r.title, 'A town that talks');
   assert.equal(r.nothing.hit, 0, 'before the update nothing travels');
   assert.doesNotMatch(r.nothing.arrest, /turn against/, 'and an arrest moves no tie');
-  assert.equal(r.v, 10);
+  assert.equal(r.v, 11); // wave 37: the update runs on to version 11 ("A story pack")
   assert.equal(r.same, true, 'nobody\'s feelings moved: nothing that already happened is spread');
   assert.equal(r.hearsay, 0, 'nothing on its way');
   assert.ok(r.ties >= 110, 'the ties made: ' + r.ties);
@@ -395,7 +396,8 @@ s.test('the README and the rules version say ten', async () => {
   const fs = require('fs');
   const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
   assert.match(readme, /\| 10 \(1 Nov 2026\) \| A town that talks \|/);
-  assert.match(readme, /10 now/);
+  // Changed by design in wave 37: the rules are at 11 now ("A story pack"); version 10's row stays.
+  assert.match(readme, /11 now/);
   void execFileSync;
 });
 
