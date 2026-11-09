@@ -36539,7 +36539,13 @@ const Storage = (() => {
     // Wave 30: rules version 9's update first rewrites memories in the short form (version 2's re-read, one call); off by default.
     rereadMemories: false,
     // Wave 36: the player's own direction for an intimate scene (the turn's MODE line); '' is the game's (Pipeline.INTIMATE_MODE).
-    intimateDirection: ''
+    intimateDirection: '',
+    /* Wave 37, Creator Mode: the story pack New game plays (a Library id;
+       the built-in one by default) and the creator's Developer overlay
+       (milestone 7). Additive fields: cleanSettings gives a settings object
+       without them the defaults, so settingsVersion stays as it is. */
+    selectedPackId: 'low-water',
+    developerMode: false
   };
   /* Settings, "Quality": the models and effort each preset sets. A
      settings object that matches none of them is "custom". */
@@ -36583,13 +36589,15 @@ const Storage = (() => {
     if (pars && !(legacy && pars === V1_DEFAULTS.parserModel)) s.parserModel = pars;
     const allLow = isObj(raw.effort) && Object.keys(s.effort).every(k => raw.effort[k] === 'low' || raw.effort[k] === undefined);
     if (isObj(raw.effort) && !(legacy && allLow)) for (const k of Object.keys(s.effort)) if (['low', 'medium', 'high'].includes(raw.effort[k])) s.effort[k] = raw.effort[k];
-    for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed', 'persistAsked', 'tipSeen', 'keepPackets', 'rereadMemories']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
+    for (const k of ['showRolls', 'permadeath', 'mockMode', 'rememberKey', 'panelCollapsed', 'persistAsked', 'tipSeen', 'keepPackets', 'rereadMemories', 'developerMode']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
     if (raw.theme === 'dark' || raw.theme === 'parchment') s.theme = raw.theme;
     if (['S', 'M', 'L'].includes(raw.textSize)) s.textSize = raw.textSize;
     if (raw.narrationStyle === 'casual' || raw.narrationStyle === 'literary') s.narrationStyle = raw.narrationStyle;
     if (raw.inputMode === 'do' || raw.inputMode === 'say') s.inputMode = raw.inputMode;
     if (typeof raw.intimateDirection === 'string') s.intimateDirection = raw.intimateDirection.trim().slice(0, INTIMATE_DIRECTION_MAX);
     if (raw.playChoice === 'demo' || raw.playChoice === 'claude') s.playChoice = raw.playChoice;
+    // A pack id as the pack format spells one; anything else keeps the built-in story (Pack.selected falls back the same way for an id the Library has lost).
+    if (typeof raw.selectedPackId === 'string' && /^[a-z][a-z0-9-]{1,40}$/.test(raw.selectedPackId.trim())) s.selectedPackId = raw.selectedPackId.trim();
     if (typeof raw.lastExportAt === 'string' && !Number.isNaN(Date.parse(raw.lastExportAt))) s.lastExportAt = raw.lastExportAt;
     return s;
   }
@@ -36603,6 +36611,7 @@ const Storage = (() => {
     if (!(isObj(parsed) && typeof parsed.mockMode === 'boolean')) settings.mockMode = !apiKey;
     try { window.addEventListener('storage', onStorageEvent); } catch (e) { /* no window events */ }
     undoInit();
+    libraryBoot();
   }
   function saveSettings(patch) {
     const next = Object.assign({}, settings, patch || {});
@@ -36647,14 +36656,51 @@ const Storage = (() => {
   // ----- saves -----
   /* Which game a state is: the same game keeps its createdAt and seed through every turn and save. */
   function gameId(st) { return isObj(st) && isObj(st.meta) ? `${st.meta.createdAt || ''}|${st.meta.seed}` : null; }
-  function summaryOf(st) {
+  /* packTitle and packRating (wave 37, Creator Mode): the Save / Load rows
+     and the title's Continue line name the story without reading the pack. */
+  function summaryOf(st, pack) {
     const l = st.locations.find(x => x.id === st.player.locationId);
-    return { player: st.player.name, background: st.player.background, day: st.time.day, phase: st.time.phase, location: l ? l.name : '', turn: st.meta.turn, town: st.meta.townName };
+    const m = pack && isObj(pack.meta) ? pack.meta : {};
+    return { player: st.player.name, background: st.player.background, day: st.time.day, phase: st.time.phase, location: l ? l.name : '', turn: st.meta.turn, town: st.meta.townName, packTitle: m.title || '', packRating: m.rating || '' };
   }
-  function envelope(name) {
+  /* The pack of the running game (wave 37, Creator Mode): State.pack, or the
+     built-in pack while there is none (a build before milestone 2's State,
+     or a game not yet attached to a pack). */
+  function currentPack() { return State.pack || Pack.builtIn(); }
+  /* Pack.hash reads the whole pack (about 300 KB of canonical text), and
+     every turn's autosave names its pack: a pack object is hashed once. Only
+     frozen packs are remembered, so an answer cannot go stale. */
+  const hashes = new WeakMap();
+  function packHash(pack) {
+    if (!isObj(pack)) return '';
+    let h = hashes.get(pack);
+    if (!h) { h = Pack.hash(pack); if (Object.isFrozen(pack)) hashes.set(pack, h); }
+    return h;
+  }
+  function isBuiltInPack(pack) { return pack === Pack.builtIn() || packHash(pack) === packHash(Pack.builtIn()); }
+  /* Wave 37, Creator Mode (plan decision C): saveVersion 2. Every envelope
+     names its pack (packRef: id, version, hash). An export (opts.forFile)
+     carries the pack in full, so the file plays anywhere; a local envelope
+     carries it only when it is not the built-in pack and IndexedDB is not
+     there to keep the frozen copy (Library.persistent false). Otherwise a
+     local save keeps the pack out of localStorage: iOS Safari's sits near
+     5 MB, today's five envelopes reach about 3.3 MB, and a 300 KB pack in
+     each would risk QuotaExceededError on the phone; its frozen copy goes to
+     the IndexedDB store "frozen" (keepFrozen) instead. The owner: "a save
+     keeps playing the same way even if the pack is edited or deleted later". */
+  function envelope(name, opts) {
     const st = State.current;
     if (!st) throw new Error('no game in progress');
-    return { kind: SAVE_KIND, saveVersion: 1, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+    const pack = currentPack();
+    const env = { kind: SAVE_KIND, saveVersion: 2, name: cleanText(name, 40) || `${st.player.name}, Day ${st.time.day}`, savedAt: new Date().toISOString(), summary: summaryOf(st, pack), state: deepCopy(st), town: deepCopy(State.town || TOWN_DATA) };
+    env.packRef = { id: pack.meta.id, version: pack.meta.version || '', hash: packHash(pack) };
+    if ((opts && opts.forFile) || (!isBuiltInPack(pack) && !lib.persistent)) env.pack = pack;
+    return env;
+  }
+  /* A local envelope of a pack that is not the built-in one was written: its frozen copy kept by hash (once). */
+  function keepLocalPack() {
+    const pack = currentPack();
+    if (!isBuiltInPack(pack)) keepFrozen(pack, packHash(pack));
   }
   function serialise(env) {
     let json = JSON.stringify(env);
@@ -36681,13 +36727,69 @@ const Storage = (() => {
     if (!isObj(env)) throw new Error(`${it} is not a saved game.`);
     if (env.kind !== SAVE_KIND && isObj(env.meta) && isObj(env.player)) env = { kind: SAVE_KIND, saveVersion: 1, name: 'Imported', state: env, town: null };
     if (env.kind !== SAVE_KIND || !isObj(env.state)) throw new Error(`${it} is not a saved game.`);
+    // Wave 37, Creator Mode: saveVersion 1 (no packRef) and 2 (packRef, maybe the pack); a later one is a newer game's file.
+    if (typeof env.saveVersion === 'number' && env.saveVersion > SAVE_VERSION) throw new Error(`${it} was saved by a newer version of the game.`);
+    if (env.packRef !== undefined && !packRefOk(env.packRef)) throw new Error(`${what ? it : 'That save'} is damaged: its story pack reference is not readable.`);
+    if (env.pack !== undefined && !packShapeOk(env.pack)) throw new Error(`${what ? it : 'That save'} is damaged: the story pack it carries is not readable.`);
     const errs = shapeProblems(env.state, isObj(env.town) ? env.town : undefined);
     if (errs.length) throw new Error(`${what ? it : 'That save'} is damaged: ${errs.join('; ')}`);
     delete env.apiKey;
     delete env.settings;
     // Wave 37, Creator Mode: a defaulted town is the mutable part only (Pack.townOf), as State.newGame makes it.
     if (!isObj(env.town)) env.town = Pack.townOf(TOWN_DATA);
+    // Every envelope Storage hands back carries the pack it plays (or packMissing says why it cannot).
+    env.pack = resolvePack(env);
     return env;
+  }
+  const SAVE_VERSION = 2;
+  function packRefOk(r) { return isObj(r) && typeof r.id === 'string' && !!r.id && typeof r.version === 'string' && typeof r.hash === 'string' && /^[0-9a-f]{16}$/.test(r.hash); }
+  // Cheap on purpose: the full Pack.validate runs only when the pack joins the Library (Library.put).
+  function packShapeOk(p) { return isObj(p) && p.packFormat === Pack.FORMAT && isObj(p.meta) && typeof p.meta.id === 'string' && !!p.meta.id && isObj(p.world); }
+  /* The pack a save plays (wave 37, Creator Mode; plan decision C): the
+     first of these that answers.
+     1. The pack the envelope carries (an export, or a local save made
+        without IndexedDB). Its frozen copy is kept by hash and, when the
+        Library has no pack of that id, it joins the Library as 'from-save'
+        (both best effort, never in the way of the load).
+     2. The built-in pack, when packRef's hash is the built-in pack's. With
+        no packRef at all (saveVersion 1) Pack.forLegacy decides: the
+        built-in pack for the built-in town, otherwise the built-in dials
+        over the save's own town.
+     3. The frozen copy kept for that hash, exactly the pack the save was
+        made with (the store is read into memory at boot, so this is
+        synchronous).
+     4. The Library's pack of that id, with env.packWarning when its hash
+        differs: the story was edited since the save, and it plays as it is
+        now.
+     5. Nothing: env.packMissing says which pack is needed; importFile
+        refuses with it.
+     Steps 1 and 3 keep the owner's promise, "a save keeps playing the same
+     way even if the pack is edited or deleted later"; step 4 is the next best
+     thing. Returns the pack, or null with packMissing set. */
+  function resolvePack(env) {
+    delete env.packWarning;
+    delete env.packMissing;
+    const ref = isObj(env.packRef) ? env.packRef : null;
+    if (isObj(env.pack)) {
+      const pack = Pack.deepFreeze(env.pack);
+      if (isBuiltInPack(pack)) return Pack.builtIn();
+      keepFrozen(pack, packHash(pack));
+      if (!lib.records.has(pack.meta.id)) {
+        try { lib.put(pack, { source: 'from-save' }); } catch (e) { console.warn('[Storage] the save\'s pack could not join the Library', e); }
+      }
+      return pack;
+    }
+    if (!ref) return typeof Pack.forLegacy === 'function' ? Pack.forLegacy(env.state, env.town) : Pack.builtIn();
+    if (ref.hash === packHash(Pack.builtIn())) return Pack.builtIn();
+    if (lib.frozen.has(ref.hash)) return lib.frozen.get(ref.hash);
+    const rec = lib.get(ref.id);
+    if (rec) {
+      if (rec.hash !== ref.hash) env.packWarning = 'The story pack changed since this save; it plays with the pack you have now.';
+      return rec.pack;
+    }
+    const title = isObj(env.summary) && typeof env.summary.packTitle === 'string' ? env.summary.packTitle : '';
+    env.packMissing = `This save needs the story pack ${title ? `${title} (${ref.id})` : ref.id}, which is not on this device. Import the save's export file instead.`;
+    return null;
   }
   /* Copy the autosave to .prev when the game about to be written is a different one. */
   function keepPrevious(st) {
@@ -36710,7 +36812,7 @@ const Storage = (() => {
     if (!State.current || State.muted || readOnly) return false;
     keepPrevious(State.current);
     const ok = write(KEYS.autosave, serialise(envelope('Autosave')));
-    if (ok) knownAutosaveId = gameId(State.current);
+    if (ok) { knownAutosaveId = gameId(State.current); keepLocalPack(); }
     return ok;
   }
   function peek(key) {
@@ -36726,7 +36828,9 @@ const Storage = (() => {
   function saveSlot(n, name) {
     if (!(n >= 1 && n <= SLOTS)) throw new Error('slot must be 1 to ' + SLOTS);
     const env = envelope(name);
-    return write(KEYS.slot(n), serialise(env)) ? env : null;
+    if (!write(KEYS.slot(n), serialise(env))) return null;
+    keepLocalPack();
+    return env;
   }
   function loadSlot(n) { const e = peek(KEYS.slot(n)); return e && !e.broken ? e : null; }
   function deleteSlot(n) { return remove(KEYS.slot(n)); }
@@ -36757,7 +36861,8 @@ const Storage = (() => {
     const i = listSlots().findIndex(e => e && !e.broken && e.name.toLowerCase() === r);
     return i >= 0 ? i + 1 : 0;
   }
-  function exportJson() { return serialise(envelope('Export')); }
+  // An export carries its pack in full (wave 37, Creator Mode): the file plays on a device that never had the pack.
+  function exportJson() { return serialise(envelope('Export', { forFile: true })); }
   function exportFileName() {
     const st = State.current;
     // "locketts-ferry-tomas-reed-day-1.json": an apostrophe is dropped, not made a break.
@@ -36788,7 +36893,10 @@ const Storage = (() => {
     if (!file) throw new Error('No file chosen.');
     if (file.size > IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a saved game (${Math.round(file.size / 1024 / 1024)} MB; the limit is 5 MB).`);
     const text = await file.text();
-    return parseEnvelope(text);
+    const env = parseEnvelope(text);
+    // Wave 37, Creator Mode: a save of a pack this device does not have cannot be played; the message says which pack.
+    if (env.packMissing) throw new Error(env.packMissing);
+    return env;
   }
   // ----- another tab -----
   /* The storage event fires here only when another tab (same browser) writes. */
@@ -36864,41 +36972,67 @@ const Storage = (() => {
   const UNDO_DB = 'novatria';
   const UNDO_STORE = 'undo';
   const UNDO_WRITE_MS = 250;
-  let undoDbP = null;
+  /* Wave 37, Creator Mode (plan decision G): the database is version 2 and
+     holds four stores: undo (as above, out-of-line keys), packs (the
+     Library, keyed by the pack's id), drafts (the editor's work in progress,
+     milestone 5, keyed by draft id) and frozen (the exact pack a save was
+     made with, keyed by its hash; plan decision C). onupgradeneeded creates
+     whichever is missing, so a version-1 database keeps its undo record. A
+     tab of an older build holding version 1 open closes it when asked
+     (its onversionchange), so the upgrade is not held up for long. */
+  const DB_VERSION = 2;
+  const DB_STORES = { undo: null, packs: 'id', drafts: 'id', frozen: 'hash' };
+  let dbP = null;
   let undoTimer = null;
   let undoDirty = false;
   let undoReading = 0;
-  let undoChain = Promise.resolve();
-  function undoDb() {
-    if (undoDbP) return undoDbP;
-    undoDbP = new Promise(resolve => {
+  let txChain = Promise.resolve();
+  /* The database, or null when there is none (some private windows, some
+     browsers on file://, an upgrade blocked by another tab): every caller
+     then does nothing, as the undo store always has. */
+  function openDb() {
+    if (dbP) return dbP;
+    dbP = new Promise(resolve => {
+      let settled = false;
+      // A database that opens after the answer was already null (blocked, then let through) is closed again: this page goes on without it.
+      const finish = db => {
+        if (settled) { try { if (db) db.close(); } catch (e) { /* fine */ } return; }
+        settled = true;
+        resolve(db);
+      };
       try {
-        const req = window.indexedDB.open(UNDO_DB, 1);
-        req.onupgradeneeded = () => { try { if (!req.result.objectStoreNames.contains(UNDO_STORE)) req.result.createObjectStore(UNDO_STORE); } catch (e) { /* none then */ } };
-        req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => db.close(); } catch (e) { /* fine */ } resolve(db); };
-        req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } resolve(null); };
-        req.onblocked = () => resolve(null);
-      } catch (e) { resolve(null); }
+        const req = window.indexedDB.open(UNDO_DB, DB_VERSION);
+        req.onupgradeneeded = () => {
+          try {
+            const db = req.result;
+            for (const name of Object.keys(DB_STORES)) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, DB_STORES[name] ? { keyPath: DB_STORES[name] } : undefined);
+          } catch (e) { /* none then */ }
+        };
+        req.onsuccess = () => { const db = req.result; try { db.onversionchange = () => db.close(); } catch (e) { /* fine */ } finish(db); };
+        req.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } finish(null); };
+        req.onblocked = () => finish(null);
+      } catch (e) { finish(null); }
     });
-    return undoDbP;
+    return dbP;
   }
-  /* One transaction on the store, after every one asked for before it.
+  /* One transaction on one store, after every one asked for before it (on
+     any store: one queue keeps a write and a later read in order).
      work(store) returns a request whose result is the answer, or nothing.
      Resolves to that result, or null whatever went wrong. */
-  function undoTx(mode, work) {
-    const run = () => undoDb().then(db => new Promise(resolve => {
+  function tx(storeName, mode, work) {
+    const run = () => openDb().then(db => new Promise(resolve => {
       if (!db) { resolve(null); return; }
       let req = null;
       try {
-        const tx = db.transaction(UNDO_STORE, mode);
-        req = work(tx.objectStore(UNDO_STORE)) || null;
-        tx.oncomplete = () => resolve(req && req.result !== undefined ? req.result : null);
-        tx.onabort = () => resolve(null);
-        tx.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } };
+        const t = db.transaction(storeName, mode);
+        req = work(t.objectStore(storeName)) || null;
+        t.oncomplete = () => resolve(req && req.result !== undefined ? req.result : null);
+        t.onabort = () => resolve(null);
+        t.onerror = e => { try { e.preventDefault(); } catch (x) { /* fine */ } };
       } catch (e) { resolve(null); }
     }));
-    const p = undoChain.then(run, run);
-    undoChain = p.catch(() => null);
+    const p = txChain.then(run, run);
+    txChain = p.catch(() => null);
     return p;
   }
   function onUndo(why) {
@@ -36919,7 +37053,7 @@ const Storage = (() => {
     if (!rec) return false;
     rec.tab = tab();
     rec.savedAt = new Date().toISOString();
-    undoTx('readwrite', store => { store.clear(); return store.put(rec, rec.game); });
+    tx(UNDO_STORE, 'readwrite', store => { store.clear(); return store.put(rec, rec.game); });
     return true;
   }
   /* A new game, a slot, an import or the previous autosave: an empty stack, written now over the one kept. */
@@ -36932,16 +37066,16 @@ const Storage = (() => {
     const game = gameId(s);
     const gen = State.undoGen;
     undoReading += 1;
-    return undoTx('readonly', store => store.get(game)).then(rec => {
+    return tx(UNDO_STORE, 'readonly', store => store.get(game)).then(rec => {
       undoReading -= 1;
       const n = isObj(rec) && rec.game === game ? State.resumeUndo(rec, gen) : 0;
       return n;
     }, () => { undoReading -= 1; return 0; });
   }
   /* The record as kept (tests, the console), or null. */
-  function undoKept() { return undoTx('readonly', store => store.getAll()).then(list => (Array.isArray(list) && list.length ? list[0] : null)); }
-  /* Every read and write asked for so far is done (tests). */
-  function undoIdle() { return undoChain.then(() => null); }
+  function undoKept() { return tx(UNDO_STORE, 'readonly', store => store.getAll()).then(list => (Array.isArray(list) && list.length ? list[0] : null)); }
+  /* Every read and write asked for so far is done, on every store (tests). */
+  function undoIdle() { return txChain.then(() => null); }
   function undoInit() {
     State.onUndo(onUndo);
     const hide = () => undoFlush();
@@ -36950,6 +37084,178 @@ const Storage = (() => {
       window.addEventListener('pagehide', hide);
     } catch (e) { /* no page events */ }
   }
+
+  // ----- Library: the story packs on this device (wave 37, Creator Mode; plan decision G) -----
+  /* Records { id, pack, hash, title, author, version, rating, source, savedAt,
+     playedAt }, source one of created, import, from-save, duplicate. The
+     store "packs" is read into memory once at boot (libraryBoot; records
+     are few), so get and index answer synchronously, and every write
+     changes the map at once and the store a moment later. The built-in
+     pack is never stored: get('low-water') makes its record up from
+     Pack.builtIn(), source 'built-in'. The packs in records are frozen;
+     the editor works on Pack.copy(record.pack).
+     Without IndexedDB the maps live for this page only and persistent is
+     false (the editor says so, milestone 5; local envelopes then carry a
+     pack that is not the built-in one, see envelope). */
+  const LIBRARY_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+  const LIBRARY_SOURCES = ['created', 'import', 'from-save', 'duplicate'];
+  /* The boot sweep leaves a frozen copy younger than this alone: an import
+     keeps one before its game is loaded and autosaved, and another tab may
+     be between the two. */
+  const FROZEN_GRACE_MS = 10 * 60 * 1000;
+  let libraryLoaded = null;
+  const lib = {
+    records: new Map(), // id -> record
+    frozen: new Map(), // hash -> frozen pack
+    persistent: false,
+    ready: new Promise(resolve => { libraryLoaded = resolve; }),
+    get: libGet,
+    put: libPut
+  };
+  function builtInRecord() {
+    const b = Pack.builtIn();
+    const m = b.meta;
+    return { id: m.id, pack: b, hash: packHash(b), title: m.title || m.id, author: m.author || '', version: m.version || '', rating: m.rating || '', source: 'built-in', savedAt: null, playedAt: null };
+  }
+  function packOf(ref) {
+    if (typeof ref === 'string') { const r = libGet(ref); return r ? r.pack : null; }
+    return isObj(ref) && isObj(ref.meta) ? ref : null;
+  }
+  function libIndex() {
+    const own = Array.from(lib.records.values()).sort((a, b) => String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
+    return [builtInRecord()].concat(own.map(r => Object.assign({}, r)));
+  }
+  function libGet(id) {
+    if (id === Pack.builtIn().meta.id) return builtInRecord();
+    const r = lib.records.get(id);
+    return r ? Object.assign({}, r) : null;
+  }
+  /* Validated under the play profile (house rules only warn): the first
+     error refuses the pack, by its path and message. */
+  function libPut(pack, opts) {
+    if (!isObj(pack) || !isObj(pack.meta)) throw new Error('That is not a story pack.');
+    const first = Pack.errors(Pack.validate(pack, { profile: 'play' }))[0];
+    if (first) throw new Error(`That story pack has a problem${first.path ? ' at ' + first.path : ''}: ${first.message}`);
+    const id = pack.meta.id;
+    if (id === Pack.builtIn().meta.id) throw new Error(`The id ${id} is the built-in story's. Give the pack an id of its own.`);
+    const source = opts && LIBRARY_SOURCES.includes(opts.source) ? opts.source : 'created';
+    const kept = Pack.deepFreeze(Pack.copy(pack));
+    const m = kept.meta;
+    const old = lib.records.get(id);
+    const rec = { id, pack: kept, hash: packHash(kept), title: m.title || id, author: m.author || '', version: m.version || '', rating: m.rating || '', source, savedAt: new Date().toISOString(), playedAt: old ? old.playedAt : null };
+    lib.records.set(id, rec);
+    tx('packs', 'readwrite', store => store.put(rec));
+    return Object.assign({}, rec);
+  }
+  /* The built-in story cannot be removed (false). A save of a removed pack still plays from its frozen copy. */
+  function libRemove(id) {
+    if (!lib.records.has(id)) return false;
+    lib.records.delete(id);
+    tx('packs', 'readwrite', store => store.delete(id));
+    return true;
+  }
+  /* "low-water" -> "low-water-copy", then "low-water-copy-2" and on (a copy of "low-water-copy" is numbered, not "-copy-copy"); short enough for the id pattern (41 characters). */
+  function freeId(base) {
+    const b = String(base || 'pack').replace(/-copy(?:-\d+)?$/, '').slice(0, 30);
+    const taken = id => id === Pack.builtIn().meta.id || lib.records.has(id);
+    let id = b + '-copy';
+    for (let n = 2; taken(id); n++) id = `${b}-copy-${n}`;
+    return id;
+  }
+  function libDuplicate(ref, newId) {
+    const from = packOf(ref);
+    if (!from) throw new Error('There is no such story pack.');
+    const id = typeof newId === 'string' && newId ? newId : freeId(from.meta.id);
+    if (id === Pack.builtIn().meta.id || lib.records.has(id)) throw new Error(`There is already a story pack with the id ${id}.`);
+    const pack = Pack.copy(from);
+    pack.meta.id = id;
+    pack.meta.title = `${from.meta.title || from.meta.id} (copy)`;
+    return libPut(pack, { source: 'duplicate' });
+  }
+  /* A pack file's text: the basics now (size, JSON, a pack of this format);
+     plan decision M8-A makes import stricter in milestone 8. */
+  function libImportText(text, opts) {
+    if (typeof text !== 'string') throw new Error('That file is not a story pack.');
+    const bytes = text.length > LIBRARY_IMPORT_MAX_BYTES ? text.length : (typeof TextEncoder === 'function' ? new TextEncoder().encode(text).length : text.length);
+    if (bytes > LIBRARY_IMPORT_MAX_BYTES) throw new Error(`That file is too big to be a story pack (${(bytes / 1024 / 1024).toFixed(1)} MB; the limit is 2 MB).`);
+    let pack;
+    try { pack = JSON.parse(text); } catch (e) { throw new Error('That file is not valid JSON.'); }
+    if (!isObj(pack)) throw new Error('That file is not a story pack.');
+    if (pack.kind === SAVE_KIND) throw new Error('That file is a saved game, not a story pack. Import it from Save / Load.');
+    if (typeof pack.packFormat === 'number' && pack.packFormat > Pack.FORMAT) throw new Error('That story pack was made for a newer version of the game.');
+    if (pack.packFormat !== Pack.FORMAT) throw new Error('That file is not a story pack.');
+    return libPut(pack, { source: (opts && opts.source) || 'import' });
+  }
+  function libExportText(ref) {
+    const pack = packOf(ref);
+    if (!pack) throw new Error('There is no such story pack.');
+    return Pack.format(pack);
+  }
+  /* The frozen copy of a pack a save names (plan decision C): one record per
+     hash, shared by every save of that exact pack, written once (the map,
+     then a has check in the store's own transaction). */
+  function keepFrozen(pack, hash) {
+    if (!hash || lib.frozen.has(hash)) return;
+    lib.frozen.set(hash, pack);
+    const rec = { hash, pack, savedAt: new Date().toISOString() };
+    tx('frozen', 'readwrite', store => {
+      const r = store.getKey(hash);
+      r.onsuccess = () => { if (r.result === undefined) store.put(rec); };
+      return r;
+    });
+  }
+  /* The hashes the saves in this browser name (autosave, the previous
+     autosave, the slots), or null when one of them cannot be read: the
+     sweep then deletes nothing, as it cannot know what that save needs. */
+  function referencedHashes() {
+    const out = new Set();
+    const keys = [KEYS.autosave, KEYS.prev];
+    for (let n = 1; n <= SLOTS; n++) keys.push(KEYS.slot(n));
+    for (const k of keys) {
+      let raw;
+      try { raw = area().getItem(k); } catch (e) { return null; }
+      if (!raw) continue;
+      let env;
+      try { env = JSON.parse(raw); } catch (e) { return null; }
+      if (isObj(env) && isObj(env.packRef) && typeof env.packRef.hash === 'string') out.add(env.packRef.hash);
+    }
+    return out;
+  }
+  /* A frozen copy no save names any more goes, unless it is new (FROZEN_GRACE_MS). */
+  function sweepFrozen(list) {
+    const keep = referencedHashes();
+    if (!keep) return null;
+    const now = Date.now();
+    const gone = list.filter(f => !keep.has(f.hash) && !(Date.parse(f.savedAt) > now - FROZEN_GRACE_MS)).map(f => f.hash);
+    if (!gone.length) return null;
+    for (const h of gone) lib.frozen.delete(h);
+    return tx('frozen', 'readwrite', store => { for (const h of gone) store.delete(h); });
+  }
+  /* At boot (init): the two stores into memory, then the sweep; Library.ready resolves after, whatever happened. */
+  function libraryBoot() {
+    const fill = db => {
+      lib.persistent = !!db;
+      if (!db) return null;
+      return Promise.all([tx('packs', 'readonly', store => store.getAll()), tx('frozen', 'readonly', store => store.getAll())]).then(([packs, frozen]) => {
+        // A write made while the stores were being read is newer than what they held.
+        for (const r of Array.isArray(packs) ? packs : []) {
+          if (!isObj(r) || typeof r.id !== 'string' || !packShapeOk(r.pack) || lib.records.has(r.id)) continue;
+          const pack = Pack.deepFreeze(r.pack);
+          lib.records.set(r.id, Object.assign({}, r, { pack, hash: packHash(pack) }));
+        }
+        const list = (Array.isArray(frozen) ? frozen : []).filter(f => isObj(f) && typeof f.hash === 'string');
+        for (const f of list) if (packShapeOk(f.pack) && !lib.frozen.has(f.hash)) lib.frozen.set(f.hash, Pack.deepFreeze(f.pack));
+        return sweepFrozen(list);
+      });
+    };
+    return openDb().then(fill).catch(e => { console.warn('[Storage] the story packs could not be read', e); }).then(() => { libraryLoaded(); });
+  }
+  const Library = {
+    index: libIndex, get: libGet, put: libPut, remove: libRemove, duplicate: libDuplicate, importText: libImportText, exportText: libExportText,
+    IMPORT_MAX_BYTES: LIBRARY_IMPORT_MAX_BYTES,
+    get ready() { return lib.ready; },
+    get persistent() { return lib.persistent; }
+  };
   return {
     KEYS, SLOTS, SAVE_KIND, DEFAULTS, PRESETS, IMPORT_MAX_BYTES, init,
     settings: () => settings, saveSettings, effectiveTheme, presetOf, applyPreset, requestPersist,
@@ -36961,6 +37267,8 @@ const Storage = (() => {
     download,
     setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
     undoFlush, undoReset, undoResume, undoKept, undoIdle, UNDO_DB, UNDO_STORE,
+    // Wave 37, Creator Mode: envelope v2, the pack a save plays, IndexedDB v2 and the story packs on this device.
+    SAVE_VERSION, DB_VERSION, serialise, resolvePack, openDb, tx, Library,
     get tabId() { return tab(); },
     get readOnly() { return readOnly; },
     get failed() { return failed; }
