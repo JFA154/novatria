@@ -551,7 +551,7 @@ s.test('a faction\'s detail: relations a number per other faction, written on bo
   assert.equal((await draft(page)).world.factions[0].clocks.length, 4, 'Undo brings the clock back');
 });
 
-s.test('the Effects editor: Add effect with giveItem shows exactly the fields the rules allow it (name, notes) and writes { op: "giveItem", name } into the clock\'s onComplete.effects; switching the op to playerGold swaps them for delta; FIELDS_BY_OP is the rules\' own table, op for op', async h => {
+s.test('the Effects editor: Add effect with giveItem shows exactly the fields the rules allow it (name, notes, qty) and writes { op: "giveItem", name } into the clock\'s onComplete.effects; switching the op to playerGold swaps them for delta; FIELDS_BY_OP is the rules\' own table, op for op', async h => {
   const page = await open(h);
   await openDraft(page, 'copy');
   const cp = await openClock(page, 'fac_sturdivant', 0);
@@ -561,7 +561,7 @@ s.test('the Effects editor: Add effect with giveItem shows exactly the fields th
   await page.selectOption(`#${await domId(page, lp)}-add`, 'giveItem');
   await page.waitForSelector(`.cr-fx-row[data-path="${rowPath}"]`);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.path), rowPath + '.op', 'the new row\'s op takes the focus');
-  assert.deepEqual(await fieldsOf(page, rowPath), ['name', 'notes']);
+  assert.deepEqual(await fieldsOf(page, rowPath), ['name', 'notes', 'qty']);
   assert.equal(await page.$eval(`.cr-fx-row[data-path="${rowPath}"] ${at(rowPath + '.name')}`, i => i.closest('.cr-field').querySelector('.cr-req') !== null), true, 'name is required');
   await type(page, at(rowPath + '.name'), 'Tackle box');
   let eff = (await draft(page)).world.factions[0].clocks[0].onComplete.effects;
@@ -784,7 +784,7 @@ s.test('an imported effect with an op this game does not know shows its raw JSON
   await page.fill(box, '{ "op": "giveItem", "name": "Heron feather" }');
   await page.$eval(box, e => e.dispatchEvent(new Event('change')));
   assert.deepEqual((await draft(page)).world.seeds[0].effects[0], { op: 'giveItem', name: 'Heron feather' });
-  assert.deepEqual(await fieldsOf(page, 'world.seeds[0].effects[0]'), ['name', 'notes']);
+  assert.deepEqual(await fieldsOf(page, 'world.seeds[0].effects[0]'), ['name', 'notes', 'qty']);
 });
 
 s.test('the five story lists pass the mobile audit at 375 and 390: each list, a faction with a clock open, a thread, a rumour, a seed, the event with a branch open, a good and a complication', async h => {

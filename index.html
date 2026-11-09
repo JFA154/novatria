@@ -12338,7 +12338,7 @@ const PackRules = (() => {
     propagate: ['npcId', 'event']
   };
   const OPS_OPTIONAL = {
-    npcStatus: ['by'], playerHp: ['allowDefeat'], giveItem: ['notes'], placeItem: ['notes', 'locationId'], banFrom: ['byNpcId'], addMemory: ['act'],
+    npcStatus: ['by'], playerHp: ['allowDefeat'], giveItem: ['notes', 'qty'], placeItem: ['notes', 'locationId'], banFrom: ['byNpcId'], addMemory: ['act'],
     threadUpdate: ['summary', 'status', 'knownToPlayer'],
     addObligation: ['amount', 'dueDay', 'itemName', 'onMiss', 'onMet', 'dueOffset', 'leverageId', 'missText'],
     obligationPaid: ['take'], addNews: ['factionId', 'public'],
@@ -46331,13 +46331,13 @@ const Creator = (() => {
     // ----- Effects -----
     /* The story-half rules' field table (PackRules' OPS and OPS_OPTIONAL, docs/BUILD_PLAN.md "Effect ops"): the fields
        each op needs, then the ones it may carry. The rules refuse anything else ("is not a field this can carry"), so
-       the editor offers exactly these. giveItem's qty is the engine's but not the rules', so it is not offered. */
+       the editor offers exactly these. giveItem's qty (1 to 99, 1 when unset) is the engine's, so the rules and the editor both carry it. */
     const FIELDS_BY_OP = Object.freeze({
       closeLocation: [['locationId'], []], openLocation: [['locationId'], []], npcStatus: [['npcId', 'status'], ['by']],
       npcMove: [['npcId', 'locationId', 'phases'], []], attitudeDelta: [['npcId', 'delta'], []], priceMultiplier: [['factor'], []],
       openThread: [['thread'], []], threadStatus: [['threadId', 'status'], []], addRumour: [['rumour'], []], plantSeed: [['seed'], []],
       factionRelation: [['a', 'b', 'delta'], []], setFlag: [['key', 'value'], []], reputationDelta: [['key', 'delta'], []],
-      playerGold: [['delta'], []], playerHp: [['delta'], ['allowDefeat']], giveItem: [['name'], ['notes']], placeItem: [['name'], ['notes', 'locationId']],
+      playerGold: [['delta'], []], playerHp: [['delta'], ['allowDefeat']], giveItem: [['name'], ['notes', 'qty']], placeItem: [['name'], ['notes', 'locationId']],
       takeItem: [['name'], []], addCondition: [['name', 'effect', 'days'], []], banFrom: [['locationId', 'days'], ['byNpcId']],
       playerPrice: [['factor', 'days'], []], addMemory: [['npcId', 'text', 'weight'], ['act']], clockAdjust: [['factionId', 'delta'], []],
       threadUpdate: [['threadId'], ['summary', 'status', 'knownToPlayer']],
@@ -46361,7 +46361,7 @@ const Creator = (() => {
     const FIELD_LABEL = Object.freeze({
       locationId: 'Place', npcId: 'Person', by: 'Arrested by', byNpcId: 'Banned by', aboutId: 'About', fromId: 'From', toId: 'To', factionId: 'Faction',
       a: 'Faction', b: 'Other faction', threadId: 'Thread', status: 'Status', phases: 'Phases', delta: 'Change by', factor: 'Factor', key: 'Flag',
-      value: 'Value', allowDefeat: 'May knock the player down', name: 'Name', notes: 'Notes', effect: 'Effect', days: 'Days', text: 'Text', weight: 'Weight',
+      value: 'Value', allowDefeat: 'May knock the player down', name: 'Name', notes: 'Notes', qty: 'How many', effect: 'Effect', days: 'Days', text: 'Text', weight: 'Weight',
       act: 'Done by them to the player', summary: 'Summary', knownToPlayer: 'Known to the player', kind: 'Kind', amount: 'Amount', dueDay: 'Due on day',
       dueOffset: 'Due, days after it starts', itemName: 'The thing owed', leverageId: 'Leverage id', missText: 'When it is missed', onMiss: 'If it is missed',
       onMet: 'If it is met', id: 'Id', take: 'Take it from the player\'s cash', public: 'Town news', event: 'Event', private: 'Private', d: 'Change to the tracks',
@@ -46393,6 +46393,7 @@ const Creator = (() => {
         case 'delta': return op === 'playerGold' ? int(-500, 500, 'Money given (more than 0) or taken (less than 0).') : op === 'playerHp' ? int(-3, 3) : op === 'clockAdjust' ? int(-2, 2, '-2, -1, 1 or 2 segments of the running clock.') : int(-50, 50);
         case 'days': return op === 'playerPrice' ? int(1, 10) : int(1, 7);
         case 'weight': return int(1, 3);
+        case 'qty': return int(1, 99, 'How many of it; 1 when left empty.');
         case 'amount': case 'dueDay': return int(1);
         case 'dueOffset': return int(1, 7);
         case 'dir': return { type: 'enum', label, enum: ['1', '-1'], help: '1: they owed the player; -1: the player owed them; not set: both.' };
