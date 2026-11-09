@@ -7,12 +7,8 @@
    and only the chip spends a turn. Phone size, both themes, and a town
    without map data. Ids and names come from the running game, never from
    one particular town. Run with: node tests/run.cjs map */
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const assert = require('assert/strict');
-const { spawnSync } = require('child_process');
-const { suite, quickStart, sendText, overflowReport, findScene, place, ROOT, GAME_PATH, LAPTOP, PHONE } = require('./helpers.cjs');
+const { suite, quickStart, sendText, overflowReport, findScene, place, LAPTOP, PHONE } = require('./helpers.cjs');
 
 const s = suite('map');
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
@@ -418,35 +414,46 @@ s.test('a place without coordinates goes beside its exit, and a town without map
   assert.ok(m.places.some(p => p.ring));
 });
 
-s.test('validate-town.cjs checks the map data: every place mapped, inside the bounds, short labels, a valid anchor, 28 units apart', async () => {
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
-  const at = html.indexOf('// ===== BEGIN CONTENT =====');
-  const lines = [...html.slice(at).matchAll(/\n      map: \{ x: (\d+), y: (\d+), label: "([^"]*)", anchor: "([nsew])" \},/g)];
-  if (!/\n  map: \{/.test(html.slice(at)) || lines.length < 2) { console.log('        (the town has no map data; skipped)'); return; }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-map-'));
-  const tmp = path.join(dir, 'index.html');
-  const run = text => { fs.writeFileSync(tmp, text); return spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) }); };
-  const edit = (i, fn) => { const m = lines[i]; const cut = at + m.index; return html.slice(0, cut) + fn(m[0], m) + html.slice(cut + m[0].length); };
-  const cases = [
-    ['a place with no map', edit(0, () => ''), /missing: with TOWN_DATA\.map every location needs map/],
-    ['a four-word label', edit(0, (s, m) => s.replace(`label: "${m[3]}"`, 'label: "one two three four"')), /one to three words, found 4/],
-    ['a bad anchor', edit(0, (s, m) => s.replace(`anchor: "${m[4]}"`, 'anchor: "ne"')), /must be "n", "s", "e" or "w"/],
-    ['outside the map', edit(0, (s, m) => s.replace(`x: ${m[1]},`, 'x: 9999,')), /must be a number from 0 to \d+ \(the map width\)/],
-    ['two places too close', edit(1, (s, m) => s.replace(`x: ${m[1]}, y: ${m[2]}`, `x: ${+lines[0][1] + 10}, y: ${+lines[0][2] + 10}`)), /keep them at least 28 apart/],
-    ['a road that is not a path', html.replace(/\n    roads: \[\n      "/, '\n    roads: [\n      "javascript:'), /must be an SVG path/]
-  ];
-  for (const [what, text, want] of cases) {
-    assert.notEqual(text, html, what + ': the edit applied');
-    const r = run(text);
-    assert.equal(r.status, 1, what + ' should fail');
-    assert.match(r.stderr, want, what);
+/* The map checks run in the page now (wave 37, Creator Mode; plan decision
+   B): each case edits a copy of the built-in pack (Pack.copy; builtIn() is
+   frozen) and validates it under the strict profile, where Low Water's
+   house rules (house.map) are errors like the engine's (engine.map). */
+s.test('Pack.validate checks the map data: every place mapped, inside the bounds and roads that are SVG paths (engine.map), short labels and 28 units apart (house.map), a valid anchor (engine.shape.enum); with no world.map no place needs a point', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const P = Game.Pack;
+    const W0 = P.builtIn().world;
+    const mapped = W0.locations.map((l, i) => i).filter(i => !W0.locations[i].away && W0.locations[i].map);
+    if (!W0.map || mapped.length < 2) return null;
+    const [i, j] = mapped;
+    const at = k => 'world.locations[' + k + '].map';
+    const cases = [
+      ['a place with no map', W => { delete W.locations[i].map; }, 'engine.map', at(i), 'missing: with world.map every place in town needs map'],
+      ['a four-word label', W => { W.locations[i].map.label = 'one two three four'; }, 'house.map', at(i) + '.label', 'one to three words, found 4'],
+      ['a bad anchor', W => { W.locations[i].map.anchor = 'ne'; }, 'engine.shape.enum', at(i) + '.anchor', '"ne" is not one of: n, s, e, w'],
+      ['outside the map', W => { W.locations[i].map.x = 9999; }, 'engine.map', at(i) + '.x', 'must be a number from 0 to ' + W0.map.width + ' (the map width)'],
+      ['two places too close', W => { W.locations[j].map.x = W.locations[i].map.x + 10; W.locations[j].map.y = W.locations[i].map.y + 10; }, 'house.map', at(j), 'keep them at least 28 apart'],
+      ['a road that is not a path', W => { W.map.roads[0] = 'javascript:' + W.map.roads[0]; }, 'engine.map', 'world.map.roads[0]', 'must be an SVG path']
+    ];
+    const out = cases.map(([what, edit, rule, path, says]) => {
+      const p = P.copy(P.builtIn());
+      edit(p.world);
+      const list = P.validate(p, { profile: 'strict' });
+      return { what, rule, path, says, hit: list.find(x => x.rule === rule && x.path === path) || null, all: list.map(x => x.rule + ' ' + x.path + ': ' + x.message) };
+    });
+    // Coordinates are optional while world.map is absent.
+    const p = P.copy(P.builtIn());
+    delete p.world.map;
+    for (const l of p.world.locations) delete l.map;
+    return { cases: out, noMap: P.validate(p, { profile: 'strict' }) };
+  });
+  if (!r) { console.log('        (the town has no map data; skipped)'); return; }
+  for (const c of r.cases) {
+    assert.ok(c.hit, `${c.what}: expected ${c.rule} at ${c.path}; found ${c.all.join(' | ')}`);
+    assert.ok(c.hit.message.includes(c.says), c.what + ': ' + c.hit.message);
+    assert.equal(c.hit.severity, 'error', c.what);
   }
-  // Coordinates are optional while TOWN_DATA.map is absent.
-  const noMap = html.slice(0, at) + html.slice(at).replace(/\n  \/\/ The town map in the Places tab[\s\S]*?\n  map: \{[\s\S]*?\n  \},\n/, '\n').replace(/\n      map: \{[^\n]*\},/g, '');
-  assert.notEqual(noMap, html);
-  const ok = run(noMap);
-  assert.equal(ok.status, 0, ok.stderr);
-  fs.rmSync(dir, { recursive: true, force: true });
+  assert.deepEqual(r.noMap, [], 'no map, no map problems');
 });
 
 s.test('a place someone told you about is drawn at its stored point with a dashed marker and "Heard of" in the legend; 375 wide nothing overflows and it taps like any place', async h => {

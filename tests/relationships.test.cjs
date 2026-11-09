@@ -14,14 +14,9 @@
    ever carries a romance cue for a minor. Mock mode.
    Run with: node tests/run.cjs relationships.test */
 const assert = require('assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawnSync } = require('child_process');
 const { suite, quickStart } = require('./helpers.cjs');
 
 const s = suite('relationships');
-const ROOT = path.resolve(__dirname, '..');
 // The cues a minor must never carry in any packet (Appendix D step 9, with N11's additions), outside the minor instruction itself.
 // "says yes" is the intimacy answer's form ("<Name> says yes; write the scene out"), so Micah's "says yes ma'am" is no cue.
 const CUE_RE = /open to a flirt|open to it|sweet on you|using you|wants you|has noticed you|falling for you|seeing you|old flame|interested|flirts back|lights up when|stands close|for one reason|looks twice|says yes[;:]|fade to black|not tonight/i;
@@ -97,15 +92,17 @@ s.test('nobody under 18 ever carries spark, a spark status or a romance cue, and
   assert.equal(roster.count, 66, 'every record in the cast');
   assert.deepEqual(roster.data, ['npc_austin', 'npc_kaylee', 'npc_micah'], 'a new minor fails here until it is reviewed');
   assert.ok(!roster.romance.some(id => roster.data.includes(id)), 'nobody under 18 on the romance list');
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const tmp = path.join(os.tmpdir(), `relationships-romance-${process.pid}.html`);
-  fs.writeFileSync(tmp, html.replace('  policeFallback: "npc_hoyt",', '  policeFallback: "npc_hoyt",\n  romance: [{ npcId: "npc_jodie", sparkRate: 1.2 }, { npcId: "npc_kaylee", sparkRate: 1 }],'));
-  try {
-    const run = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
-    assert.notEqual(run.status, 0, 'the validator refuses a minor on the romance list');
-    assert.match(run.stdout + run.stderr, /npc_kaylee is under 18: nobody under 18 is ever on the romance list/);
-    assert.doesNotMatch(run.stdout + run.stderr, /npc_jodie is under 18/);
-  } finally { fs.unlinkSync(tmp); }
+  /* The validator runs in the page (wave 37, Creator Mode; plan decision B):
+     Kaylee added to a copy of the built-in pack's romance list, with every
+     field a row needs, is refused by engine.romance.minor and by nothing
+     else; Jodie, an adult on the list, is not named. */
+  const listed = await page.evaluate(() => {
+    const p = Game.Pack.copy(Game.Pack.builtIn());
+    p.world.romance.push({ npcId: 'npc_kaylee', sparkRate: 1, opensAt: { knows: 0 }, difficulty: 'normal' });
+    return { at: 'world.romance[' + (p.world.romance.length - 1) + '].npcId', jodie: p.world.romance.some(x => x.npcId === 'npc_jodie'), problems: Game.Pack.validate(p, { profile: 'strict' }) };
+  });
+  assert.ok(listed.jodie, 'Jodie is on the list');
+  assert.deepEqual(listed.problems, [{ path: listed.at, message: 'npc_kaylee is under 18: nobody under 18 is ever on the romance list', severity: 'error', rule: 'engine.romance.minor' }], 'the validator refuses a minor on the romance list, and only that');
   // 2. A new game: spark 0 and no status for every minor.
   const fresh = await page.evaluate(() => Game.state.npcs.filter(n => Game.Rel.isMinor(n)).map(n => [n.id, n.rel.s, Game.Rel.sparkStatus(n), n.rel.m]));
   assert.deepEqual(fresh.sort(), [['npc_austin', 0, null, 0], ['npc_kaylee', 0, null, 0], ['npc_micah', 0, null, 0]], 'spark, status and (wave 35) romance');

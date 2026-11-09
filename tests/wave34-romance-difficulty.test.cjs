@@ -10,14 +10,9 @@
    dice are forced as the suite forces them elsewhere (hooks.nextD20 and
    nextTier). Mock mode. Run with: node tests/run.cjs wave34 */
 const assert = require('assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawnSync } = require('child_process');
 const { suite, quickStart } = require('./helpers.cjs');
 
 const s = suite('wave34-romance-difficulty');
-const ROOT = path.resolve(__dirname, '..');
 
 /* In the page: __put (the player somewhere with these people, now), __say
    (a Say line with its parse; __roll(d20 or tier) forces the next die
@@ -257,20 +252,28 @@ s.test('(e) faithful: true reads as very hard; the validator takes it and refuse
   assert.deepEqual(r.tuning, { sparkRate: 1, romanceRate: 1, opensAt: 0, difficulty: 'very_hard', listed: true });
   assert.equal(r.eligible, true, 'faithful is hard, not closed');
   assert.deepEqual(r.turn, ['charm', 'very_hard', 'success']);
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  const row = '{ npcId: "npc_jodie", sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: "easy" }';
-  assert.ok(html.includes(row), 'the shipped row');
-  const check = text => { const tmp = path.join(os.tmpdir(), `wave34-romance-${process.pid}.html`); fs.writeFileSync(tmp, text); try { return spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) }); } finally { fs.unlinkSync(tmp); } };
-  const faithful = check(html.replace(row, '{ npcId: "npc_jodie", sparkRate: 1.2, opensAt: { knows: 20 }, faithful: true }'));
-  assert.equal(faithful.status, 0, 'faithful: true stands for very_hard: ' + faithful.stdout + faithful.stderr);
-  const open = check(html.replace(row, '{ npcId: "npc_jodie", open: true, sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: "easy" }'));
-  assert.notEqual(open.status, 0);
-  assert.match(open.stdout + open.stderr, /romance\[0\]\.open: open is gone \(wave 34\)/);
-  const bad = check(html.replace(row, '{ npcId: "npc_jodie", sparkRate: 2.5, opensAt: { knows: 20 }, difficulty: "trivial" }'));
-  assert.match(bad.stdout + bad.stderr, /romance\[0\]\.difficulty: easy, normal, hard or very_hard/);
-  assert.match(bad.stdout + bad.stderr, /romance\[0\]\.sparkRate: a number from 0\.1 to 2/);
-  const both = check(html.replace(row, '{ npcId: "npc_jodie", sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: "easy", faithful: true }'));
-  assert.match(both.stdout + both.stderr, /faithful: true means difficulty very_hard/);
+  /* The validator runs in the page now (wave 37, Creator Mode; plan
+     decision B): each row is a copy of the built-in pack with Jodie's row
+     rewritten, validated under the strict profile. */
+  const v = await page.evaluate(() => {
+    const P = Game.Pack;
+    const shipped = P.builtIn().world.romance[0];
+    const check = row => { const p = P.copy(P.builtIn()); p.world.romance[0] = row; return P.validate(p, { profile: 'strict' }).map(x => ({ rule: x.rule, path: x.path, message: x.message, severity: x.severity })); };
+    return {
+      shipped: JSON.parse(JSON.stringify(shipped)),
+      faithful: check({ npcId: 'npc_jodie', sparkRate: 1.2, opensAt: { knows: 20 }, faithful: true }),
+      open: check({ npcId: 'npc_jodie', open: true, sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: 'easy' }),
+      bad: check({ npcId: 'npc_jodie', sparkRate: 2.5, opensAt: { knows: 20 }, difficulty: 'trivial' }),
+      both: check({ npcId: 'npc_jodie', sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: 'easy', faithful: true })
+    };
+  });
+  assert.deepEqual(v.shipped, { npcId: 'npc_jodie', sparkRate: 1.2, opensAt: { knows: 20 }, difficulty: 'easy' }, 'the shipped row');
+  assert.deepEqual(v.faithful, [], 'faithful: true stands for very_hard');
+  const one = (list, rule, path, re) => { const hit = list.find(x => x.rule === rule && x.path === path); assert.ok(hit, `${rule} at ${path}: ${JSON.stringify(list)}`); assert.match(hit.message, re); assert.equal(hit.severity, 'error'); };
+  one(v.open, 'engine.romance', 'world.romance[0].open', /^open is gone \(wave 34\)/);
+  one(v.bad, 'engine.shape.enum', 'world.romance[0].difficulty', /^"trivial" is not one of: easy, normal, hard, very_hard/);
+  one(v.bad, 'engine.romance', 'world.romance[0].sparkRate', /^a number from 0\.1 to 2/);
+  one(v.both, 'engine.romance', 'world.romance[0].faithful', /^faithful: true means difficulty very_hard/);
 });
 
 s.test('(f) the minor rules are unchanged: nobody under 18 is eligible or rolls, and with a player under 18 nobody is; the Edit form has Interested for every adult and off for a minor', async h => {

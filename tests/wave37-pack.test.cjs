@@ -14,6 +14,7 @@
    two layers of Pack.lookup so far.
    Run with: node tests/run.cjs wave37-pack */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const assert = require('assert/strict');
 const { spawnSync } = require('child_process');
@@ -74,7 +75,7 @@ s.test('the built-in pack parses once, is Low Water in pack format 1, is frozen 
   assert.deepEqual(r.frozen, [true, true, true, true, true, true, true, true], 'frozen at every level');
   assert.equal(r.throws, true, 'a write to the built-in pack throws');
   assert.deepEqual(r.problems, [], 'no problem at all under the strict profile');
-  // The counts tests/validate-town.cjs printed for today's town: 38 places, 66 people, 3 factions, 3 threads, 10 seeds, 20 rumours.
+  // The counts the old Node validator printed for today's town: 38 places, 66 people, 3 factions, 3 threads, 10 seeds, 20 rumours.
   assert.deepEqual(r.counts, [38, 66, 3, 3, 10, 20]);
   assert.deepEqual(r.added, ['tables', 'grudgeTemplates', 'favourTemplates', 'law', 'gates']);
   assert.deepEqual(r.labels, ['loc_bluff', 'loc_town_hall']);
@@ -236,5 +237,149 @@ s.test('Pack.lookup so far: a narration preset Low Water omits comes from the en
 });
 
 // The validator's own tests (M1-E) follow.
+/* Wave 37, Creator Mode (plan decision B): the old Node validator and its
+   mentions check are gone; their checks are Pack.validate's rules, run
+   in the page so the editor (milestone 5) checks a draft live with exactly
+   what Node runs. Each case edits a copy of the built-in pack (Pack.copy:
+   builtIn() is frozen) and must be reported at the field it is about, with
+   a stable rule id, for the editor to anchor it. */
+s.test('Pack.validate reports the old validator\'s checks with paths and rule ids: a dangling exit, an asymmetric relation, a minor on the romance list, a minor named in directions.intimate, an unknown effect op, a bad clock trigger, a rumour with one teller, a flag nothing sets, two example turns', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const P = Game.Pack;
+    const find = (list, test, what) => { const i = list.findIndex(test); if (i < 0) throw new Error('no ' + what); return i; };
+    const cases = [
+      ['a dangling exit', 'engine.location.exit', 'exit "loc_nowhere" is not a location', p => {
+        const i = find(p.world.locations, l => Array.isArray(l.exits) && l.exits.length, 'place with exits');
+        p.world.locations[i].exits[0] = 'loc_nowhere';
+        return 'world.locations[' + i + '].exits[0]';
+      }],
+      ['an asymmetric relation', 'engine.relation.symmetric', 'relations are written on both sides', p => {
+        const i = find(p.world.npcs, n => Array.isArray(n.relations) && n.relations.length, 'person with relations');
+        const n = p.world.npcs[i];
+        const other = p.world.npcs[find(p.world.npcs, o => o.id === n.relations[0].npcId, n.relations[0].npcId)];
+        other.relations = other.relations.filter(x => x.npcId !== n.id);
+        return 'world.npcs[' + i + '].relations[0]';
+      }],
+      ['a minor on the romance list', 'engine.romance.minor', 'npc_kaylee is under 18: nobody under 18 is ever on the romance list', p => {
+        p.world.romance.push({ npcId: 'npc_kaylee', sparkRate: 1, opensAt: { knows: 0 }, difficulty: 'normal' });
+        return 'world.romance[' + (p.world.romance.length - 1) + '].npcId';
+      }],
+      ['a minor named in directions.intimate', 'engine.direction.minor', 'names npc_kaylee ("Kaylee"), who is under 18', p => {
+        p.directions = { intimate: 'Keep it warm and brief, and fade out if Kaylee walks in.' };
+        return 'directions.intimate';
+      }],
+      ['an unknown effect op', 'engine.effect.op', '"throwParty" is not one of the engine\'s effect ops', p => {
+        const e = find(p.world.events, x => x.default && x.default.effects.length, 'event');
+        p.world.events[e].default.effects[0].op = 'throwParty';
+        return 'world.events[' + e + '].default.effects[0].op';
+      }],
+      ['a bad clock trigger', 'engine.trigger', 'the segment should be 1 to', p => {
+        const i = find(p.world.seeds, x => x.trigger && x.trigger.type === 'day', 'seed on a day');
+        p.world.seeds[i].trigger = { type: 'clock', value: p.world.factions[0].id + ':99' };
+        return 'world.seeds[' + i + '].trigger.value';
+      }],
+      ['a rumour with one teller', 'engine.rumour.tellers', 'only npc_brianna can tell it', p => {
+        const i = find(p.world.rumours, x => x.id === 'rum_mavis_cash_rooms', 'rum_mavis_cash_rooms');
+        delete p.world.rumours[i].tellerIds;
+        return 'world.rumours[' + i + '].tellerIds';
+      }],
+      ['a flag nothing sets', 'engine.flag.unset', 'reads the flag "royceDanced", which nothing in the pack sets', p => {
+        const e = find(p.world.events, x => x.branches.some(b => b.when && Array.isArray(b.when.flagsSet)), 'event reading a flag');
+        const b = find(p.world.events[e].branches, x => x.when && Array.isArray(x.when.flagsSet), 'branch reading a flag');
+        p.world.events[e].branches[b].when.flagsSet[0] = 'royceDanced';
+        return 'world.events[' + e + '].branches[' + b + '].when.flagsSet[0]';
+      }],
+      ['two example turns', 'engine.examples', 'should be 3 to 8 example turns; there are 2', p => {
+        p.narration = { examples: JSON.parse(JSON.stringify(P.DEFAULTS.narration.presets.casual.examples.slice(0, 2))) };
+        return 'narration.examples';
+      }]
+    ];
+    return cases.map(([what, rule, says, edit]) => {
+      const p = P.copy(P.builtIn());
+      const path = edit(p);
+      const list = P.validate(p, { profile: 'strict' });
+      return { what, rule, says, path, hit: list.find(x => x.rule === rule && x.path === path) || null, all: list.map(x => `${x.severity} [${x.rule}] ${x.path}: ${x.message}`) };
+    });
+  });
+  assert.equal(r.length, 9);
+  for (const c of r) {
+    assert.ok(c.hit, `${c.what}: expected ${c.rule} at ${c.path}; found ${c.all.join(' | ')}`);
+    assert.ok(c.hit.message.includes(c.says), `${c.what}: ${c.hit.message}`);
+    assert.equal(c.hit.severity, 'error', c.what);
+  }
+});
+
+/* The profiles (plan decision B): a house rule (Low Water's numbers, the
+   set meta.lints names) warns in play and stops a strict run, and does not
+   run at all for a pack that has not opted in; an engine rule (what the game
+   cannot run) is an error whatever the profile. The cast of 39 sends two of
+   the 41 people in town away, written as the cast writes someone away
+   (presence, status, where, reach, no home, no schedule; Colt off the
+   romance list too), so the cast count is the only thing that changes. */
+s.test('profiles: a cast of 39 and a clock of 12 segments are warnings in play and errors in strict, and nothing at all once meta.lints is emptied; an engine error is an error in both', async h => {
+  const page = await h.open();
+  const r = await page.evaluate(() => {
+    const P = Game.Pack;
+    const brief = list => list.map(x => `${x.severity} [${x.rule}] ${x.path}`);
+    const run = edit => {
+      const p = P.copy(P.builtIn());
+      edit(p);
+      const lintless = P.copy(p);
+      lintless.meta.lints = [];
+      return { play: brief(P.validate(p, { profile: 'play' })), strict: brief(P.validate(p, { profile: 'strict' })), none: brief(P.validate(lintless, { profile: 'strict' })).concat(brief(P.validate(lintless, { profile: 'play' }))) };
+    };
+    return {
+      here: P.builtIn().world.npcs.filter(n => (n.presence || 'here') === 'here').length,
+      cast: run(p => {
+        for (const id of ['npc_boyd', 'npc_colt']) {
+          const n = p.world.npcs.find(x => x.id === id);
+          Object.assign(n, { presence: 'away', status: 'gone', where: 'with family out of state', reach: 'a letter now and then', home: null });
+          delete n.awayOn;
+          for (const l of p.world.locations) for (const ph of Object.keys(l.npcIdsBySchedule || {})) l.npcIdsBySchedule[ph] = l.npcIdsBySchedule[ph].filter(x => x !== id);
+        }
+        p.world.romance = p.world.romance.filter(x => x.npcId !== 'npc_colt');
+      }),
+      clock: run(p => { const f = p.world.factions.length - 1; for (const c of p.world.factions[f].clocks) c.segments = 12; }),
+      clockAt: 'world.factions[' + (P.builtIn().world.factions.length - 1) + '].clocks',
+      engine: run(p => { const i = p.world.locations.findIndex(l => Array.isArray(l.exits) && l.exits.length); p.world.locations[i].exits[0] = 'loc_nowhere'; })
+    };
+  });
+  assert.equal(r.here, 41, 'the built-in town has 41 people in town');
+  assert.deepEqual(r.cast.play, ['warning [house.cast] world.npcs'], 'play: 39 in town warns');
+  assert.deepEqual(r.cast.strict, ['error [house.cast] world.npcs'], 'strict: 39 in town stops');
+  assert.deepEqual(r.cast.none, [], 'no lint set: nothing at all');
+  const twelve = sev => [0, 1, 2].map(i => `${sev} [house.clock.segments] ${r.clockAt}[${i}].segments`);
+  assert.deepEqual(r.clock.play, twelve('warning'));
+  assert.deepEqual(r.clock.strict, twelve('error'));
+  assert.deepEqual(r.clock.none, [], 'no lint set: nothing at all');
+  for (const k of ['play', 'strict']) assert.ok(r.engine[k].some(x => /^error \[engine\.location\.exit\] world\.locations\[\d+\]\.exits\[0\]$/.test(x)), k + ': ' + r.engine[k].join(' | '));
+  assert.ok(r.engine.none.some(x => x.startsWith('error [engine.location.exit]')), 'and without the lint set');
+});
+
+/* The Node wrapper (tests/validate-pack.cjs) keeps the old output contract:
+   the OK line and exit 0, else exit 1 with "  - <path>: <message> [<rule>]"
+   lines. A .json argument is a pack file, validated in the play profile. */
+s.test('the Node wrapper: validate-pack.cjs on index.html prints the OK line and exits 0; on an edited copy with a dangling exit it exits 1 naming the path; on packs/low-water.json it exits 0 in play', async () => {
+  const WRAPPER = path.join(__dirname, 'validate-pack.cjs');
+  const ok = spawnSync(process.execPath, [WRAPPER], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  assert.match(ok.stdout, /^OK Lockett's Ferry: 38 locations, 66 npcs \(41 here, 17 away, 8 dead; /);
+  const pack = JSON.parse(fs.readFileSync(PACK_FILE, 'utf8'));
+  const i = pack.world.locations.findIndex(l => Array.isArray(l.exits) && l.exits.length);
+  pack.world.locations[i].exits[0] = 'loc_nowhere';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-pack-'));
+  const edited = path.join(dir, 'edited.json');
+  fs.writeFileSync(edited, JSON.stringify(pack, null, 2));
+  try {
+    const bad = spawnSync(process.execPath, [WRAPPER, edited], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(bad.status, 1, bad.stdout + bad.stderr);
+    assert.ok(bad.stderr.includes(`  - world.locations[${i}].exits[0]: exit "loc_nowhere" is not a location [engine.location.exit]`), bad.stderr);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  const file = spawnSync(process.execPath, [WRAPPER, PACK_FILE], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(file.status, 0, file.stdout + file.stderr);
+  assert.equal(file.stderr, '', 'not even a warning in play');
+  assert.equal(file.stdout, ok.stdout, 'the same OK line as the page\'s own pack');
+});
 
 s.run();

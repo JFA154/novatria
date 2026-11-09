@@ -4,7 +4,6 @@
    Game.state) so it keeps passing once real content replaces the placeholders. */
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 const assert = require('assert/strict');
 const { suite, quickStart, legacyTown, stateJson, ROOT } = require('./helpers.cjs');
 
@@ -987,7 +986,7 @@ s.test('a State batch tells the listeners once, when the outermost batch closes;
   assert.deepEqual(seen, [1, 1, 1, 2, 2]);
 });
 
-s.test('effect ops, reserved flags and social actions each live in one list: Town.validate and tests/validate-town.cjs follow State and Dice', async h => {
+s.test('effect ops, reserved flags and social actions each live in one list: Town.validate and Pack.validate follow State and Dice (engine.effect.op, engine.flag.reserved)', async h => {
   const page = await h.open();
   const r = await page.evaluate(() => {
     const G = Game;
@@ -1003,12 +1002,50 @@ s.test('effect ops, reserved flags and social actions each live in one list: Tow
   assert.ok(r.ops.length >= 13 && r.ops.includes('setFlag') && r.ops.includes('reputationDelta'));
   assert.ok(r.errs.some(e => /unknown op frobnicate/.test(e)));
   for (const k of r.flags) assert.ok(r.errs.some(e => e.includes(`flag ${k} is reserved`)), 'reserved: ' + k);
-  // tests/validate-town.cjs: its op table names exactly State's ops, and it reads the reserved flags from index.html.
-  const src = fs.readFileSync(path.join(ROOT, 'tests', 'validate-town.cjs'), 'utf8');
-  const m = /\nconst OPS = (\{[\s\S]*?\n\});/.exec(src);
-  assert.ok(m, 'validate-town.cjs has an OPS table');
-  assert.deepEqual(Object.keys(vm.runInNewContext('(' + m[1] + ')')).sort(), r.ops.slice().sort());
-  assert.doesNotMatch(src, /const RESERVED_FLAGS = \[/, 'no list of its own');
+  /* Pack.validate (wave 37, Creator Mode) reads State.EFFECT_OPS and
+     State.RESERVED_FLAGS at run time, where the old Node validator kept an
+     op table of its own. On a copy of the built-in pack: every op in
+     State.EFFECT_OPS, given the fields it requires, passes the op and field
+     checks (the values are dummies, so only those two rules are read); an
+     op outside the list is engine.effect.op; a missing field is
+     engine.effect.fields (so a pass means something); a reserved flag set
+     by setFlag is engine.flag.reserved. */
+  const FIELDS = {
+    closeLocation: ['locationId'], openLocation: ['locationId'], npcStatus: ['npcId', 'status'], npcMove: ['npcId', 'locationId', 'phases'],
+    attitudeDelta: ['npcId', 'delta'], priceMultiplier: ['factor'], openThread: ['thread'], threadStatus: ['threadId', 'status'],
+    addRumour: ['rumour'], plantSeed: ['seed'], factionRelation: ['a', 'b', 'delta'], setFlag: ['key', 'value'], reputationDelta: ['key', 'delta'],
+    playerGold: ['delta'], playerHp: ['delta'], giveItem: ['name'], placeItem: ['name'], takeItem: ['name'], addCondition: ['name', 'effect', 'days'],
+    banFrom: ['locationId', 'days'], playerPrice: ['factor', 'days'], addMemory: ['npcId', 'text', 'weight'], clockAdjust: ['factionId', 'delta'],
+    threadUpdate: ['threadId'], addObligation: ['kind', 'npcId', 'text'], settleObligation: ['id', 'status'], obligationPaid: ['id', 'amount'],
+    addNews: ['text'], socialEvent: ['npcId', 'event', 'text'], owedSettle: ['npcId'], leverageSet: ['id'], tieDelta: ['fromId', 'toId', 'why'],
+    propagate: ['npcId', 'event']
+  };
+  assert.deepEqual(Object.keys(FIELDS).sort(), r.ops.slice().sort(), 'this table names exactly State.EFFECT_OPS (a new op needs its fields here)');
+  const pk = await page.evaluate(F => {
+    const P = Game.Pack;
+    const p = P.copy(P.builtIn());
+    const effs = p.world.events[0].default.effects;
+    const base = effs.length;
+    const ops = Game.State.EFFECT_OPS.slice();
+    for (const op of ops) { const e = { op }; for (const k of F[op]) e[k] = 1; effs.push(e); }
+    effs.push({ op: 'frobnicate' });
+    effs.push({ op: 'setFlag', key: 'councilVoted' });
+    Game.State.RESERVED_FLAGS.forEach(k => effs.push({ op: 'setFlag', key: k, value: 1 }));
+    const list = P.validate(p, { profile: 'strict' });
+    const at = i => 'world.events[0].default.effects[' + (base + i) + ']';
+    const read = (i, rules) => P.problemsFor(list, at(i)).filter(x => rules.includes(x.rule)).map(x => x.rule + ' ' + x.path + ': ' + x.message);
+    const n = ops.length;
+    return {
+      passed: ops.map((op, i) => [op, read(i, ['engine.effect.op', 'engine.effect.fields'])]).filter(x => x[1].length),
+      unknown: read(n, ['engine.effect.op']), unknownAt: at(n) + '.op',
+      missing: read(n + 1, ['engine.effect.fields']),
+      reserved: Game.State.RESERVED_FLAGS.map((k, i) => read(n + 2 + i, ['engine.flag.reserved']))
+    };
+  }, FIELDS);
+  assert.deepEqual(pk.passed, [], 'every op in State.EFFECT_OPS passes with its fields');
+  assert.deepEqual(pk.unknown, ['engine.effect.op ' + pk.unknownAt + ': "frobnicate" is not one of the engine\'s effect ops.']);
+  assert.equal(pk.missing.length, 1, 'setFlag without its value: ' + pk.missing.join(' | '));
+  pk.reserved.forEach((hits, i) => assert.equal(hits.length, 1, 'reserved: ' + r.flags[i]));
   // The page source lists the social actions once (Dice), and the flags once (State).
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const count = needle => html.split(needle).length - 1;

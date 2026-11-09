@@ -1,9 +1,12 @@
 'use strict';
-/* The town inlined in index.html between the BEGIN/END CONTENT markers: it
-   is the only town (no placeholder data left), it validates in the page and
-   with tests/validate-town.cjs (which also catches a bad hand edit), and
-   every background and loose end starts a playable game. Names and counts
-   come from the data, so this suite survives a change of town. */
+/* The town, Low Water, is the built-in Story Pack now (wave 37, Creator
+   Mode): packs/low-water.json, inlined in index.html as the one JSON
+   element pack-low-water. It is the only town (no placeholder data left),
+   it validates in the page, Game.Pack.validate refuses each kind of hand
+   edit slip with a rule id and a path, the Node wrapper
+   tests/validate-pack.cjs reads the page it is pointed at, and every
+   background and loose end starts a playable game. Names and counts come
+   from the data, so this suite survives a change of town. */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -12,16 +15,59 @@ const { spawnSync } = require('child_process');
 const { suite, quickStart, ROOT, GAME_PATH } = require('./helpers.cjs');
 
 const s = suite('content');
-const BEGIN = '// ===== BEGIN CONTENT =====';
-const END = '// ===== END CONTENT =====';
+const PACK_FILE = path.join(ROOT, 'packs', 'low-water.json');
+const OPEN = '<script type="application/json" id="pack-low-water">';
 
-s.test('the inlined town is the only town, with no placeholder data and no content/ or content-modern/ staging folder', async h => {
+/* The validator runs in the page now (wave 37, Creator Mode; plan decision
+   B: the old Node validator and its mentions check are gone, their checks
+   are Pack.validate's rules), so a hand-editing slip is shown on an edited
+   copy of the built-in pack (Pack.copy: builtIn() is frozen) under the
+   strict profile, where Low Water's house rules are errors. `edit` crosses
+   into the page as its source text, so it can use only its arguments:
+   (p, { W, PL, npc, loc, ni, li, idx, arg }), W and PL the copy's world and
+   player, ni/li an id's index in world.npcs/world.locations, idx(list,
+   test, what) an index that must exist. It returns the path of the slip
+   (or a list of paths), for the asserts. One page per test, on first use. */
+const pages = new WeakMap();
+async function editedProblems(h, edit, arg) {
+  if (!pages.has(h)) pages.set(h, h.open());
+  const page = await pages.get(h);
+  return page.evaluate(`(() => {
+    const p = Game.Pack.copy(Game.Pack.builtIn());
+    const W = p.world, PL = p.player;
+    const idx = (list, test, what) => { const i = list.findIndex(test); if (i < 0) throw new Error('the edit found no ' + what); return i; };
+    const ni = id => idx(W.npcs, n => n.id === id, id);
+    const li = id => idx(W.locations, l => l.id === id, id);
+    const npc = id => W.npcs[ni(id)];
+    const loc = id => W.locations[li(id)];
+    const at = (${edit})(p, { W, PL, npc, loc, ni, li, idx, arg: ${JSON.stringify(arg === undefined ? null : arg)} });
+    return { at, problems: Game.Pack.validate(p, { profile: 'strict' }) };
+  })()`);
+}
+/* The problem with this rule at this path, with this wording where the old
+   test checked it, and an error unless said otherwise; a miss lists
+   everything the validator did find. */
+function problemAt(r, rule, path, re, severity) {
+  const hit = r.problems.find(p => p.rule === rule && p.path === path);
+  assert.ok(hit, `expected ${rule} at ${path}; found:\n          ` + r.problems.map(p => `${p.severity} [${p.rule}] ${p.path}: ${p.message}`).join('\n          '));
+  if (re) assert.match(hit.message, re);
+  assert.equal(hit.severity, severity || 'error', rule + ' at ' + path);
+  return hit;
+}
+
+s.test('the inlined town is the only town: index.html holds exactly one JSON pack element, its JSON deep-equals packs/low-water.json and node tests/pack-inline.cjs --check passes; no placeholder data and no content/ or content-modern/ staging folder', async h => {
   const html = fs.readFileSync(GAME_PATH, 'utf8');
-  assert.equal(html.split(BEGIN).length, 2, 'BEGIN marker once');
-  assert.equal(html.split(END).length, 2, 'END marker once');
-  const block = html.slice(html.indexOf(BEGIN), html.indexOf(END));
-  for (const name of ['TOWN_DATA', 'TABLES', 'BACKGROUNDS', 'FLAWS', 'LOOSE_ENDS', 'GRUDGE_TEMPLATES', 'FAVOUR_TEMPLATES', 'GOAL_PRESETS']) assert.match(block, new RegExp(`\\nconst ${name} = `), name);
-  for (const gone of ['Tallow Ford', 'Hobb Tanner', 'Jory Pike', 'PLACEHOLDER', 'placeholder data']) assert.ok(!html.includes(gone), 'leftover: ' + gone);
+  const pack = JSON.parse(fs.readFileSync(PACK_FILE, 'utf8'));
+  // Wave 37, Creator Mode (plan decision A): the town is one inert JSON element, a copy of packs/low-water.json, where the content block of constants was.
+  assert.equal(html.split('<script type="application/json"').length - 1, 1, 'exactly one JSON element');
+  assert.equal(html.split(OPEN).length - 1, 1, 'and it is pack-low-water');
+  const start = html.indexOf(OPEN) + OPEN.length;
+  assert.deepEqual(JSON.parse(html.slice(start, html.indexOf('</script>', start))), pack, 'the element is packs/low-water.json');
+  const inline = spawnSync(process.execPath, [path.join(__dirname, 'pack-inline.cjs'), '--check'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(inline.status, 0, inline.stdout + inline.stderr);
+  for (const gone of ['Tallow Ford', 'Hobb Tanner', 'Jory Pike', 'placeholder data']) assert.ok(!html.includes(gone), 'leftover: ' + gone);
+  // As a whole word: wave 37's PackRules names its {npc}-token pattern PLACEHOLDER_RE, which is code, not placeholder data.
+  assert.doesNotMatch(html, /\bPLACEHOLDER\b/, 'leftover: PLACEHOLDER');
   for (const dir of ['content', 'content-modern']) assert.ok(!fs.existsSync(path.join(ROOT, dir)), dir + '/ was removed after inlining');
   const page = await h.open();
   const info = await page.evaluate(() => {
@@ -33,7 +79,7 @@ s.test('the inlined town is the only town, with no placeholder data and no conte
       locs: T.locations.filter(l => l.discovered !== false && !l.away).length, homes: T.locations.filter(l => l.discovered === false && !l.away).length, out: T.locations.filter(l => l.away).length
     };
   });
-  assert.ok(info.name && block.includes(`name: "${info.name}",`), 'the town in the block is the town in the page');
+  assert.equal(info.name, pack.world.name, 'the town in the pack is the town in the page');
   assert.deepEqual(info.errors, []);
   assert.equal(info.title, info.name, 'title screen');
   assert.equal(info.doc, info.name, 'document title');
@@ -45,31 +91,38 @@ s.test('the inlined town is the only town, with no placeholder data and no conte
   assert.ok(info.out >= 1, 'places out of town: ' + info.out);
 });
 
-s.test('validate-town.cjs passes on index.html and catches a hand-editing mistake', async h => {
+s.test('validate-pack.cjs prints the OK line for index.html (38 locations, 66 npcs) and, pointed by VALIDATE_FILE at an edited copy with one exit misspelt, exits 1 naming the path', async h => {
   const page = await h.open();
   const t = await page.evaluate(() => ({ name: Game.data.TOWN_DATA.name, locs: Game.data.TOWN_DATA.locations.length, npcs: Game.data.TOWN_DATA.npcs.length }));
-  const ok = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8' });
+  const ok = spawnSync(process.execPath, [path.join(__dirname, 'validate-pack.cjs')], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
   assert.ok(ok.stdout.startsWith(`OK ${t.name}: ${t.locs} locations, ${t.npcs} npcs`), ok.stdout);
+  // The counts the old Node validator printed for this town.
+  assert.match(ok.stdout, /: 38 locations, 66 npcs \(41 here, 17 away, 8 dead;/);
+  /* The one test that still edits a copy of the page (wave 37, Creator
+     Mode): every other slip is shown in the page on a copy of the pack;
+     this proves the wrapper validates the file VALIDATE_FILE names, not
+     index.html. Two letters of the first exit of the first place with exits
+     swap places, inside the inlined JSON. */
   const html = fs.readFileSync(GAME_PATH, 'utf8');
-  // Point the first exit of the first location at a place that does not exist.
-  const at = html.indexOf(BEGIN);
-  const m = /exits: \[\s*"(loc_[a-z0-9_]+)"/.exec(html.slice(at));
-  assert.ok(m, 'found an exits list');
-  const cut = at + m.index;
-  const broken = html.slice(0, cut) + m[0].replace(m[1], 'loc_nowhere') + html.slice(cut + m[0].length);
+  const pack = JSON.parse(fs.readFileSync(PACK_FILE, 'utf8'));
+  const i = pack.world.locations.findIndex(l => Array.isArray(l.exits) && l.exits.length);
+  const loc = pack.world.locations[i];
+  const exit = loc.exits[0];
+  const typo = exit.slice(0, -2) + exit.slice(-1) + exit.slice(-2, -1);
+  assert.ok(!pack.world.locations.some(l => l.id === typo), 'the typo is no place');
+  const from = html.indexOf(`"id": "${loc.id}"`, html.indexOf(OPEN));
+  assert.ok(from > 0, 'found ' + loc.id + ' in the JSON element');
+  const cut = html.indexOf(`"${exit}"`, html.indexOf('"exits"', from));
+  const broken = html.slice(0, cut) + `"${typo}"` + html.slice(cut + exit.length + 2);
   assert.notEqual(broken, html, 'the edit applied');
   const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-')), 'index.html');
   fs.writeFileSync(tmp, broken);
-  const bad = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
-  assert.equal(bad.status, 1);
-  assert.match(bad.stderr, /loc_nowhere/);
-  const quoted = html.replace(`name: "${t.name}",`, `name: '${t.name}',`);
-  assert.notEqual(quoted, html, 'the quote edit applied');
-  fs.writeFileSync(tmp, quoted);
-  const bad2 = spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
-  assert.equal(bad2.status, 1);
-  assert.match(bad2.stderr, /single-quoted/);
+  try {
+    const bad = spawnSync(process.execPath, [path.join(__dirname, 'validate-pack.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
+    assert.equal(bad.status, 1, bad.stdout + bad.stderr);
+    assert.ok(bad.stderr.includes(`  - world.locations[${i}].exits[0]: exit "${typo}" is not a location [engine.location.exit]`), bad.stderr);
+  } finally { fs.rmSync(path.dirname(tmp), { recursive: true, force: true }); }
 });
 
 s.test('the cast: everyone written by hand with a home, relations both ways and a place every phase; docs/CAST.md matches it; a new game has them all, castFixed, and nobody is ever made', async h => {
@@ -125,44 +178,47 @@ s.test('the cast: everyone written by hand with a home, relations both ways and 
   assert.ok(r.tied.every(id => T.npcs.some(n => n.id === id)), 'every loose end is someone in the cast');
 });
 
-s.test('everything mentioned exists: tests/mentions.cjs finds no name or place in the content without a record, and validate-town.cjs refuses one added by hand; ages agree with looks and the family maths', async h => {
-  const ok = spawnSync(process.execPath, [path.join(__dirname, 'mentions.cjs')], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(ok.status, 0, ok.stderr);
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
+s.test('everything mentioned exists: Pack.validate finds no engine.mention problem in the built-in pack and refuses a name or a place added by hand (engine.mention.name, engine.mention.place); ages agree with looks and the family maths (house.npc.age, house.family); the dead are never scheduled (engine.npc.schedule)', async h => {
+  // The old Node mentions check is Pack's engine.mention.* rules now (wave 37, Creator Mode), so the editor checks it live.
   const page = await h.open();
-  const T = await page.evaluate(() => Game.data.TOWN_DATA);
-  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-mention-')), 'index.html');
-  const check = text => { fs.writeFileSync(tmp, text); return spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) }); };
+  const clean = await page.evaluate(() => Game.Pack.validate(Game.Pack.builtIn(), { profile: 'strict' }).filter(p => /^engine\.mention\./.test(p.rule)));
+  assert.deepEqual(clean, [], 'nobody and nowhere named without a record');
+  let r = await editedProblems(h, (p, { W }) => { W.seeds[0].effect = W.seeds[0].effect.replace(/\.$/, ', and Zebediah is waiting.'); return 'world.seeds[0].effect'; });
+  problemAt(r, 'engine.mention.name', r.at, /the name "Zebediah" matches no person, place or faction/);
   // A new name in a description, and a new kind of place: both refused until there is a record.
-  const loc = T.locations.find(l => !l.away);
-  const named = html.replace(`description: ${JSON.stringify(loc.description)}`, `description: ${JSON.stringify(loc.description.replace(/\.$/, ', where Hank Pruitt waits by the cotton gin.'))}`);
-  assert.notEqual(named, html, 'the edit applied');
-  let r = check(named);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /the name "Hank" matches no person, place or faction/);
-  const placed = html.replace(`description: ${JSON.stringify(loc.description)}`, `description: ${JSON.stringify(loc.description.replace(/\.$/, ', two doors down from the old cotton gin.'))}`);
-  r = check(placed);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /the place "the old cotton gin" matches no person, place or faction/);
+  r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.locations, l => !l.away, 'a place in town');
+    W.locations[i].description = W.locations[i].description.replace(/\.$/, ', where Hank Pruitt waits by the cotton gin.');
+    return 'world.locations[' + i + '].description';
+  });
+  problemAt(r, 'engine.mention.name', r.at, /the name "Hank" matches no person, place or faction/);
+  r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.locations, l => !l.away, 'a place in town');
+    W.locations[i].description = W.locations[i].description.replace(/\.$/, ', two doors down from the old cotton gin.');
+    return 'world.locations[' + i + '].description';
+  });
+  problemAt(r, 'engine.mention.place', r.at, /the place "the old cotton gin" matches no place/);
   // An age the look disagrees with, and a mother younger than her daughter allows.
-  const mother = T.npcs.find(n => (n.relations || []).some(x => x.relation === 'daughter') && /\b(?:woman|man) of (?:twenty|thirty|forty|fifty|sixty|seventy|eighty)/.test(n.look));
-  const aged = html.replace(`name: ${JSON.stringify(mother.name)},\n      pronouns: ${JSON.stringify(mother.pronouns)},\n      age: ${mother.age},`, `name: ${JSON.stringify(mother.name)},\n      pronouns: ${JSON.stringify(mother.pronouns)},\n      age: ${mother.age + 30},`);
-  assert.notEqual(aged, html, 'the age edit applied');
-  r = check(aged);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, new RegExp(`${mother.id}\\)\\.age: is ${mother.age + 30}, but the look says ${mother.age}`));
-  const daughter = T.npcs.find(n => n.id === mother.relations.find(x => x.relation === 'daughter').npcId);
-  const young = html.replace(`name: ${JSON.stringify(daughter.name)},\n      pronouns: ${JSON.stringify(daughter.pronouns)},\n      age: ${daughter.age},`, `name: ${JSON.stringify(daughter.name)},\n      pronouns: ${JSON.stringify(daughter.pronouns)},\n      age: ${daughter.age + 25},`);
-  assert.notEqual(young, html, 'the daughter edit applied');
-  r = check(young);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /a parent is 16 to 60 years older/);
+  r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.npcs, n => (n.relations || []).some(x => x.relation === 'daughter') && /\b(?:woman|man) of (?:twenty|thirty|forty|fifty|sixty|seventy|eighty)/.test(n.look), 'a mother whose look gives her age');
+    W.npcs[i].age += 30;
+    return { path: 'world.npcs[' + i + '].age', id: W.npcs[i].id, age: W.npcs[i].age - 30 };
+  });
+  problemAt(r, 'house.npc.age', r.at.path, new RegExp('^is ' + (r.at.age + 30) + ', but the look says ' + r.at.age + '$'));
+  r = await editedProblems(h, (p, { W, idx, ni }) => {
+    const i = idx(W.npcs, n => (n.relations || []).some(x => x.relation === 'daughter') && /\b(?:woman|man) of (?:twenty|thirty|forty|fifty|sixty|seventy|eighty)/.test(n.look), 'a mother whose look gives her age');
+    const k = W.npcs[i].relations.findIndex(x => x.relation === 'daughter');
+    W.npcs[ni(W.npcs[i].relations[k].npcId)].age += 25;
+    return 'world.npcs[' + i + '].relations[' + k + ']';
+  });
+  problemAt(r, 'house.family', r.at, /a parent is 16 to 60 years older/);
   // A dead person in a schedule is refused (the dead are never anywhere).
-  const dead = T.npcs.find(n => n.presence === 'dead');
-  const haunt = html.replace(/(npcIdsBySchedule: \{\n        morning: \[)/, `$1"${dead.id}", `);
-  r = check(haunt);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, new RegExp(`${dead.id} is scheduled but is dead|is dead but scheduled in town`));
+  r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.npcs, n => n.presence === 'dead', 'someone dead');
+    W.locations[idx(W.locations, l => l.npcIdsBySchedule && Array.isArray(l.npcIdsBySchedule.morning), 'a schedule')].npcIdsBySchedule.morning.unshift(W.npcs[i].id);
+    return 'world.npcs[' + i + ']';
+  });
+  problemAt(r, 'engine.npc.schedule', r.at, /is dead but scheduled in town \(morning\)/);
 });
 
 s.test('every background starts at its arrival point and every loose end resolves, then a turn runs', async h => {
@@ -196,30 +252,24 @@ s.test('every background starts at its arrival point and every loose end resolve
    bite, backgrounds with a phone and a lead, grudges and favours that do
    something, staggered clocks that hold in either order, the council
    meeting, the epilogue, rumours that spread, goods that say what they are.
-   Most of it is read straight from the content block (as cast-doc.cjs does);
-   the validator is shown to refuse each kind of slip.
+   Most of it is read straight from packs/low-water.json (as cast-doc.cjs
+   does); Pack.validate is shown, on an edited copy in the page, to refuse
+   each kind of slip.
    ------------------------------------------------------------------------- */
-const vm = require('vm');
+/* The eight names the content block declared, from the pack (wave 37,
+   Creator Mode: the town is packs/low-water.json now; Game.data keeps the
+   same names as aliases into it). */
 function content() {
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
-  const src = html.slice(html.indexOf(BEGIN) + BEGIN.length, html.indexOf(END));
-  // Through JSON, so the objects are this realm's (assert's deep equality compares prototypes).
-  return JSON.parse(JSON.stringify(vm.runInNewContext(src + '\n;({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS })', {}, { timeout: 5000 })));
+  const P = JSON.parse(fs.readFileSync(PACK_FILE, 'utf8'));
+  return {
+    TOWN_DATA: P.world, TABLES: P.world.tables, BACKGROUNDS: P.player.backgrounds, FLAWS: P.player.flaws, LOOSE_ENDS: P.player.looseEnds,
+    GRUDGE_TEMPLATES: P.world.grudgeTemplates, FAVOUR_TEMPLATES: P.world.favourTemplates, GOAL_PRESETS: P.player.goalPresets
+  };
 }
-/* Runs validate-town.cjs on a copy of the page with one edit; returns { status, stderr }. */
-function validateEdited(edit) {
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
-  const changed = edit(html);
-  assert.notEqual(changed, html, 'the edit applied');
-  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'novatria-content-')), 'index.html');
-  fs.writeFileSync(tmp, changed);
-  return spawnSync(process.execPath, [path.join(__dirname, 'validate-town.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
-}
-const once = (html, a, b) => { assert.equal(html.split(a).length, 2, 'once: ' + a.slice(0, 60)); return html.replace(a, b); };
 const npcOf = (D, id) => D.TOWN_DATA.npcs.find(n => n.id === id);
 const locOf = (D, id) => D.TOWN_DATA.locations.find(l => l.id === id);
 
-s.test('the calendar: day 1 is Thursday 8 October 2026 in autumn; the bar and the pawn shop shut on Sundays; the teacher and the students are at school on weekdays; the vote is set for this October', async () => {
+s.test('the calendar: day 1 is Thursday 8 October 2026 in autumn; the bar and the pawn shop shut on Sundays; the teacher and the students are at school on weekdays; the vote is set for this October', async h => {
   const D = content();
   const T = D.TOWN_DATA;
   assert.deepEqual(T.calendar, { season: 'autumn', startDate: '2026-10-08' });
@@ -234,18 +284,15 @@ s.test('the calendar: day 1 is Thursday 8 October 2026 in autumn; the bar and th
   assert.match(sept.what, /Tuesday, October 13/, 'the vote is this October, not "this month" of a September present');
   assert.match(npcOf(D, 'npc_curtis').secret, /in October/, 'Royce lost the money in October, which is now');
   // The validator: a day that is no weekday, hours that name a shut day with no closedOn, a student with no school days.
-  let r = validateEdited(h => once(h, '      hours: "9 to 6, Monday to Saturday",\n      closedOn: ["Sunday"],', '      hours: "9 to 6, Monday to Saturday",\n      closedOn: ["Sundays"],'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /"Sundays" is not a weekday name/);
-  r = validateEdited(h => once(h, '      hours: "11 a.m. to 2 a.m., Monday to Saturday; closed Sundays",\n      closedOn: ["Sunday"],\n', '      hours: "11 a.m. to 2 a.m., Monday to Saturday; closed Sundays",\n'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /loc_low_water\)\.closedOn: the hours name days it is shut/);
-  r = validateEdited(h => once(h, '      home: "loc_lott_trailer",\n      awayOn: { days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], phases: ["morning", "afternoon"], where: "at the county school in Clayburn" },\n', '      home: "loc_lott_trailer",\n'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /npc_austin\)\.awayOn: a teacher or a student is at school on weekdays/);
+  let r = await editedProblems(h, (p, { W, idx }) => { const i = idx(W.locations, l => l.hours === '9 to 6, Monday to Saturday', 'the shop open 9 to 6'); W.locations[i].closedOn = ['Sundays']; return 'world.locations[' + i + '].closedOn[0]'; });
+  problemAt(r, 'engine.shape.enum', r.at, /^"Sundays" is not one of: Sunday, Monday/);
+  r = await editedProblems(h, (p, { W, li }) => { const i = li('loc_low_water'); delete W.locations[i].closedOn; return 'world.locations[' + i + '].closedOn'; });
+  problemAt(r, 'house.location.text', r.at, /^the hours name days it is shut/);
+  r = await editedProblems(h, (p, { W, ni }) => { const i = ni('npc_austin'); delete W.npcs[i].awayOn; return 'world.npcs[' + i + '].awayOn'; });
+  problemAt(r, 'house.npc.school', r.at, /a teacher or a student is at school on weekdays/);
 });
 
-s.test('schedules: every public place has someone at some time of day, each where their own story puts them; Nikki runs the river road in the morning, Odessa answers Vada\'s door in the evening', async () => {
+s.test('schedules: every public place has someone at some time of day, each where their own story puts them; Nikki runs the river road in the morning, Odessa answers Vada\'s door in the evening', async h => {
   const D = content();
   const at = (locId, ph) => locOf(D, locId).npcIdsBySchedule[ph];
   assert.ok(at('loc_water_tower', 'night').includes('npc_kaylee'), 'Kaylee drives up to the water tower at night');
@@ -261,9 +308,14 @@ s.test('schedules: every public place has someone at some time of day, each wher
   for (const l of D.TOWN_DATA.locations.filter(x => x.discovered !== false && !x.away)) {
     assert.ok(['morning', 'afternoon', 'evening', 'night'].some(p => l.npcIdsBySchedule[p].length), 'somebody is at ' + l.id + ' some time');
   }
-  const r = validateEdited(h => once(h, '        night: ["npc_kaylee"]', '        night: []').replace('        morning: ["npc_darlene", "npc_kaylee"],\n        afternoon: [],\n        evening: ["npc_darlene"],\n        night: ["npc_royce", "npc_darlene"]', '        morning: ["npc_darlene", "npc_kaylee"],\n        afternoon: [],\n        evening: ["npc_darlene"],\n        night: ["npc_royce", "npc_darlene", "npc_kaylee"]'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /locations\(loc_water_tower\): a public place nobody is ever at/);
+  // Wave 37, Creator Mode: a lint now, a warning in both profiles (a place nobody is at still plays), where the old validator stopped.
+  const r = await editedProblems(h, (p, { W, li, idx }) => {
+    const tower = W.locations[li('loc_water_tower')];
+    tower.npcIdsBySchedule.night = tower.npcIdsBySchedule.night.filter(id => id !== 'npc_kaylee');
+    W.locations[idx(W.locations, l => JSON.stringify(l.npcIdsBySchedule && l.npcIdsBySchedule.night) === '["npc_royce","npc_darlene"]', 'Royce and Darlene at night')].npcIdsBySchedule.night.push('npc_kaylee');
+    return 'world.locations[' + li('loc_water_tower') + '].npcIdsBySchedule';
+  });
+  problemAt(r, 'lint.place.empty', r.at, /^a public place nobody is ever at/, 'warning');
 });
 
 s.test('the facts agree: Wiley three springs ago, Travis paying down his boat, Dwight\'s stakes, the engineer the state sent, four overdoses and one death, the mayor in the holding cell, prices, the river road, Amos\'s whiskey, the bridge Annette crossed, Boyd\'s check-in, Loretta\'s bypass fight, a five-seat council', async () => {
@@ -314,7 +366,7 @@ s.test('the facts agree: Wiley three springs ago, Travis paying down his boat, D
   assert.match(n('npc_elbert').history, /sat on the town council since 1983/);
 });
 
-s.test('nobody who does not exist: Tyler lives with Brianna, the overdose is Brianna, places name the cast, Jodie\'s real name and Boyd\'s man are written down, the old bank and the old drugstore are Front Street; the validator refuses a made-up crowd', async () => {
+s.test('nobody who does not exist: Tyler lives with Brianna, the overdose is Brianna, places name the cast, Jodie\'s real name and Boyd\'s man are written down, the old bank and the old drugstore are Front Street; the validator refuses a made-up crowd', async h => {
   const D = content();
   const T = D.TOWN_DATA;
   assert.match(npcOf(D, 'npc_tyler').history, /shares a trailer at Riverbend with his cousin Brianna/);
@@ -332,9 +384,14 @@ s.test('nobody who does not exist: Tyler lives with Brianna, the overdose is Bri
   // No unnamed crowd in the templates, the loose ends or the seeds.
   const text = JSON.stringify([D.GRUDGE_TEMPLATES, D.FAVOUR_TEMPLATES, D.LOOSE_ENDS, T.seeds]);
   for (const bad of ['a couple of kids', 'two men', 'the night clerk', 'a boy at Riverbend', 'a trucker', 'slides into the booth', 'a doctor in the city']) assert.ok(!text.includes(bad), 'gone: ' + bad);
-  const r = validateEdited(h => once(h, 'He shares a trailer at Riverbend with his cousin Brianna,', 'He rents a trailer at Riverbend with two other boys and his cousin Brianna,'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /"two other boys" puts someone in the story who is not in the cast/);
+  const r = await editedProblems(h, (p, { W, ni }) => {
+    const n = W.npcs[ni('npc_tyler')];
+    const was = n.history;
+    n.history = was.replace('He shares a trailer at Riverbend with his cousin Brianna,', 'He rents a trailer at Riverbend with two other boys and his cousin Brianna,');
+    if (n.history === was) throw new Error('the edit did not apply');
+    return 'world.npcs[' + ni('npc_tyler') + '].history';
+  });
+  problemAt(r, 'engine.mention.person', r.at, /^"two other boys" puts someone in the story who is not in the cast/);
 });
 
 s.test('loose ends: every preset option binds to the person it means (the waitress for the letter and the daughter, Lorna for the towboat friend, Nadine for the group home, Colt for the man in the pen), the enemy is already here, and the debt, the blackmail and the promise name what is owed and when', async h => {
@@ -401,12 +458,15 @@ s.test('backgrounds: everyone arrives with a prepaid phone and a first lead from
     const inv = await page.evaluate(() => Game.state.player.inventory.map(x => x.name));
     assert.ok(inv.includes('Prepaid phone'), D.BACKGROUNDS[i].id + ': ' + inv.join(', '));
   }
-  const r = validateEdited(h => once(h, '      { id: "item_phone_hustler", name: "Prepaid phone", qty: 1, notes: "A burner with three numbers in it, none of which you would call from here." }\n', '').replace('{ id: "item_fake_license", name: "Fake driver\'s license", qty: 1, notes: "Good enough for a bartender, not for a cop." },', '{ id: "item_fake_license", name: "Fake driver\'s license", qty: 1, notes: "Good enough for a bartender, not for a cop." }'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /bg_poker_hustler\)\.items: needs exactly 3 items/);
+  const r = await editedProblems(h, (p, { PL, idx }) => {
+    const i = idx(PL.backgrounds, b => b.id === 'bg_poker_hustler', 'bg_poker_hustler');
+    PL.backgrounds[i].items.splice(idx(PL.backgrounds[i].items, x => x.id === 'item_phone_hustler', 'item_phone_hustler'), 1);
+    return 'player.backgrounds[' + i + '].items';
+  });
+  problemAt(r, 'house.background.items', r.at, /^should be 3 things: two of the background's own and a prepaid phone/);
 });
 
-s.test('grudges and favours do something: effects in code, public or not, held only by people who could; nobody old, young or a cop beats anyone; no phone or vehicle assumed', async () => {
+s.test('grudges and favours do something: effects in code, public or not, held only by people who could; nobody old, young or a cop beats anyone; no phone or vehicle assumed', async h => {
   const D = content();
   const all = D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES);
   assert.ok(D.GRUDGE_TEMPLATES.length >= 8 && D.FAVOUR_TEMPLATES.length >= 8);
@@ -428,9 +488,13 @@ s.test('grudges and favours do something: effects in code, public or not, held o
     assert.ok(D.FAVOUR_TEMPLATES.some(t => holders(t).includes(n)), n.id + ' has a favour to give');
   }
   // The validator refuses a beating anyone could hold.
-  const r = validateEdited(h => once(h, '    forTags: ["tough"],\n    notForTags: ["elderly", "teen", "police"]\n', '    notForTags: ["police"]\n'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /a beating, but .*npc_vada.* could hold it/);
+  const r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.grudgeTemplates, t => JSON.stringify(t.forTags) === '["tough"]' && JSON.stringify(t.notForTags) === '["elderly","teen","police"]', 'the beating for the tough');
+    delete W.grudgeTemplates[i].forTags;
+    W.grudgeTemplates[i].notForTags = ['police'];
+    return 'world.grudgeTemplates[' + i + ']';
+  });
+  problemAt(r, 'house.templates.beating', r.at, /a beating, but .*npc_vada.* could hold it/);
 });
 
 s.test('the clocks: staggered, each completion true in either order (requires and alt), rivals set back by clockAdjust, and the main threads reward a stat', async () => {
@@ -481,7 +545,7 @@ s.test('the clocks: staggered, each completion true in either order (requires an
   assert.match(run.alt.text, /the run has not gone/);
 });
 
-s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the clocks, the bought report, Royce\'s regard for the player and Curtis\'s debt, with the police vote as item four; the epilogue comes on day 21 or when the bridge is decided', async () => {
+s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the clocks, the bought report, Royce\'s regard for the player and Curtis\'s debt, with the police vote as item four; the epilogue comes on day 21 or when the bridge is decided', async h => {
   const D = content();
   const T = D.TOWN_DATA;
   assert.deepEqual(T.events.map(e => e.id), ['evt_council_meeting']);
@@ -511,17 +575,25 @@ s.test('the council meeting on Tuesday (day 6, evening, Town Hall) turns on the 
   // Wave 30: Loretta's ending reads her liking (relAtLeast { liking: 40 }).
   assert.ok(E.branches.some(b => b.when.obligationStatus) && E.branches.some(b => b.when.relAtLeast && b.when.relAtLeast.npc_loretta && b.when.relAtLeast.npc_loretta.liking === 40), 'endings read obligations and attitudes too');
   // The validator refuses a branch that reads a flag nothing sets, and an op the engine does not have.
-  const both = 'when: { flagsSet: ["royceBought", "royceTurned"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },';
-  let r = validateEdited(h => once(h, both, both.replace('"royceTurned"', '"royceDanced"')));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /reads the flag "royceDanced", which nothing in the content sets/);
-  // The default's first effect (ten spaces in: the branches' are twelve).
-  r = validateEdited(h => once(h, '\n          { op: "setFlag", key: "councilVoted", value: true },', '\n          { op: "throwParty", key: "councilVoted", value: true },'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /unknown op "throwParty"/);
+  let r = await editedProblems(h, (p, { W, idx }) => {
+    const e = idx(W.events, x => x.id === 'evt_council_meeting', 'the council meeting');
+    const b = idx(W.events[e].branches, x => JSON.stringify(x.when) === '{"flagsSet":["royceBought","royceTurned"],"npcFree":["npc_jolene","npc_royce","npc_lamar","npc_hollis","npc_elbert"]}', 'the bought-and-turned branch');
+    W.events[e].branches[b].when.flagsSet[1] = 'royceDanced';
+    return 'world.events[' + e + '].branches[' + b + '].when.flagsSet[1]';
+  });
+  problemAt(r, 'engine.flag.unset', r.at, /^reads the flag "royceDanced", which nothing in the pack sets/);
+  // The default's first effect.
+  r = await editedProblems(h, (p, { W, idx }) => {
+    const e = idx(W.events, x => x.id === 'evt_council_meeting', 'the council meeting');
+    const first = W.events[e].default.effects[0];
+    if (first.op !== 'setFlag' || first.key !== 'councilVoted') throw new Error('the default no longer starts with councilVoted');
+    first.op = 'throwParty';
+    return 'world.events[' + e + '].default.effects[0].op';
+  });
+  problemAt(r, 'engine.effect.op', r.at, /^"throwParty" is not one of the engine's effect ops/);
 });
 
-s.test('rumours spread: twenty, each with two or more people who can tell it, most bearing on a thread; Gerald, Pearl and Nadine are gossips; nearly everyone in town is in the story now', async () => {
+s.test('rumours spread: twenty, each with two or more people who can tell it, most bearing on a thread; Gerald, Pearl and Nadine are gossips; nearly everyone in town is in the story now', async h => {
   const D = content();
   const T = D.TOWN_DATA;
   assert.equal(T.rumours.length, 20);
@@ -537,9 +609,12 @@ s.test('rumours spread: twenty, each with two or more people who can tell it, mo
   const plotless = T.npcs.filter(n => (n.presence || 'here') === 'here' && !story.includes(`"${n.id}"`) && !story.includes(n.name)).map(n => n.id);
   assert.ok(plotless.length <= 4, 'people in town in no clock, seed, rumour, thread, event or hook: ' + plotless.join(', '));
   // Changed by design in wave 29 (A4): the rumour is leverage over Mavis once heard (leverageOver), so the edit keeps that field.
-  const r = validateEdited(h => once(h, 'sourceNpcId: "npc_brianna", tellerIds: ["npc_tyler"], leverageOver: "npc_mavis", heard: false', 'sourceNpcId: "npc_brianna", leverageOver: "npc_mavis", heard: false'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /rum_mavis_cash_rooms\): only npc_brianna can tell it/);
+  const r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.rumours, x => x.id === 'rum_mavis_cash_rooms' && JSON.stringify(x.tellerIds) === '["npc_tyler"]' && x.leverageOver === 'npc_mavis', 'rum_mavis_cash_rooms told by Tyler');
+    delete W.rumours[i].tellerIds;
+    return 'world.rumours[' + i + '].tellerIds';
+  });
+  problemAt(r, 'engine.rumour.tellers', r.at, /^only npc_brianna can tell it/);
 });
 
 s.test('goods say what they are and name no place; TABLES.npc keeps only the lists something reads; GOAL_PRESETS offers four to six goals from the town\'s threads', async h => {
@@ -553,15 +628,17 @@ s.test('goods say what they are and name no place; TABLES.npc keeps only the lis
   assert.deepEqual(Object.keys(D.TABLES.npc).sort(), ['firstNames', 'occupations']);
   assert.ok(D.GOAL_PRESETS.length >= 4 && D.GOAL_PRESETS.length <= 6);
   assert.ok(D.GOAL_PRESETS.every(g => typeof g === 'string' && g.length <= 140));
-  const html = fs.readFileSync(GAME_PATH, 'utf8');
-  assert.match(html, /module\.exports = \{ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS \}/);
   // The UI reads GOAL_PRESETS inside the page script; once Game.data carries it, it is the same list.
   const page = await h.open();
   const fromPage = await page.evaluate(() => Game.data.GOAL_PRESETS || null);
   if (fromPage) assert.deepEqual(fromPage, D.GOAL_PRESETS);
-  const r = validateEdited(h => once(h, '{ name: "Shot of whiskey", price: 6, kind: "drink" }', '{ name: "Shot of whiskey at the Low Water", price: 6, kind: "drink" }'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /names a place \("low water"\)/);
+  const r = await editedProblems(h, (p, { W, idx }) => {
+    const goods = W.tables.items.goods;
+    const i = idx(goods, g => g.name === 'Shot of whiskey' && g.price === 6 && g.kind === 'drink', 'the shot of whiskey');
+    goods[i].name = 'Shot of whiskey at the Low Water';
+    return 'world.tables.items.goods[' + i + '].name';
+  });
+  problemAt(r, 'house.goods.name', r.at, /names a place \("low water"\)/);
 });
 
 // ----- Wave 2 (docs/notes/content.md, "Wave 2") -----
@@ -615,13 +692,21 @@ s.test('wave 2: the council meeting counts only members who are free (a councilm
   assert.ok(twins >= 6, 'twins: ' + twins);
   assert.doesNotMatch(ev.default.text, /Royce|Hollis|Elbert|Lamar|Jolene|mayor/, 'the default names nobody acting: ' + ev.default.text);
   // The validator refuses a branch that has Hollis voting without him free.
-  const r = validateEdited(html => once(html, '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_hollis", "npc_elbert"] },', '          when: { flagsSet: ["royceBought"], npcFree: ["npc_jolene", "npc_royce", "npc_lamar", "npc_elbert"] },'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /the text has npc_hollis acting: add them to npcFree/);
+  const r = await editedProblems(h, (p, { W, idx }) => {
+    const e = idx(W.events, x => x.id === 'evt_council_meeting', 'the council meeting');
+    const b = idx(W.events[e].branches, x => JSON.stringify(x.when) === '{"flagsSet":["royceBought"],"npcFree":["npc_jolene","npc_royce","npc_lamar","npc_hollis","npc_elbert"]}', 'the bought branch with all five free');
+    W.events[e].branches[b].when.npcFree = W.events[e].branches[b].when.npcFree.filter(id => id !== 'npc_hollis');
+    return 'world.events[' + e + '].branches[' + b + '].when.npcFree';
+  });
+  problemAt(r, 'engine.event.actors', r.at, /^the text has npc_hollis acting: add them to npcFree/);
   // Attendance (playerAt) names a town place the player can be in.
-  const r2 = validateEdited(html => html.replace(/playerAt: "loc_town_hall"/g, 'playerAt: "loc_nowhere"'));
-  assert.equal(r2.status, 1);
-  assert.match(r2.stderr, /playerAt[^\n]*"loc_nowhere" is not a location/);
+  const r2 = await editedProblems(h, (p, { W }) => {
+    const at = [];
+    W.events.forEach((ev, e) => ev.branches.forEach((b, k) => { if (b.when && b.when.playerAt === 'loc_town_hall') { b.when.playerAt = 'loc_nowhere'; at.push('world.events[' + e + '].branches[' + k + '].when.playerAt'); } }));
+    return at;
+  });
+  assert.ok(r2.at.length >= 1, 'a branch read playerAt');
+  for (const at of r2.at) problemAt(r2, 'engine.condition', at, /^"loc_nowhere" is no place/);
 
   // In the page: what each lever does.
   const page = await h.open();
@@ -689,9 +774,12 @@ s.test('wave 2: the ending never says how long it has been when a flag brings it
   assert.match(E.branches[0].text, /Jolene Overstreet has a court date in Clayburn/);
   assert.match(E.default.text, /^Three weeks in/, 'only the default (day 21 alone brings it) counts the weeks');
   // The validator refuses a time word in an early ending.
-  const r = validateEdited(html => once(html, 'text: "The barriers are up on the old bridge, and the town police are finished', 'text: "Three weeks on, the barriers are up on the old bridge, and the town police are finished'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /says how long it has been \("Three weeks"\)/);
+  const r = await editedProblems(h, (p, { W, idx }) => {
+    const i = idx(W.epilogue.branches, b => b.text.startsWith('The barriers are up on the old bridge, and the town police are finished'), 'the early ending with the police finished');
+    W.epilogue.branches[i].text = 'Three weeks on, the' + W.epilogue.branches[i].text.slice(3);
+    return 'world.epilogue.branches[' + i + '].text';
+  });
+  problemAt(r, 'house.epilogue.howLong', r.at, /^says how long it has been \("Three weeks"\)/);
 
   // Live: the bridge closes on day 18 with the police vote passed.
   const page = await h.open();
@@ -761,9 +849,13 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   for (const [k, le] of Object.entries(D.LOOSE_ENDS)) assert.ok(/\byou(r)?\b/.test(le.seed.effect) && !le.seed.effect.includes('{player}'), k + ': ' + le.seed.effect);
   assert.equal(D.LOOSE_ENDS.debt.seed.effect, '{npc} walks up to you, reads your name off a folded paper with a number written under it, and says the money is due in three days.');
   // The fixture follows the wave-4 wording (playtest R11: "draws you aside", not "finds you alone", since the person may come into a crowd).
-  const tpl = validateEdited(html => once(html, 'effect: "{npc} draws you aside and says, low,', 'effect: "{npc} draws {player} aside and says, low,'));
-  assert.equal(tpl.status, 1);
-  assert.match(tpl.stderr, /a loose end happens to the player: write it to "you", not \{player\}/);
+  const tpl = await editedProblems(h, (p, { PL }) => {
+    const k = Object.keys(PL.looseEnds).find(x => PL.looseEnds[x].seed.effect.startsWith('{npc} draws you aside and says, low,'));
+    if (!k) throw new Error('the edit found no loose end that draws you aside');
+    PL.looseEnds[k].seed.effect = PL.looseEnds[k].seed.effect.replace('{npc} draws you aside', '{npc} draws {player} aside');
+    return 'player.looseEnds.' + k + '.seed.effect';
+  });
+  problemAt(tpl, 'engine.looseEnd', tpl.at, /^a loose end happens to the player: write it to "you", not \{player\}/);
   const all = D.GRUDGE_TEMPLATES.concat(D.FAVOUR_TEMPLATES).map(t => t.effect).join('\n');
   for (const gone of ['on their own phone', 'was with them all night', 'something they saw', 'gives them the creeps']) assert.ok(!all.includes(gone), gone);
   // Every obligation says what happens when its day goes by, and an errand is owed to whoever asked.
@@ -785,9 +877,14 @@ s.test('wave 2: the big run waits on the boats; people in seeds and templates ge
   // Changed by design in wave 27 (A2): the chief's memory is told_anyway, the collector's a broken word (own), each a socialEvent.
   assert.ok(black.onMiss.some(e => (e.op === 'addMemory' || (e.op === 'socialEvent' && e.event === 'told_anyway')) && e.npcId === 'npc_marcus'), 'the chief knows');
   assert.ok(D.LOOSE_ENDS.debt.obligations[1].onMiss.some(e => (e.op === 'addMemory' || e.op === 'socialEvent') && e.npcId === '{npcId}' && e.weight === 3), 'Leon remembers the title loan he collected');
-  let r = validateEdited(html => once(html, '        owedTo: "npc_bernice",\n        missText: "The letter for', '        missText: "The letter for'));
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /an errand is owed to whoever asked for it/);
+  const r = await editedProblems(h, (p, { PL }) => {
+    const k = Object.keys(PL.looseEnds).find(x => (PL.looseEnds[x].obligations || []).some(o => o.owedTo === 'npc_bernice' && /^The letter for/.test(o.missText)));
+    if (!k) throw new Error('the edit found no letter owed to Bernice');
+    const i = PL.looseEnds[k].obligations.findIndex(o => o.owedTo === 'npc_bernice' && /^The letter for/.test(o.missText));
+    delete PL.looseEnds[k].obligations[i].owedTo;
+    return 'player.looseEnds.' + k + '.obligations[' + i + '].owedTo';
+  });
+  problemAt(r, 'engine.obligation', r.at, /^an errand is owed to whoever asked for it/);
   // Curtis Pruett's hook names his Friday night game at the back table (the mock deals it there on a Friday).
   const hook = D.BACKGROUNDS.find(b => b.id === 'bg_poker_hustler').hook;
   assert.equal(hook.npcId, 'npc_curtis');

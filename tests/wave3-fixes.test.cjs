@@ -7,10 +7,7 @@
    with: node tests/run.cjs wave3 */
 const assert = require('assert/strict');
 const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawnSync } = require('child_process');
-const { suite, quickStart, findScene, place, ROOT, GAME_PATH } = require('./helpers.cjs');
+const { suite, quickStart, findScene, place, GAME_PATH } = require('./helpers.cjs');
 
 const s = suite('wave3-fixes');
 const fast = page => page.evaluate(() => { Game.Api.Mock.delay = 0; });
@@ -704,7 +701,7 @@ s.test('N12 (and the parser): a search for something not lying here always rolls
   assert.deepEqual(r.parsed, ['search', true, ['new:a flashlight']]);
 });
 
-s.test('N13, N14, N16 and Nadine\'s hook (content): no "Glenda Gentry", the hustler hook and the gossip template never call the player "them"/"they", Nadine invites to the Parsonage; tests/mentions.cjs refuses a first name with someone else\'s family name', async h => {
+s.test('N13, N14, N16 and Nadine\'s hook (content): no "Glenda Gentry", the hustler hook and the gossip template never call the player "them"/"they", Nadine invites to the Parsonage; Pack.validate refuses a first name with someone else\'s family name (engine.mention.pair)', async h => {
   const page = await h.open();
   const r = await page.evaluate(() => {
     const D = Game.data;
@@ -718,17 +715,29 @@ s.test('N13, N14, N16 and Nadine\'s hook (content): no "Glenda Gentry", the hust
   assert.ok(!/\bthem\b/.test(r.hustler) && /invites \{player\}/.test(r.hustler), r.hustler);
   assert.ok(!/\bthey\b/.test(r.gossip), r.gossip);
   assert.match(r.nadine, /Parsonage/);
-  // The check itself: a made-up pair is caught; the names used on purpose are not.
-  const src = fs.readFileSync(GAME_PATH, 'utf8').replace('and Glenda Pryor is carrying the old radio logs', 'and Glenda Gentry is carrying the old radio logs');
-  const tmp = path.join(os.tmpdir(), `wave3-mentions-${process.pid}.html`);
-  fs.writeFileSync(tmp, src);
-  try {
-    const run = spawnSync(process.execPath, [path.join(__dirname, 'mentions.cjs')], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { VALIDATE_FILE: tmp }) });
-    assert.equal(run.status, 1);
-    assert.match(run.stderr, /pair "Glenda Gentry"/);
-  } finally { fs.unlinkSync(tmp); }
-  const ok = spawnSync(process.execPath, [path.join(__dirname, 'mentions.cjs')], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(ok.status, 0, ok.stderr);
+  /* The check itself, in the page (wave 37, Creator Mode: the old mentions
+     check is Pack's engine.mention.* rules): a made-up pair in a copy of the
+     built-in pack is caught where it is written; the names used on purpose
+     are not. */
+  const pair = await page.evaluate(() => {
+    const P = Game.Pack;
+    const before = JSON.stringify(P.builtIn());
+    const after = before.replace('and Glenda Pryor is carrying the old radio logs', 'and Glenda Gentry is carrying the old radio logs');
+    const p = JSON.parse(after);
+    let at = null;
+    (function walk(v, path) {
+      if (typeof v === 'string') { if (!at && v.includes('Glenda Gentry')) at = path; }
+      else if (Array.isArray(v)) v.forEach((x, i) => walk(x, path + '[' + i + ']'));
+      else if (v && typeof v === 'object') for (const k of Object.keys(v)) walk(v[k], path ? path + '.' + k : k);
+    })(p, '');
+    const mentions = list => list.filter(x => /^engine\.mention\./.test(x.rule));
+    return { applied: after !== before, at, clean: mentions(P.validate(P.builtIn(), { profile: 'strict' })), edited: mentions(P.validate(p, { profile: 'strict' })) };
+  });
+  assert.ok(pair.applied && pair.at, 'the edit applied');
+  assert.deepEqual(pair.clean, [], 'the names used on purpose pass');
+  assert.equal(pair.edited.length, 1, JSON.stringify(pair.edited));
+  assert.deepEqual([pair.edited[0].rule, pair.edited[0].path, pair.edited[0].severity], ['engine.mention.pair', pair.at, 'error']);
+  assert.match(pair.edited[0].message, /^"Glenda Gentry" is one person's first name with another's family name/);
 });
 
 s.test('README row: the owner of a place who likes the player (25 or more) gives a bed there, even a bar shut today; nobody, rough', async h => {
