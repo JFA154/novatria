@@ -9191,9 +9191,32 @@ const Pack = (() => {
     builtInPack = deepFreeze(JSON.parse(node.textContent));
     return builtInPack;
   }
-  /* Milestone 1: the built-in pack. Milestone 2 puts State.pack first;
-     milestone 5 adds the editor preview and the Library selection. */
-  function current() { return builtIn(); }
+  /* The preview pack when one is set (setPreview), else the built-in pack.
+     Milestone 2 puts State.pack first; milestone 5 adds the Library
+     selection. */
+  let preview = null;
+  function current() { return preview || builtIn(); }
+  /* setPreview(pack): the editor's draft (milestone 5) and a test's mutated
+     copy (brought forward to milestone 1) become the current pack. It keeps
+     an UNFROZEN deep copy on purpose: a draft or a test copy is working
+     data, while the built-in pack stays the canonical, frozen one. It also
+     re-points the eight content bindings (TOWN_DATA and the rest, declared
+     with let after PackRules) at the copy, so every old read sees it;
+     setPreview(null) points them back at the built-in pack. The bindings
+     are only assigned here, inside a function called after they exist. */
+  function setPreview(pack) {
+    preview = pack ? copy(pack) : null;
+    const p = current();
+    TOWN_DATA = p.world;
+    TABLES = p.world.tables;
+    BACKGROUNDS = p.player.backgrounds;
+    FLAWS = p.player.flaws;
+    LOOSE_ENDS = p.player.looseEnds;
+    GRUDGE_TEMPLATES = p.world.grudgeTemplates;
+    FAVOUR_TEMPLATES = p.world.favourTemplates;
+    GOAL_PRESETS = p.player.goalPresets;
+    return preview;
+  }
 
   /* The engine defaults a pack falls back on, as data. Milestone 1 holds the
      narration presets (the style guides and example turns, from a different
@@ -9689,7 +9712,7 @@ const Pack = (() => {
   }
 
   return {
-    FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, tokenEstimate, builtIn, current, lookup, get, isBuiltIn,
+    FORMAT, TOKEN_BUDGET, DEFAULTS, SCHEMA, tokenEstimate, builtIn, current, setPreview, lookup, get, isBuiltIn,
     canonical, hash, copy, format, deepFreeze, validate, errors, problemsFor
   };
 })();
@@ -9837,16 +9860,18 @@ const PackRules = (() => {
    them), now views of the frozen built-in pack (wave 37, Creator Mode; the
    owner: "No hard coded story allowed."). They keep those reads working
    until milestones 4 and 5 replace them with Pack.current() reads and
-   delete these lines. const is hoisted for functions; nothing at the top
-   level above this line reads them. */
-const TOWN_DATA = Pack.builtIn().world;
-const TABLES = TOWN_DATA.tables;
-const BACKGROUNDS = Pack.builtIn().player.backgrounds;
-const FLAWS = Pack.builtIn().player.flaws;
-const LOOSE_ENDS = Pack.builtIn().player.looseEnds;
-const GRUDGE_TEMPLATES = TOWN_DATA.grudgeTemplates;
-const FAVOUR_TEMPLATES = TOWN_DATA.favourTemplates;
-const GOAL_PRESETS = Pack.builtIn().player.goalPresets;
+   delete these lines. let, not const: Pack.setPreview re-points them at an
+   unfrozen preview copy (the editor's draft, a test's mutated copy) and
+   back. Declarations are hoisted for functions; nothing at the top level
+   above this line reads them. */
+let TOWN_DATA = Pack.builtIn().world;
+let TABLES = TOWN_DATA.tables;
+let BACKGROUNDS = Pack.builtIn().player.backgrounds;
+let FLAWS = Pack.builtIn().player.flaws;
+let LOOSE_ENDS = Pack.builtIn().player.looseEnds;
+let GRUDGE_TEMPLATES = TOWN_DATA.grudgeTemplates;
+let FAVOUR_TEMPLATES = TOWN_DATA.favourTemplates;
+let GOAL_PRESETS = Pack.builtIn().player.goalPresets;
 
 // ===== Module: Rng =====
 /* mulberry32. Its state after n calls is seed + n * 0x6D2B79F5, so the stream
@@ -39887,7 +39912,14 @@ window.Game = Object.freeze({
   Rng, Dice, Cards, Tables, State, Rel, Town, World, Style, Api, Upgrade, Pipeline, Storage, UI, Commands, App, Pack, PackRules, npcLabel, inferPronouns, namePronouns, pronounLabel, turnLook, kinWord, presenceOf, absentNote, ageText,
   get state() { return State.current; },
   get town() { return State.town || TOWN_DATA; },
-  data: Object.freeze({ TOWN_DATA, TABLES, BACKGROUNDS, FLAWS, LOOSE_ENDS, GRUDGE_TEMPLATES, FAVOUR_TEMPLATES, GOAL_PRESETS, STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL })
+  /* Getters (wave 37, Creator Mode): Game.data.TOWN_DATA is always the current
+     binding, the preview's copy after Pack.setPreview, else the built-in pack. */
+  data: Object.freeze({
+    get TOWN_DATA() { return TOWN_DATA; }, get TABLES() { return TABLES; }, get BACKGROUNDS() { return BACKGROUNDS; },
+    get FLAWS() { return FLAWS; }, get LOOSE_ENDS() { return LOOSE_ENDS; }, get GRUDGE_TEMPLATES() { return GRUDGE_TEMPLATES; },
+    get FAVOUR_TEMPLATES() { return FAVOUR_TEMPLATES; }, get GOAL_PRESETS() { return GOAL_PRESETS; },
+    STYLE_GUIDE_LITERARY, STYLE_GUIDE_CASUAL, EXAMPLE_TURNS_LITERARY, EXAMPLE_TURNS_CASUAL
+  })
 });
 
 try {
