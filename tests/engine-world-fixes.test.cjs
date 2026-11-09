@@ -602,6 +602,8 @@ s.test('grudges: one per weight-3 memory, a template that fits the person, its e
     const st = G.state;
     const loose = new Set(st.player.looseEnds.map(x => x.npcId));
     const n = st.npcs.find(x => x.status === 'free' && x.age >= 70 && !loose.has(x.id) && !(x.tags || []).includes('police'));
+    // Wave 37 (Creator Mode): the built-in pack is frozen, so the templates are bent on the preview copy the engine then plays.
+    G.Pack.setPreview(G.Pack.builtIn());
     const T = G.data.GRUDGE_TEMPLATES;
     const fit = 2;
     T.forEach((t, i) => { if (i !== fit) t.notForTags = ['elderly']; });
