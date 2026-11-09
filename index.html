@@ -9327,6 +9327,66 @@ const Pack = (() => {
       firstTurn: '', refusedByNpc: '', rollFailure: '', rollCritical: ''
     },
     prompts: { narratorExtra: '', parserExtra: '', bookkeeperExtra: '' },
+    /* The rules dial (wave 37, Creator Mode, milestone 4; plan "Pack format
+       v1" and decision F): every number the engine decides by that a story
+       may set, each at today's constant, so for Low Water every rule is the
+       default and nothing a game rolls or keeps changes. Where each came
+       from: dcs is Dice.TARGETS; floors is Rel.GATES.floors; hp is
+       newGame's 10 of 10 and Dice.fightDamage (a failure 1 to 3, a partial
+       1, a fumble 3); crits is the natural 20 and the natural 1; permadeath
+       and showRolls are Storage.DEFAULTS' (the player layer can set them
+       per pack); storyPoints is newGame's 2 and State.LIMITS.storyPoints 3,
+       with /fact allowed; time is SHORTS_PER_PHASE (costs: no action's
+       time cost overridden); prices a factor of 1; law is World's FINE and
+       ROUGH_*; cheats and /undo as today; romance is Rel.GATES.intimate and
+       Rel.ROMANCE_DEFAULTS, with the intimacy roll on (the owner's
+       decision 6: on in Low Water too; Pipeline rolls it from milestone 4,
+       this only carries the data); gamble is Pipeline's GAMBLE_STAKE;
+       narration.maxDue is World's MAX_DUE. Dice, State and Rel read theirs
+       through Pack.get; Pipeline, World and Commands read the rest from
+       tasks M4-B to M4-D. */
+    rules: {
+      rolls: { always: [], never: [], alwaysPhrases: [], neverPhrases: [] },
+      dcs: { easy: 8, normal: 12, hard: 15, very_hard: 18 },
+      floors: { ask: 'hard', lie: [[-25, 'hard'], [-50, 'very_hard']], intimidateHard: 'hard' },
+      hp: { start: 10, max: 10, damage: { failure: [1, 3], partial: 1, critical_failure: 3 } },
+      crits: true,
+      permadeath: false,
+      showRolls: true,
+      storyPoints: { start: 2, max: 3, factAllowed: true },
+      time: { shortsPerPhase: 3, costs: {} },
+      prices: { factor: 1 },
+      law: { fine: 50, roughSleeping: true, roughNights: 2, roughFine: 25, roughForgiven: 7 },
+      cheats: { allowed: true, debugView: true },
+      undo: true,
+      romance: {
+        enabled: true,
+        gates: { spark: 50, romance: 40, trust: 30, knows: 30 },
+        defaults: { sparkRate: 0.5, opensAt: 10, difficulty: 'hard' },
+        intimacyRoll: { enabled: true, stat: 'charm', difficulty: 'normal' }
+      },
+      gamble: { enabled: true, stake: 20 },
+      narration: { maxDue: 3 }
+    },
+    /* The freedom dial (wave 37, Creator Mode, milestone 4): how far play
+       may leave the authored story. Today's game is the sandbox: the story
+       may reveal places and things, travel goes anywhere, nothing steers,
+       nothing is refused as out of scope and /skip works anywhere. The plan
+       wrote create.perDay 3, but the game has no daily cap: the places
+       people tell the player about are capped per game
+       (State.LIMITS.revealedPlaces, 12; one a turn), so the dial carries
+       what exists, perGame 12. people is false as the plan has it (an
+       author's switch "not supported yet"), though the story already names
+       new people within State.LIMITS.revealedPeople; nothing reads this
+       dial before task M4-B. */
+    freedom: {
+      preset: 'sandbox',
+      create: { places: true, things: true, people: false, perGame: 12 },
+      travel: 'anywhere',
+      steer: 'none',
+      scopeRefusal: { on: false, reason: '' },
+      skipAnywhere: true
+    },
     suggestedSettings: {}
   });
   // The sections whose objects merge key by key over the defaults (decision D).
@@ -9771,11 +9831,14 @@ const Pack = (() => {
           defaults: obj({ sparkRate: n('Spark rate'), opensAt: i('Opens at'), difficulty: e('Difficulty', DIFFICULTIES) }),
           intimacyRoll: obj({ enabled: b('Intimacy roll'), stat: e('Stat', STATS), difficulty: e('Difficulty', DIFFICULTIES) })
         }),
-        gamble: obj({ enabled: b('Card game'), stake: i('Stake') })
+        gamble: obj({ enabled: b('Card game'), stake: i('Stake') }),
+        // Wave 37, Creator Mode, milestone 4: the plan's rules.narration.maxDue (World's MAX_DUE) had no field here.
+        narration: obj({ maxDue: i('Due events a turn tells') })
       }),
       freedom: obj({
         preset: e('Freedom', ['sandbox', 'guided', 'rails']),
-        create: obj({ places: b('Places'), things: b('Things'), people: b('People'), perDay: i('A day') }),
+        // Wave 37, Creator Mode, milestone 4: perGame, not the plan's perDay (the game caps revealed places per game; Pack.DEFAULTS.freedom says why).
+        create: obj({ places: b('Places'), things: b('Things'), people: b('People'), perGame: i('In a game') }),
         travel: e('Travel', ['anywhere', 'known', 'listed']), steer: e('Steer', ['none', 'nudge', 'steer']),
         scopeRefusal: obj({ on: b('Refuse out of scope'), reason: s('Reason') }), skipAnywhere: b('Skip time anywhere')
       }),
@@ -12872,7 +12935,12 @@ const Rng = (() => {
    failure and puts the text on the roll (complication) and the effects
    (complicationEffects, placeholders filled) for the pipeline to apply. */
 const Dice = (() => {
-  const TARGETS = { easy: 8, normal: 12, hard: 15, very_hard: 18 };
+  /* The difficulty targets are the story's (wave 37, Creator Mode,
+     milestone 4): rules.dcs through Pack.get, read at every roll so a
+     preview or another pack's game rolls against its own numbers and no
+     target is cached; Low Water's are the default, today's 8, 12, 15 and
+     18. TARGETS stays exported as a getter over the same read. */
+  function targets() { return Pack.get('rules.dcs'); }
   const MOD_CAP = 4;
   const TIER_LABELS = { critical: 'Critical', success: 'Success', partial: 'Partial', failure: 'Failure', critical_failure: 'Critical failure' };
   const SOCIAL_ACTIONS = Object.freeze(['talk', 'persuade', 'deceive', 'intimidate', 'buy', 'sell', 'give']);
@@ -12889,14 +12957,20 @@ const Dice = (() => {
     sneak: 'stealth', steal: 'stealth'
   });
 
-  function target(difficulty) { return TARGETS[difficulty] || TARGETS.normal; }
+  function target(difficulty) { const T = targets(); return T[difficulty] || T.normal; }
   function capModifier(total) { return clamp(Math.round(Number(total) || 0), -MOD_CAP, MOD_CAP); }
   function sumModifiers(mods) {
     return capModifier((mods || []).reduce((sum, m) => sum + (typeof m === 'number' ? m : (Number(m && m.value) || 0)), 0));
   }
+  /* rules.crits (wave 37, Creator Mode, milestone 4): on, as today, a
+     natural 20 is a critical and a natural 1 a critical failure whatever
+     the total. Off, a story without criticals: the die is read by its total
+     like any other, so a natural 20 is a plain success, partial or failure
+     and a natural 1 the same, and no tier is ever critical. */
   function tier(d20, total, tgt) {
-    if (d20 === 20) return 'critical';
-    if (d20 === 1) return 'critical_failure';
+    const crits = Pack.get('rules.crits') !== false;
+    if (crits && d20 === 20) return 'critical';
+    if (crits && d20 === 1) return 'critical_failure';
     if (total >= tgt) return 'success';
     if (total >= tgt - 3) return 'partial';
     return 'failure';
@@ -13016,7 +13090,7 @@ const Dice = (() => {
     const r = rng || Rng;
     const state = opts.state === undefined ? State.current : opts.state;
     const stat = STATS.includes(opts.stat) ? opts.stat : 'wits';
-    const difficulty = Object.prototype.hasOwnProperty.call(TARGETS, opts.difficulty) ? opts.difficulty : 'normal';
+    const difficulty = Object.prototype.hasOwnProperty.call(targets(), opts.difficulty) ? opts.difficulty : 'normal';
     const statValue = Number.isInteger(opts.statValue) ? opts.statValue : (state ? clamp(state.player.stats[stat] | 0, -1, 3) : 0);
     const modifiers = Array.isArray(opts.modifiers) ? opts.modifiers : modifiersFor(state, Object.assign({}, opts, { stat }));
     const modifier = sumModifiers(modifiers);
@@ -13116,10 +13190,21 @@ const Dice = (() => {
     if (tags.some(x => EASY_TAGS.includes(x)) || (age !== null && (age >= 70 || age <= 17))) return 'easy';
     return 'normal';
   }
+  /* What a fight costs, from rules.hp.damage (wave 37, Creator Mode,
+     milestone 4; the default is today's: a fumble 3, a failure 1 to 3
+     drawn from the stream, a partial 1). A failure's [low, high] always
+     draws one number, even when low equals high, so the stream moves as it
+     always did; a bare number is taken as both. */
   function fightDamage(t, rng) {
-    if (t === 'critical_failure') return 3;
-    if (t === 'failure') return (rng || Rng).int(1, 3);
-    if (t === 'partial') return 1;
+    const D = Pack.get('rules.hp.damage') || {};
+    const n = v => Math.max(0, Number.isFinite(v) ? Math.round(v) : 0);
+    if (t === 'critical_failure') return n(D.critical_failure);
+    if (t === 'failure') {
+      const f = Array.isArray(D.failure) ? D.failure : [D.failure, D.failure];
+      const lo = n(f[0]);
+      return (rng || Rng).int(lo, Math.max(lo, n(f.length > 1 ? f[1] : f[0])));
+    }
+    if (t === 'partial') return n(D.partial);
     return 0;
   }
   /* A roll the rules skip (wave 27 on: someone afraid of the player does a
@@ -13141,7 +13226,9 @@ const Dice = (() => {
   }
 
   return {
-    TARGETS, MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, FAMILIES, SOCIAL_FAMILIES, COMPLICATION_KIND,
+    // Wave 37, Creator Mode, milestone 4: the current pack's rules.dcs, read when asked.
+    get TARGETS() { return targets(); },
+    MOD_CAP, TIER_LABELS, SOCIAL_ACTIONS, FAMILIES, SOCIAL_FAMILIES, COMPLICATION_KIND,
     target, capModifier, sumModifiers, tier, isSuccess, needsComplication, conditionAffects, modifiersFor, resolve, formatLine, complication,
     family, lockKey, isLocked, lockFor, clearLocks, successes, diminishing, threat, fightDamage, burn
   };
@@ -14077,7 +14164,9 @@ const State = (() => {
   /* Per-turn and per-game limits. The model* ones hold a bookkeeper's diff
      (source 'model') to what one turn can do; the engine is not held to them. */
   const LIMITS = {
-    attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, storyPoints: 3, placesPerTurn: 1, revealedPlaces: 12, peoplePerTurn: 1, revealedPeople: 12,
+    attitudePerTurn: 25, seedsPerTurn: 2, clockPerTurn: 1, placesPerTurn: 1, revealedPlaces: 12, peoplePerTurn: 1, revealedPeople: 12,
+    // The most story points kept is the story's (wave 37, Creator Mode, milestone 4): rules.storyPoints.max, 3 by default, read when asked.
+    get storyPoints() { return Pack.get('rules.storyPoints.max'); },
     modelGoldPerTurn: 500, modelHpPerTurn: 3, modelItemsPerTurn: 2, modelSeedsPerTurn: 1, modelConditionDays: 3, fatesPerTurn: 1,
     effectHp: 3, statCap: 3, maxHpCap: 16, instantsPerShort: 6, news: 60, effectList: 12
   };
@@ -17088,7 +17177,9 @@ const State = (() => {
 
   // ----- time -----
   /* SPEC section 7: a short adds one to time.shorts and SHORTS_PER_PHASE of
-     them make a phase, a long is a phase, a rest sleeps until the next
+     them make a phase (wave 37, Creator Mode, milestone 4: the story's
+     rules.time.shortsPerPhase, 3 by default, read through Pack.get at each
+     use, so a pack with two shorts a phase moves the clock after two), a long is a phase, a rest sleeps until the next
      morning and heals 3. Night holds until the player sleeps: a short never
      crosses from night into morning. When the shorts would roll over at
      night the clock stays at night with shorts at the most (2) and
@@ -17142,15 +17233,16 @@ const State = (() => {
     }
     if (short) {
       t.shorts = (t.shorts | 0) + 1;
-      if (t.shorts >= SHORTS_PER_PHASE) {
-        if (t.phase === 'night') { t.shorts = SHORTS_PER_PHASE - 1; t.late = true; held = true; }
+      const perPhase = Pack.get('rules.time.shortsPerPhase');
+      if (t.shorts >= perPhase) {
+        if (t.phase === 'night') { t.shorts = perPhase - 1; t.late = true; held = true; }
         else { t.shorts = 0; steps = 1; }
       }
     } else if (cost === 'long') {
       // Wave 21: night holds one long too. An action of an hour or more at night that is not yet late (a wait until last call,
       // a long talk out back) lands in the small hours, still that night, with the scene and its people intact; the second
       // long, or /wait, /skip, a rest or a defeat, brings the morning.
-      if (t.phase === 'night' && t.late !== true && !NOT_ACTIONS.includes(cause)) { t.shorts = SHORTS_PER_PHASE - 1; t.late = true; held = true; }
+      if (t.phase === 'night' && t.late !== true && !NOT_ACTIONS.includes(cause)) { t.shorts = Pack.get('rules.time.shortsPerPhase') - 1; t.late = true; held = true; }
       else steps = 1;
     } else if (cost === 'rest') {
       quality = restQuality();
@@ -17351,7 +17443,7 @@ const State = (() => {
   function phasePart(t) {
     t = t || (current && current.time) || {};
     const n = t.shorts | 0;
-    return t.late === true || n >= SHORTS_PER_PHASE - 1 ? 'late' : n >= 1 ? 'mid' : 'early';
+    return t.late === true || n >= Pack.get('rules.time.shortsPerPhase') - 1 ? 'late' : n >= 1 ? 'mid' : 'early';
   }
   /* The clock as the narrator and the bookkeeper read it, e.g.
      "DAY 1, NIGHT (late; the player has not slept)" or
@@ -18527,11 +18619,12 @@ const State = (() => {
       if (!PHASES.includes(v.phase)) bad('phase must be ' + PHASES.join(', '));
       if (!Number.isInteger(v.day) || v.day < 1) bad('day must be a whole number, 1 or more');
       const shorts = v.shorts === undefined || v.shorts === null ? 0 : v.shorts;
-      if (!Number.isInteger(shorts) || shorts < 0 || shorts >= SHORTS_PER_PHASE) bad(`shorts must be 0 to ${SHORTS_PER_PHASE - 1}`);
+      const perPhase = Pack.get('rules.time.shortsPerPhase');
+      if (!Number.isInteger(shorts) || shorts < 0 || shorts >= perPhase) bad(`shorts must be 0 to ${perPhase - 1}`);
       if (v.late !== undefined && v.late !== null && typeof v.late !== 'boolean') bad('late must be true or false');
       const late = v.late === true;
       if (late && v.phase !== 'night') bad('late is only for night');
-      if (late && shorts !== SHORTS_PER_PHASE - 1) bad(`late needs shorts ${SHORTS_PER_PHASE - 1}`);
+      if (late && shorts !== perPhase - 1) bad(`late needs shorts ${perPhase - 1}`);
       const t = s.time;
       const before = clockWords(t);
       t.day = v.day;
@@ -19540,6 +19633,16 @@ const State = (() => {
     const seedValue = Number.isInteger(opts.seed) ? (opts.seed >>> 0) : Rng.newSeed();
     const reputation = { town: 0 };
     t.factions.forEach(f => { reputation[f.id] = 0; });
+    /* Health and story points at the start are the story's (wave 37,
+       Creator Mode, milestone 4), read from p, the pack being started, as
+       State.pack is not set yet: player.start first (the pack format's own
+       place for them, which the built-in pack carries as 10 and 2), then
+       rules.hp.start and rules.storyPoints.start (their defaults are
+       today's 10 and 2). Health starts no higher than rules.hp.max. */
+    const own = isObj(p.player) && isObj(p.player.start) ? p.player.start : {};
+    const maxHp = Pack.get('rules.hp.max', p);
+    const hp = Math.min(Number.isInteger(own.hp) && own.hp > 0 ? own.hp : Pack.get('rules.hp.start', p), maxHp);
+    const storyPoints = Number.isInteger(own.storyPoints) && own.storyPoints >= 0 ? own.storyPoints : Pack.get('rules.storyPoints.start', p);
     const st = {
       version: 1,
       meta: { seed: seedValue, turn: 0, createdAt: new Date().toISOString(), townName: t.name, packId: p.meta.id, packVersion: p.meta.version, packHash: Pack.hash(p), townVersion: 1, lastRollKey: null, rngCalls: 0, rulesVersion: RULES_VERSION, castFixed: true },
@@ -19548,9 +19651,9 @@ const State = (() => {
       player: {
         name, age, background: bg.name, backgroundId: bg.id,
         goal: cleanText(character.goal, 160), flaw: cleanText(character.flaw, 160),
-        stats, hp: 10, maxHp: 10, gold: bg.gold | 0,
+        stats, hp, maxHp, gold: bg.gold | 0,
         inventory: (bg.items || []).map(i => ({ id: i.id, name: i.name, qty: i.qty || 1, notes: i.notes || '' })),
-        conditions: [], reputation, storyPoints: 2, locationId: startId, looseEnds: [], obligations: [], progression: []
+        conditions: [], reputation, storyPoints, locationId: startId, looseEnds: [], obligations: [], progression: []
       },
       locations: t.locations,
       npcs: t.npcs,
@@ -20675,12 +20778,18 @@ const Rel = (() => {
      section 9.3), with the wave each lands in. Wave 27's are read now
      (rollMod, complies, the rescue on a defeat, the grudge and the report
      in World's step e, wontSell); the others still read attitude where
-     they always did until their wave. */
-  const GATES = deepFreeze({
+     they always did until their wave.
+     Wave 37, Creator Mode, milestone 4: two rows are the story's, read
+     from the current pack each time they are asked for (gate(name) below):
+     floors is rules.floors and intimate is rules.romance.gates, both
+     today's numbers by default. They are getters on the frozen object, so
+     every GATES.floors and GATES.intimate reader sees the live row; the
+     other rows stay constants, frozen to the leaves as before. */
+  const GATES = freezeRows({
     social: { wave: 27, liking: [[30, 1], [60, 2]], actions: ['persuade', 'talk', 'buy', 'sell', 'give'] },
     intimidate: { wave: 27, fear: [[20, 1], [40, 2]], likedAt: 40, liked: -1 },
     deceive: { wave: 28, trust: [[40, 2]], distrust: [[-25, -1], [-50, -2]] },
-    floors: { wave: 28, ask: 'hard', lie: [[-25, 'hard'], [-50, 'very_hard']], intimidateHard: 'hard' },
+    get floors() { return gate('floors'); },
     compliance: { wave: 27, fear: 40, actions: ['talk', 'persuade'], difficulties: ['easy', 'normal'] },
     secret: { wave: 28, trust: 40, knows: 30, fear: 60 },
     couch: { wave: 28, liking: 25, trust: 0, owedLiking: -25 },
@@ -20704,14 +20813,32 @@ const Rel = (() => {
        again 3 later, then crossed), jealousy (a partner by label; someone
        at spark 30). */
     spark: { wave: 29, statusDays: 7, distrust: -25 },
-    // Wave 35: the night reads romance 40 where it read liking 40.
-    intimate: { wave: 35, spark: 50, romance: 40, trust: 30, knows: 30 },
+    // Wave 35: the night reads romance 40 where it read liking 40 (wave 28's floors and wave 35's intimate rows are rules.floors and rules.romance.gates now).
+    get intimate() { return gate('intimate'); },
     leverage: { wave: 29, perWeight: 100, canRaise: 100, keys: 2, overlap: 2, price: 50, priceDue: 2, priceLiking: 10, tellLiking: -60, liftDays: 1 },
     owed: { wave: 29, net: 2, liking: -25, cashLiking: 25, cashTrust: 0, askDays: 5, againDays: 3 },
     jealousy: { wave: 29, partner: { w: -15, t: -10 }, spark: 30, other: { w: -8, t: -5, s: -5, m: -5 }, partners: ['wife', 'husband', 'girlfriend', 'boyfriend', 'partner', 'spouse', 'fiance', 'fiancee'] },
     council: { wave: 30, royce: { trust: 30, knows: 25 }, friendly: { liking: 15 }, bought: { trust: 20 } },
     epilogue: { wave: 30, loretta: { liking: 40 } }
   });
+  /* GATES' constant rows frozen to the leaves and the object itself frozen;
+     a getter's row is not touched here (it is read from the pack when asked,
+     and a pack's own value is frozen or a preview's working copy). */
+  function freezeRows(o) {
+    for (const k of Object.keys(o)) { const d = Object.getOwnPropertyDescriptor(o, k); if ('value' in d) deepFreeze(d.value); }
+    return Object.freeze(o);
+  }
+  /* The live row a gate reads (wave 37, Creator Mode, milestone 4): floors
+     from rules.floors, intimate from rules.romance.gates, each through
+     Pack.get on the current pack; any other name is GATES' own constant
+     row; an unknown name, null. */
+  const PACK_GATES = Object.freeze({ floors: 'rules.floors', intimate: 'rules.romance.gates' });
+  function gate(name) {
+    if (Object.prototype.hasOwnProperty.call(PACK_GATES, name)) return Pack.get(PACK_GATES[name]);
+    return Object.prototype.hasOwnProperty.call(GATES, name) ? GATES[name] : null;
+  }
+  // Whether the story has romance at all (rules.romance.enabled; on by default).
+  function romanceOn() { return Pack.get('rules.romance.enabled') !== false; }
   // The minor rule's row (wave 28): no spark part, and fear that buys nothing.
   const UNWANTED_ADVANCE = deepFreeze({ w: -20, t: -20, f: 10, k: 2, s: 0, m: 0, weight: 3, decay: 'wound', fearBuysNothing: true });
   const TEEN_RE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
@@ -20803,10 +20930,16 @@ const Rel = (() => {
   }
   /* Spark can move for them: an adult, with an adult player. Wave 34 (the
      owner: "everyone should be allowed to go to 100"): the romance list no
-     longer gates anyone; it is per-person tuning (tuningOf). */
+     longer gates anyone; it is per-person tuning (tuningOf). Wave 37,
+     Creator Mode, milestone 4: and only in a story with romance on
+     (rules.romance.enabled). A pack with romance off has no spark and no
+     romance for anyone, no flirt roll (a flirt is turned aside kindly, as
+     one too soon is) and no night; the minor rule is untouched and still
+     holds first: no pack can make a minor, or anyone with a minor player,
+     eligible. */
   function eligible(n, ctx) {
     ctx = context(ctx);
-    return isObj(n) && !isMinor(n, ctx) && !playerMinor(ctx);
+    return isObj(n) && !isMinor(n, ctx) && !playerMinor(ctx) && romanceOn();
   }
   function romanceEntry(n, ctx) { return isObj(n) ? romanceOf(ctx).find(x => x.npcId === n.id) || null : null; }
   /* Wave 34: how someone takes to the player's interest, their entry on
@@ -20815,12 +20948,15 @@ const Rel = (() => {
      an old save's open: false is no longer read. Wave 35: romanceRate,
      what romance's gains are scaled by, defaults to the sparkRate. Returns
      { sparkRate, romanceRate, opensAt, difficulty, listed }. */
-  const ROMANCE_DEFAULTS = deepFreeze({ sparkRate: 0.5, opensAt: 10, difficulty: 'hard' });
+  /* Wave 37, Creator Mode, milestone 4: the defaults are the story's,
+     rules.romance.defaults (today's rate 0.5, knows 10 and hard), read when
+     asked; ROMANCE_DEFAULTS stays exported as a getter over it. */
+  function romanceDefaults() { return Pack.get('rules.romance.defaults'); }
   // The spark at which a flirt eases two steps, and one (never below easy).
   const ROMANCE_EASE = deepFreeze([[40, 2], [20, 1]]);
   function tuningOf(n, ctx) {
     const r = romanceEntry(n, ctx);
-    const D = ROMANCE_DEFAULTS;
+    const D = romanceDefaults();
     if (!r) return { sparkRate: D.sparkRate, romanceRate: D.sparkRate, opensAt: D.opensAt, difficulty: D.difficulty, listed: false };
     const sr = Number.isFinite(r.sparkRate) ? clamp(r.sparkRate, 0.1, 2) : D.sparkRate;
     return {
@@ -20850,7 +20986,7 @@ const Rel = (() => {
      that is how "using you" happens. Returns { ok, why, soon?, difficulty? }. */
   function welcomeOf(n, ctx) {
     ctx = context(ctx);
-    if (!eligible(n, ctx)) return { ok: false, why: isObj(n) && isMinor(n, ctx) ? 'under 18' : 'the player is under 18 or has no age' };
+    if (!eligible(n, ctx)) return { ok: false, why: isObj(n) && isMinor(n, ctx) ? 'under 18' : playerMinor(ctx) || romanceOn() ? 'the player is under 18 or has no age' : 'romance is off in this story' };
     const opens = tuningOf(n, ctx).opensAt;
     const k = cacheOf(n, ctx).k;
     if (k < opens) return { ok: false, soon: true, why: `knows the player ${k}, opens at ${opens}` };
@@ -21857,11 +21993,13 @@ const Rel = (() => {
     if (!isObj(n)) return null;
     const c = cacheOf(n, ctx);
     const t = tracksOf(n, ctx).t;
+    // The story's floors (wave 37, Creator Mode, milestone 4: rules.floors).
+    const F = gate('floors');
     let floor = null;
     const up = d => { if (!floor || DIFFS.indexOf(d) > DIFFS.indexOf(floor)) floor = d; };
-    if (ASKS.includes(actionType) && isObj(c.bands) && (c.bands.w === 'hates' || c.bands.w === 'dislikes')) up(GATES.floors.ask);
-    if (actionType === 'deceive') for (const [at, d] of GATES.floors.lie) if (t <= at) up(d);
-    if (actionType === 'intimidate' && axesOf(n, ctx).hard) up(GATES.floors.intimidateHard);
+    if (ASKS.includes(actionType) && isObj(c.bands) && (c.bands.w === 'hates' || c.bands.w === 'dislikes')) up(F.ask);
+    if (actionType === 'deceive') for (const [at, d] of F.lie) if (t <= at) up(d);
+    if (actionType === 'intimidate' && axesOf(n, ctx).hard) up(F.intimidateHard);
     return floor;
   }
   // The parser's word for a lie to them (its packet's person row): normal, hard or very hard.
@@ -22475,7 +22613,8 @@ const Rel = (() => {
     const wel = welcomeOf(n, ctx);
     if (!wel.ok) short.push(wel.why);
     const c = tracksOf(n, ctx);
-    const G = GATES.intimate;
+    // The story's gates (wave 37, Creator Mode, milestone 4: rules.romance.gates).
+    const G = gate('intimate');
     if (c.s < G.spark) short.push(`spark ${c.s} under ${G.spark}`);
     if (c.m < G.romance) short.push(`romance ${c.m} under ${G.romance}`);
     if (c.t < G.trust) short.push(`trust ${c.t} under ${G.trust}`);
@@ -23298,7 +23437,10 @@ const Rel = (() => {
     // Wave 32: ties that change.
     WORDS_TIE, MESSENGER, secretTiesFor, wordsTie, betweenThem, tieWords,
     // Wave 34: anyone can be won over, some the hard way.
-    ROMANCE_DEFAULTS, ROMANCE_EASE, tuningOf, sparkRate, romanceRate, flirtDifficulty, flirtAnswer, flirtWords, flirtEventOf, romanceRolled
+    get ROMANCE_DEFAULTS() { return romanceDefaults(); },
+    ROMANCE_EASE, tuningOf, sparkRate, romanceRate, flirtDifficulty, flirtAnswer, flirtWords, flirtEventOf, romanceRolled,
+    // Wave 37, Creator Mode, milestone 4: the gates and romance defaults a story sets.
+    PACK_GATES, gate, romanceDefaults, romanceOn
   };
 })();
 
