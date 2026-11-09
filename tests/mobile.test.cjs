@@ -17,7 +17,18 @@
    and Seeds, Goods; the Schedules grid by place and by person, scrolling
    sideways inside its own box), a person's detail form with its sticky
    bottom bar (and that bar again with the form scrolled), and a faction
-   with a clock open (a nested form). The CSS uses
+   with a clock open (a nested form). Task M6-D adds milestone 6's tabs
+   with their states opened as their own suites open them: the Opening with
+   a premise typed; the Narrator with its guide unfolded, the style's
+   example turns copied in and one open, then the custom style (its guide
+   box showing) with a phrase chip added; the Directions with the intimate
+   "Show the default" open and a direction typed (its count showing); the
+   Rules at the top and scrolled to Romance with a lie floor row and a time
+   cost row added; the Freedom rails preset with a travel override (the
+   chip showing; the preset cards are tappable labels); the Prompts with a
+   1,600-character narrator note (the count red) and the header meter over
+   the budget; and the Prompt view of that draft, normal and intimate, with
+   its six blocks and their Copy buttons. The CSS uses
    the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
@@ -34,8 +45,9 @@ function audit(label) {
     const r = el.getBoundingClientRect();
     return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && !el.closest('[hidden]');
   };
-  // A folding card's summary is a tappable label too (wave 37, Creator Mode: the editor's More, clocks and branches fold).
-  const TAP = 'details > summary, button, [role=tab], [role=menuitem], select, input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, label.check, .seg label, #ac li, a[href]';
+  // A folding card's summary is a tappable label too (wave 37, Creator Mode: the editor's More, clocks and branches fold),
+  // and so is a Freedom preset card (task M6-D: the whole card is the radio's label, so it is what a thumb taps).
+  const TAP = 'details > summary, button, [role=tab], [role=menuitem], select, input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, label.check, label.cr-radio-card, .seg label, #ac li, a[href]';
   const targets = [...document.querySelectorAll(TAP)].filter(vis);
   const small = targets.map(el => ({ el, r: el.getBoundingClientRect() })).filter(x => x.r.width < 44 || x.r.height < 44)
     .map(x => `${x.el.tagName.toLowerCase()}${x.el.id ? '#' + x.el.id : ''} "${(x.el.textContent || '').trim().slice(0, 24)}" ${Math.round(x.r.width)}x${Math.round(x.r.height)}`);
@@ -279,6 +291,67 @@ for (const size of SIZES) {
       await crCheck('World, a faction with a clock open');
       await cr.click('.cr-entity[data-entity="factions"] .cr-sticky [data-action="back-bar"]');
       await cr.waitForSelector('.cr-entity[data-entity="factions"][data-open="0"]');
+    }
+    // Wave 37, Creator Mode (task M6-D): milestone 6's tabs with what they fold and add opened, as their own suites
+    // open them (tests/wave37-editor-narrator, -rules and -prompt-view), since the loop above sees each tab only as it
+    // first draws: the custom guide, a phrase chip, an example turn, the intimate default, the typed Rules rows, a
+    // Freedom override chip, an over-long narrator note and the Prompt view of that same draft with the meter red.
+    const go = async id => { await cr.click('#creator-tab-' + id); await cr.waitForSelector(`#creator-body[data-tab="${id}"]`); };
+    const at = p => `#creator-body [data-path="${p}"]`;
+    await go('opening');
+    await cr.fill(at('opening.premise'), 'The ferry stops running the week you arrive.');
+    await crCheck('Opening, a premise typed (its count showing)');
+    await go('narrator');
+    await cr.click('details[data-disclosure="narration.customGuide"] > summary');
+    await cr.click('[data-action="examples-own"]');
+    await cr.click('details.cr-example[data-index="0"] > summary');
+    await crCheck('Narrator, the guide unfolded, the style\'s examples copied in and one open');
+    await cr.selectOption(at('narration.preset'), 'custom');
+    await cr.fill('#cr-f-narration-banned-add', 'the river remembers');
+    await cr.click('[data-field="narration.banned"] .cr-chip-new .btn');
+    if (!(await cr.$eval('details.cr-example[data-index="0"]', d => d.open))) await cr.click('details.cr-example[data-index="0"] > summary');
+    assert.ok(await cr.isVisible(at('narration.customGuide')), 'the custom style shows its guide box');
+    assert.ok(await cr.$$eval('[data-field="narration.banned"] .cr-chip-text', xs => xs.some(x => x.textContent === 'the river remembers')), 'the phrase is a chip');
+    await crCheck('Narrator, the custom style, a phrase chip added and an example open');
+    await go('directions');
+    await cr.click('details[data-disclosure="directions.intimate"] > summary');
+    await cr.fill(at('directions.combat'), 'Short and ugly.');
+    assert.equal(await cr.textContent('#cr-f-directions-combat-count'), '15 of 1,500');
+    assert.ok(await cr.isVisible('[data-default-for="directions.intimate"]'), 'the intimate default is open');
+    await crCheck('Directions, the intimate default open and a direction typed');
+    await go('rules');
+    await cr.fill('#cr-f-rules-floors-lie-add', '-30');
+    await cr.selectOption('#cr-f-rules-floors-lie-add-d', 'very_hard');
+    await cr.click('[data-action="add-lie"]');
+    await cr.selectOption('#cr-f-rules-time-costs-add', 'look');
+    await cr.selectOption('#cr-f-rules-time-costs-add-cost', 'instant');
+    await cr.click('[data-action="add-cost"]');
+    assert.equal(await cr.$$eval(`${at('rules.floors.lie')} .cr-maprow:not(.cr-maphead)`, r => r.length), 3, 'a lie floor row added');
+    assert.ok(await cr.$('[data-action="remove-cost"][data-key="look"]'), 'a time cost row added');
+    await cr.evaluate(() => { document.getElementById('creator-scroll').scrollTop = 0; });
+    await crCheck('Rules, at the top, a lie floor row and a time cost row added');
+    await cr.evaluate(() => document.querySelector('#creator-body [data-section="rules.romance"]').scrollIntoView({ block: 'start' }));
+    await crCheck('Rules, scrolled to Romance');
+    await go('freedom');
+    await cr.click('.cr-radio-card[data-preset="rails"]');
+    await cr.waitForSelector('.cr-radio-card[data-preset="rails"][data-on="1"]');
+    await cr.selectOption(at('freedom.travel'), 'anywhere');
+    await cr.waitForSelector('#creator-body .cr-field[data-field="freedom.travel"] .cr-override');
+    await crCheck('Freedom, rails with a travel override (the chip showing)');
+    // 1,600 characters of short words: over the note's 1,500 cap (the count red) and, as words, over the token budget too.
+    await go('prompts');
+    await cr.fill(at('prompts.narratorExtra'), 'go '.repeat(534).slice(0, 1600));
+    assert.deepEqual(await cr.$eval('#cr-f-prompts-narratorExtra-count', x => [x.textContent, x.dataset.over]), ['1,600 of 1,500', '1']);
+    await cr.evaluate(() => Game.Creator.Form.flush());
+    await cr.waitForFunction(() => document.getElementById('creator-meter').dataset.over === '1', null, { timeout: 2000 });
+    await crCheck('Prompts, a 1,600-character narrator note, and the header meter over the budget');
+    await go('preview');
+    for (const sit of ['normal', 'intimate']) {
+      await cr.selectOption('#creator-preview select', sit);
+      await cr.waitForSelector('#creator-preview .cr-pblock[data-part="packet"]');
+      assert.equal(await cr.$$eval('#creator-preview .cr-pblock', bs => bs.filter(b => b.querySelector('button')).length), 6, 'six blocks, each with Copy');
+      assert.equal(await cr.getAttribute('#creator-preview .cr-preview-meter', 'data-over'), '1');
+      await crCheck(`Prompt view, ${sit}, over the budget`);
     }
     for (const r of results) {
       assert.ok(r.checked > 0, r.label + ': nothing measured');
